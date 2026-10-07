@@ -122,49 +122,6 @@ TextStyle _display(
   );
 }
 
-class _BracketFramePainter extends CustomPainter {
-  const _BracketFramePainter({
-    required this.color,
-    required this.bracketSize,
-    required this.strokeWidth,
-  });
-
-  final Color color;
-  final double bracketSize;
-  final double strokeWidth;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = strokeWidth;
-    final s = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, s)
-      ..lineTo(0, 0)
-      ..lineTo(s, 0)
-      ..moveTo(w - s, 0)
-      ..lineTo(w, 0)
-      ..lineTo(w, s)
-      ..moveTo(0, h - s)
-      ..lineTo(0, h)
-      ..lineTo(s, h)
-      ..moveTo(w - s, h)
-      ..lineTo(w, h)
-      ..lineTo(w, h - s);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
-      oldDelegate.color != color ||
-      oldDelegate.bracketSize != bracketSize ||
-      oldDelegate.strokeWidth != strokeWidth;
-}
-
 class _EtchedDivider extends StatelessWidget {
   final String label;
 
@@ -185,43 +142,65 @@ class _EtchedDivider extends StatelessWidget {
   }
 }
 
+/// A pane of the run's ink. Plain unless it has an [accent]: then it is the
+/// thing on screen to read, and is lit from below in that colour.
 class _SurvivalPlate extends StatelessWidget {
   final Widget child;
-  final Color accent;
+  final Color? accent;
   final EdgeInsetsGeometry padding;
   final Color? background;
-  final double bracketSize;
 
   const _SurvivalPlate({
     required this.child,
-    this.accent = _C.accent,
+    this.accent,
     this.padding = const EdgeInsets.all(12),
     this.background,
-    this.bracketSize = 12,
   });
 
   @override
   Widget build(BuildContext context) {
+    final pane = Container(
+      padding: padding,
+      color: background ?? _C.bg1.withValues(alpha: 0.9),
+      child: child,
+    );
+    if (accent == null) return pane;
     return CustomPaint(
-      painter: _BracketFramePainter(
-        color: accent.withValues(alpha: 0.62),
-        bracketSize: bracketSize,
-        strokeWidth: 1.15,
-      ),
-      child: Container(
-        padding: padding,
-        decoration: BoxDecoration(
-          color: background ?? _C.bg1.withValues(alpha: 0.9),
-          border: Border.all(color: _C.borderDim.withValues(alpha: 0.85)),
-          boxShadow: [
-            BoxShadow(
-              color: accent.withValues(alpha: 0.10),
-              blurRadius: 18,
-              spreadRadius: 1,
-            ),
-          ],
+      foregroundPainter: BracketFramePainter(color: accent!, strokeWidth: 1.3),
+      child: pane,
+    );
+  }
+}
+
+/// A survival dialog: a plain ink pane lit from below in [accent], the way
+/// the kit's confirmations are.
+class _SurvivalDialog extends StatelessWidget {
+  const _SurvivalDialog({
+    required this.accent,
+    required this.child,
+    this.maxWidth,
+  });
+
+  final Color accent;
+  final Widget child;
+  final double? maxWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: accent.withValues(alpha: 0.9),
+            strokeWidth: 1.3,
+          ),
+          child: ColoredBox(color: _C.bg1, child: child),
         ),
-        child: child,
       ),
     );
   }
@@ -572,90 +551,81 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     if (highScore == null || highScore.bestWave <= 0) return;
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          constraints: const BoxConstraints(maxWidth: 360),
-          decoration: BoxDecoration(
-            color: _C.bg1,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: _C.borderAccent),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 12,
+      builder: (_) => _SurvivalDialog(
+        accent: _C.amber,
+        maxWidth: 360,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: const BoxDecoration(
+                border: Border(bottom: BorderSide(color: _C.borderDim)),
+              ),
+              child: const Text(
+                'BEST RUN',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: _C.textPrimary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
                 ),
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: _C.borderDim)),
-                ),
-                child: const Text(
-                  'BEST RUN',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: _C.textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _PauseStatChip(
+                        label: 'Best Wave',
+                        value: 'W${highScore.bestWave}',
+                        tint: _C.amberBright,
+                      ),
+                      _PauseStatChip(
+                        label: 'Best Score',
+                        value: _formatHighScoreNumber(highScore.bestScore),
+                        tint: _C.teal,
+                      ),
+                      _PauseStatChip(
+                        label: 'Best Time',
+                        value: _formatHighScoreTime(highScore.bestTimeMs),
+                        tint: _C.success,
+                      ),
+                    ],
                   ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _PauseStatChip(
-                          label: 'Best Wave',
-                          value: 'W${highScore.bestWave}',
-                          tint: _C.amberBright,
-                        ),
-                        _PauseStatChip(
-                          label: 'Best Score',
-                          value: _formatHighScoreNumber(highScore.bestScore),
-                          tint: _C.teal,
-                        ),
-                        _PauseStatChip(
-                          label: 'Best Time',
-                          value: _formatHighScoreTime(highScore.bestTimeMs),
-                          tint: _C.success,
-                        ),
-                      ],
+                  const SizedBox(height: 14),
+                  const Text(
+                    'This is your deepest recorded survival clear.',
+                    style: TextStyle(
+                      color: _C.textSecondary,
+                      fontSize: 12,
+                      height: 1.5,
                     ),
-                    const SizedBox(height: 14),
-                    const Text(
-                      'This is your deepest recorded survival clear.',
-                      style: TextStyle(
-                        color: _C.textSecondary,
-                        fontSize: 12,
-                        height: 1.5,
+                  ),
+                  const SizedBox(height: 14),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: _PauseActionButton(
+                      label: 'CLOSE',
+                      icon: AppIcons.close_rounded,
+                      filled: false,
+                      onTap: context.soundTap(
+                        () => Navigator.of(context).pop(),
                       ),
                     ),
-                    const SizedBox(height: 14),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: _PauseActionButton(
-                        label: 'CLOSE',
-                        icon: AppIcons.close_rounded,
-                        onTap: context.soundTap(
-                          () => Navigator.of(context).pop(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -819,11 +789,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           elevation: 0,
           content: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(
-              color: _C.bg2,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _C.danger.withValues(alpha: 0.7)),
-            ),
+            color: _C.bg2,
             child: const Row(
               children: [
                 Icon(
@@ -1178,9 +1144,16 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   }
 
   Future<void> _completeGameOverSequence(int wave) async {
+    // The results wait for the core to have mostly come apart; the rewards
+    // are rolled and banked while it does, and gather into the results there
+    // (one screen — there is no separate reveal any more).
+    final fall = Future<void>.delayed(
+      Duration(milliseconds: (kCoreFallSeconds * 1000 * 0.62).round()),
+    );
     try {
       await _saveHighScore();
-      await _rollAndShowRewards(wave);
+      await _rollRewards(wave);
+      await fall;
     } finally {
       if (mounted) {
         setState(() {
@@ -1191,7 +1164,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     }
   }
 
-  Future<void> _rollAndShowRewards(int wave) async {
+  Future<void> _rollRewards(int wave) async {
     final db = context.read<AlchemonsDatabase>();
     final rng = Random();
     final popupEntries = <LootOpeningEntry>[];
@@ -1302,10 +1275,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
     if (!mounted) return;
     _gameOverRewardEntries = List.from(popupEntries);
-    if (popupEntries.isNotEmpty) {
-      await showLootOpeningDialog(context: context, entries: popupEntries);
-    }
-    if (mounted) setState(() {});
   }
 
   Future<void> _saveHighScore() async {
@@ -1432,13 +1401,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
   Future<bool> _confirmQuitRun() async {
     final shouldQuit = await showDialog<bool>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFF121720),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: _C.accent.withValues(alpha: 0.55)),
-        ),
+      builder: (_) => _SurvivalDialog(
+        accent: _C.accent,
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -1471,6 +1435,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                   _PauseActionButton(
                     label: 'STAY',
                     icon: AppIcons.play_arrow_rounded,
+                    filled: false,
                     onTap: context.soundTap(
                       () => Navigator.of(context).pop(false),
                     ),
@@ -1539,15 +1504,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             : null);
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: const Color(0xFF121720),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: _rarityColor(def.rarity).withValues(alpha: 0.55),
-          ),
-        ),
+      builder: (_) => _SurvivalDialog(
+        accent: _rarityColor(def.rarity),
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
@@ -1620,6 +1578,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 child: _PauseActionButton(
                   label: 'CLOSE',
                   icon: AppIcons.close_rounded,
+                  filled: false,
                   onTap: context.soundTap(() => Navigator.of(context).pop()),
                 ),
               ),
@@ -1685,32 +1644,20 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
     showDialog<void>(
       context: context,
-      builder: (_) => Dialog(
-        backgroundColor: _C.bg1,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: accent.withValues(alpha: 0.55)),
-        ),
+      builder: (_) => _SurvivalDialog(
+        accent: accent,
         child: Padding(
           padding: const EdgeInsets.all(18),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // The creature's own element carries the dialog, so which
-              // alchemon you opened is readable before you read the name. It
-              // was a generic teal frame for all seventeen.
+              // The creature's own element lights the dialog and marks its
+              // name, so which alchemon you opened is readable before you
+              // read the name. It was a generic teal frame for all seventeen.
               Row(
                 children: [
-                  Container(
-                    width: 4,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      color: accent,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+                  MarkDiamond(color: elementLight(member.element), size: 9),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -1859,6 +1806,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 child: _PauseActionButton(
                   label: 'CLOSE',
                   icon: AppIcons.close_rounded,
+                  filled: false,
                   onTap: context.soundTap(() => Navigator.of(context).pop()),
                 ),
               ),
@@ -1890,8 +1838,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         body: switch (_phase) {
           _Phase.intro => _buildLoading(),
           _Phase.teamPicker => _buildTeamPicker(),
-          _Phase.playing => _buildGameScreen(),
-          _Phase.gameOver => _buildGameOver(),
+          // The results come up over the run's own stilled arena.
+          _Phase.playing || _Phase.gameOver => _buildGameScreen(),
         },
       ),
     );
@@ -2362,6 +2310,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
     final game = _game;
     if (game == null) return _buildLoading();
 
+    // Once the core gives out the controls go, the arena stills under its
+    // fall, and the results come up over it.
+    final over = game.isGameOver;
     return ValueListenableBuilder<bool>(
       valueListenable: game.autopilotState,
       builder: (_, cameraMode, __) => Stack(
@@ -2369,6 +2320,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
         children: [
           // Flame game
           GameWidget(
+            key: ObjectKey(game),
             game: game,
             backgroundBuilder: (_) => Container(color: Colors.transparent),
           ),
@@ -2376,7 +2328,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           // Autopilot camera: while the ship flies itself, a drag pans, a
           // pinch zooms, and a double-tap brings the camera home. The game's
           // own pan detector ignores drags in this mode, so nothing is lost.
-          if (game.autopilot)
+          if (game.autopilot && !over)
             Positioned.fill(
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
@@ -2395,7 +2347,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
 
           // Where the ship is when it has left the frame, and whether it is
           // being hit. Only matters once the camera can leave it.
-          if (game.autopilot)
+          if (game.autopilot && !over)
             Positioned.fill(
               child: IgnorePointer(
                 child: ValueListenableBuilder<int>(
@@ -2410,14 +2362,25 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
             child: MysticGraphxOverlay(controller: _mysticOverlayController),
           ),
 
-          _buildLivePlayOverlay(game),
+          IgnorePointer(
+            ignoring: over,
+            child: AnimatedOpacity(
+              opacity: over ? 0 : 1,
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOut,
+              child: _buildLivePlayOverlay(game),
+            ),
+          ),
 
           // Joystick (bottom left). Re-check `game.isLoaded` on live ticks so
           // enabled joystick appears as soon as the game finishes loading.
           ValueListenableBuilder<int>(
             valueListenable: _liveUiTick,
             builder: (_, __, ___) {
-              if (!game.isLoaded || !_showJoystick || game.autopilot) {
+              if (!game.isLoaded ||
+                  !_showJoystick ||
+                  game.autopilot ||
+                  game.isGameOver) {
                 return const SizedBox.shrink();
               }
               return Positioned(
@@ -2434,7 +2397,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               );
             },
           ),
-          if (cameraMode)
+          if (cameraMode && !over)
             Positioned(
               bottom: 20,
               left: 12,
@@ -2498,7 +2461,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
           if (_showPauseMenu) _buildPauseOverlay(game),
 
           // Boss announcement
-          if (_bossAnnouncement != null)
+          if (_bossAnnouncement != null && !over)
             Positioned.fill(
               child: SafeArea(
                 child: Align(
@@ -2507,7 +2470,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                     padding: const EdgeInsets.only(top: 76),
                     child: _SurvivalPlate(
                       accent: _C.danger,
-                      bracketSize: 9,
                       background: _C.bg0.withValues(alpha: 0.94),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 18,
@@ -2570,7 +2532,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 ),
               ),
             ),
-          if (_waveAnnouncementTitle != null)
+          if (_waveAnnouncementTitle != null && !over)
             Positioned.fill(
               child: IgnorePointer(
                 child: SafeArea(
@@ -2628,6 +2590,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                 ),
               ),
             ),
+          if (_phase == _Phase.gameOver)
+            Positioned.fill(child: _buildGameOver()),
         ],
       ),
     );
@@ -2882,7 +2846,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
               height: double.infinity,
               margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: _SurvivalPlate(
-                accent: _C.amber,
                 padding: EdgeInsets.zero,
                 background: _C.bg1.withValues(alpha: 0.96),
                 child: Column(
@@ -3037,7 +3000,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                 runSpacing: 8,
                                 children: keystoneHistory.map((entry) {
                                   return InkWell(
-                                    borderRadius: BorderRadius.circular(6),
                                     onTap: context.soundAction(
                                       () => _showPowerUpInfo(
                                         entry.def,
@@ -3051,14 +3013,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                         horizontal: 8,
                                         vertical: 6,
                                       ),
-                                      decoration: BoxDecoration(
-                                        color: _C.bg1,
-                                        border: Border.all(
-                                          color: _C.teal.withValues(
-                                            alpha: 0.45,
-                                          ),
-                                        ),
-                                      ),
+                                      color: _chipWash(_C.teal),
                                       child: _PausePowerUpChipContent(
                                         name: entry.def.name,
                                         tint: _C.teal,
@@ -3111,7 +3066,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                             slotIndex: entry.targetSlot,
                                           );
                                       return InkWell(
-                                        borderRadius: BorderRadius.circular(6),
                                         onTap: context.soundAction(
                                           () => _showPowerUpInfo(
                                             entry.def,
@@ -3125,13 +3079,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen> {
                                             horizontal: 8,
                                             vertical: 6,
                                           ),
-                                          decoration: BoxDecoration(
-                                            color: _C.bg1,
-                                            border: Border.all(
-                                              color: powerUpAccentColor(
-                                                entry.def,
-                                              ).withValues(alpha: 0.55),
-                                            ),
+                                          color: _chipWash(
+                                            powerUpAccentColor(entry.def),
                                           ),
                                           child: _PausePowerUpChipContent(
                                             name: entry.def.name,
@@ -3534,11 +3483,7 @@ class _TestTeamChip extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: _C.bg2.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: _C.borderDim),
-        ),
+        color: _C.bg2.withValues(alpha: 0.7),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -4042,25 +3987,22 @@ class _PauseActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The thing to do is a wash lit from below in its colour; the way out
+    // beside it is a quiet unlit fill.
     return GestureDetector(
       onTap: context.soundAction(onTap),
       child: CustomPaint(
-        painter: _BracketFramePainter(
-          color: fillColor.withValues(alpha: filled ? 0.72 : 0.42),
-          bracketSize: 6,
-          strokeWidth: 1.05,
-        ),
+        foregroundPainter: filled
+            ? BracketFramePainter(color: fillColor, strokeWidth: 1.3)
+            : null,
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: compact ? 10 : 12,
             vertical: compact ? 8 : 11,
           ),
-          decoration: BoxDecoration(
-            color: filled
-                ? fillColor.withValues(alpha: 0.13)
-                : Colors.transparent,
-            border: Border.all(color: _C.borderDim.withValues(alpha: 0.85)),
-          ),
+          color: filled
+              ? fillColor.withValues(alpha: 0.13)
+              : _C.bg2.withValues(alpha: 0.9),
           child: Row(
             mainAxisSize: compact ? MainAxisSize.min : MainAxisSize.max,
             mainAxisAlignment: MainAxisAlignment.center,
@@ -4089,7 +4031,7 @@ class _PauseActionButton extends StatelessWidget {
   }
 }
 
-/// An ON/OFF key in bracket corners — the console's switch.
+/// An ON/OFF key, lit from below while on — the console's switch.
 class _PauseToggle extends StatelessWidget {
   const _PauseToggle({required this.value, required this.onChanged});
 
@@ -4151,10 +4093,7 @@ class _PauseStatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(3),
-      ),
+      color: color,
       child: Text(
         label,
         style: TextStyle(
@@ -4195,8 +4134,13 @@ class _PauseVitalBar extends StatelessWidget {
     return Row(
       children: [
         SizedBox(
-          width: 52,
-          child: Text(label, style: hudMono(10.5, HudInk.muted, spacing: 1.4)),
+          width: 60,
+          child: Text(
+            label,
+            maxLines: 1,
+            softWrap: false,
+            style: hudMono(10.5, HudInk.muted, spacing: 1.4),
+          ),
         ),
         Expanded(
           child: SizedBox(
@@ -4254,114 +4198,107 @@ class _PauseWorldPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = elementColor(element);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+    // A wash of the element's colour, lit from below in it: the one pane on
+    // this screen that is about the world rather than the fight.
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(color: accent, strokeWidth: 1.3),
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.centerLeft,
             end: Alignment.centerRight,
             colors: [
-              Color.lerp(_C.bg2, accent, 0.34)!,
-              Color.lerp(_C.bg2, accent, 0.07)!,
+              Color.lerp(_C.bg2, accent, 0.24)!,
+              Color.lerp(_C.bg2, accent, 0.06)!,
               _C.bg1,
             ],
             stops: const [0.0, 0.5, 1.0],
           ),
-          border: Border.all(color: accent.withValues(alpha: 0.55)),
-          borderRadius: BorderRadius.circular(8),
         ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(width: 5, color: accent),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(11, 10, 12, 10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            'YOUR WORLD',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: accent,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
-                          const Spacer(),
-                          if (fading)
-                            const Text(
-                              'CLOSING',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.danger,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.4,
-                              ),
-                            ),
-                        ],
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 12, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'YOUR WORLD',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: accent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.6,
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        name.toUpperCase(),
+                    ),
+                    const Spacer(),
+                    if (fading)
+                      const Text(
+                        'CLOSING',
                         style: TextStyle(
-                          color: Color.lerp(_C.textPrimary, accent, 0.25),
-                          fontSize: 16,
+                          fontFamily: 'monospace',
+                          color: _C.danger,
+                          fontSize: 10,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 0.4,
+                          letterSpacing: 1.4,
                         ),
                       ),
-                      const SizedBox(height: 5),
-                      // WHAT IT DOES, first. A bare count and a noun fragment
-                      // told the player nothing they could act on — the world
-                      // is the thing they gave up their only Mystic slot for,
-                      // and this is the one screen with room to say what it is.
-                      Text(
-                        effect,
-                        style: const TextStyle(
-                          color: _C.textPrimary,
-                          fontSize: 12.5,
-                          height: 1.4,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      if (status.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        Text(
-                          status.toUpperCase(),
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: accent,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.8,
-                          ),
-                        ),
-                      ],
-                      const SizedBox(height: 6),
-                      // The trade, stated plainly. It is the whole mechanic and
-                      // nothing in the game says it out loud anywhere else.
-                      Text(
-                        'Holds while ${casterName.toUpperCase()} is alive and '
-                        'deployed. Recalling ends it and returns the cast.',
-                        style: const TextStyle(
-                          color: _C.textSecondary,
-                          fontSize: 11.5,
-                          height: 1.35,
-                        ),
-                      ),
-                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  name.toUpperCase(),
+                  style: TextStyle(
+                    color: Color.lerp(_C.textPrimary, accent, 0.25),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.4,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(height: 5),
+                // WHAT IT DOES, first. A bare count and a noun fragment
+                // told the player nothing they could act on — the world
+                // is the thing they gave up their only Mystic slot for,
+                // and this is the one screen with room to say what it is.
+                Text(
+                  effect,
+                  style: const TextStyle(
+                    color: _C.textPrimary,
+                    fontSize: 12.5,
+                    height: 1.4,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (status.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    status.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: accent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 6),
+                // The trade, stated plainly. It is the whole mechanic and
+                // nothing in the game says it out loud anywhere else.
+                Text(
+                  'Holds while ${casterName.toUpperCase()} is alive and '
+                  'deployed. Recalling ends it and returns the cast.',
+                  style: const TextStyle(
+                    color: _C.textSecondary,
+                    fontSize: 11.5,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -4379,48 +4316,33 @@ class _PauseStatChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = tint ?? _C.textPrimary;
-    return CustomPaint(
-      painter: _BracketFramePainter(
-        color: accent.withValues(alpha: 0.30),
-        bracketSize: 5,
-        strokeWidth: 0.9,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
-        decoration: BoxDecoration(
-          color: _C.bg2.withValues(alpha: 0.88),
-          border: Border.all(color: _C.borderDim.withValues(alpha: 0.72)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // The run row carries four chips rather than three now, so each is
-            // a quarter of the width instead of a third. A long score has to
-            // shrink rather than overflow.
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                label.toUpperCase(),
-                style: hudMono(9.5, HudInk.muted, spacing: 1.4),
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+      color: _C.bg2.withValues(alpha: 0.88),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // The run row carries four chips rather than three now, so each is
+          // a quarter of the width instead of a third. A long score has to
+          // shrink rather than overflow.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              label.toUpperCase(),
+              style: hudMono(9.5, HudInk.muted, spacing: 1.4),
             ),
-            const SizedBox(height: 4),
-            FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                value,
-                style: hudMono(
-                  14,
-                  accent,
-                  weight: FontWeight.w900,
-                  spacing: 0.6,
-                ),
-              ),
+          ),
+          const SizedBox(height: 4),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: hudMono(14, accent, weight: FontWeight.w900, spacing: 0.6),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -4578,21 +4500,13 @@ class _PauseCompanionCard extends StatelessWidget {
                 runSpacing: 8,
                 children: appliedPowerUps.map((entry) {
                   return InkWell(
-                    borderRadius: BorderRadius.circular(6),
                     onTap: context.soundAction(() => onPowerUpTap(entry)),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 8,
                         vertical: 6,
                       ),
-                      decoration: BoxDecoration(
-                        color: _C.bg1,
-                        border: Border.all(
-                          color: _rarityColor(
-                            entry.def.rarity,
-                          ).withValues(alpha: 0.45),
-                        ),
-                      ),
+                      color: _chipWash(_rarityColor(entry.def.rarity)),
                       child: _PausePowerUpChipContent(
                         name: entry.def.name,
                         tint: _rarityColor(entry.def.rarity),
@@ -4786,26 +4700,13 @@ class _PauseVineReadout extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 5),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: Container(
-            height: 5,
-            color: Colors.black.withValues(alpha: 0.55),
-            alignment: Alignment.centerLeft,
-            child: FractionallySizedBox(
-              widthFactor: progress.clamp(0.0, 1.0).toDouble(),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: vineColor,
-                  boxShadow: [
-                    BoxShadow(
-                      color: vineColor.withValues(alpha: 0.55),
-                      blurRadius: 4,
-                    ),
-                  ],
-                ),
-              ),
-            ),
+        Container(
+          height: 5,
+          color: Colors.black.withValues(alpha: 0.55),
+          alignment: Alignment.centerLeft,
+          child: FractionallySizedBox(
+            widthFactor: progress.clamp(0.0, 1.0).toDouble(),
+            child: const ColoredBox(color: vineColor),
           ),
         ),
       ],
@@ -4854,11 +4755,7 @@ class _PausePowerUpChipContent extends StatelessWidget {
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                decoration: BoxDecoration(
-                  color: tint.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: tint.withValues(alpha: 0.35)),
-                ),
+                color: tint.withValues(alpha: 0.16),
                 child: Text(
                   badgeLabel!,
                   style: TextStyle(
@@ -4904,26 +4801,10 @@ class _PausePowerUpLevelPips extends StatelessWidget {
       children: List.generate(maxStacks, (index) {
         final filled = index < level;
         return Container(
-          width: 9,
-          height: 9,
-          margin: EdgeInsets.only(right: index == maxStacks - 1 ? 0 : 5),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: filled ? tint : Colors.transparent,
-            border: Border.all(
-              color: filled ? tint : tint.withValues(alpha: 0.3),
-              width: 1.1,
-            ),
-            boxShadow: filled
-                ? [
-                    BoxShadow(
-                      color: tint.withValues(alpha: 0.55),
-                      blurRadius: 6,
-                      spreadRadius: 0.5,
-                    ),
-                  ]
-                : null,
-          ),
+          width: 12,
+          height: 4,
+          margin: EdgeInsets.only(right: index == maxStacks - 1 ? 0 : 3),
+          color: filled ? tint : tint.withValues(alpha: 0.18),
         );
       }),
     );
@@ -5018,10 +4899,7 @@ class _PauseAbilityDescriptionText extends StatelessWidget {
               Container(
                 constraints: const BoxConstraints(minWidth: 58),
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: _C.teal.withValues(alpha: 0.10),
-                  border: Border.all(color: _C.teal.withValues(alpha: 0.34)),
-                ),
+                color: _C.teal.withValues(alpha: 0.12),
                 child: Text(
                   lines[i].label.toUpperCase(),
                   textAlign: TextAlign.center,
@@ -5126,6 +5004,10 @@ class _MiniReadout extends StatelessWidget {
     );
   }
 }
+
+/// A perk chip's fill: the ink with a breath of the perk's colour in it.
+Color _chipWash(Color tint) =>
+    Color.alphaBlend(tint.withValues(alpha: 0.1), _C.bg1);
 
 Color _rarityColor(PowerUpRarity rarity) => switch (rarity) {
   PowerUpRarity.common => _C.accent,

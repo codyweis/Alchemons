@@ -13,9 +13,10 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/wallet_panel.dart';
+import 'package:alchemons/widgets/shelf_look.dart';
+import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/game_snack.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -112,50 +113,52 @@ class InventoryScreen extends StatefulWidget {
   State<InventoryScreen> createState() => _InventoryScreenState();
 }
 
-class _InventoryScreenState extends State<InventoryScreen>
-    with SingleTickerProviderStateMixin {
-  static const List<String> _tabLabels = [
-    'Vials',
-    'Items',
-    'Costumes',
-    'Special',
-  ];
+class _InventoryScreenState extends State<InventoryScreen> {
   static const Set<String> _spaceOnlyInventoryKeys = {
     'wallet_astral_shards',
     'item.astral_shard',
     'item.astral_shards',
   };
 
-  // ADD: Mixin for TabController
-
-  // REMOVE: int _selectedTab = 0; // 0 = Items, 1 = Vials
-
-  // ADD: TabController
-  late TabController _tabController;
-
-  int get _tabCount => _tabLabels.length;
-
-  @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-      length: _tabCount,
-      vsync: this,
-      initialIndex: 1,
-    );
-  }
-
-  @override
-  void dispose() {
-    _tabController.dispose();
-    super.dispose();
-  }
-
+  /// Everything held on one page: the shop's header, then a sideways shelf
+  /// per kind — vials, items, effects and costumes, special. (Four tabs of
+  /// grey tiles until 2026-10.)
   @override
   Widget build(BuildContext context) {
-    _syncTabController();
-
     final theme = context.watch<FactionTheme>();
+    final db = context.read<AlchemonsDatabase>();
+    final registry = buildInventoryRegistry(db);
+    final palette = _InventoryPalette.fromTheme(theme);
+
+    Widget section(String title, List<Widget> things, String empty) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ShelfSectionHeader(
+          title,
+          trailing: things.isEmpty
+              ? null
+              : Text(
+                  '${things.length}',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: palette.muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: things.isEmpty
+              ? Text(empty, style: bracketText(context, 13, palette.muted))
+              : ShelfLayout(
+                  kind: ShelfKind.featured,
+                  heroIndex: -1,
+                  children: things,
+                ),
+        ),
+      ],
+    );
 
     return ParticleBackgroundScaffold(
       whiteBackground: theme.brightness == Brightness.light,
@@ -163,298 +166,151 @@ class _InventoryScreenState extends State<InventoryScreen>
         backgroundColor: Colors.transparent,
         body: SafeArea(
           bottom: false,
-          child: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) => [
-              SliverToBoxAdapter(child: _buildHeader(theme)),
-              SliverOverlapAbsorber(
-                handle: NestedScrollView.sliverOverlapAbsorberHandleFor(
-                  context,
-                ),
-                sliver: SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _InventoryTabsHeaderDelegate(
-                    child: ColoredBox(
-                      color: _InventoryPalette.fromTheme(theme).bg0,
-                      child: AnimatedBuilder(
-                        animation: _tabController,
-                        builder: (context, _) => _buildTabSelector(theme),
-                      ),
-                    ),
+          child: StreamBuilder<List<InventoryItem>>(
+            stream: db.inventoryDao.watchItemInventory(),
+            builder: (context, snapshot) {
+              final all = snapshot.data ?? const <InventoryItem>[];
+              Widget item(InventoryItem it) {
+                final def = registry[it.key]!;
+                return _CleanItemCard(
+                  item: it,
+                  def: def,
+                  onTap: context.soundTap(
+                    () => _showItemDetailsDialog(it, def, theme),
                   ),
+                );
+              }
+
+              return ListView(
+                physics: const BouncingScrollPhysics(),
+                // Room under the last shelf for the dock and its raised icon.
+                padding: EdgeInsets.only(
+                  bottom: MediaQuery.paddingOf(context).bottom + 48,
                 ),
-              ),
-            ],
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                _buildVialsTab(theme),
-                _buildItemsTab(theme),
-                _buildItemsTab(theme, costumes: true),
-                _buildKeyItemsTab(theme),
-              ],
-            ),
+                children: [
+                  _buildHeader(theme),
+                  section(
+                    'VIALS',
+                    [
+                      for (final v in _vialsOf(all))
+                        _CleanVialCard(
+                          vial: v,
+                          onTap: context.soundTap(
+                            () => _showVialDetailsDialog(v, theme),
+                          ),
+                        ),
+                    ],
+                    'None. The Black Market sells them.',
+                  ),
+                  section(
+                    'ITEMS',
+                    [for (final it in _itemsOf(all, registry)) item(it)],
+                    'None. The shop sells them.',
+                  ),
+                  section(
+                    'EFFECTS & COSTUMES',
+                    [
+                      for (final it in _itemsOf(all, registry, costumes: true))
+                        item(it),
+                    ],
+                    'None. The shop sells them.',
+                  ),
+                  section(
+                    'SPECIAL',
+                    [for (final it in _keyItemsOf(all, registry)) item(it)],
+                    'None yet.',
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
 
-  void _syncTabController() {
-    if (_tabController.length == _tabCount) return;
-
-    final priorIndex = _tabController.index;
-    _tabController.dispose();
-    _tabController = TabController(
-      length: _tabCount,
-      vsync: this,
-      initialIndex: priorIndex.clamp(0, _tabCount - 1),
-    );
-  }
-
-  Widget _buildTabSelector(FactionTheme theme) {
-    final palette = _InventoryPalette.fromTheme(theme);
-    final activeAccent = bracketReadableAccent(theme);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
-      child: Row(
-        children: List.generate(_tabLabels.length, (index) {
-          final selected = _tabController.index == index;
-          final label = _tabLabels[index];
-          return Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(
-                right: index == _tabLabels.length - 1 ? 0 : 8,
-              ),
-              child: GestureDetector(
-                onTap: context.soundAction(() {
-                  HapticFeedback.selectionClick();
-                  _tabController.animateTo(index);
-                }),
-                child: CustomPaint(
-                  painter: _BracketFramePainter(
-                    color: selected
-                        ? activeAccent.withValues(alpha: 0.9)
-                        : palette.line.withValues(alpha: 0.85),
-                    bracketSize: 9,
-                    strokeWidth: 1.1,
-                  ),
-                  child: Container(
-                    height: 44,
-                    alignment: Alignment.center,
-                    color: selected
-                        ? palette.accentWash(theme.accent)
-                        : palette.surfaceMutedFill(),
-                    child: Text(
-                      label,
-                      style: _display(
-                        context,
-                        13,
-                        selected ? palette.ink : palette.muted,
-                        weight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-
+  /// The shop's header: the name and the purse on one row, the element
+  /// stores under them.
   Widget _buildHeader(FactionTheme theme) {
     final palette = _InventoryPalette.fromTheme(theme);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Title + subtitle — full padding
         Padding(
-          padding: const EdgeInsets.fromLTRB(18, 14, 18, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+          padding: const EdgeInsets.fromLTRB(18, 12, 16, 0),
+          child: Row(
             children: [
-              Text(
-                'Inventory',
-                style: _display(
-                  context,
-                  27,
-                  palette.ink,
-                  weight: FontWeight.w500,
+              Expanded(
+                child: Text(
+                  'Inventory',
+                  maxLines: 1,
+                  style: bracketText(context, 24, palette.ink),
                 ),
-                textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Field supplies, vials, and rare findings.',
-                style: _display(
-                  context,
-                  13,
-                  palette.muted,
-                  weight: FontWeight.w500,
-                  fontStyle: FontStyle.italic,
-                ),
-                textAlign: TextAlign.center,
-              ),
+              const CurrencyDisplayWidget(),
             ],
           ),
         ),
-        const SizedBox(height: 14),
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 18),
-          child: WalletPanel(),
-        ),
-        const SizedBox(height: 12),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(height: 1, color: palette.lineSoft),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text(
-                      'Collections',
-                      style: _display(
-                        context,
-                        12,
-                        palette.muted,
-                        weight: FontWeight.w700,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(height: 1, color: palette.lineSoft),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: WalletPanel(showCoins: false),
         ),
       ],
     );
   }
 
-  /// The items, or with [costumes] only the costumes (kept apart from them).
-  Widget _buildItemsTab(FactionTheme theme, {bool costumes = false}) {
-    final db = context.read<AlchemonsDatabase>();
-    final registry = buildInventoryRegistry(db);
+  /// The plain items, or with [costumes] only the alchemy effects and
+  /// costumes.
+  List<InventoryItem> _itemsOf(
+    List<InventoryItem> all,
+    Map<String, InventoryItemDef> registry, {
+    bool costumes = false,
+  }) => [
+    for (final item in all)
+      if (!_isSpaceOnlyInventoryItem(item.key) &&
+          !shouldHideInventoryItem(item.key) &&
+          !item.key.startsWith('vial.') &&
+          (FamilyCostume.ofItem(item.key) != null ||
+                  InvKeys.alchemyEffectFor(item.key) != null) ==
+              costumes &&
+          registry[item.key] != null &&
+          !registry[item.key]!.isKeyItem)
+        item,
+  ];
 
-    return StreamBuilder<List<InventoryItem>>(
-      stream: db.inventoryDao.watchItemInventory(),
-      builder: (context, snapshot) {
-        final allItems = snapshot.data ?? [];
-        final items = allItems.where((item) {
-          if (_isSpaceOnlyInventoryItem(item.key)) return false;
-          if (shouldHideInventoryItem(item.key)) return false;
-          if (item.key.startsWith('vial.')) return false;
-          if ((FamilyCostume.ofItem(item.key) != null) != costumes) {
-            return false;
-          }
-          final def = registry[item.key];
-          if (def == null) return false;
-          return !def.isKeyItem;
-        }).toList();
+  List<InventoryItem> _keyItemsOf(
+    List<InventoryItem> all,
+    Map<String, InventoryItemDef> registry,
+  ) => [
+    for (final item in all)
+      if (!_isSpaceOnlyInventoryItem(item.key) &&
+          !shouldHideInventoryItem(item.key) &&
+          (registry[item.key]?.isKeyItem ?? false))
+        item,
+  ];
 
-        if (items.isEmpty) {
-          return _buildEmptyState(
-            theme,
-            message: costumes ? 'No costumes yet' : 'No items in inventory',
-            subtitle: costumes
-                ? 'Buy costumes in the shop'
-                : 'Purchase items from the shop',
+  /// The vials, read back out of their keys (`vial.<group>.<rarity>.<name>`).
+  List<ExtractionVial> _vialsOf(List<InventoryItem> all) => [
+    for (final item in all)
+      if (item.key.startsWith('vial.') && item.key.split('.').length == 4)
+        () {
+          final parts = item.key.split('.');
+          return ExtractionVial(
+            id: item.key,
+            name: parts.last,
+            group: ElementalGroup.values.firstWhere(
+              (g) => g.name == parts[1],
+              orElse: () => ElementalGroup.oceanic,
+            ),
+            rarity: VialRarity.values.firstWhere(
+              (r) => r.name == parts[2],
+              orElse: () => VialRarity.common,
+            ),
+            quantity: item.qty,
+            price: null,
           );
-        }
-
-        return _buildInventoryGrid(
-          storageKey: costumes ? 'inventory-costumes' : 'inventory-items',
-          padding: const EdgeInsets.all(12),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.82,
-          ),
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final item = items[index];
-            final def = registry[item.key];
-
-            if (def == null) return const SizedBox.shrink();
-
-            return _CleanItemCard(
-              item: item,
-              def: def,
-              theme: theme,
-              accent: theme.accent,
-              onTap: context.soundTap(
-                () => _showItemDetailsDialog(item, def, theme),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildKeyItemsTab(FactionTheme theme) {
-    final db = context.read<AlchemonsDatabase>();
-    final registry = buildInventoryRegistry(db);
-
-    return StreamBuilder<List<InventoryItem>>(
-      stream: db.inventoryDao.watchItemInventory(),
-      builder: (context, snapshot) {
-        final allItems = snapshot.data ?? [];
-        final keyItems = allItems.where((item) {
-          if (_isSpaceOnlyInventoryItem(item.key)) return false;
-          if (shouldHideInventoryItem(item.key)) return false;
-          final def = registry[item.key];
-          return def != null && def.isKeyItem;
-        }).toList();
-
-        if (keyItems.isEmpty) {
-          return _buildEmptyState(
-            theme,
-            message: 'No special items yet',
-            subtitle: '',
-          );
-        }
-
-        return _buildInventoryGrid(
-          storageKey: 'inventory-special',
-          padding: const EdgeInsets.all(12),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.82,
-          ),
-          itemCount: keyItems.length,
-          itemBuilder: (context, index) {
-            final item = keyItems[index];
-            final def = registry[item.key];
-            if (def == null) return const SizedBox.shrink();
-
-            return _CleanItemCard(
-              item: item,
-              def: def,
-              theme: theme,
-              accent: theme.accent,
-              onTap: context.soundTap(
-                () => _showItemDetailsDialog(item, def, theme),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
+        }(),
+  ];
 
   bool _isSpaceOnlyInventoryItem(String key) {
     final normalized = key.toLowerCase();
@@ -462,161 +318,6 @@ class _InventoryScreenState extends State<InventoryScreen>
         normalized.contains('astral_shard');
   }
 
-  Widget _buildVialsTab(FactionTheme theme) {
-    final db = context.read<AlchemonsDatabase>();
-
-    return StreamBuilder<List<InventoryItem>>(
-      stream: db.inventoryDao.watchItemInventory(),
-      builder: (context, snapshot) {
-        final allItems = snapshot.data ?? [];
-
-        // Filter only vial items
-        final vialItems = allItems
-            .where((item) => item.key.startsWith('vial.'))
-            .toList();
-
-        if (vialItems.isEmpty) {
-          return _buildEmptyState(
-            theme,
-            message: 'No extraction vials',
-            subtitle: 'Purchase vials from the Black Market',
-          );
-        }
-
-        // Convert to ExtractionVial objects for display
-        final vials = vialItems
-            .map((item) {
-              final parts = item.key.split('.');
-              if (parts.length != 4) return null;
-
-              final groupStr = parts[1];
-              final rarityStr = parts[2];
-
-              final group = ElementalGroup.values.firstWhere(
-                (g) => g.name == groupStr,
-                orElse: () => ElementalGroup.oceanic,
-              );
-
-              final rarity = VialRarity.values.firstWhere(
-                (r) => r.name == rarityStr,
-                orElse: () => VialRarity.common,
-              );
-              final name = parts.last;
-
-              return ExtractionVial(
-                id: item.key,
-                name: name,
-                group: group,
-                rarity: rarity,
-                quantity: item.qty,
-                price: null,
-              );
-            })
-            .whereType<ExtractionVial>()
-            .toList();
-
-        return _buildInventoryGrid(
-          storageKey: 'inventory-vials',
-          padding: const EdgeInsets.all(12),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 8,
-            mainAxisSpacing: 8,
-            childAspectRatio: 0.82,
-          ),
-          itemCount: vials.length,
-          itemBuilder: (context, index) {
-            final vial = vials[index];
-            return _CleanVialCard(
-              vial: vial,
-              onTap: context.soundTap(
-                () => _showVialDetailsDialog(vial, theme),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Widget _buildInventoryScroll({
-    required String storageKey,
-    required Widget sliver,
-  }) {
-    return Builder(
-      builder: (context) => CustomScrollView(
-        key: PageStorageKey<String>(storageKey),
-        primary: true,
-        slivers: [
-          SliverOverlapInjector(
-            handle: NestedScrollView.sliverOverlapAbsorberHandleFor(context),
-          ),
-          sliver,
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInventoryGrid({
-    required String storageKey,
-    required EdgeInsets padding,
-    required SliverGridDelegate gridDelegate,
-    required int itemCount,
-    required IndexedWidgetBuilder itemBuilder,
-  }) => _buildInventoryScroll(
-    storageKey: storageKey,
-    sliver: SliverPadding(
-      padding: padding,
-      sliver: SliverGrid(
-        gridDelegate: gridDelegate,
-        delegate: SliverChildBuilderDelegate(
-          itemBuilder,
-          childCount: itemCount,
-        ),
-      ),
-    ),
-  );
-
-  Widget _buildEmptyState(
-    FactionTheme theme, {
-    required String message,
-    required String subtitle,
-  }) {
-    return _buildInventoryScroll(
-      storageKey: 'inventory-empty-$message',
-      sliver: SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const SizedBox(height: 20),
-                Text(
-                  message,
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  subtitle,
-                  style: TextStyle(
-                    color: theme.textMuted.withValues(alpha: 0.7),
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   // ===== ITEM DETAILS DIALOG =====
 
@@ -1146,7 +847,7 @@ class _InventoryScreenState extends State<InventoryScreen>
           _InventoryDialogOption(
             value: 'one',
             label: 'Remove 1',
-            color: const Color(0xFFD97706),
+            color: const Color(0xFFB89656),
             secondary: true,
           ),
           _InventoryDialogOption(
@@ -1228,7 +929,7 @@ class _InventoryScreenState extends State<InventoryScreen>
           _InventoryDialogOption(
             value: 'one',
             label: 'Remove 1',
-            color: const Color(0xFFD97706),
+            color: const Color(0xFFB89656),
             secondary: true,
           ),
           _InventoryDialogOption(
@@ -1263,117 +964,39 @@ class _InventoryScreenState extends State<InventoryScreen>
   }
 }
 
-class _InventoryTabsHeaderDelegate extends SliverPersistentHeaderDelegate {
-  const _InventoryTabsHeaderDelegate({required this.child});
-
-  final Widget child;
-
-  // The 44px tabs plus their 6px top and 10px bottom padding.
-  @override
-  double get minExtent => 60;
-
-  @override
-  double get maxExtent => 60;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) => child;
-
-  @override
-  bool shouldRebuild(covariant _InventoryTabsHeaderDelegate oldDelegate) =>
-      oldDelegate.child != child;
-}
-
-// ===== CLEAN ITEM CARD (like shop cards) =====
+// ===== ITEM ON A SHELF =====
 class _CleanItemCard extends StatelessWidget {
   final InventoryItem item;
   final InventoryItemDef def;
-  final FactionTheme theme;
-  final Color accent;
   final VoidCallback onTap;
 
   const _CleanItemCard({
     required this.item,
     required this.def,
-    required this.theme,
-    required this.accent,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final palette = _InventoryPalette.fromTheme(theme);
-    final activeAccent = bracketReadableAccent(theme);
-    final visualWidget = InventoryImageHelper.getVisualWidget(
-      key: item.key,
-      assetName: InventoryImageHelper.getImage(item.key),
-      icon: def.icon,
-      size: 54,
-    );
-    final showQuantity = !def.isKeyItem;
-    final frameColor = def.isKeyItem
-        ? activeAccent.withValues(alpha: 0.84)
-        : palette.line.withValues(alpha: 0.9);
-
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        painter: _BracketFramePainter(
-          color: frameColor,
-          bracketSize: 10,
-          strokeWidth: 1.05,
+      child: ShelfEntry(
+        art: (size) => InventoryImageHelper.getVisualWidget(
+          key: item.key,
+          assetName: InventoryImageHelper.getImage(item.key),
+          icon: def.icon,
+          size: size,
         ),
-        child: Container(
-          color: palette.surfaceFill(),
-          padding: const EdgeInsets.fromLTRB(10, 12, 10, 10),
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (showQuantity)
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: Text(
-                        'x${item.qty}',
-                        style: _display(
-                          context,
-                          11,
-                          palette.muted,
-                          weight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  Expanded(child: Center(child: visualWidget)),
-                  const SizedBox(height: 8),
-                  Text(
-                    def.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: _display(
-                      context,
-                      10.75,
-                      palette.ink,
-                      weight: FontWeight.w700,
-                      letterSpacing: 0.15,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+        name: def.name,
+        description: def.description,
+        count: def.isKeyItem ? null : '×${item.qty}',
       ),
     );
   }
 }
 
-// ===== CLEAN VIAL CARD =====
+// ===== VIAL ON A SHELF =====
 class _CleanVialCard extends StatelessWidget {
   final ExtractionVial vial;
   final VoidCallback onTap;
@@ -1383,8 +1006,14 @@ class _CleanVialCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
-      child: ExtractionVialCard(vial: vial, compact: true),
+      child: ShelfEntry(
+        art: (size) => ExtractionVialOrb(vial: vial, size: size),
+        name: vial.name,
+        description: '${vial.rarity.badgeLabel} · ${vial.group.displayName}',
+        count: '×${vial.quantity}',
+      ),
     );
   }
 }

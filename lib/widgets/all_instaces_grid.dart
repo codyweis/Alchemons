@@ -3,6 +3,7 @@ import 'dart:async' as async;
 import 'dart:convert';
 
 import 'package:alchemons/database/daos/creature_dao.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
@@ -68,7 +69,9 @@ class AllCreatureInstances extends StatefulWidget {
   cardBadgeBuilder;
 
   /// Specimens as lit display cases, three across, with a one-line sort row
-  /// — the Creatures tab's look. Off, every picker keeps its detail cards.
+  /// — the Creatures tab's look, and the slide-up picker's
+  /// (AllSpecimensPage). Off, the grid keeps its detail cards, for the
+  /// pickers that read stats, genetics or enhancement off each card.
   final bool caseCards;
 
   /// Only this species' specimens (a species id like 'LET01'), set from
@@ -755,66 +758,44 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Selection mode header with confirm button
-            if (widget.selectionMode) ...[
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: widget.theme.surfaceAlt,
-                  border: Border(
-                    bottom: BorderSide(color: widget.theme.border, width: 1),
+            // Selection mode: how many are chosen, and CONFIRM once any are.
+            if (widget.selectionMode)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 2),
+                child: SizedBox(
+                  height: 36,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _localSelections.isEmpty
+                              ? 'TAP TO CHOOSE'
+                              : '${_localSelections.length}'
+                                    '${widget.maxSelections > 0 ? " / ${widget.maxSelections}" : ""}'
+                                    ' CHOSEN',
+                          style: caseMono(
+                            10.5,
+                            _localSelections.isEmpty
+                                ? BracketPalette.fromTheme(widget.theme).muted
+                                : BracketPalette.fromTheme(widget.theme).ink,
+                            spacing: 1.2,
+                          ),
+                        ),
+                      ),
+                      if (_localSelections.isNotEmpty)
+                        BracketButton(
+                          label: 'CONFIRM',
+                          height: 36,
+                          palette: BracketPalette.fromTheme(widget.theme),
+                          accent: bracketReadableAccent(widget.theme),
+                          onTap: () => widget.onConfirmSelection?.call(
+                            _currentSelectedInstances(),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        _localSelections.isEmpty
-                            ? 'Select specimens'
-                            : '${_localSelections.length} selected${widget.maxSelections > 0 ? " / ${widget.maxSelections}" : ""}',
-                        style: TextStyle(
-                          color: widget.theme.text,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    if (_localSelections.isNotEmpty)
-                      GestureDetector(
-                        onTap: context.soundAction(() {
-                          if (widget.onConfirmSelection != null) {
-                            widget.onConfirmSelection!(
-                              _currentSelectedInstances(),
-                            );
-                          }
-                        }),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          decoration: BoxDecoration(
-                            color: widget.theme.primary,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            'Confirm',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
               ),
-              const SizedBox(height: 8),
-            ],
 
             // Top controls
             if (widget.caseCards)
@@ -1123,6 +1104,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                             palette: BracketPalette.fromTheme(widget.theme),
                             isSelected: isSelected,
                             selectionNumber: selectionNumber,
+                            sortBy: _sortBy,
                             cornerBadge: widget.cardBadgeBuilder?.call(
                               inst,
                               creature,

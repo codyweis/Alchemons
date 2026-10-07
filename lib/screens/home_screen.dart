@@ -15,6 +15,7 @@ import 'package:alchemons/screens/pureblood_rite_screen.dart';
 import 'package:alchemons/screens/splash_screen.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/navigation/home_descent.dart';
+import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/screens/competition_hub_screen.dart';
@@ -74,6 +75,7 @@ import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/screens/home_biome/home_biome_window.dart';
+import 'package:alchemons/widgets/home_emblems.dart';
 import 'package:alchemons/widgets/home_portal.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
@@ -475,7 +477,10 @@ class _AnimatedPurebloodRiteIcon extends StatefulWidget {
   });
 
   final bool enabled;
-  final VoidCallback onTap;
+
+  /// Opens the rite through the emblem under [from]; [lifted] is held true
+  /// while it is away.
+  final void Function(GlobalKey from, ValueNotifier<bool> lifted) onTap;
   final VoidCallback? onPulse;
 
   @override
@@ -489,6 +494,8 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
 
   late final AnimationController _ctrl;
   late final Animation<double> _scale;
+  final GlobalKey _emblem = GlobalKey();
+  final ValueNotifier<bool> _lifted = ValueNotifier(false);
   bool _checkingSeen = false;
   bool _resolvedSeen = false;
   bool _isPulsing = false;
@@ -578,6 +585,7 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
   @override
   void dispose() {
     _ctrl.dispose();
+    _lifted.dispose();
     super.dispose();
   }
 
@@ -597,7 +605,7 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
                 await db.settingsDao.setSetting(_seenKey, '1');
                 if (mounted) setState(() => _isNew = false);
               }
-              widget.onTap();
+              widget.onTap(_emblem, _lifted);
             }),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -605,25 +613,12 @@ class _AnimatedPurebloodRiteIconState extends State<_AnimatedPurebloodRiteIcon>
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    Container(
-                      width: 68,
-                      height: 68,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(
-                              0xFFB91C1C,
-                            ).withValues(alpha: 0.28 + pulse * 0.30),
-                            blurRadius: 22 + pulse * 14,
-                            spreadRadius: 2 + pulse * 3,
-                          ),
-                        ],
-                      ),
-                      child: Image.asset(
-                        'assets/images/ui/sacrificeicon.png',
-                        fit: BoxFit.contain,
-                      ),
+                    HomeEmblem(
+                      key: _emblem,
+                      kind: HomeEmblemKind.rite,
+                      size: 68,
+                      animate: widget.enabled,
+                      lifted: _lifted,
                     ),
                     if (_isNew)
                       Positioned(
@@ -833,6 +828,11 @@ class _HomeScreenState extends State<HomeScreen>
   EssenceReveal? _featuredReveal;
   bool _animationsEnabled = false;
 
+  /// RELICS: the altar emblem the way into the Mystic Altar grows out of,
+  /// and whether it is away doing so.
+  final GlobalKey _relicEmblem = GlobalKey();
+  final ValueNotifier<bool> _relicLifted = ValueNotifier(false);
+
   void _updateAnimationState() {
     // home tab active AND this route is the top-most one
     final modalRoute = ModalRoute.of(context);
@@ -941,6 +941,7 @@ class _HomeScreenState extends State<HomeScreen>
     _shakeController.dispose();
     _realmField?.dispose();
     _enhanceRevealController.dispose();
+    _relicLifted.dispose();
     _slotsSubscription?.cancel();
     _rosterSubscription?.cancel();
     _biomesSubscription?.cancel();
@@ -2331,8 +2332,9 @@ class _HomeScreenState extends State<HomeScreen>
                                       children: [
                                         Transform.translate(
                                           offset: const Offset(0, 6),
-                                          child:
-                                              const ConstellationPointsWidget(),
+                                          child: ConstellationPointsWidget(
+                                            animate: _animationsEnabled,
+                                          ),
                                         ),
                                         Transform.translate(
                                           offset: const Offset(0, -6),
@@ -2356,24 +2358,26 @@ class _HomeScreenState extends State<HomeScreen>
                                           final ready = ValueNotifier<bool>(
                                             false,
                                           );
-                                          VoidPortal.pushThroughGlyphs<void>(
+                                          EmblemPassage.push<void>(
                                             context,
+                                            kind: HomeEmblemKind.altar,
+                                            from: _relicEmblem,
                                             page: MysticAltarScreen(
                                               revealReady: ready,
                                             ),
-                                            title: 'The Mystic Altar',
-                                            element: 'crystal',
                                             ready: ready,
+                                            lifted: _relicLifted,
                                           );
                                         }),
                                         child: Column(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Image.asset(
-                                              'assets/images/ui/relicicon.png',
-                                              width: 80,
-                                              height: 80,
-                                              fit: BoxFit.contain,
+                                            HomeEmblem(
+                                              key: _relicEmblem,
+                                              kind: HomeEmblemKind.altar,
+                                              size: 80,
+                                              animate: _animationsEnabled,
+                                              lifted: _relicLifted,
                                             ),
                                             Transform.translate(
                                               offset: const Offset(0, -6),
@@ -2396,13 +2400,14 @@ class _HomeScreenState extends State<HomeScreen>
                                       _AnimatedPurebloodRiteIcon(
                                         enabled: _animationsEnabled,
                                         onPulse: _playHomeShake,
-                                        onTap: () {
+                                        onTap: (from, lifted) {
                                           HapticFeedback.heavyImpact();
-                                          VoidPortal.pushThroughGlyphs<void>(
+                                          EmblemPassage.push<void>(
                                             context,
+                                            kind: HomeEmblemKind.rite,
+                                            from: from,
                                             page: const PurebloodRiteScreen(),
-                                            title: 'The Pureblood Rite',
-                                            element: 'blood',
+                                            lifted: lifted,
                                           );
                                         },
                                       ),
@@ -2852,14 +2857,7 @@ class _HomeScreenState extends State<HomeScreen>
                 theme: theme,
                 onTap: () {
                   HapticFeedback.lightImpact();
-                  Navigator.push(
-                    context,
-                    CupertinoPageRoute(
-                      builder: (_) =>
-                          ProfileScreen(() => Navigator.pop(context)),
-                      fullscreenDialog: true,
-                    ),
-                  );
+                  Navigator.push(context, ProfileScreen.route());
                 },
               ),
 

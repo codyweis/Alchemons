@@ -32,7 +32,9 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
+import 'package:alchemons/widgets/inventory_item_artwork.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
+import 'package:alchemons/widgets/shelf_look.dart';
 import 'package:alchemons/widgets/wild_fusion_glyph.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -644,7 +646,11 @@ Widget _buildOfferPreview(
       orElse: () => AlchemicalPowerupType.speed,
     );
     return Center(
-      child: AlchemicalPowerupOrbSphere(type: type, size: size),
+      child: AlchemicalPowerupOrbSphere(
+        type: type,
+        size: size,
+        animate: animate,
+      ),
     );
   }
 
@@ -678,6 +684,18 @@ Widget _buildOfferPreview(
         ),
       );
     }
+  }
+
+  // 0c. Alchemical Resonance at rest is the inventory's icon of it, caught at
+  // the top of its breath: the effect's own resting frame is a faint smudge
+  // on a shelf. The dialog still plays the real effect.
+  if (!animate && offer.inventoryKey == InvKeys.alchemyGlow) {
+    return Center(
+      child: InventoryItemArtwork(
+        inventoryKey: InvKeys.alchemyGlow,
+        size: size,
+      ),
+    );
   }
 
   // 1. Try animated preview for alchemy effects
@@ -975,10 +993,8 @@ Widget _buildOfferPreviewForDialog(
 
 // ============= SHOP CARD =============
 
-/// An offer on the shelf, in the inventory's card language: corner
-/// brackets round a dark field, the thing itself, its name in the display
-/// face, and its price on a footer strip so every card's price sits on the
-/// same line.
+/// An offer on a shelf: the thing, its name, a line on what it does and its
+/// price, drawn as a row or a card by the [ShopShelf] it sits on.
 class GameShopCard extends StatelessWidget {
   final String title;
   final ShopOffer offer; // Pass entire offer instead of individual fields
@@ -1009,155 +1025,80 @@ class GameShopCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final palette = BracketPalette.fromTheme(theme);
     final isLocked = !enabled;
-    final label = displayLabel ?? title;
-
-    return CustomPaint(
-      foregroundPainter: BracketFramePainter(
-        color: palette.line.withValues(alpha: isLocked ? 0.45 : 0.9),
-        bracketSize: 9,
-      ),
-      child: Container(
-        color: palette.surfaceFill(),
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+    return ShelfEntry(
+      // Shelves at rest render a baked raster, never a live animation. The
+      // live effect plays in the detail dialog.
+      art: (size) => preview != null
+          ? FittedBox(child: preview)
+          : _buildOfferPreview(offer, size: size, theme: theme, animate: false),
+      name: displayLabel ?? title,
+      description: offer.description,
+      price: isLocked
+          ? Text(
+              'OWNED',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: palette.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            )
+          : Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 16, 8, 2),
-                    child: Opacity(
-                      opacity: isLocked ? 0.4 : 1.0,
-                      child:
-                          preview ??
-                          _buildOfferPreview(
-                            offer,
-                            size: 64.0,
-                            theme: theme,
-                            // Cards at rest render a baked raster, never a
-                            // live animation. The live effect plays in the
-                            // detail dialog.
-                            animate: false,
-                          ),
-                    ),
-                  ),
-                ),
-                if (label.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(6, 0, 6, 6),
-                    child: Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: bracketText(
-                        context,
-                        12.5,
-                        isLocked ? palette.muted : palette.ink,
-                        weight: FontWeight.w600,
-                      ).copyWith(height: 1.1),
-                    ),
-                  ),
-                Container(height: 1, color: palette.lineSoft),
-                Container(
-                  height: 30,
-                  color: palette.chromeFill(darkAlpha: 0.7),
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  alignment: Alignment.center,
-                  child: isLocked
-                      ? Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              AppIcons.check_rounded,
-                              size: 13,
-                              color: palette.muted,
-                            ),
-                            const SizedBox(width: 5),
-                            Text(
-                              'PURCHASED',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: palette.muted,
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.1,
-                              ),
-                            ),
-                          ],
-                        )
-                      : FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              for (var i = 0; i < costWidgets.length; i++) ...[
-                                if (i > 0) const SizedBox(width: 10),
-                                costWidgets[i],
-                              ],
-                            ],
-                          ),
-                        ),
-                ),
+                for (var i = 0; i < costWidgets.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 10),
+                  costWidgets[i],
+                ],
               ],
             ),
-
-            // How many are already on hand.
-            if (statusText != null && statusText!.isNotEmpty && enabled)
-              Positioned(
-                top: 7,
-                right: 9,
-                child: Text(
-                  statusText!,
-                  style: TextStyle(
-                    color: palette.muted,
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w800,
-                    fontFamily: 'monospace',
-                    letterSpacing: 0.4,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+      count: enabled ? statusText : null,
+      dim: isLocked,
+      theme: theme,
     );
   }
 }
 
-/// The shelf: cards of one size in rows, the last row centred rather than
-/// left hanging with holes beside it.
-class ShopGrid extends StatelessWidget {
-  const ShopGrid({
+/// A section's offers: a list ([ShelfKind.ledger], the supplies) or the
+/// dearest one lit wide with the rest on a sideways shelf
+/// ([ShelfKind.featured], the cosmetics).
+class ShopShelf extends StatelessWidget {
+  const ShopShelf({
     super.key,
     required this.children,
-    this.aspectRatio = 0.74,
-    this.spacing = 10,
+    this.kind = ShelfKind.ledger,
   });
 
   final List<Widget> children;
-  final double aspectRatio;
-  final double spacing;
+  final ShelfKind kind;
+
+  /// The dearest offer, gold counted at the exchange's 1,000 silver.
+  int _headline() {
+    var best = 0;
+    var bestWorth = -1;
+    for (var i = 0; i < children.length; i++) {
+      var w = children[i];
+      while (w is GestureDetector && w.child != null) {
+        w = w.child!;
+      }
+      if (w is! GameShopCard) continue;
+      final cost = w.offer.cost;
+      final worth = (cost['gold'] ?? 0) * 1000 + (cost['silver'] ?? 0);
+      if (worth > bestWorth) {
+        best = i;
+        bestWorth = worth;
+      }
+    }
+    return best;
+  }
 
   @override
-  Widget build(BuildContext context) {
-    final cols = responsiveCrossAxisCount(context);
-    return LayoutBuilder(
-      builder: (context, box) {
-        final w = ((box.maxWidth - spacing * (cols - 1)) / cols)
-            .floorToDouble();
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          alignment: WrapAlignment.center,
-          children: [
-            for (final child in children)
-              SizedBox(width: w, height: w / aspectRatio, child: child),
-          ],
-        );
-      },
-    );
-  }
+  Widget build(BuildContext context) => ShelfLayout(
+    kind: kind,
+    heroIndex: kind == ShelfKind.featured ? _headline() : 0,
+    children: children,
+  );
 }
 
 // *** REPLACING SliverSectionHeader with a standard Widget ***
@@ -1335,6 +1276,20 @@ class CostChip extends StatelessWidget {
         : t.readableAccent(resource?.color ?? rawColor);
 
     final textColor = hasEnough ? color : kShortColor;
+
+    // The first Wild Fusion is free; "0" beside a coin read as a fault.
+    if (amount == 0) {
+      return Text(
+        'FREE',
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: t.amberBright,
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 1.2,
+        ),
+      );
+    }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1616,9 +1571,7 @@ class FarmUnlockSection extends StatelessWidget {
         if (children.isEmpty) {
           return const Padding(
             padding: EdgeInsets.all(12.0),
-            child: EmptySection(
-              message: 'All farms unlocked',
-            ),
+            child: EmptySection(message: 'All farms unlocked'),
           );
         }
 

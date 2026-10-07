@@ -22,6 +22,11 @@ class BlackMarketConstants {
   static const double prismaticBonus = 10;
 
   static const Map<String, double> tintMultipliers = {'vibrant': 1.5};
+
+  /// What a Transmuted specimen sells for, in gold. Fixed: it ignores rarity,
+  /// level and the sale boosts.
+  static const int transmutedGoldValue = 100;
+
   // Calculate total sell price
   static int calculateSellPrice({
     required String rarity,

@@ -21,18 +21,18 @@ extension CreatureDetailsTutorialTargetX on CreatureDetailsTutorialTarget {
   };
 
   String get highlightLabel => switch (this) {
-    CreatureDetailsTutorialTarget.geneAnalyzer => 'NEW: BEHAVIORAL READOUT',
-    CreatureDetailsTutorialTarget.potentialAnalyzer => 'NEW: POTENTIAL READOUT',
-    CreatureDetailsTutorialTarget.lineageAnalyzer => 'NEW: LINEAGE READOUT',
+    CreatureDetailsTutorialTarget.geneAnalyzer => 'NEW: NATURE EFFECTS',
+    CreatureDetailsTutorialTarget.potentialAnalyzer => 'NEW: POTENTIAL',
+    CreatureDetailsTutorialTarget.lineageAnalyzer => 'NEW: PROBABILITY',
   };
 
   String get tutorialBody => switch (this) {
     CreatureDetailsTutorialTarget.geneAnalyzer =>
-      'Behavioral Analysis now explains the active nature effects on a creature.',
+      'Traits now show what each nature does, and Lineage shows which stat a pure line raises.',
     CreatureDetailsTutorialTarget.potentialAnalyzer =>
-      'Stat Potentials now reveal each inherited 1–100 genetic quality rating and its contribution to Power.',
+      'Each stat now shows its Potential (P): the inherited 1–100 rating that sets how high it can grow.',
     CreatureDetailsTutorialTarget.lineageAnalyzer =>
-      'Breeding Analysis now exposes lineage and outcome statistics for bred specimens.',
+      'Lineage now shows the probability each trait of a fusion had.',
   };
 
   int get sortOrder => switch (this) {

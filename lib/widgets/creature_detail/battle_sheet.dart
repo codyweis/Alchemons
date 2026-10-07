@@ -96,12 +96,21 @@ class _BattleSheet extends StatefulWidget {
 class _BattleSheetState extends State<_BattleSheet> {
   AbilityPreviewGame? _game;
   bool _stageVisible = true;
+
+  /// Off when the details' Battle tab is not the one showing: the tab is
+  /// kept alive, and a Flame loop does not listen to TickerMode by itself.
+  bool _tickersOn = true;
   _PickKind _kind = _PickKind.stat;
   AlchemonStat? _stat;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    final tickersOn = TickerMode.valuesOf(context).enabled;
+    if (tickersOn != _tickersOn) {
+      _tickersOn = tickersOn;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _syncEngine());
+    }
     if (widget.liveStage && _game == null) {
       final game = AbilityPreviewGame(
         member: _summonedMember(context),
@@ -119,7 +128,7 @@ class _BattleSheetState extends State<_BattleSheet> {
   void _syncEngine() {
     final game = _game;
     if (game == null || !mounted) return;
-    if (_stageVisible) {
+    if (_stageVisible && _tickersOn) {
       game.resumeEngine();
     } else {
       game.pauseEngine();

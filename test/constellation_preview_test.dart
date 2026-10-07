@@ -104,6 +104,19 @@ void main() {
     for (final tree in ConstellationTree.values) {
       await shoot(tester, 'tree_${tree.name}', tree);
     }
+    // The entrance from home's UPGRADE emblem: the sky alone, then the
+    // trees lit from the root out (1.5 s, so ~11 frames a quarter).
+    for (final (i, frames) in [1, 11, 22, 33, 46].indexed) {
+      await shoot(
+        tester,
+        'entrance_$i',
+        ConstellationTree.breeder,
+        before: (g) => g
+          ..holdEntrance()
+          ..playEntrance(),
+        frames: frames,
+      );
+    }
     await shoot(
       tester,
       'full_extraction',

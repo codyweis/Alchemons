@@ -70,8 +70,8 @@ const Map<ConstellationTree, TreeLight> kTreeLights = {
 TreeLight treeLight(ConstellationTree tree) => kTreeLights[tree]!;
 
 /// The parchment the chart's words are written in, and its quieter shade.
-const Color kChartInk = Color(0xFFE8DCC8);
-const Color kChartMuted = Color(0xFF9A8D7C);
+const Color kChartInk = Color(0xFFE6E2DA);
+const Color kChartMuted = Color(0xFF8E8C88);
 
 /// Deeper than any stone: the ink a glyph is cut into a lit table with.
 const Color kChartVoid = Color(0xFF07080B);

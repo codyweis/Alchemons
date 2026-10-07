@@ -1343,7 +1343,7 @@ class _BreedingTabState extends State<BreedingTab>
     if (targetSlot != null) {
       final partner = targetSlot == 1 ? nextParent2 : nextParent1;
       final picked = await _pickBreedingInstance(
-        searchHint: _pickerTitle(partner),
+        title: _pickerTitle(partner),
         selectedIds: [
           if (nextParent1 != null) nextParent1.instanceId,
           if (nextParent2 != null) nextParent2.instanceId,
@@ -1363,7 +1363,7 @@ class _BreedingTabState extends State<BreedingTab>
 
     if (nextParent1 == null) {
       final picked = await _pickBreedingInstance(
-        searchHint: _pickerTitle(nextParent2),
+        title: _pickerTitle(nextParent2),
         selectedIds: [if (nextParent2 != null) nextParent2.instanceId],
         blockedIds: [if (nextParent2 != null) nextParent2.instanceId],
       );
@@ -1374,7 +1374,7 @@ class _BreedingTabState extends State<BreedingTab>
 
     if (nextParent2 == null) {
       final picked = await _pickBreedingInstance(
-        searchHint: _pickerTitle(nextParent1),
+        title: _pickerTitle(nextParent1),
         selectedIds: [nextParent1.instanceId],
         blockedIds: [nextParent1.instanceId],
       );
@@ -1389,7 +1389,7 @@ class _BreedingTabState extends State<BreedingTab>
   }
 
   Future<CreatureInstance?> _pickBreedingInstance({
-    required String searchHint,
+    required String title,
     required List<String> selectedIds,
     required List<String> blockedIds,
   }) {
@@ -1403,7 +1403,7 @@ class _BreedingTabState extends State<BreedingTab>
               theme: theme,
               instancePrefsScopeKey: 'breed_specimens',
               popOnSelect: true,
-              searchHint: searchHint,
+              title: title,
               selectedInstanceIds: selectedIds,
               onWillSelectInstance: (inst) =>
                   _validateBreedingSelection(inst, blockedIds: blockedIds),

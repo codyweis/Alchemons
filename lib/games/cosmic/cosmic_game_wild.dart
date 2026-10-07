@@ -873,8 +873,8 @@ extension CosmicGameWild on CosmicGame {
   /// The four Potentials as a 2×2 block, so it sits over the creature
   /// rather than spreading across the view.
   TextPainter _buildPotentialLabel(CosmicPartyMember m) {
-    const parchment = Color(0xFFE8DCC8);
-    const muted = Color(0xFF8A7B6A);
+    const parchment = Color(0xFFE6E2DA);
+    const muted = Color(0xFF85827C);
     const amber = Color(0xFFE4C16A);
     List<TextSpan> reading(String label, double value) {
       final v = value.round().clamp(1, 100);

@@ -419,15 +419,9 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
       body: LayoutBuilder(
         builder: (context, box) {
           final pad = MediaQuery.paddingOf(context);
-          final size = box.biggest;
           const headerH = 62.0;
           final panelH = 214.0 + pad.bottom;
-          final stage = Rect.fromLTRB(
-            0,
-            pad.top + headerH,
-            size.width,
-            math.max(pad.top + headerH + 120, size.height - panelH),
-          );
+          final stage = altarHubStage(box.biggest, pad);
           return Stack(
             children: [
               Positioned.fill(

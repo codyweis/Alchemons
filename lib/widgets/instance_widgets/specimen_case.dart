@@ -1,14 +1,16 @@
 // lib/widgets/instance_widgets/specimen_case.dart
 //
-// A specimen in the Creatures tab: standing in a dark glass case, lit from
-// behind in its element, with one engraved line beneath (element mark, name,
-// stamina). The case light is the extraction card's stage light, scaled down,
+// A specimen in the Creatures tab and in the picker that slides up whenever
+// one is wanted (all_specimens_page.dart): standing in a dark glass case,
+// lit from behind in its element, with one engraved line beneath (element
+// mark, name, stamina). The case light is the extraction card's stage light, scaled down,
 // and it is static — the sprite is the only thing in a case that moves.
 
 import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
@@ -58,6 +60,7 @@ class SpecimenCase extends StatelessWidget {
     this.isSelected = false,
     this.selectionNumber,
     this.cornerBadge,
+    this.sortBy,
   });
 
   final Creature species;
@@ -68,6 +71,10 @@ class SpecimenCase extends StatelessWidget {
   final bool isSelected;
   final int? selectionNumber;
   final Widget? cornerBadge;
+
+  /// When the grid is sorted by a stat, that stat's figure is engraved in
+  /// the case's top corner, so the order can be read.
+  final SortBy? sortBy;
 
   @override
   Widget build(BuildContext context) {
@@ -133,6 +140,19 @@ class SpecimenCase extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (sortBy case final sort? when sort.isStatSort)
+                            Positioned(
+                              left: 8,
+                              right: 8,
+                              bottom: 5,
+                              child: Text(
+                                '${sort.shortLabel} '
+                                '${sort.valueForInstance(instance).toStringAsFixed(1)}',
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                style: caseMono(9.5, kCaseGlassInk),
+                              ),
+                            ),
                           if (cornerBadge != null || selectionNumber != null)
                             Positioned(
                               top: 4,

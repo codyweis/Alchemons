@@ -2,24 +2,21 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:alchemons/models/potential_genetics.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/inventory.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
-import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/creature_background_pref.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/specimen_readouts.dart';
+import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/app_icons.dart';
-import 'package:alchemons/models/stat_system.dart';
 
 /// Quick-look dialog — modern rounded card with clean layout.
 ///
@@ -167,20 +164,19 @@ class _QuickInstancePagerState extends State<_QuickInstancePager> {
               hold: i != _index,
             );
             // Sized to what it holds and centred; the space round it is the
-            // dialog's backdrop, so a tap there closes it.
+            // dialog's backdrop, so a tap there closes it. On a short screen
+            // the card scrolls inside, round its docked button.
             return GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => Navigator.of(context).pop(),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 child: Center(
-                  child: SingleChildScrollView(
-                    child: GestureDetector(
-                      // The card's own taps stay on the card.
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () {},
-                      child: card,
-                    ),
+                  child: GestureDetector(
+                    // The card's own taps stay on the card.
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {},
+                    child: card,
                   ),
                 ),
               ),
@@ -296,6 +292,18 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
     }
   }
 
+  /// Something went on or came off: the sprite wears it here too.
+  Future<void> _reload() async {
+    final refreshed = await context
+        .read<AlchemonsDatabase>()
+        .creatureDao
+        .getInstance(_instance.instanceId);
+    if (refreshed != null && mounted) {
+      _instance = refreshed;
+      _changed();
+    }
+  }
+
   Future<void> _openDetails() async {
     Navigator.of(context).pop();
     await CreatureDetailsDialog.show(
@@ -314,108 +322,20 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
         bg.color.computeLuminance() > 0.35;
   }
 
-  static Color _rarityColor(String rarity, BracketPalette palette) =>
-      switch (rarity.toLowerCase()) {
-        'mystic' => const Color(0xFFE879F9),
-        'legendary' => const Color(0xFFFFB020),
-        'rare' => const Color(0xFF60A5FA),
-        'uncommon' => const Color(0xFF34D399),
-        _ => palette.muted,
-      };
-
   @override
   Widget build(BuildContext context) {
     final palette = BracketPalette.fromTheme(theme);
     final accent = bracketReadableAccent(theme);
     final t = ForgeTokens(theme);
     final effects = context.watch<ConstellationEffectsService>();
-    final showPotential = effects.hasPotentialAnalyzer();
-    // Pre-Dominants creatures fall back to whatever they are best at.
-    final showDominants = effects.hasDominantAnalyzer();
-    final dominants =
-        DominantStats.decode(_instance.dominantStats) ??
-        DominantStats.fromPotentials(
-          speed: _instance.statSpeedPotential,
-          intelligence: _instance.statIntelligencePotential,
-          strength: _instance.statStrengthPotential,
-          beauty: _instance.statBeautyPotential,
-        );
-    final genetics = decodeGenetics(_instance.geneticsJson);
+    final stats = statTilesFor(
+      _instance,
+      showPotential: effects.hasPotentialAnalyzer(),
+      showDominants: effects.hasDominantAnalyzer(),
+    );
+    final traits = specimenTraitRows(context, creature, _instance);
     final nick = _instance.nickname?.trim();
     final hasNick = nick != null && nick.isNotEmpty;
-
-    final variant = (_instance.variantFaction ?? '').trim();
-    final variantDisplay = variant.isEmpty
-        ? null
-        : variant[0].toUpperCase() + variant.substring(1);
-
-    final traits = <(String, String, Color)>[
-      if (genetics?.get('size') != null)
-        ('SIZE', _titleCase(genetics!.get('size')!), const Color(0xFF60A5FA)),
-      if (genetics?.get('tinting') != null)
-        (
-          'TINT',
-          _titleCase(genetics!.get('tinting')!),
-          const Color(0xFF60A5FA),
-        ),
-      if (_natureLabel(_instance) != null)
-        ('NATURE', _natureLabel(_instance)!, t.amberBright),
-      if (variantDisplay != null)
-        ('VARIANT', variantDisplay, FactionColors.of(variantDisplay)),
-      if (_instance.isPrismaticSkin == true)
-        ('SKIN', 'Prismatic', const Color(0xFFC084FC)),
-    ];
-
-    _StatTileData stat(
-      String label,
-      Color color,
-      double value,
-      double potential,
-      int enhancement,
-      StatKind kind,
-    ) => _StatTileData(
-      label: label,
-      color: color,
-      value: value,
-      potential: showPotential ? potential : null,
-      enhancement: enhancement,
-      isDominant: showDominants && dominants.contains(kind),
-    );
-
-    final stats = [
-      stat(
-        'Speed',
-        const Color(0xFF60A5FA),
-        _instance.statSpeed,
-        _instance.statSpeedPotential,
-        _instance.statSpeedEnhancement,
-        StatKind.speed,
-      ),
-      stat(
-        'Intelligence',
-        const Color(0xFFC084FC),
-        _instance.statIntelligence,
-        _instance.statIntelligencePotential,
-        _instance.statIntelligenceEnhancement,
-        StatKind.intelligence,
-      ),
-      stat(
-        'Strength',
-        const Color(0xFFF87171),
-        _instance.statStrength,
-        _instance.statStrengthPotential,
-        _instance.statStrengthEnhancement,
-        StatKind.strength,
-      ),
-      stat(
-        'Beauty',
-        const Color(0xFFF9A8D4),
-        _instance.statBeauty,
-        _instance.statBeautyPotential,
-        _instance.statBeautyEnhancement,
-        StatKind.beauty,
-      ),
-    ];
 
     const favoriteAccent = Color(0xFFE91E63);
     final isFavorite = _instance.isFavorite;
@@ -466,17 +386,9 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
                           ),
                         ),
                       const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          _QuickTag(
-                            label: creature.rarity,
-                            color: _rarityColor(creature.rarity, palette),
-                          ),
-                          for (final type in creature.types.take(2))
-                            _QuickTag(label: type, color: accent),
-                        ],
+                      RarityElementMark(
+                        species: creature,
+                        prismatic: _instance.isPrismaticSkin == true,
                       ),
                     ],
                   ),
@@ -504,84 +416,77 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
             ),
             const SizedBox(height: 12),
 
-            // ── The plate: its backdrop, and it ────────────────────────
-            _buildPlate(context, palette, accent, t),
-            const SizedBox(height: 10),
+            // Everything between the header and FULL DETAILS scrolls when
+            // the screen is too short for it, so the button is never
+            // scrolled away.
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // ── The plate: its backdrop, and it ──────────────────────
+                    _buildPlate(context, palette, accent, t),
+                    const SizedBox(height: 10),
 
-            // ── XP and breeding stamina ────────────────────────────────
-            Row(
-              children: [
-                Text(
-                  '${_instance.xp} XP',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: palette.muted,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                StaminaBadge(
-                  instanceId: _instance.instanceId,
-                  showCountdown: true,
-                ),
-                const Spacer(),
-                _StaminaRestore(
-                  instance: _instance,
-                  creatureName: creature.name,
-                  palette: palette,
-                  accent: accent,
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
+                    // ── XP and breeding stamina ──────────────────────────────
+                    Row(
+                      children: [
+                        Text(
+                          '${_instance.xp} XP',
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: palette.muted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        StaminaBadge(
+                          instanceId: _instance.instanceId,
+                          showCountdown: true,
+                        ),
+                        const Spacer(),
+                        StaminaRestoreChip(
+                          instanceId: _instance.instanceId,
+                          creatureName: creature.name,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
 
-            // ── Attributes ─────────────────────────────────────────────
-            const BracketSectionDivider(label: 'ATTRIBUTES'),
-            const SizedBox(height: 8),
-            for (var row = 0; row < 2; row++) ...[
-              if (row > 0) const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: _StatTile(
-                      data: stats[row * 2],
-                      palette: palette,
-                      tokens: t,
+                    // ── What it wears ────────────────────────────────────────
+                    WornStrip(
+                      instance: _instance,
+                      creatureName: creature.name,
+                      height: 48,
+                      onChanged: _reload,
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _StatTile(
-                      data: stats[row * 2 + 1],
-                      palette: palette,
-                      tokens: t,
-                    ),
-                  ),
-                ],
+                    const SizedBox(height: 14),
+
+                    // ── Attributes ───────────────────────────────────────────
+                    const BracketSectionDivider(label: 'ATTRIBUTES'),
+                    const SizedBox(height: 8),
+                    StatTileGrid(stats: stats),
+
+                    // ── Traits ───────────────────────────────────────────────
+                    // Named rows instead of a row of pills: SIZE, TINT and
+                    // NATURE were once indistinguishable chips, so "SMALL
+                    // COOL SWIFT" left you guessing which was which.
+                    if (traits.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      const BracketSectionDivider(label: 'TRAITS'),
+                      const SizedBox(height: 4),
+                      ...traits,
+                    ],
+                  ],
+                ),
               ),
-            ],
-
-            // ── Traits ─────────────────────────────────────────────────
-            // Named rows instead of a row of pills: SIZE, TINT and NATURE
-            // were once indistinguishable chips, so "SMALL COOL SWIFT" left
-            // you guessing which was which.
-            if (traits.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              const BracketSectionDivider(label: 'TRAITS'),
-              const SizedBox(height: 4),
-              for (final (label, value, color) in traits)
-                _TraitRow(
-                  label: label,
-                  value: value,
-                  color: color,
-                  palette: palette,
-                ),
-            ],
+            ),
             const SizedBox(height: 16),
 
-            // ── Everything else ────────────────────────────────────────
+            // ── Everything else, docked ────────────────────────────────
             _QuickActionButton(
               label: 'FULL DETAILS',
               palette: palette,
@@ -625,11 +530,6 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
                         enabled: !widget.hold,
                         child: CreatureBgLayer(option: bg, spaceStarCount: 90),
                       ),
-              ),
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(painter: _QuickScanlines()),
-                ),
               ),
               // Somewhere to stand: a soft pool under it, never a ring.
               Center(
@@ -796,48 +696,6 @@ class _PageArrow extends StatelessWidget {
 
 /// The details' hero plate has these too: a faint line texture over the
 /// backdrop.
-class _QuickScanlines extends CustomPainter {
-  static final Paint _p = Paint()..color = Colors.black.withValues(alpha: 0.06);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (double y = 0; y < size.height; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), _p);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_QuickScanlines old) => false;
-}
-
-class _QuickTag extends StatelessWidget {
-  const _QuickTag({required this.label, required this.color});
-
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: bracketText(
-          context,
-          11,
-          color,
-          weight: FontWeight.w700,
-          letterSpacing: 1.0,
-        ),
-      ),
-    );
-  }
-}
-
 class _CornerBadge extends StatelessWidget {
   const _CornerBadge({
     required this.label,
@@ -964,354 +822,6 @@ class _QuickActionButton extends StatelessWidget {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Restores breeding stamina with an elixir, when it is down and there is
-/// one to spend. Nothing otherwise.
-class _StaminaRestore extends StatelessWidget {
-  const _StaminaRestore({
-    required this.instance,
-    required this.creatureName,
-    required this.palette,
-    required this.accent,
-  });
-
-  final CreatureInstance instance;
-  final String creatureName;
-  final BracketPalette palette;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    final db = context.read<AlchemonsDatabase>();
-    return StreamBuilder<CreatureInstance?>(
-      stream: db.creatureDao.watchInstanceById(instance.instanceId),
-      builder: (context, instSnap) {
-        final inst = instSnap.data;
-        if (inst == null) return const SizedBox.shrink();
-        final sState = context.read<StaminaService>().computeState(inst);
-        if (sState.bars >= sState.max) return const SizedBox.shrink();
-        return StreamBuilder<List<InventoryItem>>(
-          stream: db.inventoryDao.watchItemInventory(),
-          builder: (context, snapshot) {
-            var qty = 0;
-            for (final item in snapshot.data ?? const <InventoryItem>[]) {
-              if (item.key == InvKeys.staminaPotion) {
-                qty = item.qty;
-                break;
-              }
-            }
-            if (qty <= 0) return const SizedBox.shrink();
-            return GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: context.soundAction(() => _restore(context, db, qty)),
-              child: CustomPaint(
-                painter: BracketFramePainter(
-                  color: accent.withValues(alpha: 0.8),
-                  bracketSize: 6,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 5,
-                  ),
-                  color: palette.accentWash(accent),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'RESTORE ×$qty',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: palette.ink,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _restore(
-    BuildContext context,
-    AlchemonsDatabase db,
-    int qty,
-  ) async {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dCtx) => AlertDialog(
-        backgroundColor: t.bg1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        title: Text(
-          'Restore Breeding Stamina?',
-          style: TextStyle(
-            color: t.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        content: Text(
-          "Use 1 Stamina Elixir to restore $creatureName's breeding "
-          'stamina? ($qty remaining)',
-          style: TextStyle(color: t.textSecondary, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dCtx).pop(false),
-            child: Text('Cancel', style: TextStyle(color: t.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dCtx).pop(true),
-            child: Text(
-              'Restore',
-              style: TextStyle(
-                color: t.amberBright,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    await db.inventoryDao.addItemQty(InvKeys.staminaPotion, -1);
-    await StaminaService(db).restoreToFull(instance.instanceId);
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Breeding stamina restored!',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: t.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        backgroundColor: t.bg1,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-}
-
-/// Genetics and natures are stored lowercase or capitalised inconsistently;
-/// this keeps the panel reading as prose rather than SHOUTING.
-String _titleCase(String raw) {
-  if (raw.isEmpty) return raw;
-  return raw[0].toUpperCase() + raw.substring(1).toLowerCase();
-}
-
-/// Both natures on one line — two separate rows labelled NATURE read as a
-/// mistake rather than as a pair.
-String? _natureLabel(CreatureInstance instance) {
-  final parts = <String>[
-    if (instance.natureId != null && instance.natureId!.isNotEmpty)
-      _titleCase(instance.natureId!),
-    if (instance.natureId2 != null && instance.natureId2!.isNotEmpty)
-      _titleCase(instance.natureId2!),
-  ];
-  if (parts.isEmpty) return null;
-  return parts.join(' · ');
-}
-
-// ── Stat tile: value, Potential and the Enhancement track ──────────────────
-//
-// The number carries the value (an old bar plotted it against a soft curve,
-// which told you less than the number did). The pips are the one thing a
-// number cannot show: how many of the ten Enhancement ranks are bought.
-
-class _StatTileData {
-  const _StatTileData({
-    required this.label,
-    required this.color,
-    required this.value,
-    required this.potential,
-    required this.enhancement,
-    required this.isDominant,
-  });
-
-  final String label;
-  final Color color;
-  final double value;
-
-  /// Null without the Potential analyzer.
-  final double? potential;
-  final int enhancement;
-
-  /// One of the two stats this Alchemon passes down most reliably.
-  final bool isDominant;
-}
-
-class _StatTile extends StatelessWidget {
-  const _StatTile({
-    required this.data,
-    required this.palette,
-    required this.tokens,
-  });
-
-  final _StatTileData data;
-  final BracketPalette palette;
-  final ForgeTokens tokens;
-
-  @override
-  Widget build(BuildContext context) {
-    final d = data;
-    final rating = AlchemonStatSystem.displayRating(d.value);
-    final p = d.potential == null
-        ? null
-        : AlchemonStatSystem.normalizePotential(d.potential!);
-    final potentialMaxed = p != null && p >= AlchemonStatSystem.maxPotential;
-    const maxRank = AlchemonStatSystem.maxEnhancementRank;
-    final enhanceMaxed = d.enhancement >= maxRank;
-    final labelColor = d.isDominant ? tokens.dominant : palette.muted;
-
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: (d.isDominant ? tokens.dominant : palette.line).withValues(
-          alpha: d.isDominant ? 0.85 : 0.7,
-        ),
-        bracketSize: 8,
-      ),
-      child: Container(
-        color: palette.surfaceFill(),
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 9),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    d.label.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: labelColor,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.9,
-                    ),
-                  ),
-                ),
-                if (p != null)
-                  Text(
-                    'P$p',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: potentialMaxed
-                          ? tokens.amberBright
-                          : palette.muted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '$rating',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: d.color,
-                fontSize: 22,
-                fontWeight: FontWeight.w900,
-                height: 1.1,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              children: [
-                for (var i = 0; i < maxRank; i++) ...[
-                  if (i > 0) const SizedBox(width: 2),
-                  Expanded(
-                    child: Container(
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: i < d.enhancement
-                            ? (enhanceMaxed ? tokens.amberBright : d.color)
-                            : palette.lineSoft.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(1),
-                      ),
-                    ),
-                  ),
-                ],
-                const SizedBox(width: 6),
-                Text(
-                  enhanceMaxed ? 'MAX' : '${d.enhancement}/$maxRank',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: d.enhancement > 0 ? d.color : palette.muted,
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A named characteristic. Reading "SIZE  Small" beats a pill that just says
-/// SMALL and leaves you to infer what kind of thing it is.
-class _TraitRow extends StatelessWidget {
-  const _TraitRow({
-    required this.label,
-    required this.value,
-    required this.color,
-    required this.palette,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-  final BracketPalette palette;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 76,
-            child: Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: palette.muted,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: bracketText(context, 13, color, weight: FontWeight.w700),
-            ),
-          ),
-        ],
       ),
     );
   }

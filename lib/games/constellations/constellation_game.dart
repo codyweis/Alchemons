@@ -118,6 +118,80 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   /// Seconds the chart has been running — the clock every grain moves by.
   double chartTime = 0;
 
+  // ── entrance ──────────────────────────────────────────────────────────────
+
+  /// 0 the sky alone .. 1 the whole chart. Entered through home's UPGRADE
+  /// emblem, whose disc opens into this sky, the chart shows its sky first
+  /// and then lights its trees from the root out: the light pours down each
+  /// link, and each stone grows in as it arrives.
+  double entrance = 1;
+  double _entranceRate = 0;
+
+  /// Show only the sky until [playEntrance].
+  void holdEntrance() {
+    entrance = 0;
+    _entranceRate = 0;
+  }
+
+  /// Light the trees, over [seconds].
+  void playEntrance({double seconds = 1.5}) {
+    if (entrance >= 1) return;
+    _entranceRate = 1 / seconds;
+  }
+
+  /// Each stone's place in its tree's lighting: 0 the root .. 1 the stone
+  /// farthest from it.
+  final Map<SkillNode, double> _entranceOrder = {};
+
+  double _orderOf(SkillNode node) {
+    if (!_entranceOrder.containsKey(node)) {
+      _entranceOrder.clear();
+      for (final tree in ConstellationTree.values) {
+        final members = _nodes.values.where((n) => n.tree == tree).toList();
+        if (members.isEmpty) continue;
+        final root = members.firstWhere(
+          (n) => n.isRootNode,
+          orElse: () => members.first,
+        );
+        var reach = 1.0;
+        for (final n in members) {
+          reach = math.max(reach, n.position.distanceTo(root.position));
+        }
+        for (final n in members) {
+          _entranceOrder[n] = n.position.distanceTo(root.position) / reach;
+        }
+      }
+    }
+    return _entranceOrder[node] ?? 0;
+  }
+
+  /// How long, in entrance, one stone takes to grow in.
+  static const double _entranceSpread = 0.35;
+
+  /// How far [node] has grown in (0..1).
+  double appearOf(SkillNode node) {
+    if (entrance >= 1) return 1;
+    final x =
+        (entrance * (1 + _entranceSpread) - _orderOf(node)) / _entranceSpread;
+    final t = x.clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
+  /// How far down [link] the entrance's light has poured (0..1).
+  double linkRevealOf(ConnectionLine link) {
+    if (entrance >= 1) return 1;
+    final a = _orderOf(link.from), b = _orderOf(link.to);
+    final x = (entrance * (1 + _entranceSpread) - a) / math.max(0.05, b - a);
+    return x.clamp(0.0, 1.0);
+  }
+
+  /// The verses, last: they settle in once the stones have.
+  double get storyEntrance {
+    if (entrance >= 1) return 1;
+    final t = ((entrance - 0.75) / 0.25).clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
   /// How much of the screen, in logical pixels, the screen's own chrome
   /// covers (header and tabs above, tree panel below). Framing centres a
   /// tree in what is left, and verse is kept inside it.
@@ -294,6 +368,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   void update(double dt) {
     super.update(dt);
     chartTime += dt;
+    if (_entranceRate > 0) {
+      entrance = math.min(1, entrance + dt * _entranceRate);
+      if (entrance >= 1) _entranceRate = 0;
+    }
     _visibleWorld = camera.visibleWorldRect;
 
     // Smooth screen shake in update loop
@@ -1243,12 +1321,21 @@ class TreeStoryBlock extends PositionComponent
     final rect = game.keepOnChart(local.shift(position.toOffset()));
     if (rect == null) return;
     final drawn = rect.shift(-position.toOffset());
+    final fade = game.storyEntrance;
+    if (fade <= 0) return;
+    if (fade < 1) {
+      canvas.saveLayer(
+        drawn.inflate(8),
+        Paint()..color = Color.fromRGBO(0, 0, 0, fade),
+      );
+    }
     _StoryPlate.paint(canvas, drawn, 1, treeLight(tree).essence);
 
     final dx = alignment == TextAlign.left
         ? drawn.left + 18.0
         : drawn.left + ((drawn.width - tp.width) / 2);
     tp.paint(canvas, Offset(dx, drawn.top + ((drawn.height - tp.height) / 2)));
+    if (fade < 1) canvas.restore();
   }
 }
 
@@ -1357,7 +1444,29 @@ class SkillNode extends PositionComponent
   void render(Canvas canvas) {
     if (!isTreeVisible) return;
     if (!game.isOnChart(position, 90)) return;
+    final appear = game.appearOf(this);
+    if (appear <= 0) return;
+    if (appear >= 1) {
+      _paintStone(canvas);
+      return;
+    }
+    // Growing in with the chart's entrance: smaller, and faint.
+    canvas
+      ..save()
+      ..translate(_c.dx, _c.dy)
+      ..scale(0.7 + 0.3 * appear)
+      ..translate(-_c.dx, -_c.dy)
+      ..saveLayer(
+        Rect.fromCircle(center: _c, radius: 110),
+        Paint()..color = Color.fromRGBO(0, 0, 0, appear),
+      );
+    _paintStone(canvas);
+    canvas
+      ..restore()
+      ..restore();
+  }
 
+  void _paintStone(Canvas canvas) {
     final r = stoneRadius;
     final art = StoneArt.of(tree, _shown, r, _c);
 
@@ -1623,12 +1732,13 @@ class ConnectionLine extends Component
   @override
   void render(Canvas canvas) {
     if (!isTreeVisible || !isActive) return;
-    if (_storyOpacity > 0 && _normalizedStoryText.isNotEmpty) {
-      _drawStoryText(canvas, from.position, to.position);
+    final opacity = _storyOpacity * game.storyEntrance;
+    if (opacity > 0 && _normalizedStoryText.isNotEmpty) {
+      _drawStoryText(canvas, from.position, to.position, opacity);
     }
   }
 
-  void _drawStoryText(Canvas canvas, Vector2 from, Vector2 to) {
+  void _drawStoryText(Canvas canvas, Vector2 from, Vector2 to, double opacity) {
     final midPoint = (from + to) / 2;
     final path = to - from;
     final lineLength = path.length;
@@ -1643,7 +1753,7 @@ class ConnectionLine extends Component
     }
 
     final maxTextWidth = (lineLength * 0.85).clamp(170.0, 240.0);
-    final alpha = (_storyOpacity * 0.95).clamp(0.0, 1.0);
+    final alpha = (opacity * 0.95).clamp(0.0, 1.0);
     if (_storyTextPainter == null ||
         (alpha - _storyPaintAlpha).abs() > 0.02 ||
         (_storyLayoutWidth - maxTextWidth).abs() > 0.5) {
@@ -1677,7 +1787,7 @@ class ConnectionLine extends Component
       ),
     );
     if (rect == null) return;
-    _StoryPlate.paint(canvas, rect, _storyOpacity, treeLight(tree).essence);
+    _StoryPlate.paint(canvas, rect, opacity, treeLight(tree).essence);
     tp.paint(
       canvas,
       Offset(
@@ -1731,6 +1841,9 @@ class ChartGrainLayer extends Component
       if (!link.isTreeVisible) continue;
       final f = link.from.position, t = link.to.position;
       if (!game.segmentOnChart(f, t, 40)) continue;
+      // The chart's entrance pours each link in from its parent.
+      final reveal = game.linkRevealOf(link);
+      if (reveal <= 0) continue;
 
       final dx = t.x - f.x, dy = t.y - f.y;
       final len = math.sqrt(dx * dx + dy * dy);
@@ -1742,10 +1855,11 @@ class ChartGrainLayer extends Component
       if (u1 <= u0) continue;
       final span = u1 - u0;
       final seed = link.connectionIndex * 0.37 + link.tree.index * 1.3;
+      final uMax = u0 + span * reveal;
 
       if (!link.isActive && !link.canActivate) {
         // Dust: the way the tree goes, before any of it is lit.
-        for (var u = u0; u <= u1; u += 18 / len) {
+        for (var u = u0; u <= uMax; u += 18 / len) {
           _b.add(_dust, f.x + dx * u, f.y + dy * u);
         }
         continue;
@@ -1754,7 +1868,7 @@ class ChartGrainLayer extends Component
       if (!link.isActive) {
         // Open: the dust warmed, and a few grains drifting down it.
         final open = _cls(link.tree, _open);
-        for (var u = u0; u <= u1; u += 18 / len) {
+        for (var u = u0; u <= uMax; u += 18 / len) {
           _b.add(open, f.x + dx * u, f.y + dy * u);
         }
         final flow = _cls(link.tree, _flow);
@@ -1762,6 +1876,7 @@ class ChartGrainLayer extends Component
         for (var i = 0; i < k; i++) {
           final p = (i / k + time * 0.1 + seed) % 1.0;
           final u = u0 + span * p;
+          if (u > uMax) continue;
           _b.add(flow, f.x + dx * u, f.y + dy * u);
         }
         continue;
@@ -1769,8 +1884,8 @@ class ChartGrainLayer extends Component
 
       // Owned: a stream from parent to child.
       final flow = _cls(link.tree, _flow), hot = _cls(link.tree, _hot);
-      final pouring = link.isPouring;
-      final reach = link.pourProgress;
+      final pouring = link.isPouring || reveal < 1;
+      final reach = math.min(link.pourProgress, reveal);
       final band = _cls(link.tree, _band);
       final bandEnd = pouring ? u0 + span * reach : u1;
       _b
@@ -1805,6 +1920,7 @@ class ChartGrainLayer extends Component
       for (final node in game.nodes) {
         if (!node.isTreeVisible || !node.showsOwned) continue;
         if (!game.isOnChart(node.position, 80)) continue;
+        if (game.appearOf(node) < 1) continue;
         final cls = _cls(node.tree, _orbit);
         final r = node.stoneRadius;
         final cx = node.position.x, cy = node.position.y;

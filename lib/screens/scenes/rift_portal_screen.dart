@@ -217,7 +217,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     final leave = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF1B1611),
+        backgroundColor: const Color(0xFF17171A),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(6),
           side: BorderSide(
@@ -227,7 +227,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
         title: const Text(
           'LEAVE THE RIFT?',
           style: TextStyle(
-            color: Color(0xFFE8DCC8),
+            color: Color(0xFFE6E2DA),
             fontFamily: 'monospace',
             fontSize: 15,
             fontWeight: FontWeight.w900,
@@ -237,7 +237,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
         content: const Text(
           'Your Portal Key is already spent. Leaving now takes you back with '
           'nothing from this rift.',
-          style: TextStyle(color: Color(0xFF8A7B6A), fontSize: 12, height: 1.4),
+          style: TextStyle(color: Color(0xFF85827C), fontSize: 12, height: 1.4),
         ),
         actions: [
           TextButton(
@@ -246,7 +246,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
             ),
             child: const Text(
               'Stay',
-              style: TextStyle(color: Color(0xFF8A7B6A)),
+              style: TextStyle(color: Color(0xFF85827C)),
             ),
           ),
           TextButton(
@@ -326,7 +326,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                           '$factionName RIFT',
                           style: const TextStyle(
                             fontFamily: 'monospace',
-                            color: Color(0xFFE8DCC8),
+                            color: Color(0xFFE6E2DA),
                             fontSize: 17,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 1.4,

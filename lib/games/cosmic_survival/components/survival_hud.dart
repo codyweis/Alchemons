@@ -1,10 +1,10 @@
 // lib/games/cosmic_survival/components/survival_hud.dart
 //
-// The run's HUD, in the ship console's language: dark glass behind bracket
-// corners, readings in spaced monospace, and gauges as glass tubes with
-// matter settled in them (the space HUD's meter tube) rather than flat bars.
-// The orb's gauge is lit in the core's own light, the same colour as the
-// ring of cells round the core in the arena.
+// The run's HUD, in the ship console's language: plain dark glass, lit from
+// below when it is the live thing, readings in spaced monospace, and gauges
+// as glass tubes with matter settled in them (the space HUD's meter tube)
+// rather than flat bars. The orb's gauge is lit in the core's own light, the
+// same colour as the ring of cells round the core in the arena.
 
 import 'dart:math';
 import 'dart:ui' show PointMode;
@@ -39,7 +39,8 @@ TextStyle hudMono(
   height: 1.1,
 );
 
-/// A pane of the HUD's dark glass in bracket corners.
+/// A pane of the HUD's dark glass, lit from below in [accent] when that is
+/// a colour of its own (the plain [HudInk.line] draws nothing).
 class HudGlass extends StatelessWidget {
   const HudGlass({
     super.key,

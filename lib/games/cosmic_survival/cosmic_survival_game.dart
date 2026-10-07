@@ -1395,6 +1395,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final Map<int, CompanionRunStats> companionRunStats = {};
   final RunHealingStats healingStats = RunHealingStats();
   bool isGameOver = false;
+
+  /// Seconds since the core gave out. The fight stops then, but the core
+  /// coming apart (orb_art.dart) plays on over the stilled arena.
+  double get coreFallTime => _coreFallT;
+  double _coreFallT = 0;
   bool _started = false;
   final ValueNotifier<bool> detonationReadyNotifier = ValueNotifier(false);
   final ValueNotifier<double> detonationChargeNotifier = ValueNotifier(0);
@@ -1985,7 +1990,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   @override
   void update(double dt) {
     super.update(dt);
-    if (!_started || isGameOver || gamePaused) return;
+    if (!_started) return;
+    if (isGameOver) {
+      _coreFallT += dt;
+      return;
+    }
+    if (gamePaused) return;
     dt *= timeScale.clamp(1.0, fastForwardTimeScale);
     final soundHpBefore = ship.currentHp + orb.currentHp;
 
@@ -19645,11 +19655,44 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     canvas.restore();
+
+    if (isGameOver) _renderCoreFall(canvas);
+  }
+
+  /// The end of the run: the arena dims and stills, and over it the core
+  /// comes apart into grains of its own light (orb_art.dart).
+  void _renderCoreFall(Canvas canvas) {
+    final t = _coreFallT;
+    final x = ((t - 0.1) / 1.4).clamp(0.0, 1.0);
+    final dim = 0.62 * x * x * (3 - 2 * x);
+    if (dim > 0) {
+      canvas.drawRect(
+        Offset.zero & Size(size.x, size.y),
+        Paint()..color = Color.fromRGBO(4, 4, 6, dim),
+      );
+    }
+    canvas.save();
+    canvas.scale(_currentZoom, _currentZoom);
+    final shake = _screenShakeOffset();
+    canvas.translate(
+      -camX + shake.dx + orb.position.dx,
+      -camY + shake.dy + orb.position.dy,
+    );
+    paintCoreFall(
+      canvas,
+      orb.skin,
+      t,
+      stats.timeElapsed,
+      radius: _orbCoreRadius,
+    );
+    canvas.restore();
   }
 
   /// The core, and its readings round it (orb_art.dart). Health and the
   /// alchemy meter are rings of cells; a held shield is a glass bubble.
   void _renderOrb(Canvas canvas) {
+    // Once it has given out, the fall draws it, over the dimmed arena.
+    if (isGameOver) return;
     final center = orb.position;
     final elapsed = stats.timeElapsed;
     canvas.save();

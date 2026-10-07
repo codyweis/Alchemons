@@ -78,8 +78,9 @@ class BracketFramePainter extends CustomPainter {
       oldDelegate.strokeWidth != strokeWidth;
 }
 
-/// Brightness-aware palette for the bracket-frame UI style: warm obsidian
-/// in the dark (it was a cool navy until 2026-10).
+/// Brightness-aware palette for the bracket-frame UI style: ink black in
+/// the dark (a cool navy, then a brown "warm obsidian" that read yellow on
+/// the phone, until 2026-10-06).
 ///
 /// Use [BracketPalette.of] inside widget build methods to resolve from the
 /// ambient [FactionTheme], or [BracketPalette.fromTheme] when you already
@@ -105,12 +106,12 @@ class BracketPalette {
 
   static const dark = BracketPalette(
     isDark: true,
-    bg0: Color(0xFF0A0806),
-    bg1: Color(0xFF15110D),
-    ink: Color(0xFFE8DCC8),
-    muted: Color(0xFF9A8D7C),
-    line: Color(0xFF6E5B40),
-    lineSoft: Color(0xFF2C241A),
+    bg0: Color(0xFF09090B),
+    bg1: Color(0xFF131316),
+    ink: Color(0xFFE6E2DA),
+    muted: Color(0xFF8E8C88),
+    line: Color(0xFF5A5852),
+    lineSoft: Color(0xFF26262B),
   );
 
   static const light = BracketPalette(

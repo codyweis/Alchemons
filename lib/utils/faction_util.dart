@@ -42,19 +42,19 @@ class FactionTheme {
 
   static FactionTheme scorchForge() => const FactionTheme(
     brightness: Brightness.dark,
-    primary: Color(0xFFD97706), // amber
+    primary: Color(0xFFB89656), // brass
     secondary: Color(0xFF0EA5E9), // teal
-    accent: Color(0xFFF59E0B), // amber bright
-    accentSoft: Color(0xFF92400E), // amber dim
-    surface: Color(0xFF1B1611), // _C.bg2
-    surfaceAlt: Color(0xFF241D16), // _C.bg3
-    border: Color(0xFF2C241A), // _C.borderDim
-    text: Color(0xFFE8DCC8), // parchment
-    textMuted: Color(0xFF8A7B6A), // aged ink
+    accent: Color(0xFFCDB07A), // pale brass
+    accentSoft: Color(0xFF6B5A36), // brass dim
+    surface: Color(0xFF17171A), // _C.bg2
+    surfaceAlt: Color(0xFF1D1D21), // _C.bg3
+    border: Color(0xFF26262B), // _C.borderDim
+    text: Color(0xFFE6E2DA), // parchment
+    textMuted: Color(0xFF85827C), // aged ink
     backgroundGradient: [
-      Color(0xFF0A0806),
-      Color(0xFF15110D),
-      Color(0xFF1B1611),
+      Color(0xFF09090B),
+      Color(0xFF131316),
+      Color(0xFF17171A),
     ],
   );
 }
@@ -300,26 +300,28 @@ class ForgeTokens {
   // ── Background layers ──────────────────────────────────────────────────────
   // bg0 = deepest / header strips; bg1 = dialog shell; bg2 = inset rows/cards
   Color get bg0 => isDark
-      ? const Color(0xFF0A0806)
+      ? const Color(0xFF09090B)
       : _theme.backgroundGradient.first.withValues(alpha: 1);
 
-  Color get bg1 => isDark ? const Color(0xFF15110D) : _theme.surface;
+  Color get bg1 => isDark ? const Color(0xFF131316) : _theme.surface;
 
-  Color get bg2 => isDark ? const Color(0xFF1B1611) : _theme.surfaceAlt;
+  Color get bg2 => isDark ? const Color(0xFF17171A) : _theme.surfaceAlt;
 
   Color get bg3 => isDark
-      ? const Color(0xFF241D16)
+      ? const Color(0xFF1D1D21)
       : _theme.surfaceAlt.withValues(alpha: 0.82);
 
-  // ── Accent (amber in dark, faction accent in light) ────────────────────────
+  // ── Accent (pale brass in dark, faction accent in light) ───────────────────
+  // Still named amber: it was a stock UI amber (#F59E0B) until 2026-10-06,
+  // which read as a loud yellow everywhere it was used.
   Color get amber =>
-      isDark ? const Color(0xFFD97706) : readableAccent(_theme.accent);
+      isDark ? const Color(0xFFB89656) : readableAccent(_theme.accent);
   Color get amberBright =>
-      isDark ? const Color(0xFFF59E0B) : readableAccent(_theme.accent);
+      isDark ? const Color(0xFFCDB07A) : readableAccent(_theme.accent);
   Color get amberDim =>
-      isDark ? const Color(0xFF92400E) : readableAccent(_theme.accentSoft);
+      isDark ? const Color(0xFF6B5A36) : readableAccent(_theme.accentSoft);
   Color get amberGlow => isDark
-      ? const Color(0xFFFFB020)
+      ? const Color(0xFFE2C98F)
       : readableAccent(_theme.accent).withValues(alpha: 0.85);
 
   // ── Dominant marker ────────────────────────────────────────────────────────
@@ -328,7 +330,7 @@ class ForgeTokens {
   // the paler factions was nearly invisible against the surface — so light
   // mode gets its own deep gold instead of whatever the faction happens to be.
   Color get dominant =>
-      isDark ? const Color(0xFFF59E0B) : const Color(0xFFA16207);
+      isDark ? const Color(0xFFCDB07A) : const Color(0xFFA16207);
 
   // ── Reward palette ─────────────────────────────────────────────────────────
   // Coin and "ready" colours. The dark values are what the forge aesthetic was
@@ -343,9 +345,9 @@ class ForgeTokens {
   Color get mint => isDark ? const Color(0xFF8CD9B3) : const Color(0xFF0F6B4F);
 
   // ── Text ───────────────────────────────────────────────────────────────────
-  Color get textPrimary => isDark ? const Color(0xFFE8DCC8) : _theme.text;
+  Color get textPrimary => isDark ? const Color(0xFFE6E2DA) : _theme.text;
   Color get textSecondary =>
-      isDark ? const Color(0xFF8A7B6A) : _theme.text.withValues(alpha: 0.78);
+      isDark ? const Color(0xFF85827C) : _theme.text.withValues(alpha: 0.78);
   // Dark-mode hierarchy:
   //   textPrimary   #E8DCC8  (warm cream, ~88% lum) — main text
   //   textSecondary #8A7B6A  (mid-brown, ~52% lum) — supporting text
@@ -353,15 +355,15 @@ class ForgeTokens {
   //                                                       but readable
   // Was #4A3F35 (~25% luminance) which was effectively invisible on the
   // dark bg.
-  Color get textMuted => isDark ? const Color(0xFF7A6F60) : _theme.textMuted;
+  Color get textMuted => isDark ? const Color(0xFF74726D) : _theme.textMuted;
 
   // ── Borders ────────────────────────────────────────────────────────────────
   Color get borderDim =>
-      isDark ? const Color(0xFF2C241A) : _theme.border.withValues(alpha: 0.3);
+      isDark ? const Color(0xFF26262B) : _theme.border.withValues(alpha: 0.3);
   Color get borderMid =>
-      isDark ? const Color(0xFF3A3020) : _theme.border.withValues(alpha: 0.5);
+      isDark ? const Color(0xFF33333A) : _theme.border.withValues(alpha: 0.5);
   Color get borderAccent =>
-      isDark ? const Color(0xFF6B4C20) : _theme.accentSoft;
+      isDark ? const Color(0xFF6B5A36) : _theme.accentSoft;
 
   // ── Status ─────────────────────────────────────────────────────────────────
   Color get success => const Color(0xFF16A34A);

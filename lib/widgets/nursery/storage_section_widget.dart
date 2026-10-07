@@ -1109,8 +1109,8 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
   Widget build(BuildContext context) {
     final theme = context.read<FactionTheme>();
     final t = ForgeTokens(theme);
-    const ink = Color(0xFFE8DCC8);
-    const muted = Color(0xFF9A8D7C);
+    const ink = Color(0xFFE6E2DA);
+    const muted = Color(0xFF8E8C88);
 
     final egg = widget.egg;
     final payload = _payload;

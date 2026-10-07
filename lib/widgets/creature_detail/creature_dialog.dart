@@ -1,62 +1,50 @@
-import 'package:alchemons/audio/audio.dart';
 // lib/widgets/creature_detail/creature_dialog.dart
 //
-// REDESIGNED CREATURE DETAILS DIALOG
-// Aesthetic: Scorched Forge — matches survival / boss / formation screens
-// Dark metal panels, amber reagent accents, monospace tactical typography
-// All logic preserved exactly.
-//
+// The full details of one Alchemon.
+//   Overview — the creature itself: its stage, vitals, what it wears, its
+//              four stats, its traits, and a few words about it.
+//   Lineage  — where it came from and what it passes down: its line, its
+//              parents, and how the fusion came out.
+//   Battle   — battle_sheet.dart.
+// Each fact is shown once. A species opened from the catalog has only its
+// overview.
 
-import 'dart:convert';
-import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
-import 'package:alchemons/models/potential_genetics.dart';
 import 'dart:async';
-import 'package:alchemons/services/constellation_effects_service.dart';
+import 'dart:convert';
+import 'dart:math' as math;
+
+import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/constants/creature_details_tutorials.dart';
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/purity_stat_bonus.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/utils/color_util.dart';
+import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/utils/instance_purity_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:alchemons/widgets/creature_detail/creature_background_pref.dart';
 import 'package:alchemons/widgets/creature_detail/creature_display_view.dart';
+import 'package:alchemons/widgets/creature_detail/specimen_readouts.dart';
+import 'package:alchemons/widgets/creature_detail/unknow_helper.dart';
+import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
+import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
+import 'package:alchemons/widgets/stamina_bar.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
+import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart';
 import 'package:drift/drift.dart' show Value;
+import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:flame/components.dart';
-
-import 'package:alchemons/widgets/creature_detail/lineage_block_widget.dart';
-import 'package:alchemons/widgets/creature_detail/outcome_widget.dart';
-import 'package:alchemons/widgets/creature_detail/parent_display_widget.dart';
-import 'package:alchemons/widgets/creature_detail/stats_potential_widget.dart';
-import 'package:alchemons/widgets/creature_detail/unknow_helper.dart';
-import 'package:alchemons/widgets/story_dialog.dart';
-import 'package:alchemons/widgets/stamina_bar.dart';
-import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart';
-
-import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/helpers/genetics_loader.dart';
-import 'package:alchemons/helpers/nature_loader.dart';
-import 'package:alchemons/models/inventory.dart';
-import 'package:alchemons/utils/alchemy_effect_apply.dart';
-import 'package:alchemons/models/nature.dart';
-import 'package:alchemons/services/stamina_service.dart';
-import 'package:alchemons/models/stat_system.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
-import 'package:alchemons/services/creature_repository.dart';
-import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/genetics_util.dart';
-import 'package:alchemons/models/purity_stat_bonus.dart';
-import 'package:alchemons/utils/instance_purity_util.dart';
-import 'package:alchemons/utils/nature_effect_formatter.dart';
-import 'package:alchemons/widgets/bracket_frame.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:alchemons/widgets/inventory_item_artwork.dart';
-import 'package:alchemons/widgets/fx/elemental_essence.dart';
-
-import '../../models/creature.dart';
-import 'package:alchemons/widgets/app_icons.dart';
-import 'package:alchemons/models/wild_fusion.dart';
-import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
-import 'package:alchemons/models/celebration_costume.dart';
-import 'package:alchemons/widgets/costume/costume_color_sheet.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -137,31 +125,6 @@ Color _dialogAccent(BuildContext context, {Color? color}) {
 // SHARED MICRO WIDGETS
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// Analysis section — bracket-style divider header followed by content.
-class _AnalysisSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final Color? accentColor;
-
-  const _AnalysisSection({
-    required this.title,
-    required this.child,
-    this.accentColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BracketSectionDivider(label: title),
-        const SizedBox(height: 10),
-        child,
-      ],
-    );
-  }
-}
-
 /// Returns the signature color for a variant faction name.
 Color _variantFactionColor(String faction) => switch (faction.toLowerCase()) {
   'volcanic' => const Color(0xFFFF5722),
@@ -178,197 +141,6 @@ String _displayVariantFaction(String faction) {
   if (trimmed.isEmpty) return trimmed;
   if (trimmed.toLowerCase() == 'bloodborn') return 'Bloodborn';
   return trimmed[0].toUpperCase() + trimmed.substring(1);
-}
-
-/// Bracket-style pill — rarity / type tag
-class _TagBadge extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  /// The bracket frame earns its place over artwork — the Prismatic badge sits
-  /// on the sprite and needs the edge to stay legible. The header tags sit on
-  /// a flat panel, where the frame was just noise around two short words.
-  final bool framed;
-
-  const _TagBadge({
-    required this.label,
-    required this.color,
-    this.framed = true,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final body = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: framed ? 0.10 : 0.14),
-        borderRadius: framed ? null : BorderRadius.circular(3),
-      ),
-      child: Text(
-        label.toUpperCase(),
-        style: bracketText(
-          context,
-          11,
-          color,
-          weight: FontWeight.w700,
-          letterSpacing: 1.0,
-        ),
-      ),
-    );
-    if (!framed) return body;
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: color.withValues(alpha: 0.75),
-        bracketSize: 5,
-        strokeWidth: 1,
-      ),
-      child: body,
-    );
-  }
-}
-
-/// Label + value row in the bracket aesthetic.
-/// A single behaviour, boxed. Two natures rendered as one comma-joined string
-/// read as a single odd name; a box each makes the count obvious. Tier is
-/// carried by colour alone — spelling it out beside the name doubled the width
-/// of every chip to label the majority case "UTILITY".
-class _NatureChip extends StatelessWidget {
-  final NatureDef nature;
-
-  const _NatureChip({required this.nature});
-
-  static Color tierColor(String tier, _C c) => switch (tier.toLowerCase()) {
-    'legacy' => const Color(0xFFFFC107),
-    'rare' => const Color(0xFFC084FC),
-    'uncommon' => const Color(0xFF34D399),
-    'common' => const Color(0xFF60A5FA),
-    _ => c.textMuted,
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final color = tierColor(nature.tier, c);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: color.withValues(alpha: 0.65)),
-      ),
-      child: Text(
-        nature.id,
-        style: bracketText(context, 12, color, weight: FontWeight.w700),
-      ),
-    );
-  }
-}
-
-class _DataRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  /// Replaces the value text when a row needs richer content — the behaviour
-  /// row renders one bordered chip per nature.
-  final Widget? valueChild;
-
-  const _DataRow({
-    required this.label,
-    this.value = '',
-    this.valueColor,
-    this.valueChild,
-  });
-  @override
-  Widget build(BuildContext context) {
-    final palette = _bp(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 130,
-            child: Text(
-              label.toUpperCase(),
-              style: bracketText(
-                context,
-                11,
-                palette.muted,
-                weight: FontWeight.w700,
-                letterSpacing: 0.9,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child:
-                valueChild ??
-                Text(
-                  value,
-                  style: bracketText(
-                    context,
-                    12.5,
-                    valueColor ?? palette.ink,
-                    weight: FontWeight.w600,
-                  ),
-                  strutStyle: const StrutStyle(height: 1.35),
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Bracket-framed content section with a centered title divider.
-class _ForgeSection extends StatelessWidget {
-  final String title;
-  final Widget child;
-  final Color? accentColor;
-
-  const _ForgeSection({
-    required this.title,
-    required this.child,
-    this.accentColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = _bp(context);
-    final frame = accentColor ?? palette.line;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        BracketSectionDivider(label: title),
-        const SizedBox(height: 10),
-        CustomPaint(
-          painter: BracketFramePainter(
-            color: frame.withValues(alpha: 0.9),
-            bracketSize: 10,
-            strokeWidth: 1.05,
-          ),
-          child: Container(
-            color: palette.surfaceFill(),
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
-            child: child,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ScanlinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withValues(alpha: 0.06);
-    for (double y = 0; y < size.height; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -418,12 +190,10 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   static const _tabSwipePhysics = _CreatureDetailsTabPhysics();
 
   late TabController _tabController;
-  late PageController _pageController;
-  late ScrollController _analysisScrollController;
-  final GlobalKey _behaviorSectionKey = GlobalKey();
-  final GlobalKey _potentialSectionKey = GlobalKey();
-  final GlobalKey _lineageSectionKey = GlobalKey();
-  final GlobalKey _breedingAnalysisSectionKey = GlobalKey();
+  final GlobalKey _attributesKey = GlobalKey();
+  final GlobalKey _traitsKey = GlobalKey();
+  final GlobalKey _lineKey = GlobalKey();
+  final GlobalKey _oddsKey = GlobalKey();
 
   late Creature _effectiveCreature;
   bool _hydratingInstance = false;
@@ -431,38 +201,35 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   Set<CreatureDetailsTutorialTarget> _activeTutorialTargets =
       <CreatureDetailsTutorialTarget>{};
 
-  final Set<String> _expandedParents = {};
-  int _currentImageIndex = 0;
-
   CreatureInstance? _instance;
   StreamSubscription<CreatureInstance?>? _effectSub;
-  int? _instanceLevel;
   bool _favoriteBusy = false;
   bool _nicknameBusy = false;
   CreatureBgOption? _bgOption;
+
+  /// Overview, Lineage and Battle are all about one specimen. A species
+  /// looked up from the catalog has only its overview.
+  bool get _hasTabs => widget.isDiscovered && widget.instanceId != null;
 
   /// The creature gathers out of its element once per opening: not again
   /// when the Overview tab comes back.
   final EssenceReveal _heroReveal = EssenceReveal.once();
 
-  int _initialTabIndex() {
-    if (!widget.isDiscovered) return 0;
-    if (widget.openBattleTab && widget.instanceId != null) return 2;
-    return 0;
-  }
+  int _initialTabIndex() =>
+      _hasTabs && widget.openBattleTab ? _battleTabIndex : 0;
+
+  static const _battleTabIndex = 2;
 
   @override
   void initState() {
     super.initState();
     _effectiveCreature = widget.creature;
     _tabController = TabController(
-      length: widget.isDiscovered ? 3 : 1,
+      length: _hasTabs ? 3 : 1,
       vsync: this,
       initialIndex: _initialTabIndex(),
       animationDuration: _tabSwipeDuration,
     );
-    _pageController = PageController(viewportFraction: 1.0);
-    _analysisScrollController = ScrollController();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _maybeShowPendingAnalyzerTutorials();
     });
@@ -527,7 +294,6 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       final row = await db.creatureDao.getInstance(instanceId);
       if (row == null) throw Exception('Instance not found');
       _instance = row;
-      _instanceLevel = row.level;
       final base = repo.getCreatureById(row.baseId);
       if (base == null) {
         throw Exception('Catalog creature ${row.baseId} not loaded');
@@ -738,8 +504,6 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   void dispose() {
     _effectSub?.cancel();
     _tabController.dispose();
-    _pageController.dispose();
-    _analysisScrollController.dispose();
     super.dispose();
   }
 
@@ -764,15 +528,13 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       }),
     );
 
+    // Every readout belongs to a specimen. Opened on a species, they stay
+    // pending until one is opened.
+    if (_instance == null || !_hasTabs) return;
     final eligibleTargets =
         pendingEntries
             .where((entry) => entry.isPending)
             .map((entry) => entry.target)
-            .where(
-              (target) =>
-                  !target.requiresInstance ||
-                  (_instance != null && widget.instanceId != null),
-            )
             .toList()
           ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
@@ -788,10 +550,9 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
       });
     }
 
-    if (widget.isDiscovered &&
-        _tabController.length > 1 &&
-        _tabController.index != 1) {
-      _tabController.animateTo(1);
+    final tab = _tabFor(eligibleTargets.first);
+    if (_tabController.index != tab) {
+      _tabController.animateTo(tab);
       await Future<void>.delayed(_tabSwipeDuration);
     }
 
@@ -828,18 +589,21 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
     );
   }
 
+  /// Potential and nature effects read on the creature itself; the
+  /// Lineage Analyzer reads its fusion.
+  static int _tabFor(CreatureDetailsTutorialTarget target) =>
+      target == CreatureDetailsTutorialTarget.lineageAnalyzer ? 1 : 0;
+
   Future<void> _scrollToTutorialTarget(
     CreatureDetailsTutorialTarget target,
   ) async {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       final key = switch (target) {
-        CreatureDetailsTutorialTarget.geneAnalyzer => _behaviorSectionKey,
-        CreatureDetailsTutorialTarget.potentialAnalyzer => _potentialSectionKey,
+        CreatureDetailsTutorialTarget.geneAnalyzer => _traitsKey,
+        CreatureDetailsTutorialTarget.potentialAnalyzer => _attributesKey,
         CreatureDetailsTutorialTarget.lineageAnalyzer =>
-          _effectiveCreature.parentage != null
-              ? _breedingAnalysisSectionKey
-              : _lineageSectionKey,
+          _oddsKey.currentContext != null ? _oddsKey : _lineKey,
       };
       final sectionContext = key.currentContext;
       if (sectionContext == null) return;
@@ -870,7 +634,78 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
   }) {
     final palette = _bp(context);
     final activeAccent = _dialogAccent(context);
-    final discovered = widget.isDiscovered;
+
+    final overview = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 180),
+      switchInCurve: Curves.easeOut,
+      switchOutCurve: Curves.easeIn,
+      // Fill the page: the default loose stack centres a short overview.
+      layoutBuilder: (current, previous) =>
+          Stack(fit: StackFit.expand, children: [...previous, ?current]),
+      child: _OverviewTab(
+        key: ValueKey('${effective.id}-${hydrating ? 'loading' : 'ready'}'),
+        creature: effective,
+        instance: instance,
+        bgOption: _bgOption,
+        onSpriteLongPress: _openDisplayView,
+        reveal: _heroReveal,
+        highlightedTargets: _activeTutorialTargets,
+        attributesKey: _attributesKey,
+        traitsKey: _traitsKey,
+        // The specimen is still being read: no sprite yet, or the
+        // species' would show and then be swapped for it.
+        spriteLoading: hydrating && widget.instanceId != null,
+      ),
+    );
+
+    // Tabs about a specimen that is still loading stay empty; one that
+    // could not be found says so.
+    Widget needsSpecimen(Widget Function(CreatureInstance) build) {
+      if (instance != null) return build(instance);
+      if (hydrating) return const SizedBox.shrink();
+      return const _LockedTabPlaceholder(
+        message: 'This specimen could not be found.',
+      );
+    }
+
+    final Widget body;
+    if (!widget.isDiscovered) {
+      body = UnknownScrollArea(theme: context.read<FactionTheme>());
+    } else if (!_hasTabs) {
+      body = overview;
+    } else {
+      body = TabBarView(
+        controller: _tabController,
+        physics: _tabSwipePhysics,
+        children: [
+          _TabPage(index: 0, controller: _tabController, child: overview),
+          _TabPage(
+            index: 1,
+            controller: _tabController,
+            child: needsSpecimen(
+              (inst) => _LineageTab(
+                creature: effective,
+                instance: inst,
+                highlightedTargets: _activeTutorialTargets,
+                lineKey: _lineKey,
+                oddsKey: _oddsKey,
+              ),
+            ),
+          ),
+          _TabPage(
+            index: _battleTabIndex,
+            controller: _tabController,
+            child: needsSpecimen(
+              (inst) => ImprovedBattleScrollArea(
+                theme: context.read<FactionTheme>(),
+                creature: effective,
+                instance: inst,
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     return Dialog(
       insetPadding: const EdgeInsets.all(4),
@@ -897,94 +732,8 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
                   onEditName: _editNickname,
                   onClose: () => Navigator.of(context).pop(),
                 ),
-                if (discovered) _TabSelector(tabController: _tabController),
-                Expanded(
-                  child: discovered
-                      ? TabBarView(
-                          controller: _tabController,
-                          physics: _tabSwipePhysics,
-                          children: [
-                            // OVERVIEW
-                            AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 180),
-                              switchInCurve: Curves.easeOut,
-                              switchOutCurve: Curves.easeIn,
-                              child: _OverviewTab(
-                                key: ValueKey(
-                                  '${effective.id}-${hydrating ? 'loading' : 'ready'}',
-                                ),
-                                creature: effective,
-                                instanceLevel: _instanceLevel,
-                                instance: instance,
-                                pageController: _pageController,
-                                currentImageIndex: _currentImageIndex,
-                                onPageChanged: (i) =>
-                                    setState(() => _currentImageIndex = i),
-                                bgOption: _bgOption,
-                                onSpriteLongPress: _openDisplayView,
-                                reveal: _heroReveal,
-                                // The specimen is still being read: no
-                                // sprite yet, or the species' would show
-                                // and then be swapped for it.
-                                spriteLoading:
-                                    hydrating && widget.instanceId != null,
-                              ),
-                            ),
-                            // ANALYSIS
-                            _AnalysisTab(
-                              parentage: effective.parentage,
-                              controller: _analysisScrollController,
-                              creature: effective,
-                              isInstance: instance != null,
-                              instance: instance,
-                              highlightedTargets: _activeTutorialTargets,
-                              isExpandedMap: _expandedParents,
-                              onToggleParent: (parentKey) {
-                                double? oldOffset;
-                                if (_analysisScrollController.hasClients) {
-                                  oldOffset = _analysisScrollController.offset;
-                                }
-                                setState(() {
-                                  if (_expandedParents.contains(parentKey)) {
-                                    _expandedParents.remove(parentKey);
-                                  } else {
-                                    _expandedParents.add(parentKey);
-                                  }
-                                });
-                                if (oldOffset != null) {
-                                  WidgetsBinding.instance.addPostFrameCallback((
-                                    _,
-                                  ) {
-                                    if (_analysisScrollController.hasClients) {
-                                      _analysisScrollController.jumpTo(
-                                        oldOffset!,
-                                      );
-                                    }
-                                  });
-                                }
-                              },
-                              instanceId: widget.instanceId,
-                              behaviorSectionKey: _behaviorSectionKey,
-                              potentialSectionKey: _potentialSectionKey,
-                              lineageSectionKey: _lineageSectionKey,
-                              breedingAnalysisSectionKey:
-                                  _breedingAnalysisSectionKey,
-                            ),
-                            // BATTLE
-                            if (instance != null)
-                              ImprovedBattleScrollArea(
-                                theme: context.read<FactionTheme>(),
-                                creature: effective,
-                                instance: instance,
-                              )
-                            else
-                              const _LockedTabPlaceholder(
-                                message: 'BATTLE DATA REQUIRES A LIVE SPECIMEN',
-                              ),
-                          ],
-                        )
-                      : UnknownScrollArea(theme: context.read<FactionTheme>()),
-                ),
+                if (_hasTabs) _TabSelector(tabController: _tabController),
+                Expanded(child: body),
               ],
             ),
           ),
@@ -1017,24 +766,9 @@ class _HeaderBar extends StatelessWidget {
     required this.onClose,
   });
 
-  Color _rarityColor(String rarity, _C c) {
-    switch (rarity.toLowerCase()) {
-      case 'legendary':
-        return const Color(0xFFFFB020);
-      case 'rare':
-        return const Color(0xFF60A5FA);
-      case 'uncommon':
-        return const Color(0xFF34D399);
-      default:
-        return c.textSecondary;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
     final palette = _bp(context);
-    final rarityColor = _rarityColor(creature.rarity, c);
     final instance = this.instance;
     final isFavorite = instance?.isFavorite ?? false;
     final trimmedNickname = instance?.nickname?.trim();
@@ -1158,26 +892,10 @@ class _HeaderBar extends StatelessWidget {
               ),
             ),
           ],
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _TagBadge(
-                label: creature.rarity,
-                color: rarityColor,
-                framed: false,
-              ),
-              ...creature.types
-                  .take(2)
-                  .map(
-                    (t) => _TagBadge(
-                      label: t,
-                      color: _dialogAccent(context),
-                      framed: false,
-                    ),
-                  ),
-            ],
+          const SizedBox(height: 8),
+          RarityElementMark(
+            species: creature,
+            prismatic: creature.isPrismaticSkin == true,
           ),
         ],
       ),
@@ -1247,7 +965,7 @@ class _TabSelector extends StatelessWidget {
   final TabController tabController;
   const _TabSelector({required this.tabController});
 
-  static const _labels = ['Overview', 'Analysis', 'Battle'];
+  static const _labels = ['Overview', 'Lineage', 'Battle'];
 
   @override
   Widget build(BuildContext context) {
@@ -1257,10 +975,12 @@ class _TabSelector extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
       child: AnimatedBuilder(
-        animation: tabController,
+        // The page's live position, not the settled index: the tab under
+        // the finger lights as soon as the page is over halfway.
+        animation: tabController.animation!,
         builder: (context, _) => Row(
           children: List.generate(_labels.length, (index) {
-            final selected = tabController.index == index;
+            final selected = tabController.animation!.value.round() == index;
             return Expanded(
               child: Padding(
                 padding: EdgeInsets.only(
@@ -1307,6 +1027,60 @@ class _TabSelector extends StatelessWidget {
   }
 }
 
+/// One tab's page, kept alive so coming back to it is instant (the Battle
+/// stage would otherwise build a new game on every visit). Its tickers run
+/// only while it is on screen, mid-swipe included.
+class _TabPage extends StatefulWidget {
+  const _TabPage({
+    required this.index,
+    required this.controller,
+    required this.child,
+  });
+
+  final int index;
+  final TabController controller;
+  final Widget child;
+
+  @override
+  State<_TabPage> createState() => _TabPageState();
+}
+
+class _TabPageState extends State<_TabPage> with AutomaticKeepAliveClientMixin {
+  late bool _onScreen = _computeOnScreen();
+
+  bool _computeOnScreen() =>
+      (widget.controller.animation!.value - widget.index).abs() < 1;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.animation!.addListener(_onMove);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.animation!.removeListener(_onMove);
+    super.dispose();
+  }
+
+  void _onMove() {
+    final onScreen = _computeOnScreen();
+    if (onScreen != _onScreen) setState(() => _onScreen = onScreen);
+  }
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return TickerMode(enabled: _onScreen, child: widget.child);
+  }
+}
+
+/// Tabs that follow the finger and land quickly. The old spring (soft and a
+/// little overdamped) took over half a second to creep the last few pixels
+/// home, and the tab label waited for it.
 class _CreatureDetailsTabPhysics extends ScrollPhysics {
   const _CreatureDetailsTabPhysics({super.parent});
 
@@ -1321,15 +1095,19 @@ class _CreatureDetailsTabPhysics extends ScrollPhysics {
   @override
   double get minFlingDistance => 18;
 
+  /// A short, quick swipe turns the page; a slow drag under halfway
+  /// springs back.
   @override
-  double get minFlingVelocity => 700;
+  double get minFlingVelocity => 300;
 
   @override
-  SpringDescription get spring => SpringDescription.withDampingRatio(
-    mass: 0.5,
-    stiffness: 220,
-    ratio: 1.12,
-  );
+  SpringDescription get spring =>
+      SpringDescription.withDampingRatio(mass: 0.4, stiffness: 520, ratio: 1.0);
+
+  /// Done once it is within half a pixel, not a thousandth.
+  @override
+  Tolerance toleranceFor(ScrollMetrics metrics) =>
+      const Tolerance(distance: 0.5, velocity: 20);
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -1381,465 +1159,359 @@ class _LockedTabPlaceholder extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// OVERVIEW TAB
+// OVERVIEW TAB — the creature itself
 // ──────────────────────────────────────────────────────────────────────────────
 
 class _OverviewTab extends StatelessWidget {
   final Creature creature;
-  final int? instanceLevel;
   final CreatureInstance? instance;
-  final PageController pageController;
-  final int currentImageIndex;
-  final ValueChanged<int> onPageChanged;
   final CreatureBgOption? bgOption;
 
   /// Opens the background picker. A tap plays the elemental essence.
   final VoidCallback? onSpriteLongPress;
   final EssenceReveal? reveal;
   final bool spriteLoading;
+  final Set<CreatureDetailsTutorialTarget> highlightedTargets;
+  final GlobalKey attributesKey;
+  final GlobalKey traitsKey;
 
   const _OverviewTab({
     super.key,
     required this.creature,
-    required this.instanceLevel,
     required this.instance,
-    required this.pageController,
-    required this.currentImageIndex,
-    required this.onPageChanged,
     required this.bgOption,
     required this.onSpriteLongPress,
+    required this.highlightedTargets,
+    required this.attributesKey,
+    required this.traitsKey,
     this.reveal,
     this.spriteLoading = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final c = _C.of(context);
-    // The overview was the last place still printing the figure: the stat
-    // bars carried a P-value beside every rating regardless of the analyzer.
-    final showPotential = context
-        .read<ConstellationEffectsService>()
-        .hasPotentialAnalyzer();
-    final purity = instance == null
-        ? null
-        : classifyInstancePurity(instance!, species: creature);
-    final hasNotablePurity =
-        purity != null &&
-        (purity.isPure || purity.isElementallyPure || purity.isSpeciesPure);
+    final effects = context.watch<ConstellationEffectsService>();
+    final inst = instance;
+    // While the specimen is read, only the empty stage: the species' traits
+    // would show and then be swapped, and this page fades out under the
+    // ready one, which carries the same section keys.
+    final traits = spriteLoading
+        ? const <TraitRow>[]
+        : specimenTraitRows(
+            context,
+            creature,
+            inst,
+            natureEffects: effects.hasGeneAnalyzer(),
+          );
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // ── Sprite hero ─────────────────────────────────────────────────────
-          _buildSpriteHero(context, c),
-          if (instance != null) ...[
+          _Stage(
+            creature: creature,
+            instance: inst,
+            bgOption: bgOption,
+            onLongPress: onSpriteLongPress,
+            reveal: reveal,
+            spriteLoading: spriteLoading,
+          ),
+          if (inst != null) ...[
             const SizedBox(height: 10),
-            _StaminaRestoreButton(
-              instanceId: instance!.instanceId,
-              creatureName: creature.name,
-            ),
-            const SizedBox(height: 8),
-            _AlchemyEffectSlot(
-              instance: instance!,
-              creatureName: creature.name,
-            ),
-            if (FamilyCostume.values.any((c) => c.fits(instance!.baseId))) ...[
-              const SizedBox(height: 8),
-              _CostumeSlot(instance: instance!, creatureName: creature.name),
-            ],
-          ],
-          const SizedBox(height: 20),
-
-          // ── Physical attributes (instance only) ──────────────────────────────
-          if (instance != null) ...[
-            _ForgeSection(
-              title: 'Physical Attributes',
-              accentColor: c.amberBright,
+            _VitalsRow(instance: inst, creatureName: creature.name),
+            const SizedBox(height: 10),
+            WornStrip(instance: inst, creatureName: creature.name),
+            const SizedBox(height: 16),
+            _Highlighted(
+              sectionKey: attributesKey,
+              target: CreatureDetailsTutorialTarget.potentialAnalyzer,
+              highlightedTargets: highlightedTargets,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _StatBar(
-                    label: 'Speed',
-                    value: instance!.statSpeed,
-                    potential: showPotential
-                        ? instance!.statSpeedPotential
-                        : null,
-                    accent: const Color(0xFF60A5FA),
-                    isDominant:
-                        _dominants(context)?.contains(StatKind.speed) ?? false,
-                  ),
-                  _StatBar(
-                    label: 'Intelligence',
-                    value: instance!.statIntelligence,
-                    potential: showPotential
-                        ? instance!.statIntelligencePotential
-                        : null,
-                    accent: const Color(0xFFC084FC),
-                    isDominant:
-                        _dominants(context)?.contains(StatKind.intelligence) ??
-                        false,
-                  ),
-                  _StatBar(
-                    label: 'Strength',
-                    value: instance!.statStrength,
-                    potential: showPotential
-                        ? instance!.statStrengthPotential
-                        : null,
-                    accent: const Color(0xFFF87171),
-                    isDominant:
-                        _dominants(context)?.contains(StatKind.strength) ??
-                        false,
-                  ),
-                  _StatBar(
-                    label: 'Beauty',
-                    value: instance!.statBeauty,
-                    potential: showPotential
-                        ? instance!.statBeautyPotential
-                        : null,
-                    accent: const Color(0xFFF9A8D4),
-                    isDominant:
-                        _dominants(context)?.contains(StatKind.beauty) ?? false,
+                  const BracketSectionDivider(label: 'ATTRIBUTES'),
+                  const SizedBox(height: 8),
+                  StatTileGrid(
+                    stats: statTilesFor(
+                      inst,
+                      showPotential: effects.hasPotentialAnalyzer(),
+                      showDominants: effects.hasDominantAnalyzer(),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 10),
           ],
-
-          if (instance != null) ...[
-            _ForgeSection(
-              title: 'Genetic Profile',
+          if (traits.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _Highlighted(
+              sectionKey: traitsKey,
+              target: CreatureDetailsTutorialTarget.geneAnalyzer,
+              highlightedTargets: highlightedTargets,
               child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _DataRow(
-                    label: 'Dominant Stats',
-                    value: _dominantStatsLabel(context),
-                    valueColor: c.amberBright,
-                  ),
-                  _DataRow(label: 'Size Variant', value: _sizeLabel()),
-                  _DataRow(label: 'Pigmentation', value: _tintLabel()),
-                  if (creature.nature != null || creature.nature2 != null)
-                    _DataRow(
-                      label: 'Behavioral Pattern',
-                      valueChild: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (final n in [
-                            creature.nature,
-                            creature.nature2,
-                          ].whereType<NatureDef>())
-                            _NatureChip(nature: n),
+                  const BracketSectionDivider(label: 'TRAITS'),
+                  const SizedBox(height: 4),
+                  ...traits,
+                ],
+              ),
+            ),
+          ],
+          if (!spriteLoading) _AboutBlock(creature: creature, instance: inst),
+        ],
+      ),
+    );
+  }
+}
+
+/// The creature on its backdrop, with a soft pool to stand in. Tap plays its
+/// element; long press picks the backdrop.
+class _Stage extends StatelessWidget {
+  final Creature creature;
+  final CreatureInstance? instance;
+  final CreatureBgOption? bgOption;
+  final VoidCallback? onLongPress;
+  final EssenceReveal? reveal;
+  final bool spriteLoading;
+
+  const _Stage({
+    required this.creature,
+    required this.instance,
+    required this.bgOption,
+    required this.onLongPress,
+    required this.reveal,
+    required this.spriteLoading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _bp(context);
+    final accent = _dialogAccent(context);
+    final c = _C.of(context);
+    final bg = bgOption;
+    final inst = instance;
+    // White and grey want a shadow under the creature, not a glow.
+    final light =
+        bg != null &&
+        bg.kind == CreatureBgKind.color &&
+        bg.color.computeLuminance() > 0.35;
+    final variant = (inst?.variantFaction ?? '').trim();
+    final prismatic = creature.isPrismaticSkin == true;
+
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: accent.withValues(alpha: 0.82),
+        bracketSize: 12,
+        strokeWidth: 1.1,
+      ),
+      child: ClipRect(
+        child: SizedBox(
+          height: 240,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: bg == null
+                    ? ColoredBox(color: palette.bg0)
+                    : CreatureBgLayer(option: bg),
+              ),
+              Center(
+                child: IgnorePointer(
+                  child: Container(
+                    width: 220,
+                    height: 220,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          (light ? Colors.black : accent).withValues(
+                            alpha: light ? 0.06 : 0.12,
+                          ),
+                          Colors.transparent,
                         ],
                       ),
                     ),
-                  if (creature.isPrismaticSkin == true)
-                    _DataRow(
-                      label: 'Special Trait',
-                      value: 'Prismatic Phenotype',
-                      valueColor: const Color(0xFFE879F9),
-                    ),
-                  if (AlchemonMutation.byId(creature.wildMutation)
-                      case final m?)
-                    _DataRow(
-                      label: 'Mutation',
-                      value: m.label,
-                      valueColor: mutationAccent(m),
-                    ),
-                  if (hasNotablePurity)
-                    _DataRow(
-                      label: 'Purity',
-                      value: purity.label,
-                      valueColor: _purityAccent(c, purity),
-                    ),
-                ],
-              ),
-            ),
-          ],
-
-          // ── Classification ───────────────────────────────────────────────────
-          _ForgeSection(
-            title: 'Specimen Classification',
-            child: Column(
-              children: [
-                _DataRow(label: 'Classification', value: creature.rarity),
-                _DataRow(
-                  label: 'Type Categories',
-                  value: creature.types.join(', '),
+                  ),
                 ),
-                if (creature.description.isNotEmpty)
-                  _DataRow(label: 'Description', value: creature.description),
-              ],
-            ),
+              ),
+              Center(
+                child: SizedBox(
+                  width: 200,
+                  height: 200,
+                  child: spriteLoading
+                      ? null
+                      : ElementalEssence(
+                          key: ValueKey(inst?.instanceId ?? creature.id),
+                          element: creature.types.isEmpty
+                              ? null
+                              : creature.types.first,
+                          dark: !light,
+                          onLongPress: onLongPress,
+                          reveal: reveal,
+                          child: Center(
+                            child: inst == null
+                                ? SizedBox.square(
+                                    dimension: 186,
+                                    child: _speciesSprite(creature),
+                                  )
+                                : InstanceSprite(
+                                    creature: creature,
+                                    instance: inst,
+                                    size: 186,
+                                  ),
+                          ),
+                        ),
+                ),
+              ),
+              if (inst != null)
+                Positioned(
+                  top: 10,
+                  left: 10,
+                  child: _HeroCornerBadge(
+                    label: 'LV ${inst.level}',
+                    color: c.amberBright,
+                  ),
+                ),
+              if (prismatic || variant.isNotEmpty)
+                Positioned(
+                  top: 10,
+                  right: 10,
+                  child: _HeroCornerBadge(
+                    label: prismatic
+                        ? 'Prismatic'
+                        : _displayVariantFaction(variant),
+                    color: prismatic
+                        ? const Color(0xFFE879F9)
+                        : _variantFactionColor(variant),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(height: 10),
+        ),
+      ),
+    );
+  }
 
-          if (instance != null) ...[
-            _ForgeSection(
-              title: 'Source / Discovery',
-              child: Column(
-                children: [
-                  _DataRow(
-                    label: 'Source',
-                    value: _formatSource(instance!.source),
-                  ),
-                  _DataRow(
-                    label: 'Logged',
-                    value: _formatCreationDate(instance!.createdAtUtcMs),
-                  ),
-                ],
+  static Widget _speciesSprite(Creature creature) {
+    final sd = creature.spriteData;
+    if (sd == null) return const SizedBox.shrink();
+    return CreatureSprite(
+      spritePath: sd.spriteSheetPath,
+      totalFrames: sd.totalFrames,
+      rows: sd.rows,
+      frameSize: Vector2(sd.frameWidth.toDouble(), sd.frameHeight.toDouble()),
+      stepTime: sd.frameDurationMs / 1000.0,
+      scale: scaleFromGenes(creature.genetics),
+      saturation: satFromGenes(creature.genetics),
+      brightness: briFromGenes(creature.genetics),
+      hueShift: hueFromGenes(creature.genetics),
+      isPrismatic: creature.isPrismaticSkin,
+    );
+  }
+}
+
+/// XP, breeding stamina, and an elixir when one would help.
+class _VitalsRow extends StatelessWidget {
+  final CreatureInstance instance;
+  final String creatureName;
+
+  const _VitalsRow({required this.instance, required this.creatureName});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _bp(context);
+    return Row(
+      children: [
+        Text(
+          '${instance.xp} XP',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: palette.muted,
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.6,
+          ),
+        ),
+        const SizedBox(width: 12),
+        StaminaBadge(instanceId: instance.instanceId, showCountdown: true),
+        const Spacer(),
+        StaminaRestoreChip(
+          instanceId: instance.instanceId,
+          creatureName: creatureName,
+        ),
+      ],
+    );
+  }
+}
+
+/// The species' description, how it is made if it can only be made one way,
+/// and where this one came from.
+class _AboutBlock extends StatelessWidget {
+  final Creature creature;
+  final CreatureInstance? instance;
+
+  const _AboutBlock({required this.creature, required this.instance});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _bp(context);
+    final special = creature.specialBreeding;
+    final inst = instance;
+    final hasAny =
+        creature.description.isNotEmpty || special != null || inst != null;
+    if (!hasAny) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const BracketSectionDivider(label: 'ABOUT'),
+          const SizedBox(height: 8),
+          if (creature.description.isNotEmpty)
+            Text(
+              creature.description,
+              style: bracketText(
+                context,
+                13,
+                palette.ink.withValues(alpha: 0.88),
+                weight: FontWeight.w500,
+                fontStyle: FontStyle.italic,
+              ),
+              strutStyle: const StrutStyle(height: 1.45),
+            ),
+          if (special != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Only made by fusing '
+              '${special.requiredParentNames.join(' + ')}.',
+              style: bracketText(
+                context,
+                12.5,
+                palette.ink,
+                weight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 10),
           ],
-
-          // ── Special breeding ─────────────────────────────────────────────────
-          if (creature.specialBreeding != null) ...[
-            _ForgeSection(
-              title: 'Synthesis Requirements',
-              accentColor: c.danger,
-              child: Column(
-                children: [
-                  _DataRow(
-                    label: 'Method',
-                    value: 'Specialized Genetic Fusion',
-                  ),
-                  _DataRow(
-                    label: 'Required Components',
-                    value: creature.specialBreeding!.requiredParentNames.join(
-                      ' + ',
-                    ),
-                  ),
-                ],
+          if (inst != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              [
+                _formatSource(inst.source),
+                _formatDate(inst.createdAtUtcMs),
+              ].join('  ·  '),
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: palette.muted,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.8,
               ),
             ),
           ],
         ],
       ),
     );
-  }
-
-  Widget _buildSpriteHero(BuildContext context, _C c) {
-    final palette = _bp(context);
-    final theme = context.read<FactionTheme>();
-    final activeAccent = _dialogAccent(context);
-    return Stack(
-      children: [
-        // Bracket-framed sprite plate
-        CustomPaint(
-          painter: BracketFramePainter(
-            color: activeAccent.withValues(alpha: 0.82),
-            bracketSize: 12,
-            strokeWidth: 1.1,
-          ),
-          child: ClipRect(
-            child: Container(
-              height: 210,
-              color: palette.bg0,
-              child: Stack(
-                children: [
-                  if (bgOption != null)
-                    Positioned.fill(child: CreatureBgLayer(option: bgOption!)),
-                  Positioned.fill(
-                    child: CustomPaint(painter: _ScanlinePainter()),
-                  ),
-                  // Radial glow behind sprite
-                  Center(
-                    child: Container(
-                      width: 175,
-                      height: 175,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            palette.accentWash(theme.accent, darkAlpha: 0.12),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  // Sprite
-                  Center(
-                    child: SizedBox(
-                      width: 175,
-                      height: 175,
-                      child: spriteLoading
-                          ? null
-                          : ElementalEssence(
-                              key: ValueKey(
-                                instance?.instanceId ?? creature.id,
-                              ),
-                              element: creature.types.isEmpty
-                                  ? null
-                                  : creature.types.first,
-                              dark: theme.isDark,
-                              onLongPress: onSpriteLongPress,
-                              reveal: reveal,
-                              child: Center(
-                                child: instance == null
-                                    ? CreatureSprite(
-                                        spritePath: creature
-                                            .spriteData!
-                                            .spriteSheetPath,
-                                        totalFrames:
-                                            creature.spriteData!.totalFrames,
-                                        rows: creature.spriteData!.rows,
-                                        frameSize: Vector2(
-                                          creature.spriteData!.frameWidth
-                                              .toDouble(),
-                                          creature.spriteData!.frameHeight
-                                              .toDouble(),
-                                        ),
-                                        stepTime:
-                                            creature
-                                                .spriteData!
-                                                .frameDurationMs /
-                                            1000.0,
-                                        scale: scaleFromGenes(
-                                          creature.genetics,
-                                        ),
-                                        saturation: satFromGenes(
-                                          creature.genetics,
-                                        ),
-                                        brightness: briFromGenes(
-                                          creature.genetics,
-                                        ),
-                                        hueShift: hueFromGenes(
-                                          creature.genetics,
-                                        ),
-                                        isPrismatic: creature.isPrismaticSkin,
-                                      )
-                                    : InstanceSprite(
-                                        creature: creature,
-                                        instance: instance!,
-                                        size: 162,
-                                      ),
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        // Prismatic shimmer badge (top-left)
-        if (creature.isPrismaticSkin == true)
-          Positioned(
-            top: instanceLevel != null ? 44 : 10,
-            left: 10,
-            child: _TagBadge(
-              label: 'Prismatic',
-              color: const Color(0xFFE879F9),
-            ),
-          ),
-        if (instanceLevel != null)
-          Positioned(
-            top: 10,
-            left: 10,
-            child: _HeroCornerBadge(
-              label: 'LV $instanceLevel',
-              color: c.amberBright,
-            ),
-          ),
-        // Variant faction badge (top-right)
-        if (instance?.variantFaction?.isNotEmpty == true)
-          Positioned(
-            top: 10,
-            right: 10,
-            child: Builder(
-              builder: (context) {
-                final fColor = _variantFactionColor(instance!.variantFaction!);
-                return CustomPaint(
-                  painter: BracketFramePainter(
-                    color: fColor.withValues(alpha: 0.85),
-                    bracketSize: 6,
-                    strokeWidth: 1,
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 5,
-                    ),
-                    color: fColor.withValues(alpha: 0.12),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          _displayVariantFaction(instance!.variantFaction!),
-                          style: bracketText(
-                            context,
-                            11,
-                            fColor,
-                            weight: FontWeight.w700,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
-        if (instance != null)
-          Positioned(
-            left: 10,
-            bottom: 10,
-            child: _HeroStaminaBadge(instanceId: instance!.instanceId),
-          ),
-      ],
-    );
-  }
-
-  /// The two stats this Alchemon passes down most reliably. Pre-Dominants
-  /// creatures fall back to whatever they are already best at.
-  DominantStats? _dominants(BuildContext context) {
-    final inst = instance;
-    if (inst == null) return null;
-    // Behind the Dominant Analyzer. Returning null here covers the highlight
-    // on each stat and the Genetic Profile row in one place — the row already
-    // reads "Unknown" for a creature whose dominants cannot be determined.
-    if (!context.read<ConstellationEffectsService>().hasDominantAnalyzer()) {
-      return null;
-    }
-    return DominantStats.decode(inst.dominantStats) ??
-        DominantStats.fromPotentials(
-          speed: inst.statSpeedPotential,
-          intelligence: inst.statIntelligencePotential,
-          strength: inst.statStrengthPotential,
-          beauty: inst.statBeautyPotential,
-        );
-  }
-
-  String _dominantStatsLabel(BuildContext context) {
-    final inst = instance;
-    if (inst != null &&
-        !context.read<ConstellationEffectsService>().hasDominantAnalyzer()) {
-      return 'Requires Dominant Analyzer';
-    }
-    final dominants = _dominants(context);
-    if (dominants == null) return 'Unknown';
-    return dominants.all.map((k) => k.label).join(' · ');
-  }
-
-  String _sizeLabel() {
-    final mapLabel = sizeLabels[creature.genetics?.get('size') ?? 'Normal'];
-    return mapLabel ?? 'Standard';
-  }
-
-  String _tintLabel() {
-    final mapLabel = tintLabels[creature.genetics?.get('tinting') ?? 'Normal'];
-    return mapLabel ?? 'Standard';
-  }
-
-  Color _purityAccent(_C c, InstancePurityStatus purity) {
-    if (purity.isPure) return c.success;
-    if (purity.isElementallyPure) return c.teal;
-    if (purity.isSpeciesPure) return c.amberBright;
-    return c.textMuted;
   }
 }
 
@@ -1880,1566 +1552,634 @@ class _HeroCornerBadge extends StatelessWidget {
   }
 }
 
-class _HeroStaminaBadge extends StatelessWidget {
-  final String instanceId;
-
-  const _HeroStaminaBadge({required this.instanceId});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = _bp(context);
-    final activeAccent = _dialogAccent(context);
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: activeAccent.withValues(alpha: 0.84),
-        bracketSize: 6,
-        strokeWidth: 1,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-        color: palette.surfaceFill(lightAlpha: 0.96),
-        child: StaminaBadge(instanceId: instanceId, showCountdown: false),
-      ),
-    );
-  }
-}
-
 // ──────────────────────────────────────────────────────────────────────────────
-// STAMINA RESTORE BUTTON
+// LINEAGE TAB — what it came from and what it passes down
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _StaminaRestoreButton extends StatelessWidget {
-  final String instanceId;
-  final String creatureName;
-  const _StaminaRestoreButton({
-    required this.instanceId,
-    required this.creatureName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final db = context.read<AlchemonsDatabase>();
-    return StreamBuilder<CreatureInstance?>(
-      stream: db.creatureDao.watchInstanceById(instanceId),
-      builder: (context, instSnap) {
-        final inst = instSnap.data;
-        if (inst == null) return const SizedBox.shrink();
-        final stamina = context.read<StaminaService>();
-        final state = stamina.computeState(inst);
-        if (state.bars >= state.max) return const SizedBox.shrink();
-
-        return StreamBuilder<List<InventoryItem>>(
-          stream: db.inventoryDao.watchItemInventory(),
-          builder: (context, snapshot) {
-            int qty = 0;
-            for (final item in snapshot.data ?? []) {
-              if (item.key == InvKeys.staminaPotion) {
-                qty = item.qty;
-                break;
-              }
-            }
-            if (qty <= 0) return const SizedBox.shrink();
-
-            final palette = _bp(context);
-            final theme = context.read<FactionTheme>();
-            final activeAccent = _dialogAccent(context);
-            return Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: GestureDetector(
-                onTap: context.soundAction(() {
-                  HapticFeedback.mediumImpact();
-                  _use(context, qty);
-                }),
-                child: CustomPaint(
-                  painter: BracketFramePainter(
-                    color: activeAccent.withValues(alpha: 0.88),
-                    bracketSize: 8,
-                    strokeWidth: 1.05,
-                  ),
-                  child: Container(
-                    color: palette.accentWash(theme.accent, darkAlpha: 0.10),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Restore breeding stamina',
-                            style: bracketText(
-                              context,
-                              12.5,
-                              palette.ink,
-                              weight: FontWeight.w700,
-                              letterSpacing: 0.4,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          '×$qty',
-                          style: bracketText(
-                            context,
-                            12,
-                            palette.muted,
-                            weight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          AppIcons.chevron_right_rounded,
-                          size: 16,
-                          color: palette.muted,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  Future<void> _use(BuildContext context, int qty) async {
-    final c = _C.of(context);
-    final db = context.read<AlchemonsDatabase>();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dCtx) => AlertDialog(
-        backgroundColor: c.bg1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: Text(
-          'Restore Breeding Stamina?',
-          style: TextStyle(
-            color: c.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        content: Text(
-          'Use 1 Stamina Elixir to restore $creatureName\'s breeding stamina? ($qty remaining)',
-          style: TextStyle(color: c.textSecondary, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.of(dCtx).pop(false)),
-            child: Text('Cancel', style: TextStyle(color: c.textMuted)),
-          ),
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.of(dCtx).pop(true)),
-            child: Text(
-              'Restore',
-              style: TextStyle(
-                color: c.amberBright,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !context.mounted) return;
-    await db.inventoryDao.addItemQty(InvKeys.staminaPotion, -1);
-    await StaminaService(db).restoreToFull(instanceId);
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Breeding stamina restored!',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: c.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          backgroundColor: c.bg1,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    }
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// ALCHEMICAL EFFECT SLOT
-// ──────────────────────────────────────────────────────────────────────────────
-
-/// Where a bought alchemy effect goes on this creature, so it is applied
-/// here instead of through the inventory. Lists only effects the player owns.
-class _AlchemyEffectSlot extends StatelessWidget {
-  final CreatureInstance instance;
-  final String creatureName;
-  const _AlchemyEffectSlot({
-    required this.instance,
-    required this.creatureName,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final db = context.read<AlchemonsDatabase>();
-    final registry = buildInventoryRegistry(db);
-    return StreamBuilder<List<InventoryItem>>(
-      stream: db.inventoryDao.watchItemInventory(),
-      builder: (context, snapshot) {
-        final owned = <InventoryItem>[
-          for (final item in snapshot.data ?? const <InventoryItem>[])
-            if (item.qty > 0 &&
-                InvKeys.alchemyEffectFor(item.key) != null &&
-                // Costumes have their own slot.
-                FamilyCostume.ofItem(item.key) == null)
-              item,
-        ];
-        final currentKey = instance.alchemyEffect;
-        String? currentName;
-        if (currentKey != null) {
-          for (final e in registry.entries) {
-            if (InvKeys.alchemyItemFor(currentKey) == e.key) {
-              currentName = e.value.name;
-              break;
-            }
-          }
-        }
-        final palette = _bp(context);
-        final theme = context.read<FactionTheme>();
-        final accent = _dialogAccent(context);
-        // A worn effect can always be opened, to swap it or take it off.
-        final canPick = owned.isNotEmpty || currentKey != null;
-        final subtitle =
-            currentName ?? (owned.isEmpty ? 'None · none owned' : 'None');
-        return GestureDetector(
-          onTap: canPick
-              ? context.soundAction(() {
-                  HapticFeedback.mediumImpact();
-                  _pick(context, owned, registry, currentName);
-                })
-              : null,
-          child: CustomPaint(
-            painter: BracketFramePainter(
-              color: accent.withValues(alpha: canPick ? 0.88 : 0.4),
-              bracketSize: 6,
-              strokeWidth: 1.0,
-            ),
-            child: Container(
-              color: palette.accentWash(theme.accent, darkAlpha: 0.10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Effect · $subtitle',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: bracketText(
-                        context,
-                        11.5,
-                        palette.ink,
-                        weight: FontWeight.w700,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                  if (owned.isNotEmpty) ...[
-                    Text(
-                      '${owned.length} owned',
-                      style: bracketText(
-                        context,
-                        11,
-                        palette.muted,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                  if (canPick) ...[
-                    const SizedBox(width: 2),
-                    Icon(
-                      AppIcons.chevron_right_rounded,
-                      size: 15,
-                      color: palette.muted,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _pick(
-    BuildContext context,
-    List<InventoryItem> owned,
-    Map<String, InventoryItemDef> registry,
-    String? currentName,
-  ) async {
-    final c = _C.of(context);
-    // An item key to apply, or the empty string to take the current one off.
-    const removeEffect = '';
-    final picked = await showModalBottomSheet<String>(
-      context: context,
-      backgroundColor: c.bg1,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-      ),
-      builder: (sheetCtx) => SafeArea(
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(sheetCtx).size.height * 0.7,
-          ),
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
-            children: [
-              Text(
-                'APPLY AN EFFECT TO ${creatureName.toUpperCase()}',
-                style: _T(c).sectionTitle,
-              ),
-              if (currentName != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Applying one returns $currentName to your inventory.',
-                  style: _T(c).body,
-                ),
-              ],
-              const SizedBox(height: 10),
-              for (final item in owned)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: InventoryItemArtwork(
-                    inventoryKey: item.key,
-                    size: 44,
-                  ),
-                  title: Text(
-                    registry[item.key]?.name ?? item.key,
-                    style: TextStyle(
-                      color: c.textPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  trailing: Text(
-                    '×${item.qty}',
-                    style: TextStyle(
-                      color: c.textMuted,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  onTap: () => Navigator.of(sheetCtx).pop(item.key),
-                ),
-              if (currentName != null)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: Icon(
-                    AppIcons.close_rounded,
-                    color: c.textMuted,
-                    size: 22,
-                  ),
-                  title: Text(
-                    'Take off $currentName',
-                    style: TextStyle(
-                      color: c.textPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
-                  ),
-                  onTap: () => Navigator.of(sheetCtx).pop(removeEffect),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (picked == null || !context.mounted) return;
-    final db = context.read<AlchemonsDatabase>();
-    final String message;
-    if (picked == removeEffect) {
-      await removeAlchemyEffect(db, instanceId: instance.instanceId);
-      message = 'Returned ${currentName ?? 'the effect'} to your inventory';
-    } else {
-      final applied = await applyAlchemyEffect(
-        db,
-        instanceId: instance.instanceId,
-        itemKey: picked,
-      );
-      if (!applied) return;
-      message = 'Applied ${registry[picked]?.name ?? 'Effect'}!';
-    }
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: c.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        backgroundColor: c.bg1,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// COSTUME SLOT
-// ──────────────────────────────────────────────────────────────────────────────
-
-/// The costumes this creature wears, beside its effect: any it fits, all at
-/// once if wanted. Each goes on in a colour picked on it, changes colour
-/// free, and taken off goes back to the inventory.
-class _CostumeSlot extends StatelessWidget {
-  final CreatureInstance instance;
-  final String creatureName;
-  const _CostumeSlot({required this.instance, required this.creatureName});
-
-  @override
-  Widget build(BuildContext context) {
-    final db = context.read<AlchemonsDatabase>();
-    return StreamBuilder<List<InventoryItem>>(
-      stream: db.inventoryDao.watchItemInventory(),
-      builder: (context, snapshot) {
-        final owned = <FamilyCostume, int>{
-          for (final item in snapshot.data ?? const <InventoryItem>[])
-            if (FamilyCostume.ofItem(item.key) case final costume?)
-              if (item.qty > 0 && costume.fits(instance.baseId))
-                costume: item.qty,
-        };
-        final worn = WornCostumes.on(instance.baseId, instance.costumes);
-        final wearing = [
-          for (final c in FamilyCostume.values)
-            if (worn.wears(c)) c.noun,
-        ];
-        final palette = _bp(context);
-        final theme = context.read<FactionTheme>();
-        final accent = _dialogAccent(context);
-        final canPick = owned.isNotEmpty || !worn.isEmpty;
-        final subtitle = wearing.isNotEmpty
-            ? wearing.join(', ')
-            : (owned.isEmpty ? 'None · none owned' : 'None');
-        return GestureDetector(
-          onTap: canPick
-              ? context.soundAction(() {
-                  HapticFeedback.mediumImpact();
-                  _pick(context, owned, worn);
-                })
-              : null,
-          child: CustomPaint(
-            painter: BracketFramePainter(
-              color: accent.withValues(alpha: canPick ? 0.88 : 0.4),
-              bracketSize: 6,
-              strokeWidth: 1.0,
-            ),
-            child: Container(
-              color: palette.accentWash(theme.accent, darkAlpha: 0.10),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Costumes · $subtitle',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: bracketText(
-                        context,
-                        11.5,
-                        palette.ink,
-                        weight: FontWeight.w700,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                  if (owned.isNotEmpty)
-                    Text(
-                      '${owned.values.fold(0, (a, b) => a + b)} owned',
-                      style: bracketText(
-                        context,
-                        11,
-                        palette.muted,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                  if (canPick) ...[
-                    const SizedBox(width: 2),
-                    Icon(
-                      AppIcons.chevron_right_rounded,
-                      size: 15,
-                      color: palette.muted,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _pick(
-    BuildContext context,
-    Map<FamilyCostume, int> owned,
-    WornCostumes worn,
-  ) async {
-    final c = _C.of(context);
-    final picked = await showModalBottomSheet<(_CostumeAction, FamilyCostume)>(
-      context: context,
-      backgroundColor: c.bg1,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
-      ),
-      builder: (sheetCtx) {
-        Widget action(String label, _CostumeAction a, FamilyCostume costume) =>
-            TextButton(
-              onPressed: () => Navigator.of(sheetCtx).pop((a, costume)),
-              child: Text(
-                label,
-                style: TextStyle(
-                  color: c.textPrimary,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 13,
-                ),
-              ),
-            );
-        return SafeArea(
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
-            children: [
-              Text(
-                'COSTUMES FOR ${creatureName.toUpperCase()}',
-                style: _T(c).sectionTitle,
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Worn beside its effect, all at once if you like.',
-                style: _T(c).body,
-              ),
-              const SizedBox(height: 10),
-              for (final costume in FamilyCostume.values)
-                if (costume.fits(instance.baseId))
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: InventoryItemArtwork(
-                      inventoryKey: costume.itemKey,
-                      size: 44,
-                    ),
-                    title: Text(
-                      costume.title,
-                      style: TextStyle(
-                        color: worn.wears(costume) || owned[costume] != null
-                            ? c.textPrimary
-                            : c.textMuted,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    subtitle: Text(
-                      worn.wears(costume)
-                          ? 'Wearing'
-                          : owned[costume] != null
-                          ? '×${owned[costume]} owned'
-                          : 'None owned',
-                      style: TextStyle(color: c.textMuted, fontSize: 12),
-                    ),
-                    trailing: worn.wears(costume)
-                        ? Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              action('Colour', _CostumeAction.recolor, costume),
-                              action('Take off', _CostumeAction.off, costume),
-                            ],
-                          )
-                        : owned[costume] != null
-                        ? action('Wear', _CostumeAction.wear, costume)
-                        : null,
-                  ),
-            ],
-          ),
-        );
-      },
-    );
-    if (picked == null || !context.mounted) return;
-    final (act, costume) = picked;
-    final db = context.read<AlchemonsDatabase>();
-    final String message;
-    switch (act) {
-      case _CostumeAction.off:
-        if (!await takeOffCostume(
-          db,
-          instanceId: instance.instanceId,
-          costume: costume,
-        )) {
-          return;
-        }
-        message = 'Returned ${costume.title} to your inventory';
-      case _CostumeAction.wear || _CostumeAction.recolor:
-        final color = await pickCostumeColor(
-          context,
-          instance: instance,
-          costume: costume,
-          confirmLabel: act == _CostumeAction.wear
-              ? 'WEAR ${costume.noun.toUpperCase()}'
-              : 'SAVE COLOUR',
-        );
-        if (color == null || !context.mounted) return;
-        if (!await wearCostume(
-          db,
-          instanceId: instance.instanceId,
-          costume: costume,
-          color: color,
-        )) {
-          return;
-        }
-        final noun = costume.noun;
-        message = act == _CostumeAction.wear
-            ? 'Wearing ${costume.title}'
-            : '${noun[0].toUpperCase()}${noun.substring(1)} colour saved';
-    }
-    if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: c.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        backgroundColor: c.bg1,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-}
-
-enum _CostumeAction { wear, recolor, off }
-
-// ──────────────────────────────────────────────────────────────────────────────
-// STAT BAR ROW
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _StatBar extends StatelessWidget {
-  final String label;
-  final double value;
-  final double? potential;
-  final Color accent;
-
-  /// One of the two stats this Alchemon passes down most reliably.
-  final bool isDominant;
-
-  const _StatBar({
-    required this.label,
-    required this.value,
-    required this.accent,
-    this.potential,
-    this.isDominant = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = _bp(context);
-    final rating = AlchemonStatSystem.displayRating(value);
-    final p = potential == null
-        ? null
-        : AlchemonStatSystem.normalizePotential(potential!);
-    final perfect = p != null && p >= 95;
-
-    // No track: the old one was a red/amber/green threshold bar, so an
-    // ordinary Strength score rendered in the same red the app uses for
-    // failures. The number carries the value; the accent identifies the stat.
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.baseline,
-        textBaseline: TextBaseline.alphabetic,
-        children: [
-          Expanded(
-            child: Text(
-              label.toUpperCase(),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: bracketText(
-                context,
-                11,
-                isDominant ? FC.of(context).dominant : palette.muted,
-                weight: FontWeight.w700,
-                letterSpacing: 0.9,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '$rating',
-            style: bracketText(context, 16, accent, weight: FontWeight.w800),
-          ),
-          // No analyzer, no column. An empty box of the same width would
-          // still leave a gap where the number used to be, which is the
-          // thing that gave it away.
-          if (p != null)
-            SizedBox(
-              width: 54,
-              child: Text(
-                'P$p',
-                textAlign: TextAlign.right,
-                maxLines: 1,
-                style: bracketText(
-                  context,
-                  12,
-                  perfect ? accent : palette.muted,
-                  weight: FontWeight.w700,
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// ANALYSIS TAB
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _AnalysisTab extends StatelessWidget {
-  final ScrollController controller;
+class _LineageTab extends StatelessWidget {
   final Creature creature;
-  final bool isInstance;
-  final CreatureInstance? instance;
+  final CreatureInstance instance;
   final Set<CreatureDetailsTutorialTarget> highlightedTargets;
-  final Set<String> isExpandedMap;
-  final void Function(String parentKey) onToggleParent;
-  final String? instanceId;
-  final Parentage? parentage;
-  final GlobalKey behaviorSectionKey;
-  final GlobalKey potentialSectionKey;
-  final GlobalKey lineageSectionKey;
-  final GlobalKey breedingAnalysisSectionKey;
+  final GlobalKey lineKey;
+  final GlobalKey oddsKey;
 
-  const _AnalysisTab({
-    required this.controller,
+  const _LineageTab({
     required this.creature,
-    required this.isInstance,
     required this.instance,
     required this.highlightedTargets,
-    required this.isExpandedMap,
-    required this.onToggleParent,
-    required this.instanceId,
-    required this.parentage,
-    required this.behaviorSectionKey,
-    required this.potentialSectionKey,
-    required this.lineageSectionKey,
-    required this.breedingAnalysisSectionKey,
+    required this.lineKey,
+    required this.oddsKey,
   });
 
   @override
   Widget build(BuildContext context) {
-    final fTheme = context.read<FactionTheme>();
-    final c = _C.of(context);
-    final constellation = context.watch<ConstellationEffectsService>();
-    final hasLineageAnalyzer = constellation.hasLineageAnalyzer();
-    final hasGeneAnalyzer = constellation.hasGeneAnalyzer();
-    final hasPotentialAnalyzer = constellation.hasPotentialAnalyzer();
-    final highlightGene = highlightedTargets.contains(
-      CreatureDetailsTutorialTarget.geneAnalyzer,
+    final effects = context.watch<ConstellationEffectsService>();
+    final tokens = ForgeTokens(context.read<FactionTheme>());
+    final palette = _bp(context);
+    final purity = classifyInstancePurity(instance, species: creature);
+    final parentage = creature.parentage;
+    final hasParents =
+        parentage != null &&
+        parentage.parentA.baseId.isNotEmpty &&
+        parentage.parentB.baseId.isNotEmpty;
+
+    final bonus = resolvePurityStatBonus(
+      instanceId: instance.instanceId,
+      isElementallyPure: purity.isElementallyPure,
+      isSpeciesPure: purity.isSpeciesPure,
     );
-    final highlightPotential = highlightedTargets.contains(
-      CreatureDetailsTutorialTarget.potentialAnalyzer,
+    final families = <String, int>{};
+    purity.speciesLineage.forEach((k, v) {
+      final code = FamilyColors.code(k);
+      families[code] = (families[code] ?? 0) + v;
+    });
+
+    final line = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const BracketSectionDivider(label: 'LINE'),
+        const SizedBox(height: 4),
+        TraitRow(
+          label: 'GENERATION',
+          value: generationLabel(instance.generationDepth),
+        ),
+        TraitRow(
+          label: 'PURITY',
+          value: purity.label,
+          color: _purityColor(tokens, palette, purity),
+          note: purity.description,
+        ),
+        if (!bonus.isNone)
+          effects.hasGeneAnalyzer()
+              ? TraitRow(
+                  label: 'BONUS',
+                  value: _bonusText(bonus),
+                  note: 'From its ${bonus.lineageLabel} line.',
+                )
+              : TraitRow(
+                  label: 'BONUS',
+                  value: 'Unread',
+                  color: palette.muted,
+                  note:
+                      'Its pure line raises a stat. The Gene Analyzer reads '
+                      'which.',
+                  noteMuted: true,
+                ),
+        effects.hasDominantAnalyzer()
+            ? TraitRow(
+                label: 'DOMINANT',
+                value: dominantStatsOf(
+                  instance,
+                ).all.map((k) => k.label).join(' · '),
+                color: tokens.dominant,
+                note: 'The two stats it passes down most reliably.',
+              )
+            : TraitRow(
+                label: 'DOMINANT',
+                value: 'Unread',
+                color: palette.muted,
+                note: 'Read by the Dominant Analyzer.',
+                noteMuted: true,
+              ),
+        if (purity.elementLineage.isNotEmpty)
+          _AncestryBar(
+            label: 'ELEMENTS',
+            data: purity.elementLineage,
+            colorOf: BreedConstants.getTypeColor,
+            labelOf: (k) => k,
+          ),
+        if (families.isNotEmpty)
+          _AncestryBar(
+            label: 'FAMILIES',
+            data: families,
+            colorOf: FamilyColors.of,
+            labelOf: FamilyColors.label,
+          ),
+      ],
     );
-    final highlightLineage = highlightedTargets.contains(
-      CreatureDetailsTutorialTarget.lineageAnalyzer,
-    );
-    final showBreedingAnalysis =
-        parentage != null && isInstance && instanceId != null;
-    final highlightLineageOverview = highlightLineage && !showBreedingAnalysis;
-    final lineagePurity = instance == null
-        ? null
-        : classifyInstancePurity(instance!, species: creature);
 
     return SingleChildScrollView(
-      controller: controller,
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Stat Potentials
-          if (isInstance && instanceId != null) ...[
-            _HighlightedAnalysisSection(
-              sectionKey: potentialSectionKey,
-              enabled: highlightPotential,
-              label: CreatureDetailsTutorialTarget
-                  .potentialAnalyzer
-                  .highlightLabel,
-              child: hasPotentialAnalyzer
-                  ? _AnalysisSection(
-                      title: 'Stat Potentials',
-                      accentColor: c.teal,
-                      child: StatPotentialBlock(
-                        theme: fTheme,
-                        instanceId: instanceId!,
-                      ),
-                    )
-                  : _AnalysisSection(
-                      title: 'Stat Potentials',
-                      child: _GatedContent(
-                        message:
-                            'Detailed stat potentials are currently obscured.',
-                      ),
+          // A founder has no fusion to read, so a new Lineage Analyzer
+          // points at its line instead.
+          if (hasParents)
+            KeyedSubtree(key: lineKey, child: line)
+          else
+            _Highlighted(
+              sectionKey: lineKey,
+              target: CreatureDetailsTutorialTarget.lineageAnalyzer,
+              highlightedTargets: highlightedTargets,
+              child: line,
+            ),
+          if (hasParents) ...[
+            const SizedBox(height: 16),
+            const BracketSectionDivider(label: 'PARENTS'),
+            const SizedBox(height: 10),
+            _ParentsRow(parentage: parentage),
+            const SizedBox(height: 16),
+            _Highlighted(
+              sectionKey: oddsKey,
+              target: CreatureDetailsTutorialTarget.lineageAnalyzer,
+              highlightedTargets: highlightedTargets,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const BracketSectionDivider(label: 'PROBABILITY'),
+                  const SizedBox(height: 8),
+                  if (effects.hasLineageAnalyzer())
+                    _FusionOdds(instance: instance)
+                  else
+                    _QuietLine(
+                      'The probability of each trait is read by the '
+                      'Lineage Analyzer.',
                     ),
-            ),
-            const SizedBox(height: 18),
-          ],
-
-          // Behavioral Analysis
-          _HighlightedAnalysisSection(
-            sectionKey: behaviorSectionKey,
-            enabled: highlightGene,
-            label: CreatureDetailsTutorialTarget.geneAnalyzer.highlightLabel,
-            child: _AnalysisSection(
-              title: 'Behavioral Analysis',
-              child: _BehaviorBlock(
-                creature: creature,
-                showNatureDetails: hasGeneAnalyzer,
+                ],
               ),
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Genetic Analysis
-          _AnalysisSection(
-            title: 'Genetic Analysis',
-            child: _GeneticsBlock(
-              creature: creature,
-              instanceId: instance?.instanceId,
-              purity: lineagePurity,
-              hasGeneAnalyzer: hasGeneAnalyzer,
-            ),
-          ),
-          const SizedBox(height: 18),
-
-          // Lineage
-          if (isInstance && instance != null) ...[
-            _HighlightedAnalysisSection(
-              sectionKey: lineageSectionKey,
-              enabled: highlightLineageOverview,
-              label:
-                  CreatureDetailsTutorialTarget.lineageAnalyzer.highlightLabel,
-              child: _AnalysisSection(
-                title: 'Lineage',
-                accentColor: c.teal,
-                child: LineageBlock(
-                  theme: fTheme,
-                  instance: instance!,
-                  creature: creature,
-                ),
-              ),
-            ),
-            const SizedBox(height: 18),
-          ],
-
-          // Parent specimens
-          if (parentage != null && parentage?.parentA.baseId != '') ...[
-            const BracketSectionDivider(label: 'Parent specimens'),
-            const SizedBox(height: 12),
-            ParentCard(
-              theme: fTheme,
-              snap: parentage!.parentA,
-              parentKey: 'parentA',
-              isExpanded: isExpandedMap.contains('parentA'),
-              onToggle: () => onToggleParent('parentA'),
-            ),
-            const SizedBox(height: 8),
-            ParentCard(
-              theme: fTheme,
-              snap: parentage!.parentB,
-              parentKey: 'parentB',
-              isExpanded: isExpandedMap.contains('parentB'),
-              onToggle: () => onToggleParent('parentB'),
-            ),
-            const SizedBox(height: 18),
-          ] else if (isInstance && instance != null) ...[
-            _AnalysisSection(
-              title: 'Acquisition Method',
-              child: _DataRow(
-                label: 'Source',
-                value: _formatSource(instance!.source),
-              ),
-            ),
-            const SizedBox(height: 18),
-          ],
-
-          // Breeding analysis
-          if (showBreedingAnalysis) ...[
-            _HighlightedAnalysisSection(
-              sectionKey: breedingAnalysisSectionKey,
-              enabled: highlightLineage,
-              label:
-                  CreatureDetailsTutorialTarget.lineageAnalyzer.highlightLabel,
-              child: hasLineageAnalyzer
-                  ? _AnalysisSection(
-                      title: 'Breeding Analysis',
-                      accentColor: const Color(0xFFA855F7),
-                      child: _BreedingAnalysisSection(instanceId: instanceId!),
-                    )
-                  : _AnalysisSection(
-                      title: 'Breeding Analysis',
-                      child: _GatedContent(
-                        message:
-                            'Advanced lineage and outcome statistics obscured.',
-                      ),
-                    ),
             ),
           ],
         ],
       ),
     );
   }
+
+  static String _bonusText(PurityStatBonus bonus) {
+    final key = bonus.statKey;
+    if (key == null || key.isEmpty) return bonus.lineageLabel;
+    return '+${(bonus.bonus * 100).round()}% '
+        '${key[0].toUpperCase()}${key.substring(1)}';
+  }
+
+  static Color _purityColor(
+    ForgeTokens t,
+    BracketPalette palette,
+    InstancePurityStatus purity,
+  ) {
+    if (purity.isPure) return t.success;
+    if (purity.isElementallyPure) return t.teal;
+    if (purity.isSpeciesPure) return t.amberBright;
+    return palette.ink;
+  }
+}
+
+/// A muted italic sentence: something not read yet, or not kept.
+class _QuietLine extends StatelessWidget {
+  final String text;
+  const _QuietLine(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _bp(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Text(
+        text,
+        style: bracketText(
+          context,
+          12,
+          palette.muted,
+          weight: FontWeight.w500,
+          fontStyle: FontStyle.italic,
+        ),
+      ),
+    );
+  }
+}
+
+/// A share of the line as one filled bar, largest first, with its parts
+/// named under it.
+///
+/// A long line can carry every element there is. The bar takes them all
+/// (each part keeps at least a sliver), but the names stop at the largest
+/// few, with the rest one tap away.
+class _AncestryBar extends StatefulWidget {
+  final String label;
+  final Map<String, int> data;
+  final Color Function(String key) colorOf;
+  final String Function(String key) labelOf;
+
+  const _AncestryBar({
+    required this.label,
+    required this.data,
+    required this.colorOf,
+    required this.labelOf,
+  });
+
+  /// Names shown before "+n more".
+  static const namedParts = 5;
+
+  @override
+  State<_AncestryBar> createState() => _AncestryBarState();
+}
+
+class _AncestryBarState extends State<_AncestryBar> {
+  bool _all = false;
+
+  static String _percent(int part, int total) {
+    final p = part * 100 / total;
+    if (p > 0 && p < 1) return '<1%';
+    return '${p.round()}%';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _bp(context);
+    final entries = widget.data.entries.where((e) => e.value > 0).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    final total = entries.fold<int>(0, (s, e) => s + e.value);
+    if (total == 0) return const SizedBox.shrink();
+    // Every part keeps at least a fiftieth of the bar, so a trace of one
+    // element is still a visible sliver.
+    final floor = total / 50;
+    int flex(int v) => (math.max(v, floor) * 1000 / total).round();
+    final hidden = _all
+        ? 0
+        : (entries.length - _AncestryBar.namedParts).clamp(0, entries.length);
+    final named = entries.take(entries.length - hidden);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 84,
+            child: Text(
+              widget.label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: palette.muted,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 3),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: SizedBox(
+                    height: 6,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        for (var i = 0; i < entries.length; i++) ...[
+                          if (i > 0) const SizedBox(width: 1.5),
+                          Expanded(
+                            flex: flex(entries[i].value),
+                            child: ColoredBox(
+                              color: widget.colorOf(entries[i].key),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 4,
+                  children: [
+                    for (final e in named)
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                              color: widget.colorOf(e.key),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            '${widget.labelOf(e.key)} '
+                            '${_percent(e.value, total)}',
+                            style: bracketText(
+                              context,
+                              12,
+                              palette.ink,
+                              weight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    if (hidden > 0)
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: context.soundAction(
+                          () => setState(() => _all = true),
+                        ),
+                        child: Text(
+                          '+$hidden more',
+                          style: bracketText(
+                            context,
+                            12,
+                            palette.muted,
+                            weight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The two parents side by side. One still kept opens its own details.
+class _ParentsRow extends StatelessWidget {
+  final Parentage parentage;
+  const _ParentsRow({required this.parentage});
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _bp(context);
+    final bredAt = parentage.bredAt;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(child: _ParentTile(snap: parentage.parentA)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text('×', style: bracketText(context, 18, palette.muted)),
+            ),
+            Expanded(child: _ParentTile(snap: parentage.parentB)),
+          ],
+        ),
+        if (bredAt.millisecondsSinceEpoch > 0) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Fused ${_formatDate(bredAt.millisecondsSinceEpoch)}',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: palette.muted,
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ParentTile extends StatefulWidget {
+  final ParentSnapshot snap;
+  const _ParentTile({required this.snap});
+
+  @override
+  State<_ParentTile> createState() => _ParentTileState();
+}
+
+class _ParentTileState extends State<_ParentTile> {
+  CreatureInstance? _kept;
+  bool _looked = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _look();
+  }
+
+  Future<void> _look() async {
+    final id = widget.snap.instanceId;
+    CreatureInstance? row;
+    if (id != null && id.isNotEmpty) {
+      row = await context.read<AlchemonsDatabase>().creatureDao.getInstance(id);
+    }
+    if (!mounted) return;
+    setState(() {
+      _kept = row;
+      _looked = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = _bp(context);
+    final snap = widget.snap;
+    final species = context.read<CreatureCatalog>().getCreatureById(
+      snap.baseId,
+    );
+    final kept = _kept;
+    final openable = kept != null && species != null;
+
+    final Widget sprite;
+    if (kept != null && species != null) {
+      sprite = InstanceSprite(creature: species, instance: kept, size: 72);
+    } else if (snap.image.isNotEmpty) {
+      sprite = Image.asset(
+        'assets/images/${snap.image}',
+        fit: BoxFit.contain,
+        errorBuilder: (_, _, _) => const SizedBox.shrink(),
+      );
+    } else {
+      sprite = const SizedBox.shrink();
+    }
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: openable
+          ? context.soundAction(() {
+              HapticFeedback.selectionClick();
+              CreatureDetailsDialog.show(
+                context,
+                species,
+                true,
+                instanceId: kept.instanceId,
+              );
+            })
+          : null,
+      child: Container(
+        color: palette.surfaceFill(),
+        padding: const EdgeInsets.fromLTRB(8, 10, 8, 10),
+        child: Column(
+          children: [
+            SizedBox(width: 72, height: 72, child: Center(child: sprite)),
+            const SizedBox(height: 6),
+            Text(
+              snap.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: bracketText(
+                context,
+                13,
+                palette.ink,
+                weight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              snap.types.join(' · '),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: bracketText(context, 11.5, palette.muted),
+            ),
+            if (_looked && kept == null) ...[
+              const SizedBox(height: 2),
+              Text(
+                'No longer kept',
+                style: bracketText(
+                  context,
+                  11,
+                  palette.muted.withValues(alpha: 0.75),
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The fusion's probability: whether it was the likely result, then each
+/// trait with the chance it had.
+class _FusionOdds extends StatelessWidget {
+  final CreatureInstance instance;
+  const _FusionOdds({required this.instance});
+
+  Map<String, dynamic>? _report() {
+    final raw = instance.likelihoodAnalysisJson;
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      return jsonDecode(raw) as Map<String, dynamic>;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final report = _report();
+    if (report == null) {
+      return const _QuietLine('No record of this fusion was kept.');
+    }
+    final palette = _bp(context);
+    final t = ForgeTokens(context.read<FactionTheme>());
+    final outcome = report['outcomeCategory'] as String? ?? '';
+    final explanation = report['outcomeExplanation'] as String? ?? '';
+    final rows = [
+      ...?(report['inheritanceMechanics'] as List?),
+      ...?(report['specialEvents'] as List?),
+    ].whereType<Map>().toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (outcome.isNotEmpty)
+          Text(
+            outcome,
+            style: bracketText(
+              context,
+              15,
+              _outcomeColor(outcome, t, palette),
+              weight: FontWeight.w700,
+            ),
+          ),
+        if (explanation.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            explanation,
+            style: bracketText(context, 12, palette.muted),
+            strutStyle: const StrutStyle(height: 1.3),
+          ),
+        ],
+        const SizedBox(height: 8),
+        for (final m in rows)
+          TraitRow(
+            label: _categoryLabel(m['category'] as String? ?? ''),
+            value: m['result'] as String? ?? '',
+            note: m['mechanism'] as String?,
+            trailing: Text(
+              '${((m['percentage'] as num?) ?? 0).round()}%',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: _likelihoodColor(m['likelihood'] as int?, t, palette),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  static String _categoryLabel(String category) => switch (category) {
+    'Elemental Type' => 'ELEMENT',
+    'Family Lineage' => 'FAMILY',
+    'Color Tinting' => 'TINT',
+    'Patterning' => 'PATTERN',
+    _ => category.toUpperCase(),
+  };
+
+  static Color _outcomeColor(String o, ForgeTokens t, BracketPalette p) =>
+      switch (o) {
+        'Expected' => t.success,
+        'Somewhat Unexpected' => t.teal,
+        'Surprising' => t.amberBright,
+        'Rare' => const Color(0xFFA855F7),
+        _ => p.ink,
+      };
+
+  static Color _likelihoodColor(int? l, ForgeTokens t, BracketPalette p) =>
+      switch (l) {
+        3 => t.success,
+        2 => t.teal,
+        1 => t.amberBright,
+        0 => const Color(0xFFA855F7),
+        _ => p.muted,
+      };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// HIGHLIGHTED ANALYSIS SECTION
+// TUTORIAL HIGHLIGHT
 // ──────────────────────────────────────────────────────────────────────────────
 
-class _HighlightedAnalysisSection extends StatelessWidget {
+/// A section a newly unlocked analyzer points at: keyed so the dialog can
+/// scroll to it, and lit while its tutorial is showing.
+class _Highlighted extends StatelessWidget {
   final GlobalKey sectionKey;
-  final bool enabled;
-  final String label;
+  final CreatureDetailsTutorialTarget target;
+  final Set<CreatureDetailsTutorialTarget> highlightedTargets;
   final Widget child;
 
-  const _HighlightedAnalysisSection({
+  const _Highlighted({
     required this.sectionKey,
-    required this.enabled,
-    required this.label,
+    required this.target,
+    required this.highlightedTargets,
     required this.child,
   });
 
   @override
   Widget build(BuildContext context) {
+    final enabled = highlightedTargets.contains(target);
     return KeyedSubtree(
       key: sectionKey,
       child: TutorialHighlight(
         enabled: enabled,
-        label: enabled ? label : null,
+        label: enabled ? target.highlightLabel : null,
         child: child,
       ),
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// GATED CONTENT PLACEHOLDER
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _GatedContent extends StatelessWidget {
-  final String message;
-  const _GatedContent({required this.message});
-  @override
-  Widget build(BuildContext context) {
-    final palette = _bp(context);
-    return Row(
-      children: [
-        Icon(AppIcons.visibility_off_rounded, color: palette.muted, size: 14),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            message,
-            style: bracketText(
-              context,
-              12,
-              palette.muted,
-              weight: FontWeight.w500,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// BEHAVIOR BLOCK
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _BehaviorBlock extends StatelessWidget {
-  final Creature creature;
-  final bool showNatureDetails;
-  const _BehaviorBlock({
-    required this.creature,
-    required this.showNatureDetails,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final natures = [creature.nature, creature.nature2].whereType<NatureDef>();
-    if (natures.isEmpty) {
-      return _DataRow(
-        label: 'Nature',
-        value: 'Unspecified — Standard behavioral pattern',
-      );
-    }
-    return Column(
-      children: [
-        for (final n in natures) ...[
-          _DataRow(label: '${n.tier} Nature', value: n.id),
-          if (!showNatureDetails)
-            _DataRow(
-              label: 'Effects',
-              value: 'Behavioral modifiers obscured.',
-              valueColor: c.textMuted,
-            )
-          else
-            _DataRow(
-              label: 'Active Effect',
-              value: formatNatureEffectSummary(n.effect),
-            ),
-        ],
-      ],
-    );
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// GENETICS BLOCK
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _GeneticsBlock extends StatelessWidget {
-  final Creature creature;
-  final String? instanceId;
-  final InstancePurityStatus? purity;
-  final bool hasGeneAnalyzer;
-
-  const _GeneticsBlock({
-    required this.creature,
-    this.instanceId,
-    this.purity,
-    this.hasGeneAnalyzer = false,
-  });
-
-  /// What an unbroken bloodline bought this specimen.
-  ///
-  /// Gated behind the gene analyzer like the rest of the fine detail here: an
-  /// unanalyzed specimen shows that its line is pure, because that is visible
-  /// from the lineage, but not which stat the line strengthened.
-  Widget? _lineageBonusRow() {
-    final id = instanceId;
-    final status = purity;
-    if (id == null || status == null) return null;
-    final bonus = resolvePurityStatBonus(
-      instanceId: id,
-      isElementallyPure: status.isElementallyPure,
-      isSpeciesPure: status.isSpeciesPure,
-    );
-    if (bonus.isNone) return null;
-    return _DataRow(
-      label: 'Lineage Bonus',
-      value: hasGeneAnalyzer ? bonus.readout : '${bonus.lineageLabel} — unread',
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bonusRow = _lineageBonusRow();
-    final g = creature.genetics;
-    if (g == null) {
-      return Column(
-        children: [
-          const _DataRow(
-            label: 'Genetic Profile',
-            value: 'Standard genotype — no variants detected',
-          ),
-          const _DataRow(
-            label: 'Inheritance',
-            value: 'Wild-type characteristics',
-          ),
-          if (bonusRow != null) bonusRow,
-        ],
-      );
-    }
-    final sizeGene = g.get('size');
-    final tintGene = g.get('tinting');
-    return Column(
-      children: [
-        _DataRow(
-          label: 'Size Gene',
-          value: sizeGene != null
-              ? (sizeLabels[sizeGene] ?? 'Unknown')
-              : 'Normal',
-        ),
-        _DataRow(
-          label: 'Color Gene',
-          value: tintGene != null
-              ? (tintLabels[tintGene] ?? 'Unknown')
-              : 'Standard',
-        ),
-        if (tintGene != null)
-          _DataRow(label: 'Description', value: _geneDesc('tinting', tintGene)),
-        if (bonusRow != null) bonusRow,
-      ],
-    );
-  }
-
-  static String _geneDesc(String track, String variant) {
-    try {
-      return GeneticsCatalog.track(track).byId(variant).description;
-    } catch (_) {
-      return 'Unknown variant';
-    }
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// BREEDING ANALYSIS SECTION
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _BreedingAnalysisSection extends StatelessWidget {
-  final String instanceId;
-  const _BreedingAnalysisSection({required this.instanceId});
-
-  Future<
-    ({
-      CreatureInstance? instance,
-      Creature? species,
-      Map<String, dynamic>? report,
-    })
-  >
-  _loadData(BuildContext context) async {
-    try {
-      final db = context.read<AlchemonsDatabase>();
-      final repo = context.read<CreatureCatalog>();
-      final instance = await db.creatureDao.getInstance(instanceId);
-      if (instance == null) {
-        return (instance: null, species: null, report: null);
-      }
-      final species = repo.getCreatureById(instance.baseId);
-      if (instance.likelihoodAnalysisJson == null ||
-          instance.likelihoodAnalysisJson!.isEmpty) {
-        return (instance: instance, species: species, report: null);
-      }
-      return (
-        instance: instance,
-        species: species,
-        report:
-            jsonDecode(instance.likelihoodAnalysisJson!)
-                as Map<String, dynamic>,
-      );
-    } catch (_) {
-      return (instance: null, species: null, report: null);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final c = _C.of(context);
-    return FutureBuilder<
-      ({
-        CreatureInstance? instance,
-        Creature? species,
-        Map<String, dynamic>? report,
-      })
-    >(
-      future: _loadData(context),
-      builder: (ctx, snap) {
-        if (!snap.hasData) {
-          return _DataRow(
-            label: 'Status',
-            value: 'No breeding record available',
-            valueColor: c.textMuted,
-          );
-        }
-        final instance = snap.data!.instance;
-        final species = snap.data!.species;
-        final report = snap.data!.report;
-        final purity = instance == null
-            ? null
-            : classifyInstancePurity(instance, species: species);
-        final hasNotablePurity =
-            purity != null &&
-            (purity.isPure || purity.isElementallyPure || purity.isSpeciesPure);
-        if (report == null) {
-          final hasParentage = _hasActualParentage(instance?.parentageJson);
-          final sourceLabel = founderSourceLabel(
-            instance?.source ?? '',
-          ).toLowerCase();
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _DataRow(
-                label: 'Status',
-                value: hasParentage
-                    ? 'Breeding record unavailable'
-                    : 'No breeding record — founder specimen from $sourceLabel',
-                valueColor: c.textMuted,
-              ),
-              if (hasNotablePurity) ...[
-                const SizedBox(height: 12),
-                _PurityAnalysisCard(purity: purity),
-              ],
-            ],
-          );
-        }
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SummaryBanner(report: report),
-            const SizedBox(height: 10),
-            OutcomeBadge(theme: context.read<FactionTheme>(), report: report),
-            const SizedBox(height: 8),
-            OutcomeExplanation(
-              theme: context.read<FactionTheme>(),
-              report: report,
-            ),
-            const SizedBox(height: 12),
-            _InheritanceMechanicsSection(report: report),
-            if (hasNotablePurity) ...[
-              const SizedBox(height: 12),
-              _PurityAnalysisCard(purity: purity),
-            ],
-            const SizedBox(height: 12),
-            _InheritedTraitsSimple(analysis: report),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _SummaryBanner extends StatelessWidget {
-  final Map<String, dynamic> report;
-  const _SummaryBanner({required this.report});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = _bp(context);
-    final summaryLine = report['summaryLine'] as String? ?? '';
-    if (summaryLine.isEmpty) return const SizedBox.shrink();
-    final parts = summaryLine.split(':');
-    final cross = parts.isNotEmpty ? parts[0].trim() : summaryLine;
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: palette.line.withValues(alpha: 0.9),
-        bracketSize: 8,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        color: palette.surfaceFill(),
-        child: Text(
-          cross,
-          style: bracketText(
-            context,
-            13,
-            palette.ink,
-            weight: FontWeight.w700,
-            letterSpacing: 0.4,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InheritanceMechanicsSection extends StatelessWidget {
-  final Map<String, dynamic> report;
-  const _InheritanceMechanicsSection({required this.report});
-
-  @override
-  Widget build(BuildContext context) {
-    final mechanics =
-        (report['inheritanceMechanics'] as List?)
-            ?.map((m) => m as Map<String, dynamic>)
-            .toList() ??
-        [];
-    if (mechanics.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const BracketSectionDivider(label: 'Inheritance mechanics'),
-        const SizedBox(height: 10),
-        ...mechanics.map((m) => _MechanicCard(mechanic: m)),
-      ],
-    );
-  }
-}
-
-class _PurityAnalysisCard extends StatelessWidget {
-  final InstancePurityStatus purity;
-
-  const _PurityAnalysisCard({required this.purity});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final palette = _bp(context);
-    final color = purity.isPure
-        ? c.success
-        : purity.isElementallyPure
-        ? c.teal
-        : purity.isSpeciesPure
-        ? c.amberBright
-        : palette.muted;
-
-    return CustomPaint(
-      painter: BracketFramePainter(
-        color: color.withValues(alpha: 0.65),
-        bracketSize: 8,
-        strokeWidth: 1.05,
-      ),
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-        color: palette.surfaceFill(),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Lineage: ${purity.label}',
-                    style: bracketText(
-                      context,
-                      13,
-                      palette.ink,
-                      weight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MechanicCard extends StatelessWidget {
-  final Map<String, dynamic> mechanic;
-  const _MechanicCard({required this.mechanic});
-
-  @override
-  Widget build(BuildContext context) {
-    final c = _C.of(context);
-    final palette = _bp(context);
-    final category = mechanic['category'] as String? ?? '';
-    final result = mechanic['result'] as String? ?? '';
-    final mechanism = mechanic['mechanism'] as String? ?? '';
-    final percentage = (mechanic['percentage'] as num?)?.toDouble() ?? 0.0;
-    final likelihood = mechanic['likelihood'] as int? ?? 0;
-    final color = _likelihoodColor(likelihood, c);
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: palette.line.withValues(alpha: 0.9),
-          bracketSize: 8,
-          strokeWidth: 1.05,
-        ),
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-          color: palette.surfaceFill(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    _categoryIcon(category),
-                    size: 13,
-                    color: _dialogAccent(context),
-                  ),
-                  const SizedBox(width: 7),
-                  Expanded(
-                    child: Text(
-                      '$category: $result',
-                      style: bracketText(
-                        context,
-                        12.5,
-                        palette.ink,
-                        weight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  CustomPaint(
-                    painter: BracketFramePainter(
-                      color: color.withValues(alpha: 0.7),
-                      bracketSize: 5,
-                      strokeWidth: 1,
-                    ),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 7,
-                        vertical: 3,
-                      ),
-                      color: color.withValues(alpha: 0.12),
-                      child: Text(
-                        '${percentage.toStringAsFixed(0)}%',
-                        style: bracketText(
-                          context,
-                          11,
-                          color,
-                          weight: FontWeight.w700,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                mechanism,
-                style: bracketText(
-                  context,
-                  12,
-                  palette.muted,
-                  weight: FontWeight.w500,
-                ),
-                strutStyle: const StrutStyle(height: 1.4),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static Color _likelihoodColor(int l, _C c) {
-    switch (l) {
-      case 3:
-        return c.success;
-      case 2:
-        return c.teal;
-      case 1:
-        return c.amberBright;
-      case 0:
-        return const Color(0xFFA855F7);
-      default:
-        return c.textSecondary;
-    }
-  }
-
-  static IconData _categoryIcon(String category) {
-    switch (category) {
-      case 'Species':
-        return AppIcons.pets;
-      case 'Family Lineage':
-        return AppIcons.family_restroom;
-      case 'Elemental Type':
-        return AppIcons.whatshot;
-      case 'Color Tinting':
-        return AppIcons.palette;
-      case 'Size':
-        return AppIcons.straighten;
-      case 'Patterning':
-        return AppIcons.gradient;
-      case 'Nature':
-        return AppIcons.psychology;
-      default:
-        return AppIcons.info_outline;
-    }
-  }
-}
-
-class _InheritedTraitsSimple extends StatelessWidget {
-  final Map<String, dynamic> analysis;
-  const _InheritedTraitsSimple({required this.analysis});
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = _bp(context);
-    final theme = context.read<FactionTheme>();
-    final traits = analysis['traitJustifications'] as List? ?? [];
-    if (traits.isEmpty) return const SizedBox.shrink();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const BracketSectionDivider(label: 'Inherited traits'),
-        const SizedBox(height: 10),
-        ...traits.map((raw) {
-          final trait = raw as Map;
-          final traitName = trait['trait'] as String;
-          final actualValue = trait['actualValue'] as String;
-          final category = trait['category'] as String;
-          final mechanism = trait['mechanism'] as String;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 10),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CustomPaint(
-                  painter: BracketFramePainter(
-                    color: _dialogAccent(context).withValues(alpha: 0.84),
-                    bracketSize: 5,
-                    strokeWidth: 1,
-                  ),
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    color: palette.accentWash(theme.accent, darkAlpha: 0.12),
-                    child: Icon(
-                      _MechanicCard._categoryIcon(category),
-                      size: 12,
-                      color: _dialogAccent(context),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '$traitName: $actualValue',
-                        style: bracketText(
-                          context,
-                          12.5,
-                          palette.ink,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        mechanism,
-                        style: bracketText(
-                          context,
-                          12,
-                          palette.muted,
-                          weight: FontWeight.w500,
-                          fontStyle: FontStyle.italic,
-                        ),
-                        strutStyle: const StrutStyle(height: 1.4),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
     );
   }
 }
@@ -3448,20 +2188,19 @@ class _InheritedTraitsSimple extends StatelessWidget {
 // HELPERS
 // ──────────────────────────────────────────────────────────────────────────────
 
+/// Where a specimen came from, in words. The one labeller for the dialog:
+/// a second, founders-only one used to call every fusion a "Discovery".
 String _formatSource(String source) {
   switch (source) {
     case 'wild_capture':
+    case 'wild':
       return 'Wild Capture';
     case 'wild_fusion':
-      return 'Wild Fusion';
     case 'wild_breeding':
-      return 'Wild Fusion'; // legacy key
-    case 'wild':
-      return 'Wild Capture'; // legacy key
+      return 'Wild Fusion';
     case 'standard_fusion':
-      return 'Standard Fusion';
     case 'breeding':
-      return 'Standard Fusion'; // legacy key
+      return 'Fusion';
     case 'rift_portal':
       return 'Rift Portal';
     case 'planet_summon':
@@ -3471,6 +2210,8 @@ String _formatSource(String source) {
     case 'breeding_vial':
     case 'vial':
       return 'Vial Extraction';
+    case 'elemental_nexus':
+      return 'Elemental Nexus';
     case 'starter':
       return 'Starter';
     case 'quest':
@@ -3480,33 +2221,12 @@ String _formatSource(String source) {
   }
 }
 
-bool _hasActualParentage(String? parentageJson) {
-  if (parentageJson == null || parentageJson.trim().isEmpty) return false;
-  try {
-    final decoded = jsonDecode(parentageJson);
-    if (decoded is! Map<String, dynamic>) return false;
+const _months = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', //
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
 
-    bool hasBaseId(dynamic raw) {
-      if (raw is! Map) return false;
-      final baseId = raw['baseId'];
-      return baseId is String && baseId.trim().isNotEmpty;
-    }
-
-    return hasBaseId(decoded['parentA']) && hasBaseId(decoded['parentB']);
-  } catch (_) {
-    return false;
-  }
-}
-
-String _formatCreationDate(int? timestampMs) {
-  if (timestampMs == null) return 'Unknown';
-  final date = DateTime.fromMillisecondsSinceEpoch(
-    timestampMs,
-    isUtc: true,
-  ).toLocal();
-  return '${date.month.toString().padLeft(2, '0')}/'
-      '${date.day.toString().padLeft(2, '0')}/'
-      '${date.year}  '
-      '${date.hour.toString().padLeft(2, '0')}:'
-      '${date.minute.toString().padLeft(2, '0')}';
+String _formatDate(int utcMs) {
+  final d = DateTime.fromMillisecondsSinceEpoch(utcMs, isUtc: true).toLocal();
+  return '${_months[d.month - 1]} ${d.day}, ${d.year}';
 }

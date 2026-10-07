@@ -77,8 +77,8 @@ abstract final class _V {
   static const gold = Color(0xFFE4C16A);
   static const goldBright = Color(0xFFF6DD94);
   static const goldDeep = Color(0xFFA9813F);
-  static const parchment = Color(0xFFE8DCC8);
-  static const muted = Color(0xFF8A7B6A);
+  static const parchment = Color(0xFFE6E2DA);
+  static const muted = Color(0xFF85827C);
   static const verdigris = Color(0xFF8CC9A8);
   static const danger = Color(0xFFE07A66);
   static const ink = Color(0xFF1B1205);

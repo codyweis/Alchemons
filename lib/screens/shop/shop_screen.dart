@@ -34,6 +34,7 @@ import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/models/inventory.dart' show InvKeys;
 import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
+import 'package:alchemons/widgets/shelf_look.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
@@ -892,7 +893,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         ];
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: ShopGrid(children: cards),
+          child: ShopShelf(kind: ShelfKind.featured, children: cards),
         );
       },
     );
@@ -966,7 +967,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: ShopGrid(children: cards),
+          child: ShopShelf(kind: ShelfKind.featured, children: cards),
         );
       },
     );
@@ -1034,11 +1035,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             onBuy: buyPack,
             // Gold is credited to an account, so the button leads to
             // signing in rather than to a dead end.
-            onSignIn: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (ctx) => ProfileScreen(() => Navigator.of(ctx).pop()),
-              ),
-            ),
+            onSignIn: () => Navigator.of(context).push(ProfileScreen.route()),
           ),
         );
       },
@@ -1121,7 +1118,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: ShopGrid(children: cards),
+          child: ShopShelf(children: cards),
         );
       },
     );
@@ -1258,7 +1255,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: ShopGrid(children: cards),
+          child: ShopShelf(children: cards),
         );
       },
     );
@@ -1329,7 +1326,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: ShopGrid(children: cards),
+          child: ShopShelf(children: cards),
         );
       },
     );
@@ -1418,7 +1415,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: ShopGrid(children: [...leading, ...cards]),
+          child: ShopShelf(children: [...leading, ...cards]),
         );
       },
     );
@@ -1493,7 +1490,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: ShopGrid(children: cards),
+          child: ShopShelf(children: cards),
         );
       },
     );
@@ -1525,6 +1522,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             'unlock.fusion_slot.3',
             'unlock.fusion_slot.4',
             'unlock.fusion_slot.5',
+            'unlock.fusion_slot.6',
           ],
         ];
 
@@ -1604,7 +1602,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
         return Padding(
           padding: const EdgeInsets.all(12),
-          child: ShopGrid(children: cards),
+          child: ShopShelf(children: cards),
         );
       },
     );

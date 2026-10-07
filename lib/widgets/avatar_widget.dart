@@ -4,7 +4,8 @@
 // chose it by in the faction picker — the same orb, turning — set in a dark
 // medallion with a gold rim, the pair of the Upgrade medallion across the
 // screen. It replaced an illustrated sticker (a baby dragon in a mortar)
-// that bobbed forever.
+// that bobbed forever. Tapped, the orb flies out of the medallion into the
+// profile's header (ProfileScreen.route).
 
 import 'dart:ui' as ui;
 
@@ -16,6 +17,10 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+/// The division orb's [Hero] tag: it flies from this medallion into the
+/// profile's header and back (ProfileScreen.route).
+const Object kDivisionOrbHeroTag = 'division-orb';
 
 class AvatarButton extends StatelessWidget {
   const AvatarButton({super.key, required this.theme, required this.onTap});
@@ -41,16 +46,19 @@ class AvatarButton extends StatelessWidget {
           children: [
             const CustomPaint(painter: _MedallionPainter(front: false)),
             Center(
-              child: ExtractionVialOrb(
-                vial: ExtractionVial(
-                  price: null,
-                  id: 'starter_${group.name}',
-                  name: 'STARTER VIAL',
-                  group: group,
-                  rarity: VialRarity.uncommon,
-                  quantity: 1,
+              child: Hero(
+                tag: kDivisionOrbHeroTag,
+                child: ExtractionVialOrb(
+                  vial: ExtractionVial(
+                    price: null,
+                    id: 'starter_${group.name}',
+                    name: 'STARTER VIAL',
+                    group: group,
+                    rarity: VialRarity.uncommon,
+                    quantity: 1,
+                  ),
+                  size: _size * 0.92,
                 ),
-                size: _size * 0.92,
               ),
             ),
             const IgnorePointer(
@@ -92,7 +100,7 @@ class _MedallionPainter extends CustomPainter {
       Path()
         ..fillType = PathFillType.evenOdd
         ..addOval(Rect.fromCircle(center: c, radius: r * 0.98))
-        ..addOval(Rect.fromCircle(center: c, radius: r * 0.9)),
+        ..addOval(Rect.fromCircle(center: c, radius: r * 0.955)),
       Paint()
         ..shader = ui.Gradient.linear(
           band.topLeft,

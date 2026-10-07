@@ -131,6 +131,10 @@ class SandSource {
   final Rect circle;
 }
 
+/// A route that plays its own way out when popped (as an emblem's passage
+/// does): [VoidPortal.pop] just pops it rather than warping on top.
+abstract interface class SelfLeavingRoute {}
+
 /// Main portal utility class
 class VoidPortal {
   VoidPortal._();
@@ -396,6 +400,12 @@ class VoidPortal {
     VoidPortalConfig config = const VoidPortalConfig(),
   }) async {
     final navigator = Navigator.of(context);
+    // A route with a way out of its own leaves by it alone: the warp on top
+    // played two exits, one after the other.
+    if (ModalRoute.of(context) is SelfLeavingRoute) {
+      navigator.pop(result);
+      return;
+    }
 
     final handle = _showPortalWarp(
       context,

@@ -1,4 +1,3 @@
-import 'package:alchemons/audio/audio.dart';
 // lib/screens/creatures_screen.dart
 //
 // The Creatures tab (the Alchemon Database): one header — a search field and
@@ -26,6 +25,7 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/catalog/species_plate.dart';
 import 'package:alchemons/widgets/catalog/species_table.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
+import 'package:alchemons/widgets/specimen_search_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -34,7 +34,6 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 
 import '../models/creature.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
 class CreaturesScreen extends StatefulWidget {
   const CreaturesScreen({super.key});
@@ -266,7 +265,7 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-                      child: _SearchBar(
+                      child: SpecimenSearchBar(
                         palette: palette,
                         accent: accent,
                         controller: _searchCtrl,
@@ -396,143 +395,5 @@ class CreaturesScreenState extends State<CreaturesScreen> {
     } else {
       showUnknownSpeciesDialog(context, theme, species);
     }
-  }
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// HEADER
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _SearchBar extends StatefulWidget {
-  const _SearchBar({
-    required this.palette,
-    required this.accent,
-    required this.controller,
-    required this.focusNode,
-    required this.hint,
-    required this.onChanged,
-    required this.showReset,
-    required this.onReset,
-  });
-
-  final BracketPalette palette;
-  final Color accent;
-  final TextEditingController controller;
-  final FocusNode focusNode;
-  final String hint;
-  final ValueChanged<String> onChanged;
-  final bool showReset;
-  final VoidCallback onReset;
-
-  @override
-  State<_SearchBar> createState() => _SearchBarState();
-}
-
-class _SearchBarState extends State<_SearchBar> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_onText);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_onText);
-    super.dispose();
-  }
-
-  void _onText() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = widget.palette;
-    final hasText = widget.controller.text.isNotEmpty;
-    final style = TextStyle(
-      fontFamily: 'monospace',
-      fontSize: 12.5,
-      fontWeight: FontWeight.w700,
-      letterSpacing: 0.4,
-      color: palette.ink,
-    );
-    return Row(
-      children: [
-        Expanded(
-          child: CustomPaint(
-            foregroundPainter: BracketFramePainter(
-              color: palette.line.withValues(alpha: 0.6),
-              bracketSize: 8,
-            ),
-            child: Container(
-              height: 40,
-              color: palette.chromeMutedFill(),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Icon(AppIcons.search_rounded, size: 15, color: palette.muted),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: widget.controller,
-                      focusNode: widget.focusNode,
-                      onChanged: widget.onChanged,
-                      cursorColor: widget.accent,
-                      style: style,
-                      decoration: InputDecoration(
-                        isCollapsed: true,
-                        border: InputBorder.none,
-                        hintText: widget.hint,
-                        hintStyle: style.copyWith(color: palette.muted),
-                      ),
-                    ),
-                  ),
-                  if (hasText)
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: context.soundAction(() {
-                        widget.controller.clear();
-                        widget.onChanged('');
-                      }),
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 6),
-                        child: Icon(
-                          AppIcons.close_rounded,
-                          size: 14,
-                          color: palette.muted,
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        ),
-        if (widget.showReset) ...[
-          const SizedBox(width: 10),
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: context.soundAction(widget.onReset),
-            child: CustomPaint(
-              foregroundPainter: BracketFramePainter(
-                color: widget.accent,
-                bracketSize: 7,
-                strokeWidth: 1.2,
-              ),
-              child: Container(
-                height: 40,
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                alignment: Alignment.center,
-                color: palette.accentWash(widget.accent),
-                child: Text(
-                  'RESET',
-                  style: style.copyWith(fontSize: 11, letterSpacing: 1.2),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
   }
 }

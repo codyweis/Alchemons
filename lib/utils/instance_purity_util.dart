@@ -166,19 +166,6 @@ Map<String, int> decodePurityLineage(String? raw, {String? fallbackKey}) {
   return const {};
 }
 
-String founderSourceLabel(String source) {
-  return switch (source) {
-    'wild_capture' || 'wild' => 'Wild Capture',
-    'starter' => 'Starter',
-    'vial' || 'breeding_vial' => 'Vial Extraction',
-    'planet_summon' => 'Planet Summon',
-    'rift_portal' => 'Rift Portal',
-    'quest' => 'Quest Reward',
-    'elemental_nexus' => 'Elemental Nexus',
-    _ => 'Discovery',
-  };
-}
-
 String generationLabel(int generationDepth) {
   return generationDepth == 0 ? 'Founder' : 'Gen $generationDepth';
 }

@@ -4,6 +4,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'dart:async';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -417,18 +418,52 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
     }
 
     if (widget.style == CampaignRewardsStyle.tile) {
-      // Its own Material: the profile panel it sits in has a fill, which
-      // would hide the ripple (and Flutter asserts on it).
-      return Material(
-        type: MaterialType.transparency,
-        child: ListTile(
-          leading: icon,
-          title: const Text('ACHIEVEMENTS'),
-          subtitle: Text(
-            count > 0 ? '$count waiting' : 'Main story, rewards, and memories',
+      // A row of the profile's journal panel, in its type.
+      final palette = BracketPalette.of(context);
+      TextStyle mono(double size, Color color) => TextStyle(
+        fontFamily: 'monospace',
+        color: color,
+        fontSize: size,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.4,
+        height: 1.2,
+      );
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(widget.enabled ? open : null),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ACHIEVEMENTS', style: mono(11.5, palette.ink)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Main story, rewards and memories',
+                      style: bracketText(
+                        context,
+                        12.5,
+                        palette.muted,
+                      ).copyWith(height: 1.4),
+                    ),
+                  ],
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 12),
+                Text('$count WAITING', style: mono(10.5, fc.rewardGold)),
+              ],
+              const SizedBox(width: 4),
+              Icon(
+                AppIcons.chevron_right_rounded,
+                size: 20,
+                color: palette.muted,
+              ),
+            ],
           ),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: widget.enabled ? open : null,
         ),
       );
     }

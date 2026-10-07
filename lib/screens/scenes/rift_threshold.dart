@@ -401,8 +401,8 @@ class _RiftPainter extends CustomPainter {
 }
 
 const _mono = 'monospace';
-const _parchment = Color(0xFFE8DCC8);
-const _muted = Color(0xFF8A7B6A);
+const _parchment = Color(0xFFE6E2DA);
+const _muted = Color(0xFF85827C);
 
 class _Panel extends StatelessWidget {
   const _Panel({required this.state, this.top = false});

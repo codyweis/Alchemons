@@ -4,9 +4,11 @@ library;
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_party_slot.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -94,6 +96,75 @@ void main() {
           await tester.pump(const Duration(milliseconds: 33));
         }
         await shoot(tester, key, 'run_pause');
+
+        // A companion's card, then the quit question: the run's dialogs.
+        final card = find.text('AIRLET');
+        if (card.evaluate().isNotEmpty) {
+          await tester.tap(card.first, warnIfMissed: false);
+          for (var i = 0; i < 10; i++) {
+            await tester.pump(const Duration(milliseconds: 33));
+          }
+          tester.takeException();
+          await shoot(tester, key, 'run_companion');
+          await tester.tapAt(const Offset(4, 4));
+          for (var i = 0; i < 10; i++) {
+            await tester.pump(const Duration(milliseconds: 33));
+          }
+        }
+        final quit = find.text('QUIT');
+        if (quit.evaluate().isNotEmpty) {
+          await tester.tap(quit.first, warnIfMissed: false);
+          for (var i = 0; i < 10; i++) {
+            await tester.pump(const Duration(milliseconds: 33));
+          }
+          tester.takeException();
+          await shoot(tester, key, 'run_quit');
+          await tester.tap(find.text('STAY').last, warnIfMissed: false);
+          for (var i = 0; i < 10; i++) {
+            await tester.pump(const Duration(milliseconds: 33));
+          }
+        }
+        final resume = find.text('RESUME');
+        if (resume.evaluate().isNotEmpty) {
+          await tester.tap(resume.first, warnIfMissed: false);
+          for (var i = 0; i < 10; i++) {
+            await tester.pump(const Duration(milliseconds: 33));
+          }
+        }
+      }
+
+      // The end of the run: the core gives out, comes apart over the
+      // stilled arena, and the results gather in over it.
+      final game =
+          tester
+                  .widget<GameWidget>(
+                    find.byWidgetPredicate((w) => w is GameWidget),
+                  )
+                  .game!
+              as CosmicSurvivalGame;
+      game.orb.currentHp = 0;
+      var ms = 0;
+      // RUN_FRAMES=1: every 66 ms through it, for a moving preview.
+      final every = Platform.environment['RUN_FRAMES'] == '1';
+      final times = every
+          ? [for (var t = 0; t <= 6000; t += 66) t]
+          : const [350, 800, 1300, 1900, 2700, 3600, 5200];
+      for (final at in times) {
+        while (ms < at) {
+          await tester.pump(const Duration(milliseconds: 33));
+          ms += 33;
+          if (ms % 330 < 33) {
+            await tester.runAsync(
+              () => Future<void>.delayed(const Duration(milliseconds: 20)),
+            );
+          }
+        }
+        tester.takeException();
+        await shoot(
+          tester,
+          key,
+          every ? 'frame_${at.toString().padLeft(5, '0')}' : 'end_${at}ms',
+        );
       }
     } finally {
       debugDisableShadows = true;

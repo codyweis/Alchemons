@@ -1313,7 +1313,8 @@ String? _displayVariant(String? faction) {
 /// What a mutated specimen reads as: the name, and what it means to look at.
 String _mutationReading(AlchemonMutation m) => switch (m) {
   AlchemonMutation.alchemized => 'Alchemized: made of grains that never settle',
-  AlchemonMutation.transmuted => 'Transmuted: turned to gold',
+  AlchemonMutation.transmuted =>
+    'Transmuted: turned to gold. Can be sold for a high price',
 };
 
 Color _purityColor(InstancePurityStatus purity) {

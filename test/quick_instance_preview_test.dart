@@ -24,8 +24,15 @@ import 'package:provider/provider.dart';
 //
 //   QUICK_OUT=/tmp/quick flutter test \
 //     test/quick_instance_preview_test.dart --tags preview
+//
+// QUICK_SIZE (WIDTHxHEIGHT, default 390x844) is the screen, in points: a
+// short one shows the card scrolling round its docked button.
 void main() {
   final out = Platform.environment['QUICK_OUT'];
+  final screen = (Platform.environment['QUICK_SIZE'] ?? '390x844')
+      .split('x')
+      .map(double.parse)
+      .toList();
 
   Future<void> loadFont(String family, String path) async {
     final file = File(path);
@@ -92,7 +99,7 @@ void main() {
         option: creatureBgById('white'),
       );
     });
-    tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+    tester.view.physicalSize = Size(screen[0] * 3, screen[1] * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     final key = GlobalKey();

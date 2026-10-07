@@ -65,42 +65,6 @@ Color powerUpAccentColor(PowerUpDef def) {
   };
 }
 
-class _BracketFramePainter extends CustomPainter {
-  const _BracketFramePainter({required this.color});
-  static const double bracketSize = 12;
-
-  final Color color;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.15;
-    final s = bracketSize;
-    final w = size.width;
-    final h = size.height;
-    final path = Path()
-      ..moveTo(0, s)
-      ..lineTo(0, 0)
-      ..lineTo(s, 0)
-      ..moveTo(w - s, 0)
-      ..lineTo(w, 0)
-      ..lineTo(w, s)
-      ..moveTo(0, h - s)
-      ..lineTo(0, h)
-      ..lineTo(s, h)
-      ..moveTo(w - s, h)
-      ..lineTo(w, h)
-      ..lineTo(w, h - s);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _BracketFramePainter oldDelegate) =>
-      oldDelegate.color != color;
-}
-
 class PowerUpSelectionOverlay extends StatefulWidget {
   final List<OfferedPowerUpChoice> choices;
   final int currentWave;
@@ -217,60 +181,46 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                     offset: Offset(0, _panelSlide.value),
                     child: Transform.scale(
                       scale: _panelScale.value,
-                      child: CustomPaint(
-                        painter: _BracketFramePainter(
-                          color: _C.amber.withValues(
-                            alpha: 0.62 * _panelOpacity.value,
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
+                        decoration: BoxDecoration(
+                          // Darker and more opaque than the cards sitting on
+                          // it, so there is real separation between the panel
+                          // and its contents. The old version was one dim
+                          // box inside another inside another, which is
+                          // where "nested and boxy" came from.
+                          color: _C.bg0.withValues(
+                            alpha: 0.97 * _panelOpacity.value,
                           ),
                         ),
-                        child: Container(
-                          padding: const EdgeInsets.fromLTRB(18, 14, 18, 16),
-                          decoration: BoxDecoration(
-                            // Darker and more opaque than the cards sitting on
-                            // it, so there is real separation between the panel
-                            // and its contents. The old version was one dim
-                            // box inside another inside another, which is
-                            // where "nested and boxy" came from.
-                            color: _C.bg0.withValues(
-                              alpha: 0.97 * _panelOpacity.value,
-                            ),
-                            border: Border.all(
-                              color: _C.amber.withValues(alpha: 0.22),
-                            ),
-                          ),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // One title, not two stacked: "FORGE OFFERINGS"
-                              // over "ALCHEMICAL SURGE" said the same thing
-                              // twice and pushed the cards down the screen.
-                              const SizedBox(height: 2),
-                              Text(
-                                showingKeystones
-                                    ? 'WAVE ${widget.currentWave} KEYSTONE'
-                                    : isThisOrThatOffer
-                                    ? 'UNIQUE CHOICE'
-                                    : 'ALCHEMICAL SURGE',
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: _C.textPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2.2,
-                                ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // One title, not two stacked: "FORGE OFFERINGS"
+                            // over "ALCHEMICAL SURGE" said the same thing
+                            // twice and pushed the cards down the screen.
+                            const SizedBox(height: 2),
+                            Text(
+                              showingKeystones
+                                  ? 'WAVE ${widget.currentWave} KEYSTONE'
+                                  : isThisOrThatOffer
+                                  ? 'UNIQUE CHOICE'
+                                  : 'ALCHEMICAL SURGE',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                color: _C.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 2.2,
                               ),
-                              const SizedBox(height: 14),
-                              for (
-                                var i = 0;
-                                i < widget.choices.length;
-                                i++
-                              ) ...[
-                                _buildCard(i),
-                                if (i < widget.choices.length - 1)
-                                  const SizedBox(height: 10),
-                              ],
+                            ),
+                            const SizedBox(height: 14),
+                            for (var i = 0; i < widget.choices.length; i++) ...[
+                              _buildCard(i),
+                              if (i < widget.choices.length - 1)
+                                const SizedBox(height: 10),
                             ],
-                          ),
+                          ],
                         ),
                       ),
                     ),
@@ -339,7 +289,7 @@ class _PowerUpCard extends StatelessWidget {
     final showPips = def.showLevel && def.maxStacks > 1;
     final hasTarget = isCompanion && offeredName != null;
 
-    // Dark glass lit from behind at its medallion, in bracket corners of the
+    // Dark glass lit from behind at its medallion and from below in the
     // category's colour. The medallion — a lens with the category's light in
     // it — is the one saturated thing per card, so the eye still sorts the
     // offers by colour before reading a word.
@@ -349,148 +299,142 @@ class _PowerUpCard extends StatelessWidget {
       child: CustomPaint(
         foregroundPainter: BracketFramePainter(
           color: accent.withValues(alpha: 0.85),
-          bracketSize: 9,
           strokeWidth: 1.3,
         ),
         child: CustomPaint(
           painter: _CardLightPainter(accent),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: accent.withValues(alpha: 0.18)),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 11),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: CustomPaint(
-                      painter: _MedallionPainter(accent),
-                      child: Icon(
-                        systemIcon,
-                        color: Color.lerp(accent, Colors.white, 0.7),
-                        size: 18,
-                      ),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 11),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: CustomPaint(
+                    painter: _MedallionPainter(accent),
+                    child: Icon(
+                      systemIcon,
+                      color: Color.lerp(accent, Colors.white, 0.7),
+                      size: 18,
                     ),
                   ),
-                  const SizedBox(width: 11),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
+                ),
+                const SizedBox(width: 11),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        def.name.toUpperCase(),
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: Color.lerp(_C.textPrimary, accent, 0.3),
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.0,
+                          height: 1.15,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (def.isKeystone)
+                        for (final effect in keystoneEffects)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 3),
+                            child: Text(
+                              '+ $effect',
+                              style: const TextStyle(
+                                color: _C.textPrimary,
+                                fontSize: 13.5,
+                                height: 1.3,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          )
+                      else
                         Text(
-                          def.name.toUpperCase(),
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: Color.lerp(_C.textPrimary, accent, 0.3),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.0,
-                            height: 1.15,
+                          incrementLabel,
+                          style: const TextStyle(
+                            color: _C.textPrimary,
+                            fontSize: 13.5,
+                            height: 1.3,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        if (def.isKeystone)
-                          for (final effect in keystoneEffects)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 3),
-                              child: Text(
-                                '+ $effect',
-                                style: const TextStyle(
-                                  color: _C.textPrimary,
-                                  fontSize: 13.5,
-                                  height: 1.3,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            )
-                        else
-                          Text(
-                            incrementLabel,
-                            style: const TextStyle(
-                              color: _C.textPrimary,
-                              fontSize: 13.5,
-                              height: 1.3,
-                              fontWeight: FontWeight.w600,
-                            ),
+                      if (totalLabel != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          totalLabel,
+                          style: const TextStyle(
+                            color: _C.textMuted,
+                            fontSize: 11.5,
+                            height: 1.25,
                           ),
-                        if (totalLabel != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            totalLabel,
-                            style: const TextStyle(
-                              color: _C.textMuted,
-                              fontSize: 11.5,
-                              height: 1.25,
-                            ),
-                          ),
-                        ],
-                        // WHO IT IS FOR, on its own line.
-                        //
-                        // This shared a row with two tags and the level
-                        // pips, so on a real phone with real creature
-                        // names it ellipsized to "NO...", "BLIGH...",
-                        // "TERRA..." — which is worse than omitting it,
-                        // because the player can see that a name exists
-                        // and still cannot read which of their party it
-                        // names.
-                        if (hasTarget) ...[
-                          const SizedBox(height: 7),
-                          Row(
-                            children: [
-                              Icon(
-                                AppIcons.arrow_forward_rounded,
-                                color: accent,
-                                size: 13,
-                              ),
-                              const SizedBox(width: 5),
-                              Expanded(
-                                child: Text(
-                                  offeredName.toUpperCase(),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    color: _C.amber,
-                                    fontSize: 11.5,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 1.2,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                        const SizedBox(height: 9),
-                        // What kind of thing it is, and how far along.
+                        ),
+                      ],
+                      // WHO IT IS FOR, on its own line.
+                      //
+                      // This shared a row with two tags and the level
+                      // pips, so on a real phone with real creature
+                      // names it ellipsized to "NO...", "BLIGH...",
+                      // "TERRA..." — which is worse than omitting it,
+                      // because the player can see that a name exists
+                      // and still cannot read which of their party it
+                      // names.
+                      if (hasTarget) ...[
+                        const SizedBox(height: 7),
                         Row(
                           children: [
-                            _MiniTag(
-                              label: def.isKeystone ? 'DOCTRINE' : systemLabel,
+                            Icon(
+                              AppIcons.arrow_forward_rounded,
                               color: accent,
-                              filled: true,
+                              size: 13,
                             ),
-                            const SizedBox(width: 6),
-                            _MiniTag(
-                              label: _rarityLabel(rarity),
-                              color: _rarityColor(rarity),
-                            ),
-                            const Spacer(),
-                            if (showPips)
-                              _LevelPips(
-                                level: choice.currentLevel,
-                                maxStacks: def.maxStacks,
-                                tint: accent,
+                            const SizedBox(width: 5),
+                            Expanded(
+                              child: Text(
+                                offeredName.toUpperCase(),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  color: _C.amber,
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.2,
+                                ),
                               ),
+                            ),
                           ],
                         ),
                       ],
-                    ),
+                      const SizedBox(height: 9),
+                      // What kind of thing it is, and how far along.
+                      Row(
+                        children: [
+                          _MiniTag(
+                            label: def.isKeystone ? 'DOCTRINE' : systemLabel,
+                            color: accent,
+                            filled: true,
+                          ),
+                          const SizedBox(width: 6),
+                          _MiniTag(
+                            label: _rarityLabel(rarity),
+                            color: _rarityColor(rarity),
+                          ),
+                          const Spacer(),
+                          if (showPips)
+                            _LevelPips(
+                              level: choice.currentLevel,
+                              maxStacks: def.maxStacks,
+                              tint: accent,
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -670,8 +614,8 @@ class _MiniTag extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // A label in bracket corners. [filled] (the category) is the brighter of
-    // the two; neither is a solid chip any more.
+    // A label on a faint wash. [filled] (the category) is lit from below; the
+    // rarity beside it stays plain. Neither is a solid chip any more.
     return CustomPaint(
       foregroundPainter: BracketFramePainter(
         color: color.withValues(alpha: filled ? 0.9 : 0.55),

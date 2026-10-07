@@ -83,7 +83,7 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
     if (key.contains('earthen')) return const Color(0xFFFF8F00);
     if (key.contains('arcane')) return const Color(0xFFCE93D8);
     if (key.contains('guaranteed')) return const Color(0xFFFFD54F);
-    return const Color(0xFF8A7B6A);
+    return const Color(0xFF85827C);
   }
 
   static IconData _invIcon(String key) {

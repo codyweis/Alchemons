@@ -24,6 +24,7 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flame/game.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -46,11 +47,16 @@ const double _kTabsHeight = 58;
 const double _kFooterHeight = 86;
 
 class ConstellationScreen extends StatefulWidget {
-  const ConstellationScreen({super.key, this.revealReady});
+  const ConstellationScreen({super.key, this.revealReady, this.revealed});
 
   /// Set true once the constellation game is attached, for an entry portal
   /// covering this screen (VoidPortal.pushThroughGlyphs).
   final ValueNotifier<bool>? revealReady;
+
+  /// From home's UPGRADE emblem, whose sky disc opens into this chart's
+  /// sky: until this turns true the chart shows only its sky; then it
+  /// lights its trees and the chrome comes in. Null: shown whole at once.
+  final ValueListenable<bool>? revealed;
 
   @override
   State<ConstellationScreen> createState() => _ConstellationScreenState();
@@ -74,9 +80,19 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
 
   late final RevealWhenReady _revealWhenReady;
 
+  /// The header, tabs and tree panel: in with the chart's entrance.
+  late bool _chromeIn = widget.revealed?.value ?? true;
+
+  void _onRevealed() {
+    if (!(widget.revealed?.value ?? true) || _chromeIn) return;
+    _game?.playEntrance();
+    if (mounted) setState(() => _chromeIn = true);
+  }
+
   @override
   void initState() {
     super.initState();
+    widget.revealed?.addListener(_onRevealed);
     _revealWhenReady = RevealWhenReady(
       widget.revealReady,
       () => mounted && (_game?.isAttached ?? false),
@@ -90,6 +106,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
 
   @override
   void dispose() {
+    widget.revealed?.removeListener(_onRevealed);
     _revealWhenReady.dispose();
     super.dispose();
   }
@@ -557,6 +574,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                           bottom: bottomChrome,
                         );
                   _gameInitialized = true;
+                  if (!_chromeIn) _game!.holdEntrance();
                   if (_isFirstUnlockLocked) {
                     _focusFirstUnlockNode();
                   }
@@ -574,41 +592,60 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                 return Stack(
                   children: [
                     Positioned.fill(child: GameWidget(game: _game!)),
-                    // One scrim under each band of chrome, the full width
-                    // of the screen, so the chart fades out beneath it
-                    // rather than meeting a box's edge.
-                    Positioned(
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      height: topChrome + 36,
-                      child: _Scrim(top: true),
-                    ),
-                    Positioned(
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      height: bottomChrome + 40,
-                      child: _Scrim(top: false),
-                    ),
-                    SafeArea(
-                      child: Column(
-                        children: [
-                          SizedBox(
-                            height: _kHeaderHeight,
-                            child: _buildHeader(points, unlockedSkills),
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        ignoring: !_chromeIn,
+                        child: AnimatedOpacity(
+                          opacity: _chromeIn ? 1 : 0,
+                          duration: const Duration(milliseconds: 800),
+                          curve: Curves.easeOut,
+                          child: Stack(
+                            children: [
+                              // One scrim under each band of chrome, the
+                              // full width of the screen, so the chart fades
+                              // out beneath it rather than meeting a box's
+                              // edge.
+                              Positioned(
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                height: topChrome + 36,
+                                child: _Scrim(top: true),
+                              ),
+                              Positioned(
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                height: bottomChrome + 40,
+                                child: _Scrim(top: false),
+                              ),
+                              SafeArea(
+                                child: Column(
+                                  children: [
+                                    SizedBox(
+                                      height: _kHeaderHeight,
+                                      child: _buildHeader(
+                                        points,
+                                        unlockedSkills,
+                                      ),
+                                    ),
+                                    SizedBox(
+                                      height: _kTabsHeight,
+                                      child: _buildTreeSelector(unlockedSkills),
+                                    ),
+                                    if (_isFirstUnlockLocked)
+                                      _buildFirstUnlockBanner(),
+                                    const Spacer(),
+                                    SizedBox(
+                                      height: _kFooterHeight,
+                                      child: _buildTreeInfo(),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(
-                            height: _kTabsHeight,
-                            child: _buildTreeSelector(unlockedSkills),
-                          ),
-                          if (_isFirstUnlockLocked) _buildFirstUnlockBanner(),
-                          const Spacer(),
-                          SizedBox(
-                            height: _kFooterHeight,
-                            child: _buildTreeInfo(),
-                          ),
-                        ],
+                        ),
                       ),
                     ),
                   ],

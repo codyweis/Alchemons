@@ -16,6 +16,8 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -25,19 +27,27 @@ import 'package:alchemons/widgets/app_icons.dart';
 // DESIGN TOKENS
 // ─────────────────────────────────────────────────────────────────────────────
 
+/// The kit's dark palette: the back button, purse, tabs and confirm dialogs
+/// come from bracket_controls and read their greys from here.
+const _kPalette = BracketPalette.dark;
+
+/// The space between two tabs. Narrower than [BracketTabs]' 8 so four (or
+/// five) labels still fit across a phone.
+const double _kTabGap = 6;
+
 class _C {
-  static const bg0 = Color(0xFF0A0806);
-  static const bg1 = Color(0xFF15110D);
-  static const bg2 = Color(0xFF1B1611);
-  static const bg3 = Color(0xFF241D16);
-  static const amber = Color(0xFFD97706);
-  static const amberBright = Color(0xFFF59E0B);
-  static const textPrimary = Color(0xFFE8DCC8);
-  static const textSecondary = Color(0xFF8A7B6A);
-  static const textMuted = Color(0xFF4A3F35);
+  static const bg0 = Color(0xFF09090B);
+  static const bg1 = Color(0xFF131316);
+  static const bg2 = Color(0xFF17171A);
+  static const bg3 = Color(0xFF1D1D21);
+  static const amber = Color(0xFFB89656);
+  static const amberBright = Color(0xFFCDB07A);
+  static const textPrimary = Color(0xFFE6E2DA);
+  static const textSecondary = Color(0xFF85827C);
+  static const textMuted = Color(0xFF46454A);
   static const danger = Color(0xFFC0392B);
-  static const borderDim = Color(0xFF2C241A);
-  static const borderMid = Color(0xFF3A3020);
+  static const borderDim = Color(0xFF26262B);
+  static const borderMid = Color(0xFF33333A);
 }
 
 class _T {
@@ -253,28 +263,14 @@ class _CosmicSurvivalBaseCommandScreenState
   // ── Header ───────────────────────────────────────────────────────────────
 
   Widget _buildHeader() {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 14),
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: _C.borderDim, width: 1)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: context.soundAction(() => Navigator.of(context).pop()),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _C.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: _C.borderDim),
-              ),
-              child: const Icon(
-                AppIcons.arrow_back_rounded,
-                color: _C.textSecondary,
-                size: 18,
-              ),
-            ),
+          BracketIconButton(
+            icon: AppIcons.arrow_back_rounded,
+            palette: _kPalette,
+            onTap: () => Navigator.of(context).pop(),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -312,46 +308,29 @@ class _CosmicSurvivalBaseCommandScreenState
               ],
             ),
           ),
-          _buildBalances(),
+          const SizedBox(width: 10),
+          // Both coins, because this screen spends both: orb skins are
+          // priced in gold, everything else in silver.
+          CoinPurse(
+            gold: _goldBalance,
+            silver: _silverBalance,
+            palette: _kPalette,
+            fill: _C.bg1,
+          ),
         ],
       ),
     );
   }
 
-  // Balances. Gold sits beside silver because this screen spends both:
-  // orb skins are priced in gold, everything else in silver.
-  Widget _buildBalances() {
-    return _PlateBox(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      accentColor: const Color(0xFFC0C0C0),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CoinIcon(kind: CoinKind.silver, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            _fmtNum(_silverBalance),
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: Color(0xFFC0C0C0),
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(width: 12),
-          const CoinIcon(kind: CoinKind.gold, size: 16),
-          const SizedBox(width: 6),
-          Text(
-            _fmtNum(_goldBalance),
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: Color(0xFFFFC94A),
-              fontSize: 14,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
+  /// The purse laid flat, for the slim bar that stands in for the header.
+  Widget _buildBalanceRow() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        CoinAmount(kind: CoinKind.gold, amount: _goldBalance, size: 13),
+        const SizedBox(width: 14),
+        CoinAmount(kind: CoinKind.silver, amount: _silverBalance, size: 13),
+      ],
     );
   }
 
@@ -383,7 +362,7 @@ class _CosmicSurvivalBaseCommandScreenState
               overflow: TextOverflow.ellipsis,
             ),
           ),
-          _buildBalances(),
+          _buildBalanceRow(),
         ],
       ),
     );
@@ -391,48 +370,90 @@ class _CosmicSurvivalBaseCommandScreenState
 
   // ── Tab Bar ──────────────────────────────────────────────────────────────
 
+  /// The kit's tabs ([BracketTabs]): a row of quiet fills, the chosen one
+  /// washed in brass and lit from below. Built on a Material [TabBar] so the
+  /// light follows the pager as it is swiped, and the tabs keep their
+  /// semantics; the TabBar itself draws only the labels and the light.
   Widget _buildTabBar() {
+    const labels = ['MASTERY', 'ORB', 'SHIP', 'GUARDIANS', 'ABILITIES'];
+    final count = widget.hideAbilities ? 4 : 5;
     return Container(
+      padding: const EdgeInsets.fromLTRB(
+        16 - _kTabGap / 2,
+        8,
+        16 - _kTabGap / 2,
+        10,
+      ),
       decoration: const BoxDecoration(
-        color: _C.bg1,
         border: Border(bottom: BorderSide(color: _C.borderDim, width: 1)),
       ),
-      child: TabBar(
-        controller: _tabController,
-        indicatorColor: _C.amber,
-        indicatorWeight: 2,
-        labelColor: _C.amberBright,
-        unselectedLabelColor: _C.textSecondary,
-        labelStyle: const TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.4,
-        ),
-        unselectedLabelStyle: const TextStyle(
-          fontFamily: 'monospace',
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 1.4,
-        ),
-        tabs: [
-          const Tab(
-            text: 'MASTERY',
-          ),
-          const Tab(
-            text: 'ORB',
-          ),
-          const Tab(
-            text: 'SHIP',
-          ),
-          const Tab(
-            text: 'GUARDIANS',
-          ),
-          if (!widget.hideAbilities)
-            const Tab(
-              text: 'ABILITIES',
-            ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Monospace (a glyph is ~0.6em): the longest label sets the size,
+          // so it fits its cell on a narrow phone rather than fading out at
+          // the edge. The spacing gives way before the type gets small.
+          final textScale = MediaQuery.textScalerOf(context).scale(1);
+          final room = constraints.maxWidth / count - _kTabGap - 6;
+          final longest = labels
+              .take(count)
+              .fold<int>(0, (m, l) => l.length > m ? l.length : m);
+          final perGlyph = room / longest;
+          final fontSize = (perGlyph / (0.72 * textScale)).clamp(9.0, 12.0);
+          final letterSpacing = (perGlyph - 0.6 * fontSize * textScale).clamp(
+            0.3,
+            fontSize * 0.12,
+          );
+          final style = TextStyle(
+            fontFamily: 'monospace',
+            fontSize: fontSize,
+            fontWeight: FontWeight.w800,
+            letterSpacing: letterSpacing,
+          );
+          return Stack(
+            children: [
+              // Every tab's quiet fill, cell for cell under the TabBar.
+              Positioned.fill(
+                child: Row(
+                  children: [
+                    for (var i = 0; i < count; i++)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: _kTabGap / 2,
+                          ),
+                          child: ColoredBox(
+                            color: _kPalette.surfaceMutedFill(),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              TabBar(
+                controller: _tabController,
+                indicator: const _LitTabIndicator(accent: _C.amber),
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicatorWeight: 0,
+                indicatorAnimation: TabIndicatorAnimation.linear,
+                dividerHeight: 0,
+                dividerColor: Colors.transparent,
+                overlayColor: const WidgetStatePropertyAll(Colors.transparent),
+                splashFactory: NoSplash.splashFactory,
+                labelPadding: const EdgeInsets.symmetric(
+                  horizontal: _kTabGap / 2 + 2,
+                ),
+                labelColor: _kPalette.ink,
+                unselectedLabelColor: _kPalette.muted,
+                labelStyle: style,
+                unselectedLabelStyle: style,
+                tabs: [
+                  for (var i = 0; i < count; i++)
+                    Tab(text: labels[i], height: 40),
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -610,6 +631,17 @@ class _CosmicSurvivalBaseCommandScreenState
     return CoinKind.silver;
   }
 
+  /// A price drawn as coins in the confirm dialog. Only a price paid wholly
+  /// in gold and silver is drawn; anything else (an essence) is left to the
+  /// message, which spells the whole price out.
+  List<(CoinKind, int)> _coinAmounts(Map<String, int> cost) {
+    if (cost.keys.any((k) => k != 'gold' && k != 'silver')) return const [];
+    return [
+      for (final entry in cost.entries)
+        (entry.key == 'gold' ? CoinKind.gold : CoinKind.silver, entry.value),
+    ];
+  }
+
   String _compactCostLabel(Map<String, int> cost) {
     if (cost.isEmpty) return '0';
     return cost.entries
@@ -634,61 +666,17 @@ class _CosmicSurvivalBaseCommandScreenState
     final def = getOrbBaseDef(skin);
     final offer = _orbOfferForDef(def);
     final effectiveCost = _orbEffectiveCost(shopService, def);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _C.bg1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(6),
-          side: BorderSide(color: _C.borderDim),
-        ),
-        title: Text(
-          'CONFIRM PURCHASE',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: _C.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-          ),
-        ),
-        content: Text(
-          'Spend ${_fullCostLabel(effectiveCost)} on ${def.name}?',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: _C.textSecondary,
-            fontSize: 12,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.pop(ctx, false)),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: _C.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.pop(ctx, true)),
-            child: Text(
-              'BUY',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: def.primaryColor,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await showBracketConfirm(
+      context,
+      palette: _kPalette,
+      accent: def.primaryColor,
+      title: 'CONFIRM PURCHASE',
+      message: 'Spend ${_fullCostLabel(effectiveCost)} on ${def.name}?',
+      amounts: _coinAmounts(effectiveCost),
+      amountsLabel: 'COSTS',
+      confirmLabel: 'BUY',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     setState(() => _purchasing = true);
     final ok = offer == null
@@ -767,61 +755,17 @@ class _CosmicSurvivalBaseCommandScreenState
     final cost = svc.nextGuardianCost(upgrade);
     if (cost == null) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _C.bg1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(6),
-          side: BorderSide(color: _C.borderDim),
-        ),
-        title: Text(
-          'CONFIRM UPGRADE',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: _C.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-          ),
-        ),
-        content: Text(
-          'Spend $cost silver to upgrade ${def.name}?',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: _C.textSecondary,
-            fontSize: 12,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.pop(ctx, false)),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: _C.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.pop(ctx, true)),
-            child: Text(
-              'UPGRADE',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: def.color,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await showBracketConfirm(
+      context,
+      palette: _kPalette,
+      accent: def.color,
+      title: 'CONFIRM UPGRADE',
+      message: 'Spend $cost silver to upgrade ${def.name}?',
+      amounts: [(CoinKind.silver, cost)],
+      amountsLabel: 'COSTS',
+      confirmLabel: 'UPGRADE',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     setState(() => _purchasing = true);
     final ok = await svc.upgradeGuardianStat(upgrade);
@@ -884,61 +828,17 @@ class _CosmicSurvivalBaseCommandScreenState
     final cost = svc.nextAbilityCost(ability);
     if (cost == null) return;
 
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _C.bg1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(6),
-          side: BorderSide(color: _C.borderDim),
-        ),
-        title: Text(
-          'CONFIRM UPGRADE',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: _C.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 1.2,
-          ),
-        ),
-        content: Text(
-          'Spend ${_fmtNum(cost)} silver to upgrade ${def.name}?',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: _C.textSecondary,
-            fontSize: 12,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.pop(ctx, false)),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: _C.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.pop(ctx, true)),
-            child: Text(
-              'UPGRADE',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: def.color,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final confirmed = await showBracketConfirm(
+      context,
+      palette: _kPalette,
+      accent: def.color,
+      title: 'CONFIRM UPGRADE',
+      message: 'Spend ${_fmtNum(cost)} silver to upgrade ${def.name}?',
+      amounts: [(CoinKind.silver, cost)],
+      amountsLabel: 'COSTS',
+      confirmLabel: 'UPGRADE',
     );
-    if (confirmed != true || !mounted) return;
+    if (!confirmed || !mounted) return;
 
     setState(() => _purchasing = true);
     final ok = await svc.upgradeBaseAbility(ability);
@@ -1032,92 +932,87 @@ class _CollapsibleChrome extends StatelessWidget {
   }
 }
 
+/// The chosen tab: a brass wash, lit from below, inset by half a gap each
+/// side so it sits exactly on that tab's fill.
+class _LitTabIndicator extends Decoration {
+  const _LitTabIndicator({required this.accent});
+
+  final Color accent;
+
+  @override
+  BoxPainter createBoxPainter([VoidCallback? onChanged]) =>
+      _LitTabIndicatorPainter(accent);
+}
+
+class _LitTabIndicatorPainter extends BoxPainter {
+  _LitTabIndicatorPainter(this.accent);
+
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Offset offset, ImageConfiguration configuration) {
+    final size = configuration.size;
+    if (size == null) return;
+    final rect = Rect.fromLTWH(
+      offset.dx + _kTabGap / 2,
+      offset.dy,
+      size.width - _kTabGap,
+      size.height,
+    );
+    canvas.drawRect(
+      rect,
+      Paint()..color = _kPalette.accentWash(accent, darkAlpha: 0.18),
+    );
+    canvas.save();
+    canvas.translate(rect.left, rect.top);
+    BracketFramePainter(
+      color: accent,
+      bracketSize: 8,
+      strokeWidth: 1.3,
+    ).paint(canvas, rect.size);
+    canvas.restore();
+  }
+}
+
+/// A card in the bare language: a flat ink fill, square, no frame. The
+/// chosen one (the orb or hull in use) is [lit] from below in its own
+/// colour over a faint wash of it; a finished one is only [washed].
 class _PlateBox extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final Color? accentColor;
-  final bool highlight;
+  final bool lit;
+  final bool washed;
 
   const _PlateBox({
     required this.child,
     this.padding = const EdgeInsets.all(16),
     this.accentColor,
-    this.highlight = false,
+    this.lit = false,
+    this.washed = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final accent = accentColor ?? _C.amber;
-    return Container(
-      padding: padding,
-      decoration: BoxDecoration(
-        color: _C.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: highlight ? accent.withValues(alpha: 0.6) : _C.borderDim,
-          width: highlight ? 1.5 : 1,
-        ),
-        boxShadow: highlight
-            ? [
-                BoxShadow(
-                  color: accent.withValues(alpha: 0.12),
-                  blurRadius: 18,
-                  spreadRadius: 0,
-                ),
-              ]
-            : null,
-      ),
-      child: Stack(
-        children: [
-          child,
-          Positioned(
-            top: 0,
-            left: 0,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: accent.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                  left: BorderSide(
-                    color: accent.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                border: Border(
-                  bottom: BorderSide(
-                    color: accent.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                  right: BorderSide(
-                    color: accent.withValues(alpha: 0.5),
-                    width: 1.5,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+    final fill = lit
+        ? Color.alphaBlend(accent.withValues(alpha: 0.10), _C.bg2)
+        : washed
+        ? Color.alphaBlend(accent.withValues(alpha: 0.05), _C.bg2)
+        : _C.bg2;
+    final card = Container(padding: padding, color: fill, child: child);
+    if (!lit) return card;
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(color: accent, strokeWidth: 1.3),
+      child: card,
     );
   }
 }
 
 // ── Forge Button ───────────────────────────────────────────────────────────
 
+/// A buy button in the bare language: square, a wash of the item's colour
+/// lit from below while it can be pressed, a dim unlit fill when it cannot.
 class _ForgeButton extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1141,52 +1036,56 @@ class _ForgeButton extends StatelessWidget {
     final isDisabled = onTap == null || loading;
     return GestureDetector(
       onTap: isDisabled ? null : context.soundAction(onTap),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        decoration: BoxDecoration(
-          color: isDisabled ? _C.bg3 : btnColor,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: isDisabled ? _C.borderDim : btnColor,
-            width: 1,
-          ),
-          boxShadow: !isDisabled
-              ? [
-                  BoxShadow(
-                    color: btnColor.withValues(alpha: 0.35),
-                    blurRadius: 14,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+      child: CustomPaint(
+        // The palette's own grey draws nothing: unlit while disabled.
+        foregroundPainter: BracketFramePainter(
+          color: isDisabled ? _kPalette.line : btnColor,
+          bracketSize: 10,
+          strokeWidth: 1.3,
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            if (loading)
-              const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(strokeWidth: 2, color: _C.bg0),
-              )
-            else if (coin != null)
-              CoinIcon(kind: coin!, size: 16)
-            else
-              Icon(icon, size: 16, color: _C.bg0),
-            const SizedBox(width: 2),
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.4,
-                color: isDisabled ? _C.textMuted : _C.bg0,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          color: isDisabled
+              ? _C.bg3
+              : _kPalette.accentWash(btnColor, darkAlpha: 0.2),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (loading)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: btnColor,
+                  ),
+                )
+              else if (coin != null)
+                Opacity(
+                  opacity: isDisabled ? 0.5 : 1,
+                  child: CoinIcon(kind: coin!, size: 16),
+                )
+              else
+                Icon(
+                  icon,
+                  size: 16,
+                  color: isDisabled ? _C.textMuted : btnColor,
+                ),
+              const SizedBox(width: 6),
+              Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.4,
+                  color: isDisabled ? _C.textMuted : _C.textPrimary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -1216,22 +1115,9 @@ class _LevelPips extends StatelessWidget {
           width: 14,
           height: 6,
           margin: const EdgeInsets.only(right: 3),
-          decoration: BoxDecoration(
-            color: filled ? color : _C.bg3,
-            borderRadius: BorderRadius.circular(1),
-            border: Border.all(
-              color: filled ? color.withValues(alpha: 0.7) : _C.borderDim,
-              width: 0.5,
-            ),
-            boxShadow: filled
-                ? [
-                    BoxShadow(
-                      color: color.withValues(alpha: 0.4),
-                      blurRadius: 4,
-                    ),
-                  ]
-                : null,
-          ),
+          // An empty level a step above bg3, which all but vanished on the
+          // card's bg2 once the pips lost their outlines.
+          color: filled ? color : _C.borderDim,
         );
       }),
     );
@@ -1269,7 +1155,7 @@ class _OrbSkinCard extends StatelessWidget {
     return GestureDetector(
       onTap: context.soundAction((isOwned && !isEquipped) ? onEquip : null),
       child: _PlateBox(
-        highlight: isEquipped,
+        lit: isEquipped,
         accentColor: def.primaryColor,
         padding: const EdgeInsets.all(14),
         child: Row(
@@ -1392,7 +1278,7 @@ class _ShipHullCard extends StatelessWidget {
       child: Opacity(
         opacity: isUnlocked ? 1.0 : 0.55,
         child: _PlateBox(
-          highlight: isEquipped,
+          lit: isEquipped,
           accentColor: accent,
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -1400,15 +1286,7 @@ class _ShipHullCard extends StatelessWidget {
               Container(
                 width: 64,
                 height: 64,
-                decoration: BoxDecoration(
-                  color: _C.bg1,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: isEquipped
-                        ? accent.withValues(alpha: 0.45)
-                        : _C.borderDim,
-                  ),
-                ),
+                color: _C.bg1,
                 child: isUnlocked
                     ? CustomPaint(painter: _ShipPreviewPainter(skinId))
                     : const Icon(
@@ -1577,7 +1455,7 @@ class _UpgradeCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isMaxed = currentLevel >= maxLevel;
     return _PlateBox(
-      highlight: isMaxed,
+      washed: isMaxed,
       accentColor: color,
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -1588,14 +1466,7 @@ class _UpgradeCard extends StatelessWidget {
               Container(
                 width: 36,
                 height: 36,
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: color.withValues(alpha: 0.3),
-                    width: 1,
-                  ),
-                ),
+                color: color.withValues(alpha: 0.12),
                 child: Icon(icon, color: color, size: 18),
               ),
               const SizedBox(width: 12),
@@ -1625,14 +1496,7 @@ class _UpgradeCard extends StatelessWidget {
                     horizontal: 8,
                     vertical: 4,
                   ),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: color.withValues(alpha: 0.25),
-                      width: 0.5,
-                    ),
-                  ),
+                  color: color.withValues(alpha: 0.12),
                   child: Text(
                     bonusLabel,
                     style: TextStyle(
@@ -1704,7 +1568,7 @@ class _AbilityCard extends StatelessWidget {
     final isMaxed = currentLevel >= def.maxLevel;
     final isUnlocked = currentLevel > 0;
     return _PlateBox(
-      highlight: isMaxed,
+      washed: isMaxed,
       accentColor: def.color,
       padding: const EdgeInsets.all(14),
       child: Column(
@@ -1712,30 +1576,11 @@ class _AbilityCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Ability icon with glow
+              // Ability icon on a flat tile of its colour once unlocked.
               Container(
                 width: 42,
                 height: 42,
-                decoration: BoxDecoration(
-                  color: isUnlocked
-                      ? def.color.withValues(alpha: 0.18)
-                      : _C.bg3,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: isUnlocked
-                        ? def.color.withValues(alpha: 0.4)
-                        : _C.borderDim,
-                    width: 1,
-                  ),
-                  boxShadow: isUnlocked
-                      ? [
-                          BoxShadow(
-                            color: def.color.withValues(alpha: 0.2),
-                            blurRadius: 8,
-                          ),
-                        ]
-                      : null,
-                ),
+                color: isUnlocked ? def.color.withValues(alpha: 0.16) : _C.bg3,
                 child: Icon(
                   def.icon,
                   color: isUnlocked ? def.color : _C.textMuted,
@@ -1776,14 +1621,7 @@ class _AbilityCard extends StatelessWidget {
           if (isUnlocked) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: def.color.withValues(alpha: 0.08),
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(
-                  color: def.color.withValues(alpha: 0.15),
-                  width: 0.5,
-                ),
-              ),
+              color: def.color.withValues(alpha: 0.08),
               child: Row(
                 children: [
                   Text(

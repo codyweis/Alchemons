@@ -63,9 +63,9 @@ const _placements = <FamilyCostume, Map<String, (double, double, double)>>{
     'LET01': (0.438, 0.295, 0.244),
     'LET02': (0.438, 0.238, 0.234),
     'LET03': (0.432, 0.285, 0.222),
-    'LET04': (0.428, 0.238, 0.19),
-    'LET05': (0.42, 0.305, 0.19),
-    'LET06': (0.453, 0.175, 0.22),
+    'LET04': (0.412, 0.281, 0.19),
+    'LET05': (0.5, 0.292, 0.19),
+    'LET06': (0.49, 0.25, 0.22),
     'LET07': (0.435, 0.305, 0.239),
     'LET08': (0.443, 0.312, 0.19),
     'LET09': (0.392, 0.36, 0.19),
@@ -223,6 +223,9 @@ const _placements = <FamilyCostume, Map<String, (double, double, double)>>{
 /// How a species' head is tipped in frame 0, in radians (negative: the
 /// near side up), for a costume that lies along it.
 const _tilts = <FamilyCostume, Map<String, double>>{
+  // Off to the side of the crown, beside its puff of cloud: it leans with
+  // the slope it sits on.
+  FamilyCostume.partyHat: {'LET04': -0.2},
   FamilyCostume.sunglasses: {
     'PIP06': -0.029,
     'PIP07': -0.059,
@@ -578,22 +581,22 @@ const _frameFits = <FamilyCostume, Map<String, List<(double, double, double)>>>{
       (0.428, 0.284, 0.0),
     ],
     'LET04': [
-      (0.428, 0.238, 0.0),
-      (0.427, 0.243, 0.0),
-      (0.427, 0.243, 0.0),
-      (0.425, 0.24, 0.0),
+      (0.412, 0.281, 0.0),
+      (0.411, 0.286, 0.0),
+      (0.411, 0.286, 0.0),
+      (0.409, 0.283, 0.0),
     ],
     'LET05': [
-      (0.42, 0.305, 0.0),
-      (0.419, 0.309, 0.0),
-      (0.419, 0.316, 0.0),
-      (0.419, 0.309, 0.0),
+      (0.5, 0.292, 0.0),
+      (0.499, 0.296, 0.0),
+      (0.499, 0.303, 0.0),
+      (0.499, 0.296, 0.0),
     ],
     'LET06': [
-      (0.453, 0.175, 0.0),
-      (0.452, 0.174, 0.0),
-      (0.452, 0.174, 0.0),
-      (0.45, 0.173, 0.0),
+      (0.49, 0.25, 0.0),
+      (0.489, 0.249, 0.0),
+      (0.489, 0.249, 0.0),
+      (0.487, 0.248, 0.0),
     ],
     'LET07': [
       (0.435, 0.305, 0.0),
@@ -610,8 +613,8 @@ const _frameFits = <FamilyCostume, Map<String, List<(double, double, double)>>>{
     'LET09': [
       (0.392, 0.36, 0.0),
       (0.391, 0.359, 0.0),
-      (0.441, 0.38, 0.0),
-      (0.438, 0.38, 0.0),
+      (0.435, 0.295, 0.0),
+      (0.432, 0.295, 0.0),
     ],
     'LET10': [
       (0.436, 0.285, 0.0),
@@ -1024,8 +1027,8 @@ const _frameFits = <FamilyCostume, Map<String, List<(double, double, double)>>>{
     'LET09': [
       (0.392, 0.536, 0.0),
       (0.391, 0.535, 0.0),
-      (0.441, 0.556, 0.0),
-      (0.438, 0.556, 0.0),
+      (0.435, 0.471, 0.0),
+      (0.432, 0.471, 0.0),
     ],
     'LET10': [
       (0.436, 0.496, 0.0),
@@ -1438,8 +1441,8 @@ const _frameFits = <FamilyCostume, Map<String, List<(double, double, double)>>>{
     'LET09': [
       (0.392, 0.504, 0.0),
       (0.391, 0.503, 0.0),
-      (0.441, 0.524, 0.0),
-      (0.438, 0.524, 0.0),
+      (0.435, 0.439, 0.0),
+      (0.432, 0.439, 0.0),
     ],
     'LET10': [
       (0.436, 0.453, 0.0),

@@ -141,11 +141,10 @@ const Map<EssenceElement, _Look> _looks = {
       Color(0xFFFFFFFF),
     ],
     pool: Color(0xFFA8E3F0),
-    poolAlpha: 0.08,
-    glow: 0.035,
+    poolAlpha: 0.05,
+    glow: 0.02,
     alpha: 0.85,
-    twinkle: 0.004,
-    sparkEvery: 8,
+    twinkle: 0.002,
   ),
   EssenceElement.steam: _Look(
     [
@@ -376,6 +375,16 @@ const Map<EssenceElement, _Timing> _timings = {
     outDur: 0.42,
     swirl: 0,
   ),
+  // An updraft: off quickly, and a long soft settle back. The curls unroll
+  // the grains home themselves, so no swirl on top.
+  EssenceElement.air: _Timing(
+    relSpan: 0.35,
+    inDur: 0.5,
+    retStart: 1.2,
+    retSpan: 0.35,
+    outDur: 0.6,
+    swirl: 0,
+  ),
   EssenceElement.dust: _Timing(swirl: 0.15),
   EssenceElement.mud: _Timing(swirl: 0.2),
   EssenceElement.dark: _Timing(retSpan: 0.18, outDur: 0.55, swirl: -1.1),
@@ -553,8 +562,10 @@ class EssenceField {
       case EssenceElement.fire:
       case EssenceElement.ice:
       case EssenceElement.poison:
-      case EssenceElement.air:
         return 1 - u;
+      // Caught on the windward side and the crown first.
+      case EssenceElement.air:
+        return _clamp01((_x0[i] + _halfW) / (2 * _halfW)) * 0.7 + u * 0.3;
       // Crumbles, melts and lifts away from the crown down.
       case EssenceElement.earth:
       case EssenceElement.steam:
@@ -979,16 +990,36 @@ class EssenceField {
         }
 
       case EssenceElement.air:
-        // A whirlwind: round its own axis, wide at the top, rising.
-        final k = _ramp(tau, 0.7);
+        // An updraft: the body loosens and lifts, and the air turning over
+        // in it curls it round two soft eddies — one at the shoulder, a
+        // smaller one turning the other way low behind — the way smoke
+        // curls. The grains keep the body's volume; it never draws a shape.
+        final k = _ramp(tau, 0.6);
         final up = 1 - u;
-        final rr = (x0.abs() * 0.6 + r * 0.1) * (0.45 + 0.85 * up);
-        final th0 = (x0 >= 0 ? 0.0 : math.pi) + (p1 - 0.5) * 0.6;
-        final th = th0 + (5.5 + 3 * up) * tau;
-        final depth = math.sin(th);
-        _fx = (rr * math.cos(th) - x0) * k;
-        _fy = (-r * 0.22 * (0.6 + 0.4 * up) + math.sin(th + p2) * r * 0.03) * k;
-        _shift = (depth * 2 - 1) * k;
+        var qx = x0 * (1 + 0.2 * k) + r * 0.1 * k + (p1 - 0.5) * r * 0.16 * k;
+        var qy =
+            y0 * (1 + 0.1 * k) -
+            r * 0.26 * (0.5 + 0.5 * up) * k +
+            (p2 - 0.5) * r * 0.16 * k +
+            math.sin(tau * 3 + p3 * 6.28) * r * 0.012 * k;
+        final curl = _ramp(tau, 1.0) + 0.15 * tau;
+        for (var e = 0; e < 2; e++) {
+          final ex = e == 0 ? 0.25 * r : -0.35 * r;
+          final ey = e == 0 ? -0.4 * r : 0.2 * r;
+          final sig = e == 0 ? 0.7 * r : 0.5 * r;
+          final dx = qx - ex, dy = qy - ey;
+          final ang =
+              (e == 0 ? -1.5 : 1.0) *
+              curl *
+              math.exp(-(dx * dx + dy * dy) / (sig * sig));
+          final cs = math.cos(ang), sn = math.sin(ang);
+          qx = ex + dx * cs - dy * sn;
+          qy = ey + dx * sn + dy * cs;
+        }
+        _fx = qx - x0;
+        _fy = qy - y0;
+        // A shade under its own, so a pale creature doesn't bleach white.
+        _shift = -0.8 * k;
 
       case EssenceElement.steam:
         // Billows: swells out and up, soft, drifting.
@@ -1209,14 +1240,6 @@ class EssenceField {
         final ts = s * life;
         _fx = gx + dir * r * 0.5 * ts;
         _fy = gy - r * 0.5 * ts + 0.5 * 900 * ts * ts;
-        return 1 - s;
-      case EssenceElement.air:
-        const life = 0.6;
-        final s = (tau - 0.2 - p2 * 0.7) / life;
-        if (s <= 0 || s >= 1) return 0;
-        final dir = p1 > 0.5 ? 1.0 : -1.0;
-        _fx = gx + dir * r * 0.75 * s;
-        _fy = gy - r * 0.45 * s;
         return 1 - s;
       case EssenceElement.lightning:
         // Bolts: thrown straight out from the heart, again and again.

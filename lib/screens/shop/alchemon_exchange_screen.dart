@@ -16,6 +16,7 @@ import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -125,13 +126,16 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   /// What a specimen actually fetches, with the constellation sale boost:
   /// the figure shown on its row, in the grid and in the total alike (the
   /// rows used to leave the boost out, so they did not add up to it). A
-  /// prismatic one is paid in gold.
+  /// prismatic one is paid in gold, and a Transmuted one a flat 100 gold.
   (CoinKind, int) _priceOf(
     CreatureInstance inst,
     Creature? species,
     FactionService factions,
     double saleMult,
   ) {
+    if (inst.mutation == AlchemonMutation.transmuted.id) {
+      return (CoinKind.gold, BlackMarketConstants.transmutedGoldValue);
+    }
     final silver = (_baseSilverPrice(inst, species, factions) * saleMult)
         .round();
     return inst.isPrismaticSkin
@@ -520,7 +524,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             AllSpecimensPage(
               theme: theme,
               instancePrefsScopeKey: 'alchemon_exchange_specimens',
-              searchHint: 'SELECT SPECIMENS',
+              title: 'SELECT SPECIMENS',
               selectionMode: true,
               closeReturnsSelection: true,
               selectedInstanceIds: _selectedForSale

@@ -763,7 +763,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
           theme: theme,
           instancePrefsScopeKey: 'harvest_biome_${widget.farm.biome.id}',
           popOnSelect: true,
-          searchHint: 'SELECT SPECIMEN',
+          title: 'SELECT SPECIMEN',
           allowedPrimaryTypes: widget.farm.biome.elementTypes,
           onWillSelectInstance: (inst) async {
             if (busyIds.contains(inst.instanceId)) {

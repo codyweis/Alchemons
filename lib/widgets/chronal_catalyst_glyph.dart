@@ -1,16 +1,20 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
-import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:alchemons/widgets/fx/grain_glass.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// The Chronal Catalyst, drawn as what it does to a clock.
+/// The Chronal Catalyst, drawn as what it does to time.
 ///
-/// Not an hourglass: an hourglass says "time", and half the items in the shop
-/// are about time. This says the specific thing — one hand sweeping at
-/// ordinary speed and a second running at double, pulling ahead of it, with
-/// the gap between them filled in. What you are buying is the gap.
-class ChronalCatalystGlyph extends StatefulWidget {
+/// A cultivation's sphere with two currents of grains running round it, face
+/// on like a clock: the inner one at ordinary speed, the outer at double,
+/// pulling ahead, its trail drawn out across the gap between them — what you
+/// are buying is the gap. Not an hourglass: half the shop is about time.
+///
+/// Small enough (the countdown chip draws it at 13) it is only the core, the
+/// lit gap and the two heads.
+class ChronalCatalystGlyph extends StatelessWidget {
   const ChronalCatalystGlyph({
     super.key,
     required this.size,
@@ -23,140 +27,177 @@ class ChronalCatalystGlyph extends StatefulWidget {
   final Color color;
 
   @override
-  State<ChronalCatalystGlyph> createState() => _ChronalCatalystGlyphState();
+  Widget build(BuildContext context) => GrainGlyph(
+    size: size,
+    animate: animate,
+    painter: (clock) => _ChronalPainter(clock, color),
+  );
 }
 
-class _ChronalCatalystGlyphState extends State<ChronalCatalystGlyph>
-    with GlyphClockLease {
-  @override
-  bool get wantsClock => widget.animate;
+class _ChronalPainter extends CustomPainter {
+  _ChronalPainter(this.clock, this.color) : super(repaint: clock);
 
-  @override
-  void initState() {
-    super.initState();
-    syncGlyphClock();
-  }
-
-  @override
-  void didUpdateWidget(covariant ChronalCatalystGlyph oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    syncGlyphClock();
-  }
-
-  @override
-  void dispose() {
-    releaseGlyphClock();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: widget.size,
-      height: widget.size,
-      child: CustomPaint(
-        willChange: widget.animate,
-        isComplex: false,
-        painter: _CatalystPainter(color: widget.color, clock: glyphClock),
-      ),
-    );
-  }
-}
-
-class _CatalystPainter extends CustomPainter {
-  _CatalystPainter({required this.color, required this.clock})
-    : super(repaint: clock);
-
-  final Color color;
   final ValueListenable<double>? clock;
+  final Color color;
 
-  /// Reused across every frame and every catalyst on screen. No MaskFilter
-  /// anywhere: blur in a per-frame paint is this app's main source of jank.
+  /// One turn of the ordinary current; the fast one makes two.
+  static const double _period = 7.0;
+
+  /// A still glyph shows the fast current a third of a turn ahead.
+  static const double _still = 0.42 * _period;
+
   static final Paint _p = Paint();
-
-  /// One full sweep of the slow hand.
-  static const double _period = 3.0;
-
-  /// Where the still frame is taken. At t = 0 both hands sit on top of each
-  /// other and the glyph says nothing at all, so the baked frame is a
-  /// third of the way round, where the gap is widest and obvious.
-  static const double _stillPhase = 0.33;
-
-  double get _t => (clock?.value ?? _stillPhase * _period);
 
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.shortestSide;
     if (s <= 0) return;
-    final c = Offset(size.width / 2, size.height / 2);
-    final phase = (_t % _period) / _period;
-    final r = s * 0.36;
+    final t = (clock?.value ?? 0) + _still;
+    final o = Offset(size.width / 2, size.height / 2);
+    final u = (t % _period) / _period;
+    final slow = -math.pi / 2 + u * math.pi * 2;
+    final gap = u * math.pi * 2;
+    final fast = slow + gap;
+    // The gap swells as the fast current pulls ahead and thins before it
+    // laps, so the lap is not a snap.
+    final gapLight =
+        GrainGlass.smooth(u / 0.15) * (1 - GrainGlass.smooth((u - 0.7) / 0.28));
 
-    const start = -math.pi / 2;
-    final slow = start + phase * math.pi * 2;
-    // Twice round in the time the other goes once. That is the whole item.
-    final fast = start + phase * math.pi * 4;
+    final tiny = s < 30;
+    final rSlow = s * (tiny ? 0.3 : 0.33);
+    final rFast = s * (tiny ? 0.42 : 0.44);
 
-    // The dial.
-    canvas.drawCircle(
-      c,
-      r,
-      _p
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = s * 0.035
-        ..color = color.withValues(alpha: 0.32),
+    if (tiny) {
+      _gap(canvas, o, rFast * 1.04, slow, gap, gapLight * 1.4);
+      // The core as one lit bead.
+      _p.color = const Color(0xFF000000);
+      _p.shader = ui.Gradient.radial(o, s * 0.24, [
+        Color.lerp(color, Colors.white, 0.6)!,
+        color.withValues(alpha: 0.8),
+        Color.lerp(color, const Color(0xFF07060B), 0.6)!.withValues(alpha: 0),
+      ], const [0.0, 0.5, 1.0]);
+      canvas.drawCircle(o, s * 0.24, _p);
+      _p.shader = null;
+      for (final (a, rr) in [(slow, rSlow), (fast, rFast)]) {
+        _p.color = Color.lerp(color, Colors.white, 0.5)!;
+        canvas.drawCircle(
+          o + Offset(math.cos(a) * rr, math.sin(a) * rr),
+          s * 0.075,
+          _p,
+        );
+      }
+      return;
+    }
+
+    _current(canvas, o, rSlow, slow, s, tail: 0.9, salt: 1, bright: 0.75);
+    // The fast one's trail reaches back across the gap it has opened.
+    _current(
+      canvas,
+      o,
+      rFast,
+      fast,
+      s,
+      tail: (gap * 0.92).clamp(0.5, 3.2),
+      salt: 2,
+      bright: 1,
+      grains: (34 + 30 * gapLight).round(),
     );
 
-    // The time the catalyst is giving back, swept between the two hands.
-    _p
-      ..style = PaintingStyle.fill
-      ..color = color.withValues(alpha: 0.16);
+    GrainGlass.sphere(
+      canvas,
+      o,
+      s * 0.22,
+      t,
+      a: color,
+      b: Color.lerp(color, const Color(0xFF9C8CFF), 0.35),
+      spin: 0.7,
+      density: 0.8,
+      salt: 9,
+    );
+  }
+
+  /// At the chip's size, the gap as a faint wedge of light: too small for
+  /// the trail to read.
+  void _gap(
+    Canvas canvas,
+    Offset o,
+    double r,
+    double from,
+    double sweep,
+    double light,
+  ) {
+    if (light <= 0.01 || sweep <= 0.01) return;
+    _p.color = const Color(0xFF000000);
+    _p.shader = ui.Gradient.radial(o, r, [
+      color.withValues(alpha: 0.0),
+      color.withValues(alpha: 0.2 * light),
+      color.withValues(alpha: 0.0),
+    ], const [0.25, 0.7, 1.0]);
     canvas.drawArc(
-      Rect.fromCircle(center: c, radius: r * 0.92),
-      slow,
-      fast - slow,
+      Rect.fromCircle(center: o, radius: r),
+      from,
+      sweep,
       true,
       _p,
     );
-
-    // Four ticks, so the dial reads as a dial at 22px.
-    _p
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = s * 0.030
-      ..color = color.withValues(alpha: 0.45);
-    for (var i = 0; i < 4; i++) {
-      final a = start + i * math.pi / 2;
-      final u = Offset(math.cos(a), math.sin(a));
-      canvas.drawLine(c + u * (r * 0.80), c + u * r, _p);
+    _p.shader = null;
+    final d = (r * 0.05).clamp(0.8, 2.2);
+    for (var i = 0; i < 26; i++) {
+      final a = from + sweep * GrainGlass.h(i, 31);
+      final rr = r * (0.45 + 0.5 * GrainGlass.h(i, 32));
+      _p.color = Color.lerp(color, Colors.white, 0.3)!.withValues(
+        alpha: 0.5 * light * (0.4 + 0.6 * GrainGlass.h(i, 33)),
+      );
+      canvas.drawCircle(
+        o + Offset(math.cos(a) * rr, math.sin(a) * rr),
+        d * 0.5,
+        _p,
+      );
     }
+  }
 
-    // The ordinary hand, and the one running ahead of it.
-    _p
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = s * 0.042
-      ..color = color.withValues(alpha: 0.55);
-    canvas.drawLine(
-      c,
-      c + Offset(math.cos(slow), math.sin(slow)) * (r * 0.62),
-      _p,
+  /// A current of grains running round at radius [r], its head at [head]:
+  /// dense and bright there, thinning and scattering along its tail.
+  void _current(
+    Canvas canvas,
+    Offset o,
+    double r,
+    double head,
+    double s, {
+    required double tail,
+    required int salt,
+    required double bright,
+    int grains = 34,
+  }) {
+    final d = (s * 0.026).clamp(1.2, 2.6);
+    final n = grains;
+    for (var i = n - 1; i >= 0; i--) {
+      final k = i / (n - 1);
+      final a = head - tail * math.pow(k, 1.4);
+      final spread = r * 0.12 * k * (GrainGlass.h(i, salt) - 0.5) * 2;
+      final rr = r + spread;
+      final fade = math.pow(1 - k, 1.6).toDouble() * bright;
+      _p.color = Color.lerp(
+        color,
+        Colors.white,
+        0.55 * (1 - k),
+      )!.withValues(alpha: (0.95 * fade).clamp(0.0, 1.0));
+      canvas.drawCircle(
+        o + Offset(math.cos(a) * rr, math.sin(a) * rr),
+        d * (0.35 + 0.35 * (1 - k)),
+        _p,
+      );
+    }
+    GrainGlass.pool(
+      canvas,
+      o + Offset(math.cos(head) * r, math.sin(head) * r),
+      s * 0.08,
+      color,
+      alpha: 0.8 * bright,
     );
-    _p
-      ..strokeWidth = s * 0.052
-      ..color = Color.lerp(color, Colors.white, 0.35)!;
-    canvas.drawLine(
-      c,
-      c + Offset(math.cos(fast), math.sin(fast)) * (r * 0.80),
-      _p,
-    );
-
-    // The hub, holding both.
-    _p
-      ..style = PaintingStyle.fill
-      ..color = Color.lerp(color, Colors.white, 0.5)!;
-    canvas.drawCircle(c, s * 0.052, _p);
   }
 
   @override
-  bool shouldRepaint(covariant _CatalystPainter old) =>
-      old.color != color || old.clock != clock;
+  bool shouldRepaint(covariant _ChronalPainter old) =>
+      old.clock != clock || old.color != color;
 }

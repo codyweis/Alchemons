@@ -167,12 +167,7 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
     };
     final navigator = Navigator.of(context);
     if (task.destination == TaskDestination.profile) {
-      await navigator.push(
-        MaterialPageRoute<void>(
-          builder: (ctx) => ProfileScreen(() => Navigator.of(ctx).pop()),
-          fullscreenDialog: true,
-        ),
-      );
+      await navigator.push(ProfileScreen.route());
     } else if (page != null) {
       await navigator.push(
         MaterialPageRoute<void>(builder: (_) => page, fullscreenDialog: true),

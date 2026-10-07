@@ -1274,7 +1274,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
             AllSpecimensPage(
               theme: theme,
               instancePrefsScopeKey: 'home_biome_residents',
-              searchHint: 'WHO LIVES HERE',
+              title: 'WHO LIVES HERE',
               selectionMode: true,
               maxSelections: kHomeBiomeMaxResidents,
               selectedInstanceIds: [

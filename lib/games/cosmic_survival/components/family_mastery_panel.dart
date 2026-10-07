@@ -5,6 +5,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_frame.dart' show BracketFramePainter;
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
@@ -14,13 +15,19 @@ import 'package:provider/provider.dart';
 // CustomPaint behind a RepaintBoundary, nothing loops, and glows are layered
 // translucent strokes rather than MaskFilter.blur. The only animation is the
 // one-shot flourish that plays when a node is bought.
+//
+// The chrome around the tree is the app's bare look: chips, tags, banners
+// and buttons are flat fills with no frame, and the chosen one (the
+// equipped branch, the tier in view, the thing to press, the node in focus)
+// is lit from below.
 
-const _background = Color(0xFF0A0806);
+const _background = Color(0xFF09090B);
 const _rail = Color(0xFF0F0C0A);
-const _border = Color(0xFF2C241A);
-const _text = Color(0xFFE8DCC8);
-const _muted = Color(0xFF8A7B6A);
-const _dim = Color(0xFF4A3F35);
+const _border = Color(0xFF26262B);
+const _panel = Color(0xFF151518);
+const _text = Color(0xFFE6E2DA);
+const _muted = Color(0xFF85827C);
+const _dim = Color(0xFF46454A);
 const _silver = Color(0xFFC0C0C0);
 const _gold = Color(0xFFFFC94A);
 const _danger = Color(0xFFC0574A);
@@ -390,51 +397,57 @@ class _FamilyMedallion extends StatelessWidget {
         key: ValueKey('mastery-family-${family.name}'),
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: 44,
-              height: 44,
-              child: CustomPaint(
-                painter: _ProgressRingPainter(
-                  color: color,
-                  fraction: owned / 12,
-                  selected: selected,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(5),
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          color.withValues(alpha: selected ? 0.42 : 0.14),
-                          const Color(0xFF15110D),
-                        ],
+        // The family in view is lit from below along the rail's foot.
+        child: CustomPaint(
+          foregroundPainter: selected
+              ? BracketFramePainter(color: color, strokeWidth: 1.3)
+              : null,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 44,
+                height: 44,
+                child: CustomPaint(
+                  painter: _ProgressRingPainter(
+                    color: color,
+                    fraction: owned / 12,
+                    selected: selected,
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(5),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            color.withValues(alpha: selected ? 0.42 : 0.14),
+                            const Color(0xFF131316),
+                          ],
+                        ),
                       ),
-                    ),
-                    child: _FamilyPortrait(
-                      family: family,
-                      dimmed: !selected,
-                      padding: 3,
+                      child: _FamilyPortrait(
+                        family: family,
+                        dimmed: !selected,
+                        padding: 3,
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Text(
-              family.code,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: selected ? color : _muted,
-                fontSize: 8.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.8,
+              const SizedBox(height: 3),
+              Text(
+                family.code,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: selected ? color : _muted,
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -689,16 +702,27 @@ class _TreeCrown extends StatelessWidget {
                 top: layout.root.dy - rootRadius,
                 width: rootRadius * 2,
                 height: rootRadius * 2,
+                // A dark disc lit by the family's colour from below, rather
+                // than ringed with a stroke.
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
+                      center: const Alignment(0, 0.7),
+                      radius: 1.05,
                       colors: [
-                        color.withValues(alpha: 0.4),
-                        const Color(0xFF15110D),
+                        Color.alphaBlend(
+                          color.withValues(alpha: 0.55),
+                          const Color(0xFF131316),
+                        ),
+                        Color.alphaBlend(
+                          color.withValues(alpha: 0.2),
+                          const Color(0xFF131316),
+                        ),
+                        const Color(0xFF131316),
                       ],
+                      stops: const [0, 0.5, 1],
                     ),
-                    border: Border.all(color: color, width: 2),
                   ),
                   child: ClipOval(
                     child: _FamilyPortrait(
@@ -1311,10 +1335,17 @@ class _BranchBanner extends StatelessWidget {
           onTap();
           if (equippable && !selecting) onEquip();
         },
+        // A flat ink panel; the equipped branch is washed in the family's
+        // colour and lit from below.
         child: CustomPaint(
-          painter: _BannerPainter(color: color, active: active),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(6, 6, 6, 10),
+          foregroundPainter: active
+              ? BracketFramePainter(color: color, strokeWidth: 1.3)
+              : null,
+          child: Container(
+            color: active
+                ? Color.alphaBlend(color.withValues(alpha: 0.16), _panel)
+                : _panel,
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -1377,63 +1408,6 @@ class _BranchBanner extends StatelessWidget {
   }
 }
 
-class _BannerPainter extends CustomPainter {
-  const _BannerPainter({required this.color, required this.active});
-
-  final Color color;
-  final bool active;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final w = size.width;
-    final h = size.height;
-    const notch = 7.0;
-    final shape = Path()
-      ..moveTo(4, 0)
-      ..lineTo(w - 4, 0)
-      ..quadraticBezierTo(w, 0, w, 4)
-      ..lineTo(w, h - notch)
-      ..lineTo(w / 2 + 9, h - notch)
-      ..lineTo(w / 2, h)
-      ..lineTo(w / 2 - 9, h - notch)
-      ..lineTo(0, h - notch)
-      ..lineTo(0, 4)
-      ..quadraticBezierTo(0, 0, 4, 0)
-      ..close();
-    canvas.drawPath(
-      shape,
-      Paint()
-        ..shader = LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: active
-              ? [color.withValues(alpha: 0.3), const Color(0xFF18130F)]
-              : const [Color(0xFF211B14), Color(0xFF15110D)],
-        ).createShader(Offset.zero & size),
-    );
-    canvas.drawPath(
-      shape,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = active ? 1.4 : 1
-        ..color = active ? color.withValues(alpha: 0.85) : _border,
-    );
-    if (active) {
-      canvas.drawLine(
-        const Offset(6, 1.5),
-        Offset(w - 6, 1.5),
-        Paint()
-          ..strokeWidth = 2
-          ..color = color,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _BannerPainter old) =>
-      old.color != color || old.active != active;
-}
-
 class _TierDiamonds extends StatelessWidget {
   const _TierDiamonds({required this.owned, required this.color});
 
@@ -1453,13 +1427,7 @@ class _TierDiamonds extends StatelessWidget {
               child: Container(
                 width: 5.5,
                 height: 5.5,
-                decoration: BoxDecoration(
-                  color: i < owned ? (i == 3 ? _gold : color) : null,
-                  border: Border.all(
-                    color: i < owned ? Colors.transparent : _muted,
-                    width: 1,
-                  ),
-                ),
+                color: i < owned ? (i == 3 ? _gold : color) : _dim,
               ),
             ),
           ),
@@ -1478,11 +1446,7 @@ class _EquipChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
-      ),
+      color: color.withValues(alpha: 0.18),
       child: busy
           ? SizedBox(
               width: 8,
@@ -1582,10 +1546,12 @@ class _MasteryNode extends StatelessWidget {
                         );
                       },
                     ),
+                  // Set a little clear of the rim: with no dark ring of its
+                  // own, the badge would otherwise run into it.
                   if (owned)
                     Positioned(
-                      top: -3,
-                      right: -3,
+                      top: -5,
+                      right: -6,
                       child: _Badge(
                         icon: AppIcons.check_rounded,
                         color: node.isCapstone ? _gold : color,
@@ -1617,27 +1583,43 @@ class _MasteryNode extends StatelessWidget {
             ),
             Transform.translate(
               offset: const Offset(0, -4),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: _background.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(3),
-                ),
-                child: Text(
-                  node.name.toUpperCase(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: focused
-                        ? _selection
-                        : state == _NodeState.locked
-                        ? _dim
-                        : const Color(0xFFB9AD99),
-                    fontSize: 8,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
+              // The node in focus has its name lit from below.
+              child: CustomPaint(
+                foregroundPainter: focused
+                    ? BracketFramePainter(
+                        color: node.isCapstone ? _gold : color,
+                        strokeWidth: 1.6,
+                      )
+                    : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
+                  color: focused
+                      ? Color.alphaBlend(
+                          (node.isCapstone ? _gold : color).withValues(
+                            alpha: 0.16,
+                          ),
+                          _background,
+                        ).withValues(alpha: 0.9)
+                      : _background.withValues(alpha: 0.82),
+                  child: Text(
+                    node.name.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: focused
+                          ? _selection
+                          : state == _NodeState.locked
+                          ? _dim
+                          : const Color(0xFFB9AD99),
+                      fontSize: 8,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
               ),
@@ -1754,6 +1736,8 @@ class _GemPainter extends CustomPainter {
     final shape = _shape(outer);
     final rect = Offset.zero & size;
 
+    if (focused) _paintFocusLight(canvas, center, radius);
+
     if (glowing) {
       canvas.drawCircle(
         center,
@@ -1845,31 +1829,50 @@ class _GemPainter extends CustomPainter {
               : const Color(0xFF382D23);
     }
     canvas.drawPath(shape, rim);
+  }
 
-    if (focused) {
-      // Tower-defense style selection brackets.
-      final box = rect.inflate(5);
-      final arm = size.width * 0.26;
-      final bracket = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.square
-        ..color = _selection;
-      for (final (corner, dx, dy) in [
-        (box.topLeft, 1.0, 1.0),
-        (box.topRight, -1.0, 1.0),
-        (box.bottomLeft, 1.0, -1.0),
-        (box.bottomRight, -1.0, -1.0),
-      ]) {
-        canvas.drawPath(
-          Path()
-            ..moveTo(corner.dx + dx * arm, corner.dy)
-            ..lineTo(corner.dx, corner.dy)
-            ..lineTo(corner.dx, corner.dy + dy * arm),
-          bracket,
-        );
-      }
-    }
+  /// The node in focus stands in its own light: a flattened pool on the
+  /// ground beneath the gem and a glow rising off it behind the gem. Both
+  /// are radial-gradient fills, no strokes and no blur.
+  void _paintFocusLight(Canvas canvas, Offset center, double radius) {
+    final hot = Color.lerp(color, Colors.white, 0.35)!;
+    final foot = center + Offset(0, radius * 0.92);
+
+    // The glow rising off the pool, brightest at the foot.
+    final rise = radius * 1.9;
+    canvas.drawCircle(
+      foot,
+      rise,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: 0.34),
+            color.withValues(alpha: 0.12),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.5, 1],
+        ).createShader(Rect.fromCircle(center: foot, radius: rise)),
+    );
+
+    // The pool itself, squashed flat onto the ground.
+    final pool = radius * 2.1;
+    canvas.save();
+    canvas.translate(foot.dx, foot.dy);
+    canvas.scale(1, 0.3);
+    canvas.drawCircle(
+      Offset.zero,
+      pool,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            hot.withValues(alpha: 0.75),
+            color.withValues(alpha: 0.32),
+            color.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.45, 1],
+        ).createShader(Rect.fromCircle(center: Offset.zero, radius: pool)),
+    );
+    canvas.restore();
   }
 
   @override
@@ -1932,17 +1935,9 @@ class _Badge extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: filled ? color : const Color(0xFF0F0C0A),
-        border: Border.all(
-          color: filled ? const Color(0xFF0F0C0A) : _border,
-          width: 1.5,
-        ),
+        color: filled ? color : _panel,
       ),
-      child: Icon(
-        icon,
-        size: 9,
-        color: filled ? const Color(0xFF0F0C0A) : color,
-      ),
+      child: Icon(icon, size: 9, color: filled ? _background : color),
     );
   }
 }
@@ -1969,15 +1964,12 @@ class _PriceTag extends StatelessWidget {
         : _danger;
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 2, 6, 2),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E0B09),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: dim
-              ? _border
-              : currencyColor.withValues(alpha: affordable ? 0.65 : 0.25),
-        ),
-      ),
+      color: dim
+          ? _background
+          : Color.alphaBlend(
+              currencyColor.withValues(alpha: affordable ? 0.12 : 0.05),
+              _background,
+            ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2015,11 +2007,7 @@ class _TierTag extends StatelessWidget {
     final tagColor = node.isCapstone ? _gold : color;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0E0B09),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: tagColor.withValues(alpha: 0.55)),
-      ),
+      color: Color.alphaBlend(tagColor.withValues(alpha: 0.16), _background),
       child: _TierGlyph(tier: node.tier, color: tagColor, size: 8.5),
     );
   }
@@ -2095,9 +2083,7 @@ class _UpgradeDock extends StatelessWidget {
           end: Alignment.bottomCenter,
           colors: [Color.lerp(_rail, color, 0.1)!, _rail],
         ),
-        border: Border(
-          top: BorderSide(color: color.withValues(alpha: 0.55), width: 1.5),
-        ),
+        border: Border(top: BorderSide(color: color.withValues(alpha: 0.3))),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -2233,31 +2219,44 @@ class _TierTrack extends StatelessWidget {
       children: [
         for (var i = 0; i < path.nodes.length; i++) ...[
           if (i > 0) const SizedBox(width: 4),
-          Expanded(
-            child: Container(
-              height: 15,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: owned.contains(path.nodes[i].id)
-                    ? (i == 3 ? _gold : color).withValues(alpha: 0.85)
-                    : const Color(0xFF19140F),
-                borderRadius: BorderRadius.circular(2),
-                border: Border.all(
-                  color: i == focusedIndex ? _selection : _border,
-                  width: i == focusedIndex ? 1.5 : 1,
-                ),
-              ),
-              child: _TierGlyph(
-                tier: i + 1,
-                size: 8,
-                color: owned.contains(path.nodes[i].id)
-                    ? const Color(0xFF0F0C0A)
-                    : _muted,
-              ),
-            ),
-          ),
+          Expanded(child: _box(i)),
         ],
       ],
+    );
+  }
+
+  /// Bought tiers are filled, the rest are flat ink, and the tier in view is
+  /// lit from below: in its colour over ink, or pale over a filled box,
+  /// where its own colour would not show.
+  Widget _box(int i) {
+    final tierColor = i == 3 ? _gold : color;
+    final bought = owned.contains(path.nodes[i].id);
+    final current = i == focusedIndex;
+    final box = Container(
+      height: 15,
+      alignment: Alignment.center,
+      color: bought
+          ? tierColor.withValues(alpha: current ? 1 : 0.85)
+          : current
+          ? Color.alphaBlend(tierColor.withValues(alpha: 0.16), _panel)
+          : _panel,
+      child: _TierGlyph(
+        tier: i + 1,
+        size: 8,
+        color: bought
+            ? _background
+            : current
+            ? _text
+            : _muted,
+      ),
+    );
+    if (!current) return box;
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: bought ? _selection : tierColor,
+        strokeWidth: 1.6,
+      ),
+      child: box,
     );
   }
 }
@@ -2314,56 +2313,27 @@ class _UpgradeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final gold = node.currency == FamilyMasteryCurrency.gold;
-    const ink = Color(0xFF120D07);
 
-    final (
-      Gradient? gradient,
-      Color? fill,
-      Color border,
-      Color foreground,
-    ) = switch (state) {
-      _UpgradeState.ready => (
-        LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Color.lerp(color, Colors.white, 0.12)!,
-            Color.lerp(color, Colors.black, 0.35)!,
-          ],
-        ),
-        null,
-        Color.lerp(color, Colors.white, 0.4)!,
-        ink,
-      ),
+    // A square wash with no frame. While it is the thing to do (ready,
+    // confirming, buying) it is lit from below; confirming burns brighter
+    // and paler, its light rising up the whole face. The other states are
+    // quiet, dim fills.
+    final armed = state == _UpgradeState.armed;
+    final (Color fill, Color? light, Color foreground) = switch (state) {
+      _UpgradeState.ready => (color.withValues(alpha: 0.2), color, _text),
       _UpgradeState.armed => (
-        const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xFFFFF7E6), Color(0xFFE9C77E)],
-        ),
-        null,
-        Colors.white,
-        ink,
+        color.withValues(alpha: 0.24),
+        _selection,
+        _selection,
       ),
       _UpgradeState.unaffordable => (
+        _danger.withValues(alpha: 0.08),
         null,
-        const Color(0xFF1A1214),
-        _danger.withValues(alpha: 0.5),
         _danger,
       ),
-      _UpgradeState.locked => (null, const Color(0xFF19140F), _border, _dim),
-      _UpgradeState.owned => (
-        null,
-        color.withValues(alpha: 0.1),
-        color.withValues(alpha: 0.4),
-        color,
-      ),
-      _UpgradeState.busy => (
-        null,
-        color.withValues(alpha: 0.18),
-        color.withValues(alpha: 0.5),
-        color,
-      ),
+      _UpgradeState.locked => (_panel, null, _dim),
+      _UpgradeState.owned => (color.withValues(alpha: 0.1), null, color),
+      _UpgradeState.busy => (color.withValues(alpha: 0.18), color, color),
     };
 
     final label = switch (state) {
@@ -2378,7 +2348,6 @@ class _UpgradeButton extends StatelessWidget {
         state == _UpgradeState.ready ||
         state == _UpgradeState.armed ||
         state == _UpgradeState.unaffordable;
-    final raised = state == _UpgradeState.ready || state == _UpgradeState.armed;
 
     final textStyle = TextStyle(
       fontFamily: 'monospace',
@@ -2394,96 +2363,85 @@ class _UpgradeButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          height: 48,
-          decoration: BoxDecoration(
-            gradient: gradient,
-            color: fill,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: border, width: raised ? 1.5 : 1),
-          ),
-          child: Stack(
-            children: [
-              if (raised) ...[
-                Positioned(
-                  top: 1,
-                  left: 8,
-                  right: 8,
-                  height: 1.2,
-                  child: ColoredBox(
-                    color: Colors.white.withValues(alpha: 0.45),
-                  ),
+        child: CustomPaint(
+          foregroundPainter: light == null
+              ? null
+              : BracketFramePainter(
+                  color: light,
+                  strokeWidth: state == _UpgradeState.armed ? 1.6 : 1.3,
                 ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  height: 4,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.22),
-                      borderRadius: const BorderRadius.vertical(
-                        bottom: Radius.circular(5),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            height: 48,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: armed ? null : fill,
+              gradient: armed
+                  ? LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [
+                        Color.lerp(
+                          color,
+                          _selection,
+                          0.45,
+                        )!.withValues(alpha: 0.55),
+                        fill,
+                      ],
+                    )
+                  : null,
+            ),
+            child: state == _UpgradeState.busy
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: foreground,
+                    ),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (state == _UpgradeState.locked) ...[
+                            Icon(
+                              AppIcons.lock_rounded,
+                              size: 14,
+                              color: foreground,
+                            ),
+                            const SizedBox(width: 6),
+                          ] else if (state == _UpgradeState.owned) ...[
+                            Icon(
+                              AppIcons.check_rounded,
+                              size: 15,
+                              color: foreground,
+                            ),
+                            const SizedBox(width: 6),
+                          ],
+                          Text(label, style: textStyle),
+                          if (showPrice) ...[
+                            const SizedBox(width: 12),
+                            CoinIcon(
+                              kind: gold ? CoinKind.gold : CoinKind.silver,
+                              size: 17,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              _formatNumber(node.cost),
+                              style: textStyle.copyWith(
+                                fontSize: 15,
+                                letterSpacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
-                ),
-              ],
-              Center(
-                child: state == _UpgradeState.busy
-                    ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: foreground,
-                        ),
-                      )
-                    : Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (state == _UpgradeState.locked) ...[
-                                Icon(
-                                  AppIcons.lock_rounded,
-                                  size: 14,
-                                  color: foreground,
-                                ),
-                                const SizedBox(width: 6),
-                              ] else if (state == _UpgradeState.owned) ...[
-                                Icon(
-                                  AppIcons.check_rounded,
-                                  size: 15,
-                                  color: foreground,
-                                ),
-                                const SizedBox(width: 6),
-                              ],
-                              Text(label, style: textStyle),
-                              if (showPrice) ...[
-                                const SizedBox(width: 12),
-                                CoinIcon(
-                                  kind: gold ? CoinKind.gold : CoinKind.silver,
-                                  size: 17,
-                                ),
-                                const SizedBox(width: 5),
-                                Text(
-                                  _formatNumber(node.cost),
-                                  style: textStyle.copyWith(
-                                    fontSize: 15,
-                                    letterSpacing: 0.4,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-              ),
-            ],
           ),
         ),
       ),
@@ -2511,15 +2469,12 @@ class _EquipButton extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: busy ? null : onTap,
+        // The way around the upgrade, so a quiet wash and never lit.
         child: Container(
           width: 88,
           height: 48,
           alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.06),
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: color.withValues(alpha: 0.7)),
-          ),
+          color: color.withValues(alpha: 0.12),
           child: busy
               ? SizedBox(
                   width: 16,
@@ -2554,31 +2509,34 @@ class _ActiveCrest extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 88,
-      height: 48,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
+    // The equipped branch, so lit from below, but at part strength: it is a
+    // state, and the full light belongs to the button beside it.
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: color.withValues(alpha: 0.72),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(PhosphorIconsBold.sealCheck, size: 14, color: color),
-          const SizedBox(height: 1),
-          Text(
-            'ACTIVE',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: color,
-              fontSize: 9,
-              height: 1.1,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1.2,
+      child: Container(
+        width: 88,
+        height: 48,
+        color: color.withValues(alpha: 0.14),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(PhosphorIconsBold.sealCheck, size: 14, color: color),
+            const SizedBox(height: 1),
+            Text(
+              'ACTIVE',
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: color,
+                fontSize: 9,
+                height: 1.1,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2594,11 +2552,7 @@ class _StatusPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
-      ),
+      color: color.withValues(alpha: 0.14),
       child: Text(
         label,
         style: TextStyle(
@@ -2999,10 +2953,9 @@ class FamilyMasteryRosterSummary extends StatelessWidget {
               width: 34,
               height: 34,
               alignment: Alignment.center,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(color: _border, width: 1.2),
-              ),
+              // A neutral lift off the card: a family wash this faint reads
+              // brown on the warmer families' cards.
+              color: _text.withValues(alpha: 0.06),
               child: const Icon(
                 PhosphorIconsBold.treeStructure,
                 size: 16,

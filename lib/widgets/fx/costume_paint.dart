@@ -76,7 +76,7 @@ abstract final class CostumePaint {
 
   /// Paints costume [costume] on its own, with no creature, in a box
   /// centred on [center] with half-side [r] (the shop's and inventory's
-  /// cards).
+  /// cards). [color] is the colour it is worn in; null is its own.
   static void paintPreview(
     Canvas canvas,
     FamilyCostume costume,
@@ -84,6 +84,7 @@ abstract final class CostumePaint {
     double r,
     double t, {
     double opacity = 1,
+    Color? color,
   }) {
     switch (costume) {
       case FamilyCostume.partyHat:
@@ -93,6 +94,7 @@ abstract final class CostumePaint {
           r,
           t,
           opacity: opacity,
+          velvet: color ?? costume.defaultColor,
         );
       case FamilyCostume.nose:
         AlchemicalClownNose.paint(
@@ -101,6 +103,7 @@ abstract final class CostumePaint {
           r * 0.34,
           t,
           opacity: opacity,
+          color: color ?? costume.defaultColor,
         );
       case FamilyCostume.sunglasses:
         // Left a little: the near arm reaches out to the right.
@@ -111,6 +114,7 @@ abstract final class CostumePaint {
           t,
           opacity: opacity,
           tilt: -0.08,
+          tint: color ?? costume.defaultColor,
         );
     }
   }

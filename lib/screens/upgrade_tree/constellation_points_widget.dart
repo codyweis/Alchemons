@@ -1,10 +1,12 @@
 import 'package:alchemons/audio/audio.dart';
 // lib/widgets/constellation_points_widget.dart
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/cosmic/cosmic_screen.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
 import 'package:alchemons/widgets/animations/alchemy_orb.dart';
+import 'package:alchemons/widgets/home_emblems.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -63,14 +65,48 @@ class _CosmicOrbWidgetState extends State<CosmicOrbWidget> {
   }
 }
 
-/// Constellation icon button with points badge — navigates to ConstellationScreen.
-class ConstellationPointsWidget extends StatelessWidget {
-  const ConstellationPointsWidget({super.key});
+/// UPGRADE on home: the constellation emblem, a points badge when there are
+/// points to spend, and the way into the ConstellationScreen through it.
+class ConstellationPointsWidget extends StatefulWidget {
+  const ConstellationPointsWidget({super.key, this.animate = true});
+
+  /// Whether the emblem moves (home stills it in performance mode).
+  final bool animate;
+
+  @override
+  State<ConstellationPointsWidget> createState() =>
+      _ConstellationPointsWidgetState();
+}
+
+class _ConstellationPointsWidgetState extends State<ConstellationPointsWidget> {
+  final GlobalKey _emblem = GlobalKey();
+  final ValueNotifier<bool> _lifted = ValueNotifier(false);
+
+  @override
+  void dispose() {
+    _lifted.dispose();
+    super.dispose();
+  }
+
+  void _open() {
+    HapticFeedback.lightImpact();
+    final ready = ValueNotifier<bool>(false);
+    final revealed = ValueNotifier<bool>(false);
+    EmblemPassage.push<void>(
+      context,
+      kind: HomeEmblemKind.constellation,
+      from: _emblem,
+      page: ConstellationScreen(revealReady: ready, revealed: revealed),
+      ready: ready,
+      lifted: _lifted,
+      revealed: revealed,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.watch<FactionTheme>();
     final constellationService = context.watch<ConstellationService>();
+    final tokens = ForgeTokens(context.watch<FactionTheme>());
 
     return StreamBuilder<int>(
       stream: constellationService.watchPointBalance(),
@@ -79,46 +115,50 @@ class ConstellationPointsWidget extends StatelessWidget {
         final points = snapshot.data ?? 0;
 
         return GestureDetector(
-          onTap: context.soundAction(() {
-            HapticFeedback.lightImpact();
-            final ready = ValueNotifier<bool>(false);
-            VoidPortal.pushThroughGlyphs<void>(
-              context,
-              page: ConstellationScreen(revealReady: ready),
-              title: 'The Constellations',
-              element: 'light',
-              ready: ready,
-            );
-          }),
+          onTap: context.soundAction(_open),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
-                Image.asset(
-                  'assets/images/ui/constellationicon.png',
-                  width: 80,
-                  height: 80,
-                  fit: BoxFit.contain,
+                HomeEmblem(
+                  key: _emblem,
+                  kind: HomeEmblemKind.constellation,
+                  size: 80,
+                  animate: widget.animate,
+                  lifted: _lifted,
                 ),
-                // Badge for points (top-right corner)
+                // Points to spend: a small ink seal, brass-ringed, that
+                // leaves with the emblem.
                 if (points > 0)
                   Positioned(
-                    top: -4,
-                    right: -4,
-                    child: Container(
-                      padding: const EdgeInsets.all(5),
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: theme.primary,
-                        border: Border.all(color: Colors.white, width: 1.2),
-                      ),
-                      child: Text(
-                        '$points',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                    top: -2,
+                    right: -2,
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: _lifted,
+                      builder: (_, away, child) =>
+                          away ? const SizedBox.shrink() : child!,
+                      child: Container(
+                        constraints: const BoxConstraints(minWidth: 22),
+                        height: 22,
+                        padding: const EdgeInsets.symmetric(horizontal: 5),
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: tokens.bg1,
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(
+                            color: tokens.amberBright,
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          '$points',
+                          style: TextStyle(
+                            color: tokens.amberGlow,
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            height: 1,
+                          ),
                         ),
                       ),
                     ),

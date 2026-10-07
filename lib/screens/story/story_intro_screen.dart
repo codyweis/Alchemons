@@ -28,8 +28,8 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 const Color _ground = Color(0xFF07080B);
-const Color _ink = Color(0xFFE8DCC8);
-const Color _muted = Color(0xFF9A8D7C);
+const Color _ink = Color(0xFFE6E2DA);
+const Color _muted = Color(0xFF8E8C88);
 
 class StoryIntroScreen extends StatefulWidget {
   const StoryIntroScreen({super.key});

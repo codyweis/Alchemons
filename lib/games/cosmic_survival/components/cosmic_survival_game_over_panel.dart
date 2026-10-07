@@ -1,14 +1,18 @@
 // End-of-run results for cosmic survival: final stats, what the run paid out,
 // and the three ways out of it.
 //
+// It comes up over the stilled arena as the core finishes coming apart, and
+// the rewards gather into it out of grains (reward_reveal.dart) — the reveal
+// and the results are one screen, so a run's pay is shown once. A tap
+// anywhere brings them all in at once; the actions work from the start.
+//
 // Lives outside the screen so the layout can be pumped on its own — survival is
 // landscape and has cut the bottom off its own panels before, and the way out
 // of a finished run is the one control that must never be the casualty.
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
-import 'package:alchemons/widgets/animations/loot_open_popup.dart';
-import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/animations/reward_reveal.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
@@ -17,9 +21,8 @@ const Color _frame = Color(0xFFE8857A);
 
 /// The way forward, in the console's amber.
 const Color _go = Color(0xFFE4B356);
-const Color _amber = Color(0xFFFFAA00);
 
-class CosmicSurvivalGameOverPanel extends StatelessWidget {
+class CosmicSurvivalGameOverPanel extends StatefulWidget {
   const CosmicSurvivalGameOverPanel({
     super.key,
     required this.wave,
@@ -44,118 +47,196 @@ class CosmicSurvivalGameOverPanel extends StatelessWidget {
   final VoidCallback onReplay;
 
   @override
+  State<CosmicSurvivalGameOverPanel> createState() =>
+      _CosmicSurvivalGameOverPanelState();
+}
+
+class _CosmicSurvivalGameOverPanelState
+    extends State<CosmicSurvivalGameOverPanel>
+    with SingleTickerProviderStateMixin {
+  final _reveal = GlobalKey<RewardRevealState>();
+  late final AnimationController _in = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..forward();
+
+  @override
+  void dispose() {
+    _in.dispose();
+    super.dispose();
+  }
+
+  void _finish() {
+    _reveal.currentState?.finish();
+    if (_in.isAnimating) _in.value = 1;
+  }
+
+  Animation<double> _phase(double a, double b) =>
+      _in.drive(CurveTween(curve: Interval(a, b, curve: Curves.easeOut)));
+
+  @override
   Widget build(BuildContext context) {
+    final rewards = widget.rewards;
     return Scaffold(
-      backgroundColor: Colors.black.withValues(alpha: 0.96),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 560),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Only the readout scrolls. The actions sit below it so a long
-                // reward list cannot push the way out past the bottom edge.
-                Flexible(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(24, 20, 24, 14),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Center(
-                          child: Text(
-                            'ORB DESTROYED',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: _frame,
-                              fontSize: 20,
-                              fontWeight: FontWeight.w300,
-                              letterSpacing: 3,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        Container(
-                          height: 1,
-                          color: _frame.withValues(alpha: 0.3),
-                        ),
-                        const SizedBox(height: 16),
-                        Row(
-                          children: [
-                            _statChip('WAVE', '$wave'),
-                            _statChip('KILLS', '$kills'),
-                            _statChip('SCORE', '$score'),
-                            _statChip('TIME', time),
-                          ],
-                        ),
-                        if (rewards.isNotEmpty) ...[
-                          const SizedBox(height: 20),
-                          Container(
-                            height: 1,
-                            color: Colors.white.withValues(alpha: 0.08),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'REWARDS  —  TAP FOR DETAILS',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: _amber.withValues(alpha: 0.55),
-                              fontSize: 12,
-                              letterSpacing: 3,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ...rewards.map(
-                            (entry) => Builder(
-                              builder: (ctx) => GestureDetector(
-                                onTap: ctx.soundAction(
-                                  () => _showRewardDetail(ctx, entry),
-                                ),
-                                child: _rewardRow(entry),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
+      backgroundColor: Colors.transparent,
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: _finish,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Deepens the arena's own dimming toward the edges, so the
+            // results sit in the dark the core went out in.
+            FadeTransition(
+              opacity: _phase(0, 0.6),
+              child: const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: RadialGradient(
+                    radius: 1.1,
+                    colors: [Color(0x8C000000), Color(0xE6000000)],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
-                  child: Row(
+              ),
+            ),
+            SafeArea(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(
-                        child: _ResultsButton(
-                          label: 'QUIT',
-                          color: CosmicScreenStyles.danger,
-                          onPressed: context.soundAction(onQuit),
+                      // Only the readout scrolls. The actions sit below it so a
+                      // long reward list cannot push the way out past the
+                      // bottom edge.
+                      Flexible(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.fromLTRB(24, 20, 24, 14),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              FadeTransition(
+                                opacity: _phase(0, 0.5),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    const Center(
+                                      child: Text(
+                                        'ORB DESTROYED',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: _frame,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w300,
+                                          letterSpacing: 3,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Container(
+                                      height: 1,
+                                      color: _frame.withValues(alpha: 0.3),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              FadeTransition(
+                                opacity: _phase(0.2, 0.75),
+                                child: Row(
+                                  children: [
+                                    _statChip('WAVE', '${widget.wave}'),
+                                    _statChip('KILLS', '${widget.kills}'),
+                                    _statChip('SCORE', '${widget.score}'),
+                                    _statChip('TIME', widget.time),
+                                  ],
+                                ),
+                              ),
+                              if (rewards.isNotEmpty) ...[
+                                const SizedBox(height: 20),
+                                FadeTransition(
+                                  opacity: _phase(0.35, 0.9),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      Container(
+                                        height: 1,
+                                        color: Colors.white.withValues(
+                                          alpha: 0.08,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        'REWARDS  —  TAP FOR DETAILS',
+                                        style: TextStyle(
+                                          fontFamily: 'monospace',
+                                          color: _go.withValues(alpha: 0.7),
+                                          fontSize: 12,
+                                          letterSpacing: 3,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                RewardReveal(
+                                  key: _reveal,
+                                  entries: rewards,
+                                  delay: const Duration(milliseconds: 650),
+                                  onTap: (e) => showRewardDetail(context, e),
+                                ),
+                              ],
+                            ],
+                          ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ResultsButton(
-                          label: 'NEW TEAM',
-                          color: Colors.white70,
-                          onPressed: context.soundAction(onNewTeam),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _ResultsButton(
-                          label: 'DEPLOY AGAIN',
-                          color: _go,
-                          emphasized: true,
-                          onPressed: context.soundAction(onReplay),
+                      FadeTransition(
+                        opacity: _phase(0.45, 1),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _ResultsButton(
+                                  label: 'QUIT',
+                                  color: CosmicScreenStyles.danger,
+                                  onPressed: context.soundAction(widget.onQuit),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _ResultsButton(
+                                  label: 'NEW TEAM',
+                                  color: Colors.white70,
+                                  onPressed: context.soundAction(
+                                    widget.onNewTeam,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: _ResultsButton(
+                                  label: 'DEPLOY AGAIN',
+                                  color: _go,
+                                  emphasized: true,
+                                  onPressed: context.soundAction(
+                                    widget.onReplay,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
+              ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -164,200 +245,42 @@ class CosmicSurvivalGameOverPanel extends StatelessWidget {
   Widget _statChip(String label, String value) => Expanded(
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: CustomPaint(
-        foregroundPainter: BracketFramePainter(
-          color: Colors.white.withValues(alpha: 0.3),
-          bracketSize: 6,
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-          color: Colors.white.withValues(alpha: 0.035),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  fontFamily: 'monospace',
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+        color: Colors.white.withValues(alpha: 0.035),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              value,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
               ),
-              const SizedBox(height: 3),
-              Text(
-                label,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: Colors.white.withValues(alpha: 0.45),
-                  fontSize: 12,
-                  letterSpacing: 1.5,
-                ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: Colors.white.withValues(alpha: 0.45),
+                fontSize: 12,
+                letterSpacing: 1.5,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     ),
   );
-
-  Widget _rewardRow(LootOpeningEntry entry) => Container(
-    margin: const EdgeInsets.only(bottom: 8),
-    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-    decoration: BoxDecoration(
-      color: entry.color.withValues(alpha: 0.06),
-      border: Border.all(color: entry.color.withValues(alpha: 0.22)),
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: entry.color.withValues(alpha: 0.12),
-            border: Border.all(color: entry.color.withValues(alpha: 0.35)),
-          ),
-          child: entry.visualBuilder != null
-              ? Center(child: entry.visualBuilder!(28))
-              : Icon(entry.icon, color: entry.color, size: 18),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            entry.name?.toUpperCase() ?? '',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: Colors.white.withValues(alpha: 0.85),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
-            ),
-          ),
-        ),
-        Text(
-          entry.label,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: entry.color,
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Icon(
-          AppIcons.chevron_right,
-          color: entry.color.withValues(alpha: 0.45),
-          size: 16,
-        ),
-      ],
-    ),
-  );
-
-  void _showRewardDetail(BuildContext ctx, LootOpeningEntry entry) {
-    showDialog<void>(
-      context: ctx,
-      builder: (dialogCtx) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          constraints: const BoxConstraints(maxWidth: 320),
-          decoration: BoxDecoration(
-            color: CosmicScreenStyles.bg2,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: entry.color.withValues(alpha: 0.5),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: entry.color.withValues(alpha: 0.18),
-                blurRadius: 24,
-                spreadRadius: 2,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: entry.color.withValues(alpha: 0.12),
-                  border: Border.all(
-                    color: entry.color.withValues(alpha: 0.4),
-                    width: 1.5,
-                  ),
-                ),
-                child: entry.visualBuilder != null
-                    ? Center(child: entry.visualBuilder!(48))
-                    : Icon(entry.icon, color: entry.color, size: 30),
-              ),
-              const SizedBox(height: 16),
-              if (entry.name != null)
-                Text(
-                  entry.name!.toUpperCase(),
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 2,
-                  ),
-                ),
-              const SizedBox(height: 8),
-              Text(
-                entry.label,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: entry.color,
-                  fontSize: 28,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                ),
-              ),
-              const SizedBox(height: 20),
-              GestureDetector(
-                onTap: ctx.soundAction(() => Navigator.pop(dialogCtx)),
-                child: Container(
-                  width: double.infinity,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: entry.color.withValues(alpha: 0.5),
-                      width: 1.2,
-                    ),
-                  ),
-                  child: Center(
-                    child: Text(
-                      'CLOSE',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: entry.color,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 3,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
 
-/// Same outlined button the results screen already used, with the label allowed
-/// to shrink: three actions share the row where two used to.
+/// A results action: the way forward is a wash lit from below, the other two
+/// quiet fills in their colour. The label may shrink: three actions share the
+/// row where two used to.
 class _ResultsButton extends StatelessWidget {
   const _ResultsButton({
     required this.label,
@@ -374,19 +297,15 @@ class _ResultsButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CustomPaint(
-      foregroundPainter: BracketFramePainter(
-        color: color.withValues(alpha: emphasized ? 1 : 0.8),
-        bracketSize: 7,
-        strokeWidth: emphasized ? 1.6 : 1.2,
-      ),
+      foregroundPainter: emphasized
+          ? BracketFramePainter(color: color, strokeWidth: 1.6)
+          : null,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
           foregroundColor: emphasized ? Colors.white : color,
-          side: BorderSide(
-            color: color.withValues(alpha: emphasized ? 0.35 : 0.18),
-          ),
-          backgroundColor: color.withValues(alpha: emphasized ? 0.1 : 0.03),
+          side: BorderSide.none,
+          backgroundColor: color.withValues(alpha: emphasized ? 0.14 : 0.06),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),
           shape: const RoundedRectangleBorder(),
         ),

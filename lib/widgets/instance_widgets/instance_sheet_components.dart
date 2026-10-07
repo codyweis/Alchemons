@@ -358,10 +358,7 @@ class InstanceCardValueBadge extends StatelessWidget {
         : const Color(0xFFC9CFD8);
     return Container(
       padding: const EdgeInsets.fromLTRB(5, 3, 6, 3),
-      decoration: BoxDecoration(
-        color: palette.chromeFill(),
-        border: Border(right: BorderSide(color: color, width: 2)),
-      ),
+      color: palette.chromeFill(),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [

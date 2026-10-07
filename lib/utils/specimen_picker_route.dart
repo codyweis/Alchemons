@@ -22,7 +22,7 @@ Future<CreatureInstance?> showSpecimenPickerRoute({
         theme: theme,
         instancePrefsScopeKey: prefsScopeKey,
         popOnSelect: true,
-        searchHint: searchHint,
+        title: searchHint,
         selectedInstanceIds: selectedInstanceIds,
         allowedPrimaryTypes: allowedPrimaryTypes,
         onWillSelectInstance: onWillSelectInstance,

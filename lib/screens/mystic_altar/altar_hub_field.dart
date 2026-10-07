@@ -83,6 +83,19 @@ class AltarSeat {
   double get wake => state == SeatState.awakened ? waking : 0;
 }
 
+/// Where the hub's altar stands on a screen of [size] with [pad] safe area:
+/// under the header, over the panel.
+Rect altarHubStage(Size size, EdgeInsets pad) {
+  const headerH = 62.0;
+  final panelH = 214.0 + pad.bottom;
+  return Rect.fromLTRB(
+    0,
+    pad.top + headerH,
+    size.width,
+    math.max(pad.top + headerH + 120, size.height - panelH),
+  );
+}
+
 class AltarHubField {
   AltarHubField(List<AltarSeat> ring, this.heart) : seats = ring {
     assert(seats.length == 16);
@@ -114,11 +127,22 @@ class AltarHubField {
   static const double _flat = 0.44;
   static const double _seatSpan = math.pi * 2 / 16;
 
+  /// How far the ring is tipped: its depth over its width.
+  static const double flat = _flat;
+
+  /// The ring's centre and radius for the [stage] it stands in — also where
+  /// home's RELICS emblem grows to on the way in.
+  static ({Offset centre, double radius}) ringFor(Rect stage) => (
+    centre: Offset(stage.center.dx, stage.top + stage.height * 0.66),
+    radius: math.min(stage.width * 0.42, stage.height * 0.52),
+  );
+
   /// The ring's centre and radius for the [stage] it stands in.
   void layout(Rect stage) {
     _stage = stage;
-    _c = Offset(stage.center.dx, stage.top + stage.height * 0.66);
-    _r = math.min(stage.width * 0.42, stage.height * 0.52);
+    final ring = ringFor(stage);
+    _c = ring.centre;
+    _r = ring.radius;
   }
 
   Rect _stage = Rect.zero;

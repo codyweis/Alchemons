@@ -1082,3 +1082,119 @@ void paintOrbField(
   _flush(c, 2, 2.4, l.grainDim.withValues(alpha: 0.13));
   _flush(c, 3, 2.2, l.grainDim.withValues(alpha: 0.08));
 }
+
+// ── the core giving out ─────────────────────────────────────────────────────
+
+/// How long the core takes to come apart once its health is gone.
+const double kCoreFallSeconds = 2.6;
+
+/// The core's grains for its fall: (angle, depth 0 centre..1 rim, reach,
+/// turn, colour bucket). Laid out once.
+final List<(double, double, double, double, int)> _fallGrains = () {
+  final r = Random(83);
+  return [
+    for (var i = 0; i < 300; i++)
+      (
+        r.nextDouble() * 2 * pi,
+        sqrt(r.nextDouble()),
+        1.1 + pow(r.nextDouble(), 1.6) * 3.4,
+        (r.nextBool() ? 1 : -1) * (0.25 + r.nextDouble() * 0.6),
+        i % 7 == 0 ? 0 : (i % 3 == 0 ? 2 : 1),
+      ),
+  ];
+}();
+
+final List<Float32List> _fallBuf = List.generate(9, (_) => Float32List(1024));
+final List<int> _fallN = List.filled(9, 0);
+
+double _ease(double a, double b, double x) {
+  final t = ((x - a) / (b - a)).clamp(0.0, 1.0);
+  return t * t * (3 - 2 * t);
+}
+
+/// The core giving out, centred on the origin, [t] seconds after its health
+/// ran out. Its light gutters and the glass draws in, and it comes apart
+/// into grains of its own light — the rim first, the heart last — which
+/// loosen, drift off on a slow turn and dim as they go. Nothing bursts: the
+/// grains leave at rest and ease out, and nothing flashes.
+void paintCoreFall(
+  Canvas c,
+  OrbBaseSkin skin,
+  double t,
+  double time, {
+  double radius = 72,
+}) {
+  final l = orbLook(skin);
+
+  // The pool of light it stood in, going out.
+  final pool = 1 - _ease(0, 1.8, t);
+  if (pool > 0.01) _disc(c, l.pool, radius * 2.6, pool);
+
+  // The core itself, dimming and drawing in as its grains leave it.
+  final body = 1 - _ease(0.05, 1.1, t);
+  if (body > 0.01) {
+    final r = radius * (1 - 0.35 * (1 - body));
+    c.saveLayer(
+      Rect.fromCircle(center: Offset.zero, radius: r * 3.4),
+      Paint()..color = Color.fromRGBO(0, 0, 0, body),
+    );
+    // Its turn slows to a stop rather than freezing with the field.
+    paintOrbCore(
+      c,
+      skin,
+      time + 0.6 * (1 - pow(1 - min(t, 1.0), 2)),
+      radius: r,
+      reach: false,
+    );
+    c.restore();
+  }
+
+  // The grains: buckets are colour (lit, light, dim) × trail (head, mid,
+  // tail).
+  _fallN.fillRange(0, 9, 0);
+  void add(int b, double x, double y) {
+    final i = _fallN[b] * 2;
+    if (i + 2 > _fallBuf[b].length) return;
+    _fallBuf[b][i] = x;
+    _fallBuf[b][i + 1] = y;
+    _fallN[b]++;
+  }
+
+  for (final (a0, depth, reach, turn, col) in _fallGrains) {
+    // The rim loosens first; the heart holds longest.
+    final leave = 0.08 + 0.75 * (1 - depth);
+    final span = 1.5 + 0.5 * reach / 4.5;
+    for (var k = 0; k < 3; k++) {
+      final q = ((t - k * 0.07 - leave) / span).clamp(0.0, 1.0);
+      if (q <= 0) continue;
+      // Eased both ends: leaves at rest, drifts, settles to a stop.
+      final e = q * q * (3 - 2 * q);
+      final d = radius * (depth * 0.9 + (reach - depth * 0.9) * e);
+      final a = a0 + turn * e;
+      add(col * 3 + k, cos(a) * d, sin(a) * d);
+    }
+  }
+
+  // The grains appear as the glass gives them up and dim as they drift.
+  final glow = _ease(0.05, 0.4, t) * (1 - _ease(1.3, kCoreFallSeconds, t));
+  if (glow <= 0.01) return;
+  final colours = [l.grainLit, Color.lerp(l.essence, l.rim, 0.3)!, l.grainDim];
+  const sizes = [2.6, 2.2, 1.9];
+  const trail = [1.0, 0.45, 0.2];
+  for (var col = 0; col < 3; col++) {
+    for (var k = 0; k < 3; k++) {
+      final b = col * 3 + k;
+      if (_fallN[b] == 0) continue;
+      _dots
+        ..strokeWidth = sizes[col] * (1 - 0.18 * k)
+        ..color = colours[col].withValues(
+          alpha: (colours[col].a * glow * trail[k]).clamp(0.0, 1.0),
+        );
+      c.drawRawPoints(
+        ui.PointMode.points,
+        Float32List.sublistView(_fallBuf[b], 0, _fallN[b] * 2),
+        _dots,
+      );
+    }
+  }
+}

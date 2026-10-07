@@ -205,7 +205,7 @@ class ExtractionVialCard extends StatelessWidget {
   });
 
   Color _scorchedAccent(Color base) {
-    return Color.lerp(base, const Color(0xFFF59E0B), 0.45) ?? base;
+    return Color.lerp(base, const Color(0xFFCDB07A), 0.45) ?? base;
   }
 
   @override
@@ -374,7 +374,7 @@ class _ScorchedVialTag extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF15110D), Color(0xFF19140F)],
+          colors: [Color(0xFF131316), Color(0xFF151518)],
         ),
         borderRadius: BorderRadius.circular(compact ? 9 : 11),
         border: Border.all(color: borderColor, width: 1),
