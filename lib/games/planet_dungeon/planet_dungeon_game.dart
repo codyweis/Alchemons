@@ -5943,7 +5943,7 @@ class PlanetDungeonGame extends FlameGame {
     final dealt = damage * _enemyDamageTakenScale(enemy);
     _spawnDamageNumber(enemy, dealt);
     enemy.hp -= dealt;
-    _riteHoldShell(enemy);
+    _holdShell(enemy);
     enemy.hitFlash = 0.18;
     if (enemy.hp <= 0) enemy.isDead = true;
   }
@@ -5976,6 +5976,14 @@ class PlanetDungeonGame extends FlameGame {
     final i = creatures.indexOf(c);
     if (i < 0 || i >= combatCompanions.length) return 1.0;
     return defenseMitigation(combatCompanions[i].elemDef);
+  }
+
+  /// A shell holds a guardian's bar, wherever damage reaches it from:
+  /// Sanguorath's rite floors and Blightfang's shells (a shell only comes off
+  /// inside a brew's window).
+  void _holdShell(CosmicSurvivalEnemy e) {
+    _riteHoldShell(e);
+    _blightHoldShell(e);
   }
 
   /// THE BODIES THE DUNGEON FIGHTS AS BOSSES: the guardian (raids included)
@@ -6019,6 +6027,8 @@ class PlanetDungeonGame extends FlameGame {
     // Blood: nothing lands on Sanguorath's shell.
     if (_isRites) return base * _riteDamageScale(enemy);
     if (!_isVenom) return base;
+    // …and nothing reaches Blightfang through a shell: only a brew's window.
+    if (identical(enemy, _guardianEnemy) && _blightShelled) return 0;
     // Poison (§8): NOTHING LANDS ON A CLOSED PLAGUE. A bar ends with it
     // shutting, and the only thing that opens it is that plague's own
     // mechanic — hitting it harder is not an option the fight offers.
@@ -7736,7 +7746,7 @@ class PlanetDungeonGame extends FlameGame {
         );
         if (d <= enemy.radius + lateral) {
           enemy.hp -= dmg * _enemyDamageTakenScale(enemy);
-          _riteHoldShell(enemy);
+          _holdShell(enemy);
           enemy.hitFlash = 0.18;
           if (enemy.hp <= 0) enemy.isDead = true;
         }
@@ -7953,7 +7963,7 @@ class PlanetDungeonGame extends FlameGame {
           !(comp.chargeHitIds?.contains(e.hashCode) ?? false)) {
         comp.chargeHitIds?.add(e.hashCode);
         e.hp -= comp.chargeDamage * _enemyDamageTakenScale(e);
-        _riteHoldShell(e);
+        _holdShell(e);
         e.hitFlash = 0.18;
         if (e.hp <= 0) e.isDead = true;
         // Horn+Plant: root survivors in place.
@@ -7978,7 +7988,7 @@ class PlanetDungeonGame extends FlameGame {
             targetHp: e.hp,
             targetHpFraction: e.hpFraction,
           );
-          _riteHoldShell(e);
+          _holdShell(e);
           if (e.hp <= 0) e.isDead = true;
         }
       }
@@ -8427,7 +8437,7 @@ class PlanetDungeonGame extends FlameGame {
     _cue(SoundCue.combatHitLight);
     final dealt = amount * _enemyDamageTakenScale(enemy);
     enemy.hp -= dealt;
-    _riteHoldShell(enemy);
+    _holdShell(enemy);
     enemy.hitFlash = max(enemy.hitFlash, 0.14);
     _spawnDamageNumber(enemy, dealt);
     if (enemy.hp <= 0) {
@@ -9424,7 +9434,7 @@ class PlanetDungeonGame extends FlameGame {
           currentRoom,
         );
         e.hp -= comp.chargeDamage * 1.2 * _enemyDamageTakenScale(e);
-        _riteHoldShell(e);
+        _holdShell(e);
         e.hitFlash = 0.2;
         if (e.hp <= 0) e.isDead = true;
       }
@@ -10337,7 +10347,7 @@ class PlanetDungeonGame extends FlameGame {
       } else {
         e.hp -= e.maxHp / guardianStrikesNeeded;
       }
-      _riteHoldShell(e);
+      _holdShell(e);
       e.hitFlash = 0.3;
       if (e.hp <= 0) e.isDead = true; // _updateCombat banks the star
     } else {

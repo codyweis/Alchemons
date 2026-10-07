@@ -65,9 +65,12 @@ const double _kPourSpeed = 100.0 / kLavaPourSecondsPer100;
 /// Seconds of firedamp in the mill after a purged pour.
 const double _kFiredampSeconds = 14.0;
 
-/// Magmara's ride, radians/sec, and the window a beaching buys.
-const double _kRideSpeed = 0.72;
-const double _kBeachSeconds = 3.4;
+/// Magmara's ride, radians/sec, and the window a beaching buys. Since the
+/// ride became a conveyor (2026-10-07) it passes a head every ~3.5 s, and a
+/// hand that misses one walks to the other in time; the beach was 3.4 s,
+/// and a raid squad spent most of the fight walking between heads.
+const double _kRideSpeed = 0.9;
+const double _kBeachSeconds = 5.0;
 const double _kHeadReach = 86.0;
 const double _kHeadCatch = 170.0;
 const double _kHeadCooldown = 2.2;
@@ -510,10 +513,14 @@ extension MoltenReliquary on PlanetDungeonGame {
       guardianVulnerable = true; // the cast IS the lull
       return;
     }
-    // Riding: no clock ever bares it.
+    // Riding: no clock ever bares it. The conveyor carries it round at
+    // [_kRideSpeed], so it comes past each head in turn and a hand waiting
+    // at one always gets its chance. It used to be dragged round by its dive
+    // target instead, usually an ally stationed at its edge, and could sit
+    // on the far arc for half a minute with neither head in reach, however
+    // long you waited (2026-10-07).
     guardianVulnerable = false;
-    final d = e.position - kLavaHeartCentre;
-    w.ride = d.distance < 1 ? w.ride + dt * _kRideSpeed : atan2(d.dy, d.dx);
+    w.ride += _kRideSpeed * dt;
     e.position =
         kLavaHeartCentre + Offset(cos(w.ride), sin(w.ride)) * kLavaHeartRadius;
   }

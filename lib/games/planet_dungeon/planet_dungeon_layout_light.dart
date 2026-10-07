@@ -523,9 +523,11 @@ List<int>? shadowPinCells(ShadowRoomDef d, ShadowState s) {
 
 /// Seconds Solarin holds before it swings on (shorter once it is hurt).
 /// Slow on purpose: the party's other two fight on their own while you
-/// read the light.
-const double kSolarinHold = 8.0;
-const double kSolarinHoldHurt = 6.0;
+/// read the light. Doubled from 8 / 6 (2026-10-07): a raid squad strikes
+/// only while it holds, and at 8 s its bolts wore out even a strong squad
+/// before it could fell Solarin unless it brought a healer.
+const double kSolarinHold = 16.0;
+const double kSolarinHoldHurt = 12.0;
 
 /// Seconds before a swing that its next place, and the floor it will cast,
 /// are shown.
@@ -539,9 +541,10 @@ const double kSolarinSwing = 16.0;
 const double kSolarinBurnDps = 42;
 
 /// Its bolts: one every few seconds (a fan of three once it is hurt), at
-/// each of the party in turn; slow enough to step out of the way of.
-const double kSolarinBoltEvery = 2.6;
-const double kSolarinBoltEveryHurt = 2.0;
+/// each of the party in turn; slow enough to step out of the way of. Was
+/// 2.6 / 2.0 (2026-10-07, with the longer hold above).
+const double kSolarinBoltEvery = 3.4;
+const double kSolarinBoltEveryHurt = 2.6;
 const double kSolarinBoltSpeed = 150;
 const double kSolarinBoltDamage = 14;
 const double kSolarinBoltRadius = 10;

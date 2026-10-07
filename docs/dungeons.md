@@ -2021,10 +2021,16 @@ late in the harness. A strike by the choir's anneal ring no longer resets
 Crystal's keep mid-fight. The tier table now runs on every raid planet
 (`tier table, every planet`): eight sit within a notch; Light is
 healer-or-nothing (its bolts wear a squad out in ~100 s), Lava stalls when
-Magmara rides away from both heads after an idle Alchemon, and **Blightfang
-can be felled without a single brew** (its bar empties outside a window and
-it dies, shells and all; reported, not fixed). Numbers and the questions for
-the author: `docs/plans/combat_followups_plan.md`, Results.
+Magmara rode away from both heads after an idle Alchemon, and Blightfang
+could be felled without a single brew. Fixed the same night, on the author's
+word ("a strong squad shouldn't need a healer; raids want healers, dungeon
+bosses not necessarily"): **nothing reaches Blightfang through a shell**
+(only a brew's window; its bar cannot empty outside one), **Magmara rides a
+conveyor** (`_kRideSpeed` 0.9, beach 5.0 s: it comes past each head in
+turn, whoever it dives at), and **Solarin holds 16 s (12 hurt) and bolts
+every 3.4 s (2.6 hurt)**, so a strong squad clears its raid without a
+healer. Numbers: `docs/plans/combat_followups_plan.md`, Results and
+"Author's answers".
 
 ### Campaign difficulty scaling (built)
 Dungeon enemies — and ESPECIALLY guardians — scale with the campaign clock:

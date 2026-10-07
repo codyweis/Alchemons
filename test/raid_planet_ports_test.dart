@@ -245,6 +245,30 @@ void main() {
       expect(_leaveIt(g, 20), 0);
     });
 
+    // It used to be dragged round by whichever ally it dived at, and could
+    // sit on the far arc for half a minute with neither head in reach.
+    test('its conveyor brings it past both heads, whoever it is after', () {
+      final g = _raid('Lava', 'Lava/pip');
+      final nearest = [double.infinity, double.infinity];
+      for (var i = 0; i < 60 * 8; i++) {
+        for (final c in g.combatCompanions) {
+          c.currentHp = c.maxHp;
+        }
+        for (final c in g.creatures) {
+          c.hp = c.maxHp;
+        }
+        g.update(1 / 60);
+        for (var h = 0; h < 2; h++) {
+          final d = (kLavaHeartHeads[h] - (_boss(g).position as Offset))
+              .distance;
+          if (d < nearest[h]) nearest[h] = d;
+        }
+      }
+      // Within a head's catch (170) of both, in one lap.
+      expect(nearest[0], lessThan(170));
+      expect(nearest[1], lessThan(170));
+    });
+
     test('a ring head dropped as it passes beaches it', () {
       final g = _raid('Lava', 'Fire/pip'); // any Alchemon can drop a head
       var opened = false;
@@ -425,6 +449,32 @@ void main() {
       g.update(1 / 60);
       expect(g.guardianVulnerable, isFalse);
       expect(g.monastery.carriedPotion, kPureVial.id);
+    });
+
+    // A bar that emptied outside a window used to kill it, every shell still
+    // on: a squad that never brewed once cleared the raid (2026-10-07).
+    test('nothing reaches it through a shell, so it cannot fall undosed', () {
+      final g = poisonRaid();
+      final e = _boss(g);
+      final before = e.hp as double;
+      expect(_leaveIt(g, 10), 0);
+      expect(e.hp, before, reason: 'chip damage reached it through a shell');
+      // Whatever lands without asking (a Horn Poison's sweep) cannot empty
+      // the bar either: the shell holds it.
+      e.hp = 0.5;
+      expect(_leaveIt(g, 2), 0);
+      expect(e.isDead, isFalse);
+      expect(e.hp, greaterThanOrEqualTo(1));
+      expect(g.monastery.blightBars, kPlagueBars);
+    });
+
+    test('in a window, an emptied bar takes a shell off', () {
+      final g = poisonRaid();
+      expect(_brewUntilOpen(g), isTrue);
+      _boss(g).hp = 0.0; // the last blow of the window
+      g.update(1 / 60);
+      expect(g.monastery.blightBars, kPlagueBars - 1);
+      expect(_boss(g).isDead, isFalse, reason: 'two shells left on it');
     });
 
     test('its pool is split across its three shells', () {

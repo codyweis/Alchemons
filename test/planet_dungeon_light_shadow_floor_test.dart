@@ -740,7 +740,8 @@ void main() {
       }
       expect(g.guardianArriving, isFalse);
       final o = g.archive.state('solarin_orbit').orbit;
-      for (var i = 0; i < 60 * 11; i++) {
+      // It holds, then swings on its own rhythm.
+      for (var i = 0; i < 60 * (kSolarinHold + 3); i++) {
         g.update(1 / 60);
       }
       expect(g.archive.state('solarin_orbit').orbit, isNot(o), reason: 'moved');

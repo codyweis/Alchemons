@@ -1664,6 +1664,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   ///
   /// Not the same brew twice running, so the fight cannot be spent three
   /// times on whichever attack set turns out to be gentlest.
+  ///
+  /// NOTHING REACHES IT THROUGH A SHELL (2026-10-07). Its bar used to take
+  /// chip damage outside a window like any shut guardian, and a bar that
+  /// emptied there killed it outright, every shell still on: a raid squad
+  /// that never brewed once cleared it. Now it takes nothing while shelled
+  /// (`_enemyDamageTakenScale`, as a closed plague does), and whatever lands
+  /// without asking that scale cannot empty the bar (`_blightHoldShell`).
   void _applyBlightfangStrain(DungeonRoom room, double dt) {
     if (!_isVenom) return;
     final g = room.guardian;
@@ -2075,6 +2082,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// and a lesson, not a dead run.
   /// Is [enemy] the plague body, closed up behind its mechanic? Nothing
   /// reaches it while this is true, which is the whole shape of the fight.
+  /// Blightfang wears a shell: between brew windows, with a shell left.
+  bool get _blightShelled =>
+      _isVenom && monastery.blightLull <= 0 && monastery.blightBars > 0;
+
+  void _blightHoldShell(CosmicSurvivalEnemy e) {
+    if (!identical(e, _guardianEnemy) || !_blightShelled) return;
+    if (e.hp < 1) e.hp = 1;
+  }
+
   bool venomGated(CosmicSurvivalEnemy enemy) {
     if (!monastery.gated && monastery.dying <= 0) return false;
     return identical(enemy, _plagueBody);

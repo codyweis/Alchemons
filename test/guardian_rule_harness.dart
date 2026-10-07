@@ -8,7 +8,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_crystal.dar
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_light.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_poison.dart';
-import 'dart:math' show max;
+import 'dart:math' show atan2, max, pi;
 
 import 'package:flutter/painting.dart';
 
@@ -219,6 +219,17 @@ bool guardianAnswerReady(PlanetDungeonGame g) => switch (g.layout.element) {
   'Lava' => g.works.headCool <= 0 && g.works.beached <= 0,
   _ => true,
 };
+
+/// The ring head Magmara's conveyor brings it to next: where a player who
+/// has to walk waits for it (the nearest head flips as it rides past).
+Offset magmaraNextHead(PlanetDungeonGame g) {
+  double ahead(Offset head) {
+    final d = head - kLavaHeartCentre;
+    return (atan2(d.dy, d.dx) - g.works.ride) % (2 * pi);
+  }
+
+  return kLavaHeartHeads.reduce((a, b) => ahead(a) <= ahead(b) ? a : b);
+}
 
 /// A ring head only catches Magmara within this of it (the game's
 /// `_kHeadCatch`): press as it comes past, not before.

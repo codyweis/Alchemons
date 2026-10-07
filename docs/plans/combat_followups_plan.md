@@ -1,11 +1,11 @@
 # Combat follow-ups: what is left after the raid work
 
-Status, 2026-10-07 (evening): **Phase 1 measured and reported, nothing
-tuned (waiting for the author). Phase 2 built. Phase 3 answered.** Two bugs
-found on the way are fixed (Botanica's lull burned strikers; a strike by
-Crystal's anneal ring reset the keep), and one is reported, not fixed
-(Blightfang can be felled without a brew). Results first; the brief as
-written follows from "Where things stand".
+Status, 2026-10-07 (night): **all three phases done, and the author's
+answers acted on** (see "Author's answers" below): Blightfang's shells hold,
+Magmara rides a conveyor, Solarin holds twice as long. Earlier the same
+evening: Phase 2 built, Phase 3 answered, and two bugs fixed (Botanica's
+lull burned strikers; a strike by Crystal's anneal ring reset the keep).
+Results first; the brief as written follows from "Where things stand".
 
 ## Results (2026-10-07)
 
@@ -170,6 +170,76 @@ single-row moves of this size as noise unless a trace says otherwise.
    target?
 4. Ice/Dust/Spirit/Crystal mid L1 unhealed: acceptable, or tune?
 5. The aura's lenient side on Ice/Mud/Dust/Crystal: leave or close?
+
+### Author's answers, and what was done (2026-10-07, night)
+
+The author left 1, 3, 4 and 5 to judgement, and on 2: a strong squad should
+not need a healer; raids should want healers, dungeon bosses not
+necessarily. (Light's healer-or-nothing was the raid only; its dungeon
+fight is fine.)
+
+1. **Poison: nothing reaches Blightfang through a shell.** Between brew
+   windows it takes nothing (`_enemyDamageTakenScale`, the same rule as a
+   closed plague, and its own comment's "Nothing reaches it through one"),
+   and damage that lands without asking that scale (a Horn Poison's sweep)
+   cannot empty the bar (`_blightHoldShell`, beside Blood's floor in one
+   `_holdShell` hook at every guardian damage site). Tests in
+   `raid_planet_ports_test`: it cannot fall undosed; an emptied bar in a
+   window still takes a shell off. Poison's raid rows now all sit within a
+   notch (fights 18–249 s).
+2. **Light: Solarin holds 16 s, not 8 (12 once hurt, was 6), and bolts
+   every 3.4 s (2.6 hurt), not 2.6 (2.0).** Swept first: slower bolts alone,
+   a longer hold alone, a shorter swing, and pairs; the hold was the lever
+   (a raid squad strikes while it holds), the swing did nothing. Now a
+   strong squad with no healer clears L1 and L2 losing none (wiped
+   before), a mid squad with a Kin clears every tier (0 / 0–1 / 1–3), and
+   only a mid squad with no healer still loses, as raids should want one.
+   The dungeon fight gets the same (gentler) rhythm; its swing test reads
+   `kSolarinHold`.
+3. **Lava: Magmara rides a conveyor.** It is carried round the ring at
+   `_kRideSpeed` (the constant existed but was never applied: it was
+   dragged round by its dive target instead), so it comes past each head in
+   turn. Tried first and dropped: riding toward the body you play (it hunts
+   that body through the head's cooldown; a mid squad with a Kin wiped).
+   Swept beach 3.4–5.0 s, ride 0.72–1.0 rad/s and cooldown 1.4–2.2 s: kept
+   ride **0.9**, beach **5.0** (was 3.4), cooldown 2.2 (shorter was worse).
+   Dungeon: fresh 21 s / 0 downs, late 83 s / 3 downs (was 25 s and 83 s / 5
+   before the evening's work, 65 s and 108 s / 6 after Phase 2). Raid: within
+   a notch except mid L1 (no healer loses 1–5, with a Kin 1–2). Test: "its
+   conveyor brings it past both heads" (the old ride never came within 498
+   px of one of them in 8 s). The walking raid harness now waits at the head
+   it reaches next (`magmaraNextHead`).
+4. **Ice, Dust, Spirit, Crystal mid L1 without a healer: left.** It is the
+   one row off on each, and the row where a healer is meant to matter.
+5. **The aura's lenient side: left.** Closing it only makes the four
+   planets that already run harsh harsher.
+
+Final table (same scale and squads as above):
+
+| planet | L1 mid | L1 mid K | L1 str | L1 str K | L2 mid | L2 mid K | L2 str | L2 str K | L3 mid | L3 mid K | L3 str | L3 str K |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| table | 1 | 0 | 0 | 0 | 2 | 0-1 | 1 | 0 | 3 | 1-2 | 2 | 0-1 |
+| Air | 1 | 0 | 0 | 0 | 3 | 1 | 0.3 | 0 | 3 | 1 | 1 | 0 |
+| Fire | 1.3 | 0.3 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 1 | 1.3 | 0 |
+| Water | 1 | 0 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 1.7 | 1.3 | 0 |
+| Earth | 1.3 | 0.3 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 1 | 1.3 | 0 |
+| Steam | 1.3 | 0.3 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 1 | 1.3 | 0 |
+| Dark | 1.7 | 1 | 0 | 0 | 3 | 1 | 0.3 | 0 | 3 | 1.3 | 1.3 | 0 |
+| Lightning | 1.7 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 3 | 2.3 | 2 | 0 |
+| Mud | 2 | 0 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 2 | 2 | 0 |
+| Poison | 1 | 0 | 0 | 0 | 1 | 0 | 0 | 0 | 3 | 1 | 2 | 0 |
+| Light | **3** | 0 | 0 | 0 | 3 | 0.7 | 0 | 0 | 3 | 1.3 | 3 | 0 |
+| Plant | 1 | 0 | 0 | 0 | 2.7 | 0 | 0 | 0 | 3 | 2.3 | **0.7** | 0 |
+| Lava | **2.3** | **1.7** | 0.7 | 0 | 3 | 1 | 1.7 | 0 | 3 | 2.3 | 3 | 0.3 |
+| Ice | **2.7** | 0 | 0 | 0 | 3 | 0.3 | 0 | 0 | 3 | 1.7 | 2 | 0 |
+| Dust | **2.3** | 0.7 | 0 | 0 | 3 | 0.7 | 0.3 | 0 | 3 | 2.7 | 3 | 0 |
+| Spirit | **2.7** | 0 | 0 | 0 | 3 | 0 | 0.3 | 0 | 3 | 1.3 | 3 | 0 |
+| Crystal | **3** | 0 | 0 | 0 | 3 | 0 | 0.7 | 0 | 3 | 1 | 2.3 | 0 |
+
+What is still off: the mid L1 no-healer row on six planets (left, as
+above), Lava's mid L1 with a Kin (loses 1–2, target 0), and Plant's strong
+L3 no-healer (a little easy). The three tuned planets are unchanged, and
+every dungeon guardian clears fresh and late.
 
 
 ## Where things stand

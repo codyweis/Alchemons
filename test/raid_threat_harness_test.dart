@@ -96,8 +96,8 @@ class RuleHands {
 /// One frame of answering the planet's rule, the way a player would (see
 /// guardian_rule_harness.dart): while the guardian is shut and a press can
 /// work ([guardianAnswerReady]), the key walks to the thing and presses once
-/// there (Botanica's ring once every hand has walked in; a ring head only as
-/// Magmara comes past); against Solarin, whoever is played keeps to the
+/// there (Botanica's ring once every hand has walked in; the ring head
+/// Magmara reaches next, pressed only as it comes past); against Solarin, whoever is played keeps to the
 /// shade the whole fight and strikes from it. Returns false when there is
 /// nothing to answer yet, or the hand it needs is down (no fallback: losing
 /// the key keeps the guardian shut, as in the game); the fighter takes over.
@@ -114,7 +114,9 @@ bool _answerRule(PlanetDungeonGame g, RuleHands h, double dt) {
       walkTo(a, solarinShadedStep(g, name: raidShadowName(a)), dt);
       return true;
   }
-  final at = guardianAnswerAt(g);
+  final at = g.layout.element == 'Lava'
+      ? magmaraNextHead(g)
+      : guardianAnswerAt(g);
   if (at == null || !shut || !guardianAnswerReady(g)) return false;
   final k = h.key ?? g.activeIndex;
   if (!g.creatures[k].alive) return false;
