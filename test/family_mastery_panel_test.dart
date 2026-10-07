@@ -61,14 +61,22 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  String caption(WidgetTester tester) => tester
+      .widget<Text>(find.byKey(const ValueKey('mastery-family-caption')))
+      .textSpan!
+      .toPlainText();
+
   testWidgets('opens on Mane with a connected family skill tree', (
     tester,
   ) async {
     await pumpPanel(tester);
 
-    expect(find.text('MANE MASTERY'), findsOneWidget);
+    expect(caption(tester), startsWith('MANE'));
+    expect(
+      caption(tester),
+      endsWith(FamilyMasteryCatalog.treeFor(CreatureFamily.mane).chassis),
+    );
     expect(find.text('TWIN FANG'), findsOneWidget);
-    expect(find.text('ALL MANES'), findsOneWidget);
     expect(find.byKey(const ValueKey('family-skill-tree')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('mastery-node-inspector')),
@@ -92,9 +100,32 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('mastery-family-pip')));
     await tester.pumpAndSettle();
 
-    expect(find.text('PIP MASTERY'), findsOneWidget);
+    expect(caption(tester), startsWith('PIP'));
     expect(find.text('NEEDLEPOINT'), findsOneWidget);
-    expect(find.text('ALL PIPS'), findsOneWidget);
+  });
+
+  testWidgets('Mystic\'s two branches line up under their headings', (
+    tester,
+  ) async {
+    await pumpPanel(tester);
+
+    await tester.tap(find.byKey(const ValueKey('mastery-family-mystic')));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    final paths = FamilyMasteryCatalog.treeFor(CreatureFamily.mystic).paths;
+    expect(paths, hasLength(2));
+    for (final path in paths) {
+      final head = tester.getCenter(
+        find.byKey(ValueKey('branch-head-${path.id}')),
+      );
+      for (final node in path.nodes) {
+        final gem = tester.getCenter(
+          find.byKey(ValueKey('mastery-node-${node.id}')),
+        );
+        expect(gem.dx, moreOrLessEquals(head.dx), reason: node.id);
+      }
+    }
   });
 
   testWidgets('upgrade needs a second tap to confirm, then buys the node', (
@@ -154,19 +185,18 @@ void main() {
     await tester.pump();
     expect(find.text('TAP TO CONFIRM'), findsNothing);
 
-    // Capstones sit at the bottom of the tree, below the fold.
     final capstone = find.byKey(
       const ValueKey('mastery-node-mane.assault.blade_dance'),
     );
-    await tester.ensureVisible(capstone);
-    await tester.pumpAndSettle();
     await tester.tap(capstone);
     await tester.pump();
     expect(find.text('REQUIRES PREDATOR STEP'), findsOneWidget);
     expect(find.text('CAPSTONE'), findsOneWidget);
   });
 
-  testWidgets('banner equip switches the family branch', (tester) async {
+  testWidgets('a branch heading only shows the branch; the dock equips it', (
+    tester,
+  ) async {
     await db.currencyDao.addSilver(2000);
     await mastery.purchaseNode(
       family: CreatureFamily.mane,
@@ -178,21 +208,29 @@ void main() {
     );
     await pumpPanel(tester);
 
-    expect(find.byKey(const ValueKey('select-mane.assault')), findsNothing);
-    // Tap the banner's title, not its EQUIP chip: the whole banner is the
-    // button.
+    expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.assault');
+    // The equipped branch offers no switch to itself.
+    expect(find.byKey(const ValueKey('equip-mane.assault')), findsNothing);
+
+    // Looking at another branch leaves the equipped one alone...
     await tester.tap(find.text('LIMITLESS'));
     await settle(tester);
+    expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.assault');
+    expect(find.text('OVERDRAW'), findsNWidgets(2));
 
+    // ...and the dock's EQUIP BRANCH is what switches it.
+    await tester.tap(find.byKey(const ValueKey('equip-mane.limitless')));
+    await settle(tester);
     expect(
       mastery.selectedPathForFamily(CreatureFamily.mane),
       'mane.limitless',
     );
-    expect(find.byKey(const ValueKey('select-mane.assault')), findsOneWidget);
+    expect(find.byKey(const ValueKey('equip-mane.limitless')), findsNothing);
   });
 
   test('base-attack text describes only the basic attack', () {
-    // The crown labels this text BASE ATTACK; specials belong elsewhere.
+    // The family rail shows this as what the family's attack does; specials
+    // belong elsewhere.
     for (final tree in kFamilyMasteryTrees) {
       expect(
         tree.chassis.toLowerCase(),
@@ -227,7 +265,8 @@ void main() {
           }
         }
         for (final node in path.nodes) {
-          // The dock shows three lines of description.
+          // The dock keeps room for the longest description, up to three
+          // lines on a narrow phone.
           expect(
             node.description.length,
             lessThanOrEqualTo(140),

@@ -1,6 +1,7 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_base_command_screen.dart';
 import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
@@ -31,10 +32,11 @@ void main() {
 
   Future<void> pumpScreen(
     WidgetTester tester, {
+    double width = 412,
     double height = 915,
     CreatureFamily? family,
   }) async {
-    tester.view.physicalSize = Size(412 * 3, height * 3);
+    tester.view.physicalSize = Size(width * 3, height * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
@@ -66,124 +68,53 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  // Drag near the top of the tree's visible area: the tree is taller than its
-  // viewport, so its centre can sit under the upgrade dock.
-  Future<void> dragTree(WidgetTester tester, double dy) async {
-    final viewport = tester.getRect(
-      find
-          .ancestor(
-            of: find.byKey(const ValueKey('family-skill-tree')),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.dragFrom(
-      viewport.topCenter + const Offset(40, 30),
-      Offset(0, dy),
-    );
-    await tester.pumpAndSettle();
-  }
-
-  double heightOf(WidgetTester tester, String key) =>
-      tester.getSize(find.byKey(ValueKey(key))).height;
+  String caption(WidgetTester tester) => tester
+      .widget<Text>(find.byKey(const ValueKey('mastery-family-caption')))
+      .textSpan!
+      .toPlainText();
 
   testWidgets('Mastery is the first tab', (tester) async {
     await pumpScreen(tester);
 
     final tabBar = tester.widget<TabBar>(find.byType(TabBar));
     expect((tabBar.tabs.first as Tab).text, 'MASTERY');
-    expect(find.text('MANE MASTERY'), findsOneWidget);
-  });
-
-  testWidgets(
-    'scrolling down swaps the header for a balance bar; scrolling up restores it',
-    (tester) async {
-      await pumpScreen(tester);
-
-      expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
-      expect(heightOf(tester, 'base-command-balance-bar'), 0);
-      await dragTree(tester, -120);
-
-      expect(heightOf(tester, 'base-command-chrome'), 0);
-      expect(heightOf(tester, 'base-command-balance-bar'), 44);
-      // The family selector tucks away too; the tree crown stays docked.
-      expect(heightOf(tester, 'mastery-family-selector'), 0);
-      expect(find.text('MANE MASTERY'), findsOneWidget);
-      expect(find.text('TWIN FANG'), findsOneWidget);
-      expect(
-        tester
-            .getTopLeft(find.byKey(const ValueKey('family-mastery-crown')))
-            .dy,
-        lessThan(120),
-      );
-
-      // Back to the top in one gesture: the header stays tucked away...
-      await dragTree(tester, 300);
-      expect(heightOf(tester, 'base-command-chrome'), 0);
-      expect(heightOf(tester, 'base-command-balance-bar'), 44);
-
-      // ...and a second pull, starting at the top, brings it back.
-      await dragTree(tester, 120);
-      expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
-      expect(heightOf(tester, 'base-command-balance-bar'), 0);
-      expect(heightOf(tester, 'mastery-family-selector'), greaterThan(0));
-      expect(tester.takeException(), isNull);
-    },
-  );
-
-  testWidgets('scrolling partway back up keeps the header hidden', (
-    tester,
-  ) async {
-    // A shorter screen gives the tree plenty of scroll room.
-    await pumpScreen(tester, height: 760);
-
-    await dragTree(tester, -140);
-    expect(heightOf(tester, 'base-command-chrome'), 0);
-
-    await dragTree(tester, 50);
-    expect(heightOf(tester, 'base-command-chrome'), 0);
-    expect(heightOf(tester, 'base-command-balance-bar'), 44);
-
-    await dragTree(tester, 300);
-    expect(
-      heightOf(tester, 'base-command-chrome'),
-      0,
-      reason: 'Reaching the top is not a request to reveal.',
-    );
-
-    await dragTree(tester, 80);
-    expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
-    expect(heightOf(tester, 'base-command-balance-bar'), 0);
+    expect(caption(tester), startsWith('MANE'));
   });
 
   testWidgets('opens on the family it was asked for', (tester) async {
     await pumpScreen(tester, family: CreatureFamily.let);
-    expect(find.text('LET MASTERY'), findsOneWidget);
-    expect(find.text('MANE MASTERY'), findsNothing);
+    expect(caption(tester), startsWith('LET'));
   });
 
-  testWidgets('switching tabs brings the header back', (tester) async {
-    await pumpScreen(tester);
-
-    await dragTree(tester, -120);
-    expect(heightOf(tester, 'base-command-chrome'), 0);
-
-    // Swipe the pager horizontally to the next tab.
-    await tester.fling(find.byType(TabBarView), const Offset(-300, 0), 1000);
-    await tester.pumpAndSettle();
-    expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
-  });
-
-  testWidgets('only the Mastery tree hides the header', (tester) async {
-    await pumpScreen(tester, height: 640);
-    await tester.tap(find.text('ORB').first);
-    await tester.pumpAndSettle();
-
-    // Scroll the orb list well down: the header and tabs stay.
-    final list = find.text('ORB BASE SKINS');
-    await tester.drag(list, const Offset(0, -400));
-    await tester.pumpAndSettle();
-    expect(heightOf(tester, 'base-command-chrome'), greaterThan(0));
-    expect(heightOf(tester, 'base-command-balance-bar'), 0);
-  });
+  // The whole tree, capstones included, sits between the header and the
+  // dock on a phone and on both faces of a Fold, so nothing has to scroll.
+  for (final (name, size) in const [
+    ('phone', Size(412, 915)),
+    ('Fold cover', Size(357, 850)),
+    ('Fold inner', Size(716, 800)),
+  ]) {
+    testWidgets('every family\'s whole tree fits on the $name', (tester) async {
+      await pumpScreen(tester, width: size.width, height: size.height);
+      final dockTop = tester
+          .getTopLeft(find.byKey(const ValueKey('mastery-node-inspector')))
+          .dy;
+      for (final tree in kFamilyMasteryTrees) {
+        await tester.tap(
+          find.byKey(ValueKey('mastery-family-${tree.family.name}')),
+        );
+        await tester.pumpAndSettle();
+        for (final path in tree.paths) {
+          final capstone = tester.getRect(
+            find.byKey(ValueKey('mastery-node-${path.nodes.last.id}')),
+          );
+          expect(
+            capstone.bottom,
+            lessThanOrEqualTo(dockTop),
+            reason: '${path.nodes.last.id} on the $name',
+          );
+        }
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

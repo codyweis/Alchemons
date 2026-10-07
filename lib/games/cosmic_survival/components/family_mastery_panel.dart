@@ -16,10 +16,12 @@ import 'package:provider/provider.dart';
 // translucent strokes rather than MaskFilter.blur. The only animation is the
 // one-shot flourish that plays when a node is bought.
 //
-// The chrome around the tree is the app's bare look: chips, tags, banners
-// and buttons are flat fills with no frame, and the chosen one (the
-// equipped branch, the tier in view, the thing to press, the node in focus)
-// is lit from below.
+// The chrome around the tree is the app's bare look: tags, headings and
+// buttons are flat fills with no frame. Only two things are lit from below:
+// the node in focus and the button that buys it. Everything else that is
+// "chosen" (the family, the equipped branch) says so with colour alone, so
+// the eye has one place to go. Progress is drawn once, on the tree itself:
+// filled, checked gems and the sap running up to them.
 
 const _background = Color(0xFF09090B);
 const _rail = Color(0xFF0F0C0A);
@@ -36,16 +38,7 @@ const _bark = Color(0xFF211A13);
 const _barkLight = Color(0xFF3B2F22);
 const _barkGroove = Color(0xFF0E0B08);
 
-// The tree is always taller than its viewport. Base Command collapses its
-// header when this tab scrolls, and a tree that fit its (now larger) viewport
-// could no longer scroll back up to reveal it.
-const _minStageHeight = 440.0;
-const _maxStageHeight = 760.0;
-const _minScrollExtent = 80.0;
-const _bannerHeight = 56.0;
 const _nodeLabelWidth = 112.0;
-
-const _tierNumerals = ['I', 'II', 'III'];
 
 const Map<CreatureFamily, String> _familyPortraits = {
   CreatureFamily.let: 'assets/images/creatures/common/LET02_waterlet.png',
@@ -65,17 +58,12 @@ class FamilyMasteryPanel extends StatefulWidget {
     required this.silverBalance,
     required this.goldBalance,
     required this.onCurrencyChanged,
-    this.compact = false,
     this.initialFamily,
   });
 
   final int silverBalance;
   final int goldBalance;
   final Future<void> Function() onCurrencyChanged;
-
-  /// Set while the host has scrolled its own chrome away: the family selector
-  /// tucks away with it, leaving the docked tree crown at the top.
-  final bool compact;
 
   /// The family whose tree is shown first. Mane when not given.
   final CreatureFamily? initialFamily;
@@ -136,41 +124,31 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
       color: _background,
       child: Column(
         children: [
-          _CollapsibleSection(
+          _FamilyRail(
             key: const ValueKey('mastery-family-selector'),
-            visible: !widget.compact,
-            child: _FamilySelector(
-              selected: _family,
-              progress: {
-                for (final family in CreatureFamily.values)
-                  family: mastery.purchasedNodes(family).length,
-              },
-              onSelect: _selectFamily,
-            ),
-          ),
-          _TreeCrown(
-            tree: tree,
-            owned: owned,
-            selectedPathId: selectedPathId,
-            busyPathId: _busyPathId,
-            onBannerFocus: _focusNode,
-            onPathSelect: (path) => _selectPath(mastery, path),
+            selected: _family,
+            chassis: tree.chassis,
+            progress: {
+              for (final family in CreatureFamily.values)
+                family:
+                    mastery.purchasedNodes(family).length /
+                    _nodeCount(FamilyMasteryCatalog.treeFor(family)),
+            },
+            onSelect: _selectFamily,
           ),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final stageHeight = math.max(
-                  (constraints.maxWidth * 1.15).clamp(
-                    _minStageHeight,
-                    _maxStageHeight,
-                  ),
-                  constraints.maxHeight + _minScrollExtent,
+                final layout = _TreeLayout.fit(
+                  constraints.biggest,
+                  tree.paths.length,
                 );
                 return SingleChildScrollView(
                   physics: const ClampingScrollPhysics(),
-                  child: SizedBox(
-                    height: stageHeight,
+                  child: SizedBox.fromSize(
+                    size: layout.size,
                     child: _MasteryTreeStage(
+                      layout: layout,
                       tree: tree,
                       owned: owned,
                       selectedPathId: selectedPathId,
@@ -334,56 +312,125 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
   }
 }
 
-// ── Family selector ────────────────────────────────────────────────────────
+// ── Family rail ────────────────────────────────────────────────────────────
 
-class _FamilySelector extends StatelessWidget {
-  const _FamilySelector({
+/// The eight families, and under them the one in view: its name and what its
+/// attack does. Each medallion's ring is how much of that family's tree is
+/// bought.
+class _FamilyRail extends StatelessWidget {
+  const _FamilyRail({
+    super.key,
     required this.selected,
+    required this.chassis,
     required this.progress,
     required this.onSelect,
   });
 
   final CreatureFamily selected;
-  final Map<CreatureFamily, int> progress;
+  final String chassis;
+  final Map<CreatureFamily, double> progress;
   final ValueChanged<CreatureFamily> onSelect;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 76,
-      padding: const EdgeInsets.symmetric(horizontal: 8),
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
       decoration: const BoxDecoration(
         color: _rail,
         border: Border(bottom: BorderSide(color: _border)),
       ),
-      child: Row(
+      child: Column(
         children: [
-          for (final family in CreatureFamily.values)
-            Expanded(
-              child: _FamilyMedallion(
-                family: family,
-                selected: family == selected,
-                owned: progress[family] ?? 0,
-                onTap: () => onSelect(family),
-              ),
+          SizedBox(
+            height: 60,
+            child: Row(
+              children: [
+                for (final family in CreatureFamily.values)
+                  Expanded(
+                    child: _FamilyMedallion(
+                      family: family,
+                      selected: family == selected,
+                      fraction: progress[family] ?? 0,
+                      onTap: () => onSelect(family),
+                    ),
+                  ),
+              ],
             ),
+          ),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final base = DefaultTextStyle.of(
+                  context,
+                ).style.merge(_captionStyle);
+                // Room for the longest family's line at this width, so
+                // switching families never moves the tree.
+                return SizedBox(
+                  height: _roomFor(
+                    'caption',
+                    [
+                      for (final tree in kFamilyMasteryTrees)
+                        TextSpan(
+                          style: base,
+                          children: [_captionSpan(tree.family, tree.chassis)],
+                        ),
+                    ],
+                    width: constraints.maxWidth,
+                    scaler: MediaQuery.textScalerOf(context),
+                    maxLines: 2,
+                  ),
+                  child: Center(
+                    child: Text.rich(
+                      key: const ValueKey('mastery-family-caption'),
+                      _captionSpan(selected, chassis),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: _captionStyle,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
+const _captionStyle = TextStyle(color: _muted, fontSize: 11.5, height: 1.3);
+
+TextSpan _captionSpan(CreatureFamily family, String chassis) => TextSpan(
+  children: [
+    TextSpan(
+      text: family.displayName.toUpperCase(),
+      style: TextStyle(
+        fontFamily: 'monospace',
+        color: family.color,
+        fontSize: 10,
+        fontWeight: FontWeight.w900,
+        letterSpacing: 1.4,
+      ),
+    ),
+    const TextSpan(text: '   '),
+    TextSpan(text: chassis),
+  ],
+);
+
 class _FamilyMedallion extends StatelessWidget {
   const _FamilyMedallion({
     required this.family,
     required this.selected,
-    required this.owned,
+    required this.fraction,
     required this.onTap,
   });
 
   final CreatureFamily family;
   final bool selected;
-  final int owned;
+  final double fraction;
   final VoidCallback onTap;
 
   @override
@@ -397,57 +444,52 @@ class _FamilyMedallion extends StatelessWidget {
         key: ValueKey('mastery-family-${family.name}'),
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        // The family in view is lit from below along the rail's foot.
-        child: CustomPaint(
-          foregroundPainter: selected
-              ? BracketFramePainter(color: color, strokeWidth: 1.3)
-              : null,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 44,
-                height: 44,
-                child: CustomPaint(
-                  painter: _ProgressRingPainter(
-                    color: color,
-                    fraction: owned / 12,
-                    selected: selected,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(5),
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            color.withValues(alpha: selected ? 0.42 : 0.14),
-                            const Color(0xFF131316),
-                          ],
-                        ),
+        // The family in view is in full colour; the rest are dimmed.
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 44,
+              height: 44,
+              child: CustomPaint(
+                painter: _ProgressRingPainter(
+                  color: color,
+                  fraction: fraction,
+                  selected: selected,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          color.withValues(alpha: selected ? 0.42 : 0.14),
+                          const Color(0xFF131316),
+                        ],
                       ),
-                      child: _FamilyPortrait(
-                        family: family,
-                        dimmed: !selected,
-                        padding: 3,
-                      ),
+                    ),
+                    child: _FamilyPortrait(
+                      family: family,
+                      dimmed: !selected,
+                      padding: 3,
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 3),
-              Text(
-                family.code,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: selected ? color : _muted,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.8,
-                ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              family.code,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: selected ? color : _muted,
+                fontSize: 8.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.8,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -544,18 +586,15 @@ class _ProgressRingPainter extends CustomPainter {
 
 // ── Tree ───────────────────────────────────────────────────────────────────
 //
-// The tree is split in two. The crown (family root, title, trunk and the three
-// branch banners) is docked above the scroll view. The body (boughs running
-// down through tiers I–III to the capstones) scrolls beneath it. Each bough
-// leaves the crown at the foot of its banner column, and the body picks it up
-// at its top edge, so the two read as one tree.
+// One stage holds the whole tree. A short trunk drops from the family rail
+// and forks into one bough per branch; each bough passes behind its branch's
+// heading and runs down through tiers I–III to the capstone. The rows space
+// themselves to the room there is, so on a phone the capstones are on screen
+// with everything else, and only a short screen scrolls.
 
-const _crownHeight = 146.0;
-
-/// Evenly spaced column centres, one per path. Three gives the sixths this
-/// panel was built around; Mystic's two land on the quarters instead of
-/// leaving the right third of the crown empty.
-List<double> _columnsFor(double width, [int count = 3]) => [
+/// Evenly spaced column centres, one per branch: sixths for three branches,
+/// quarters for Mystic's two.
+List<double> _columnsFor(double width, int count) => [
   for (var i = 0; i < count; i++) width * (2 * i + 1) / (2 * count),
 ];
 
@@ -564,35 +603,68 @@ List<int> _ownedTierCounts(FamilyMasteryTreeDef tree, Set<String> owned) => [
     path.nodes.takeWhile((node) => owned.contains(node.id)).length,
 ];
 
-class _CrownLayout {
-  _CrownLayout(this.width, [int pathCount = 3])
-    : columns = _columnsFor(width, pathCount),
-      root = Offset(width / 2, rootY),
-      fork = Offset(width / 2, forkY);
+int _nodeCount(FamilyMasteryTreeDef tree) =>
+    tree.paths.fold(0, (sum, path) => sum + path.nodes.length);
 
-  static const rootRadius = 26.0;
-  static const rootY = 36.0;
-  static const forkY = rootY + rootRadius + 12;
-  static const bannerTop = forkY + 10;
+class _TreeLayout {
+  _TreeLayout._(this.size, this.columns, this.rows);
 
-  final double width;
+  /// Spaces the four tiers down [available]. When even the tightest spacing
+  /// does not fit, the stage grows past it and scrolls.
+  factory _TreeLayout.fit(Size available, int pathCount) {
+    final step = ((available.height - _firstRow - _capstoneFoot) / 3)
+        .clamp(_minRowStep, _maxRowStep)
+        .toDouble();
+    return _TreeLayout._(
+      Size(
+        available.width,
+        math.max(available.height, _firstRow + step * 3 + _capstoneFoot),
+      ),
+      _columnsFor(available.width, pathCount),
+      [for (var tier = 0; tier < 4; tier++) _firstRow + step * tier],
+    );
+  }
+
+  static const forkY = 10.0;
+  static const headTop = 16.0;
+  static const headHeight = 34.0;
+  static const headBottom = headTop + headHeight;
+
+  /// Centre of the tier I gems: a gem's radius clear of the headings.
+  static const _firstRow = headBottom + 16 + 25;
+
+  /// From the capstone's centre to the stage's foot: half the star, then its
+  /// price and its name.
+  static const _capstoneFoot = 68.0;
+
+  /// A gem, its price and its name, with a little air before the next gem.
+  static const _minRowStep = 80.0;
+  static const _maxRowStep = 124.0;
+
+  final Size size;
   final List<double> columns;
-  final Offset root;
-  final Offset fork;
+  final List<double> rows;
+
+  double get headWidth => math.min(size.width / columns.length - 10, 150);
+
+  Offset get fork => Offset(size.width / 2, forkY);
+
+  Offset node(int path, int tierIndex) =>
+      Offset(columns[path], rows[tierIndex]);
 
   Path trunk() => Path()
-    ..moveTo(root.dx, root.dy + rootRadius - 3)
+    ..moveTo(fork.dx, 0)
     ..lineTo(fork.dx, fork.dy);
 
-  /// From the fork out to [path]'s column and down to the crown's bottom edge.
+  /// From the fork out to [path]'s column and down behind its heading.
   Path bough(int path) {
     final x = columns[path];
-    if (path == 1) {
+    if ((x - fork.dx).abs() < 1) {
       return Path()
         ..moveTo(fork.dx, fork.dy)
-        ..lineTo(x, _crownHeight);
+        ..lineTo(x, headBottom);
     }
-    final outward = path == 0 ? -1.0 : 1.0;
+    final outward = x < fork.dx ? -1.0 : 1.0;
     return Path()
       ..moveTo(fork.dx, fork.dy)
       ..cubicTo(
@@ -601,39 +673,24 @@ class _CrownLayout {
         x,
         fork.dy + 2,
         x,
-        bannerTop + 14,
+        headTop + 12,
       )
-      ..lineTo(x, _crownHeight);
+      ..lineTo(x, headBottom);
   }
-}
-
-/// Scrolling body geometry: tier rows from the top edge down to the capstones.
-class _TreeLayout {
-  _TreeLayout(this.size) : columns = _columnsFor(size.width) {
-    const first = 54.0;
-    final capstone = size.height - 72;
-    final step = (capstone - first) / 3;
-    rows = [for (var tier = 0; tier < 4; tier++) first + step * tier];
-  }
-
-  final Size size;
-  final List<double> columns;
-  late final List<double> rows;
-
-  Offset node(int path, int tierIndex) =>
-      Offset(columns[path], rows[tierIndex]);
 
   /// The bough segment that leads INTO [tier] (1-based) of [path].
   Path segment(int path, int tier) {
     final end = node(path, tier - 1);
     if (tier == 1) {
       return Path()
-        ..moveTo(end.dx, 0)
+        ..moveTo(end.dx, headBottom)
         ..lineTo(end.dx, end.dy);
     }
     final start = node(path, tier - 2);
     final drop = end.dy - start.dy;
-    final sway = (tier.isEven ? 9.0 : -9.0) * (path == 2 ? -1 : 1);
+    // A bough right of the middle sways mirror-wise to the ones beside it.
+    final mirror = end.dx > size.width / 2 + 1 ? -1.0 : 1.0;
+    final sway = (tier.isEven ? 9.0 : -9.0) * mirror;
     return Path()
       ..moveTo(start.dx, start.dy)
       ..cubicTo(
@@ -647,213 +704,9 @@ class _TreeLayout {
   }
 }
 
-class _TreeCrown extends StatelessWidget {
-  const _TreeCrown({
-    required this.tree,
-    required this.owned,
-    required this.selectedPathId,
-    required this.busyPathId,
-    required this.onBannerFocus,
-    required this.onPathSelect,
-  });
-
-  final FamilyMasteryTreeDef tree;
-  final Set<String> owned;
-  final String? selectedPathId;
-  final String? busyPathId;
-  final ValueChanged<FamilyMasteryNodeDef> onBannerFocus;
-  final ValueChanged<FamilyMasteryPathDef> onPathSelect;
-
-  @override
-  Widget build(BuildContext context) {
-    final family = tree.family;
-    final color = family.color;
-    final ownedTiers = _ownedTierCounts(tree, owned);
-    final activeIndex = tree.paths.indexWhere(
-      (path) => path.id == selectedPathId,
-    );
-
-    return SizedBox(
-      key: const ValueKey('family-mastery-crown'),
-      height: _crownHeight,
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final layout = _CrownLayout(constraints.maxWidth, tree.paths.length);
-          final bannerWidth = layout.width / 3 - 10;
-          const rootRadius = _CrownLayout.rootRadius;
-          final sideWidth = layout.width / 2 - rootRadius - 12;
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned.fill(
-                child: RepaintBoundary(
-                  child: CustomPaint(
-                    painter: _CrownPainter(
-                      layout: layout,
-                      family: family,
-                      ownedTiers: ownedTiers,
-                      activeIndex: activeIndex < 0 ? null : activeIndex,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: layout.root.dx - rootRadius,
-                top: layout.root.dy - rootRadius,
-                width: rootRadius * 2,
-                height: rootRadius * 2,
-                // A dark disc lit by the family's colour from below, rather
-                // than ringed with a stroke.
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: RadialGradient(
-                      center: const Alignment(0, 0.7),
-                      radius: 1.05,
-                      colors: [
-                        Color.alphaBlend(
-                          color.withValues(alpha: 0.55),
-                          const Color(0xFF131316),
-                        ),
-                        Color.alphaBlend(
-                          color.withValues(alpha: 0.2),
-                          const Color(0xFF131316),
-                        ),
-                        const Color(0xFF131316),
-                      ],
-                      stops: const [0, 0.5, 1],
-                    ),
-                  ),
-                  child: ClipOval(
-                    child: _FamilyPortrait(
-                      family: family,
-                      dimmed: false,
-                      padding: 4,
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                width: sideWidth,
-                top: layout.root.dy - 28,
-                height: 56,
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          '${family.displayName.toUpperCase()} MASTERY',
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            color: _text,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 5),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '${owned.length}/12',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: color,
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            const SizedBox(width: 6),
-                            _StatusPill(
-                              label: 'ALL ${family.displayName.toUpperCase()}S',
-                              color: color,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 0,
-                width: sideWidth,
-                top: layout.root.dy - 28,
-                height: 56,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        'BASE ATTACK',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: color.withValues(alpha: 0.85),
-                          fontSize: 8,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.4,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        tree.chassis,
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: _muted,
-                          fontSize: 9.5,
-                          height: 1.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              for (var p = 0; p < tree.paths.length; p++)
-                Positioned(
-                  left: layout.columns[p] - bannerWidth / 2,
-                  top: _CrownLayout.bannerTop,
-                  width: bannerWidth,
-                  height: _bannerHeight,
-                  child: _BranchBanner(
-                    path: tree.paths[p],
-                    color: color,
-                    ownedTiers: ownedTiers[p],
-                    active: p == activeIndex,
-                    selecting: busyPathId == tree.paths[p].id,
-                    onEquip: () => onPathSelect(tree.paths[p]),
-                    onTap: () {
-                      final path = tree.paths[p];
-                      onBannerFocus(
-                        path.nodes[math.min(
-                          ownedTiers[p],
-                          path.nodes.length - 1,
-                        )],
-                      );
-                    },
-                  ),
-                ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
 class _MasteryTreeStage extends StatelessWidget {
   const _MasteryTreeStage({
+    required this.layout,
     required this.tree,
     required this.owned,
     required this.selectedPathId,
@@ -864,6 +717,7 @@ class _MasteryTreeStage extends StatelessWidget {
     required this.onNodeTap,
   });
 
+  final _TreeLayout layout;
   final FamilyMasteryTreeDef tree;
   final Set<String> owned;
   final String? selectedPathId;
@@ -892,44 +746,59 @@ class _MasteryTreeStage extends StatelessWidget {
       }
     }
 
-    return LayoutBuilder(
+    return Stack(
       key: const ValueKey('family-skill-tree'),
-      builder: (context, constraints) {
-        final layout = _TreeLayout(constraints.biggest);
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _TreePainter(
-                    layout: layout,
-                    family: tree.family,
-                    ownedTiers: ownedTiers,
-                    activeIndex: activeIndex < 0 ? null : activeIndex,
-                    celebration: celebration,
-                    celebratedPath: celebratedPath,
-                    celebratedTier: celebratedTier,
-                  ),
-                ),
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          child: RepaintBoundary(
+            child: CustomPaint(
+              painter: _TreePainter(
+                layout: layout,
+                family: tree.family,
+                ownedTiers: ownedTiers,
+                activeIndex: activeIndex < 0 ? null : activeIndex,
+                celebration: celebration,
+                celebratedPath: celebratedPath,
+                celebratedTier: celebratedTier,
               ),
             ),
-            for (var p = 0; p < tree.paths.length; p++)
-              for (var t = 0; t < tree.paths[p].nodes.length; t++)
-                _positionedNode(
-                  tree.paths[p].nodes[t],
-                  layout.node(p, t),
-                  color: color,
-                  state: t < ownedTiers[p]
-                      ? _NodeState.owned
-                      : t == ownedTiers[p]
-                      ? _NodeState.available
-                      : _NodeState.locked,
-                  activeBranch: p == activeIndex,
-                ),
-          ],
-        );
-      },
+          ),
+        ),
+        for (var p = 0; p < tree.paths.length; p++)
+          Positioned(
+            left: layout.columns[p] - layout.headWidth / 2,
+            top: _TreeLayout.headTop,
+            width: layout.headWidth,
+            height: _TreeLayout.headHeight,
+            child: _BranchHead(
+              path: tree.paths[p],
+              color: color,
+              unlocked: ownedTiers[p] > 0,
+              active: p == activeIndex,
+              // Shows the branch's next node; equipping is the dock's job.
+              onTap: () => onNodeTap(
+                tree.paths[p].nodes[math.min(
+                  ownedTiers[p],
+                  tree.paths[p].nodes.length - 1,
+                )],
+              ),
+            ),
+          ),
+        for (var p = 0; p < tree.paths.length; p++)
+          for (var t = 0; t < tree.paths[p].nodes.length; t++)
+            _positionedNode(
+              tree.paths[p].nodes[t],
+              layout.node(p, t),
+              color: color,
+              state: t < ownedTiers[p]
+                  ? _NodeState.owned
+                  : t == ownedTiers[p]
+                  ? _NodeState.available
+                  : _NodeState.locked,
+              activeBranch: p == activeIndex,
+            ),
+      ],
     );
   }
 
@@ -959,96 +828,6 @@ class _MasteryTreeStage extends StatelessWidget {
   }
 }
 
-class _CrownPainter extends CustomPainter {
-  const _CrownPainter({
-    required this.layout,
-    required this.family,
-    required this.ownedTiers,
-    required this.activeIndex,
-  });
-
-  final _CrownLayout layout;
-  final CreatureFamily family;
-  final List<int> ownedTiers;
-  final int? activeIndex;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final color = family.color;
-    final root = layout.root;
-
-    final glowRadius = size.width * 0.5;
-    canvas.drawCircle(
-      root,
-      glowRadius,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [color.withValues(alpha: 0.16), color.withValues(alpha: 0)],
-        ).createShader(Rect.fromCircle(center: root, radius: glowRadius)),
-    );
-    _paintDust(canvas, size, family.index * 13 + 3, 16);
-
-    // Transmutation circle behind the root.
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    ring.color = color.withValues(alpha: 0.26);
-    canvas.drawCircle(root, 32, ring);
-    ring.color = color.withValues(alpha: 0.13);
-    canvas.drawCircle(root, 38, ring);
-    for (var i = 0; i < 24; i++) {
-      final angle = i * math.pi / 12;
-      final direction = Offset(math.cos(angle), math.sin(angle));
-      canvas.drawLine(
-        root + direction * (i.isEven ? 38.0 : 39.5),
-        root + direction * 42,
-        ring,
-      );
-    }
-    final triangle = Path();
-    for (var i = 0; i < 3; i++) {
-      final angle = -math.pi / 2 + i * math.pi * 2 / 3;
-      final point = root + Offset(math.cos(angle), math.sin(angle)) * 38;
-      i == 0
-          ? triangle.moveTo(point.dx, point.dy)
-          : triangle.lineTo(point.dx, point.dy);
-    }
-    ring.color = color.withValues(alpha: 0.09);
-    canvas.drawPath(triangle..close(), ring);
-
-    final trunk = layout.trunk();
-    _paintBark(canvas, trunk, 14);
-    if (ownedTiers.any((tiers) => tiers > 0)) {
-      _paintSap(canvas, trunk, color, 1);
-    }
-
-    for (var p = 0; p < 3; p++) {
-      final bough = layout.bough(p);
-      final lit = ownedTiers[p] > 0;
-      final strength = activeIndex == null || p == activeIndex ? 1.0 : 0.42;
-      _paintBark(canvas, bough, 12);
-      if (lit) {
-        _paintSap(canvas, bough, color, strength);
-      } else {
-        _paintDotted(canvas, bough, color.withValues(alpha: 0.35));
-      }
-    }
-
-    canvas.drawLine(
-      Offset(0, size.height - 0.5),
-      Offset(size.width, size.height - 0.5),
-      Paint()..color = _border.withValues(alpha: 0.7),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _CrownPainter old) =>
-      old.layout.width != layout.width ||
-      old.family != family ||
-      old.activeIndex != activeIndex ||
-      !_sameList(old.ownedTiers, ownedTiers);
-}
-
 class _TreePainter extends CustomPainter {
   _TreePainter({
     required this.layout,
@@ -1071,7 +850,20 @@ class _TreePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final color = family.color;
+    // The trunk runs up into the family rail; its rounded end and the fork's
+    // glow stop at the stage's top edge rather than painting over the rail.
+    canvas.clipRect(Offset.zero & size);
 
+    final fork = layout.fork;
+    final glowRadius = size.width * 0.5;
+    canvas.drawCircle(
+      fork,
+      glowRadius,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [color.withValues(alpha: 0.12), color.withValues(alpha: 0)],
+        ).createShader(Rect.fromCircle(center: fork, radius: glowRadius)),
+    );
     if (activeIndex != null) {
       final crown = layout.node(activeIndex!, 3);
       canvas.drawCircle(
@@ -1083,17 +875,27 @@ class _TreePainter extends CustomPainter {
           ).createShader(Rect.fromCircle(center: crown, radius: 110)),
       );
     }
-    _paintDust(canvas, size, family.index * 31 + 7, 44);
+    _paintDust(canvas, size, family.index * 31 + 7, 56);
 
-    for (var p = 0; p < 3; p++) {
+    final trunk = layout.trunk();
+    _paintBark(canvas, trunk, 14);
+    if (ownedTiers.any((tiers) => tiers > 0)) {
+      _paintSap(canvas, trunk, color, 1);
+    }
+
+    for (var p = 0; p < ownedTiers.length; p++) {
       final strength = activeIndex == null || p == activeIndex ? 1.0 : 0.42;
+      final bough = layout.bough(p);
+      _paintBark(canvas, bough, 12);
+      if (ownedTiers[p] > 0) {
+        _paintSap(canvas, bough, color, strength);
+      } else {
+        _paintDotted(canvas, bough, color.withValues(alpha: 0.35));
+      }
       for (var tier = 1; tier <= 4; tier++) {
         final segment = layout.segment(p, tier);
         final lit = tier <= ownedTiers[p];
         _paintBark(canvas, segment, const [12.0, 10.0, 8.5, 7.5][tier - 1]);
-        if (tier > 1) {
-          _paintTwig(canvas, segment, p, tier, lit ? color : null, strength);
-        }
         final sapColor = tier == 4 ? _gold : color;
         if (lit) {
           var fraction = 1.0;
@@ -1200,57 +1002,6 @@ void _paintSap(
   );
 }
 
-void _paintTwig(
-  Canvas canvas,
-  Path segment,
-  int path,
-  int tier,
-  Color? litColor,
-  double strength,
-) {
-  final metric = segment.computeMetrics().first;
-  final tangent = metric.getTangentForOffset(metric.length * 0.52);
-  if (tangent == null) return;
-  final side = (tier.isEven ? 1.0 : -1.0) * (path == 0 ? -1 : 1);
-  final normal = Offset(-tangent.vector.dy, tangent.vector.dx) * side;
-  final base = tangent.position;
-  final tip = base + normal * 15 + const Offset(0, -7);
-  final twig = Path()
-    ..moveTo(base.dx, base.dy)
-    ..quadraticBezierTo(
-      base.dx + normal.dx * 9,
-      base.dy + normal.dy * 9 + 2,
-      tip.dx,
-      tip.dy,
-    );
-  canvas.drawPath(
-    twig,
-    Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 2.2
-      ..color = _barkLight,
-  );
-  canvas.save();
-  canvas.translate(tip.dx, tip.dy);
-  canvas.rotate(math.atan2(tip.dy - base.dy, tip.dx - base.dx));
-  canvas.drawOval(
-    Rect.fromCenter(center: const Offset(3, 0), width: 11, height: 5),
-    Paint()
-      ..color = litColor == null
-          ? const Color(0xFF26261E)
-          : litColor.withValues(alpha: 0.8 * strength),
-  );
-  canvas.drawLine(
-    const Offset(-2, 0),
-    const Offset(8, 0),
-    Paint()
-      ..strokeWidth = 0.8
-      ..color = _barkGroove.withValues(alpha: 0.7),
-  );
-  canvas.restore();
-}
-
 void _paintDotted(Canvas canvas, Path path, Color color, {double gap = 6}) {
   final paint = Paint()..color = color;
   for (final metric in path.computeMetrics()) {
@@ -1269,200 +1020,80 @@ bool _sameList(List<int> a, List<int> b) {
   return true;
 }
 
-class _CollapsibleSection extends StatelessWidget {
-  const _CollapsibleSection({
-    super.key,
-    required this.visible,
-    required this.child,
-  });
+// ── Branch heading ─────────────────────────────────────────────────────────
 
-  final bool visible;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRect(
-      child: AnimatedAlign(
-        alignment: Alignment.bottomCenter,
-        heightFactor: visible ? 1 : 0,
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        child: IgnorePointer(
-          ignoring: !visible,
-          child: ExcludeSemantics(excluding: !visible, child: child),
-        ),
-      ),
-    );
-  }
-}
-
-// ── Branch banner ──────────────────────────────────────────────────────────
-
-class _BranchBanner extends StatelessWidget {
-  const _BranchBanner({
+class _BranchHead extends StatelessWidget {
+  const _BranchHead({
     required this.path,
     required this.color,
-    required this.ownedTiers,
+    required this.unlocked,
     required this.active,
-    required this.selecting,
-    required this.onEquip,
     required this.onTap,
   });
 
   final FamilyMasteryPathDef path;
   final Color color;
-  final int ownedTiers;
+  final bool unlocked;
   final bool active;
-  final bool selecting;
-  final VoidCallback onEquip;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final unlocked = ownedTiers > 0;
-    final equippable = unlocked && !active;
-    // The whole banner is the button: an owned, unequipped branch equips on
-    // tap; any other banner just focuses its next node.
     return Semantics(
       button: true,
-      label: equippable ? 'Equip ${path.name}' : path.name,
+      selected: active,
+      label: active ? '${path.name}, active' : path.name,
       child: GestureDetector(
-        key: ValueKey(
-          equippable ? 'select-${path.id}' : 'branch-banner-${path.id}',
-        ),
+        key: ValueKey('branch-head-${path.id}'),
         behavior: HitTestBehavior.opaque,
-        onTap: () {
-          onTap();
-          if (equippable && !selecting) onEquip();
-        },
-        // A flat ink panel; the equipped branch is washed in the family's
-        // colour and lit from below.
-        child: CustomPaint(
-          foregroundPainter: active
-              ? BracketFramePainter(color: color, strokeWidth: 1.3)
-              : null,
-          child: Container(
-            color: active
-                ? Color.alphaBlend(color.withValues(alpha: 0.16), _panel)
-                : _panel,
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 7),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      _pathIcon(path.id),
-                      size: 11,
-                      color: active ? color : _muted,
-                    ),
-                    const SizedBox(width: 4),
-                    Flexible(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          path.name.toUpperCase(),
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: active ? _text : const Color(0xFFB9AD99),
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+        onTap: onTap,
+        // A flat ink tag over the bough. The equipped branch is washed in the
+        // family's colour and says so, but it is not lit: the light belongs to
+        // the node in focus and the button that buys it.
+        child: Container(
+          color: active
+              ? Color.alphaBlend(color.withValues(alpha: 0.16), _panel)
+              : _panel,
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  path.name.toUpperCase(),
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: active
+                        ? _text
+                        : unlocked
+                        ? const Color(0xFFB9AD99)
+                        : _muted,
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.6,
+                  ),
                 ),
-                const SizedBox(height: 5),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _TierDiamonds(owned: ownedTiers, color: color),
-                    const SizedBox(width: 6),
-                    if (active)
-                      _StatusPill(label: 'ACTIVE', color: color)
-                    else if (unlocked)
-                      _EquipChip(color: color, busy: selecting)
-                    else
-                      const Text(
-                        'LOCKED',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: _dim,
-                          fontSize: 7.5,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.6,
-                        ),
-                      ),
-                  ],
+              ),
+              const SizedBox(height: 3),
+              // Kept as an empty line on the other headings, so every
+              // branch name sits at the same height.
+              Text(
+                active ? 'ACTIVE' : '',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: color,
+                  fontSize: 7.5,
+                  height: 1,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
-    );
-  }
-}
-
-class _TierDiamonds extends StatelessWidget {
-  const _TierDiamonds({required this.owned, required this.color});
-
-  final int owned;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < 4; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1.5),
-            child: Transform.rotate(
-              angle: math.pi / 4,
-              child: Container(
-                width: 5.5,
-                height: 5.5,
-                color: i < owned ? (i == 3 ? _gold : color) : _dim,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _EquipChip extends StatelessWidget {
-  const _EquipChip({required this.color, required this.busy});
-
-  final Color color;
-  final bool busy;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      color: color.withValues(alpha: 0.18),
-      child: busy
-          ? SizedBox(
-              width: 8,
-              height: 8,
-              child: CircularProgressIndicator(strokeWidth: 1.5, color: color),
-            )
-          : Text(
-              'EQUIP',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: color,
-                fontSize: 7.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 0.7,
-              ),
-            ),
     );
   }
 }
@@ -1552,34 +1183,26 @@ class _MasteryNode extends StatelessWidget {
                     Positioned(
                       top: -5,
                       right: -6,
-                      child: _Badge(
-                        icon: AppIcons.check_rounded,
+                      child: _CheckBadge(
                         color: node.isCapstone ? _gold : color,
-                        filled: true,
-                      ),
-                    )
-                  else if (state == _NodeState.locked)
-                    const Positioned(
-                      bottom: 2,
-                      right: -3,
-                      child: _Badge(
-                        icon: AppIcons.lock_rounded,
-                        color: _muted,
-                        filled: false,
                       ),
                     ),
                 ],
               ),
             ),
+            // Only the next node to buy in a branch shows its price: a bought
+            // node has its check and a locked one is simply dim. The slot is
+            // kept either way, so names line up along a row.
             Transform.translate(
               offset: const Offset(0, -7),
-              child: owned
-                  ? _TierTag(node: node, color: color)
-                  : _PriceTag(
-                      node: node,
-                      affordable: affordable,
-                      dim: state == _NodeState.locked,
-                    ),
+              child: SizedBox(
+                height: 15,
+                child: state == _NodeState.available
+                    ? Center(
+                        child: _PriceTag(node: node, affordable: affordable),
+                      )
+                    : null,
+              ),
             ),
             Transform.translate(
               offset: const Offset(0, -4),
@@ -1919,71 +1542,48 @@ class _BurstPainter extends CustomPainter {
       old.progress != progress || old.color != color;
 }
 
-class _Badge extends StatelessWidget {
-  const _Badge({required this.icon, required this.color, required this.filled});
+class _CheckBadge extends StatelessWidget {
+  const _CheckBadge({required this.color});
 
-  final IconData icon;
   final Color color;
-  final bool filled;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 16,
       height: 16,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: filled ? color : _panel,
-      ),
-      child: Icon(icon, size: 9, color: filled ? _background : color),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      child: const Icon(AppIcons.check_rounded, size: 9, color: _background),
     );
   }
 }
 
 class _PriceTag extends StatelessWidget {
-  const _PriceTag({
-    required this.node,
-    required this.affordable,
-    required this.dim,
-  });
+  const _PriceTag({required this.node, required this.affordable});
 
   final FamilyMasteryNodeDef node;
   final bool affordable;
-  final bool dim;
 
   @override
   Widget build(BuildContext context) {
     final gold = node.currency == FamilyMasteryCurrency.gold;
     final currencyColor = gold ? _gold : _silver;
-    final textColor = dim
-        ? _dim
-        : affordable
-        ? currencyColor
-        : _danger;
     return Container(
       padding: const EdgeInsets.fromLTRB(4, 2, 6, 2),
-      color: dim
-          ? _background
-          : Color.alphaBlend(
-              currencyColor.withValues(alpha: affordable ? 0.12 : 0.05),
-              _background,
-            ),
+      color: Color.alphaBlend(
+        currencyColor.withValues(alpha: affordable ? 0.12 : 0.05),
+        _background,
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Opacity(
-            opacity: dim ? 0.45 : 1,
-            child: CoinIcon(
-              kind: gold ? CoinKind.gold : CoinKind.silver,
-              size: 9,
-            ),
-          ),
+          CoinIcon(kind: gold ? CoinKind.gold : CoinKind.silver, size: 9),
           const SizedBox(width: 3),
           Text(
             _compactNumber(node.cost),
             style: TextStyle(
               fontFamily: 'monospace',
-              color: textColor,
+              color: affordable ? currencyColor : _danger,
               fontSize: 8.5,
               fontWeight: FontWeight.w900,
             ),
@@ -1994,24 +1594,14 @@ class _PriceTag extends StatelessWidget {
   }
 }
 
-class _TierTag extends StatelessWidget {
-  const _TierTag({required this.node, required this.color});
-
-  final FamilyMasteryNodeDef node;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    final tagColor = node.isCapstone ? _gold : color;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-      color: Color.alphaBlend(tagColor.withValues(alpha: 0.16), _background),
-      child: _TierGlyph(tier: node.tier, color: tagColor, size: 8.5),
-    );
-  }
-}
-
 // ── Upgrade dock ───────────────────────────────────────────────────────────
+//
+// What the node in focus does and the way to buy it. The node itself is lit
+// on the tree just above, so the dock repeats none of it: no gem, no tier
+// track. Its height is fixed (room is kept for the longest description) so
+// the tree above never moves as the focus does.
+
+const _descriptionStyle = TextStyle(color: _muted, fontSize: 12, height: 1.3);
 
 class _UpgradeDock extends StatelessWidget {
   const _UpgradeDock({
@@ -2062,18 +1652,13 @@ class _UpgradeDock extends StatelessWidget {
         : armed
         ? _UpgradeState.armed
         : _UpgradeState.ready;
-    final nodeState = purchased
-        ? _NodeState.owned
-        : prerequisiteMet
-        ? _NodeState.available
-        : _NodeState.locked;
 
     return Container(
       padding: EdgeInsets.fromLTRB(
         14,
-        12,
+        10,
         14,
-        12 + MediaQuery.paddingOf(context).bottom,
+        10 + MediaQuery.paddingOf(context).bottom,
       ),
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -2087,86 +1672,75 @@ class _UpgradeDock extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(
+            '${path.name.toUpperCase()}  ·  ${path.role}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontFamily: 'monospace',
+              color: color,
+              fontSize: 9,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 3),
           Row(
             children: [
-              _Gem(
-                node: node,
-                color: color,
-                state: nodeState,
-                focused: false,
-                affordable: canAfford,
-                activeBranch: activePath,
-                size: 54,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${path.name.toUpperCase()}  ·  ${path.role}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: color,
-                        fontSize: 9,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            node.name.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              color: _text,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 0.8,
-                            ),
-                          ),
-                        ),
-                        if (node.isCapstone) ...[
-                          const SizedBox(width: 6),
-                          const _StatusPill(label: 'CAPSTONE', color: _gold),
-                        ],
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    _TierTrack(
-                      path: path,
-                      owned: owned,
-                      focusedIndex: index,
-                      color: color,
-                    ),
-                  ],
+              Flexible(
+                child: Text(
+                  node.name.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: _text,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.8,
+                  ),
                 ),
               ),
+              if (node.isCapstone) ...[
+                const SizedBox(width: 6),
+                const _StatusPill(label: 'CAPSTONE', color: _gold),
+              ],
             ],
           ),
-          const SizedBox(height: 9),
-          SizedBox(
-            height: 47,
-            child: Text(
-              node.description,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: _muted, fontSize: 12, height: 1.3),
-            ),
+          const SizedBox(height: 6),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final base = DefaultTextStyle.of(
+                context,
+              ).style.merge(_descriptionStyle);
+              return SizedBox(
+                height: _roomFor(
+                  'description',
+                  [
+                    for (final tree in kFamilyMasteryTrees)
+                      for (final path in tree.paths)
+                        for (final node in path.nodes)
+                          TextSpan(text: node.description, style: base),
+                  ],
+                  width: constraints.maxWidth,
+                  scaler: MediaQuery.textScalerOf(context),
+                  maxLines: 3,
+                ),
+                child: Text(
+                  node.description,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: _descriptionStyle,
+                ),
+              );
+            },
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              if (activePath) ...[
-                _ActiveCrest(color: color),
-                const SizedBox(width: 8),
-              ] else if (pathUnlocked) ...[
+              // The equipped branch says ACTIVE on its heading; a bought one
+              // that is not equipped offers the switch here, beside UPGRADE.
+              if (pathUnlocked && !activePath) ...[
                 _EquipButton(
                   key: ValueKey('equip-${path.id}'),
                   color: color,
@@ -2193,98 +1767,6 @@ class _UpgradeDock extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _TierTrack extends StatelessWidget {
-  const _TierTrack({
-    required this.path,
-    required this.owned,
-    required this.focusedIndex,
-    required this.color,
-  });
-
-  final FamilyMasteryPathDef path;
-  final Set<String> owned;
-  final int focusedIndex;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        for (var i = 0; i < path.nodes.length; i++) ...[
-          if (i > 0) const SizedBox(width: 4),
-          Expanded(child: _box(i)),
-        ],
-      ],
-    );
-  }
-
-  /// Bought tiers are filled, the rest are flat ink, and the tier in view is
-  /// lit from below: in its colour over ink, or pale over a filled box,
-  /// where its own colour would not show.
-  Widget _box(int i) {
-    final tierColor = i == 3 ? _gold : color;
-    final bought = owned.contains(path.nodes[i].id);
-    final current = i == focusedIndex;
-    final box = Container(
-      height: 15,
-      alignment: Alignment.center,
-      color: bought
-          ? tierColor.withValues(alpha: current ? 1 : 0.85)
-          : current
-          ? Color.alphaBlend(tierColor.withValues(alpha: 0.16), _panel)
-          : _panel,
-      child: _TierGlyph(
-        tier: i + 1,
-        size: 8,
-        color: bought
-            ? _background
-            : current
-            ? _text
-            : _muted,
-      ),
-    );
-    if (!current) return box;
-    return CustomPaint(
-      foregroundPainter: BracketFramePainter(
-        color: bought ? _selection : tierColor,
-        strokeWidth: 1.6,
-      ),
-      child: box,
-    );
-  }
-}
-
-/// Roman numeral for tiers I–III and a star for the capstone. The star is an
-/// icon because the monospace fonts on device do not all carry ★.
-class _TierGlyph extends StatelessWidget {
-  const _TierGlyph({
-    required this.tier,
-    required this.color,
-    required this.size,
-  });
-
-  final int tier;
-  final Color color;
-  final double size;
-
-  @override
-  Widget build(BuildContext context) {
-    if (tier > _tierNumerals.length) {
-      return Icon(PhosphorIconsFill.star, size: size + 2, color: color);
-    }
-    return Text(
-      _tierNumerals[tier - 1],
-      style: TextStyle(
-        fontFamily: 'monospace',
-        color: color,
-        fontSize: size,
-        height: 1.2,
-        fontWeight: FontWeight.w900,
       ),
     );
   }
@@ -2500,46 +1982,6 @@ class _EquipButton extends StatelessWidget {
   }
 }
 
-class _ActiveCrest extends StatelessWidget {
-  const _ActiveCrest({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    // The equipped branch, so lit from below, but at part strength: it is a
-    // state, and the full light belongs to the button beside it.
-    return CustomPaint(
-      foregroundPainter: BracketFramePainter(
-        color: color.withValues(alpha: 0.72),
-      ),
-      child: Container(
-        width: 88,
-        height: 48,
-        color: color.withValues(alpha: 0.14),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(PhosphorIconsBold.sealCheck, size: 14, color: color),
-            const SizedBox(height: 1),
-            Text(
-              'ACTIVE',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: color,
-                fontSize: 9,
-                height: 1.1,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _StatusPill extends StatelessWidget {
   const _StatusPill({required this.label, required this.color});
 
@@ -2566,20 +2008,6 @@ class _StatusPill extends StatelessWidget {
 }
 
 // ── Icons & formatting ─────────────────────────────────────────────────────
-
-IconData _pathIcon(String pathId) {
-  switch (pathId) {
-    case 'mane.limitless':
-      return PhosphorIconsBold.infinity;
-    case 'let.bombardment':
-      return PhosphorIconsBold.arrowFatLinesDown;
-    case 'let.ground_zero':
-      return PhosphorIconsBold.crosshairSimple;
-  }
-  if (pathId.endsWith('.assault')) return PhosphorIconsBold.sword;
-  if (pathId.endsWith('.control')) return PhosphorIconsBold.shareNetwork;
-  return PhosphorIconsBold.waveSine;
-}
 
 IconData _nodeIcon(String nodeId) =>
     kFamilyMasteryNodeIcons[nodeId] ?? PhosphorIconsBold.sparkle;
@@ -2689,6 +2117,34 @@ const Map<String, IconData> kFamilyMasteryNodeIcons = {
   'mystic.firmament.tended': PhosphorIconsBold.plant,
   'mystic.firmament.sanctum': PhosphorIconsBold.sparkle,
 };
+
+/// The height the tallest of [spans] needs at [width]: the room to keep so
+/// the text can change (another node, another family) without anything
+/// around it moving. Remembered per width, since every rebuild asks again.
+double _roomFor(
+  String kind,
+  Iterable<InlineSpan> spans, {
+  required double width,
+  required TextScaler scaler,
+  required int maxLines,
+}) {
+  return _roomCache.putIfAbsent((kind, width, scaler), () {
+    var tallest = 0.0;
+    for (final span in spans) {
+      final painter = TextPainter(
+        text: span,
+        textDirection: TextDirection.ltr,
+        textScaler: scaler,
+        maxLines: maxLines,
+      )..layout(maxWidth: width);
+      tallest = math.max(tallest, painter.height);
+      painter.dispose();
+    }
+    return tallest.ceilToDouble();
+  });
+}
+
+final _roomCache = <(String, double, TextScaler), double>{};
 
 String _compactNumber(int value) =>
     value >= 1000 ? '${value ~/ 1000}K' : '$value';
