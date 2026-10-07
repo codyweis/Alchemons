@@ -1827,6 +1827,11 @@ class PlanetDungeonGame extends FlameGame {
   /// Seconds before the spike can bite a trunk Raikuma has just seized back.
   double _raikumaSurgeLeft = 0;
 
+  /// Whether the spike would refuse right now (the trunk is still surging):
+  /// lets a harness wait out of reach the way a player reads the hint.
+  @visibleForTesting
+  bool get raikumaSurging => _raikumaSurgeLeft > 0;
+
   bool get _isCircuit => layout.element == 'Lightning';
 
   // ── Steam (the Molten Labyrinth) run-state ──
@@ -2095,6 +2100,10 @@ class PlanetDungeonGame extends FlameGame {
   /// Frowyrm's pillar, and the beat-edge its shatter is detected on.
   bool hoarfrostWhole = false;
   double _hoarfrostDown = 0;
+
+  /// Whether the pillar is still regrowing (a raise would be refused).
+  @visibleForTesting
+  bool get hoarfrostRegrowing => _hoarfrostDown > 0;
   bool _frowyrmBitLastFrame = false;
 
   /// THE STRANGER — the thirteenth star, and Ice's Lost Maxim. It hangs in
@@ -2135,6 +2144,11 @@ class PlanetDungeonGame extends FlameGame {
   /// Seconds Ashdjinn's freshly filled cut stays unworkable, and the beat-edge
   /// its storm is detected on.
   double _hollowSettle = 0;
+
+  /// Whether sand is still pouring back into the cut (a dig would be
+  /// refused).
+  @visibleForTesting
+  bool get hollowSettling => _hollowSettle > 0;
   bool _ashdjinnBitLastFrame = false;
 
   bool get _isRuins => layout.element == 'Dust';
@@ -4607,12 +4621,22 @@ class PlanetDungeonGame extends FlameGame {
       // GAMEPLAY (the hint audit, 2026-09-25): an out-of-phase Wraithord is
       // "harmless in BOTH directions" — its aura burned across the worlds.
       // Solarin's harm is its light (its own hook burns bare glass), not a
-      // ring round its altar.
+      // ring round its altar. Botanica opens on its own clock, which runs
+      // after this one (2026-10-07: the aura burned whoever stepped in to
+      // strike for half of every one of its lulls).
       if (!guardianVulnerable &&
           !_funeralHoldsGuardian &&
+          !_botanicaLullOpen &&
           !_isArchive &&
           (a.position - stormCenter).distance < 90) {
-        a.hp = max(0, a.hp - _guardianHazardDps * progressDmgMul * dt);
+        a.hp = max(
+          0,
+          a.hp -
+              _guardianHazardDps *
+                  progressDmgMul *
+                  _guardianAttackMitigation(a) *
+                  dt,
+        );
       }
     }
   }
@@ -5939,6 +5963,20 @@ class PlanetDungeonGame extends FlameGame {
   static double defenseMitigation(int defense) => sqrt(
     (100 + kDefenseReference) / (100 + max(0, defense)),
   ).clamp(0.6, 1.0).toDouble();
+
+  /// [defenseMitigation] by [c]'s own E-DEF, for a guardian's own attacks
+  /// that take a flat share of the creature's 100-point pool a second (its
+  /// rage aura, Simurgh's pillars, Solarin's light and bolts). Those used to
+  /// ignore stats, tier and defence alike, so a heavy Horn burned exactly as
+  /// fast as a fresh Pip; now they are trimmed like a dive or a plague
+  /// strike, and as with those a level-1 body takes the authored figure.
+  /// A room's own hazards (lava, geysers, scalds, ward strains) are the
+  /// room's rules, not a guardian's attacks, and stay as authored.
+  double _guardianAttackMitigation(DungeonCreature c) {
+    final i = creatures.indexOf(c);
+    if (i < 0 || i >= combatCompanions.length) return 1.0;
+    return defenseMitigation(combatCompanions[i].elemDef);
+  }
 
   /// THE BODIES THE DUNGEON FIGHTS AS BOSSES: the guardian (raids included)
   /// and a Poison plague.
@@ -10829,6 +10867,8 @@ class PlanetDungeonGame extends FlameGame {
     _soundInHazard = inHazard;
     for (final h in currentRoom.hazards) {
       if (h.contains(a.position)) {
+        // A room's rule, not a guardian's attack: defence does not trim it
+        // (see `_guardianAttackMitigation`).
         a.hp = max(0, a.hp - _hazardDps * dt); // _handleDowns resolves a KO
         return;
       }

@@ -565,7 +565,14 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
 
     // ITS LIGHT BURNS: bare glass it reaches, with nothing between.
     if (burns) {
-      a.hp = max(0, a.hp - kSolarinBurnDps * progressDmgMul * dt);
+      a.hp = max(
+        0,
+        a.hp -
+            kSolarinBurnDps *
+                progressDmgMul *
+                _guardianAttackMitigation(a) *
+                dt,
+      );
       archive.burnT = _time;
       if (!archive.burnTold) {
         archive.burnTold = true;
@@ -633,7 +640,13 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
       for (final c in creatures) {
         if (!c.alive) continue;
         if ((b.p - c.position).distance > 20 + kSolarinBoltRadius) continue;
-        c.hp = max(0, c.hp - kSolarinBoltDamage * progressDmgMul);
+        c.hp = max(
+          0,
+          c.hp -
+              kSolarinBoltDamage *
+                  progressDmgMul *
+                  _guardianAttackMitigation(c),
+        );
         archive.boltBursts.add((b.p, _time));
         _spawnAlchemyBurst(b.p, producedElement: 'Light', particleCount: 12);
         return true;

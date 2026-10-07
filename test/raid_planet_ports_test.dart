@@ -345,6 +345,39 @@ void main() {
       }
       expect(_answer(g, 1, ring, seconds: 10), isTrue);
     });
+
+    // Botanica opens on its own clock, which runs after the shared one the
+    // rage aura read, so the aura burned whoever stepped in to strike for
+    // half of every window (2026-10-07).
+    test('nobody burns striking it in its window', () {
+      final g = plantRaid();
+      final ring = g.currentRoom.grove!.arenaRings.first;
+      for (final (i, off) in const [(2, Offset(18, 0)), (4, Offset(-18, 0))]) {
+        g.creatures[i]
+          ..position = ring + off
+          ..lastSafe = ring + off;
+      }
+      expect(_answer(g, 1, ring, seconds: 10), isTrue);
+      g.setActive(0);
+      final striker = g.creatures[0];
+      var frames = 0;
+      while (g.guardianVulnerable && frames < 60 * 10) {
+        for (final c in g.combatCompanions) {
+          c.invincibleTimer = 999; // only the aura writes health directly
+        }
+        final at = (_boss(g).position as Offset) + const Offset(0, 60);
+        striker
+          ..position = at
+          ..lastSafe = at
+          ..hp = striker.maxHp;
+        g.update(1 / 60);
+        if (!g.guardianVulnerable) break;
+        expect(striker.hp, striker.maxHp, reason: 'burned ${frames}f in');
+        frames++;
+      }
+      // The whole window, which outlasts the shared clock's 3 s lull.
+      expect(frames, greaterThan(60 * 4));
+    });
   });
 
   group('Blightfang opens only to a brew it is not wearing', () {

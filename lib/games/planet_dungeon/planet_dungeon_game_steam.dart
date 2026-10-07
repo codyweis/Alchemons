@@ -512,6 +512,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
             ..position = to
             ..lastSafe = to;
         }
+        // The field's rule, not a guardian's attack: defence does not trim
+        // a throw (see `_guardianAttackMitigation`).
         cr.hp = max(0, cr.hp - (6.0 + 3.0 * p) * progressDmgMul);
         threw = true;
       }
@@ -933,6 +935,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       if (grid[r][col] == _mLava) {
         // A scald: the molten bites (and spoils the Hidden Harmony this run).
         moltenScalds++;
+        // A room's rule: defence does not trim a scald.
         cr.hp = max(0, cr.hp - _kScaldDamage);
         final safe = _moltenSafe(cr, room, g, grid);
         final (sc, sr) = _cellAt(safe, room, g);

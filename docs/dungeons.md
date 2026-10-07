@@ -2010,6 +2010,22 @@ allies at L2. Measured result against the author's tier table: mid squad
 with no healer loses ~1 / 4–5 / all at L1 / L2 / L3, with a Water Kin 0 /
 0–1 / 1. Full numbers in `docs/plans/raid_threat_plan.md` (Phases 5–6).
 
+**Combat follow-ups (2026-10-07, evening).** A guardian's own attacks that
+take a flat share of the pool a second (the rage aura, Simurgh's pillars,
+Solarin's light and bolts) are trimmed by the body's E-DEF like a dive
+(`_guardianAttackMitigation`); a room's own hazards stay as authored.
+Botanica's lull no longer lets the aura burn whoever strikes it (it read the
+shared clock; Spirit already had the exemption), which is what kept Plant's
+late guardian from ever falling: every dungeon guardian now clears fresh and
+late in the harness. A strike by the choir's anneal ring no longer resets
+Crystal's keep mid-fight. The tier table now runs on every raid planet
+(`tier table, every planet`): eight sit within a notch; Light is
+healer-or-nothing (its bolts wear a squad out in ~100 s), Lava stalls when
+Magmara rides away from both heads after an idle Alchemon, and **Blightfang
+can be felled without a single brew** (its bar empties outside a window and
+it dies, shells and all; reported, not fixed). Numbers and the questions for
+the author: `docs/plans/combat_followups_plan.md`, Results.
+
 ### Campaign difficulty scaling (built)
 Dungeon enemies — and ESPECIALLY guardians — scale with the campaign clock:
 `clearedGuardianCount` = how many OTHER planets' guardians (Star 3) have

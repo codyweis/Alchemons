@@ -15,12 +15,16 @@ library;
 // poured into the front line.
 // See docs/plans/raid_threat_plan.md.
 
+import 'dart:math' show max;
+
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flame/game.dart' show Vector2;
 import 'package:flutter_test/flutter_test.dart';
+
+import 'guardian_rule_harness.dart';
 
 CosmicPartyMember _m(int slot, String element, String family, double stat) =>
     CosmicPartyMember(
@@ -49,12 +53,24 @@ enum Stance {
 }
 
 class RaidRun {
-  RaidRun(this.cleared, this.seconds, this.downs, this.taken, this.healed);
+  RaidRun(
+    this.cleared,
+    this.seconds,
+    this.downs,
+    this.taken,
+    this.healed, {
+    this.lulls = 0,
+    this.answering = 0,
+  });
   final bool cleared;
   final double seconds;
   final List<String> downs;
   final List<double> taken;
   final List<double> healed;
+
+  /// Lulls opened, and seconds spent answering the planet's rule.
+  final int lulls;
+  final double answering;
 
   @override
   String toString() {
@@ -65,10 +81,64 @@ class RaidRun {
   }
 }
 
+/// Who answers a guardian's planet rule in a raid. [key] is the slot that
+/// stands at the thing and presses (null: whoever is played, for the rules
+/// anyone can answer); [ring] are the other hands Botanica's ring needs;
+/// [brew] is the Plant or Mud slot that takes turns with the Poison [key] at
+/// Blightfang's pot.
+class RuleHands {
+  const RuleHands({this.key, this.ring = const [], this.brew});
+  final int? key;
+  final List<int> ring;
+  final int? brew;
+}
+
+/// One frame of answering the planet's rule, the way a player would (see
+/// guardian_rule_harness.dart): while the guardian is shut and a press can
+/// work ([guardianAnswerReady]), the key walks to the thing and presses once
+/// there (Botanica's ring once every hand has walked in; a ring head only as
+/// Magmara comes past); against Solarin, whoever is played keeps to the
+/// shade the whole fight and strikes from it. Returns false when there is
+/// nothing to answer yet, or the hand it needs is down (no fallback: losing
+/// the key keeps the guardian shut, as in the game); the fighter takes over.
+bool _answerRule(PlanetDungeonGame g, RuleHands h, double dt) {
+  final shut = !g.guardianVulnerable;
+  switch (g.layout.element) {
+    case 'Poison':
+      return shut && blightfangStep(g, h.key!, h.brew!, walkDt: dt);
+    case 'Light':
+      final a = g.active;
+      if (a == null || !a.alive || g.currentRoom.hall?.def?.orbit == null) {
+        return false;
+      }
+      walkTo(a, solarinShadedStep(g, name: raidShadowName(a)), dt);
+      return true;
+  }
+  final at = guardianAnswerAt(g);
+  if (at == null || !shut || !guardianAnswerReady(g)) return false;
+  final k = h.key ?? g.activeIndex;
+  if (!g.creatures[k].alive) return false;
+  if (g.activeIndex != k) g.setActive(k);
+  var there = walkTo(g.creatures[k], at, dt);
+  for (final (n, i) in h.ring.indexed) {
+    if (!g.creatures[i].alive) continue;
+    final off = Offset(n == 0 ? 18 : -18, 0);
+    if (!walkTo(g.creatures[i], at + off, dt)) there = false;
+  }
+  if (g.layout.element == 'Lava') {
+    final boss = g.combatEnemies.where((e) => e.isElite).first;
+    if ((boss.position - at).distance > kHarnessHeadCatch) there = false;
+  }
+  if (there) g.activateAbility();
+  return true;
+}
+
 /// One raid. [squad] is a list of 'Element/family'. When [healer] is set,
 /// that slot is played as a healer: whenever anyone standing is under 60%
 /// and its special is ready, swap to it, cast, and swap back. A healer only
-/// casts when it is the active Alchemon, so an idle one heals nothing.
+/// casts when it is the active Alchemon, so an idle one heals nothing. When
+/// [rule] is set, the squad answers the planet's rule ([_answerRule]) and
+/// swaps back to whoever was fighting once it is answered.
 RaidRun raid(
   String arena,
   int level,
@@ -77,6 +147,9 @@ RaidRun raid(
   Stance stance = Stance.step,
   int? healer,
   RaidConfig? config,
+  RuleHands? rule,
+  bool walk = false,
+  void Function(PlanetDungeonGame g, double t)? onFrame,
 }) {
   final members = [
     for (var i = 0; i < squad.length; i++)
@@ -116,15 +189,42 @@ RaidRun raid(
   final prev = [for (final c in g.combatCompanions) c.currentHp];
   final taken = List<double>.filled(members.length, 0);
   final healed = List<double>.filled(members.length, 0);
+  int? fighter;
+  var lulls = 0;
+  var wasOpen = false;
+  var answered = 0.0;
+  RaidRun done(bool cleared) => RaidRun(
+    cleared,
+    t,
+    downs,
+    taken,
+    healed,
+    lulls: lulls,
+    answering: answered,
+  );
   while (t < kRaidFightLimit.inSeconds) {
     final boss = g.combatEnemies.where((e) => e.isElite).firstOrNull;
+    final before = g.activeIndex;
+    final answering =
+        rule != null && boss != null && _answerRule(g, rule, 1 / 60);
+    if (answering) {
+      answered += 1 / 60;
+      if (g.activeIndex != before) fighter ??= before;
+    } else if (fighter != null) {
+      if (g.creatures[fighter].alive) g.setActive(fighter);
+      fighter = null;
+    }
     final a = g.active;
-    if (a != null && a.alive && boss != null) {
+    if (!answering && a != null && a.alive && boss != null) {
       final off = stance == Stance.step && !g.guardianVulnerable ? 130.0 : 60.0;
       final stand = boss.position + Offset(0, off);
-      a
-        ..position = stand
-        ..lastSafe = stand;
+      if (walk) {
+        walkTo(a, stand, 1 / 60);
+      } else {
+        a
+          ..position = stand
+          ..lastSafe = stand;
+      }
     }
     if (g.autoAttackReady) g.activateAutoAttack();
     if (g.abilityReady) g.activateCombatAbility();
@@ -142,18 +242,19 @@ RaidRun raid(
     }
     g.update(1 / 60);
     t += 1 / 60;
+    onFrame?.call(g, t);
+    if (g.guardianVulnerable && !wasOpen) lulls++;
+    wasOpen = g.guardianVulnerable;
     for (var i = 0; i < g.combatCompanions.length; i++) {
       final now = g.combatCompanions[i].currentHp;
       if (now < prev[i]) taken[i] += prev[i] - now;
       if (now > prev[i]) healed[i] += now - prev[i];
       prev[i] = now;
     }
-    if (g.hasStar(star)) return RaidRun(true, t, downs, taken, healed);
-    if (wiped || g.creatures.every((c) => !c.alive)) {
-      return RaidRun(false, t, downs, taken, healed);
-    }
+    if (g.hasStar(star)) return done(true);
+    if (wiped || g.creatures.every((c) => !c.alive)) return done(false);
   }
-  return RaidRun(false, t, downs, taken, healed);
+  return done(false);
 }
 
 const _core = ['Fire/wing', 'Earth/horn', 'Lightning/mane', 'Water/pip'];
@@ -166,6 +267,118 @@ const _squads = {
   // The same squad with a healer in the fifth slot.
   'heal': [..._core, 'Water/kin'],
 };
+
+/// What each planet's rule needs in the squad: per hand, the elements that
+/// answer it (and, for Wraithord's chime, the family). The first hand is
+/// the key. Lava and Light take anyone, so the body played answers them;
+/// the rest have no rule a hand answers.
+const _ruleNeeds = <String, List<(List<String>, String?)>>{
+  'Ice': [
+    (['Ice'], null),
+  ],
+  'Mud': [
+    (['Mud'], null),
+  ],
+  'Dust': [
+    (['Dust', 'Earth'], null),
+  ],
+  'Spirit': [
+    (['Blood'], 'pip'),
+  ],
+  'Crystal': [
+    (['Crystal'], null),
+  ],
+  'Plant': [
+    (['Water'], null),
+    (['Crystal'], null),
+    (['Spirit'], null),
+  ],
+  'Poison': [
+    (['Poison'], null),
+    (['Plant', 'Mud'], null),
+  ],
+  'Lightning': [
+    (['Lightning'], null),
+  ],
+};
+
+/// [squad] carrying [planet]'s key Alchemon(s). A hand the first four slots
+/// already hold is used as it is; otherwise it replaces a damage dealer's
+/// element, from the back (keeping that slot's family), never the fifth
+/// slot (the healer's, in a healed row).
+({List<String> squad, RuleHands hands}) _withKeys(
+  String planet,
+  List<String> squad,
+) {
+  final needs = _ruleNeeds[planet] ?? const [];
+  final out = [...squad];
+  String el(int i) => out[i].split('/')[0];
+  String fam(int i) => out[i].split('/')[1];
+  final slots = <int>[];
+  final claimed = <int>{};
+  for (final (els, family) in needs) {
+    final at = [0, 1, 2, 3].where(
+      (i) =>
+          !claimed.contains(i) &&
+          els.contains(el(i)) &&
+          (family == null || fam(i) == family),
+    );
+    slots.add(at.isEmpty ? -1 : at.first);
+    if (at.isNotEmpty) claimed.add(at.first);
+  }
+  for (var n = 0; n < needs.length; n++) {
+    if (slots[n] >= 0) continue;
+    final (els, family) = needs[n];
+    final i = [3, 2, 1, 0].firstWhere(
+      (i) => !claimed.contains(i) && (family == null || fam(i) == family),
+    );
+    out[i] = '${els.first}/${fam(i)}';
+    slots[n] = i;
+    claimed.add(i);
+  }
+  final hands = switch (planet) {
+    'Plant' => RuleHands(key: slots[0], ring: slots.sublist(1)),
+    'Poison' => RuleHands(key: slots[0], brew: slots[1]),
+    _ => RuleHands(key: slots.isEmpty ? null : slots[0]),
+  };
+  return (squad: out, hands: hands);
+}
+
+/// The key always walks to its rule: that trip is the rule's cost. The
+/// fighter is set down at its stance, as the Phase 6 table that tuned the
+/// tiers did, unless `--dart-define=WALK=true` walks it too (which costs
+/// about a notch everywhere: it is in the rage aura while it walks out).
+const _walk = bool.fromEnvironment('WALK');
+
+const _tableSquads = [
+  [..._core, 'Lava/let'],
+  [..._core, 'Fire/mask'],
+  ['Air/wing', 'Water/horn', 'Earth/mane', 'Fire/pip', 'Dark/mask'],
+];
+
+/// A run on the author's scale: 0 clears losing none, 1 clears losing one,
+/// 2 loses two or three, 3 loses four or more. A run that does not clear
+/// with fewer down (the ten minutes ran out) is a 3 too: the raid is lost.
+int _notch(RaidRun r) {
+  final lost = r.downs.length;
+  if (lost >= 4 || !r.cleared) return 3;
+  return lost >= 2 ? 2 : lost;
+}
+
+/// The author's tier table on that scale. A strong squad (stats 4.5) sits
+/// one notch easier on every row.
+({int lo, int hi}) _target(int level, double stat, bool healed) {
+  final mid = switch ((level, healed)) {
+    (1, false) => (lo: 1, hi: 1),
+    (1, true) => (lo: 0, hi: 0),
+    (2, false) => (lo: 2, hi: 2),
+    (2, true) => (lo: 0, hi: 1),
+    (_, false) => (lo: 3, hi: 3),
+    (_, true) => (lo: 1, hi: 2),
+  };
+  if (stat < 4) return mid;
+  return (lo: max(0, mid.lo - 1), hi: max(0, mid.hi - 1));
+}
 
 /// Everything that heals, per the author's design boards: every Kin, and
 /// the healing elements of the other families.
@@ -295,6 +508,82 @@ void main() {
     // No one body takes the raid for the squad.
     expect(worstShareL2Up, lessThanOrEqualTo(0.55));
   }, timeout: const Timeout(Duration(minutes: 30)));
+
+  // The same tier table on every raid-eligible planet but Blood (its raid
+  // runs the shared clock while Blood is rebuilt). Each squad carries the
+  // planet's key Alchemon(s) in place of a damage dealer, never the healer
+  // (`_withKeys`), and answers the rule the way a player would. Prints the
+  // 12 rows per planet, each as a notch on the author's scale, and flags
+  // every planet more than one notch off. Measures; asserts nothing.
+  test('tier table, every planet', () {
+    const squads = _tableSquads;
+    final only = const String.fromEnvironment('PLANETS');
+    final planets = [
+      for (final p in kRaidGuardianIds.keys)
+        if (p != 'Blood' && (only.isEmpty || only.split(',').contains(p))) p,
+    ];
+    final flagged = <String>[];
+    for (final planet in planets) {
+      var worstOff = 0.0;
+      for (final level in const [1, 2, 3]) {
+        for (final stat in const [3.0, 4.5]) {
+          for (final healed in const [false, true]) {
+            var clears = 0;
+            final losses = <int>[];
+            var seconds = 0.0;
+            var notch = 0.0;
+            var lulls = 0;
+            var answering = 0.0;
+            for (final squad in squads) {
+              final keyed = _withKeys(planet, [
+                for (var i = 0; i < 4; i++) squad[i],
+                healed ? 'Water/kin' : squad[4],
+              ]);
+              final run = raid(
+                planet,
+                level,
+                stat,
+                keyed.squad,
+                healer: healed ? 4 : null,
+                rule: keyed.hands,
+                walk: _walk,
+              );
+              if (run.cleared) clears++;
+              losses.add(run.downs.length);
+              seconds += run.seconds;
+              notch += _notch(run);
+              lulls += run.lulls;
+              answering += run.answering;
+            }
+            notch /= squads.length;
+            final want = _target(level, stat, healed);
+            final off = notch < want.lo
+                ? want.lo - notch
+                : (notch > want.hi ? notch - want.hi : 0.0);
+            if (off > worstOff) worstOff = off;
+            // ignore: avoid_print
+            print(
+              'PLANET ${planet.padRight(9)} L$level s$stat '
+              '${healed ? 'healed' : 'none  '} '
+              'clears $clears/${squads.length}  losses ${losses.join(",")}  '
+              'mean ${(seconds / squads.length).round().toString().padLeft(3)}s  '
+              'lulls ${(lulls / squads.length).round().toString().padLeft(2)} '
+              'answer ${(100 * answering / seconds).round().toString().padLeft(2)}%  '
+              'notch ${notch.toStringAsFixed(1)} '
+              '(table ${want.lo == want.hi ? '${want.lo}' : '${want.lo}-${want.hi}'})'
+              '${off > 1 ? '  OFF ${off.toStringAsFixed(1)}' : ''}',
+            );
+          }
+        }
+      }
+      if (worstOff > 1) flagged.add('$planet (${worstOff.toStringAsFixed(1)})');
+    }
+    // ignore: avoid_print
+    print(
+      'PLANETS more than one notch off: '
+      '${flagged.isEmpty ? 'none' : flagged.join(', ')}',
+    );
+  }, timeout: const Timeout(Duration(minutes: 60)));
 
   // Which part of an L3 raid kills a mid squad: the guardian's damage
   // multiplier, or the add waves.

@@ -2213,7 +2213,14 @@ extension CinderCathedral on PlanetDungeonGame {
       final idx = riteBrazierAt(entry.key);
       if (idx < 0 || idx >= spots.length) continue;
       if ((a.position - spots[idx]).distance <= _kTelegraphRadius) {
-        a.hp = max(0, a.hp - _kTelegraphDps * progressDmgMul * dt);
+        a.hp = max(
+          0,
+          a.hp -
+              _kTelegraphDps *
+                  progressDmgMul *
+                  _guardianAttackMitigation(a) *
+                  dt,
+        );
       }
     }
   }

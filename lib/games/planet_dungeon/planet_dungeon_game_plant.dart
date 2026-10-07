@@ -649,6 +649,11 @@ extension ConservatoryDungeon on PlanetDungeonGame {
     return true;
   }
 
+  /// Botanica's own window is open (its arena put right). It runs on its
+  /// own clock, after the shared one `_updateAltar` reads, so the rage aura
+  /// asks this the way it asks Wraithord's chime.
+  bool get _botanicaLullOpen => _isConservatory && _green.lull > 0;
+
   /// Is a body at [pos] standing in one of the arena's circles? Idle
   /// companions there hold their ground instead of joining the fight
   /// (`_updateIdleCompanionMovement`).

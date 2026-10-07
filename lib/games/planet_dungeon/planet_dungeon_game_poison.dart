@@ -1471,6 +1471,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           }
       }
       if (bites) {
+        // The ward's rule, not a guardian's attack: defence does not trim a
+        // strain (see `_guardianAttackMitigation`).
         a.hp = max(
           0,
           a.hp - (virulent ? _kVirulentDps : _kStrainDps) * progressDmgMul * dt,

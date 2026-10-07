@@ -1,8 +1,176 @@
 # Combat follow-ups: what is left after the raid work
 
-Status: **plan**, 2026-10-07. Written for an implementing agent. Builds on
-commit `ef4db386` (pushed to master). Nothing here is built. Read the whole
-brief before touching code.
+Status, 2026-10-07 (evening): **Phase 1 measured and reported, nothing
+tuned (waiting for the author). Phase 2 built. Phase 3 answered.** Two bugs
+found on the way are fixed (Botanica's lull burned strikers; a strike by
+Crystal's anneal ring reset the keep), and one is reported, not fixed
+(Blightfang can be felled without a brew). Results first; the brief as
+written follows from "Where things stand".
+
+## Results (2026-10-07)
+
+### The harness had to play like a player first
+
+`tier table, every planet` (`test/raid_threat_harness_test.dart`, preview)
+runs the same 3 squads × 12 rows as `tier table` on all 16 raid planets but
+Blood. Each squad carries its planet's key Alchemon(s) (`_ruleNeeds`,
+`_withKeys`: a hand the first four slots already hold is used, otherwise it
+takes a damage dealer's element from the back, keeping the family; never
+the healer's slot). The first run was mostly harness habits, not fights:
+
+| habit | what it did | now |
+|---|---|---|
+| the key was set down at its prop | Poison's pot → pot → dose took three frames: Blightfang was open almost the whole fight | it walks, at the game's 187.5 px/s (`walkTo`) |
+| the key pressed every frame while the guardian was shut | Lava's head dropped before Magmara came past (2.2 s cooldown), and the body stood on the ring as it arrived; Crystal's key stood on the heart plate, inside the aura, until the shared clock opened | it steps in only while a press can work (`guardianAnswerReady`), else the fighter fights from outside the aura; a head is dropped only as Magmara comes within 170 |
+| Solarin: the nearest square to strike from, straight over lit glass | ~60 health lost walking in, more on every swing | a route that crosses the least lit glass (`solarinShadedStep`); while it swings, stable shade away from the lamp |
+
+The fighter's own 130 ↔ 60 px stance step is still set down, as the Phase 6
+table that tuned the tiers did: walking it too costs about a notch on Air
+(the fighter is in the aura while it walks out), `--dart-define=WALK=true`.
+Three read-only getters let a harness wait the way a player reads the hint:
+`raikumaSurging`, `hoarfrostRegrowing`, `hollowSettling`.
+
+### Phase 1: the table on every planet (after Phase 2 and the Botanica fix)
+
+Each cell is the mean of 3 runs on the author's scale: 0 clears losing none,
+1 clears losing one, 2 loses two or three, 3 loses four or more or does not
+clear. `str` = stats 4.5, `K` = a Water Kin played as a healer. **Bold** is
+more than one notch off. Three runs a row: one run moving is a third to a
+whole notch, so read rows, not decimals.
+
+| planet | L1 mid | L1 mid K | L1 str | L1 str K | L2 mid | L2 mid K | L2 str | L2 str K | L3 mid | L3 mid K | L3 str | L3 str K |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| table | 1 | 0 | 0 | 0 | 2 | 0-1 | 1 | 0 | 3 | 1-2 | 2 | 0-1 |
+| Air | 1 | 0 | 0 | 0 | 3 | 1 | 0.3 | 0 | 3 | 1 | 1 | 0 |
+| Fire | 1.3 | 0.3 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 1 | 1.3 | 0 |
+| Water | 1 | 0 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 1.7 | 1.3 | 0 |
+| Earth | 1.3 | 0.3 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 1 | 1.3 | 0 |
+| Steam | 1.3 | 0.3 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 1 | 1.3 | 0 |
+| Dark | 1.7 | 1 | 0 | 0 | 3 | 1 | 0.3 | 0 | 3 | 1.3 | 1.3 | 0 |
+| Lightning | 1.7 | 0 | 0 | 0 | 3 | 0 | 0 | 0 | 3 | 2.3 | 2 | 0 |
+| Mud | 2 | 0 | 0 | 0 | 3 | 1 | 0 | 0 | 3 | 2 | 2 | 0 |
+| Plant | 1 | 0 | 0 | 0 | 2.7 | 0 | 0 | 0 | 3 | 2.3 | **0.7** | 0 |
+| Ice | **2.7** | 0 | 0 | 0 | 3 | 0.3 | 0 | 0 | 3 | 1.7 | 2 | 0 |
+| Dust | **2.3** | 0.7 | 0 | 0 | 3 | 0.7 | 0.3 | 0 | 3 | 2.7 | 3 | 0 |
+| Spirit | **2.7** | 0 | 0 | 0 | 3 | 0 | 0.3 | 0 | 3 | 1.3 | 3 | 0 |
+| Crystal | **3** | 0 | 0 | 0 | 3 | 0 | 0.7 | 0 | 3 | 1 | 2.3 | 0 |
+| Lava | **3** | 0 | 0 | 0 | 3 | 0.7 | 0.3 | 0 | 3 | 2.3 | 2.7 | 0 |
+| Poison | 0 | 0 | 0 | 0 | **0.3** | 0 | 0 | 0 | 2 | 0.7 | **0** | 0 |
+| Light | **3** | **1.3** | **3** | 0 | 3 | 1.7 | **3** | 0 | 3 | 3 | 3 | 0 |
+
+Within a notch everywhere: Air, Fire, Water, Earth, Steam, Dark, Lightning,
+Mud. The accepted miss (mid L2 without a healer loses 4–5) holds on every
+planet. Off the table, and why (traced, not guessed):
+
+- **Light (worst).** Without a healer every squad wipes in 90–106 s, at
+  every tier and both stat levels; with one, it clears. Solarin's bolts
+  (14 every 2.6 s, a fan of three once hurt) take whoever is out on the
+  glass in turn, and that empties five pools in about 100 s, while the
+  fighter only strikes from shadow (about 5 lulls in that time). Phase 2
+  trims a bolt ~20% at level 10, not enough to move a row. Light is a
+  healer-or-nothing raid. Levers within its rule: `kSolarinHold` /
+  `kSolarinSwing` (more time to strike), or the bolt cadence
+  `kSolarinBoltEvery`.
+- **Poison (too easy), and a bug.** Fights last 17–106 s against 43–220 s
+  on the shared-clock planets. Blightfang's shells only come off when its bar
+  empties *inside* a brew window (`_applyBlightfangStrain`); outside one it
+  still takes chip damage, and when the bar empties then it simply dies,
+  shells and all, and the star is banked. Measured: a mid squad that never
+  doses it clears L1 in 83 s (strong: 36 s), 0 lulls. The dungeon's own
+  Blightfang (three full bars) has the same hole: its fresh fight is the
+  shortest of all 16 (13 s). **Not fixed: the author's call** — keep the bar
+  from emptying outside a window (floor it at 1, as Blood's shell floor
+  did), or let nothing reach it through a shell ("Nothing reaches it
+  through one", its own comment). Retune Poison only after.
+- **Lava (mid L1 unhealed wipes; healed rows on the table).** Magmara rides
+  the ring toward its *dive target*, not the played body. When it fixes on
+  an idle Alchemon (they station at its edge), it sits on the far arc and
+  no head is in reach: 40 s in one trace while the squad wears down. The
+  dungeon fight shows the same (30 s with no head in reach). A design
+  question, not a pacing constant: `_kHeadCooldown` / `_kBeachSeconds` do
+  not reach it.
+- **Ice, Dust, Spirit, Crystal: mid L1 without a healer loses 2–5 (target
+  ~1).** Every other row is within a notch. These are the planets whose key
+  leaves the fight to answer (11–18% of it), and on Crystal it presses from
+  the heart plate, inside the aura. Mid L1 unhealed is the loosest row, so
+  this may be acceptable; if not, the plan's levers are their pacing
+  constants (`_kHoarfrostRegrow` for Ice).
+- **Plant: strong L3 unhealed is a little easy** (0.7 against 2), and mid L3
+  with a healer is slow (485 s mean, one clear in three), near the
+  10-minute limit.
+
+Per the brief, nothing was tuned.
+
+### Phase 2: a guardian's own attacks are trimmed by E-DEF (built)
+
+`_guardianAttackMitigation(c)` (beside `defenseMitigation`) is applied to
+the rage aura, Simurgh's pillars, Solarin's light and Solarin's bolts. A
+level-1 body takes the authored figure, more E-DEF less, never under 60%.
+Left as authored, with a comment saying so: `_hazardDps`, Steam's geyser
+throws and scalds, Poison's ward strains. Tests: `dungeon_hit_defense_test`
+(each of the four at E-DEF 35 / 150 / 999, and the same a second at 60 and
+120 fps); Solarin's bolt test now expects the trimmed hit. Effect: the
+three tuned planets barely move (mid L2 unhealed clears 2/9, was 1/9);
+Light's unhealed wipe moves from ~90 s to ~100 s.
+
+### Found on the way, fixed
+
+- **Botanica's lull burned whoever struck it.** The rage aura reads the
+  shared 6 s clock inside `_updateAltar`; Botanica opens on its own clock,
+  which runs later, so for half of every 6 s window the aura burned the
+  striker (28 a second). Spirit already had the exemption
+  (`_funeralHoldsGuardian`); Botanica gets the same (`_botanicaLullOpen`).
+  Raids and dungeon. Test: `raid_planet_ports_test`, "nobody burns striking
+  it in its window".
+- **A strike by Crystal's anneal ring reset the keep mid-fight.** In the
+  choir, the ring sits in the corner the fight drifts into; a lull strike
+  pressed within 64 px of it rang the anneal instead, reset the keep and
+  sent the party out of the fight. The lull now outranks the ring, as it
+  already outranked the plate shove. Test: `planet_dungeon_crystal_keep_test`,
+  "the lull outranks the ring too".
+
+Not fixed, for the record: for Ice, Mud, Dust and Crystal the aura is also
+off during the shared clock's lull while their prop holds the guardian shut
+(the lenient side of the same mismatch). Fixing it would make those fights
+harder, so it is the author's call.
+
+### Phase 3
+
+1. **Plant's late guardian: it was the fight, not the harness.** The aura
+   bug above. Dungeon harness, Plant late (mid): NOT 300 s, 4 downs, 168% of
+   the pool → CLEAR 42 s, 0 downs, 58%. Stepping the hands in only to make
+   the fix is worse (77 s, 2 downs): the walk costs the window. Every
+   dungeon guardian now clears fresh and late (16 of 16 each; late was 15).
+   Botanica's rules are unchanged.
+2. **Mid L2 without a healer:** Phase 2 barely moved it (1/9 → 2/9 clears,
+   still losing 4–5). Not revisited.
+
+Dungeon guardian harness, before → after (only rows that moved):
+
+| | before | after |
+|---|---|---|
+| fresh Plant | 26 s, 2 downs, 66% | 21 s, 0 downs, 17% |
+| fresh Lava | 25 s, 1 down, 27% | 65 s, 1 down, 75% |
+| late Dust | 63 s, 4 downs, 150% | 62 s, 3 downs, 119% |
+| late Crystal | 68 s, 3 downs, 140% | 70 s, 4 downs, 137% |
+| late Plant | NOT, 300 s | 42 s, 0 downs, 58% |
+| late Lava | 83 s, 5 downs, 149% | 108 s, 6 downs, 205% |
+
+Lava is slower for the reason above (Magmara away from both heads); a
+lighter aura only moved where its targets stood. One run per row, so treat
+single-row moves of this size as noise unless a trace says otherwise.
+
+### For the author
+
+1. Poison: which fix for the shells (see above)?
+2. Light: is healer-or-nothing intended? If not, which lever: more time to
+   strike (`kSolarinHold`/`kSolarinSwing`) or fewer bolts
+   (`kSolarinBoltEvery`)?
+3. Lava: should Magmara ride toward the played body rather than its dive
+   target?
+4. Ice/Dust/Spirit/Crystal mid L1 unhealed: acceptable, or tune?
+5. The aura's lenient side on Ice/Mud/Dust/Crystal: leave or close?
+
 
 ## Where things stand
 

@@ -624,6 +624,16 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final pos = cell != null ? kCellTuningBoss : currentRoom.prism?.annealRing;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kKeepReach) return false;
+    // The lull outranks the ring, as it outranks the shove (`_tryChoirPlate`):
+    // in the choir a press while Prismalith is open is a strike. The fight
+    // drifts into the ring's corner, and a strike there used to ring the
+    // keep back and throw the party out of the fight (2026-10-07).
+    if (cell == null &&
+        currentRoom.guardian != null &&
+        guardianAwake &&
+        guardianVulnerable) {
+      return false;
+    }
     if (a.member.element != 'Crystal') {
       _setBlockedHint('Only Crystal can ring this boss');
       return true;

@@ -1204,6 +1204,28 @@ void main() {
       );
     });
 
+    test('the lull outranks the ring too: a strike by it stays a strike', () {
+      // The choir's anneal ring sits in the corner the fight drifts into; a
+      // strike pressed beside it used to ring the keep back and throw the
+      // party out of the choir mid-fight.
+      final game = harness(idealTrio());
+      final f = game.prism.field;
+      f.restore([7, 4, 5, 1, 0, kHollow, 3, 2, 6]);
+      final before = f.snapshot();
+      final ring = layout.rooms['prismalith_choir']!.prism!.annealRing!;
+      game.guardianAwake = true;
+      game.guardianVulnerable = true;
+      game.prism.choirHollow = kKeepHeartCell;
+      act(game, crystal, 'prismalith_choir', ring);
+      expect(f.anneals, 0, reason: 'that press was a strike');
+      expect(f.snapshot(), before);
+      expect(game.currentRoomId, 'prismalith_choir');
+      // Outside the lull the ring still rings: it is the keep's valve.
+      game.guardianVulnerable = false;
+      act(game, crystal, 'prismalith_choir', ring);
+      expect(f.anneals, 1);
+    });
+
     test('a plate refuses anything but Crystal, in words', () {
       final game = harness(idealTrio());
       final floor = layout.rooms['prismalith_choir']!.prism!.choir!;

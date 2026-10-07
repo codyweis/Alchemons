@@ -793,7 +793,11 @@ void main() {
       for (var i = 0; i < 120; i++) {
         g.update(1 / 60);
       }
-      expect(light.hp, closeTo(hp - kSolarinBoltDamage, .5));
+      // Trimmed by the body's E-DEF, like every guardian attack (2026-10-07).
+      final trim = PlanetDungeonGame.defenseMitigation(
+        g.combatCompanions[0].elemDef,
+      );
+      expect(light.hp, closeTo(hp - kSolarinBoltDamage * trim, .5));
       // Behind the east pillar the bolt breaks on the stone.
       light.position = shadowCentre(7, 4);
       g.update(1 / 60);

@@ -54,7 +54,16 @@ CosmicPartyMember _m(int slot, String element, String family, double stat) =>
       staminaMax: 9,
     );
 
-String _fight(String element, {double stat = 3.0, int cleared = 0}) {
+/// [stepIn] plays Botanica's ring the way the plan's Phase 3 asks: the
+/// three hands walk into the ring only while the arena is wrong, make the
+/// fix, and walk back out (by default, as before, they are set down in the
+/// ring for as long as the guardian is shut, under its dives).
+String _fight(
+  String element, {
+  double stat = 3.0,
+  int cleared = 0,
+  bool stepIn = false,
+}) {
   final entry = kCosmicPlanetEntry[element]!;
   final key = _keySlot(element);
   final others = ['horn', 'wing'];
@@ -101,9 +110,31 @@ String _fight(String element, {double stat = 3.0, int cleared = 0}) {
     final boss = g.combatEnemies.where((e) => e.isElite).firstOrNull;
     final shut = !g.guardianVulnerable;
     final answer = guardianAnswerAt(g);
+    final ring = room.grove?.arenaRings.firstOrNull;
+    final hands = [for (var i = 0; i < 3; i++) g.creatures[i]];
+    final ringReady = stepIn && ring != null && shut && guardianAnswerReady(g);
+    if (stepIn && ring != null && !ringReady) {
+      // Out of the ring once the fix is made: whoever is still in it walks
+      // clear, away from the guardian, and the fight's own AI takes it on.
+      for (final c in hands) {
+        if (!c.alive || identical(c, g.active)) continue;
+        if ((c.position - ring).distance <= 80) {
+          walkTo(c, ring + const Offset(0, 150), 1 / 60);
+        }
+      }
+    }
     if (boss != null && element == 'Poison' && shut) {
       blightfangStep(g, 0, 1);
+    } else if (ringReady && hands.every((c) => c.alive)) {
+      if (g.activeIndex != key) g.setActive(key);
+      var there = true;
+      for (var i = 0; i < 3; i++) {
+        final at = ring + Offset(i == key ? 0 : (i == 0 ? -18 : 18), 0);
+        if (!walkTo(hands[i], at, 1 / 60)) there = false;
+      }
+      if (there) g.activateAbility();
     } else if (boss != null &&
+        !(stepIn && ring != null) &&
         answer != null &&
         (shut || element == 'Light') &&
         g.creatures[key].alive) {
@@ -163,6 +194,21 @@ String _fight(String element, {double stat = 3.0, int cleared = 0}) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  // Phase 3 of docs/plans/combat_followups_plan.md: is Plant's late miss
+  // the harness (the trio set down in the ring under the dives) or the
+  // fight? The same late fight, played both ways, at mid and strong stats.
+  test('Plant, late: parked in the ring or stepping in to fix', () {
+    for (final stat in const [3.0, 4.5]) {
+      for (final stepIn in const [false, true]) {
+        // ignore: avoid_print
+        print(
+          'PLANT late s$stat ${stepIn ? 'step in' : 'parked '} '
+          '${_fight('Plant', stat: stat, cleared: 16, stepIn: stepIn)}',
+        );
+      }
+    }
+  }, timeout: const Timeout(Duration(minutes: 30)));
+
   test('every guardian, with its own trio', () {
     for (final cleared in const [0, 16]) {
       for (final el in _planets) {
