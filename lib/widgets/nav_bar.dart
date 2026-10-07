@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/fusion_emblem.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/nav_emblems.dart';
 import 'package:flutter/material.dart';
@@ -25,12 +26,16 @@ class BottomNav extends StatefulWidget {
     required this.current,
     required this.onSelect,
     this.theme,
+    this.faction,
     this.isDisabled = false, // external lock still supported
   });
 
   final NavSection current;
   final ValueChanged<NavSection> onSelect;
   final FactionTheme? theme;
+
+  /// Whose Let the dock is drawn in.
+  final FactionId? faction;
   final bool isDisabled;
 
   @override
@@ -51,7 +56,9 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   late final Animation<double> _expandAnimation;
   late final AnimationController _tutorialPulseController;
 
-  static bool _navIconsCached = false;
+  /// The faction whose dock sheets have been loaded, once they have.
+  FactionId? _precachedFor;
+  bool _precached = false;
   int? _activePointer;
   Offset? _dragStart;
   bool _isSlidingAcrossNav = false;
@@ -77,10 +84,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_navIconsCached) {
-      _navIconsCached = true;
-      _precacheNavIcons();
-    }
+    _precacheNavLets();
     _slotSub ??= context
         .read<AlchemonsDatabase>()
         .incubatorDao
@@ -143,6 +147,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     if (oldWidget.current != widget.current) {
       _expandController.forward(from: 0.0);
     }
+    if (oldWidget.faction != widget.faction) _precacheNavLets();
   }
 
   @override
@@ -162,20 +167,13 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  /// The three tabs still drawn from art: decoded before the dock first
-  /// shows, so they do not pop in.
-  static const _creaturesIcon = 'assets/images/ui/dexicon_light.png';
-  static const _homeIcon = 'assets/images/ui/homeicon2.png';
-  static const _shopIcon = 'assets/images/ui/shopicon2.png';
-
-  Future<void> _precacheNavIcons() async {
-    for (final path in const [_creaturesIcon, _homeIcon, _shopIcon]) {
-      try {
-        await precacheImage(AssetImage(path), context);
-      } catch (e) {
-        debugPrint('Failed to precache bottom nav icon $path: $e');
-      }
-    }
+  /// Loads the faction's Let sheets (and bakes the Alchemized and Transmuted
+  /// ones) before the dock first draws them, so they do not pop in.
+  void _precacheNavLets() {
+    if (_precached && _precachedFor == widget.faction) return;
+    _precached = true;
+    _precachedFor = widget.faction;
+    precacheNavLets(context.read<CreatureCatalog>(), widget.faction);
   }
 
   Future<void> _handleTap(
@@ -328,7 +326,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.creatures,
-                          icon: _creaturesIcon,
+                          icon: NavEmblemKind.creatures,
                           label: 'CREATURES',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -336,7 +334,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.home,
-                          icon: _homeIcon,
+                          icon: NavEmblemKind.home,
                           label: 'HOME',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -347,7 +345,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.breed,
-                          icon: const _FusionIcon(),
+                          icon: NavEmblemKind.fusion,
                           label: 'FUSION',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -355,7 +353,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         ),
                         _buildNavButton(
                           section: NavSection.shop,
-                          icon: _shopIcon,
+                          icon: NavEmblemKind.shop,
                           label: 'SHOP',
                           theme: theme,
                           isDisabled: isDisabled,
@@ -399,8 +397,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
   Widget _buildNavButton({
     required NavSection section,
-    required dynamic
-    icon, // IconData | String (asset) | NavEmblemKind | _FusionIcon
+    required NavEmblemKind icon,
     required String label,
     required FactionTheme? theme,
     required bool isDisabled,
@@ -411,7 +408,6 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     final isActive = widget.current == section;
     final double opacity = isDisabled ? 0.5 : 1.0;
 
-    final Color? iconColor = null;
     return AnimatedBuilder(
       animation: Listenable.merge([_expandAnimation, _tutorialPulseController]),
       builder: (context, child) {
@@ -469,55 +465,17 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                     mainAxisSize: MainAxisSize.min,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      if (icon is IconData)
-                        _withDot(
-                          showDot,
-                          Icon(
-                            icon,
-                            key: iconKey,
-                            color: iconColor,
-                            size: iconSize,
-                          ),
-                        )
-                      else if (icon is _FusionIcon)
-                        _withDot(
-                          showDot,
-                          FusionEmblem(
-                            key: iconKey,
-                            size: iconSize,
-                            // Only the open tab moves.
-                            animate: isActive && !isDisabled,
-                            dark: theme?.isDark ?? true,
-                          ),
-                        )
-                      else if (icon is String)
-                        _withDot(
-                          showDot,
-                          SizedBox(
-                            key: iconKey,
-                            width: iconSize,
-                            height: iconSize,
-                            child: FittedBox(
-                              fit: BoxFit.cover,
-                              child: Image.asset(
-                                icon,
-                                gaplessPlayback: true,
-                                fit: BoxFit.contain,
-                              ),
-                            ),
-                          ),
-                        )
-                      else if (icon is NavEmblemKind)
-                        _withDot(
-                          showDot,
-                          NavEmblem(
-                            key: iconKey,
-                            kind: icon,
-                            size: iconSize,
-                            // Only the open tab moves.
-                            animate: isActive && !isDisabled,
-                          ),
+                      _withDot(
+                        showDot,
+                        NavEmblem(
+                          key: iconKey,
+                          kind: icon,
+                          faction: widget.faction,
+                          size: iconSize,
+                          // Only the open tab moves.
+                          animate: isActive && !isDisabled,
                         ),
+                      ),
                       if (shouldExpand)
                         Opacity(
                           opacity: _expandAnimation.value,
@@ -543,9 +501,4 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
       },
     );
   }
-}
-
-/// Marks the Fusion tab, whose icon is drawn rather than loaded.
-class _FusionIcon {
-  const _FusionIcon();
 }

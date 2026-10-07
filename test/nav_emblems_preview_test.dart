@@ -1,82 +1,150 @@
 @Tags(['preview'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/daily_reliquary.dart';
-import 'package:alchemons/widgets/fusion_emblem.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/nav_emblems.dart';
+import 'package:flame/cache.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// The dock's drawn emblems (inventory, fusion), closed (55) and open (80, three
-// moments), and large enough to judge their drawing; then home's daily
-// reliquary for each division, and Earthen's (crystal) unsealing.
+// The dock's emblems: for each faction, the dock's strip once per open tab
+// (open 80, closed 55) at a phone's pixel ratio, then the same large. Then
+// home's daily reliquary for each division, and Earthen's (crystal)
+// unsealing. NAV_EMBLEMS_FACTIONS narrows the factions (e.g. 'oceanic').
 //
 //   NAV_EMBLEMS_OUT=/tmp/nav.png flutter test \
 //     test/nav_emblems_preview_test.dart --tags preview
 //
-// The reliquary sheet lands beside it, as nav_reliquary.png.
+// The large sheet lands beside it as nav_big.png, the reliquary sheet as
+// nav_reliquary.png.
 void main() {
   final out = Platform.environment['NAV_EMBLEMS_OUT'];
 
   testWidgets('nav emblem sheet', (tester) async {
     if (out == null) return;
-    const order = [
-      NavEmblemKind.inventory,
-      null, // fusion
+    const dpr = 2.625;
+    const kinds = NavEmblemKind.values;
+    final factions = [
+      for (final name in (Platform.environment['NAV_EMBLEMS_FACTIONS'] ??
+              'volcanic,oceanic,earthen,verdant')
+          .split(','))
+        FactionId.values.byName(name.trim()),
     ];
-    CustomPainter painter(NavEmblemKind? kind, double t) => kind == null
-        ? FusionEmblemPainter(time: t)
-        : NavEmblemPainter(kind: kind, time: t);
-
-    const cell = 110.0;
-    final rows = <(double, List<double>)>[
-      (55, [NavEmblemPainter.restTime]),
-      (80, [0.0, 1.4, 2.8]),
-      (200, [NavEmblemPainter.restTime]),
-    ];
-    final rec = ui.PictureRecorder();
-    final canvas = Canvas(rec);
-    var height = 0.0;
-    for (final (size, times) in rows) {
-      height += (size > cell ? size + 20 : cell) * times.length;
-    }
-    const width = cell * 2 * 2.2;
-    canvas.drawRect(
-      const Rect.fromLTWH(0, 0, width, 2000),
-      Paint()..color = const Color(0xFF07090C),
-    );
-    var y = 0.0;
-    for (final (size, times) in rows) {
-      final rowH = size > cell ? size + 20 : cell;
-      for (final t in times) {
-        // The dock's own strip behind the small rows.
-        if (size <= 80) {
-          canvas.drawRect(
-            Rect.fromLTWH(0, y + 10, width, rowH - 20),
-            Paint()..color = const Color(0xFF0C0F0B),
-          );
+    // Every faction's sheets, resolved and baked the way the dock does.
+    final lets = <(FactionId, NavEmblemKind), List<NavLetSprite>>{};
+    await tester.runAsync(() async {
+      final raw = await rootBundle.loadString(
+        'assets/data/alchemons_creatures.json',
+      );
+      final catalog = CreatureCatalog.fromList([
+        for (final j in (jsonDecode(raw) as Map<String, dynamic>)['creatures']
+            as List<dynamic>)
+          Creature.fromJson(j as Map<String, dynamic>),
+      ]);
+      final images = Images();
+      for (final f in factions) {
+        for (final k in kinds) {
+          lets[(f, k)] = [
+            for (final sheet in navLetSheets(catalog, f, k))
+              NavLetSprite(sheet, await loadCreatureSheet(images, sheet.path)),
+          ];
         }
-        for (var i = 0; i < order.length; i++) {
-          final slot = width / order.length;
+      }
+    });
+
+    NavEmblemPainter painter(FactionId f, NavEmblemKind k, {double? time}) {
+      final sprites = lets[(f, k)]!;
+      return NavEmblemPainter(
+        kind: k,
+        element: navLetElement(f),
+        let: sprites.first,
+        behind: sprites.skip(1).toList(),
+        time: time,
+      );
+    }
+
+    Future<void> save(ui.PictureRecorder rec, double w, double h, String to) async {
+      final image = await tester.runAsync(
+        () => rec.endRecording().toImage((w * dpr).round(), (h * dpr).round()),
+      );
+      final bytes = await tester.runAsync(
+        () => image!.toByteData(format: ui.ImageByteFormat.png),
+      );
+      File(to).writeAsBytesSync(bytes!.buffer.asUint8List());
+    }
+
+    // The dock, a phone wide: 60 high, 8 padding, five even slots; the open
+    // icon is 80, lifted 30. For each faction, one strip per open tab.
+    {
+      const width = 400.0, rowH = 60.0 + 64;
+      final strips = [
+        for (final f in factions)
+          for (final open in kinds) (f, open),
+      ];
+      final height = rowH * strips.length + 16;
+      final rec = ui.PictureRecorder();
+      final canvas = Canvas(rec)..scale(dpr);
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, width, height),
+        Paint()..color = const Color(0xFF0B0B0E),
+      );
+      for (var row = 0; row < strips.length; row++) {
+        final (f, openKind) = strips[row];
+        final dockTop = 16 + row * rowH + 52;
+        canvas.drawRect(
+          Rect.fromLTWH(0, dockTop, width, 60),
+          Paint()..color = const Color(0xFF1D1D21),
+        );
+        for (var i = 0; i < kinds.length; i++) {
+          final open = kinds[i] == openKind;
+          final size = open ? 80.0 : 55.0;
+          final cx = 8 + (width - 16) / 5 * (i + 0.5);
+          final cy = dockTop + 30 - (open ? 37 : 0);
           canvas.save();
-          canvas.translate(slot * i + (slot - size) / 2, y + (rowH - size) / 2);
-          painter(order[i], t).paint(canvas, Size.square(size));
+          canvas.translate(cx - size / 2, cy - size / 2);
+          painter(f, kinds[i]).paint(canvas, Size.square(size));
           canvas.restore();
         }
-        y += rowH;
       }
+      await save(rec, width, height, out);
     }
-    final image = await tester.runAsync(
-      () => rec.endRecording().toImage(width.toInt(), height.toInt()),
-    );
-    final bytes = await tester.runAsync(
-      () => image!.toByteData(format: ui.ImageByteFormat.png),
-    );
-    File(out).writeAsBytesSync(bytes!.buffer.asUint8List());
+
+    // Large: each faction's five, at rest and on a later idle frame.
+    {
+      const big = 160.0, gap = 12.0;
+      const w = gap + (big + gap) * 5;
+      final h = gap + (big + gap) * factions.length * 2;
+      final rec = ui.PictureRecorder();
+      final canvas = Canvas(rec)..scale(dpr);
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, w, h),
+        Paint()..color = const Color(0xFF1D1D21),
+      );
+      for (var row = 0; row < factions.length; row++) {
+        for (var i = 0; i < kinds.length; i++) {
+          for (final (j, time) in [(0, null), (1, 2.6)]) {
+            canvas.save();
+            canvas.translate(
+              gap + (big + gap) * i,
+              gap + (big + gap) * (row * 2 + j),
+            );
+            painter(factions[row], kinds[i], time: time)
+                .paint(canvas, const Size.square(big));
+            canvas.restore();
+          }
+        }
+      }
+      await save(rec, w, h, out.replaceFirst(RegExp(r'\.png$'), '_big.png'));
+    }
   });
 
   testWidgets('daily reliquary sheet', (tester) async {
