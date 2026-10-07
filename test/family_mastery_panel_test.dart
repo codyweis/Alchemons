@@ -194,9 +194,7 @@ void main() {
     expect(find.text('CAPSTONE'), findsOneWidget);
   });
 
-  testWidgets('a branch heading only shows the branch; the dock equips it', (
-    tester,
-  ) async {
+  testWidgets('tapping a bought branch\'s heading equips it', (tester) async {
     await db.currencyDao.addSilver(2000);
     await mastery.purchaseNode(
       family: CreatureFamily.mane,
@@ -209,23 +207,34 @@ void main() {
     await pumpPanel(tester);
 
     expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.assault');
-    // The equipped branch offers no switch to itself.
-    expect(find.byKey(const ValueKey('equip-mane.assault')), findsNothing);
+    expect(find.text('ACTIVE'), findsOneWidget);
+    // Limitless is bought but not worn; War Rhythm is locked.
+    expect(find.text('EQUIP'), findsOneWidget);
 
-    // Looking at another branch leaves the equipped one alone...
-    await tester.tap(find.text('LIMITLESS'));
+    // A locked heading only shows its branch.
+    await tester.tap(find.byKey(const ValueKey('branch-head-mane.resonance')));
     await settle(tester);
     expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.assault');
-    expect(find.text('OVERDRAW'), findsNWidgets(2));
+    expect(find.text('MEASURED CUTS'), findsNWidgets(2));
 
-    // ...and the dock's EQUIP BRANCH is what switches it.
-    await tester.tap(find.byKey(const ValueKey('equip-mane.limitless')));
+    // A bought one equips, and its next node comes into the dock.
+    await tester.tap(find.byKey(const ValueKey('branch-head-mane.limitless')));
     await settle(tester);
     expect(
       mastery.selectedPathForFamily(CreatureFamily.mane),
       'mane.limitless',
     );
-    expect(find.byKey(const ValueKey('equip-mane.limitless')), findsNothing);
+    expect(find.text('OVERDRAW'), findsNWidgets(2));
+    // Twin Fang is the one that now offers EQUIP.
+    expect(find.text('ACTIVE'), findsOneWidget);
+    expect(find.text('EQUIP'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('branch-head-mane.assault')),
+        matching: find.text('EQUIP'),
+      ),
+      findsOneWidget,
+    );
   });
 
   test('base-attack text describes only the basic attack', () {

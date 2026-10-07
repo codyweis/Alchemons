@@ -156,7 +156,9 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
                       canAfford: _canAfford,
                       celebration: _celebration,
                       celebratedNodeId: _celebratedNodeId,
+                      busyPathId: _busyPathId,
                       onNodeTap: _focusNode,
+                      onEquip: (path) => _selectPath(mastery, path),
                     ),
                   ),
                 );
@@ -169,14 +171,11 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
             path: focused.path,
             node: focused.node,
             owned: owned,
-            activePath: selectedPathId == focused.path.id,
             canAfford: _canAfford(focused.node),
             armed: _armedNodeId == focused.node.id,
             purchasing: _busyNodeId == focused.node.id,
-            selectingPath: _busyPathId == focused.path.id,
             blocked: _busy,
             onUpgrade: () => _onUpgradePressed(mastery, focused.node),
-            onEquip: () => _selectPath(mastery, focused.path),
           ),
         ],
       ),
@@ -714,7 +713,9 @@ class _MasteryTreeStage extends StatelessWidget {
     required this.canAfford,
     required this.celebration,
     required this.celebratedNodeId,
+    required this.busyPathId,
     required this.onNodeTap,
+    required this.onEquip,
   });
 
   final _TreeLayout layout;
@@ -725,7 +726,9 @@ class _MasteryTreeStage extends StatelessWidget {
   final bool Function(FamilyMasteryNodeDef node) canAfford;
   final Animation<double> celebration;
   final String? celebratedNodeId;
+  final String? busyPathId;
   final ValueChanged<FamilyMasteryNodeDef> onNodeTap;
+  final ValueChanged<FamilyMasteryPathDef> onEquip;
 
   @override
   Widget build(BuildContext context) {
@@ -776,13 +779,20 @@ class _MasteryTreeStage extends StatelessWidget {
               color: color,
               unlocked: ownedTiers[p] > 0,
               active: p == activeIndex,
-              // Shows the branch's next node; equipping is the dock's job.
-              onTap: () => onNodeTap(
-                tree.paths[p].nodes[math.min(
-                  ownedTiers[p],
-                  tree.paths[p].nodes.length - 1,
-                )],
-              ),
+              equipping: busyPathId == tree.paths[p].id,
+              // Brings the branch's next node into the dock and, when the
+              // branch is bought but not worn, equips it.
+              onTap: () {
+                onNodeTap(
+                  tree.paths[p].nodes[math.min(
+                    ownedTiers[p],
+                    tree.paths[p].nodes.length - 1,
+                  )],
+                );
+                if (ownedTiers[p] > 0 && p != activeIndex) {
+                  onEquip(tree.paths[p]);
+                }
+              },
             ),
           ),
         for (var p = 0; p < tree.paths.length; p++)
@@ -1022,12 +1032,17 @@ bool _sameList(List<int> a, List<int> b) {
 
 // ── Branch heading ─────────────────────────────────────────────────────────
 
+/// A branch's name over its bough, and where it is equipped: the equipped
+/// branch says ACTIVE, a bought one that is not worn offers EQUIP, and a
+/// locked one has only its name. A tap on any heading also brings that
+/// branch's next node into the dock.
 class _BranchHead extends StatelessWidget {
   const _BranchHead({
     required this.path,
     required this.color,
     required this.unlocked,
     required this.active,
+    required this.equipping,
     required this.onTap,
   });
 
@@ -1035,14 +1050,27 @@ class _BranchHead extends StatelessWidget {
   final Color color;
   final bool unlocked;
   final bool active;
+  final bool equipping;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final equippable = unlocked && !active;
+    const stateStyle = TextStyle(
+      fontFamily: 'monospace',
+      fontSize: 7.5,
+      height: 1,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 1,
+    );
     return Semantics(
       button: true,
       selected: active,
-      label: active ? '${path.name}, active' : path.name,
+      label: active
+          ? '${path.name}, active'
+          : equippable
+          ? 'Equip ${path.name}'
+          : path.name,
       child: GestureDetector(
         key: ValueKey('branch-head-${path.id}'),
         behavior: HitTestBehavior.opaque,
@@ -1077,18 +1105,43 @@ class _BranchHead extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 3),
-              // Kept as an empty line on the other headings, so every
-              // branch name sits at the same height.
-              Text(
-                active ? 'ACTIVE' : '',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: color,
-                  fontSize: 7.5,
-                  height: 1,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1,
-                ),
+              // The same height on every heading, empty on a locked one, so
+              // every branch name sits at the same height.
+              SizedBox(
+                height: 12,
+                child: active
+                    ? Center(
+                        child: Text(
+                          'ACTIVE',
+                          style: stateStyle.copyWith(color: color),
+                        ),
+                      )
+                    : equippable
+                    // A quiet wash in the family's colour: something to
+                    // press, but not the thing lit on this screen.
+                    ? Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          color: color.withValues(alpha: 0.18),
+                          child: equipping
+                              ? SizedBox(
+                                  width: 8,
+                                  height: 8,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 1.5,
+                                    color: color,
+                                  ),
+                                )
+                              : Text(
+                                  'EQUIP',
+                                  style: stateStyle.copyWith(color: color),
+                                ),
+                        ),
+                      )
+                    : null,
               ),
             ],
           ),
@@ -1610,28 +1663,22 @@ class _UpgradeDock extends StatelessWidget {
     required this.path,
     required this.node,
     required this.owned,
-    required this.activePath,
     required this.canAfford,
     required this.armed,
     required this.purchasing,
-    required this.selectingPath,
     required this.blocked,
     required this.onUpgrade,
-    required this.onEquip,
   });
 
   final CreatureFamily family;
   final FamilyMasteryPathDef path;
   final FamilyMasteryNodeDef node;
   final Set<String> owned;
-  final bool activePath;
   final bool canAfford;
   final bool armed;
   final bool purchasing;
-  final bool selectingPath;
   final bool blocked;
   final VoidCallback onUpgrade;
-  final VoidCallback onEquip;
 
   @override
   Widget build(BuildContext context) {
@@ -1640,7 +1687,6 @@ class _UpgradeDock extends StatelessWidget {
     final purchased = owned.contains(node.id);
     final previous = index > 0 ? path.nodes[index - 1] : null;
     final prerequisiteMet = previous == null || owned.contains(previous.id);
-    final pathUnlocked = owned.contains(path.nodes.first.id);
     final state = purchasing
         ? _UpgradeState.busy
         : purchased
@@ -1736,35 +1782,18 @@ class _UpgradeDock extends StatelessWidget {
             },
           ),
           const SizedBox(height: 8),
-          Row(
-            children: [
-              // The equipped branch says ACTIVE on its heading; a bought one
-              // that is not equipped offers the switch here, beside UPGRADE.
-              if (pathUnlocked && !activePath) ...[
-                _EquipButton(
-                  key: ValueKey('equip-${path.id}'),
-                  color: color,
-                  busy: selectingPath,
-                  onTap: blocked ? null : onEquip,
-                ),
-                const SizedBox(width: 8),
-              ],
-              Expanded(
-                child: _UpgradeButton(
-                  key: ValueKey('unlock-${node.id}'),
-                  node: node,
-                  color: node.isCapstone ? _gold : color,
-                  state: state,
-                  prerequisiteName: previous?.name,
-                  onPressed:
-                      !blocked &&
-                          (state == _UpgradeState.ready ||
-                              state == _UpgradeState.armed)
-                      ? onUpgrade
-                      : null,
-                ),
-              ),
-            ],
+          _UpgradeButton(
+            key: ValueKey('unlock-${node.id}'),
+            node: node,
+            color: node.isCapstone ? _gold : color,
+            state: state,
+            prerequisiteName: previous?.name,
+            onPressed:
+                !blocked &&
+                    (state == _UpgradeState.ready ||
+                        state == _UpgradeState.armed)
+                ? onUpgrade
+                : null,
           ),
         ],
       ),
@@ -1923,59 +1952,6 @@ class _UpgradeButton extends StatelessWidget {
                     ),
                   ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EquipButton extends StatelessWidget {
-  const _EquipButton({
-    super.key,
-    required this.color,
-    required this.busy,
-    required this.onTap,
-  });
-
-  final Color color;
-  final bool busy;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Equip branch',
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: busy ? null : onTap,
-        // The way around the upgrade, so a quiet wash and never lit.
-        child: Container(
-          width: 88,
-          height: 48,
-          alignment: Alignment.center,
-          color: color.withValues(alpha: 0.12),
-          child: busy
-              ? SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: color,
-                  ),
-                )
-              : Text(
-                  'EQUIP\nBRANCH',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: color,
-                    fontSize: 10,
-                    height: 1.25,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1,
-                  ),
-                ),
         ),
       ),
     );
