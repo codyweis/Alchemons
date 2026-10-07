@@ -6,7 +6,6 @@
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
-import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -35,27 +34,14 @@ CosmicPartyMember _member({
   );
 }
 
-CosmicSurvivalCompanion _companion(CosmicPartyMember member, Offset position) {
-  final stats = deriveAlchemonCombatStats(member: member);
-  return CosmicSurvivalCompanion(
-    member: member,
-    slotIndex: member.slotIndex,
-    position: position,
-    anchor: position,
-    maxHp: stats.maxHp,
-    currentHp: stats.maxHp,
-    physAtk: stats.physAtk,
-    elemAtk: stats.elemAtk,
-    abilityAtk: stats.elemAtk,
-    physDef: stats.physDef,
-    elemDef: stats.elemDef,
-    cooldownReduction: stats.cooldownReduction,
-    attackRange: stats.attackRange,
-    specialAbilityRange: stats.specialAbilityRange,
-    tethered: false,
-    invincibleTimer: 0,
-  );
-}
+/// The combat body exactly as a run builds it (`_createCombatCompanion`) —
+/// this harness used to assemble its own (`abilityAtk: elemAtk`, no special
+/// recharge, no primed cooldown), a party the game never fields.
+CosmicSurvivalCompanion _companion(
+  PlanetDungeonGame game,
+  CosmicPartyMember member,
+  Offset position,
+) => game.debugCreateCombatCompanion(member, position);
 
 PlanetDungeonGame _buildRaid({
   RaidConfig config = const RaidConfig(),
@@ -81,7 +67,7 @@ PlanetDungeonGame _buildRaid({
       ..position = spawn + Offset(i * 60.0, 0)
       ..lastSafe = spawn + Offset(i * 60.0, 0);
     game.creatures.add(c);
-    game.combatCompanions.add(_companion(party[i], c.position));
+    game.combatCompanions.add(_companion(game, party[i], c.position));
   }
   return game;
 }
@@ -128,11 +114,13 @@ void main() {
         if (element != 'Air') {
           expect(room.stormRods, isEmpty, reason: element);
         }
-        expect(room.stormOrbit, isNull, reason: element);
+        // Roc's storm cell is its fight, not a puzzle (see
+        // raid_guardian_furniture_test.dart).
+        if (element != 'Air') {
+          expect(room.stormOrbit, isNull, reason: element);
+        }
         expect(room.summit, isNull, reason: element);
         expect(room.guardian, isNotNull, reason: element);
-        expect(room.guardian!.encounter!.canCalm, isFalse, reason: element);
-        expect(room.guardian!.encounter!.canDefeat, isTrue, reason: element);
         expect(
           room.bounds.contains(layout.entranceSpawn),
           isTrue,
@@ -292,13 +280,19 @@ void main() {
       expect(cfg.hpMul / 3.0, greaterThanOrEqualTo(RaidConfig.squadSize / 3));
     });
 
-    test('all combat pressure escalates across the three raid levels', () {
+    // Tuned 2026-10-07 against the author's tier table (measured in
+    // test/raid_threat_harness_test.dart, "tier table"). A tier is harder by
+    // lasting longer and bringing more adds; the hits stay the same size,
+    // because the squad hit lands evenly and over a longer fight it is the
+    // total that kills. The old ramp on every knob at once wiped a mid squad
+    // at L2 and L3 whatever it brought.
+    test('a raid tier is harder by lasting longer and bringing more adds', () {
       const l1 = RaidConfig(level: 1);
       const l2 = RaidConfig(level: 2);
       const l3 = RaidConfig(level: 3);
 
-      expect([l1.hpMul, l2.hpMul, l3.hpMul], [5.0, 10.0, 18.0]);
-      expect([l1.dmgMul, l2.dmgMul, l3.dmgMul], [1.6, 2.3, 3.2]);
+      expect([l1.hpMul, l2.hpMul, l3.hpMul], [5.0, 7.0, 11.0]);
+      expect([l1.dmgMul, l2.dmgMul, l3.dmgMul], [1.6, 1.9, 2.4]);
       expect(
         l2.addPhaseThresholds.length,
         greaterThan(l1.addPhaseThresholds.length),
@@ -307,10 +301,12 @@ void main() {
         l3.addPhaseThresholds.length,
         greaterThan(l2.addPhaseThresholds.length),
       );
-      expect(l2.addHpMul, greaterThan(l1.addHpMul));
-      expect(l3.addHpMul, greaterThan(l2.addHpMul));
-      expect(l2.guardianHitFraction, greaterThan(l1.guardianHitFraction));
-      expect(l3.guardianHitFraction, greaterThan(l2.guardianHitFraction));
+      expect(l3.addHpMul, greaterThan(l1.addHpMul));
+      // The same size of hit at every tier; the last tier's beat is quicker.
+      expect(l2.guardianHitFraction, l1.guardianHitFraction);
+      expect(l3.guardianHitFraction, l1.guardianHitFraction);
+      expect(l3.squadHitFraction, l1.squadHitFraction);
+      expect(l3.squadHitInterval, lessThan(l1.squadHitInterval));
     });
 
     test('a five-strong squad all reaches the arena', () {
@@ -334,7 +330,7 @@ void main() {
           ..position = spawn + Offset(i * 60.0, 0)
           ..lastSafe = spawn + Offset(i * 60.0, 0);
         game.creatures.add(c);
-        game.combatCompanions.add(_companion(party[i], c.position));
+        game.combatCompanions.add(_companion(game, party[i], c.position));
       }
       _step(game, 2.2);
 
@@ -384,7 +380,7 @@ void main() {
           ..position = spawn + Offset(i * 60.0, 0)
           ..lastSafe = spawn + Offset(i * 60.0, 0);
         game.creatures.add(c);
-        game.combatCompanions.add(_companion(party[i], c.position));
+        game.combatCompanions.add(_companion(game, party[i], c.position));
       }
       return game;
     }

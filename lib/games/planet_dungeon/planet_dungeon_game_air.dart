@@ -1295,7 +1295,8 @@ extension WindCrownSpire on PlanetDungeonGame {
   /// Goal only — never method. The method lives behind Mask insight.
   String? _spireObjectiveHint(DungeonRoom room) {
     // The entry island's way on is hidden until the wind here is set off.
-    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+    // (A raid arena is its layout's entrance room, with no way on to hide.)
+    if (room.id == layout.entranceRoomId && !entryDoorRevealed && !isRaid) {
       return 'The way on is hidden';
     }
     if (room.gustShrines.isNotEmpty && !hasStar(0)) {
@@ -1307,6 +1308,7 @@ extension WindCrownSpire on PlanetDungeonGame {
           : 'The crown opens once every wind is awake';
     }
     if (room.guardian != null) {
+      if (isRaid) return 'Something huge rides the storm';
       return hasStar(2)
           ? null
           : 'Something huge rides the storm. The last star is here';

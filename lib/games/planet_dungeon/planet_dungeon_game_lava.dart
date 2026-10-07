@@ -500,7 +500,7 @@ extension MoltenReliquary on PlanetDungeonGame {
   /// Cast against it and it beaches; that is the window.
   void _applyMagmaraRide(DungeonRoom room, double dt) {
     final g = room.guardian;
-    if (g == null || isRaid || hasStar(g.starIndex)) return;
+    if (g == null || hasStar(g.starIndex)) return;
     final e = _guardianEnemy;
     if (e == null || e.isDead) return;
     final w = works;
@@ -896,6 +896,14 @@ extension MoltenReliquary on PlanetDungeonGame {
     for (final head in kLavaHeartHeads) {
       if ((a.position - head).distance > _kHeadReach) continue;
       final w = works;
+      // A beached Magmara lies by the head that caught it, and the head used
+      // to come back up sooner than it got away: one body at a head held it
+      // beached for the whole fight. The head now stays down until a while
+      // after the beach ends (below).
+      if (w.beached > 0) {
+        _setBlockedHint('Magmara is already beached. Strike it');
+        return true;
+      }
       if (w.headCool > 0) {
         _setBlockedHint('The head is still coming back up');
         return true;
@@ -910,6 +918,7 @@ extension MoltenReliquary on PlanetDungeonGame {
         return true;
       }
       w
+        ..headCool = _kBeachSeconds + _kHeadCooldown
         ..beached = _kBeachSeconds
         ..beachedAt = beast
         ..flash = 1.0

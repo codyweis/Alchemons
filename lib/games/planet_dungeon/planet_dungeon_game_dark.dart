@@ -237,7 +237,8 @@ extension BlackSunDungeon on PlanetDungeonGame {
 
   /// Choosing a body in another room takes the view there.
   void _sunFollowActive() {
-    if (!_isVault || blackSun.inArena) return;
+    // The raid arena is one room, and none of the Black Sun's rooms.
+    if (!_isVault || isRaid || blackSun.inArena) return;
     final a = active;
     if (a == null) return;
     _sunShowRoom(blackSun.state.pos[_sunName(a)]!.room);

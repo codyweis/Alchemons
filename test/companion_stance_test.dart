@@ -3,18 +3,37 @@
 // horn bruiser jostled on the same ring, and a wing stood still like the rest.
 // Families that play completely differently in your hands looked identical
 // once the AI had them.
+//
+// Then (2026-10-07) "closer / further from the centre" read as robotic: a horn
+// sat inside a guardian's body, and they crept and jittered. A companion now
+// takes a STATION: off the target's edge, on the party's side, swaying at its
+// own pace, a wing looping and swooping.
+
+import 'dart:math';
 
 import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const range = 300.0;
 
-Offset _move(String family, double distance, {int orbitSign = 1}) => stanceMove(
-  self: Offset.zero,
-  target: Offset(distance, 0),
-  attackRange: range,
+/// Where a [family] companion stands round a target the size of a guardian
+/// (radius 38) at the origin, with the party below it.
+Offset _station(
+  String family, {
+  int slot = 0,
+  double time = 0,
+  bool closeIn = false,
+  double attackRange = range,
+}) => companionStation(
+  target: Offset.zero,
+  targetRadius: 38,
+  bodyRadius: 15,
+  attackRange: attackRange,
   stance: stanceForFamily(family),
-  orbitSign: orbitSign,
+  homeBearing: pi / 2,
+  slot: slot,
+  time: time,
+  closeIn: closeIn,
 );
 
 void main() {
@@ -66,109 +85,104 @@ void main() {
     });
   });
 
-  group('moving into stance', () {
-    test('too far away, everyone closes', () {
+  group('where it stands', () {
+    test('off the target\'s edge, never inside its body', () {
+      // A horn's reach (34% of a short range) used to put it inside a
+      // guardian; its body and the target's are both counted now.
       for (final f in kCompanionStances.keys) {
-        expect(_move(f, range * 1.5).dx, greaterThan(0), reason: f);
-      }
-    });
-
-    test(
-      'at the horn\'s comfortable distance the kin is already retreating',
-      () {
-        // 102px is exactly where a horn wants to be, and far too close for a
-        // kin, whose ring is nearly the full 300.
-        final d = range * stanceForFamily('horn').engageFraction;
-        expect(
-          _move('horn', d).dx,
-          closeTo(0, 1e-9),
-          reason: 'horn is settled',
-        );
-        expect(_move('kin', d).dx, lessThan(0), reason: 'kin backs off');
-      },
-    );
-
-    test('a ranged family shoved into melee backs out', () {
-      final kin = _move('kin', 20);
-      expect(kin.dx, lessThan(0), reason: 'kin must retreat, not stand');
-    });
-
-    test('a horn tolerates being close instead of retreating', () {
-      // Same distance that sends a kin backwards.
-      expect(_move('horn', range * 0.2).dx, greaterThanOrEqualTo(-0.9));
-    });
-
-    test('the move never exceeds full speed', () {
-      for (final f in kCompanionStances.keys) {
-        for (final d in [20.0, 150.0, 300.0, 900.0]) {
+        for (final t in [0.0, 1.7, 4.2, 9.9]) {
           expect(
-            _move(f, d).distance,
-            lessThanOrEqualTo(1.0 + 1e-9),
-            reason: '$f at $d',
+            _station(f, time: t, attackRange: 120).distance,
+            greaterThanOrEqualTo(38 + 15),
+            reason: '$f at $t',
           );
         }
       }
     });
 
-    test('magnitude carries intent — a settled horn barely moves', () {
-      // Normalising here would send it sliding sideways at full speed.
-      final settled = _move(
-        'horn',
-        range * stanceForFamily('horn').engageFraction,
-      );
-      expect(settled.distance, lessThan(0.2));
-      final far = _move('horn', range * 2);
-      expect(far.distance, greaterThan(0.8));
-    });
-  });
-
-  group('orbiting', () {
-    test('a settled wing moves sideways, not just in and out', () {
-      final m = _move('wing', range * stanceForFamily('wing').engageFraction);
-      expect(m.dy.abs(), greaterThan(0.5), reason: 'it should be circling');
-      expect(
-        m.dx.abs(),
-        lessThan(0.1),
-        reason: 'and not closing while it does',
-      );
-    });
-
-    test('orbit direction follows the sign, so two wings do not collide', () {
-      final a = _move('wing', range * 0.66, orbitSign: 1);
-      final b = _move('wing', range * 0.66, orbitSign: -1);
-      expect(a.dy.sign, isNot(b.dy.sign));
-    });
-
-    test('a horn barely circles at all', () {
-      final m = _move('horn', range * 0.34);
-      expect(m.dy.abs(), lessThan(0.2));
-    });
-  });
-
-  group('degenerate input', () {
-    test('standing on the target does not produce a direction', () {
-      expect(_move('wing', 0), Offset.zero);
-    });
-
-    test('zero attack range never divides by zero', () {
-      final m = stanceMove(
-        self: Offset.zero,
-        target: const Offset(100, 0),
-        attackRange: 0,
-        stance: stanceForFamily('kin'),
-        orbitSign: 1,
-      );
-      expect(m, Offset.zero);
-    });
-
-    test('the engage distance is never outside the attack range', () {
+    test('within its own attack range when that reaches past the edge', () {
       for (final f in kCompanionStances.keys) {
-        expect(
-          clampedEngageDistance(range, stanceForFamily(f)),
-          lessThanOrEqualTo(range),
-          reason: f,
-        );
+        if (f == 'wing') continue; // it swoops out and back
+        expect(_station(f).distance, lessThanOrEqualTo(range), reason: f);
       }
+    });
+
+    test('a horn presses closest, a kin stands furthest back', () {
+      final d = {
+        for (final f in kCompanionStances.keys) f: _station(f).distance,
+      };
+      for (final f in kCompanionStances.keys) {
+        expect(d['horn']!, lessThanOrEqualTo(d[f]!), reason: f);
+        if (f != 'wing') {
+          expect(d['kin']!, greaterThanOrEqualTo(d[f]!), reason: f);
+        }
+      }
+    });
+
+    test('on the party\'s side of the target', () {
+      for (final f in kCompanionStances.keys) {
+        if (f == 'wing') continue; // it loops round
+        expect(_station(f).dy, greaterThan(0), reason: f);
+      }
+    });
+
+    test('a fifth closer while the target is open, never inside it', () {
+      for (final f in ['pip', 'mane', 'kin']) {
+        final open = _station(f, closeIn: true).distance;
+        expect(open, lessThan(_station(f).distance), reason: f);
+        expect(open, greaterThanOrEqualTo(38 + 15), reason: f);
+      }
+    });
+  });
+
+  group('how it moves', () {
+    double bearing(Offset p) => atan2(p.dy, p.dx);
+
+    test('no two companions sway in step', () {
+      final a = [
+        for (var t = 0.0; t < 10; t += 0.5)
+          bearing(_station('mane', slot: 0, time: t)),
+      ];
+      final b = [
+        for (var t = 0.0; t < 10; t += 0.5)
+          bearing(_station('mane', slot: 1, time: t)),
+      ];
+      var differs = 0;
+      for (var k = 1; k < a.length; k++) {
+        final da = a[k] - a[k - 1], db = b[k] - b[k - 1];
+        if ((da - db).abs() > 1e-3) differs++;
+      }
+      expect(differs, greaterThan(a.length ~/ 2));
+    });
+
+    test('a wing loops round the target and swoops in and out', () {
+      final pts = [
+        for (var t = 0.0; t < 12; t += 0.25) _station('wing', time: t),
+      ];
+      var turned = 0.0;
+      for (var k = 1; k < pts.length; k++) {
+        var d = bearing(pts[k]) - bearing(pts[k - 1]);
+        d = atan2(sin(d), cos(d));
+        turned += d;
+      }
+      expect(turned.abs(), greaterThan(pi), reason: 'it goes round');
+      final r = pts.map((p) => p.distance).toList()..sort();
+      expect(r.last - r.first, greaterThan(40), reason: 'and in and out');
+    });
+
+    test('a kin barely moves', () {
+      final pts = [
+        for (var t = 0.0; t < 12; t += 0.25) _station('kin', time: t),
+      ];
+      final b = pts.map(bearing).toList()..sort();
+      expect(b.last - b.first, lessThan(0.15));
+    });
+
+    test('it is the same at any frame rate: a function of time alone', () {
+      expect(
+        _station('wing', slot: 2, time: 3.25),
+        _station('wing', slot: 2, time: 3.25),
+      );
     });
   });
 }

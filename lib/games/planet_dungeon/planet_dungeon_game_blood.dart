@@ -1595,6 +1595,20 @@ extension BloodRitesDungeon on PlanetDungeonGame {
           (n) => _combatRng.nextInt(n),
         );
         rites.shellT = _time;
+        // The shell forms outward: an ally standing close when it closes is
+        // pushed clear, neither given nor refused. An ally is given by being
+        // WALKED in, which is the player's choice; whoever Sanguorath
+        // happened to be next to when the shell formed is not.
+        for (final c in creatures) {
+          if (!rites.allies.contains(c) || !c.alive) continue;
+          final away = c.position - g.position;
+          if (away.distance > kRiteShellReach) continue;
+          final dir = away.distance < 1
+              ? const Offset(0, 1)
+              : away / away.distance;
+          c.position = _clampToBounds(g.position + dir * 150, room);
+          c.lastSafe = c.position;
+        }
         _cue(SoundCue.dungeonHazardTrigger);
         speakConsequence(_riteShellLine(rites.shellElement!));
       }
@@ -1604,7 +1618,7 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     // thrown back.
     for (final c in List.of(creatures)) {
       if (!rites.allies.contains(c) || !c.alive) continue;
-      if ((c.position - g.position).distance > 74) continue;
+      if ((c.position - g.position).distance > kRiteShellReach) continue;
       final el = c.member.element;
       final want = kRiteOpposite[rites.shellElement]!;
       if (el == want) {
@@ -1681,7 +1695,8 @@ extension BloodRitesDungeon on PlanetDungeonGame {
   /// never goes below the next break while one is still to come, so no hit —
   /// however big — carries it past a shell (or kills it before the last).
   void _riteHoldShell(CosmicSurvivalEnemy e) {
-    if (!_isRites || !identical(e, _guardianEnemy)) return;
+    // A raid has no rite bay to break a shell in, so it holds no floor.
+    if (!_isRites || isRaid || !identical(e, _guardianEnemy)) return;
     if (rites.shellsBroken >= 4) return;
     final floor = e.maxHp * kRiteShellAt[rites.shellsBroken];
     if (e.hp < floor) e.hp = floor;

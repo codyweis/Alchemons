@@ -325,12 +325,15 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (!guardianVulnerable && prism.bitLastFrame) {
       prism.bitLastFrame = false;
       _shuntChoirFloor();
-      _keep.guardianShunt();
+      // A raid arena has no keep above it to ring over.
+      if (!isRaid) _keep.guardianShunt();
       _cue(SoundCue.dungeonHazardTrigger);
       // A closing announces itself (§5.7): this runs from update, where a
       // plain line is dropped unasked, and the keep upstairs has just moved.
       speakConsequence(
-        'Prismalith rings. The floor shifts, and the keep with it',
+        isRaid
+            ? 'Prismalith rings. The floor shifts'
+            : 'Prismalith rings. The floor shifts, and the keep with it',
       );
     }
   }
@@ -347,7 +350,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   /// Move the plate in [from] into the gap — and carry whoever is standing on
   /// it, because that is what this planet's verb does everywhere.
   void _slideChoirPlate(int from) {
-    final floor = layout.rooms['prismalith_choir']?.prism?.choir;
+    // The floor under the fight: the choir in the dungeon, the raid arena's
+    // own in a raid.
+    final floor =
+        currentRoom.prism?.choir ??
+        layout.rooms['prismalith_choir']?.prism?.choir;
     if (floor == null) return;
     final gap = prism.choirHollow;
     final delta = floor.plateCentre(gap) - floor.plateCentre(from);
@@ -2801,7 +2808,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     for (final p in g.shards) {
       canvas.drawPath(p, Paint()..color = _keepVoid.withValues(alpha: 0.55));
     }
-    _renderTuningBoss(canvas, room.prism!.annealRing!, 16);
+    // The choir room's anneal ring. A raid arena carries the floor without
+    // it (the ring is not part of Prismalith's rule).
+    final anneal = room.prism?.annealRing;
+    if (anneal != null) _renderTuningBoss(canvas, anneal, 16);
   }
 
   /// THE GAP. The mystic's root only shows through it, so it must read as a

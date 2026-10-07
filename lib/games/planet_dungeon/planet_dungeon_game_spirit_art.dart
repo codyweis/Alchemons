@@ -2168,7 +2168,7 @@ extension FuneralArt on PlanetDungeonGame {
     final ring = f.chimeHeld ? f.chimeWindow : 0.0;
     // WRAITHORD'S SHADOW: gathered round it, or scattered by the note.
     final boss = _guardianEnemy;
-    if (boss != null && !boss.isDead && guardianAwake && !isRaid) {
+    if (boss != null && !boss.isDead && guardianAwake) {
       final p = boss.position;
       if (ring > 0) {
         for (var i = 0; i < 6; i++) {

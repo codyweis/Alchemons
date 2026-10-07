@@ -6672,10 +6672,11 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// family. The family cap is the point: it stops a raid being solved by
   /// three copies of your strongest build and makes you field a broad roster.
   ///
-  /// Unlike a planet dungeon this is a free pick with no element requirement.
-  /// Dungeons gate entry to three elements because their puzzles need those
-  /// verbs; a raid arena is a generated single room with no puzzles at all,
-  /// so nothing in it is element-locked.
+  /// Unlike a planet dungeon this is a free pick with no element requirement:
+  /// a raid arena has no puzzles. Its guardian fights by its dungeon rule,
+  /// though, and some of those only open to one kind of Alchemon (an Ice one
+  /// for Frowyrm's pillar). The placard says so above ENTER RAID
+  /// ([kRaidOpeningLines]); the pick stays free.
   Future<List<CosmicPartyMember>?> _pickRaidSquad() async {
     final picked = await Navigator.of(context).push<List<dynamic>>(
       MaterialPageRoute(
@@ -7129,8 +7130,9 @@ class _CosmicScreenState extends State<CosmicScreen>
           const SizedBox(height: 8),
           _planetStarRow(planet.element, size: 16),
           // The carried element trio — only while still assembling the party.
-          // Once the trio rides, the DESCEND action speaks for itself.
-          if (!descendReady) ...[
+          // Once the trio rides, the DESCEND action speaks for itself. A raid
+          // squad is picked fresh, so the dungeon's trio means nothing there.
+          if (!descendReady && !raidHere) ...[
             const SizedBox(height: 11),
             Text(
               'REQUIRED ALCHEMON TYPES',
@@ -7151,6 +7153,20 @@ class _CosmicScreenState extends State<CosmicScreen>
           ],
           // ── Actions — present once the trio rides ──
           if (raidHere) ...[
+            // What the squad must bring, before it is picked.
+            if (kRaidOpeningLines[planet.element] case final need?) ...[
+              const SizedBox(height: 11),
+              Text(
+                need,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.72),
+                  fontSize: 11,
+                  height: 1.35,
+                  shadows: const [Shadow(color: Colors.black, blurRadius: 5)],
+                ),
+              ),
+            ],
             const SizedBox(height: 14),
             _planetCta(
               label: raidActionLabel,

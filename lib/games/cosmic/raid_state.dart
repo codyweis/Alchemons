@@ -19,12 +19,11 @@ const Duration kRaidWindow = Duration(hours: 24);
 
 /// How long you get to fell the guardian once the fight begins.
 ///
-/// A hard fail state, so a raid is a DPS check and not just an endurance one.
-/// Measured against the codebase's own headless party-damage figures, scaled
-/// to a five-Alchemon squad: a competent roster kills in two to five minutes
-/// at any progression, while an under-levelled one facing a late guardian
-/// (110k+ HP) runs past ten. That is the intent — the wall should only be hit
-/// by bringing a squad that is not ready.
+/// A hard fail state, so a raid cannot be outlasted forever. Since the
+/// 2026-10-07 tuning a mid squad (stats 3) fells the L3 guardian in about
+/// three and a half minutes and a strong one (4.5) in about one and a half,
+/// and the squad hit wears down a squad that is not ready long before ten:
+/// the limit is a backstop, not the wall.
 const Duration kRaidFightLimit = Duration(minutes: 10);
 
 /// A defeated Level-3 guardian reforms once per raid event. The cooldown
@@ -284,20 +283,29 @@ class RaidConfig {
   /// Raid difficulty is fixed by tier and deliberately ignores campaign
   /// guardian count. This lets every conquered planet host the same L1–L3
   /// ladder without late planets silently multiplying it again.
+  ///
+  /// TUNED 2026-10-07 (docs/plans/raid_threat_plan.md, Phase 6) against the
+  /// author's tier table: a mid squad with no healer loses about one at L1,
+  /// most of itself at L2, and wipes at L3; with a Kin it loses none, 0–1,
+  /// then 1–3. What makes a tier harder is how LONG it lasts and how many
+  /// adds it brings. The hits stay the same size, because the squad hit
+  /// lands evenly: over a longer fight it is the total that kills, and the
+  /// old per-tier ramp on top of the HP ramp (×10 / ×18 HP and ×2.3 / ×3.2
+  /// damage) wiped a mid squad at L2 and L3 whatever it brought.
   double get hpMul =>
       _hpMulOverride ??
       switch (safeLevel) {
         1 => 5.0,
-        2 => 10.0,
-        _ => 18.0,
+        2 => 7.0,
+        _ => 11.0,
       };
 
   double get dmgMul =>
       _dmgMulOverride ??
       switch (safeLevel) {
         1 => 1.6,
-        2 => 2.3,
-        _ => 3.2,
+        2 => 1.9,
+        _ => 2.4,
       };
 
   List<double> get addPhaseThresholds =>
@@ -308,11 +316,19 @@ class RaidConfig {
         _ => const [0.80, 0.55, 0.30],
       };
 
-  double get guardianHitFraction => switch (safeLevel) {
-    1 => 0.08,
-    2 => 0.12,
-    _ => 0.16,
-  };
+  /// A guardian dive's share of its victim's health (plus the guardian's
+  /// damage, then trimmed by P-DEF). The same at every tier; see [hpMul].
+  double get guardianHitFraction => 0.06;
+
+  /// Seconds between the guardian's squad hits: one telegraphed hit on every
+  /// living Alchemon, wherever it stands. Attrition you answer with healing
+  /// and defence, never by dodging. The last tier's beat is a little
+  /// quicker.
+  double get squadHitInterval => safeLevel >= 3 ? 7.0 : 8.0;
+
+  /// What a squad hit takes from each Alchemon, as a fraction of its health,
+  /// before E-DEF trims it. The same at every tier; see [hpMul].
+  double get squadHitFraction => 0.06;
 
   double get lullStrikeMultiplier => switch (safeLevel) {
     1 => 6.0,
@@ -320,17 +336,15 @@ class RaidConfig {
     _ => 8.0,
   };
 
-  double get addHpMul => switch (safeLevel) {
-    1 => 8.0,
-    2 => 18.0,
-    _ => 35.0,
-  };
+  /// How tough an add wave is. An add that outlives its welcome does the
+  /// killing: at the old ×35 a mid squad could not clear the L3 waves, and
+  /// with no adds at all the same squad and healer cleared L3 with one loss.
+  double get addHpMul => safeLevel >= 3 ? 12.0 : 8.0;
 
-  double get addDmgMul => switch (safeLevel) {
-    1 => 1.5,
-    2 => 2.25,
-    _ => 3.0,
-  };
+  /// Adds hit like the dungeon's own wisps (about 9% of a body a contact).
+  /// Their raid toughness is their health, not their bite: at the old
+  /// ×1.5–×3 every contact took 12–20%, as much as the guardian's own dive.
+  double get addDmgMul => 1.0;
 
   /// How many Alchemons a raid squad may field, against three in a dungeon.
   static const int squadSize = 5;

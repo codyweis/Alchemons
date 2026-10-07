@@ -880,8 +880,6 @@ const DungeonLayout plantLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Plant',
           mysticId: 'Botanica',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       grove: ConservatoryPlot(arenaRings: [Offset(200, 470), Offset(760, 470)]),

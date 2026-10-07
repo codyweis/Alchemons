@@ -79,6 +79,12 @@ const int _kDarkWispMax = 2;
 const double _kRaikumaLull = 3.4;
 const double _kRaikumaLullEnraged = 2.4;
 
+/// How long a trunk Raikuma has seized back surges before the spike can bite
+/// it again. Without it a Lightning hand parked at the spike re-grounded it
+/// the frame the window shut and held Raikuma open for the whole fight. With
+/// the 3.4 s window, this is the shared lull clock's own 6 s rhythm at best.
+const double _kRaikumaSurge = 2.6;
+
 double _stepToward(double cur, double target, double delta) =>
     cur < target ? min(target, cur + delta) : max(target, cur - delta);
 
@@ -99,6 +105,7 @@ extension StormCircuit on PlanetDungeonGame {
     _beamLatched = false;
     _raikumaFed = false;
     _raikumaLullLeft = 0;
+    _raikumaSurgeLeft = 0;
     _darkWispTimer = 0;
     _circuitPrevRoomId = null;
     _dynamoSwing = 1.0;
@@ -1028,7 +1035,7 @@ extension StormCircuit on PlanetDungeonGame {
   /// there): stealing the trunk from the maze the moment the beam latched
   /// would darken the room the player is still standing in.
   void _seizeCoreTrunk(DungeonRoom core) {
-    if (!_isCircuit || isRaid) return;
+    if (!_isCircuit) return;
     final g = core.guardian;
     if (g == null || hasStar(g.starIndex)) return;
     final trunk = _trunkForRoom(core.id);
@@ -1048,11 +1055,11 @@ extension StormCircuit on PlanetDungeonGame {
   /// Called from the shared guardian loop (one `_isCircuit`-guarded line in
   /// `_updateAltar`): while Raikuma feeds on its powered trunk there is NO
   /// lull; grounding the trunk opens a timed vulnerability window, and when
-  /// the window shuts Raikuma seizes the trunk back. Raids (no trunks, no
-  /// spike in the generated arena) keep the shared rage/lull cycle.
+  /// the window shuts Raikuma seizes the trunk back. A raid arena carries the
+  /// spike and one trunk, so the raid fights the same way.
   void _applyRaikumaFeed(DungeonRoom room, double dt) {
     final g = room.guardian;
-    if (g == null || room.coreBreaker == null || isRaid) return;
+    if (g == null || room.coreBreaker == null) return;
     if (hasStar(g.starIndex)) return;
     final trunk = _trunkForRoom(room.id);
     if (trunk == null) return;
@@ -1061,6 +1068,7 @@ extension StormCircuit on PlanetDungeonGame {
       // the player's own routing — the guardian drinks and never lulls.
       _raikumaFed = true;
       guardianVulnerable = false;
+      if (_raikumaSurgeLeft > 0) _raikumaSurgeLeft -= dt;
       return;
     }
     if (_raikumaFed) {
@@ -1074,6 +1082,7 @@ extension StormCircuit on PlanetDungeonGame {
       _raikumaFed = true;
       activeTrunk = trunk.id;
       _dynamoSwing = 0;
+      _raikumaSurgeLeft = _kRaikumaSurge;
       guardianVulnerable = false;
       _setHint('Raikuma drinks, the core trunk surges back to life', 2.8);
     } else {
@@ -1087,7 +1096,7 @@ extension StormCircuit on PlanetDungeonGame {
   bool _tryCoreBreaker(DungeonCreature a) {
     final room = currentRoom;
     final spike = room.coreBreaker;
-    if (spike == null || isRaid) return false;
+    if (spike == null) return false;
     if ((a.position - spike).distance > 56) return false;
     if (a.member.element != 'Lightning') {
       _setBlockedHint('Only Lightning can use the grounding spike');
@@ -1100,6 +1109,10 @@ extension StormCircuit on PlanetDungeonGame {
     }
     if (!_raikumaFed) {
       _setHint('The trunk is already dead. Strike while Raikuma reels');
+      return true;
+    }
+    if (_raikumaSurgeLeft > 0) {
+      _setBlockedHint('The trunk is still surging back. Ground it in a moment');
       return true;
     }
     activeTrunk = null;
@@ -1696,7 +1709,7 @@ extension StormCircuit on PlanetDungeonGame {
       return 'Storm Spire. Three dead masts';
     }
     if (room.guardian != null) {
-      return 'Storm Core. Face Raikuma: calm it, or strike in its lulls';
+      return 'Storm Core. Face Raikuma: strike in its lulls';
     }
     if (room.stormCells.isNotEmpty) {
       return 'Mirror Gallery. Three hidden echoes';
@@ -1899,6 +1912,7 @@ extension StormCircuit on PlanetDungeonGame {
   void _renderCircuit(Canvas canvas, DungeonRoom room) {
     _renderGlassDoorPlugs(canvas, room);
     _renderCableCurrent(canvas, room);
+    _renderGroundingSpike(canvas, room);
     if (room.id == layout.dynamoRoomId) {
       _renderDynamoCourt(canvas, room);
       return;
@@ -2607,6 +2621,54 @@ extension StormCircuit on PlanetDungeonGame {
   /// a bolted base plate, a short iron column, and a stack of porcelain
   /// insulator rings under the head — the three things that say "high tension
   /// equipment" at any size, and the rings are what carry the voltage.
+  /// THE GROUNDING SPIKE, where Raikuma's fight is answered. It had no art
+  /// at all, in the storm core or the raid: the one thing the fight asks a
+  /// Lightning hand to find was invisible. The planet's own circuit post
+  /// (plate, column, glass insulators) carrying a brass spike under a glass
+  /// head. It hums while the trunk feeds Raikuma and goes dull once it is
+  /// grounded.
+  void _renderGroundingSpike(Canvas canvas, DungeonRoom room) {
+    final at = room.coreBreaker;
+    if (at == null) return;
+    final feeding = activeTrunk != null;
+    const brass = Color(0xFFE9D27A);
+    final tip = at + const Offset(0, -36);
+    if (_fx.ready && feeding) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        tip,
+        26,
+        const Color(0xFF6BA8FF).withValues(alpha: 0.45),
+      );
+    }
+    _drawCircuitPost(canvas, at, brass, feeding);
+    // The spike: a tapered brass blade standing out of the insulators, lit
+    // down one edge so it reads as metal.
+    final blade = Path()
+      ..moveTo(at.dx - 4.5, at.dy - 5)
+      ..lineTo(at.dx + 4.5, at.dy - 5)
+      ..lineTo(at.dx + 1.4, tip.dy + 4)
+      ..lineTo(at.dx - 1.4, tip.dy + 4)
+      ..close();
+    canvas.drawPath(
+      blade,
+      Paint()..color = feeding ? brass : const Color(0xFF7A6A44),
+    );
+    final edge = Path()
+      ..moveTo(at.dx - 4.5, at.dy - 5)
+      ..lineTo(at.dx - 1.4, tip.dy + 4)
+      ..lineTo(at.dx - 0.4, tip.dy + 4)
+      ..lineTo(at.dx - 2.6, at.dy - 5)
+      ..close();
+    canvas.drawPath(
+      edge,
+      Paint()
+        ..color = const Color(0xFFFFF0C8).withValues(alpha: feeding ? 0.7 : 0.2),
+    );
+    _drawGlassHead(canvas, tip, 5, live: feeding);
+  }
+
   void _drawCircuitPost(Canvas canvas, Offset at, Color tone, bool live) {
     // The shadow it casts on the plate, so it is ON the floor.
     canvas.drawOval(

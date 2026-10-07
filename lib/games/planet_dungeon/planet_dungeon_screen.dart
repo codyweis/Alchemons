@@ -1423,7 +1423,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                     context.read<AlchemonsDatabase>().settingsDao,
                     'raids',
                   );
-                  widget.onRaidCleared?.call();
+                  // AWAITED: the popup holds Continue until this lands, and
+                  // that promise is only as good as the Future it is handed.
+                  await widget.onRaidCleared?.call();
                 },
                 onContinue: () => _popDungeon(true),
               ),

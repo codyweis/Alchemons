@@ -136,7 +136,7 @@ extension ConservatoryDungeon on PlanetDungeonGame {
   // ── The verb ──────────────────────────────────────────────
 
   bool _tryConservatoryVerb(DungeonCreature a) {
-    if (!_isConservatory || isRaid) return false;
+    if (!_isConservatory) return false;
     final g = currentRoom.grove;
     if (g == null) return false;
     return _tryArenaRing(a, g) ||
@@ -568,7 +568,7 @@ extension ConservatoryDungeon on PlanetDungeonGame {
   /// only after the climate is fixed, and runs in full from that moment.
   /// Runs after the shared cycle in `_updateAltar`, so it owns the window.
   void _updateBotanica(DungeonRoom room, double dt) {
-    if (room.guardian == null || room.grove == null || isRaid) return;
+    if (room.guardian == null || room.grove == null) return;
     if (!guardianAwake || guardianArriving || hasStar(2)) return;
     final g = greenhouse;
     final s = _green;

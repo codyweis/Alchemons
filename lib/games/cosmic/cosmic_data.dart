@@ -1894,6 +1894,10 @@ const Set<String> kPolishedDungeons = <String>{
   // rebuild (a portal pair per Dark, the party split across rooms, the
   // blood bridge), played on device.
   'Dark',
+  // Blood — promoted 2026-10-06 on the author's account, after the Blood
+  // Rites rebuild (four captive rooms, the Circle and its maxim seal, the
+  // Heart theatre, the staged boss) and two playtests on device.
+  'Blood',
 };
 
 /// True if [element]'s descent is ready for a player: built AND polished.
@@ -4520,6 +4524,32 @@ class Projectile {
   /// its projectile travel", which is not a design anyone chose.
   int maxHitsPerEnemy = 0;
 
+  /// Seconds banked toward this projectile's next contact test. See
+  /// [takeContactTick].
+  double _contactClock = 0;
+
+  /// Whether this projectile tests contact THIS frame.
+  ///
+  /// A projectile that can touch the same body again and again — piercing,
+  /// with no per-body ceiling (orbiting rings and shards, trail and pool
+  /// zones, slow piercing shots) — billed it once per FRAME, so on a 120 Hz
+  /// screen it did twice the damage it does at 60 (measured 2026-10-07:
+  /// Kin Crystal's shards, Mane Light's ward ring, every Mask auto-attack).
+  /// Those touch on a fixed 60 Hz clock instead: at 60 fps nothing changes —
+  /// every number in the game was tuned there — and at 120 fps they land
+  /// exactly as often. Everything else tests every frame as before.
+  bool takeContactTick(double dt) {
+    if (!piercing || maxHitsPerEnemy > 0) return true;
+    _contactClock += dt;
+    // A hair of slack so a 0.01666 frame still counts at 60 fps.
+    if (_contactClock < kContactTickSeconds * 0.95) return false;
+    _contactClock = (_contactClock - kContactTickSeconds).clamp(
+      0.0,
+      kContactTickSeconds,
+    );
+    return true;
+  }
+
   /// Hits landed per body, counted only when [maxHitsPerEnemy] is set so the
   /// overwhelming majority of projectiles allocate nothing.
   Map<int, int>? _enemyHitCounts;
@@ -5121,6 +5151,31 @@ class CosmicSpecialResult {
   });
 }
 
+/// MEASURED BALANCE TRIMS on a special's damage, by `family/Element`.
+///
+/// The 2026-10-07 balance pass ran every one of the 136 abilities alone
+/// through `test/ability_testbed_test.dart`'s four fights (horde, shooters,
+/// siege, boss) and aimed for a ceiling of ~3.3x the median ability in its
+/// best fight — a specialist should lead its fight, not lap it. Mechanism
+/// bugs came first and did most of the work (Horn Lava's flames spawning
+/// flames 12.8x→1.8x, Pip Dark's holes opening holes 6.0x→1.5x, Pip Water's
+/// basics erupting the ricochet's splash 4.0x→1.9x, Kin Poison's piercing
+/// homing darts, Mane Fire carrying eight Manes' payload 8.1x→4.1x, Mane
+/// Spirit's stream and Mane Dust's trail billing once a frame). What is left
+/// here is the pure-number excess that a trim measurably moved. Scaling the
+/// INPUT keeps a special's parts — sub-shots, trails, effect power — in
+/// proportion.
+///
+/// Read the boss column with care: total damage in a window is not
+/// monotonic in power (a boss that dies early leaves nothing to hit), and an
+/// execute books a body's whole remaining health — Mane Dark and Let Dark
+/// score high there by design, which is why they are not trimmed.
+const Map<String, double> kSpecialBalanceTrim = {
+  'wing/Dark': 0.66, //  4.6x → 3.1x (boss): the double-cadence laser
+  'mane/Plant': 0.71, // 4.2x → 3.7x (boss)
+  'mane/Earth': 0.88, // 3.6x → 2.7x (boss)
+};
+
 CosmicSpecialResult createCosmicSpecialAbility({
   required Offset origin,
   required double baseAngle,
@@ -5139,6 +5194,7 @@ CosmicSpecialResult createCosmicSpecialAbility({
   double casterBeautyPotential = 50,
   Offset? targetPos,
 }) {
+  damage *= kSpecialBalanceTrim['${family.toLowerCase()}/$element'] ?? 1.0;
   CosmicSpecialResult rawResult;
   switch (family.toLowerCase()) {
     case 'horn':
@@ -8892,11 +8948,19 @@ CosmicSpecialResult _maneSpecial(
         atPerfect: 16,
         potential: casterBeautyPotential,
       );
+      // THE PAYLOAD IS SHARED, NOT MULTIPLIED. Every other Mane is one heavy
+      // shot carrying 2.2–3.9x; Fire carried 1.12x PER fireball, so an
+      // average cast was ~9x and a perfected one ~18x — and against a boss,
+      // which every fireball reaches, it was 8x the median ability
+      // (measured 2026-10-07). The fan now carries ~3.6x at eight, growing
+      // with the square root of the count: more fireballs still means more
+      // coverage and somewhat more damage, not eight Manes at once.
+      final fireballPayload = 3.6 * sqrt(fireballCount / 8.0);
       return finalize(
         fanResult(
           lanes: fireballCount,
           arc: pi * 0.92,
-          damageMultiplier: 1.12,
+          damageMultiplier: fireballPayload / fireballCount,
           life: 2.55,
           speed: 0.96,
           visualScale: 1.10,
@@ -9190,7 +9254,11 @@ CosmicSpecialResult _maneSpecial(
           piercing: true,
           radiusMultiplier: 4.8,
           trailInterval: 0.12,
-          trailDamage: damage * 0.34,
+          // The trail DISORIENTS (the board: "enemies that enter the trail
+          // can no longer shoot") and does no damage. It billed 0.34x on
+          // every FRAME of contact for six seconds — ~20x the shot per
+          // second, twice that at 120 fps (measured 2026-10-07).
+          trailDamage: 0,
           // Twice the dwell: the trail IS the ability, so it wants to be a
           // hazard the field has to route around, not a fading smear.
           trailLife: 6.0,
@@ -10475,8 +10543,12 @@ List<Projectile> _kinElementExtraProjectiles(
       ];
     case 'Poison':
       // Signature: Venom Swirl — a radial burst of homing poison darts
-      // fired in all directions from the caster. Each dart seeks a
-      // nearby enemy and applies stacking poison on hit.
+      // fired in all directions from the caster, each seeking a nearby
+      // enemy: mass crowd-POKE. A dart is spent on the body it reaches.
+      // (It was piercing AND homing, so a dart passed through, turned
+      // back and passed through again for 2.6s, billing damage and a
+      // fresh poison on every frame of contact: 4.7x the median ability
+      // in the testbed, from a SUPPORT family. Measured 2026-10-07.)
       final dartCount =
           8 + (AlchemonStatSystem.combatProgress(power) * 8).round();
       return List.generate(dartCount, (i) {
@@ -10485,18 +10557,22 @@ List<Projectile> _kinElementExtraProjectiles(
           position: Offset(origin.dx + cos(a) * 18, origin.dy + sin(a) * 18),
           angle: a,
           element: element,
-          damage: damage * 0.55,
+          // ×2.5 when the dart stopped passing through (0.55 → 1.4, poison
+          // 0.30 → 0.75): spent on one body, it measured 0.55x the median
+          // ability — the offensive Kin should land near 0.85x, still under
+          // every damage family.
+          damage: damage * 1.4,
           life: 2.6,
           speedMultiplier: 0.95,
           radiusMultiplier: 1.4,
           visualScale: 1.1,
-          piercing: true,
+          piercing: false,
           homing: true,
           homingStrength: 3.6,
           visualStyle: ProjectileVisualStyle.sigil,
           abilityFamily: 'kin',
           hitEffect: AbilityEffectKind.poison,
-          effectPower: damage * 0.30,
+          effectPower: damage * 0.75,
           effectRadius: 1, // direct apply, no aoe
           effectDuration: 4.0,
         );
@@ -11245,6 +11321,10 @@ int scaledAbilityCount(
 /// design; it was the frame rate.
 const int kManeSpecialMaxHitsPerEnemy = 2;
 
+/// The fixed clock unbounded re-hitters test contact on — see
+/// [Projectile.takeContactTick]. 60 Hz, the rate everything was tuned at.
+const double kContactTickSeconds = 1 / 60;
+
 /// Mane blades fly at half the ordinary projectile speed, the same halving
 /// the family's catapult specials take. Their two-second life still carries
 /// them 600 units, three times the companion's attack range, so nothing falls
@@ -11341,12 +11421,19 @@ List<Projectile> createFamilyBasicAttack({
           ),
           angle: angle,
           element: element,
-          damage: damage * 0.9 * kDamageScale,
+          // ONE hit per body (2026-10-07). The dart pierces — it passes on to
+          // the next body — but contact is re-tested every frame, so it billed
+          // a standing body for every frame of overlap: ~2 hits on a wisp,
+          // ~6 on a brute at 60 fps and twice that at 120 (measured: 24k →
+          // 44k on one target from 60 → 120 fps). 0.9 → 1.17 keeps the
+          // family's 60 fps output against shooters and hordes; only the
+          // accidental re-hits on heavy bodies are gone.
+          damage: damage * 1.17 * kDamageScale,
           speedMultiplier: 1.3,
           piercing: true,
           life: 1.2,
           visualStyle: ProjectileVisualStyle.dart,
-        ),
+        )..maxHitsPerEnemy = 1,
       ];
     case 'wing':
       return [

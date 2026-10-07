@@ -2024,7 +2024,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // key off the room id — they sat behind `room.molten != null` and had
     // not been said once since the rework.
     if (room.guardian != null) {
-      return 'Furnace Heart. Face Boilrog: calm it, or strike in its lulls';
+      return 'Furnace Heart. Face Boilrog: strike in its lulls';
     }
     return switch (room.id) {
       'boiler_gate' when !entryDoorRevealed =>

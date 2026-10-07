@@ -14,7 +14,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 
 void main() {
-  test('the polished set is the sixteen that have had the pass', () {
+  test('the polished set is all seventeen', () {
     expect(kPolishedDungeons, {
       'Fire',
       'Air',
@@ -42,6 +42,8 @@ void main() {
       'Light',
       // Dark, 2026-10-03: the Black Sun, played.
       'Dark',
+      // Blood, 2026-10-06: the Blood Rites, played.
+      'Blood',
     });
   });
 
@@ -66,7 +68,8 @@ void main() {
     final unpolished = kPlanetDungeonLayouts.keys.where(
       (e) => !kPolishedDungeons.contains(e),
     );
-    expect(unpolished, isNotEmpty, reason: 'the gate would be pointless');
+    // All seventeen are promoted now; the gate stays for any planet added
+    // later, so this holds trivially until then.
     for (final element in unpolished) {
       expect(
         dungeonIsPlayable(element),

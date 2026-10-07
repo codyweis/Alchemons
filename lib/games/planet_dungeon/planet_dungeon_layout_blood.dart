@@ -387,8 +387,6 @@ const DungeonLayout bloodLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Blood',
           mysticId: 'Sanguorath',
-          canCalm: false,
-          canDefeat: true,
         ),
       ),
       rite: RiteBay(RiteKind.arena),

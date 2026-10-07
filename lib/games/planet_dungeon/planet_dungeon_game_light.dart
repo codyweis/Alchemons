@@ -87,11 +87,39 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
   /// The grid name of a body: its element, or its slot when the party
   /// carries a double.
   String _shadowName(DungeonCreature c) {
+    if (isRaid) return _raidShadowNames()[c] ?? '';
     final el = c.member.element;
     final i = creatures.indexOf(c);
     final single = creatures.where((o) => o.member.element == el).length == 1;
     if (single && kShadowNames.contains(el)) return el;
     return kShadowNames[i.clamp(0, 2)];
+  }
+
+  /// A raid squad is five on a floor that knows three names. The one you
+  /// play always has one of its own, since its burn, its reach and its step
+  /// are read from where it stands; then the rest of the squad in order.
+  /// Each takes its own element's name when that is one of the three and
+  /// still free, else the first free one. The last two cast no shadow.
+  Map<DungeonCreature, String> _raidShadowNames() {
+    final a = active;
+    if (identical(_raidNamesFor, a) && _raidNamesAt == _time) {
+      return _raidNames;
+    }
+    final free = [...kShadowNames];
+    _raidNames = {};
+    for (final c in [
+      ?a,
+      ...creatures.where((c) => c.alive && !identical(c, a)),
+    ]) {
+      if (free.isEmpty) break;
+      final el = c.member.element;
+      final name = free.contains(el) ? el : free.first;
+      free.remove(name);
+      _raidNames[c] = name;
+    }
+    _raidNamesFor = a;
+    _raidNamesAt = _time;
+    return _raidNames;
   }
 
   DungeonCreature? _shadowBody(String name) {
@@ -477,7 +505,8 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     final e = t * t * (3 - 2 * t);
     final fr = def.orbit![archive.orbitFrom.toInt()];
     final start = shadowCentre(fr.x, fr.y);
-    final mid = shadowCentre(5, 4);
+    final pivot = def.swingCentre;
+    final mid = shadowCentre(pivot.x, pivot.y);
     final a0 = atan2(start.dy - mid.dy, start.dx - mid.dx);
     final a1 = atan2(end.dy - mid.dy, end.dx - mid.dx);
     var da = a1 - a0;

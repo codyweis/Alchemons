@@ -2243,7 +2243,8 @@ extension FrozenObservatory on PlanetDungeonGame {
       _frowyrmBitLastFrame = false;
       hoarfrostWhole = false;
       _hoarfrostDown = _kHoarfrostRegrow;
-      _shatterOneStair();
+      // A raid arena has no shaft above it to scour.
+      if (!isRaid) _shatterOneStair();
     }
   }
 
@@ -2505,6 +2506,9 @@ extension FrozenObservatory on PlanetDungeonGame {
       _setInsightHint(switch (tier) {
         0 => 'The hoarfrost pillar is the key to this fight',
         1 => 'Frowyrm can only be hit while the hoarfrost pillar stands',
+        _ when isRaid =>
+          'Ice raises the pillar. Each time Frowyrm\'s opening closes, it '
+              'breaks the pillar again',
         _ =>
           'Ice raises the pillar. Each time Frowyrm\'s opening closes, it '
               'breaks the pillar and one of your stairs above. With no stairs, '

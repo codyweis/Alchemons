@@ -7,7 +7,6 @@
 import 'dart:math' show cos, max, pi, sqrt;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
@@ -35,27 +34,14 @@ CosmicPartyMember _member({
   );
 }
 
-CosmicSurvivalCompanion _companion(CosmicPartyMember member, Offset position) {
-  final stats = deriveAlchemonCombatStats(member: member);
-  return CosmicSurvivalCompanion(
-    member: member,
-    slotIndex: member.slotIndex,
-    position: position,
-    anchor: position,
-    maxHp: stats.maxHp,
-    currentHp: stats.maxHp,
-    physAtk: stats.physAtk,
-    elemAtk: stats.elemAtk,
-    abilityAtk: stats.elemAtk,
-    physDef: stats.physDef,
-    elemDef: stats.elemDef,
-    cooldownReduction: stats.cooldownReduction,
-    attackRange: stats.attackRange,
-    specialAbilityRange: stats.specialAbilityRange,
-    tethered: false,
-    invincibleTimer: 0,
-  );
-}
+/// The combat body exactly as a run builds it (`_createCombatCompanion`) —
+/// this harness used to assemble its own (`abilityAtk: elemAtk`, no special
+/// recharge, no primed cooldown), a party the game never fields.
+CosmicSurvivalCompanion _companion(
+  PlanetDungeonGame game,
+  CosmicPartyMember member,
+  Offset position,
+) => game.debugCreateCombatCompanion(member, position);
 
 PlanetDungeonGame _buildGame({int partySize = 2}) {
   final party = [for (var i = 0; i < partySize; i++) _member(slot: i)];
@@ -75,7 +61,7 @@ PlanetDungeonGame _buildGame({int partySize = 2}) {
       ..position = spawn + Offset(i * 60.0, 0)
       ..lastSafe = spawn + Offset(i * 60.0, 0);
     game.creatures.add(c);
-    game.combatCompanions.add(_companion(party[i], c.position));
+    game.combatCompanions.add(_companion(game, party[i], c.position));
   }
   return game;
 }
@@ -166,10 +152,11 @@ void main() {
         }
         // And they actually fight that creature (dive impacts landed), with
         // damage that registers on the HP bar — not survival-scale chip damage
-        // that rounds to nothing against dungeon pools.
+        // that rounds to nothing against dungeon pools. (0.92 → 0.95 on
+        // 2026-10-07: a level-10 body's P-DEF now trims each dive by ~16%.)
         expect(
           game.combatCompanions[1].currentHp,
-          lessThan((idleHpBefore * 0.92).round()),
+          lessThan((idleHpBefore * 0.95).round()),
           reason: 'sustained wisp dives must deal meaningful damage',
         );
       },
@@ -222,7 +209,7 @@ void main() {
           ..position = spawn + Offset(i * 50.0, 0)
           ..lastSafe = spawn + Offset(i * 50.0, 0);
         game.creatures.add(c);
-        game.combatCompanions.add(_companion(m, c.position));
+        game.combatCompanions.add(_companion(game, m, c.position));
       }
 
       // Down the ACTIVE creature only.
@@ -413,7 +400,7 @@ void main() {
           ..position = spawn + Offset(i * 60.0, 0)
           ..lastSafe = spawn + Offset(i * 60.0, 0);
         game.creatures.add(c);
-        game.combatCompanions.add(_companion(party[i], c.position));
+        game.combatCompanions.add(_companion(game, party[i], c.position));
       }
       return game;
     }
@@ -817,7 +804,7 @@ void main() {
           ..position = spawn
           ..lastSafe = spawn;
         game.creatures.add(c);
-        game.combatCompanions.add(_companion(m, spawn));
+        game.combatCompanions.add(_companion(game, m, spawn));
       }
       final bolt = game.creatures[0];
 
@@ -1005,7 +992,7 @@ void main() {
         ..position = game.currentRoom.conduits.first.position
         ..lastSafe = game.currentRoom.conduits.first.position;
       game.creatures.add(c);
-      game.combatCompanions.add(_companion(m, c.position));
+      game.combatCompanions.add(_companion(game, m, c.position));
 
       // §9.1: conduit B answers no hand at all now — the storm strikes it.
       // The rite lock is proved on the conduit a hand CAN reach: A.

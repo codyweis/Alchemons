@@ -992,8 +992,6 @@ const DungeonLayout poisonLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Poison',
           mysticId: 'Blightfang',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
     ),

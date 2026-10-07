@@ -16,6 +16,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
+import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic/planets/planet_art.dart'
     show BlackHoleArt, DiskPalette;
@@ -32,6 +33,7 @@ import 'package:alchemons/games/planet_dungeon/burn_field.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_glass.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/planet_dungeon/guardian_grain_death.dart';
+import 'package:alchemons/games/planet_dungeon/raid_pulse_fx.dart';
 import 'package:alchemons/games/planet_dungeon/blood_rite_fx.dart';
 import 'package:alchemons/games/planet_dungeon/blood_heart_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
@@ -183,6 +185,11 @@ class DungeonCreature {
   /// (44 units): what is drawn round its body (glow, marker, shadow) grows
   /// with it. See [kDungeonFamilyBox].
   double sizeK = 1.0;
+
+  /// How a party member you are not driving is moving in a fight: its own
+  /// velocity, eased toward where it wants to go, so it starts, turns and
+  /// arrives smoothly instead of snapping between directions.
+  Offset idleVelocity = Offset.zero;
 
   /// Last position on solid ground (used to recover from a glide fall).
   Offset lastSafe = Offset.zero;
@@ -529,11 +536,13 @@ class PlanetDungeonGame extends FlameGame {
   static const double kGuardianBaseStrikes = 14;
 
   /// The guardian's own pool before any scaling — sized against MEASURED
-  /// party damage, not against a wisp. With the wave-7 curve (×1.3125) a
-  /// fresh-save mystic stands at ~41k, which the sim plays out as ≈36s for a
-  /// weak trio, ≈30s for a mid one and ≈21s for a near-perfect one: four to
-  /// six full rage/lull cycles, the half-HP enrage, and room for the planet's
-  /// own twist to turn several times.
+  /// party damage, not against a wisp. With the wave-7 curve (×1.238 since
+  /// the 2026-09-13 survival flattening; ×1.3125 when this was set) a
+  /// fresh-save mystic stands at ~7.4k. Re-measured 2026-10-07 with
+  /// production-built trios once a boss stopped taking trash effects (see
+  /// `_isBossBody`): ≈50–74s weak, ≈25–42s mid, ≈13–16s near-perfect —
+  /// several rage/lull cycles, the half-HP enrage, and room for the planet's
+  /// own twist to turn.
   static const double kGuardianBaseHp = 6000;
 
   /// Lull strikes needed to fell the guardian: 14 on a fresh save, 26 by the
@@ -604,6 +613,133 @@ class PlanetDungeonGame extends FlameGame {
       4.0,
     );
     onRaidExpired?.call();
+  }
+
+  // ── A guardian's squad hit ──
+  //
+  // Dives take one body at a time, and the rage aura only the one you are
+  // playing, so a guardian used to grind down its front line and never touch
+  // the rest. On a steady beat the guardian gathers grains into itself and
+  // sends them out through the room: every living Alchemon, wherever it
+  // stands, takes a share of its own health, trimmed by E-DEF. Nothing dodges
+  // it (the Dark Kin's veil included); healing and defence answer it.
+  //
+  // Raids at [RaidConfig.squadHitFraction]. A dungeon's own guardian fight
+  // is lighter ([kDungeonSquadHitFraction], growing with the campaign clock
+  // like all of its attacks), because a dungeon's trio is the one the
+  // dungeon asks for and cannot always bring a healer; downs revive there.
+  // Not Sanguorath's: its fight is the shell rites.
+
+  /// Seconds into the current beat. A hit lands each time it reaches the
+  /// interval; the gather starts [RaidPulseFx.telegraph] before that.
+  double _squadHitClock = 0;
+  RaidPulseFx? _squadHitFx;
+  bool _squadHitTaught = false;
+  int _squadHitsLanded = 0;
+
+  @visibleForTesting
+  int get squadHitsLanded => _squadHitsLanded;
+
+  @visibleForTesting
+  bool get squadHitGathering => _squadHitFx?.gathering ?? false;
+
+  @visibleForTesting
+  void debugTickSquadHit(double dt) => _updateSquadHit(dt);
+
+  void _updateSquadHit(double dt) {
+    final fx = _squadHitFx;
+    if (fx != null && !fx.gathering) {
+      fx.t += dt;
+      if (fx.done) _squadHitFx = null;
+    }
+    final cfg = raid;
+    final g = _guardianEnemy;
+    if (g == null ||
+        g.isDead ||
+        g.hp <= 0 ||
+        currentRoom.guardian == null ||
+        _isRites ||
+        _raidDeath != null ||
+        _raidExpiredFired) {
+      // A gather the fight ended under never lands.
+      if (_squadHitFx?.gathering ?? false) _squadHitFx = null;
+      return;
+    }
+    final interval = cfg?.squadHitInterval ?? kDungeonSquadHitInterval;
+    final fraction =
+        cfg?.squadHitFraction ?? kDungeonSquadHitFraction * progressDmgMul;
+    final gatherAt = interval - RaidPulseFx.telegraph;
+    final before = _squadHitClock;
+    _squadHitClock += dt;
+    if (before < gatherAt && _squadHitClock >= gatherAt) {
+      _squadHitFx = RaidPulseFx(color: elementColor(g.element));
+      _cue(SoundCue.combatDanger);
+      if (!_squadHitTaught) {
+        _squadHitTaught = true;
+        speakConsequence('Its pulse hits every Alchemon');
+      }
+    }
+    final gathering = _squadHitFx;
+    if (gathering != null && gathering.gathering) {
+      gathering.t = _squadHitClock - gatherAt;
+    }
+    if (_squadHitClock < interval) return;
+    _squadHitClock -= interval;
+    if (gathering != null && gathering.gathering) {
+      gathering
+        ..washFrom = g.position
+        ..t = RaidPulseFx.telegraph + _squadHitClock;
+    }
+    _landSquadHit(fraction, g);
+  }
+
+  void _landSquadHit(double fraction, CosmicSurvivalEnemy guardian) {
+    _squadHitsLanded++;
+    for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
+      final comp = combatCompanions[i];
+      if (!creatures[i].alive || comp.isDead || comp.currentHp <= 0) continue;
+      if (comp.invincibleTimer > 0) continue;
+      final dmg = max(
+        1,
+        (comp.maxHp * fraction * defenseMitigation(comp.elemDef)).round(),
+      );
+      _landHitOnCompanion(i, dmg, guardian);
+      comp.hitFlash = 0.22;
+    }
+    _cue(SoundCue.combatHitHeavy);
+  }
+
+  /// Lands [dmg] on combat body [index]: a shield soaks it first, then
+  /// health, and the squad's reactive kits (Kin plates, boilers and pacts, a
+  /// Lightning Horn's guard) hear about it. Returns what reached health.
+  int _landHitOnCompanion(int index, int dmg, CosmicSurvivalEnemy attacker) {
+    final comp = combatCompanions[index];
+    var remainingDamage = dmg;
+    if (comp.shieldHp > 0) {
+      final absorbed = min(comp.shieldHp, remainingDamage);
+      comp.shieldHp -= absorbed;
+      remainingDamage -= absorbed;
+    }
+    if (remainingDamage <= 0) return 0;
+    comp.currentHp = (comp.currentHp - remainingDamage).clamp(0, comp.maxHp);
+    _reactDungeonKinToDamage(index, remainingDamage.toDouble(), attacker);
+    // Lightning horn reactive guard: damage taken during the dash or storm
+    // brew is absorbed into the coming chain discharge.
+    if (comp.member.family.toLowerCase() == 'horn' &&
+        comp.member.element == 'Lightning' &&
+        (comp.chargeTimer > 0 ||
+            comp.windUpTimer > 0 ||
+            comp.hornPostDashWindUpTimer > 0)) {
+      comp.hornLightningAbsorbed += remainingDamage.toDouble();
+    }
+    return remainingDamage;
+  }
+
+  void _renderSquadHit(Canvas canvas) {
+    final fx = _squadHitFx;
+    final g = _guardianEnemy;
+    if (fx == null) return;
+    fx.paint(canvas, g?.position ?? fx.washFrom ?? Offset.zero);
   }
 
   final List<Projectile> combatProjectiles = [];
@@ -1688,6 +1824,9 @@ class PlanetDungeonGame extends FlameGame {
   bool _raikumaFed = false;
   double _raikumaLullLeft = 0;
 
+  /// Seconds before the spike can bite a trunk Raikuma has just seized back.
+  double _raikumaSurgeLeft = 0;
+
   bool get _isCircuit => layout.element == 'Lightning';
 
   // ── Steam (the Molten Labyrinth) run-state ──
@@ -2045,6 +2184,12 @@ class PlanetDungeonGame extends FlameGame {
   /// planet_dungeon_layout_light.dart).
   final ShadowRun archive = ShadowRun();
 
+  /// A raid's shadow names (see `_raidShadowNames`), worked out once a
+  /// frame for the body being played.
+  Map<DungeonCreature, String> _raidNames = const {};
+  DungeonCreature? _raidNamesFor;
+  double _raidNamesAt = -1;
+
   bool get _isArchive => layout.element == 'Light';
   // ── Blood · the Blood Rites (planet_dungeon_game_blood.dart) ──
   /// The four captive rooms, the Circle's rings and cups, and Sanguorath's
@@ -2358,6 +2503,11 @@ class PlanetDungeonGame extends FlameGame {
   bool _soundInHazard = false;
 
   static const double _hazardDps = 60.0;
+
+  /// A dungeon guardian's squad hit: every this many seconds, this share of
+  /// each Alchemon's health (half a raid's), times the campaign clock.
+  static const double kDungeonSquadHitInterval = 8.0;
+  static const double kDungeonSquadHitFraction = 0.03;
   static const double _guardianHazardDps = 28.0;
 
   DungeonRoom get currentRoom => layout.rooms[currentRoomId]!;
@@ -3007,6 +3157,15 @@ class PlanetDungeonGame extends FlameGame {
       ..sizeK = box / 44;
   }
 
+  /// TEST SEAM: the combat body exactly as a run builds it. Harnesses that
+  /// assemble their own (`abilityAtk: elemAtk`, no special recharge, no
+  /// primed cooldown) measure a party the game never fields.
+  @visibleForTesting
+  CosmicSurvivalCompanion debugCreateCombatCompanion(
+    CosmicPartyMember member,
+    Offset position,
+  ) => _createCombatCompanion(member, position);
+
   CosmicSurvivalCompanion _createCombatCompanion(
     CosmicPartyMember member,
     Offset position,
@@ -3127,6 +3286,8 @@ class PlanetDungeonGame extends FlameGame {
     guardianVulnerable = false;
     _guardianCycle = 0;
     _raidPhaseIndex = 0;
+    _squadHitClock = 0;
+    _squadHitFx = null;
     guardianHp = maxGuardianHp;
     guardianHitFlash = 0;
     _guardianStrikeCooldown = 0;
@@ -3814,7 +3975,7 @@ class PlanetDungeonGame extends FlameGame {
     for (final p in _alchemyParticles) {
       p.life -= dt;
       p.position += p.velocity * dt;
-      p.velocity *= 0.95;
+      p.velocity *= pow(0.95, dt * 60).toDouble(); // a rate, not per frame
     }
     _alchemyParticles.removeWhere((p) => p.dead);
   }
@@ -4393,29 +4554,28 @@ class PlanetDungeonGame extends FlameGame {
       // hook — every other guardian keeps the shared cycle untouched.
       if (_isCircuit) _applyRaikumaFeed(room, dt);
       // Leviathan turns the tide (§7): the arena floods and drains on its
-      // roar, and the lull only opens on SETTLED water. Water-only hook —
-      // every other guardian keeps the shared cycle untouched, and raids are
-      // exempt (the generated arena has no tide zones).
+      // roar, and the lull only opens on SETTLED water. Water-only hook; the
+      // raid arena generates its tide zones.
       if (_isTemple) _applyLeviathanTide(room, dt);
       // Simurgh re-lights the rite braziers as it strikes (§7): the ORDER is
       // the bullet pattern. Reads the shared lull/strike cycle, never rewrites
-      // it — and the generated raid arena has no braziers to re-light.
+      // it. The raid arena generates its braziers.
       if (_isCathedral) _applySimurghTelegraph(a, room, dt);
       // The Roc drags the storm-cell across its own rod field (§7): the shared
       // cycle still turns, but a bolt LED INTO the bird — up a staircase of
       // rods, Star 3's own vocabulary — forces a window the cycle never would.
-      // Air-only, and raids have no rod field to rank.
+      // Air-only; the raid arena generates its rods and storm cell.
       if (_isSpire) _applyRocDrag(room, dt);
       // Solarin swings round its orbit on its own rhythm and when struck; its
       // light burns bare glass, and the lull is a PLACE — two squares off it,
       // in its shadow.
-      if (_isArchive && !isRaid) _applySolarinOrbit(room, dt);
+      if (_isArchive) _applySolarinOrbit(room, dt);
       // Blightfang never opens a lull on a clock (§7): only the draught that
       // answers the strain it is WEARING forces the window, and it takes a
       // fresh habit the moment the window shuts. Poison-only; raids exempt.
       // Magmara rides the heart's own conveyor (§7): no clock ever bares it,
       // and the ring's two heads — the works' verb, in the fight — are what
-      // beach it. Lava-only; raids have no ring to ride.
+      // beach it. Lava-only; raids ride the same ring.
       if (_isFoundry) _applyMagmaraRide(room, dt);
       if (_isVenom) _applyBlightfangStrain(room, dt);
       final stormCenter = _guardianPosition(g);
@@ -4450,7 +4610,7 @@ class PlanetDungeonGame extends FlameGame {
       // ring round its altar.
       if (!guardianVulnerable &&
           !_funeralHoldsGuardian &&
-          !(_isArchive && !isRaid) &&
+          !_isArchive &&
           (a.position - stormCenter).distance < 90) {
         a.hp = max(0, a.hp - _guardianHazardDps * progressDmgMul * dt);
       }
@@ -4501,7 +4661,14 @@ class PlanetDungeonGame extends FlameGame {
     return (e.hp / max(1, e.maxHp)).clamp(0.0, 1.0).toDouble();
   }
 
+  /// Each combat body's health as [_syncCombatFromCreatures] left it, so the
+  /// copy back carries only what the combat tick changed. Copying the whole
+  /// value back erased every heal the tick wrote to the creature (Kin
+  /// blessing, kill and drain heals) the frame it landed.
+  final List<int> _combatHpAtSync = [];
+
   void _syncCombatFromCreatures() {
+    _combatHpAtSync.clear();
     for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
       final creature = creatures[i];
       final comp = combatCompanions[i];
@@ -4514,6 +4681,7 @@ class PlanetDungeonGame extends FlameGame {
           0,
           comp.maxHp,
         );
+      _combatHpAtSync.add(comp.currentHp);
     }
   }
 
@@ -4546,10 +4714,17 @@ class PlanetDungeonGame extends FlameGame {
           intensity: 1.2,
         );
       }
-      creature.hp = (creature.maxHp * comp.hpPercent).clamp(
-        0.0,
-        creature.maxHp,
-      );
+      if (comp.currentHp <= 0) {
+        creature.hp = 0;
+      } else {
+        final atSync = i < _combatHpAtSync.length
+            ? _combatHpAtSync[i]
+            : comp.currentHp;
+        creature.hp =
+            (creature.hp +
+                    creature.maxHp * (comp.currentHp - atSync) / comp.maxHp)
+                .clamp(0.0, creature.maxHp);
+      }
     }
   }
 
@@ -4661,6 +4836,7 @@ class PlanetDungeonGame extends FlameGame {
     _updateRaidFightTimer(dt);
     _updateRaidDeath(dt);
     _updateRaidPhases();
+    _updateSquadHit(dt);
     final guardian = currentRoom.guardian;
     if (guardian != null &&
         _guardianEnemy != null &&
@@ -4723,7 +4899,7 @@ class PlanetDungeonGame extends FlameGame {
         final innerRadius = 90.0 * scale;
         final auraRadius = 230.0 * scale;
         for (final enemy in combatEnemies) {
-          if (enemy.isDead) continue;
+          if (enemy.isDead || _isBossBody(enemy)) continue;
           final away = enemy.position - creature.position;
           final distance = away.distance;
           if (distance <= innerRadius || distance > auraRadius) continue;
@@ -4877,7 +5053,9 @@ class PlanetDungeonGame extends FlameGame {
       if (enemy.hornPlantRootTimer > 0) enemy.hornPlantRootTimer -= dt;
       if (enemy.knockbackVelocity.distanceSquared > 0.1) {
         enemy.position += enemy.knockbackVelocity * dt;
-        enemy.knockbackVelocity *= 0.86;
+        // 0.86 per 60 Hz frame, as a rate: a per-frame ×0.86 bled a shove
+        // out in half the distance on a 120 Hz screen.
+        enemy.knockbackVelocity *= pow(0.86, dt * 60).toDouble();
       }
       enemy.attackCooldown = max(0, enemy.attackCooldown - dt);
 
@@ -4952,20 +5130,44 @@ class PlanetDungeonGame extends FlameGame {
           : enemy.conduct == EnemyConduct.stalk
           ? FlightSteeringProfile.dungeonPouncer
           : FlightSteeringProfile.dungeonWisp;
+      final contactRange = enemy.radius + _radius + 4;
       final tick = tickFlightSteering(
         state: m,
         profile: profile,
         toTarget: toTarget,
         speed: enemy.effectiveSpeed,
-        contactRange: enemy.radius + _radius + 4,
+        contactRange: contactRange,
         dt: dt,
         rng: _combatRng,
       );
 
-      if (tick.impact &&
-          targetIndex < combatCompanions.length &&
+      // WHO THE IMPACT LANDS ON. Steering reports contact with whatever it
+      // was steering at, and while a taunt holds it that is the BEACON — but
+      // the hit still went to the creature it had been chasing, wherever
+      // that creature stood: a wisp diving into a Crystal shard 250 units
+      // away took 59 of its 639 health (the 2026-10-07 audit's repro). A lure
+      // that hurts what it protects is no lure. Survival's rule is that
+      // damage needs a body: an arrival at a taunt FIELD lands on a creature
+      // only if one is actually inside the enemy's reach, and an arrival at
+      // a DECOY lands on nobody — the decoy soaks its own grind, above.
+      int? hitIndex;
+      if (tick.impact) {
+        if (taunt == null) {
+          hitIndex = targetIndex;
+        } else if (!taunt.decoy) {
+          final near = _nearestLivingCreatureIndex(enemy.position);
+          if (near != null &&
+              (creatures[near].position - enemy.position).distance <=
+                  contactRange) {
+            hitIndex = near;
+          }
+        }
+      }
+
+      if (hitIndex != null &&
+          hitIndex < combatCompanions.length &&
           enemy.attackCooldown <= 0) {
-        final comp = combatCompanions[targetIndex];
+        final comp = combatCompanions[hitIndex];
         if (comp.invincibleTimer <= 0 && !_dungeonKinCloakActive) {
           // Dive damage is a FRACTION of the victim's pool (survival enemy
           // damage numbers are sized for survival HP pools and round to
@@ -4982,41 +5184,27 @@ class PlanetDungeonGame extends FlameGame {
             final mitigated = pressure * 100 / (100 + comp.physDef);
             dmg = max(1, mitigated.round());
           } else {
+            // A guardian's ceiling sits higher than a wisp's. At one fifth for
+            // both, a guardian's contact hit reached the ceiling by the
+            // SECOND dungeon and never climbed again however far the
+            // campaign went; at three tenths it climbs until about the
+            // seventh, and defence takes the edge off it from there.
             final fraction = (0.045 + enemy.damage * 0.005)
-                .clamp(0.05, 0.2)
+                .clamp(0.05, isGuardian ? 0.3 : 0.2)
                 .toDouble();
-            dmg = max(1, (comp.maxHp * fraction).round());
+            dmg = max(
+              1,
+              (comp.maxHp * fraction * defenseMitigation(comp.physDef))
+                  .round(),
+            );
           }
-          var remainingDamage = dmg;
-          if (comp.shieldHp > 0) {
-            final absorbed = min(comp.shieldHp, remainingDamage);
-            comp.shieldHp -= absorbed;
-            remainingDamage -= absorbed;
-          }
+          final remainingDamage = _landHitOnCompanion(hitIndex, dmg, enemy);
           if (remainingDamage > 0) {
-            comp.currentHp = (comp.currentHp - remainingDamage).clamp(
-              0,
-              comp.maxHp,
-            );
-            _reactDungeonKinToDamage(
-              targetIndex,
-              remainingDamage.toDouble(),
-              enemy,
-            );
-            // Lightning horn reactive guard: damage taken during the dash
-            // or storm brew is absorbed into the coming chain discharge.
-            if (comp.member.family.toLowerCase() == 'horn' &&
-                comp.member.element == 'Lightning' &&
-                (comp.chargeTimer > 0 ||
-                    comp.windUpTimer > 0 ||
-                    comp.hornPostDashWindUpTimer > 0)) {
-              comp.hornLightningAbsorbed += remainingDamage.toDouble();
-            }
             // A landed dive on the echo-carrier tears the echo loose — it
             // drifts back to its resting place (carrying is a commitment).
-            if (targetIndex == activeIndex && carriedCloudId != null) {
+            if (hitIndex == activeIndex && carriedCloudId != null) {
               _spawnAlchemyBurst(
-                creatures[targetIndex].position + const Offset(0, -30),
+                creatures[hitIndex].position + const Offset(0, -30),
                 producedElement: 'Air',
                 reagentElements: const ['Spirit'],
                 unstable: true,
@@ -5397,6 +5585,9 @@ class PlanetDungeonGame extends FlameGame {
         }
         continue;
       }
+      // An unbounded re-hitter touches on a fixed 60 Hz clock, not per frame
+      // (see `Projectile.takeContactTick`).
+      if (!p.takeContactTick(dt)) continue;
 
       final hitRadius = Projectile.radius * p.radiusMultiplier;
       var consumed = false;
@@ -5406,9 +5597,25 @@ class PlanetDungeonGame extends FlameGame {
         if ((p.position - enemy.position).distanceSquared >= hitR * hitR) {
           continue;
         }
+        // A projectile strikes a boss ONCE (survival's `hitBoss`). Contact is
+        // re-tested every frame and a piercing one is not consumed by a hit,
+        // so without this an Air Wing bolt riding its own knockback billed a
+        // fresh guardian ~60 times a second: half the pool from one cast.
+        final boss = _isBossBody(enemy);
+        if (boss && p.hitBoss) continue;
+        // …and every other body up to the projectile's own per-body ceiling —
+        // survival's and space's guard, which the dungeon port never carried
+        // (the Mane catapult's cap of two did nothing here).
+        if (p.abilityFamily == 'mask' && p.stationary) p.maxHitsPerEnemy = 1;
+        final hitId = identityHashCode(enemy);
+        if (!p.canHitEnemy(hitId)) continue;
+        p.noteEnemyHit(hitId);
         // Mane+Plant roots BEFORE damage so a one-shot still detonates the
         // rooted-kill AOE (survival's preRoot ordering).
-        if (p.piercing && p.abilityFamily == 'mane' && p.element == 'Plant') {
+        if (!boss &&
+            p.piercing &&
+            p.abilityFamily == 'mane' &&
+            p.element == 'Plant') {
           _resolveAbilityPierce(p, enemy);
         }
         final wasDead = enemy.isDead;
@@ -5420,14 +5627,27 @@ class PlanetDungeonGame extends FlameGame {
           p.damage,
           sourceSlot: p.sourceSlotIndex,
           fromPipSpecial: isPipSpecialDart,
+          // Basic attacks carry no ability family; every special stamps one.
+          fromAutoAttack: p.abilityFamily.isEmpty,
         );
         final killed = !wasDead && enemy.isDead;
-        _resolveAbilityHit(p, enemy, killed: killed);
-        if (p.piercing) _resolveAbilityPierce(p, enemy);
+        if (boss) {
+          // Plain damage, and only a slow rides along: the trap springs, the
+          // executes, drains and shoves are all built for trash.
+          p.hitBoss = true;
+          final duration = p.effectDuration > 0 ? p.effectDuration : 1.5;
+          _applyBossCrowdControl(enemy, p.hitEffect, duration);
+          _applyBossCrowdControl(enemy, p.pierceEffect, duration);
+        } else {
+          _resolveAbilityHit(p, enemy, killed: killed);
+          if (p.piercing) _resolveAbilityPierce(p, enemy);
+        }
 
         // Pip+Water: a kill on the dart's final hit erupts a huge splash
         // scaled by the caster's Beauty.
+        // The special dart only — a basic never bounces (survival's note).
         if (killed &&
+            isPipSpecialDart &&
             p.element == 'Water' &&
             p.bounceCount <= 0 &&
             p.sourceSlotIndex != null) {
@@ -5704,6 +5924,54 @@ class PlanetDungeonGame extends FlameGame {
     if (enemy.hp <= 0) enemy.isDead = true;
   }
 
+  /// DEFENCE TAKES THE EDGE OFF A HIT (2026-10-07).
+  ///
+  /// Dungeon hits are a FRACTION of the victim's pool — survival's flat
+  /// numbers round to nothing against a dungeon companion — and so P-DEF and
+  /// E-DEF did nothing at all: the combat audit measured the same 59 off a
+  /// body with 0 defence and with 999. Now defence trims what reaches it,
+  /// and ONLY trims: a fresh level-1 body (≈35) takes the authored fraction,
+  /// a mid level-10 team ≈20% less, a heavy Horn ≈35% less, and nothing
+  /// below 60% of it. Physical contact reads P-DEF; a plague's strikes read
+  /// E-DEF. (The raid guardian keeps its own flat-plus-fraction mitigation.)
+  static const double kDefenseReference = 35;
+
+  static double defenseMitigation(int defense) => sqrt(
+    (100 + kDefenseReference) / (100 + max(0, defense)),
+  ).clamp(0.6, 1.0).toDouble();
+
+  /// THE BODIES THE DUNGEON FIGHTS AS BOSSES: the guardian (raids included)
+  /// and a Poison plague.
+  ///
+  /// Survival keeps its boss out of the enemy list altogether, so nothing
+  /// built for trash ever reaches it: a projectile strikes it once, for its
+  /// plain damage, and only a (floored) slow rides along. The dungeon's
+  /// guardian lives IN the list, and so it inherited everything — an Air Wing
+  /// bolt billing it once a frame and carrying it out of the room, Mask
+  /// Light's void executing it on contact, Mask Blood bleeding 6% of its pool
+  /// a second, Let Spirit's coin-flip execute. Measured 2026-10-07: one Wing
+  /// cast took half a fresh guardian. These are the places that ask.
+  bool _isBossBody(CosmicSurvivalEnemy enemy) =>
+      identical(enemy, _guardianEnemy) ||
+      (_isVenom && identical(enemy, monastery.body));
+
+  /// Survival's `_applyBossCrowdControl`: a boss is slowed, never rooted,
+  /// shoved or stopped — and less, and for less long, than a wisp is.
+  void _applyBossCrowdControl(
+    CosmicSurvivalEnemy boss,
+    AbilityEffectKind effect,
+    double duration,
+  ) {
+    if (boss.isDead || !CosmicAbilityRuntime.isCrowdControl(effect)) return;
+    final slow = CosmicAbilityRuntime.survivalSlowMultiplier(effect);
+    boss.slowMultiplier = min(boss.slowMultiplier, max(kBossChillFloor, slow));
+    boss.slowTimer = max(
+      boss.slowTimer,
+      CosmicAbilityRuntime.survivalCrowdControlDuration(effect, duration) *
+          kBossChillDurationScale,
+    );
+  }
+
   /// The Roc shrugs off most ranged damage while raging; the lull (the same
   /// window that allows utility strikes) is the burst window.
   double _enemyDamageTakenScale(CosmicSurvivalEnemy enemy) {
@@ -5840,6 +6108,20 @@ class PlanetDungeonGame extends FlameGame {
         ? projectile.effectDuration
         : 1.5;
     final slot = projectile.sourceSlotIndex;
+    // A boss (see [_isBossBody]) is slowed — less, and for less long — and
+    // never rooted, frozen, shoved or carried: beam ticks and standing zones
+    // reach it through here, not through the projectile pass.
+    final boss = _isBossBody(enemy);
+    if (boss) {
+      if (CosmicAbilityRuntime.isCrowdControl(effect)) {
+        _applyBossCrowdControl(enemy, effect, effectDuration);
+        return;
+      }
+      if (effect == AbilityEffectKind.knockback ||
+          effect == AbilityEffectKind.carry) {
+        return;
+      }
+    }
     switch (effect) {
       case AbilityEffectKind.knockback:
         final dir = enemy.position - origin;
@@ -5905,7 +6187,7 @@ class PlanetDungeonGame extends FlameGame {
       case AbilityEffectKind.zoneDamage:
       case AbilityEffectKind.geyser:
         _damageEnemyDirect(enemy, effectPower, sourceSlot: slot);
-        if (effect == AbilityEffectKind.geyser) {
+        if (effect == AbilityEffectKind.geyser && !boss) {
           enemy.knockbackVelocity += const Offset(0, -140);
         }
         break;
@@ -5918,7 +6200,8 @@ class PlanetDungeonGame extends FlameGame {
             effect,
             power: effectPower,
             targetHp: enemy.hp,
-            targetHpFraction: enemy.hpFraction,
+            // No low-health threshold on a boss: the hit, never the kill.
+            targetHpFraction: boss ? 1.0 : enemy.hpFraction,
           ),
           sourceSlot: slot,
         );
@@ -5937,7 +6220,8 @@ class PlanetDungeonGame extends FlameGame {
       case AbilityEffectKind.pull:
       case AbilityEffectKind.blackHole:
         for (final other in combatEnemies) {
-          if (other.isDead) continue;
+          // A boss is neither dragged nor swallowed at low health.
+          if (other.isDead || _isBossBody(other)) continue;
           final dir = origin - other.position;
           final dist = dir.distance;
           if (dist <= 0.01 || dist > effectRadius) continue;
@@ -6415,6 +6699,11 @@ class PlanetDungeonGame extends FlameGame {
     double damage = 9,
     double radius = 12,
     bool steers = false,
+    // A BOSS rides the guardians' campaign curve ([progressHpMul] /
+    // [progressDmgMul]) INSTEAD of the wisps' — never both. A Poison plague
+    // used to get both, ×17.5 by the last dungeon against a guardian's ×3.9:
+    // a speed bump on the first planet and a wall on the last.
+    bool boss = false,
   }) {
     final live = combatEnemies
         .where((e) => !e.isDead && !identical(e, _guardianEnemy))
@@ -6423,10 +6712,10 @@ class PlanetDungeonGame extends FlameGame {
     const wave = 4;
     final hpScale =
         CosmicSurvivalBalance.enemyWaveHpScale(wave) *
-        (1.0 + 0.22 * clearedGuardianCount);
+        (boss ? progressHpMul : 1.0 + 0.22 * clearedGuardianCount);
     final damageScale =
         CosmicSurvivalBalance.enemyWaveDamageScale(wave) *
-        (1.0 + 0.07 * clearedGuardianCount);
+        (boss ? progressDmgMul : 1.0 + 0.07 * clearedGuardianCount);
     final speedScale = CosmicSurvivalBalance.enemyWaveSpeedScale(wave);
     final e = CosmicSurvivalEnemy(
       position: offscreenSpawn(currentRoom, from),
@@ -6574,10 +6863,13 @@ class PlanetDungeonGame extends FlameGame {
     // early guardians read as set-pieces and died like wisps; the strike
     // count caps the fight's length, the pool decides how much of that cap a
     // given team actually spends, and the damage makes those windows cost.
+    // Blightfang wears its pool once per shell. A raid splits the raid pool
+    // across the three, so it costs what every other raid guardian costs.
+    final shells = _isVenom && isRaid ? kPlagueBars : 1;
     _guardianEnemy = CosmicSurvivalEnemy(
       position: g.position,
-      hp: kGuardianBaseHp * hpScale,
-      maxHp: kGuardianBaseHp * hpScale,
+      hp: kGuardianBaseHp * hpScale / shells,
+      maxHp: kGuardianBaseHp * hpScale / shells,
       speed: 58,
       damage: 24 * damageScale,
       radius: 38,
@@ -6597,7 +6889,12 @@ class PlanetDungeonGame extends FlameGame {
     final g = _guardianEnemy;
     if (cfg == null || g == null || g.isDead) return;
     if (_raidPhaseIndex >= cfg.addPhaseThresholds.length) return;
-    final frac = g.maxHp <= 0 ? 0.0 : (g.hp / g.maxHp).clamp(0.0, 1.0);
+    var frac = g.maxHp <= 0 ? 0.0 : (g.hp / g.maxHp).clamp(0.0, 1.0);
+    // Blightfang's bar refills per shell: read the whole fight, or every
+    // wave would land in the first shell.
+    if (_isVenom) {
+      frac = (max(0, monastery.blightBars - 1) + frac) / kPlagueBars;
+    }
     if (frac > cfg.addPhaseThresholds[_raidPhaseIndex]) return;
     _raidPhaseIndex++;
     final hpScale = CosmicSurvivalBalance.enemyWaveHpScale(7) * cfg.addHpMul;
@@ -6765,16 +7062,32 @@ class PlanetDungeonGame extends FlameGame {
   /// Personal space, so the party does not collapse into one stack of sprites.
   static const double _idleSpacing = 46.0;
 
+  /// How fast a party member you are not driving changes its velocity
+  /// (world units per second, per second): quick enough to react, slow
+  /// enough that it swings into a turn rather than snapping.
+  static const double _kIdleAccel = 900.0;
+
+  /// The radius a party member's body takes on screen.
+  static double _bodyRadius(DungeonCreature c) => 44 * c.sizeK * 0.34;
+
   /// Movement for the party members you are NOT driving.
   ///
-  /// They already returned fire (above) — but only when something wandered
-  /// into range, and nothing ever moved them, so in a boss fight they stood
-  /// wherever you parked them and did nothing at all. This walks them into
-  /// their own effective range, keeps them near you, and keeps them apart.
+  /// Each takes a STATION on what it is fighting ([companionStation]): its
+  /// family's standoff from the target's edge, on the party's side of it,
+  /// swaying along that arc at its own pace. It flies there with a velocity
+  /// eased toward where it wants to be, keeps near you and clear of the
+  /// others, and steps a little closer while a guardian is open. (A
+  /// sidestep from a dive aimed at it was tried and measured: the dives
+  /// home in, so stepping off its place only cost it more.)
   ///
-  /// Deliberately simple: seek, leash, separate. No pathfinding — they use the
-  /// same collision the player walks with, so they behave sanely against
-  /// walls, and a stuck ally is a cosmetic problem rather than a broken one.
+  /// It replaced a plain "closer / further" from the target's centre, which
+  /// read as robotic: a horn sat inside a guardian's body, the rest queued
+  /// behind you on one side, and they crept and jittered (a horn turned
+  /// sharply more than once a second).
+  ///
+  /// Deliberately simple: no pathfinding. They use the same collision the
+  /// player walks with, so they behave sanely against walls, and a stuck ally
+  /// is a cosmetic problem rather than a broken one.
   void _updateIdleCompanionMovement(double dt, DungeonRoom room) {
     // FIGHTS ONLY. Outside combat a party member's position is frequently the
     // puzzle state — Steam recomputes which geyser mouths are capped from body
@@ -6786,6 +7099,9 @@ class PlanetDungeonGame extends FlameGame {
     final leader = active;
     if (leader == null) return;
 
+    // Who moves, and what each is fighting.
+    final movers = <int>[];
+    final fighting = <int, CosmicSurvivalEnemy>{};
     for (var i = 0; i < creatures.length && i < combatCompanions.length; i++) {
       if (i == activeIndex) continue;
       final c = creatures[i];
@@ -6806,40 +7122,74 @@ class PlanetDungeonGame extends FlameGame {
       // all three still there when Blood pulses.
       if (_isFuneral && _funeralHoldsBody(c.position, room)) continue;
       // And every body on the shadow floor: each one is a caster somebody may
-      // be standing on, and on glass a stance step is a fall.
-      if (_isArchive && room.hall != null) continue;
-
-      var desired = Offset.zero;
-
-      // 1. Take up the family's stance on the nearest enemy. Horns close,
-      //    wings circle, manes/lets/pips hold back, kin sits as far off as
-      //    its range allows — see companion_stance.dart. Everyone used to
-      //    stand on the same ring regardless of family.
+      // be standing on, and on glass a stance step is a fall. (Solarin's
+      // raid floor drops no one, and a raid squad fights on its own.)
+      if (_isArchive && room.hall != null && !isRaid) continue;
+      movers.add(i);
       final enemy = _nearestCombatEnemy(c.position, maxRange: double.infinity);
+      if (enemy != null) fighting[i] = enemy;
+    }
+
+    final maxSpeed = _speed * 0.82;
+    for (final i in movers) {
+      final c = creatures[i];
+      final comp = combatCompanions[i];
+      final enemy = fighting[i];
+      var goal = c.position;
       if (enemy != null) {
+        final toLeader = leader.position - enemy.position;
+        goal = companionStation(
+          target: enemy.position,
+          targetRadius: enemy.radius,
+          bodyRadius: _bodyRadius(c),
+          attackRange: comp.attackRange,
+          stance: stanceForFamily(comp.member.family),
+          homeBearing: toLeader.distance > 1
+              ? atan2(toLeader.dy, toLeader.dx)
+              : pi / 2,
+          slot: i,
+          time: _time,
+          closeIn: guardianVulnerable && identical(enemy, _guardianEnemy),
+        );
+        // Sanguorath's shell takes any ally that comes within its reach (the
+        // right one gives itself, a wrong one mends it), and which one goes
+        // in is the player's choice. So whatever it is fighting, an ally
+        // here keeps clear of it, and gets out if it is caught close.
+        final sanguorath = _isRites ? _guardianEnemy : null;
+        if (sanguorath != null && !sanguorath.isDead) {
+          const keepOut = kRiteShellReach + 40;
+          final fromIt = goal - sanguorath.position;
+          final here = c.position - sanguorath.position;
+          if (fromIt.distance < keepOut || here.distance < keepOut) {
+            final dir = here.distance < 1
+                ? const Offset(0, 1)
+                : here / here.distance;
+            goal = sanguorath.position + dir * (keepOut + 60);
+          }
+        }
         final toEnemy = enemy.position - c.position;
         if (toEnemy.distance > 1) {
-          desired += stanceMove(
-            self: c.position,
-            target: enemy.position,
-            attackRange: comp.attackRange,
-            stance: stanceForFamily(comp.member.family),
-            // Stable per slot, so two wings orbit the same way instead of
-            // grinding against each other.
-            orbitSign: i.isEven ? 1 : -1,
-          );
           c.aimAngle = atan2(toEnemy.dy, toEnemy.dx);
-          if (toEnemy.dx.abs() > 0.01) c.angle = toEnemy.dx >= 0 ? 0 : pi;
+          // Facing turns only past a margin, so a target straight above or
+          // below does not flick the sprite back and forth.
+          if (toEnemy.dx.abs() > 8) c.angle = toEnemy.dx >= 0 ? 0 : pi;
         }
       }
 
-      // 2. Leash: never lose the party.
+      // Arrive: full speed when far, easing in over the last 60 units.
+      final toGoal = goal - c.position;
+      final dist = toGoal.distance;
+      var want = dist < 1
+          ? Offset.zero
+          : toGoal / dist * maxSpeed * min(1.0, dist / 60);
+
+      // Leash: never lose the party.
       final toLeader = leader.position - c.position;
       if (toLeader.distance > _idleLeash) {
-        desired += toLeader / toLeader.distance * 1.6;
+        want += toLeader / toLeader.distance * maxSpeed;
       }
 
-      // 3. Separate: from the leader and from each other.
+      // Separate: from the leader and from each other.
       for (var j = 0; j < creatures.length; j++) {
         if (j == i) continue;
         final other = creatures[j];
@@ -6847,23 +7197,19 @@ class PlanetDungeonGame extends FlameGame {
         final away = c.position - other.position;
         final d = away.distance;
         if (d > 0.01 && d < _idleSpacing) {
-          desired += away / d * (1.0 - d / _idleSpacing);
+          want += away / d * (1.0 - d / _idleSpacing) * maxSpeed;
         }
       }
+      if (want.distance > maxSpeed) want = want / want.distance * maxSpeed;
 
-      if (desired.distanceSquared < 0.0001) continue;
-      // Scale by magnitude rather than normalising: a stance at its preferred
-      // distance contributes only its small orbit term, and normalising would
-      // turn that into full-speed sideways drift for every family.
-      final mag = min(1.0, desired.distance);
-      final unit = desired / desired.distance;
-      // Slightly slower than the player: the one you drive should feel like
-      // the one you drive.
-      c.position = _moveWithCollision(
-        c.position,
-        unit * _speed * 0.82 * mag * dt,
-        room,
-      );
+      // Its velocity eases toward what it wants: no snapping, no jitter.
+      final dv = want - c.idleVelocity;
+      final step = _kIdleAccel * dt;
+      c.idleVelocity = dv.distance <= step
+          ? want
+          : c.idleVelocity + dv / dv.distance * step;
+      if (c.idleVelocity.distanceSquared < 1) continue;
+      c.position = _moveWithCollision(c.position, c.idleVelocity * dt, room);
     }
   }
 
@@ -6966,49 +7312,22 @@ class PlanetDungeonGame extends FlameGame {
     }
 
     // Mane+Spirit: each cast adds another shot to a tight machine-gun
-    // stream up to 10, then resets (ported from survival; abilityKillStacks
-    // doubles as the cast counter).
+    // stream up to 10, then resets — survival's own rule, shared
+    // (`ManeRuntime.spiritStream`; abilityKillStacks doubles as the cast
+    // counter). This was a hand copy, which is how it missed the Mane
+    // per-body ceiling when the shared one was fixed.
     var specialProjectiles = result.projectiles;
     if (comp.member.family.toLowerCase() == 'mane' &&
         comp.member.element == 'Spirit' &&
         specialProjectiles.isNotEmpty) {
-      final stacks = comp.abilityKillStacks.clamp(0, 9);
-      final shotCount = 1 + stacks;
-      final base = specialProjectiles.first;
-      final dir = Offset(cos(angle), sin(angle));
-      final perp = Offset(-dir.dy, dir.dx);
-      final soulSlashes = <Projectile>[];
-      for (var i = 0; i < shotCount; i++) {
-        final laneOffset = ((i % 3) - 1) * 2.5;
-        soulSlashes.add(
-          Projectile(
-            position: base.position - dir * (i * 9.0) + perp * laneOffset,
-            angle: angle + (i.isEven ? -0.018 : 0.018),
-            element: base.element,
-            damage: base.damage,
-            life: base.life + i * 0.025,
-            speedMultiplier: min(base.speedMultiplier + i * 0.012, 0.74),
-            radiusMultiplier: max(base.radiusMultiplier * 0.88, 0.72),
-            visualScale: max(base.visualScale * 0.86, 0.72),
-            piercing: base.piercing,
-            homing: base.homing,
-            homingStrength: base.homingStrength,
-            visualStyle: base.visualStyle,
-            sourceSlotIndex: comp.slotIndex,
-            abilityFamily: base.abilityFamily,
-            hitEffect: base.hitEffect,
-            killEffect: base.killEffect,
-            pierceEffect: base.pierceEffect,
-            effectPower: base.effectPower,
-            effectRadius: base.effectRadius,
-            effectDuration: base.effectDuration,
-          ),
-        );
-      }
-      specialProjectiles = soulSlashes;
-      comp.abilityKillStacks = comp.abilityKillStacks >= 9
-          ? 0
-          : comp.abilityKillStacks + 1;
+      final (stream, next) = ManeRuntime.spiritStream(
+        specialProjectiles.first,
+        angle,
+        comp.abilityKillStacks,
+        comp.slotIndex,
+      );
+      specialProjectiles = stream;
+      comp.abilityKillStacks = next;
     }
     // Mane+Lightning: fire 5–10 small sigil orbs toward scattered positions;
     // each blooms into a shock field on arrival (ported from survival,
@@ -7428,7 +7747,7 @@ class PlanetDungeonGame extends FlameGame {
         if (comp.windUpElement == 'Dark') {
           // Void-suck: drag enemies into the brew.
           for (final e in combatEnemies) {
-            if (e.isDead) continue;
+            if (e.isDead || _isBossBody(e)) continue;
             final toCaster = creature.position - e.position;
             final d = toCaster.distance;
             if (d > 1 && d < 200) {
@@ -7443,7 +7762,7 @@ class PlanetDungeonGame extends FlameGame {
               for (final e in combatEnemies)
                 if (!e.isDead &&
                     (e.position - creature.position).distance < 200 &&
-                    !identical(e, _guardianEnemy))
+                    !_isBossBody(e))
                   e,
             ];
             final dir = Offset(
@@ -8064,6 +8383,7 @@ class PlanetDungeonGame extends FlameGame {
     double amount, {
     int? sourceSlot,
     bool fromPipSpecial = false,
+    bool fromAutoAttack = false,
   }) {
     if (enemy.isDead || amount <= 0) return;
     _cue(SoundCue.combatHitLight);
@@ -8074,7 +8394,12 @@ class PlanetDungeonGame extends FlameGame {
     _spawnDamageNumber(enemy, dealt);
     if (enemy.hp <= 0) {
       enemy.isDead = true;
-      _onEnemyKilledByPlayer(enemy, sourceSlot, fromPipSpecial: fromPipSpecial);
+      _onEnemyKilledByPlayer(
+        enemy,
+        sourceSlot,
+        fromPipSpecial: fromPipSpecial,
+        fromAutoAttack: fromAutoAttack,
+      );
     }
   }
 
@@ -8114,6 +8439,7 @@ class PlanetDungeonGame extends FlameGame {
     CosmicSurvivalEnemy enemy,
     int? sourceSlot, {
     bool fromPipSpecial = false,
+    bool fromAutoAttack = false,
   }) {
     _cue(SoundCue.combatEnemyDefeat);
     if (sourceSlot == null) return;
@@ -8155,6 +8481,7 @@ class PlanetDungeonGame extends FlameGame {
       companion,
       enemy.position,
       fromPipSpecial: fromPipSpecial,
+      fromAutoAttack: fromAutoAttack,
     );
 
     // Pip+Spirit: kill streak charges an empower window.
@@ -8232,8 +8559,12 @@ class PlanetDungeonGame extends FlameGame {
     CosmicSurvivalEnemy enemy,
     int? sourceSlot,
   ) {
+    // Steam and Lava pay out only on what the SLAM killed — survival's
+    // `_applyHornSpecialKillEffect` has why (flames spawning flames).
+    final slamKill = comp.chargeHitIds?.contains(enemy.hashCode) ?? false;
     switch (comp.member.element) {
       case 'Steam':
+        if (!slamKill) break;
         comp.specialCooldown = 0;
         final sizeScale = _effStatScale(
           comp.member.statBeauty,
@@ -8272,6 +8603,7 @@ class PlanetDungeonGame extends FlameGame {
         );
         break;
       case 'Lava':
+        if (!slamKill) break;
         _spawnDetonationBurst(enemy.position, elementColor('Lava'), 150);
         final lavaScale = _effStatScale(
           comp.member.statBeauty,
@@ -8344,12 +8676,15 @@ class PlanetDungeonGame extends FlameGame {
     CosmicSurvivalCompanion? companion,
     Offset position, {
     bool fromPipSpecial = false,
+    bool fromAutoAttack = false,
   }) {
     if (companion == null) return;
     if (companion.member.family.toLowerCase() != 'pip') return;
     final element = companion.member.element;
+    // Dark reads the AUTO-attack flag (survival's dispatcher has why: a
+    // hole's own execute is not an auto kill, and counting it chained them).
     final allowedBySource = switch (element) {
-      'Dark' => !fromPipSpecial,
+      'Dark' => fromAutoAttack,
       'Fire' || 'Dust' || 'Crystal' => fromPipSpecial,
       _ => true,
     };
@@ -8673,7 +9008,10 @@ class PlanetDungeonGame extends FlameGame {
         );
         break;
       case 'Spirit':
+        // Never on a boss: a coin-flip that ends a guardian at full health is
+        // not a fight (see [_isBossBody]). It takes the ordinary hit below.
         if (!enemy.isDead &&
+            !_isBossBody(enemy) &&
             (enemy.hpFraction <= 0.35 ||
                 _combatRng.nextDouble() <= projectile.effectChance)) {
           _damageEnemyDirect(
@@ -8808,7 +9146,7 @@ class PlanetDungeonGame extends FlameGame {
       case 'Air':
         final radius = CosmicAbilityRuntime.letAirReach(projectile);
         for (final enemy in combatEnemies) {
-          if (enemy.isDead) continue;
+          if (enemy.isDead || _isBossBody(enemy)) continue;
           if ((enemy.position - center).distance > radius) continue;
           final dir = enemy.position - center;
           final dist = dir.distance;
@@ -8873,7 +9211,7 @@ class PlanetDungeonGame extends FlameGame {
         } else {
           final radius = max(120.0, projectile.effectRadius);
           for (final enemy in combatEnemies) {
-            if (enemy.isDead) continue;
+            if (enemy.isDead || _isBossBody(enemy)) continue;
             final dir = center - enemy.position;
             final dist = dir.distance;
             if (dist <= 0.01 || dist > radius) continue;
@@ -9099,14 +9437,20 @@ class PlanetDungeonGame extends FlameGame {
       );
     }
     if (result.shipHeal > 0) {
-      // No ship down here — the party is the vessel: share it out.
+      // No ship down here — the party is the vessel. A ship heal is authored
+      // as a share of the ship's hundred points, so each Alchemon gets the
+      // same share of its own pool: survival's rule for the orb it also
+      // mends. (It used to land as flat HP, halved: a Water Kin's five
+      // points of ship gave each ally 2.5 of six hundred.)
+      final share = result.shipHeal / CosmicBalance.shipMaxHealth;
       for (
         var i = 0;
         i < creatures.length && i < combatCompanions.length;
         i++
       ) {
         if (!creatures[i].alive) continue;
-        _healCreature(creatures[i], combatCompanions[i], result.shipHeal * 0.5);
+        final ally = combatCompanions[i];
+        _healCreature(creatures[i], ally, ally.maxHp * share);
       }
     }
     if (result.blessingTimer > 0) {
@@ -9115,6 +9459,22 @@ class PlanetDungeonGame extends FlameGame {
         comp.blessingHealPerTick,
         result.blessingHealPerTick,
       );
+      // In survival a blessing also mends the orb at half the caster's rate.
+      // There is no orb down here; the party is what it protects, so the
+      // orb's half lands on each ally.
+      for (
+        var i = 0;
+        i < creatures.length && i < combatCompanions.length;
+        i++
+      ) {
+        final ally = combatCompanions[i];
+        if (identical(ally, comp) || !creatures[i].alive) continue;
+        ally.blessingTimer = max(ally.blessingTimer, result.blessingTimer);
+        ally.blessingHealPerTick = max(
+          ally.blessingHealPerTick,
+          result.blessingHealPerTick * 0.5,
+        );
+      }
     }
     if (result.basicHasteTimer > 0) {
       comp.basicHasteTimer = result.basicHasteTimer;
@@ -9274,7 +9634,7 @@ class PlanetDungeonGame extends FlameGame {
       onChanged();
       return true;
     }
-    // An awake guardian nearby: calm (Kin) or strike (anyone) in the lull.
+    // An awake guardian nearby: strike it in the lull.
     if (_tryGuardian(a)) {
       onChanged();
       return true;
@@ -9561,8 +9921,9 @@ class PlanetDungeonGame extends FlameGame {
       // The entry island. Its way on stays hidden until a Fire or Lightning
       // creature acts inside the wind here (`_tryFireIgnite`,
       // `_tryLightningArc`) — the reading used to say nothing was hidden
-      // (the hint audit, 2026-09-25).
-      if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+      // (the hint audit, 2026-09-25). A raid arena is its layout's entrance
+      // room, but it has no way on to hide.
+      if (room.id == layout.entranceRoomId && !entryDoorRevealed && !isRaid) {
         revealFlash = 0.6;
         revealTier = revealHintTier(a.member.statIntelligence);
         _setInsightHint(
@@ -9872,19 +10233,20 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   /// Interact with an awake guardian nearby. Returns true if handled (consumed
-  /// the action). Two paths: a Kin with enough Beauty CALMS it instantly; any
-  /// other creature STRIKES it during the vulnerable lull (defeat over a few
-  /// hits). Either way → Star 3.
+  /// the action). Any creature STRIKES it during the vulnerable lull (defeat
+  /// over several hits) → Star 3. There is no other way through: a
+  /// high-Beauty Kin used to CALM it in one press, which ended 15 of 16
+  /// fights at the first lull — removed 2026-10-07.
   bool _tryGuardian(DungeonCreature a) {
     final g = currentRoom.guardian;
     if (g == null || !guardianAwake) return false;
     // Solarin is struck from two squares off (the shadow floor's reach, which
     // the lull already checks); every other guardian from arm's length.
-    final shadowReach = _isArchive && !isRaid && currentRoom.hall != null;
+    final shadowReach = _isArchive && currentRoom.hall != null;
     if (!shadowReach && (a.position - _guardianPosition(g)).distance > 90) {
       return false;
     }
-    // Standing under a mystic in mid-fall: nothing to strike or calm yet. Only
+    // Standing under a mystic in mid-fall: nothing to strike yet. Only
     // the ground beneath it is refused — the room's own verbs (ranking rods,
     // herding the cell) stay live everywhere else while it comes down.
     if (guardianArriving) {
@@ -9892,46 +10254,22 @@ class PlanetDungeonGame extends FlameGame {
       _setBlockedHint('It\'s still coming down. Brace');
       return true;
     }
-    final enc = g.encounter;
-    final canCalm = enc?.canCalm ?? true;
-    final canDefeat = enc?.canDefeat ?? true;
     if (!guardianVulnerable) {
       // BLOCKED (the hint audit, 2026-09-25): a refusal to a press, which a
       // plain `_setHint` dropped. Where the lull is a condition rather than
       // a clock, the refusal names the condition.
       _setBlockedHint(
-        _isFuneral && !isRaid
+        _isFuneral
             ? 'Its shadow shields it'
-            : _isArchive && !isRaid
+            : _isArchive
             ? _solarinBlockedLine()
             : 'It can\'t be hit yet. Wait for the lull',
       );
       return true;
     }
-    // Elegant path: a high-Beauty Kin calms it at once.
-    if (canCalm &&
-        a.ability == DungeonAbility.ancientStabilize &&
-        charmOk(a.member.statBeauty)) {
-      if (!hasStar(g.starIndex)) earnStar(g.starIndex);
-      _guardianEnemy?.isDead = true;
-      _setHint('The guardian is calmed');
-      _spawnAlchemyBurst(
-        _guardianPosition(g),
-        producedElement: 'Light',
-        reagentElements: [a.member.element],
-      );
-      return true;
-    }
-    // Defeat path: strike during the lull. The strike and the party's
-    // projectiles drain the SAME pool (the combat body's hp) — a lull strike
-    // just takes a big fixed chunk of it.
-    if (!canDefeat) {
-      _setBlockedHint(
-        'This guardian can\'t be beaten, only calmed. It takes a Kin with '
-        'high Beauty',
-      );
-      return true;
-    }
+    // Strike during the lull. The strike and the party's projectiles drain
+    // the SAME pool (the combat body's hp) — a lull strike just takes a big
+    // fixed chunk of it.
     // Pace the lull strikes (2 per lull window at 1.5s apart in a 3.0s lull)
     // so the rage/lull rhythm stays the fight instead of instant taps
     // deleting it. With kGuardianBaseStrikes = 6 a first mystic costs three
@@ -9969,6 +10307,9 @@ class PlanetDungeonGame extends FlameGame {
       guardianHp -= maxGuardianHp / guardianStrikesNeeded;
     }
     guardianHitFlash = 0.3;
+    // A blow swings Solarin on at once: its dungeon fight is three blows. A
+    // raid guardian takes dozens (its pool replaces the count), so in a raid
+    // Solarin keeps to its own hold and swing.
     if (_isArchive && !isRaid) _solarinStruck();
     if (_guardianHpFraction <= 0 || guardianHp <= 0) {
       if (!hasStar(g.starIndex)) earnStar(g.starIndex);
@@ -10688,7 +11029,7 @@ class PlanetDungeonGame extends FlameGame {
       final g = currentRoom.guardian;
       final body = _guardianEnemy;
       if (body != null && (body.isDead || body.hp <= 0)) {
-        // Felled, not calmed: it dies in grains of itself where it fell, and
+        // Felled: it dies in grains of itself where it fell, and
         // the relic rises out of the last of them.
         _guardianFall?.body.dispose();
         _guardianFall = _newGuardianDeath(body);
@@ -10981,6 +11322,7 @@ class PlanetDungeonGame extends FlameGame {
       _renderCombatEnemies(canvas);
       _renderRefusalPulse(canvas);
       _renderCreatures(canvas);
+      _renderSquadHit(canvas);
       _renderCarriedCloud(canvas);
       if (_isFuneral) _renderFuneralCarried(canvas);
       _renderGuardianFall(canvas);
@@ -10997,8 +11339,9 @@ class PlanetDungeonGame extends FlameGame {
     if (_isTemple) _drawTideGauge(canvas, vp);
     if (_isVapor) _drawSteamPhaseHud(canvas, vp);
     // Mud: the fen chart. This planet's map is the puzzle and it changes
-    // under the player's own hand, so it cannot live behind a button.
-    if (_isBog) _drawFenChart(canvas, vp);
+    // under the player's own hand, so it cannot live behind a button. A raid
+    // arena has no fen to chart.
+    if (_isBog && !isRaid) _drawFenChart(canvas, vp);
     drawVignette(canvas, vp);
   }
 

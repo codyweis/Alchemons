@@ -52,7 +52,11 @@ abstract final class ManeRuntime {
           effectPower: base.effectPower,
           effectRadius: base.effectRadius,
           effectDuration: base.effectDuration,
-        ),
+          // The Mane per-body ceiling rides along. A fresh Projectile starts
+          // at 0 (no limit), so every slash of the stream billed a standing
+          // body once a frame — twice the damage at 120 fps as at 60
+          // (measured 2026-10-07), in every mode that builds the stream.
+        )..maxHitsPerEnemy = base.maxHitsPerEnemy,
       );
     }
     return (soulSlashes, stacks >= 9 ? 0 : stacks + 1);

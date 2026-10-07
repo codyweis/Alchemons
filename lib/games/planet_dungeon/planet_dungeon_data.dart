@@ -826,8 +826,8 @@ class Conduit {
       );
 }
 
-/// A planet guardian (a Mystic). Awakens once its puzzle is solved; resolved by
-/// calm or defeat per [encounter]. Kept separate from the family-ability model.
+/// A planet guardian (a Mystic). Awakens once its puzzle is solved, and is
+/// fought per [encounter]. Kept separate from the family-ability model.
 class GuardianNode {
   final Offset position;
   final int starIndex;
@@ -1516,7 +1516,7 @@ extension DungeonRoomAffordances on DungeonRoom {
 
   /// The same question, with the BOSS ITSELF discounted.
   ///
-  /// A guardian is a verb — you strike it, or a Kin calms it — so it belongs
+  /// A guardian is a verb — you strike it — so it belongs
   /// in `hasVerbs`. But it is the one verb the action pad already covers with
   /// its own button, so a boss room holding nothing else shows a utility
   /// control whose only answer is the attack you could already make. During a
@@ -2639,8 +2639,6 @@ const DungeonLayout _airLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Air',
           mysticId: 'Roc',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       // §7 retrofit: the Roc DRAGS the storm-cell across this rod field. The
@@ -3063,8 +3061,6 @@ const DungeonLayout _fireLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Fire',
           mysticId: 'Simurgh',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
     ),
@@ -3462,8 +3458,6 @@ const DungeonLayout _waterLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Water',
           mysticId: 'Leviathan',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
     ),
@@ -3763,8 +3757,6 @@ const DungeonLayout _earthLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Earth',
           mysticId: 'Terradon',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
     ),
@@ -4364,8 +4356,6 @@ const DungeonLayout _lightningLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Lightning',
           mysticId: 'Raikuma',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
     ),
@@ -4862,8 +4852,6 @@ const DungeonLayout _steamLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Steam',
           mysticId: 'Boilrog',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
     ),
@@ -4949,23 +4937,39 @@ String? _guardianMysticId(DungeonLayout layout) {
 /// Roc drags its storm-cell across a rod field; without rods the drag is a
 /// no-op. A ring gives the bird somewhere to be led from any approach, which
 /// the authored spire's staircase does not need to do.
+///
+/// Twelve rods, not six: a bolt hops at most [kStormHopReach] (165) from one
+/// conductor to the next, and six round this ring sat 220–300 apart, so no
+/// staircase could ever be climbed. At twelve the neighbours sit 101–152
+/// apart. No rod starts at the top rank, so an Air Alchemon has to raise one.
 List<StormRod> _raidStormRods(String element) {
   if (element != 'Air') return const [];
   const centre = Offset(700, 400);
   const radius = 300.0;
   return [
-    for (var i = 0; i < 6; i++)
+    for (var i = 0; i < 12; i++)
       StormRod(
         id: 'raid_rod_$i',
         position: Offset(
-          centre.dx + radius * cos(i * pi / 3),
-          centre.dy + radius * 0.62 * sin(i * pi / 3),
+          centre.dx + radius * cos(i * pi / 6),
+          centre.dy + radius * 0.62 * sin(i * pi / 6),
         ),
         // Staggered heights so the field can be ranked, same as the spire.
         initialHeight: i % 3,
       ),
   ];
 }
+
+/// The Roc's storm cell. The spire's summit orbit; the bird's leash carries
+/// it from there.
+StormCellOrbit? _raidStormOrbit(String element) => element == 'Air'
+    ? const StormCellOrbit(
+        center: Offset(700, 380),
+        radius: 90,
+        period: 14,
+        strikeInterval: 3.6,
+      )
+    : null;
 
 /// Simurgh's telegraph IS the brazier order — it re-lights them as it strikes
 /// and the sequence is the bullet pattern. Ordered around the ring so the
@@ -5008,6 +5012,32 @@ List<TideZone> _raidTideZones(String element) {
   ];
 }
 
+/// What a raid squad must bring, in plain words, for the raids whose
+/// guardian only opens to one kind of Alchemon. Shown on the descent placard
+/// above ENTER RAID, before the squad is picked. A raid down is permanent,
+/// so the line is worth reading: lose the only one, and the guardian stays
+/// shut for the rest of the fight.
+const Map<String, String> kRaidOpeningLines = {
+  'Ice': 'Frowyrm only opens while the hoarfrost pillar stands. '
+      'An Ice Alchemon raises it.',
+  'Mud': 'Bogdrya only opens while the floor is hard. '
+      'A Mud Alchemon hardens it.',
+  'Dust': 'Ashdjinn only opens while the cut is clear. '
+      'A Dust or Earth Alchemon digs it.',
+  'Spirit': 'Wraithord only opens when its chime rings. '
+      'A Blood Pip rings it.',
+  'Crystal': 'Prismalith only opens over the gap in the floor. '
+      'A Crystal Alchemon slides the plates.',
+  // Bare, like the conservatory's own hints (no recipe): the elements the
+  // dungeon's descent asks for, which are what put its arena right.
+  'Plant': 'Botanica only opens while its arena is right. '
+      'Crystal, Spirit and Water put it right.',
+  'Poison': 'Blightfang only opens when dosed with a brew from its pot, '
+      'never the same brew twice running. Bring Poison, and Plant or Mud.',
+  'Lightning': 'Raikuma only opens when its trunk is grounded at the spike. '
+      'A Lightning Alchemon grounds it.',
+};
+
 /// A raid is one big open planet-themed arena — no rooms, no puzzles, just
 /// the empowered guardian under the storm. Generated, not authored, so every
 /// element in [kRaidGuardianIds] gets one for free.
@@ -5023,8 +5053,44 @@ DungeonLayout buildRaidArenaLayout(String element) {
     // guardian at (700, 380) rather than laid out for a puzzle — nothing here
     // is solved, it is only what the mechanic reads.
     stormRods: _raidStormRods(element),
+    stormOrbit: _raidStormOrbit(element),
     braziers: _raidBraziers(element),
     tideZones: _raidTideZones(element),
+    // The thing each mystic's lull reads, where its dungeon fight had it:
+    // Frowyrm's hoarfrost pillar, Bogdrya's mire anchor, Ashdjinn's cut,
+    // Wraithord's chime. Placed below the guardian, outside its aura and
+    // clear of the crosswinds.
+    rime: element == 'Ice'
+        ? const IceShaft(hoarfrost: Offset(430, 560))
+        : null,
+    fen: element == 'Mud' ? const BogFen(anchor: Offset(430, 560)) : null,
+    ruins: element == 'Dust'
+        ? const DustRuins(hollowCut: Offset(700, 560))
+        : null,
+    funeral: element == 'Spirit'
+        ? const FuneralRoom(chime: Offset(410, 610))
+        : null,
+    // Prismalith's choir floor: nine plates with the heart plate under the
+    // guardian, the gap starting in a corner. Botanica's two tending rings,
+    // where its dungeon fight has them.
+    prism: element == 'Crystal'
+        ? const PrismHall(choir: ChoirFloor(origin: Offset(310, 125)))
+        : null,
+    grove: element == 'Plant'
+        ? const ConservatoryPlot(
+            arenaRings: [Offset(420, 560), Offset(980, 560)],
+          )
+        : null,
+    // Solarin's floor: its orbit room set in the middle of the arena.
+    hall: element == 'Light' ? const ShadowBay.grid('raid_solarin') : null,
+    // Raikuma's grounding spike, where the storm core has it relative to
+    // the guardian. (Its one trunk is on the layout below.)
+    coreBreaker: element == 'Lightning' ? const Offset(460, 625) : null,
+    // Blightfang's pot, where the crypt has it (its bench beside it). The
+    // crypt's pot never runs dry, and neither does this one.
+    apothecary: element == 'Poison'
+        ? const Apothecary(cistern: Offset(380, 650), spouts: [])
+        : null,
     // Element-flavored crosswinds give gliders play without gating walkers.
     currents: const [
       WindCurrent(
@@ -5044,8 +5110,6 @@ DungeonLayout buildRaidArenaLayout(String element) {
       encounter: GuardianEncounterRequirement(
         element: element,
         mysticId: mysticId!,
-        canCalm: false,
-        canDefeat: true,
       ),
     ),
   );
@@ -5058,5 +5122,24 @@ DungeonLayout buildRaidArenaLayout(String element) {
     title: authored?.title ?? element.toUpperCase(),
     descentTitle: authored?.descentTitle ?? element,
     stars: authored?.stars ?? const [],
+    // Raikuma drinks one trunk that lights the arena; the spike cuts it.
+    // No dynamo room, so the trunk-select verb stays off.
+    dynamoTrunks: element == 'Lightning'
+        ? const [
+            DynamoTrunk(
+              id: 'raid_core',
+              name: 'CORE TRUNK',
+              breakerPosition: Offset.zero,
+              roomIds: ['raid_arena'],
+            ),
+          ]
+        : const [],
+    initialTrunkId: element == 'Lightning' ? 'raid_core' : null,
+    // The fight's own hand rule comes with it (Spirit: only a Blood Pip rings
+    // the chime). Nothing else of the dungeon's gates applies here.
+    familyGates: [
+      for (final g in authored?.familyGates ?? const <DungeonFamilyGate>[])
+        if (g.objectId == 'vigil_chime') g,
+    ],
   );
 }

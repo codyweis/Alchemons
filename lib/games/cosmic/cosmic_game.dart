@@ -1826,12 +1826,13 @@ class CosmicGame extends FlameGame with PanDetector {
     if (member.family.toLowerCase() != 'pip') return;
     // Per the design board, as Survival gates it: Fire, Dust and Crystal
     // placements come from the special's kills; Dark is the passive that
-    // fires on every other kill.
+    // fires on AUTO-attack kills — a basic carries no ability family. (It
+    // read "every other kill", so a hole's own execute opened the next.)
     final fromPipSpecial =
         source.abilityFamily == 'pip' &&
         source.visualStyle == ProjectileVisualStyle.dart;
     final allowedBySource = switch (member.element) {
-      'Dark' => !fromPipSpecial,
+      'Dark' => source.abilityFamily.isEmpty,
       'Fire' || 'Dust' || 'Crystal' => fromPipSpecial,
       _ => true,
     };
@@ -1967,7 +1968,12 @@ class CosmicGame extends FlameGame with PanDetector {
           }
         }
       }
-      if (member.element == 'Water' && source.bounceCount <= 0) {
+      // The ricochet's final hit only: a basic never bounces, so it used to
+      // erupt on every basic kill too (survival's note).
+      if (member.element == 'Water' &&
+          source.abilityFamily == 'pip' &&
+          source.visualStyle == ProjectileVisualStyle.dart &&
+          source.bounceCount <= 0) {
         for (final target in enemies) {
           if (target.dead || identical(target, enemy)) continue;
           if ((target.position - enemy.position).distance <= 160) {

@@ -1276,6 +1276,9 @@ extension CosmicAbilityPass on CosmicGame {
         }
         continue;
       }
+      // An unbounded re-hitter touches on a fixed 60 Hz clock, not per frame
+      // (see `Projectile.takeContactTick`).
+      if (!p.takeContactTick(dt)) continue;
 
       // Hit enemies
       for (var ei = enemies.length - 1; ei >= 0; ei--) {

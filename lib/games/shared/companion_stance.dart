@@ -68,51 +68,57 @@ const CompanionStance kDefaultCompanionStance = CompanionStance(
 CompanionStance stanceForFamily(String? family) =>
     kCompanionStances[(family ?? '').toLowerCase()] ?? kDefaultCompanionStance;
 
-/// How this companion wants to move, given where it is and what it is
-/// fighting. Returns [Offset.zero] when it is already happy.
+/// Where a companion wants to STAND while it fights, as a point to move to.
 ///
-/// The MAGNITUDE carries intent and is capped at 1, so callers must scale by
-/// it rather than normalising: a companion sitting exactly at its preferred
-/// distance has no radial term at all, and normalising there would send even
-/// a horn (orbit 0.10) sliding sideways at full speed.
+/// It replaced a steer that said only "closer" or "further" from the
+/// target's centre, which read as robotic in a fight: a horn with a short range sat inside
+/// a big guardian's body, everyone queued on the party's side of it, and the
+/// slow orbit terms crept rather than moved. A station fixes all three:
 ///
-/// [orbitSign] should be stable per companion (slot parity works) so two
-/// wings do not oscillate against each other.
-Offset stanceMove({
-  required Offset self,
+///  - it stands off the target's EDGE ([targetRadius] + [bodyRadius]), so a
+///    horn presses against a guardian instead of sinking into it, and never
+///    further out than the companion's own attack range;
+///  - it holds the party's side of the target ([homeBearing]) and sways
+///    along its arc at its own pace ([slot] sets the phase and the rate, so
+///    no two move in step), by as much as the family likes to move
+///    ([CompanionStance.orbitWeight]): a kin barely, a mane more, and a wing
+///    loops round the target and swoops in and out. Spreading a squad all
+///    round a guardian was tried and measured: the far side is where its
+///    dives land, and a mid squad lost more to it at every raid tier.
+///
+/// [closeIn] is for when the target is open to a strike: everyone steps a
+/// fifth closer. Driven by [time] alone, so it is deterministic and the same
+/// at any frame rate.
+Offset companionStation({
   required Offset target,
+  required double targetRadius,
+  required double bodyRadius,
   required double attackRange,
   required CompanionStance stance,
-  required int orbitSign,
+  required double homeBearing,
+  required int slot,
+  required double time,
+  bool closeIn = false,
 }) {
-  final to = target - self;
-  final dist = to.distance;
-  if (dist < 1 || attackRange <= 0) return Offset.zero;
+  final contact = targetRadius + bodyRadius + 6;
+  final reach = max(contact, attackRange * min(stance.engageFraction, 0.98));
+  var standoff = reach;
+  if (closeIn) standoff = max(contact, standoff * 0.8);
 
-  final unit = to / dist;
-  final want = attackRange * stance.engageFraction;
-  final tooClose = want * stance.tooCloseFraction;
+  var bearing = homeBearing;
 
-  // Radial: close the gap, or back out of it.
-  var move = Offset.zero;
-  if (dist > want) {
-    move += unit;
-  } else if (dist < tooClose) {
-    move -= unit;
+  // Its own sway: a rate and a phase per slot, so the squad never moves in
+  // step. Scaled by how much the family likes to move.
+  final rate = 0.45 + 0.17 * slot;
+  bearing += stance.orbitWeight * 0.55 * sin(time * rate + slot * 2.4);
+
+  if (stance.orbitWeight >= 0.9) {
+    // The mobile one: it loops round the target, swooping in and out.
+    bearing += time * 0.5 * (slot.isEven ? 1 : -1);
+    standoff *= 1 + 0.22 * sin(time * 1.3 + slot * 2.1);
+    standoff = max(contact, standoff);
   }
-
-  // Tangential: what makes a wing circle rather than stand.
-  if (stance.orbitWeight > 0) {
-    final perp = Offset(-unit.dy, unit.dx) * orbitSign.sign.toDouble();
-    // Only worth circling once roughly in position; charging in sideways
-    // just makes the approach longer.
-    final settled = (dist - want).abs() < want * 0.55;
-    move += perp * (settled ? stance.orbitWeight : stance.orbitWeight * 0.35);
-  }
-
-  if (move.distanceSquared < 1e-6) return Offset.zero;
-  final mag = move.distance;
-  return mag > 1.0 ? move / mag : move;
+  return target + Offset(cos(bearing), sin(bearing)) * standoff;
 }
 
 /// Families ordered from the front line to the back, for tests and docs.
@@ -125,7 +131,3 @@ List<String> get familiesByStandoff {
     );
   return keys;
 }
-
-/// Clamped to keep a stance from ever asking for a position outside range.
-double clampedEngageDistance(double attackRange, CompanionStance s) =>
-    attackRange * min(s.engageFraction, 0.98);

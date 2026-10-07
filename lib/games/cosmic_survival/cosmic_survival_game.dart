@@ -127,6 +127,11 @@ class CosmicSurvivalCompanion {
   Object? engagedTarget;
   double stickyTargetLockTimer;
   Offset steeringVelocity;
+
+  /// Which way the sprite faces. Turns only once the heading is clearly
+  /// the other way, so a target straight above or below does not flick it
+  /// back and forth.
+  bool facingRight = true;
   // Persistent ability state, keyed by family-specific semantics:
   //   pip+spirit  → kills accumulate; threshold triggers basic-haste empower
   //   mask+spirit → kills accumulate; threshold triggers AOE wisp burst
@@ -504,11 +509,22 @@ class _VfxParticle {
   }) : maxLife = life;
   double get alpha => (life / maxLife * 2).clamp(0.0, 1.0);
   bool get dead => life <= 0;
+
+  // 0.92 per 60 Hz frame, as a rate — a per-frame ×0.92 threw bursts half as
+  // far on a 120 Hz screen. One pow per frame, shared: every particle in a
+  // frame steps by the same dt.
+  static double _dragDt = -1;
+  static double _drag = 0.92;
+
   void update(double dt) {
+    if (dt != _dragDt) {
+      _dragDt = dt;
+      _drag = pow(0.92, dt * 60).toDouble();
+    }
     x += vx * dt;
     y += vy * dt;
-    vx *= 0.92;
-    vy *= 0.92;
+    vx *= _drag;
+    vy *= _drag;
     life -= dt;
   }
 }
@@ -3093,22 +3109,28 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           : null;
       if (moveTarget != null) {
         // Smooth anchor updates — slower blend prevents jitter when
-        // surrounded by enemies or caught between competing forces.
-        final anchorBlend = (0.04 + dt * 0.08).clamp(0.04, 0.10);
+        // surrounded by enemies or caught between competing forces. Per
+        // second, not per frame, so it moves the same at 60 and 120 fps.
+        final anchorBlend = 1.0 - exp(-2.5 * dt);
         comp.anchor =
             Offset.lerp(comp.anchor, moveTarget, anchorBlend) ?? moveTarget;
         final steeringTarget = comp.anchor;
         final dir = steeringTarget - comp.position;
         final dist = dir.distance;
-        if (dist > 6) {
+        if (dist > 1) {
           final norm = Offset(dir.dx / dist, dir.dy / dist);
+          // Eases in over the last few units instead of stopping dead inside
+          // six of them, which read as park, hop, park. Only a few: easing in
+          // from further out left a ring of them lagging their places, close
+          // enough to overlap.
           final moveSpeed =
               120.0 *
               _familyMovementSpeedMultiplier(comp.member.family) *
-              _speedMovementMultiplier(_effectiveSpeed(slotIndex));
+              _speedMovementMultiplier(_effectiveSpeed(slotIndex)) *
+              min(1.0, dist / 12);
           final desiredVelocity = norm * moveSpeed;
           // Lower steering blend = smoother turns, less jitter.
-          final steeringBlend = (1.0 - exp(-6.0 * dt)).clamp(0.12, 0.5);
+          final steeringBlend = 1.0 - exp(-7.7 * dt);
           comp.steeringVelocity =
               Offset.lerp(
                 comp.steeringVelocity,
@@ -4045,7 +4067,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // Base gap plus the target's hitbox so a colossus/boss doesn't have
       // companions glued to its surface. Bosses get an extra cushion so
       // they read as "engaging" rather than "embracing".
-      final baseGap = _familyMinimumEnemyGap(comp, family);
+      // The companion's own body counts too, or its sprite overlaps the
+      // enemy it is fighting.
+      final baseGap = max(
+        _familyMinimumEnemyGap(comp, family),
+        _companionBodyRadius(comp) + 6,
+      );
       final minEnemyGap =
           baseGap + choice!.radius + (choice.isBoss ? 50.0 : 0.0);
       final toThreat = resolved - threatPos;
@@ -4304,10 +4331,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         needed,
       ).clamp(zone.$1, zone.$2);
       final place = self == null ? 0 : _ringPlace(self, ring, phase);
-      final angle = phase + place * (2 * pi / n);
+      // Each keeps its share of the ring, swaying round it and in and out at
+      // its own pace, so the ring does not turn like one rigid wheel. Only by
+      // as much room as the ring has spare: a ring packed body to body
+      // barely sways, so neighbours never sway into each other.
+      final share = 2 * pi * radius / n;
+      final slack = max(0.0, share - (2 * ringBody + 24));
+      final sway = min(0.22, 0.45 * slack / radius);
+      final breathe = min(0.06, 0.4 * slack / share);
+      final t = stats.timeElapsed;
+      final angle =
+          phase +
+          place * (2 * pi / n) +
+          sway * sin(t * (0.45 + 0.13 * place) + slotIndex * 2.4);
+      final r =
+          (radius * (1 + breathe * sin(t * (0.37 + 0.09 * place) + slotIndex)))
+              .clamp(zone.$1, zone.$2);
       return Offset(
-        orb.position.dx + cos(angle) * radius,
-        orb.position.dy + sin(angle) * radius,
+        orb.position.dx + cos(angle) * r,
+        orb.position.dy + sin(angle) * r,
       );
     }
     // "Wherever" families (pip, mystic): orbit the ship loosely, on an arc
@@ -8554,6 +8596,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         companion,
         enemy.position,
         fromPipSpecial: fromPipSpecial,
+        fromAutoAttack: masterySource == MasteryDamageSource.basic,
       );
       // Pip+Spirit passive: kills accumulate; at threshold, fire an
       // "empower" window (basic-haste) and reset the counter.
@@ -14674,6 +14717,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     CosmicSurvivalCompanion? companion,
     Offset position, {
     bool fromPipSpecial = false,
+    bool fromAutoAttack = false,
   }) {
     if (companion == null) return;
     if (companion.member.family.toLowerCase() != 'pip') return;
@@ -14682,8 +14726,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // SPECIAL ability's kills; Dark is the passive that fires on AUTO
     // kills only. Skip otherwise so basic-attack kills don't drop
     // pools and special kills don't open black holes.
+    // Dark reads the AUTO-attack flag, not "anything but the special": a
+    // black hole's own execute is neither, and counting it let every hole
+    // open the next — a horde fell into a chain of them (6.0x the median
+    // ability, measured 2026-10-07).
     final allowedBySource = switch (element) {
-      'Dark' => !fromPipSpecial,
+      'Dark' => fromAutoAttack,
       'Fire' || 'Dust' || 'Crystal' => fromPipSpecial,
       _ => true,
     };
@@ -16028,8 +16076,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     CosmicSurvivalEnemy enemy,
     int? sourceSlotIndex,
   ) {
+    // Steam and Lava pay out on what the SLAM killed (the board: "if the
+    // slam KILLS", "enemies killed by the slam"), not on any kill in the
+    // window. Gated on the window alone, every flame kill threw more
+    // flames and every kill reset Steam's cooldown: in a horde Lava ran to
+    // 2,195 kills in 45s (12.8x the median ability, measured 2026-10-07).
+    // The ram's hit set is live through the slam's own damage call and
+    // cleared when the charge ends, so this is exactly the slam.
+    final slamKill = comp.chargeHitIds?.contains(enemy.hashCode) ?? false;
     switch (comp.member.element) {
       case 'Steam':
+        if (!slamKill) break;
         // Reset the special cooldown so a streak chain-casts the
         // ability, and drop another geyser at the kill site. Geyser
         // size scales with beauty, duration scales with intelligence.
@@ -16052,6 +16109,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
         break;
       case 'Lava':
+        if (!slamKill) break;
         // Explosion VFX at the kill site (replaces the persistent
         // pool — user flagged it as too cheesy).
         _spawnLavaKillExplosion(enemy.position);
@@ -17336,6 +17394,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // contact behaviour at zero damage — Earth's area sweep included — for
       // every body that brushed the zone's centre.
       if (p.stationary && p.abilityFamily == 'let') continue;
+      // An unbounded re-hitter touches on a fixed 60 Hz clock, not per frame.
+      if (!p.takeContactTick(dt)) continue;
 
       // Hit detection vs enemies
       final hitRadius = Projectile.radius * p.radiusMultiplier;
@@ -17390,10 +17450,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           _openLetCrater(p, enemy.position, exclude: enemy);
         }
         // Pip+Water: every kill splashes (handled by the splash kill
-        // effect); a kill on the projectile's final hit — no bounces
+        // effect); a kill on the RICOCHET's final hit — no bounces
         // left — erupts an extra huge splash. Radius + damage scale
-        // with the caster's beauty.
+        // with the caster's beauty. The special dart only: a basic dart
+        // never bounces, so every basic kill erupted too (the Pip's
+        // auto-attack outdamaged other Pips' 4x in a horde, 2026-10-07).
         if (killed &&
+            isPipSpecialDart &&
             p.element == 'Water' &&
             p.bounceCount <= 0 &&
             p.sourceSlotIndex != null) {
@@ -20608,8 +20671,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         }
       }
 
-      // Flip sprite to face movement direction
-      final facingRight = cos(comp.angle) > 0;
+      // Flip sprite to face movement direction (past a margin either way).
+      final heading = cos(comp.angle);
+      if (heading > 0.25) comp.facingRight = true;
+      if (heading < -0.25) comp.facingRight = false;
+      final facingRight = comp.facingRight;
       canvas.save();
       if (facingRight) {
         canvas.scale(-spriteScale, spriteScale);

@@ -270,11 +270,12 @@ extension FuneralDungeon on PlanetDungeonGame {
   /// §7 — the guardian fights WITH the planet's rule. Wraithord's shadow is
   /// round it and takes two thirds of every blow; each attack it finishes
   /// warms the chime, which stays warm until used. A Blood pulse at a warm
-  /// chime parts the shadow for one full lull. Raids keep the shared cycle.
+  /// chime parts the shadow for one full lull. A raid arena carries the
+  /// chime too, so the raid fights the same way.
   void _updateVigil(DungeonRoom room, double dt) {
     final f = funeral;
     if (room.funeral?.chime == null || room.guardian == null) return;
-    if (!guardianAwake || isRaid) return;
+    if (!guardianAwake) return;
     if (guardianArriving) return;
     if (f.introT < 0 && !hasStar(room.guardian!.starIndex)) {
       f.introT = 0;
@@ -365,7 +366,7 @@ extension FuneralDungeon on PlanetDungeonGame {
   /// Every Requia verb, in priority order. The memorial stone comes last so
   /// a fixture beside one always wins the press.
   bool _tryFuneralVerb(DungeonCreature a) {
-    if (!_isFuneral || isRaid) return false;
+    if (!_isFuneral) return false;
     final fr = currentRoom.funeral;
     if (fr == null) return false;
     return _tryDrift(a, fr) ||
@@ -802,7 +803,7 @@ extension FuneralDungeon on PlanetDungeonGame {
             : '${whose.toUpperCase()}\'S MEMORY',
       );
     }
-    if (currentRoom.funeral?.chime != null && guardianAwake && !isRaid) {
+    if (currentRoom.funeral?.chime != null && guardianAwake) {
       return DungeonProgressReadout(
         label: 'CHIME',
         value: funeral.chimeHeld

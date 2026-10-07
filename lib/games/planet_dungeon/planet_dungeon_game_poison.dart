@@ -1663,7 +1663,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// Not the same brew twice running, so the fight cannot be spent three
   /// times on whichever attack set turns out to be gentlest.
   void _applyBlightfangStrain(DungeonRoom room, double dt) {
-    if (!_isVenom || isRaid) return;
+    if (!_isVenom) return;
     final g = room.guardian;
     if (g == null) return;
     final m = monastery;
@@ -1736,7 +1736,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// it is WHICH FIGHT you want for the next few seconds: patient zero
   /// fights with whatever it just drank.
   bool _tryDoseBlightfang(DungeonCreature a) {
-    if (!_isVenom || isRaid) return false;
+    if (!_isVenom) return false;
     final room = currentRoom;
     final g = room.guardian;
     final m = monastery;
@@ -1794,7 +1794,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // 0) Entry rite — THE ENTRANCE POT. One gift from every hand in the
     //    party, any element, and the draught it brews runs the wax off the
     //    door. It teaches the pot's one verb before the verb costs anything.
-    if (room.id == layout.entranceRoomId && !entryDoorRevealed) {
+    //    (A raid arena is its layout's entrance room, with no door: it has
+    //    only Blightfang's pot.)
+    if (!isRaid && room.id == layout.entranceRoomId && !entryDoorRevealed) {
       if (_tryEntrancePot(a, room)) return true;
       final door = room.doors.first;
       if ((a.position - door.rect.center).distance <= 96) {
@@ -2426,16 +2428,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       conduct: EnemyConduct.charge,
       element: 'Poison',
       from: at,
-      // A BAR SCALES WITH THE CAMPAIGN, like a guardian does.
-      // `spawnDungeonEnemy` already puts the wave curve and a cleared-count
-      // multiplier on whatever it is handed; `progressHpMul` is the boss
-      // curve on top of that, so a plague on the seventeenth dungeon is a
-      // boss rather than a speed bump.
-      hp: _kPlagueBarHp * progressHpMul,
+      // A BAR SCALES WITH THE CAMPAIGN, like a guardian does — and ONLY like
+      // a guardian does. This used to hand in `progressHpMul` on top of the
+      // wisps' own cleared-count curve that `spawnDungeonEnemy` already puts
+      // on: ×17.5 by the last dungeon against a guardian's ×3.9.
+      hp: _kPlagueBarHp,
       speed: 54,
-      damage: 14 * progressDmgMul,
+      damage: 14,
       radius: _kPlagueRadius,
       steers: true,
+      boss: true,
     );
     if (!ok) return;
     // WHERE THE CRAWL ENDED, not off the edge of the screen. `spawnDungeonEnemy`
@@ -2821,8 +2823,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final comp = combatCompanions[i];
       if (comp.invincibleTimer > 0) continue;
       // Its attacks climb the same gentle damage curve the guardians use —
-      // lethality from a longer fight, never a one-shot.
-      var dmg = max(1, (comp.maxHp * fraction * progressDmgMul).round());
+      // lethality from a longer fight, never a one-shot — and E-DEF takes
+      // the edge off them (see `defenseMitigation`).
+      var dmg = max(
+        1,
+        (comp.maxHp *
+                fraction *
+                progressDmgMul *
+                PlanetDungeonGame.defenseMitigation(comp.elemDef))
+            .round(),
+      );
       if (comp.shieldHp > 0) {
         final absorbed = min(comp.shieldHp, dmg);
         comp.shieldHp -= absorbed;
@@ -5018,8 +5028,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// The first number was 78, which a real party erased in well under a
   /// second: the whole fight was over before anyone saw a gate. 150 was long
   /// enough to see the shape of it and still too short to feel like a boss,
-  /// so a bar is 300. Three of those plus three mechanics is the fight.
-  static const double _kPlagueBarHp = 300;
+  /// so a bar went to 300 — and on a fresh save that was still 333 health a
+  /// bar: MEASURED 2026-10-07 with production-built parties, 1.5s of a mid
+  /// (stat 3) trio and 0.7s of a strong one. So 900, ≈1,000 a bar fresh:
+  /// a weak trio spends ~13s on it, a mid one ~5s, a strong one ~2.5s — time
+  /// for the plague's own attacks to land before each gate. It now rides the
+  /// guardians' curve alone (≈2,400 a bar mid-campaign, ≈3,900 at the end).
+  static const double _kPlagueBarHp = 900;
 
   /// How long a gate stands before the bar comes back.
   ///

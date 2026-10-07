@@ -642,8 +642,6 @@ const DungeonLayout spiritLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Spirit',
           mysticId: 'Wraithord',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       funeral: FuneralRoom(chime: Offset(190, 520)),

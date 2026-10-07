@@ -164,6 +164,17 @@ class ShadowRoomDef {
           ),
   ];
 
+  /// What Solarin swings round between the points of its orbit: the dais,
+  /// or the middle of the grid when there is none.
+  Sq get swingCentre {
+    for (var y = 0; y < rows; y++) {
+      for (var x = 0; x < cols; x++) {
+        if (at(x, y) == 'd') return sq(x, y);
+      }
+    }
+    return sq(cols ~/ 2, rows ~/ 2);
+  }
+
   List<Sq> get vents => [
     for (var y = 0; y < rows; y++)
       for (var x = 0; x < cols; x++)
@@ -771,6 +782,36 @@ const ShadowRoomDef kRoomSolarin = ShadowRoomDef(
   start: {'Light': (x: 1, y: 3), 'Dark': (x: 1, y: 4), 'Steam': (x: 0, y: 5)},
 );
 
+/// Solarin's raid arena: its orbit room, the same dais, pillars, vent and
+/// orbit, set in the middle of a floor the size of the raid arena (1400 ×
+/// 900). Stone on the left (the ledge its bolts do not reach, as by the
+/// orbit room's door) and along the bottom, where the squad comes in, three
+/// squares from the nearest point of its orbit: out of reach, as the orbit
+/// room's ledge and dais are, so it is only ever struck from its shadow.
+const ShadowRoomDef kRoomRaidSolarin = ShadowRoomDef(
+  id: 'raid_solarin',
+  map: [
+    '..~~~~~~~~~~~~~~~~~~~',
+    '..~~~..~~~~~~~~~~~~~~',
+    '..~~~..~~~P~V~~~~~~~~',
+    '..~~~..~~~~~~~~~~~~~~',
+    '..~~~..~~~d~~P~~~~~~~',
+    '..~~~..~~~~~~~~~~~~~~',
+    '..~~~..~~~P~~~~~~~~~~',
+    '..~~~..~~~~~~~~~~~~~~',
+    '..~~~~~~~~~~~~~~~~~~~',
+    '..~~~~~~~~~~~~~~~~~~~',
+    '.....................',
+    '.....................',
+    '.....................',
+  ],
+  orbit: [(x: 14, y: 4), (x: 10, y: 7), (x: 10, y: 1)],
+  pillarR: 0.42,
+  goal: 'hits',
+  pins: 1,
+  start: {'Light': (x: 9, y: 11), 'Dark': (x: 10, y: 11), 'Steam': (x: 11, y: 11)},
+);
+
 const ShadowRoomDef kRoomReliquary = ShadowRoomDef(
   id: 'sunless_reliquary',
   map: [
@@ -830,6 +871,7 @@ const Map<String, ShadowRoomDef> kShadowRooms = {
   'door_of_shadow': kRoomDoorOfShadow,
   'eclipse_walk': kRoomEclipse,
   'solarin_orbit': kRoomSolarin,
+  'raid_solarin': kRoomRaidSolarin,
   'sunless_reliquary': kRoomReliquary,
 };
 
@@ -1240,8 +1282,6 @@ const DungeonLayout lightLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Light',
           mysticId: 'Solarin',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       hall: ShadowBay.grid('solarin_orbit'),

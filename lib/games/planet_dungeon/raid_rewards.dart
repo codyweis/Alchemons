@@ -149,7 +149,19 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
       element: widget.element,
       raidLevel: widget.raidLevel,
     );
-    await widget.onGranted();
+    // The clear is SAVED before Continue appears (a force-quit after the
+    // loot must not re-run the tier). One retry for a transient write
+    // failure; if it still fails the player is not held hostage behind a
+    // popup over loot that has already landed — the tier stays replayable,
+    // which costs them nothing.
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        await widget.onGranted();
+        break;
+      } catch (e, st) {
+        debugPrint('Raid clear did not save (attempt ${attempt + 1}): $e\n$st');
+      }
+    }
     if (mounted) setState(() => _entries = entries);
   }
 
@@ -209,14 +221,19 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
               children: [
                 const Icon(Icons.whatshot_rounded, color: _C.danger, size: 16),
                 const SizedBox(width: 8),
-                Text(
-                  'RAID LEVEL ${widget.raidLevel} BROKEN',
-                  style: const TextStyle(
-                    color: _C.amberBright,
-                    fontFamily: 'monospace',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.6,
+                // Flexible: a large accessibility text size must shrink the
+                // line, not push it off the panel.
+                Flexible(
+                  child: Text(
+                    'RAID LEVEL ${widget.raidLevel} BROKEN',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: _C.amberBright,
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.6,
+                    ),
                   ),
                 ),
               ],

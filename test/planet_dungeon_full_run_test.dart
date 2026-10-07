@@ -27,9 +27,6 @@
 //     the relic, the mercy shrine.
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
-    show CosmicSurvivalCompanion;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
@@ -82,27 +79,11 @@ PlanetDungeonGame _harness(
       ..position = game.layout.entranceSpawn
       ..lastSafe = game.layout.entranceSpawn;
     game.creatures.add(c);
-    final stats = deriveAlchemonCombatStats(member: m);
-    game.combatCompanions.add(
-      CosmicSurvivalCompanion(
-        member: m,
-        slotIndex: m.slotIndex,
-        position: c.position,
-        anchor: c.position,
-        maxHp: stats.maxHp,
-        currentHp: stats.maxHp,
-        physAtk: stats.physAtk,
-        elemAtk: stats.elemAtk,
-        abilityAtk: stats.elemAtk,
-        physDef: stats.physDef,
-        elemDef: stats.elemDef,
-        cooldownReduction: stats.cooldownReduction,
-        attackRange: stats.attackRange,
-        specialAbilityRange: stats.specialAbilityRange,
-        tethered: false,
-        invincibleTimer: 0,
-      ),
-    );
+    // The combat body exactly as a run builds it — this harness used to
+    // assemble its own (`abilityAtk: elemAtk`, no special recharge, no primed
+    // cooldown), so its guardian timings measured a party the game never
+    // fields.
+    game.combatCompanions.add(game.debugCreateCombatCompanion(m, c.position));
   }
   return game;
 }
@@ -1403,8 +1384,10 @@ void main() {
       // the furniture its own mechanic reads.
       final layout = buildRaidArenaLayout('Air');
       expect(layout.entranceRoom.stormRods, isNotEmpty);
+      // The storm cell is the fight's own weather: without it no bolt ever
+      // fell, and the rods were scenery (2026-10-07).
+      expect(layout.entranceRoom.stormOrbit, isNotNull);
       // The Star 2 puzzle furniture stays out: a raid has nothing to solve.
-      expect(layout.entranceRoom.stormOrbit, isNull);
       expect(layout.entranceRoom.gustShrines, isEmpty);
     });
   });

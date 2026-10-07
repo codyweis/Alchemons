@@ -1233,8 +1233,6 @@ const DungeonLayout crystalLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Crystal',
           mysticId: 'Prismalith',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       prism: PrismHall(

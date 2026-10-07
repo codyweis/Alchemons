@@ -1226,6 +1226,10 @@ const int kRiteAirNeed = 2;
 /// The health fractions at which Sanguorath shells.
 const List<double> kRiteShellAt = [0.8, 0.6, 0.4, 0.2];
 
+/// How close to Sanguorath an ally comes before its shell takes it: the right
+/// one gives itself, a wrong one is thrown back and mends it.
+const double kRiteShellReach = 74;
+
 /// The element whose shell each ally breaks (its opposite).
 const Map<String, String> kRiteOpposite = {
   'Fire': 'Water',

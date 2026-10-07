@@ -702,8 +702,10 @@ extension CosmicHornRuntime on CosmicGame {
 
   // ── kills ───────────────────────────────────────────────────────────────
 
-  /// A kill [caster] made, by any of its hits, while its special's window
-  /// is open: Steam's geyser and reset, Lava's seeking flames, Blood's heal.
+  /// A kill [caster] made while its special's window is open: Blood's heal
+  /// on any of its hits, Steam's geyser and reset and Lava's seeking flames
+  /// only on what the SLAM killed (survival's `_applyHornSpecialKillEffect`
+  /// has why — flames that spawn flames ran away in a horde).
   void _creditHornKill(CosmicCompanion? caster, CosmicEnemy enemy) {
     if (caster == null ||
         !_isHornCaster(caster) ||
@@ -712,8 +714,10 @@ extension CosmicHornRuntime on CosmicGame {
       return;
     }
     final beauty = caster.member.statBeauty.toDouble();
+    final slamKill = caster.chargeHitIds?.contains(enemy.hashCode) ?? false;
     switch (caster.member.element) {
       case 'Steam':
+        if (!slamKill) return;
         caster.specialCooldown = 0;
         final steam = hornSteamKillScales(
           beauty,
@@ -730,6 +734,7 @@ extension CosmicHornRuntime on CosmicGame {
           ),
         );
       case 'Lava':
+        if (!slamKill) return;
         if (_abilityVfx.length < 140) {
           emitHornLavaKillExplosion(enemy.position, _rng, _hornParticle);
           _spawnHitSpark(enemy.position, kHornLavaKillSparkColor);

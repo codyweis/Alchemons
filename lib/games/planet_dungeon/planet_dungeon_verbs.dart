@@ -190,18 +190,16 @@ class DungeonInteractionRequirement {
 
 /// Mystic guardian encounters are kept OUT of the normal interaction model so a
 /// Mystic never becomes "just another key". A guardian declares its element +
-/// Mystic species and how it can be resolved (calm via Beauty/Kin, or defeat).
+/// Mystic species, and is FOUGHT: struck in its lulls. (A high-Beauty Kin used
+/// to calm it outright — one press at the first lull ended 15 of 16 fights.
+/// Removed 2026-10-07 on the author's call.)
 class GuardianEncounterRequirement {
   final String element;
   final String mysticId; // e.g. 'Roc' (Air), 'Simurgh' (Fire)
-  final bool canCalm;
-  final bool canDefeat;
 
   const GuardianEncounterRequirement({
     required this.element,
     required this.mysticId,
-    this.canCalm = true,
-    this.canDefeat = true,
   });
 }
 
@@ -285,5 +283,3 @@ int revealHintTier(double intelligence) {
 }
 
 double channelHoldSeconds(double strength) => 3.0 + 7.0 * normStat(strength);
-
-bool charmOk(double beauty) => normStat(beauty) >= 0.6; // ≈ Beauty ≥ 3.4

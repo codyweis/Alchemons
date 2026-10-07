@@ -791,8 +791,6 @@ const DungeonLayout iceLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Ice',
           mysticId: 'Frowyrm',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       rime: IceShaft(hoarfrost: Offset(170, 480)),

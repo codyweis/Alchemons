@@ -67,6 +67,82 @@ void main() {
       final rods = buildRaidArenaLayout('Air').entranceRoom.stormRods;
       expect(rods.map((r) => r.id).toSet().length, rods.length);
     });
+
+    test('Air gets the storm cell, and its rods are close enough to climb', () {
+      // A bolt hops at most kStormHopReach from conductor to conductor. Six
+      // rods round this ring sat 220–300 apart, so no staircase could ever
+      // be climbed, and the arena had no storm cell to throw a bolt anyway.
+      final room = buildRaidArenaLayout('Air').entranceRoom;
+      expect(room.stormOrbit, isNotNull);
+      final rods = room.stormRods;
+      for (var i = 0; i < rods.length; i++) {
+        final next = rods[(i + 1) % rods.length];
+        expect(
+          (rods[i].position - next.position).distance,
+          lessThanOrEqualTo(kStormHopReach),
+          reason: '${rods[i].id} to ${next.id}',
+        );
+      }
+      // An Air Alchemon has to raise one: none starts at the top rank.
+      expect(rods.every((r) => r.initialHeight < kStormRodMaxHeight), isTrue);
+    });
+
+    test('Ice gets the hoarfrost pillar, Mud the mire anchor', () {
+      expect(
+        buildRaidArenaLayout('Ice').entranceRoom.rime?.hoarfrost,
+        isNotNull,
+      );
+      expect(buildRaidArenaLayout('Mud').entranceRoom.fen?.anchor, isNotNull);
+    });
+
+    test('Dust gets the cut, Spirit the chime and its Blood Pip gate', () {
+      expect(
+        buildRaidArenaLayout('Dust').entranceRoom.ruins?.hollowCut,
+        isNotNull,
+      );
+      final spirit = buildRaidArenaLayout('Spirit');
+      expect(spirit.entranceRoom.funeral?.chime, isNotNull);
+      final gate = spirit.familyGateFor('vigil_chime');
+      expect(gate, isNotNull);
+      expect(gate!.element, 'Blood');
+    });
+
+    test("Solarin's raid floor: only its shadow is within reach", () {
+      // It is struck from two squares off, from its shadow. Stone is never
+      // in shadow and never burns, so stone in reach would let it be struck
+      // from anywhere on it (the orbit room keeps its ledge and dais out of
+      // reach, and so must the arena's landing).
+      final def = buildRaidArenaLayout('Light').entranceRoom.hall!.def!;
+      for (final o in def.orbit!) {
+        for (var y = 0; y < def.rows; y++) {
+          for (var x = 0; x < def.cols; x++) {
+            if (def.at(x, y) == '~') continue;
+            final dx = x - o.x, dy = y - o.y;
+            final inReach = dx * dx + dy * dy <= 2.01 * 2.01;
+            expect(
+              inReach && !'PV'.contains(def.at(x, y)),
+              isFalse,
+              reason: 'stone at ($x,$y) is in reach of ($o)',
+            );
+          }
+        }
+      }
+    });
+
+    test('a raid whose guardian needs one kind of Alchemon says so', () {
+      for (final el in const [
+        'Ice',
+        'Mud',
+        'Dust',
+        'Spirit',
+        'Crystal',
+        'Plant',
+        'Poison',
+        'Lightning',
+      ]) {
+        expect(kRaidOpeningLines[el], isNotNull, reason: el);
+      }
+    });
   });
 
   group('furniture is per guardian, not sprayed everywhere', () {
@@ -100,15 +176,37 @@ void main() {
       }
     });
 
-    test('no raid carries the Raikuma trunk apparatus', () {
-      // Deliberately NOT enabled. Grounding the trunk needs beam emitters and
-      // fulminate vats; without them activeTrunk stays seized, the guardian
-      // never becomes vulnerable, and the ten-minute timer makes that an
-      // unlosable-by-design fight. See the Raikuma note in the commit.
+    test('only its own planet gets each guardian prop', () {
       for (final el in kRaidGuardianIds.keys) {
         final layout = buildRaidArenaLayout(el);
-        expect(layout.entranceRoom.coreBreaker, isNull, reason: el);
-        expect(layout.dynamoTrunks, isEmpty, reason: el);
+        final room = layout.entranceRoom;
+        if (el != 'Air') expect(room.stormOrbit, isNull, reason: el);
+        if (el != 'Ice') expect(room.rime, isNull, reason: el);
+        if (el != 'Mud') expect(room.fen, isNull, reason: el);
+        if (el != 'Dust') expect(room.ruins, isNull, reason: el);
+        if (el != 'Crystal') expect(room.prism, isNull, reason: el);
+        if (el != 'Plant') expect(room.grove, isNull, reason: el);
+        if (el != 'Light') expect(room.hall, isNull, reason: el);
+        if (el != 'Spirit') {
+          expect(room.funeral, isNull, reason: el);
+          expect(layout.familyGates, isEmpty, reason: el);
+        }
+      }
+    });
+
+    test('only Lightning carries the spike and the one trunk', () {
+      for (final el in kRaidGuardianIds.keys) {
+        final layout = buildRaidArenaLayout(el);
+        if (el == 'Lightning') {
+          expect(layout.entranceRoom.coreBreaker, isNotNull);
+          expect(layout.dynamoTrunks.single.roomIds, ['raid_arena']);
+          expect(layout.initialTrunkId, layout.dynamoTrunks.single.id);
+          // No dynamo room: the trunk-select verb stays off.
+          expect(layout.dynamoRoomId, isNull);
+        } else {
+          expect(layout.entranceRoom.coreBreaker, isNull, reason: el);
+          expect(layout.dynamoTrunks, isEmpty, reason: el);
+        }
       }
     });
 
@@ -136,6 +234,33 @@ void main() {
           b.contains(z.position),
           isTrue,
           reason: '$el brazier ${z.order}',
+        );
+      }
+      for (final p in [
+        room.rime?.hoarfrost,
+        room.fen?.anchor,
+        room.ruins?.hollowCut,
+        room.funeral?.chime,
+        room.coreBreaker,
+        room.apothecary?.cistern,
+        ...?room.grove?.arenaRings,
+      ].nonNulls) {
+        expect(b.contains(p), isTrue, reason: '$el prop at $p');
+      }
+      final floor = room.prism?.choir;
+      if (floor != null) {
+        for (var c = 0; c < 9; c++) {
+          expect(
+            room.bounds.contains(floor.plateRect(c).bottomRight),
+            isTrue,
+            reason: '$el choir plate $c',
+          );
+        }
+        // The heart plate sits under the guardian.
+        expect(
+          floor.cellAt(room.guardian!.position),
+          4,
+          reason: '$el heart plate',
         );
       }
     }

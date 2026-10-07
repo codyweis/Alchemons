@@ -105,11 +105,13 @@ under family-penalty noise. The new rule separates them cleanly:
   with its authored downside (wisps, hazard meter) as the price of the
   workaround. A family gate can never be recipe'd around.
 - **STATS scale magnitude; they don't create pass/fail middle grounds.**
-  Glide length, hint tier, channel duration, charm threshold — quality of
+  Glide length, hint tier, channel duration — quality of
   outcome, not a mushy second way to succeed. Hard `min*` stat gates are
   allowed on family-gated objects only, and failure must be surfaced.
-- **Kin & Mystic unchanged.** Kin calm is an alternate RESOLUTION (defeat
-  always exists), not a gate; Mystics stay out of the model entirely.
+- **Kin & Mystic unchanged.** Mystics stay out of the model entirely.
+  (Kin calm — a high-Beauty Kin ending the guardian in one press — was an
+  alternate resolution until 2026-10-07; it ended 15 of 16 fights at the first
+  lull and was removed on the author's call. Every guardian is fought.)
 
 **Family-gate budget + discoverability (the anti-frustration contract):**
 
@@ -429,7 +431,7 @@ All four now name the state and stop. `dungeon_objective_hints_test.dart`
 holds the line by grammar rather than by vocabulary: it fails any entry line
 with a clause after a dash or semicolon that OPENS with a bare imperative,
 which is the shape all four shared. The guardian rooms keep a written
-exemption — "face X: calm it, or strike in its lulls" is a fight's rules, not
+exemption — "face X: strike in its lulls" is a fight's rules, not
 a puzzle's answer, and it is deliberately identical on every planet.
 
 ### ARRIVING IS NOT NARRATING (2026-09-14)
@@ -834,7 +836,7 @@ or it drifts into Water's seat.
    instant wisp wave; the rite is tended under attack) — the vesper flame
    crawls and starves between censers, Air gusts carry it (Wing strongest,
    Speed-scaled; censers = re-ignite checkpoints; a starved flame = a bigger
-   unstable fury wave); 3 ember bells → Simurgh (calm or defeat) in the
+   unstable fury wave); 3 ember bells → Simurgh (fought in its lulls) in the
    sanctum. Mercy shrine = high altar. Rooms: narthex, nave (hub, rose window
    + star vigil lights), scriptorium, choir, cloister, reliquary, vestry,
    bell_gallery, high_altar, sanctum.
@@ -1012,7 +1014,7 @@ or it drifts into Water's seat.
    that basin asks. It replaced the true-pool quiz (freeze the two TRUE pools
    at settled mid tide; false pools shattered), which was a one-shot
    identification check. Both bridged →
-   Leviathan (calm or defeat). **LEVIATHAN TURNS THE TIDE** (§7 retrofit, 2026-08-11): the
+   Leviathan (fought in its lulls). **LEVIATHAN TURNS THE TIDE** (§7 retrofit, 2026-08-11): the
    depths carry tide zones of their own (a sink that becomes swimmable, two
    piers that drown at high water), and on every roar — the beat its lull
    shuts — the deep hauls the water one stand, rolling low→mid→high→mid so
@@ -1175,8 +1177,8 @@ or it drifts into Water's seat.
    is VERIFICATION of what the marks already told (read only by communing at
    the prism). Crystal insight tier-2 glows each true pan (a shortcut); the
    scale's visible tilt follows PAN LOADING only (never leaks truth); every
-   3rd toggle shakes crystal wisps loose; balanced → Terradon (calm or
-   defeat) in the heart-chamber, whose great heart visibly starts BEATING.
+   3rd toggle shakes crystal wisps loose; balanced → Terradon (fought
+   in its lulls) in the heart-chamber, whose great heart visibly starts BEATING.
    Mercy = eye chamber. The marrow vault hides beyond the chasm. Rooms:
    barrow_gate, sternum_court (hub, rib-arch vault + star vigil), rib_hall,
    marrow_vault, pillar_crypt, palm_hollow (egg), skull_antechamber,
@@ -1929,8 +1931,11 @@ eligible planet, and a **Raid Beacon** (`item.boss_refresh`, shop + boss
 lootbox drop) force-summons one. While live: crimson corruption aura on the
 planet, countdown chip in the cosmic HUD, and **ENTER RAID replaces DESCEND**.
 The run is a generated one-room arena (`buildRaidArenaLayout`) — no puzzles,
-guardian awake from spawn at **3× HP / 1.5× damage**, add waves at 70%/35% HP,
-enrage beat unchanged. Victory → `RaidRewardPopup`: 3 rolls of the element's
+guardian awake from spawn. Three tiers (`RaidConfig`, tuned 2026-10-07):
+HP ×5 / ×7 / ×11, damage ×1.6 / ×1.9 / ×2.4, add waves at 50% (L1),
+70/35% (L2), 80/55/30% (L3); enrage beat unchanged. A tier is harder by
+lasting longer and bringing more adds; dives, the squad hit and add contacts
+are the same size at every tier. Victory → `RaidRewardPopup`: 3 rolls of the element's
 boss lootbox + order-scaled silver/gold; raid marked cleared (persisted,
 force-quit safe). Retreat/wipe keeps the window open for retries. State:
 `cosmic_raid_state` + `cosmic_raid_next_rotation_utc` (SharedPrefs, UTC).
@@ -1938,7 +1943,72 @@ Files: `lib/games/cosmic/raid_state.dart`, `lib/services/raid_service.dart`,
 raid branches in `planet_dungeon_game/screen`, CTA + chip in `cosmic_screen`.
 Eligibility = `kRaidGuardianIds` (add an element only after wiring its mystic
 spritesheet into `_guardianSheets`). Tests: `raid_state_test.dart`,
-`planet_raid_arena_test.dart`.
+`planet_raid_arena_test.dart`, `raid_every_planet_test.dart`.
+
+**Each raid fights by its planet's rule (2026-10-07).** The arena now builds
+the prop for Air (storm cell + 12 climbable rods), Ice (pillar), Mud
+(anchor), Dust (cut), Spirit (chime, Blood Pip gate), Crystal (choir floor)
+and Plant (tending rings), Lightning (spike + one trunk), Poison (the
+crypt's pot; the raid pool split across the three shells) and Light (the
+orbit room set in a 21×13 floor; five bodies share the three shadow names,
+the played one always named). Lava rides its heart ring; Fire and Water
+already worked. The placard above ENTER RAID says what a squad must bring
+(`kRaidOpeningLines`). Fixed in both modes: Magmara's stun-lock (the head
+stays down until 2.2 s after the beach), Raikuma's re-ground lock (the
+trunk surges 2.6 s before the spike bites again), and the grounding spike
+now has art (it had none).
+Details: `docs/plans/raid_threat_plan.md`, Phase 4.
+
+**RULE (2026-10-07): a planet's guardian hook either skips raids or the arena
+builds its prop.** The arena has none of a dungeon's puzzle props. Air, Fire
+and Water get theirs generated (`_raidStormRods`, `_raidBraziers`,
+`_raidTideZones`); every other planet's hook returns on `isRaid` and the raid
+runs the shared clock. Ice, Mud, Crystal and Dust forgot, so their raids
+never lulled (Dust once); Blood's shell floor held the raid guardian at 80%;
+Poison's entry rite threw on the ability button; Dark's room-follow threw on
+a swap. All fixed. `raid_every_planet_test.dart` (every planet's element in
+the squad, a swap every 3 s, the button pressed every frame) must keep
+lulling and fell every raid guardian. The plan to bring each planet's own
+mechanic into its raid, plus a squad-wide hit, is
+`docs/plans/raid_threat_plan.md`.
+
+**The squad hit (built 2026-10-07).** On a beat (8 / 7 / 6 s by tier) the
+raid guardian gathers grains into its body for 1.5 s and sends them out
+through the arena: every living Alchemon loses 6 / 8 / 10% of its health,
+trimmed by E-DEF, shields first. Nothing dodges it (the Dark Kin's veil
+included); healing and defence answer it. Raids only for now; dungeon boss
+fights get a lighter one later. `raid_pulse_fx.dart`, `_updateRaidSquadHit`,
+`test/raid_squad_hit_test.dart`.
+
+**Party members you are not driving fight like Alchemons, not turrets
+(2026-10-07).** Each takes a station on what it is fighting
+(`companionStation`, `lib/games/shared/companion_stance.dart`): its family's
+standoff from the target's EDGE (a horn sat inside a guardian's body:
+median 34 from its centre, radius 38; now 18 outside it), on the party's
+side, swaying along its arc at its own pace, a wing looping and swooping;
+it flies there on an eased velocity (no jitter: a horn turned sharply over
+once a second). Tried and measured worse, so left out: fanning the squad all
+round a guardian (its dives land on the far side; a mid L3 squad with a Kin
+cleared 5 of 9 instead of 9) and sidestepping a dive aimed at you (the dives
+home in). Sanguorath's fight: an ally on the AI keeps clear of its shell, and
+when the shell forms it pushes anyone already inside clear, neither given nor
+refused (whoever it happened to be next to was taken on the spot).
+
+**A dungeon guardian has the squad hit too (2026-10-07), lighter.** Every
+8 s, 3% of each Alchemon's health × the campaign clock (`progressDmgMul`), so
+3% fresh and ~9% at the seventeenth dungeon; only in the guardian's room,
+never in Sanguorath's rites. Fresh fights see two or three beats; late it
+spreads the fight off the front line (the two not fighting took 0–12% of the
+pool, now 7–49%). Every guardian, with its own trio, the rule answered:
+`test/dungeon_guardian_harness_test.dart` (preview).
+
+**Healers heal the squad (2026-10-07).** A Kin's ship heal now lands on each
+ally as the same share of its own pool (survival's rule for the orb; it was
+flat HP, halved, ~0.4%), and a blessing's orb half lands on each ally as a
+half-rate blessing. Kins went from healing only themselves to 5–30 HP/s to
+allies at L2. Measured result against the author's tier table: mid squad
+with no healer loses ~1 / 4–5 / all at L1 / L2 / L3, with a Water Kin 0 /
+0–1 / 1. Full numbers in `docs/plans/raid_threat_plan.md` (Phases 5–6).
 
 ### Campaign difficulty scaling (built)
 Dungeon enemies — and ESPECIALLY guardians — scale with the campaign clock:
@@ -1998,6 +2068,81 @@ party inside 90px of a guardian that is actively hunting. The fights above
 are therefore carried mostly by companion DPS, with strikes as punctuation.
 If the strike is meant to be the spine of the fight, the dispatch order (or
 its reach) is the thing to revisit.
+
+#### 2026-10-07 — a dungeon boss is fought like survival's boss
+The 08-14 numbers stopped being true. Re-measured with production-built
+companions (`debugCreateCombatCompanion`), one special cast into a lull took
+≥20% of a fresh guardian for **29 of 119** family×element specials at stat 3,
+and **11 deleted it outright** — Wing Lava/Poison/Earth/Spirit/Steam/Ice,
+Mane Dust/Lava/Crystal, Let Spirit, Mask Light. A stat-2 Air Wing took half
+the pool and shoved the Roc 1,700 units out of its room. Two causes:
+1. **The dungeon never ported survival's per-body hit guard**
+   (`canHitEnemy`/`noteEnemyHit`): a piercing projectile billed a standing body
+   once a FRAME (frame-rate dependent), and the Mane catapult's cap of two did
+   nothing here.
+2. **The guardian lives in the enemy list.** Survival keeps its boss outside
+   it, so nothing built for trash reaches it. Here every execute, %-of-max
+   drain and shove did.
+
+Fix (`_isBossBody` = the guardian, raids included, and a Poison plague): a
+projectile strikes a boss ONCE (`hitBoss`) for its plain damage, and only a
+floored slow rides along (survival's `_applyBossCrowdControl`,
+`kBossChillFloor`/`kBossChillDurationScale`). No executes or low-HP
+thresholds, no Mask Blood %-drain, no Let Spirit coin-flip, no knockback,
+pull, carry or capture. Fresh Roc, re-measured: stat 2 **50–74s**, stat 3
+**25–42s**, stat 4.5 **13–16s** — the curve this pass designed. The worst
+single cast at stat 3 is now ~13% (Wing Lava's beam, into a lull).
+Pinned in `test/dungeon_boss_rules_test.dart`, all of which fail on the old
+code. Survival and space are untouched. The same per-frame billing still
+exists there for Wing projectiles, and Mane Spirit's stream
+(`ManeRuntime.spiritStream`) drops the Mane cap in every mode. Both are open.
+
+**Poison plagues** got the wisps' campaign curve AND `progressHpMul`: 333 a
+bar fresh (1.5s of a mid trio), ×17.5 by the last dungeon. Now
+`spawnDungeonEnemy(boss: true)` rides the guardians' curve alone and a bar is
+900 base: ≈1,000 fresh (weak ~13s, mid ~5s, strong ~2.5s), ≈2,400 mid-campaign,
+≈3,900 at the end.
+
+**Lures no longer hurt what they protect.** While a taunt steers an enemy,
+the steering impact is contact with the BEACON, yet it billed the creature
+the enemy had been chasing, wherever it stood (a shard 250 units away: 59
+of 639 health a dive). Now a field arrival lands only on a creature inside
+the enemy's reach, and a decoy arrival on nobody (the decoy soaks its own
+grind). Pinned in `test/dungeon_lure_contact_test.dart`.
+
+**Defence takes the edge off a hit; a guardian's contact hit climbs.**
+Dungeon hits are a fraction of the victim's pool, and that fraction ignored
+P-DEF/E-DEF (the audit: the same 59 off 0 and 999 defence). Now
+`PlanetDungeonGame.defenseMitigation` trims it and ONLY trims: a level-1 body
+(≈35) takes the authored fraction, a mid level-10 team ≈20% less, a heavy Horn
+≈35% less, floor 60%. Contact reads P-DEF, a plague's strikes E-DEF; the raid
+guardian keeps its own formula. The guardian's contact ceiling went 0.20 →
+0.30: at 0.20 it was pinned from the second dungeon on, so the campaign's
+damage curve never reached a body. Pinned in `test/dungeon_hit_defense_test.dart`.
+
+**A heal inside the combat tick now stays healed.** The frame copies
+creature health into the combat body, runs the tick, and copies it back.
+Heals inside the tick write the creature, so the whole-value copy back
+erased every one the frame it landed: Kin blessing regen and supports,
+drain, kill and zone heals (a 40/s blessing restored 0.5 in 2 s). The copy
+back now carries only what the tick changed (`_combatHpAtSync`). Pinned in
+`test/dungeon_combat_heal_test.dart`, 60 and 120 fps.
+
+**Every guardian, timed** (production-built ideal trios parked on the boss,
+attack + special mashed, utility in every lull; seconds after landing):
+
+| planet group | fresh: weak / mid / strong | 17th dungeon: weak / mid / strong |
+|---|---|---|
+| clock-lull (Air, Fire, Water, Earth, Steam, Dark) | 21–29 / 14–20 / 8–12 | 55–62 / 43–50 / 26–36 |
+| mechanic-lull (Lightning, Lava, Poison, Ice, Mud, Dust, Crystal, Plant, Spirit) | 92–176 / 38–78 / 12–37 | DNF / 174–281 / 71–143 |
+
+The mechanic-lull row is an UPPER bound: the sim cannot perform a planet's
+own lull mechanic, so those guardians take the raging 0.35 the whole fight.
+Light (Solarin, three planned blows) runs 40–46s at any strength; Blood's
+boss needs its rites and is not simulable this way. No guardian is deleted
+(fresh mid ≥14s); a strong trio finishing planet #1 in ~10s is the accepted
+"overprepared" case. Guardian HP was left uniform — Fire and Dark run ~20%
+quick, inside the spread planet mechanics already add.
 - **Raids** stack their own 3×/1.5× on top — late-campaign raids are brutal
   by design. Replaying an early dungeon late in the campaign IS harder (the
   clock is global). Tests: `planet_dungeon_scaling_test.dart`.
@@ -2070,11 +2215,13 @@ BUILT is not POLISHED. All 17 are built and proved; this tracks which have
 been through a device playtest and had their art, chrome and feel worked on
 afterwards.
 
-**SIXTEEN of seventeen (2026-10-03): Fire · Air · Water · Earth · Lightning ·
-Steam · Lava · Poison · Mud · Ice · Dust · Crystal · Plant · Spirit · Light ·
-Dark.** **DARK was promoted 2026-10-03** on the author's account, after THE
-BLACK SUN rebuild (§ "DARK — THE BLACK SUN") was played on device. Blood
-alone remains. **LIGHT was promoted 2026-09-30** on the author's account, after THE SHADOW
+**ALL SEVENTEEN (2026-10-06): Fire · Air · Water · Earth · Lightning · Steam ·
+Lava · Poison · Mud · Ice · Dust · Crystal · Plant · Spirit · Light · Dark ·
+Blood.** **BLOOD was promoted 2026-10-06** on the author's account, after the
+Blood Rites rebuild (four captive rooms, the Circle and its maxim seal, the
+Heart theatre, the staged boss) and two playtests on device. **DARK was
+promoted 2026-10-03** on the author's account, after THE BLACK SUN rebuild
+(§ "DARK — THE BLACK SUN") was played on device. **LIGHT was promoted 2026-09-30** on the author's account, after THE SHADOW
 FLOOR rebuild (plus the Eclipse and the reworked Solarin) was played on
 device. **PLANT and SPIRIT were promoted 2026-09-28** on the author's account —
 Plant after the Conservatory redesign (§9.20), Spirit after THE UNFINISHED
@@ -2083,8 +2230,8 @@ FUNERAL redesign — both played on device. Poison was promoted 2026-09-14;
 on the author's account that both have been played; **DUST was promoted
 2026-09-25** after its night-dig / sand-throw / observatory pass was played. **CRYSTAL was promoted 2026-09-26** on the author's account. This list is mirrored in code as `kPolishedDungeons`
 (`lib/games/cosmic/cosmic_data.dart`), and it is what decides whether a planet
-offers DESCEND or the coming-soon placard — Blood keeps its gate
-ritual and cannot be descended. Promoting a planet is one line there, pinned
+offers DESCEND or the coming-soon placard. Promoting a planet is one line
+there, pinned
 by `test/dungeon_polish_gate_test.dart`.
 
 The through-line of all seven is that the suite was green the whole

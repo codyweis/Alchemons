@@ -1127,8 +1127,6 @@ const DungeonLayout dustLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Dust',
           mysticId: 'Ashdjinn',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       ruins: DustRuins(hollowCut: Offset(450, 470)),

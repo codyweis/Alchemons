@@ -71,12 +71,12 @@ const _imperatives = {
   'walk',
 };
 
-/// The guardian rooms all wear the same combat readout — "face X: calm it, or
-/// strike in its lulls". That is a fight's rules, not a puzzle's answer, and
+/// The guardian rooms all wear the same combat readout — "face X: strike in
+/// its lulls". That is a fight's rules, not a puzzle's answer, and
 /// it is deliberately identical on every planet. Anything else has to earn
 /// its exemption here, in writing.
 bool _isGuardianReadout(String line) =>
-    line.contains(': calm it, or strike in its lulls');
+    line.contains(': strike in its lulls');
 
 void main() {
   final files = Directory('lib/games/planet_dungeon')

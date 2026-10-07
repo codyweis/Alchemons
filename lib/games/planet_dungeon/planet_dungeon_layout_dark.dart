@@ -1376,8 +1376,6 @@ const DungeonLayout darkLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Dark',
           mysticId: 'Noctryos',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       sun: SunBay.arena(),

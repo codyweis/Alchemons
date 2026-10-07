@@ -313,7 +313,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (!guardianVulnerable && f.bitLastFrame) {
       f.bitLastFrame = false;
       f.anchorFirm = false;
-      _swallowOneRoad();
+      // A raid arena has no fen above it to take a crossing from.
+      if (!isRaid) _swallowOneRoad();
     }
   }
 
@@ -1223,6 +1224,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
         1 =>
           'Mud can harden the floor at the anchor. It goes soft each time '
               'the opening closes',
+        _ when isRaid =>
+          'Harden the anchor with Mud, hit Bogdrya while it\'s open, then '
+              'harden it again',
         _ =>
           'Harden the anchor with Mud, hit Bogdrya while it\'s open, then '
               'harden it again. Each time, Bogdrya takes back one crossing '

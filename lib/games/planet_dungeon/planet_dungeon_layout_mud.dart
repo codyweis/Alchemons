@@ -1099,8 +1099,6 @@ const DungeonLayout mudLayout = DungeonLayout(
         encounter: GuardianEncounterRequirement(
           element: 'Mud',
           mysticId: 'Bogdrya',
-          canCalm: true,
-          canDefeat: true,
         ),
       ),
       fen: BogFen(anchor: Offset(170, 480)),

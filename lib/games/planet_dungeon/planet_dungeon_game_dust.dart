@@ -829,7 +829,8 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       _ashdjinnBitLastFrame = false;
       ruins.buryHollow();
       _hollowSettle = _kHollowSettle;
-      final undone = ruins.undoOneDig();
+      // A raid arena has no city above it to undo a dig in.
+      final undone = isRaid ? null : ruins.undoOneDig();
       _cue(SoundCue.dungeonHazardTrigger);
       // A closing announces itself (§5.7). This runs from update, where an
       // ordinary line is dropped unasked — and a dig the storm has just
@@ -1124,6 +1125,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         1 =>
           'Each storm fills the cut back in. Dust or Earth at the cut digs '
               'it out',
+        _ when isRaid => 'Dig the cut out after every storm',
         _ =>
           'Dig the cut out after every storm. Each storm also refills one of '
               'your digs in the city',

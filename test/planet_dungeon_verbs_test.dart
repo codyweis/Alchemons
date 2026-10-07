@@ -235,10 +235,5 @@ void main() {
       expect(channelHoldSeconds(5.0), closeTo(10.0, 0.001));
       expect(channelHoldSeconds(9.0), closeTo(12.1, 0.001));
     });
-    test('charmOk needs high Beauty', () {
-      expect(charmOk(5.0), isTrue);
-      expect(charmOk(3.4), isTrue);
-      expect(charmOk(3.0), isFalse);
-    });
   });
 }
