@@ -53,6 +53,9 @@ const double _kSeatGap = 19, _kOrbR = 19, _kOrbStep = 54;
 /// hurries it.
 const double _kPace = 1.35, _kHurry = 3.2;
 
+/// How long what a fusion made stands on the altar, named, before it rises.
+const double _kMadeHold = 1.2;
+
 /// What a level says under the bar: each of the Basics, and the first level
 /// of a chapter that brings something new.
 String? _teachFor(int n, AltarChapter c) {
@@ -112,6 +115,8 @@ class _Moment {
     this.fizzleAt,
     this.fizzleCols = const [],
     this.prevColumn,
+    this.madeName,
+    this.madeTint = const Color(0xFFE6E2DA),
   });
 
   /// Units the moment draws itself (the stage leaves them out).
@@ -145,6 +150,10 @@ class _Moment {
 
   final Offset? fizzleAt;
   final List<Color> fizzleCols;
+
+  /// What the fusion made, named under it while it stands on the altar.
+  final String? madeName;
+  final Color madeTint;
 
   double t = 0;
 
@@ -564,7 +573,8 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
         morphSources: [(spA, cA), (spB, cB)],
         morphTargets: [(spMade, at)],
         rise: rise,
-        riseFrom: morph.duration - .3,
+        // It stands there a moment, named, before it goes up.
+        riseFrom: rise == null ? 0 : morph.duration + _kMadeHold,
         riseSpecies: spMade,
         meetSlot: firstSlot,
         meetEl: f.met,
@@ -572,6 +582,10 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
         prevColumn: prevColumn,
         landedSpecies: f.fusedUp ? spLanded : null,
         landedAt: (spLanded ?? spMade)?.centreFor(altarFeet(ai)) ?? at,
+        madeName: level.species
+            ? (spMade?.name ?? '${made.el}${made.fam.toLowerCase()}')
+            : made.el,
+        madeTint: elementOrbTint(EssenceElement.of(made.el)),
       );
     });
   }
@@ -1636,17 +1650,33 @@ class _StagePainter extends CustomPainter {
           ),
         );
       }
-      final r = m.rise;
-      final riseT = m.t - m.riseFrom;
-      for (final (sp, c) in m.morphTargets) {
-        if (sp == null) continue;
-        // Once it rises, the rise decides how much of it shows.
-        final a = r != null && riseT >= 0 ? 0.0 : morph.reveal;
-        sp.paint(canvas, c, time, alpha: a);
-      }
       morph.paint(canvas, batch, time);
     }
     final r = m.rise;
+    if (morph != null) {
+      final riseT = m.t - m.riseFrom;
+      // Made, it stands on the altar until it rises; then the rise decides
+      // how much of it shows.
+      final standing = r == null
+          ? morph.t < morph.duration + .01
+          : riseT < 0;
+      if (standing) {
+        for (final (sp, c) in m.morphTargets) {
+          sp?.paint(canvas, c, time, alpha: morph.reveal);
+        }
+      }
+      final name = m.madeName;
+      if (name != null && m.altar >= 0) {
+        final out = r == null ? 0.0 : (riseT / .25).clamp(0.0, 1.0);
+        _name(
+          canvas,
+          name,
+          s.altarFeet(m.altar) + const Offset(0, 9),
+          m.madeTint,
+          morph.reveal * (1 - out),
+        );
+      }
+    }
     if (r != null) {
       final rt = m.t - m.riseFrom;
       if (rt >= 0) {
