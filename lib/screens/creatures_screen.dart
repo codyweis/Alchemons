@@ -257,9 +257,13 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                     _speciesFilter!,
                   );
 
+            // The dock's height, which the lists leave room for.
+            final dockInset = MediaQuery.paddingOf(context).bottom;
             return Scaffold(
               backgroundColor: palette.bg1,
+              // The lists run down behind the dock, like the inventory's.
               body: SafeArea(
+                bottom: false,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -328,6 +332,7 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                                   child: AllCreatureInstances(
                                     theme: theme,
                                     caseCards: true,
+                                    bottomInset: dockInset,
                                     speciesIdFilter: _speciesFilter,
                                     prefsScopeKey: 'creatures_all_specimens',
                                     searchTextOverride: _query,
@@ -360,6 +365,7 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                                 query: _query,
                                 revealCreatureId: _revealCreatureId,
                                 controller: _catalogScrollCtl,
+                                bottomInset: dockInset,
                                 onTap: (c, isDiscovered) =>
                                     _handleTap(c, isDiscovered, theme),
                                 onOpenMilestones: _openMilestones,

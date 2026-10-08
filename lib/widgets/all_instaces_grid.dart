@@ -78,6 +78,9 @@ class AllCreatureInstances extends StatefulWidget {
   /// outside — the Creatures tab after a species is picked in the catalog.
   final String? speciesIdFilter;
 
+  /// Extra room under the last row, for a dock the grid runs down behind.
+  final double bottomInset;
+
   const AllCreatureInstances({
     super.key,
     required this.theme,
@@ -100,6 +103,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.cardBadgeBuilder,
     this.caseCards = false,
     this.speciesIdFilter,
+    this.bottomInset = 0,
   });
 
   @override
@@ -1049,7 +1053,12 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     )
                   : GridView.builder(
                       physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 24),
+                      padding: EdgeInsets.fromLTRB(
+                        10,
+                        8,
+                        10,
+                        24 + widget.bottomInset,
+                      ),
                       itemCount: instances.length,
                       gridDelegate: widget.caseCards
                           ? SliverGridDelegateWithFixedCrossAxisCount(

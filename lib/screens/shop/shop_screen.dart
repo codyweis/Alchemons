@@ -323,7 +323,9 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
       whiteBackground: theme.brightness == Brightness.light,
       body: Scaffold(
         backgroundColor: Colors.transparent,
+        // The lists run down behind the dock, like the inventory's.
         body: SafeArea(
+          bottom: false,
           child: Column(
             children: [
               // The header animates continuously (the black-market pulse).
@@ -626,7 +628,9 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         Expanded(
           child: SingleChildScrollView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.only(bottom: 20),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.paddingOf(context).bottom + 48,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -735,7 +739,12 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         return SingleChildScrollView(
           controller: _scenesScroll,
           physics: const BouncingScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 20),
+          padding: EdgeInsets.fromLTRB(
+            12,
+            0,
+            12,
+            MediaQuery.paddingOf(context).bottom + 48,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -812,7 +821,9 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   ) {
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.paddingOf(context).bottom + 48,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

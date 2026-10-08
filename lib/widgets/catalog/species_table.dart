@@ -41,6 +41,7 @@ class SpeciesTable extends StatelessWidget {
     this.revealCreatureId,
     this.controller,
     this.onOpenMilestones,
+    this.bottomInset = 0,
   });
 
   final List<CreatureEntry> entries;
@@ -58,6 +59,9 @@ class SpeciesTable extends StatelessWidget {
   final String? revealCreatureId;
   final ScrollController? controller;
   final VoidCallback? onOpenMilestones;
+
+  /// Extra room under the last row, for a dock the table runs down behind.
+  final double bottomInset;
 
   static const double _rowHead = 62;
   static const int _shelfColumns = 6;
@@ -116,7 +120,7 @@ class SpeciesTable extends StatelessWidget {
       physics: const BouncingScrollPhysics(
         parent: AlwaysScrollableScrollPhysics(),
       ),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 24),
+      padding: EdgeInsets.fromLTRB(14, 12, 14, 24 + bottomInset),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: _maxWidth),

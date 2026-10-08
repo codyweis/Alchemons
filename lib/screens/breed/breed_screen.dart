@@ -208,65 +208,69 @@ class _BreedScreenState extends State<BreedScreen> {
               whiteBackground: theme.brightness == Brightness.light,
               body: Scaffold(
                 backgroundColor: Colors.transparent,
-                // The dock's height is reserved here, inside the background,
-                // so the particle black runs down behind the dock like on
-                // the other tabs instead of the shell's navy showing.
+                // The page runs down behind the dock like the other tabs;
+                // the cultivations scroll leaves room for it, and the fusion
+                // stage is lifted clear of it.
                 body: SafeArea(
-                  top: false,
-                  child: SafeArea(
-                    bottom: false,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onHorizontalDragEnd: _handleModeSwipe,
-                      child: Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-                            child: Builder(
-                              builder: (context) {
-                                final palette = BracketPalette.fromTheme(theme);
-                                return BracketTabs(
-                                  labels: const ['CULTIVATIONS', 'FUSION'],
-                                  selected: isCultivations ? 0 : 1,
-                                  onSelect: (i) => _setMode(
-                                    i == 0
-                                        ? _BreedMode.cultivations
-                                        : _BreedMode.fusion,
-                                  ),
-                                  palette: palette,
-                                  accent: fusionGold(palette),
-                                );
-                              },
-                            ),
-                          ),
-                          Expanded(
-                            child: IndexedStack(
-                              index: isCultivations ? 0 : 1,
-                              sizing: StackFit.expand,
-                              children: [
-                                TickerMode(
-                                  enabled: isCultivations,
-                                  child: NurseryTab(
-                                    maxSeenNowUtc: DateTime.now().toUtc(),
-                                    onHatchComplete: _handleExtractionComplete,
-                                    onRequestAddEgg: () =>
-                                        _setMode(_BreedMode.fusion),
-                                    onRequestFusion: () =>
-                                        _setMode(_BreedMode.fusion),
-                                  ),
+                  bottom: false,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    onHorizontalDragEnd: _handleModeSwipe,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          child: Builder(
+                            builder: (context) {
+                              final palette = BracketPalette.fromTheme(theme);
+                              return BracketTabs(
+                                labels: const ['CULTIVATIONS', 'FUSION'],
+                                selected: isCultivations ? 0 : 1,
+                                onSelect: (i) => _setMode(
+                                  i == 0
+                                      ? _BreedMode.cultivations
+                                      : _BreedMode.fusion,
                                 ),
-                                TickerMode(
-                                  enabled: !isCultivations,
+                                palette: palette,
+                                accent: fusionGold(palette),
+                              );
+                            },
+                          ),
+                        ),
+                        Expanded(
+                          child: IndexedStack(
+                            index: isCultivations ? 0 : 1,
+                            sizing: StackFit.expand,
+                            children: [
+                              TickerMode(
+                                enabled: isCultivations,
+                                child: NurseryTab(
+                                  maxSeenNowUtc: DateTime.now().toUtc(),
+                                  onHatchComplete: _handleExtractionComplete,
+                                  onRequestAddEgg: () =>
+                                      _setMode(_BreedMode.fusion),
+                                  onRequestFusion: () =>
+                                      _setMode(_BreedMode.fusion),
+                                ),
+                              ),
+                              TickerMode(
+                                enabled: !isCultivations,
+                                child: Padding(
+                                  padding: EdgeInsets.only(
+                                    bottom: MediaQuery.paddingOf(
+                                      context,
+                                    ).bottom,
+                                  ),
                                   child: BreedingTab(
                                     discoveredCreatures: entries,
                                     onBreedingComplete: _noop,
                                   ),
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

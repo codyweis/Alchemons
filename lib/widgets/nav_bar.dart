@@ -291,7 +291,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
         final isDisabled = widget.isDisabled || lockedByFlow;
 
         return Container(
-          decoration: BoxDecoration(color: theme?.surfaceAlt),
+          decoration: const BoxDecoration(color: Color(0xD909090B)),
           clipBehavior: Clip.none,
           child: SizedBox(
             height: 60,
