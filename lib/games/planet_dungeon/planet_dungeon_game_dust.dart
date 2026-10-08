@@ -1433,7 +1433,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // with the sandstone shell round them (planet_dungeon_game_dust_art.dart).
     _renderRuinsStone(canvas, room, g);
     _renderGlassDoorPlugs(canvas, room);
-    _renderRuinsLamps(canvas, g);
+    _renderRuinsLamps(canvas, room, g);
     _renderRuinsPlace(canvas, room, g);
     _renderDriftYard(canvas, room, g);
     _renderMounds(canvas, room);
@@ -1568,7 +1568,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
 
     for (final d in g.drums) {
-      _drawDrum(canvas, d.at, d.r, d.lean, d.fallen);
+      _drawDrum(canvas, d.at, d.r, d.lean, d.fallen, under: g.under);
     }
 
     // SHORING. Two props, a header across them, and lagging boards behind:
@@ -1579,37 +1579,53 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     }
 
     // SPOIL. Nothing perishes here — everything that came out of a cut is
-    // still standing beside it, in a heap, with the basket it came up in.
+    // still standing beside it, in a heap. (The basket tipped at its foot
+    // was a clip-art prop; it is gone, 2026-10-08.)
     for (final h in g.heaps) {
-      _drawSpoilHeap(canvas, h.at, h.w, h.h, h.basket);
+      _drawSpoilHeap(canvas, h.at, h.w, h.h, false);
     }
 
     // SHERDS. Pot, brick-end and bone: the small stuff that tells you people
-    // lived here, scattered, never in a line.
-    for (final s in g.sherds) {
+    // lived here. Pale and brick-red chips read as rubble stickers on the
+    // dark deck (2026-10-08) — a third of them stay, as dark broken stone
+    // with the deck's light on one edge. (Every one is still laid out, so
+    // the rest of the room's scatter lands where it always did.)
+    for (var i = 0; i < g.sherds.length; i += 3) {
+      final s = g.sherds[i];
       canvas.save();
       canvas.translate(s.at.dx, s.at.dy);
       canvas.rotate(s.a);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset.zero, width: s.s * 2.4, height: s.s),
-          Radius.circular(s.s * 0.4),
-        ),
-        Paint()
-          ..color = (s.pale ? _kDustPale : _kDustBrick).withValues(alpha: 0.38),
-      );
+      final chip = Path()
+        ..moveTo(-s.s * 1.2, s.s * 0.3)
+        ..lineTo(-s.s * 0.7, -s.s * 0.5)
+        ..lineTo(s.s * 0.9, -s.s * 0.42)
+        ..lineTo(s.s * 1.2, s.s * 0.36)
+        ..close();
+      paintContactShadow(canvas, Offset(1, s.s * 0.5), s.s * 2.6, s.s * 0.9);
+      _dustCarve(canvas, chip, under: g.under, rim: 0.4);
       canvas.restore();
     }
   }
 
   /// OIL LAMPS. The only warm light below the streets; they flicker, which
-  /// is the one thing in the fabric that costs anything per frame — so they
-  /// are drawn live over the baked stone.
-  void _renderRuinsLamps(Canvas canvas, _RuinsGround g) {
+  /// is the one thing in the fabric that costs anything per frame — so the
+  /// niche and the clay lamp are baked, and only the light and the flame are
+  /// drawn live. The flame is grains now (2026-10-08): it was a teardrop
+  /// over three flat rings of glow.
+  void _renderRuinsLamps(Canvas canvas, DungeonRoom room, _RuinsGround g) {
+    if (g.lamps.isEmpty) return;
+    canvas.drawPicture(
+      _dustStill('lamps|${room.id}', (c) {
+        for (final at in g.lamps) {
+          _drawLamp(c, at, 1);
+        }
+      }),
+    );
     for (var i = 0; i < g.lamps.length; i++) {
       final f = 0.82 + 0.18 * sin(_time * 5.3 + i * 2.1) * cos(_time * 2.7 + i);
-      _drawLamp(canvas, g.lamps[i], f);
+      _drawLampFlame(canvas, g.lamps[i], f, i);
     }
+    _dustInk.paint(canvas, width: 1.5);
   }
 
   /// The section an excavation is read off: bands of tip and collapse, with a
@@ -1705,10 +1721,21 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     );
   }
 
-  void _drawDrum(Canvas canvas, Offset at, double r, double lean, bool fallen) {
+  /// A COLUMN DRUM, as a dark carved silhouette (2026-10-08). Standing it
+  /// was a stack of pale ovals — a pile of coins; lying it was a pale
+  /// rounded bar with an end cap — a scroll. Now it is one stone cylinder in
+  /// the city's dark stone, lit only along its rim by the deck's light.
+  void _drawDrum(
+    Canvas canvas,
+    Offset at,
+    double r,
+    double lean,
+    bool fallen, {
+    bool under = false,
+  }) {
+    final rim = _dustRim(under);
     if (fallen) {
-      // A lying cylinder: the body, the end face, and the flutes running
-      // along it. Columns in a ruin are almost always on the ground.
+      // Lying where it fell, with its broken end toward us.
       canvas.save();
       canvas.translate(at.dx, at.dy);
       canvas.rotate(lean);
@@ -1717,100 +1744,162 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         width: r * 4.4,
         height: r * 1.7,
       );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(body.translate(3, 5), Radius.circular(r * 0.5)),
-        Paint()..color = Colors.black.withValues(alpha: 0.28),
+      // The deck's light comes from the upper left of the WORLD; in the
+      // drum's own turned frame that is this way.
+      final lx = r * 0.1, ly = r * 0.16;
+      final light = Offset(
+        lx * cos(lean) + ly * sin(lean),
+        -lx * sin(lean) + ly * cos(lean),
       );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(body, Radius.circular(r * 0.5)),
-        Paint()..color = _kDustStone.withValues(alpha: 0.66),
+      paintContactShadow(
+        canvas,
+        const Offset(3, 6),
+        body.width * 1.05,
+        body.height * 0.9,
+        opacity: 0.42,
       );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: Offset(body.left + r * 0.5, 0),
-          width: r * 1.0,
-          height: r * 1.6,
+      _dustCarve(
+        canvas,
+        Path()
+          ..addRRect(RRect.fromRectAndRadius(body, Radius.circular(r * 0.5))),
+        under: under,
+        light: light,
+        rim: 0.42,
+        top: const Color(0xFF3A2E20),
+        foot: const Color(0xFF1A130C),
+      );
+      // One joint, where the next drum broke away.
+      _dustGroove(
+        canvas,
+        Path()..addArc(
+          Rect.fromCenter(
+            center: Offset(body.left + r * 2.5, 0),
+            width: r * 0.8,
+            height: r * 1.6,
+          ),
+          -pi / 2,
+          pi,
         ),
-        Paint()..color = _kDustPale.withValues(alpha: 0.42),
+        under: under,
+        w: 1.3,
       );
-      for (var k = -1; k <= 1; k++) {
-        canvas.drawLine(
-          Offset(body.left + r * 0.9, k * r * 0.45),
-          Offset(body.right - r * 0.4, k * r * 0.45),
-          Paint()
-            ..strokeWidth = 1.0
-            ..color = _kDustUmber.withValues(alpha: 0.3),
-        );
-      }
+      // The end face: the stone's section, a shade lighter than its side.
+      final end = Rect.fromCenter(
+        center: Offset(body.left + r * 0.5, 0),
+        width: r * 0.95,
+        height: r * 1.62,
+      );
+      canvas.drawOval(end, Paint()..color = const Color(0xFF453626));
+      canvas.drawArc(
+        end,
+        pi * 0.9,
+        pi * 0.8,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color = rim.withValues(alpha: 0.42),
+      );
       canvas.restore();
       return;
     }
-    // Standing: a stack of four drums seen from above and a little to the
-    // side. Three drums at a third of a radius apart came out as a PANCAKE —
-    // the court's whole colonnade read as a row of coins on the floor.
-    canvas.drawOval(
-      Rect.fromCenter(center: at.translate(5, 10), width: r * 2.4, height: r),
-      Paint()..color = Colors.black.withValues(alpha: 0.26),
+    // Standing: one stub of fluted shaft, snapped off on a slant.
+    final h = r * 1.56;
+    final rx = r * 1.05, ry = r * 0.5;
+    final seed = (at.dx * 7 + at.dy * 13).round();
+    final tilt = _dustHash(seed) * 2 * pi;
+    paintContactShadow(
+      canvas,
+      at.translate(5, ry * 0.6),
+      rx * 2.6,
+      ry * 2.0,
+      opacity: 0.42,
     );
-    for (var i = 3; i >= 0; i--) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: at.translate(0, -i * r * 0.52),
-          width: r * 2.1,
-          height: r * 1.05,
-        ),
-        Paint()..color = _kDustStone.withValues(alpha: 0.5 + i * 0.1),
+    // The break: the top edge drops away on one side, and is ragged.
+    Offset rimAt(double th) {
+      final drop =
+          h * 0.16 * (0.5 + 0.5 * cos(th - tilt)) +
+          (_dustHash(seed + (th * 5).round()) - 0.5) * r * 0.12;
+      return Offset(at.dx + rx * cos(th), at.dy - h + ry * sin(th) + drop);
+    }
+
+    const n = 18;
+    final face = Path()
+      ..moveTo(at.dx - rx, rimAt(pi).dy)
+      ..lineTo(at.dx - rx, at.dy)
+      ..arcTo(
+        Rect.fromCenter(center: at, width: rx * 2, height: ry * 2),
+        pi,
+        -pi,
+        false,
       );
-      // The joint under each drum, so the shaft has courses like real stone.
-      canvas.drawLine(
-        at.translate(-r * 0.95, -i * r * 0.52 + r * 0.42),
-        at.translate(r * 0.95, -i * r * 0.52 + r * 0.42),
-        Paint()
-          ..strokeWidth = 1.0
-          ..color = _kDustUmber.withValues(alpha: 0.26),
+    for (var k = 0; k <= n ~/ 2; k++) {
+      final p = rimAt(k / n * 2 * pi);
+      face.lineTo(p.dx, p.dy);
+    }
+    face.close();
+    _dustCarve(
+      canvas,
+      face,
+      under: under,
+      light: Offset(r * 0.16, 0),
+      rim: 0.4,
+    );
+    // Flutes down the near side: the one cue that says COLUMN.
+    for (final th in const [0.28, 0.5, 0.72]) {
+      final a = th * pi;
+      final x = at.dx + rx * cos(a);
+      _dustGroove(
+        canvas,
+        Path()
+          ..moveTo(x, rimAt(a).dy + 3)
+          ..lineTo(x, at.dy + ry * sin(a) - 2),
+        under: under,
+        w: 1.1,
       );
     }
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: at.translate(0, -r * 1.56),
-        width: r * 1.6,
-        height: r * 0.8,
-      ),
-      Paint()..color = _kDustPale.withValues(alpha: 0.5),
+    // The broken top: the stone's section, a shade above its side.
+    final top = Path()
+      ..addPolygon([for (var k = 0; k < n; k++) rimAt(k / n * 2 * pi)], true);
+    _dustCarve(
+      canvas,
+      top,
+      under: under,
+      light: Offset(r * 0.08, r * 0.1),
+      rim: 0.5,
+      top: const Color(0xFF3E3123),
+      foot: const Color(0xFF2A2117),
     );
   }
 
+  /// Pit props: dark timber in silhouette, the lamplight only on their
+  /// edges (2026-10-08 — tan frames ruled across the cut face read as
+  /// line-art furniture).
   void _drawShoring(Canvas canvas, Offset at, double w, double h) {
-    // Lagging first: the boards the props hold back.
-    for (var y = at.dy - h; y < at.dy - 4; y += 9) {
-      canvas.drawRect(
-        Rect.fromLTWH(at.dx - w / 2, y, w, 6),
-        Paint()..color = _kDustTimber.withValues(alpha: 0.34),
-      );
-    }
-    final post = Paint()..color = _kDustTimber.withValues(alpha: 0.88);
+    // (The lagging boards ruled across between them made every pair of
+    // props a ladder; the cut face shows through instead.)
     for (final s in [-1.0, 1.0]) {
-      canvas.drawRect(
-        Rect.fromLTWH(at.dx + s * (w / 2) - 4, at.dy - h, 8, h),
-        post,
-      );
-      // The grain, and a lit inside edge so the prop has a round side.
-      canvas.drawLine(
-        Offset(at.dx + s * (w / 2) - 2, at.dy - h + 3),
-        Offset(at.dx + s * (w / 2) - 2, at.dy - 3),
-        Paint()
-          ..strokeWidth = 1.4
-          ..color = _kDustOchre.withValues(alpha: 0.35),
+      _dustCarve(
+        canvas,
+        Path()
+          ..addRect(Rect.fromLTWH(at.dx + s * (w / 2) - 4, at.dy - h, 8, h)),
+        under: true,
+        light: const Offset(1.6, 0),
+        rim: 0.34,
+        top: const Color(0xFF33261A),
+        foot: const Color(0xFF1C140C),
       );
     }
     // The header across the top, overhanging both props.
-    canvas.drawRect(
-      Rect.fromLTWH(at.dx - w / 2 - 9, at.dy - h - 8, w + 18, 9),
-      post,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(at.dx - w / 2 - 9, at.dy - h - 8, w + 18, 2.5),
-      Paint()..color = _kDustOchre.withValues(alpha: 0.4),
+    _dustCarve(
+      canvas,
+      Path()
+        ..addRect(Rect.fromLTWH(at.dx - w / 2 - 9, at.dy - h - 8, w + 18, 9)),
+      under: true,
+      light: const Offset(0, 1.8),
+      rim: 0.4,
+      top: const Color(0xFF33261A),
+      foot: const Color(0xFF1C140C),
     );
   }
 
@@ -1860,28 +1949,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         ..close(),
       Paint()..color = _kDustOchre.withValues(alpha: 0.42),
     );
-    if (!basket) return;
-    // The basket it came up in, tipped on its side at the foot of the heap.
-    canvas.save();
-    canvas.translate(at.dx + w * 0.42, at.dy - 4);
-    canvas.rotate(0.5);
-    final bk = Path()
-      ..moveTo(-11, -9)
-      ..lineTo(11, -9)
-      ..lineTo(7, 8)
-      ..lineTo(-7, 8)
-      ..close();
-    canvas.drawPath(bk, Paint()..color = _kDustTimber.withValues(alpha: 0.8));
-    canvas.drawLine(
-      const Offset(-11, -9),
-      const Offset(11, -9),
-      Paint()
-        ..strokeWidth = 2
-        ..color = _kDustOchre.withValues(alpha: 0.55),
-    );
-    canvas.restore();
+    // (The basket tipped at its foot was a clip-art prop: gone, 2026-10-08.)
   }
 
+  /// The niche and the clay lamp in it — still, so baked. [flicker] is
+  /// unused now that the flame is live grains; kept for the call shape.
   void _drawLamp(Canvas canvas, Offset at, double flicker) {
     // The niche cut into the wall it hangs in.
     canvas.drawRRect(
@@ -1891,57 +1963,114 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       ),
       Paint()..color = const Color(0xFF16100A).withValues(alpha: 0.85),
     );
-    // A glow in three flat rings — no MaskFilter.blur anywhere on this
-    // planet, and this is the shape that most wants one.
-    for (var i = 3; i >= 1; i--) {
-      canvas.drawCircle(
-        at,
-        16.0 * i * flicker,
-        Paint()..color = _kDustLamp.withValues(alpha: 0.055 * flicker / i),
+    // The lamp itself: a little clay boat, dark, its own flame on its rim.
+    _dustCarve(
+      canvas,
+      Path()..addOval(
+        Rect.fromCenter(center: at.translate(0, 3), width: 19, height: 9),
+      ),
+      under: true,
+      light: const Offset(0, 1.6),
+      rim: 0.85,
+    );
+  }
+
+  /// A LAMP FLAME IN GRAINS: a tongue of sparks rising off the wick and
+  /// thinning as it climbs, over the lamp's light (the shared glow sprite —
+  /// no rings, no blur). ~40 grains a lamp, from time alone.
+  void _drawLampFlame(Canvas canvas, Offset at, double flicker, int seed) {
+    final wick = at.translate(0, 0.5);
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        wick.translate(0, -5),
+        46 * flicker,
+        _kDustLamp.withValues(alpha: 0.26 * flicker),
       );
     }
-    // The lamp itself: a little clay boat with a wick alight in its nose.
-    canvas.drawOval(
-      Rect.fromCenter(center: at.translate(0, 3), width: 19, height: 9),
-      Paint()..color = _kDustBrick.withValues(alpha: 0.95),
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(at.dx - 3, at.dy)
-        ..quadraticBezierTo(at.dx, at.dy - 11 * flicker, at.dx + 3, at.dy)
-        ..close(),
-      Paint()..color = _kDustLamp.withValues(alpha: 0.95),
-    );
+    const n = 34;
+    final h = 13.0 * flicker;
+    for (var j = 0; j < n; j++) {
+      final r0 = _dustHash(seed * 131 + j);
+      final r1 = _dustHash(seed * 71 + j * 7 + 3);
+      Offset where(double t) {
+        final u = (t * (1.5 + r1 * 0.6) + r0) % 1.0;
+        final side = (r1 - 0.5) * 2;
+        final x =
+            side * 3.0 * pow(1 - u, 0.8).toDouble() + sin(t * 9 + j) * 0.7 * u;
+        return wick + Offset(x, -u * h);
+      }
+
+      final u = (_time * (1.5 + r1 * 0.6) + r0) % 1.0;
+      final q = where(_time), q0 = where(_time - 0.035);
+      if ((q - q0).distance > 6) continue; // wrapped this frame
+      final col = u < 0.22
+          ? const Color(0xFFE0882A)
+          : u < 0.62
+          ? _kDustLamp
+          : const Color(0xFFFFF0C8);
+      _dustInk.add(
+        q0,
+        q,
+        col,
+        min(1.0, u * 7) * pow(1 - u, 0.7).toDouble() * 0.95,
+      );
+    }
+    // A few sparks lifting clear of it and going out.
+    for (var j = 0; j < 4; j++) {
+      final r0 = _dustHash(seed * 17 + j * 5 + 11);
+      Offset where(double t) {
+        final u = (t * 0.45 + r0) % 1.0;
+        return wick + Offset(sin(t * 1.7 + j * 2.1) * 4 * u, -h - u * 26);
+      }
+
+      final u = (_time * 0.45 + r0) % 1.0;
+      final q = where(_time), q0 = where(_time - 0.05);
+      if ((q - q0).distance > 8) continue;
+      _dustInk.add(q0, q, _kDustLamp, 0.5 * sin(u * pi));
+    }
   }
 
   // ── What each room actually IS ───────────────────────────
 
   void _renderRuinsPlace(Canvas canvas, DungeonRoom room, _RuinsGround g) {
+    // A room whose place never changes is painted once and kept
+    // (2026-10-08): its props are carved silhouettes with gradients now, and
+    // none of it needs redrawing sixty times a second.
+    void still(void Function(Canvas c) paint) => canvas.drawPicture(
+      _dustStill(
+        'place|${room.id}|${room.bounds.width.round()}x'
+        '${room.bounds.height.round()}',
+        paint,
+      ),
+    );
     switch (room.id) {
       case 'ashen_gate':
-        _renderAshenGate(canvas, room);
+        still((c) => _renderAshenGate(c, room));
       case 'seal_street':
-        _renderSealHouse(canvas, room);
+        still((c) => _renderSealHouse(c, room));
       case 'roof_walk':
-        _renderRoofWalk(canvas, room);
+        still((c) => _renderRoofWalk(c, room));
       case 'high_terrace':
-        _renderHighTerrace(canvas, room);
+        still((c) => _renderHighTerrace(c, room));
       case 'sand_court':
-        _renderHourglassCourt(canvas, room);
+        still((c) => _renderHourglassCourt(c, room));
       case 'windcatch':
-        _renderWindcatch(canvas, room);
+        still((c) => _renderWindcatch(c, room));
       case 'undercity':
-        _renderUndercity(canvas, room);
+        still((c) => _renderUndercity(c, room));
+        _renderPartyWall(canvas, room);
       case 'granary':
         _renderGranary(canvas, room);
       case 'observatory':
         _renderObservatoryRoom(canvas, room, g);
       case 'kiln_cellar':
-        _renderKilnCellar(canvas, room);
+        still((c) => _renderKilnCellar(c, room));
       case 'sunken_house':
-        _renderSunkenHouse(canvas, room, g);
+        still((c) => _renderSunkenHouse(c, room, g));
       case 'ashdjinn_hollow':
-        _renderHollow(canvas, room, g);
+        still((c) => _renderHollow(c, room, g));
     }
   }
 
@@ -2284,31 +2413,47 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       Paint()..color = const Color(0xFF17130F).withValues(alpha: 0.3),
     );
     // PITHOI half-buried along the wall — storage jars the terrace was for.
-    for (var i = 0; i < 4; i++) {
+    // Four round terracotta pots in a row read as a shelf of clip-art; two
+    // stay, dark in the moonlight and sunk to the shoulder (2026-10-08).
+    for (final i in const [1, 2]) {
       final at = Offset(
         128 + i * 63.0 + (i.isEven ? 0 : 14),
         120 + (i % 3) * 19.0,
       );
       final rr = 16.0 + (i % 2) * 5;
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: at.translate(3, 5),
-          width: rr * 2.1,
-          height: rr * 1.5,
-        ),
-        Paint()..color = Colors.black.withValues(alpha: 0.25),
+      _dustVessel(canvas, at, rr, under: false, rim: 0.42);
+      // The street's sand banked up over the belly: it is IN the ground.
+      canvas.drawPath(
+        Path()
+          ..moveTo(at.dx - rr * 1.5, at.dy + rr * 0.95)
+          ..quadraticBezierTo(
+            at.dx - rr * 0.6,
+            at.dy + rr * 0.05,
+            at.dx + rr * 0.2,
+            at.dy + rr * 0.35,
+          )
+          ..quadraticBezierTo(
+            at.dx + rr * 0.9,
+            at.dy + rr * 0.5,
+            at.dx + rr * 1.5,
+            at.dy + rr * 0.95,
+          )
+          ..close(),
+        Paint()..color = const Color(0xFF3A2E1E).withValues(alpha: 0.92),
       );
-      canvas.drawOval(
-        Rect.fromCenter(center: at, width: rr * 2, height: rr * 1.7),
-        Paint()..color = _kDustBrick.withValues(alpha: 0.8),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: at.translate(0, -rr * 0.45),
-          width: rr * 1.2,
-          height: rr * 0.6,
-        ),
-        Paint()..color = const Color(0xFF150F09).withValues(alpha: 0.8),
+      canvas.drawPath(
+        Path()
+          ..moveTo(at.dx - rr * 1.3, at.dy + rr * 0.8)
+          ..quadraticBezierTo(
+            at.dx - rr * 0.6,
+            at.dy + rr * 0.05,
+            at.dx + rr * 0.2,
+            at.dy + rr * 0.35,
+          ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = _kDustMoonRim.withValues(alpha: 0.18),
       );
     }
   }
@@ -2555,40 +2700,54 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       );
       canvas.restore();
     }
-    // A tipper wagon standing where the last shift left it, off the road.
+    // A tipper wagon standing where the last shift left it, off the road —
+    // a dark iron-bound box on its wheels in the lamplight, its last load
+    // still in it (2026-10-08: it was a flat brown cart with a sand hump).
     const wag = Offset(690, 470);
+    for (final s in [-1.0, 1.0]) {
+      final wheel = wag.translate(s * 24, 26);
+      paintContactShadow(canvas, wheel.translate(2, 8), 22, 7);
+      _dustCarve(
+        canvas,
+        Path()..addOval(Rect.fromCircle(center: wheel, radius: 9)),
+        under: true,
+        rim: 0.4,
+      );
+    }
+    paintContactShadow(canvas, wag.translate(5, 26), 86, 16, opacity: 0.4);
+    final box = Rect.fromCenter(center: wag, width: 74, height: 46);
+    _dustCarve(canvas, Path()..addRect(box), under: true, rim: 0.42);
     canvas.drawRect(
-      Rect.fromCenter(center: wag.translate(4, 7), width: 74, height: 46),
-      Paint()..color = Colors.black.withValues(alpha: 0.28),
+      Rect.fromCenter(center: wag.translate(0, -2), width: 62, height: 32),
+      Paint()..color = const Color(0xFF080503),
     );
-    canvas.drawRect(
-      Rect.fromCenter(center: wag, width: 74, height: 46),
-      Paint()..color = _kDustTimber.withValues(alpha: 0.92),
-    );
-    canvas.drawRect(
-      Rect.fromCenter(center: wag, width: 62, height: 34),
-      Paint()..color = const Color(0xFF2C2013).withValues(alpha: 0.9),
+    // The load: a crown of spoil standing in the box.
+    canvas.drawPath(
+      Path()
+        ..moveTo(wag.dx - 28, wag.dy + 10)
+        ..quadraticBezierTo(wag.dx - 4, wag.dy - 16, wag.dx + 28, wag.dy + 10)
+        ..close(),
+      Paint()..color = const Color(0xFF3A2C1A),
     );
     canvas.drawPath(
       Path()
-        ..moveTo(wag.dx - 24, wag.dy + 4)
-        ..quadraticBezierTo(wag.dx, wag.dy - 18, wag.dx + 24, wag.dy + 4)
-        ..close(),
-      Paint()..color = _kDustOchre.withValues(alpha: 0.55),
+        ..moveTo(wag.dx - 24, wag.dy + 6)
+        ..quadraticBezierTo(wag.dx - 6, wag.dy - 12, wag.dx + 8, wag.dy - 3),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _kDustLampRim.withValues(alpha: 0.3),
     );
-    for (final s in [-1.0, 1.0]) {
-      canvas.drawCircle(
-        wag.translate(s * 24, 26),
-        9,
-        Paint()..color = const Color(0xFF4A3A24).withValues(alpha: 0.95),
-      );
-    }
+  }
 
-    // THE PARTY WALL. "Somewhere along this wall the brick is younger than
-    // the rest" is the room's own insight line, and nothing drew it — the one
-    // piece of geography the vault trick turns on was invisible. It is a
-    // patch of newer, redder brick in the east wall, with a hairline in it;
-    // when the bump above is heaped, the hairline is a crack you fit through.
+  /// THE PARTY WALL. "Somewhere along this wall the brick is younger than
+  /// the rest" is the room's own insight line, and nothing drew it — the one
+  /// piece of geography the vault trick turns on was invisible. It is a
+  /// patch of newer, redder brick in the east wall, with a hairline in it;
+  /// when the bump above is heaped, the hairline is a crack you fit through.
+  /// Drawn live: the rest of the undercity is baked.
+  void _renderPartyWall(Canvas canvas, DungeonRoom room) {
+    final b = room.bounds;
     final open = ruins.stateOf('m_bump') == MoundState.drifted;
     final pw = Rect.fromLTWH(b.right - 62, 206, 54, 184);
     canvas.drawRect(
@@ -2619,14 +2778,34 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
             : const Color(0xFF2A1A0D).withValues(alpha: 0.75),
     );
     if (open) {
-      // Dust still running out of a wall that gave under the weight.
-      canvas.drawPath(
-        crack,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _kDustPale.withValues(alpha: 0.3),
-      );
+      // Dust still running out of a wall that gave under the weight — in
+      // grains now, trickling out of the crack and down its face (it was a
+      // pale line drawn over the crack, 2026-10-08).
+      const pts = [
+        Offset(5, 8),
+        Offset(-4, 54),
+        Offset(6, 96),
+        Offset(-3, 174),
+      ];
+      for (var j = 0; j < 26; j++) {
+        final r0 = _dustHash(j * 13 + 5), r1 = _dustHash(j * 29 + 1);
+        final k = (r0 * 2.999).floor();
+        final src = pw.topCenter + pts[k];
+        Offset where(double t) {
+          final u = (t * (0.35 + r1 * 0.25) + r0) % 1.0;
+          return src +
+              Offset(
+                sin(t * 1.3 + j) * 2 - 4 * u,
+                u * (pts[k + 1].dy - pts[k].dy),
+              );
+        }
+
+        final u = (_time * (0.35 + r1 * 0.25) + r0) % 1.0;
+        final q = where(_time), q0 = where(_time - 0.035);
+        if ((q - q0).distance > 10) continue;
+        _dustInk.add(q0, q, RuinsOfTimeDungeon._kDustPale, 0.55 * sin(u * pi));
+      }
+      _dustInk.paint(canvas, width: 1.6);
     }
   }
 
@@ -2639,7 +2818,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   /// city agreed with it is LIT — warm grain, motes rising — and goes dark
   /// again the moment the street above it changes. Five lit and the cist
   /// stands open. (It used to be five decorative pits at random and three
-  /// sacks; the sacks stay.)
+  /// sacks; the sacks are gone since 2026-10-08.)
   void _renderGranary(Canvas canvas, DungeonRoom room) {
     final pits = room.ruins?.tallyPits ?? const <Offset>[];
     final found = discoveredClouds.contains(kDustNothingPerishesEggId);
@@ -2649,84 +2828,54 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       final count = kDustTally[m.id] ?? 1;
       final lit = found || tallyLit(m.id);
       const r = 30.0;
-      // The collar of brick round the mouth of the pit.
-      canvas.drawOval(
-        Rect.fromCenter(center: at, width: r * 2.2, height: r * 1.7),
-        Paint()..color = _kDustBrick.withValues(alpha: 0.7),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: at, width: r * 1.8, height: r * 1.34),
-        Paint()..color = const Color(0xFF0B0805).withValues(alpha: 0.9),
-      );
-      // THE GRAIN, to the count. Empty is a black mouth; one is a level lying
-      // low in the pit; two is heaped over the lip. The count is the clue and
-      // it has to read from across the room.
-      if (count >= 1) {
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: at.translate(0, count >= 2 ? -2 : 6),
-            width: r * (count >= 2 ? 1.9 : 1.45),
-            height: r * (count >= 2 ? 1.5 : 0.9),
-          ),
-          Paint()
-            ..color = (lit ? const Color(0xFFE2B85C) : _kDustOchre).withValues(
-              alpha: lit ? 0.92 : 0.8,
-            ),
-        );
-      }
-      if (count >= 2) {
-        // A heap, with its crest.
-        canvas.drawPath(
-          Path()
-            ..moveTo(at.dx - r * 0.9, at.dy)
-            ..quadraticBezierTo(
-              at.dx - r * 0.3,
-              at.dy - r * 1.1,
-              at.dx + r * 0.1,
-              at.dy - r * 0.95,
-            )
-            ..quadraticBezierTo(
-              at.dx + r * 0.7,
-              at.dy - r * 0.7,
-              at.dx + r * 0.9,
-              at.dy,
-            )
-            ..close(),
-          Paint()
-            ..color = (lit ? const Color(0xFFF2D07A) : _kDustPale).withValues(
-              alpha: lit ? 0.95 : 0.85,
-            ),
-        );
-      }
-      if (lit) {
-        // WARM: nothing perishes, and the grain says so. A glow (geometry,
-        // never blur) and three motes rising off it.
-        for (var k = 3; k >= 1; k--) {
-          canvas.drawOval(
-            Rect.fromCenter(
-              center: at.translate(0, -4),
-              width: r * (1.9 + k * 0.35),
-              height: r * (1.5 + k * 0.28),
-            ),
-            Paint()..color = const Color(0xFFFFD27A).withValues(alpha: 0.06),
+      // The collar of cut stone round the mouth of the pit — dark, the lamp
+      // on its far lip (2026-10-08: a brick-red ring read as a clay pot).
+      canvas.save();
+      canvas.translate(at.dx, at.dy);
+      canvas.drawPicture(
+        _dustStill('pitCollar', (c) {
+          final collar = Rect.fromCenter(
+            center: Offset.zero,
+            width: r * 2.2,
+            height: r * 1.7,
           );
-        }
-        for (var k = 0; k < 3; k++) {
-          final t = (_time * 0.6 + k * 0.37 + i * 0.13) % 1.0;
-          canvas.drawCircle(
-            at +
-                Offset(
-                  sin((t + k) * 6.3) * 10 + (k - 1) * 8,
-                  -r * 0.6 - t * 40,
-                ),
-            2.2 - t * 1.4,
+          c.drawOval(collar, Paint()..color = _kDustSilTop);
+          c.drawArc(
+            collar.deflate(1),
+            pi * 1.08,
+            pi * 0.84,
+            false,
             Paint()
-              ..color = const Color(
-                0xFFFFE9A8,
-              ).withValues(alpha: (1 - t) * 0.8),
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.3
+              ..color = _kDustLampRim.withValues(alpha: 0.4),
           );
-        }
+          c.drawOval(
+            Rect.fromCenter(
+              center: Offset.zero,
+              width: r * 1.8,
+              height: r * 1.34,
+            ),
+            Paint()..color = const Color(0xFF070503),
+          );
+        }),
+      );
+      canvas.restore();
+      if (lit) {
+        // Lit: its own warm light all round the lip.
+        canvas.drawOval(
+          Rect.fromCenter(center: at, width: r * 2.0, height: r * 1.52),
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2.2
+            ..color = const Color(0xFFE2B85C).withValues(alpha: 0.55),
+        );
       }
+      // THE GRAIN, to the count, in grains (2026-10-08). Empty is a black
+      // mouth; one is a level lying low in the pit; two is heaped over the
+      // lip. The count is the clue and it has to read from across the room.
+      // Lit, it is warm, glinting, and grains lift off it.
+      _drawPitGrain(canvas, at, count, lit, i);
       // THE PLATE over the pit, with the square's survey mark cut in it — the
       // same mark as the tag on the mound's peg. Bronze when lit.
       final plate = Rect.fromCenter(
@@ -2743,14 +2892,24 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (cist != null) {
       final open = found || tallyComplete;
       final box = Rect.fromCenter(center: cist, width: 44, height: 30);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(box.inflate(4), const Radius.circular(3)),
-        Paint()..color = _kDustStone.withValues(alpha: 0.85),
+      // A dark cut-stone box, lit at its rim (2026-10-08: a pale crate).
+      canvas.drawPicture(
+        _dustStill(
+          'cistBox|${cist.dx.round()}|${cist.dy.round()}',
+          (c) => _dustCarve(
+            c,
+            Path()..addRRect(
+              RRect.fromRectAndRadius(box.inflate(4), const Radius.circular(3)),
+            ),
+            under: true,
+            rim: 0.45,
+          ),
+        ),
       );
       canvas.drawRect(
         box,
         Paint()
-          ..color = (open ? const Color(0xFF2A1E0C) : const Color(0xFF4A3F30))
+          ..color = (open ? const Color(0xFF2A1E0C) : const Color(0xFF1E1710))
               .withValues(alpha: 0.95),
       );
       if (open) {
@@ -2762,17 +2921,30 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
             ).withValues(alpha: 0.35 + 0.15 * sin(_time * 3)),
         );
         // The lid, slid aside.
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            box.translate(30, 6),
-            const Radius.circular(2),
+        canvas.drawPicture(
+          _dustStill(
+            'cistLid|${cist.dx.round()}|${cist.dy.round()}',
+            (c) => _dustCarve(
+              c,
+              Path()..addRRect(
+                RRect.fromRectAndRadius(
+                  box.translate(30, 6),
+                  const Radius.circular(2),
+                ),
+              ),
+              under: true,
+              rim: 0.45,
+            ),
           ),
-          Paint()..color = _kDustStone.withValues(alpha: 0.75),
         );
       } else {
-        canvas.drawRect(
-          Rect.fromCenter(center: cist, width: 14, height: 3),
-          Paint()..color = const Color(0xFF140E08).withValues(alpha: 0.8),
+        _dustGroove(
+          canvas,
+          Path()
+            ..moveTo(cist.dx - 7, cist.dy)
+            ..lineTo(cist.dx + 7, cist.dy),
+          under: true,
+          w: 2.6,
         );
       }
     }
@@ -2781,32 +2953,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     // (planet_dungeon_game_dust_art.dart).
     if (cist != null) _drawTallyRose(canvas, cist);
 
-    // SACKS against the wall, slumped and long since split. Three, at three
-    // sizes, leaning on each other the way sacks do.
-    for (var i = 0; i < 3; i++) {
-      final at = Offset(60 + i * 34.0 + (i % 2) * 9, 92 + (i % 3) * 11.0);
-      final w = 26 + (i % 3) * 8.0;
-      canvas.drawPath(
-        Path()
-          ..moveTo(at.dx - w / 2, at.dy + 20)
-          ..quadraticBezierTo(at.dx - w * 0.62, at.dy - 14, at.dx, at.dy - 18)
-          ..quadraticBezierTo(
-            at.dx + w * 0.6,
-            at.dy - 12,
-            at.dx + w / 2,
-            at.dy + 20,
-          )
-          ..close(),
-        Paint()..color = const Color(0xFF6B5B40).withValues(alpha: 0.85),
-      );
-      canvas.drawLine(
-        at.translate(-w * 0.2, -16),
-        at.translate(w * 0.2, -15),
-        Paint()
-          ..strokeWidth = 2
-          ..color = const Color(0xFF2A2114).withValues(alpha: 0.7),
-      );
-    }
+    // (Three sacks used to lean against the west wall: flat grey-brown sack
+    // icons, and as dark silhouettes they read as gravestones. The pits say
+    // GRANARY on their own; the sacks are gone, 2026-10-08.)
   }
 
   /// THE OBSERVATORY (Star 1).
@@ -2892,34 +3041,75 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
 
   /// THE KILN CELLAR. A domed updraught kiln with its stoke-hole still black,
   /// and the wasters stacked round it that never came out right.
+  ///
+  /// 2026-10-08: the dome was a terracotta disc ringed in four courses — a
+  /// beehive sticker — with seven round clay pots in rows, a fan of logs
+  /// with pale end-grain and a rake. Now the kiln is a dark mass of fired
+  /// brick with the lamps on its shoulder, three wasters, four lengths of
+  /// fuel, and no rake.
   void _renderKilnCellar(Canvas canvas, DungeonRoom room) {
     const c = Offset(150, 214);
-    // The dome, in brick courses that narrow as they rise.
-    canvas.drawOval(
-      Rect.fromCenter(center: c.translate(6, 10), width: 190, height: 130),
-      Paint()..color = Colors.black.withValues(alpha: 0.3),
+    final dome = Rect.fromCenter(center: c, width: 186, height: 128);
+    paintContactShadow(canvas, c.translate(6, 14), 204, 134, opacity: 0.4);
+    _dustCarve(
+      canvas,
+      Path()..addOval(dome),
+      under: true,
+      light: const Offset(4, 5),
+      rim: 0.42,
+      top: const Color(0xFF2E2116),
     );
-    canvas.drawOval(
-      Rect.fromCenter(center: c, width: 186, height: 128),
-      Paint()..color = _kDustBrick.withValues(alpha: 0.85),
+    // The round of it: a faint sheen of lamplight on its upper shoulder.
+    canvas.save();
+    canvas.clipPath(Path()..addOval(dome));
+    canvas.drawCircle(
+      c.translate(-38, -30),
+      110,
+      Paint()
+        ..shader =
+            RadialGradient(
+              colors: [
+                _kDustLampRim.withValues(alpha: 0.10),
+                _kDustLampRim.withValues(alpha: 0.0),
+              ],
+            ).createShader(
+              Rect.fromCircle(center: c.translate(-38, -30), radius: 110),
+            ),
     );
-    for (var i = 1; i < 5; i++) {
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: c.translate(0, -i * 5.0),
-          width: 186.0 - i * 30,
-          height: 128.0 - i * 22,
+    canvas.restore();
+    // Two brick courses round its near side, cut in, not ringed round.
+    for (final k in [0.58, 0.8]) {
+      _dustGroove(
+        canvas,
+        Path()..addArc(
+          Rect.fromCenter(
+            center: c.translate(0, -(1 - k) * 22),
+            width: 186.0 * k,
+            height: 128.0 * k,
+          ),
+          0.2,
+          pi - 0.4,
         ),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = const Color(0xFF35200F).withValues(alpha: 0.5),
+        under: true,
+        w: 1.4,
       );
     }
     // The flue at the crown, going up to the stack on the terrace above.
-    canvas.drawOval(
-      Rect.fromCenter(center: c.translate(0, -26), width: 38, height: 24),
-      Paint()..color = const Color(0xFF0B0704).withValues(alpha: 0.92),
+    final flue = Rect.fromCenter(
+      center: c.translate(0, -26),
+      width: 38,
+      height: 24,
+    );
+    canvas.drawOval(flue, Paint()..color = const Color(0xFF050302));
+    canvas.drawArc(
+      flue,
+      pi * 1.05,
+      pi * 0.9,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _kDustLampRim.withValues(alpha: 0.32),
     );
     // The stoke-hole, and the ash fan that has come out of it.
     canvas.drawPath(
@@ -2936,75 +3126,49 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       pi,
       pi,
       true,
-      Paint()..color = const Color(0xFF090604).withValues(alpha: 0.92),
+      Paint()..color = const Color(0xFF050302),
     );
-    // WASTERS — the pots that slumped in the firing, stacked where they were
-    // thrown out.
-    for (var i = 0; i < 7; i++) {
+    // WASTERS — three pots that slumped in the firing, thrown out against
+    // the wall where they landed.
+    for (final (i, slump) in const [(0, 0.12), (4, -0.16), (5, 0.08)]) {
       final at = Offset(
         320 + (i % 3) * 42.0 + (i ~/ 3) * 17,
         106 + (i ~/ 3) * 66.0 + (i % 3) * 13,
       );
       final rr = 12.0 + (i % 3) * 4;
-      canvas.drawOval(
-        Rect.fromCenter(center: at, width: rr * 2, height: rr * 1.5),
-        Paint()..color = _kDustBrick.withValues(alpha: 0.62),
-      );
-      canvas.drawArc(
-        Rect.fromCenter(
-          center: at.translate(0, -rr * 0.3),
-          width: rr * 1.3,
-          height: rr * 0.8,
-        ),
-        pi,
-        pi,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = const Color(0xFF120C07).withValues(alpha: 0.7),
-      );
+      _dustVessel(canvas, at, rr, under: true, slump: slump, rim: 0.42);
     }
     // THE FUEL. A kiln is fed, and a cellar kiln is fed from a stack in the
-    // corner — split lengths on end, seen from above, never in a tidy row.
-    for (var i = 0; i < 9; i++) {
+    // corner — four split lengths, dark, never in a tidy row.
+    for (final i in const [1, 2, 5, 6]) {
       final at = Offset(
         62 + (i % 4) * 21.0 + (i ~/ 4) * 11,
         62 + (i ~/ 4) * 23.0 + (i % 4) * 6,
       );
+      final a = 0.3 + (i % 5) * 0.22;
       canvas.save();
       canvas.translate(at.dx, at.dy);
-      canvas.rotate(0.3 + (i % 5) * 0.22);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: Offset.zero,
-            width: 34.0 - (i % 3) * 6,
-            height: 9,
+      canvas.rotate(a);
+      final len = 34.0 - (i % 3) * 6;
+      _dustCarve(
+        canvas,
+        Path()..addRRect(
+          RRect.fromRectAndRadius(
+            Rect.fromCenter(center: Offset.zero, width: len, height: 9),
+            const Radius.circular(4),
           ),
-          const Radius.circular(4),
         ),
-        Paint()..color = _kDustTimber.withValues(alpha: 0.9),
+        under: true,
+        light: Offset(1.6 * sin(a), 1.6 * cos(a)),
+        rim: 0.4,
       );
+      // The sawn end, a shade lighter than the bark.
       canvas.drawOval(
-        Rect.fromCenter(center: const Offset(-13, 0), width: 7, height: 8),
-        Paint()..color = const Color(0xFF9C7F52).withValues(alpha: 0.7),
+        Rect.fromCenter(center: Offset(-len / 2 + 3.5, 0), width: 6, height: 7),
+        Paint()..color = const Color(0xFF3A2C1C),
       );
       canvas.restore();
     }
-    // The rake, left where the last firing ended.
-    canvas.save();
-    canvas.translate(268, 318);
-    canvas.rotate(-0.5);
-    canvas.drawRect(
-      const Rect.fromLTWH(-52, -2, 104, 4),
-      Paint()..color = _kDustTimber.withValues(alpha: 0.92),
-    );
-    canvas.drawRect(
-      const Rect.fromLTWH(44, -13, 7, 27),
-      Paint()..color = const Color(0xFF3B3128).withValues(alpha: 0.92),
-    );
-    canvas.restore();
   }
 
   /// THE SUNKEN HOUSE (the vault). The one room in Sablis nobody ever dug
@@ -3077,32 +3241,40 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     );
     // THE SHELF, with its jars still sealed and still standing in a row —
     // the only orderly row of anything on this planet, and it earns it.
+    // Three now, dark stoneware in the lamplight with their seals on
+    // (2026-10-08: four brick-red ovals with pale caps).
     final shelf = Rect.fromLTWH(b.right - 118, 108, 96, 9);
-    canvas.drawRect(
-      shelf,
-      Paint()..color = _kDustTimber.withValues(alpha: 0.85),
+    paintContactShadow(canvas, shelf.center.translate(3, 10), 104, 10);
+    _dustCarve(
+      canvas,
+      Path()..addRect(shelf),
+      under: true,
+      light: const Offset(0, 2),
+      rim: 0.45,
     );
-    for (var i = 0; i < 4; i++) {
-      final at = Offset(shelf.left + 14 + i * 23.0, shelf.top - 12);
-      canvas.drawOval(
-        Rect.fromCenter(center: at, width: 17, height: 24),
-        Paint()..color = _kDustBrick.withValues(alpha: 0.85),
-      );
-      canvas.drawRect(
-        Rect.fromCenter(center: at.translate(0, -13), width: 9, height: 5),
-        Paint()..color = _kDustPale.withValues(alpha: 0.4),
+    for (var i = 0; i < 3; i++) {
+      final at = Offset(shelf.left + 18 + i * 30.0, shelf.top - 11);
+      _dustVessel(canvas, at, 9, under: true, rim: 0.5);
+      // The seal over its mouth.
+      _dustCarve(
+        canvas,
+        Path()..addOval(
+          Rect.fromCenter(center: at.translate(0, -7.4), width: 9, height: 4),
+        ),
+        under: true,
+        light: const Offset(0, 1),
+        rim: 0.55,
       );
     }
-    // THE BENCH along the near wall.
+    // THE BENCH along the near wall: one dressed block of the house's stone.
     final bench = Rect.fromLTWH(b.left + 40, b.bottom - 74, 112, 22);
-    canvas.drawRect(
-      bench.translate(4, 6),
-      Paint()..color = Colors.black.withValues(alpha: 0.28),
-    );
-    canvas.drawRect(bench, Paint()..color = _kDustStone.withValues(alpha: 0.7));
-    canvas.drawRect(
-      Rect.fromLTWH(bench.left, bench.top, bench.width, 5),
-      Paint()..color = _kDustPale.withValues(alpha: 0.4),
+    paintCarvedBlock(
+      canvas,
+      Rect.fromLTWH(bench.left, bench.top, bench.width, 14),
+      8,
+      _kSandGlass,
+      radius: 2,
+      topColor: const Color(0xFF3A2E20),
     );
     // THE CRACK you came in by, in the west wall — and the rubble that fell
     // out of it onto this floor, which is the only disturbed thing in here.
@@ -3187,21 +3359,30 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       );
     }
     // WHAT THE STORM HAS UNCOVERED AND RE-BURIED, over and over: the ribs of
-    // something that was standing here, mostly still under.
-    for (var i = 0; i < 5; i++) {
+    // something that was standing here, mostly still under. Three, as dark
+    // tapering bone in the moonlight (2026-10-08: five pale stroked arcs).
+    for (final i in const [0, 1, 3]) {
       final at = Offset(
         150 + i * 34.0 + (i % 2) * 16,
         540 + (i % 3) * 22.0 - i * 7,
       );
-      canvas.drawArc(
-        Rect.fromCenter(center: at, width: 26, height: 78),
-        pi * 1.16,
-        pi * 0.52,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4
-          ..color = _kDustPale.withValues(alpha: 0.34),
+      final outer = <Offset>[], inner = <Offset>[];
+      for (var k = 0; k <= 12; k++) {
+        final a = pi * 1.16 + pi * 0.52 * k / 12;
+        final p = at + Offset(cos(a) * 13, sin(a) * 39);
+        final n = Offset(cos(a) / 13, sin(a) / 39);
+        final u = n / n.distance;
+        final w = 0.8 + 2.6 * sin(pi * (0.15 + 0.7 * k / 12));
+        outer.add(p + u * w);
+        inner.add(p - u * w);
+      }
+      final rib = Path()..addPolygon([...outer, ...inner.reversed], true);
+      _dustCarve(
+        canvas,
+        rib,
+        under: false,
+        rim: 0.5,
+        light: const Offset(1.4, 1.6),
       );
       // Sand over the foot of every rib: the same storm uncovers and
       // re-buries them, endlessly, which is the whole fight.
@@ -3247,6 +3428,17 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     int glyph, {
     MoundState? state,
   }) {
+    final tag = Rect.fromCenter(
+      center: at + const Offset(0, -14),
+      width: 22,
+      height: 18,
+    );
+    // A mark with no state of its own (the sighting tube's) is cut into a
+    // stone tablet, not chalked on a pale card (2026-10-08).
+    if (state == null) {
+      _drawCarvedMark(canvas, tag.center, glyph);
+      return;
+    }
     canvas.drawLine(
       at + const Offset(0, 14),
       at + const Offset(0, -6),
@@ -3254,28 +3446,8 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         ..strokeWidth = 2.4
         ..color = const Color(0xFF4A3C22),
     );
-    final tag = Rect.fromCenter(
-      center: at + const Offset(0, -14),
-      width: 22,
-      height: 18,
-    );
     // A mound's own tag is glass that says the square's state (§7.11).
-    if (state != null) {
-      _drawTagGlass(canvas, tag.inflate(2), glyph, state);
-      return;
-    }
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(tag, const Radius.circular(2)),
-      Paint()..color = _kDustPale.withValues(alpha: 0.82),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(tag, const Radius.circular(2)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = _kDustUmber.withValues(alpha: 0.7),
-    );
-    _drawSurveyGlyph(canvas, tag.center, 5.5, glyph, _kDustDeep);
+    _drawTagGlass(canvas, tag.inflate(2), glyph, state);
   }
 
   /// FIVE SURVEY MARKS, one per mound, cut the same way on a mound's tag and
@@ -3375,7 +3547,13 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
           // A PILLAR: a standing stump on broken ground — nothing rests
           // here and nobody stands here, and it looks it.
           canvas.drawRRect(tile, Paint()..color = const Color(0xFF1A140C));
-          _drawDrum(canvas, rect.center.translate(0, 4), 20, 0, false);
+          final at = rect.center.translate(0, 4);
+          canvas.drawPicture(
+            _dustStill(
+              'yardPillar|${at.dx.round()}|${at.dy.round()}',
+              (c) => _drawDrum(c, at, 20, 0, false),
+            ),
+          );
           continue;
         }
         canvas.drawRRect(tile, Paint()..color = const Color(0xFF4A3D2A));
@@ -3389,86 +3567,14 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         );
         final loads = ruins.driftAt(i);
         if (f.isSeal(c, r)) _drawSeal(canvas, rect.center, loads);
-        final o = rect.center;
-        if (loads == 1) {
-          final m = Rect.fromCenter(
-            center: o.translate(0, 4),
-            width: f.cell * 0.66,
-            height: f.cell * 0.40,
-          );
-          canvas.drawOval(
-            m.shift(const Offset(0, 4)),
-            Paint()..color = Colors.black.withValues(alpha: 0.35),
-          );
-          canvas.drawOval(m, Paint()..color = const Color(0xFFB8945A));
-          canvas.drawArc(
-            m.deflate(4),
-            pi * 1.15,
-            pi * 0.7,
-            false,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.6
-              ..color = _kDustMoon.withValues(alpha: 0.55),
-          );
-        } else if (loads >= 2) {
-          final foot = Rect.fromCenter(
-            center: o.translate(0, 10),
-            width: f.cell * 0.78,
-            height: f.cell * 0.44,
-          );
-          final dune = Path()
-            ..moveTo(foot.left, foot.center.dy)
-            ..quadraticBezierTo(
-              o.dx - 14,
-              o.dy - f.cell * 0.46,
-              o.dx + 6,
-              o.dy - f.cell * 0.30,
-            )
-            ..quadraticBezierTo(
-              foot.right - 6,
-              o.dy - 4,
-              foot.right,
-              foot.center.dy,
-            )
-            ..arcTo(foot, 0, pi, false)
-            ..close();
-          canvas.drawPath(
-            dune.shift(const Offset(12, 8)),
-            Paint()..color = Colors.black.withValues(alpha: 0.45),
-          );
-          canvas.drawPath(dune, Paint()..color = _kDustMoon);
-          // The lee face, and the hard white crest.
-          canvas.drawPath(
-            Path()
-              ..moveTo(o.dx + 6, o.dy - f.cell * 0.30)
-              ..quadraticBezierTo(
-                foot.right - 6,
-                o.dy - 4,
-                foot.right,
-                foot.center.dy,
-              )
-              ..lineTo(o.dx + 10, foot.bottom - 4)
-              ..close(),
-            Paint()..color = const Color(0xFF9A8662),
-          );
-          canvas.drawPath(
-            Path()
-              ..moveTo(foot.left + 6, foot.center.dy - 4)
-              ..quadraticBezierTo(
-                o.dx - 14,
-                o.dy - f.cell * 0.46,
-                o.dx + 6,
-                o.dy - f.cell * 0.30,
-              ),
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.4
-              ..color = Colors.white.withValues(alpha: 0.9),
-          );
-        }
+        // The sand on the cell: its shadow and its body here, its grains
+        // after the board (2026-10-08 — two flat shapes with a white stroke
+        // for a crest; a low mound for one load and a crested dune for two
+        // are still the two silhouettes, made of sand now).
+        _drawYardLoadBody(canvas, rect.center, f.cell, loads);
       }
     }
+    _drawYardSand(canvas, f);
 
     // WHERE YOU STAND TELLS YOU WHAT THE PRESS WILL DO (Ice's orrery
     // precedent, §9.11). Both yard verbs act on the cell in FRONT of you and a
@@ -3556,68 +3662,123 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     _drawDustSealBoss(canvas, at, bare);
   }
 
-  /// THE SIGHTING TUBE — the armillary's second sight. A bronze zenith tube
+  /// THE SIGHTING TUBE — the armillary's second sight. A zenith tube
   /// bracketed to the east wall, running up through the rock to the kiln
-  /// square; its survey tag carries the kiln's mark, so the room says which
-  /// square above it answers to without a word. Choked, sand spills out of
-  /// its mouth. Clear, a shaft of zenith light runs from the mouth to the
+  /// square; its tag carries the kiln's mark, so the room says which square
+  /// above it answers to without a word. Choked, sand spills out of its
+  /// mouth. Clear, a shaft of zenith light runs from the mouth to the
   /// instrument across the span.
+  ///
+  /// 2026-10-08: it was a brass telescope with a glossy highlight stripe,
+  /// gold bands and a pale chalk card. Now the tube is dark bronze in the
+  /// lamplight, its mouth is the glass that says clear or choked, the sand
+  /// it chokes on is grains, and the kiln's mark is cut in stone.
   void _drawSightTube(Canvas canvas, Offset mouth, Offset? rings) {
     const dir = Offset(0.86, -0.51); // up and away toward the east wall
     final top = mouth + dir * 150;
     final clear = ruins.stateOf('m_kiln') == MoundState.bared;
-    // The wall bracket and the pier under the mouth.
-    canvas.drawRect(
-      Rect.fromCenter(center: top, width: 26, height: 34),
-      Paint()..color = _kDustStone.withValues(alpha: 0.8),
+    // The still parts — bracket, pier, barrel, bands, the carved mark —
+    // never change: baked.
+    canvas.drawPicture(
+      _dustStill('sightTube|${mouth.dx.round()}|${mouth.dy.round()}', (c) {
+        paintCarvedBlock(
+          c,
+          Rect.fromCenter(center: top.translate(0, -4), width: 26, height: 26),
+          10,
+          _kSandGlass,
+          radius: 2,
+          topColor: const Color(0xFF3A2E20),
+        );
+        paintCarvedBlock(
+          c,
+          Rect.fromCenter(
+            center: mouth.translate(6, 22),
+            width: 22,
+            height: 20,
+          ),
+          12,
+          _kSandGlass,
+          radius: 2,
+          topColor: const Color(0xFF3A2E20),
+        );
+        const n = Offset(-0.51, -0.86); // the barrel's upper side
+        final barrel = Path()
+          ..addPolygon([
+            mouth + n * 8.5,
+            top + n * 8.5,
+            top - n * 8.5,
+            mouth - n * 8.5,
+          ], true);
+        _dustCarve(
+          c,
+          barrel,
+          under: true,
+          light: -n * 2.2,
+          rim: 0.5,
+          top: const Color(0xFF30251A),
+          foot: const Color(0xFF120C06),
+        );
+        // Its bands: raised hoops, dark, the lamp on their upper edge.
+        for (final t in [0.18, 0.5, 0.82]) {
+          final at = Offset.lerp(mouth, top, t)!;
+          _dustCarve(
+            c,
+            Path()..addPolygon([
+              at + n * 9.5 - dir * 2.2,
+              at + n * 9.5 + dir * 2.2,
+              at - n * 9.5 + dir * 2.2,
+              at - n * 9.5 - dir * 2.2,
+            ], true),
+            under: true,
+            light: -n * 1.4,
+            rim: 0.55,
+            top: const Color(0xFF3A2D1E),
+          );
+        }
+        // The kiln square's mark, cut on a tablet on the bracket.
+        _drawCarvedMark(
+          c,
+          top + const Offset(-34, 16),
+          dustMoundById('m_kiln')!.glyph,
+        );
+      }),
     );
-    canvas.drawRect(
-      Rect.fromCenter(center: mouth.translate(6, 26), width: 22, height: 30),
-      Paint()..color = _kDustStone.withValues(alpha: 0.7),
+    // The mouth, as glass: lit clear while the sky is down it, smoked while
+    // it is choked.
+    final mouthPane = Path()
+      ..addOval(Rect.fromCenter(center: mouth, width: 16, height: 22));
+    paintPane(
+      canvas,
+      mouthPane,
+      clear ? _kSandGlass.liveCore : _kSandGlass.smoke,
+      _kSandGlass,
+      lead: 2.4,
     );
-    // The barrel, and its bands.
-    canvas.drawLine(
-      mouth,
-      top,
-      Paint()
-        ..strokeWidth = 17
-        ..strokeCap = StrokeCap.butt
-        ..color = const Color(0xFF5E4A26),
-    );
-    canvas.drawLine(
-      mouth + const Offset(0, -4),
-      top + const Offset(0, -4),
-      Paint()
-        ..strokeWidth = 4
-        ..color = _kDustBronze.withValues(alpha: 0.7),
-    );
-    for (final t in [0.18, 0.5, 0.82]) {
-      final c = Offset.lerp(mouth, top, t)!;
-      canvas.drawLine(
-        c + const Offset(-4, -8),
-        c + const Offset(4, 8),
-        Paint()
-          ..strokeWidth = 3
-          ..color = _kDustBronze.withValues(alpha: 0.85),
+    if (clear) {
+      paintStreak(
+        canvas,
+        Rect.fromCenter(center: mouth, width: 12, height: 18),
+        opacity: 0.6,
       );
     }
-    // The mouth.
-    canvas.drawOval(
-      Rect.fromCenter(center: mouth, width: 16, height: 22),
-      Paint()
-        ..color = clear
-            ? const Color(0xFFF4E6C0).withValues(alpha: 0.9)
-            : const Color(0xFF1A1209),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: mouth, width: 16, height: 22),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = _kDustBronze,
-    );
     if (!clear) {
-      // Choked: sand pouring out of the mouth into a little heap.
+      // Choked: sand pouring out of the mouth into a little heap — grains.
+      final heap = _dustGrainCache.putIfAbsent('tubeHeap', () {
+        final path = Path()
+          ..moveTo(-22, 40)
+          ..quadraticBezierTo(-4, 4, 0, 0)
+          ..quadraticBezierTo(10, 14, 20, 40)
+          ..close();
+        return _dustRegionGrains(
+          path.getBounds(),
+          path.contains,
+          (p) => p.dx < 2
+              ? 0.55 + 0.4 * (1 - p.dy / 40)
+              : 0.25 + 0.15 * (1 - p.dy / 40),
+          260,
+          seed: 61,
+        );
+      });
       canvas.drawPath(
         Path()
           ..moveTo(mouth.dx - 22, mouth.dy + 40)
@@ -3629,10 +3790,37 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
             mouth.dy + 40,
           )
           ..close(),
-        Paint()..color = _kDustOchre.withValues(alpha: 0.9),
+        Paint()..color = const Color(0xFF6A5434).withValues(alpha: 0.85),
       );
+      paintGrainShape(
+        canvas,
+        heap,
+        _time,
+        origin: mouth,
+        drift: 0.5,
+        ramp: _kDustGrainRamp,
+        glint: 0.006,
+        width: 1.6,
+        trail: 0.035,
+      );
+      // …and still trickling out of it.
+      for (var j = 0; j < 16; j++) {
+        final r0 = _dustHash(j * 17 + 3), r1 = _dustHash(j * 5 + 9);
+        Offset where(double t) {
+          final u = (t * (0.9 + r1 * 0.5) + r0) % 1.0;
+          return mouth +
+              Offset((r1 - 0.5) * 6 + u * (r1 - 0.4) * 10, 4 + u * u * 30);
+        }
+
+        final u = (_time * (0.9 + r1 * 0.5) + r0) % 1.0;
+        final q = where(_time), q0 = where(_time - 0.035);
+        if ((q - q0).distance > 8) continue;
+        _dustInk.add(q0, q, _kDustGrainRamp[2], 0.85 * min(1.0, (1 - u) * 3));
+      }
+      _dustInk.paint(canvas, width: 1.6);
     } else if (rings != null) {
-      // Clear: the zenith light, down the tube and across to the rings.
+      // Clear: the zenith light, down the tube and across to the rings —
+      // with the dust in it turning over as it crosses.
       final beam = Path()
         ..moveTo(mouth.dx, mouth.dy - 7)
         ..lineTo(rings.dx + 26, rings.dy - 10)
@@ -3643,20 +3831,23 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         beam,
         Paint()..color = const Color(0xFFF4E6C0).withValues(alpha: 0.16),
       );
-      canvas.drawLine(
-        mouth,
-        rings + const Offset(26, 0),
-        Paint()
-          ..strokeWidth = 1.4
-          ..color = const Color(0xFFF4E6C0).withValues(alpha: 0.5),
-      );
+      final to = rings + const Offset(26, 0);
+      for (var j = 0; j < 22; j++) {
+        final r0 = _dustHash(j * 23 + 7), r1 = _dustHash(j * 3 + 2);
+        Offset where(double t) {
+          final u = (t * (0.06 + r1 * 0.05) + r0) % 1.0;
+          final p = Offset.lerp(mouth, to, u)!;
+          return p +
+              Offset(0, (r1 - 0.5) * 14 * (1 - u * 0.3) + sin(t * 0.9 + j) * 2);
+        }
+
+        final u = (_time * (0.06 + r1 * 0.05) + r0) % 1.0;
+        final q = where(_time), q0 = where(_time - 0.06);
+        if ((q - q0).distance > 12) continue;
+        _dustInk.add(q0, q, const Color(0xFFF4E6C0), 0.6 * sin(u * pi));
+      }
+      _dustInk.paint(canvas, width: 1.5);
     }
-    // The kiln square's mark, on a tag on the bracket.
-    _drawSurveyTag(
-      canvas,
-      top + const Offset(-34, 30),
-      dustMoundById('m_kiln')!.glyph,
-    );
   }
 
   /// THE FALSE WALL — the rite's Horn half (conduit A). A bricked-up
@@ -3779,61 +3970,22 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (silt != null && !entryDoorRevealed) {
       // THE SILT. It is not a plank across a doorway: it is the drift that
       // has come in through the arch and stood in it, deeper at the bottom,
-      // sloping back into the room.
-      final r = Rect.fromCenter(center: silt, width: 96, height: 190);
-      canvas.drawPath(
-        Path()
-          ..moveTo(r.right, r.top)
-          ..lineTo(r.right, r.bottom)
-          ..lineTo(r.left - 14, r.bottom + 10)
-          ..quadraticBezierTo(r.left + 10, r.center.dy, r.left + 4, r.top - 6)
-          ..close(),
-        Paint()..color = _kDustOchre.withValues(alpha: 0.88),
-      );
-      for (var i = 0; i < 5; i++) {
-        canvas.drawPath(
-          Path()
-            ..moveTo(r.left + 10 - i * 2, r.top + 14.0 + i * 34)
-            ..quadraticBezierTo(
-              r.center.dx,
-              r.top + 6.0 + i * 34,
-              r.right - 4,
-              r.top + 18.0 + i * 34,
-            ),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = _kDustPale.withValues(alpha: 0.35),
-        );
-      }
+      // sloping back into the room — a drift of grains, combed by the wind
+      // (2026-10-08: a flat ochre shape with stroked lines).
+      _drawGateSilt(canvas, silt);
     }
     final vane = d.windVane;
     if (vane != null) {
       final armed = ruins.armedVaneRoom == room.id;
-      // A MAST ON A FOOTING. It used to be a line with a line across it,
-      // planted in nothing — and it is the anti-strand valve, the most
-      // expensive verb on the planet.
-      canvas.drawOval(
-        Rect.fromCenter(center: vane.translate(0, 36), width: 34, height: 14),
-        Paint()..color = _kDustStone.withValues(alpha: 0.55),
+      // A MAST ON A FOOTING — the anti-strand valve, the most expensive
+      // verb on the planet. A dark iron mast on a cut-stone footing now
+      // (2026-10-08: a stroked line with two stroked guys on a pale oval).
+      canvas.drawPicture(
+        _dustStill(
+          'vaneMast|${vane.dx.round()}|${vane.dy.round()}',
+          (c) => _drawVaneMast(c, vane, under: _isBelowSablis(room.id)),
+        ),
       );
-      canvas.drawLine(
-        vane + const Offset(0, 34),
-        vane + const Offset(0, -26),
-        Paint()
-          ..color = const Color(0xFF6E5A34)
-          ..strokeWidth = 4,
-      );
-      // Two guys, so the mast stands against a wind that can take a city.
-      for (final s in [-1.0, 1.0]) {
-        canvas.drawLine(
-          vane + Offset(0, -16),
-          vane + Offset(s * 20, 32),
-          Paint()
-            ..strokeWidth = 1.2
-            ..color = const Color(0xFF6E5A34).withValues(alpha: 0.6),
-        );
-      }
       // The blade spins while armed, so the cost is visible before it lands.
       final spin = armed ? _time * 7.0 : _time * 0.6;
       final tip = Offset(cos(spin) * 22, sin(spin) * 8);
@@ -3848,17 +4000,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         armed,
       );
       if (armed) {
-        // Wound up: a ring of the wind it is about to let go.
-        canvas.drawCircle(
-          vane.translate(0, -26),
-          30,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = Colors.white.withValues(
-              alpha: 0.22 + 0.16 * sin(_time * 9),
-            ),
-        );
+        // Wound up: the wind it is about to let go, already turning round
+        // the hub in grains (it was a pulsing white ring).
+        _drawVaneWind(canvas, vane.translate(0, -26));
       }
     }
     final tube = d.sightTube;
@@ -3875,38 +4019,18 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (glass != null) {
       final turned = (conduitEnergy['B'] ?? 0) > 0;
       // THE GREAT GLASS, in its frame, with sand in it. The frame is what
-      // makes it an hourglass rather than a bow-tie.
-      for (final y in [-42.0, 42.0]) {
-        canvas.drawRect(
-          Rect.fromCenter(center: glass.translate(0, y), width: 74, height: 10),
-          Paint()..color = const Color(0xFF6E5A34).withValues(alpha: 0.95),
-        );
-      }
-      for (final x in [-33.0, 33.0]) {
-        canvas.drawRect(
-          Rect.fromCenter(center: glass.translate(x, 0), width: 7, height: 86),
-          Paint()..color = const Color(0xFF6E5A34).withValues(alpha: 0.85),
-        );
-      }
+      // makes it an hourglass rather than a bow-tie — dark carved stone and
+      // iron now, lit at the rim (2026-10-08: four flat brown bars).
+      canvas.drawPicture(
+        _dustStill(
+          'glassFrame|${glass.dx.round()}|${glass.dy.round()}',
+          (c) => _drawGreatGlassFrame(c, glass),
+        ),
+      );
       _drawGreatGlass(canvas, glass, turned, () {
-        // The sand: piled in the bottom bulb, and running once it turns.
-        canvas.drawPath(
-          Path()
-            ..moveTo(glass.dx - 19, glass.dy + 34)
-            ..lineTo(glass.dx + 19, glass.dy + 34)
-            ..lineTo(glass.dx, glass.dy + 8)
-            ..close(),
-          Paint()..color = _kDustOchre.withValues(alpha: 0.85),
-        );
-        if (turned) {
-          canvas.drawLine(
-            glass.translate(0, -4),
-            glass.translate(0, 14),
-            Paint()
-              ..strokeWidth = 2.4
-              ..color = _kDustPale.withValues(alpha: 0.9),
-          );
-        }
+        // The sand: piled in the bottom bulb, and running once it turns —
+        // grains, all of it.
+        _drawGlassSand(canvas, glass, turned);
       });
     }
     final cut = d.hollowCut;
@@ -3947,19 +4071,15 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         );
       }
       // Courses stack up from the floor of the cut and stay INSIDE it (the
-      // first one used to hang 6px out of the bottom).
+      // first one used to hang 6px out of the bottom). Each one is a course
+      // of shovelled sand in grains, its top edge lit (2026-10-08: pale
+      // bars with a white line).
       for (var i = 0; i < ruins.hollowPit; i++) {
         final top = r.bottom - 28.0 - i * 26;
-        canvas.drawRect(
+        _drawFillCourse(
+          canvas,
           Rect.fromLTWH(r.left + 8, top, r.width - 16, 22),
-          Paint()..color = _kDustPale.withValues(alpha: 0.62),
-        );
-        canvas.drawLine(
-          Offset(r.left + 8, top),
-          Offset(r.right - 8, top),
-          Paint()
-            ..strokeWidth = 1.6
-            ..color = Colors.white.withValues(alpha: 0.35),
+          i,
         );
       }
       if (ruins.hollowOpen) {

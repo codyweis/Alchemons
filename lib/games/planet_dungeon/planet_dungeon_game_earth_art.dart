@@ -299,31 +299,51 @@ extension BuriedGiantArt on PlanetDungeonGame {
         );
       }
     }
-    final ink = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..color = _kBarrowGlass.gold.withValues(alpha: 0.75);
-    final eyeP = Offset(panel.left + 90, panel.center.dy);
-    canvas.drawOval(Rect.fromCenter(center: eyeP, width: 56, height: 30), ink);
-    paintRondel(canvas, eyeP, 8, _kBarrowGlass, fill: _kBarrowGlass.heat(0.45));
-    final pivot = Offset(panel.center.dx + 60, panel.center.dy - 14);
-    canvas.drawLine(
-      pivot + const Offset(-80, 8),
-      pivot + const Offset(80, -8),
-      ink,
-    );
-    canvas.drawLine(pivot, pivot + const Offset(0, 30), ink);
-    for (final side in const [-1.0, 1.0]) {
-      final panC = pivot + Offset(side * 80, side * -8 + 22);
-      canvas.drawArc(
-        Rect.fromCircle(center: panC, radius: 16),
-        0,
-        pi,
-        false,
-        ink,
+    // The diagram is LEADED INTO the window (2026-10-08): came with a gold
+    // line in it, and the eye a lens-shaped pane of its own — it was gold
+    // strokes drawn over the glass, which read as an icon on a panel.
+    void leadIn(Path path) {
+      paintLead(
+        canvas,
+        path,
+        _kBarrowGlass,
+        width: 3.8,
+        light: _kBarrowGlass.gold,
+      );
+      canvas.drawPath(
+        path,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..strokeCap = StrokeCap.round
+          ..color = _kBarrowGlass.gold.withValues(alpha: 0.8),
       );
     }
+
+    final eyeP = Offset(panel.left + 90, panel.center.dy);
+    final lens = Path()
+      ..moveTo(eyeP.dx - 28, eyeP.dy)
+      ..quadraticBezierTo(eyeP.dx, eyeP.dy - 24, eyeP.dx + 28, eyeP.dy)
+      ..quadraticBezierTo(eyeP.dx, eyeP.dy + 24, eyeP.dx - 28, eyeP.dy)
+      ..close();
+    paintPaneFill(
+      canvas,
+      lens,
+      Color.lerp(_kBarrowGlass.frostAt(2), _kBarrowGlass.liveDeep, 0.6)!,
+    );
+    leadIn(lens);
+    paintRondel(canvas, eyeP, 8, _kBarrowGlass, fill: _kBarrowGlass.heat(0.45));
+    final pivot = Offset(panel.center.dx + 60, panel.center.dy - 14);
+    final scale = Path()
+      ..moveTo(pivot.dx - 80, pivot.dy + 8)
+      ..lineTo(pivot.dx + 80, pivot.dy - 8)
+      ..moveTo(pivot.dx, pivot.dy)
+      ..lineTo(pivot.dx, pivot.dy + 30);
+    for (final side in const [-1.0, 1.0]) {
+      final panC = pivot + Offset(side * 80, side * -8 + 22);
+      scale.addArc(Rect.fromCircle(center: panC, radius: 16), 0, pi);
+    }
+    leadIn(scale);
     final lensP = Offset((eyeP.dx + pivot.dx) / 2 - 16, panel.center.dy + 12);
     final beam = Paint()
       ..strokeWidth = 1.6
@@ -444,5 +464,406 @@ extension BuriedGiantArt on PlanetDungeonGame {
         );
       }
     }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// THE PROPS, IN THE GAME'S OWN LANGUAGE (2026-10-08)
+// ═══════════════════════════════════════════════════════════
+//
+// The barrow's strata, walls and crystal stay as they were. What changed is
+// the giant and the things lying about in it:
+//
+//   · THE GIANT IS CARVED STONE, NOT BEIGE CARTOON BONE. Every length of it
+//     — ribs, fingers, the palm, the processes of the spine, the rib levers —
+//     is near-black stone lit only along its upper edge, so the hand, the
+//     cage and the levers read as relief cut into the barrow. The heart is a
+//     heart-stone of the same dark, anatomical rather than a valentine, its
+//     crystal veins the only light in it; it no longer throws a ring.
+//   · EARTH ITSELF IS GRAINS. The dust over the barrow (puff-sprite veils
+//     and four glow motes) sifts down in grains over a faint haze, and the
+//     rubble at the dolmen's feet is crumbled earth, not pebbles.
+//   · WHAT YOU READ IS INLAY OR GLASS. The giant's tablets carry their scale
+//     as gold inlaid in a cut groove (it was a stroked amber icon); the
+//     weights on the scale and floor are carved stones with their sigils cut
+//     in gold; the mural's diagram is leaded into its window.
+//
+// COST. The hand, the rib walls and the sternum's skeleton are baked once.
+// Live grains: ~650–900 dust over the sky (screen space, by viewport) and
+// ~410 in the gate's rubble. No blur; the haze is one baked picture.
+
+/// Earth's dust: deep loam, ochre, bone, pale bone (never white).
+const List<Color> _kBarrowDustRamp = [
+  Color(0xFF3A2C1C),
+  Color(0xFF8A6E48),
+  Color(0xFFC8AC7A),
+  Color(0xFFEAD9B0),
+];
+
+/// The carved giant's stone: its dark, its lit face, and the light it
+/// catches at the rim.
+const Color _kGiantDark = Color(0xFF130E09);
+const Color _kGiantFace = Color(0xFF2E2318);
+const Color _kGiantRim = Color(0xFFC8A872);
+
+/// The lit top of a carved piece of it (a disc, a weight).
+const Color _kGiantTop = Color(0xFF3A2C1D);
+
+/// The sky's dust (fine, near) and the haze under it, by viewport size.
+final Map<String, (GrainShape, GrainShape, ui.Picture)> _barrowDustCache = {};
+
+/// The giant's static anatomy, baked: the hand, each rib hall's cage, the
+/// sternum court's skeleton.
+final Map<String, ui.Picture> _barrowBoneCache = {};
+
+/// Small shapes built once (the gate's rubble).
+final Map<String, GrainShape> _barrowShapes = {};
+
+/// The heart-stone's outline at unit size, built once (a path union is not
+/// something to do every frame).
+final Map<String, Path> _barrowPaths = {};
+
+/// Gradient paints in a prop's own (unit) space, built once.
+final Map<String, Paint> _barrowPaints = {};
+
+extension BuriedGiantProps on PlanetDungeonGame {
+  // ── The dust over the barrow ────────────────────────────────
+
+  /// Grave-dust sifting down through a faint warm haze, in grains: a fine
+  /// slow layer and a few nearer grains. Denser in drifting curtains, so it
+  /// reads as dust falling and not as a stipple.
+  void _renderBarrowDust(Canvas canvas, Size vp) {
+    final key = '${vp.width.round()}x${vp.height.round()}';
+    final (fine, near, haze) = _barrowDustCache.putIfAbsent(key, () {
+      final band = vp.height + 40;
+      final box = Rect.fromLTWH(
+        -vp.width / 2 - 20,
+        -band / 2,
+        vp.width + 40,
+        band,
+      );
+      final area = vp.width * vp.height;
+      GrainShape veil(int n, int seed, double phase) {
+        final rng = Random(seed);
+        final pts = <Offset>[];
+        final shade = <double>[];
+        var tries = 0;
+        while (pts.length < n && tries < n * 40) {
+          tries++;
+          final p = Offset(
+            box.left + rng.nextDouble() * box.width,
+            box.top + rng.nextDouble() * box.height,
+          );
+          final v =
+              0.5 +
+              0.3 * sin(p.dx * 0.0097 + phase) +
+              0.2 * sin(p.dx * 0.031 + phase * 3.1);
+          if (rng.nextDouble() > 0.25 + 0.75 * v * v) continue;
+          pts.add(p);
+          shade.add(pow(rng.nextDouble(), 1.5).toDouble());
+        }
+        return GrainShape.points(pts, shade, seed: seed);
+      }
+
+      final rec = ui.PictureRecorder();
+      final c = Canvas(rec);
+      final rng = Random(68);
+      for (var i = 0; i < 10; i++) {
+        final o = Offset(
+          rng.nextDouble() * vp.width,
+          vp.height * (0.2 + 0.8 * rng.nextDouble()),
+        );
+        final r = 150 + rng.nextDouble() * 170;
+        c.drawCircle(
+          o,
+          r,
+          Paint()
+            ..shader = RadialGradient(
+              colors: [
+                const Color(
+                  0xFF8A6E48,
+                ).withValues(alpha: 0.05 + 0.012 * (i % 3)),
+                const Color(0x008A6E48),
+              ],
+            ).createShader(Rect.fromCircle(center: o, radius: r)),
+        );
+      }
+      return (
+        veil((area / 820).round().clamp(280, 1000), 67, 0.7),
+        veil((area / 5200).round().clamp(50, 180), 68, 2.3),
+        rec.endRecording(),
+      );
+    });
+    canvas.save();
+    canvas.translate(sin(_time * 0.027) * 22, 0);
+    canvas.drawPicture(haze);
+    canvas.restore();
+    final c = Offset(vp.width / 2, vp.height / 2);
+    final band = vp.height + 40;
+    paintGrainShape(
+      canvas,
+      fine,
+      _time,
+      origin: c,
+      fall: band,
+      fallSpeed: 7,
+      drift: 9,
+      alpha: 0.5,
+      ramp: _kBarrowDustRamp,
+      glint: 0.004,
+      width: 1.3,
+      trail: 0.035,
+    );
+    paintGrainShape(
+      canvas,
+      near,
+      _time,
+      origin: c,
+      fall: band,
+      fallSpeed: 13,
+      drift: 12,
+      alpha: 0.62,
+      ramp: _kBarrowDustRamp,
+      glint: 0.008,
+      width: 1.7,
+      trail: 0.035,
+    );
+  }
+
+  // ── The giant, carved ───────────────────────────────────────
+
+  /// One length of the giant in carved stone between two edges: near-black,
+  /// its upper half a lit face, the edge that faces up catching the light
+  /// and the other sunk in its own shadow.
+  void _paintCarvedBone(
+    Canvas canvas,
+    List<Offset> a,
+    List<Offset> b,
+    double alpha,
+  ) {
+    var ay = 0.0, by = 0.0;
+    for (var i = 0; i < a.length; i++) {
+      ay += a[i].dy;
+      by += b[i].dy;
+    }
+    final top = ay <= by ? a : b;
+    final low = ay <= by ? b : a;
+    final body = Path()..moveTo(top.first.dx, top.first.dy);
+    for (final p in top.skip(1)) {
+      body.lineTo(p.dx, p.dy);
+    }
+    for (final p in low.reversed) {
+      body.lineTo(p.dx, p.dy);
+    }
+    body.close();
+    canvas.drawPath(
+      body,
+      Paint()..color = _kGiantDark.withValues(alpha: 0.92 * alpha),
+    );
+    // The lit face: from the upper edge to the bone's spine.
+    final face = Path()..moveTo(top.first.dx, top.first.dy);
+    for (final p in top.skip(1)) {
+      face.lineTo(p.dx, p.dy);
+    }
+    for (var i = top.length - 1; i >= 0; i--) {
+      final m = Offset.lerp(top[i], low[i], 0.5)!;
+      face.lineTo(m.dx, m.dy);
+    }
+    face.close();
+    canvas.drawPath(
+      face,
+      Paint()..color = _kGiantFace.withValues(alpha: 0.7 * alpha),
+    );
+    final rim = Path()..moveTo(top.first.dx, top.first.dy);
+    for (final p in top.skip(1)) {
+      rim.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(
+      rim,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = _kGiantRim.withValues(alpha: 0.36 * alpha),
+    );
+    final under = Path()..moveTo(low.first.dx, low.first.dy);
+    for (final p in low.skip(1)) {
+      under.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(
+      under,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.6
+        ..strokeJoin = StrokeJoin.round
+        ..color = Colors.black.withValues(alpha: 0.55 * alpha),
+    );
+  }
+
+  /// A joint of the giant: a small dark boss with a lit upper rim.
+  void _paintCarvedJoint(Canvas canvas, Offset c, double r, double alpha) {
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()..color = _kGiantDark.withValues(alpha: 0.95 * alpha),
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: c, radius: r - 0.6),
+      pi * 1.08,
+      pi * 0.84,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = _kGiantRim.withValues(alpha: 0.4 * alpha),
+    );
+  }
+
+  /// A groove cut into the floor or a slab: the dark of the cut and the lit
+  /// lip on its far side.
+  void _paintCarvedGroove(Canvas canvas, Path path, {double width = 2.4}) {
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..color = Colors.black.withValues(alpha: 0.6),
+    );
+    canvas.drawPath(
+      path.shift(const Offset(0, 1.1)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8
+        ..strokeCap = StrokeCap.round
+        ..color = _kGiantRim.withValues(alpha: 0.22),
+    );
+  }
+
+  /// Draws [key]'s picture, baking it with [paint] the first time.
+  void _drawBakedBones(
+    Canvas canvas,
+    String key,
+    void Function(Canvas c) paint,
+  ) {
+    canvas.drawPicture(
+      _barrowBoneCache.putIfAbsent(key, () {
+        final rec = ui.PictureRecorder();
+        paint(Canvas(rec));
+        return rec.endRecording();
+      }),
+    );
+  }
+
+  /// Gold inlaid in a cut: the groove, then the thread of gold in it.
+  void _paintGoldInlay(Canvas canvas, Path path, {double width = 2.2}) {
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width + 2.4
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = _kBarrowGlass.stoneFoot.withValues(alpha: 0.95),
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = width
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = _kBarrowGlass.goldDeep,
+    );
+    canvas.drawPath(
+      path.shift(const Offset(0, -0.5)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(0.7, width * 0.4)
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..color = _kBarrowGlass.gold.withValues(alpha: 0.9),
+    );
+  }
+
+  // ── The heart-stone ─────────────────────────────────────────
+
+  /// The giant's heart as an organ, not a valentine: a heavy rounded cone
+  /// leaning to its apex, with the great vessels cut off above it.
+  Path _heartStonePath(Offset c, double w, double h) {
+    final body = Path()
+      ..moveTo(c.dx - 0.10 * w, c.dy + 0.46 * h) // apex, low and left
+      ..cubicTo(
+        c.dx - 0.46 * w,
+        c.dy + 0.30 * h,
+        c.dx - 0.56 * w,
+        c.dy - 0.10 * h,
+        c.dx - 0.38 * w,
+        c.dy - 0.30 * h,
+      )
+      ..cubicTo(
+        c.dx - 0.22 * w,
+        c.dy - 0.46 * h,
+        c.dx + 0.06 * w,
+        c.dy - 0.40 * h,
+        c.dx + 0.20 * w,
+        c.dy - 0.34 * h,
+      )
+      ..cubicTo(
+        c.dx + 0.48 * w,
+        c.dy - 0.26 * h,
+        c.dx + 0.52 * w,
+        c.dy + 0.06 * h,
+        c.dx + 0.30 * w,
+        c.dy + 0.24 * h,
+      )
+      ..cubicTo(
+        c.dx + 0.18 * w,
+        c.dy + 0.36 * h,
+        c.dx + 0.04 * w,
+        c.dy + 0.44 * h,
+        c.dx - 0.10 * w,
+        c.dy + 0.46 * h,
+      )
+      ..close();
+    // The aorta arching up and over to the left, and two cut vessels.
+    final aorta = Path()
+      ..moveTo(c.dx - 0.04 * w, c.dy - 0.36 * h)
+      ..cubicTo(
+        c.dx - 0.06 * w,
+        c.dy - 0.66 * h,
+        c.dx + 0.26 * w,
+        c.dy - 0.70 * h,
+        c.dx + 0.30 * w,
+        c.dy - 0.50 * h,
+      )
+      ..lineTo(c.dx + 0.20 * w, c.dy - 0.46 * h)
+      ..cubicTo(
+        c.dx + 0.16 * w,
+        c.dy - 0.58 * h,
+        c.dx + 0.06 * w,
+        c.dy - 0.56 * h,
+        c.dx + 0.10 * w,
+        c.dy - 0.34 * h,
+      )
+      ..close();
+    final vena = Path()
+      ..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(
+            c.dx - 0.30 * w,
+            c.dy - 0.56 * h,
+            c.dx - 0.18 * w,
+            c.dy - 0.30 * h,
+          ),
+          Radius.circular(0.05 * w),
+        ),
+      );
+    return Path.combine(
+      PathOperation.union,
+      Path.combine(PathOperation.union, body, aorta),
+      vena,
+    );
   }
 }

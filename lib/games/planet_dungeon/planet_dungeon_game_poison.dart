@@ -3816,27 +3816,35 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// rather than a thing at a place, and it must not scroll with the camera
   /// or it becomes scenery you could walk away from.
   void _drawSporeDrift(Canvas canvas, Size vp) {
-    for (var i = 0; i < 26; i++) {
+    // SPORES AS GRAINS (2026-10-08): more of them, smaller, each with a
+    // short trail as it goes up — they were 26 round dots.
+    for (var i = 0; i < 90; i++) {
       final seed = i * 79;
       final speed = 0.020 + (seed % 7) * 0.004;
+      Offset where(double tt) {
+        final u = ((tt * speed) + (seed % 100) / 100.0) % 1.0;
+        final x =
+            ((seed * 37) % vp.width.toInt()).toDouble() +
+            sin(tt * 0.5 + i) * 16;
+        return Offset(x % vp.width, vp.height * (1.08 - 1.16 * u));
+      }
+
       final t = ((_time * speed) + (seed % 100) / 100.0) % 1.0;
-      final x =
-          ((seed * 37) % vp.width.toInt()).toDouble() +
-          sin(_time * 0.5 + i) * 16;
-      final y = vp.height * (1.08 - 1.16 * t);
-      final r = 1.1 + (seed % 5) * 0.5;
+      final p = where(_time), q = where(_time - 0.25);
+      if ((p - q).distance > 40) continue; // wrapped this frame
       // Most are the dull green of the place; a few are the sick violet, and
       // those are the ones the eye keeps catching.
       final sick = i % 7 == 0;
-      canvas.drawCircle(
-        Offset(x % vp.width, y),
-        r,
-        Paint()
-          ..color = (sick ? _venomSick : _venomLive).withValues(
-            alpha: (sick ? 0.30 : 0.16) * sin(t * pi).clamp(0.0, 1.0),
-          ),
+      _venomGrains.add(
+        q.dx,
+        q.dy,
+        p.dx,
+        p.dy,
+        sick ? _venomSick : _venomLive,
+        alpha: (sick ? 0.4 : 0.22) * sin(t * pi).clamp(0.0, 1.0),
       );
     }
+    _venomGrains.paint(canvas);
   }
 
   void _renderMonastery(Canvas canvas, DungeonRoom room) {
@@ -4074,32 +4082,64 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         Paint()..color = const Color(0xFF2C3A1C).withValues(alpha: 0.2),
       );
     }
+    // THE DRAINS (2026-10-08): a dark sump cut in the floor, its bars iron
+    // lit only along their tops, and the house's sour air coming up out of
+    // it in grains. It was an outlined box with pale bars — a vent icon.
     for (final at in g.grates) {
       canvas.drawOval(
         Rect.fromCenter(center: at, width: 78, height: 48),
         Paint()..color = const Color(0xFF20291A).withValues(alpha: 0.32),
       );
       final sump = Rect.fromCenter(center: at, width: 34, height: 26);
+      canvas.drawRect(
+        sump.inflate(1.5),
+        Paint()..color = const Color(0xFF040504),
+      );
       canvas.drawRect(sump, Paint()..color = const Color(0xFF070907));
       for (var i = 0; i < 4; i++) {
+        final bar = Rect.fromLTWH(
+          sump.left + 3 + i * 7.5,
+          sump.top + 3,
+          3,
+          sump.height - 6,
+        );
+        canvas.drawRect(bar, Paint()..color = const Color(0xFF15181A));
         canvas.drawRect(
-          Rect.fromLTWH(
-            sump.left + 3 + i * 7.5,
-            sump.top + 3,
-            3,
-            sump.height - 6,
-          ),
-          Paint()..color = _venomIron.withValues(alpha: 0.9),
+          Rect.fromLTWH(bar.left, bar.top, bar.width, 1),
+          Paint()..color = _kVenomGlass.leadLight.withValues(alpha: 0.16),
         );
       }
-      canvas.drawRect(
-        sump,
+      // The lip at its near edge, where the paving steps down.
+      canvas.drawLine(
+        sump.bottomLeft + const Offset(1, 1.2),
+        sump.bottomRight + const Offset(-1, 1.2),
         Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = const Color(0xFF39412F).withValues(alpha: 0.7),
+          ..strokeWidth = 1
+          ..color = _kVenomGlass.leadLight.withValues(alpha: 0.12),
+      );
+      _venomHaze(
+        canvas,
+        at - const Offset(0, 22),
+        34,
+        const Color(0xFF7FA04A),
+        0.05,
+      );
+      _venomRise(
+        at - const Offset(0, 2),
+        _time,
+        n: 200,
+        rise: 74,
+        half: 13,
+        spread: 36,
+        rate: 0.1,
+        sway: 9,
+        ramp: _kVenomMiasmaRamp,
+        alpha: 0.26,
+        trail: 0.14,
+        seed: (at.dx * 7 + at.dy).round() & 0xFFF,
       );
     }
+    _venomGrains.paint(canvas);
   }
 
   /// THE HOUSE ITSELF — what each room IS, over the ground every room shares.
@@ -4220,32 +4260,45 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // cards dropped on the floor; what says "a stone set into the paving" is
     // a dark reveal round the edge and a cut that is DARKER than the stone,
     // because a chisel takes material away.
+    //
+    // CARVED, not drawn (2026-10-08). With a black reveal all round and a
+    // ruled cross they still read as cards laid on the floor — coffin lids
+    // in ink. A ledger is a flag of the floor's own stone, set apart by a
+    // hairline joint and a lip the light catches, with its cross CUT: a
+    // groove, dark, with the light along its lower edge.
     for (final l in g.ledgers) {
       canvas.drawRect(
-        l.inflate(3),
-        Paint()..color = const Color(0xFF090C08).withValues(alpha: 0.8),
+        l.inflate(1.6),
+        Paint()..color = const Color(0xFF070906).withValues(alpha: 0.75),
       );
-      canvas.drawRect(l, Paint()..color = const Color(0xFF232920));
+      canvas.drawRect(l, Paint()..color = const Color(0xFF1D211A));
+      // The lip along its near edge, where the light lands on the step down.
       canvas.drawLine(
-        l.topLeft + const Offset(2, 1),
-        l.topRight + const Offset(-2, 1),
+        l.bottomLeft + const Offset(2, -0.8),
+        l.bottomRight + const Offset(-2, -0.8),
         Paint()
-          ..strokeWidth = 1.2
-          ..color = const Color(0xFF39412F).withValues(alpha: 0.5),
+          ..strokeWidth = 1
+          ..color = _kVenomGlass.leadLight.withValues(alpha: 0.10),
       );
       // A cross cut into it, and a line of lettering nobody can read.
       final c = l.center;
-      final p = Paint()
-        ..strokeWidth = 2.6
-        ..color = const Color(0xFF12160F).withValues(alpha: 0.85);
-      canvas.drawLine(c + const Offset(0, -13), c + const Offset(0, 13), p);
-      canvas.drawLine(c + const Offset(-9, -4), c + const Offset(9, -4), p);
-      canvas.drawLine(
-        Offset(l.left + 8, l.bottom - 8),
-        Offset(l.right - 8, l.bottom - 8),
-        Paint()
-          ..strokeWidth = 1.6
-          ..color = const Color(0xFF12160F).withValues(alpha: 0.6),
+      _venomGroove(
+        canvas,
+        c + const Offset(0, -13),
+        c + const Offset(0, 13),
+        width: 2.6,
+      );
+      _venomGroove(
+        canvas,
+        c + const Offset(-9, -4),
+        c + const Offset(9, -4),
+        width: 2.6,
+      );
+      _venomGroove(
+        canvas,
+        Offset(l.left + 10, l.bottom - 8),
+        Offset(l.right - 10, l.bottom - 8),
+        width: 1.4,
       );
     }
 
@@ -4254,32 +4307,47 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       _stoneBlock(canvas, s.rect.inflate(3), radius: 2);
       canvas.drawRect(s.rect, Paint()..color = const Color(0xFF050705));
       if (s.open) {
-        // A bundle in it, wrapped and tied — pale, so an open slot reads as
-        // occupied at a glance and a sealed one reads as shut.
+        // A bundle in it, wrapped and tied — a shape in the dark, lit only
+        // along its top, so an open slot reads as occupied at a glance and a
+        // sealed one reads as shut. (It was a pale lozenge, a sticker.)
         final c = s.rect.center;
+        final shroud = Rect.fromCenter(
+          center: c,
+          width: s.rect.width * 0.7,
+          height: 12,
+        );
         canvas.drawOval(
-          Rect.fromCenter(center: c, width: s.rect.width * 0.66, height: 11),
-          Paint()..color = const Color(0xFF6A6450).withValues(alpha: 0.6),
+          shroud,
+          Paint()..color = const Color(0xFF34301F).withValues(alpha: 0.9),
         );
-        canvas.drawLine(
-          Offset(c.dx - 8, c.dy),
-          Offset(c.dx - 8, c.dy + 5),
+        canvas.drawArc(
+          shroud.deflate(1),
+          pi + 0.35,
+          pi - 0.7,
+          false,
           Paint()
-            ..strokeWidth = 1.4
-            ..color = const Color(0xFF3A3628),
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1
+            ..color = _venomBone.withValues(alpha: 0.22),
         );
+        for (final dx in const [-8.0, 6.0]) {
+          canvas.drawLine(
+            Offset(c.dx + dx, c.dy - 5),
+            Offset(c.dx + dx, c.dy + 5),
+            Paint()
+              ..strokeWidth = 1.4
+              ..color = const Color(0xFF14120C),
+          );
+        }
       } else {
         // Walled up, and scratched with a cross by whoever did the walling.
         canvas.drawRect(
           s.rect.deflate(2),
-          Paint()..color = const Color(0xFF1E241C),
+          Paint()..color = const Color(0xFF181D16),
         );
         final c = s.rect.center;
-        final p = Paint()
-          ..strokeWidth = 1.4
-          ..color = const Color(0xFF2E3628).withValues(alpha: 0.9);
-        canvas.drawLine(c + const Offset(0, -7), c + const Offset(0, 7), p);
-        canvas.drawLine(c + const Offset(-5, -2), c + const Offset(5, -2), p);
+        _venomGroove(canvas, c + const Offset(0, -7), c + const Offset(0, 7));
+        _venomGroove(canvas, c + const Offset(-5, -2), c + const Offset(5, -2));
       }
     }
 
@@ -4325,8 +4393,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           Rect.fromCenter(center: Offset.zero, width: 24, height: 13),
           Paint()
             ..color = Color.lerp(
-              const Color(0xFF4A3225),
-              const Color(0xFF2A1E18),
+              const Color(0xFF2E2019),
+              const Color(0xFF1A130F),
               (i * 7 % 11) / 11,
             )!,
         );
@@ -4396,7 +4464,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         Paint()..color = const Color(0xFF090C08).withValues(alpha: 0.55),
       );
     }
-    for (final (at, a, len) in g.bones) {
+    // Half of them: a charnel needs bones, not a carpet of them.
+    for (final (i, (at, a, len)) in g.bones.indexed) {
+      if (i.isOdd) continue;
       _monBone(canvas, at, a, len);
     }
     for (final (at, a, size) in g.leaves) {
@@ -4405,7 +4475,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       canvas.rotate(a);
       canvas.drawRect(
         Rect.fromCenter(center: Offset.zero, width: size, height: size * 1.3),
-        Paint()..color = const Color(0xFF9A9070).withValues(alpha: 0.3),
+        Paint()..color = const Color(0xFF6A6450).withValues(alpha: 0.2),
       );
       canvas.drawLine(
         Offset(-size * 0.3, -size * 0.2),
@@ -4423,7 +4493,12 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // sticking out of them as acorns; what they actually are is a roll, so
     // they are drawn as one — straight sides, a corded middle, and the straw
     // showing at both cut ends.
-    for (final (at, a, size) in g.strewn) {
+    //
+    // DARK, and half as many (2026-10-08): a floor strewn with bright rolls
+    // read as sacks dropped by a cartoon; these are shapes in the gloom,
+    // lit only along the top.
+    for (final (i, (at, a, size)) in g.strewn.indexed) {
+      if (i.isOdd) continue;
       canvas.save();
       canvas.translate(at.dx, at.dy);
       canvas.rotate(a);
@@ -4434,7 +4509,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       );
       canvas.drawRRect(
         RRect.fromRectAndRadius(roll, Radius.circular(size * 0.5)),
-        Paint()..color = const Color(0xFF39331F),
+        Paint()..color = const Color(0xFF1C1912),
+      );
+      canvas.drawLine(
+        Offset(-size * 0.9, -size * 0.5),
+        Offset(size * 0.9, -size * 0.5),
+        Paint()
+          ..strokeWidth = 0.9
+          ..strokeCap = StrokeCap.round
+          ..color = _kVenomGlass.leadLight.withValues(alpha: 0.14),
       );
       for (final end in [-1.0, 1.0]) {
         canvas.drawOval(
@@ -4443,7 +4526,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             width: size * 0.5,
             height: size * 1.0,
           ),
-          Paint()..color = const Color(0xFF6E6242).withValues(alpha: 0.55),
+          Paint()..color = const Color(0xFF3A3424).withValues(alpha: 0.6),
         );
       }
       canvas.drawLine(
@@ -4451,7 +4534,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         Offset(0, size * 0.6),
         Paint()
           ..strokeWidth = 1.5
-          ..color = const Color(0xFF16130C),
+          ..color = const Color(0xFF0A0906),
       );
       canvas.restore();
     }
@@ -4466,12 +4549,20 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         Offset(bell.dx + sway, bell.dy + 128),
         Paint()
           ..strokeWidth = 3
-          ..color = const Color(0xFF6A6047).withValues(alpha: 0.8),
+          ..color = const Color(0xFF3A3528).withValues(alpha: 0.9),
       );
-      canvas.drawCircle(
-        Offset(bell.dx + sway, bell.dy + 134),
-        6,
-        Paint()..color = const Color(0xFF7D7150).withValues(alpha: 0.85),
+      // The knot it ends in: dark hemp, the light along its top.
+      final knot = Offset(bell.dx + sway, bell.dy + 134);
+      canvas.drawCircle(knot, 5.5, Paint()..color = const Color(0xFF2A261C));
+      canvas.drawArc(
+        Rect.fromCircle(center: knot, radius: 4.6),
+        pi + 0.5,
+        pi - 1.0,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = _venomBone.withValues(alpha: 0.2),
       );
       _stoneBlock(
         canvas,
@@ -4481,20 +4572,30 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
 
     // ── THE LAMPS' IRONWORK ── the flame itself is drawn after the gloom.
+    // A dark iron dish on its rod, lit along the rim by its own flame (it
+    // was a flat bronze half-disc).
     for (final (at, _) in g.lamps) {
       canvas.drawLine(
         at + const Offset(0, -26),
         at,
         Paint()
-          ..strokeWidth = 2
-          ..color = _venomIron,
+          ..strokeWidth = 1.8
+          ..color = const Color(0xFF15171A),
       );
       canvas.drawArc(
         Rect.fromCenter(center: at, width: 22, height: 16),
         0,
         pi,
         true,
-        Paint()..color = _venomBronze,
+        Paint()..color = const Color(0xFF121310),
+      );
+      canvas.drawLine(
+        at + const Offset(-10.5, 0.4),
+        at + const Offset(10.5, 0.4),
+        Paint()
+          ..strokeWidth = 1.2
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFFE8C070).withValues(alpha: 0.45),
       );
     }
 
@@ -4647,40 +4748,54 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// A SICKBED: iron frame, straw pallet, and a sheet on the ones that are
   /// still made up. Never square to the wall — a ward that had a bed epidemic
   /// in it did not keep its beds in a line.
+  ///
+  /// DARK (2026-10-08). A bed is furniture, and furniture in this house is a
+  /// near-black shape lit only along the edge the room's light finds — the
+  /// frames were bright iron outlines and the made-up beds pale cards with a
+  /// sheet on, which read as stretchers drawn in ink.
   void _monCot(Canvas canvas, _MonCot c) {
     canvas.save();
     canvas.translate(c.at.dx, c.at.dy);
     canvas.rotate(c.angle + (c.tipped ? 0.5 : 0));
     const w = 64.0, h = 30.0;
+    const iron = Color(0xFF111316);
+    final rim = _kVenomGlass.leadLight.withValues(alpha: 0.16);
     final body = Rect.fromCenter(center: Offset.zero, width: w, height: h);
     canvas.drawRect(
       body.translate(3, 4),
       Paint()..color = Colors.black.withValues(alpha: 0.35),
     );
-    // The frame.
+    // The frame: dark iron, and the light along its far rail.
     canvas.drawRect(
       body,
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
-        ..color = _venomIron,
+        ..color = iron,
+    );
+    canvas.drawLine(
+      Offset(-w / 2 + 1, -h / 2 - 1),
+      Offset(w / 2 - 1, -h / 2 - 1),
+      Paint()
+        ..strokeWidth = 0.9
+        ..color = rim,
     );
     if (c.tipped) {
       // Gone over. Two legs in the air is all it takes to say "something
       // happened in this room".
+      final leg = Paint()
+        ..strokeWidth = 3
+        ..strokeCap = StrokeCap.round
+        ..color = iron;
       canvas.drawLine(
         Offset(-w / 2, -h / 2),
         Offset(-w / 2 - 12, -h / 2 - 9),
-        Paint()
-          ..strokeWidth = 3
-          ..color = _venomIron,
+        leg,
       );
       canvas.drawLine(
         Offset(w / 2, -h / 2),
         Offset(w / 2 + 12, -h / 2 - 9),
-        Paint()
-          ..strokeWidth = 3
-          ..color = _venomIron,
+        leg,
       );
     } else if (c.stripped) {
       // Stripped to the webbing. LENGTHWISE — rungs across the short way
@@ -4692,7 +4807,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           Offset(w / 2 - 3, i * 8.0),
           Paint()
             ..strokeWidth = 1.6
-            ..color = const Color(0xFF4A4536).withValues(alpha: 0.8),
+            ..color = const Color(0xFF26241C).withValues(alpha: 0.85),
         );
       }
       // CARRYING POLES out past both ends. A bare frame is a frame; a frame
@@ -4706,16 +4821,17 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             Paint()
               ..strokeWidth = 2.6
               ..strokeCap = StrokeCap.round
-              ..color = const Color(0xFF4B4130),
+              ..color = const Color(0xFF1E1A12),
           );
         }
       }
     } else {
+      // The pallet, dark straw, and the sheet thrown back off whoever was
+      // under it — the one paler thing, kept faint.
       canvas.drawRect(
         body.deflate(3),
-        Paint()..color = const Color(0xFF6B6042).withValues(alpha: 0.55),
+        Paint()..color = const Color(0xFF22201A),
       );
-      // The sheet, thrown back off whoever was under it.
       canvas.drawPath(
         Path()
           ..moveTo(-w / 2 + 4, -h / 2 + 4)
@@ -4723,7 +4839,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           ..lineTo(2, h / 2 - 4)
           ..lineTo(-w / 2 + 4, h / 2 - 4)
           ..close(),
-        Paint()..color = _venomBone.withValues(alpha: 0.22),
+        Paint()..color = _venomBone.withValues(alpha: 0.09),
       );
       // A bolster at the head. One pale lozenge is the whole difference
       // between a bed and a crate.
@@ -4733,43 +4849,51 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           width: 13,
           height: h - 9,
         ),
-        Paint()..color = _venomBone.withValues(alpha: 0.3),
+        Paint()..color = _venomBone.withValues(alpha: 0.13),
       );
     }
     // The head-board, so a cot has an end you would put a face at.
     canvas.drawRect(
       Rect.fromLTWH(-w / 2 - 5, -h / 2 - 3, 5, h + 6),
-      Paint()..color = _venomIron,
+      Paint()..color = iron,
+    );
+    canvas.drawLine(
+      Offset(-w / 2 - 5, -h / 2 - 3),
+      Offset(-w / 2, -h / 2 - 3),
+      Paint()
+        ..strokeWidth = 1
+        ..color = rim,
     );
     canvas.restore();
   }
 
   /// A TRESTLE or a stone bench, seen from above with its legs showing past
-  /// the top — the cheapest way to say "this thing stands up".
+  /// the top — the cheapest way to say "this thing stands up". Dark wood,
+  /// lit only along its far edge (2026-10-08; it was a bright brown plank).
   void _monTable(Canvas canvas, Rect r, bool plank) {
     canvas.drawRect(
       r.translate(3, 5),
       Paint()..color = Colors.black.withValues(alpha: 0.35),
     );
     if (plank) {
-      canvas.drawRect(r, Paint()..color = const Color(0xFF473A26));
+      canvas.drawRect(r, Paint()..color = const Color(0xFF1B1710));
       for (var x = r.left + 6; x < r.right - 4; x += 13) {
         canvas.drawLine(
           Offset(x, r.top + 1),
           Offset(x, r.bottom - 1),
           Paint()
             ..strokeWidth = 1
-            ..color = const Color(0xFF2B2317).withValues(alpha: 0.7),
+            ..color = const Color(0xFF0B0907).withValues(alpha: 0.8),
         );
       }
       canvas.drawRect(
-        Rect.fromLTWH(r.left, r.top, r.width, 2),
-        Paint()..color = const Color(0xFF60502F).withValues(alpha: 0.8),
+        Rect.fromLTWH(r.left, r.top, r.width, 1.2),
+        Paint()..color = _kVenomGlass.leadLight.withValues(alpha: 0.16),
       );
       for (final x in [r.left + 8, r.right - 12]) {
         canvas.drawRect(
           Rect.fromLTWH(x, r.bottom, 5, 9),
-          Paint()..color = const Color(0xFF2B2317),
+          Paint()..color = const Color(0xFF0D0B08),
         );
       }
     } else {
@@ -4777,46 +4901,43 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
   }
 
-  /// A CASK of lime, hooped, and never standing quite upright.
+  /// A CASK of lime, hooped, and never standing quite upright: a dark drum,
+  /// carved, with the lime showing pale in its mouth (2026-10-08; it was an
+  /// outlined brown oval).
   void _monCask(Canvas canvas, Offset at, double r) {
+    paintCarvedDisc(
+      canvas,
+      at - Offset(0, r * 0.35),
+      r,
+      r * 0.62,
+      r * 0.7,
+      _kVenomGlass,
+      topColor: const Color(0xFF1C1A13),
+    );
     canvas.drawOval(
       Rect.fromCenter(
-        center: at.translate(3, 5),
-        width: r * 2.1,
-        height: r * 1.5,
+        center: at - Offset(0, r * 0.35),
+        width: r * 1.45,
+        height: r * 0.86,
       ),
-      Paint()..color = Colors.black.withValues(alpha: 0.35),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: at, width: r * 2, height: r * 1.5),
-      Paint()..color = const Color(0xFF3F3423),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: at, width: r * 1.5, height: r * 1.05),
-      Paint()..color = _venomBone.withValues(alpha: 0.16),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: at, width: r * 2, height: r * 1.5),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0xFF5E4E33),
+      Paint()..color = _venomBone.withValues(alpha: 0.07),
     );
   }
 
   /// A LONG BONE. Two knuckles and a shaft: enough, at this size, and it is
-  /// what makes a charnel read as a charnel instead of as a store room.
+  /// what makes a charnel read as a charnel instead of as a store room. Dim
+  /// — old bone in a dark place, not a cartoon one.
   void _monBone(Canvas canvas, Offset at, double a, double len) {
     canvas.save();
     canvas.translate(at.dx, at.dy);
     canvas.rotate(a);
-    final p = Paint()..color = const Color(0xFF7A7159).withValues(alpha: 0.5);
+    final p = Paint()..color = const Color(0xFF4E4A3A).withValues(alpha: 0.42);
     canvas.drawRect(
-      Rect.fromCenter(center: Offset.zero, width: len, height: 3.2),
+      Rect.fromCenter(center: Offset.zero, width: len, height: 2.6),
       p,
     );
-    canvas.drawCircle(Offset(-len / 2, 0), 2.8, p);
-    canvas.drawCircle(Offset(len / 2, 0), 2.8, p);
+    canvas.drawCircle(Offset(-len / 2, 0), 2.3, p);
+    canvas.drawCircle(Offset(len / 2, 0), 2.3, p);
     canvas.restore();
   }
 
@@ -4849,13 +4970,30 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             const [0.0, 0.45, 1.0],
           ),
       );
-      // The flame itself: small, and the only warm thing on the planet.
+      // The flame itself: small, and the only warm thing on the planet — a
+      // tongue of grains licking up off the dish and guttering, over a hot
+      // white heart (2026-10-08; it was a dot).
+      _venomRise(
+        at + const Offset(0, -1),
+        _time,
+        n: 26,
+        rise: 11 * gutter,
+        half: 4.5,
+        spread: 0.8,
+        rate: 1.5,
+        sway: 1.4,
+        ramp: _kVenomFlameRamp,
+        alpha: 0.95,
+        trail: 0.04,
+        seed: at.dx.round() & 0xFF,
+      );
       canvas.drawCircle(
-        at + const Offset(0, -3),
-        3.4 * gutter,
-        Paint()..color = const Color(0xFFF7D890).withValues(alpha: 0.85),
+        at + const Offset(0, -2.5),
+        1.6,
+        Paint()..color = const Color(0xFFFFF4D8).withValues(alpha: 0.9),
       );
     }
+    _venomGrains.paint(canvas);
     canvas.restore();
   }
 
@@ -5263,33 +5401,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     canvas.save();
     canvas.translate(at.dx, at.dy);
     canvas.rotate(sin(_time * 1.4) * 0.10);
-    // Glass, liquid, stopper — small, but a phial and not a dot.
-    final body = RRect.fromRectAndRadius(
-      const Rect.fromLTWH(-6, -9, 12, 20),
-      const Radius.circular(5),
-    );
-    canvas.drawRRect(
-      body,
-      Paint()..color = const Color(0xFF20302C).withValues(alpha: 0.9),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-4.5, -1, 9, 10.5),
-        const Radius.circular(4),
-      ),
-      Paint()..color = tint.withValues(alpha: 0.9),
-    );
-    canvas.drawRect(
-      const Rect.fromLTWH(-3.5, -13, 7, 5),
-      Paint()..color = _venomBronze,
-    );
-    canvas.drawRRect(
-      body,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = _venomBone.withValues(alpha: 0.65),
-    );
+    // Glass, liquid, stopper — small, but a phial and not a dot. Leaded
+    // glass, the same as the house's vessels (2026-10-08).
+    _venomFlask(canvas, tint);
     canvas.restore();
     if (_fx.ready) {
       drawGlow(canvas, _fx.glow!, at, 22, tint.withValues(alpha: 0.28));
@@ -5989,6 +6103,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // It was a circle with a ring round it, which is a token for a censer
       // rather than one — and this is the thing you burn a ward clean with,
       // so it has to look like it could.
+      //
+      // DARK BRONZE AND GRAIN SMOKE (2026-10-08). The bowl was a bright
+      // yellow cup with three black dots punched in it and the smoke grey
+      // puffs — a censer icon. It is a near-black pierced bowl now, its rim
+      // catching the light (warm once the ward is burned clean), and the
+      // smoke is grains: thin and sick-green and wavering while the ward is
+      // live, full and pale once it has been burned through.
       final cen = ward.censer;
       final swing = sin(_time * 1.1 + cen.dx * 0.01) * 3.0;
       final hang = Offset(cen.dx + swing, cen.dy);
@@ -5997,17 +6118,21 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           Offset(cen.dx + dx * 0.35, cen.dy - 54),
           Offset(hang.dx + dx, hang.dy - 10),
           Paint()
-            ..strokeWidth = 1.3
-            ..color = _venomIron.withValues(alpha: 0.9),
+            ..strokeWidth = 1.1
+            ..color = const Color(0xFF1A1D20).withValues(alpha: 0.95),
         );
       }
+      const bronze = Color(0xFF15150F);
+      final rimLit = cured
+          ? _venomBronzeLit.withValues(alpha: 0.75)
+          : _venomBronze.withValues(alpha: 0.4);
       // The bowl, and the lid that makes it a censer and not a cup.
       canvas.drawArc(
         Rect.fromCenter(center: hang, width: 30, height: 26),
         0,
         pi,
         true,
-        Paint()..color = cured ? _venomBronzeLit : _venomBronze,
+        Paint()..color = bronze,
       );
       canvas.drawArc(
         Rect.fromCenter(
@@ -6018,41 +6143,63 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         pi,
         pi,
         true,
-        Paint()
-          ..color = (cured ? _venomBronzeLit : _venomBronze).withValues(
-            alpha: 0.85,
-          ),
+        Paint()..color = const Color(0xFF1C1C14),
       );
-      for (var i = -1; i <= 1; i++) {
-        canvas.drawCircle(
-          hang + Offset(i * 7.0, -7),
-          1.6,
-          Paint()..color = const Color(0xFF11140F),
-        );
-      }
+      // The light along the lid's crown, and the band where the two meet.
+      canvas.drawArc(
+        Rect.fromCenter(
+          center: hang - const Offset(0, 3),
+          width: 26,
+          height: 18,
+        ),
+        pi + 0.45,
+        pi - 0.9,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..strokeCap = StrokeCap.round
+          ..color = rimLit,
+      );
       canvas.drawLine(
         hang + const Offset(-15, -1),
         hang + const Offset(15, -1),
         Paint()
           ..strokeWidth = 2
-          ..color = _venomBone.withValues(alpha: 0.55),
+          ..color = const Color(0xFF0A0B08),
+      );
+      canvas.drawLine(
+        hang + const Offset(-14, 0.4),
+        hang + const Offset(14, 0.4),
+        Paint()
+          ..strokeWidth = 0.9
+          ..color = rimLit,
       );
       // Smoke: sick and thin while the ward is live, clean and full once it
       // has been burned through.
-      if (_fx.ready) {
-        for (var i = 0; i < 4; i++) {
-          final k = ((_time * (cured ? 0.34 : 0.20) + i / 4) % 1.0);
-          drawPuff(
-            canvas,
-            _fx.puff!,
-            hang + Offset(sin(k * 5 + i) * (5 + 9 * k), -12 - 46 * k),
-            10 + 26 * k,
-            (cured ? _venomBone : _venomLive).withValues(
-              alpha: (cured ? 0.16 : 0.10) * (1 - k),
-            ),
-          );
-        }
-      }
+      final smokeAt = hang + const Offset(0, -12);
+      _venomHaze(
+        canvas,
+        smokeAt - const Offset(0, 26),
+        cured ? 40 : 30,
+        cured ? _venomBone : _venomLive,
+        cured ? 0.07 : 0.05,
+      );
+      _venomRise(
+        smokeAt,
+        _time,
+        n: cured ? 300 : 170,
+        rise: cured ? 82 : 62,
+        half: 3,
+        spread: cured ? 28 : 17,
+        rate: cured ? 0.2 : 0.13,
+        sway: cured ? 6 : 10,
+        ramp: cured ? _kVenomBoneRamp : _kVenomSickRamp,
+        alpha: cured ? 0.5 : 0.4,
+        trail: 0.14,
+        seed: ward.id.length * 37,
+      );
+      _venomGrains.paint(canvas);
       // The sacristy: a small door, sealed until the ward is clean.
       final taken = t.sacristiesTaken.contains(ward.id);
       // THE SACRISTY: an arched cupboard set in the wall, iron-banded and
@@ -6080,22 +6227,41 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if (!cured) {
         // BARRED. Iron across the mouth, and it is the bars that say "not
         // yet" rather than a colour you have to have seen before.
+        // Dark iron, lit along the top of each bar.
         for (var i = 0; i < 3; i++) {
+          final y = sr.top + 16 + i * 12.0;
           canvas.drawLine(
-            Offset(sr.left + 3, sr.top + 16 + i * 12.0),
-            Offset(sr.right - 3, sr.top + 16 + i * 12.0),
+            Offset(sr.left + 3, y),
+            Offset(sr.right - 3, y),
             Paint()
               ..strokeWidth = 3.4
               ..strokeCap = StrokeCap.round
-              ..color = _venomIron,
+              ..color = const Color(0xFF16191C),
+          );
+          canvas.drawLine(
+            Offset(sr.left + 4, y - 1.2),
+            Offset(sr.right - 4, y - 1.2),
+            Paint()
+              ..strokeWidth = 0.9
+              ..strokeCap = StrokeCap.round
+              ..color = _kVenomGlass.leadLight.withValues(alpha: 0.2),
           );
         }
       } else if (!taken) {
-        // Open, and there is something in it.
-        canvas.drawCircle(
+        // Open, and there is something in it: a rondel of pale glass,
+        // because it is a thing you take (it was a flat bone-white disc).
+        paintRondel(
+          canvas,
           sr.center + const Offset(0, 4),
-          8,
-          Paint()..color = _venomBone.withValues(alpha: 0.9),
+          7,
+          _kVenomGlass,
+          fill: Color.lerp(_kVenomGlass.silver, _venomBone, 0.4),
+          lead: 2,
+        );
+        paintStreak(
+          canvas,
+          Rect.fromCircle(center: sr.center + const Offset(0, 4), radius: 5),
+          opacity: 0.6,
         );
         if (_fx.ready) {
           drawGlow(
@@ -6107,12 +6273,15 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           );
         }
       }
-      canvas.drawPath(
+      // Its arch in lead, the gold along it only once it will open — it was
+      // a bronze outline drawn round the hole.
+      paintLead(
+        canvas,
         arch,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _venomBronze.withValues(alpha: cured ? 0.9 : 0.55),
+        _kVenomGlass,
+        width: 2.4,
+        light: cured ? _kVenomGlass.gold : null,
+        opacity: cured ? 1 : 0.8,
       );
       if (ward.id == kCryptWard) {
         _renderOubliette(canvas, ward);
@@ -6176,6 +6345,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // TALL ON PURPOSE. At its old height the whole cross sat behind the
       // creature standing at it — the one fixture on the planet that has to
       // be legible from the moment it lights, and the party was wearing it.
+      //
+      // KEPT AS IT WAS in the 2026-10-08 props pass: cut as dark stone with
+      // its state only in the light along its edges, it all but vanished in
+      // the ready and lit states — and this is the fixture that has to read
+      // from the moment it lights.
       canvas.drawLine(sp + const Offset(0, -66), sp + const Offset(0, 26), p);
       canvas.drawLine(
         sp + const Offset(-24, -40),
@@ -6190,23 +6364,58 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           ..color = Colors.white.withValues(alpha: ready ? 0.22 : 0.10),
       );
 
-      // THE CROSS TAKING LIGHT: rings off it, once, as the third goes home.
+      // THE CROSS TAKING LIGHT, once, as the third goes home: the light
+      // going out from it as a front of pale grains that drift and thin as
+      // they spread (it was three stroked shock rings).
       if (monastery.crossLight > 0) {
         final k = 1 - monastery.crossLight;
         for (var i = 0; i < 3; i++) {
-          final r = ((k * 1.4) - i * 0.18).clamp(0.0, 1.0);
-          if (r <= 0) continue;
+          final r = Curves.easeOutCubic.transform(
+            ((k * 1.4) - i * 0.18).clamp(0.0, 1.0),
+          );
+          if (r <= 0 || r >= 1) continue;
+          final rad = 30 + 170 * r;
+          const n = 90;
+          final o = sp + const Offset(0, -20);
+          // A soft band of light under the front (a radial fall-off, no
+          // stroke), so it reads as one going-out rather than as dust.
+          canvas.save();
+          canvas.translate(o.dx, o.dy);
+          canvas.scale(1, 0.8);
           canvas.drawCircle(
-            sp + const Offset(0, -20),
-            30 + 170 * r,
+            Offset.zero,
+            rad + 10,
             Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 7 * (1 - r)
-              ..color = const Color(
-                0xFFF2E7A8,
-              ).withValues(alpha: 0.5 * (1 - r)),
+              ..shader = ui.Gradient.radial(
+                Offset.zero,
+                rad + 10,
+                [
+                  const Color(0x00F2E7A8),
+                  const Color(0xFFF2E7A8).withValues(alpha: 0.16 * (1 - r)),
+                  const Color(0x00F2E7A8),
+                ],
+                [0.0, rad / (rad + 10) - 0.06, 1.0],
+              ),
+          );
+          canvas.restore();
+          _venomAlong(
+            [
+              for (var j = 0; j < n; j++)
+                sp +
+                    const Offset(0, -20) +
+                    Offset(cos(j / n * 2 * pi), sin(j / n * 2 * pi) * 0.8) *
+                        rad *
+                        (1 + 0.05 * sin(j * 1.9 + i)),
+            ],
+            _time,
+            color: const Color(0xFFF2E7A8),
+            per: 3,
+            drift: 1.5 + 3 * r,
+            alpha: min(1.0, 1.3 * (1 - r)),
+            seed: 70 + i,
           );
         }
+        _venomGrains.paint(canvas);
       }
       if ((lit || ready) && _fx.ready) {
         final pulse = 0.5 + 0.5 * sin(_time * 2.2);
@@ -6242,55 +6451,83 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final k = m.wispCircle.clamp(0.0, 1.0);
       final a = k * 2 * pi * 2 - pi / 2;
       at = seal.position + Offset(cos(a), sin(a) * 0.55) * 54;
-      // The ring it is drawing round the cross.
-      canvas.drawArc(
-        Rect.fromCenter(center: seal.position, width: 108, height: 60),
-        -pi / 2,
-        2 * pi * k,
-        false,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = col.withValues(alpha: 0.7),
+      // The ring it is drawing round the cross: a wake of its own grains,
+      // left hanging where it has been (it was a stroked arc).
+      final steps = max(1, (90 * k).round());
+      _venomAlong(
+        [
+          for (var j = 0; j <= steps; j++)
+            seal.position +
+                Offset(
+                      cos(-pi / 2 + 2 * pi * 2 * k * j / steps),
+                      sin(-pi / 2 + 2 * pi * 2 * k * j / steps) * 0.55,
+                    ) *
+                    54,
+        ],
+        m.clock,
+        color: col,
+        per: 2,
+        drift: 2.5,
+        alpha: 0.75,
+        seed: 5,
       );
     } else if (m.wispNudge > 0 && seal != null) {
       // Just shoved: a fading streak behind it, pointing the way it went.
       final back = at - seal.position;
       final d = back.distance;
       if (d > 1) {
-        canvas.drawLine(
-          at + (back / d) * 46 * m.wispNudge,
-          at,
-          Paint()
-            ..strokeWidth = 4 * m.wispNudge
-            ..strokeCap = StrokeCap.round
-            ..color = col.withValues(alpha: 0.45 * m.wispNudge),
+        // Its grains strung out behind it the way it went (it was a line).
+        final from = at + (back / d) * 46 * m.wispNudge;
+        _venomAlong(
+          [for (var j = 0; j <= 18; j++) Offset.lerp(at, from, j / 18)!],
+          m.clock,
+          color: col,
+          per: 3,
+          drift: 1.5 + 3 * (1 - m.wispNudge),
+          alpha: 0.6 * m.wispNudge,
+          seed: 6,
         );
       }
     }
 
     // Bobbing where it was left.
+    //
+    // A WISP OF GRAINS (2026-10-08): a knot of its colour turning about a
+    // bright heart over a soft haze, breathing with its beat, and shedding
+    // grains up off it because it is sick. It was three stacked discs and
+    // four dots.
     at = Offset(at.dx, at.dy + sin(m.clock * 1.9) * 3);
-    canvas.drawCircle(
+    _venomHaze(canvas, at, 26 + 4 * beat, col, 0.16);
+    final ramp = grainRampFrom(col);
+    _venomChurn(
       at,
-      18 + 4 * beat,
-      Paint()..color = col.withValues(alpha: 0.16),
+      12 + 3 * beat,
+      11 + 3 * beat,
+      m.clock,
+      n: 150,
+      ramp: ramp,
+      inner: 0.1,
+      spin: 1.6,
+      bob: 1.5,
+      trail: 0.06,
+      glint: 0.02,
+      seed: 9,
     );
-    canvas.drawCircle(
-      at,
-      10 + 2 * beat,
-      Paint()..color = col.withValues(alpha: 0.42),
+    _venomRise(
+      at - const Offset(0, 4),
+      m.clock,
+      n: 40,
+      rise: 30,
+      half: 7,
+      spread: 12,
+      rate: 0.45,
+      sway: 4,
+      ramp: ramp,
+      alpha: 0.6,
+      seed: 10,
     );
-    canvas.drawCircle(at, 5.5, Paint()..color = col);
-    // Sick: a few motes shedding off it.
-    for (var i = 0; i < 4; i++) {
-      final k = ((m.clock * 0.5 + i * 0.25) % 1.0);
-      canvas.drawCircle(
-        at + Offset(sin(i * 2.1 + m.clock) * 8, -6 - 18 * k),
-        1.8 * (1 - k),
-        Paint()..color = col.withValues(alpha: 0.5 * (1 - k)),
-      );
-    }
+    _venomGrains.paint(canvas);
+    canvas.drawCircle(at, 3.2, Paint()..color = ramp[2]);
     if (_fx.ready) {
       drawGlow(canvas, _fx.glow!, at, 34, col.withValues(alpha: 0.24));
     }
@@ -6326,25 +6563,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     canvas.save();
     canvas.translate(at.dx, at.dy);
     canvas.rotate(0.02);
+    // A SLAB OF THE HOUSE'S OWN STONE (2026-10-08), dark and carved, lit
+    // along its arris — it was a brown plank with a bronze outline, which
+    // read as a parchment notice pinned up. Answered, it goes dimmer.
     final plank = Rect.fromCenter(center: Offset.zero, width: w, height: h);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(plank, const Radius.circular(3)),
-      Paint()..color = const Color(0xFF2A2419),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(plank, const Radius.circular(3)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = _venomBronze.withValues(alpha: done ? 0.35 : 0.9),
-    );
-    // A rule under the title, so the name and the riddle are two things.
-    canvas.drawLine(
+    _venomSlab(canvas, plank, dim: done);
+    // A rule cut under the title, so the name and the riddle are two things.
+    _venomGroove(
+      canvas,
       Offset(-w / 2 + 10, -h / 2 + 19),
       Offset(w / 2 - 10, -h / 2 + 19),
-      Paint()
-        ..strokeWidth = 1
-        ..color = _venomBronze.withValues(alpha: 0.4),
     );
     canvas.restore();
 
@@ -6418,12 +6646,16 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       Rect.fromCenter(center: at + const Offset(0, 30), width: 132, height: 46),
       Paint()..color = const Color(0xFF191C17),
     );
-    canvas.drawOval(
+    // The kerb's near arris, where the light lands (it was a bronze ring).
+    canvas.drawArc(
       Rect.fromCenter(center: at + const Offset(0, 30), width: 132, height: 46),
+      0.25,
+      pi - 0.5,
+      false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = _venomBronze.withValues(alpha: 0.35),
+        ..strokeWidth = 1.2
+        ..color = _kVenomGlass.leadLight.withValues(alpha: 0.14),
     );
     _stoneBlock(
       canvas,
@@ -6439,27 +6671,41 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // What is standing in it: sick green until the vial goes in, then clear.
     final water = done ? const Color(0xFFD8F0E4) : _venomSick;
     _drawFontGlass(canvas, bowl.deflate(9), water, done);
-    for (var i = 0; i < 2; i++) {
-      final k = ((_time * 0.4 + i * 0.5) % 1.0);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: at,
-          width: (bowl.width - 18) * (0.25 + 0.7 * k),
-          height: (bowl.height - 18) * (0.25 + 0.7 * k),
-        ),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = water.withValues(alpha: 0.26 * (1 - k)),
-      );
-    }
+    // The water turning slowly over the glass, in grains of its own colour
+    // (it was two stroked rings spreading across it).
+    _venomChurn(
+      at,
+      (bowl.width - 22) / 2,
+      (bowl.height - 22) / 2,
+      _time,
+      n: 90,
+      ramp: grainRampFrom(water),
+      spin: 0.35,
+      alpha: done ? 0.7 : 0.55,
+      trail: 0.14,
+      seed: 21,
+    );
+    _venomGrains.paint(canvas);
+    // The rim: a band of dark stone, lit along its near edge — warm once
+    // the seals are open. It was a bronze ellipse drawn round the bowl.
     canvas.drawOval(
       bowl,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = (done ? _venomBronzeLit : _venomBronze).withValues(
-          alpha: 0.95,
+        ..strokeWidth = 2.6
+        ..color = const Color(0xFF0E110D),
+    );
+    canvas.drawArc(
+      bowl.inflate(0.8),
+      0.2,
+      pi - 0.4,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..strokeCap = StrokeCap.round
+        ..color = (done ? _venomBronzeLit : _kVenomGlass.leadLight).withValues(
+          alpha: done ? 0.7 : 0.26,
         ),
     );
 
@@ -6480,17 +6726,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       width: w + 20,
       height: 12.0 + 15.0 * lines.length,
     );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(plate, const Radius.circular(3)),
-      Paint()..color = const Color(0xFF2A2419),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(plate, const Radius.circular(3)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = _venomBronze.withValues(alpha: 0.9),
-    );
+    _venomSlab(canvas, plate);
     for (var i = 0; i < lines.length; i++) {
       _drawTinyLabel(canvas, Offset(at.dx, plate.top + 3 + 15.0 * i), lines[i]);
     }
@@ -6508,23 +6744,37 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
 
     // THE POUR, and the seals letting go all down the corridor.
+    //
+    // GRAINS, NOT RINGS (2026-10-08): the clean water goes out across the
+    // floor as a front of pale grains that loosen and drift as it spreads
+    // and are gone by the walls — it was three stroked hoops.
     if (m.lustral > 0) {
       final k = 1 - m.lustral;
       for (var i = 0; i < 3; i++) {
-        final r = ((k * 1.5) - i * 0.2).clamp(0.0, 1.0);
-        if (r <= 0) continue;
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: at,
-            width: 40 + 700 * r,
-            height: 16 + 200 * r,
-          ),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 6 * (1 - r)
-            ..color = const Color(0xFFD8F0E4).withValues(alpha: 0.42 * (1 - r)),
+        final r = Curves.easeOutCubic.transform(
+          ((k * 1.5) - i * 0.2).clamp(0.0, 1.0),
+        );
+        if (r <= 0 || r >= 1) continue;
+        final rx = 20 + 350 * r, ry = 8 + 100 * r;
+        const n = 120;
+        _venomAlong(
+          [
+            for (var j = 0; j < n; j++)
+              at +
+                  Offset(
+                    cos(j / n * 2 * pi) * rx * (1 + 0.06 * sin(j * 1.7 + i)),
+                    sin(j / n * 2 * pi) * ry * (1 + 0.06 * sin(j * 2.3 + i)),
+                  ),
+          ],
+          _time,
+          color: const Color(0xFFD8F0E4),
+          per: 3,
+          drift: 2 + 4 * r,
+          alpha: min(1.0, 1.2 * (1 - r)),
+          seed: 40 + i,
         );
       }
+      _venomGrains.paint(canvas);
     }
   }
 
@@ -7015,17 +7265,21 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         // Poured on a sleeper it simply runs off — a wash and a shrug, so
         // the wrong-bottle complication reads as "nothing happened" on
         // purpose.
-        for (var i = 0; i < 10; i++) {
-          final t = ((f * 1.4 + i * 0.1) % 1.0);
-          canvas.drawCircle(
-            at + Offset((i * 9.1) % 56 - 28, 6 + 34 * t),
-            2.2 * (1 - t),
-            Paint()
-              ..color = const Color(
-                0xFFD8F0E4,
-              ).withValues(alpha: 0.55 * (1 - t)),
+        // In grains, running off and down (they were round drops).
+        for (var i = 0; i < 40; i++) {
+          final h = _venomHash(i * 17 + 3);
+          final t = ((f * 1.4 + h) % 1.0);
+          final p = at + Offset(56 * _venomHash(i * 5 + 1) - 28, 6 + 34 * t);
+          _venomGrains.add(
+            p.dx,
+            p.dy - 2.5,
+            p.dx,
+            p.dy,
+            const Color(0xFFD8F0E4),
+            alpha: 0.6 * (1 - t),
           );
         }
+        _venomGrains.paint(canvas);
       case CauldronReaction.bloom:
         // FLOWERS. Stems shoot off the heart, open, and shed spores.
         for (var i = 0; i < 9; i++) {
@@ -7041,31 +7295,43 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
                 0xFF2E8B4A,
               ).withValues(alpha: 0.85 * (1 - f * 0.4)),
           );
+          // Each head opens as a knot of its brew's grains (they were
+          // five-circle daisies).
           final open = ((f - 0.35) / 0.65).clamp(0.0, 1.0);
           if (open <= 0) continue;
-          for (var pet = 0; pet < 5; pet++) {
-            final pa = (pet / 5) * 2 * pi + ang;
-            canvas.drawCircle(
-              tip + Offset(cos(pa), sin(pa)) * 4.2 * open,
-              3.0 * open,
-              Paint()..color = col.withValues(alpha: 0.9 * (1 - f * 0.3)),
-            );
-          }
-        }
-        for (var i = 0; i < 20; i++) {
-          final sp = ((f * 1.4 + i * 0.07) % 1.0);
-          final ang = i * 2.399;
-          canvas.drawCircle(
-            at +
-                Offset(cos(ang), sin(ang) * 0.7) * (24 + 70 * sp) -
-                Offset(0, 46 * sp),
-            1.8 * (1 - sp),
-            Paint()
-              ..color = const Color(
-                0xFFDCEB9A,
-              ).withValues(alpha: 0.7 * (1 - sp)),
+          _venomChurn(
+            tip,
+            6.5 * open,
+            5.5 * open,
+            _time,
+            n: 20,
+            ramp: grainRampFrom(col),
+            spin: 1.4,
+            alpha: 1 - f * 0.3,
+            glint: 0.05,
+            seed: 110 + i,
           );
         }
+        // Spores shed outward and up, as grains.
+        for (var i = 0; i < 70; i++) {
+          final h = _venomHash(i * 23 + 9);
+          final sp = ((f * 1.4 + h) % 1.0);
+          final ang = i * 2.399;
+          Offset where(double s) =>
+              at +
+              Offset(cos(ang), sin(ang) * 0.7) * (24 + 70 * s) -
+              Offset(0, 46 * s);
+          final p = where(sp), q = where(max(0.0, sp - 0.03));
+          _venomGrains.add(
+            q.dx,
+            q.dy,
+            p.dx,
+            p.dy,
+            const Color(0xFFDCEB9A),
+            alpha: 0.75 * (1 - sp),
+          );
+        }
+        _venomGrains.paint(canvas);
       case CauldronReaction.climb:
         // BLACK, AND CLIMBING THE PLAGUE. Bands sheeting up over the heart,
         // each with a lit edge so the shape survives a dark room.
@@ -7101,17 +7367,20 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
               ).withValues(alpha: 0.7 - 0.11 * i),
           );
         }
-        for (var i = 0; i < 12; i++) {
-          final t = ((f * 1.2 + i * 0.083) % 1.0);
-          canvas.drawCircle(
-            Offset(at.dx - 22 + (i * 4.1) % 44, at.dy + 20 - 68 * t),
-            1.6 + 1.4 * (1 - t),
-            Paint()
-              ..color = const Color(
-                0xFF9A79B8,
-              ).withValues(alpha: 0.6 * (1 - t)),
-          );
-        }
+        _venomRise(
+          at + const Offset(0, 20),
+          _time,
+          n: 50,
+          rise: 68,
+          half: 22,
+          spread: 26,
+          rate: 0.55,
+          sway: 3,
+          ramp: grainRampFrom(const Color(0xFF9A79B8)),
+          alpha: 0.7,
+          seed: 120,
+        );
+        _venomGrains.paint(canvas);
       case CauldronReaction.rot:
         // ROOTS UP, THEN GONE. They thread out and blacken behind themselves.
         for (var i = 0; i < 7; i++) {
@@ -7143,17 +7412,22 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
               )!.withValues(alpha: 0.9 - 0.55 * decay),
           );
         }
-        for (var i = 0; i < 14; i++) {
-          final t = (((f - 0.45) / 0.55).clamp(0.0, 1.0) + i * 0.06) % 1.0;
-          if (f < 0.45) break;
-          canvas.drawCircle(
-            at + Offset((i * 7.3) % 60 - 30, 10 + 30 * t),
-            1.7 * (1 - t),
-            Paint()
-              ..color = const Color(
-                0xFF3A2E1E,
-              ).withValues(alpha: 0.7 * (1 - t)),
-          );
+        if (f >= 0.45) {
+          // What rots off falls as grains.
+          for (var i = 0; i < 44; i++) {
+            final h = _venomHash(i * 29 + 4);
+            final t = (((f - 0.45) / 0.55) + h) % 1.0;
+            final p = at + Offset(60 * _venomHash(i * 3 + 2) - 30, 10 + 30 * t);
+            _venomGrains.add(
+              p.dx,
+              p.dy - 2,
+              p.dx,
+              p.dy,
+              i.isEven ? const Color(0xFF3A2E1E) : const Color(0xFF5A4A2C),
+              alpha: 0.75 * (1 - t),
+            );
+          }
+          _venomGrains.paint(canvas);
         }
     }
   }
@@ -7172,7 +7446,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final p = brewById(relic);
       if (p == null) return;
       final col = _brewColour(p);
-      canvas.drawCircle(at, 13, Paint()..color = col.withValues(alpha: 0.18));
+      _venomHaze(canvas, at, 18, col, 0.2);
+      // A reliquary: a little gabled case of smoked glass in lead with the
+      // brew's rondel in its heart (2026-10-08; it was a bronze-outlined
+      // house with a dot in it).
       final body = Path()
         ..moveTo(at.dx - 8, at.dy + 8)
         ..lineTo(at.dx - 8, at.dy - 2)
@@ -7180,15 +7457,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         ..lineTo(at.dx + 8, at.dy - 2)
         ..lineTo(at.dx + 8, at.dy + 8)
         ..close();
-      canvas.drawPath(body, Paint()..color = const Color(0xFF1B1E1A));
-      canvas.drawPath(
-        body,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = _venomBronzeLit,
-      );
-      canvas.drawCircle(at, 3.4, Paint()..color = col);
+      paintPane(canvas, body, _kVenomGlass.frostAt(1), _kVenomGlass, lead: 2);
+      paintRondel(canvas, at, 3.6, _kVenomGlass, fill: col, lead: 1.4);
       return;
     }
     final p = brewById(held);
@@ -7197,24 +7467,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     canvas.save();
     canvas.translate(at.dx, at.dy);
     canvas.rotate(sin(_time * 1.4) * 0.10);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-6.5, -9, 13, 21),
-        const Radius.circular(5),
-      ),
-      Paint()..color = const Color(0xFF20302C).withValues(alpha: 0.92),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        const Rect.fromLTWH(-5, -2, 10, 13),
-        const Radius.circular(4),
-      ),
-      Paint()..color = col.withValues(alpha: 0.92),
-    );
-    canvas.drawRect(
-      const Rect.fromLTWH(-3.5, -13, 7, 5),
-      Paint()..color = _venomBronze,
-    );
+    _venomFlask(canvas, col);
     canvas.restore();
   }
 
@@ -7239,16 +7492,17 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final b = room.bounds;
     final y = b.top + 78;
     final els = kPotionIngredientEffect.keys.toList();
-    // The rack, running under all three.
+    // The rack, running under all three: a ledge of dark carved stone (it
+    // was a brown rail with a bronze line along it).
     final x0 = b.center.dx - 250;
     final x1 = b.center.dx + 250;
-    canvas.drawRect(
-      Rect.fromLTWH(x0, y + 26, x1 - x0, 7),
-      Paint()..color = const Color(0xFF2A2419),
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(x0, y + 26, x1 - x0, 2),
-      Paint()..color = _venomBronze.withValues(alpha: 0.55),
+    paintCarvedBlock(
+      canvas,
+      Rect.fromLTWH(x0, y + 22, x1 - x0, 5),
+      4,
+      _kVenomGlass,
+      radius: 2,
+      topColor: _kVenomCarvedTop,
     );
     for (var i = 0; i < els.length; i++) {
       final el = els[i];
@@ -7259,40 +7513,64 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // A stoppered jar, filled to the level of what the house has left in
       // hands rather than in glass: two gives per alchemon, and the jar
       // empties as they are spent.
+      //
+      // LEADED GLASS (2026-10-08): the jar is dark glass in lead, and what
+      // is left in it is a pane of the element's colour up to its level,
+      // the lead running across at the line. It was an outlined cartoon jar
+      // with a bright bronze lid.
       final jar = Rect.fromCenter(center: at, width: 26, height: 34);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(jar, const Radius.circular(4)),
-        Paint()..color = const Color(0xFF0B0F0B),
-      );
+      final glass = Path()
+        ..addRRect(RRect.fromRectAndRadius(jar, const Radius.circular(7)));
+      paintPaneFill(canvas, glass, _kVenomGlass.frostAt(i));
       final fill = (1.0 - spent).clamp(0.0, 1.0);
       if (fill > 0) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(
-              jar.left + 2,
-              jar.bottom - 2 - (jar.height - 4) * fill,
-              jar.width - 4,
-              (jar.height - 4) * fill,
-            ),
-            const Radius.circular(3),
-          ),
-          Paint()..color = col.withValues(alpha: 0.85),
+        final level = jar.bottom - jar.height * fill;
+        canvas.save();
+        canvas.clipPath(glass);
+        canvas.drawRect(
+          Rect.fromLTRB(jar.left, level, jar.right, jar.bottom),
+          Paint()..color = Color.lerp(col, _kVenomGlass.liveCore, 0.1)!,
         );
+        canvas.drawRect(
+          Rect.fromLTRB(
+            jar.left,
+            level + jar.height * fill * 0.55,
+            jar.right,
+            jar.bottom,
+          ),
+          Paint()..color = Colors.black.withValues(alpha: 0.22),
+        );
+        canvas.restore();
+        if (fill < 1) {
+          paintLead(
+            canvas,
+            Path()
+              ..moveTo(jar.left + 1, level)
+              ..lineTo(jar.right - 1, level),
+            _kVenomGlass,
+            width: 1.4,
+          );
+        }
+        paintStreak(canvas, jar.deflate(4), opacity: 0.4);
       }
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(jar, const Radius.circular(4)),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = _venomBronze.withValues(alpha: fill > 0 ? 0.9 : 0.4),
+      paintLead(
+        canvas,
+        glass,
+        _kVenomGlass,
+        width: 2,
+        opacity: fill > 0 ? 1 : 0.6,
       );
-      canvas.drawRect(
-        Rect.fromCenter(
-          center: Offset(at.dx, jar.top - 3),
-          width: 12,
-          height: 6,
+      // The stopper: a dark plug.
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(at.dx, jar.top - 3),
+            width: 12,
+            height: 6,
+          ),
+          const Radius.circular(2),
         ),
-        Paint()..color = _venomBronzeLit.withValues(alpha: 0.85),
+        Paint()..color = const Color(0xFF15130E),
       );
       // THE JAR IS NAMED AND NOTHING ELSE. It carried its verb underneath —
       // SICKENS, GROWS, SLOWS — which made the shelf a lookup table and the
@@ -7325,38 +7603,56 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// flask until a hand carries it out.
   void _renderCauldron(Canvas canvas, Offset c) {
     final m = monastery;
-    // The fire under it.
+    // THE FIRE under it: a bed of embers stirring, in grains, over the dark
+    // of the coals and a low warm haze (2026-10-08; it was seven orange dots).
     final coals = Rect.fromCenter(
       center: Offset(c.dx, c.dy + 27),
       width: 62,
       height: 16,
     );
-    canvas.drawOval(coals, Paint()..color = const Color(0xFF160C08));
-    for (var i = 0; i < 7; i++) {
-      final f = (i * 0.1737 + _time * 0.21) % 1.0;
-      final x = coals.left + 7 + (coals.width - 14) * ((i * 0.19 + 0.11) % 1.0);
-      canvas.drawCircle(
-        Offset(x, coals.center.dy + sin(_time * 2.4 + i) * 1.4),
-        2.2 + 1.1 * sin(_time * 3.1 + i * 1.7),
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFFB4451C),
-            const Color(0xFFF2A63A),
-            f,
-          )!.withValues(alpha: 0.72),
-      );
-    }
-    // Three iron legs.
+    canvas.drawOval(coals, Paint()..color = const Color(0xFF0C0806));
+    _venomHaze(canvas, coals.center, 44, const Color(0xFFE07A2A), 0.10);
+    _venomChurn(
+      coals.center,
+      28,
+      6.5,
+      _time,
+      n: 64,
+      ramp: _kVenomEmberRamp,
+      spin: 0.16,
+      bob: 1.8,
+      alpha: 0.85,
+      glint: 0.06,
+      seed: 3,
+    );
+    // Sparks lifting off it, lost behind the belly.
+    _venomRise(
+      coals.center,
+      _time,
+      n: 24,
+      rise: 24,
+      half: 24,
+      spread: 28,
+      rate: 0.55,
+      sway: 3,
+      ramp: _kVenomEmberRamp,
+      alpha: 0.7,
+      seed: 4,
+    );
+    _venomGrains.paint(canvas);
+    // Three iron legs, dark.
     for (final dx in const [-19.0, 0.0, 19.0]) {
       canvas.drawLine(
         Offset(c.dx + dx * 0.72, c.dy + 14),
         Offset(c.dx + dx, c.dy + 27),
         Paint()
           ..strokeWidth = 3.4
-          ..color = _venomIron,
+          ..color = const Color(0xFF121416),
       );
     }
-    // The belly: wider at the shoulder than the foot.
+    // The belly: wider at the shoulder than the foot. Near-black iron, lit
+    // only where the fire catches its underside and the room its shoulder —
+    // no outline (it had a 2px iron stroke all round, which is a cartoon).
     final belly = Path()
       ..moveTo(c.dx - 36, c.dy - 12)
       ..cubicTo(c.dx - 40, c.dy + 16, c.dx - 22, c.dy + 22, c.dx, c.dy + 22)
@@ -7369,14 +7665,42 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         c.dy - 12,
       )
       ..close();
-    canvas.drawPath(belly, Paint()..color = const Color(0xFF1B1E1A));
+    canvas.drawPath(belly, Paint()..color = const Color(0xFF0C0E0B));
+    final under = Path()
+      ..moveTo(c.dx - 30, c.dy + 14)
+      ..cubicTo(
+        c.dx - 20,
+        c.dy + 21,
+        c.dx + 20,
+        c.dy + 21,
+        c.dx + 30,
+        c.dy + 14,
+      );
     canvas.drawPath(
-      belly,
+      under,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = _venomIron,
+        ..strokeWidth = 1.6
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFE07A2A).withValues(alpha: 0.38),
     );
+    for (final s in const [-1.0, 1.0]) {
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.dx + s * 35.5, c.dy - 9)
+          ..quadraticBezierTo(
+            c.dx + s * 38.5,
+            c.dy + 2,
+            c.dx + s * 33,
+            c.dy + 12,
+          ),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..strokeCap = StrokeCap.round
+          ..color = _kVenomGlass.leadLight.withValues(alpha: 0.16),
+      );
+    }
 
     // What is in it. Empty pot reads dark; each ingredient tints and raises.
     final pot = m.pot;
@@ -7385,7 +7709,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       width: 72,
       height: 20,
     );
-    canvas.drawOval(mouth, Paint()..color = const Color(0xFF090C09));
+    canvas.drawOval(mouth, Paint()..color = const Color(0xFF050705));
     if (pot.isNotEmpty) {
       Color brew = _elementBrewColour(pot.first);
       for (var i = 1; i < pot.length; i++) {
@@ -7397,41 +7721,62 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         width: mouth.width - 8,
         height: mouth.height - 6,
       );
-      canvas.drawOval(surf, Paint()..color = brew.withValues(alpha: 0.9));
-      // Roll: two rings turning over, so a full pot is never still.
-      for (var i = 0; i < 2; i++) {
-        final k = ((_time * 0.55 + i * 0.5) % 1.0);
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: surf.center,
-            width: surf.width * (0.2 + 0.72 * k),
-            height: surf.height * (0.2 + 0.72 * k),
-          ),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5
-            ..color = Colors.white.withValues(alpha: 0.20 * (1 - k)),
-        );
-      }
-      // Steam off a working pot.
-      for (var i = 0; i < 3 + pot.length; i++) {
-        final k = ((_time * 0.34 + i * 0.29) % 1.0);
-        canvas.drawCircle(
-          Offset(
-            c.dx + sin(_time * 0.9 + i * 2.1) * (5 + 9 * k),
-            c.dy - 18 - 34 * k,
-          ),
-          2.4 + 5.0 * k,
-          Paint()..color = brew.withValues(alpha: 0.20 * (1 - k)),
-        );
-      }
+      // The brew: its body dark in its own colour, and the roll on it in
+      // grains — turning over and simmering, so a full pot is never still.
+      // It was a flat disc with two stroked rings expanding across it.
+      canvas.drawOval(
+        surf,
+        Paint()..color = Color.lerp(brew, Colors.black, 0.5)!,
+      );
+      final ramp = grainRampFrom(brew);
+      _venomChurn(
+        surf.center,
+        surf.width / 2 - 2,
+        surf.height / 2 - 1.5,
+        _time,
+        n: 110 + 40 * pot.length,
+        ramp: ramp,
+        spin: 0.7,
+        bob: 1.4,
+        glint: 0.012,
+        seed: 7,
+      );
+      // Vapour off a working pot.
+      _venomHaze(canvas, surf.center - const Offset(0, 16), 40, brew, 0.07);
+      _venomRise(
+        surf.center - const Offset(0, 2),
+        _time,
+        n: 34 + 18 * pot.length,
+        rise: 46,
+        half: 18,
+        spread: 26,
+        rate: 0.17,
+        sway: 6,
+        ramp: grainRampFrom(Color.lerp(brew, _venomBone, 0.35)!),
+        alpha: 0.42,
+        seed: 8,
+      );
+      _venomGrains.paint(canvas);
     }
+    // The lip: a dark band of iron with the room's light along its near
+    // edge — it was a bright bronze ring drawn round the mouth.
     canvas.drawOval(
       mouth,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = _venomBronze,
+        ..strokeWidth = 3.2
+        ..color = const Color(0xFF151815),
+    );
+    canvas.drawArc(
+      mouth.inflate(1),
+      0.2,
+      pi - 0.4,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..strokeCap = StrokeCap.round
+        ..color = _kVenomGlass.leadLight.withValues(alpha: 0.30),
     );
 
     // THE REACTION. Three pairs, three unmistakably different things — this
@@ -7444,14 +7789,20 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // THE BOTTLES, on their own bench along from the pot. They stand empty
     // from the moment you walk in, which is how the room states its own
     // shape without a word: four vessels, and you can count them.
+    //
+    // LEADED GLASS (2026-10-08). The house's vessels are the one thing in
+    // the laboratory you act on, so they are glass in lead on a carved bench
+    // — a full one is a pane of its brew's colour, an empty one dark glass,
+    // a spent one smoked. They were outlined cartoon jars with a stroked
+    // ring pulsing round the full ones.
     final bench = c + const Offset(200, 0);
-    canvas.drawRect(
-      Rect.fromLTWH(bench.dx - 78, bench.dy + 13, 156, 7),
-      Paint()..color = const Color(0xFF2A2419),
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(bench.dx - 78, bench.dy + 13, 156, 2),
-      Paint()..color = _venomBronze.withValues(alpha: 0.55),
+    paintCarvedBlock(
+      canvas,
+      Rect.fromLTWH(bench.dx - 80, bench.dy + 12, 160, 6),
+      6,
+      _kVenomGlass,
+      radius: 2,
+      topColor: _kVenomCarvedTop,
     );
     for (var i = 0; i < kAllBrews.length; i++) {
       final potion = kAllBrews[i];
@@ -7461,46 +7812,60 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final gone = m.woken.contains(potion.id) || m.slain.contains(potion.id);
       final inHand = m.carriedPotion == potion.id;
       final col = _brewColour(potion);
-      final glass = RRect.fromRectAndRadius(
-        Rect.fromCenter(center: at, width: 15, height: 22),
-        const Radius.circular(4),
+      if (full && !inHand) {
+        _venomHaze(canvas, at, 22, col, 0.16 + 0.06 * sin(_time * 2.6 + i));
+      }
+      final body = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: at + const Offset(0, 2), width: 16, height: 19),
+        const Radius.circular(6),
       );
-      canvas.drawRRect(
-        glass,
-        Paint()..color = const Color(0xFF0B0F0B).withValues(alpha: 0.85),
+      final neck = Rect.fromCenter(
+        center: Offset(at.dx, at.dy - 9.5),
+        width: 6,
+        height: 6,
       );
-      if (full) {
+      final flask = Path()
+        ..addRRect(body)
+        ..addRect(neck);
+      final glass = full
+          ? Color.lerp(col, _kVenomGlass.liveCore, 0.12)!
+          : (gone ? _kVenomGlass.smoke : _kVenomGlass.frostAt(i));
+      paintPaneFill(canvas, flask, glass, opacity: inHand ? 0.3 : 1);
+      if (full && !inHand) {
+        // The brew's own light in it, darker at the foot.
         canvas.drawRRect(
           RRect.fromRectAndRadius(
-            Rect.fromLTWH(at.dx - 5.5, at.dy - 5, 11, 15),
-            const Radius.circular(3),
+            Rect.fromLTWH(
+              body.left + 2,
+              body.top + body.height * 0.55,
+              body.width - 4,
+              body.height * 0.45 - 2,
+            ),
+            const Radius.circular(4),
           ),
-          Paint()..color = col.withValues(alpha: inHand ? 0.28 : 0.92),
+          Paint()..color = Color.lerp(col, Colors.black, 0.35)!,
         );
+        paintStreak(canvas, body.outerRect.deflate(3), opacity: 0.45);
       }
+      paintLead(
+        canvas,
+        flask,
+        _kVenomGlass,
+        width: 1.8,
+        opacity: gone ? 0.6 : 1,
+      );
+      // The stopper: a dark plug.
       canvas.drawRRect(
-        glass,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = (gone ? _venomIron : _venomBronze).withValues(
-            alpha: gone ? 0.5 : 0.9,
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset(at.dx, at.dy - 14),
+            width: 8,
+            height: 4.5,
           ),
+          const Radius.circular(1.5),
+        ),
+        Paint()..color = const Color(0xFF15130E),
       );
-      canvas.drawRect(
-        Rect.fromCenter(center: Offset(at.dx, at.dy - 14), width: 7, height: 5),
-        Paint()..color = _venomBronzeLit.withValues(alpha: gone ? 0.4 : 0.9),
-      );
-      if (full && !inHand) {
-        canvas.drawCircle(
-          at,
-          15 + 3 * sin(_time * 2.6 + i),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2
-            ..color = col.withValues(alpha: 0.34),
-        );
-      }
     }
   }
 
@@ -7529,23 +7894,28 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
               settle,
             )!.withValues(alpha: 0.9),
         );
+        // A ring of clean grains lifting off it and thinning (2026-10-08;
+        // they were stroked rings).
         for (var i = 0; i < 3; i++) {
           final r = ((settle * 1.5) - i * 0.22).clamp(0.0, 1.0);
-          if (r <= 0) continue;
-          canvas.drawOval(
-            Rect.fromCenter(
-              center: Offset(mouth.dx, mouth.dy - 26 * r),
-              width: 30 + 54 * r,
-              height: 9 + 16 * r,
-            ),
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.0 * (1 - r)
-              ..color = const Color(
-                0xFFE6FFF4,
-              ).withValues(alpha: 0.6 * (1 - r)),
+          if (r <= 0 || r >= 1) continue;
+          final o = Offset(mouth.dx, mouth.dy - 26 * r);
+          final rx = (30 + 54 * r) / 2, ry = (9 + 16 * r) / 2;
+          const n = 40;
+          _venomAlong(
+            [
+              for (var j = 0; j < n; j++)
+                o + Offset(cos(j / n * 2 * pi) * rx, sin(j / n * 2 * pi) * ry),
+            ],
+            _time,
+            color: const Color(0xFFE6FFF4),
+            per: 2,
+            drift: 1 + 4 * r,
+            alpha: 0.7 * (1 - r),
+            seed: 80 + i,
           );
         }
+        _venomGrains.paint(canvas);
         // A single held highlight on dead-flat liquid.
         canvas.drawOval(
           Rect.fromCenter(
@@ -7571,28 +7941,38 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
               ..strokeWidth = 2.0
               ..color = const Color(0xFF2E8B4A).withValues(alpha: 0.9),
           );
+          // Each head opens as a knot of lit grains (they were five
+          // circles, a clip-art daisy).
           final open = ((k - 0.3) / 0.7).clamp(0.0, 1.0);
-          for (var pet = 0; pet < 5; pet++) {
-            final pa = (pet / 5) * 2 * pi + i;
-            canvas.drawCircle(
-              tip + Offset(cos(pa), sin(pa)) * 4.6 * open,
-              3.2 * open,
-              Paint()..color = const Color(0xFFB6E24A).withValues(alpha: 0.92),
+          if (open > 0) {
+            _venomChurn(
+              tip,
+              7 * open,
+              6 * open,
+              _time,
+              n: 22,
+              ramp: grainRampFrom(const Color(0xFFB6E24A)),
+              spin: 1.4,
+              glint: 0.05,
+              seed: 90 + i,
             );
           }
         }
-        for (var i = 0; i < 22; i++) {
-          final sp = ((k * 1.3 + i * 0.045) % 1.0);
-          canvas.drawCircle(
-            mouth +
-                Offset(sin(i * 2.4 + k * 3) * (10 + 40 * sp), -20 - 62 * sp),
-            1.9 * (1 - sp),
-            Paint()
-              ..color = const Color(
-                0xFFEAF7B0,
-              ).withValues(alpha: 0.8 * (1 - sp)),
-          );
-        }
+        // Spores shed off it: grains climbing and spreading.
+        _venomRise(
+          mouth - const Offset(0, 18),
+          _time,
+          n: 46,
+          rise: 64,
+          half: 10,
+          spread: 46,
+          rate: 0.55,
+          sway: 6,
+          ramp: grainRampFrom(const Color(0xFFB6E24A)),
+          alpha: 0.6 * (1 - k),
+          seed: 97,
+        );
+        _venomGrains.paint(canvas);
       case CauldronReaction.climb:
         // IT GOES BLACK AND CLIMBS. Drawn as near-black on a black floor the
         // whole thing was invisible in the shot — so the substance keeps its
@@ -7644,17 +8024,20 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
             ..strokeWidth = 1.6
             ..color = const Color(0xFF8B6BA6).withValues(alpha: 0.7),
         );
-        for (var i = 0; i < 10; i++) {
-          final t = ((k * 1.4 + i * 0.1) % 1.0);
-          canvas.drawCircle(
-            Offset(c.dx - 26 + (i * 5.6) % 52, mouth.dy - 62 * t),
-            1.5 + 1.6 * (1 - t),
-            Paint()
-              ..color = const Color(
-                0xFF9A79B8,
-              ).withValues(alpha: 0.55 * (1 - t)),
-          );
-        }
+        _venomRise(
+          mouth,
+          _time,
+          n: 50,
+          rise: 62,
+          half: 26,
+          spread: 30,
+          rate: 0.6,
+          sway: 3,
+          ramp: grainRampFrom(const Color(0xFF9A79B8)),
+          alpha: 0.7 * (1 - k * 0.6),
+          seed: 98,
+        );
+        _venomGrains.paint(canvas);
       case CauldronReaction.rot:
         // Roots thread up through the sludge and rot away as fast as they
         // grew — the whole beat is grow-then-blacken, in one gesture.
@@ -7687,17 +8070,24 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           );
         }
         if (decay > 0) {
-          for (var i = 0; i < 12; i++) {
-            final t = ((decay * 1.3 + i * 0.08) % 1.0);
-            canvas.drawCircle(
-              Offset(mouth.dx - 24 + (i * 4.3) % 48, mouth.dy + 18 * t),
-              1.6 * (1 - t),
-              Paint()
-                ..color = const Color(
-                  0xFF33291B,
-                ).withValues(alpha: 0.7 * (1 - t)),
+          // What rots off them falls back in as grains.
+          for (var i = 0; i < 40; i++) {
+            final h = _venomHash(i * 13 + 5);
+            final t = ((decay * 1.3 + h) % 1.0);
+            final p = Offset(
+              mouth.dx - 24 + 48 * _venomHash(i * 7 + 1),
+              mouth.dy - 30 * (1 - h) + 26 * t,
+            );
+            _venomGrains.add(
+              p.dx,
+              p.dy - 2,
+              p.dx,
+              p.dy,
+              i.isEven ? const Color(0xFF33291B) : const Color(0xFF5A4A2C),
+              alpha: 0.8 * (1 - t),
             );
           }
+          _venomGrains.paint(canvas);
         }
     }
   }

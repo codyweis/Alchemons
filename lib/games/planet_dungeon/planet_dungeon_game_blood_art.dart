@@ -81,6 +81,227 @@ double _riteEase(double t) {
   return c * c * (3 - 2 * c);
 }
 
+// ═══════════════════════════ THE PROPS, IN GRAINS ═══════════════════════
+//
+// THE PROPS PASS (2026-10-08). The rooms were already carved porphyry and
+// leaded glass; what they held was not. Ice was glossy cubes, braziers held
+// cartoon flames, the Earth roots were plastic balls, the lava sluice a
+// glossy box, the gates steel and brass grilles, the bellows wood and brass,
+// and Sanguorath's shell a ring of stickers. Now an element that is a thing
+// in a puzzle is its Codex orb (ice, a brazier's fire, the Dust and Water
+// roots); a pair root is the same dark glass lit from inside in its pair's
+// colour; what is elemental (lava, smoke, the shell) is grains; and what is
+// furniture (the gates, the bellows) is near-black carved stone, its key in
+// leaded glass. Nothing the puzzles read moved: squares, timings, states.
+
+/// The orbs the rites set things in, made once by element and size.
+final Map<String, ElementOrb> _riteOrbCache = {};
+
+ElementOrb _riteOrb(String el, double r) => _riteOrbCache.putIfAbsent(
+  '$el$r',
+  // A little denser than the Codex's own, so a small one on the floor
+  // still reads as a ball of its element at the room's zoom.
+  () => ElementOrb(
+    EssenceElement.of(el),
+    radius: r,
+    grains: (ElementOrb.defaultGrains(r) * 1.4).round(),
+  ),
+);
+
+/// An ice block's orb: how big, and where it rests in its square.
+const double _kRiteIceR = 21;
+
+/// A brazier's fire.
+const double _kRiteFireR = 13;
+
+/// Grains an orb handed over as it went (a melt, a fire put out), by square.
+final Map<String, SpecimenGrains> _riteHandedGrains = {};
+
+/// The pair roots' glass beads, by pair.
+final Map<String, _RiteBead> _riteBeads = {};
+
+/// The lava sluice's surface and its embers, in grains.
+GrainShape? _riteLavaCrust, _riteLavaEmbers;
+
+/// Sanguorath's shell in grains, by element.
+final Map<String, GrainShape> _riteShellGrains = {};
+
+/// A colour that is not an element, as a ball of grains in dark glass lit
+/// from inside: the Codex orb's material (element_orb.dart), for the Earth
+/// room's pair roots. A few dark notches across it say which pair it is.
+class _RiteBead {
+  _RiteBead(this.color, this.radius, {int grains = 190})
+    : _lat = [
+        for (var i = 0; i < grains; i++) asin(2 * _riteHash(i * 7 + 1) - 1),
+      ],
+      _lon = [
+        for (var i = 0; i < grains; i++) _riteHash(i * 11 + 2) * pi * 2,
+      ],
+      _rad = [
+        for (var i = 0; i < grains; i++)
+          .22 + .78 * pow(_riteHash(i * 13 + 3), .55).toDouble(),
+      ] {
+    final hi = Color.lerp(color, Colors.white, .55)!;
+    _tones = [
+      // The far side, dim through the glass…
+      Color.lerp(color, const Color(0xFF07060B), .62)!,
+      Color.lerp(color, const Color(0xFF07060B), .45)!,
+      // …the near side by how it is lit.
+      Color.lerp(color, const Color(0xFF07060B), .25)!,
+      color,
+      Color.lerp(color, hi, .5)!,
+      hi,
+    ];
+  }
+
+  final Color color;
+  final double radius;
+  final List<double> _lat, _lon, _rad;
+  late final List<Color> _tones;
+  final List<List<Offset>> _runs = List.generate(6, (_) => <Offset>[]);
+
+  static final Paint _p = Paint();
+  static final Paint _dot = Paint()
+    ..strokeCap = StrokeCap.round
+    ..style = PaintingStyle.stroke;
+
+  void paint(Canvas canvas, Offset c, double t, {int pips = 0}) {
+    final r = radius;
+    final dark = const Color(0xFF07060B);
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    // Its light on what is round it.
+    canvas.drawCircle(
+      Offset.zero,
+      r * 1.9,
+      _p
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          r * 1.9,
+          [
+            color.withValues(alpha: .28),
+            color.withValues(alpha: .08),
+            color.withValues(alpha: 0),
+          ],
+          const [0, .45, 1],
+        ),
+    );
+    // The glass: dark and tinted.
+    canvas.drawCircle(
+      Offset.zero,
+      r,
+      _p
+        ..shader = ui.Gradient.radial(
+          Offset(-r * .2, -r * .25),
+          r * 1.25,
+          [
+            Color.lerp(color, dark, .4)!.withValues(alpha: .62),
+            Color.lerp(color, dark, .62)!.withValues(alpha: .84),
+            Color.lerp(color, dark, .8)!.withValues(alpha: .95),
+          ],
+          const [0, .6, 1],
+        ),
+    );
+    // The grains, turning: far side first, then the light inside, then the
+    // near side.
+    for (final run in _runs) {
+      run.clear();
+    }
+    final spin = t * .5;
+    const tip = .38;
+    final ct = cos(tip), st = sin(tip);
+    for (var i = 0; i < _lat.length; i++) {
+      final lat = _lat[i];
+      final sl = sin(lat), cl = cos(lat);
+      final lon = _lon[i] + spin * (1 - .3 * sl * sl);
+      final pr = _rad[i] * r;
+      final px = pr * cl * cos(lon);
+      final py = pr * sl;
+      final pz = pr * cl * sin(lon);
+      final y = py * ct + pz * st;
+      final z = pz * ct - py * st;
+      final light = ((-.45 * px - .6 * y + .66 * z) / r * .5 + .5).clamp(
+        0.0,
+        1.0,
+      );
+      final int b = z < 0
+          ? (light < .5 ? 0 : 1)
+          : 2 + min(3, (light * 4).floor());
+      _runs[b].add(Offset(px, y));
+    }
+    final d = (r * .075).clamp(1.3, 2.2);
+    void draw(int b, double w, double a) {
+      if (_runs[b].isEmpty) return;
+      _dot
+        ..strokeWidth = w
+        ..color = _tones[b].withValues(alpha: a);
+      canvas.drawPoints(ui.PointMode.points, _runs[b], _dot);
+    }
+
+    draw(0, d * .82, .7);
+    draw(1, d * .82, .7);
+    canvas.drawCircle(
+      Offset.zero,
+      r * .8,
+      _p
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          r * .8,
+          [
+            Color.lerp(color, Colors.white, .5)!.withValues(alpha: .66),
+            color.withValues(alpha: .3),
+            color.withValues(alpha: 0),
+          ],
+          const [0, .45, 1],
+        ),
+    );
+    for (var b = 2; b < 6; b++) {
+      draw(b, d, .92);
+    }
+    // Its rim catching the light, lower right, and a soft catchlight.
+    canvas.drawCircle(
+      Offset.zero,
+      r * 1.04,
+      _p
+        ..shader = ui.Gradient.radial(
+          Offset(r * .12, r * .14),
+          r * 1.02,
+          [
+            color.withValues(alpha: 0),
+            color.withValues(alpha: 0),
+            Color.lerp(color, Colors.white, .35)!.withValues(alpha: .5),
+            color.withValues(alpha: 0),
+          ],
+          const [0, .8, .95, 1],
+        ),
+    );
+    final sc = Offset(-r * .34, -r * .4);
+    canvas.drawCircle(
+      sc,
+      r * .42,
+      _p
+        ..shader = ui.Gradient.radial(sc, r * .42, [
+          const Color(0x99FFFFFF),
+          const Color(0x00FFFFFF),
+        ]),
+    );
+    _p.shader = null;
+    // Its notches: one to three, cut dark across its middle.
+    // Each a dark pit, its lower lip catching the light inside.
+    for (var k = 0; k < pips; k++) {
+      final o = Offset((k - (pips - 1) / 2) * r * .4, r * .05);
+      canvas.drawCircle(
+        o + const Offset(0, 1),
+        r * .16,
+        Paint()
+          ..color = Color.lerp(color, Colors.white, .45)!.withValues(alpha: .4),
+      );
+      canvas.drawCircle(o, r * .15, Paint()..color = const Color(0xE6070304));
+    }
+    canvas.restore();
+  }
+}
+
 extension BloodRitesArt on PlanetDungeonGame {
   // ═══════════════════════════ THE BAKE ═════════════════════════════════
 
@@ -1008,21 +1229,28 @@ extension BloodRitesArt on PlanetDungeonGame {
       final cc = riteCentreOf(p.cx, p.cy);
       final locked = tendrilLineOnPlate(f, rites.earth, i);
       paintCarvedDisc(canvas, cc, 20, 18, 7, _kRiteWall);
-      canvas.drawCircle(
-        cc,
-        14,
+      // Its glass, lit from inside: amber while it will turn, smoked once a
+      // line across it holds it still; a bar of lead the way it faces.
+      final hub = Path()..addOval(Rect.fromCircle(center: cc, radius: 13));
+      canvas.drawPath(
+        hub,
         Paint()
-          ..shader = ui.Gradient.radial(cc - const Offset(4, 4), 16, [
-            locked ? const Color(0xFF6D6058) : const Color(0xFFE1C07A),
-            locked ? const Color(0xFF2E2724) : const Color(0xFF7B5A26),
-          ]),
+          ..shader = ui.Gradient.radial(cc, 14, [
+            locked ? const Color(0xFF5E534D) : const Color(0xFFF0D490),
+            locked ? const Color(0xFF3A322F) : const Color(0xFFC8973E),
+            locked ? const Color(0xFF1E1918) : const Color(0xFF6B4E26),
+          ], const [0, .45, 1]),
       );
+      paintLead(canvas, hub, _kRiteWall, width: 2.6);
       canvas.save();
       canvas.translate(cc.dx, cc.dy);
       canvas.rotate(rites.plateAng[i]);
-      canvas.drawRect(
-        const Rect.fromLTWH(-2.5, -13, 5, 10),
-        Paint()..color = const Color(0xFF1A1112),
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          const Rect.fromLTWH(-2.4, -13.5, 4.8, 12),
+          const Radius.circular(1.6),
+        ),
+        Paint()..color = _kRiteWall.lead,
       );
       canvas.restore();
     }
@@ -1226,73 +1454,46 @@ extension BloodRitesArt on PlanetDungeonGame {
     return settled;
   }
 
+  /// A root. A pair's root (a b c) is a bead of dark glass lit from inside
+  /// in its pair's colour, one to three notches cut across it so pairs read
+  /// without colour too; an element root (d w) is its element's Codex orb.
+  /// The root you lead from glows.
   void _riteRoot(Canvas canvas, Offset at, String id) {
     final col = _kRitePair[id] ?? _kRiteBlood;
-    final pulse = 1 + .05 * sin(_time * 3 + id.codeUnitAt(0));
     final lead = rites.leading == id;
-    final element = id == 'd' || id == 'w';
-    if (lead || element) {
-      // The element roots glow in their own colour: they are not a pair.
-      final gr = element ? 30.0 : 34.0;
+    if (lead) {
       canvas.drawCircle(
         at,
-        gr,
+        34,
         Paint()
-          ..shader = ui.Gradient.radial(at, gr, [
-            col.withValues(alpha: lead ? .4 : .22 + .06 * sin(_time * 2)),
+          ..shader = ui.Gradient.radial(at, 34, [
+            col.withValues(alpha: .4),
             col.withValues(alpha: 0),
           ]),
       );
     }
-    final r = (element ? 21.0 : 19.0) * pulse;
-    canvas.drawCircle(
-      at,
-      r,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          at - const Offset(6, 6),
-          r + 2,
-          [
-            Color.lerp(col, Colors.white, .35)!,
-            col,
-            Color.lerp(col, Colors.black, .5)!,
-          ],
-          const [0, .55, 1],
-        ),
-    );
-    // Its mark, so pairs read without colour too: one to three pips; the
-    // element roots carry their element (Dust a heap of grains, Water ▽).
+    final phase = id.codeUnitAt(0) * 1.3 + at.dx * .01;
+    if (id == 'd' || id == 'w') {
+      _riteOrb(
+        id == 'd' ? 'Dust' : 'Water',
+        19,
+      ).paint(canvas, at, _time + phase);
+      return;
+    }
     final n = switch (id) {
       'a' => 1,
       'b' => 2,
       'c' => 3,
       _ => 0,
     };
-    for (var k = 0; k < n; k++) {
-      canvas.drawCircle(
-        at + Offset((k - (n - 1) / 2) * 7, 0),
-        2.4,
-        Paint()..color = Colors.black.withValues(alpha: .55),
-      );
-    }
-    if (id == 'w') {
-      _riteElementSign(canvas, at, 'Water', Colors.black.withValues(alpha: .5));
-    } else if (id == 'd') {
-      final ink = Paint()..color = Colors.black.withValues(alpha: .5);
-      for (final o in const [
-        Offset(0, -6),
-        Offset(-5, -1),
-        Offset(5, -1),
-        Offset(-9, 5),
-        Offset(-1, 5),
-        Offset(7, 5),
-      ]) {
-        canvas.drawRect(
-          Rect.fromCenter(center: at + o, width: 3.4, height: 3.4),
-          ink,
-        );
-      }
-    }
+    final pulse = 1 + .04 * sin(_time * 3 + id.codeUnitAt(0));
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.scale(pulse, pulse);
+    _riteBeads
+        .putIfAbsent(id, () => _RiteBead(col, 18))
+        .paint(canvas, Offset.zero, _time + phase, pips: n);
+    canvas.restore();
   }
 
   void _riteTendril(
@@ -1359,7 +1560,8 @@ extension BloodRitesArt on PlanetDungeonGame {
       ),
     );
     canvas.restore();
-    // Led: a living head at the tip, swelling as it reaches.
+    // Led: a living head at the tip, swelling as it reaches — a bead of its
+    // pair's glass in the tendril's end.
     if (tip != null) {
       final sw = 1 + .08 * sin(_time * 6);
       canvas.drawCircle(
@@ -1367,15 +1569,13 @@ extension BloodRitesArt on PlanetDungeonGame {
         15 * sw,
         Paint()..color = Color.lerp(col, Colors.black, .55)!,
       );
-      canvas.drawCircle(
-        tip,
-        12 * sw,
-        Paint()
-          ..shader = ui.Gradient.radial(tip - const Offset(4, 4), 14, [
-            Color.lerp(col, Colors.white, .45)!,
-            col,
-          ]),
-      );
+      canvas.save();
+      canvas.translate(tip.dx, tip.dy);
+      canvas.scale(sw, sw);
+      _riteBeads
+          .putIfAbsent('tip$id', () => _RiteBead(col, 12, grains: 90))
+          .paint(canvas, Offset.zero, _time * 1.6);
+      canvas.restore();
     }
     // Joined: a bead of blood runs along it, home.
     if (done) {
@@ -1474,15 +1674,14 @@ extension BloodRitesArt on PlanetDungeonGame {
         final k = '$x,$y';
         switch (ch) {
           case 'F':
-            _riteBrazier(canvas, cc, true);
+            _riteBrazier(canvas, cc);
           case 'f':
-            // A drowned fire: the flame sinks into its bowl as the steam goes.
-            final since = _time - (rites.douseT[k] ?? -99);
+            // A drowned fire: its orb goes dark and lifts off as smoke.
             _riteBrazier(
               canvas,
               cc,
-              since < .6,
-              flame: 1 - _riteEase(since / .6),
+              outAt: rites.douseT[k] ?? -99,
+              key: k,
             );
           case '_':
             _ritePit(canvas, _riteSq(x, y));
@@ -1534,21 +1733,7 @@ extension BloodRitesArt on PlanetDungeonGame {
         final land = since >= 0 && since < .26
             ? pow(1 - since / .26, 2).toDouble()
             : 0.0;
-        solids.add((
-          c.dy,
-          () {
-            if (a < .98) {
-              canvas.saveLayer(
-                rr.inflate(10),
-                Paint()..color = Colors.white.withValues(alpha: a),
-              );
-              _riteIce(canvas, rr, land: land);
-              canvas.restore();
-            } else {
-              _riteIce(canvas, rr, land: land);
-            }
-          },
-        ));
+        solids.add((c.dy, () => _riteIce(canvas, rr, land: land, alpha: a)));
       } else {
         if (a > .98) waterRects.add(rr.deflate(3));
         // Moving water stretches back along its way, like water does.
@@ -1574,23 +1759,16 @@ extension BloodRitesArt on PlanetDungeonGame {
     for (final (_, draw) in solids) {
       draw();
     }
-    // Ice melting against a fire: it shrinks and sinks into its own water.
+    // Ice melting against a fire: its glass goes and its grains run down
+    // into the water it has become.
     for (final e in rites.meltT.entries) {
       final since = _time - e.value;
-      if (since > kRiteReactHold || since < 0) continue;
+      if (since > kRiteReactHold || since < 0) {
+        _riteHandedGrains.remove('melt${e.key}@${e.value}');
+        continue;
+      }
       final p = e.key.split(',').map(int.parse).toList();
-      final k = _riteEase(since / kRiteReactHold);
-      final rr = Rect.fromCenter(
-        center: riteCentreOf(p[0], p[1]) + Offset(0, down * 10 * k),
-        width: kRiteCell * (1 - .5 * k),
-        height: kRiteCell * (1 - .6 * k),
-      );
-      canvas.saveLayer(
-        rr.inflate(10),
-        Paint()..color = Colors.white.withValues(alpha: 1 - k),
-      );
-      _riteIce(canvas, rr);
-      canvas.restore();
+      _riteMelt(canvas, _riteSq(p[0], p[1]), e.key, e.value, down);
     }
     // The ghost of the next flip: where things will come to rest.
     if (!playing && !turning && !flipSolved(rites.water)) {
@@ -1604,21 +1782,22 @@ extension BloodRitesArt on PlanetDungeonGame {
         if (rites.water.loose[e.key] == e.value) continue;
         final p = e.key.split(',').map(int.parse).toList();
         final rr = _riteSq(p[0], p[1]);
-        canvas.saveLayer(
-          rr.inflate(10),
-          Paint()..color = Colors.white.withValues(alpha: ghost),
-        );
         if (e.value == 'I') {
-          _riteIce(canvas, rr);
+          // The orb's glass and light, faint: where it will come to rest.
+          _riteIce(canvas, rr, alpha: ghost * 1.5);
         } else {
+          canvas.saveLayer(
+            rr.inflate(10),
+            Paint()..color = Colors.white.withValues(alpha: ghost),
+          );
           _riteFluid(
             canvas,
             [rr.deflate(3)],
             1,
             surfaceUp: rites.water.down != 2,
           );
+          canvas.restore();
         }
-        canvas.restore();
       }
       for (var y = 0; y < r.h; y++) {
         for (var x = 0; x < r.w; x++) {
@@ -1918,98 +2097,127 @@ extension BloodRitesArt on PlanetDungeonGame {
     return path..close();
   }
 
-  /// A block of ice standing in square [sq], from three-quarters: a chipped
-  /// top, a cold face below it, depth seen through it, frost on its near
-  /// edge. [land] (1 → 0) squashes it as it sets down.
-  void _riteIce(Canvas canvas, Rect sq, {double land = 0}) {
-    final sx = 1 + .08 * land, sy = 1 - .12 * land;
-    final w = (sq.width - 12) * sx;
-    final cx = sq.center.dx;
-    final foot = sq.bottom - 5;
-    final faceTop = foot - 12 * sy;
-    final top = Rect.fromLTRB(
-      cx - w / 2,
-      faceTop - 38 * sy,
-      cx + w / 2,
-      faceTop,
-    );
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset(cx, foot), width: w + 10, height: 12),
-      Paint()..color = Colors.black.withValues(alpha: .45),
-    );
-    final face = Path()
-      ..moveTo(top.left, faceTop - 1)
-      ..lineTo(top.right, faceTop - 1)
-      ..lineTo(top.right - 2, foot)
-      ..lineTo(top.left + 2, foot)
-      ..close();
-    canvas.drawPath(
-      face,
+  /// A block of ice in square [sq]: Ice's Codex orb, resting on the floor
+  /// with its shadow under it and its cold light on the stone round it.
+  /// [land] (1 → 0) squashes it as it sets down; [alpha] fades the whole of
+  /// it (a ghost, or into a pit); [glass] its glass and light alone (its
+  /// grains are being handed over).
+  void _riteIce(
+    Canvas canvas,
+    Rect sq, {
+    double land = 0,
+    double alpha = 1,
+    double glass = 1,
+  }) {
+    if (alpha <= .01) return;
+    final c = _riteIceAt(sq);
+    final foot = Offset(c.dx, c.dy + _kRiteIceR - 1);
+    // The cold it sheds on the floor of its square.
+    canvas.save();
+    canvas.translate(foot.dx, foot.dy - 4);
+    canvas.scale(1, .5);
+    canvas.drawCircle(
+      Offset.zero,
+      32,
       Paint()
-        ..shader = ui.Gradient.linear(Offset(0, faceTop), Offset(0, foot), [
-          const Color(0xFF4A8CA8),
-          const Color(0xFF173A4C),
+        ..shader = ui.Gradient.radial(Offset.zero, 32, [
+          const Color(0xFFBFE6FF).withValues(alpha: .2 * alpha * glass),
+          const Color(0x00BFE6FF),
         ]),
     );
-    const ch = 7.0;
-    final t = Path()
-      ..moveTo(top.left + ch, top.top)
-      ..lineTo(top.right - ch * .6, top.top)
-      ..lineTo(top.right, top.top + ch * .8)
-      ..lineTo(top.right, top.bottom)
-      ..lineTo(top.left, top.bottom)
-      ..lineTo(top.left, top.top + ch)
-      ..close();
-    canvas.drawPath(
-      t,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          top.topLeft,
-          top.bottomRight,
-          [
-            const Color(0xFFE8F8FC),
-            const Color(0xFFA4D6E8),
-            const Color(0xFF6AA8C2),
-          ],
-          const [0, .45, 1],
-        ),
+    canvas.restore();
+    paintContactShadow(
+      canvas,
+      foot + const Offset(0, 2),
+      (_kRiteIceR * 2.1) * (1 + .12 * land),
+      11,
+      opacity: .55 * alpha,
     );
-    // Its depth, seen through the top.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTRB(
-          top.left + 10,
-          top.top + 9,
-          top.right - 6,
-          top.bottom - 5,
-        ),
-        const Radius.circular(4),
-      ),
-      Paint()..color = const Color(0xFF3F84A2).withValues(alpha: .3),
+    if (land > 0) {
+      canvas.save();
+      canvas.translate(foot.dx, foot.dy);
+      canvas.scale(1 + .1 * land, 1 - .14 * land);
+      canvas.translate(-foot.dx, -foot.dy);
+    }
+    _riteOrb('Ice', _kRiteIceR).paint(
+      canvas,
+      c,
+      _riteIceClock(sq.center),
+      opacity: glass,
+      fade: alpha,
     );
-    // A crack: a thin wedge of light.
-    canvas.drawPath(
-      Path()
-        ..moveTo(top.left + w * .3, top.top + 5)
-        ..lineTo(top.left + w * .3 + 2.4, top.top + 5)
-        ..lineTo(top.left + w * .52, top.bottom - 9)
-        ..close(),
-      Paint()..color = Colors.white.withValues(alpha: .35),
+    if (land > 0) canvas.restore();
+  }
+
+  /// Where an ice orb in square [sq] sits: resting on the floor, a little
+  /// below the square's middle.
+  Offset _riteIceAt(Rect sq) => sq.center + const Offset(0, 3);
+
+  /// An ice orb's clock at [time]: it turns as it is carried — so a block
+  /// sliding along the floor rolls — and no two turn together.
+  double _riteIceClock(Offset at, [double? time]) =>
+      (time ?? _time) + (at.dx + at.dy * .6) / (_kRiteIceR * .3);
+
+  /// The grains an orb handed over at a moment (by square and time), taken
+  /// once and kept while that moment plays.
+  SpecimenGrains _riteHanded(String key, SpecimenGrains Function() take) {
+    // A moment cut short (the room reset under it) leaves its entry; never
+    // let those pile up.
+    if (_riteHandedGrains.length > 24) _riteHandedGrains.clear();
+    return _riteHandedGrains.putIfAbsent(key, take);
+  }
+
+  /// Ice melting against a fire: its glass goes dark and its grains, handed
+  /// over where they stood, run down into the water it has become.
+  void _riteMelt(
+    Canvas canvas,
+    Rect sq,
+    String key,
+    double meltAt,
+    double down,
+  ) {
+    final orb = _riteOrb('Ice', _kRiteIceR);
+    final c = _riteIceAt(sq);
+    final since = _time - meltAt;
+    final g = _riteHanded(
+      'melt$key@$meltAt',
+      () => orb.grainsAt(_riteIceClock(sq.center, meltAt)),
     );
-    // Frost along the near edge, and a glint at the far corner.
-    canvas.drawRect(
-      Rect.fromLTWH(top.left + 2, top.bottom - 3, top.width - 4, 3),
-      Paint()..color = const Color(0xFFF2FCFF).withValues(alpha: .55),
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(top.left + ch + 3, top.top + 3)
-        ..lineTo(top.left + ch + 14, top.top + 3)
-        ..lineTo(top.left + ch + 8, top.top + 7)
-        ..lineTo(top.left + ch - 3, top.top + 7)
-        ..close(),
-      Paint()..color = Colors.white.withValues(alpha: .8),
-    );
+    final glass = 1 - _riteEase(since / .3);
+    if (glass > .01) {
+      orb.paint(
+        canvas,
+        c,
+        _riteIceClock(sq.center, meltAt),
+        grains: false,
+        opacity: glass,
+      );
+    }
+    const water = Color(0xFF4FB3E8), deep = Color(0xFF1D6FA3);
+    final floor = sq.center.dy + down * 14;
+    for (var i = 0; i < g.length; i++) {
+      final h = _riteHash(i * 3 + 7);
+      final u = ((since - h * .22) / (kRiteReactHold - .26)).clamp(0.0, 1.0);
+      // Slumping: out a little, then down the way the room falls, faster as
+      // it goes, spreading into the water.
+      Offset at(double u) {
+        final x = c.dx + g.hx[i] * (1 + .7 * _riteEase(u));
+        final y0 = c.dy + g.hy[i];
+        final y1 = floor + down * 10 * (h - .5) + g.hy[i] * .25;
+        return Offset(x, y0 + (y1 - y0) * u * u);
+      }
+
+      final p = at(u), q = at(max(0.0, u - .07));
+      final warm = (u * 3).floor() / 3;
+      final col = Color.lerp(
+        g.tones[g.tone[i]],
+        i % 3 == 0 ? water : deep,
+        warm,
+      )!;
+      final a = 1 - _riteEase((u - .55) / .45);
+      rites.batch.add(q.dx, q.dy, p.dx, p.dy, col, alpha: a, width: 1.8);
+    }
+    rites.batch.paint(canvas);
   }
 
   /// A hole in the floor: dark, its far wall showing, its near lip lit.
@@ -2061,12 +2269,18 @@ extension BloodRitesArt on PlanetDungeonGame {
     }
   }
 
-  /// A brazier: a carved pedestal and a bronze bowl of coals. Lit, three
-  /// tongues of flame sway over it (the middle tallest) with sparks lifting
-  /// off, and it lights the floor round it; [flame] sinks them as it goes
-  /// out. Out, it smokes.
-  void _riteBrazier(Canvas canvas, Offset c, bool lit, {double flame = 1}) {
-    if (lit) {
+  /// A brazier: a carved pedestal and a dish cut in it. Lit, Fire's orb
+  /// rests in the dish — embers lifting off its crown — and its light is on
+  /// the floor round it. Put out (at [outAt]; [key] its square), the orb's
+  /// glass goes dark and its grains lift off as smoke and thin away; long
+  /// out, the dish is cold and a thread of smoke still rises.
+  void _riteBrazier(Canvas canvas, Offset c, {double? outAt, String key = ''}) {
+    final lit = outAt == null;
+    final then = outAt ?? _time;
+    final since = _time - then;
+    // Its light on the floor, going as it goes out.
+    final warm = lit ? 1.0 : 1 - _riteEase(since / .6);
+    if (warm > .01) {
       canvas.drawCircle(
         c + const Offset(0, 8),
         56,
@@ -2074,111 +2288,119 @@ extension BloodRitesArt on PlanetDungeonGame {
           ..shader = ui.Gradient.radial(c + const Offset(0, 8), 56, [
             const Color(
               0xFFEE7A3A,
-            ).withValues(alpha: (.24 + .05 * sin(_time * 9)) * flame),
+            ).withValues(alpha: (.2 + .04 * sin(_time * 3.1)) * warm),
             const Color(0x00EE7A3A),
           ]),
       );
     }
     paintCarvedDisc(canvas, c + const Offset(0, 12), 21, 12, 9, _kRiteWall);
+    // The dish: a lip of the same stone and a hollow cut in it, the hollow
+    // holding the fire's heat while it burns.
+    final dish = c + const Offset(0, 6);
     canvas.drawOval(
-      Rect.fromCenter(center: c + const Offset(0, 6), width: 36, height: 15),
-      Paint()..color = const Color(0xFF4A3218),
+      Rect.fromCenter(center: dish, width: 34, height: 14),
+      Paint()..color = Color.lerp(_kRiteWall.stoneTop, Colors.black, .2)!,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: c + const Offset(0, 4.5), width: 30, height: 10),
+      Rect.fromCenter(center: dish - const Offset(0, 1), width: 27, height: 9),
       Paint()
-        ..shader = ui.Gradient.radial(
-          c + const Offset(0, 4),
-          15,
-          lit
-              ? [
-                  Color.lerp(
-                    const Color(0xFF3A1E14),
-                    const Color(0xFFFFB050),
-                    flame,
-                  )!,
-                  Color.lerp(
-                    const Color(0xFF120B0B),
-                    const Color(0xFF8A2A10),
-                    flame,
-                  )!,
-                ]
-              : [const Color(0xFF2A2020), const Color(0xFF0E0909)],
-        ),
+        ..shader = ui.Gradient.radial(dish, 14, [
+          Color.lerp(
+            const Color(0xFF0A0405),
+            const Color(0xFF9A2C10),
+            warm,
+          )!,
+          Color.lerp(
+            const Color(0xFF050203),
+            const Color(0xFF2A0A06),
+            warm,
+          )!,
+        ]),
     );
     canvas.drawRect(
-      Rect.fromLTWH(c.dx - 15, c.dy + 12, 30, 1.6),
-      Paint()..color = const Color(0xFFC89A5A).withValues(alpha: .4),
+      Rect.fromLTWH(dish.dx - 13, dish.dy + 6, 26, 1.3),
+      Paint()..color = const Color(0xFFE8C0BC).withValues(alpha: .28),
     );
-    if (lit && flame > .01) {
-      const outer = Color(0xFFD8481F),
-          mid = Color(0xFFF08A3A),
-          core = Color(0xFFFFE0A0);
-      for (final k in const [-1, 1, 0]) {
-        final h =
-            (k == 0 ? 32.0 : 21.0) *
-            flame *
-            (1 + .13 * sin(_time * (7.3 + k * 1.9) + k * 2));
-        final w = k == 0 ? 9.5 : 6.5;
-        final base = c + Offset(k * 7.5, 4);
-        final sway = sin(_time * (3.1 + k * .7) + k) * 3.2 * flame;
-        Path tongue(double s) => Path()
-          ..moveTo(base.dx - w * s, base.dy)
-          ..quadraticBezierTo(
-            base.dx - w * s * .95,
-            base.dy - h * s * .55,
-            base.dx + sway * s,
-            base.dy - h * s,
-          )
-          ..quadraticBezierTo(
-            base.dx + w * s * .95,
-            base.dy - h * s * .55,
-            base.dx + w * s,
-            base.dy,
-          )
-          ..close();
-        canvas.drawPath(
-          tongue(1),
-          Paint()
-            ..shader = ui.Gradient.linear(base, base - Offset(-sway, h), [
-              outer,
-              mid.withValues(alpha: .9),
-            ]),
+    final orb = _riteOrb('Fire', _kRiteFireR);
+    final at = c - const Offset(0, 7);
+    if (lit) {
+      orb.paint(canvas, at, _riteFireClock(c));
+      return;
+    }
+    // Going out: the glass darkens and goes; its grains lift as smoke.
+    if (since < 1.7) {
+      final glass = 1 - _riteEase(since / .35);
+      if (glass > .01) {
+        orb.paint(
+          canvas,
+          at,
+          _riteFireClock(c, then),
+          grains: false,
+          opacity: glass,
         );
-        if (k == 0) {
-          canvas.drawPath(
-            tongue(.55),
-            Paint()..color = core.withValues(alpha: .9),
-          );
+      }
+      final g = _riteHanded(
+        'douse$key@$then',
+        () => orb.grainsAt(_riteFireClock(c, then)),
+      );
+      const smoke = Color(0xFF8E8682);
+      for (var i = 0; i < g.length; i++) {
+        final h = _riteHash(i * 5 + 3);
+        final u = ((since - h * .25) / 1.3).clamp(0.0, 1.0);
+        Offset p(double u) {
+          final e = _riteEase(u);
+          return at +
+              Offset(g.hx[i], g.hy[i]) * (1 + 1.3 * e) +
+              Offset(
+                sin(u * 4 + h * 6.3) * 10 * u,
+                -50 * e * (.35 + .65 * h),
+              );
         }
+
+        final grey = (_riteEase(u * 2.2) * 3).round() / 3;
+        final col = Color.lerp(g.tones[g.tone[i]], smoke, grey)!;
+        final a = 1 - _riteEase((u - .25) / .75);
+        final q = p(max(0.0, u - .05));
+        final n = p(u);
+        rites.batch.add(q.dx, q.dy, n.dx, n.dy, col, alpha: a, width: 1.8);
       }
-      for (var i = 0; i < 3; i++) {
-        final t = (_time * .8 + i * .37) % 1;
-        canvas.drawRect(
-          Rect.fromCenter(
-            center:
-                c + Offset(sin(t * 6 + i * 2) * 7 + (i - 1) * 4, -14 - t * 38),
-            width: 2,
-            height: 2,
-          ),
-          Paint()
-            ..color = const Color(
-              0xFFFFC870,
-            ).withValues(alpha: .85 * (1 - t) * flame),
+      rites.batch.paint(canvas);
+    } else {
+      _riteHandedGrains.remove('douse$key@$then');
+    }
+    // Long out: a thread of smoke off the cold dish.
+    final thread = _riteEase((since - .9) / 1.2);
+    if (thread > .01) {
+      for (var k = 0; k < 14; k++) {
+        Offset p(double t) {
+          final u = (t * .32 + k / 14) % 1;
+          return dish +
+              Offset(
+                sin(u * 5 + k * 1.3 + t * .7) * (2 + 7 * u),
+                -4 - u * 40,
+              );
+        }
+
+        final u = (_time * .32 + k / 14) % 1;
+        final n = p(_time), q = p(_time - .08);
+        if ((n - q).distance > 12) continue;
+        rites.batch.add(
+          q.dx,
+          q.dy,
+          n.dx,
+          n.dy,
+          const Color(0xFFA49C96),
+          alpha: .42 * thread * sin(pi * u),
+          width: 1.6,
         );
       }
-    } else if (!lit) {
-      for (var k = 0; k < 2; k++) {
-        final t = (_time * .5 + k * .5) % 1;
-        canvas.drawCircle(
-          c + Offset(sin(t * 6 + k) * 5, -t * 30),
-          4 + t * 6,
-          Paint()
-            ..color = const Color(0xFFA09890).withValues(alpha: .2 * (1 - t)),
-        );
-      }
+      rites.batch.paint(canvas);
     }
   }
+
+  /// A brazier's fire's clock at [time]: no two turn together.
+  double _riteFireClock(Offset at, [double? time]) =>
+      (time ?? _time) + at.dx * .011 + at.dy * .017;
 
   // ═══════════════════════════ FIRE ═════════════════════════════════════
 
@@ -2242,7 +2464,7 @@ extension BloodRitesArt on PlanetDungeonGame {
             final hot =
                 discoveredClouds.contains(riteFreedId('Fire')) ||
                 rites.freedT.containsKey('Fire');
-            if (hot) _riteBrazier(canvas, cc, true);
+            if (hot) _riteBrazier(canvas, cc);
             _riteDrawCaptive(canvas, cc, 'Fire');
           case 'B':
             _riteBellows(
@@ -2269,90 +2491,7 @@ extension BloodRitesArt on PlanetDungeonGame {
           case 'a':
           case 'b':
           case 'c':
-            final shown = rites.gateShown['$x,$y'] ?? 0;
-            final col = ch == 'a' ? _kRiteGold : const Color(0xFF9FB7C9);
-            // A portcullis between two stone posts. Shut, it is a grille of
-            // heavy bars that throws a shadow; it slides up into its lintel
-            // as it opens, and only the posts are left.
-            final e = _riteEase(shown);
-            final lift = (sq.height - 10) * e;
-            final inner = Rect.fromLTRB(
-              sq.left + 9,
-              sq.top - 8,
-              sq.right - 9,
-              sq.bottom - 6,
-            );
-            if (e < .98) {
-              canvas.drawRect(
-                Rect.fromLTWH(
-                  inner.left,
-                  inner.bottom - 2,
-                  inner.width,
-                  10 * (1 - e),
-                ),
-                Paint()..color = Colors.black.withValues(alpha: .45 * (1 - e)),
-              );
-              canvas.save();
-              canvas.clipRect(
-                Rect.fromLTRB(
-                  inner.left,
-                  inner.top,
-                  inner.right,
-                  inner.bottom - lift,
-                ),
-              );
-              final bar = Color.lerp(col, Colors.black, .45)!;
-              final lit = Color.lerp(col, Colors.white, .15)!;
-              for (var k = 0; k < 4; k++) {
-                final bx = inner.left + 4 + k * (inner.width - 8) / 3;
-                final b = Rect.fromLTRB(
-                  bx - 3,
-                  inner.top,
-                  bx + 3,
-                  inner.bottom - lift,
-                );
-                canvas.drawRect(b, Paint()..color = bar);
-                canvas.drawRect(
-                  Rect.fromLTWH(b.left, b.top, 1.6, b.height),
-                  Paint()..color = lit.withValues(alpha: .7),
-                );
-                // Its point, at the foot.
-                canvas.drawPath(
-                  Path()
-                    ..moveTo(b.left, b.bottom)
-                    ..lineTo(b.right, b.bottom)
-                    ..lineTo(b.center.dx, b.bottom + 6)
-                    ..close(),
-                  Paint()..color = bar,
-                );
-              }
-              for (final fy in const [.32, .7]) {
-                final y = inner.top + (inner.height - lift) * fy;
-                canvas.drawRect(
-                  Rect.fromLTWH(inner.left, y - 3, inner.width, 6),
-                  Paint()..color = Color.lerp(col, Colors.black, .2)!,
-                );
-                canvas.drawRect(
-                  Rect.fromLTWH(inner.left, y - 3, inner.width, 1.6),
-                  Paint()..color = lit.withValues(alpha: .8),
-                );
-              }
-              canvas.restore();
-            }
-            // The posts and the lintel.
-            for (final px in [sq.left + 2, sq.right - 9]) {
-              paintCarvedBlock(
-                canvas,
-                Rect.fromLTWH(px, sq.top - 12, 7, sq.height - 4),
-                6,
-                _kRiteWall,
-                radius: 1,
-              );
-            }
-            canvas.drawRect(
-              Rect.fromLTWH(sq.left + 2, sq.top - 14, sq.width - 4, 8),
-              Paint()..color = Color.lerp(_kRiteWall.stoneTop, col, .25)!,
-            );
+            _riteGate(canvas, sq, ch, rites.gateShown['$x,$y'] ?? 0);
         }
       }
     }
@@ -2391,73 +2530,286 @@ extension BloodRitesArt on PlanetDungeonGame {
     }
   }
 
-  /// The bellows, pointed at the hearth along [dir]: two boards of dark
-  /// wood over a pleated leather fold, a brass nozzle. Stood on, they
-  /// breathe (the air itself is grains, from the play).
-  void _riteBellows(Canvas canvas, Offset c, double dir, bool pressed) {
-    final squeeze = pressed ? .55 + .2 * sin(_time * 9) : 1.0;
-    paintContactShadow(canvas, c + const Offset(0, 14), 56, 18, opacity: .5);
-    final back = c.dx - dir * 24, nose = c.dx + dir * 16;
-    final half = 15.0 * squeeze;
-    // The leather, pleated.
-    final fold = Path()..moveTo(back, c.dy + 4 - half);
-    for (var k = 0; k <= 6; k++) {
-      final t = k / 6;
-      final x = back + (nose - back) * t;
-      final hy = half * (1 - .6 * t) + (k.isEven ? 0 : 3);
-      fold.lineTo(x, c.dy + 4 - hy);
+  /// A gate between two stone posts: a portcullis carved out of the room's
+  /// porphyry — dark bars under a rail, lit only along their edges — whose
+  /// key, the plate that holds it open, is a row of leaded panes in the rail
+  /// of that plate's glass, as many as the plate has pips. Opening, it slides
+  /// up into its lintel; the lintel keeps a chip of the same glass, so an
+  /// open gate still says whose it is.
+  void _riteGate(Canvas canvas, Rect sq, String ch, double shown) {
+    final e = _riteEase(shown);
+    final key = ch == 'a' ? _kRiteGold : const Color(0xFF9FB7C9);
+    final pips = 'abc'.indexOf(ch) + 1;
+    final rim = Color.lerp(_kRiteWall.stoneTop, const Color(0xFFF2CFC8), .45)!;
+    final stone = Color.lerp(
+      _kRiteWall.stoneTop,
+      const Color(0xFFB07A80),
+      .18,
+    )!;
+    final inner = Rect.fromLTRB(
+      sq.left + 9,
+      sq.top - 8,
+      sq.right - 9,
+      sq.bottom - 6,
+    );
+    Paint glass(Rect r, double lit) => Paint()
+      ..shader = ui.Gradient.radial(
+        r.center,
+        r.longestSide * .7,
+        [
+          Color.lerp(key, Colors.white, .1 + .3 * lit)!,
+          Color.lerp(key, Colors.black, .35 - .3 * lit)!,
+          Color.lerp(key, Colors.black, .7 - .3 * lit)!,
+        ],
+        const [0, .5, 1],
+      );
+    if (e < .98) {
+      // Its shadow on the floor in front.
+      canvas.drawRect(
+        Rect.fromLTWH(inner.left, inner.bottom - 2, inner.width, 10 * (1 - e)),
+        Paint()..color = Colors.black.withValues(alpha: .45 * (1 - e)),
+      );
+      canvas.save();
+      canvas.clipRect(inner);
+      canvas.translate(0, -(inner.height - 4) * e);
+      // The bars, standing from the rail to the floor.
+      const bw = 7.0;
+      final railB = inner.top + 18;
+      for (var k = 0; k < 4; k++) {
+        final bx = inner.left + k * (inner.width - bw) / 3;
+        final b = Rect.fromLTRB(bx, railB, bx + bw, inner.bottom - 2);
+        canvas.drawRect(
+          b,
+          Paint()
+            ..shader = ui.Gradient.linear(b.topLeft, b.bottomRight, [
+              stone,
+              Color.lerp(stone, _kRiteWall.stoneFace, .55)!,
+              _kRiteWall.stoneFace,
+            ], const [0, .5, 1]),
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(b.left, b.top, 1.4, b.height),
+          Paint()..color = rim.withValues(alpha: .6),
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(b.right - 1.2, b.top, 1.2, b.height),
+          Paint()..color = Colors.black.withValues(alpha: .45),
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(b.left, b.bottom - 1.4, b.width, 1.4),
+          Paint()..color = rim.withValues(alpha: .5),
+        );
+      }
+      // A cross rail low down, and the head rail with the key in it.
+      for (final r in [
+        Rect.fromLTWH(inner.left, inner.top + 42, inner.width, 6),
+        Rect.fromLTWH(inner.left, inner.top, inner.width, 18),
+      ]) {
+        canvas.drawRect(
+          r,
+          Paint()
+            ..shader = ui.Gradient.linear(r.topCenter, r.bottomCenter, [
+              stone,
+              Color.lerp(stone, _kRiteWall.stoneFace, .6)!,
+            ]),
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(r.left, r.bottom - 1.3, r.width, 1.3),
+          Paint()..color = rim.withValues(alpha: .55),
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(r.left, r.top, r.width, 1),
+          Paint()..color = Colors.black.withValues(alpha: .4),
+        );
+      }
+      final railC = Offset(inner.center.dx, inner.top + 9);
+      canvas.drawCircle(
+        railC,
+        24,
+        Paint()
+          ..shader = ui.Gradient.radial(railC, 24, [
+            key.withValues(alpha: .2),
+            key.withValues(alpha: 0),
+          ]),
+      );
+      for (var k = 0; k < pips; k++) {
+        final pc = railC + Offset((k - (pips - 1) / 2) * 11.5, 0);
+        final lozenge = Path()
+          ..moveTo(pc.dx, pc.dy - 6.5)
+          ..lineTo(pc.dx + 4.6, pc.dy)
+          ..lineTo(pc.dx, pc.dy + 6.5)
+          ..lineTo(pc.dx - 4.6, pc.dy)
+          ..close();
+        canvas.drawPath(
+          lozenge,
+          glass(Rect.fromCenter(center: pc, width: 9, height: 13), .7),
+        );
+        paintLead(canvas, lozenge, _kRiteWall, width: 1.8);
+      }
+      canvas.restore();
     }
-    for (var k = 6; k >= 0; k--) {
-      final t = k / 6;
-      final x = back + (nose - back) * t;
-      final hy = half * (1 - .6 * t) + (k.isEven ? 0 : 3);
-      fold.lineTo(x, c.dy + 4 + hy * .6);
+    // The posts and the lintel.
+    for (final px in [sq.left + 2, sq.right - 9]) {
+      paintCarvedBlock(
+        canvas,
+        Rect.fromLTWH(px, sq.top - 12, 7, sq.height - 4),
+        6,
+        _kRiteWall,
+        radius: 1,
+      );
     }
-    fold.close();
-    canvas.drawPath(fold, Paint()..color = const Color(0xFF3A1E14));
-    // The top board, its grain, and a handle at the back.
-    final board = Path()
-      ..moveTo(back - dir * 4, c.dy - 2 - half)
-      ..lineTo(nose, c.dy - 2 - half * .4)
-      ..lineTo(nose, c.dy + 2 - half * .4)
-      ..lineTo(back - dir * 4, c.dy + 4 - half)
-      ..close();
-    canvas.drawPath(
-      board,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(back, c.dy - half),
-          Offset(nose, c.dy),
-          [const Color(0xFF7A5034), const Color(0xFF4A2E1C)],
-        ),
+    final lintel = Rect.fromLTWH(sq.left + 2, sq.top - 14, sq.width - 4, 8);
+    canvas.drawRect(
+      lintel,
+      Paint()..color = Color.lerp(_kRiteWall.stoneTop, key, .12)!,
     );
     canvas.drawRect(
-      Rect.fromCenter(
-        center: Offset(back - dir * 9, c.dy - half + 1),
-        width: 10,
-        height: 4,
-      ),
-      Paint()..color = const Color(0xFF4A2E1C),
+      Rect.fromLTWH(lintel.left, lintel.bottom - 1.2, lintel.width, 1.2),
+      Paint()..color = rim.withValues(alpha: .4),
     );
-    // The nozzle.
-    final n0 = Offset(nose, c.dy + 2);
-    canvas.drawPath(
-      Path()
-        ..moveTo(n0.dx, n0.dy - 4)
-        ..lineTo(n0.dx + dir * 14, n0.dy - 1.6)
-        ..lineTo(n0.dx + dir * 14, n0.dy + 1.6)
-        ..lineTo(n0.dx, n0.dy + 4)
-        ..close(),
-      Paint()..color = _kRiteBronze,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(min(n0.dx, n0.dx + dir * 14), n0.dy - 2.5, 14, 1.2),
-      Paint()..color = const Color(0xFFE8C080).withValues(alpha: .55),
-    );
+    // Chips of its glass in the lintel, one a pip, lit while it stands open.
+    for (var k = 0; k < pips; k++) {
+      final pc = lintel.center + Offset((k - (pips - 1) / 2) * 8, 0);
+      final chip = Path()
+        ..moveTo(pc.dx, pc.dy - 3)
+        ..lineTo(pc.dx + 3, pc.dy)
+        ..lineTo(pc.dx, pc.dy + 3)
+        ..lineTo(pc.dx - 3, pc.dy)
+        ..close();
+      canvas.drawPath(
+        chip,
+        glass(Rect.fromCenter(center: pc, width: 6, height: 6), e),
+      );
+      paintLead(canvas, chip, _kRiteWall, width: 1.2);
+    }
   }
 
-  /// The lava sluice: a stone trough of molten rock, its crust drifting,
-  /// lighting the floor round it.
+  /// The bellows, pointed at the hearth along [dir], seen from above: a
+  /// pear-shaped board over its pleated fold, a grip at the back and a
+  /// nozzle — near-black, carved out of the room's porphyry and lit only
+  /// along their edges. A rondel of pale glass in the board is what says
+  /// stand here: it lights while Blood is on it and the board breathes
+  /// down and up (the air itself is grains, from the play).
+  void _riteBellows(Canvas canvas, Offset c, double dir, bool pressed) {
+    final squeeze = pressed ? .55 + .2 * sin(_time * 9) : 1.0;
+    final rim = Color.lerp(_kRiteWall.stoneTop, const Color(0xFFF2CFC8), .45)!;
+    paintContactShadow(canvas, c + const Offset(0, 12), 62, 20, opacity: .6);
+    final fold = 2 + 8 * squeeze;
+    final o = c + Offset(-dir * 6, 6);
+    Path pear(Offset o) {
+      const a0 = .9;
+      final p = Path();
+      for (var i = 0; i <= 20; i++) {
+        final a = a0 + (2 * pi - 2 * a0) * i / 20;
+        final q = o + Offset(dir * cos(a) * 15, sin(a) * 11.5);
+        i == 0 ? p.moveTo(q.dx, q.dy) : p.lineTo(q.dx, q.dy);
+      }
+      p
+        ..lineTo(o.dx + dir * 22, o.dy - 3.6)
+        ..lineTo(o.dx + dir * 22, o.dy + 3.6)
+        ..close();
+      return p;
+    }
+
+    // The fold: the board's own outline stacked down to the floor, its
+    // pleats in bands.
+    for (var k = fold.ceil(); k >= 1; k--) {
+      canvas.drawPath(
+        pear(o - Offset(0, k - 1)),
+        Paint()
+          ..color = k.isEven
+              ? _kRiteWall.stoneFoot
+              : Color.lerp(_kRiteWall.stoneFace, rim, .12)!,
+      );
+    }
+    // The nozzle.
+    final n0 = o + Offset(dir * 20, -fold);
+    final nozzle = Path()
+      ..moveTo(n0.dx, n0.dy - 3.4)
+      ..lineTo(n0.dx + dir * 14, n0.dy - 1.6)
+      ..lineTo(n0.dx + dir * 14, n0.dy + 1.6)
+      ..lineTo(n0.dx, n0.dy + 3.4)
+      ..close();
+    canvas.drawPath(nozzle, Paint()..color = const Color(0xFF140A0C));
+    canvas.drawPath(
+      Path()
+        ..moveTo(n0.dx, n0.dy - 3.4)
+        ..lineTo(n0.dx + dir * 14, n0.dy - 1.6)
+        ..lineTo(n0.dx + dir * 14, n0.dy - .7)
+        ..lineTo(n0.dx, n0.dy - 2.2)
+        ..close(),
+      Paint()..color = rim.withValues(alpha: .4),
+    );
+    // The grip at the back.
+    final grip = Rect.fromCenter(
+      center: o + Offset(-dir * 18, -fold),
+      width: 7,
+      height: 9,
+    );
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(grip, const Radius.circular(2)),
+      Paint()..color = _kRiteWall.stoneFace,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(grip.left, grip.top, grip.width, 1.2),
+      Paint()..color = rim.withValues(alpha: .4),
+    );
+    // The board: its lit edge toward the light, then its face.
+    final top = o - Offset(0, fold);
+    canvas.drawPath(
+      pear(top - const Offset(1, 1.2)),
+      Paint()..color = rim.withValues(alpha: .55),
+    );
+    canvas.drawPath(
+      pear(top),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          top - const Offset(12, 10),
+          top + const Offset(12, 10),
+          [
+            Color.lerp(_kRiteWall.stoneTop, Colors.black, .05)!,
+            _kRiteWall.stoneFace,
+          ],
+        ),
+    );
+    // The rondel.
+    final g = top + Offset(-dir * 3, 0);
+    final lit = pressed ? .75 + .25 * (1 - squeeze) : 0.0;
+    const air = Color(0xFFBFE3EE);
+    if (lit > 0) {
+      canvas.drawCircle(
+        g,
+        20,
+        Paint()
+          ..shader = ui.Gradient.radial(g, 20, [
+            air.withValues(alpha: .3 * lit),
+            air.withValues(alpha: 0),
+          ]),
+      );
+    }
+    final pane = Path()..addOval(Rect.fromCircle(center: g, radius: 4.8));
+    canvas.drawPath(
+      pane,
+      Paint()
+        ..shader = ui.Gradient.radial(g, 6, [
+          Color.lerp(
+            Color.lerp(air, Colors.black, .55)!,
+            Colors.white,
+            .6 * lit,
+          )!,
+          Color.lerp(
+            Color.lerp(air, Colors.black, .78)!,
+            air,
+            lit,
+          )!,
+        ]),
+    );
+    paintLead(canvas, pane, _kRiteWall, width: 1.8);
+  }
+
+  /// The lava sluice: a stone trough of molten rock — a dim molten bed with
+  /// its crust in grains drifting down the trough on it, bright seams
+  /// between the plates, embers lifting off — lighting the floor round it.
   void _riteSluice(Canvas canvas, Rect sq) {
     final cc = sq.center;
     canvas.drawCircle(
@@ -2465,8 +2817,8 @@ extension BloodRitesArt on PlanetDungeonGame {
       48,
       Paint()
         ..shader = ui.Gradient.radial(cc, 48, [
-          const Color(0xFFFF7A2A).withValues(alpha: .26 + .06 * sin(_time * 3)),
-          const Color(0x00FF7A2A),
+          const Color(0xFFFF6A22).withValues(alpha: .2 + .04 * sin(_time * 3)),
+          const Color(0x00FF6A22),
         ]),
     );
     final trough = Rect.fromLTRB(
@@ -2477,32 +2829,129 @@ extension BloodRitesArt on PlanetDungeonGame {
     );
     paintCarvedBlock(canvas, trough.inflate(4), 7, _kRiteWall, radius: 4);
     final melt = trough.deflate(3);
+    final bed = RRect.fromRectAndRadius(melt, const Radius.circular(3));
     canvas.drawRRect(
-      RRect.fromRectAndRadius(melt, const Radius.circular(3)),
+      bed,
+      Paint()
+        ..shader = ui.Gradient.linear(melt.topCenter, melt.bottomCenter, [
+          const Color(0xFFD0561C),
+          const Color(0xFFA0341A),
+          const Color(0xFF581408),
+        ], const [0, .5, 1]),
+    );
+    const ramp = [
+      Color(0xFF1C0705),
+      Color(0xFF8A2410),
+      Color(0xFFF0622A),
+      Color(0xFFFFC45A),
+    ];
+    final crust = _riteLavaCrust ??= _riteBuildLavaCrust(
+      melt.width,
+      melt.height,
+    );
+    canvas.save();
+    canvas.clipRRect(bed);
+    // The flow runs along the shape's own fall, turned to run along the
+    // trough.
+    paintGrainShape(
+      canvas,
+      crust,
+      _time,
+      origin: melt.center,
+      rotation: -pi / 2,
+      drift: .7,
+      fall: melt.width,
+      fallSpeed: 4.5,
+      ramp: ramp,
+      glint: .01,
+      width: 1.7,
+      trail: .035,
+    );
+    // The far wall of the trough, shadowing the melt under it.
+    canvas.drawRect(
+      Rect.fromLTWH(melt.left, melt.top, melt.width, 6),
       Paint()
         ..shader = ui.Gradient.linear(
           melt.topCenter,
-          melt.bottomCenter,
+          melt.topCenter + const Offset(0, 6),
           [
-            const Color(0xFFFFC45A),
-            const Color(0xFFF0622A),
-            const Color(0xFF9A2410),
+            Colors.black.withValues(alpha: .5),
+            Colors.black.withValues(alpha: 0),
           ],
-          const [0, .45, 1],
         ),
     );
-    canvas.save();
-    canvas.clipRRect(RRect.fromRectAndRadius(melt, const Radius.circular(3)));
-    for (var k = 0; k < 4; k++) {
-      final h = _riteHash(k * 19 + 2);
-      final x = melt.left + ((h + _time * .05) % 1.2 - .1) * melt.width;
-      final y = melt.top + 4 + h * (melt.height - 10);
-      canvas.drawPath(
-        vfxBlob(Offset(x, y), 5 + 3 * h, k * 3.1, n: 7, squash: .55),
-        Paint()..color = const Color(0xFF3A120A).withValues(alpha: .75),
-      );
-    }
     canvas.restore();
+    // Embers lifting off it and going out.
+    paintGrainShape(
+      canvas,
+      _riteLavaEmbers ??= _riteBuildLavaEmbers(melt.width),
+      _time,
+      origin: melt.center - const Offset(0, 24),
+      rotation: pi,
+      drift: 2.2,
+      fall: 56,
+      fallSpeed: 15,
+      ramp: ramp,
+      glint: .03,
+      width: 1.6,
+      trail: .05,
+    );
+  }
+
+  /// The sluice's melt in grains, lying along +y (the way it flows) in a
+  /// box of [len] by [across]: plates of crust, each a dark clump, with the
+  /// bright melt showing in the seams between them.
+  GrainShape _riteBuildLavaCrust(double len, double across) {
+    final rng = Random(23);
+    final plates = <(Offset, double)>[
+      for (var i = 0; i < 7; i++)
+        (
+          Offset(
+            (rng.nextDouble() - .5) * (across - 8),
+            -len / 2 + (i + rng.nextDouble() * .5) * len / 7,
+          ),
+          4 + rng.nextDouble() * 3,
+        ),
+    ];
+    final pts = <Offset>[];
+    final shade = <double>[];
+    while (pts.length < 600) {
+      final p = Offset(
+        (rng.nextDouble() - .5) * across,
+        (rng.nextDouble() - .5) * len,
+      );
+      var inPlate = 2.0;
+      for (final (o, r) in plates) {
+        inPlate = min(inPlate, (p - o).distance / r);
+      }
+      if (inPlate < 1) {
+        // Crust: dark, its edge a little lit by the melt under it.
+        pts.add(p);
+        shade.add(.02 + .2 * inPlate * inPlate * inPlate);
+      } else if (rng.nextDouble() < .3) {
+        // The melt: white-hot only in the narrow seams right by a plate.
+        pts.add(p);
+        final seam = inPlate < 1.18;
+        shade.add((seam ? .92 : .55) + (seam ? .08 : .15) * rng.nextDouble());
+      }
+    }
+    return GrainShape.points(pts, shade, seed: 23);
+  }
+
+  /// Embers over the sluice: a few grains in a band [w] wide, rising.
+  GrainShape _riteBuildLavaEmbers(double w) {
+    final rng = Random(29);
+    return GrainShape.points(
+      [
+        for (var i = 0; i < 22; i++)
+          Offset(
+            (rng.nextDouble() - .5) * (w - 8),
+            (rng.nextDouble() - .5) * 56,
+          ),
+      ],
+      [for (var i = 0; i < 22; i++) .7 + rng.nextDouble() * .3],
+      seed: 29,
+    );
   }
 
   // ═══════════════════════════ AIR ══════════════════════════════════════
@@ -2672,19 +3121,15 @@ extension BloodRitesArt on PlanetDungeonGame {
         _riteSq(end!.x, end.y).topLeft,
         e,
       )!;
-      canvas.save();
-      if (rites.iceMelted != null) {
-        canvas.saveLayer(
-          null,
-          Paint()
-            ..color = Colors.white.withValues(
-              alpha: 1 - max(0.0, (rites.driftT - .6) / .4),
-            ),
-        );
-      }
-      _riteIce(canvas, Rect.fromLTWH(at.dx, at.dy, kRiteCell, kRiteCell));
-      if (rites.iceMelted != null) canvas.restore();
-      canvas.restore();
+      // Into the light, its glass thins and goes; the grains are left, and
+      // as it stops they come loose as air (_riteSublimate).
+      _riteIce(
+        canvas,
+        Rect.fromLTWH(at.dx, at.dy, kRiteCell, kRiteCell),
+        glass: rites.iceMelted == null
+            ? 1
+            : 1 - _riteEase((rites.driftT - .55) / .4),
+      );
     }
   }
 
@@ -2780,9 +3225,12 @@ extension BloodRitesArt on PlanetDungeonGame {
     }
   }
 
-  /// Sanguorath's shell: a sphere of the element its opposite breaks. As an
-  /// ally gives itself ([shed] 0 → 1) the shell thins and its pieces drift
-  /// off and go out.
+  /// Sanguorath's shell: a sphere of the element its opposite breaks, held
+  /// round it in grains of that element (they were 18 cut-out shapes) — a
+  /// band turning about it, each element its own way: fire licking outward,
+  /// water a slow glinting tide, earth heavy clods, air thin and fast. As an
+  /// ally gives itself ([shed] 0 → 1) the band loosens, drifts wide and
+  /// thins to nothing; [taken] warms it to blood. ~1,000 grains, one shape.
   void _riteShellBody(
     Canvas canvas,
     Offset c,
@@ -2790,80 +3238,145 @@ extension BloodRitesArt on PlanetDungeonGame {
     double shed, {
     double taken = 0,
   }) {
-    final col = Color.lerp(elementColor(el), _kRiteBlood, taken)!;
     final k = _riteEase((_time - rites.shellT) / .7);
-    final r = 64 * k * (1 + shed * .5);
-    final a = 1 - shed;
+    final a = k * (1 - shed);
+    if (a <= .02) return;
+    final col = Color.lerp(elementColor(el), _kRiteBlood, taken)!;
+    final scale = (.72 + .28 * k) * (1 + shed * .5);
+    final r = 64 * scale;
+    // A soft haze for it to hold against: faint inside, a little more at
+    // its edge.
     canvas.drawCircle(
       c,
-      r,
+      r * 1.18,
       Paint()
         ..shader = ui.Gradient.radial(
           c,
-          r,
+          r * 1.18,
           [
             col.withValues(alpha: 0),
-            col.withValues(alpha: .18 * a),
-            col.withValues(alpha: .5 * a),
+            col.withValues(alpha: .06 * a),
+            col.withValues(alpha: .16 * a),
+            col.withValues(alpha: 0),
           ],
-          const [0, .7, 1],
+          const [0, .6, .84, 1],
         ),
     );
-    for (var i = 0; i < 18; i++) {
-      final ang =
-          i * pi * 2 / 18 +
-          _time * (el == 'Air' ? 1.6 : .3) +
-          shed * _riteHash(i) * 1.5;
-      final p =
-          c + Offset(cos(ang), sin(ang)) * (r + shed * 40 * _riteHash(i + 3));
-      final pa = a * (1 - shed * _riteHash(i + 9) * .5);
-      if (pa <= .02) continue;
-      switch (el) {
-        case 'Fire':
-          final h = 14 + 6 * sin(_time * 8 + i);
-          final n = Offset(cos(ang), sin(ang));
-          final side = Offset(-n.dy, n.dx) * 5;
-          canvas.drawPath(
-            Path()
-              ..moveTo(p.dx + side.dx, p.dy + side.dy)
-              ..lineTo(p.dx + n.dx * h, p.dy + n.dy * h)
-              ..lineTo(p.dx - side.dx, p.dy - side.dy)
-              ..close(),
-            Paint()
-              ..color = const Color(0xFFF08A3A).withValues(alpha: .85 * pa),
-          );
-        case 'Water':
-          canvas.drawCircle(
-            p + Offset(0, 3 * sin(_time * 3 + i)),
-            6,
-            Paint()..color = const Color(0xFF5AA7E0).withValues(alpha: .7 * pa),
-          );
-        case 'Earth':
-          canvas.save();
-          canvas.translate(p.dx, p.dy);
-          canvas.rotate(ang);
-          canvas.drawRect(
-            const Rect.fromLTWH(-6, -9, 12, 18),
-            Paint()..color = const Color(0xFF8A6A3E).withValues(alpha: pa),
-          );
-          canvas.restore();
-        case 'Air':
-          final n = Offset(-sin(ang), cos(ang));
-          canvas.drawPath(
-            Path()
-              ..moveTo(p.dx, p.dy)
-              ..lineTo(
-                p.dx + n.dx * 14 + cos(ang) * 3,
-                p.dy + n.dy * 14 + sin(ang) * 3,
-              )
-              ..lineTo(
-                p.dx + n.dx * 14 - cos(ang) * 3,
-                p.dy + n.dy * 14 - sin(ang) * 3,
-              )
-              ..close(),
-            Paint()..color = const Color(0xFFDCEBF2).withValues(alpha: .7 * pa),
-          );
+    const blood = [
+      Color(0xFF5A0F1A),
+      Color(0xFFC8283C),
+      Color(0xFFFF8A94),
+      Color(0xFFFFE4E8),
+    ];
+    final own = essenceRamp(EssenceElement.of(el));
+    final ramp = [
+      for (var i = 0; i < 4; i++)
+        Color.lerp(own[min(i, own.length - 1)], blood[i], taken)!,
+    ];
+    paintGrainShape(
+      canvas,
+      _riteShellGrains.putIfAbsent(el, () => _riteBuildShell(el)),
+      _time,
+      origin: c,
+      scale: scale,
+      drift: (el == 'Earth' ? .8 : 1.6) + shed * 18,
+      alpha: a,
+      ramp: ramp,
+      glint: switch (el) {
+        'Water' => .014,
+        'Air' => .01,
+        'Fire' => .006,
+        _ => 0,
+      },
+      width: 1.8,
+      trail: el == 'Air' ? .045 : .035,
+    );
+  }
+
+  /// One element's shell, about the origin, radius ~64, given its turning.
+  GrainShape _riteBuildShell(String el) {
+    final rng = Random(el.hashCode & 0xFFFF);
+    final pts = <Offset>[];
+    final shade = <double>[];
+    double gauss() =>
+        (rng.nextDouble() + rng.nextDouble() + rng.nextDouble() - 1.5) / 1.5;
+    double rnd(double a, double b) => a + (b - a) * rng.nextDouble();
+    void add(double ang, double rad, double s) {
+      pts.add(Offset(cos(ang), sin(ang)) * rad);
+      shade.add(s.clamp(0.0, 1.0));
+    }
+
+    /// [n] grains anywhere round the band, at radius [r] give or take
+    /// [spread], shaded [s0] to [s1].
+    void band(int n, double r, double spread, double s0, double s1) {
+      for (var i = 0; i < n; i++) {
+        add(rnd(0, 2 * pi), r + gauss() * spread, rnd(s0, s1));
       }
     }
+
+    switch (el) {
+      case 'Earth':
+        // Clods: dense clumps round the band, lit on their upper side, with
+        // a thin grit between them.
+        for (var i = 0; i < 30; i++) {
+          final a0 = i / 30 * 2 * pi + rng.nextDouble() * .1;
+          final o = Offset(cos(a0), sin(a0)) * (63 + gauss() * 3);
+          final cr = rnd(5.5, 9);
+          final n = (cr * cr * 1.1).round();
+          for (var j = 0; j < n; j++) {
+            final q = Offset(gauss(), gauss()) * cr;
+            pts.add(o + q);
+            shade.add((.38 - .45 * q.dy / cr - .15 * q.dx / cr).clamp(0, 1));
+          }
+        }
+        band(320, 63, 8, .2, .55);
+      case 'Water':
+        // A tide: a bright dense inner edge, a body, a fine spray outside.
+        for (var i = 0; i < 520; i++) {
+          add(rnd(0, 2 * pi), 58 + gauss().abs() * 4, rnd(.65, 1));
+        }
+        band(360, 64, 5, .3, .65);
+        for (var i = 0; i < 140; i++) {
+          add(rnd(0, 2 * pi), rnd(70, 80), rnd(.2, .5));
+        }
+      case 'Fire':
+        // A burning band, its tongues licking outward: brightest at the
+        // root, darkening toward the tips.
+        band(540, 60, 3, .7, 1);
+        for (var t = 0; t < 22; t++) {
+          final a0 = t / 22 * 2 * pi + rng.nextDouble() * .2;
+          final len = rnd(9, 21);
+          for (var j = 0; j < 22; j++) {
+            final u = pow(rng.nextDouble(), .7).toDouble();
+            final ang = a0 + gauss() * (1 - u) * .05 + u * .08;
+            add(ang, 62 + u * len, .95 - .85 * u);
+          }
+        }
+      default:
+        // Air: thin fast streaks wound round it, little between them.
+        for (var s = 0; s < 6; s++) {
+          final a0 = s / 6 * 2 * pi + rng.nextDouble() * .4;
+          final r0 = rnd(56, 70);
+          for (var j = 0; j < 80; j++) {
+            final u = rng.nextDouble();
+            add(
+              a0 + u * 2.2 + gauss() * .06,
+              r0 + gauss() * (2 + 4 * u) + u * 5,
+              .95 - .7 * u,
+            );
+          }
+        }
+        band(380, 64, 8, .2, .55);
+    }
+    final s = GrainShape.points(pts, shade, seed: el.length + 31);
+    final base = switch (el) {
+      'Earth' => .16,
+      'Water' => .42,
+      'Fire' => .6,
+      _ => 1.1,
+    };
+    // Inner faster than outer, so the band shears as it turns.
+    s.orbit(Offset.zero, (d) => base * pow(62 / max(d, 30), 1.4).toDouble());
+    return s;
   }
 }

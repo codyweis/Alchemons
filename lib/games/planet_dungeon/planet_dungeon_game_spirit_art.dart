@@ -18,7 +18,6 @@ const GlassPalette _kWraithGlass = kWraithGlass;
 // look mystical"): blue-slate ground, silver stone, a luminous aqua for the
 // past. Gold (the sockets' rims) and blood (a pulse) are the only warm things.
 const Color _fSod = Color(0xFF131926);
-const Color _fStone = Color(0xFF7A8294);
 const Color _fCold = Color(0xFF7FE0DA);
 const Color _fVoid = Color(0xFF04050C);
 const Color _fEmber = Color(0xFFD9A24C);
@@ -27,6 +26,64 @@ const Color _fBlood = Color(0xFFB02A3A);
 const Color _fTurf = Color(0xFF1D2A34);
 const Color _fCut = Color(0xFF070910);
 const Color _fCrystal = Color(0xFFB8E8FF);
+
+// THE PROPS PASS (2026-10-08): the churchyard's solid things — headstones,
+// the belfry and its bell, the urns, the tomb chests and the memorial slabs —
+// are cut in near-black slate and bronze, lit only along the edge the moon
+// catches (the past's along its cold edge). Their flames, ashes, dust and the
+// offerings that pass between hands are grains.
+
+/// The moon's light on a carved edge.
+const Color _fMoonRim = Color(0xFFAFC0DC);
+
+/// Near-black grave slate: the headstones, chests and memorial slabs.
+const GlassPalette _kGraveStone = GlassPalette(
+  lead: Color(0xFF07090C),
+  leadLight: Color(0xFFC8DCE4),
+  frost: [
+    Color(0xFF2E383E),
+    Color(0xFF344048),
+    Color(0xFF2A3238),
+    Color(0xFF3A464E),
+    Color(0xFF303A42),
+  ],
+  liveDeep: Color(0xFF1C4A52),
+  live: Color(0xFF86DCD6),
+  liveCore: Color(0xFFEAFFFC),
+  smoke: Color(0xFF101418),
+  silver: Color(0xFFE2EAEE),
+  gold: Color(0xFFD9A24C),
+  goldDeep: Color(0xFF6E5228),
+  stoneTop: Color(0xFF2B313D),
+  stoneFace: Color(0xFF151820),
+  stoneFoot: Color(0xFF040508),
+  floor: Color(0xFF1B1F28),
+  floorAlt: Color(0xFF171A22),
+  joint: Color(0xFF08090A),
+);
+
+/// A candle's grains, low and warm in the present, tall and cold in the past.
+const List<Color> _kWarmFlame = [
+  Color(0xFFB0581E),
+  Color(0xFFF2A048),
+  Color(0xFFFFDC9A),
+  Color(0xFFFFFBF0),
+];
+const List<Color> _kColdFlame = [
+  Color(0xFF2E7C80),
+  Color(0xFF7FE0DA),
+  Color(0xFFC8F6F2),
+  Color(0xFFFFFFFF),
+];
+
+/// Grave-ash and grave-dust, in grains.
+/// Soft-stepped, so a heap reads as one drift and not as salt.
+const List<Color> _kAshGrains = [
+  Color(0xFF4A4656),
+  Color(0xFF7E788C),
+  Color(0xFFA29CB0),
+  Color(0xFFC8C2D4),
+];
 
 /// THE PAST'S STONE: the same courses as the present, re-struck cold and
 /// clean — joints faintly lit, the floor the colour of deep water.
@@ -60,6 +117,15 @@ final Map<String, ui.Picture> _funeralBakeCache = {};
 
 /// The candle stands of each room: where their flames burn.
 final Map<String, List<Offset>> _funeralCandleCache = {};
+
+/// Grain shapes built once: the dust drifts, keyed by size and seed.
+final Map<String, GrainShape> _funeralGrainShapes = {};
+
+/// The faint body under each dust drift's grains.
+final Map<String, Path> _funeralDriftHaze = {};
+
+/// One frame's loose grains (flames, ashes, offerings), drawn together.
+final _FuneralInk _funeralInk = _FuneralInk();
 
 extension FuneralArt on PlanetDungeonGame {
   void _updateSpiritGlass(double dt) {
@@ -315,6 +381,10 @@ extension FuneralArt on PlanetDungeonGame {
       final lean = rng.range(-0.22, 0.22);
       final fallen = rng.next() < 0.28;
       if (!free(p, 20)) continue;
+      // Fewer of them: where a cross stood there is now a gap in the row.
+      // (The draws above still run, so the rest of the dressing lands where
+      // it always did.)
+      if (kind == 1) continue;
       _bakeHeadstone(
         canvas,
         p,
@@ -336,11 +406,19 @@ extension FuneralArt on PlanetDungeonGame {
       Offset(floor.right - 70, floor.bottom - 40),
     ]) {
       if (!free(corner, 40)) continue;
+      // Near-black slate in the present, the moon along its far lip.
+      final chest = ghost ? pal : _kGraveStone;
       final top = Rect.fromCenter(center: corner, width: 96, height: 30);
-      paintCarvedBlock(canvas, top, 18, pal, radius: 3);
+      paintCarvedBlock(canvas, top, 18, chest, radius: 3);
+      if (!ghost) {
+        canvas.drawRect(
+          Rect.fromLTWH(top.left + 3, top.top, top.width - 6, 1.6),
+          Paint()..color = _fMoonRim.withValues(alpha: 0.45),
+        );
+      }
       canvas.drawRRect(
         RRect.fromRectAndRadius(top.deflate(6), const Radius.circular(2)),
-        Paint()..color = pal.stoneFace.withValues(alpha: 0.45),
+        Paint()..color = chest.stoneFace.withValues(alpha: 0.45),
       );
       final panel = Rect.fromLTWH(
         top.left + 8,
@@ -350,7 +428,7 @@ extension FuneralArt on PlanetDungeonGame {
       );
       canvas.drawRect(
         panel,
-        Paint()..color = pal.stoneFoot.withValues(alpha: 0.5),
+        Paint()..color = chest.stoneFoot.withValues(alpha: 0.5),
       );
       if (!ghost) {
         canvas.drawOval(
@@ -469,34 +547,9 @@ extension FuneralArt on PlanetDungeonGame {
         canvas.restore();
       }
     }
-    // Lilies at the quarters: five white petals and a gold heart.
-    for (var q = 0; q < 4; q++) {
-      final t = q * pi / 2 + pi / 4;
-      final p = c + Offset(cos(t) * (rx + 7), sin(t) * (ry + 5));
-      for (var k = 0; k < 5; k++) {
-        final a = k * 2 * pi / 5;
-        canvas.save();
-        canvas.translate(p.dx, p.dy);
-        canvas.rotate(a);
-        canvas.drawPath(
-          Path()
-            ..moveTo(0, 0)
-            ..quadraticBezierTo(7, -6, 0, -16)
-            ..quadraticBezierTo(-7, -6, 0, 0)
-            ..close(),
-          Paint()
-            ..color = (ghost ? _fCold : const Color(0xFFE6E2D6)).withValues(
-              alpha: ghost ? 0.6 : 0.85,
-            ),
-        );
-        canvas.restore();
-      }
-      canvas.drawCircle(
-        p,
-        3.5,
-        Paint()..color = _fEmber.withValues(alpha: ghost ? 0.6 : 0.9),
-      );
-    }
+    // (The four white five-petal lilies that sat on the quarters are gone:
+    // laid flat and symmetrical they read as star stickers, not flowers. The
+    // laurel and the petals strewn round it carry the wreath.)
     // Petals across the stone, thickest near the wreath.
     for (var k = 0; k < 60; k++) {
       final t = rng.range(0, 2 * pi);
@@ -558,6 +611,9 @@ extension FuneralArt on PlanetDungeonGame {
     }
   }
 
+  /// A HEADSTONE: a near-black slate silhouette lit only along the edge the
+  /// moon catches (in the past, its cold edge) — no grey fill, no lettering
+  /// drawn on it. Fallen ones lie as a dark carved slab, cracked.
   void _bakeHeadstone(
     Canvas canvas,
     Offset foot,
@@ -567,28 +623,30 @@ extension FuneralArt on PlanetDungeonGame {
     required bool ghost,
     required bool fallen,
   }) {
-    final light = Color.lerp(
-      pal.stoneTop,
-      ghost ? _fCold : Colors.white,
-      ghost ? 0.25 : 0.06,
-    )!;
-    final dark = pal.stoneFace;
     // Its shadow.
-    canvas.drawOval(
-      Rect.fromCenter(center: foot.translate(4, 2), width: 44, height: 10),
-      Paint()..color = Colors.black.withValues(alpha: 0.4),
-    );
+    paintContactShadow(canvas, foot.translate(4, 2), 40, 9, opacity: 0.5);
     if (fallen) {
       final slab = Rect.fromCenter(
         center: foot.translate(6, -2),
         width: 44,
         height: 14,
       );
-      paintCarvedBlock(canvas, slab, 5, pal, radius: 3);
-      canvas.drawRect(
-        Rect.fromLTWH(slab.left + 22, slab.top, 2, slab.height),
-        Paint()..color = Colors.black.withValues(alpha: 0.5),
-      );
+      // Broken where it fell: the head end lies a little apart and askew.
+      final head = Rect.fromLTWH(slab.left, slab.top + 1, 17, slab.height);
+      final rest = Rect.fromLTWH(slab.left + 20, slab.top, 24, slab.height);
+      paintCarvedBlock(canvas, rest, 5, _kGraveStone, radius: 3);
+      canvas.save();
+      canvas.translate(head.center.dx, head.center.dy);
+      canvas.rotate(-0.16);
+      canvas.translate(-head.center.dx, -head.center.dy);
+      paintCarvedBlock(canvas, head, 4, _kGraveStone, radius: 3);
+      canvas.restore();
+      for (final r in [head, rest]) {
+        canvas.drawRect(
+          Rect.fromLTWH(r.left + 2, r.top, r.width - 4, 1.3),
+          Paint()..color = _fMoonRim.withValues(alpha: 0.36),
+        );
+      }
       return;
     }
     canvas.save();
@@ -603,10 +661,6 @@ extension FuneralArt on PlanetDungeonGame {
           ..quadraticBezierTo(0, -44, 13, -30)
           ..lineTo(13, 0)
           ..close();
-      case 1: // cross
-        shape = Path()
-          ..addRect(const Rect.fromLTRB(-4, -46, 4, 0))
-          ..addRect(const Rect.fromLTRB(-14, -36, 14, -28));
       case 2: // obelisk
         shape = Path()
           ..moveTo(-9, 0)
@@ -627,40 +681,21 @@ extension FuneralArt on PlanetDungeonGame {
           ..lineTo(14, 0)
           ..close();
     }
-    canvas.drawPath(
+    _funeralCarve(
+      canvas,
       shape,
-      Paint()
-        ..shader =
-            ui.Gradient.linear(const Offset(-14, -40), const Offset(14, 0), [
-              light.withValues(alpha: ghost ? 0.75 : 1),
-              dark.withValues(alpha: ghost ? 0.65 : 1),
-            ]),
+      body: ghost
+          ? Color.lerp(pal.stoneFace, _fCold, 0.12)!
+          : _kGraveStone.stoneTop,
+      deep: ghost ? pal.stoneFoot : _kGraveStone.stoneFoot,
+      rim: ghost
+          ? _fCold.withValues(alpha: 0.8)
+          : _fMoonRim.withValues(alpha: 0.5),
     );
-    // The carved face: a name, in short dark cuts (none on a cross).
-    if (kind != 1) {
-      for (var k = 0; k < 3; k++) {
-        canvas.drawRect(
-          Rect.fromLTWH(-7, -26 + k * 6.0, k == 1 ? 14 : 10, 2.2),
-          Paint()..color = Colors.black.withValues(alpha: ghost ? 0.35 : 0.5),
-        );
-      }
-    }
     canvas.restore();
-    if (ghost) {
-      // Flowers laid at its foot.
-      for (var k = 0; k < 3; k++) {
-        canvas.drawCircle(
-          foot.translate(-8 + k * 8.0, 4),
-          3,
-          Paint()
-            ..color = [
-              const Color(0xFFE8D8F0),
-              const Color(0xFFBFE8F0),
-              const Color(0xFFF0E0C0),
-            ][k].withValues(alpha: 0.8),
-        );
-      }
-    } else {
+    // (The three flower dots at each stone's foot in the past are gone: a
+    // row of them read as beads, not flowers.)
+    if (!ghost) {
       canvas.drawOval(
         Rect.fromCenter(center: foot.translate(0, 1), width: 30, height: 8),
         Paint()..color = const Color(0xFF1F3A36).withValues(alpha: 0.7),
@@ -694,42 +729,96 @@ extension FuneralArt on PlanetDungeonGame {
       Rect.fromCenter(center: at.translate(0, -10), width: 16, height: 5),
       Paint()..color = iron,
     );
+    // The candle: a stub of old wax, lit at its lip by its own flame and
+    // gone dark toward the pan — not a white stick.
+    final wax = Rect.fromCenter(
+      center: at.translate(0, -15.5),
+      width: 5,
+      height: 10,
+    );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: at.translate(0, -16), width: 6, height: 12),
-        const Radius.circular(2),
-      ),
-      Paint()..color = const Color(0xFFE6DCC4),
+      RRect.fromRectAndRadius(wax, const Radius.circular(1.6)),
+      Paint()
+        ..shader = ui.Gradient.linear(
+          wax.topCenter,
+          wax.bottomCenter,
+          [
+            const Color(0xFFCDB894),
+            const Color(0xFF6E604C),
+            const Color(0xFF2A2420),
+          ],
+          const [0.0, 0.35, 1.0],
+        ),
+    );
+    // The wick.
+    canvas.drawRect(
+      Rect.fromLTWH(at.dx - 0.5, at.dy - 23, 1, 2.6),
+      Paint()..color = const Color(0xFF14100C),
     );
   }
 
-  /// The flames: warm and low in the present, cold and tall in the past.
+  /// The flames, in grains: each a few dozen grains rising off the wick,
+  /// white at the root, narrowing and dimming as they climb — warm and low in
+  /// the present, cold and tall in the past. ~38 grains a candle.
   void _renderFuneralCandles(Canvas canvas, DungeonRoom room, bool ghost) {
     final candles = _funeralCandleCache[room.id];
     if (candles == null) return;
+    final ramp = ghost ? _kColdFlame : _kWarmFlame;
+    final t = _fClock;
     for (var i = 0; i < candles.length; i++) {
-      final at = candles[i].translate(0, -24);
-      final f = 0.85 + 0.15 * sin(_fClock * (7 + i) + i * 1.7);
+      final at = candles[i].translate(0, -22);
+      final f = 0.85 + 0.15 * sin(t * (7 + i) + i * 1.7);
       final col = ghost ? _fCold : const Color(0xFFFFC36A);
       if (_fx.ready) {
         drawGlow(
           canvas,
           _fx.glow!,
-          at,
+          at.translate(0, -5),
           34 * f,
           col.withValues(alpha: ghost ? 0.22 : 0.26),
         );
       }
-      final h = (ghost ? 11.0 : 8.0) * f;
-      canvas.drawPath(
-        Path()
-          ..moveTo(at.dx, at.dy - h)
-          ..quadraticBezierTo(at.dx + 3.4, at.dy - 1, at.dx, at.dy + 3)
-          ..quadraticBezierTo(at.dx - 3.4, at.dy - 1, at.dx, at.dy - h)
-          ..close(),
-        Paint()..color = Color.lerp(col, Colors.white, 0.45)!,
-      );
+      final h = (ghost ? 15.0 : 11.0) * f;
+      final w = ghost ? 2.6 : 3.0;
+      const n = 32;
+      const back = 0.05;
+      final sway = sin(t * 2.3 + i * 1.9);
+      for (var j = 0; j < n; j++) {
+        // Each grain's own lane across the flame, and its own pace up it.
+        final side = sin(j * 2.39996 + i);
+        final pace = 1.35 + 0.35 * ((j * 7 + i * 3) % 5) / 4;
+        final u = (t * pace + j / n + i * 0.37) % 1.0;
+        final u0 = u - pace * back;
+        if (u0 < 0) continue; // just born: no trail yet
+        Offset pos(double q) {
+          final width = w * sin(pi * pow(q, 0.55)) * (1 - 0.45 * q);
+          return at.translate(side * width + sway * q * q * 2.2, -q * h);
+        }
+
+        final c = u < 0.18
+            ? ramp[3]
+            : u < 0.42
+            ? ramp[2]
+            : u < 0.72
+            ? ramp[1]
+            : ramp[0];
+        _funeralInk.add(
+          pos(u0),
+          pos(u),
+          c,
+          (1 - u) * min(1.0, u * 10) * (ghost ? 0.85 : 0.95),
+        );
+      }
+      // The root of it: a few grains held bright at the wick.
+      for (var j = 0; j < 6; j++) {
+        final p = at.translate(
+          sin(t * 9 + j * 2.1 + i) * 0.9,
+          -1.5 - (j % 3) * 1.4,
+        );
+        _funeralInk.add(p.translate(0, 0.8), p, ramp[3], 0.9);
+      }
     }
+    _funeralInk.paint(canvas);
   }
 
   // ── Figures ──────────────────────────────────────────────
@@ -789,78 +878,137 @@ extension FuneralArt on PlanetDungeonGame {
 
   // ── The memorial stone ───────────────────────────────────
 
+  /// THE MEMORIAL: a tomb slab of near-black slate with a coffin-shaped
+  /// light of leaded glass let into its lid — dim in the present, lit cold in
+  /// the past. (It was a pale block with a round head and a capsule body on
+  /// it: a sign, not a grave.)
   void _drawMemorialStone(Canvas canvas, Offset at, bool ghost) {
     final top = Rect.fromCenter(center: at, width: 96, height: 30);
-    paintCarvedBlock(canvas, top, 8, _kWraithGlass, radius: 4);
-    final figure = Path()
-      ..addRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: at.translate(6, 0), width: 56, height: 14),
-          const Radius.circular(7),
-        ),
-      )
-      ..addOval(Rect.fromCircle(center: at.translate(-30, 0), radius: 7));
-    paintPane(
-      canvas,
-      figure,
-      ghost
-          ? _kWraithGlass.live.withValues(
-              alpha: 0.75 + 0.15 * sin(_fClock * 1.1),
-            )
-          : _kWraithGlass.frostAt(1).withValues(alpha: 0.55),
-      _kWraithGlass,
-      lead: 1.6,
+    paintCarvedBlock(canvas, top, 8, _kGraveStone, radius: 4);
+    canvas.drawRect(
+      Rect.fromLTWH(top.left + 4, top.top, top.width - 8, 1.6),
+      Paint()..color = _fMoonRim.withValues(alpha: 0.45),
     );
+    // The coffin's outline: narrow at the head, widest at the shoulder,
+    // tapering to the foot. Three panes, leaded across.
+    double half(double x) =>
+        x < -20 ? 4.6 + (x + 38) / 18 * 3.6 : 8.2 - (x + 20) / 58 * 4.2;
+    Path pane(double x0, double x1) => Path()
+      ..moveTo(at.dx + x0, at.dy - half(x0))
+      ..lineTo(
+        at.dx + max(x0, min(x1, -20)),
+        at.dy - half(max(x0, min(x1, -20))),
+      )
+      ..lineTo(at.dx + x1, at.dy - half(x1))
+      ..lineTo(at.dx + x1, at.dy + half(x1))
+      ..lineTo(
+        at.dx + max(x0, min(x1, -20)),
+        at.dy + half(max(x0, min(x1, -20))),
+      )
+      ..lineTo(at.dx + x0, at.dy + half(x0))
+      ..close();
+    final glow = ghost
+        ? _kWraithGlass.live.withValues(alpha: 0.75 + 0.15 * sin(_fClock * 1.1))
+        : Color.lerp(
+            _kWraithGlass.frostAt(1),
+            _kWraithGlass.live,
+            0.18,
+          )!.withValues(alpha: 0.7);
+    // The slot it is set in, cut dark.
+    canvas.drawPath(
+      pane(-38, 38).shift(const Offset(0, 1)),
+      Paint()..color = _fVoid.withValues(alpha: 0.9),
+    );
+    for (final (x0, x1) in const [
+      (-38.0, -20.0),
+      (-20.0, 10.0),
+      (10.0, 38.0),
+    ]) {
+      paintPane(canvas, pane(x0, x1), glow, _kWraithGlass, lead: 1.6);
+    }
+    paintStreak(
+      canvas,
+      Rect.fromLTWH(at.dx - 14, at.dy - 7, 18, 13),
+      opacity: ghost ? 0.5 : 0.22,
+    );
+    paintLead(canvas, pane(-38, 38), _kWraithGlass, width: 2.2);
   }
 
   // ── Dust ─────────────────────────────────────────────────
 
-  /// Grave-dust, drifted: one low heap with three humps on its own shadow,
-  /// lit along the crest. Never a terrain — Dust's mounds stay Dust's.
+  /// Grave-dust, drifted: one low heap with three humps, in ash grains that
+  /// shift where they lie, lit along the crest, on its own shadow. Never a
+  /// terrain — Dust's mounds stay Dust's. ~0.12 grains per square unit.
   void _drawDustDrift(Canvas canvas, Rect area, int seed) {
     final base = area.bottom - area.height * 0.18;
     canvas.drawOval(
       Rect.fromLTRB(area.left, base - 6, area.right, base + 7),
       Paint()..color = const Color(0xFF020308).withValues(alpha: 0.45),
     );
+    final key =
+        'drift|${area.left.round()},${area.top.round()},'
+        '${area.width.round()}x${area.height.round()}|$seed';
     final w = area.width;
     double hump(int k) =>
         area.top + area.height * (0.12 + 0.22 * (((seed * 7 + k * 5) % 9) / 9));
-    final heap = Path()
-      ..moveTo(area.left, base)
-      ..quadraticBezierTo(
-        area.left + w * 0.10,
-        hump(0),
-        area.left + w * 0.30,
-        hump(0) + 4,
-      )
-      ..quadraticBezierTo(
-        area.left + w * 0.42,
-        hump(1) - 6,
-        area.left + w * 0.56,
-        hump(1),
-      )
-      ..quadraticBezierTo(
-        area.left + w * 0.72,
-        hump(2) - 4,
-        area.left + w * 0.84,
-        hump(2) + 6,
-      )
-      ..quadraticBezierTo(area.left + w * 0.96, base - 4, area.right, base)
-      ..close();
+    // The crest: three humps eased into one another, down to the floor at
+    // both ends.
+    double crest(double x) {
+      final u = ((x - area.left) / w).clamp(0.0, 1.0);
+      final ends = sin(pi * u);
+      final h0 = exp(-pow((u - 0.24) / 0.16, 2));
+      final h1 = exp(-pow((u - 0.52) / 0.15, 2));
+      final h2 = exp(-pow((u - 0.8) / 0.14, 2));
+      final lift =
+          (base - hump(0)) * h0 + (base - hump(1)) * h1 + (base - hump(2)) * h2;
+      return base -
+          min(base - area.top, lift * 0.9 + 4) * pow(ends, 0.6).toDouble();
+    }
+
+    // Under the grains, the heap's body as a faint ash haze, so it reads as
+    // one drift rather than scattered dust.
+    final haze = _funeralDriftHaze.putIfAbsent(key, () {
+      final p = Path()..moveTo(area.left, base + 2);
+      for (var x = area.left; x <= area.right; x += 3) {
+        p.lineTo(x, crest(x) + 1.5);
+      }
+      return p
+        ..lineTo(area.right, base + 2)
+        ..close();
+    });
     canvas.drawPath(
-      heap,
+      haze,
       Paint()
         ..shader = ui.Gradient.linear(
           Offset(0, area.top),
           Offset(0, base),
           [
-            Color.lerp(_fAsh, Colors.white, 0.18)!.withValues(alpha: 0.85),
-            _fAsh.withValues(alpha: 0.55),
-            _fAsh.withValues(alpha: 0.25),
+            _fAsh.withValues(alpha: 0.32),
+            _fAsh.withValues(alpha: 0.16),
+            _fAsh.withValues(alpha: 0.04),
           ],
-          const [0.0, 0.45, 1.0],
+          const [0.0, 0.5, 1.0],
         ),
+    );
+    final shape = _funeralGrainShapes.putIfAbsent(
+      key,
+      () => GrainShape.region(
+        Rect.fromLTRB(area.left, area.top, area.right, base + 3),
+        (p) => p.dy > crest(p.dx) && p.dy < base + 3,
+        (area.width * area.height * 0.3).round(),
+        seed: seed * 13 + 5,
+      ),
+    );
+    paintGrainShape(
+      canvas,
+      shape,
+      _fClock,
+      drift: 0.45,
+      alpha: 0.75,
+      ramp: _kAshGrains,
+      glint: 0.004,
+      width: 1.5,
+      trail: 0.035,
     );
   }
 
@@ -877,11 +1025,13 @@ extension FuneralArt on PlanetDungeonGame {
     canvas.restore();
   }
 
+  /// THE URN: an amphora carved in near-black, lit only along the edge the
+  /// moon catches (in the past, a cold translucent ghost of it). Its one
+  /// bright thing is its glass band — the puzzle surface.
   void _drawUrnBody(Canvas canvas, FuneralRoom fr, bool ghost) {
     final at = fr.urn!;
     final id = fr.urnId!;
     final r = _run;
-    final ink = ghost ? _fCold : _fStone;
     final k = ghost ? 0.5 : 1.0;
     final emptied = r.fitted.contains(funeralUrnById(id)!.socketId);
     final hasAsh =
@@ -892,6 +1042,16 @@ extension FuneralArt on PlanetDungeonGame {
         !ghost &&
         r.canCrystallize(id) &&
         funeralPairReady(_elementsNear(at, _kUrnPairReach));
+    // The carving's three tones: body, the dark it turns into, and its rim.
+    final body = ghost
+        ? _fCold.withValues(alpha: 0.24)
+        : const Color(0xFF1F2430);
+    final deep = ghost
+        ? _fCold.withValues(alpha: 0.08)
+        : const Color(0xFF06070B);
+    final rim = ghost
+        ? _fCold.withValues(alpha: 0.75)
+        : _fMoonRim.withValues(alpha: 0.5);
     // Its shadow and its foot.
     canvas.drawOval(
       Rect.fromCenter(center: at.translate(0, 24), width: 50, height: 12),
@@ -903,35 +1063,12 @@ extension FuneralArt on PlanetDungeonGame {
         Paint()..color = _fCold.withValues(alpha: 0.35),
       );
     } else {
-      paintCarvedDisc(canvas, at.translate(0, 15), 13, 4.5, 5, _kWraithGlass);
+      paintCarvedDisc(canvas, at.translate(0, 15), 13, 4.5, 5, _kGraveStone);
     }
-    // THE BODY: an amphora — narrow neck, wide shoulder, full belly, a
-    // waist to the foot — shaded round, lit from the left.
-    final body = Path()
-      ..moveTo(at.dx - 7, at.dy - 24)
-      ..quadraticBezierTo(at.dx - 7, at.dy - 16, at.dx - 17, at.dy - 11)
-      ..quadraticBezierTo(at.dx - 23, at.dy + 2, at.dx - 9, at.dy + 15)
-      ..lineTo(at.dx + 9, at.dy + 15)
-      ..quadraticBezierTo(at.dx + 23, at.dy + 2, at.dx + 17, at.dy - 11)
-      ..quadraticBezierTo(at.dx + 7, at.dy - 16, at.dx + 7, at.dy - 24)
-      ..close();
-    canvas.drawPath(
-      body,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          at.translate(-22, 0),
-          at.translate(22, 0),
-          [
-            Color.lerp(ink, Colors.black, 0.35)!.withValues(alpha: 0.95 * k),
-            Color.lerp(ink, Colors.white, 0.18)!.withValues(alpha: 0.95 * k),
-            Color.lerp(ink, Colors.black, 0.6)!.withValues(alpha: 0.95 * k),
-          ],
-          const [0.0, 0.35, 1.0],
-        ),
-    );
-    // Handles, filled, at the shoulders.
+    // Handles at the shoulders, carved, behind the body.
     for (final side in const [-1.0, 1.0]) {
-      canvas.drawPath(
+      _funeralCarve(
+        canvas,
         Path()
           ..moveTo(at.dx + side * 8, at.dy - 20)
           ..quadraticBezierTo(
@@ -948,14 +1085,23 @@ extension FuneralArt on PlanetDungeonGame {
             at.dy - 16,
           )
           ..close(),
-        Paint()
-          ..color = Color.lerp(
-            ink,
-            Colors.black,
-            0.45,
-          )!.withValues(alpha: 0.9 * k),
+        body: body,
+        deep: deep,
+        rim: rim,
+        lift: 1.2,
       );
     }
+    // THE BODY: an amphora — narrow neck, wide shoulder, full belly, a
+    // waist to the foot.
+    final shape = Path()
+      ..moveTo(at.dx - 7, at.dy - 24)
+      ..quadraticBezierTo(at.dx - 7, at.dy - 16, at.dx - 17, at.dy - 11)
+      ..quadraticBezierTo(at.dx - 23, at.dy + 2, at.dx - 9, at.dy + 15)
+      ..lineTo(at.dx + 9, at.dy + 15)
+      ..quadraticBezierTo(at.dx + 23, at.dy + 2, at.dx + 17, at.dy - 11)
+      ..quadraticBezierTo(at.dx + 7, at.dy - 16, at.dx + 7, at.dy - 24)
+      ..close();
+    _funeralCarve(canvas, shape, body: body, deep: deep, rim: rim);
     // THE GLASS BAND round its belly — the urn's one puzzle surface: ash
     // grey while its ashes are in it, lit when the pair stands ready, dark
     // once the memory has gone out of it.
@@ -967,7 +1113,7 @@ extension FuneralArt on PlanetDungeonGame {
         ),
       );
     canvas.save();
-    canvas.clipPath(body);
+    canvas.clipPath(shape);
     paintPane(
       canvas,
       band,
@@ -980,29 +1126,29 @@ extension FuneralArt on PlanetDungeonGame {
       lead: 1.4,
     );
     canvas.restore();
-    // The lid and its finial.
-    canvas.drawOval(
-      Rect.fromCenter(center: at.translate(0, -24), width: 18, height: 6),
-      Paint()
-        ..color = Color.lerp(
-          ink,
-          Colors.white,
-          0.1,
-        )!.withValues(alpha: 0.95 * k),
+    // The lid, its rim catching the light, and its finial.
+    _funeralCarve(
+      canvas,
+      Path()..addOval(
+        Rect.fromCenter(center: at.translate(0, -24), width: 18, height: 6),
+      ),
+      body: body,
+      deep: deep,
+      rim: rim,
+      lift: 1.2,
     );
-    canvas.drawCircle(
-      at.translate(0, -28),
-      3,
-      Paint()
-        ..color = Color.lerp(
-          ink,
-          Colors.black,
-          0.2,
-        )!.withValues(alpha: 0.95 * k),
+    _funeralCarve(
+      canvas,
+      Path()..addOval(Rect.fromCircle(center: at.translate(0, -28), radius: 3)),
+      body: body,
+      deep: deep,
+      rim: rim,
+      lift: 1.0,
     );
     if (ghost) return;
-    // READINESS, read-only: with the pair standing here the ashes rise
-    // toward the faint outline of the crystal they will make.
+    // READINESS, read-only: with the pair standing here the ashes rise out
+    // of its mouth as grains, winding up into the faint outline of the
+    // crystal they will make. ~30 grains.
     if (r.canCrystallize(id) &&
         funeralPairReady(_elementsNear(at, _kUrnPairReach))) {
       final outline = at.translate(0, -44);
@@ -1012,14 +1158,30 @@ extension FuneralArt on PlanetDungeonGame {
         id,
         alpha: 0.22 + 0.08 * sin(_fClock * 3),
       );
-      for (var k = 0; k < 5; k++) {
-        final t = ((_fClock * 0.6) + k / 5) % 1.0;
-        canvas.drawCircle(
-          Offset.lerp(at.translate((k - 2) * 4.0, -18), outline, t)!,
-          2.0,
-          Paint()..color = _fAsh.withValues(alpha: 0.7 * (1 - t)),
+      final mouth = at.translate(0, -26);
+      const n = 30;
+      for (var j = 0; j < n; j++) {
+        final u = ((_fClock * 0.55) + j / n) % 1.0;
+        final u0 = u - 0.03;
+        if (u0 < 0) continue;
+        Offset pos(double q) {
+          final turn = q * pi * 3 + j * 2.39996;
+          final reach = 5.5 * sin(pi * q) * (0.6 + 0.4 * sin(j * 1.7));
+          return Offset.lerp(
+            mouth,
+            outline,
+            q,
+          )!.translate(cos(turn) * reach, 0);
+        }
+
+        _funeralInk.add(
+          pos(u0),
+          pos(u),
+          _kAshGrains[u < 0.3 ? 1 : (u < 0.7 ? 2 : 3)],
+          0.85 * (1 - u) * min(1.0, u * 8),
         );
       }
+      _funeralInk.paint(canvas, width: 1.3);
     }
     if (r.crystalAtUrn(id)) {
       final flash = funeral.craftUrn == id && funeral.craftT >= 0
@@ -1250,13 +1412,33 @@ extension FuneralArt on PlanetDungeonGame {
           ? sin((t - 9.4) * 9) * 0.35 * (1 - (t - 9.4) / 1.6)
           : 0;
     }
+    // The timber, carved: near-black, lit only along the edge the moon
+    // catches (the past's cold and translucent). No grain stripes, no bright
+    // faces — the belfry is a silhouette against the wall.
     final wood = ghost
-        ? _fCold.withValues(alpha: 0.55)
-        : const Color(0xFF3A2E2A);
-    final woodHi = ghost
-        ? _fCold.withValues(alpha: 0.85)
-        : const Color(0xFF6A5448);
-    const ironBand = Color(0xFF1E1D24);
+        ? _fCold.withValues(alpha: 0.22)
+        : const Color(0xFF261F21);
+    final woodDeep = ghost
+        ? _fCold.withValues(alpha: 0.07)
+        : const Color(0xFF060405);
+    final woodRim = ghost
+        ? _fCold.withValues(alpha: 0.7)
+        : _fMoonRim.withValues(alpha: 0.36);
+    const ironBand = Color(0xFF0E0D12);
+    void timber(Path p, {double lift = 1.8}) => _funeralCarve(
+      canvas,
+      p,
+      body: wood,
+      deep: woodDeep,
+      rim: woodRim,
+      lift: lift,
+    );
+    Path beamPath(Offset a, Offset b, double w) {
+      final v = b - a;
+      final n = Offset(-v.dy, v.dx) / max(0.001, v.distance) * (w / 2);
+      return Path()..addPolygon([a + n, b + n, b - n, a - n], true);
+    }
+
     // THE BELFRY: two timber posts either side of the gate and a beam
     // across, the bell hung from its middle on a wheel.
     final beamY = bell.dy - 44;
@@ -1266,36 +1448,21 @@ extension FuneralArt on PlanetDungeonGame {
         width: 14,
         height: 96,
       );
-      canvas.drawRect(
-        post,
-        Paint()
-          ..shader = ui.Gradient.linear(post.centerLeft, post.centerRight, [
-            woodHi,
-            wood,
-          ]),
+      paintContactShadow(
+        canvas,
+        post.bottomCenter.translate(0, 3),
+        26,
+        8,
+        opacity: 0.55,
       );
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: post.bottomCenter.translate(0, 3),
-          width: 26,
-          height: 8,
-        ),
-        Paint()..color = Colors.black.withValues(alpha: 0.45),
-      );
+      timber(Path()..addRect(post));
     }
     final beam = Rect.fromCenter(
       center: Offset(bell.dx, beamY),
       width: 160,
       height: 14,
     );
-    canvas.drawRect(
-      beam,
-      Paint()
-        ..shader = ui.Gradient.linear(beam.topCenter, beam.bottomCenter, [
-          woodHi,
-          wood,
-        ]),
-    );
+    timber(Path()..addRect(beam));
     for (final dx in const [-58.0, 58.0]) {
       canvas.drawRect(
         Rect.fromCenter(
@@ -1306,25 +1473,24 @@ extension FuneralArt on PlanetDungeonGame {
         Paint()..color = ironBand,
       );
     }
-    // The bell's wheel, turning with the swing.
+    // The bell's wheel, turning with the swing: a carved rim and three
+    // spokes, dark, lit along their upper edges.
     final wheel = Offset(bell.dx + 26, beamY + 10);
-    canvas.drawCircle(wheel, 12, Paint()..color = wood);
-    canvas.drawCircle(
-      wheel,
-      12,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = woodHi,
+    timber(
+      Path()
+        ..fillType = PathFillType.evenOdd
+        ..addOval(Rect.fromCircle(center: wheel, radius: 12))
+        ..addOval(Rect.fromCircle(center: wheel, radius: 8.5)),
+      lift: 1.2,
     );
     for (var k = 0; k < 3; k++) {
       final a = swing * 3 + k * pi / 3;
       _drawBeam(
         canvas,
-        wheel - Offset(cos(a), sin(a)) * 11,
-        wheel + Offset(cos(a), sin(a)) * 11,
+        wheel - Offset(cos(a), sin(a)) * 9,
+        wheel + Offset(cos(a), sin(a)) * 9,
         2.4,
-        woodHi,
+        Color.lerp(wood, woodRim, 0.25)!,
       );
     }
     // THE LEVER: a heavy timber on an iron-bound post, one end over the
@@ -1339,45 +1505,35 @@ extension FuneralArt on PlanetDungeonGame {
       width: 14,
       height: 52,
     );
-    canvas.drawRect(
-      post,
-      Paint()
-        ..shader = ui.Gradient.linear(post.centerLeft, post.centerRight, [
-          woodHi,
-          wood,
-        ]),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: post.bottomCenter.translate(0, 3),
-        width: 26,
-        height: 8,
-      ),
-      Paint()..color = Colors.black.withValues(alpha: 0.45),
-    );
-    _drawBeam(canvas, armA, armB, 16, wood);
-    _drawBeam(
+    paintContactShadow(
       canvas,
-      armA - dir * 2,
-      armB + dir * 2,
-      5,
-      woodHi.withValues(alpha: 0.5),
+      post.bottomCenter.translate(0, 3),
+      26,
+      8,
+      opacity: 0.55,
     );
+    timber(Path()..addRect(post));
+    timber(beamPath(armA, armB, 16));
     for (final t in const [0.15, 0.85]) {
       final c = Offset.lerp(armB, armA, t)!;
       _drawBeam(canvas, c - dir * 3, c + dir * 3, 18, ironBand);
     }
     canvas.drawCircle(pivot, 8, Paint()..color = ironBand);
-    canvas.drawCircle(pivot, 4, Paint()..color = _fStone);
+    canvas.drawCircle(
+      pivot,
+      3.5,
+      Paint()..color = (ghost ? _fCold : _fMoonRim).withValues(alpha: 0.55),
+    );
     // The rope from the lever's far end up to the wheel.
     _drawBeam(
       canvas,
       armB,
       wheel + const Offset(10, 4),
-      3.4,
-      const Color(0xFF8A7458).withValues(alpha: ghost ? 0.5 : 1),
+      3.2,
+      ghost ? _fCold.withValues(alpha: 0.45) : const Color(0xFF5E5040),
     );
-    // The bell, hung from the beam.
+    // The bell, hung from the beam: dark bronze, lit only where its
+    // shoulder and waist turn to the light — not a polished cartoon bell.
     canvas.save();
     canvas.translate(bell.dx, beamY + 6);
     canvas.rotate(swing);
@@ -1393,70 +1549,78 @@ extension FuneralArt on PlanetDungeonGame {
       ..lineTo(22, 34)
       ..quadraticBezierTo(10, 18, 8, 0)
       ..close();
-    final bronze = ghost ? _fCold : const Color(0xFFB38A4A);
-    canvas.drawPath(
-      b,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          const Offset(-22, 0),
-          const Offset(22, 0),
-          [
-            Color.lerp(
-              bronze,
-              Colors.black,
-              0.35,
-            )!.withValues(alpha: ghost ? 0.5 : 1),
-            Color.lerp(
-              bronze,
-              Colors.white,
-              0.35,
-            )!.withValues(alpha: ghost ? 0.7 : 1),
-            Color.lerp(
-              bronze,
-              Colors.black,
-              0.55,
-            )!.withValues(alpha: ghost ? 0.4 : 1),
-          ],
-          const [0.0, 0.35, 1.0],
-        ),
+    // The clapper, just showing under the lip.
+    canvas.drawCircle(
+      Offset(swing * -12, 36.5),
+      3,
+      Paint()..color = ghost ? _fCold.withValues(alpha: 0.4) : ironBand,
     );
-    // The lip, and the clapper under it.
+    _funeralCarve(
+      canvas,
+      b,
+      body: ghost ? _fCold.withValues(alpha: 0.3) : const Color(0xFF2E2418),
+      deep: ghost ? _fCold.withValues(alpha: 0.1) : const Color(0xFF0A0705),
+      rim: ghost
+          ? _fCold.withValues(alpha: 0.85)
+          : const Color(0xFFC9A066).withValues(alpha: 0.75),
+      lift: 2.2,
+    );
+    // The lip: a band of darker bronze, its edge just caught.
     canvas.drawRect(
       const Rect.fromLTRB(-22, 31, 22, 34),
-      Paint()..color = Color.lerp(bronze, Colors.black, 0.25)!,
+      Paint()
+        ..color = ghost
+            ? _fCold.withValues(alpha: 0.35)
+            : const Color(0xFF120D08),
     );
-    canvas.drawCircle(
-      Offset(swing * -12, 37),
-      3.5,
-      Paint()..color = Color.lerp(bronze, Colors.black, 0.4)!,
+    canvas.drawRect(
+      const Rect.fromLTRB(-21, 31, 4, 31.9),
+      Paint()
+        ..color = (ghost ? _fCold : const Color(0xFFC9A066)).withValues(
+          alpha: 0.5,
+        ),
     );
     canvas.restore();
-    // The treadle plate itself, pressed down by the step.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: treadle.translate(0, 26 + step * 3),
-          width: 64,
-          height: 12,
-        ),
-        const Radius.circular(4),
-      ),
-      Paint()..color = (ghost ? _fCold : _fStone).withValues(alpha: 0.8),
+    // The treadle plate itself, pressed down by the step: a carved slab.
+    final plate = Rect.fromCenter(
+      center: treadle.translate(0, 26 + step * 3),
+      width: 64,
+      height: 9,
     );
+    if (ghost) {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(plate, const Radius.circular(4)),
+        Paint()..color = _fCold.withValues(alpha: 0.8),
+      );
+    } else {
+      paintCarvedBlock(canvas, plate, 4, _kGraveStone, radius: 3);
+      canvas.drawRect(
+        Rect.fromLTWH(plate.left + 3, plate.top, plate.width - 6, 1.4),
+        Paint()..color = _fMoonRim.withValues(alpha: 0.45),
+      );
+    }
     // The past's lesson is drawn after the urn and socket so its crystal
     // stays visible over both fixtures.
     if (!ghost && rung) {
       // At rest: a small stone laid flat by the treadle.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: treadle.translate(-46, 30),
-            width: 26,
-            height: 12,
-          ),
-          const Radius.circular(3),
+      paintCarvedBlock(
+        canvas,
+        Rect.fromCenter(
+          center: treadle.translate(-46, 28),
+          width: 26,
+          height: 9,
         ),
-        Paint()..color = _fStone.withValues(alpha: 0.5),
+        3,
+        _kGraveStone,
+        radius: 3,
+      );
+      canvas.drawRect(
+        Rect.fromCenter(
+          center: treadle.translate(-46, 24),
+          width: 20,
+          height: 1.4,
+        ),
+        Paint()..color = _fMoonRim.withValues(alpha: 0.4),
       );
     }
   }
@@ -1476,25 +1640,35 @@ extension FuneralArt on PlanetDungeonGame {
     _drawGhost(canvas, keeper, alpha: alpha, phase: 1);
     _drawGhost(canvas, right, alpha: alpha, phase: 3);
 
-    // Element-colored offerings move from BOTH hands into the ashes.
+    // Element-colored offerings pass from BOTH hands into the ashes: a
+    // stream of grains in each hand's colour, arcing over and thinning out
+    // as it lands. ~40 grains a hand.
     const dust = Color(0xFFCBB58A);
     const spirit = Color(0xFF9B8CFF);
-    for (final item in [(keeper, dust), (right, spirit)]) {
-      if (t >= 1 && t < 4) {
-        for (var i = 0; i < 7; i++) {
-          final f = ((t - 1) * 0.7 + i / 7) % 1.0;
-          final at = Offset.lerp(
-            item.$1.translate(0, -30),
-            urn.translate(0, -42),
-            f,
-          )!;
-          canvas.drawCircle(
-            at.translate(0, -sin(f * pi) * 15),
-            3,
-            Paint()..color = item.$2.withValues(alpha: alpha),
+    if (t >= 1 && t < 4) {
+      final into =
+          ((t - 1) / 0.4).clamp(0.0, 1.0) * ((4 - t) / 0.5).clamp(0.0, 1.0);
+      for (final (from, col) in [(keeper, dust), (right, spirit)]) {
+        final ramp = grainRampFrom(col);
+        final a = from.translate(0, -30), z = urn.translate(0, -42);
+        Offset pos(double f, int i) => Offset.lerp(a, z, f)!.translate(
+          sin(i * 2.39996) * 3.2 * (1 - f),
+          -sin(f * pi) * 15 + cos(i * 1.7) * 2.4 * (1 - f),
+        );
+        const n = 56;
+        for (var i = 0; i < n; i++) {
+          final f = ((t - 1) * 0.7 + i / n) % 1.0;
+          final f0 = f - 0.018;
+          if (f0 < 0) continue;
+          _funeralInk.add(
+            pos(f0, i),
+            pos(f, i),
+            ramp[i % 3 == 0 ? 2 : 1],
+            alpha * into * min(1.0, f * 6) * (1 - f * 0.6),
           );
         }
       }
+      _funeralInk.paint(canvas, width: 1.8);
     }
     if (t >= 3.0) {
       final formed = ((t - 3) / 1.0).clamp(0.0, 1.0);
@@ -1768,7 +1942,9 @@ extension FuneralArt on PlanetDungeonGame {
     }
   }
 
-  /// The bier on its wheels, shrouded.
+  /// The bier on its wheels, shrouded: a dark carved bed on two carved
+  /// wheels, and on it a body under a sheet — a drape with a head, a chest
+  /// and feet in it, not a pill and a ball.
   void _drawBierWagon(
     Canvas canvas,
     Offset at, {
@@ -1776,31 +1952,92 @@ extension FuneralArt on PlanetDungeonGame {
     double alpha = 1.0,
   }) {
     if (alpha <= 0.01) return;
-    final wood = ghostly
-        ? _fCold.withValues(alpha: 0.5 * alpha)
-        : const Color(0xFF2A2532);
+    final body = ghostly
+        ? _fCold.withValues(alpha: 0.4 * alpha)
+        : const Color(0xFF231E28);
+    final deep = ghostly
+        ? _fCold.withValues(alpha: 0.15 * alpha)
+        : const Color(0xFF09070B);
+    final rim = ghostly
+        ? _fCold.withValues(alpha: 0.75 * alpha)
+        : _fMoonRim.withValues(alpha: 0.45);
     for (final dx in const [-24.0, 24.0]) {
-      canvas.drawCircle(at.translate(dx, 14), 7, Paint()..color = wood);
+      _funeralCarve(
+        canvas,
+        Path()
+          ..addOval(Rect.fromCircle(center: at.translate(dx, 14), radius: 7)),
+        body: body,
+        deep: deep,
+        rim: rim,
+        lift: 1.3,
+      );
     }
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: at, width: 76, height: 16),
-        const Radius.circular(4),
+    _funeralCarve(
+      canvas,
+      Path()..addRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(center: at, width: 76, height: 16),
+          const Radius.circular(4),
+        ),
       ),
-      Paint()..color = wood,
+      body: body,
+      deep: deep,
+      rim: rim,
     );
-    final shroud = ghostly ? _fCold : const Color(0xFFA8B2C2);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: at.translate(4, -9), width: 58, height: 16),
-        const Radius.circular(8),
-      ),
-      Paint()..color = shroud.withValues(alpha: (ghostly ? 0.55 : 0.9) * alpha),
+    _paintDrape(
+      canvas,
+      at.translate(-1, -8),
+      70,
+      17,
+      ghostly ? _fCold : const Color(0xFF8C96A8),
+      (ghostly ? 0.6 : 1.0) * alpha,
     );
-    canvas.drawCircle(
-      at.translate(-28, -9),
-      7,
-      Paint()..color = shroud.withValues(alpha: (ghostly ? 0.55 : 0.9) * alpha),
+  }
+
+  /// A SHEET OVER A BODY, head to the left: one smooth drape — the round of
+  /// the head, the dip of the neck, the chest, the long fall to the knees and
+  /// the feet turned up — carved like the rest, lit along its crest.
+  void _paintDrape(
+    Canvas canvas,
+    Offset c,
+    double len,
+    double h,
+    Color cloth,
+    double alpha,
+  ) {
+    if (alpha <= 0.01) return;
+    final x0 = c.dx - len / 2, y0 = c.dy + h * 0.4;
+    Offset at(double u, double v) => Offset(x0 + u * len, y0 - v * h);
+    final p = Path()..moveTo(x0 + 3, y0);
+    void curve(List<(double, double)> k) {
+      final a = at(k[0].$1, k[0].$2),
+          b = at(k[1].$1, k[1].$2),
+          e = at(k[2].$1, k[2].$2);
+      p.cubicTo(a.dx, a.dy, b.dx, b.dy, e.dx, e.dy);
+    }
+
+    curve(const [(0.0, 0.2), (0.0, 0.98), (0.085, 1.0)]); // the head
+    curve(const [(0.15, 1.0), (0.15, 0.6), (0.195, 0.6)]); // the neck
+    curve(const [(0.24, 0.6), (0.25, 0.86), (0.36, 0.86)]); // the chest
+    curve(const [(0.55, 0.86), (0.62, 0.68), (0.8, 0.6)]); // to the knees
+    curve(const [(0.87, 0.58), (0.89, 0.84), (0.935, 0.83)]); // the feet
+    curve(const [(0.99, 0.8), (1.0, 0.3), (0.985, 0.0)]); // and down
+    p.close();
+    _funeralCarve(
+      canvas,
+      p,
+      body: cloth.withValues(alpha: 0.9 * alpha),
+      deep: Color.lerp(
+        cloth,
+        Colors.black,
+        0.6,
+      )!.withValues(alpha: 0.92 * alpha),
+      rim: Color.lerp(
+        cloth,
+        Colors.white,
+        0.45,
+      )!.withValues(alpha: 0.95 * alpha),
+      lift: 2.6,
     );
   }
 
@@ -1892,24 +2129,15 @@ extension FuneralArt on PlanetDungeonGame {
     );
   }
 
+  /// The body on the bier, under its sheet (see [_paintDrape]).
   void _drawShroud(Canvas canvas, Offset c, bool ghost, {double alpha = 1}) {
-    final shroud = ghost ? _fCold : const Color(0xFFA8B2C2);
-    final a = (ghost ? 0.5 : 0.92) * alpha;
-    final paint = Paint()
-      ..shader = ui.Gradient.linear(c.translate(0, -12), c.translate(0, 12), [
-        shroud.withValues(alpha: a),
-        Color.lerp(shroud, Colors.black, 0.45)!.withValues(alpha: a),
-      ]);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(center: c.translate(8, 0), width: 100, height: 22),
-        const Radius.circular(11),
-      ),
-      paint,
-    );
-    canvas.drawOval(
-      Rect.fromCircle(center: c.translate(-50, -2), radius: 10),
-      paint,
+    _paintDrape(
+      canvas,
+      c.translate(-1, -1),
+      118,
+      24,
+      ghost ? _fCold : const Color(0xFF8C96A8),
+      (ghost ? 0.55 : 1.0) * alpha,
     );
   }
 
@@ -2007,20 +2235,28 @@ extension FuneralArt on PlanetDungeonGame {
       ..quadraticBezierTo(foot.dx, foot.dy - 78, foot.dx + 21, foot.dy - 60)
       ..lineTo(foot.dx + 24, foot.dy)
       ..close();
-    canvas.drawPath(
+    // Near-black slate, the moon along its shoulder: the names cut into it
+    // are the only light on it.
+    paintContactShadow(canvas, foot.translate(3, 2), 60, 12, opacity: 0.5);
+    _funeralCarve(
+      canvas,
       stone,
+      body: ghost ? _fCold.withValues(alpha: 0.2) : _kGraveStone.stoneTop,
+      deep: ghost ? _fCold.withValues(alpha: 0.06) : _kGraveStone.stoneFoot,
+      rim: ghost
+          ? _fCold.withValues(alpha: 0.7)
+          : _fMoonRim.withValues(alpha: 0.6),
+      lift: 2.2,
+    );
+    // The face where the names go, dressed a shade smoother.
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTRB(foot.dx - 17, foot.dy - 62, foot.dx + 17, foot.dy - 18),
+        const Radius.circular(3),
+      ),
       Paint()
-        ..shader = ui.Gradient.linear(
-          foot.translate(-24, -78),
-          foot.translate(24, 0),
-          [
-            (ghost ? _fCold : _fStone).withValues(alpha: ghost ? 0.4 : 0.95),
-            Color.lerp(
-              ghost ? _fCold : _fStone,
-              Colors.black,
-              0.5,
-            )!.withValues(alpha: ghost ? 0.25 : 0.95),
-          ],
+        ..color = (ghost ? _fCold : const Color(0xFF3A4252)).withValues(
+          alpha: ghost ? 0.06 : 0.18,
         ),
     );
     // The names: none, then cut one by one, then standing cut.
@@ -2054,7 +2290,19 @@ extension FuneralArt on PlanetDungeonGame {
   void _renderVigil(Canvas canvas, DungeonRoom room, FuneralRoom fr) {
     final at = fr.chime!;
     // The chime's dais: a carved round step it stands on.
-    paintCarvedDisc(canvas, at.translate(0, 26), 58, 22, 8, _kWraithGlass);
+    // Near-black slate, the moon along its far lip, so the chime and the
+    // channel plate on it are what read.
+    paintCarvedDisc(canvas, at.translate(0, 26), 58, 22, 8, _kGraveStone);
+    canvas.drawArc(
+      Rect.fromCenter(center: at.translate(0, 26), width: 116, height: 44),
+      pi + 0.35,
+      pi - 0.7,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = _fMoonRim.withValues(alpha: 0.35),
+    );
     canvas.save();
     canvas.translate(at.dx, at.dy + 20);
     canvas.scale(1.45);
@@ -2068,17 +2316,21 @@ extension FuneralArt on PlanetDungeonGame {
     final at = fr.chime!;
     final f = funeral;
     // The frame: two posts and a bar, and a tube hanging from it.
-    final post = const Color(0xFF2E2838);
+    // Carved dark, lit along the edge the moon catches.
+    void post(Rect r) => _funeralCarve(
+      canvas,
+      Path()..addRect(r),
+      body: const Color(0xFF26222E),
+      deep: const Color(0xFF07060A),
+      rim: _fMoonRim.withValues(alpha: 0.4),
+      lift: 1.6,
+    );
     for (final dx in const [-26.0, 26.0]) {
-      canvas.drawRect(
+      post(
         Rect.fromCenter(center: at.translate(dx, -20), width: 7, height: 70),
-        Paint()..color = post,
       );
     }
-    canvas.drawRect(
-      Rect.fromCenter(center: at.translate(0, -54), width: 66, height: 7),
-      Paint()..color = post,
-    );
+    post(Rect.fromCenter(center: at.translate(0, -54), width: 66, height: 7));
     final ring = f.chimeHeld ? f.chimeWindow : 0.0;
     final shake = ring > 0 ? sin(_fClock * 30) * 1.5 : 0.0;
     final tube = RRect.fromRectAndRadius(
@@ -2435,6 +2687,82 @@ extension FuneralArt on PlanetDungeonGame {
           ..strokeWidth = 2.2
           ..color = strapHi,
       );
+    }
+  }
+}
+
+// ── Props pass helpers (2026-10-08) ─────────────────────────
+
+/// A carved silhouette: [shape] in near-black, lit only along the edges that
+/// face the light (up and to the left) — the rim the moon catches. The rim is
+/// the shape's own edge, shifted out from under the body, so it never reads
+/// as a drawn outline: it is widest where an edge faces the light, gone where
+/// it faces away, and rolls off in steps into the dark of the body.
+void _funeralCarve(
+  Canvas canvas,
+  Path shape, {
+  required Color body,
+  required Color deep,
+  required Color rim,
+  double lift = 2.4,
+}) {
+  final b = shape.getBounds();
+  // The light comes from up and to the left: the edge is brightest at the
+  // thing's top-left and has gone by its far foot.
+  Paint fall(Color from) => Paint()
+    ..shader = ui.Gradient.linear(
+      b.topLeft,
+      b.bottomRight,
+      [from, Color.lerp(from, body, 0.7)!, body],
+      const [0.0, 0.5, 1.0],
+    );
+  canvas.drawPath(shape, fall(rim));
+  canvas.save();
+  canvas.clipPath(shape);
+  const steps = [0.3, 0.6];
+  for (final s in steps) {
+    canvas.drawPath(
+      shape.shift(Offset(lift * s, lift * s * 0.9)),
+      fall(Color.lerp(rim, body, 0.35 + s * 0.6)!),
+    );
+  }
+  canvas.drawPath(
+    shape.shift(Offset(lift, lift * 0.9)),
+    Paint()
+      ..shader = ui.Gradient.linear(b.topLeft, b.bottomRight, [body, deep]),
+  );
+  canvas.restore();
+}
+
+/// Tiny lit grains drawn as short trailed strokes, gathered per colour and
+/// alpha step so a frame's flames, ashes and offerings are a few
+/// drawPoints calls. Callers draw from small fixed ramps, so the runs stay
+/// few.
+class _FuneralInk {
+  static const double width = 1.6;
+  final Map<int, List<Offset>> _runs = {};
+  final Paint _paint = Paint()..strokeCap = StrokeCap.round;
+
+  void add(Offset from, Offset to, Color c, double alpha) {
+    final a = (alpha.clamp(0.0, 1.0) * 8).round();
+    if (a == 0) return;
+    final key = ((c.toARGB32() & 0xFFFFFF) << 4) | a;
+    final run = _runs.putIfAbsent(key, () => <Offset>[]);
+    // A trail too short to draw still leaves a grain.
+    run
+      ..add((to - from).distanceSquared < 0.09 ? to.translate(-0.3, 0) : from)
+      ..add(to);
+  }
+
+  void paint(Canvas canvas, {double? width}) {
+    _paint.strokeWidth = width ?? _FuneralInk.width;
+    for (final e in _runs.entries) {
+      if (e.value.isEmpty) continue;
+      _paint.color = Color(
+        0xFF000000 | (e.key >> 4),
+      ).withValues(alpha: (e.key & 15) / 8);
+      canvas.drawPoints(ui.PointMode.lines, e.value, _paint);
+      e.value.clear();
     }
   }
 }

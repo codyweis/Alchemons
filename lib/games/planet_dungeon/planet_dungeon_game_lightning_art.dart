@@ -155,6 +155,51 @@ extension StormCircuitArt on PlanetDungeonGame {
     }
   }
 
+  /// A breaker's backboard: a block of the works' slate, dark and lit only
+  /// along its arris, with a strip of leaded glass across its face that
+  /// burns while its trunk is fed ([live] 0..1) and is smoked while dead.
+  void _drawBreakerHousing(Canvas canvas, Offset bp, double live) {
+    final top = Rect.fromCenter(
+      center: bp + const Offset(0, -10),
+      width: 54,
+      height: 30,
+    );
+    paintCarvedBlock(
+      canvas,
+      top,
+      9,
+      _kVoltGlass,
+      radius: 4,
+      topColor: const Color(0xFF1A222D),
+    );
+    final strip = Rect.fromLTWH(
+      top.left + 6,
+      top.bottom + 2.5,
+      top.width - 12,
+      4.5,
+    );
+    for (var k = 0; k < 3; k++) {
+      final pane = Rect.fromLTWH(
+        strip.left + strip.width * k / 3,
+        strip.top,
+        strip.width / 3,
+        strip.height,
+      );
+      paintPane(
+        canvas,
+        Path()..addRect(pane),
+        live > 0.01
+            ? _kVoltGlass.heat(
+                0.4 + 0.5 * live + 0.06 * sin(_time * 6 + k),
+                cold: _kVoltGlass.smoke,
+              )
+            : _kVoltGlass.smoke,
+        _kVoltGlass,
+        lead: 1.3,
+      );
+    }
+  }
+
   /// A glass head for a pylon or a sink, in a brass rim.
   void _drawGlassHead(
     Canvas canvas,

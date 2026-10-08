@@ -2151,12 +2151,23 @@ extension SinkingAltarFen on PlanetDungeonGame {
   /// two crossings and it is adrift, then walk out on the planks and the
   /// knoll founders under you. It drew nothing at all, so the two openings
   /// on that wall were a ford and an unexplained second doorway.
+  ///
+  /// 2026-10-08: it was pale grey boards at an even pitch across two ruled
+  /// stringers — a LADDER lying on the water. Now the boards are black,
+  /// rotten timber, uneven and gappy, lit only along their near edges, and
+  /// the stringers sit under them where you cannot see them. Still: baked.
   void _renderPlankRoad(Canvas canvas, DungeonRoom room) {
     if (room.id != kPlankFromKnoll && room.id != kPlankToKnoll) return;
     final want = room.id == kPlankFromKnoll ? kPlankToKnoll : kPlankFromKnoll;
     final pair = room.doors.where((d) => d.targetRoomId == want).toList();
     if (pair.length < 2) return;
     final mouth = pair.last.rect.center;
+    canvas.drawPicture(
+      _fenStill('plankRoad|${room.id}', (c) => _paintPlankRoad(c, room, mouth)),
+    );
+  }
+
+  void _paintPlankRoad(Canvas canvas, DungeonRoom room, Offset mouth) {
     // It leaves the knoll where the ground gives up, not at a worked head:
     // there is nothing to work here, which is the point.
     final start = Offset(
@@ -2177,47 +2188,45 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ..close(),
       Paint()..color = _fenWater.withValues(alpha: 0.85),
     );
-    // Two stringers on trestles, and the boards across them: SAWN TIMBER,
-    // the only worked wood in the fen, and grey with rot.
-    for (var k = -1; k <= 1; k += 2) {
-      canvas.drawLine(
-        start + norm * (k * 15.0),
-        mouth + norm * (k * 15.0),
-        Paint()
-          ..strokeWidth = 4
-          ..color = const Color(0xFF3D3529),
-      );
-    }
     final len = (mouth - start).distance;
-    for (var d = 8.0; d < len - 4; d += 15) {
-      final p = start + dir * d;
-      // Every third board is gone, and the rest do not lie straight.
-      if ((d ~/ 15) % 4 == 2) continue;
-      final skew = sin(d * 0.4) * 2.6;
-      canvas.drawLine(
-        p + norm * (20 + skew),
-        p - norm * (20 - skew),
-        Paint()
-          ..strokeWidth = 8
-          ..color = const Color(0xFF6B6250).withValues(alpha: 0.85),
-      );
-      canvas.drawLine(
-        p + norm * (20 + skew),
-        p - norm * (20 - skew),
-        Paint()
-          ..strokeWidth = 1.2
-          ..color = const Color(0xFF2A251C).withValues(alpha: 0.6),
-      );
-    }
-    // Trestle posts going down into black water, and not into ground.
+    // Trestle posts going down into black water, and not into ground: the
+    // stubs of them showing either side, under the boards.
     for (var d = 30.0; d < len - 20; d += 62) {
       final p = start + dir * d;
-      canvas.drawLine(
-        p + norm * 22,
-        p + norm * 34,
-        Paint()
-          ..strokeWidth = 3.5
-          ..color = const Color(0xFF2A251C),
+      for (final s in const [1.0, -1.0]) {
+        _fenCarve(
+          canvas,
+          Path()..addOval(
+            Rect.fromCenter(center: p + norm * (s * 22), width: 7, height: 9),
+          ),
+          rim: 0.3,
+        );
+      }
+    }
+    // The boards: rotten, uneven, a few gone, none of them square to the
+    // road — dark timber laid close, the dusk along each one's edge.
+    var k = 0;
+    for (var d = 8.0; d < len - 4; d += 10.5, k++) {
+      if (k % 6 == 3 || k % 9 == 7) continue;
+      final p = start + dir * (d + sin(k * 2.3) * 0.8);
+      final skew = sin(d * 0.4) * 2.6;
+      final ha = 19.0 + sin(k * 1.7) * 3.5, hb = 19.0 + cos(k * 2.9) * 3.5;
+      final w = 10.6 + sin(k * 3.1) * 0.6;
+      final a = p + norm * (ha + skew), b = p - norm * (hb - skew);
+      final body = Path()
+        ..addPolygon([
+          a - dir * (w / 2),
+          a + dir * (w / 2),
+          b + dir * (w / 2),
+          b - dir * (w / 2),
+        ], true);
+      _fenCarve(
+        canvas,
+        body,
+        light: const Offset(1.4, 1.8),
+        rim: 0.24,
+        top: const Color(0xFF463B2E),
+        foot: const Color(0xFF241D16),
       );
     }
   }
@@ -2401,34 +2410,39 @@ extension SinkingAltarFen on PlanetDungeonGame {
           ..color = _fenSlurry.withValues(alpha: 0.26 * (1 - ph)),
       );
     }
-    for (var i = 0; i < g.bones.length; i++) {
-      final o = g.bones[i];
-      canvas.save();
-      canvas.translate(o.dx, o.dy);
-      canvas.rotate(g.boneLean[i]);
-      // A rib: a curve out of the peat and back into it.
-      canvas.drawPath(
-        Path()
-          ..moveTo(-34, 8)
-          ..quadraticBezierTo(0, -40, 34, 6),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 5
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFFB9B096).withValues(alpha: 0.32),
-      );
-      canvas.drawPath(
-        Path()
-          ..moveTo(-20, 10)
-          ..quadraticBezierTo(0, -22, 21, 9),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFFB9B096).withValues(alpha: 0.22),
-      );
-      canvas.restore();
-    }
+    // BONES: what the fen has eaten and kept. Three at most now, as dark
+    // tapering rib in the silt with the dusk on its bone (2026-10-08: pale
+    // stroked arcs, line-art).
+    canvas.drawPicture(
+      _fenStill('fenBones|${room.id}', (c) {
+        for (var i = 0; i < g.bones.length && i < 3; i++) {
+          final o = g.bones[i];
+          final lean = g.boneLean[i];
+          c.save();
+          c.translate(o.dx, o.dy);
+          c.rotate(lean);
+          // The world's light, in the rib's own turned frame.
+          final light = Offset(
+            1.4 * cos(lean) + 1.8 * sin(lean),
+            -1.4 * sin(lean) + 1.8 * cos(lean),
+          );
+          for (final (a, ctrl, b, w) in const [
+            (Offset(-34, 8), Offset(0, -40), Offset(34, 6), 6.0),
+            (Offset(-20, 10), Offset(0, -22), Offset(21, 9), 4.6),
+          ]) {
+            _fenCarve(
+              c,
+              _fenTaper(a, ctrl, b, w, w * 0.45),
+              light: light,
+              rim: 0.42,
+              rimColor: const Color(0xFFB9B096),
+              top: const Color(0xFF2A261E),
+            );
+          }
+          c.restore();
+        }
+      }),
+    );
 
     // SUNK FLAGS, carved and not drawn: each slab lies proud of the silt
     // with its shadow under it and the light on its upper lip, so the fane's
@@ -2474,37 +2488,60 @@ extension SinkingAltarFen on PlanetDungeonGame {
       Paint()..color = const Color(0xFF0B0E10).withValues(alpha: 0.28),
     );
 
-    for (var i = 0; i < g.drums.length; i++) {
-      final c = g.drums[i];
-      canvas.save();
-      canvas.translate(c.dx, c.dy);
-      canvas.rotate(g.drumLean[i]);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: const Offset(0, 6), width: 128, height: 40),
-          const Radius.circular(8),
-        ),
-        Paint()..color = Colors.black.withValues(alpha: 0.30),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset.zero, width: 124, height: 38),
-          const Radius.circular(7),
-        ),
-        Paint()..color = const Color(0xFF3A3A34),
-      );
-      // The drum joints, so it reads as a column in pieces.
-      for (var k = -1; k <= 1; k++) {
-        canvas.drawLine(
-          Offset(k * 36.0, -18),
-          Offset(k * 36.0, 18),
-          Paint()
-            ..strokeWidth = 2
-            ..color = const Color(0xFF23231F),
-        );
-      }
-      canvas.restore();
-    }
+    // FALLEN COLUMN DRUMS, as dark stone lying in the silt with the dusk
+    // along their upper edge (2026-10-08: pale grey bars ruled in three).
+    canvas.drawPicture(
+      _fenStill('fenDrums|${room.id}', (c) {
+        for (var i = 0; i < g.drums.length; i++) {
+          final at = g.drums[i];
+          final lean = g.drumLean[i];
+          c.save();
+          c.translate(at.dx, at.dy);
+          c.rotate(lean);
+          final light = Offset(
+            1.6 * cos(lean) + 2.2 * sin(lean),
+            -1.6 * sin(lean) + 2.2 * cos(lean),
+          );
+          c.drawRRect(
+            RRect.fromRectAndRadius(
+              Rect.fromCenter(
+                center: const Offset(0, 6),
+                width: 128,
+                height: 40,
+              ),
+              const Radius.circular(8),
+            ),
+            Paint()..color = Colors.black.withValues(alpha: 0.35),
+          );
+          _fenCarve(
+            c,
+            Path()..addRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromCenter(center: Offset.zero, width: 124, height: 38),
+                const Radius.circular(9),
+              ),
+            ),
+            light: light,
+            rim: 0.4,
+            top: const Color(0xFF38342C),
+            foot: const Color(0xFF181611),
+          );
+          // Where one drum meets the next.
+          for (final x in const [-22.0, 30.0]) {
+            _fenGroove(
+              c,
+              Path()..addArc(
+                Rect.fromCenter(center: Offset(x, 0), width: 14, height: 36),
+                -pi / 2,
+                pi,
+              ),
+              w: 1.4,
+            );
+          }
+          c.restore();
+        }
+      }),
+    );
 
     // The peat overhead, letting its roots down into the room.
     canvas.drawRect(
@@ -2532,18 +2569,25 @@ extension SinkingAltarFen on PlanetDungeonGame {
       );
     }
 
-    // Silt going up through the water, slowly.
-    for (var i = 0; i < 10; i++) {
-      final ph = ((t * 0.16 + i * 0.1) % 1.0);
-      canvas.drawCircle(
-        Offset(
-          b.left + 60 + (i * 137 % (b.width - 120)),
+    // Silt going up through the water, slowly — grains wandering as they
+    // rise and going out (2026-10-08: ten dots).
+    for (var i = 0; i < 70; i++) {
+      final r0 = _fenHash(i * 13 + 2), r1 = _fenHash(i * 7 + 5);
+      final x0 = b.left + 40 + r0 * (b.width - 80);
+      Offset at(double tt) {
+        final ph = (tt * (0.05 + r1 * 0.05) + r1) % 1.0;
+        return Offset(
+          x0 + sin(tt * 0.5 + i) * 10 * ph,
           b.bottom - 30 - ph * (b.height - 70),
-        ),
-        1.6,
-        Paint()..color = _fenSheen.withValues(alpha: 0.12 * (1 - ph)),
-      );
+        );
+      }
+
+      final ph = (t * (0.05 + r1 * 0.05) + r1) % 1.0;
+      final q = at(t), q0 = at(t - 0.06);
+      if ((q - q0).distance > 12) continue;
+      _fenInk.add(q0, q, _fenSheen, 0.32 * sin(ph * pi));
     }
+    _fenInk.paint(canvas, width: 1.5);
   }
 
   /// WHERE THE FEN MAY NOT GROW.
@@ -2947,50 +2991,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
       );
     }
 
-    // Hummocks: a peat shadow under, the mound, then the moss cap on top.
-    for (var i = 0; i < g.hummocks.length; i++) {
-      canvas.save();
-      canvas.translate(0, 5);
-      canvas.drawPath(
-        g.hummocks[i],
-        Paint()..color = Colors.black.withValues(alpha: 0.28),
-      );
-      canvas.restore();
-      canvas.drawPath(
-        g.hummocks[i],
-        Paint()..color = _fenPeat.withValues(alpha: 0.9),
-      );
-      canvas.drawPath(
-        g.mossCaps[i],
-        Paint()..color = _fenMoss.withValues(alpha: 0.55),
-      );
-    }
-
-    // Bog-oak: a black root out of the ground, leaning where it fell.
-    for (var i = 0; i < g.bogOak.length; i++) {
-      final o = g.bogOak[i];
-      final lean = g.bogOakLean[i];
-      final top = o + Offset(sin(lean) * 40, -46);
-      canvas.drawPath(
-        Path()
-          ..moveTo(o.dx - 13, o.dy + 6)
-          ..quadraticBezierTo(o.dx - 6, o.dy - 20, top.dx - 5, top.dy)
-          ..lineTo(top.dx + 6, top.dy + 3)
-          ..quadraticBezierTo(o.dx + 8, o.dy - 18, o.dx + 14, o.dy + 6)
-          ..close(),
-        Paint()..color = _fenOak,
-      );
-      // Two broken limbs, so it reads as a drowned tree and not a post.
-      for (var k = -1; k <= 1; k += 2) {
-        canvas.drawLine(
-          top + Offset(0, 8),
-          top + Offset(k * 17.0, -4 + k * 3.0),
-          Paint()
-            ..strokeWidth = 3
-            ..color = _fenOak,
-        );
-      }
-    }
+    // HUMMOCKS AND BOG-OAK never change, so they are baked (2026-10-08).
+    canvas.drawPicture(
+      _fenStill('fenFloorStill|${room.id}', (c) => _paintFenStill(c, g)),
+    );
 
     // THE WEED SKIN — the entry rite, and it drew nothing.
     //
@@ -3021,42 +3025,34 @@ extension SinkingAltarFen on PlanetDungeonGame {
       // No clip: a clipped mat ends in a straight vertical seam down the
       // middle of the room, which is the one shape a raft of floating weed
       // never has. It thins out westward instead.
-      for (var i = 0; i < 18; i++) {
-        final fx = (i * 37 % 100) / 100;
-        final c = Offset(
-          over.left - 120 + (over.width + 120) * fx,
-          over.top + over.height * ((i * 53 % 100) / 100),
-        );
-        final thin = ((c.dx - b.left - b.width * 0.36) / (b.width * 0.26))
-            .clamp(0.0, 1.0);
-        final drift = sin(t * 0.25 + i) * 4;
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: c.translate(drift, 0),
-            width: 96 + (i % 3) * 34,
-            height: 50 + (i % 4) * 16,
-          ),
-          Paint()
-            ..color = const Color(0xFF33401F).withValues(alpha: 0.55 * thin),
-        );
-      }
-      // Fibrous: the weed is a mat of strands, not a green rectangle.
-      for (var i = 0; i < 30; i++) {
-        final x = over.left + over.width * ((i * 29 % 100) / 100);
-        final y = over.top + over.height * ((i * 61 % 100) / 100);
-        canvas.drawLine(
-          Offset(x, y),
-          Offset(x + 22 + (i % 3) * 8, y + 5 - (i % 5) * 3),
-          Paint()
-            ..strokeWidth = 2
-            ..color = const Color(0xFF5D6B33).withValues(alpha: 0.42),
-        );
-      }
+      // A mat of weed as GRAINS (2026-10-08): it was eighteen flat green
+      // ovals with a few stroked strands — lily pads. Now a haze of dark
+      // green lying on the water, and thousands of fibres in it drifting
+      // slowly, thinning out westward.
+      final (mat, haze) = _fenWeedMat(room, b, over);
+      canvas.drawPicture(haze);
+      paintGrainShape(
+        canvas,
+        mat,
+        t,
+        drift: 3,
+        alpha: 1,
+        ramp: const [
+          Color(0xFF1C2412),
+          Color(0xFF3A4A22),
+          Color(0xFF5D6B33),
+          Color(0xFF93A260),
+        ],
+        glint: 0.003,
+        width: 1.7,
+        trail: 0.14,
+      );
       canvas.save();
       canvas.clipRRect(stage);
     }
 
-    // Cotton-grass.
+    // Cotton-grass: a dim stem and a tuft of pale seed-grains shivering on
+    // it (2026-10-08: a stroked pin with a dot on top, line-art).
     for (var i = 0; i < g.cotton.length; i++) {
       final c = g.cotton[i];
       final sway = sin(t * 0.9 + i * 2.2) * 1.6;
@@ -3064,16 +3060,162 @@ extension SinkingAltarFen on PlanetDungeonGame {
         c,
         c + Offset(sway, -9),
         Paint()
-          ..strokeWidth = 1.2
-          ..color = _fenMoss.withValues(alpha: 0.7),
+          ..strokeWidth = 1.0
+          ..color = _fenMoss.withValues(alpha: 0.5),
       );
-      canvas.drawCircle(
-        c + Offset(sway, -11),
-        2.1,
-        Paint()..color = _fenCotton.withValues(alpha: 0.55),
+      for (var k = 0; k < 5; k++) {
+        final a0 = _fenHash(i * 11 + k) * 2 * pi;
+        final r = 0.8 + _fenHash(i * 7 + k * 3) * 2.2;
+        Offset at(double tt) =>
+            c +
+            Offset(sin(tt * 0.9 + i * 2.2) * 1.6, -11) +
+            Offset(cos(a0 + tt * 0.7), sin(a0 + tt * 0.7) * 0.8) * r;
+        _fenInk.add(at(t - 0.06), at(t), _fenCotton, 0.5);
+      }
+    }
+    _fenInk.paint(canvas, width: 1.5);
+    canvas.restore();
+  }
+
+  /// The entry rite's weed: its fibres as grains over a baked haze, built
+  /// once. ~3,800 grains, only while the weed is on the water.
+  (GrainShape, ui.Picture) _fenWeedMat(DungeonRoom room, Rect b, Rect over) {
+    final key = 'weed|${room.id}';
+    final cached = _fenWeedCache[key];
+    if (cached != null) return cached;
+    double thinAt(double x) =>
+        ((x - b.left - b.width * 0.36) / (b.width * 0.26)).clamp(0.0, 1.0);
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    for (var i = 0; i < 18; i++) {
+      final fx = (i * 37 % 100) / 100;
+      final at = Offset(
+        over.left - 120 + (over.width + 120) * fx,
+        over.top + over.height * ((i * 53 % 100) / 100),
+      );
+      final rr = 72.0 + (i % 3) * 20;
+      c.drawCircle(
+        at,
+        rr,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              const Color(0xFF384822).withValues(alpha: 0.62 * thinAt(at.dx)),
+              const Color(0xFF384822).withValues(alpha: 0.3 * thinAt(at.dx)),
+              const Color(0x00384822),
+            ],
+          ).createShader(Rect.fromCircle(center: at, radius: rr)),
       );
     }
-    canvas.restore();
+    final rng = Random(29);
+    final pts = <Offset>[];
+    final sh = <double>[];
+    final box = Rect.fromLTRB(
+      over.left - 140,
+      over.top,
+      over.right,
+      over.bottom,
+    );
+    var tries = 0;
+    while (pts.length < 3800 && tries < 60000) {
+      tries++;
+      final q = Offset(
+        box.left + rng.nextDouble() * box.width,
+        box.top + rng.nextDouble() * box.height,
+      );
+      if (rng.nextDouble() > thinAt(q.dx)) continue;
+      // Clumped into rafts: denser near the haze's hearts.
+      final clump =
+          0.5 + 0.5 * sin(q.dx * 0.021 + q.dy * 0.013) * cos(q.dy * 0.017);
+      if (rng.nextDouble() > 0.35 + 0.65 * clump) continue;
+      pts.add(q);
+      sh.add(0.3 + 0.7 * rng.nextDouble() * clump);
+    }
+    final built = (GrainShape.points(pts, sh, seed: 31), rec.endRecording());
+    _fenWeedCache[key] = built;
+    return built;
+  }
+
+  /// The fen floor's still things (2026-10-08).
+  ///
+  /// HUMMOCKS were peat blobs with a flat green cap — lily pads. Half of
+  /// them stay, as dark peat mounds with the moss only where the dusk
+  /// catches their crown.
+  ///
+  /// BOG-OAK was a black Y with two stroked limbs — a clip-art dead tree.
+  /// Two at most stay, as gnarled drowned stumps: a flared, leaning trunk,
+  /// roots in the peat and two broken limbs, all one dark silhouette lit
+  /// only along its edge.
+  void _paintFenStill(Canvas canvas, FenGround g) {
+    for (var i = 0; i < g.hummocks.length; i += 2) {
+      final h = g.hummocks[i];
+      canvas.drawPath(
+        h.shift(const Offset(0, 5)),
+        Paint()..color = Colors.black.withValues(alpha: 0.3),
+      );
+      canvas.drawPath(h, Paint()..color = _fenPeat.withValues(alpha: 0.9));
+      canvas.drawPath(
+        g.mossCaps[i],
+        Paint()..color = _fenMoss.withValues(alpha: 0.14),
+      );
+      canvas.drawPath(
+        Path.combine(
+          ui.PathOperation.difference,
+          h,
+          h.shift(const Offset(1.2, 3.2)),
+        ),
+        Paint()..color = const Color(0xFF7E8E58).withValues(alpha: 0.5),
+      );
+    }
+    for (var i = 0; i < g.bogOak.length && i < 2; i++) {
+      final o = g.bogOak[i];
+      final lean = g.bogOakLean[i];
+      final top = o + Offset(sin(lean) * 40, -46);
+      var tree = _fenTaper(
+        o + const Offset(0, 6),
+        Offset.lerp(o, top, 0.5)! + Offset(-4 * lean.sign, 0),
+        top,
+        26,
+        8,
+      );
+      for (final part in [
+        // Roots, spreading into the peat.
+        _fenTaper(
+          o + const Offset(-6, 2),
+          o + const Offset(-16, 4),
+          o + const Offset(-26, 9),
+          8,
+          1.6,
+        ),
+        _fenTaper(
+          o + const Offset(6, 3),
+          o + const Offset(16, 4),
+          o + const Offset(24, 10),
+          7,
+          1.4,
+        ),
+        // Two broken limbs, so it reads as a drowned tree and not a post:
+        // one reaching, one snapped short.
+        _fenTaper(
+          top + const Offset(1, 6),
+          top + const Offset(10, -4),
+          top + const Offset(20, -12),
+          6,
+          1.8,
+        ),
+        _fenTaper(
+          top + const Offset(-1, 9),
+          top + const Offset(-8, 4),
+          top + const Offset(-13, 0),
+          5,
+          2.4,
+        ),
+      ]) {
+        tree = Path.combine(ui.PathOperation.union, tree, part);
+      }
+      paintContactShadow(canvas, o + const Offset(2, 8), 54, 12, opacity: 0.4);
+      _fenCarve(canvas, tree, rim: 0.4, top: const Color(0xFF1A1610));
+    }
   }
 
   /// A CROSSING, DRAWN AS A CROSSING.
@@ -3118,25 +3260,33 @@ extension SinkingAltarFen on PlanetDungeonGame {
   void _renderFordMarker(Canvas canvas, BogFord ford, Offset head) {
     final ink = _sloughColour(ford.slough);
     final at = head + const Offset(0, -46);
-    // A short cut stone, leaning, with a mossy foot.
+    // A short cut stone, leaning, with a mossy foot — dark, the dusk on its
+    // edge (2026-10-08: a grey card with a pale outline, a signboard).
     canvas.drawOval(
       Rect.fromCenter(center: at.translate(0, 26), width: 34, height: 12),
       Paint()..color = _fenPeat.withValues(alpha: 0.85),
     );
-    final stone = Path()
-      ..moveTo(at.dx - 11, at.dy + 24)
-      ..lineTo(at.dx - 8, at.dy - 20)
-      ..lineTo(at.dx + 9, at.dy - 18)
-      ..lineTo(at.dx + 12, at.dy + 24)
-      ..close();
-    canvas.drawPath(stone, Paint()..color = const Color(0xFF4A4740));
-    canvas.drawPath(
-      stone,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.1
-        ..color = const Color(0xFF5E5B52),
+    // Baked once for every marker, about its own foot; the glass on it is
+    // per crossing.
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.drawPicture(
+      _fenStill('fordStone', (c) {
+        _fenCarve(
+          c,
+          Path()
+            ..moveTo(-11, 24)
+            ..lineTo(-8, -20)
+            ..lineTo(9, -18)
+            ..lineTo(12, 24)
+            ..close(),
+          light: const Offset(1.8, 2.2),
+          rim: 0.42,
+          top: const Color(0xFF2C271F),
+        );
+      }),
     );
+    canvas.restore();
     // The watercourse's mark, in a rondel of its own coloured glass set into
     // the face — the one fact the planet's rule turns on, lit (§7.11).
     paintRondel(
@@ -3153,14 +3303,21 @@ extension SinkingAltarFen on PlanetDungeonGame {
       Color.lerp(ink, Colors.white, 0.35)!,
       kSloughOrder[ford.slough] ?? 0,
     );
-    // …and the notches: how far down this water the crossing lies.
+    // …and the notches: how far down this water the crossing lies — slivers
+    // of the same glass let into the stone.
     for (var i = 0; i <= ford.index; i++) {
-      canvas.drawLine(
-        Offset(at.dx - 6 + i * 6, at.dy + 16),
-        Offset(at.dx - 6 + i * 6, at.dy + 21),
-        Paint()
-          ..strokeWidth = 1.8
-          ..color = ink.withValues(alpha: 0.85),
+      paintPane(
+        canvas,
+        Path()..addRect(
+          Rect.fromCenter(
+            center: Offset(at.dx - 6 + i * 6, at.dy + 18.5),
+            width: 2.6,
+            height: 6,
+          ),
+        ),
+        Color.lerp(ink, Colors.white, 0.1)!,
+        _kPeatGlass,
+        lead: 0.9,
       );
     }
   }
@@ -3478,15 +3635,24 @@ extension SinkingAltarFen on PlanetDungeonGame {
           )!.withValues(alpha: 0.85),
       );
     }
-    // Bubbles coming up out of it, because something down there is breathing.
-    for (var i = 0; i < 2; i++) {
-      final t = ((bog.clock * 0.5 + i * 0.5) % 1.0);
-      canvas.drawCircle(
-        at.translate((i == 0 ? -9 : 11).toDouble(), 6 - t * 14),
-        2.2 * (1 - t),
-        Paint()..color = _fenSheen.withValues(alpha: 0.28 * (1 - t)),
-      );
+    // Breath coming up out of it, because something down there is
+    // breathing — grains welling up off the eye, wandering and going out
+    // (2026-10-08: two circle bubbles).
+    for (var j = 0; j < 22; j++) {
+      final r0 = _fenHash(j * 7 + 1), r1 = _fenHash(j * 13 + 4);
+      final x0 = (r0 - 0.5) * 34;
+      Offset where(double tt) {
+        final u = (tt * (0.35 + r1 * 0.25) + r1) % 1.0;
+        return at +
+            Offset(x0 * (1 - u * 0.4) + sin(tt * 1.3 + j) * 3 * u, 4 - u * 26);
+      }
+
+      final u = (bog.clock * (0.35 + r1 * 0.25) + r1) % 1.0;
+      final q = where(bog.clock), q0 = where(bog.clock - 0.06);
+      if ((q - q0).distance > 8) continue;
+      _fenInk.add(q0, q, _fenSheen, 0.42 * sin(u * pi));
     }
+    _fenInk.paint(canvas, width: 1.5);
   }
 
   /// A MOOR-ALTAR — a carved standing stone with a peat-black basin cut into
@@ -3500,48 +3666,54 @@ extension SinkingAltarFen on PlanetDungeonGame {
     required bool holding,
     required bool dryFooted,
   }) {
-    // The plinth the bowl is cut into.
-    canvas.drawPath(
-      Path()
-        ..moveTo(basin.dx - 46, basin.dy + 16)
-        ..lineTo(basin.dx - 38, basin.dy - 10)
-        ..lineTo(basin.dx + 38, basin.dy - 10)
-        ..lineTo(basin.dx + 46, basin.dy + 16)
-        ..close(),
-      Paint()..color = const Color(0xFF3B3830),
+    // The plinth the bowl is cut into, and the standing stone above it,
+    // leaning as everything here leans, with three cut grooves down its
+    // face. Both dark, the dusk only on their edges (2026-10-08: a pale grey
+    // obelisk with an outline and a lichen dot — a sticker). Baked.
+    canvas.save();
+    canvas.translate(basin.dx, basin.dy);
+    canvas.drawPicture(
+      _fenStill('moorStone', (c) {
+        _fenCarve(
+          c,
+          Path()
+            ..moveTo(-46, 16)
+            ..lineTo(-38, -10)
+            ..lineTo(38, -10)
+            ..lineTo(46, 16)
+            ..close(),
+          light: const Offset(0, 2.4),
+          rim: 0.36,
+          top: const Color(0xFF2A251D),
+        );
+        paintContactShadow(c, const Offset(4, -8), 52, 12, opacity: 0.45);
+        _fenCarve(
+          c,
+          Path()
+            ..moveTo(-19, -8)
+            ..lineTo(-14, -98)
+            ..quadraticBezierTo(-12, -104, -6, -103)
+            ..lineTo(9, -99)
+            ..quadraticBezierTo(14, -98, 14, -93)
+            ..lineTo(20, -8)
+            ..close(),
+          light: const Offset(2.2, 1.6),
+          rim: 0.45,
+          top: const Color(0xFF2E2921),
+        );
+        for (var i = 0; i < 3; i++) {
+          final y = -30.0 - i * 22;
+          _fenGroove(
+            c,
+            Path()
+              ..moveTo(-10, y)
+              ..lineTo(11, y - 3),
+            w: 1.6,
+          );
+        }
+      }),
     );
-    // The standing stone above it, leaning as everything here leans, with
-    // three cut grooves down its face.
-    final stone = Path()
-      ..moveTo(basin.dx - 19, basin.dy - 8)
-      ..lineTo(basin.dx - 13, basin.dy - 104)
-      ..lineTo(basin.dx + 14, basin.dy - 97)
-      ..lineTo(basin.dx + 20, basin.dy - 8)
-      ..close();
-    canvas.drawPath(stone, Paint()..color = const Color(0xFF4A4740));
-    canvas.drawPath(
-      stone,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFF5E5B52),
-    );
-    for (var i = 0; i < 3; i++) {
-      final y = basin.dy - 30 - i * 22;
-      canvas.drawLine(
-        Offset(basin.dx - 10, y),
-        Offset(basin.dx + 11, y - 3),
-        Paint()
-          ..strokeWidth = 1.6
-          ..color = const Color(0xFF23211C).withValues(alpha: 0.8),
-      );
-    }
-    // Lichen on the weather side.
-    canvas.drawCircle(
-      Offset(basin.dx - 9, basin.dy - 66),
-      5,
-      Paint()..color = _fenMoss.withValues(alpha: 0.45),
-    );
+    canvas.restore();
 
     // The bowl.
     final bowl = Rect.fromCenter(center: basin, width: 66, height: 24);
@@ -3557,12 +3729,22 @@ extension SinkingAltarFen on PlanetDungeonGame {
         Rect.fromCenter(center: basin.translate(0, 4), width: 34, height: 8),
         Paint()..color = const Color(0xFF2E4A4E).withValues(alpha: 0.55),
       );
-      final t = (bog.clock * 0.6) % 1.0;
-      canvas.drawCircle(
-        Offset(basin.dx + 22, basin.dy + 10 + t * 10),
-        2.0 * (1 - t),
-        Paint()..color = const Color(0xFF2E4A4E).withValues(alpha: 0.6),
-      );
+      // …a trickle of grains, now: it was one dot.
+      for (var j = 0; j < 6; j++) {
+        Offset at(double tt) {
+          final u = (tt * 0.6 + j / 6) % 1.0;
+          return Offset(
+            basin.dx + 22 + sin(j * 2.1) * 1.5,
+            basin.dy + 8 + u * 14,
+          );
+        }
+
+        final u = (bog.clock * 0.6 + j / 6) % 1.0;
+        final q = at(bog.clock), q0 = at(bog.clock - 0.05);
+        if (q0.dy > q.dy) continue;
+        _fenInk.add(q0, q, const Color(0xFF4E7A80), 0.6 * (1 - u));
+      }
+      _fenInk.paint(canvas, width: 1.5);
     }
   }
 
@@ -3577,22 +3759,39 @@ extension SinkingAltarFen on PlanetDungeonGame {
       Rect.fromCenter(center: c.translate(0, 6), width: 190, height: 96),
       Paint()..color = _fenPeat.withValues(alpha: 0.55),
     );
-    // The collar: eight kerbstones set round the throat.
-    for (var i = 0; i < 8; i++) {
-      final a = i / 8 * pi * 2 + 0.2;
-      final p = Offset(c.dx + cos(a) * 62, c.dy + sin(a) * 33);
-      canvas.save();
-      canvas.translate(p.dx, p.dy);
-      canvas.rotate(a + pi / 2);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset.zero, width: 30, height: 17),
-          const Radius.circular(4),
-        ),
-        Paint()..color = const Color(0xFF443F37),
-      );
-      canvas.restore();
-    }
+    // The collar: eight kerbstones set round the throat — cut stones, dark,
+    // lit at the rim (2026-10-08: flat grey rounded rectangles). Baked.
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.drawPicture(
+      _fenStill('altarCollar', (k) {
+        for (var i = 0; i < 8; i++) {
+          final a = i / 8 * pi * 2 + 0.2;
+          final p = Offset(cos(a) * 62, sin(a) * 33);
+          final turn = a + pi / 2;
+          k.save();
+          k.translate(p.dx, p.dy);
+          k.rotate(turn);
+          _fenCarve(
+            k,
+            Path()..addRRect(
+              RRect.fromRectAndRadius(
+                Rect.fromCenter(center: Offset.zero, width: 30, height: 17),
+                const Radius.circular(4),
+              ),
+            ),
+            light: Offset(
+              1.6 * cos(turn) + 2.0 * sin(turn),
+              -1.6 * sin(turn) + 2.0 * cos(turn),
+            ),
+            rim: 0.42,
+            top: const Color(0xFF2E2921),
+          );
+          k.restore();
+        }
+      }),
+    );
+    canvas.restore();
     // The throat.
     canvas.drawOval(
       Rect.fromCenter(center: c, width: 96, height: 52),
@@ -3928,6 +4127,11 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
   /// The sarsen — the fen's fallen standing stone. Lying in the silt where it
   /// went down, or upright once it is being walked.
+  ///
+  /// 2026-10-08: it was a pale grey slab with an outline and polka-dot
+  /// moss. It is the heaviest thing on the planet and the one stone you
+  /// carry, so it stays the most solid shape in the room — dark weathered
+  /// sarsen, its top catching the dusk, a rim of light round its edge.
   void _renderSarsen(Canvas canvas, Offset at, {bool fallen = false}) {
     if (fallen) {
       _renderFallenSarsen(canvas, at);
@@ -3942,68 +4146,74 @@ extension SinkingAltarFen on PlanetDungeonGame {
     );
     canvas.save();
     canvas.translate(at.dx, at.dy);
-    final body = Path()
-      ..moveTo(-23, 16)
-      ..lineTo(-16, -64)
-      ..lineTo(15, -58)
-      ..lineTo(23, 16)
-      ..close();
-    canvas.drawPath(body, Paint()..color = const Color(0xFF5B5750));
-    // A lit face and a shadowed one, so it has a side.
-    canvas.drawPath(
-      Path()
-        ..moveTo(-16, -64)
-        ..lineTo(15, -58)
-        ..lineTo(23, 16)
-        ..lineTo(8, 16)
-        ..close(),
-      Paint()..color = const Color(0xFF6C675E),
-    );
-    canvas.drawPath(
-      body,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = const Color(0xFF2E2A24),
-    );
-    canvas.drawCircle(
-      const Offset(-6, -40),
-      6,
-      Paint()..color = _fenMoss.withValues(alpha: 0.6),
-    );
-    canvas.drawLine(
-      const Offset(-20, -4),
-      const Offset(21, -6),
-      Paint()
-        ..strokeWidth = 2
-        ..color = const Color(0xFF2F2A22),
+    canvas.drawPicture(
+      _fenStill('sarsenStanding', (c) {
+        final body = Path()
+          ..moveTo(-23, 16)
+          ..lineTo(-17, -58)
+          ..quadraticBezierTo(-16, -65, -8, -64)
+          ..lineTo(10, -60)
+          ..quadraticBezierTo(16, -58, 16, -52)
+          ..lineTo(23, 16)
+          ..close();
+        _fenCarve(
+          c,
+          body,
+          light: const Offset(2.6, 2.2),
+          rim: 0.55,
+          top: const Color(0xFF3A352C),
+          foot: const Color(0xFF14120E),
+        );
+        // A second face, turned from the light, so it has a side.
+        c.drawPath(
+          Path()
+            ..moveTo(8, -61)
+            ..lineTo(10, -60)
+            ..quadraticBezierTo(16, -58, 16, -52)
+            ..lineTo(23, 16)
+            ..lineTo(9, 16)
+            ..close(),
+          Paint()..color = Colors.black.withValues(alpha: 0.3),
+        );
+        _fenGroove(
+          c,
+          Path()
+            ..moveTo(-19, -4)
+            ..lineTo(-2, -5)
+            ..lineTo(6, -9),
+          w: 1.6,
+        );
+      }),
     );
     canvas.restore();
   }
 
   /// THE FALLEN SARSEN — a standing stone lying where it fell, half sunk in
-  /// the gate's silt. It was the standing stone turned on its side: a flat
-  /// four-sided shape with no thickness, pale against the peat, with a
-  /// shadow drawn OVER it — it read as a translucent sheet of glass, not the
-  /// heaviest thing on the planet. Now it is a slab: a lit top, a thick dark
-  /// flank, a broken butt end, cracks and lichen, and the silt lapping up
-  /// its near edge, all of it opaque.
+  /// the gate's silt: a lit top, a thick dark flank, a broken butt end,
+  /// cracks, and the silt lapping up its near edge, all of it opaque. Dark
+  /// weathered stone now, the dusk along its top (2026-10-08).
   void _renderFallenSarsen(Canvas canvas, Offset at) {
+    canvas.save();
+    canvas.translate(at.dx, at.dy);
+    canvas.drawPicture(_fenStill('sarsenFallen', _paintFallenSarsen));
+    canvas.restore();
+  }
+
+  void _paintFallenSarsen(Canvas canvas) {
     // The hollow it has pressed into the silt, and the wet rim round it.
     canvas.drawOval(
-      Rect.fromCenter(center: at.translate(2, 14), width: 176, height: 60),
+      Rect.fromCenter(center: const Offset(2, 14), width: 176, height: 60),
       Paint()..color = _fenPeat,
     );
     canvas.drawOval(
-      Rect.fromCenter(center: at.translate(2, 14), width: 176, height: 60),
+      Rect.fromCenter(center: const Offset(2, 14), width: 176, height: 60),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
-        ..color = _fenSlurry.withValues(alpha: 0.8),
+        ..color = _fenSlurry.withValues(alpha: 0.5),
     );
 
     canvas.save();
-    canvas.translate(at.dx, at.dy);
     canvas.rotate(-0.08);
     // The top face: long, a little tapered, the head end rounded off by
     // weather and the butt end snapped.
@@ -4026,17 +4236,14 @@ extension SinkingAltarFen on PlanetDungeonGame {
       ..lineTo(-74, 10)
       ..lineTo(-74, -6)
       ..close();
-    canvas.drawPath(flank, Paint()..color = const Color(0xFF3B3833));
-    canvas.drawPath(top, Paint()..color = const Color(0xFF6B675F));
-    // Light falling across the top from the upper left.
-    canvas.drawPath(
-      Path()
-        ..moveTo(-60, -22)
-        ..lineTo(40, -24)
-        ..quadraticBezierTo(58, -23, 64, -16)
-        ..lineTo(-58, -12)
-        ..close(),
-      Paint()..color = const Color(0xFF7D786E),
+    canvas.drawPath(flank, Paint()..color = const Color(0xFF15120E));
+    _fenCarve(
+      canvas,
+      top,
+      light: const Offset(1.6, 3.0),
+      rim: 0.55,
+      top: const Color(0xFF45403A),
+      foot: const Color(0xFF2A2620),
     );
     // The snapped butt: a rough, darker break face.
     canvas.drawPath(
@@ -4047,66 +4254,57 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ..lineTo(-62, 10)
         ..lineTo(-74, 10)
         ..close(),
-      Paint()..color = const Color(0xFF4A463F),
+      Paint()..color = const Color(0xFF1C1915),
     );
-    final edge = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5
-      ..strokeJoin = StrokeJoin.round
-      ..color = const Color(0xFF26231E);
-    canvas.drawPath(top, edge);
-    canvas.drawPath(flank, edge);
-    // Cracks, and the lichen that has had an age to grow.
-    final crack = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.3
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF3A3630);
-    canvas.drawPath(
+    // Cracks; the lichen of an age is a dim green on its weather edge, not
+    // spots.
+    _fenGroove(
+      canvas,
       Path()
         ..moveTo(-20, -22)
         ..lineTo(-14, -12)
         ..lineTo(-18, -2)
         ..lineTo(-12, 6),
-      crack,
+      w: 1.4,
     );
-    canvas.drawPath(
+    _fenGroove(
+      canvas,
       Path()
         ..moveTo(30, -23)
         ..lineTo(36, -14)
         ..lineTo(32, -6),
-      crack,
+      w: 1.4,
     );
-    for (final (o, r) in [
-      (const Offset(-40, -12), 7.0),
-      (const Offset(-32, -6), 4.5),
-      (const Offset(12, -16), 5.0),
-      (const Offset(52, -10), 3.5),
-    ]) {
-      canvas.drawCircle(o, r, Paint()..color = _fenMoss);
-    }
+    canvas.drawPath(
+      Path.combine(
+        ui.PathOperation.intersect,
+        top,
+        Path()..addRect(const Rect.fromLTRB(-60, -26, 20, -17)),
+      ),
+      Paint()..color = _fenMoss.withValues(alpha: 0.28),
+    );
     canvas.restore();
 
     // The silt lapping up over its near edge: it is IN the ground.
     canvas.drawPath(
       Path()
-        ..moveTo(at.dx - 86, at.dy + 26)
-        ..quadraticBezierTo(at.dx - 40, at.dy + 12, at.dx, at.dy + 20)
-        ..quadraticBezierTo(at.dx + 44, at.dy + 28, at.dx + 88, at.dy + 16)
-        ..lineTo(at.dx + 88, at.dy + 40)
-        ..lineTo(at.dx - 86, at.dy + 40)
+        ..moveTo(-86, 26)
+        ..quadraticBezierTo(-40, 12, 0, 20)
+        ..quadraticBezierTo(44, 28, 88, 16)
+        ..lineTo(88, 40)
+        ..lineTo(-86, 40)
         ..close(),
       Paint()..color = _fenPeat,
     );
     canvas.drawPath(
       Path()
-        ..moveTo(at.dx - 86, at.dy + 26)
-        ..quadraticBezierTo(at.dx - 40, at.dy + 12, at.dx, at.dy + 20)
-        ..quadraticBezierTo(at.dx + 44, at.dy + 28, at.dx + 88, at.dy + 16),
+        ..moveTo(-86, 26)
+        ..quadraticBezierTo(-40, 12, 0, 20)
+        ..quadraticBezierTo(44, 28, 88, 16),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
-        ..color = _fenSlurry,
+        ..color = _fenSlurry.withValues(alpha: 0.7),
     );
   }
 

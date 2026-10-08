@@ -80,6 +80,81 @@ final GlassPalette _kBrass = _sanctuaryStone(
   foot: const Color(0xFF3A2A14),
 );
 
+// THE PROPS PASS (2026-10-08). The floor is the puzzle and stays bright;
+// what stands on it was clip-art. The starlights, the steam and Solarin's
+// bolts are grains now; the vents, cranks, pipe mouths and the little key are
+// dark carved metal lit at the rim; the gilt suns and the arch's keyhole are
+// leaded glass, because they are things you read.
+
+/// Old iron: the steam vents' grates.
+final GlassPalette _kIron = _sanctuaryStone(
+  top: const Color(0xFF4A4238),
+  face: const Color(0xFF231E18),
+  foot: const Color(0xFF0C0A07),
+);
+
+/// Dark bronze: the cranks and the pipe mouths, gone brown with age.
+final GlassPalette _kBronze = _sanctuaryStone(
+  top: const Color(0xFF8A6A3A),
+  face: const Color(0xFF4A3820),
+  foot: const Color(0xFF1E160A),
+);
+
+/// A starlight's grains: deep amber so they hold on bright glass, up to
+/// white at the heart.
+const List<Color> _kStarGrains = [
+  Color(0xFFB8741E),
+  Color(0xFFF0B850),
+  Color(0xFFFFE6A8),
+  Color(0xFFFFFFFF),
+];
+
+/// A starlight's heart: gold over the white of its glow, never white on
+/// white.
+const List<Color> _kStarHeart = [
+  Color(0xFFC07820),
+  Color(0xFFE8A040),
+  Color(0xFFFFCC70),
+  Color(0xFFFFF0C8),
+];
+
+/// Steam's grains, a little grey so they show on ivory.
+const List<Color> _kSteamGrains = [
+  Color(0xFF6E7888),
+  Color(0xFF98A2B2),
+  Color(0xFFC8D0DC),
+  Color(0xFFF4F8FC),
+];
+
+/// The arch's veil: steam against white light, so milk-pale, never grey
+/// specks on white.
+const List<Color> _kVeilGrains = [
+  Color(0xFFC4CCD8),
+  Color(0xFFDCE2EA),
+  Color(0xFFF0F4F8),
+  Color(0xFFFFFFFF),
+];
+
+/// Solarin's bolts: a burning amber body, white at the head.
+const List<Color> _kBoltGrains = [
+  Color(0xFFB8501A),
+  Color(0xFFE0741E),
+  Color(0xFFFFB45A),
+  Color(0xFFFFF8E6),
+];
+
+/// One frame's loose grains, drawn together.
+final _SanctuaryInk _sanctuaryInk = _SanctuaryInk();
+
+/// Grain shapes built once (a starlight's heart, the veils).
+final Map<String, GrainShape> _sanctuaryGrains = {};
+
+/// The hall's gilt sun, baked once per state (found or not).
+final Map<bool, ui.Picture> _hallSunBake = {};
+
+/// The arch keyhole's panes (they hang on constants alone).
+List<Path>? _keyGlassCache;
+
 extension ShadowFloorArt on PlanetDungeonGame {
   void _updateLightGlass(double dt) {
     // ROOM II's starlight glides to the stud it was set on.
@@ -262,26 +337,49 @@ extension ShadowFloorArt on PlanetDungeonGame {
             if (!g(0, 1))
               c.drawRect(Rect.fromLTWH(r.left, r.bottom - 4, r.width, 4), band);
           case 'V':
-            paintCarvedDisc(c, r.center, 22, 12, 4, _kBrass);
-            final grate = Paint()..color = const Color(0xFF3A2A14);
+            // A STEAM VENT: an old iron grate let into the stone, its bars
+            // cut dark into the dark of the shaft and only its far lip
+            // catching the light. (It was a bright brass button with five
+            // stripes on it.) Its breath rises live, in grains.
+            paintCarvedDisc(c, r.center, 22, 12, 4, _kIron);
+            final mouth = Rect.fromCenter(
+              center: r.center,
+              width: 36,
+              height: 18,
+            );
+            c.save();
+            c.clipPath(Path()..addOval(mouth));
+            c.drawOval(mouth, Paint()..color = const Color(0xFF070504));
+            final bar = Paint()..color = const Color(0xFF3A3229);
             for (var k = -2; k <= 2; k++) {
               c.drawRect(
                 Rect.fromCenter(
                   center: r.center + Offset(k * 7.0, 0),
-                  width: 3,
-                  height: 14,
+                  width: 3.4,
+                  height: 20,
                 ),
-                grate,
+                bar,
               );
             }
+            c.restore();
+            c.drawArc(
+              Rect.fromCenter(center: r.center, width: 44, height: 24),
+              pi + 0.3,
+              pi - 0.6,
+              false,
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 1.3
+                ..color = _kStarGold.withValues(alpha: 0.45),
+            );
           case 'p':
-            paintCarvedDisc(c, r.center, 20, 11, 6, _kBrass);
+            paintCarvedDisc(c, r.center, 20, 11, 6, _kBronze);
             c.drawOval(
               Rect.fromCenter(center: r.center, width: 26, height: 13),
-              Paint()..color = const Color(0xFF1C140A),
+              Paint()..color = const Color(0xFF0C0805),
             );
           case 'C':
-            paintCarvedDisc(c, r.center, 18, 10, 6, _kBrass);
+            paintCarvedDisc(c, r.center, 18, 10, 6, _kBronze);
           case 'd':
             paintCarvedDisc(c, r.center, 28, 16, 5, _kPaleStone);
             c.drawCircle(
@@ -303,7 +401,9 @@ extension ShadowFloorArt on PlanetDungeonGame {
         }
       }
     }
-    // One gilt rosette at the heart of the gold stone.
+    // One gilt sun at the heart of the gold stone: a little rose window of
+    // gold glass let into the floor, leaded — the place you are making for.
+    // (It was a flat sixteen-pointed gold star stuck on the stone.)
     final gs = [
       for (var y = 0; y < def.rows; y++)
         for (var x = 0; x < def.cols; x++)
@@ -311,22 +411,7 @@ extension ShadowFloorArt on PlanetDungeonGame {
     ];
     if (gs.isNotEmpty) {
       final cc = gs.reduce((a, b) => a + b) / gs.length.toDouble();
-      final gold = Paint()..color = _kGoldInlay.withValues(alpha: .8);
-      for (var i = 0; i < 16; i++) {
-        final a = i * pi / 8;
-        final dir = Offset(cos(a), sin(a));
-        final n = Offset(-dir.dy, dir.dx) * 4;
-        final tip = cc + dir * (i.isEven ? 30.0 : 19.0);
-        c.drawPath(
-          Path()
-            ..moveTo(cc.dx + n.dx, cc.dy + n.dy)
-            ..lineTo(tip.dx, tip.dy)
-            ..lineTo(cc.dx - n.dx, cc.dy - n.dy)
-            ..close(),
-          gold,
-        );
-      }
-      c.drawCircle(cc, 8, Paint()..color = const Color(0xFFF2DC9A));
+      _paintSunRose(c, cc, 28, lit: 1);
     }
     // The stone things, carved.
     for (final f in def.fixedCasters) {
@@ -480,15 +565,41 @@ extension ShadowFloorArt on PlanetDungeonGame {
       _kPaleStone,
       radius: 2,
     );
-    final key = Paint()..color = const Color(0xFFC9A24E);
-    c.drawCircle(pk + const Offset(-10, -8), 4, key);
-    c.drawRect(Rect.fromLTWH(pk.dx - 7, pk.dy - 9.2, 20, 2.4), key);
-    c.drawRect(Rect.fromLTWH(pk.dx + 9, pk.dy - 9.2, 2.5, 5), key);
+    // The key: old dark bronze, lit only along its upper edges — not a flat
+    // gold key sticker. Its shadow on the arch is the puzzle.
+    final bow = pk + const Offset(-10, -8);
+    final key = Path.combine(
+      PathOperation.difference,
+      Path()
+        ..addOval(Rect.fromCircle(center: bow, radius: 4.8))
+        ..addRect(Rect.fromLTWH(pk.dx - 7, pk.dy - 9.3, 20.2, 2.6))
+        ..addRect(Rect.fromLTWH(pk.dx + 7.4, pk.dy - 7, 2.3, 3.8))
+        ..addRect(Rect.fromLTWH(pk.dx + 10.9, pk.dy - 7, 2.3, 2.8)),
+      Path()..addOval(Rect.fromCircle(center: bow, radius: 1.9)),
+    );
+    c.drawPath(
+      key.shift(const Offset(1.5, 2.2)),
+      Paint()..color = const Color(0xFF6E644E).withValues(alpha: 0.35),
+    );
+    _sanctuaryCarve(
+      c,
+      key,
+      body: const Color(0xFF4A3418),
+      deep: const Color(0xFF140C05),
+      rim: const Color(0xFFF2D68A),
+      lift: 1.3,
+    );
   }
 
   // ═══════════════════════════ THE STARLIGHT ════════════════════════════
 
   /// A STARLIGHT: a shard of Solarin's star. [s] scales it.
+  ///
+  /// IN GRAINS (2026-10-08): its corona stays the soft glow it was; its heart
+  /// is a knot of grains wheeling round (the inside faster), and its rays are
+  /// streams of grains running out from it and thinning — still turning
+  /// slowly, and one that shines one way still fans its long rays into its
+  /// cone. (It was a filled sparkle icon.) ~220 grains, ~290 for a cone.
   void _drawStarlight(
     Canvas canvas,
     Offset at, {
@@ -515,10 +626,11 @@ extension ShadowFloorArt on PlanetDungeonGame {
         Colors.white.withValues(alpha: .9),
       );
     }
+    // THE RAYS: streams of grains running out along each ray, packed at the
+    // root and thinning toward the tip, so each ray tapers by its grain.
     final spin = _time * .38;
-    // A starlight that shines one way fans many rays across its cone.
     final n = face != null ? 18 : 8;
-    final ray = Paint();
+    final core = 12.0 * s * bloom;
     for (var i = 0; i < n; i++) {
       final a = spin + i / n * pi * 2;
       var long = i.isEven ? 1.0 : .55;
@@ -527,32 +639,61 @@ extension ShadowFloorArt on PlanetDungeonGame {
         d = atan2(sin(d), cos(d));
         long *= d.abs() <= half ? 1.5 : .35;
       }
-      final len = 44.0 * long * s * tw * bloom;
-      final w = 5.5 * s;
-      final ca = cos(a), sa = sin(a);
-      ray.color = const Color(
-        0xFFFFF0C4,
-      ).withValues(alpha: .8 * min(1.0, long));
-      canvas.drawPath(
-        Path()
-          ..moveTo(at.dx - sa * w, at.dy + ca * w)
-          ..lineTo(at.dx + ca * len, at.dy + sa * len)
-          ..lineTo(at.dx + sa * w, at.dy - ca * w)
-          ..close(),
-        ray,
-      );
+      final len = 46.0 * long * s * tw * bloom;
+      final dir = Offset(cos(a), sin(a));
+      final nrm = Offset(-dir.dy, dir.dx);
+      final m = (long * 22).round() + 5;
+      final w = 4.2 * s;
+      for (var k = 0; k < m; k++) {
+        final pace = 1.0 + 0.3 * ((k * 5 + i) % 4) / 3;
+        final u = (_time * pace + k / m + i * 0.13) % 1.0;
+        final u0 = u - pace * 0.045;
+        if (u0 < 0) continue;
+        final side = sin(k * 2.39996 + i * 1.3);
+        Offset pos(double v) {
+          final q = pow(v, 1.5).toDouble();
+          return at +
+              dir * (core * 0.35 + q * len) +
+              nrm * (side * w * pow(1 - q, 1.5).toDouble());
+        }
+
+        final q = pow(u, 1.5).toDouble();
+        _sanctuaryInk.add(
+          pos(u0),
+          pos(u),
+          _kStarGrains[q < 0.18 ? 2 : (q < 0.55 ? 1 : 0)],
+          .95 * min(1.0, long) * pow(1 - q, 0.7).toDouble() * min(1.0, u * 10),
+        );
+      }
     }
-    final core = 12.0 * s * bloom;
-    canvas.drawCircle(
-      at,
-      core,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          at,
-          core,
-          [Colors.white, const Color(0xFFFFF4C8), const Color(0x00FFE08C)],
-          const [0, .6, 1],
-        ),
+    _sanctuaryInk.paint(canvas, width: 1.8 * max(1.0, s));
+    // THE HEART: a knot of grains wheeling round it, gold over the white of
+    // its glow, the inside turning faster.
+    final heart = _sanctuaryGrains.putIfAbsent('star|heart', () {
+      final rng = Random(29);
+      final pts = <Offset>[];
+      final shade = <double>[];
+      for (var k = 0; k < 260; k++) {
+        final r = 11.5 * pow(rng.nextDouble(), 1.15).toDouble();
+        final th = rng.nextDouble() * pi * 2;
+        pts.add(Offset(cos(th), sin(th)) * r);
+        shade.add(1 - 0.85 * r / 11.5);
+      }
+      return GrainShape.points(pts, shade, seed: 29)
+        ..orbit(Offset.zero, (r) => 1.1 * (1 + 6 / (r + 3)));
+    });
+    paintGrainShape(
+      canvas,
+      heart,
+      _time,
+      origin: at,
+      scale: s * bloom,
+      drift: 0.5,
+      alpha: 1,
+      ramp: _kStarHeart,
+      glint: 0.02,
+      width: 1.7,
+      trail: 0.035,
     );
   }
 
@@ -981,7 +1122,35 @@ extension ShadowFloorArt on PlanetDungeonGame {
     }
     canvas.restore();
 
-    // The crank, turning as it walks the starlight on.
+    // THE VENTS BREATHE: a thread of steam grains rising off each grate and
+    // thinning out, so a vent reads as a vent before anyone breathes a veil
+    // at it. ~56 grains a vent.
+    for (final v in def.vents) {
+      final c = shadowCentre(v.x, v.y);
+      const m = 56;
+      for (var k = 0; k < m; k++) {
+        final pace = 0.32 + 0.1 * ((k * 3) % 4) / 3;
+        final u = (_time * pace + k / m) % 1.0;
+        final u0 = u - pace * 0.06;
+        if (u0 < 0) continue;
+        final side = sin(k * 2.39996);
+        Offset pos(double q) => c.translate(
+          side * 11 * (1 - q * 0.55) + sin(_time * 1.3 + k * 0.7) * 4 * q,
+          -2 - q * 40,
+        );
+        _sanctuaryInk.add(
+          pos(u0),
+          pos(u),
+          _kSteamGrains[u < 0.35 ? 2 : (u < 0.7 ? 1 : 0)],
+          0.5 * (1 - u) * min(1.0, u * 6),
+        );
+      }
+    }
+    _sanctuaryInk.paint(canvas, width: 1.6);
+
+    // THE CRANK, turning as it walks the starlight on: a dark bronze arm lit
+    // along its edge, and on its end the one thing to take hold of — a
+    // gold glass knob. (It was a flat gold stick with a ball on it.)
     for (var y = 0; y < def.rows; y++) {
       for (var x = 0; x < def.cols; x++) {
         if (def.at(x, y) != 'C') continue;
@@ -990,14 +1159,42 @@ extension ShadowFloorArt on PlanetDungeonGame {
         canvas.save();
         canvas.translate(c.dx, c.dy);
         canvas.rotate(t * pi * 2);
-        canvas.drawRect(
-          const Rect.fromLTWH(-3, -18, 6, 18),
-          Paint()..color = const Color(0xFFD2AB58),
+        _sanctuaryCarve(
+          canvas,
+          Path()
+            ..moveTo(-4, 0)
+            ..lineTo(-2.6, -17)
+            ..lineTo(2.6, -17)
+            ..lineTo(4, 0)
+            ..close(),
+          body: const Color(0xFF4A3418),
+          deep: const Color(0xFF140C05),
+          rim: const Color(0xFFF2D68A),
+          lift: 1.3,
         );
         canvas.drawCircle(
+          Offset.zero,
+          4.5,
+          Paint()..color = const Color(0xFF1E160A),
+        );
+        canvas.drawCircle(
+          const Offset(-0.8, -0.8),
+          1.6,
+          Paint()..color = const Color(0xFFD2AB58).withValues(alpha: .7),
+        );
+        paintRondel(
+          canvas,
           const Offset(0, -18),
-          5,
-          Paint()..color = const Color(0xFFF2DC9A),
+          4.6,
+          _kLumenGlass,
+          fill: const Color(0xFFF2C870),
+          rim: .9,
+          lead: 1.8,
+        );
+        paintStreak(
+          canvas,
+          Rect.fromCircle(center: const Offset(0, -18), radius: 4),
+          opacity: .8,
         );
         canvas.restore();
       }
@@ -1024,21 +1221,6 @@ extension ShadowFloorArt on PlanetDungeonGame {
         if (v < 1) continue;
         final dir = b.v / v;
         final n = Offset(-dir.dy, dir.dx);
-        final tail = b.p - dir * 46;
-        // A tapered comet: a deep amber body so it reads on bright glass,
-        // white-hot at the head. Filled, not a line.
-        canvas.drawPath(
-          Path()
-            ..moveTo(b.p.dx + n.dx * 9, b.p.dy + n.dy * 9)
-            ..lineTo(tail.dx, tail.dy)
-            ..lineTo(b.p.dx - n.dx * 9, b.p.dy - n.dy * 9)
-            ..close(),
-          Paint()
-            ..shader = ui.Gradient.linear(b.p, tail, [
-              const Color(0xFFE0741E).withValues(alpha: .9),
-              const Color(0xFFB8501A).withValues(alpha: 0),
-            ]),
-        );
         if (_fx.ready) {
           drawGlow(
             canvas,
@@ -1048,9 +1230,37 @@ extension ShadowFloorArt on PlanetDungeonGame {
             const Color(0xFFFF9A3C).withValues(alpha: .8),
           );
         }
-        canvas.drawCircle(b.p, 10, Paint()..color = const Color(0xFFD9661C));
-        canvas.drawCircle(b.p, 6, Paint()..color = const Color(0xFFFFF8E6));
+        // A comet of grains: a white-hot knot at the head and a burning
+        // amber tail streaming back off it and thinning, each grain
+        // streaked along the flight. (It was an orange ring on a flat
+        // triangle.) ~80 grains a bolt.
+        const m = 56;
+        for (var k = 0; k < m; k++) {
+          final u = ((k / m) + _time * 2.4) % 1.0;
+          final side = sin(k * 2.39996 + _time * 7);
+          final at =
+              b.p - dir * (u * 46) + n * (side * 8 * (1 - u) * (0.35 + u));
+          _sanctuaryInk.add(
+            at - dir * 3.5,
+            at,
+            _kBoltGrains[u < 0.12 ? 3 : (u < 0.55 ? 1 : 0)],
+            0.95 * pow(1 - u, 0.6).toDouble(),
+          );
+        }
+        // The head: a burning knot, white at its middle.
+        for (var k = 0; k < 26; k++) {
+          final a = k * 2.39996 + _time * 11;
+          final r = k < 8 ? 1.2 + (k % 3) * 0.8 : 3.2 + (k % 4) * 1.0;
+          final at = b.p + Offset(cos(a), sin(a)) * r;
+          _sanctuaryInk.add(
+            at - dir * 2.5,
+            at,
+            k < 8 ? _kBoltGrains[3] : _kBoltGrains[1],
+            0.95,
+          );
+        }
       }
+      _sanctuaryInk.paint(canvas, width: 2.4);
       if (_fx.ready) {
         for (final (p, t0) in archive.boltBursts) {
           final f = 1 - ((_time - t0) / .5).clamp(0.0, 1.0);
@@ -1090,18 +1300,59 @@ extension ShadowFloorArt on PlanetDungeonGame {
     }
   }
 
+  /// THE VEIL Steam breathes at a vent: a small standing cloud of steam
+  /// grains churning over a soft white haze, its crown brightest — it holds
+  /// still where it was breathed, and throws its shadow. (It was a stack of
+  /// puff sprites.) ~560 grains.
   void _drawVeil(Canvas canvas, Offset at, double a) {
-    if (!_fx.ready) return;
-    for (var i = 0; i < 5; i++) {
-      final t = _time * .6 + i * 1.3;
-      drawPuff(
-        canvas,
-        _fx.puff!,
-        at + Offset(sin(t) * 7, -8 - i * 6 + cos(t) * 3),
-        (58 - i * 6) * a,
-        Colors.white.withValues(alpha: .55 * a),
-      );
-    }
+    final c = at.translate(0, -12);
+    final r = 34.0 * (0.55 + 0.45 * a);
+    canvas.drawCircle(
+      c,
+      r,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          c,
+          r,
+          [
+            Colors.white.withValues(alpha: .42 * a),
+            Colors.white.withValues(alpha: .18 * a),
+            Colors.white.withValues(alpha: 0),
+          ],
+          const [0.0, 0.6, 1.0],
+        ),
+    );
+    final veil = _sanctuaryGrains.putIfAbsent(
+      'veil',
+      () => GrainShape.puffs(
+        const [
+          (Offset(0, -4), 15),
+          (Offset(-12, 3), 12),
+          (Offset(12, 1), 12),
+          (Offset(-2, 10), 13),
+          (Offset(-7, -14), 10),
+          (Offset(8, -12), 10),
+          (Offset(0, -20), 8),
+        ],
+        560,
+        seed: 17,
+      ),
+    );
+    paintGrainShape(
+      canvas,
+      veil,
+      _time,
+      origin: c,
+      scale: 0.55 + 0.45 * a,
+      rotation: sin(_time * .5) * .06,
+      spin: .03 * cos(_time * .5),
+      drift: 2.2,
+      alpha: a,
+      ramp: _kSteamGrains,
+      glint: 0.01,
+      width: 1.6,
+      trail: 0.035,
+    );
   }
 
   // ═══════════════════════════ THE HALL, LIVE ═══════════════════════════
@@ -1182,25 +1433,23 @@ extension ShadowFloorArt on PlanetDungeonGame {
         );
       }
     }
-    // THE GOLD SUN, inlaid in the far well where nobody would stand.
+    // THE GOLD SUN, inlaid in the far well where nobody would stand: a gilt
+    // rose of leaded glass, frosted until it is found and lit after. (It was
+    // a flat twelve-rayed sticker, turning.)
     {
-      final c = shadowCentre(kHallSun.x, kHallSun.y);
       final found = discoveredClouds.contains(kLightEggId);
-      final gold = Paint()
-        ..color = const Color(0xFFC9A24E).withValues(alpha: found ? .95 : .55);
-      for (var i = 0; i < 12; i++) {
-        final a = i * pi / 6 + _time * .08;
-        final len = i.isOdd ? 20.0 : 28.0;
-        canvas.drawPath(
-          Path()
-            ..moveTo(c.dx + cos(a + .2) * 11, c.dy + sin(a + .2) * 11)
-            ..lineTo(c.dx + cos(a) * len, c.dy + sin(a) * len)
-            ..lineTo(c.dx + cos(a - .2) * 11, c.dy + sin(a - .2) * 11)
-            ..close(),
-          gold,
-        );
-      }
-      canvas.drawCircle(c, 12, gold);
+      canvas.drawPicture(
+        _hallSunBake.putIfAbsent(found, () {
+          final rec = ui.PictureRecorder();
+          _paintSunRose(
+            Canvas(rec),
+            shadowCentre(kHallSun.x, kHallSun.y),
+            24,
+            lit: found ? 1 : 0,
+          );
+          return rec.endRecording();
+        }),
+      );
     }
     // THE HALL'S STAR on its stand: dark, until Light wakes it.
     final top = kHallKindle - const Offset(0, 22);
@@ -1274,6 +1523,84 @@ extension ShadowFloorArt on PlanetDungeonGame {
     return p..fillType = PathFillType.evenOdd;
   }
 
+  /// The keyhole's panes: the same key, projected the same way as the
+  /// answer's shadow (a touch larger, so the shadow sits inside its lead),
+  /// cut into panes for leading.
+  List<Path> _keyGlassPanes() {
+    const grow = 1.08;
+    Offset at(double x, double z) {
+      final gx = kKeyX + (x - kKeyX) * grow, gz = kKeyZ + (z - kKeyZ) * grow;
+      final (sx, sz) = keyProject(kKeyAnswerX, kKeyAnswerY, gx, gz);
+      return _arch(sx, sz);
+    }
+
+    Path quad(double x0, double z0, double x1, double z1) {
+      final a = at(x0, z0), b = at(x1, z0), c = at(x1, z1), d = at(x0, z1);
+      return Path()..addPolygon([a, b, c, d], true);
+    }
+
+    final panes = <Path>[];
+    // The bow: a ring of six panes round its hole.
+    const bx = kKeyX - .16, bz = kKeyZ, r0 = .045, r1 = .1;
+    for (var k = 0; k < 6; k++) {
+      final pts = <Offset>[];
+      for (var i = 0; i <= 6; i++) {
+        final a = (k + i / 6) / 6 * pi * 2 + .3;
+        pts.add(at(bx + cos(a) * r1, bz + sin(a) * r1));
+      }
+      for (var i = 6; i >= 0; i--) {
+        final a = (k + i / 6) / 6 * pi * 2 + .3;
+        pts.add(at(bx + cos(a) * r0, bz + sin(a) * r0));
+      }
+      panes.add(Path()..addPolygon(pts, true));
+    }
+    // The shaft in three, and the two bits.
+    const xs = [kKeyX - .06, kKeyX + .04, kKeyX + .14, kKeyX + .25];
+    for (var i = 0; i < 3; i++) {
+      panes.add(quad(xs[i], kKeyZ - .025, xs[i + 1], kKeyZ + .025));
+    }
+    panes
+      ..add(quad(kKeyX + .14, kKeyZ - .1, kKeyX + .18, kKeyZ - .025))
+      ..add(quad(kKeyX + .2, kKeyZ - .08, kKeyX + .25, kKeyZ - .025));
+    return panes;
+  }
+
+  void _paintKeyGlass(Canvas canvas) {
+    final panes = _keyGlassCache ??= _keyGlassPanes();
+    const tints = [
+      Color(0xFFF0C468),
+      Color(0xFFE2AE4E),
+      Color(0xFFF6D894),
+      Color(0xFFE9BA5C),
+    ];
+    final whole = _keyShadow(kKeyAnswerX, kKeyAnswerY, grow: 1.08);
+    final heart = whole.getBounds().center;
+    for (var i = 0; i < panes.length; i++) {
+      final tint = tints[(i * 3 + i ~/ 6) % tints.length];
+      canvas.drawPath(
+        panes[i],
+        Paint()
+          ..shader = ui.Gradient.radial(
+            heart,
+            90,
+            [
+              Color.lerp(tint, _kGlassHot, .45)!.withValues(alpha: .92),
+              tint.withValues(alpha: .92),
+              Color.lerp(
+                tint,
+                const Color(0xFF8A6420),
+                .3,
+              )!.withValues(alpha: .92),
+            ],
+            const [0.0, 0.5, 1.0],
+          ),
+      );
+      paintLead(canvas, panes[i], _kLumenGlass, width: 1.8, opacity: .75);
+    }
+    paintStreak(canvas, panes[7].getBounds().inflate(4), opacity: .55);
+    paintLead(canvas, whole, _kLumenGlass, width: 3.2, opacity: .9);
+  }
+
   void _renderKeyLive(Canvas canvas, DungeonRoom room) {
     final solved = archive.solved.contains('key_room');
     final arch = _archPath();
@@ -1295,35 +1622,50 @@ extension ShadowFloorArt on PlanetDungeonGame {
       final x = b.left + ((i * 57 + _time * 22) % (b.width + 40)) - 20;
       canvas.drawRect(Rect.fromLTWH(x, b.top, 6, b.height), shaft);
     }
-    // The keyhole: leaded gold glass, set in the light.
-    final hole = _keyShadow(kKeyAnswerX, kKeyAnswerY, grow: 1.08);
-    canvas.drawPath(hole, Paint()..color = _kGoldInlay.withValues(alpha: .22));
-    paintLead(canvas, hole, _kLumenGlass, width: 3, opacity: .8);
-    // The veil: something for a shadow to land on.
+    // THE KEYHOLE: a key-shaped window of gold glass set in the light, cut
+    // into panes and leaded — the bow in six, the shaft in three, the two
+    // bits — so it reads as stained glass to be matched, not as a key
+    // outline drawn on the arch.
+    _paintKeyGlass(canvas);
+    // The veil: something for a shadow to land on — steam hung across the
+    // arch, its grains falling slowly through it over a pale screen. (It
+    // was eight puff sprites.) ~1,700 grains.
     final veil = archive.keyVeil
         ? (archive.veilT < 0
               ? 1.0
               : ((_time - archive.veilT) / 1.1).clamp(0.0, 1.0))
         : 0.0;
     if (veil > 0) {
-      if (_fx.ready) {
-        for (var i = 0; i < 8; i++) {
-          final t = _time * .25 + i * 1.7;
-          drawPuff(
-            canvas,
-            _fx.puff!,
-            Offset(
-              b.left + ((i * 41 + sin(t) * 14) % b.width),
-              b.top + b.height * (.2 + (i % 4) * .2) + cos(t) * 4,
-            ),
-            170,
-            Colors.white.withValues(alpha: .62 * veil),
-          );
-        }
-      }
       canvas.drawRect(
         b,
-        Paint()..color = const Color(0xFFE2E8EE).withValues(alpha: .5 * veil),
+        Paint()..color = const Color(0xFFE2E8EE).withValues(alpha: .58 * veil),
+      );
+      final mist = _sanctuaryGrains.putIfAbsent(
+        'arch|veil',
+        () => GrainShape.region(
+          Rect.fromCenter(
+            center: Offset.zero,
+            width: b.width,
+            height: b.height,
+          ),
+          (_) => true,
+          1700,
+          seed: 23,
+        ),
+      );
+      paintGrainShape(
+        canvas,
+        mist,
+        _time,
+        origin: b.center,
+        fall: b.height,
+        fallSpeed: 9,
+        drift: 4,
+        alpha: .8 * veil,
+        ramp: _kVeilGrains,
+        glint: 0.006,
+        width: 1.6,
+        trail: 0.035,
       );
       final keyT = archive.keyT;
       if (archive.keyPinned) {
@@ -1412,4 +1754,134 @@ extension ShadowFloorArt on PlanetDungeonGame {
     }
     _drawStarlight(canvas, keyFloor(lx, ly), s: .9);
   }
+}
+
+// ── Props pass helpers (2026-10-08) ─────────────────────────
+
+/// A carved silhouette in dark bronze: [shape] lit only along the edges that
+/// face the light (up and to the left), the light rolling off the edge in
+/// steps — never a drawn outline.
+void _sanctuaryCarve(
+  Canvas canvas,
+  Path shape, {
+  required Color body,
+  required Color deep,
+  required Color rim,
+  double lift = 1.6,
+}) {
+  final b = shape.getBounds();
+  Paint fall(Color from) => Paint()
+    ..shader = ui.Gradient.linear(
+      b.topLeft,
+      b.bottomRight,
+      [from, Color.lerp(from, body, 0.7)!, body],
+      const [0.0, 0.5, 1.0],
+    );
+  canvas.drawPath(shape, fall(rim));
+  canvas.save();
+  canvas.clipPath(shape);
+  for (final s in const [0.3, 0.6]) {
+    canvas.drawPath(
+      shape.shift(Offset(lift * s, lift * s * 0.9)),
+      fall(Color.lerp(rim, body, 0.35 + s * 0.6)!),
+    );
+  }
+  canvas.drawPath(
+    shape.shift(Offset(lift, lift * 0.9)),
+    Paint()
+      ..shader = ui.Gradient.linear(b.topLeft, b.bottomRight, [body, deep]),
+  );
+  canvas.restore();
+}
+
+/// Tiny lit grains drawn as short trailed strokes, gathered per colour and
+/// alpha step so a frame's starlight rays, steam and bolts are a few
+/// drawPoints calls. Callers draw from small fixed ramps.
+class _SanctuaryInk {
+  final Map<int, List<Offset>> _runs = {};
+  final Paint _paint = Paint()..strokeCap = StrokeCap.round;
+
+  void add(Offset from, Offset to, Color c, double alpha) {
+    final a = (alpha.clamp(0.0, 1.0) * 8).round();
+    if (a == 0) return;
+    final key = ((c.toARGB32() & 0xFFFFFF) << 4) | a;
+    final run = _runs.putIfAbsent(key, () => <Offset>[]);
+    run
+      ..add((to - from).distanceSquared < 0.09 ? to.translate(-0.3, 0) : from)
+      ..add(to);
+  }
+
+  void paint(Canvas canvas, {double width = 1.6}) {
+    _paint.strokeWidth = width;
+    for (final e in _runs.entries) {
+      if (e.value.isEmpty) continue;
+      _paint.color = Color(
+        0xFF000000 | (e.key >> 4),
+      ).withValues(alpha: (e.key & 15) / 8);
+      canvas.drawPoints(ui.PointMode.lines, e.value, _paint);
+      e.value.clear();
+    }
+  }
+}
+
+/// A GILT SUN: a small rose window of gold glass in lead — a heart, eight
+/// petals and sixteen rays round them — let into the floor and lit from
+/// below, so it glows from its heart out. [lit] 0..1 runs it from frosted,
+/// unlit gold to glass with the well's light coming through it.
+void _paintSunRose(Canvas c, Offset cc, double r, {double lit = 1}) {
+  final dim = 1 - lit.clamp(0.0, 1.0);
+  Color glass(Color live) => Color.lerp(
+    live,
+    const Color(0xFFD6BE86),
+    dim * 0.55,
+  )!.withValues(alpha: 0.6 + 0.4 * lit);
+  // The gilt band it is set in.
+  c.drawCircle(
+    cc,
+    r + 3.5,
+    Paint()..color = _kGoldInlay.withValues(alpha: 0.5 + 0.35 * lit),
+  );
+  final heat = Color.lerp(_kGlassHot, const Color(0xFFD9CDB0), dim)!;
+  for (final p in buildRose(cc, [
+    (r * 0.3, r * 0.64, 8, 0.0),
+    (r * 0.64, r, 16, pi / 16),
+  ])) {
+    final fill = p.ring == 0
+        ? (p.index.isEven ? const Color(0xFFF0C468) : const Color(0xFFE2AE4E))
+        : (p.index.isEven ? const Color(0xFFF6DA98) : const Color(0xFFEAC274));
+    c.drawPath(
+      p.path,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          cc,
+          r,
+          [
+            glass(heat),
+            glass(fill),
+            glass(Color.lerp(fill, const Color(0xFF8A6420), 0.35)!),
+          ],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
+    paintLead(c, p.path, _kLumenGlass, width: 1.4, opacity: 0.4 + 0.2 * lit);
+  }
+  final heart = Path()..addOval(Rect.fromCircle(center: cc, radius: r * 0.3));
+  c.drawPath(
+    heart,
+    Paint()
+      ..shader = ui.Gradient.radial(
+        cc,
+        r * 0.3,
+        [glass(Colors.white), glass(heat), glass(const Color(0xFFF2D68A))],
+        const [0.0, 0.5, 1.0],
+      ),
+  );
+  paintLead(c, heart, _kLumenGlass, width: 1.6, opacity: 0.7);
+  paintLead(
+    c,
+    Path()..addOval(Rect.fromCircle(center: cc, radius: r)),
+    _kLumenGlass,
+    width: 2.4,
+    opacity: 0.85,
+  );
 }

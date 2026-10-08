@@ -30,14 +30,369 @@ const Color _gLeaf = Color(0xFF3F6B34);
 const Color _gLeafLit = Color(0xFF8DBB5E);
 const Color _gLeafDead = Color(0xFF7A6644);
 const Color _gStem = Color(0xFF3A5A2C);
-const Color _gBark = Color(0xFF3B2E22);
-const Color _gBarkLit = Color(0xFF7A6247);
+// Bark is near-black, lit only along an edge (2026-10-08): the roots were a
+// flat mid-brown with a broad pale stripe down each, which drew them.
+const Color _gBark = Color(0xFF1F1913);
+const Color _gBarkLit = Color(0xFF6E5A42);
 const Color _gFrost = Color(0xFFDCEAF0);
 const Color _gIce = Color(0xFF8EB6C8);
 const Color _gHeat = Color(0xFFE0964A);
 const Color _gSun = Color(0xFFF4E2A8);
 const Color _gWaterLit = Color(0xFF6FAABB);
 const Color _gGrey = Color(0xFF8A8A84);
+
+// ── GROWTH IN GRAINS (2026-10-08) ───────────────────────────
+// The specimens' stems, leaves and cushions, the great plant's crown, the
+// hothouse's heat, the dust in the shaft and the motes round a thriving
+// bloom are lit grains now, in the Conservatory's greens — they were flat
+// clip-art seedlings, leaf stickers, squiggles and sprite dots. The glass
+// (flowers, buds, collars, rings) is untouched: glass is the signal, grains
+// are the living thing. Worked out from time alone and drawn in one batch.
+
+final RiteGrainBatch _greenGrains = RiteGrainBatch();
+
+double _greenHash(int n) {
+  final s = sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - s.floorToDouble();
+}
+
+/// Living leaf, dead leaf: four steps each, from shadow to lit edge.
+const List<Color> _kGreenLiveRamp = [
+  Color(0xFF243F1E),
+  _gMoss,
+  Color(0xFF6E9A4A),
+  Color(0xFFB4D884),
+];
+const List<Color> _kGreenDeadRamp = [
+  Color(0xFF3A2E1C),
+  Color(0xFF65543A),
+  _gLeafDead,
+  Color(0xFFB09A70),
+];
+
+/// The great plant's crown: its shaded heart and its sunlit rim.
+const List<Color> _kGreenShadeRamp = [
+  Color(0xFF16261A),
+  Color(0xFF2A4628),
+  _gLeaf,
+  Color(0xFF7FA25A),
+];
+const List<Color> _kGreenSunlitRamp = [
+  Color(0xFF2E4A22),
+  Color(0xFF5E8A3E),
+  Color(0xFF93BE62),
+  Color(0xFFDDF0B0),
+];
+
+/// The standing crown, one ramp from its shaded heart to its sunlit rim.
+const List<Color> _kGreenCrownRamp = [
+  Color(0xFF1C3018),
+  Color(0xFF3F6B34),
+  Color(0xFF8AB65A),
+  Color(0xFFD6ECA6),
+];
+
+/// The great plant's crown at full rise, as one shape about its top: the
+/// same three rings of leaves the rise draws, each leaf a dense midrib and a
+/// blade, the inner ring in shade and the outer in the light.
+GrainShape? _greenCrown;
+GrainShape _buildGreenCrown() {
+  final pts = <Offset>[];
+  final shades = <double>[];
+  var k = 0;
+  for (var ring = 0; ring < 3; ring++) {
+    final n = 10 + ring * 4;
+    final rad = 40.0 + ring * 34;
+    final len = 26.0 + ring * 6;
+    final lo = const [0.0, 0.18, 0.36][ring];
+    final span = const [0.34, 0.36, 0.42][ring];
+    for (var i = 0; i < n; i++) {
+      final a = i * 2 * pi / n + ring * 0.4;
+      final p = Offset(cos(a) * rad, sin(a) * rad * 0.62);
+      final ca = cos(a), sa = sin(a);
+      for (var j = 0; j < 90; j++, k++) {
+        final h0 = _greenHash(k * 3 + 11), h1 = _greenHash(k * 5 + 17);
+        final rib = j < 16;
+        final sAlong = rib ? (j + 0.5) / 16 * 0.92 : 0.05 + 0.9 * h0;
+        final half = 1.1 * len * sAlong * (1 - sAlong);
+        final x = h1 * 2 - 1;
+        final v = rib ? 0.0 : x * x.abs() * 0.35 * half + x * 0.65 * half;
+        final lx = sAlong * len;
+        pts.add(p + Offset(lx * ca - v * sa, lx * sa + v * ca));
+        shades.add(lo + span * (rib ? 1.0 : 0.25 + 0.6 * (1 - x.abs())));
+      }
+    }
+  }
+  return GrainShape.points(pts, shades, seed: 19);
+}
+
+/// The opposite flower's petals: night-violet outside, rose within.
+const List<Color> _kGreenNightRamp = [
+  Color(0xFF1E1528),
+  Color(0xFF3B2A4E),
+  Color(0xFF5E4678),
+  Color(0xFF9A82B8),
+];
+const List<Color> _kGreenRoseRamp = [
+  Color(0xFF3A2030),
+  Color(0xFF6A3E5A),
+  Color(0xFF94607E),
+  Color(0xFFD0A0B8),
+];
+
+/// Heat off the hothouse vents.
+const List<Color> _kGreenHeatRamp = [
+  Color(0xFF5A2A10),
+  Color(0xFFA85A22),
+  Color(0xFFE0964A),
+  Color(0xFFF6CF8E),
+];
+
+/// The ramp [k] of the way from dead to living.
+List<Color> _greenRamp(double k) => [
+  for (var i = 0; i < 4; i++)
+    Color.lerp(_kGreenDeadRamp[i], _kGreenLiveRamp[i], k.clamp(0.0, 1.0))!,
+];
+
+/// A leaf of grains lying from [base] along [a], [len] long — the lens of
+/// [vfxLeaf], filled: a dense bright midrib and a sparser blade that darkens
+/// to its edge, each grain stirring a little in place.
+void _greenLeaf(
+  Offset base,
+  double len,
+  double a,
+  double t, {
+  required List<Color> ramp,
+  int n = 44,
+  double alpha = 1,
+  double stir = 0.6,
+  int seed = 1,
+}) {
+  if (alpha <= 0.02 || len < 2) return;
+  final ca = cos(a), sa = sin(a);
+  final rib = (n * 0.2).round();
+  for (var i = 0; i < n; i++) {
+    final h0 = _greenHash(seed * 769 + i);
+    final h1 = _greenHash(seed * 541 + i * 3 + 1);
+    final h2 = _greenHash(seed * 233 + i * 7 + 2) * 6.3;
+    final double s, v, shade;
+    if (i < rib) {
+      s = (i + 0.5) / rib * 0.92;
+      v = 0;
+      shade = 0.95;
+    } else {
+      // The blade fills the lens, a little thicker toward the rib, so the
+      // leaf has a body and a soft edge rather than a hard outline.
+      s = 0.05 + 0.9 * h0;
+      final half = 0.9 * len * s * (1 - s);
+      final x = h1 * 2 - 1;
+      v = x * x.abs() * 0.35 * half + x * 0.65 * half;
+      shade = 0.2 + 0.55 * (1 - x.abs());
+    }
+    Offset at(double tt) {
+      final x = s * len + stir * sin(tt * 1.3 + h2);
+      final y = v + stir * cos(tt * 1.1 + h2);
+      return Offset(base.dx + x * ca - y * sa, base.dy + x * sa + y * ca);
+    }
+
+    final p = at(t), q = at(t - 0.08);
+    _greenGrains.add(
+      q.dx,
+      q.dy,
+      p.dx,
+      p.dy,
+      ramp[(shade * (ramp.length - 1)).round()],
+      alpha: alpha * (0.75 + 0.25 * h1),
+    );
+  }
+}
+
+/// A stem of grains along [spine], [w0] wide at its foot and [w1] at its
+/// head, lit down one side. [flow] sends the grains up it (sap rising) at
+/// that many lengths a second; at 0 they only stir.
+void _greenStem(
+  List<Offset> spine,
+  double w0,
+  double w1,
+  double t, {
+  required List<Color> ramp,
+  int n = 120,
+  double alpha = 1,
+  double flow = 0,
+  int seed = 1,
+}) {
+  if (alpha <= 0.02 || spine.length < 2) return;
+  final segs = spine.length - 1;
+  Offset point(double u, double v) {
+    final f = (u.clamp(0.0, 1.0)) * segs;
+    final i = min(segs - 1, f.floor());
+    final a = spine[i], b = spine[i + 1];
+    var d = b - a;
+    final len = d.distance;
+    d = len < 1e-4 ? const Offset(0, -1) : d / len;
+    final w = (w0 + (w1 - w0) * u) / 2;
+    return Offset.lerp(a, b, f - i)! + Offset(-d.dy, d.dx) * (v * w);
+  }
+
+  for (var i = 0; i < n; i++) {
+    final h0 = _greenHash(seed * 887 + i);
+    final h1 = _greenHash(seed * 431 + i * 5 + 1) * 2 - 1;
+    final h2 = _greenHash(seed * 197 + i * 9 + 2) * 6.3;
+    final u = flow > 0 ? (h0 + t * flow * (0.7 + 0.3 * h1.abs())) % 1.0 : h0;
+    final u0 = flow > 0 ? u - 0.06 * flow : u;
+    final stir = flow > 0 ? 0.0 : 0.5;
+    final p =
+        point(u, h1) + Offset(stir * sin(t * 1.4 + h2), stir * cos(t + h2));
+    final q = u0 < 0
+        ? p
+        : point(u0, h1) +
+              Offset(
+                stir * sin((t - 0.08) * 1.4 + h2),
+                stir * cos(t - 0.08 + h2),
+              );
+    final fade = flow > 0 ? min(1.0, min(u, 1 - u) * 8) : 1.0;
+    final shade = (0.62 - 0.4 * h1).clamp(0.0, 1.0);
+    _greenGrains.add(
+      q.dx,
+      q.dy,
+      p.dx,
+      p.dy,
+      ramp[(shade * (ramp.length - 1)).round()],
+      alpha: alpha * fade,
+    );
+  }
+}
+
+/// A cushion of grains — moss, a crust — as a dome over [c]: dense and lit
+/// on its crown, sparse and dark at its skirt.
+void _greenCushion(
+  Offset c,
+  double rx,
+  double ry,
+  double t, {
+  required List<Color> ramp,
+  int n = 160,
+  double alpha = 1,
+  int seed = 1,
+}) {
+  if (alpha <= 0.02) return;
+  for (var i = 0; i < n; i++) {
+    final h0 = _greenHash(seed * 659 + i);
+    final h1 = _greenHash(seed * 383 + i * 3 + 1) * 2 * pi;
+    final h2 = _greenHash(seed * 101 + i * 11 + 2) * 6.3;
+    final r = pow(h0, 0.7).toDouble();
+    final x = cos(h1) * r * rx, y = sin(h1) * r * ry - (1 - r) * ry * 0.5;
+    Offset at(double tt) => c + Offset(x + 0.5 * sin(tt * 1.2 + h2), y);
+    final p = at(t), q = at(t - 0.08);
+    final shade = ((1 - r) * 0.7 + 0.3 * (0.5 - 0.5 * sin(h1))).clamp(0.0, 1.0);
+    _greenGrains.add(
+      q.dx,
+      q.dy,
+      p.dx,
+      p.dy,
+      ramp[(shade * (ramp.length - 1)).round()],
+      alpha: alpha * (0.55 + 0.45 * (1 - r)),
+    );
+  }
+}
+
+/// Grains climbing off [base] — heat off a vent — rising [rise], fanning
+/// from [half] to [spread], swaying, faded in and out.
+void _greenRise(
+  Offset base,
+  double t, {
+  required int n,
+  required double rise,
+  required List<Color> ramp,
+  double half = 5,
+  double spread = 18,
+  double rate = 0.22,
+  double sway = 4,
+  double alpha = 1,
+  double trail = 0.08,
+  int seed = 1,
+}) {
+  if (alpha <= 0.02) return;
+  final last = ramp.length - 1;
+  for (var i = 0; i < n; i++) {
+    final h0 = _greenHash(seed * 977 + i);
+    final h1 = _greenHash(seed * 613 + i * 7 + 1);
+    final h2 = _greenHash(seed * 331 + i * 13 + 2) * 2 - 1;
+    final r = rate * (0.7 + 0.6 * h1);
+    final u = (t * r + h0) % 1.0;
+    final u0 = u - trail * r;
+    if (u0 < 0) continue;
+    Offset at(double tt, double uu) => Offset(
+      base.dx +
+          h2 * (half + (spread - half) * uu) +
+          sway * uu * sin(tt * 1.1 + h1 * 6.3 + uu * 3.0),
+      base.dy - rise * uu,
+    );
+    final p = at(t, u), q = at(t - trail, u0);
+    final a = alpha * min(1.0, u / 0.12) * (u < 0.5 ? 1.0 : 2 - 2 * u);
+    final shade = ((1 - u) * 0.75 + 0.25 * h1).clamp(0.0, 1.0);
+    _greenGrains.add(
+      q.dx,
+      q.dy,
+      p.dx,
+      p.dy,
+      ramp[(shade * last).round()],
+      alpha: a,
+    );
+  }
+}
+
+/// Grains that never move, baked into a room's picture: moss, fern, weed,
+/// a lily's flower. Gathered by shade and drawn once per shade.
+class _GreenBake {
+  _GreenBake(this.ramp);
+  final List<Color> ramp;
+  final List<List<Offset>> _at = [[], [], [], []];
+
+  void add(Offset p, double shade) =>
+      _at[(shade.clamp(0.0, 1.0) * (ramp.length - 1)).round()].add(p);
+
+  /// A clump: dense and lit at its heart, thinning to its edge.
+  void clump(Offset c, double r, int n, double Function() rnd) {
+    for (var i = 0; i < n; i++) {
+      final d = pow(rnd(), 0.8).toDouble();
+      final a = rnd() * 2 * pi;
+      add(
+        c + Offset(cos(a) * d * r, sin(a) * d * r * 0.72),
+        (1 - d) * 0.75 + 0.25 * rnd() - (sin(a) > 0 ? 0.15 : 0),
+      );
+    }
+  }
+
+  /// A leaf or frond: the lens of [vfxLeaf], a dense midrib and its blade.
+  void leaf(Offset base, double len, double a, int n, double Function() rnd) {
+    final ca = cos(a), sa = sin(a);
+    for (var i = 0; i < n; i++) {
+      final rib = i < n * 0.3;
+      final s = rib ? (i + 0.5) / (n * 0.3) * 0.92 : 0.06 + 0.9 * rnd();
+      final v = rib ? 0.0 : (rnd() * 2 - 1) * 0.76 * len * s * (1 - s);
+      final x = s * len, y = v;
+      add(
+        Offset(base.dx + x * ca - y * sa, base.dy + x * sa + y * ca),
+        rib ? 0.9 : 0.25 + 0.5 * rnd(),
+      );
+    }
+  }
+
+  void paint(Canvas c, {double alpha = 1, double width = 1.7}) {
+    for (var i = 0; i < _at.length; i++) {
+      if (_at[i].isEmpty) continue;
+      c.drawPoints(
+        ui.PointMode.points,
+        _at[i],
+        Paint()
+          ..strokeWidth = width
+          ..strokeCap = StrokeCap.round
+          ..color = ramp[i].withValues(alpha: alpha * (0.55 + 0.15 * i)),
+      );
+    }
+  }
+}
 
 /// A creature element's pane colour: its own colour, a third of the way into
 /// the glass so it reads as stained, not as a UI chip.
@@ -526,17 +881,24 @@ extension ConservatoryArt on PlanetDungeonGame {
             const [0.55, 0.85, 1.0],
           ),
       );
+      // Petals of its colour going out with it — in grains, loosening as
+      // they go (they were flat leaf shapes).
+      final ramp = grainRampFrom(f.color);
       for (var i = 0; i < 10; i++) {
         final a = i * pi / 5 + k * 0.8;
-        canvas.drawPath(
-          vfxLeaf(
-            f.at + Offset(cos(a), sin(a)) * (kTendRingDrawn * 0.6 + rad * 0.3),
-            16 * (1 - k * 0.4),
-            a,
-          ),
-          Paint()..color = f.color.withValues(alpha: 0.55 * fade),
+        _greenLeaf(
+          f.at + Offset(cos(a), sin(a)) * (kTendRingDrawn * 0.6 + rad * 0.3),
+          16 * (1 - k * 0.4),
+          a,
+          _time,
+          ramp: ramp,
+          n: 30,
+          alpha: min(1.0, 0.9 * fade),
+          stir: 0.5 + 3 * k,
+          seed: 500 + i,
         );
       }
+      _greenGrains.paint(canvas);
       if (_fx.ready) {
         drawGlow(
           canvas,
@@ -647,6 +1009,11 @@ extension ConservatoryArt on PlanetDungeonGame {
           // Cracked earth: parched plates packed edge to edge, the dark
           // ground showing only in the gaps between them — each plate a
           // lit top over a darker lip, so the crust reads as curled.
+          //
+          // DARKER AND CLOSER IN TONE (2026-10-08): bright sandy plates on
+          // black read as cartoon cobbles. A crust in a dim glasshouse is
+          // dust-dull, only its curled edge catching the light — still the
+          // palest ground on the planet, so dry still reads as dry.
           for (var row = 0; bed.top + row * 38 < bed.bottom + 20; row++) {
             final y = bed.top + row * 38;
             for (
@@ -655,7 +1022,9 @@ extension ConservatoryArt on PlanetDungeonGame {
               x += 44
             ) {
               final p = Offset(x + rnd() * 8, y + rnd() * 8);
-              final r = 21 + rnd() * 4;
+              // Packed close, so what shows between them is a crack and not
+              // a gap — cracked earth, not cobbles.
+              final r = 25.5 + rnd() * 4;
               // A plate is a sharp-cornered polygon, not a pebble: dried mud
               // splits along straight-ish lines.
               final n = 5 + (rnd() * 3).floor();
@@ -674,14 +1043,21 @@ extension ConservatoryArt on PlanetDungeonGame {
               final shade = rnd() * 0.55;
               c.drawPath(
                 plate(0, p + const Offset(0, 2.5)),
-                Paint()..color = const Color(0xFF3E3020),
+                Paint()..color = const Color(0xFF2A2016),
+              );
+              // The curled lip catching the light along its upper edge:
+              // the plate once a pixel up in a paler dust, then itself.
+              final top = plate(2.5, p);
+              c.drawPath(
+                top.shift(const Offset(0, -1.2)),
+                Paint()..color = const Color(0xFF7A6646),
               );
               c.drawPath(
-                plate(2.5, p),
+                top,
                 Paint()
                   ..color = Color.lerp(
-                    _gSoilDry,
-                    const Color(0xFF9A8058),
+                    const Color(0xFF433626),
+                    const Color(0xFF5A4A33),
                     shade,
                   )!,
               );
@@ -700,21 +1076,18 @@ extension ConservatoryArt on PlanetDungeonGame {
               Paint()..color = _gSoilWetLit.withValues(alpha: 0.35),
             );
           }
+          // Moss coming back, in clumps of grains (they were flat green
+          // blobs laid on the loam).
+          final moss = _GreenBake(_kGreenLiveRamp);
           for (var i = 0; i < 40; i++) {
             final p = Offset(
               bed.left + rnd() * bed.width,
               bed.top + rnd() * bed.height,
             );
-            c.drawPath(
-              vfxBlob(p, 5 + rnd() * 9, rnd() * 99, n: 9, wobble: 0.25),
-              Paint()
-                ..color = Color.lerp(
-                  _gMoss,
-                  _gMossLit,
-                  rnd() * 0.6,
-                )!.withValues(alpha: 0.75),
-            );
+            final r = 5 + rnd() * 9;
+            moss.clump(p, r * 1.6, (r * 16).round(), rnd);
           }
+          moss.paint(c, alpha: 0.95);
         }
         c.restore();
         return rec.endRecording();
@@ -805,31 +1178,42 @@ extension ConservatoryArt on PlanetDungeonGame {
   /// ▽ of Water in a gold nimbus. Unhealed: a brown crust and a shut bud of
   /// smoked glass.
   void _drawMossBloom(Canvas canvas, Offset at, double k) {
-    final dead = 1 - k;
-    // The cushion.
-    for (var i = 0; i < 11; i++) {
-      final a = i * 2 * pi / 11;
-      final p = at + Offset(cos(a) * 24, sin(a) * 11) * (0.6 + 0.4 * k);
-      final col = Color.lerp(_gLeafDead, i.isEven ? _gMoss : _gMossLit, k)!;
-      canvas.drawPath(
-        vfxBlob(p, 10 + 5 * k, i * 3.1, n: 9, wobble: 0.22 + 0.1 * dead),
-        Paint()..color = col,
-      );
-    }
-    final head = at + Offset(0, -46 - 34 * k + 2 * _sway(_time, 1.3, 1.1));
-    // The stem, a short twist of green.
-    canvas.drawPath(
-      vfxRibbon(
-        [
-          at - const Offset(0, 4),
-          Offset.lerp(at, head, 0.5)! + const Offset(4, 0),
-          head,
-        ],
-        6,
-        3,
-      ),
-      Paint()..color = Color.lerp(_gLeafDead, _gStem, k)!,
+    final ramp = _greenRamp(k);
+    // The cushion: a dome of grains, a brown crust while the bed is dry and
+    // moss once it is wet (it was eleven flat blobs).
+    _greenCushion(
+      at - const Offset(0, 2),
+      22 + 14 * k,
+      9 + 6 * k,
+      _time,
+      ramp: ramp,
+      n: 320 + (120 * k).round(),
+      seed: 11,
     );
+    final head = at + Offset(0, -46 - 34 * k + 2 * _sway(_time, 1.3, 1.1));
+    // The stem, a short twist of grains — sap running up it once it lives.
+    final mid = Offset.lerp(at, head, 0.5)! + const Offset(4, 0);
+    _greenStem(
+      [
+        for (var i = 0; i <= 8; i++)
+          () {
+            final u = i / 8;
+            return Offset.lerp(
+              Offset.lerp(at - const Offset(0, 4), mid, u)!,
+              Offset.lerp(mid, head, u)!,
+              u,
+            )!;
+          }(),
+      ],
+      6,
+      3,
+      _time,
+      ramp: ramp,
+      n: 200,
+      flow: k > 0.5 ? 0.3 : 0,
+      seed: 12,
+    );
+    _greenGrains.paint(canvas);
     _sigilNimbus(canvas, head, 54, k, _paneTint('Water'), glyph: 'water');
     const water = Color(0xFF4FA3D8);
     const waterCore = Color(0xFFBFE6F6);
@@ -954,25 +1338,88 @@ extension ConservatoryArt on PlanetDungeonGame {
           }
           c.restore();
         }
-        // The vents themselves: iron grates set in the floor.
+        // The vents themselves: iron grates set in the floor — a dark
+        // carved kerb, near-black bars lit only along their tops, and the
+        // state in what lies between them: the fire's glow coming up while
+        // the room is hot, rime on the iron once it is cold (2026-10-08; a
+        // pale stone box with brown or white bars, a vent icon).
         for (final v in _hotVents(room)) {
           final grate = Rect.fromCenter(center: v, width: 86, height: 34);
-          paintCarvedBlock(c, grate.inflate(6), 5, _kVerdantGlass, radius: 4);
+          paintCarvedBlock(
+            c,
+            grate.inflate(6),
+            5,
+            _kVerdantGlass,
+            radius: 4,
+            topColor: Color.lerp(
+              _kVerdantGlass.stoneFace,
+              _kVerdantGlass.stoneFoot,
+              0.45,
+            ),
+          );
           c.drawRRect(
             RRect.fromRectAndRadius(grate, const Radius.circular(3)),
-            Paint()..color = const Color(0xFF14110E),
+            Paint()..color = const Color(0xFF0C0A08),
           );
-          for (var x = grate.left + 8; x < grate.right - 4; x += 12) {
-            c.drawRect(
-              Rect.fromLTWH(x, grate.top + 3, 4, grate.height - 6),
-              Paint()..color = frost ? _gFrost : const Color(0xFF4A3A2E),
-            );
-          }
           if (!frost) {
+            // The fire below, seen between the bars: hottest at the middle.
             c.drawRect(
               grate.deflate(3),
-              Paint()..color = _gHeat.withValues(alpha: 0.28),
+              Paint()
+                ..shader = ui.Gradient.radial(v, grate.width * 0.5, [
+                  _gHeat.withValues(alpha: 0.55),
+                  const Color(0xFF8A3A14).withValues(alpha: 0.25),
+                ]),
             );
+          }
+          if (frost) {
+            // Cold through: a pale bloom of frost in the slots.
+            c.drawRect(
+              grate.deflate(3),
+              Paint()..color = _gFrost.withValues(alpha: 0.2),
+            );
+          }
+          for (var x = grate.left + 8; x < grate.right - 4; x += 12) {
+            final bar = Rect.fromLTWH(x, grate.top + 3, 4, grate.height - 6);
+            c.drawRect(
+              bar,
+              Paint()
+                ..color = frost
+                    ? Color.lerp(const Color(0xFF15130F), _gIce, 0.4)!
+                    : const Color(0xFF15130F),
+            );
+            c.drawRect(
+              Rect.fromLTWH(bar.left, bar.top, bar.width, frost ? 2.4 : 1),
+              Paint()
+                ..color = (frost ? _gFrost : _gHeat).withValues(
+                  alpha: frost ? 0.95 : 0.35,
+                ),
+            );
+            if (frost) {
+              c.drawRect(
+                Rect.fromLTWH(bar.left, bar.top + 2, 1.4, bar.height - 4),
+                Paint()..color = _gFrost.withValues(alpha: 0.7),
+              );
+            }
+          }
+          if (frost) {
+            // Rime grains furred over the iron.
+            final rime = _GreenBake(const [
+              Color(0xFF8EB6C8),
+              Color(0xFFB8D4E0),
+              Color(0xFFDCEAF0),
+              Color(0xFFFFFFFF),
+            ]);
+            for (var i = 0; i < 70; i++) {
+              rime.add(
+                Offset(
+                  grate.left + 2 + rnd() * (grate.width - 4),
+                  grate.top + 2 + rnd() * (grate.height - 4),
+                ),
+                rnd(),
+              );
+            }
+            rime.paint(c, width: 1.4);
           }
         }
         return rec.endRecording();
@@ -1004,26 +1451,28 @@ extension ConservatoryArt on PlanetDungeonGame {
       t,
       healed,
     );
-    // Heat shimmer over each vent while the room is hot: rising tapered
-    // wisps, the only moving thing in a room that has given up.
+    // Heat over each vent while the room is hot: grains of it rising off
+    // the grate and wavering as they thin — the only moving thing in a room
+    // that has given up (they were stroked squiggles).
     final hot = healed ? (1 - _ease(t / 1.6)) : 1.0;
     if (hot > 0.02) {
-      for (final v in _hotVents(room)) {
-        for (var i = 0; i < 4; i++) {
-          final ph = ((_time * 0.45 + i / 4 + v.dx * 0.001) % 1.0);
-          final base = v + Offset(-30 + i * 20, -8);
-          final spine = [
-            for (var k = 0; k <= 6; k++)
-              base +
-                  Offset(6 * sin(_time * 2 + k * 0.9 + i), -k * 14 - ph * 50),
-          ];
-          canvas.drawPath(
-            vfxRibbon(spine, 5, 0.5),
-            Paint()
-              ..color = _gHeat.withValues(alpha: 0.16 * hot * sin(ph * pi)),
-          );
-        }
+      for (final (i, v) in _hotVents(room).indexed) {
+        _greenRise(
+          v - const Offset(0, 6),
+          _time,
+          n: 230,
+          rise: 100,
+          half: 34,
+          spread: 46,
+          rate: 0.18,
+          sway: 10,
+          ramp: _kGreenHeatRamp,
+          alpha: 0.32 * hot,
+          trail: 0.1,
+          seed: 40 + i,
+        );
       }
+      _greenGrains.paint(canvas);
     }
     // The frost front: a crisp pale edge on the spreading blob.
     if (healed && t < 2.4) {
@@ -1063,17 +1512,40 @@ extension ConservatoryArt on PlanetDungeonGame {
           )!;
         }(),
     ];
-    canvas.drawPath(
-      vfxRibbon(spine, 7, 3),
-      Paint()..color = Color.lerp(_gLeafDead, const Color(0xFF3F6A6A), k)!,
+    // Stem and leaves in grains, wilted ochre in the heat and a cold
+    // blue-green once the frost has it (they were flat ribbon and leaf
+    // shapes).
+    final ramp = [
+      for (var i = 0; i < 4; i++)
+        Color.lerp(
+          _kGreenDeadRamp[i],
+          Color.lerp(_kGreenLiveRamp[i], const Color(0xFF7FB8B0), 0.35)!,
+          k,
+        )!,
+    ];
+    _greenStem(
+      spine,
+      7,
+      3,
+      _time,
+      ramp: ramp,
+      n: 260,
+      flow: k > 0.5 ? 0.25 : 0,
+      seed: 21,
     );
-    for (final (u, side) in const [(0.3, -1.0), (0.45, 1.0)]) {
+    for (final (i, (u, side)) in const [(0.3, -1.0), (0.45, 1.0)].indexed) {
       final p = spine[(u * 10).round()];
-      canvas.drawPath(
-        vfxLeaf(p, 40, -pi / 2 + side * (1.1 + 0.5 * droop)),
-        Paint()..color = Color.lerp(_gLeafDead, const Color(0xFF4E7F74), k)!,
+      _greenLeaf(
+        p,
+        40,
+        -pi / 2 + side * (1.1 + 0.5 * droop),
+        _time,
+        ramp: ramp,
+        n: 150,
+        seed: 22 + i,
       );
     }
+    _greenGrains.paint(canvas);
     // Ice needles along the stem.
     if (k > 0.05) {
       for (var i = 2; i < 9; i += 2) {
@@ -1189,19 +1661,35 @@ extension ConservatoryArt on PlanetDungeonGame {
             _gSun.withValues(alpha: 0),
           ]),
       );
-      if (_fx.ready) {
-        for (var i = 0; i < 14; i++) {
-          final u = ((_time * 0.05 + i / 14) % 1.0);
-          final p =
-              Offset.lerp(
-                Offset(top.dx + 10, b.top + 60),
-                wing.ring + const Offset(0, 40),
-                u,
-              )! +
-              Offset(60 * sin(i * 2.1 + _time * 0.3), 0);
-          drawGlow(canvas, _fx.mote!, p, 3, _gSun.withValues(alpha: 0.5 * k));
+      // Dust hanging in it, as grains drifting down the light (it was
+      // fourteen sprite motes).
+      final from = Offset(top.dx + 10, b.top + 60);
+      final to = wing.ring + const Offset(0, 40);
+      for (var i = 0; i < 180; i++) {
+        final h0 = _greenHash(i * 13 + 1), h1 = _greenHash(i * 7 + 2);
+        Offset where(double tt) {
+          final u = (tt * (0.02 + 0.02 * h1) + h0) % 1.0;
+          final w = 20 + 110 * u;
+          return Offset.lerp(from, to, u)! +
+              Offset(
+                (h1 * 2 - 1) * w + 6 * sin(tt * 0.4 + i),
+                3 * cos(tt * 0.5 + i * 1.3),
+              );
         }
+
+        final u = (_time * (0.02 + 0.02 * h1) + h0) % 1.0;
+        final p = where(_time), q = where(_time - 0.2);
+        if ((p - q).distance > 20) continue;
+        _greenGrains.add(
+          q.dx,
+          q.dy,
+          p.dx,
+          p.dy,
+          i % 9 == 0 ? Colors.white : _gSun,
+          alpha: 0.42 * k * min(1.0, min(u, 1 - u) * 6),
+        );
       }
+      _greenGrains.paint(canvas);
     }
     _drawPlanter(canvas, wing.plant, _paneTint('Light'), healed);
     _drawSunflower(canvas, wing.plant, healed ? _ease((t - 0.8) / 2.2) : 0);
@@ -1226,17 +1714,36 @@ extension ConservatoryArt on PlanetDungeonGame {
           )!;
         }(),
     ];
-    canvas.drawPath(
-      vfxRibbon(spine, 7, 4),
-      Paint()..color = Color.lerp(_gLeafDead, _gStem, k)!,
+    // Stem and leaves in grains: bowed and ochre in the dark, green and
+    // lifted in the light (they were flat ribbon and leaf shapes).
+    final ramp = _greenRamp(k);
+    _greenStem(
+      spine,
+      7,
+      4,
+      _time,
+      ramp: ramp,
+      n: 240,
+      flow: k > 0.5 ? 0.25 : 0,
+      seed: 31,
     );
-    for (final (u, side) in const [(0.35, -1.0), (0.55, 1.0), (0.2, 1.0)]) {
+    for (final (i, (u, side)) in const [
+      (0.35, -1.0),
+      (0.55, 1.0),
+      (0.2, 1.0),
+    ].indexed) {
       final p = spine[(u * 10).round()];
-      canvas.drawPath(
-        vfxLeaf(p, 34, -pi / 2 + side * (1.2 + 0.6 * bow)),
-        Paint()..color = Color.lerp(_gLeafDead, _gLeafLit, k * 0.8)!,
+      _greenLeaf(
+        p,
+        34,
+        -pi / 2 + side * (1.2 + 0.6 * bow),
+        _time,
+        ramp: ramp,
+        n: 130,
+        seed: 32 + i,
       );
     }
+    _greenGrains.paint(canvas);
     _sigilNimbus(canvas, top, 62, k, _gSun, glyph: 'sun');
     const gold = Color(0xFFF0B83A);
     const ember = Color(0xFFC8561E);
@@ -1465,6 +1972,8 @@ extension ConservatoryArt on PlanetDungeonGame {
     double speed,
   ) {
     if (k <= 0.05) return;
+    // Each mote a short comet of grains on its orbit, bright at the head
+    // (2026-10-08; they were sprite dots with a white disc in each).
     for (var i = 0; i < n; i++) {
       final a = _time * speed + i * 2 * pi / n;
       final p = c + Offset(cos(a) * r, sin(a) * r * 0.45 - 4);
@@ -1475,15 +1984,26 @@ extension ConservatoryArt on PlanetDungeonGame {
           _fx.mote!,
           p,
           front ? 7 : 5,
-          col.withValues(alpha: 0.8 * k),
+          col.withValues(alpha: 0.6 * k),
         );
       }
-      canvas.drawCircle(
-        p,
-        front ? 1.8 : 1.2,
-        Paint()..color = Colors.white.withValues(alpha: 0.9 * k),
-      );
+      for (var j = 0; j < 14; j++) {
+        final b = a - j * 0.035 * speed.sign;
+        final b0 = b - 0.03 * speed.sign;
+        final q = c + Offset(cos(b) * r, sin(b) * r * 0.45 - 4);
+        final q0 = c + Offset(cos(b0) * r, sin(b0) * r * 0.45 - 4);
+        final h = _greenHash(i * 41 + j);
+        _greenGrains.add(
+          q0.dx,
+          q0.dy + (h - 0.5) * 2,
+          q.dx,
+          q.dy + (h - 0.5) * 2,
+          j < 3 ? Colors.white : col,
+          alpha: k * (1 - j / 14) * (front ? 1 : 0.7),
+        );
+      }
     }
+    _greenGrains.paint(canvas);
   }
 
   // ─────────────────────────────────────────────────────────
@@ -1669,25 +2189,55 @@ extension ConservatoryArt on PlanetDungeonGame {
             return base + Offset(sin(twist) * w, -u * height);
           }(),
       ];
+      // Dark wood, each strand lit only along one edge in its wing's
+      // colour (2026-10-08; a flat brown ribbon with a broad pale stripe).
       canvas.drawPath(
         vfxRibbon(spine, 13, 5),
-        Paint()..color = Color.lerp(_gBark, tints[s], 0.18)!,
+        Paint()..color = Color.lerp(const Color(0xFF1E1812), tints[s], 0.12)!,
       );
       canvas.drawPath(
-        vfxRibbon([for (final p in spine) p + const Offset(-2, -1)], 4, 1.5),
+        vfxRibbon(
+          [for (final p in spine) p + const Offset(-3.5, -1)],
+          1.6,
+          0.8,
+        ),
         Paint()
           ..color = Color.lerp(
             _gBarkLit,
             tints[s],
-            0.35,
-          )!.withValues(alpha: 0.8),
+            0.5,
+          )!.withValues(alpha: 0.75),
       );
     }
     // The crown: leaf clusters opening outward from the top as it rises.
     final crownK = _ease((rise - 0.45) / 0.55);
     if (crownK > 0) {
       final top = base - Offset(0, height);
-      for (var ring = 0; ring < 3; ring++) {
+      // The canopy's body: a faint soft green the leaf grains sit in.
+      canvas.drawOval(
+        Rect.fromCenter(center: top, width: 300 * crownK, height: 190 * crownK),
+        Paint()
+          ..shader = ui.Gradient.radial(top, 150 * crownK + 1, [
+            _gMossLit.withValues(alpha: 0.10 * crownK),
+            _gMossLit.withValues(alpha: 0),
+          ]),
+      );
+      if (crownK >= 0.999) {
+        // Standing: the whole crown is one built shape of ~3,800 grains,
+        // stirring in place — no per-frame building (grain_cloud.dart).
+        paintGrainShape(
+          canvas,
+          _greenCrown ??= _buildGreenCrown(),
+          _time,
+          origin: top,
+          drift: 1.1,
+          ramp: _kGreenCrownRamp,
+          glint: 0.006,
+          width: 1.7,
+          trail: 0.035,
+        );
+      }
+      for (var ring = 0; ring < 3 && crownK < 0.999; ring++) {
         final n = 10 + ring * 4;
         final rad = (40 + ring * 34) * crownK;
         for (var i = 0; i < n; i++) {
@@ -1697,13 +2247,23 @@ extension ConservatoryArt on PlanetDungeonGame {
               _sway(_time, i + ring * 7.0, 0.6) * 0.03;
           final p = top + Offset(cos(a) * rad, sin(a) * rad * 0.62);
           final len = (26 + ring * 6) * crownK;
-          canvas.drawPath(
-            vfxLeaf(p, len, a + 0.2 * _sway(_time, i.toDouble(), 0.9)),
-            Paint()
-              ..color = ring.isEven ? _gLeaf : _gLeafLit.withValues(alpha: 0.9),
+          // Leaves of grains (2026-10-08; they were flat leaf shapes): the
+          // inner ring in shade, the outer catching the light.
+          _greenLeaf(
+            p,
+            len,
+            a + 0.2 * _sway(_time, i.toDouble(), 0.9),
+            _time,
+            ramp: ring == 0
+                ? _kGreenShadeRamp
+                : (ring == 1 ? _kGreenLiveRamp : _kGreenSunlitRamp),
+            n: 70,
+            stir: 0.8,
+            seed: 300 + ring * 40 + i,
           );
         }
       }
+      _greenGrains.paint(canvas);
       // THE KEY. Twigs in the shape of the door's roots, and on them seven
       // buds — shut until the Bud Star, then flowering, knot first, into the
       // very states the door wants, drawn with the door's own buds.
@@ -1743,7 +2303,7 @@ extension ConservatoryArt on PlanetDungeonGame {
         Paint()..color = _gBark.withValues(alpha: crownK),
       );
       canvas.drawPath(
-        vfxRibbon([a, b], 2.5, 1.5).shift(const Offset(-1.5, -2)),
+        vfxRibbon([a, b], 1.3, 0.8).shift(const Offset(-2.5, -2.5)),
         Paint()..color = _gBarkLit.withValues(alpha: 0.7 * crownK),
       );
     }
@@ -1816,8 +2376,8 @@ extension ConservatoryArt on PlanetDungeonGame {
       );
       canvas.drawPath(vfxRibbon(spine, 18, 7), Paint()..color = _gBark);
       canvas.drawPath(
-        vfxRibbon([for (final p in spine) p + const Offset(-2.5, -3)], 5, 2),
-        Paint()..color = _gBarkLit.withValues(alpha: 0.8),
+        vfxRibbon([for (final p in spine) p + const Offset(-5.5, -3)], 2, 1),
+        Paint()..color = _gBarkLit.withValues(alpha: 0.75),
       );
       // Rootlets gripping the floor along it.
       for (var j = 4; j < spine.length - 1; j += 4) {
@@ -1969,11 +2529,21 @@ extension ConservatoryArt on PlanetDungeonGame {
       final a = -pi / 2 + (i - 1) * 0.9;
       final len = 12 + 16 * relaxed;
       final curl = (1 - relaxed) * 1.4;
-      canvas.drawPath(
-        vfxLeaf(p, len, a + curl * (i - 1 == 0 ? 0.6 : (i - 1).toDouble())),
-        Paint()..color = Color.lerp(_gGrey, const Color(0xFF5E5A6E), relaxed)!,
+      // Leaves of grains, ash-grey curled and slate as they relax (they
+      // were flat grey leaf shapes).
+      final col = Color.lerp(_gGrey, const Color(0xFF5E5A6E), relaxed)!;
+      _greenLeaf(
+        p,
+        len,
+        a + curl * (i - 1 == 0 ? 0.6 : (i - 1).toDouble()),
+        _time,
+        ramp: grainRampFrom(col),
+        n: 44,
+        stir: 0.4,
+        seed: 800 + i,
       );
     }
+    _greenGrains.paint(canvas);
     canvas.drawPath(
       vfxBlob(p, 9, 2.2, n: 9, wobble: 0.1, squash: 0.8),
       Paint()..color = Color.lerp(_gGrey, const Color(0xFF3A2E48), bloom)!,
@@ -1981,21 +2551,27 @@ extension ConservatoryArt on PlanetDungeonGame {
     if (bloom > 0) {
       // THE OPPOSITE FLOWER: dark-petalled, amber-hearted, thriving in the
       // dry, the warm and the shade. It stands on every later descent.
+      // Its petals are grains too, dark violet and rose (2026-10-08; they
+      // were flat leaf shapes).
       for (var ring = 0; ring < 2; ring++) {
         for (var i = 0; i < 7; i++) {
           final a =
               i * 2 * pi / 7 +
               ring * 0.45 +
               _sway(_time, i.toDouble(), 0.5) * 0.04;
-          canvas.drawPath(
-            vfxLeaf(p, (34 - ring * 11) * bloom, a),
-            Paint()
-              ..color = ring == 0
-                  ? const Color(0xFF3B2A4E)
-                  : const Color(0xFF6A3E5A),
+          _greenLeaf(
+            p,
+            (34 - ring * 11) * bloom,
+            a,
+            _time,
+            ramp: ring == 0 ? _kGreenNightRamp : _kGreenRoseRamp,
+            n: ring == 0 ? 60 : 40,
+            stir: 0.5,
+            seed: 820 + ring * 10 + i,
           );
         }
       }
+      _greenGrains.paint(canvas);
       canvas.drawCircle(p, 7 * bloom, Paint()..color = _gHeat);
       if (_fx.ready) {
         drawGlow(
@@ -2041,39 +2617,56 @@ extension ConservatoryArt on PlanetDungeonGame {
     );
     c.save();
     c.clipRect(board);
+    // GRAINS AND DARK STONE (2026-10-08). The ground's moss was flat green
+    // blobs and its gravel seventy pale pebbles — a cartoon garden bed. The
+    // moss is clumps of grains now, and the gravel half as much, dark, each
+    // stone lit only along its top.
+    final moss = _GreenBake(const [
+      Color(0xFF1F2E19),
+      Color(0xFF2F4226),
+      Color(0xFF465C30),
+      Color(0xFF6A8448),
+    ]);
     for (var i = 0; i < 46; i++) {
       final p = Offset(
         board.left + rnd() * board.width,
         board.top + rnd() * board.height,
       );
-      c.drawPath(
-        vfxBlob(p, 10 + rnd() * 22, rnd() * 99, n: 9, wobble: 0.25),
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFF2F4226),
-            const Color(0xFF465C30),
-            rnd(),
-          )!.withValues(alpha: 0.35 + rnd() * 0.3),
-      );
+      final r = 10 + rnd() * 22;
+      moss.clump(p, r, (r * 13).round(), rnd);
     }
+    moss.paint(c, alpha: 0.85);
     for (var i = 0; i < 70; i++) {
       final p = Offset(
         board.left + rnd() * board.width,
         board.top + rnd() * board.height,
       );
       final r = 2 + rnd() * 3.5;
+      final sd = rnd() * 99;
+      final tone = rnd();
+      if (i.isOdd) continue;
       c.drawPath(
-        vfxBlob(p + const Offset(0, 1), r, rnd() * 99, n: 6),
-        Paint()..color = const Color(0xFF0E100A).withValues(alpha: 0.6),
+        vfxBlob(p + const Offset(0, 1), r, sd, n: 6),
+        Paint()..color = const Color(0xFF0A0C08).withValues(alpha: 0.6),
       );
       c.drawPath(
-        vfxBlob(p, r, rnd() * 99, n: 6),
+        vfxBlob(p, r, sd, n: 6),
         Paint()
           ..color = Color.lerp(
-            const Color(0xFF55574A),
-            const Color(0xFF8A8672),
-            rnd(),
+            const Color(0xFF22241C),
+            const Color(0xFF34362A),
+            tone,
           )!,
+      );
+      c.drawArc(
+        Rect.fromCircle(center: p, radius: r * 0.8),
+        pi + 0.5,
+        pi - 1.0,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 0.9
+          ..color = _kVerdantGlass.leadLight.withValues(alpha: 0.18),
       );
     }
     // The kerb's shadow falling inward along the north and west: the
@@ -2102,7 +2695,14 @@ extension ConservatoryArt on PlanetDungeonGame {
           ],
         ),
     );
-    // Fern tufts in the plain ground.
+    // Fern tufts in the plain ground, as fronds of grains (they were flat
+    // green leaf shapes).
+    final fern = _GreenBake(const [
+      Color(0xFF1E3019),
+      Color(0xFF2E4A26),
+      Color(0xFF4A6A34),
+      Color(0xFF7A9A54),
+    ]);
     for (final cell in const [
       (0, 0),
       (1, 1),
@@ -2117,17 +2717,12 @@ extension ConservatoryArt on PlanetDungeonGame {
           trellisCellCentre(cell) + Offset(rnd() * 24 - 12, rnd() * 20 - 10);
       for (var k = 0; k < 7; k++) {
         final a = -pi / 2 + (k - 3) * 0.42 + (rnd() - 0.5) * 0.2;
-        c.drawPath(
-          vfxLeaf(at, 16 + rnd() * 10, a),
-          Paint()
-            ..color = Color.lerp(
-              const Color(0xFF2E4A26),
-              const Color(0xFF5E7E3E),
-              rnd(),
-            )!,
-        );
+        final len = 16 + rnd() * 10;
+        rnd();
+        fern.leaf(at, len, a, (len * 2.2).round(), rnd);
       }
     }
+    fern.paint(c);
     c.restore();
 
     // The kerb, stone by stone.
@@ -2280,15 +2875,35 @@ extension ConservatoryArt on PlanetDungeonGame {
         vfxBlob(p + const Offset(0, 3), r, sd, n: 8, wobble: 0.18),
         Paint()..color = const Color(0xFF000000).withValues(alpha: 0.4),
       );
+      // Dark stone, lit only across its crown (it was a pale gradient
+      // pebble, a cartoon cobble).
       c.drawPath(
         vfxBlob(p, r, sd, n: 8, wobble: 0.18),
         Paint()
           ..shader = ui.Gradient.linear(p - Offset(0, r), p + Offset(0, r), [
-            _kVerdantGlass.stoneTop,
-            _kVerdantGlass.stoneFace,
+            Color.lerp(_kVerdantGlass.stoneFace, _kVerdantGlass.stoneTop, 0.3)!,
+            _kVerdantGlass.stoneFoot,
           ]),
       );
+      c.drawArc(
+        Rect.fromCircle(center: p, radius: r * 0.82),
+        pi + 0.55,
+        pi - 1.1,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..strokeCap = StrokeCap.round
+          ..color = _kVerdantGlass.leadLight.withValues(alpha: 0.22),
+      );
     }
+    // Moss on the boulders' crowns, in grains.
+    final caps = _GreenBake(const [
+      Color(0xFF243A1E),
+      Color(0xFF3A5428),
+      Color(0xFF4E6A34),
+      Color(0xFF7A9450),
+    ]);
     for (final corner in const [
       Offset(534, 136),
       Offset(778, 136),
@@ -2307,34 +2922,55 @@ extension ConservatoryArt on PlanetDungeonGame {
           vfxBlob(p, r, sd, n: 8, wobble: 0.2),
           Paint()
             ..shader = ui.Gradient.linear(p - Offset(0, r), p + Offset(0, r), [
-              _kVerdantGlass.stoneTop,
+              Color.lerp(
+                _kVerdantGlass.stoneFace,
+                _kVerdantGlass.stoneTop,
+                0.3,
+              )!,
               _kVerdantGlass.stoneFoot,
             ]),
         );
-        c.drawPath(
-          vfxBlob(p - Offset(0, r * 0.35), r * 0.62, sd + 3, n: 8, wobble: 0.3),
-          Paint()..color = const Color(0xFF4E6A34).withValues(alpha: 0.85),
+        c.drawArc(
+          Rect.fromCircle(center: p, radius: r * 0.84),
+          pi + 0.5,
+          pi - 1.0,
+          false,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.1
+            ..strokeCap = StrokeCap.round
+            ..color = _kVerdantGlass.leadLight.withValues(alpha: 0.2),
         );
+        caps.clump(p - Offset(0, r * 0.35), r * 0.62, (r * 4).round(), rnd);
       }
     }
+    caps.paint(c);
     // Reeds.
     for (final at in const [
       Offset(548, 330),
       Offset(768, 170),
       Offset(560, 160),
     ]) {
+      // Blades of grains standing out of the water (they were flat leaves).
+      final reeds = _GreenBake(const [
+        Color(0xFF223619),
+        Color(0xFF34502A),
+        Color(0xFF55703A),
+        Color(0xFF8A9E58),
+      ]);
       for (var k = 0; k < 9; k++) {
         final a = -pi / 2 + (k - 4) * 0.13 + (rnd() - 0.5) * 0.1;
-        c.drawPath(
-          vfxLeaf(at + Offset(k * 3.0 - 12, 0), 34 + rnd() * 16, a),
-          Paint()
-            ..color = Color.lerp(
-              const Color(0xFF34502A),
-              const Color(0xFF7A8E4A),
-              rnd(),
-            )!,
+        final len = 34 + rnd() * 16;
+        rnd();
+        reeds.leaf(
+          at + Offset(k * 3.0 - 12, 0),
+          len,
+          a,
+          (len * 1.6).round(),
+          rnd,
         );
       }
+      reeds.paint(c);
     }
     // Lily pads, clear of the crossing lane and the island.
     for (final (at, r, flower) in const [
@@ -2354,31 +2990,38 @@ extension ConservatoryArt on PlanetDungeonGame {
           false,
         )
         ..close();
+      // DARK ON DARK WATER (2026-10-08): the pad near-black green, its
+      // rim catching the light, and the flower a small knot of pale grains
+      // round a warm heart. They were bright green discs with white
+      // asterisk flowers — a sticker on a pond.
       c.drawPath(
         pad.shift(const Offset(0, 2)),
         Paint()..color = const Color(0xFF000000).withValues(alpha: 0.35),
       );
-      c.drawPath(pad, Paint()..color = const Color(0xFF3E6A34));
-      c.drawPath(
-        Path()
-          ..moveTo(at.dx, at.dy)
-          ..arcTo(
-            Rect.fromCircle(center: at, radius: r * 0.8),
-            notch + 1.6,
-            2.4,
-            false,
-          )
-          ..close(),
-        Paint()..color = const Color(0xFF6A9448).withValues(alpha: 0.5),
+      c.drawPath(pad, Paint()..color = const Color(0xFF1C3018));
+      c.drawArc(
+        Rect.fromCircle(center: at, radius: r - 0.8),
+        notch + 0.35,
+        2 * pi - 0.7,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = const Color(0xFF6A9448).withValues(alpha: 0.45),
       );
       if (flower) {
+        final bloom = _GreenBake(const [
+          Color(0xFF8A7A84),
+          Color(0xFFC8B8C2),
+          Color(0xFFF2E6EC),
+          Color(0xFFFFFFFF),
+        ]);
+        final fc = at + const Offset(3, -2);
         for (var k = 0; k < 6; k++) {
-          c.drawPath(
-            vfxLeaf(at + const Offset(3, -2), 7, k * pi / 3),
-            Paint()..color = const Color(0xFFF2E6EC),
-          );
+          bloom.leaf(fc, 7, k * pi / 3 + 0.2, 10, rnd);
         }
-        c.drawCircle(at + const Offset(3, -2), 2, Paint()..color = _gSun);
+        bloom.paint(c, width: 1.5);
+        c.drawCircle(fc, 1.6, Paint()..color = _gSun);
       }
     }
     // The island: a mossy rock with its roots trailing into the water.
@@ -2405,20 +3048,34 @@ extension ConservatoryArt on PlanetDungeonGame {
         ..shader = ui.Gradient.linear(
           pc - const Offset(0, 42),
           pc + const Offset(0, 42),
-          [_kVerdantGlass.stoneTop, _kVerdantGlass.stoneFoot],
+          [
+            Color.lerp(
+              _kVerdantGlass.stoneFace,
+              _kVerdantGlass.stoneTop,
+              0.35,
+            )!,
+            _kVerdantGlass.stoneFoot,
+          ],
         ),
     );
+    // Its moss: a dark mat, and grains thickening on the crown (it was a
+    // flat green disc with ten paler blobs on it).
     c.drawPath(
       vfxBlob(pc - const Offset(0, 6), 34, 4.1, n: 12, wobble: 0.16),
-      Paint()..color = const Color(0xFF3F5E2E),
+      Paint()..color = const Color(0xFF1E2E18),
     );
+    final crown = _GreenBake(const [
+      Color(0xFF243A1E),
+      Color(0xFF3F5E2E),
+      Color(0xFF5E7E3E),
+      Color(0xFF8AAE5E),
+    ]);
+    crown.clump(pc - const Offset(0, 8), 32, 260, rnd);
     for (var k = 0; k < 10; k++) {
       final a = k * 2.4;
-      c.drawPath(
-        vfxBlob(pc + Offset(cos(a) * 20, sin(a) * 14 - 6), 7, k * 1.7, n: 8),
-        Paint()..color = const Color(0xFF6A8E44).withValues(alpha: 0.8),
-      );
+      crown.clump(pc + Offset(cos(a) * 20, sin(a) * 14 - 6), 7, 24, rnd);
     }
+    crown.paint(c);
     return rec.endRecording();
   });
 
@@ -2762,21 +3419,30 @@ extension ConservatoryArt on PlanetDungeonGame {
       final d = spine[i + 1] - spine[i - 1];
       final a = atan2(d.dy, d.dx);
       for (final side in const [-1.0, 1.0]) {
-        canvas.drawPath(
-          vfxLeaf(
-            p,
-            ghost > 0 ? 12 : 16,
-            a + side * 1.1 + 0.15 * _sway(_time, i.toDouble()),
-          ),
-          Paint()
-            ..color =
-                (ghost > 0
-                        ? _kVerdantGlass.liveCore
-                        : (i.isEven ? _gLeaf : _gLeafLit))
-                    .withValues(alpha: alpha * (ghost > 0 ? 0.45 : 1)),
+        final la = a + side * 1.1 + 0.15 * _sway(_time, i.toDouble());
+        if (ghost > 0) {
+          canvas.drawPath(
+            vfxLeaf(p, 12, la),
+            Paint()
+              ..color = _kVerdantGlass.liveCore.withValues(alpha: alpha * 0.45),
+          );
+          continue;
+        }
+        // The grown vine's leaves are grains (2026-10-08; flat leaf shapes)
+        // — the vine itself stays a solid stem, because it is the route.
+        _greenLeaf(
+          p,
+          16,
+          la,
+          _time,
+          ramp: i.isEven ? _kGreenLiveRamp : _kGreenSunlitRamp,
+          n: 40,
+          stir: 0.5,
+          seed: 700 + i * 2 + (side > 0 ? 1 : 0),
         );
       }
     }
+    _greenGrains.paint(canvas);
     // The tip: a tight curl.
     final tip = spine.last;
     final d = spine.last - spine[spine.length - 2];
@@ -3184,7 +3850,7 @@ extension ConservatoryArt on PlanetDungeonGame {
       );
       canvas.drawPath(vfxRibbon(spine, 13, 7), Paint()..color = _gBark);
       canvas.drawPath(
-        vfxRibbon([for (final p in spine) p + const Offset(-2, -1)], 3.5, 1.5),
+        vfxRibbon([for (final p in spine) p + const Offset(-4, -1)], 1.6, 0.8),
         Paint()..color = _gBarkLit.withValues(alpha: 0.7),
       );
     }
@@ -3287,9 +3953,9 @@ extension ConservatoryArt on PlanetDungeonGame {
       );
       canvas.drawPath(
         vfxRibbon(
-          [for (final p in spine) p + const Offset(-2, -3)],
-          w0 * 0.3,
-          1,
+          [for (final p in spine) p + Offset(-w0 * 0.32, -w0 * 0.22)],
+          max(1.2, w0 * 0.12),
+          0.8,
         ),
         Paint()..color = _gBarkLit.withValues(alpha: 0.6 * fade),
       );
@@ -3331,17 +3997,40 @@ extension ConservatoryArt on PlanetDungeonGame {
       }
       final seg = (r.t - 0.05) / 0.2;
       if (seg < 0 || seg >= pts.length - 1) continue;
-      final i = seg.floor();
-      final p = Offset.lerp(pts[i], pts[i + 1], seg - i)!;
+      Offset along(double sg) {
+        final c = sg.clamp(0.0, pts.length - 1.0001);
+        final i = c.floor();
+        return Offset.lerp(pts[i], pts[i + 1], c - i)!;
+      }
+
+      final p = along(seg);
       final col = r.product == 'Water' ? _gWaterLit : _gSun;
       if (_fx.ready) {
         drawGlow(canvas, _fx.glow!, p, 26, col.withValues(alpha: 0.7));
       }
-      canvas.drawCircle(
-        p,
-        5,
-        Paint()..color = Color.lerp(col, Colors.white, 0.5)!,
-      );
+      // The climate climbing as a run of its grains, bright at the head and
+      // strung out behind it up the bark (it was a white disc).
+      final ramp = grainRampFrom(col);
+      for (var j = 0; j < 46; j++) {
+        final h = _greenHash(j * 31 + 7);
+        final back = j / 46 * 0.55;
+        final at =
+            along(seg - back) +
+            Offset(
+              sin(_time * 3 + h * 9) * (1.5 + 5 * back),
+              cos(_time * 2.6 + h * 7) * (1.5 + 5 * back),
+            );
+        final prev = along(seg - back - 0.03);
+        _greenGrains.add(
+          prev.dx + (at.dx - along(seg - back).dx),
+          prev.dy + (at.dy - along(seg - back).dy),
+          at.dx,
+          at.dy,
+          ramp[j < 8 ? 3 : (j < 24 ? 2 : 1)],
+          alpha: 1 - back * 1.4,
+        );
+      }
+      _greenGrains.paint(canvas);
     }
 
     // THE BUDS, each as it is — or turning, once the climb reaches it.
@@ -3531,6 +4220,8 @@ extension ConservatoryArt on PlanetDungeonGame {
   /// The stump by the door: PRUNE, and the roots shed everything.
   void _drawRootStump(Canvas canvas, Offset at) {
     paintContactShadow(canvas, at + const Offset(0, 16), 90, 24);
+    // Cut wood, dark, its rings showing as faint lit grooves (2026-10-08;
+    // it was a pale brown disc with dark rings drawn on, a stump icon).
     paintCarvedDisc(
       canvas,
       at,
@@ -3538,12 +4229,12 @@ extension ConservatoryArt on PlanetDungeonGame {
       20,
       16,
       _kVerdantGlass,
-      topColor: const Color(0xFF7A6247),
+      topColor: const Color(0xFF2A2219),
     );
     for (var i = 1; i <= 3; i++) {
       canvas.drawPath(
-        vfxCrescent(at, 9.0 * i, 1.6, -pi / 2 + i, pi * 1.4),
-        Paint()..color = const Color(0xFF4A3A28),
+        vfxCrescent(at, 9.0 * i, 1.4, -pi / 2 + i, pi * 1.4),
+        Paint()..color = _gBarkLit.withValues(alpha: 0.35),
       );
     }
     final near =
@@ -3839,6 +4530,14 @@ extension ConservatoryArt on PlanetDungeonGame {
             Offset(x - 6 * sin(i * 2.3), b.top + 120 + (i % 3) * 20),
           ];
           c.drawPath(vfxRibbon(spine, 8, 1), Paint()..color = _gBark);
+          c.drawPath(
+            vfxRibbon(
+              [for (final p in spine) p + const Offset(-2.6, 0)],
+              1.4,
+              0.4,
+            ),
+            Paint()..color = _gBarkLit.withValues(alpha: 0.45),
+          );
         }
         // Shelves of old seed jars along the south wall.
         for (var i = 0; i < 6; i++) {
@@ -3861,7 +4560,8 @@ extension ConservatoryArt on PlanetDungeonGame {
                 const Radius.circular(8),
               ),
             ),
-            _kVerdantGlass.frostAt(i),
+            // Dark, old glass: a shelf of jars, not a row of tablets.
+            Color.lerp(_kVerdantGlass.frostAt(i), Colors.black, 0.22)!,
             _kVerdantGlass,
             lead: 2,
           );

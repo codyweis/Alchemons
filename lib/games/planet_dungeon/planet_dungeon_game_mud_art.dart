@@ -298,3 +298,152 @@ extension SinkingAltarArt on PlanetDungeonGame {
     }
   }
 }
+
+// ─────────────────────────────────────────────────────────
+// THE PROPS, AGAIN (2026-10-08)
+// ─────────────────────────────────────────────────────────
+// The fen's banks, pools and crossings are untouched; its props were still
+// clip-art next to a game that had moved on to lit grains on black: plank
+// roads drawn as ladders, Y-shaped dead trees, grey signboard stones with
+// icons on them, a pale obelisk, a sarsen with polka-dot moss, lily-pad
+// hummocks, pale stroked ribs, circle bubbles. The rules now:
+//
+//   · FEN WATER'S BREATH — bubbles, silt, the cotton's seed — is GRAINS.
+//   · SOLID THINGS (stones, boards, bog-oak, bones) are FEWER, DARKER CARVED
+//     SILHOUETTES in peat-black, lit only at the rim by the fen's cold dusk
+//     light. No pale fills, no outlines.
+//   · WHAT YOU READ keeps its signal in leaded glass: a crossing's strip, a
+//     marker stone's watercourse rondel, an altar's offering (§7.11).
+//
+// COST. Still props are baked once per room; the only live grains are the
+// ones that move (a wallow's bubbles, the silt going up, the cotton).
+
+/// A dark carved silhouette's body, in peat-black: its top and its foot.
+const Color _kFenSilTop = Color(0xFF221D16);
+const Color _kFenSilFoot = Color(0xFF080706);
+
+/// The fen's light, caught on a rim: cold dusk over the water.
+const Color _kFenRim = Color(0xFFA9B59A);
+
+final Map<String, ui.Picture> _fenStillCache = {};
+
+/// The entry rite's weed mat: its grains and the haze under them.
+final Map<String, (GrainShape, ui.Picture)> _fenWeedCache = {};
+
+/// A still prop, painted once and kept.
+ui.Picture _fenStill(String key, void Function(Canvas c) paint) =>
+    _fenStillCache.putIfAbsent(key, () {
+      final rec = ui.PictureRecorder();
+      paint(Canvas(rec));
+      return rec.endRecording();
+    });
+
+/// A DARK CARVED SILHOUETTE: the body in peat-black, and the fen's light on
+/// it only where the shape faces that light — the crescent the body leaves
+/// when it is nudged away from the light. A rim, no outline, no blur.
+void _fenCarve(
+  Canvas c,
+  Path body, {
+  Offset light = const Offset(1.8, 2.4),
+  double rim = 0.45,
+  Color rimColor = _kFenRim,
+  Color top = _kFenSilTop,
+  Color foot = _kFenSilFoot,
+}) {
+  final b = body.getBounds();
+  c.drawPath(
+    body,
+    Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [top, foot],
+      ).createShader(b.inflate(1)),
+  );
+  c.drawPath(
+    Path.combine(ui.PathOperation.difference, body, body.shift(light)),
+    Paint()..color = rimColor.withValues(alpha: rim),
+  );
+}
+
+/// A cut in a dark surface: the cut, and the light on its lip.
+void _fenGroove(Canvas c, Path p, {double w = 1.5}) {
+  c.drawPath(
+    p,
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = w
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.black.withValues(alpha: 0.6),
+  );
+  c.drawPath(
+    p.shift(const Offset(0, 1.1)),
+    Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..strokeCap = StrokeCap.round
+      ..color = _kFenRim.withValues(alpha: 0.12),
+  );
+}
+
+/// A tapering limb or rib from [a] through [ctrl] to [b], [w0] wide at its
+/// root and [w1] at its tip, as a closed outline.
+Path _fenTaper(Offset a, Offset ctrl, Offset b, double w0, double w1) {
+  final left = <Offset>[], right = <Offset>[];
+  const n = 10;
+  for (var k = 0; k <= n; k++) {
+    final t = k / n;
+    final p = Offset.lerp(
+      Offset.lerp(a, ctrl, t)!,
+      Offset.lerp(ctrl, b, t)!,
+      t,
+    )!;
+    final d =
+        Offset.lerp(ctrl - a, b - ctrl, t)! /
+        max(1e-6, Offset.lerp(ctrl - a, b - ctrl, t)!.distance);
+    final nrm = Offset(-d.dy, d.dx);
+    final w = (w0 + (w1 - w0) * t) / 2;
+    left.add(p + nrm * w);
+    right.add(p - nrm * w);
+  }
+  return Path()..addPolygon([...left, ...right.reversed], true);
+}
+
+/// LOOSE GRAINS worked out from time alone — bubbles, silt, cotton seed —
+/// bucketed by colour and drawn in a handful of calls, each a short streak
+/// from where it was a moment ago.
+class _FenInk {
+  final Map<int, List<Offset>> _runs = {};
+
+  void add(Offset from, Offset to, Color c, double alpha) {
+    final a = (alpha.clamp(0.0, 1.0) * 10).round();
+    if (a <= 0) return;
+    final k = ((c.toARGB32() & 0x00FFFFFF) << 4) | a;
+    final f = (to - from).distance < 0.3 ? from - const Offset(0.3, 0) : from;
+    (_runs[k] ??= <Offset>[])
+      ..add(f)
+      ..add(to);
+  }
+
+  void paint(Canvas canvas, {double width = 1.6}) {
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = width;
+    for (final e in _runs.entries) {
+      if (e.value.isEmpty) continue;
+      p.color = Color(
+        0xFF000000 | (e.key >> 4),
+      ).withValues(alpha: (e.key & 15) / 10);
+      canvas.drawPoints(ui.PointMode.lines, e.value, p);
+      e.value.clear();
+    }
+  }
+}
+
+final _FenInk _fenInk = _FenInk();
+
+double _fenHash(int n) {
+  final v = sin(n * 127.1 + 311.7) * 43758.5453;
+  return v - v.floorToDouble();
+}

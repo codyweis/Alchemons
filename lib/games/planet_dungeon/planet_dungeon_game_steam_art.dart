@@ -23,6 +23,133 @@ const GlassPalette _kGaugeGlass = kVaporGlass;
 
 final Map<String, ui.Picture> _vaporFabricCache = {};
 
+// ── VAPOUR, IN GRAINS (2026-10-08) ──────────────────────────
+//
+// Steam on this planet was sprite puffs and soft glows: the sky's drifting
+// cloud blobs, grey smudges climbing the rooms, a pale lozenge for the split
+// main's jet. It is grains now, the way the rest of the game draws breath and
+// smoke — many small lights on real motion, short trails, a little twinkle.
+// The geyser plumes keep their puffs: they are the blast's telegraph, twelve
+// of them go at once in the crucible, and in grains that is past the budget.
+
+/// Steam's grains: shadow, body, lit, glint.
+const List<Color> _kVaporRamp = [
+  Color(0xFF4A5560),
+  Color(0xFF8A97A6),
+  Color(0xFFC8D0DA),
+  Color(0xFFF6E9EE),
+];
+
+/// The batch every vapour run is drawn through: grains bucketed by shade and
+/// by one of [_kVaporFades] alphas, so a run of hundreds is a handful of
+/// draws. Fine grains (1.6), which is what makes vapour read as vapour.
+class _VaporBatch {
+  final List<List<Offset>> _lines = [
+    for (var i = 0; i < 4 * _kVaporFades; i++) <Offset>[],
+  ];
+  final Paint _paint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
+  void add(Offset p, Offset q, int shade, double alpha) {
+    if (alpha <= 0.02) return;
+    final f = min(_kVaporFades - 1, (alpha * _kVaporFades).floor());
+    // A trail too short to draw is nudged so the cap still makes a grain.
+    final from = (p - q).distanceSquared < 0.09 ? q - const Offset(0.3, 0) : p;
+    _lines[shade * _kVaporFades + f]
+      ..add(from)
+      ..add(q);
+  }
+
+  void paint(Canvas canvas, List<Color> ramp, {double width = 1.6}) {
+    _paint.strokeWidth = width;
+    for (var i = 0; i < _lines.length; i++) {
+      final l = _lines[i];
+      if (l.isEmpty) continue;
+      final f = (i % _kVaporFades + 1) / _kVaporFades;
+      _paint.color = ramp[i ~/ _kVaporFades].withValues(alpha: f);
+      canvas.drawPoints(ui.PointMode.lines, l, _paint);
+      l.clear();
+    }
+  }
+}
+
+const int _kVaporFades = 5;
+final _VaporBatch _vaporBatch = _VaporBatch();
+
+double _vaporHash(int n) {
+  final v = sin(n * 127.1 + 311.7) * 43758.5453;
+  return v - v.floorToDouble();
+}
+
+/// A WISP OF VAPOUR: [count] grains leave [from] along [dir] (a unit
+/// vector), each taking about 1/[rate] seconds to travel [length] — quick off
+/// the mouth and slowing as it spends itself when [ease] > 1 — and opening
+/// from [w0] to [w1] across the run as it climbs. The whole wisp snakes: a
+/// curl [curl] wide at the top travels up it, so it reads as ONE thread of
+/// steam turning in the air rather than a spray of separate grains. Grains
+/// crowd its middle and thin to its edges. Worked out from time alone, so
+/// nothing is kept between frames. Added to [_vaporBatch]; the caller paints.
+void _addVaporRun(
+  Offset from,
+  Offset dir,
+  double length,
+  double t, {
+  required int count,
+  required double rate,
+  double w0 = 2,
+  double w1 = 18,
+  double ease = 1.4,
+  double curl = 10,
+  double wave = 120,
+  double alpha = 0.6,
+  int seed = 0,
+  double trail = 0.02,
+  double hot = 0.2,
+}) {
+  final perp = Offset(-dir.dy, dir.dx);
+  final phase = seed * 1.7;
+  for (var i = 0; i < count; i++) {
+    final h1 = _vaporHash(seed * 7919 + i);
+    final h2 = _vaporHash(seed * 1543 + i * 3 + 1);
+    final h3 = _vaporHash(seed * 31 + i * 7 + 2);
+    final speed = rate * (0.85 + 0.3 * h3);
+    // Crowded to the middle: two hashes summed fall mostly near zero.
+    final side = h2 + h3 - 1;
+    Offset at(double tt) {
+      final u = (tt * speed + h1) % 1.0;
+      final along = length * (1 - pow(1 - u, ease).toDouble());
+      final snake =
+          curl *
+          pow(u, 0.8).toDouble() *
+          sin(along / wave * 2 * pi - tt * 1.6 + phase);
+      final spread = (w0 + (w1 - w0) * pow(u, 1.1).toDouble()) * side;
+      return from + dir * along + perp * (snake + spread);
+    }
+
+    final u = (t * speed + h1) % 1.0;
+    final u0 = ((t - trail) * speed + h1) % 1.0;
+    final q = at(t);
+    // Just born this frame: a grain, not a streak back across the run.
+    final p = u0 > u ? q : at(t - trail);
+    final fade = min(1.0, u * 8) * pow(1 - u, 1.5).toDouble();
+    final shade = h1 > 0.985
+        ? 3
+        : (u < hot && side.abs() < 0.3) || h1 > 0.8
+        ? 2
+        : h1 > 0.3
+        ? 1
+        : 0;
+    _vaporBatch.add(p, q, shade, alpha * fade);
+  }
+}
+
+/// The haze the open sky's vapour rises through, baked per viewport.
+final Map<String, ui.Picture> _vaporSkyHaze = {};
+
+/// Where the open sky's columns stand, as fractions of the view's width.
+const List<double> _kVaporSkyColumns = [0.08, 0.5, 0.92];
+
 extension MoltenLabyrinthArt on PlanetDungeonGame {
   void _updateSteamGlass(double dt) {
     final target =
@@ -215,5 +342,180 @@ extension MoltenLabyrinthArt on PlanetDungeonGame {
         ),
       );
     }
+  }
+
+  // ── Vapour ──────────────────────────────────────────────
+
+  /// Steam coming up through the condensate grate in a plain chamber: three
+  /// slow wisps of grains, each a thread that turns as it climbs and opens
+  /// and dissolves at the top, over a breath of haze. ~600 grains.
+  void _paintForgeWisps(Canvas canvas, Rect b, double t) {
+    final rise = min(240.0, b.height * 0.4);
+    for (var i = 0; i < 3; i++) {
+      final x = b.left + b.width * ((i + 0.5) / 3) + 22 * sin(t * 0.13 + i);
+      final foot = Offset(x, b.bottom - 34);
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          foot - Offset(0, rise * 0.45),
+          rise * 0.32,
+          _kVaporRamp[1].withValues(alpha: 0.05),
+        );
+      }
+      _addVaporRun(
+        foot,
+        const Offset(0, -1),
+        rise,
+        t,
+        count: 200,
+        rate: 0.09,
+        w0: 2,
+        w1: 30,
+        ease: 1.25,
+        curl: 16,
+        wave: 150,
+        alpha: 0.55,
+        seed: 40 + i,
+        trail: 0.03,
+        hot: 0,
+      );
+    }
+    _vaporBatch.paint(canvas, _kVaporRamp);
+  }
+
+  /// THE SPLIT MAIN'S JET, countable: a hard narrow stream at the tear that
+  /// slows and opens into a turning plume [h] tall — taller, thicker and
+  /// denser with every mark on the gauge. ~135 grains a mark (675 at a full
+  /// main).
+  void _paintSplitJet(Canvas canvas, Offset c, double h, int marks) {
+    final t = _moltenPulse;
+    final mouth = c - const Offset(0, 4);
+    if (_fx.ready) {
+      // The plume's body: a faint haze for the grains to stand in.
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        mouth - Offset(0, h * 0.5),
+        10 + 5.0 * marks,
+        _kVaporRamp[2].withValues(alpha: 0.05 + 0.014 * marks),
+      );
+    }
+    // The plume it opens into, spending itself as it climbs.
+    _addVaporRun(
+      mouth,
+      const Offset(0, -1),
+      h,
+      t,
+      count: 110 * marks,
+      rate: 0.34 + 0.05 * marks,
+      w0: 1.5 + 0.5 * marks,
+      w1: 10 + 5.0 * marks,
+      ease: 1.8,
+      curl: 3 + 2.4 * marks,
+      wave: 40 + 14.0 * marks,
+      alpha: 0.5 + 0.08 * marks,
+      seed: 12,
+      trail: 0.02,
+      hot: 0.25,
+    );
+    // The throat: fast and bright, barely wider than the tear — the part
+    // that says PRESSURE rather than weather.
+    _addVaporRun(
+      mouth,
+      const Offset(0, -1),
+      h * 0.3,
+      t,
+      count: 25 * marks,
+      rate: 1.3,
+      w0: 0.8,
+      w1: 1.5 + 0.8 * marks,
+      ease: 2.0,
+      curl: 0.5,
+      alpha: 0.85,
+      seed: 11,
+      trail: 0.012,
+      hot: 0.8,
+    );
+    _vaporBatch.paint(canvas, _kVaporRamp);
+  }
+
+  /// The cellar mouth breathing out: a slow thread of grains curling up and
+  /// away from the collar. ~170 grains.
+  void _paintCellarBreath(Canvas canvas, Offset m) {
+    _addVaporRun(
+      m + const Offset(12, -4),
+      const Offset(0.88, -0.47),
+      60,
+      _moltenPulse,
+      count: 170,
+      rate: 0.22,
+      w0: 2,
+      w1: 16,
+      ease: 1.4,
+      curl: 7,
+      wave: 50,
+      alpha: 0.6,
+      seed: 23,
+      trail: 0.03,
+      hot: 0.15,
+    );
+    _vaporBatch.paint(canvas, _kVaporRamp);
+  }
+
+  /// STEAM'S OPEN SKY: vapour climbing out of the boiler below in three slow
+  /// turning columns of grains over a faint haze — in place of the generic
+  /// puff clouds, which on the crucible's open sky read as cartoon cloud
+  /// blobs between the islands. Screen-space, as the clouds were, and only
+  /// where the room is open to the sky: through a closed chamber's
+  /// translucent brick they would only read as noise. ~2,400 grains.
+  void _drawVaporSky(Canvas canvas, Size vp, DungeonRoom room) {
+    if (room.platforms.isEmpty && room.gaps.isEmpty) return;
+    final key = '${vp.width.round()}x${vp.height.round()}';
+    final rise = vp.height * 0.62;
+    canvas.drawPicture(
+      _vaporSkyHaze.putIfAbsent(key, () {
+        final rec = ui.PictureRecorder();
+        final c = Canvas(rec);
+        for (final fx in _kVaporSkyColumns) {
+          final o = Offset(vp.width * fx, vp.height - rise * 0.4);
+          final r = Rect.fromCenter(center: o, width: 220, height: rise);
+          c.drawOval(
+            r,
+            Paint()
+              ..shader = RadialGradient(
+                colors: [
+                  const Color(0xFFB8C4D0).withValues(alpha: 0.07),
+                  const Color(0x00B8C4D0),
+                ],
+              ).createShader(r),
+          );
+        }
+        return rec.endRecording();
+      }),
+    );
+    for (var k = 0; k < _kVaporSkyColumns.length; k++) {
+      _addVaporRun(
+        Offset(
+          vp.width * _kVaporSkyColumns[k] + 20 * sin(_time * 0.05 + k * 2),
+          vp.height + 20,
+        ),
+        const Offset(0, -1),
+        rise,
+        _time,
+        count: 800,
+        rate: 0.05,
+        w0: 18,
+        w1: 84,
+        ease: 1.25,
+        curl: 36,
+        wave: 300,
+        alpha: 0.6 + 0.2 * _skyMood,
+        seed: 90 + k,
+        trail: 0.03,
+        hot: 0,
+      );
+    }
+    _vaporBatch.paint(canvas, _kVaporRamp);
   }
 }

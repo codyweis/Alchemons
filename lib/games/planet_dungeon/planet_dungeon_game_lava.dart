@@ -2269,18 +2269,11 @@ extension MoltenReliquary on PlanetDungeonGame {
       if (lever != null) {
         final set = s.settingOf(n.switchId!);
         final ways = max(1, n.switchLabels.length);
+        // A cast plinth and a solid notched quadrant (lava_art.dart). It was
+        // a gold-rimmed glass dish with a thin arc over it — a bucket and its
+        // bail, read from across the room.
         _drawLeverBase(canvas, lever);
-        final quad = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.5
-          ..color = _worksIron;
-        canvas.drawArc(
-          Rect.fromCircle(center: lever + const Offset(0, 10), radius: 26),
-          pi + 0.45,
-          pi - 0.9,
-          false,
-          quad,
-        );
+        _drawLeverQuadrant(canvas, lever + const Offset(0, 10));
         for (var i = 0; i < ways; i++) {
           final a = pi + 0.45 + (pi - 0.9) * (ways == 1 ? 0.5 : i / (ways - 1));
           final at = lever + const Offset(0, 10) + Offset(cos(a), sin(a)) * 26;
@@ -2372,59 +2365,11 @@ extension MoltenReliquary on PlanetDungeonGame {
       };
       final inner = cavity.deflate(10);
       canvas.drawRect(inner, Paint()..color = const Color(0xFF15110C));
-      if (want == PourForm.stamped) {
-        // A KEY'S WARDS: teeth cut into the cavity. Warded metal is the only
-        // thing shaped like this, and it looks like the thing it makes.
-        final tooth = Paint()..color = const Color(0xFF15110C);
-        final lit = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = tint.withValues(alpha: 0.6);
-        final bit = Rect.fromLTWH(
-          inner.left,
-          inner.center.dy - 7,
-          inner.width,
-          14,
-        );
-        canvas.drawRect(bit, tooth);
-        canvas.drawRect(bit, lit);
-        for (var k = 0; k < 3; k++) {
-          final tx = inner.left + 10 + k * 15.0;
-          final t = Rect.fromLTWH(tx, inner.center.dy - 18, 9, 12);
-          canvas.drawRect(t, tooth);
-          canvas.drawRect(t, lit);
-        }
-        canvas.drawOval(
-          Rect.fromCircle(
-            center: Offset(inner.right - 9, inner.center.dy),
-            radius: 9,
-          ),
-          tooth,
-        );
-        canvas.drawOval(
-          Rect.fromCircle(
-            center: Offset(inner.right - 9, inner.center.dy),
-            radius: 9,
-          ),
-          lit,
-        );
-      } else {
-        // A PLAIN SLAB: a smooth bar, which is what a span is.
-        canvas.drawRect(
-          inner.deflate(4),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = tint.withValues(alpha: 0.55),
-        );
-      }
-      canvas.drawRect(
-        inner,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = tint.withValues(alpha: 0.34),
-      );
+      // A KEY'S WARDS for warded metal, a smooth bar for a span — cut into
+      // the sand as a hollow lit by the metal it wants (lava_art.dart). It
+      // was the same shape traced in thin tinted lines, which read as an
+      // icon on a box rather than a hollow anything could run into.
+      _drawFormRecess(canvas, inner, want, tint);
       // The sprue — where the metal would come in.
       canvas.drawRect(
         Rect.fromLTWH(cavity.center.dx - 4, cavity.top - 7, 8, 9),
@@ -2760,17 +2705,8 @@ extension MoltenReliquary on PlanetDungeonGame {
         ..strokeWidth = 1.6
         ..color = const Color(0xFF7A3208).withValues(alpha: 0.8),
     );
-    // Heat coming off it.
-    for (var i = 0; i < 3; i++) {
-      final t = ((works.clock * 0.5 + i / 3) % 1.0);
-      canvas.drawLine(
-        Offset(at.dx - 14 + i * 14, at.dy - 22 - 14 * t),
-        Offset(at.dx - 11 + i * 14, at.dy - 32 - 14 * t),
-        Paint()
-          ..strokeWidth = 2
-          ..strokeCap = StrokeCap.round
-          ..color = _worksCore.withValues(alpha: 0.30 * (1 - t)),
-      );
-    }
+    // Heat coming off it: embers lifting off the top face and going out
+    // (lava_art.dart). They were three stroked dashes — cartoon heat lines.
+    _drawIngotEmbers(canvas, at + const Offset(4, -19));
   }
 }

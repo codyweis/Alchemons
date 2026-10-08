@@ -20,6 +20,285 @@ part of 'planet_dungeon_game.dart';
 
 const GlassPalette _kVenomGlass = kVenomGlass;
 
+// ── GRAINS (2026-10-08) ─────────────────────────────────────
+// The monastery's vapours — smoke off a censer, steam off the pot, the sour
+// air out of a drain, the embers under it all, the wisp — are lit grains on
+// real motion now, the way the rest of the game draws anything that is not
+// solid (they were dots, stroked rings and puff sprites). Worked out from
+// time alone, so there is nothing to tick; gathered into one batch and drawn
+// in a handful of calls.
+
+final RiteGrainBatch _venomGrains = RiteGrainBatch();
+
+double _venomHash(int n) {
+  final s = sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - s.floorToDouble();
+}
+
+/// Embers: soot-red to white-hot.
+const List<Color> _kVenomEmberRamp = [
+  Color(0xFF5A1E0C),
+  Color(0xFFB4451C),
+  Color(0xFFF2A63A),
+  Color(0xFFFFE6B0),
+];
+
+/// A cresset's flame.
+const List<Color> _kVenomFlameRamp = [
+  Color(0xFFB4451C),
+  Color(0xFFE8902E),
+  Color(0xFFF7D890),
+  Color(0xFFFFFBEA),
+];
+
+/// The house's sour air, as it comes up out of the drains: dull, never
+/// white.
+const List<Color> _kVenomMiasmaRamp = [
+  Color(0xFF2E3A20),
+  Color(0xFF4E6634),
+  Color(0xFF6F8A48),
+  Color(0xFF93A866),
+];
+
+/// Clean smoke, and sick smoke.
+final List<Color> _kVenomBoneRamp = grainRampFrom(const Color(0xFFD8CBA8));
+final List<Color> _kVenomSickRamp = grainRampFrom(const Color(0xFF8FD14F));
+
+/// Grains climbing off [base]: [n] of them, each rising [rise] in its own
+/// time, fanning from [half] to [spread] either side and swaying as they go,
+/// faded in at the source and out at the top, with a short trail. Bright
+/// where they leave, dim where they thin. A [spread] under [half] narrows to
+/// a point, which is a flame. Adds to [_venomGrains]; the caller paints.
+void _venomRise(
+  Offset base,
+  double t, {
+  required int n,
+  required double rise,
+  required List<Color> ramp,
+  double half = 5,
+  double spread = 18,
+  double rate = 0.22,
+  double sway = 4,
+  double alpha = 1,
+  double trail = 0.08,
+  int seed = 1,
+}) {
+  if (alpha <= 0.02) return;
+  final last = ramp.length - 1;
+  for (var i = 0; i < n; i++) {
+    final h0 = _venomHash(seed * 977 + i);
+    final h1 = _venomHash(seed * 613 + i * 7 + 1);
+    final h2 = _venomHash(seed * 331 + i * 13 + 2) * 2 - 1;
+    final r = rate * (0.7 + 0.6 * h1);
+    final u = (t * r + h0) % 1.0;
+    final u0 = u - trail * r;
+    if (u0 < 0) continue; // just leaving: no streak back across the wrap
+    Offset at(double tt, double uu) => Offset(
+      base.dx +
+          h2 * (half + (spread - half) * uu) +
+          sway * uu * sin(tt * 1.1 + h1 * 6.3 + uu * 3.0),
+      base.dy - rise * uu,
+    );
+    final p = at(t, u), q = at(t - trail, u0);
+    final a = alpha * min(1.0, u / 0.12) * (u < 0.5 ? 1.0 : 2 - 2 * u);
+    final shade = ((1 - u) * 0.75 + 0.25 * h1).clamp(0.0, 1.0);
+    _venomGrains.add(
+      q.dx,
+      q.dy,
+      p.dx,
+      p.dy,
+      ramp[(shade * last).round()],
+      alpha: a,
+    );
+  }
+}
+
+/// Grains turning in an ellipse between [inner] and [outer] of its radii — a brew
+/// rolling in a pot, embers stirring in their bed — the inner ones faster,
+/// lit on the near side. [bob] lifts them a little, which is a simmer;
+/// [glint] lights that share of them for a moment.
+void _venomChurn(
+  Offset c,
+  double rx,
+  double ry,
+  double t, {
+  required int n,
+  required List<Color> ramp,
+  double inner = 0,
+  double outer = 1,
+  double spin = 0.6,
+  double bob = 0,
+  double alpha = 1,
+  double trail = 0.1,
+  double glint = 0,
+  int seed = 1,
+}) {
+  if (alpha <= 0.02) return;
+  final last = ramp.length - 1;
+  final flick = (t * 7).floor();
+  for (var i = 0; i < n; i++) {
+    final h0 = _venomHash(seed * 811 + i);
+    final h1 = _venomHash(seed * 487 + i * 5 + 3);
+    final h2 = _venomHash(seed * 263 + i * 11 + 5);
+    final rho = inner + (outer - inner) * sqrt(h0);
+    final w = spin * (0.55 + 0.9 * (1 - rho)) * (h2 < 0.5 ? 1 : 0.8);
+    final a = h1 * 2 * pi + w * t, a0 = a - w * trail;
+    final lift = bob * (0.5 + 0.5 * sin(t * 2.3 + h2 * 9));
+    final p = Offset(c.dx + cos(a) * rho * rx, c.dy + sin(a) * rho * ry - lift);
+    final q = Offset(
+      c.dx + cos(a0) * rho * rx,
+      c.dy + sin(a0) * rho * ry - lift,
+    );
+    final shade = (0.12 + 0.42 * (0.5 + 0.5 * sin(a)) + 0.2 * h2).clamp(
+      0.0,
+      1.0,
+    );
+    final lit = glint > 0 && _venomHash(flick * 131 + i + seed) < glint;
+    _venomGrains.add(
+      q.dx,
+      q.dy,
+      p.dx,
+      p.dy,
+      lit ? ramp.last : ramp[(shade * last).round()],
+      alpha: alpha * (0.55 + 0.45 * h0),
+    );
+  }
+}
+
+/// Grains strewn along [pts] — a ring of them lifting, a root of them
+/// threading up — each wandering [drift] about its place.
+void _venomAlong(
+  List<Offset> pts,
+  double t, {
+  required Color color,
+  int per = 3,
+  double drift = 2,
+  double alpha = 1,
+  int seed = 1,
+}) {
+  if (alpha <= 0.02 || pts.isEmpty) return;
+  for (var i = 0; i < pts.length; i++) {
+    for (var k = 0; k < per; k++) {
+      final j = i * per + k;
+      final h0 = _venomHash(seed * 389 + j) * 6.3;
+      final h1 = _venomHash(seed * 151 + j * 3 + 1);
+      final p =
+          pts[i] +
+          Offset(drift * sin(t * 1.7 + h0), drift * cos(t * 1.3 + h0 * 1.7));
+      final q =
+          pts[i] +
+          Offset(
+            drift * sin((t - 0.08) * 1.7 + h0),
+            drift * cos((t - 0.08) * 1.3 + h0 * 1.7),
+          );
+      _venomGrains.add(
+        q.dx,
+        q.dy,
+        p.dx,
+        p.dy,
+        color,
+        alpha: alpha * (0.5 + 0.5 * h1),
+      );
+    }
+  }
+}
+
+/// The faint soft pool grains are seen against (no blur: a radial fall-off).
+void _venomHaze(Canvas canvas, Offset at, double r, Color col, double alpha) {
+  if (alpha <= 0.005 || r <= 1) return;
+  canvas.drawCircle(
+    at,
+    r,
+    Paint()
+      ..shader = ui.Gradient.radial(at, r, [
+        col.withValues(alpha: alpha),
+        col.withValues(alpha: 0),
+      ]),
+  );
+}
+
+/// Dark carved stone for the house's furniture: near-black, lit only at its
+/// arris by the room's light.
+const Color _kVenomCarvedTop = Color(0xFF1A1C17);
+
+/// A carved slab the house cut its words into: near-black stone with a
+/// shallow face under it and the light along its edge. [dim] once it has
+/// nothing left to say.
+void _venomSlab(Canvas canvas, Rect r, {bool dim = false}) {
+  paintCarvedBlock(
+    canvas,
+    r,
+    4,
+    _kVenomGlass,
+    radius: 3,
+    topColor: _kVenomCarvedTop,
+  );
+  // The far arris catches the light too, so the slab has an edge all round
+  // without an outline.
+  canvas.drawLine(
+    Offset(r.left + 3, r.top + 0.6),
+    Offset(r.right - 3, r.top + 0.6),
+    Paint()
+      ..strokeWidth = 0.9
+      ..color = _kVenomGlass.leadLight.withValues(alpha: dim ? 0.08 : 0.18),
+  );
+  if (dim) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(r, const Radius.circular(3)),
+      Paint()..color = Colors.black.withValues(alpha: 0.3),
+    );
+  }
+}
+
+/// A carried flask of leaded glass at the origin: dark glass, the brew a
+/// pane of [brew] in its lower half, a lead came round it and a dark plug.
+void _venomFlask(Canvas canvas, Color brew) {
+  final body = RRect.fromRectAndRadius(
+    const Rect.fromLTWH(-6.5, -7, 13, 18),
+    const Radius.circular(5.5),
+  );
+  final flask = Path()
+    ..addRRect(body)
+    ..addRect(const Rect.fromLTWH(-2.5, -11, 5, 5));
+  paintPaneFill(canvas, flask, _kVenomGlass.frostAt(2));
+  canvas.save();
+  canvas.clipRRect(body);
+  canvas.drawRect(
+    const Rect.fromLTWH(-7, -1, 14, 13),
+    Paint()..color = Color.lerp(brew, _kVenomGlass.liveCore, 0.1)!,
+  );
+  canvas.restore();
+  paintStreak(canvas, body.outerRect.deflate(2.5), opacity: 0.5);
+  paintLead(canvas, flask, _kVenomGlass, width: 1.8);
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(
+      const Rect.fromLTWH(-3.5, -14, 7, 4),
+      const Radius.circular(1.5),
+    ),
+    Paint()..color = const Color(0xFF15130E),
+  );
+}
+
+/// A line cut in stone: dark, with the light along its lower lip.
+void _venomGroove(Canvas canvas, Offset a, Offset b, {double width = 1.6}) {
+  canvas.drawLine(
+    a,
+    b,
+    Paint()
+      ..strokeWidth = width
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF070906).withValues(alpha: 0.9),
+  );
+  canvas.drawLine(
+    a + const Offset(0.5, 1.3),
+    b + const Offset(0.5, 1.3),
+    Paint()
+      ..strokeWidth = 0.8
+      ..strokeCap = StrokeCap.round
+      ..color = _kVenomGlass.leadLight.withValues(alpha: 0.12),
+  );
+}
+
 extension VenomMonasteryArt on PlanetDungeonGame {
   void _updateVenomGlass(double dt) {
     _tickPotRites(dt);
@@ -236,55 +515,99 @@ extension VenomMonasteryArt on PlanetDungeonGame {
     return true;
   }
 
+  /// THE GATE POT (2026-10-08 look): a near-black iron pot on a bed of
+  /// stirring embers, the draught in it a churn of grains — one band per
+  /// gift, in the giver's colour, so the pot visibly fills as you give — and
+  /// a rondel of glass for each hand, lit when that hand has given. It was a
+  /// flat oval pot with a bronze outline, rings of flat colour and outlined
+  /// dots.
   void _drawEntrancePot(Canvas canvas) {
     final m = monastery;
     final c = _entrancePotAt;
     final open = entryDoorRevealed;
     // Coals, then the pot.
-    canvas.drawOval(
-      Rect.fromCenter(center: c + const Offset(0, 30), width: 96, height: 26),
-      Paint()..color = const Color(0xFF3A1A0A).withValues(alpha: 0.9),
+    final coals = Rect.fromCenter(
+      center: c + const Offset(0, 30),
+      width: 96,
+      height: 26,
     );
-    if (_fx.ready) {
-      drawGlow(
-        canvas,
-        _fx.glow!,
-        c + const Offset(0, 30),
-        44,
-        const Color(0xFFE07A2A).withValues(alpha: 0.35),
-      );
-    }
+    canvas.drawOval(coals, Paint()..color = const Color(0xFF120A06));
+    _venomHaze(canvas, coals.center, 62, const Color(0xFFE07A2A), 0.12);
+    _venomChurn(
+      coals.center,
+      44,
+      11,
+      _time,
+      n: 96,
+      ramp: _kVenomEmberRamp,
+      spin: 0.14,
+      bob: 2,
+      alpha: 0.85,
+      glint: 0.06,
+      seed: 31,
+    );
+    _venomGrains.paint(canvas);
     final body = Rect.fromCenter(
       center: c + const Offset(0, 8),
       width: 92,
       height: 56,
     );
-    canvas.drawOval(body, Paint()..color = const Color(0xFF1A1C16));
+    canvas.drawOval(body, Paint()..color = const Color(0xFF0C0E0B));
+    // The fire's light under its belly, and the room's on its shoulders.
+    canvas.drawArc(
+      body.deflate(1.5),
+      0.45,
+      pi - 0.9,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.8
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFFE07A2A).withValues(alpha: 0.36),
+    );
     final rim = Rect.fromCenter(
       center: c - const Offset(0, 8),
       width: 96,
       height: 30,
     );
-    canvas.drawOval(rim, Paint()..color = const Color(0xFF2E3226));
-    // The draught: one ring of colour per gift, the pot filling as you give.
+    canvas.drawOval(rim, Paint()..color = const Color(0xFF161915));
+    // The draught: one band of colour per gift, the pot filling as you give.
     final givers = [
       for (final cr in creatures)
         if (m.entryGiven.contains(cr.member.instanceId)) cr.member.element,
     ];
     final surface = rim.deflate(6);
-    if (givers.isEmpty && !open) {
-      canvas.drawOval(surface, Paint()..color = const Color(0xFF0A0C08));
-    } else {
+    canvas.drawOval(surface, Paint()..color = const Color(0xFF060806));
+    if (givers.isNotEmpty || open) {
       for (var i = 0; i < givers.length; i++) {
-        final k = 1 - i / max(1, givers.length);
+        final outer = 1 - i / max(1, givers.length);
+        final inner = 1 - (i + 1) / max(1, givers.length);
+        final col = elementColor(givers[i]);
+        // The band's body, dark in its colour, under its grains.
         canvas.drawOval(
           Rect.fromCenter(
             center: surface.center,
-            width: surface.width * k,
-            height: surface.height * k,
+            width: surface.width * outer,
+            height: surface.height * outer,
           ),
-          Paint()..color = elementColor(givers[i]).withValues(alpha: 0.8),
+          Paint()..color = Color.lerp(col, Colors.black, 0.55)!,
         );
+        _venomChurn(
+          surface.center,
+          surface.width / 2 - 1,
+          surface.height / 2 - 1,
+          _time,
+          n: (70 + 90 * outer).round(),
+          ramp: grainRampFrom(col),
+          inner: inner,
+          outer: outer,
+          spin: 0.5 + 0.2 * i,
+          bob: 1 + m.entryBrew * 2,
+          alpha: 0.95,
+          glint: open ? 0.03 : 0.01,
+          seed: 50 + i,
+        );
+        _venomGrains.paint(canvas);
       }
       if (open && _fx.ready) {
         drawGlow(
@@ -296,27 +619,46 @@ extension VenomMonasteryArt on PlanetDungeonGame {
         );
       }
     }
+    // The lip: dark iron, lit along its near edge.
     canvas.drawOval(
       rim,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = VenomMonasteryPuzzle._venomBronzeLit.withValues(alpha: 0.8),
+        ..strokeWidth = 3.4
+        ..color = const Color(0xFF111310),
     );
-    // One pip per hand, lit in the colour of whoever gave.
+    canvas.drawArc(
+      rim.inflate(1),
+      0.2,
+      pi - 0.4,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round
+        ..color = _kVenomGlass.leadLight.withValues(alpha: 0.3),
+    );
+    // One rondel per hand, lit in the colour of whoever gave.
     final hands = creatures.where((cr) => cr.alive).toList();
     for (var i = 0; i < hands.length; i++) {
       final at = c + Offset((i - (hands.length - 1) / 2) * 22, 50);
       final given = m.entryGiven.contains(hands[i].member.instanceId);
-      canvas.drawCircle(at, 7, Paint()..color = const Color(0xFF0A0C08));
-      canvas.drawCircle(
+      paintRondel(
+        canvas,
         at,
-        5,
-        Paint()
-          ..color = given
-              ? elementColor(hands[i].member.element)
-              : const Color(0xFF2E3226),
+        5.5,
+        _kVenomGlass,
+        fill: given ? elementColor(hands[i].member.element) : null,
+        rim: given ? 1 : 0.4,
+        lead: 2,
       );
+      if (given) {
+        paintStreak(
+          canvas,
+          Rect.fromCircle(center: at, radius: 4),
+          opacity: 0.5,
+        );
+      }
     }
     if (!open) {
       _drawTinyLabel(canvas, c + const Offset(0, 72), 'ONE GIFT FROM EACH');
@@ -426,23 +768,50 @@ extension VenomMonasteryArt on PlanetDungeonGame {
     final m = monastery;
     final t = m.boilOver / _kBoilSeconds;
     final fade = t > 0.7 ? max(0.0, 1 - (t - 0.7) / 0.3) : 1.0;
-    // Foam heaving out of the pot in rings.
+    // Foam heaving up out of the pot and rolling out over the floor, in
+    // grains that loosen as they spread (2026-10-08; it was stroked rings).
     for (var k = 0; k < 4; k++) {
-      final ph = ((m.boilOver * 1.4 + k / 4) % 1.0);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: pot + const Offset(0, 10),
-          width: 70 + ph * 150,
-          height: 30 + ph * 60,
-        ),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 5 * (1 - ph)
-          ..color = const Color(
-            0xFF9CE06A,
-          ).withValues(alpha: 0.6 * (1 - ph) * fade),
+      final ph = Curves.easeOutCubic.transform(
+        (m.boilOver * 1.4 + k / 4) % 1.0,
+      );
+      final rx = 35 + ph * 75, ry = 15 + ph * 30;
+      const n = 70;
+      _venomAlong(
+        [
+          for (var j = 0; j < n; j++)
+            pot +
+                const Offset(0, 10) +
+                Offset(
+                  cos(j / n * 2 * pi) * rx * (1 + 0.08 * sin(j * 2.1 + k)),
+                  sin(j / n * 2 * pi) * ry * (1 + 0.08 * sin(j * 1.3 + k)),
+                ),
+        ],
+        _time,
+        color: Color.lerp(
+          const Color(0xFF9CE06A),
+          const Color(0xFF4E6634),
+          ph,
+        )!,
+        per: 2,
+        drift: 2 + 10 * ph,
+        alpha: 0.75 * (1 - ph) * fade,
+        seed: 60 + k,
       );
     }
+    _venomRise(
+      pot - const Offset(0, 8),
+      _time,
+      n: 110,
+      rise: 64,
+      half: 26,
+      spread: 50,
+      rate: 0.3,
+      sway: 8,
+      ramp: _kVenomSickRamp,
+      alpha: 0.45 * fade,
+      seed: 64,
+    );
+    _venomGrains.paint(canvas);
     if (_fx.ready) {
       drawGlow(
         canvas,
@@ -452,7 +821,8 @@ extension VenomMonasteryArt on PlanetDungeonGame {
         const Color(0xFF7ACB3A).withValues(alpha: 0.35 * fade),
       );
     }
-    // The bottles burst at the turn: shards flying out and falling.
+    // The bottles burst at the turn: their glass thrown out as grains that
+    // arc over and fall, trailing (they were white triangles).
     final since = m.boilOver - _kBoilBurst;
     if (since < 0 || m.boilBottles == 0) return;
     final g = since * 1.0;
@@ -464,23 +834,25 @@ extension VenomMonasteryArt on PlanetDungeonGame {
           _fx.glow!,
           origin,
           40,
-          const Color(0xFFBFF0A0).withValues(alpha: 0.7 * (1 - since / 0.4)),
+          const Color(0xFFBFF0A0).withValues(alpha: 0.5 * (1 - since / 0.4)),
         );
       }
-      for (var i = 0; i < 8; i++) {
-        final a = i / 8 * 2 * pi + b;
-        final v = Offset(cos(a), sin(a) - 0.6) * (90 + (i % 3) * 30.0);
-        final p = origin + v * g + Offset(0, 260 * g * g);
-        canvas.drawPath(
-          Path()
-            ..moveTo(p.dx, p.dy - 4)
-            ..lineTo(p.dx + 4, p.dy + 3)
-            ..lineTo(p.dx - 3, p.dy + 2)
-            ..close(),
-          Paint()
-            ..color = const Color(0xFFD8F0C8).withValues(alpha: 0.85 * fade),
+      for (var i = 0; i < 26; i++) {
+        final h = _venomHash(b * 97 + i);
+        final a = i / 26 * 2 * pi + b + h;
+        final v = Offset(cos(a), sin(a) - 0.6) * (60 + 70 * h);
+        Offset at(double gg) => origin + v * gg + Offset(0, 260 * gg * gg);
+        final p = at(g), q = at(max(0.0, g - 0.05));
+        _venomGrains.add(
+          q.dx,
+          q.dy,
+          p.dx,
+          p.dy,
+          i.isEven ? const Color(0xFFD8F0C8) : const Color(0xFF9CE06A),
+          alpha: 0.85 * fade,
         );
       }
     }
+    _venomGrains.paint(canvas);
   }
 }

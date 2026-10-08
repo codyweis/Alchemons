@@ -3240,46 +3240,12 @@ extension MirrorTide on PlanetDungeonGame {
       if (!valve.pipOnly) continue;
       final p = valve.position;
       final open = 1 - _spoutChoke;
-      // The jet: three arcs of water thrown up out of the mouth, shortening
-      // as the pip settles into it. The room is NOISY while it runs and quiet
-      // when it does not, which is the only signal the pip needs.
-      if (open > 0.02) {
-        final jet = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.30 * open);
-        for (var i = 0; i < 3; i++) {
-          final sway = sin(_time * 3.1 + i * 2.0) * 9;
-          final h = (52 + i * 9.0) * open;
-          canvas.drawPath(
-            Path()
-              ..moveTo(p.dx, p.dy)
-              ..quadraticBezierTo(
-                p.dx + sway,
-                p.dy - h,
-                p.dx + sway * 2.2,
-                p.dy - h * 0.42,
-              ),
-            jet,
-          );
-        }
-        // Spray falling back, so the jet has weight.
-        for (var i = 0; i < 6; i++) {
-          final t = (_time * 1.4 + i * 0.167) % 1.0;
-          final a = -pi / 2 + (i - 2.5) * 0.24;
-          canvas.drawCircle(
-            p +
-                Offset(cos(a), sin(a)) * (44 * open * t) +
-                Offset(0, 58 * t * t * open),
-            1.7,
-            Paint()
-              ..color = const Color(
-                0xFFBFE4F0,
-              ).withValues(alpha: 0.38 * (1 - t) * open),
-          );
-        }
-      }
+      // The jet: water thrown up out of the mouth and falling back, lower
+      // and thinner as the pip settles into it. The room is NOISY while it
+      // runs and quiet when it does not, which is the only signal the pip
+      // needs. Grains on real arcs (water_art.dart, 2026-10-08) — it was three
+      // stroked curves and six dots, a cartoon fountain.
+      if (open > 0.02) _drawMainSpray(canvas, p, open);
       canvas.drawCircle(
         p,
         13,

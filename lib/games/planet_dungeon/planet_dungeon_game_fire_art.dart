@@ -42,6 +42,15 @@ final Map<String, List<RosePane>> _cathedralRoseCache = {};
 /// The glass collar in each choir brazier's plinth, by brazier position.
 final Map<String, List<Path>> _collarCache = {};
 
+/// The fresco's wind, as a course for its grains (by room id).
+final Map<String, List<Offset>> _cathedralWindCache = {};
+
+/// Grain ramps for growth, by the colour of its glass.
+final Map<int, List<Color>> _cinderSprigRamps = {};
+
+/// Grain ramps for flames drawn in other colours, by core and outer.
+final Map<int, List<Color>> _cinderFlameRamps = {};
+
 extension CinderCathedralArt on PlanetDungeonGame {
   // ── Eased display state ─────────────────────────────────
 
@@ -173,10 +182,8 @@ extension CinderCathedralArt on PlanetDungeonGame {
       case 'reliquary':
         _bakeShrine(c, b.center);
       case 'vestry':
+        // (The five line-drawn hooks across the floor are gone: clutter.)
         _bakeFresco(c, room);
-        for (var i = 0; i < 5; i++) {
-          _bakeHook(c, Offset(b.left + 130 + i * 140.0, b.bottom - 150));
-        }
       case 'bell_gallery':
         _bakeGalleryBeams(c, room);
         for (final chain in room.incenseChains) {
@@ -367,18 +374,28 @@ extension CinderCathedralArt on PlanetDungeonGame {
       ..lineTo(h.dx + 58, h.dy + 30)
       ..close();
     c.drawPath(mouth, Paint()..color = const Color(0xFF070403));
+    // The mouth is CUT, not outlined: a deep reveal round the opening and one
+    // dim arris where the breast's face turns into it (it was a pale stroke
+    // all the way round, which drew the hearth as a cartoon fireplace).
     c.drawPath(
       mouth,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = _kGlass.stoneTop.withValues(alpha: 0.7),
+        ..strokeWidth = 6
+        ..color = _kGlass.stoneFoot.withValues(alpha: 0.9),
     );
-    // Andirons and logs, in the mouth.
+    c.drawPath(
+      mouth.shift(const Offset(0, -2.5)),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..color = _kGlass.stoneTop.withValues(alpha: 0.32),
+    );
+    // Two charred logs in the mouth: near-black, lit only by the fire (live).
     final log = Paint()
-      ..strokeWidth = 7
+      ..strokeWidth = 6
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF3A241A);
+      ..color = const Color(0xFF140A06);
     c.drawLine(h + const Offset(-34, 20), h + const Offset(30, 12), log);
     c.drawLine(h + const Offset(-26, 10), h + const Offset(36, 22), log);
     // The hearthstone it all stands on.
@@ -434,7 +451,20 @@ extension CinderCathedralArt on PlanetDungeonGame {
       );
     }
     if (k <= 0.0) {
-      // Stone-cold: one stubborn ember waiting for a flame.
+      // Stone-cold: a bed of ash in grains (it was a grey oval) and one
+      // stubborn ember in it, waiting for a flame.
+      paintGrainBed(
+        canvas,
+        c + const Offset(0, 24),
+        32,
+        7,
+        _time,
+        ramp: kAshRamp,
+        count: 170,
+        flicker: 0,
+        alpha: 0.42,
+        seed: 3,
+      );
       if (_fx.ready) {
         drawGlow(
           canvas,
@@ -446,10 +476,6 @@ extension CinderCathedralArt on PlanetDungeonGame {
           ).withValues(alpha: 0.25 + 0.18 * (0.5 + 0.5 * sin(_time * 2.3))),
         );
       }
-      canvas.drawOval(
-        Rect.fromCenter(center: c + const Offset(0, 22), width: 64, height: 16),
-        Paint()..color = const Color(0xFF3A332C).withValues(alpha: 0.7),
-      );
       return;
     }
     // KINDLE: the smaller tongues catch a beat behind the main one.
@@ -471,6 +497,31 @@ extension CinderCathedralArt on PlanetDungeonGame {
         const Color(0xFFFF8A3C).withValues(alpha: 0.10 * kindle),
       );
     }
+    // The logs catch along their tops, and the coals under them breathe.
+    final catchLine = Paint()
+      ..strokeWidth = 1.4
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFFF7A2A).withValues(alpha: 0.55 * kindle);
+    canvas.drawLine(
+      c + const Offset(-33, 17),
+      c + const Offset(29, 9),
+      catchLine,
+    );
+    canvas.drawLine(
+      c + const Offset(-25, 7),
+      c + const Offset(35, 19),
+      catchLine,
+    );
+    paintGrainBed(
+      canvas,
+      c + const Offset(0, 25),
+      34,
+      7,
+      _time,
+      count: 160,
+      alpha: kindle,
+      seed: 5,
+    );
     _drawFlame(canvas, c + const Offset(0, 22), 52 * kindle, phase: 0.4);
     final k2 = ((k - 0.25) / 0.75).clamp(0.0, 1.0);
     final k3 = ((k - 0.5) / 0.5).clamp(0.0, 1.0);
@@ -611,57 +662,55 @@ extension CinderCathedralArt on PlanetDungeonGame {
       Paint()
         ..strokeWidth = 2.4
         ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF3A2E24),
+        ..color = const Color(0xFF1A120C),
     );
+    // Three stubs of tallow, near-black, caught at the edge by their own
+    // flames — the candles were pale sticks, and the flames cartoon drops;
+    // the flames are grains now (2026-10-08).
     for (var k = -1; k <= 1; k++) {
-      final h = k == 0 ? 18.0 : 13.0;
+      final h = k == 0 ? 13.0 : 9.0;
       final base = p + Offset(k * 10.0, 1);
       final tip = base + Offset(0, -h);
       canvas.drawLine(
         base,
         tip,
         Paint()
-          ..strokeWidth = 4
+          ..strokeWidth = 4.6
           ..strokeCap = StrokeCap.round
-          ..color = Color.lerp(
-            const Color(0xFF6B5C46),
-            const Color(0xFFD8C7A2),
-            lit,
-          )!,
+          ..color = const Color(0xFF1C140E),
       );
       if (lit <= 0.01) {
-        canvas.drawCircle(tip, 1.4, Paint()..color = const Color(0xFF2A2118));
+        canvas.drawCircle(tip, 1.4, Paint()..color = const Color(0xFF0A0604));
         continue;
       }
-      final ph = _time * 4.6 + k * 2.3 + seed * 0.9;
-      final fh = (5.0 + 3.0 * sin(ph)) * lit;
-      canvas.drawPath(
-        Path()
-          ..moveTo(tip.dx - 2.2, tip.dy)
-          ..quadraticBezierTo(
-            tip.dx - 1.6,
-            tip.dy - fh * 0.6,
-            tip.dx,
-            tip.dy - fh,
-          )
-          ..quadraticBezierTo(
-            tip.dx + 1.6,
-            tip.dy - fh * 0.6,
-            tip.dx + 2.2,
-            tip.dy,
-          )
-          ..close(),
-        Paint()..color = const Color(0xFFFFC46A).withValues(alpha: 0.9 * lit),
+      canvas.drawLine(
+        tip + const Offset(-1.6, 1),
+        base + const Offset(-1.6, -1),
+        Paint()
+          ..strokeWidth = 1.0
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFFFFB46B).withValues(alpha: 0.5 * lit),
       );
       if (_fx.ready) {
         drawGlow(
           canvas,
           _fx.mote!,
-          tip + Offset(0, -fh * 0.5),
+          tip + const Offset(0, -4),
           9,
-          const Color(0xFFFFB46B).withValues(alpha: 0.30 * lit),
+          const Color(0xFFFFB46B).withValues(alpha: 0.26 * lit),
         );
       }
+      paintGrainFlame(
+        canvas,
+        tip + const Offset(0, 0.5),
+        (9.0 + 1.5 * sin(_time * 4.6 + k * 2.3 + seed)) * lit,
+        _time,
+        ramp: kCandleRamp,
+        phase: k * 2.3 + seed * 0.9,
+        spread: 0.7,
+        embers: 0.06,
+        width: 1.4,
+      );
     }
   }
 
@@ -1119,22 +1168,28 @@ extension CinderCathedralArt on PlanetDungeonGame {
       final path = Path()
         ..addOval(Rect.fromCircle(center: centre, radius: _kChoirRoseR));
       paintPaneFill(canvas, path, const Color(0xFF0E0B0A), opacity: 0.6 * s);
-      if (_fx.ready) {
-        // Smoke boils up off the glass and rolls outward as it clears.
-        for (var k = 0; k < 8; k++) {
-          final a = k * 0.785 + (1 - s) * 0.9;
-          final rise = (1 - s) * 40;
-          drawPuff(
-            canvas,
-            _fx.puff!,
-            centre +
-                Offset(cos(a), sin(a) * 0.7) * (40 + (1 - s) * 90) -
-                Offset(0, rise),
-            110 + (1 - s) * 60,
-            const Color(0xFF7A6E66).withValues(alpha: 0.5 * s),
-          );
-        }
-      }
+      // Smoke billows up off the glass and drifts away as it clears — in
+      // soft grains over a faint haze, lobe by lobe, each grain on its own
+      // curl (it was eight puff sprites).
+      paintSmokeRoll(
+        canvas,
+        centre,
+        _kChoirRoseR,
+        1 - s,
+        _time,
+        count: 512,
+        alpha: 0.72,
+        duration: 1.6,
+        haze: _fx.ready
+            ? (at, radius, k) => drawGlow(
+                canvas,
+                _fx.glow!,
+                at,
+                radius,
+                const Color(0xFF7A6E66).withValues(alpha: 0.5 * k),
+              )
+            : null,
+      );
     }
     if (blaze > 0 && _fx.ready) {
       drawGlow(
@@ -1345,34 +1400,31 @@ extension CinderCathedralArt on PlanetDungeonGame {
     // play button.
     final d = riteAshDrift;
     if (d != Offset.zero) {
-      final ab = base + Offset(d.dx * 40, d.dy * 17);
-      final ash = const Color(0xFFBFAE96);
+      // Grains of ash, each lying with the wind that laid it: a dense head
+      // at the plinth's foot thinning out downwind (it was a grey puff and
+      // four dots, which read as a cloud sticker).
+      final head = base + Offset(d.dx * 30, d.dy * 13);
       if (_fx.ready) {
-        drawPuff(
+        drawGlow(
           canvas,
-          _fx.puff!,
-          ab,
-          46,
-          ash.withValues(alpha: (0.34 + 0.14 * mark) * alive),
-        );
-      } else {
-        canvas.drawOval(
-          Rect.fromCenter(center: ab, width: 30, height: 12),
-          Paint()..color = ash.withValues(alpha: 0.25 * alive),
+          _fx.glow!,
+          head + Offset(d.dx * 8, d.dy * 4),
+          26,
+          const Color(
+            0xFFBFAE96,
+          ).withValues(alpha: (0.16 + 0.06 * mark) * alive),
         );
       }
-      final grain = Paint()
-        ..color = ash.withValues(alpha: (0.5 + 0.2 * mark) * alive);
-      final n = Offset(-d.dy, d.dx);
-      for (var k = 0; k < 4; k++) {
-        final q =
-            ab + d * (8.0 + k * 5) + n * ((k.isEven ? 1 : -1) * (3.0 + k));
-        canvas.drawCircle(
-          Offset(q.dx, ab.dy + (q.dy - ab.dy) * 0.45),
-          1.3,
-          grain,
-        );
-      }
+      paintAshBank(
+        canvas,
+        head - Offset(d.dx * 8, d.dy * 4),
+        d,
+        50,
+        _time,
+        count: 190,
+        alpha: (0.48 + 0.3 * mark) * alive,
+        seed: i,
+      );
     }
 
     if (mark > 0.02) {
@@ -1436,27 +1488,29 @@ extension CinderCathedralArt on PlanetDungeonGame {
       rim,
       Paint()..color = lit ? const Color(0xFF3A1606) : const Color(0xFF160D08),
     );
+    // The iron lip: firelit when it burns, a dull edge when it is cold.
     canvas.drawOval(
       rim,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4
-        ..color = (lit ? _kGlass.gold : const Color(0xFF6A5240)).withValues(
-          alpha: 0.9,
-        ),
+        ..strokeWidth = lit ? 2.0 : 1.8
+        ..color = (lit ? const Color(0xFFE8A050) : const Color(0xFF4A3828))
+            .withValues(alpha: lit ? 0.8 : 0.75),
     );
     if (lit) {
-      for (final dx in const [-9.0, 0.0, 9.0]) {
-        canvas.drawCircle(
-          p + Offset(dx, rimY + 1),
-          3.2,
-          Paint()
-            ..color = const Color(0xFFFF7A2A).withValues(
-              alpha: 0.55 + 0.3 * (0.5 + 0.5 * sin(_time * 3.1 + dx + phase)),
-            ),
-        );
-      }
-      _drawFlame(canvas, p + const Offset(0, rimY - 2), 32, phase: phase);
+      // A bed of coals in the bowl, breathing (they were three orange dots),
+      // and the fire standing on them in grains.
+      paintGrainBed(
+        canvas,
+        p + const Offset(0, rimY + 0.5),
+        17,
+        4.2,
+        _time,
+        count: 80,
+        seed: (phase * 7).round(),
+        width: 1.7,
+      );
+      _drawFlame(canvas, p + const Offset(0, rimY - 1), 32, phase: phase);
     } else if (_fx.ready) {
       drawGlow(
         canvas,
@@ -1534,7 +1588,9 @@ extension CinderCathedralArt on PlanetDungeonGame {
       final pane = Path()..addRect(cell.deflate(1.5));
       switch (field.at(i)) {
         case BurnCell.stone:
-          // A fallen column: carved stone standing proud of the glass.
+          // A fallen column: carved stone standing proud of the glass — in
+          // the cathedral's own dark basalt, lit only along its arris (it was
+          // a pale slab, which read as a plastic tile in the bed).
           paintPane(canvas, pane, const Color(0xFF140C08), _kGlass, lead: 2.6);
           paintCarvedBlock(
             canvas,
@@ -1546,6 +1602,7 @@ extension CinderCathedralArt on PlanetDungeonGame {
             ),
             8,
             _kGlass,
+            topColor: const Color(0xFF4A392E),
           );
         case BurnCell.wet:
         case BurnCell.wetVine:
@@ -1815,6 +1872,9 @@ extension CinderCathedralArt on PlanetDungeonGame {
   Offset _frescoBell(Rect panel) =>
       Offset(panel.right - 60, panel.center.dy - 6);
 
+  /// The roundel the fresco's bell hangs before.
+  Offset _frescoRoundel(Offset bell) => bell + const Offset(0, -1);
+
   /// The chain the fresco's flame walks: censer to censer, then the bell.
   Offset _frescoChainPoint(Rect panel, double t) {
     final pts = [..._frescoCensers(panel), _frescoBell(panel)];
@@ -1870,35 +1930,60 @@ extension CinderCathedralArt on PlanetDungeonGame {
     for (final p in cs) {
       paintRondel(c, p, 9, _kGlass, fill: _kGlass.heat(0.3), lead: 2.2);
     }
-    // The wind: a curl of pale glass.
-    final sp = Offset(panel.left + 262, panel.center.dy - 34);
-    final spiral = Path()..moveTo(sp.dx - 16, sp.dy + 2);
-    spiral.quadraticBezierTo(sp.dx, sp.dy - 20, sp.dx + 14, sp.dy - 2);
-    spiral.quadraticBezierTo(sp.dx + 2, sp.dy + 12, sp.dx - 5, sp.dy + 2);
-    c.drawPath(
-      spiral,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5
-        ..strokeCap = StrokeCap.round
-        ..color = _kGlass.lead,
-    );
-    c.drawPath(
-      spiral,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.6
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFBFD4E0).withValues(alpha: 0.75),
-    );
+    // The wind is not glazed: it blows through the window live, in grains
+    // ([_frescoWind]). It was a stroked curl, which read as an icon.
+    // The bell, as it hangs in the gallery: a dark cast shape in the lead,
+    // before a roundel of ember glass. (It was a flat dome of orange glass,
+    // which read as a cartoon hearth.)
     final bell = _frescoBell(panel);
-    final bellPath = _bellPath(bell, 16);
-    paintPane(c, bellPath, _kGlass.heat(0.62), _kGlass, lead: 2.6);
+    paintPane(
+      c,
+      Path()
+        ..addOval(Rect.fromCircle(center: _frescoRoundel(bell), radius: 21)),
+      _kGlass.heat(0.42),
+      _kGlass,
+      lead: 2.6,
+    );
+    final bellPath = _bellPath(bell, 15);
+    c.drawPath(bellPath, Paint()..color = const Color(0xFF120A06));
+    paintLead(c, bellPath, _kGlass, width: 2.2);
+    c.drawCircle(
+      bell + const Offset(0, 12.5),
+      2.8,
+      Paint()..color = const Color(0xFF120A06),
+    );
     paintLead(c, Path()..addRect(panel), _kGlass, width: 4);
+  }
+
+  /// The fresco's wind: the curl it was drawn as, as a course for grains.
+  List<Offset> _frescoWind(Rect panel) {
+    final sp = Offset(panel.left + 262, panel.center.dy - 34);
+    Offset quad(Offset a, Offset c, Offset b, double t) {
+      final u = 1 - t;
+      return a * (u * u) + c * (2 * u * t) + b * (t * t);
+    }
+
+    final a = sp + const Offset(-30, 6), c1 = sp + const Offset(0, -20);
+    final b = sp + const Offset(14, -2), c2 = sp + const Offset(2, 12);
+    final e = sp + const Offset(-5, 2);
+    return [
+      for (var i = 0; i <= 10; i++) quad(a, c1, b, i / 10),
+      for (var i = 1; i <= 8; i++) quad(b, c2, e, i / 8),
+    ];
   }
 
   void _drawFrescoLive(Canvas canvas, DungeonRoom room) {
     final panel = _frescoPanel(room);
+    paintGrainStream(
+      canvas,
+      _cathedralWindCache.putIfAbsent(room.id, () => _frescoWind(panel)),
+      _time,
+      count: 70,
+      speed: 0.32,
+      jitter: 2.2,
+      alpha: 0.85,
+      width: 1.5,
+    );
     // The story, re-told for ever: a flame walks the chain, rings the bell,
     // and the bell's glass flares.
     const loop = 6.5;
@@ -1924,26 +2009,28 @@ extension CinderCathedralArt on PlanetDungeonGame {
     } else {
       final ring = (t - 0.8) / 0.2;
       final bell = _frescoBell(panel);
-      _heatPane(canvas, _bellPath(bell, 16), 0.95 * (1 - ring * 0.6));
-      canvas.drawCircle(
-        bell,
-        18 + ring * 30,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = _kGlass.liveCore.withValues(alpha: 0.5 * (1 - ring)),
+      // The roundel behind the bell floods; the bell stays dark against it.
+      _heatPane(
+        canvas,
+        Path()..addOval(
+          Rect.fromCircle(center: _frescoRoundel(bell), radius: 19.5),
+        ),
+        0.95 * (1 - ring * 0.6),
       );
+      canvas.drawPath(
+        _bellPath(bell, 15),
+        Paint()..color = const Color(0xFF120A06),
+      );
+      if (_fx.ready) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          bell,
+          22 + ring * 18,
+          _kGlass.liveCore.withValues(alpha: 0.3 * (1 - ring)),
+        );
+      }
     }
-  }
-
-  void _bakeHook(Canvas c, Offset p) {
-    final hook = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..color = const Color(0xFF4A3A2E);
-    paintContactShadow(c, p + const Offset(0, 30), 16, 5, opacity: 0.35);
-    c.drawLine(p, p + const Offset(0, 18), hook);
-    c.drawCircle(p + const Offset(0, 22), 4, hook);
   }
 
   // ── Bell gallery ────────────────────────────────────────
@@ -2094,28 +2181,48 @@ extension CinderCathedralArt on PlanetDungeonGame {
         rim: chosen ? 1.0 : 0.6,
       );
       canvas.restore();
-      final iron = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.6
-        ..strokeCap = StrokeCap.round
-        ..color = (chosen ? _kGlass.gold : const Color(0xFF5A4636)).withValues(
-          alpha: 0.9,
+      // The stand is dark wrought iron; the declared one catches its own
+      // flame along the near edge. (It was drawn in gold line, a sticker of
+      // a candelabrum — the glass at its foot is what says which one.)
+      void wrought(Paint paint, Offset shift) {
+        canvas.drawLine(
+          p + const Offset(0, 26) + shift,
+          p + const Offset(0, -18) + shift,
+          paint,
         );
-      canvas.drawLine(p + const Offset(0, 26), p + const Offset(0, -18), iron);
-      canvas.drawLine(
-        p + const Offset(-16, -14),
-        p + const Offset(16, -14),
-        iron,
-      );
-      for (final dx in const [-14.0, 0.0, 14.0]) {
-        canvas.drawArc(
-          Rect.fromCircle(center: p + Offset(dx, -2), radius: 7),
-          0,
-          pi,
-          false,
-          iron,
+        canvas.drawLine(
+          p + const Offset(-16, -14) + shift,
+          p + const Offset(16, -14) + shift,
+          paint,
         );
+        for (final dx in const [-14.0, 0.0, 14.0]) {
+          canvas.drawArc(
+            Rect.fromCircle(center: p + Offset(dx, -2) + shift, radius: 7),
+            0,
+            pi,
+            false,
+            paint,
+          );
+        }
       }
+
+      wrought(
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.2
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(0xFF140D08),
+        Offset.zero,
+      );
+      wrought(
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0
+          ..strokeCap = StrokeCap.round
+          ..color = (chosen ? const Color(0xFFF2B060) : const Color(0xFF5A4636))
+              .withValues(alpha: chosen ? 0.35 + 0.45 * swing : 0.4),
+        const Offset(-0.9, -0.9),
+      );
       if (chosen) {
         _drawFlame(canvas, p + const Offset(0, 4), 8 + 10 * swing, phase: 2.4);
         if (_fx.ready) {
@@ -2224,17 +2331,16 @@ extension CinderCathedralArt on PlanetDungeonGame {
           0,
           pi,
           false,
-          Paint()..color = const Color(0xFF221610),
+          Paint()..color = const Color(0xFF160E09),
         );
-        canvas.drawArc(
-          Rect.fromCircle(center: p, radius: 10),
-          0,
-          pi,
-          false,
+        // Only the lip catches: warm once the flame has been through it.
+        canvas.drawLine(
+          p + const Offset(-9.5, 0),
+          p + const Offset(9.5, 0),
           Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.8
-            ..color = iron,
+            ..strokeWidth = 1.6
+            ..strokeCap = StrokeCap.round
+            ..color = iron.withValues(alpha: reached ? 0.85 : 0.6),
         );
         paintRondel(
           canvas,
@@ -2269,37 +2375,44 @@ extension CinderCathedralArt on PlanetDungeonGame {
         ),
         Paint()..color = const Color(0xFF31251B),
       );
-      final bronze = rung ? const Color(0xFFB8893A) : const Color(0xFF5A4630);
+      // A dark cast silhouette against its oculus, lit only at the rim by the
+      // glass behind it — gold once it has rung and the oculus floods. It
+      // was a glossy bronze gradient, which read as a clip-art bell.
+      final bell = _bellPath(bp, 16);
       canvas.drawPath(
-        _bellPath(bp, 16),
+        bell,
         Paint()
           ..shader = LinearGradient(
-            colors: [
-              Color.lerp(bronze, Colors.black, 0.35)!,
-              Color.lerp(bronze, Colors.white, rung ? 0.35 : 0.12)!,
-              bronze,
-              Color.lerp(bronze, Colors.black, 0.5)!,
-            ],
-            stops: const [0.0, 0.35, 0.6, 1.0],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: const [Color(0xFF2A1E15), Color(0xFF0E0906)],
           ).createShader(Rect.fromCircle(center: bp, radius: 16)),
+      );
+      canvas.drawPath(
+        bell,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = rung ? 1.6 : 1.2
+          ..color = (rung ? const Color(0xFFF2C878) : const Color(0xFF6A5038))
+              .withValues(alpha: rung ? 0.85 : 0.55),
       );
       canvas.drawCircle(
         bp + const Offset(0, 13.6),
         3.2,
-        Paint()..color = Color.lerp(bronze, Colors.black, 0.3)!,
+        Paint()..color = const Color(0xFF0E0906),
       );
       if (rung && _bellTollFx > 0) {
+        // The toll swells the oculus's light and lets it go — no rings.
         final t = 1 - (_bellTollFx / 2.2);
-        for (var k = 0; k < 2; k++) {
-          canvas.drawCircle(
+        if (_fx.ready) {
+          drawGlow(
+            canvas,
+            _fx.glow!,
             bp,
-            20 + t * 70 + k * 16,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.8 - k * 0.6
-              ..color = _kGlass.liveCore.withValues(
-                alpha: (0.5 * (1 - t) - k * 0.15).clamp(0.0, 0.5),
-              ),
+            30 + t * 46,
+            _kGlass.liveCore.withValues(
+              alpha: (0.28 * sin(pi * t.clamp(0.0, 1.0))).clamp(0.0, 0.3),
+            ),
           );
         }
       }
@@ -2459,21 +2572,24 @@ extension CinderCathedralArt on PlanetDungeonGame {
       );
     }
     if (wake < 1) {
-      // Dormant: one thin smoke thread rising from the cold vessel.
-      final smoke = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = const Color(0xFF6E5A4A).withValues(alpha: 0.30 * (1 - wake));
-      final path = Path()..moveTo(vessel.dx, vessel.dy);
-      for (var i = 1; i <= 4; i++) {
-        path.quadraticBezierTo(
-          vessel.dx + sin(_time * 1.1 + i * 1.7) * 10,
-          vessel.dy - i * 18.0 + 9,
-          vessel.dx + sin(_time * 1.1 + i * 1.7 + 0.8) * 6,
-          vessel.dy - i * 18.0,
-        );
-      }
-      canvas.drawPath(path, smoke);
+      // Dormant: one thin thread of smoke grains rising from the cold vessel
+      // and wandering as it thins (it was a stroked line).
+      paintGrainFlame(
+        canvas,
+        vessel,
+        74,
+        _time,
+        ramp: kSmokeRamp,
+        phase: 0.6,
+        alpha: 0.6 * (1 - wake),
+        spread: 0.09,
+        embers: 0,
+        life: 3.6,
+        sway: 3.6,
+        count: 96,
+        width: 1.4,
+        trail: 0.06,
+      );
     }
   }
 
@@ -2692,7 +2808,11 @@ extension CinderCathedralArt on PlanetDungeonGame {
 
   // ── Kept as they were: shapes, the epitaph, the evidence ─
 
-  /// A small layered flame: two teardrop lobes + a baked glow beneath.
+  /// A flame, in grains (cinder_grains.dart): embers born white-gold at the
+  /// root, drawn in to a tip and cooling to red as they climb, with a few
+  /// slipping loose above it — over the baked glow it throws. It was two
+  /// teardrop lobes, and every vector flame here read as a cartoon
+  /// (2026-10-08). [core] and [outer] tint it (the black flame, a smoulder).
   void _drawFlame(
     Canvas canvas,
     Offset base,
@@ -2701,32 +2821,36 @@ extension CinderCathedralArt on PlanetDungeonGame {
     Color outer = const Color(0xFFFF7A3C),
     double phase = 0,
   }) {
+    if (h < 1) return;
     if (_fx.ready) {
       drawGlow(
         canvas,
         _fx.glow!,
         base - Offset(0, h * 0.35),
         h * 1.5,
-        outer.withValues(alpha: 0.30 + 0.08 * sin(_time * 6 + phase)),
+        outer.withValues(alpha: 0.24 + 0.06 * sin(_time * 6 + phase)),
       );
     }
-    final sway = sin(_time * 5.2 + phase) * h * 0.12;
-    Path lobe(double w, double hh, double lean) => Path()
-      ..moveTo(base.dx, base.dy)
-      ..quadraticBezierTo(
-        base.dx - w,
-        base.dy - hh * 0.45,
-        base.dx + lean,
-        base.dy - hh,
-      )
-      ..quadraticBezierTo(base.dx + w, base.dy - hh * 0.45, base.dx, base.dy);
-    canvas.drawPath(
-      lobe(h * 0.42, h, sway),
-      Paint()..color = outer.withValues(alpha: 0.75),
+    paintGrainFlame(
+      canvas,
+      base,
+      h,
+      _time,
+      ramp: _flameRamp(core, outer, h),
+      phase: phase,
     );
-    canvas.drawPath(
-      lobe(h * 0.24, h * 0.62, sway * 0.7),
-      Paint()..color = core.withValues(alpha: 0.9),
+  }
+
+  /// The grain ramp for a flame of these colours: the essence's own for the
+  /// plain flame (a step brighter when it is a small one, or a few grains of
+  /// it read as red), built once for any other.
+  List<Color> _flameRamp(Color core, Color outer, double h) {
+    if (core == const Color(0xFFFFD27A) && outer == const Color(0xFFFF7A3C)) {
+      return h < 18 ? kCandleRamp : kEmberRamp;
+    }
+    return _cinderFlameRamps.putIfAbsent(
+      core.toARGB32() * 31 + outer.toARGB32(),
+      () => flameRampOf(core, outer),
     );
   }
 
@@ -2939,25 +3063,12 @@ extension CinderCathedralArt on PlanetDungeonGame {
     if (planterIn < 1) canvas.restore();
     // Vines, once planted.
     if (stage >= 2 && !won) {
-      final vine = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF6FAF5A).withValues(alpha: 0.85);
-      for (var i = 0; i < 3; i++) {
-        final ox = -14.0 + i * 14;
-        canvas.drawPath(
-          Path()
-            ..moveTo(p.dx + ox, p.dy + 6)
-            ..quadraticBezierTo(
-              p.dx + ox - 5,
-              p.dy - 6,
-              p.dx + ox + 3,
-              p.dy - 14 - i * 3.0,
-            ),
-          vine,
-        );
-      }
+      _drawVineTuft(
+        canvas,
+        p + const Offset(0, -6),
+        88,
+        const Color(0xFF6FAF5A),
+      );
     }
     // The flame, swelling with each gust — and it KEEPS its full height
     // once the maxim is won (a fire that never dims again).
@@ -3221,51 +3332,80 @@ extension CinderCathedralArt on PlanetDungeonGame {
   /// a quarter. The pointer EASES round (never a snap) and the four cardinal
   /// pins stay put, so the turn reads as a mechanism and not a teleport.
   void _drawWindVane(Canvas canvas, Offset c) {
+    // Wrought iron, near-black, with one dull rim catching the light: the
+    // cross and the vane were drawn in gold line, which read as an icon of a
+    // compass. What the player READS — the quarter — is the vane's glass
+    // head, leaded like every other thing in here that tells you something.
     final iron = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
+      ..strokeWidth = 3.2
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF74613A).withValues(alpha: 0.8);
+      ..color = const Color(0xFF140D08);
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF8A6A44).withValues(alpha: 0.5);
     // The cross's arms, joined at the hub with a tip on each end. These used
     // to float between r20 and r30 — four detached ticks at exactly N/E/S/W,
     // which reads as a reticle rather than ironwork.
-    for (var i = 0; i < 4; i++) {
-      final a = i * pi / 2 - pi / 2;
-      final u = Offset(cos(a), sin(a));
-      final across = Offset(-u.dy, u.dx);
-      canvas.drawLine(c + u * 9, c + u * 27, iron);
-      canvas.drawLine(c + u * 27 - across * 4, c + u * 27 + across * 4, iron);
+    for (final (paint, shift) in [
+      (iron, Offset.zero),
+      (rim, const Offset(-0.9, -0.9)),
+    ]) {
+      for (var i = 0; i < 4; i++) {
+        final a = i * pi / 2 - pi / 2;
+        final u = Offset(cos(a), sin(a));
+        final across = Offset(-u.dy, u.dx);
+        canvas.drawLine(c + u * 9 + shift, c + u * 27 + shift, paint);
+        canvas.drawLine(
+          c + u * 27 - across * 4 + shift,
+          c + u * 27 + across * 4 + shift,
+          paint,
+        );
+      }
     }
-    // The vane itself, swung to the live quarter.
+    // The vane itself, swung to the live quarter: an iron rod with a
+    // crossed iron tail, and a broad head of gold glass — the one bright
+    // thing on it, so the quarter reads from across the garth.
     final dir = gardenWindVector;
     final across = Offset(-dir.dy, dir.dx);
-    final head = c + dir * 34;
-    final arrow = Paint()
-      ..color = const Color(0xFFC4A35A).withValues(alpha: 0.9);
+    final head = c + dir * 36;
+    final shaft = Paint()
+      ..strokeWidth = 3.6
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFF140D08);
+    final warm = Paint()
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0xFFC4A35A).withValues(alpha: 0.7);
+    final tail = c - dir * 26;
+    canvas.drawLine(tail, head - dir * 12, shaft);
+    canvas.drawLine(tail + across * 9, tail - across * 9, shaft);
+    canvas.drawLine(tail - across * 0.9, head - dir * 12 - across * 0.9, warm);
     canvas.drawLine(
-      c - dir * 26,
-      head,
-      Paint()
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFC4A35A).withValues(alpha: 0.85),
+      tail + across * 9 - dir * 0.9,
+      tail - across * 9 - dir * 0.9,
+      warm,
     );
-    canvas.drawPath(
+    paintPane(
+      canvas,
       Path()
         ..moveTo(head.dx, head.dy)
         ..lineTo(
-          (head - dir * 14 + across * 8).dx,
-          (head - dir * 14 + across * 8).dy,
+          (head - dir * 17 + across * 10).dx,
+          (head - dir * 17 + across * 10).dy,
         )
+        ..lineTo((head - dir * 12).dx, (head - dir * 12).dy)
         ..lineTo(
-          (head - dir * 14 - across * 8).dx,
-          (head - dir * 14 - across * 8).dy,
+          (head - dir * 17 - across * 10).dx,
+          (head - dir * 17 - across * 10).dy,
         )
         ..close(),
-      arrow,
+      Color.lerp(_kGlass.gold, Colors.white, 0.15)!,
+      _kGlass,
+      lead: 2.0,
     );
-    // The tail feather, so the quarter reads at a glance.
-    canvas.drawLine(c - dir * 26 + across * 9, c - dir * 26 - across * 9, iron);
     if (_fx.ready && gardenWindSwing < 1.0) {
       drawGlow(
         canvas,
@@ -3474,27 +3614,29 @@ extension CinderCathedralArt on PlanetDungeonGame {
     }
   }
 
+  /// A vine's shoots standing in its pane, in grains that sway on their own
+  /// beat (they were three stroked lines).
   void _drawVineTuft(Canvas canvas, Offset c, double cw, Color col) {
-    final stem = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..color = col.withValues(alpha: 0.85);
-    for (var i = -1; i <= 1; i++) {
-      final sway = sin(_time * 1.3 + c.dx * 0.02 + i) * 3.0;
-      final base = c + Offset(i * cw * 0.16, 12);
-      canvas.drawPath(
-        Path()
-          ..moveTo(base.dx, base.dy)
-          ..quadraticBezierTo(
-            base.dx + sway,
-            base.dy - 12,
-            base.dx + sway * 1.6,
-            base.dy - 22,
-          ),
-        stem,
-      );
-    }
+    paintGrainSprigs(
+      canvas,
+      c + const Offset(0, 13),
+      23,
+      _time,
+      ramp: _cinderSprigRamps.putIfAbsent(
+        col.toARGB32(),
+        () => [
+          Color.lerp(col, const Color(0xFF000000), 0.6)!,
+          Color.lerp(col, const Color(0xFF000000), 0.25)!,
+          col,
+          Color.lerp(col, const Color(0xFFFFFFFF), 0.4)!,
+        ],
+      ),
+      spacing: cw * 0.16,
+      perBlade: 16,
+      sway: 3,
+      width: 1.9,
+      seed: (c.dx * 0.37 + c.dy * 0.11).round(),
+    );
   }
 
   void _drawVineBeds(Canvas canvas, DungeonRoom room) {

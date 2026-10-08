@@ -26,7 +26,64 @@ const GlassPalette _kSeaGlass = kTempleGlass;
 
 final Map<String, ui.Picture> _templeFabricCache = {};
 
+/// Water's grains for the broken main's spray: deep, body, lit, glint.
+const List<Color> _kSprayRamp = [
+  Color(0xFF2A5C6E),
+  Color(0xFF6FC4DC),
+  Color(0xFFBFEAF4),
+  Color(0xFFF2FCFF),
+];
+
 extension MirrorTideArt on PlanetDungeonGame {
+  /// THE BROKEN MAIN'S SPRAY: ~130 grains of water thrown up out of the
+  /// mouth on real arcs and falling back round it, worked out from time
+  /// alone. [open] (1 running .. 0 plugged) takes the height and the count
+  /// down together, so a choking main visibly runs out of breath.
+  void _drawMainSpray(Canvas canvas, Offset mouth, double open) {
+    const g = 300.0; // px/s², enough that it reads as water, not mist
+    final n = (130 * open).round();
+    final lines = List.generate(4, (_) => <Offset>[]);
+    for (var i = 0; i < n; i++) {
+      final h1 = (sin(i * 127.1 + 311.7) * 43758.5453) % 1.0;
+      final h2 = (sin(i * 269.5 + 183.3) * 43758.5453) % 1.0;
+      final h3 = (sin(i * 419.2 + 371.9) * 43758.5453) % 1.0;
+      // Most of it goes nearly straight up; a little is flung wide.
+      final a = -pi / 2 + (h2 + h3 - 1) * 0.34 + sin(_time * 1.9) * 0.05;
+      final v = (150 + 45 * h3) * sqrt(open);
+      final vx = cos(a) * v, vy = sin(a) * v;
+      final life = -2 * vy / g + 0.12;
+      Offset at(double tau) =>
+          mouth + Offset(vx * tau, vy * tau + 0.5 * g * tau * tau);
+      final tau = (_time + h1 * life) % life;
+      final q = at(tau);
+      final p = tau < 0.018 ? q + const Offset(0, 0.4) : at(tau - 0.018);
+      // Bright going up, dimmer coming down, gone as it lands.
+      final u = tau / life;
+      final shade = h1 > 0.96
+          ? 3
+          : u < 0.45
+          ? 2
+          : h2 > 0.35
+          ? 1
+          : 0;
+      if (u > 0.92) continue;
+      lines[shade]
+        ..add(p)
+        ..add(q);
+    }
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.6;
+    for (var s = 0; s < 4; s++) {
+      if (lines[s].isEmpty) continue;
+      paint.color = _kSprayRamp[s].withValues(
+        alpha: (0.26 + 0.12 * s) * (0.4 + 0.6 * open),
+      );
+      canvas.drawPoints(ui.PointMode.lines, lines[s], paint);
+    }
+  }
+
   void _updateTempleGlass(double dt) {
     final target =
         discoveredClouds.contains(kWaterFrozenMoonEggId) ||

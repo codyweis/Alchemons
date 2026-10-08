@@ -1531,20 +1531,32 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       // round the keep's twelve-step wheel — the same wheel the east rose is a
       // dial of. Bends add, so three chambers in the beam row send the light
       // round by the sum of their notches. It was nowhere on screen.
+      //
+      // Glazed, not ticked (2026-10-08): each notch is a small pane leaded
+      // into the ring — a lit one in its step's colour and standing proud of
+      // the ring, a dark one smoked and set short. They were stroked ticks,
+      // which read as a dial's cartoon tick marks.
       if (chamber.id != 'waiting') {
         final mc = r.deflate(22).center;
         for (var k = 0; k < 12; k++) {
           final a = -pi / 2 + k * 2 * pi / 12;
           final lit = k < chamber.bend;
-          c.drawLine(
-            mc + Offset(cos(a), sin(a)) * 56,
-            mc + Offset(cos(a), sin(a)) * (lit ? 68 : 62),
-            Paint()
-              ..strokeWidth = lit ? 4 : 2
-              ..strokeCap = StrokeCap.round
-              ..color = lit
-                  ? _wheelColour(k + 1).withValues(alpha: 0.95)
-                  : _keepVoid.withValues(alpha: 0.55),
+          final pane = sectorPath(
+            mc,
+            lit ? 55 : 56,
+            lit ? 69 : 62,
+            a - (lit ? 0.095 : 0.06),
+            a + (lit ? 0.095 : 0.06),
+          );
+          paintPane(
+            c,
+            pane,
+            lit
+                ? _wheelColour(k + 1).withValues(alpha: 0.92)
+                : _kPrismGlass.frostAt(k),
+            _kPrismGlass,
+            lead: lit ? 1.8 : 1.2,
+            opacity: lit ? 1.0 : 0.55,
           );
         }
       }
@@ -1678,17 +1690,25 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         ..color = Colors.white.withValues(alpha: warm ? 0.5 : 0.22),
     );
     if (!warm) return;
-    // Concentric strokes stand in for a glow — no blur.
-    final ring = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    for (var i = 1; i <= 3; i++) {
-      canvas.drawCircle(
+    // The heat it holds: the baked glow, and grains of brass light turning
+    // round it (2026-10-08) — they were concentric stroked rings.
+    if (_fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
         kChamberHeart,
-        40.0 + i * 8,
-        ring..color = _keepBrass.withValues(alpha: 0.20 - i * 0.05),
+        62,
+        _keepBrass.withValues(alpha: 0.14),
       );
     }
+    _paintNoteRing(
+      canvas,
+      kChamberHeart + const Offset(0, -4),
+      42,
+      30,
+      'hearth',
+      alpha: 0.7,
+    );
   }
 
   /// A THRONE IS CUT, NOT STACKED. Two rectangles read as a crate; a throne
@@ -1752,24 +1772,44 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       width: 150,
       height: 112,
     );
-    canvas.drawRect(crate, Paint()..color = glass.withValues(alpha: 0.3));
-    canvas.drawRect(
-      crate,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..color = _keepBrass.withValues(alpha: 0.6),
+    // The slab is its own glass, leaded; the straps are dark iron with a
+    // rim of light, and the boss where they cross is a bead of glass
+    // (2026-10-08). A brass outline, grey straps and a brass disc read as a
+    // clip-art crate.
+    paintPane(
+      canvas,
+      Path()..addRect(crate),
+      glass.withValues(alpha: 0.3),
+      _kPrismGlass,
+      lead: 3.0,
     );
+    paintStreak(canvas, crate.deflate(18), opacity: 0.25);
     // Straps, on the diagonal so they never make a frame of their own.
     final strap = Paint()
       ..strokeWidth = 5
-      ..color = _keepIron.withValues(alpha: 0.8);
+      ..color = const Color(0xFF14111C);
+    final strapRim = Paint()
+      ..strokeWidth = 1.0
+      ..color = _keepSheen.withValues(alpha: 0.22);
     canvas.drawLine(crate.topLeft, crate.bottomRight, strap);
     canvas.drawLine(crate.bottomLeft, crate.topRight, strap);
-    canvas.drawCircle(
+    canvas.drawLine(
+      crate.topLeft + const Offset(0, -2),
+      crate.bottomRight + const Offset(0, -2),
+      strapRim,
+    );
+    canvas.drawLine(
+      crate.bottomLeft + const Offset(0, -2),
+      crate.topRight + const Offset(0, -2),
+      strapRim,
+    );
+    paintRondel(
+      canvas,
       crate.center,
-      11,
-      Paint()..color = _keepBrass.withValues(alpha: 0.7),
+      9,
+      _kPrismGlass,
+      fill: Color.lerp(glass, Colors.white, 0.2),
+      lead: 2.0,
     );
     // The berth's runners, still under it.
     for (final dy in const [-46.0, 46.0]) {
@@ -1806,11 +1846,19 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     );
     // The only thing in a cell that animates: one glint travelling the beam,
     // because light in glass is the one thing here that should not sit still.
-    final gx = kBeamBand.left + (prism.clock * 118) % kBeamBand.width;
-    canvas.drawCircle(
-      Offset(gx, kBeamBand.center.dy),
-      4.5,
-      Paint()..color = Colors.white.withValues(alpha: 0.35),
+    // (It was one white dot; it is the light itself now, in grains running
+    // down the beam — prism light, the planet's own material.)
+    paintGrainStream(
+      canvas,
+      _kBeamCourse,
+      _time,
+      ramp: _beamGrainRamp(hue % 12),
+      count: 70,
+      speed: 0.28,
+      jitter: 4,
+      alpha: 0.8,
+      width: 1.6,
+      trail: 0.06,
     );
     if (chamber.id != 'hearth') return;
     // The hearth SPLITS rather than bends — three shapes, which is the maxim.
@@ -1904,35 +1952,52 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       Rect.fromCenter(center: at, width: 56, height: 56),
       Paint()..color = _keepVoid.withValues(alpha: 0.42),
     );
+    // The plate is cast iron, dark, its chamfer catching the light along the
+    // top edge; the chevrons are GLASS leaded into it (2026-10-08) — brass
+    // glass alight when the plate will send a chamber, smoked when it will
+    // not. They were stroked lines on a two-tone square, which read as a UI
+    // button, and the "ready" glow was three stroked rectangles.
+    if (ready && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        at,
+        44,
+        _keepBrass.withValues(alpha: 0.18 + 0.04 * sin(_time * 2.2 + facet)),
+      );
+    }
     final plate = Rect.fromCenter(center: at, width: 44, height: 44);
     canvas.drawRect(
       plate,
-      Paint()..color = ready ? const Color(0xFF6E5628) : _keepMortar,
+      Paint()
+        ..color = ready ? const Color(0xFF4A3E28) : const Color(0xFF221E2A),
     );
-    // Chamfer: lit on the top and left, shadowed on the bottom and right.
+    // A ready plate is warmed by its own glass: its chamfer catches brass.
     canvas.drawLine(
       plate.topLeft,
       plate.topRight,
       Paint()
         ..strokeWidth = 2
-        ..color = _keepBrass.withValues(alpha: ready ? 0.7 : 0.26),
+        ..color = (ready ? _keepBrass : _keepSheen).withValues(
+          alpha: ready ? 0.7 : 0.16,
+        ),
     );
     canvas.drawLine(
       plate.bottomLeft,
       plate.bottomRight,
       Paint()
         ..strokeWidth = 2
-        ..color = _keepVoid.withValues(alpha: 0.55),
+        ..color = _keepVoid.withValues(alpha: 0.7),
     );
     for (final c in [
       plate.topLeft + const Offset(6, 6),
       plate.bottomRight - const Offset(6, 6),
     ]) {
-      canvas.drawCircle(c, 2.6, Paint()..color = _keepIron);
+      canvas.drawCircle(c, 2.6, Paint()..color = const Color(0xFF14111C));
       canvas.drawCircle(
         c - const Offset(0.6, 0.6),
-        1.2,
-        Paint()..color = _keepSheen.withValues(alpha: 0.3),
+        1.0,
+        Paint()..color = _keepSheen.withValues(alpha: 0.22),
       );
     }
     final d = switch (facet) {
@@ -1942,36 +2007,27 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       _ => const Offset(-1, 0),
     };
     final side = Offset(-d.dy, d.dx);
-    final tread = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..color = (ready ? _keepBrass : _keepSheen).withValues(
-        alpha: ready ? 0.85 : 0.22,
-      );
     for (var i = 0; i < 2; i++) {
-      final tip = at + d * (4.0 + i * 9);
-      canvas.drawPath(
-        Path()
-          ..moveTo(
-            tip.dx - d.dx * 8 + side.dx * 10,
-            tip.dy - d.dy * 8 + side.dy * 10,
-          )
-          ..lineTo(tip.dx, tip.dy)
-          ..lineTo(
-            tip.dx - d.dx * 8 - side.dx * 10,
-            tip.dy - d.dy * 8 - side.dy * 10,
-          ),
-        tread,
-      );
-    }
-    if (!ready) return;
-    final glow = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    for (var i = 1; i <= 3; i++) {
-      canvas.drawRect(
-        plate.inflate(4.0 + i * 5),
-        glow..color = _keepBrass.withValues(alpha: 0.22 - i * 0.05),
+      final tip = at + d * (5.0 + i * 9);
+      Offset q(double back, double out) => tip - d * back + side * out;
+      final a = q(8, 10), b = q(8, -10);
+      final chevron = Path()
+        ..moveTo(tip.dx, tip.dy)
+        ..lineTo(a.dx, a.dy)
+        ..lineTo(q(12.5, 10).dx, q(12.5, 10).dy)
+        ..lineTo(q(4.5, 0).dx, q(4.5, 0).dy)
+        ..lineTo(q(12.5, -10).dx, q(12.5, -10).dy)
+        ..lineTo(b.dx, b.dy)
+        ..close();
+      paintPane(
+        canvas,
+        chevron,
+        ready
+            ? Color.lerp(_kPrismGlass.gold, Colors.white, 0.15 * i)!
+            : _kPrismGlass.frostAt(i + facet),
+        _kPrismGlass,
+        lead: 1.6,
+        opacity: ready ? 1.0 : 0.85,
       );
     }
   }
@@ -1998,24 +2054,18 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       ),
       Paint()..color = _keepStoneLit.withValues(alpha: 0.9),
     );
-    canvas.drawCircle(at, r, Paint()..color = _keepIron);
-    final turn = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    for (var i = 1; i <= 3; i++) {
-      canvas.drawCircle(
-        at,
-        r * i / 3.6,
-        turn..color = _keepBrass.withValues(alpha: 0.16 + i * 0.06),
-      );
-    }
+    // The dome is dark cast bronze lit only at its rim, with the worn
+    // crescent on one shoulder; the place you strike is a boss of silver
+    // glass in the crown (2026-10-08). The concentric turned rings read as a
+    // target painted on a button.
+    canvas.drawCircle(at, r, Paint()..color = const Color(0xFF1A1622));
     canvas.drawCircle(
       at,
-      r,
+      r - 1,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = _keepBrass.withValues(alpha: 0.65),
+        ..strokeWidth = 1.4
+        ..color = _keepBrass.withValues(alpha: 0.38),
     );
     canvas.drawArc(
       Rect.fromCircle(center: at, radius: r - 2.5),
@@ -2024,46 +2074,87 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = Colors.white.withValues(alpha: 0.24),
+        ..strokeWidth = 2.0
+        ..color = _keepBrass.withValues(alpha: 0.32),
+    );
+    paintRondel(
+      canvas,
+      at,
+      r * 0.36,
+      _kPrismGlass,
+      fill: _kPrismGlass.frostAt(3),
+      rim: 0.7,
+      lead: 1.6,
     );
   }
 
   /// THE BERTH CHAIN — an actual chain, hung off a bracket in the east frame,
   /// with a ring pull on the end. It was a 16×34 rectangle.
   void _renderBerthChain(Canvas canvas, bool taut) {
-    final tone = (taut ? _keepBrass : _keepIron).withValues(alpha: 0.92);
+    // Wrought iron, near-black, its links catching a rim of light — brass
+    // when the chain is drawn taut, dull when it hangs slack — and the pull
+    // ring carrying a bead of glass, the one thing on it the player reads
+    // (2026-10-08). The links were stroked outlines, which read as a chain
+    // icon.
     canvas.drawRect(
       Rect.fromCenter(
         center: kBerthChain + const Offset(0, -54),
         width: 34,
         height: 10,
       ),
-      Paint()..color = _keepIron,
+      Paint()..color = const Color(0xFF14111C),
     );
-    final link = Paint()
+    canvas.drawLine(
+      kBerthChain + const Offset(-17, -59),
+      kBerthChain + const Offset(17, -59),
+      Paint()
+        ..strokeWidth = 1.2
+        ..color = _keepSheen.withValues(alpha: 0.18),
+    );
+    final iron = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3
-      ..color = tone;
+      ..strokeWidth = 3.6
+      ..color = const Color(0xFF14111C);
+    final rim = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = taut ? 1.4 : 1.1
+      ..color = (taut ? _keepBrass : _keepSheen).withValues(
+        alpha: taut ? 0.95 : 0.28,
+      );
     // Slack chain hangs off to one side; taut chain hangs straight.
     for (var i = 0; i < 5; i++) {
       final sag = taut ? 0.0 : (i.isEven ? 4.0 : -4.0) * (i / 4);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: kBerthChain + Offset(sag, -44.0 + i * 11),
-          width: 11,
-          height: 14,
-        ),
-        link,
+      final link = Rect.fromCenter(
+        center: kBerthChain + Offset(sag, -44.0 + i * 11),
+        width: 11,
+        height: 14,
+      );
+      canvas.drawOval(link, iron);
+      canvas.drawArc(
+        link.shift(const Offset(-0.7, -0.7)),
+        pi * 0.9,
+        pi * 1.1,
+        false,
+        rim,
       );
     }
-    canvas.drawCircle(
-      kBerthChain + Offset(taut ? 0 : 4, 14),
-      9,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.4
-        ..color = tone,
+    final pull = kBerthChain + Offset(taut ? 0 : 4, 14);
+    canvas.drawCircle(pull, 9, iron..strokeWidth = 4.2);
+    canvas.drawArc(
+      Rect.fromCircle(center: pull - const Offset(0.7, 0.7), radius: 9),
+      pi * 0.9,
+      pi * 1.1,
+      false,
+      rim,
+    );
+    paintRondel(
+      canvas,
+      pull,
+      4.2,
+      _kPrismGlass,
+      fill: taut ? _kPrismGlass.gold : _kPrismGlass.smoke,
+      rim: taut ? 1.0 : 0.4,
+      lead: 1.4,
     );
   }
 
@@ -2077,7 +2168,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         width: 16,
         height: 46,
       ),
-      Paint()..color = _keepIron.withValues(alpha: 0.95),
+      Paint()..color = const Color(0xFF14111C),
     );
     final hood = Path()
       ..moveTo(kWestLamp.dx - 4, kWestLamp.dy - 22)
@@ -2089,27 +2180,44 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       hood,
       Paint()..color = _keepStoneDim.withValues(alpha: 0.95),
     );
-    canvas.drawPath(
-      hood,
+    // Only the hood's top edge catches (it was outlined in brass all round).
+    canvas.drawLine(
+      Offset(kWestLamp.dx - 4, kWestLamp.dy - 22),
+      Offset(kWestLamp.dx + 18, kWestLamp.dy - 13),
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = _keepBrass.withValues(alpha: 0.5),
+        ..strokeWidth = 1.2
+        ..color = (lit ? _keepBrass : _keepSheen).withValues(
+          alpha: lit ? 0.5 : 0.2,
+        ),
     );
-    canvas.drawCircle(
-      kWestLamp + const Offset(9, 0),
-      9,
-      Paint()..color = (lit ? _keepBrass : _keepMortar).withValues(alpha: 0.95),
+    // The lens is glass: lit gold, or a dark eye. Its light is the baked
+    // glow, not three stroked rings round it.
+    final lens = kWestLamp + const Offset(9, 0);
+    if (lit && _fx.ready) {
+      drawGlow(
+        canvas,
+        _fx.glow!,
+        lens,
+        34,
+        _keepBrass.withValues(alpha: 0.32 + 0.04 * sin(_time * 1.7)),
+      );
+    }
+    paintRondel(
+      canvas,
+      lens,
+      8.5,
+      _kPrismGlass,
+      fill: lit
+          ? Color.lerp(_keepBrass, Colors.white, 0.25)!
+          : _kPrismGlass.smoke,
+      rim: lit ? 1.0 : 0.45,
+      lead: 2.0,
     );
-    if (!lit) return;
-    final glow = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    for (var i = 1; i <= 3; i++) {
-      canvas.drawCircle(
-        kWestLamp + const Offset(9, 0),
-        9.0 + i * 7,
-        glow..color = _keepBrass.withValues(alpha: 0.22 - i * 0.05),
+    if (lit) {
+      paintStreak(
+        canvas,
+        Rect.fromCircle(center: lens, radius: 6),
+        opacity: 0.5,
       );
     }
   }
@@ -2151,41 +2259,67 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
           c.dy + sin(a0 + 2 * pi / 12) * inner,
         )
         ..close();
-      canvas.drawPath(
+      // Leaded, like every pane in the keep (2026-10-08): the wheel was flat
+      // fills with a black stroke, which read as a colour-picker.
+      paintPane(
+        canvas,
         pane,
-        Paint()
-          ..color = _wheelColour(
-            k,
-          ).withValues(alpha: solved || k == kRoseHue ? 0.9 : 0.35),
-      );
-      canvas.drawPath(
-        pane,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = _keepVoid,
+        Color.lerp(
+          _wheelColour(k),
+          Colors.black,
+          0.18,
+        )!.withValues(alpha: solved || k == kRoseHue ? 0.92 : 0.36),
+        _kPrismGlass,
+        lead: 1.8,
       );
     }
-    // The step it was cut to read, ringed in gold.
-    final ta = -pi / 2 + (kRoseHue + 0.5) * 2 * pi / 12;
-    canvas.drawCircle(
-      c + Offset(cos(ta), sin(ta)) * (outer + 6),
-      4.5,
-      Paint()..color = const Color(0xFFE4C16A),
+    paintLead(
+      canvas,
+      Path()..addOval(Rect.fromCircle(center: c, radius: outer)),
+      _kPrismGlass,
+      width: 2.6,
     );
-    // Where the light lands now.
+    // The step it was cut to read: a bead of gold glass leaded to the rim.
+    final ta = -pi / 2 + (kRoseHue + 0.5) * 2 * pi / 12;
+    paintRondel(
+      canvas,
+      c + Offset(cos(ta), sin(ta)) * (outer + 6),
+      3.8,
+      _kPrismGlass,
+      fill: _kPrismGlass.gold,
+      lead: 1.6,
+    );
+    // Where the light lands now: a came with a strip of clear glass in it,
+    // lit by the beam, from the hub to the step it reaches.
     if (f.beamLive) {
       final ba = -pi / 2 + (f.beamHue + 0.5) * 2 * pi / 12;
+      final tip = c + Offset(cos(ba), sin(ba)) * (outer - 2);
       canvas.drawLine(
         c,
-        c + Offset(cos(ba), sin(ba)) * (outer - 2),
+        tip,
         Paint()
-          ..strokeWidth = 3
+          ..strokeWidth = 4.6
           ..strokeCap = StrokeCap.round
-          ..color = Colors.white.withValues(alpha: 0.95),
+          ..color = _kPrismGlass.lead,
+      );
+      canvas.drawLine(
+        c,
+        tip,
+        Paint()
+          ..strokeWidth = 2.2
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.white.withValues(alpha: 0.92),
       );
     }
-    canvas.drawCircle(c, inner - 3, Paint()..color = _keepStoneDim);
+    paintRondel(
+      canvas,
+      c,
+      inner - 3,
+      _kPrismGlass,
+      fill: _keepStoneDim,
+      rim: 0.35,
+      lead: 2.0,
+    );
   }
 
   /// THE INDEX PLATE — a 3×3 diagram cut into every socket's frame. A sliding
@@ -2198,6 +2332,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     // 20, not 26: at full size and full saturation the plate was the loudest
     // thing in the room — a colour swatch card hung in the corner of a keep.
     // It has to be readable, not dominant.
+    //
+    // LEADED, NOT SWATCHED (2026-10-08): it still read as a swatch card —
+    // flat chips on a brass-ruled board with a white selection box. It is a
+    // small window now: each chamber a pane of its own glass held in lead,
+    // the hollow a dark empty light, and the socket you stand in picked out
+    // by its came catching silver.
     const pip = 20.0;
     final f = _keep;
     final board = Rect.fromLTWH(
@@ -2211,79 +2351,83 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       Paint()..color = _keepStoneDim.withValues(alpha: 0.9),
     );
     canvas.drawRect(board, Paint()..color = _keepVoid.withValues(alpha: 0.7));
-    canvas.drawRect(
-      board,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = _keepBrass.withValues(alpha: 0.3),
-    );
-    for (final c in [
-      board.topLeft + const Offset(3.5, 3.5),
-      board.topRight + const Offset(-3.5, 3.5),
-      board.bottomLeft + const Offset(3.5, -3.5),
-      board.bottomRight + const Offset(-3.5, -3.5),
-    ]) {
-      canvas.drawCircle(
-        c,
-        1.8,
-        Paint()..color = _keepBrass.withValues(alpha: 0.5),
-      );
-    }
     for (var i = 0; i < 9; i++) {
       final r = Rect.fromLTWH(
-        origin.dx + (i % 3) * pip,
-        origin.dy + (i ~/ 3) * pip,
-        pip - 3,
-        pip - 3,
+        origin.dx + (i % 3) * pip - 1,
+        origin.dy + (i ~/ 3) * pip - 1,
+        pip - 1,
+        pip - 1,
       );
       final ch = f.chamberAt(i);
-      canvas.drawRect(
-        r,
-        Paint()
-          ..color = ch == null
-              ? _keepVoid
-              : Color(ch.argb).withValues(alpha: 0.62),
+      paintPane(
+        canvas,
+        Path()..addRect(r),
+        ch == null
+            ? _keepVoid
+            : Color(ch.argb).withValues(alpha: i == here ? 0.85 : 0.6),
+        _kPrismGlass,
+        lead: 2.2,
       );
       if (ch != null) {
         canvas.drawLine(
-          r.topLeft + const Offset(1.5, 1.5),
-          r.topRight + const Offset(-1.5, 1.5),
+          r.topLeft + const Offset(2.5, 2.5),
+          r.topRight + const Offset(-2.5, 2.5),
           Paint()
             ..strokeWidth = 1.0
-            ..color = Colors.white.withValues(alpha: 0.16),
-        );
-      }
-      if (i == here) {
-        canvas.drawRect(
-          r.inflate(2),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = Colors.white.withValues(alpha: 0.6),
+            ..color = Colors.white.withValues(alpha: 0.18),
         );
       }
     }
-    // The berth, hanging off the east frame of the middle row.
+    paintLead(
+      canvas,
+      Path()..addRect(board.deflate(5)),
+      _kPrismGlass,
+      width: 3.0,
+    );
+    // The berth, hanging off the east frame of the middle row on a came.
     final berth = Rect.fromLTWH(
       origin.dx + 3 * pip + 3,
-      origin.dy + pip,
+      origin.dy + pip - 1,
       pip - 3,
-      pip - 3,
+      pip - 1,
     );
-    canvas.drawLine(
-      Offset(origin.dx + 3 * pip - 3, berth.center.dy),
-      Offset(berth.left, berth.center.dy),
-      Paint()
-        ..strokeWidth = 1.4
-        ..color = _keepBrass.withValues(alpha: 0.45),
+    paintLead(
+      canvas,
+      Path()
+        ..moveTo(origin.dx + 3 * pip - 3, berth.center.dy)
+        ..lineTo(berth.left, berth.center.dy),
+      _kPrismGlass,
+      width: 2.2,
+    );
+    paintPane(
+      canvas,
+      Path()..addRect(berth),
+      f.facetStanding
+          ? _keepVoid
+          : Color(kPrismChambers[kWaitingFacet].argb).withValues(alpha: 0.5),
+      _kPrismGlass,
+      lead: 2.0,
+    );
+    // HERE: the came round your own socket's pane catches silver.
+    final hr = Rect.fromLTWH(
+      origin.dx + (here % 3) * pip - 1,
+      origin.dy + (here ~/ 3) * pip - 1,
+      pip - 1,
+      pip - 1,
     );
     canvas.drawRect(
-      berth,
+      hr,
       Paint()
-        ..color = f.facetStanding
-            ? _keepVoid
-            : Color(kPrismChambers[kWaitingFacet].argb).withValues(alpha: 0.5),
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.4
+        ..color = _kPrismGlass.lead,
+    );
+    canvas.drawRect(
+      hr,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = _kPrismGlass.silver.withValues(alpha: 0.85),
     );
   }
 
@@ -2455,13 +2599,22 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         pip - 9,
       );
       final ch = f.chamberAt(i);
-      canvas.drawRect(
-        r,
-        Paint()
-          ..color = ch == null
-              ? _keepVoid
-              : Color(ch.argb).withValues(alpha: 0.62),
+      // Each cell is glazed — a pane of its chamber's glass in lead — not a
+      // swatch (2026-10-08).
+      paintPane(
+        canvas,
+        Path()..addRect(r),
+        ch == null
+            ? _keepVoid
+            : Color.lerp(
+                Color(ch.argb),
+                _keepVoid,
+                0.28,
+              )!.withValues(alpha: 0.7),
+        _kPrismGlass,
+        lead: 2.0,
       );
+      if (ch != null) paintStreak(canvas, r.deflate(4), opacity: 0.22);
       // A reveal, so each cell is a hole in a thick wall.
       canvas.drawLine(
         r.topLeft,
@@ -2493,12 +2646,14 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         ..strokeWidth = 2
         ..color = _keepIron.withValues(alpha: 0.9),
     );
-    canvas.drawRect(
-      berth,
-      Paint()
-        ..color = f.facetStanding
-            ? _keepVoid
-            : Color(kPrismChambers[kWaitingFacet].argb).withValues(alpha: 0.45),
+    paintPane(
+      canvas,
+      Path()..addRect(berth),
+      f.facetStanding
+          ? _keepVoid
+          : Color(kPrismChambers[kWaitingFacet].argb).withValues(alpha: 0.45),
+      _kPrismGlass,
+      lead: 1.8,
     );
     // The sheet's leading, over the lot.
     final lead = Paint()
@@ -2669,15 +2824,10 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         ..color = _keepSheen.withValues(alpha: 0.45),
     );
     if (!live) return;
-    final note = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4;
-    for (var i = 1; i <= 3; i++) {
-      canvas.drawOval(
-        Rect.fromCenter(center: at, width: 76.0 + i * 16, height: 36.0 + i * 8),
-        note..color = _keepBrass.withValues(alpha: 0.26 - i * 0.06),
-      );
-    }
+    // THE NOTE, held: grains of brass light circling the bowl, inner faster
+    // than outer, the way the dust ring turns (2026-10-08). It was three
+    // stroked ellipses, which read as a cartoon "ringing" mark.
+    _paintNoteRing(canvas, at, 38, 18, 'font');
   }
 
   // ── PRISMALITH'S CHOIR ───────────────────────────────────

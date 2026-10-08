@@ -183,7 +183,31 @@ void main() {
         },
       );
 
+      // Air's clouds and plumes, in grains: every echo in the loom, a plume
+      // rocking down the Moult, and a thundercloud carried.
+      await shoot(
+        'loom_all',
+        'sky_loom',
+        setup: (g) {
+          g.filledAnchors['a_spiral'] = 'Spiral';
+          g.filledAnchors['a_ring'] = 'Ring';
+          g.filledAnchors['a_feather'] = 'Feather';
+          g.filledAnchors['a_veil'] = 'Veil';
+          g.filledAnchors['a_thunder'] = 'Thundercloud';
+        },
+      );
+      await shoot('feather_falling', 'feather_cloud', seconds: 2.6);
+      await shoot(
+        'carried_thunder',
+        'anvil_cloud',
+        setup: (g) {
+          g.carriedCloudId = 'debug';
+          g.carriedCloudType = 'Thundercloud';
+        },
+      );
+
       for (final (a, b) in const [
+        ('loom_two', 'loom_all'),
         ('hub_empty', 'hub_two_stars'),
         ('hub_two_stars', 'hub_first_wind'),
         ('spire_asleep', 'spire_woken'),

@@ -2888,22 +2888,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
     }
 
-    // 2) Heat blooms — the floor remembers what has been poured on it.
-    for (var i = 0; i < 5; i++) {
-      final n = _forgeNoise(i * 31, room.id.length * 17);
-      final m = _forgeNoise(i * 57, room.id.length * 13);
-      final c = Offset(b.left + b.width * n, b.top + b.height * m);
-      canvas.drawCircle(
-        c,
-        26 + 40 * n,
-        Paint()..color = const Color(0x14FF7A33),
-      );
-      canvas.drawCircle(
-        c,
-        14 + 22 * m,
-        Paint()..color = const Color(0x12000000),
-      );
-    }
+    // 2) (The heat blooms are gone, 2026-10-08: five round orange discs with
+    // dark middles, which read as stains on the brick rather than heat. The
+    // scorched ruddy bricks above already say something hot stood here.)
 
     // 3) THE RING-MAIN ITSELF, sunk into the floor: two heavy pipe runs with
     // bolted flanges. This planet's one big idea is that pressure travels
@@ -3037,20 +3024,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         }
       }
     }
-    // A few steam wisps rising through the room.
-    if (_fx.ready) {
-      for (var i = 0; i < 4; i++) {
-        final wx = b.left + b.width * ((i + 0.5) / 4) + 18 * sin(t * 0.5 + i);
-        final wy = b.bottom - 30 - ((t * 26 + i * 90) % (b.height - 60));
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          Offset(wx, wy),
-          20,
-          const Color(0x2290A4AE),
-        );
-      }
-    }
+    // A few steam wisps rising through the room — grains up off the
+    // condensate grate (steam_art.dart). They were four soft grey glows climbing the room,
+    // which read as smudges drifting over the brick.
+    _paintForgeWisps(canvas, b, t);
   }
 
   /// MOLTEN AS A MASS, not as tiles.
@@ -3654,49 +3631,18 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // the main long before you have the main to open it, and you can read the
     // gauge off the plume without looking at the gauge.
     //
-    // It is drawn with the same sprite puff every other vent on this planet
-    // uses. It was a translucent lozenge with hard circles rising through it
-    // to begin with, which read as cartoon smoke next to the real thing.
+    // It is GRAINS now (steam_art.dart, 2026-10-08): a hard, fast stream at
+    // the tear that slows and opens into a plume, taller and thicker with
+    // every mark. It was a pale lozenge under sprite puffs — and before that
+    // a lozenge with hard circles in it — which read as a pill and smoke.
     final marks = boilerPressure <= 0
         ? 0
         : max(1, (boilerPressure / 20).round());
     if (marks == 0) return;
     final h = 22.0 + 26.0 * marks;
 
-    // The throat: a tight hot slot right at the tear. Steam is only fog once
-    // it has spent itself — at the hole it is a hard, fast thing, and this is
-    // the part that says PRESSURE rather than weather.
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: c - Offset(0, 3 + 1.6 * marks),
-          width: 7 + 1.9 * marks,
-          height: 10 + 5.0 * marks,
-        ),
-        const Radius.circular(6),
-      ),
-      Paint()
-        ..color = const Color(
-          0xFFDCF4FA,
-        ).withValues(alpha: 0.20 + 0.11 * marks),
-    );
-
+    _paintSplitJet(canvas, c, h, marks);
     if (_fx.ready) {
-      final puffs = 3 * marks;
-      for (var i = 0; i < puffs; i++) {
-        final life = ((_moltenPulse * (0.34 + 0.05 * marks) + i / puffs) % 1.0);
-        final rise = h * life;
-        final sway = sin(life * 3.1 + i * 1.7) * (5 + 2.2 * marks) * life;
-        final w = (9 + 2.6 * marks) + (15 + 4.0 * marks) * life;
-        final alpha = (0.09 + 0.055 * marks) * pow(1 - life, 1.3).toDouble();
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          Offset(c.dx + sway, c.dy - rise),
-          w,
-          const Color(0xFFE6F7FF).withValues(alpha: alpha),
-        );
-      }
       if (full) {
         drawGlow(
           canvas,
@@ -3789,21 +3735,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         );
       }
       // And it BREATHES — the only moving thing in a dead room, which is what
-      // makes the eye find it from the far end.
-      if (_fx.ready) {
-        for (var i = 0; i < 4; i++) {
-          final life = ((_moltenPulse * 0.28 + i / 4) % 1.0);
-          drawPuff(
-            canvas,
-            _fx.puff!,
-            m + Offset(16 + 26 * life, -6 - 14 * life),
-            14 + 22 * life,
-            const Color(
-              0xFFE6F7FF,
-            ).withValues(alpha: 0.13 * pow(1 - life, 1.2).toDouble()),
-          );
-        }
-      }
+      // makes the eye find it from the far end. A slow breath of grains
+      // (steam_art.dart); it was four sprite puffs.
+      _paintCellarBreath(canvas, m);
     }
 
     // A low plinth of the same dressed block the foundry is built of.

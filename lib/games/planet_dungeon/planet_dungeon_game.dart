@@ -35,6 +35,8 @@ import 'package:alchemons/games/planet_dungeon/dungeon_minimap.dart';
 import 'package:alchemons/games/planet_dungeon/guardian_grain_death.dart';
 import 'package:alchemons/games/planet_dungeon/raid_pulse_fx.dart';
 import 'package:alchemons/games/planet_dungeon/blood_rite_fx.dart';
+import 'package:alchemons/games/planet_dungeon/grain_cloud.dart';
+import 'package:alchemons/games/planet_dungeon/cinder_grains.dart';
 import 'package:alchemons/games/planet_dungeon/blood_heart_fx.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_layout_lava.dart';
@@ -971,6 +973,12 @@ class PlanetDungeonGame extends FlameGame {
   final List<Offset> _feathers = [];
   final List<double> _featherPhases = [];
   double _featherSpawnTimer = 1.2;
+
+  /// Air's clouds, plumes and veils are grains (grain_cloud.dart): one
+  /// batch they are drawn through, and the loose grains a plume sheds, folds
+  /// into its catcher, or lets fall when it lands.
+  final RiteGrainBatch _skyBatch = RiteGrainBatch();
+  final RiteGrainField _skyGrains = RiteGrainField();
 
   /// Veil trial: Fire's flare reveals all shimmer-folds for a few seconds.
   double veilFlareTimer = 0;
@@ -3617,7 +3625,10 @@ class PlanetDungeonGame extends FlameGame {
     _updateStormCell(a, room, dt);
     _updateMercyShrine(a, room);
     _updateCathedral(a, room, dt);
-    if (_isSpire) _updateSkyGlass(dt);
+    if (_isSpire) {
+      _updateSkyGlass(dt);
+      if (_skyGrains.grains.isNotEmpty) _skyGrains.update(dt, _time);
+    }
     _updateBurn(room, dt);
     _updateTemple(a, room, dt);
     if (_isTemple) _updateTempleGlass(dt);
@@ -4255,6 +4266,21 @@ class PlanetDungeonGame extends FlameGame {
           var p = _feathers[i];
           final phase = _featherPhases[i];
           p += Offset(sin(_time * 1.6 + phase) * 36 * dt, 55 * dt);
+          // It sheds as it rocks down: a grain loosens and lifts away.
+          if (_combatRng.nextDouble() < dt * 6) {
+            _skyGrains.add(
+              RiteGrain(
+                x: p.dx + (_combatRng.nextDouble() - 0.5) * 22,
+                y: p.dy + (_combatRng.nextDouble() - 0.5) * 10,
+                vy: -8,
+                life: 1.6,
+                color: const Color(0xFFE8F2FA),
+                lift: 6,
+                wander: 9,
+                seed: _combatRng.nextDouble() * 9,
+              ),
+            );
+          }
           // The wind answers Air: feathers drift toward the nearest living
           // Air creature (active or idle).
           DungeonCreature? airDraw;
@@ -4286,12 +4312,8 @@ class PlanetDungeonGame extends FlameGame {
             final caught = (_wonderProgress['feather_cloud'] ?? 0) + 1;
             _wonderProgress['feather_cloud'] = caught;
             _featherSpawnTimer = 0.9;
-            _spawnAlchemyBurst(
-              catcher.position,
-              producedElement: 'Air',
-              particleCount: 10,
-              intensity: 0.6,
-            );
+            // The plume comes loose and folds into whoever caught it.
+            _loosenFeather(p, to: catcher.position);
             if (caught >= 3) {
               _completeWonderTrial(
                 sealed,
@@ -4305,6 +4327,7 @@ class PlanetDungeonGame extends FlameGame {
             _feathers.removeAt(i);
             _featherPhases.removeAt(i);
             _featherSpawnTimer = 1.4;
+            _loosenFeather(p);
             _setStatHint('The feather settles into the void, another rises');
           }
         }
@@ -11162,18 +11185,9 @@ class PlanetDungeonGame extends FlameGame {
       );
       _drawBubbleDrift(canvas, vp);
     } else if (_isBarrow) {
-      // Dust veils instead of sky clouds; sifting grave-dust instead of wind.
-      drawDriftingClouds(
-        canvas,
-        vp,
-        _time,
-        primary: const Color(0xFF4A3A28),
-        secondary: const Color(0xFF5E4C34),
-        count: 6,
-        maxAlpha: 0.10,
-        puff: _fx.puff,
-      );
-      _drawDustSift(canvas, vp);
+      // Grave-dust sifting down through a faint haze, in grains — it was
+      // puff-sprite dust veils and four glow motes (earth_art).
+      _renderBarrowDust(canvas, vp);
     } else if (_isVenom) {
       // A SEALED HOUSE FULL OF SICKNESS. Not sky — miasma lying in the room
       // with you, and spores going up through it. This planet fell through to
@@ -11269,6 +11283,15 @@ class PlanetDungeonGame extends FlameGame {
         maxAlpha: 0.09,
         puff: _fx.puff,
       );
+    } else if (_isVapor) {
+      // VAPOUR IN GRAINS (steam_art.dart). The generic puff clouds read as
+      // cartoon cloud blobs on the crucible's open sky.
+      _drawVaporSky(canvas, vp, room);
+      _drawWindStreaks(canvas, vp);
+    } else if (_isShaft) {
+      // SNOW AND A COLD HAZE, in grains — the generic puff clouds and wind
+      // streaks were summer weather over a glacier (ice_art).
+      _renderShaftSky(canvas, vp);
     } else {
       drawDriftingClouds(
         canvas,
@@ -12648,7 +12671,6 @@ class PlanetDungeonGame extends FlameGame {
         // bar-core, and motes strung along the arms at their own radii.
         final cyan = const Color(0xFF5BC8E8);
         final hot = Color.lerp(cyan, Colors.white, 0.55)!;
-        final spin = _time * 0.13;
 
         // The disc the arms live in — layered, never blurred.
         for (var i = 4; i >= 1; i--) {
@@ -12658,64 +12680,9 @@ class PlanetDungeonGame extends FlameGame {
             Paint()..color = cyan.withValues(alpha: 0.030 / i),
           );
         }
-
-        Path arm(double phase, double tight) {
-          final path = Path()..moveTo(c.dx, c.dy);
-          for (var i = 1; i <= 74; i++) {
-            // Inner windings turn faster than outer ones.
-            final r = i * 1.5;
-            final a = phase + i * tight + spin * (1.0 + 40.0 / (r + 40.0));
-            path.lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
-          }
-          return path;
-        }
-
-        for (var k = 0; k < 3; k++) {
-          final p = arm(k * pi * 2 / 3, 0.27);
-          canvas.drawPath(
-            p,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 9
-              ..strokeCap = StrokeCap.round
-              ..color = cyan.withValues(alpha: 0.05),
-          );
-          canvas.drawPath(
-            p,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.4
-              ..strokeCap = StrokeCap.round
-              ..color = cyan.withValues(alpha: 0.26),
-          );
-          // Stars strung along the arm.
-          for (var i = 0; i < 6; i++) {
-            final t = ((_time * 0.05 + i / 6 + k * 0.11) % 1.0);
-            final rr = 10 + t * 100;
-            final a =
-                k * pi * 2 / 3 +
-                (rr / 1.5) * 0.27 +
-                spin * (1 + 40 / (rr + 40));
-            canvas.drawCircle(
-              c + Offset(cos(a), sin(a)) * rr,
-              1.4 + 1.4 * (1 - t),
-              Paint()..color = hot.withValues(alpha: 0.55 * (1 - t * 0.6)),
-            );
-          }
-        }
-
-        // The core: a bar of light across a bright centre, turning slowly.
-        canvas.save();
-        canvas.translate(c.dx, c.dy);
-        canvas.rotate(spin * 0.6);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(center: Offset.zero, width: 44, height: 13),
-            const Radius.circular(7),
-          ),
-          Paint()..color = hot.withValues(alpha: 0.22),
-        );
-        canvas.restore();
+        // The arms and the bar-core are grains (air_art.dart, 2026-10-08):
+        // they were stroked paths, which read as a drawing on the floor.
+        _paintSpiralTrophy(canvas, c);
         for (var i = 3; i >= 1; i--) {
           canvas.drawCircle(
             c,
@@ -12723,11 +12690,6 @@ class PlanetDungeonGame extends FlameGame {
             Paint()..color = hot.withValues(alpha: 0.30 / i),
           );
         }
-        canvas.drawCircle(
-          c,
-          4,
-          Paint()..color = Colors.white.withValues(alpha: 0.75),
-        );
         break;
       case 'Ring':
         _drawRuneCircle(
@@ -12753,11 +12715,10 @@ class PlanetDungeonGame extends FlameGame {
         _drawVeilCurtain(canvas, room.bounds);
         break;
     }
+    // Plumes coming apart: shed, caught, or lost to the void.
+    if (_skyGrains.grains.isNotEmpty) _skyGrains.paint(canvas, _skyBatch);
   }
 
-  /// A moonlit quill: curved spine, a gradient-filled vane silhouette,
-  /// swept barbs and downy curls at the base — drifting gently as it
-  /// floats. ~20 small path ops, comparable to the old stick drawing.
   /// Trial progress pips drawn under the sealed echo.
   void _drawTrialPips(Canvas canvas, Offset at, int total, int done) {
     const pip = 6.0;
@@ -12950,200 +12911,19 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
+  /// A plume as grains: a lit quill and swept barbs (air_art.dart).
   void _drawFeatherRune(Canvas canvas, Offset c, double len, {Color? color}) {
-    final col = color ?? const Color(0xFFBFD2E6).withValues(alpha: 0.30);
-    final sway = sin(_time * 1.1 + c.dx * 0.01) * 0.05;
-    canvas.save();
-    canvas.translate(c.dx, c.dy + sin(_time * 0.9 + c.dy * 0.01) * 2.5);
-    canvas.rotate(-0.62 + sway); // the plume lies on a gentle diagonal
-
-    final half = len * 0.5;
-    final maxW = len * 0.20;
-    Offset spinePt(double t) =>
-        Offset(-half + t * len, -sin(t * pi) * len * 0.06);
-    double vaneW(double t) {
-      final u = ((t - 0.18) / 0.82).clamp(0.0, 1.0);
-      return maxW * pow(sin(u * pi), 0.65).toDouble() * (1.0 - u * 0.22);
-    }
-
-    // Vane silhouette (upper edge out to the tip, back along the lower).
-    final vane = Path();
-    const samples = 13;
-    for (var i = 0; i <= samples; i++) {
-      final t = 0.18 + (i / samples) * 0.82;
-      final p = spinePt(t);
-      final w = vaneW(t);
-      final q = Offset(p.dx - w * 0.30, p.dy - w);
-      if (i == 0) {
-        vane.moveTo(q.dx, q.dy);
-      } else {
-        vane.lineTo(q.dx, q.dy);
-      }
-    }
-    for (var i = samples; i >= 0; i--) {
-      final t = 0.18 + (i / samples) * 0.82;
-      final p = spinePt(t);
-      final w = vaneW(t);
-      vane.lineTo(p.dx - w * 0.16, p.dy + w * 0.70);
-    }
-    vane.close();
-    canvas.drawPath(
-      vane,
-      Paint()
-        ..shader = ui.Gradient.linear(Offset(-half, 0), Offset(half, 0), [
-          col.withValues(alpha: (col.a * 0.50).clamp(0.0, 1.0)),
-          col.withValues(alpha: (col.a * 0.16).clamp(0.0, 1.0)),
-        ]),
+    _paintFeatherGrains(
+      canvas,
+      c,
+      len,
+      color ?? const Color(0xFFBFD2E6).withValues(alpha: 0.30),
     );
-    canvas.drawPath(
-      vane,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0
-        ..color = col.withValues(alpha: (col.a * 0.85).clamp(0.0, 1.0)),
-    );
-
-    // Quill shaft — bright, extending below the vane to a bare point.
-    final spine = Path()..moveTo(-half - len * 0.13, len * 0.035);
-    for (var i = 0; i <= samples; i++) {
-      final p = spinePt(i / samples);
-      spine.lineTo(p.dx, p.dy);
-    }
-    canvas.drawPath(
-      spine,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..strokeCap = StrokeCap.round
-        ..color = Color.lerp(
-          col,
-          Colors.white,
-          0.35,
-        )!.withValues(alpha: (col.a * 1.1).clamp(0.0, 1.0)),
-    );
-
-    // Swept barbs: curving toward the tip, never straight ticks.
-    final barbPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.9
-      ..strokeCap = StrokeCap.round
-      ..color = col.withValues(alpha: (col.a * 0.6).clamp(0.0, 1.0));
-    for (var k = 0; k < 7; k++) {
-      final t = 0.27 + k * 0.094;
-      final p = spinePt(t);
-      final w = vaneW(t);
-      canvas.drawPath(
-        Path()
-          ..moveTo(p.dx, p.dy)
-          ..quadraticBezierTo(
-            p.dx + w * 0.42,
-            p.dy - w * 0.5,
-            p.dx + len * 0.045 + w * 0.26,
-            p.dy - w * 0.92,
-          ),
-        barbPaint,
-      );
-      canvas.drawPath(
-        Path()
-          ..moveTo(p.dx, p.dy)
-          ..quadraticBezierTo(
-            p.dx + w * 0.30,
-            p.dy + w * 0.36,
-            p.dx + len * 0.04 + w * 0.18,
-            p.dy + w * 0.62,
-          ),
-        barbPaint,
-      );
-    }
-
-    // Downy curls where the vane meets the bare quill.
-    for (var k = 0; k < 2; k++) {
-      final p = spinePt(0.16 + k * 0.05);
-      canvas.drawArc(
-        Rect.fromCircle(center: p + Offset(-2, -3 - k * 3), radius: 4 + k * 2),
-        pi * 0.2,
-        pi * 0.9,
-        false,
-        barbPaint,
-      );
-    }
-    canvas.restore();
   }
 
-  /// Layered gossamer curtain: translucent swaying ribbon fills with fine
-  /// inner strands — instead of bare wavy lines.
-  void _drawVeilCurtain(Canvas canvas, Rect b) {
-    final col = const Color(0xFFBFD2E6);
-    final top = b.top + 105;
-    final bottom = b.bottom - 80;
-    // Three wide translucent ribbons.
-    for (var i = 0; i < 3; i++) {
-      final x = b.left + 150 + i * (b.width - 300) / 2;
-      final w = 90.0 + i * 14;
-      final sway1 = sin(_time * 0.7 + i * 1.9) * 26;
-      final sway2 = sin(_time * 0.5 + i * 1.3 + 2) * 34;
-      final ribbon = Path()
-        ..moveTo(x - w / 2, top)
-        ..quadraticBezierTo(x, top - 14, x + w / 2, top)
-        ..cubicTo(
-          x + w / 2 + sway1,
-          top + (bottom - top) * 0.4,
-          x + w / 3 + sway2,
-          top + (bottom - top) * 0.75,
-          x + w * 0.28 + sway2,
-          bottom,
-        )
-        ..quadraticBezierTo(
-          x + sway2 * 0.6,
-          bottom + 10,
-          x - w * 0.3 + sway2,
-          bottom,
-        )
-        ..cubicTo(
-          x - w / 3 + sway2,
-          top + (bottom - top) * 0.7,
-          x - w / 2 + sway1,
-          top + (bottom - top) * 0.35,
-          x - w / 2,
-          top,
-        )
-        ..close();
-      canvas.drawPath(
-        ribbon,
-        Paint()
-          ..shader = ui.Gradient.linear(Offset(x, top), Offset(x, bottom), [
-            col.withValues(alpha: 0.09),
-            col.withValues(alpha: 0.025),
-          ]),
-      );
-      canvas.drawPath(
-        ribbon,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.0
-          ..color = col.withValues(alpha: 0.16),
-      );
-    }
-    // Fine strands drifting between the ribbons.
-    final strand = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1
-      ..strokeCap = StrokeCap.round
-      ..color = col.withValues(alpha: 0.12);
-    for (var i = 0; i < 6; i++) {
-      final x = b.left + 130 + i * (b.width - 260) / 5;
-      final path = Path()..moveTo(x, top + 8);
-      path.cubicTo(
-        x + sin(_time + i) * 22,
-        top + (bottom - top) * 0.38,
-        x - 18,
-        top + (bottom - top) * 0.7,
-        x + sin(_time * 0.7 + i) * 30,
-        bottom - 6,
-      );
-      canvas.drawPath(path, strand);
-    }
-  }
+  /// The veil room's three curtains, in grains (air_art.dart).
+  void _drawVeilCurtain(Canvas canvas, Rect b) => _paintVeilCurtains(canvas, b);
+
 
   void _drawSkyLoomMechanism(
     Canvas canvas,
@@ -13900,6 +13680,8 @@ class PlanetDungeonGame extends FlameGame {
     );
   }
 
+  /// A wonder-cloud as grains of its own shape (air_art.dart): what it is
+  /// reads from how its grains lie and move, not from an outline.
   void _drawWonderCloud(
     Canvas canvas,
     Offset c,
@@ -13910,263 +13692,7 @@ class PlanetDungeonGame extends FlameGame {
   }) {
     final pulse = discovered ? 1.0 : 0.65 + 0.25 * sin(_time * 2.0);
     final col = color.withValues(alpha: (color.a * pulse).clamp(0.0, 1.0));
-    final stroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = echo ? 1.1 : 1.5
-      ..strokeCap = StrokeCap.round
-      ..color = col.withValues(alpha: (col.a * 0.9).clamp(0.0, 1.0));
-    final fill = Paint()
-      ..color = col.withValues(alpha: (col.a * 0.35).clamp(0.0, 1.0));
-
-    if (_fx.ready) {
-      final width = switch (type) {
-        'Feather' => 74.0,
-        'Veil' => 68.0,
-        'Anvil' || 'Thundercloud' => 66.0,
-        'Ring' => 56.0,
-        _ => 50.0,
-      };
-      drawPuff(
-        canvas,
-        _fx.puff!,
-        c,
-        width,
-        col.withValues(alpha: col.a * 0.58),
-      );
-    }
-
-    switch (type) {
-      case 'Spiral':
-        // Smooth galaxy curl: a soft wide pass under a bright core stroke,
-        // with motes flowing outward along the arm.
-        final spiral = Path()..moveTo(c.dx, c.dy);
-        for (var i = 1; i <= 34; i++) {
-          final a = i * 0.34 + _time * 0.45;
-          final r = i * 0.7;
-          spiral.lineTo(c.dx + cos(a) * r, c.dy + sin(a) * r);
-        }
-        canvas.drawPath(
-          spiral,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 4.5
-            ..strokeCap = StrokeCap.round
-            ..color = col.withValues(alpha: (col.a * 0.22).clamp(0.0, 1.0)),
-        );
-        canvas.drawPath(spiral, stroke);
-        canvas.drawCircle(
-          c,
-          3.2,
-          Paint()
-            ..color = Color.lerp(
-              col,
-              Colors.white,
-              0.5,
-            )!.withValues(alpha: (col.a * 0.9).clamp(0.0, 1.0)),
-        );
-        for (var i = 0; i < 3; i++) {
-          final u = ((_time * 0.32 + i / 3) % 1.0) * 30 + 4;
-          final a = u * 0.34 + _time * 0.45;
-          canvas.drawCircle(
-            c + Offset(cos(a), sin(a)) * (u * 0.7),
-            1.8,
-            Paint()
-              ..color = Color.lerp(
-                col,
-                Colors.white,
-                0.4,
-              )!.withValues(alpha: (col.a * 0.7).clamp(0.0, 1.0)),
-          );
-        }
-        break;
-      case 'Ring':
-        // A slowly turning halo: arc segments with a soft body, dark eye,
-        // and orbiting motes trailing thin arcs.
-        final rot = _time * 0.7;
-        final rect18 = Rect.fromCircle(center: c, radius: 18);
-        canvas.drawCircle(
-          c,
-          18,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 6
-            ..color = col.withValues(alpha: (col.a * 0.18).clamp(0.0, 1.0)),
-        );
-        for (var i = 0; i < 3; i++) {
-          canvas.drawArc(rect18, rot + i * pi * 2 / 3, pi * 0.5, false, stroke);
-        }
-        canvas.drawCircle(
-          c,
-          9,
-          Paint()..color = Colors.black.withValues(alpha: 0.16),
-        );
-        for (var i = 0; i < 5; i++) {
-          final a = _time * 0.8 + i * pi * 2 / 5;
-          canvas.drawArc(
-            Rect.fromCircle(center: c, radius: 25),
-            a - 0.5,
-            0.42,
-            false,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.0
-              ..color = col.withValues(alpha: (col.a * 0.35).clamp(0.0, 1.0)),
-          );
-          canvas.drawCircle(
-            c + Offset(cos(a), sin(a)) * 25,
-            2.2,
-            Paint()
-              ..color = Color.lerp(
-                col,
-                Colors.white,
-                0.35,
-              )!.withValues(alpha: col.a),
-          );
-        }
-        break;
-      case 'Anvil':
-      case 'Thundercloud':
-        // A proper cumulonimbus: puffy base lobes, a rising column, and the
-        // sheared flat-topped anvil slab. Thunderclouds glow from within.
-        final thunder = type == 'Thundercloud';
-        final baseY = c.dy + 12;
-        final puff = Paint()
-          ..color = col.withValues(alpha: (col.a * 0.40).clamp(0.0, 1.0));
-        canvas.drawCircle(Offset(c.dx - 17, baseY), 11, puff);
-        canvas.drawCircle(Offset(c.dx + 3, baseY + 2), 13, puff);
-        canvas.drawCircle(Offset(c.dx + 20, baseY), 10, puff);
-        final column = Path()
-          ..moveTo(c.dx - 18, baseY)
-          ..quadraticBezierTo(c.dx - 24, c.dy - 4, c.dx - 27, c.dy - 9)
-          ..lineTo(c.dx + 33, c.dy - 9)
-          ..quadraticBezierTo(c.dx + 20, c.dy - 1, c.dx + 17, baseY)
-          ..close();
-        canvas.drawPath(
-          column,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              Offset(c.dx, c.dy - 17),
-              Offset(c.dx, baseY),
-              [
-                col.withValues(alpha: (col.a * 0.55).clamp(0.0, 1.0)),
-                col.withValues(alpha: (col.a * 0.18).clamp(0.0, 1.0)),
-              ],
-            ),
-        );
-        final slab = Path()
-          ..moveTo(c.dx - 31, c.dy - 9)
-          ..lineTo(c.dx + 38, c.dy - 9)
-          ..lineTo(c.dx + 28, c.dy - 17)
-          ..lineTo(c.dx - 23, c.dy - 17)
-          ..close();
-        canvas.drawPath(
-          slab,
-          Paint()
-            ..color = Color.lerp(
-              col,
-              Colors.white,
-              0.18,
-            )!.withValues(alpha: (col.a * 0.6).clamp(0.0, 1.0)),
-        );
-        canvas.drawLine(
-          Offset(c.dx - 31, c.dy - 9),
-          Offset(c.dx + 38, c.dy - 9),
-          stroke,
-        );
-        if (thunder) {
-          final flicker = 0.5 + 0.5 * sin(_time * 9).abs();
-          canvas.drawCircle(
-            Offset(c.dx, c.dy + 2),
-            10,
-            Paint()
-              ..color = const Color(
-                0xFFFFF4B0,
-              ).withValues(alpha: 0.18 * flicker),
-          );
-          _drawLightningArc(
-            canvas,
-            c + const Offset(-12, 8),
-            c + const Offset(-4, 30),
-            const Color(0xFFFFF4B0),
-          );
-          _drawLightningArc(
-            canvas,
-            c + const Offset(14, 10),
-            c + const Offset(20, 28),
-            const Color(0xFFFFF4B0),
-          );
-        }
-        break;
-      case 'Feather':
-        _drawFeatherRune(canvas, c, 76, color: col);
-        break;
-      case 'Veil':
-        // A miniature gossamer drape: one translucent ribbon + strands.
-        final sway = sin(_time * 0.8 + c.dx * 0.02) * 7;
-        final ribbon = Path()
-          ..moveTo(c.dx - 22, c.dy - 26)
-          ..quadraticBezierTo(c.dx, c.dy - 33, c.dx + 22, c.dy - 26)
-          ..cubicTo(
-            c.dx + 25 + sway,
-            c.dy - 4,
-            c.dx + 12 + sway,
-            c.dy + 16,
-            c.dx + 14 + sway,
-            c.dy + 33,
-          )
-          ..quadraticBezierTo(
-            c.dx + sway,
-            c.dy + 38,
-            c.dx - 12 + sway,
-            c.dy + 33,
-          )
-          ..cubicTo(
-            c.dx - 16 + sway,
-            c.dy + 12,
-            c.dx - 25,
-            c.dy - 6,
-            c.dx - 22,
-            c.dy - 26,
-          )
-          ..close();
-        canvas.drawPath(
-          ribbon,
-          Paint()
-            ..shader = ui.Gradient.linear(
-              Offset(c.dx, c.dy - 30),
-              Offset(c.dx, c.dy + 36),
-              [
-                col.withValues(alpha: (col.a * 0.30).clamp(0.0, 1.0)),
-                col.withValues(alpha: (col.a * 0.06).clamp(0.0, 1.0)),
-              ],
-            ),
-        );
-        canvas.drawPath(
-          ribbon,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.0
-            ..color = col.withValues(alpha: (col.a * 0.55).clamp(0.0, 1.0)),
-        );
-        for (var i = 0; i < 3; i++) {
-          final x = c.dx - 12 + i * 12.0;
-          final path = Path()..moveTo(x, c.dy - 22);
-          path.cubicTo(
-            x + sin(_time + i) * 7,
-            c.dy - 4,
-            x - 5,
-            c.dy + 12,
-            x + sin(_time * 0.7 + i) * 9 + sway * 0.5,
-            c.dy + 30,
-          );
-          canvas.drawPath(path, stroke);
-        }
-        break;
-      default:
-        canvas.drawCircle(c + const Offset(-8, 2), 8, fill);
-        canvas.drawCircle(c + const Offset(8, 2), 8, fill);
-        canvas.drawCircle(c + const Offset(0, -4), 10, fill);
-    }
+    _paintCloudGrains(canvas, c, type, col, echo: echo);
   }
 
   void _drawWonderCloudRemnant(

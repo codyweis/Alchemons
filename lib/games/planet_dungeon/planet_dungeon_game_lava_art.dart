@@ -391,22 +391,166 @@ extension MoltenReliquaryArt on PlanetDungeonGame {
 
   // ── The glass the works signals with ───────────────────
 
-  /// A lever's glass base: a squashed gold-rimmed rondel the stand is set in —
-  /// the mark of a thing you can act on.
+  /// A lever's base: a squat plinth of the works' own basalt, dark and lit
+  /// only along its near rim (2026-10-08). It was a squashed gold-rimmed glass
+  /// dish, which with the quadrant arched over it read as a bucket and its
+  /// bail. What the lever is set to still burns in its glass notches.
   void _drawLeverBase(Canvas canvas, Offset lever) {
-    final c = lever + const Offset(0, 16);
-    paintContactShadow(canvas, c + const Offset(0, 4), 64, 18, opacity: 0.4);
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.scale(1, 0.36);
-    paintRondel(
+    final c = lever + const Offset(0, 13);
+    paintCarvedDisc(
       canvas,
-      Offset.zero,
-      28,
+      c,
+      23,
+      7.5,
+      7,
       _kWorksGlass,
-      fill: _kWorksGlass.frostAt(1),
+      topColor: const Color(0xFF26231F),
     );
-    canvas.restore();
+    // Brass along the near rim: the kit's mark of a thing you can act on.
+    canvas.drawArc(
+      Rect.fromCenter(center: c, width: 46, height: 15),
+      0.2,
+      pi - 0.4,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..color = _kWorksGlass.gold.withValues(alpha: 0.6),
+    );
+  }
+
+  /// The quadrant the handle rides in: a solid cast sector the notch beads
+  /// are set into, dark iron with the works' light catching its outer edge —
+  /// not a thin arc floating over the base.
+  void _drawLeverQuadrant(Canvas canvas, Offset hub) {
+    const a0 = pi + 0.33, a1 = 2 * pi - 0.33;
+    final plate = sectorPath(hub, 20, 31.5, a0, a1);
+    canvas.drawPath(
+      plate.shift(const Offset(0, 2)),
+      Paint()..color = Colors.black.withValues(alpha: 0.45),
+    );
+    canvas.drawPath(plate, Paint()..color = const Color(0xFF1C2026));
+    canvas.drawArc(
+      Rect.fromCircle(center: hub, radius: 31),
+      a0 + 0.04,
+      a1 - a0 - 0.08,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..color = _worksIronLit.withValues(alpha: 0.75),
+    );
+    // The pivot boss the handle turns on.
+    canvas.drawCircle(hub, 5, Paint()..color = const Color(0xFF1C2026));
+    canvas.drawCircle(
+      hub,
+      5,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = _worksIronLit.withValues(alpha: 0.6),
+    );
+  }
+
+  /// AN EMPTY FORM, CUT INTO THE SAND: the shape it casts — a key's bit and
+  /// wards for warded metal, a smooth bar for a span — as a sunk hollow, its
+  /// far wall in shadow, its near lip catching the colour of the metal it
+  /// wants, and that colour faint in the bottom of it (2026-10-08). It was
+  /// the same shape traced in thin tinted lines, which read as an icon.
+  void _drawFormRecess(Canvas canvas, Rect inner, PourForm want, Color tint) {
+    final shape = Path();
+    if (want == PourForm.stamped) {
+      shape.addRect(
+        Rect.fromLTWH(inner.left, inner.center.dy - 7, inner.width, 14),
+      );
+      for (var k = 0; k < 3; k++) {
+        shape.addRect(
+          Rect.fromLTWH(
+            inner.left + 10 + k * 15.0,
+            inner.center.dy - 18,
+            9,
+            12,
+          ),
+        );
+      }
+      shape.addOval(
+        Rect.fromCircle(
+          center: Offset(inner.right - 9, inner.center.dy),
+          radius: 9,
+        ),
+      );
+    } else {
+      shape.addRRect(
+        RRect.fromRectAndRadius(inner.deflate(4), const Radius.circular(2)),
+      );
+    }
+    // The far wall, in shadow above the hollow.
+    canvas.drawPath(
+      shape.shift(const Offset(0, -1.8)),
+      Paint()..color = const Color(0xE6040302),
+    );
+    // The near lip, catching the metal's colour — a sliver, not an outline.
+    canvas.drawPath(
+      shape.shift(const Offset(0, 1.4)),
+      Paint()..color = tint.withValues(alpha: 0.6),
+    );
+    canvas.drawPath(shape, Paint()..color = const Color(0xFF0A0705));
+    final box = shape.getBounds();
+    canvas.drawPath(
+      shape,
+      Paint()
+        ..shader = ui.Gradient.linear(box.bottomCenter, box.topCenter, [
+          tint.withValues(alpha: 0.34),
+          tint.withValues(alpha: 0.02),
+        ]),
+    );
+  }
+
+  /// Embers lifting off a hot ingot's top face and going out as they rise —
+  /// ~26 grains, worked out from time alone (2026-10-08; they were three
+  /// stroked heat dashes).
+  void _drawIngotEmbers(Canvas canvas, Offset top) {
+    final t = works.clock;
+    final hot = <Offset>[], warm = <Offset>[], dim = <Offset>[];
+    for (var i = 0; i < 26; i++) {
+      final h1 = (sin(i * 127.1 + 31.7) * 43758.5453) % 1.0;
+      final h2 = (sin(i * 269.5 + 83.3) * 43758.5453) % 1.0;
+      final speed = 0.26 + 0.18 * h2;
+      Offset at(double tt) {
+        final u = (tt * speed + h1) % 1.0;
+        return top +
+            Offset(
+              (h2 - 0.5) * 20 * (1 - 0.4 * u) + sin(tt * 1.3 + i) * 5 * u,
+              -3 - 40 * u,
+            );
+      }
+
+      final u = (t * speed + h1) % 1.0;
+      final u0 = ((t - 0.06) * speed + h1) % 1.0;
+      final q = at(t);
+      final p = u0 > u ? q - const Offset(0, 0.4) : at(t - 0.06);
+      final list = u < 0.25
+          ? hot
+          : u < 0.6
+          ? warm
+          : dim;
+      list
+        ..add(p)
+        ..add(q);
+    }
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.6;
+    for (final (pts, col, a) in [
+      (hot, _worksCore, 0.6),
+      (warm, _worksEdge, 0.42),
+      (dim, const Color(0xFF7A2A0A), 0.3),
+    ]) {
+      if (pts.isEmpty) continue;
+      paint.color = col.withValues(alpha: a);
+      canvas.drawPoints(ui.PointMode.lines, pts, paint);
+    }
   }
 
   /// One notch of a lever's quadrant, as a bead of glass: the setting it is

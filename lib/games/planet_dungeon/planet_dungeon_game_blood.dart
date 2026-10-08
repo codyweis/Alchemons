@@ -1855,7 +1855,6 @@ extension BloodRitesDungeon on PlanetDungeonGame {
   /// rises and goes — or, beside the bell, is drawn in.
   void _riteSublimate() {
     final at = rites.iceMelted!;
-    final c = riteCentreOf(at.x, at.y);
     Offset? bell;
     if (rites.iceIntoBell) {
       for (var d = 0; d < 4; d++) {
@@ -1864,30 +1863,41 @@ extension BloodRitesDungeon on PlanetDungeonGame {
       }
     }
     _cue(SoundCue.dungeonStepWater);
-    for (var i = 0; i < 46; i++) {
-      final a = _combatRng.nextDouble() * pi * 2;
-      final r = _combatRng.nextDouble() * 22;
+    // The ice's own grains, where its orb left them, come loose as air
+    // (paled toward it, a few lit by the sun): already showing, so the
+    // change never blinks.
+    final sq = _riteSq(at.x, at.y);
+    final o = _riteIceAt(sq);
+    final g = _riteOrb('Ice', _kRiteIceR).grainsAt(_riteIceClock(sq.center));
+    for (var i = 0; i < g.length; i++) {
+      final hx = g.hx[i], hy = g.hy[i];
+      final out = Offset(hx, hy) / _kRiteIceR;
+      final life = bell != null
+          ? 1.3 + _combatRng.nextDouble() * .5
+          : 1.6 + _combatRng.nextDouble();
       rites.grains.add(
         RiteGrain(
-          x: c.dx + cos(a) * r,
-          y: c.dy + sin(a) * r,
-          vx: cos(a) * 10,
-          vy: sin(a) * 10 - 8,
-          life: bell != null
-              ? 1.3 + _combatRng.nextDouble() * .5
-              : 1.6 + _combatRng.nextDouble(),
-          color: i % 3 == 0
-              ? const Color(0xFFFFE6A0)
-              : i.isEven
-              ? const Color(0xFFDCEBF2)
-              : const Color(0xFFBFE8F5),
-          lift: bell != null ? 0 : 22,
-          wander: bell != null ? 8 : 16,
-          to: bell,
-          pull: bell != null ? 5 : 0,
-          drag: bell != null ? 2.4 : 1.0,
-          seed: i * 0.9,
-        ),
+            x: o.dx + hx,
+            y: o.dy + hy,
+            vx: out.dx * 26 + (_combatRng.nextDouble() - .5) * 10,
+            vy: out.dy * 26 - 14,
+            life: life,
+            color: i % 5 == 0
+                ? const Color(0xFFFFE6A0)
+                : Color.lerp(
+                    g.tones[g.tone[i]],
+                    const Color(0xFFDCEBF2),
+                    .35,
+                  )!,
+            width: 1.8,
+            lift: bell != null ? 0 : 26,
+            wander: bell != null ? 10 : 22,
+            to: bell,
+            pull: bell != null ? 5 : 0,
+            drag: bell != null ? 2.4 : 1.0,
+            seed: i * 0.9,
+          )
+          ..age = life / 6,
       );
     }
   }

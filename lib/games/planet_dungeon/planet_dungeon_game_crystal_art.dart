@@ -18,7 +18,68 @@ part of 'planet_dungeon_game.dart';
 
 const GlassPalette _kPrismGlass = kPrismGlass;
 
+/// The lamp's beam, as a course for its grains: down the middle of the band.
+final List<Offset> _kBeamCourse = [
+  Offset(kBeamBand.left, kBeamBand.center.dy),
+  Offset(kBeamBand.right, kBeamBand.center.dy),
+];
+
+/// The beam's grains at each step of the wheel, built once.
+final Map<int, List<Color>> _beamGrainRamps = {};
+
+/// The closed elliptical courses held notes circle on, by key.
+final Map<String, List<Offset>> _noteCourses = {};
+
+/// The beam's grains for wheel step [hue]: its colour, lit toward white.
+List<Color> _beamGrainRamp(int hue) => _beamGrainRamps.putIfAbsent(hue, () {
+  final c = PrismLabyrinthKeep._wheelColour(hue);
+  return [
+    Color.lerp(c, const Color(0xFF0A0810), 0.4)!,
+    c,
+    Color.lerp(c, Colors.white, 0.5)!,
+    Colors.white,
+  ];
+});
+
 extension PrismLabyrinthArt on PlanetDungeonGame {
+  /// A note held in the glass (2026-10-08): grains of brass light circling
+  /// an ellipse [rx] × [ry] about [c] in a band, each at its own pace, so
+  /// the ring shears and never stands still. 260 grains.
+  void _paintNoteRing(
+    Canvas canvas,
+    Offset c,
+    double rx,
+    double ry,
+    String key, {
+    double alpha = 0.85,
+  }) {
+    final course = _noteCourses.putIfAbsent(
+      '$key@${c.dx},${c.dy}',
+      () => [
+        for (var i = 0; i <= 48; i++)
+          c + Offset(cos(i / 48 * 2 * pi) * rx, sin(i / 48 * 2 * pi) * ry),
+      ],
+    );
+    paintGrainStream(
+      canvas,
+      course,
+      _time,
+      ramp: const [
+        Color(0xFF6E5A30),
+        Color(0xFFC9A24E),
+        Color(0xFFE4C16A),
+        Color(0xFFFFF2C8),
+      ],
+      count: 260,
+      speed: 0.09,
+      jitter: ry * 0.3,
+      alpha: alpha,
+      width: 1.6,
+      trail: 0.12,
+      loop: true,
+    );
+  }
+
   void _updateCrystalGlass(double dt) {
     final target =
         discoveredClouds.contains(kCrystalKnowThyselfEgg) ||

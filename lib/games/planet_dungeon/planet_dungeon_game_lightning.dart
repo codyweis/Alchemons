@@ -2297,26 +2297,11 @@ extension StormCircuit on PlanetDungeonGame {
       // was the smallest thing in the room. Backboard, two brass jaws, a
       // ceramic handle on a hinge, and a plate underneath saying which wing.
       _drawCircuitPost(canvas, bp, const Color(0xFFE9D27A), sel);
-      final board = RRect.fromRectAndRadius(
-        Rect.fromCenter(
-          center: bp + const Offset(0, -6),
-          width: 54,
-          height: 40,
-        ),
-        const Radius.circular(5),
-      );
-      canvas.drawRRect(
-        board,
-        Paint()..color = const Color(0xFF1B242F).withValues(alpha: 0.96),
-      );
-      canvas.drawRRect(
-        board,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = (sel ? const Color(0xFFBFE6FF) : const Color(0xFF6E8CA8))
-              .withValues(alpha: sel ? 0.95 : 0.5),
-      );
+      // The backboard is a block of the works' own slate, dark and lit only
+      // along its arris, with its fed/dead state in a strip of leaded glass
+      // across its face (lightning_art.dart, 2026-10-08). It was a dark panel
+      // with a pale outline drawn round it, and thrown it read as a UI icon.
+      _drawBreakerHousing(canvas, bp, sel ? 0.35 + 0.65 * swing : 0.0);
       // The two jaws the blade closes across.
       for (final dx in const [-15.0, 15.0]) {
         canvas.drawRRect(
@@ -2325,7 +2310,7 @@ extension StormCircuit on PlanetDungeonGame {
             const Radius.circular(2),
           ),
           Paint()
-            ..color = (sel ? const Color(0xFFE9D27A) : const Color(0xFF7A6A44)),
+            ..color = (sel ? const Color(0xFFB89A58) : const Color(0xFF5E5236)),
         );
       }
       // THE BLADE, hinged at the left jaw: open and up when the trunk is
@@ -2336,17 +2321,28 @@ extension StormCircuit on PlanetDungeonGame {
       final ang = -1.05 * (1.0 - blade);
       final hinge = bp + const Offset(-15, -4);
       final tip = hinge + Offset(cos(ang), sin(ang)) * 30;
+      // Steel, lit down one edge — not a bar of white.
       canvas.drawLine(
         hinge,
         tip,
         Paint()
           ..strokeCap = StrokeCap.round
           ..strokeWidth = 6
-          ..color = sel ? const Color(0xFFEAF6FF) : const Color(0xFF8FB8E0),
+          ..color = sel ? const Color(0xFF7F97AE) : const Color(0xFF4E6378),
+      );
+      final edge = Offset(-sin(ang), cos(ang)) * -1.6;
+      canvas.drawLine(
+        hinge + edge,
+        tip + edge,
+        Paint()
+          ..strokeCap = StrokeCap.round
+          ..strokeWidth = 1.4
+          ..color = (sel ? const Color(0xFFDDEFFF) : const Color(0xFF9FB8D0))
+              .withValues(alpha: sel ? 0.9 : 0.55),
       );
       // The ceramic grip at the end of it.
-      canvas.drawCircle(tip, 4.6, Paint()..color = const Color(0xFFD8B878));
-      canvas.drawCircle(hinge, 3.2, Paint()..color = const Color(0xFFBFE6FF));
+      canvas.drawCircle(tip, 4.6, Paint()..color = const Color(0xFFB89A6A));
+      canvas.drawCircle(hinge, 3.2, Paint()..color = const Color(0xFF7F97AE));
       if (welded) {
         // The weld bead across the far jaw, still hot.
         final bead = bp + const Offset(15, -4);

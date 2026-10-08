@@ -2917,6 +2917,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     canvas.restore();
     _renderIceShell(canvas, room);
     _renderGlassDoorPlugs(canvas, room);
+    _renderIceFurniture(canvas, room);
 
     _renderFlueMouths(canvas, room);
     _renderOrrery(canvas, room);
@@ -2931,6 +2932,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final s in ground.overlay) {
       canvas.drawPath(s.path, s.paint);
     }
+    _paintRimeBeards(canvas, room, ground);
     _renderShaftWeather(canvas, room, ground);
     canvas.restore();
   }
@@ -2960,21 +2962,9 @@ extension FrozenObservatory on PlanetDungeonGame {
       canvas.drawLine(p - Offset(0, r), p + Offset(0, r), glint);
     }
 
-    final b = room.bounds;
-    final rime = Paint()
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 1.5
-      ..color = Colors.white.withValues(alpha: 0.24);
-    for (var i = 0; i < g.motes.length; i++) {
-      final m = g.motes[i];
-      final y = b.top + (m.dy + _time * g.moteSpeed[i]) % b.height;
-      final drift = sin(_time * 0.6 + i) * 2.2;
-      canvas.drawLine(
-        Offset(m.dx + drift, y),
-        Offset(m.dx + drift * 0.4, y + 6),
-        rime,
-      );
-    }
+    // The rime coming down, in grains (it was sixteen dashes, which read as
+    // rain): planet_dungeon_game_ice_art.dart.
+    _paintRimeFall(canvas, room);
   }
 
   void _renderFlueMouths(Canvas canvas, DungeonRoom room) {
@@ -3008,16 +2998,9 @@ extension FrozenObservatory on PlanetDungeonGame {
       if (f.isThroat && !rimefallFrozen) {
         canvas.save();
         canvas.clipPath(Path()..addOval(r.deflate(2)));
-        final water = Paint()
-          ..strokeCap = StrokeCap.round
-          ..strokeWidth = 2.2;
-        for (var i = 0; i < 13; i++) {
-          final x = r.left + 10 + i * (r.width - 20) / 12;
-          final t = (_time * 1.9 + i * 0.37) % 1.0;
-          final y = r.top + 6 + t * (r.height - 12);
-          water.color = _kIcePale.withValues(alpha: 0.16 + (1 - t) * 0.5);
-          canvas.drawLine(Offset(x, y), Offset(x, y + 16), water);
-        }
+        // The water going down it, in grains (it was thirteen stroked
+        // dashes): the same running water as the rimefall's.
+        _paintThroatWater(canvas, r);
         canvas.drawArc(
           r.deflate(8),
           -2.7,
@@ -3542,9 +3525,18 @@ extension FrozenObservatory on PlanetDungeonGame {
         ..color = Colors.black.withValues(alpha: 0.3)
         ..strokeWidth = 3,
     );
+    // Its collar: dull brass, lit only along its upper edge (it was a flat
+    // bright band, which read as a sticker on the post).
     canvas.drawRect(
-      Rect.fromCenter(center: p + const Offset(0, 0), width: 38, height: 8),
-      Paint()..color = _kShaftBrassLit.withValues(alpha: 0.8),
+      Rect.fromCenter(center: p, width: 36, height: 7),
+      Paint()..color = _kShaftBrass.withValues(alpha: 0.85),
+    );
+    canvas.drawLine(
+      p + const Offset(-17, -3.2),
+      p + const Offset(17, -3.2),
+      Paint()
+        ..strokeWidth = 1.1
+        ..color = _kShaftBrassLit.withValues(alpha: 0.75),
     );
     // The end of the post, seen from above — the thing that says "column"
     // rather than "hat".
@@ -3635,12 +3627,6 @@ extension FrozenObservatory on PlanetDungeonGame {
     canvas.drawLine(head, head - d * 7 - wing, arrow);
   }
 
-  /// A star-block is a lump of FROZEN SKY, so it must not be a white box: a
-  /// faceted chunk with a shadow under it, one lit face, and the star showing
-  /// through from inside. Seated, it takes the sockets' brass.
-  /// The floor's crank: a squat iron pedestal with a brass handle, standing
-  /// off the board at the east wall. Pulled by Light, it puts every loose
-  /// star-block back on its standard.
   /// THE FIGURE ALPHABET. Six little star-shapes, used wherever this planet
   /// has to say "this one and that one are the same one" — the orrery's
   /// blocks and the kerbs cut for them. Ordinary shapes on purpose: they are
@@ -3718,95 +3704,64 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
   }
 
+  /// The floor's crank: a carved pedestal of the observatory's stone with an
+  /// iron handle, its knob a rondel of glass (the thing you pull), standing
+  /// off the board at the east wall. Pulled by Light, it puts every loose
+  /// star-block back on its standard. It was a flat stone trapezoid with a
+  /// bright brass stick and a ball on the end.
   void _drawOrreryCrank(Canvas canvas, Offset p) {
-    canvas.drawOval(
-      Rect.fromCenter(center: p + const Offset(0, 26), width: 62, height: 18),
-      Paint()..color = _kShaftDark.withValues(alpha: 0.4),
+    paintContactShadow(canvas, p + const Offset(0, 27), 64, 16);
+    paintCarvedBlock(
+      canvas,
+      Rect.fromCenter(center: p + const Offset(0, -6), width: 34, height: 12),
+      30,
+      _kFrostGlass,
+      radius: 2,
+      topColor: const Color(0xFF1E2A34),
     );
+    // The handle: dark iron, lit only along its upper edge.
+    final arm = Path()
+      ..moveTo(p.dx, p.dy - 8)
+      ..lineTo(p.dx, p.dy - 34)
+      ..lineTo(p.dx + 20, p.dy - 42);
     canvas.drawPath(
-      Path()
-        ..moveTo(p.dx - 22, p.dy + 26)
-        ..lineTo(p.dx - 14, p.dy - 10)
-        ..lineTo(p.dx + 14, p.dy - 10)
-        ..lineTo(p.dx + 22, p.dy + 26)
-        ..close(),
-      Paint()..color = _kShaftStone.withValues(alpha: 0.95),
-    );
-    canvas.drawLine(
-      Offset(p.dx - 14, p.dy - 10),
-      Offset(p.dx + 14, p.dy - 10),
-      Paint()
-        ..color = _kShaftStoneLit.withValues(alpha: 0.7)
-        ..strokeWidth = 2,
-    );
-    final handle = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 4.5
-      ..color = _kShaftBrassLit.withValues(alpha: 0.95);
-    canvas.drawLine(Offset(p.dx, p.dy - 10), Offset(p.dx, p.dy - 34), handle);
-    canvas.drawLine(
-      Offset(p.dx, p.dy - 34),
-      Offset(p.dx + 20, p.dy - 42),
-      handle,
-    );
-    canvas.drawCircle(
-      Offset(p.dx + 20, p.dy - 42),
-      5,
-      Paint()..color = _kShaftBrassLit,
-    );
-  }
-
-  void _drawStarBlock(Canvas canvas, Offset p, int id, bool seated) {
-    // Deterministic per block, so a given block always has the same facets.
-    final t = id * 1.7;
-    final pts = <Offset>[];
-    for (var i = 0; i < 7; i++) {
-      final a = -pi / 2 + i * 2 * pi / 7;
-      final k = 26.0 + sin(t + i * 2.3) * 4.5;
-      pts.add(p + Offset(cos(a) * k, sin(a) * k * 0.98));
-    }
-    final body = Path()..moveTo(pts.first.dx, pts.first.dy);
-    for (final q in pts.skip(1)) {
-      body.lineTo(q.dx, q.dy);
-    }
-    body.close();
-    canvas.save();
-    canvas.translate(0, 6);
-    canvas.drawPath(body, Paint()..color = Colors.black.withValues(alpha: 0.3));
-    canvas.restore();
-    canvas.drawPath(
-      body,
-      Paint()
-        ..color = seated
-            ? const Color(0xFFE4C16A).withValues(alpha: 0.85)
-            : _kIceWhite.withValues(alpha: 0.86),
-    );
-    // Two facet seams, so the chunk has volume rather than being a blob.
-    canvas.drawPath(
-      Path()
-        ..moveTo(pts[0].dx, pts[0].dy)
-        ..lineTo(p.dx - 4, p.dy + 5)
-        ..lineTo(pts[4].dx, pts[4].dy)
-        ..moveTo(p.dx - 4, p.dy + 5)
-        ..lineTo(pts[2].dx, pts[2].dy),
+      arm,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = (seated ? Colors.white : _kIceDeep).withValues(alpha: 0.4),
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = 5
+        ..color = const Color(0xFF0C161E),
     );
-    // THE BLOCK'S OWN FIGURE — the same one cut into the kerb it belongs to.
-    // Every block used to carry the same generic star, so "which socket is
-    // this one's" was unanswerable by looking.
-    _drawStarFigure(
+    canvas.drawPath(
+      Path()
+        ..moveTo(p.dx - 1.6, p.dy - 9)
+        ..lineTo(p.dx - 1.6, p.dy - 35)
+        ..lineTo(p.dx + 19, p.dy - 43.5),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..strokeWidth = 1.1
+        ..color = _kFrostGlass.leadLight.withValues(alpha: 0.55),
+    );
+    paintRondel(
       canvas,
-      Rect.fromCenter(center: p + const Offset(0, 1), width: 26, height: 26),
-      id,
-      (seated ? _kShaftDark : _kIceDeep).withValues(alpha: 0.9),
-      1.7,
+      Offset(p.dx + 20, p.dy - 42),
+      4.5,
+      _kFrostGlass,
+      fill: _kFrostGlass.live,
+      lead: 2,
     );
   }
 
+  /// A star-block is a lump of FROZEN SKY the floor asks you to place, so it
+  /// is the Ice orb carrying its own figure — the same one cut into the kerb
+  /// it belongs to (`_paintStarOrb`, planet_dungeon_game_ice_art.dart). It
+  /// was a white faceted chunk, which read as a sticker. Seated, it sits in
+  /// the sockets' brass and its figure takes the gold.
+  void _drawStarBlock(Canvas canvas, Offset p, int id, bool seated) =>
+      _paintStarOrb(canvas, p, id, seated);
   void _renderMirrorRing(Canvas canvas, DungeonRoom room) {
     final ring = room.rime?.mirrors;
     if (ring == null) return;
@@ -4278,78 +4233,16 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
     canvas.drawPath(teeth, Paint()..color = _kIcePale.withValues(alpha: 0.3));
     if (rimefallFrozen) {
-      // Fluted ice: five columns of different width fused together, with a
-      // hard lip where each one catches the light.
-      for (var i = 0; i < 5; i++) {
-        final w = 14.0 + (i % 3) * 7;
-        final x = r.left + 10 + i * 21.0;
-        final foot = r.bottom - (i % 2) * 12;
-        canvas.drawPath(
-          Path()
-            ..moveTo(x, r.top - 24)
-            ..lineTo(x + w, r.top - 24)
-            ..lineTo(x + w * 0.72, foot)
-            ..lineTo(x + w * 0.18, foot)
-            ..close(),
-          Paint()..color = _kIceWhite.withValues(alpha: 0.72 - (i % 3) * 0.1),
-        );
-        canvas.drawLine(
-          Offset(x + 2, r.top - 20),
-          Offset(x + w * 0.26, foot - 4),
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.75)
-            ..strokeWidth = 1.6,
-        );
-      }
-      // The fan it froze into at the bottom.
-      canvas.drawPath(
-        Path()
-          ..moveTo(r.left - 24, r.bottom + 26)
-          ..lineTo(r.left + 14, r.bottom - 10)
-          ..lineTo(r.right - 14, r.bottom - 10)
-          ..lineTo(r.right + 26, r.bottom + 26)
-          ..close(),
-        Paint()..color = _kIceWhite.withValues(alpha: 0.5),
-      );
+      // FROZEN: fluted ice, five columns of different width fused together —
+      // leaded glass now, because it is the thing you made (it was flat white
+      // shapes with stroked highlights). planet_dungeon_game_ice_art.dart.
+      _paintRimefallIce(canvas, r);
     } else {
       // RUNNING. Water coming down a chute spreads as it falls, so the column
-      // widens toward its foot and the streaks in it are not all the same
-      // length — a flat pale rectangle with three even ticks in it read as a
-      // grey panel, which is a bad look for the one object the whole
-      // no-strand proof rests on.
-      canvas.drawPath(
-        Path()
-          ..moveTo(r.left + 22, r.top - 24)
-          ..lineTo(r.right - 22, r.top - 24)
-          ..lineTo(r.right - 6, r.bottom)
-          ..lineTo(r.left + 6, r.bottom)
-          ..close(),
-        Paint()..color = _kIcePale.withValues(alpha: 0.34),
-      );
-      for (var i = 0; i < 7; i++) {
-        final y = r.top - 24 + ((_time * 150 + i * 33) % (r.height + 34));
-        final t = ((y - r.top + 24) / (r.height + 24)).clamp(0.0, 1.0);
-        final x =
-            r.center.dx +
-            (r.left + 16 + i * 14.0 - r.center.dx) * (1 + t * 0.5);
-        canvas.drawLine(
-          Offset(x, y),
-          Offset(x, y + 22 + t * 20),
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.2 + t * 0.3)
-            ..strokeWidth = 1.6 + t * 1.6,
-        );
-      }
-      // The plunge: a scatter of broken water at the foot, never still.
-      for (var i = 0; i < 7; i++) {
-        final a = 0.4 + i * 0.33;
-        final k = 12 + (sin(_time * 3 + i) + 1) * 9;
-        canvas.drawCircle(
-          Offset(fall.dx + cos(a) * k * 2.2, r.bottom + sin(a).abs() * 8),
-          2.2,
-          Paint()..color = Colors.white.withValues(alpha: 0.34),
-        );
-      }
+      // widens toward its foot — and it is grains now, falling fast through a
+      // faint wet sheen, with spray churning where it lands (it was seven
+      // stroked dashes and a ring of dots).
+      _paintRimefallWater(canvas, r);
     }
   }
 
@@ -4388,110 +4281,58 @@ extension FrozenObservatory on PlanetDungeonGame {
     }
   }
 
-  /// Frowyrm's hoarfrost pillar: a cluster of hoar blades off a rimed base,
-  /// not a white capsule. Shattered, the stumps and the shards stay on the
-  /// floor — the fight's clock has to be legible from anywhere in the arena.
-  void _drawHoarfrost(Canvas canvas, Offset p, bool whole) {
-    canvas.drawOval(
-      Rect.fromCenter(center: p + const Offset(0, 48), width: 92, height: 26),
-      Paint()..color = _kIceWhite.withValues(alpha: 0.28),
-    );
-    const heights = [96.0, 70.0, 118.0, 58.0, 84.0];
-    const offsets = [-26.0, -8.0, 6.0, 22.0, 34.0];
-    if (!whole) {
-      // A SHATTERED PILLAR IS STILL THE LOUDEST THING IN THIS ROOM. It used
-      // to be five 16px stumps in wall-colour, which in a dark hollow is a
-      // smudge — and it is the only thing in the boss room you can press.
-      // What stands in for it: the socket it grew out of, lit; the broken
-      // shafts, bright, with their fracture faces showing; and the GHOST of
-      // the pillar that belongs here, so the room says what it is missing.
-      final ghost = Path()
-        ..moveTo(p.dx - 34, p.dy + 48)
-        ..lineTo(p.dx - 16, p.dy - 62)
-        ..lineTo(p.dx + 10, p.dy - 74)
-        ..lineTo(p.dx + 30, p.dy + 48)
-        ..close();
-      canvas.drawPath(
-        ghost,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = _kIceWhite.withValues(alpha: 0.26),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: p + const Offset(0, 46), width: 78, height: 22),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = _kIceWhite.withValues(alpha: 0.5),
-      );
-    }
-    for (var i = 0; i < 5; i++) {
-      final h = whole ? heights[i] : 44.0 + (i % 3) * 12;
-      final x = p.dx + offsets[i] * (whole ? 1.0 : 1.35);
-      final w = whole ? 12.0 + (i % 3) * 4 : 17.0;
-      canvas.drawPath(
-        Path()
-          ..moveTo(x - w, p.dy + 48)
-          ..lineTo(x - w * 0.3, p.dy + 48 - h)
-          ..lineTo(x + w * 0.5, p.dy + 48 - h * 0.86)
-          ..lineTo(x + w, p.dy + 48)
-          ..close(),
-        Paint()
-          ..color = whole
-              ? _kIceWhite.withValues(alpha: 0.86 - (i % 3) * 0.12)
-              : _kIcePale.withValues(alpha: 0.82 - (i % 3) * 0.1),
-      );
-      if (!whole) {
-        // The fracture face: where the shaft was taken off, catching light.
-        canvas.drawLine(
-          Offset(x - w, p.dy + 48 - h),
-          Offset(x + w * 0.5, p.dy + 48 - h * 0.86),
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.85)
-            ..strokeWidth = 2.4,
-        );
-      }
-      if (whole) {
-        canvas.drawLine(
-          Offset(x - w * 0.6, p.dy + 44),
-          Offset(x - w * 0.25, p.dy + 52 - h),
-          Paint()
-            ..color = Colors.white.withValues(alpha: 0.8)
-            ..strokeWidth = 1.6,
-        );
-      }
-    }
-    if (!whole) {
-      // Shards, where it went.
-      for (var i = 0; i < 7; i++) {
-        final a = i * 0.9;
-        final q = p + Offset(cos(a) * (40 + i * 9), 48 + sin(a) * 16);
-        canvas.drawPath(
-          Path()
-            ..moveTo(q.dx, q.dy)
-            ..lineTo(q.dx + 11, q.dy - 5)
-            ..lineTo(q.dx + 5, q.dy + 6)
-            ..close(),
-          Paint()..color = _kIceWhite.withValues(alpha: 0.4),
-        );
-      }
-    }
-  }
+  /// Frowyrm's hoarfrost pillar: feathered rime off a rimed foot, in grains.
+  /// Shattered, the stump and the shards stay — and the ghost of the plumes
+  /// over them — so the fight's clock is legible from anywhere in the arena
+  /// (planet_dungeon_game_ice_art.dart, `_paintHoarfrost`). It was flat white
+  /// blades, and broken it read as a little frozen ship.
+  void _drawHoarfrost(Canvas canvas, Offset p, bool whole) =>
+      _paintHoarfrost(canvas, p, whole);
 
   /// THE THIRTEENTH TELESCOPE. It was one brown diagonal line — the payoff of
   /// the planet's Lost Maxim, drawn as a stick. A mount now: tripod, yoke,
-  /// a graduated declination arc, and the tube pointed at nothing.
+  /// the azimuth ring, and the tube pointed at nothing.
+  ///
+  /// IRON, NOT WOOD (2026-10-08): a brown tripod and a brass-outlined brown
+  /// tube read as clip art. The instrument is near-black, lit only along its
+  /// edges by the room's cold light; the one bright thing on it is what you
+  /// read — the brass ring underfoot — and its objective is a rondel of
+  /// glass, which is where the stranger is caught.
   void _drawTelescope(Canvas canvas, Offset p) {
-    final wood = Paint()
-      ..color = const Color(0xFF4A3C22)
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round;
-    for (final dx in [-30.0, 0.0, 30.0]) {
-      canvas.drawLine(p + Offset(dx, 62), p + const Offset(0, 4), wood);
-    }
-    canvas.drawCircle(p + const Offset(0, 4), 9, Paint()..color = _kShaftBrass);
+    const iron = Color(0xFF0C161E);
+    final rim = _kFrostGlass.leadLight;
     final axis = p + const Offset(0, 4);
+    for (final dx in [-30.0, 0.0, 30.0]) {
+      final foot = p + Offset(dx, 62);
+      paintContactShadow(canvas, foot + const Offset(0, 2), 14, 5);
+      final d = axis - foot;
+      final n = Offset(-d.dy, d.dx) / d.distance;
+      final leg = Path()
+        ..moveTo(foot.dx - n.dx * 2.2, foot.dy - n.dy * 2.2)
+        ..lineTo(axis.dx - n.dx * 3.6, axis.dy - n.dy * 3.6)
+        ..lineTo(axis.dx + n.dx * 3.6, axis.dy + n.dy * 3.6)
+        ..lineTo(foot.dx + n.dx * 2.2, foot.dy + n.dy * 2.2)
+        ..close();
+      canvas.drawPath(leg, Paint()..color = iron);
+      // The lit edge: whichever side of the leg faces up-left.
+      final s = (n.dx + n.dy) < 0 ? 1.0 : -1.0;
+      canvas.drawLine(
+        foot + n * (2.0 * s),
+        axis + n * (3.2 * s) + d * -0.08,
+        Paint()
+          ..strokeWidth = 1
+          ..color = rim.withValues(alpha: 0.42),
+      );
+    }
+    paintCarvedDisc(
+      canvas,
+      axis - const Offset(0, 3),
+      10,
+      6,
+      5,
+      _kFrostGlass,
+      topColor: const Color(0xFF1E2A34),
+    );
     final ring = _mirrorRingRoom?.rime?.mirrors;
     final notches = ring?.count ?? 12;
 
@@ -4549,29 +4390,74 @@ extension FrozenObservatory on PlanetDungeonGame {
       ..lineTo(across(54, -10).dx + lift.dx, across(54, -10).dy + lift.dy)
       ..lineTo(across(-30, -7).dx + lift.dx, across(-30, -7).dy + lift.dy)
       ..close();
-    canvas.drawPath(tube, Paint()..color = const Color(0xFF6E5A34));
+    // Its shadow on the floor first, so it stands off the ring.
     canvas.drawPath(
-      tube,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = _kShaftBrassLit.withValues(alpha: 0.65),
+      tube.shift(-lift * 0.85 + const Offset(3, 2)),
+      Paint()..color = Colors.black.withValues(alpha: 0.32),
     );
-    // The objective, with a cold gleam in it — and, once found, the
+    canvas.drawPath(tube, Paint()..color = iron);
+    // Lit along whichever long edge faces up; the other in its own dark.
+    final side = cos(ang) > 0 ? -1.0 : 1.0;
+    canvas.drawLine(
+      across(-28, 6.2 * side) + lift,
+      across(52, 9.0 * side) + lift,
+      Paint()
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round
+        ..color = rim.withValues(alpha: 0.62),
+    );
+    // Two bands round the barrel, cut and catching a little light.
+    for (final d in const [-6.0, 30.0]) {
+      final w = 7 + (d + 30) / 84 * 3;
+      canvas.drawLine(
+        across(d, w) + lift,
+        across(d, -w) + lift,
+        Paint()
+          ..strokeWidth = 2.2
+          ..color = _kFrostGlass.lead,
+      );
+      canvas.drawLine(
+        across(d + 1.6, w) + lift,
+        across(d + 1.6, -w) + lift,
+        Paint()
+          ..strokeWidth = 0.9
+          ..color = rim.withValues(alpha: 0.3),
+      );
+    }
+    // The eyepiece, a stub at the back.
+    canvas.drawLine(
+      along(-30) + lift,
+      along(-38) + lift,
+      Paint()
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round
+        ..color = iron,
+    );
+    // The objective, glass with a cold gleam in it — and, once found, the
     // stranger caught in it for good.
     final eye = along(54) + lift;
     if (_starCaught > 0) {
       _drawCaughtStar(canvas, eye);
       return;
     }
-    canvas.drawCircle(eye, 11, Paint()..color = const Color(0xFF0B2733));
-    canvas.drawCircle(
+    paintRondel(
+      canvas,
       eye,
-      11,
+      9.5,
+      _kFrostGlass,
+      fill: const Color(0xFF0B2733),
+      lead: 2.4,
+    );
+    canvas.drawArc(
+      Rect.fromCircle(center: eye, radius: 5.5),
+      -2.6,
+      1.2,
+      false,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = _kIcePale.withValues(alpha: 0.7),
+        ..strokeWidth = 1.4
+        ..strokeCap = StrokeCap.round
+        ..color = _kFrostGlass.live.withValues(alpha: 0.7),
     );
     // A brass pointer from the axis to the set notch, so the tube and the
     // ring agree to the eye even mid-swing.
@@ -4652,6 +4538,12 @@ class _ShaftGround {
   /// Rime coming down the shaft: a start point and a fall speed each.
   final List<Offset> motes = [];
   final List<double> moteSpeed = [];
+
+  /// The icicle fringe: where each one hangs (its root's width and its
+  /// length) and how far its tip leans off centre. Drawn as rime beards in
+  /// grains (planet_dungeon_game_ice_art.dart).
+  final List<Rect> icicles = [];
+  final List<double> icicleTip = [];
 
   final List<String> _keys = [];
   final List<String> _overKeys = [];
@@ -5038,37 +4930,35 @@ void _shaftFerns(_ShaftGround g, Rect b, _ShaftRnd rnd, int n, double band) {
 /// The icicle fringe off the lip above. Every room of this shaft is under
 /// something, and in the two shelves it is the whole reason the pocket reads
 /// as a pocket rather than as a small room.
+///
+/// Only LAID here: each one is drawn as a beard of rime grains over the
+/// furniture (`_paintRimeBeards`). It was a flat pale triangle with a stroked
+/// highlight, which read as a sticker of an icicle.
 void _shaftIcicles(
   _ShaftGround g,
   Rect b,
   _ShaftRnd rnd, {
   required int n,
   required double maxLen,
-  _ShaftLayer layer = _ShaftLayer.overlay,
 }) {
   n = _ambientCount(n);
-  final body = Path();
-  final lit = Path();
   var x = b.left + rnd.range(4, 30);
   for (var i = 0; i < n && x < b.right; i++) {
     final w = rnd.range(7, 19);
     final l = rnd.range(maxLen * 0.3, maxLen);
-    body
-      ..moveTo(x, b.top)
-      ..lineTo(x + w, b.top)
-      ..lineTo(x + w * 0.5 + rnd.range(-3, 3), b.top + l)
-      ..close();
-    lit
-      ..moveTo(x + w * 0.28, b.top + 3)
-      ..lineTo(x + w * 0.5, b.top + l * 0.85);
+    g.icicles.add(Rect.fromLTWH(x, b.top, w, l));
+    g.icicleTip.add(rnd.range(-3, 3));
     x += w + rnd.range(6, 42);
   }
-  g.fill(body, _kShaftMilk.withValues(alpha: 0.30), layer: layer);
-  g.stroke(lit, Colors.white.withValues(alpha: 0.4), 1.2, layer: layer);
 }
 
-/// Broken ice on the floor — angular chunks with a lit top facet, piled
-/// thickest at [c]. Nothing about a fall of ice is round.
+/// Broken ice on the floor — angular chunks piled thickest at [c]. Nothing
+/// about a fall of ice is round.
+///
+/// Old glacier ice, not new: near-black, standing on its own shadow, with
+/// only its top edges catching the light — and fewer of them (every other
+/// chunk is laid and left out, so the rest of the room keeps its layout). They
+/// were pale blue pentagons with a white outline, which read as stickers.
 void _shaftRubble(
   _ShaftGround g,
   Offset c,
@@ -5076,7 +4966,9 @@ void _shaftRubble(
   _ShaftRnd rnd,
   int n,
 ) {
+  final shadow = Path();
   final body = Path();
+  final face = Path();
   final lit = Path();
   for (var i = 0; i < n; i++) {
     final a = rnd.range(0, pi * 2);
@@ -5088,14 +4980,21 @@ void _shaftRubble(
       final t = k * pi * 2 / 5 + rnd.range(-0.2, 0.2);
       pts.add(p + Offset(cos(t) * s, sin(t) * s * 0.72));
     }
-    body.addPath(_shaftPoly(pts), Offset.zero);
+    if (i.isOdd && n > 3) continue;
+    final chunk = _shaftPoly(pts);
+    shadow.addPath(chunk, const Offset(2, 5));
+    body.addPath(chunk, Offset.zero);
+    // The top facet: the upper half of the chunk, a shade lighter.
+    face.addPath(_shaftPoly([pts[3], pts[4], pts[0], p]), Offset.zero);
     lit
       ..moveTo(pts[3].dx, pts[3].dy)
       ..lineTo(pts[4].dx, pts[4].dy)
       ..lineTo(pts[0].dx, pts[0].dy);
   }
-  g.fill(body, _kShaftIce.withValues(alpha: 0.34));
-  g.stroke(lit, Colors.white.withValues(alpha: 0.35), 1.5);
+  g.fill(shadow, Colors.black.withValues(alpha: 0.24));
+  g.fill(body, const Color(0xFF0A1C28).withValues(alpha: 0.78));
+  g.fill(face, _kShaftGlacier.withValues(alpha: 0.42));
+  g.stroke(lit, _kShaftIce.withValues(alpha: 0.45), 1.1);
 }
 
 // ── The observatory ──────────────────────────────────────
@@ -5983,52 +5882,12 @@ void _groundShelf(
       ),
       _kShaftStone.withValues(alpha: 0.7),
     );
-    // Old crates the ice has taken, stacked to one side.
-    for (final (dx, dy, w, h) in const [
-      (-150.0, 40.0, 54.0, 42.0),
-      (-140.0, -6.0, 44.0, 36.0),
-      (146.0, 36.0, 62.0, 46.0),
-    ]) {
-      final r = Rect.fromCenter(
-        center: n + Offset(dx, dy),
-        width: w,
-        height: h,
-      );
-      g.fill(
-        Path()..addRect(r),
-        const Color(0xFF3B3222).withValues(alpha: 0.7),
-      );
-      g.stroke(
-        Path()
-          ..addRect(r.deflate(5))
-          ..moveTo(r.left, r.center.dy)
-          ..lineTo(r.right, r.center.dy),
-        _kShaftBrass.withValues(alpha: 0.5),
-        1.4,
-      );
-    }
+    // (The old crates the ice has taken are carved blocks now, baked with
+    // the room's furniture — `_renderIceFurniture`.)
   } else {
     // THE LENS NICHE. A bracket shelf of stowed instrument cases on the west
     // wall — the thirteenth telescope's own kit, left where it was set down.
-    final sy = b.top + 128.0;
-    g.fill(
-      Path()..addRect(Rect.fromLTRB(b.left + 18, sy, b.left + 128, sy + 9)),
-      _kShaftStone.withValues(alpha: 0.8),
-    );
-    for (var i = 0; i < 3; i++) {
-      final r = Rect.fromLTWH(b.left + 24 + i * 34.0, sy - 30, 26, 30);
-      g.fill(
-        Path()..addRect(r),
-        const Color(0xFF3B3222).withValues(alpha: 0.75),
-      );
-      g.stroke(
-        Path()
-          ..moveTo(r.left + 3, r.top + 9)
-          ..lineTo(r.right - 3, r.top + 9),
-        _kShaftBrassLit.withValues(alpha: 0.5),
-        1.4,
-      );
-    }
+    // Carved and baked with the furniture (`_renderIceFurniture`).
     // A chart pinned to the back wall, half rimed over.
     g.fill(
       Path()..addRect(Rect.fromLTWH(b.right - 132, b.top + 78, 100, 74)),

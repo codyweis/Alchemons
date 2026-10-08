@@ -1545,32 +1545,8 @@ extension BuriedGiant on PlanetDungeonGame {
     );
   }
 
-  /// Ambient grave-dust: a handful of motes sifting slowly DOWN on
-  /// staggered loops. 4 glow blits per frame.
-  void _drawDustSift(Canvas canvas, Size vp) {
-    if (!_fx.ready) return;
-    for (var i = 0; i < 4; i++) {
-      final speed = 16.0 + i * 6;
-      final span = vp.height + 90;
-      final travel = (_time * speed + i * 233) % span;
-      final y = travel - 40;
-      final x =
-          vp.width * (0.18 + 0.21 * i) +
-          sin(_time * (0.5 + i * 0.19) + i * 2.4) * 26;
-      final fade = (travel / span).clamp(0.0, 1.0);
-      drawGlow(
-        canvas,
-        _fx.mote!,
-        Offset(x, y),
-        3.0 + i * 0.7,
-        Color.lerp(
-          const Color(0xFFD8B878),
-          const Color(0xFF8A6E48),
-          fade,
-        )!.withValues(alpha: (0.20 * (1 - fade) + 0.04).clamp(0.0, 0.24)),
-      );
-    }
-  }
+  // (The grave-dust sifting down — it was four glow motes over puff-sprite
+  // veils — is grains now: `_renderBarrowDust`, earth_art.)
 
   // ── Render: world-space ─────────────────────────────────
 
@@ -1792,40 +1768,28 @@ extension BuriedGiant on PlanetDungeonGame {
       radius: 8,
       topColor: const Color(0xFF3A2C1C),
     );
-    // The engraved scale: post, beam, two pans.
-    final groove = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round
-      ..color = amber.withValues(alpha: 0.75);
+    // The scale, INLAID: gold set in a groove cut into the tablet — post,
+    // beam, two pans, and the cords they hang from. It was a stroked amber
+    // icon drawn over the stone (2026-10-08).
     final pivot = c + const Offset(0, -16);
-    canvas.drawLine(pivot, c + const Offset(0, 22), groove);
-    canvas.drawLine(
-      pivot - const Offset(38, 0),
-      pivot + const Offset(38, 0),
-      groove,
-    );
+    final scale = Path()
+      ..moveTo(pivot.dx, pivot.dy)
+      ..lineTo(c.dx, c.dy + 22)
+      ..moveTo(pivot.dx - 38, pivot.dy)
+      ..lineTo(pivot.dx + 38, pivot.dy);
+    final cords = Path();
     for (final side in const [-1.0, 1.0]) {
       final pan = pivot + Offset(38 * side, 18);
-      canvas.drawArc(
-        Rect.fromCircle(center: pan, radius: 13),
-        0,
-        pi,
-        false,
-        groove,
-      );
-      canvas.drawLine(
-        pivot + Offset(38 * side, 0),
-        pan + const Offset(-10, 0),
-        groove..strokeWidth = 1.2,
-      );
-      canvas.drawLine(
-        pivot + Offset(38 * side, 0),
-        pan + const Offset(10, 0),
-        groove,
-      );
-      groove.strokeWidth = 2.4;
+      scale.addArc(Rect.fromCircle(center: pan, radius: 13), 0, pi);
+      final hang = pivot + Offset(38 * side, 0);
+      cords
+        ..moveTo(hang.dx, hang.dy)
+        ..lineTo(pan.dx - 10, pan.dy)
+        ..moveTo(hang.dx, hang.dy)
+        ..lineTo(pan.dx + 10, pan.dy);
     }
+    _paintGoldInlay(canvas, cords, width: 1.0);
+    _paintGoldInlay(canvas, scale, width: 2.2);
     // The weight, sitting in its true pan: lit.
     final sits = pivot + Offset(38 * (right ? 1 : -1), 12);
     paintRondel(
@@ -1857,66 +1821,88 @@ extension BuriedGiant on PlanetDungeonGame {
     final rr = RRect.fromRectAndRadius(rect, const Radius.circular(4));
     // Grounded shadow under the slab.
     canvas.drawRRect(
-      rr.shift(const Offset(2.5, 3.5)),
-      Paint()..color = const Color(0xFF120C06).withValues(alpha: 0.45 * alpha),
+      rr.shift(const Offset(2.5, 4)),
+      Paint()..color = Colors.black.withValues(alpha: 0.5 * alpha),
     );
-    // Stone body.
+    // Stone body: the barrow's dark (it was a beige slab with a bright
+    // bevel and an outline, 2026-10-08).
     canvas.drawRRect(
       rr,
-      Paint()..color = const Color(0xFF6B5436).withValues(alpha: 0.95 * alpha),
+      Paint()..color = _kGiantDark.withValues(alpha: 0.97 * alpha),
     );
-    // Lit top bevel (the giant's stone catches the barrow light).
+    // The top face, catching what light there is, and its lit arris.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(rect.left + 2, rect.top + 2, w - 4, h * 0.34),
+        Rect.fromLTWH(rect.left + 1.5, rect.top + 1.5, w - 3, h * 0.36),
         const Radius.circular(3),
       ),
-      Paint()..color = const Color(0xFF8F7349).withValues(alpha: 0.85 * alpha),
+      Paint()..color = _kGiantFace.withValues(alpha: 0.9 * alpha),
     );
-    // Carved outline.
-    canvas.drawRRect(
-      rr,
+    canvas.drawLine(
+      Offset(rect.left + 3, rect.top + 0.8),
+      Offset(rect.right - 3, rect.top + 0.8),
       Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
-        ..color = const Color(0xFF3A2C1A).withValues(alpha: 0.85 * alpha),
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round
+        ..color = _kGiantRim.withValues(alpha: 0.5 * alpha),
     );
     canvas.restore();
   }
 
-  /// A scatter of small fallen rubble — the debris a collapsed barrow leaves
-  /// strewn at its feet. Tiny filled pebbles with a grounded shadow; static
-  /// (fixed offsets) so they don't shimmer frame to frame.
+  /// What a collapsed barrow leaves strewn at its feet: CRUMBLED EARTH, in
+  /// grains — little heaps where the pebbles were, packed and lit on top,
+  /// loose at their skirts. It was eight round pebbles with glossy caps.
   void _drawRubble(Canvas canvas, Offset base) {
-    const chunks = [
-      (-60.0, 40.0, 6.5),
-      (-38.0, 47.0, 4.0),
-      (-12.0, 44.0, 5.5),
-      (8.0, 49.0, 3.5),
-      (28.0, 45.0, 5.0),
-      (52.0, 42.0, 6.5),
-      (44.0, 50.0, 3.5),
-      (-26.0, 51.0, 3.0),
-    ];
-    for (final (dx, dy, s) in chunks) {
-      final p = base + Offset(dx, dy);
-      canvas.drawCircle(
-        p + const Offset(1.5, 2),
-        s,
-        Paint()..color = const Color(0xFF120C06).withValues(alpha: 0.4),
-      );
-      canvas.drawCircle(
-        p,
-        s,
-        Paint()..color = const Color(0xFF5C4830).withValues(alpha: 0.92),
-      );
-      // A small lit cap so each pebble catches the barrow light.
-      canvas.drawCircle(
-        p - Offset(s * 0.3, s * 0.35),
-        s * 0.5,
-        Paint()..color = const Color(0xFF856A44).withValues(alpha: 0.7),
-      );
-    }
+    final heaps = _barrowShapes.putIfAbsent('rubble', () {
+      const chunks = [
+        (-60.0, 40.0, 6.5),
+        (-38.0, 47.0, 4.0),
+        (-12.0, 44.0, 5.5),
+        (8.0, 49.0, 3.5),
+        (28.0, 45.0, 5.0),
+        (52.0, 42.0, 6.5),
+        (44.0, 50.0, 3.5),
+        (-26.0, 51.0, 3.0),
+      ];
+      final rng = Random(41);
+      final pts = <Offset>[];
+      final shade = <double>[];
+      for (final (dx, dy, s) in chunks) {
+        final n = (s * s * 1.6).round() + 8;
+        for (var k = 0; k < n; k++) {
+          // A low mound: packed at the crown, spread at the skirt.
+          final r = s * 1.7 * sqrt(rng.nextDouble());
+          final a = rng.nextDouble() * pi * 2;
+          final h = 1 - r / (s * 1.7);
+          final q = Offset(
+            dx + cos(a) * r,
+            dy + sin(a) * r * 0.55 - h * s * 0.6,
+          );
+          pts.add(q);
+          shade.add((0.25 + 0.75 * h) * (0.6 + 0.4 * (-sin(a) * 0.5 + 0.5)));
+        }
+      }
+      // Loose grains along the line the heaps lie on.
+      for (var k = 0; k < 46; k++) {
+        pts.add(
+          Offset(-72 + rng.nextDouble() * 140, 38 + rng.nextDouble() * 16),
+        );
+        shade.add(0.15 + 0.4 * rng.nextDouble());
+      }
+      return GrainShape.points(pts, shade, seed: 41);
+    });
+    paintGrainShape(
+      canvas,
+      heaps,
+      _time,
+      origin: base,
+      drift: 0.25,
+      alpha: 0.8,
+      ramp: _kBarrowDustRamp,
+      glint: 0.004,
+      width: 1.6,
+      trail: 0.035,
+    );
   }
 
   void _drawBarrowLintel(Canvas canvas) {
@@ -1972,13 +1958,29 @@ extension BuriedGiant on PlanetDungeonGame {
       );
     }
 
-    // Flanking columns by the inner doors.
-    final col = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 5
-      ..color = const Color(0xFF4A3A28).withValues(alpha: 0.7);
-    canvas.drawLine(const Offset(640, 180), const Offset(640, 360), col);
-    canvas.drawLine(const Offset(672, 190), const Offset(672, 350), col);
+    // Flanking columns by the inner doors: standing stones of the barrow's
+    // dark, lit down one edge (they were two plain stroked lines).
+    for (final (x, y0, y1) in const [
+      (640.0, 180.0, 360.0),
+      (672.0, 190.0, 350.0),
+    ]) {
+      final shaft = Rect.fromLTRB(x - 3, y0, x + 3, y1);
+      canvas.drawRect(
+        shaft.shift(const Offset(2, 3)),
+        Paint()..color = Colors.black.withValues(alpha: 0.25),
+      );
+      canvas.drawRect(
+        shaft,
+        Paint()..color = _kGiantDark.withValues(alpha: 0.75),
+      );
+      canvas.drawLine(
+        shaft.topLeft + const Offset(0.6, 2),
+        shaft.bottomLeft + const Offset(0.6, -2),
+        Paint()
+          ..strokeWidth = 1.1
+          ..color = _kGiantRim.withValues(alpha: 0.38),
+      );
+    }
   }
 
   void _drawSternumCourt(Canvas canvas, DungeonRoom room) {
@@ -1989,51 +1991,49 @@ extension BuriedGiant on PlanetDungeonGame {
 
     // The giant's BACKBONE runs the length of the court; the ribcage vaults
     // out from it on both sides — you stand inside the chest at the sternum.
-    final spineGlow = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 7
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF6E5A3A).withValues(alpha: 0.18);
-    canvas.drawLine(Offset(spineX, top), Offset(spineX, bottom), spineGlow);
-
-    const ribCount = 7;
-    final ribPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFB8A070).withValues(alpha: 0.20);
-    final reachMax = b.width * 0.44;
-    for (var i = 0; i < ribCount; i++) {
-      final t = i / (ribCount - 1);
-      final y = top + t * (bottom - top);
-      final reach = reachMax * (0.5 + 0.5 * sin(t * pi)); // widest mid-chest
-      final drop = 60.0 + 30 * sin(t * pi);
-      for (final s in const [-1.0, 1.0]) {
-        canvas.drawPath(
-          Path()
-            ..moveTo(spineX + s * 6, y)
-            ..quadraticBezierTo(
-              spineX + s * reach * 0.7,
-              y + drop * 0.25,
-              spineX + s * reach,
-              y + drop,
-            ),
-          ribPaint,
+    // Carved in the barrow's dark (it was faint beige strokes over the floor,
+    // which read as line art), and baked: none of it moves.
+    _drawBakedBones(canvas, 'sternum|${room.id}', (canvas) {
+      canvas.drawRect(
+        Rect.fromLTRB(spineX - 5, top, spineX + 5, bottom),
+        Paint()..color = _kGiantDark.withValues(alpha: 0.85),
+      );
+      canvas.drawLine(
+        Offset(spineX - 5, top),
+        Offset(spineX - 5, bottom),
+        Paint()
+          ..strokeWidth = 1
+          ..color = _kGiantRim.withValues(alpha: 0.22),
+      );
+      const ribCount = 7;
+      final reachMax = b.width * 0.44;
+      for (var i = 0; i < ribCount; i++) {
+        final t = i / (ribCount - 1);
+        final y = top + t * (bottom - top);
+        final reach = reachMax * (0.5 + 0.5 * sin(t * pi)); // widest mid-chest
+        final drop = 60.0 + 30 * sin(t * pi);
+        for (final s in const [-1.0, 1.0]) {
+          _drawBuriedBone(
+            canvas,
+            Offset(spineX + s * 6, y),
+            Offset(spineX + s * reach * 0.7, y + drop * 0.25),
+            Offset(spineX + s * reach, y + drop),
+            thick: 12,
+            alpha: 0.8,
+          );
+        }
+        // Vertebra knot on the spine.
+        paintCarvedDisc(
+          canvas,
+          Offset(spineX, y - 2),
+          9,
+          5.5,
+          4,
+          _kBarrowGlass,
+          topColor: _kGiantTop,
         );
       }
-      // Vertebra knot on the spine.
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(spineX, y), width: 17, height: 11),
-        Paint()..color = const Color(0xFF6E5A3A).withValues(alpha: 0.5),
-      );
-      canvas.drawOval(
-        Rect.fromCenter(center: Offset(spineX, y), width: 17, height: 11),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = const Color(0xFFB8A070).withValues(alpha: 0.35),
-      );
-    }
+    });
 
     // Slow marrow motes drifting up the nave.
     if (_fx.ready) {
@@ -2094,43 +2094,10 @@ extension BuriedGiant on PlanetDungeonGame {
       upper.add(at(t) + n * w);
       lower.add(at(t) - n * w);
     }
-    final body = Path()..moveTo(upper.first.dx, upper.first.dy);
-    for (final p in upper.skip(1)) {
-      body.lineTo(p.dx, p.dy);
-    }
-    for (final p in lower.reversed) {
-      body.lineTo(p.dx, p.dy);
-    }
-    body.close();
-    canvas.drawPath(
-      body,
-      Paint()..color = const Color(0xFF6B5636).withValues(alpha: 0.55 * alpha),
-    );
-    // The lit edge, which is what makes it read as round.
-    final lit = Path()..moveTo(upper.first.dx, upper.first.dy);
-    for (final p in upper.skip(1)) {
-      lit.lineTo(p.dx, p.dy);
-    }
-    canvas.drawPath(
-      lit,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFFC6AC78).withValues(alpha: 0.42 * alpha),
-    );
-    // …and the shadow it sits in.
-    final dark = Path()..moveTo(lower.first.dx, lower.first.dy);
-    for (final p in lower.skip(1)) {
-      dark.lineTo(p.dx, p.dy);
-    }
-    canvas.drawPath(
-      dark,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0xFF120C06).withValues(alpha: 0.5 * alpha),
-    );
+    // CARVED, NOT BEIGE (2026-10-08): near-black stone lit only along the
+    // edge that faces up — the giant is relief cut into the barrow, not a
+    // cartoon skeleton lying on it (earth_art, `_paintCarvedBone`).
+    _paintCarvedBone(canvas, upper, lower, alpha);
   }
 
   /// THE HALL IS INSIDE THE RIBCAGE. Great ribs come down from the vault and
@@ -2182,7 +2149,12 @@ extension BuriedGiant on PlanetDungeonGame {
 
   void _drawRibHall(Canvas canvas, DungeonRoom room) {
     // The marrow chasm: a dark pit with glowing marrow veins down its walls.
-    _drawRibcageWalls(canvas, room);
+    // The cage never moves, so it is baked.
+    _drawBakedBones(
+      canvas,
+      'ribs|${room.id}',
+      (c) => _drawRibcageWalls(c, room),
+    );
     final chasm = room.ribChasm;
     if (chasm != null) {
       // THE MARROW CHANNEL — a split in the bone, not a rounded rectangle.
@@ -2282,53 +2254,64 @@ extension BuriedGiant on PlanetDungeonGame {
           ),
       );
     }
-    // The ribs themselves: solid bone slabs with knobbed vertebra heads,
-    // beveled to match the dolmen masonry.
+    // The ribs themselves: slabs of the giant with knobbed vertebra heads —
+    // CARVED (2026-10-08): near-black stone lit along the arris, not beige
+    // bone with a bright bevel. Seated across the chasm, the arris takes the
+    // marrow's warm light (the cradle under it is lit too).
+    const marrowLit = Color(0xFFE4A86A);
     for (final rib in room.fossilRibs) {
       final rect = _ribRect(rib);
       final bridging = _ribBridging(rib);
       final rr = RRect.fromRectAndRadius(rect, const Radius.circular(12));
+      final rimCol = bridging ? marrowLit : _kGiantRim;
       // Knobbed bone heads (solid), drawn behind the shaft.
       final knobR = rect.height * 0.62;
       for (final end in [rect.centerLeft, rect.centerRight]) {
         canvas.drawCircle(
-          end + const Offset(1.5, 2.5),
+          end + const Offset(1.5, 3.5),
           knobR,
-          Paint()..color = const Color(0xFF160F08).withValues(alpha: 0.4),
+          Paint()..color = Colors.black.withValues(alpha: 0.45),
         );
+        canvas.drawCircle(end, knobR, Paint()..color = _kGiantDark);
         canvas.drawCircle(
-          end,
-          knobR,
-          Paint()
-            ..color =
-                (bridging ? const Color(0xFF8E7A50) : const Color(0xFFBCA478))
-                    .withValues(alpha: bridging ? 0.8 : 0.95),
+          end - Offset(0, knobR * 0.28),
+          knobR * 0.72,
+          Paint()..color = _kGiantFace.withValues(alpha: 0.8),
         );
-        canvas.drawCircle(
-          end,
-          knobR,
+        canvas.drawArc(
+          Rect.fromCircle(center: end, radius: knobR - 0.7),
+          pi * 1.05,
+          pi * 0.9,
+          false,
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = const Color(0xFF6E5A3A).withValues(alpha: 0.85),
+            ..strokeWidth = 1.3
+            ..color = rimCol.withValues(alpha: bridging ? 0.7 : 0.45),
         );
       }
       // Grounded shadow + shaft body.
       canvas.drawRRect(
-        rr.shift(const Offset(2, 3)),
-        Paint()..color = const Color(0xFF160F08).withValues(alpha: 0.4),
+        rr.shift(const Offset(2, 4)),
+        Paint()..color = Colors.black.withValues(alpha: 0.45),
       );
+      canvas.drawRRect(rr, Paint()..color = _kGiantDark);
+      // The upper face of the shaft, catching what light there is.
       canvas.drawRRect(
-        rr,
-        Paint()
-          ..color =
-              (bridging ? const Color(0xFF9A8458) : const Color(0xFFC8B488))
-                  .withValues(alpha: bridging ? 0.78 : 0.92),
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            rect.left + 3,
+            rect.top + 2,
+            rect.width - 6,
+            rect.height * 0.46,
+          ),
+          const Radius.circular(9),
+        ),
+        Paint()..color = _kGiantFace.withValues(alpha: 0.85),
       );
       // A SHAFT, NOT A CAPSULE. A plain rounded rect between two knobs reads
       // as a pill; real bone is waisted at the middle and split with old
       // fissures along its length. Two dark wedges pull the silhouette in and
-      // three hairlines give it grain — the collision rect is untouched.
+      // three cut lines give it grain — the collision rect is untouched.
       for (final side in const [-1.0, 1.0]) {
         canvas.drawPath(
           Path()
@@ -2351,44 +2334,28 @@ extension BuriedGiant on PlanetDungeonGame {
               rect.center.dy + side * rect.height * 0.52,
             )
             ..close(),
-          Paint()..color = const Color(0xFF17100A).withValues(alpha: 0.55),
+          Paint()..color = const Color(0xFF0A0704).withValues(alpha: 0.8),
         );
       }
-      final grain = Paint()
-        ..strokeWidth = 1
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF6E5A3A).withValues(alpha: 0.35);
       for (var i = 0; i < 3; i++) {
         final y = rect.top + rect.height * (0.34 + i * 0.16);
         final x0 = rect.left + 12 + i * 9.0;
-        canvas.drawLine(
-          Offset(x0, y),
-          Offset(x0 + rect.width * (0.32 + i * 0.14), y + (i - 1) * 0.8),
-          grain,
+        _paintCarvedGroove(
+          canvas,
+          Path()
+            ..moveTo(x0, y)
+            ..lineTo(x0 + rect.width * (0.32 + i * 0.14), y + (i - 1) * 0.8),
+          width: 1.2,
         );
       }
-      // Lit bevel along the top of the shaft.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-            rect.left + 4,
-            rect.top + 3,
-            rect.width - 8,
-            rect.height * 0.34,
-          ),
-          const Radius.circular(8),
-        ),
+      // The lit arris along the top of the shaft.
+      canvas.drawLine(
+        Offset(rect.left + 10, rect.top + 1.2),
+        Offset(rect.right - 10, rect.top + 1.2),
         Paint()
-          ..color = const Color(
-            0xFFE0CC9A,
-          ).withValues(alpha: bridging ? 0.4 : 0.6),
-      );
-      canvas.drawRRect(
-        rr,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = const Color(0xFF6E5A3A).withValues(alpha: 0.85),
+          ..strokeWidth = 1.4
+          ..strokeCap = StrokeCap.round
+          ..color = rimCol.withValues(alpha: bridging ? 0.75 : 0.5),
       );
       // Grinding dust kicked up along the bone's trailing edge as it grinds.
       final slide = _ribSlides[rib.id];
@@ -2449,9 +2416,9 @@ extension BuriedGiant on PlanetDungeonGame {
       final working =
           _ribSlides.containsKey(ribs[i].id) &&
           _ribSlides.containsKey(ribs[i + 1].id);
-      const bone = Color(0xFFBCA478), marrow = Color(0xFFE4A86A);
+      const marrow = Color(0xFFE4A86A);
       // The lever: a long bone, tapered to each end, with a joint knob at
-      // each rib.
+      // each rib — carved like the rest of the giant, its edge lit.
       final d = b - a;
       final side = Offset(-d.dy, d.dx) / d.distance;
       final lever = Path()
@@ -2471,32 +2438,40 @@ extension BuriedGiant on PlanetDungeonGame {
       }
       canvas.drawPath(
         lever,
-        Paint()..color = (working ? Color.lerp(bone, marrow, 0.5)! : bone),
+        Paint()
+          ..color = working
+              ? Color.lerp(_kGiantDark, marrow, 0.22)!
+              : _kGiantFace,
       );
+      // Lit along whichever long edge faces up.
+      final up = side.dy <= 0 ? 1.0 : -1.0;
       canvas.drawPath(
-        lever,
+        Path()
+          ..moveTo((a + side * 3 * up).dx, (a + side * 3 * up).dy)
+          ..lineTo((pin + side * 8 * up).dx, (pin + side * 8 * up).dy)
+          ..lineTo((b + side * 3 * up).dx, (b + side * 3 * up).dy),
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color = const Color(0xFF6E5A3A),
+          ..strokeWidth = 1.2
+          ..strokeJoin = StrokeJoin.round
+          ..color = (working ? marrow : _kGiantRim).withValues(
+            alpha: working ? 0.8 : 0.45,
+          ),
       );
       for (final end in [a, b]) {
-        canvas.drawCircle(end, 7, Paint()..color = const Color(0xFF8E7A50));
-        canvas.drawCircle(
-          end,
-          7,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..color = const Color(0xFF6E5A3A),
-        );
+        _paintCarvedJoint(canvas, end, 7, 1);
       }
-      // The pin it rocks on, set in the floor.
-      canvas.drawCircle(pin, 11, Paint()..color = const Color(0xFF2A1E12));
-      canvas.drawCircle(
+      // The pin it rocks on, set in the floor: a glass rondel that takes the
+      // marrow's light while the lever works.
+      canvas.drawCircle(pin, 11, Paint()..color = _kGiantDark);
+      paintRondel(
+        canvas,
         pin,
-        6,
-        Paint()..color = working ? marrow : const Color(0xFF8A6E48),
+        5,
+        _kBarrowGlass,
+        fill: working ? marrow : _kBarrowGlass.smoke,
+        rim: working ? 1 : 0.5,
+        lead: 1.6,
       );
     }
   }
@@ -2515,24 +2490,25 @@ extension BuriedGiant on PlanetDungeonGame {
         ).withValues(alpha: 0.2 + 0.08 * sin(_time * 1.8)),
       );
     }
-    // A marrow geode cracked open on the pedestal.
-    canvas.drawCircle(
+    // A marrow geode cracked open on the pedestal: its heart a rondel of
+    // marrow glass, set in the dark of the stone (it was five stroked rays).
+    paintRondel(
+      canvas,
       c - const Offset(0, 4),
-      10,
-      Paint()..color = const Color(0xFF3A2C1A).withValues(alpha: 0.9),
+      8,
+      _kBarrowGlass,
+      fill: const Color(0xFFB8782E),
+      rim: 0.7,
+      lead: 2.4,
     );
-    final shard = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..color = const Color(0xFFE4A86A).withValues(alpha: 0.8);
-    for (var i = 0; i < 5; i++) {
-      final a = i * 1.256 + 0.4;
-      canvas.drawLine(
-        c - const Offset(0, 4) + Offset(cos(a), sin(a)) * 3,
-        c - const Offset(0, 4) + Offset(cos(a), sin(a)) * 9,
-        shard,
-      );
-    }
+    canvas.drawCircle(
+      c - const Offset(1.5, 5.5),
+      3.2,
+      Paint()
+        ..color = const Color(
+          0xFFF2C890,
+        ).withValues(alpha: 0.55 + 0.2 * sin(_time * 1.8)),
+    );
     _drawRuneCircle(
       canvas,
       c,
@@ -2581,29 +2557,28 @@ extension BuriedGiant on PlanetDungeonGame {
       final y = at.dy;
       final latched = walked || spineLatched.contains(i);
       final warm = latched ? 1.0 : (spineWarm[i] ?? 0);
-      final tone = Color.lerp(
-        const Color(0xFF5C4A2E),
-        const Color(0xFFB8E0D8),
-        latched ? 0.75 : warm * 0.5,
-      )!;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset(x, y), width: 68, height: 34),
-          const Radius.circular(12),
-        ),
-        Paint()..color = tone.withValues(alpha: 0.62 + 0.24 * warm),
+      // A vertebra of carved stone with a pane of the planet's crystal set
+      // in its top: smoked while cold, warming under an Earth creature's
+      // feet, lit for good once latched (it was a flat tinted pill with an
+      // outline, 2026-10-08).
+      paintCarvedBlock(
+        canvas,
+        Rect.fromCenter(center: Offset(x, y - 6), width: 68, height: 26),
+        9,
+        _kBarrowGlass,
+        radius: 11,
+        topColor: _kGiantTop,
       );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset(x, y - 4), width: 68, height: 34),
-          const Radius.circular(12),
-        ),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = latched ? 2.0 : 1.3
-          ..color =
-              (latched ? const Color(0xFFD8F0EA) : const Color(0xFFC6AC78))
-                  .withValues(alpha: 0.22 + 0.55 * warm),
+      final inlay = RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset(x, y - 6), width: 42, height: 13),
+        const Radius.circular(6.5),
+      );
+      paintPane(
+        canvas,
+        Path()..addRRect(inlay),
+        _kBarrowGlass.heat(latched ? 0.82 : 0.12 + warm * 0.5),
+        _kBarrowGlass,
+        lead: latched ? 2.2 : 1.8,
       );
       if (warm > 0.02 && _fx.ready) {
         drawGlow(
@@ -2713,36 +2688,19 @@ extension BuriedGiant on PlanetDungeonGame {
     for (final pillar in room.fossilPillars) {
       final locked = done || lockedPillars.contains(pillar.id);
       final p = pillar.position + Offset(0, 54 * (1 - rise));
-      // The fossil column: stacked vertebra discs — solid bone, bottom-up so
-      // the upper discs overlap the lower ones into a real stack.
-      final discOutline = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = const Color(0xFF6E5A3A).withValues(alpha: 0.85);
+      // The fossil column: stacked vertebra discs, bottom-up so the upper
+      // discs overlap the lower ones into a real stack — carved stone of the
+      // giant (they were glossy beige discs with an outline).
       for (var i = 2; i >= 0; i--) {
-        final r = Rect.fromCenter(
-          center: p + Offset(0, -8.0 + i * 14),
-          width: 52 - i * 6,
-          height: 16,
+        paintCarvedDisc(
+          canvas,
+          p + Offset(0, -12.0 + i * 14),
+          26.0 - i * 3,
+          8,
+          8,
+          _kBarrowGlass,
+          topColor: _kGiantTop,
         );
-        canvas.drawOval(
-          r.shift(const Offset(1.5, 2.5)),
-          Paint()..color = const Color(0xFF160F08).withValues(alpha: 0.4),
-        );
-        canvas.drawOval(
-          r,
-          Paint()..color = const Color(0xFFA88E5E).withValues(alpha: 0.95),
-        );
-        // Lit upper rim.
-        canvas.drawOval(
-          Rect.fromCenter(
-            center: r.center - const Offset(0, 3),
-            width: r.width * 0.78,
-            height: r.height * 0.5,
-          ),
-          Paint()..color = const Color(0xFFC8B488).withValues(alpha: 0.7),
-        );
-        canvas.drawOval(r, discOutline);
       }
       // The buried socket at its base.
       canvas.drawCircle(
@@ -2987,11 +2945,7 @@ extension BuriedGiant on PlanetDungeonGame {
       // The knuckle — SMALL. Sized to the bone it joins, it read as a bead on
       // a string and the fingers came out looking threaded rather than
       // jointed. It only has to interrupt the taper, not announce itself.
-      canvas.drawCircle(
-        end,
-        6.0 - i * 1.6,
-        Paint()..color = const Color(0xFF7A6440).withValues(alpha: 0.5),
-      );
+      _paintCarvedJoint(canvas, end, 5.6 - i * 1.4, 0.9);
       at = end;
       ang = a;
     }
@@ -3002,24 +2956,6 @@ extension BuriedGiant on PlanetDungeonGame {
     final won = discoveredClouds.contains(kEarthGiantsPalmEggId);
     final wrist = c + const Offset(0, 96);
 
-    // THE HAND, half-sunk. The dirt it is lying in first, so the bone comes
-    // up OUT of the ground rather than sitting on top of it.
-    canvas.drawOval(
-      Rect.fromCenter(center: c + const Offset(0, 34), width: 300, height: 150),
-      Paint()..color = const Color(0xFF0E0A06).withValues(alpha: 0.5),
-    );
-
-    // The forearm, running off the bottom of the hollow — the hand belongs to
-    // something, and the something is not in the room.
-    _drawBuriedBone(
-      canvas,
-      wrist + const Offset(6, 150),
-      wrist + const Offset(2, 70),
-      wrist,
-      thick: 54,
-      alpha: 0.8,
-    );
-
     // The palm: a broad plate of bone, wider at the knuckles than the wrist.
     final palm = Path()
       ..moveTo(wrist.dx - 34, wrist.dy)
@@ -3027,48 +2963,79 @@ extension BuriedGiant on PlanetDungeonGame {
       ..quadraticBezierTo(c.dx, c.dy - 44, c.dx + 84, c.dy - 20)
       ..quadraticBezierTo(c.dx + 96, c.dy + 40, wrist.dx + 34, wrist.dy)
       ..close();
-    canvas.drawPath(
-      palm,
-      Paint()..color = const Color(0xFF6B5636).withValues(alpha: 0.62),
-    );
-    canvas.drawPath(
-      palm,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.8
-        ..color = const Color(0xFFC6AC78).withValues(alpha: 0.34),
-    );
-    // The creases across it — a hand has lines in it, and they are where the
-    // crystal will find its way in.
-    final crease = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF2A2014).withValues(alpha: 0.6);
-    canvas.drawPath(
-      Path()
-        ..moveTo(c.dx - 66, c.dy + 6)
-        ..quadraticBezierTo(c.dx - 6, c.dy + 26, c.dx + 58, c.dy - 4),
-      crease,
-    );
-    canvas.drawPath(
-      Path()
-        ..moveTo(c.dx - 58, c.dy + 34)
-        ..quadraticBezierTo(c.dx, c.dy + 46, c.dx + 50, c.dy + 24),
-      crease,
-    );
 
-    // Four fingers off the knuckle line, and a thumb off the side. The thumb
-    // is the whole difference between a hand and a fan.
-    for (var i = 0; i < 4; i++) {
-      final t = i / 3;
-      final base = Offset(c.dx - 66 + t * 132, c.dy - 24 - sin(t * pi) * 12);
-      final spread = -pi / 2 + (t - 0.5) * 0.62;
-      _drawGiantFinger(canvas, base, spread, 104 + sin(t * pi) * 26);
-    }
-    // The thumb comes off the SIDE of the palm and angles up across it.
-    // Hung low and level it read as a second forearm leaving the room.
-    _drawGiantFinger(canvas, Offset(c.dx - 82, c.dy + 12), -pi * 0.74, 76);
+    // THE HAND, CARVED (2026-10-08). It was beige bone with bright knuckle
+    // beads, a cartoon skeleton's hand; it is the giant's hand cut in the
+    // barrow's dark stone now, lit only along its upper edges — and it never
+    // changes, so it is baked once.
+    _drawBakedBones(canvas, 'palm', (canvas) {
+      // Half-sunk: the dirt it is lying in first, so the bone comes up OUT of
+      // the ground rather than sitting on top of it.
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: c + const Offset(0, 34),
+          width: 300,
+          height: 150,
+        ),
+        Paint()..color = const Color(0xFF0E0A06).withValues(alpha: 0.5),
+      );
+      // The forearm, running off the bottom of the hollow — the hand belongs
+      // to something, and the something is not in the room.
+      _drawBuriedBone(
+        canvas,
+        wrist + const Offset(6, 150),
+        wrist + const Offset(2, 70),
+        wrist,
+        thick: 54,
+        alpha: 0.95,
+      );
+      // The plate is lit from above: its knuckle end catches the light and
+      // it falls away into shadow toward the wrist.
+      canvas.drawPath(
+        palm,
+        Paint()
+          ..shader = ui.Gradient.linear(
+            Offset(c.dx - 30, c.dy - 40),
+            Offset(c.dx + 10, wrist.dy),
+            [_kGiantFace, _kGiantDark],
+          ),
+      );
+      canvas.drawPath(
+        Path()
+          ..moveTo(c.dx - 84, c.dy - 20)
+          ..quadraticBezierTo(c.dx, c.dy - 44, c.dx + 84, c.dy - 20),
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.3
+          ..strokeCap = StrokeCap.round
+          ..color = _kGiantRim.withValues(alpha: 0.4),
+      );
+      // The creases across it — a hand has lines in it, and they are where
+      // the crystal will find its way in. Cut, not drawn on.
+      _paintCarvedGroove(
+        canvas,
+        Path()
+          ..moveTo(c.dx - 66, c.dy + 6)
+          ..quadraticBezierTo(c.dx - 6, c.dy + 26, c.dx + 58, c.dy - 4),
+      );
+      _paintCarvedGroove(
+        canvas,
+        Path()
+          ..moveTo(c.dx - 58, c.dy + 34)
+          ..quadraticBezierTo(c.dx, c.dy + 46, c.dx + 50, c.dy + 24),
+      );
+      // Four fingers off the knuckle line, and a thumb off the side. The
+      // thumb is the whole difference between a hand and a fan.
+      for (var i = 0; i < 4; i++) {
+        final t = i / 3;
+        final base = Offset(c.dx - 66 + t * 132, c.dy - 24 - sin(t * pi) * 12);
+        final spread = -pi / 2 + (t - 0.5) * 0.62;
+        _drawGiantFinger(canvas, base, spread, 104 + sin(t * pi) * 26);
+      }
+      // The thumb comes off the SIDE of the palm and angles up across it.
+      // Hung low and level it read as a second forearm leaving the room.
+      _drawGiantFinger(canvas, Offset(c.dx - 82, c.dy + 12), -pi * 0.74, 76);
+    });
 
     // ── THE CHAIN, standing in the hand ──
     // Everything the player has done so far is visible IN the palm, which is
@@ -3110,25 +3077,21 @@ extension BuriedGiant on PlanetDungeonGame {
         i == 0 ? rough.moveTo(p2.dx, p2.dy) : rough.lineTo(p2.dx, p2.dy);
       }
       rough.close();
+      // Carved earth until the seed wakes in it; then the crystal's own
+      // colour shows through.
       canvas.drawPath(
         rough,
         Paint()
-          ..color =
-              (palmStage >= 2
-                      ? const Color(0xFF3E6A66)
-                      : const Color(0xFF6B5636))
-                  .withValues(alpha: 0.9),
+          ..color = (palmStage >= 2 ? const Color(0xFF2E5A56) : _kGiantFace)
+              .withValues(alpha: 0.95),
       );
       canvas.drawPath(
         rough,
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.4
-          ..color =
-              (palmStage >= 2
-                      ? const Color(0xFFB8E0D8)
-                      : const Color(0xFFC6AC78))
-                  .withValues(alpha: 0.5),
+          ..strokeWidth = 1.2
+          ..color = (palmStage >= 2 ? const Color(0xFFB8E0D8) : _kGiantRim)
+              .withValues(alpha: palmStage >= 2 ? 0.6 : 0.42),
       );
       if (palmStage >= 2) {
         // THE SEED, waking. It pulses until it is given somewhere to go.
@@ -3215,7 +3178,10 @@ extension BuriedGiant on PlanetDungeonGame {
     final p = kBarrowGlass;
     final pivot = scale.position;
     final tilt = _scaleTiltShown;
-    const bone = Color(0xFFBCA478), dark = Color(0xFF6E5A3A);
+    // CARVED, NOT BEIGE (2026-10-08): the post, beam, pans and weights are
+    // the barrow's dark stone lit along their edges; the gold is only where
+    // something is read (the sigils, the chevrons, the memory slots).
+    const dark = Color(0xFF0A0704);
     // The post, on a carved base.
     paintCarvedBlock(
       canvas,
@@ -3229,13 +3195,22 @@ extension BuriedGiant on PlanetDungeonGame {
       radius: 6,
       topColor: const Color(0xFF3A2C1C),
     );
+    final post = Rect.fromCenter(
+      center: pivot + const Offset(0, 50),
+      width: 18,
+      height: 108,
+    );
+    canvas.drawRect(post, Paint()..color = _kGiantDark);
     canvas.drawRect(
-      Rect.fromCenter(
-        center: pivot + const Offset(0, 50),
-        width: 18,
-        height: 108,
-      ),
-      Paint()..color = const Color(0xFF6A5438),
+      Rect.fromLTRB(post.left, post.top, post.center.dx, post.bottom),
+      Paint()..color = _kGiantFace.withValues(alpha: 0.7),
+    );
+    canvas.drawLine(
+      post.topLeft + const Offset(0.6, 0),
+      post.bottomLeft + const Offset(0.6, 0),
+      Paint()
+        ..strokeWidth = 1.1
+        ..color = _kGiantRim.withValues(alpha: 0.4),
     );
     // The beam: a thick stone bar, rotated with the load.
     canvas.save();
@@ -3246,27 +3221,28 @@ extension BuriedGiant on PlanetDungeonGame {
       const Radius.circular(6),
     );
     canvas.drawRRect(
-      bar.shift(const Offset(0, 4)),
-      Paint()..color = Colors.black.withValues(alpha: 0.4),
+      bar.shift(const Offset(0, 5)),
+      Paint()..color = Colors.black.withValues(alpha: 0.45),
     );
-    canvas.drawRRect(bar, Paint()..color = bone);
+    canvas.drawRRect(bar, Paint()..color = _kGiantDark);
     canvas.drawRRect(
-      bar,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = dark,
+      RRect.fromRectAndRadius(
+        const Rect.fromLTRB(-138, -7, 138, 0),
+        const Radius.circular(4),
+      ),
+      Paint()..color = _kGiantFace.withValues(alpha: 0.85),
     );
     canvas.drawLine(
-      const Offset(-132, -5),
-      const Offset(132, -5),
+      const Offset(-134, -7.2),
+      const Offset(134, -7.2),
       Paint()
-        ..strokeWidth = 2
-        ..color = Colors.white.withValues(alpha: 0.35),
+        ..strokeWidth = 1.5
+        ..strokeCap = StrokeCap.round
+        ..color = _kGiantRim.withValues(alpha: 0.68),
     );
     canvas.restore();
-    canvas.drawCircle(pivot, 9, Paint()..color = const Color(0xFF3A2C1C));
-    canvas.drawCircle(pivot, 5, Paint()..color = const Color(0xFFE0C68C));
+    canvas.drawCircle(pivot, 9, Paint()..color = _kGiantDark);
+    paintRondel(canvas, pivot, 4.5, p, fill: p.goldDeep, rim: 0.8, lead: 1.6);
     // The pans: stone bowls hung level from the beam's ends, the weights
     // sitting in them.
     final beamHalf = Offset(cos(tilt), sin(tilt)) * 130;
@@ -3274,33 +3250,33 @@ extension BuriedGiant on PlanetDungeonGame {
       final end = pivot + beamHalf * side;
       final panC = end + const Offset(0, 40);
       final chain = Paint()
-        ..strokeWidth = 1.6
-        ..color = dark;
+        ..strokeWidth = 1.4
+        ..color = _kGiantRim.withValues(alpha: 0.4);
       canvas.drawLine(end, panC + const Offset(-22, -6), chain);
       canvas.drawLine(end, panC + const Offset(22, -6), chain);
-      paintCarvedDisc(
-        canvas,
-        panC,
-        28,
-        10,
-        12,
-        p,
-        topColor: const Color(0xFF4A3A26),
-      );
+      paintCarvedDisc(canvas, panC, 28, 10, 12, p, topColor: _kGiantFace);
       final on = [
         for (final w in scale.weights)
           if ((scalePanRight[w.id] ?? false) == (side > 0)) w,
       ];
       for (var k = 0; k < on.length; k++) {
         final at = panC + Offset((k - (on.length - 1) / 2) * 12, -6);
-        canvas.drawCircle(at, 6, Paint()..color = const Color(0xFFC8B488));
+        // A carved weight in the bowl: dark, its top lit.
+        canvas.drawCircle(at, 6, Paint()..color = dark);
         canvas.drawCircle(
-          at,
-          6,
+          at - const Offset(0, 1.2),
+          4.8,
+          Paint()..color = _kGiantTop,
+        );
+        canvas.drawArc(
+          Rect.fromCircle(center: at, radius: 5.4),
+          pi * 1.1,
+          pi * 0.8,
+          false,
           Paint()
             ..style = PaintingStyle.stroke
             ..strokeWidth = 1
-            ..color = dark,
+            ..color = _kGiantRim.withValues(alpha: 0.55),
         );
       }
     }
@@ -3347,16 +3323,17 @@ extension BuriedGiant on PlanetDungeonGame {
     for (final w in scale.weights) {
       final onRight = scalePanRight[w.id] ?? false;
       final pos = w.position;
-      paintCarvedDisc(
+      paintCarvedDisc(canvas, pos, 18, 12, 8, p, topColor: _kGiantTop);
+      // Its sigil cut into the top and inlaid with gold: what says which
+      // weight this is, so it is the bright thing on it.
+      _drawStoneSigil(canvas, pos, w.id, p.stoneFoot, 8);
+      _drawStoneSigil(
         canvas,
-        pos,
-        18,
-        12,
+        pos - const Offset(0, 0.6),
+        w.id,
+        p.gold.withValues(alpha: 0.9),
         8,
-        p,
-        topColor: const Color(0xFF8A7454),
       );
-      _drawStoneSigil(canvas, pos, w.id, const Color(0xFF2A1E12), 8);
       final dir = onRight ? 1.0 : -1.0;
       final base = pos + Offset(dir * 24, 0);
       canvas.drawPath(
@@ -3531,37 +3508,6 @@ extension BuriedGiant on PlanetDungeonGame {
     );
   }
 
-  /// A symmetric anatomical-heart silhouette centred on [c], [w]×[h].
-  Path _heartPath(Offset c, double w, double h) {
-    return Path()
-      ..moveTo(c.dx, c.dy + 0.42 * h)
-      ..cubicTo(
-        c.dx - 0.62 * w,
-        c.dy - 0.02 * h,
-        c.dx - 0.48 * w,
-        c.dy - 0.52 * h,
-        c.dx - 0.16 * w,
-        c.dy - 0.34 * h,
-      )
-      ..cubicTo(
-        c.dx - 0.05 * w,
-        c.dy - 0.46 * h,
-        c.dx + 0.05 * w,
-        c.dy - 0.46 * h,
-        c.dx + 0.16 * w,
-        c.dy - 0.34 * h,
-      )
-      ..cubicTo(
-        c.dx + 0.48 * w,
-        c.dy - 0.52 * h,
-        c.dx + 0.62 * w,
-        c.dy - 0.02 * h,
-        c.dx,
-        c.dy + 0.42 * h,
-      )
-      ..close();
-  }
-
   void _drawHeartChamber(Canvas canvas, DungeonRoom room) {
     final g = room.guardian;
     final c = g?.position ?? room.bounds.center;
@@ -3577,38 +3523,61 @@ extension BuriedGiant on PlanetDungeonGame {
         ? (thump(0.10, 0.045) + 0.55 * thump(0.27, 0.055)).clamp(0.0, 1.0)
         : 0.0;
 
-    // Ribcage caging the arena — breathes faintly with the beat, with a
-    // sternum seam down the front.
-    final ribArc = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFB8A070).withValues(alpha: 0.22 + 0.10 * beat);
+    // Ribcage caging the arena — breathes faintly with the beat. Carved bone
+    // like the rest of the giant (it was beige stroked arcs): a dark band,
+    // its outer edge catching the light, a little more on each beat.
     for (var i = 0; i < 7; i++) {
       final a = pi * 0.5 + i * pi * (1.0 / 6);
+      final r = 168 + (i % 2) * 20 + 4 * beat;
       canvas.drawArc(
-        Rect.fromCircle(center: c, radius: 168 + (i % 2) * 20 + 4 * beat),
+        Rect.fromCircle(center: c + const Offset(2, 4), radius: r),
         a - 0.20,
         0.40,
         false,
-        ribArc,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 9
+          ..strokeCap = StrokeCap.round
+          ..color = Colors.black.withValues(alpha: 0.4),
+      );
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r),
+        a - 0.20,
+        0.40,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 8
+          ..strokeCap = StrokeCap.round
+          ..color = _kGiantDark.withValues(alpha: 0.95),
+      );
+      canvas.drawArc(
+        Rect.fromCircle(center: c, radius: r + 3.4),
+        a - 0.18,
+        0.36,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..strokeCap = StrokeCap.round
+          ..color = _kGiantRim.withValues(alpha: 0.3 + 0.2 * beat),
       );
     }
-    canvas.drawLine(
-      Offset(c.dx, c.dy - 188),
-      Offset(c.dx, c.dy - 60),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF6E5A3A).withValues(alpha: 0.2),
+    _paintCarvedGroove(
+      canvas,
+      Path()
+        ..moveTo(c.dx, c.dy - 188)
+        ..lineTo(c.dx, c.dy - 60),
+      width: 2.6,
     );
 
-    // The great heart, behind the roost.
+    // The great heart, behind the roost — a HEART-STONE: the organ, cut in
+    // the barrow's dark, leaning to its apex with its great vessels cut off
+    // above it (2026-10-08; it was a symmetric valentine with an outline).
     final heartC = c - const Offset(0, 110);
     final s = 1.0 + 0.09 * beat;
-    final w = 124.0 * s;
-    final h = 110.0 * s;
+    const w = 124.0;
+    const h = 110.0;
 
     // Surge glow behind the heart on every beat.
     if (guardianAwake && _fx.ready) {
@@ -3621,35 +3590,65 @@ extension BuriedGiant on PlanetDungeonGame {
       );
     }
 
-    // The dark heart-stone.
-    final path = _heartPath(heartC, w, h);
+    final path = _barrowPaths.putIfAbsent(
+      'heart',
+      () => _heartStonePath(Offset.zero, w, h),
+    );
+    canvas.save();
+    canvas.translate(heartC.dx, heartC.dy);
+    canvas.scale(s);
+    canvas.drawPath(
+      path.shift(const Offset(3, 6)),
+      Paint()..color = Colors.black.withValues(alpha: 0.45),
+    );
+    // Lit from above and to the left, falling into shadow at the apex.
     canvas.drawPath(
       path,
-      Paint()..color = const Color(0xFF2A1712).withValues(alpha: 0.9),
+      _barrowPaints.putIfAbsent(
+        'heart',
+        () => Paint()
+          ..shader = ui.Gradient.linear(
+            const Offset(-0.35 * w, -0.45 * h),
+            const Offset(0.25 * w, 0.45 * h),
+            const [Color(0xFF3A231B), Color(0xFF170C08)],
+          ),
+      ),
     );
-
+    canvas.save();
+    canvas.clipPath(path);
     // Crystal veins: an organic vascular tree rooted at the heart's base and
-    // branching up into both lobes, CLIPPED inside the silhouette so it reads
-    // as veining within the muscle — not lines drawn over it. Brightens softly
-    // on each thump (a muted cyan, never a hard white).
+    // branching up into the muscle, CLIPPED inside the silhouette so it
+    // reads as veining within the stone — the only light it has, brightening
+    // softly on each thump (a muted cyan, never a hard white).
     final veinCol = Color.lerp(
       const Color(0xFF5E837C),
       const Color(0xFFB8E6DC),
       beat,
     )!;
-    final veinAlpha = guardianAwake ? 0.18 + 0.34 * beat : 0.08;
+    final veinAlpha = guardianAwake ? 0.2 + 0.4 * beat : 0.1;
     Paint veinPaint(double width) => Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
       ..strokeJoin = StrokeJoin.round
       ..strokeWidth = max(0.7, width)
       ..color = veinCol.withValues(alpha: veinAlpha);
-    final base = heartC + Offset(0, 0.20 * h);
-    canvas.save();
-    canvas.clipPath(path);
+    const base = Offset(-0.06 * w, 0.30 * h);
     _drawHeartVein(canvas, base, -pi / 2 - 0.42, 0.34 * h, 2.4, 2, veinPaint);
     _drawHeartVein(canvas, base, -pi / 2 + 0.42, 0.34 * h, 2.4, 2, veinPaint);
     _drawHeartVein(canvas, base, -pi / 2, 0.30 * h, 1.8, 2, veinPaint);
+    canvas.restore();
+    // The rim: only the edges that face up catch the light.
+    canvas.save();
+    canvas.clipRect(const Rect.fromLTRB(-w, -h, w, -0.05 * h));
+    canvas.drawPath(
+      path,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..strokeJoin = StrokeJoin.round
+        ..color = const Color(0xFFD8A27A).withValues(alpha: 0.32 + 0.2 * beat),
+    );
+    canvas.restore();
     canvas.restore();
 
     // A soft warm pulse at the aortic root — a deep glow, not a sparkle.
@@ -3657,32 +3656,11 @@ extension BuriedGiant on PlanetDungeonGame {
       drawGlow(
         canvas,
         _fx.glow!,
-        base,
+        heartC + base * s,
         14 + 10 * beat,
         const Color(
           0xFFE8B074,
         ).withValues(alpha: guardianAwake ? 0.12 + 0.22 * beat : 0.04),
-      );
-    }
-
-    // Outline.
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = const Color(0xFF6E3A2A).withValues(alpha: 0.6),
-    );
-
-    // A ring that flares out of the heart on each thump.
-    if (guardianAwake && beat > 0.08) {
-      canvas.drawCircle(
-        heartC,
-        w * 0.5 + 22 * beat,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = const Color(0xFFE4A86A).withValues(alpha: 0.26 * beat),
       );
     }
   }
