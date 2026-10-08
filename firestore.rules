@@ -180,5 +180,21 @@ service cloud.firestore {
       allow create, update: if isValidCloudSaveWrite(userId);
       allow delete: if false;
     }
+
+    // Website waitlist (alchemons-web/js/waitlist.js). Entries are keyed by a
+    // SHA-256 of the normalised email, so a repeat signup updates in place.
+    // Clients can add or update their own entry but never read or list them.
+    match /waitlist/{entryId} {
+      allow read, delete: if false;
+      allow create, update: if entryId.matches('^[a-f0-9]{64}$') &&
+          request.resource.data.keys().hasOnly(['email', 'platform', 'source', 'createdAt']) &&
+          request.resource.data.email is string &&
+          request.resource.data.email.size() <= 254 &&
+          request.resource.data.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$') &&
+          request.resource.data.platform in ['ios', 'android', 'both'] &&
+          request.resource.data.source == 'site' &&
+          request.resource.data.createdAt == request.time &&
+          (resource == null || resource.data.email == request.resource.data.email);
+    }
   }
 }

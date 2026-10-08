@@ -95,6 +95,30 @@ Offset alchemyOrbAt(double width, double top) => Offset(width / 2, top + 56);
 const double kAlchemyHeaderOrb = 30;
 Offset alchemyTitleAt(double width, double top) => Offset(width / 2, top + 112);
 
+/// The picker's header scrolled [offset] down the page: the orb slides up
+/// into the middle of a top bar and docks there, small ([dock] 0..1), as
+/// the title scrolls away ([titleA], how much of it still shows).
+({Offset orb, double orbR, Offset title, double titleA, double dock})
+alchemyHeaderAt(double width, double top, double offset) {
+  const docked = 12.0;
+  final home = alchemyOrbAt(width, top);
+  final bar = Offset(width / 2, top + 26);
+  // Docked once its place in the header would pass the bar's.
+  final reach = math.max(1.0, home.dy - bar.dy) + 50;
+  final k = Curves.easeInOut.transform((offset / reach).clamp(0.0, 1.0));
+  return (
+    orb: Offset.lerp(home - Offset(0, offset), bar, k)!,
+    orbR: kAlchemyHeaderOrb + (docked - kAlchemyHeaderOrb) * k,
+    title: alchemyTitleAt(width, top) - Offset(0, offset),
+    titleA: 1 - (offset / 70).clamp(0.0, 1.0),
+    dock: k,
+  );
+}
+
+/// How far the picker is scrolled, kept by the picker: the way back home
+/// leaves from its header as it stands, docked or not.
+final ValueNotifier<double> alchemyPickerScroll = ValueNotifier(0);
+
 /// The title at rest (or gathering, [k] < 1, its grains coming from [from]).
 void paintAlchemyTitle(
   Canvas canvas,
@@ -263,8 +287,15 @@ void paintAlchemyEmblem(
   // The orb: floating over the circle, then flying to the picker's head.
   final bob = math.sin(t * 1.25) * box.height * .03;
   final o0 = Offset(box.center.dx, box.top + box.height * .47 + bob);
-  final o1 = alchemyOrbAt(s.screen.width, s.pad.top);
-  final r0 = box.width * .2, r1 = kAlchemyHeaderOrb;
+  // The picker's header: at rest on the way in; going back, as the player
+  // left it (scrolled, the orb docked small and the title gone).
+  final head = alchemyHeaderAt(
+    s.screen.width,
+    s.pad.top,
+    s.closing ? alchemyPickerScroll.value : 0,
+  );
+  final o1 = head.orb;
+  final r0 = box.width * .2, r1 = head.orbR;
   // A gentle bow on the way up, out to the side it starts on.
   final side = (o0.dx - s.screen.width / 2).sign;
   final ctrl =
@@ -278,12 +309,13 @@ void paintAlchemyEmblem(
   final orbR = ui.lerpDouble(r0, r1, k)!;
 
   if (back) {
-    // The ground the passage brings: black, as the page is.
+    // The ground the passage brings: black, as the page is. Whole under
+    // the page while it gives way either side, or going back home would
+    // show through the page as it fades (it is only drawn mid-passage).
     if (s.ground > 0) {
       canvas.drawRect(
         Offset.zero & s.screen,
-        Paint()
-          ..color = Colors.black.withValues(alpha: s.ground * (1 - s.land)),
+        Paint()..color = Colors.black.withValues(alpha: s.ground),
       );
     }
   }
@@ -335,15 +367,15 @@ void paintAlchemyEmblem(
 
   // Arriving, the word gathers out of it underneath.
   // Once the orb has passed it, not while it crosses.
-  if (k > .87) {
+  if (k > .87 && head.titleA > .01) {
     paintAlchemyTitle(
       canvas,
       batch,
-      alchemyTitleAt(s.screen.width, s.pad.top),
+      head.title,
       t,
       k: _smooth(.87, 1, k),
       from: orbAt,
-      alpha: fade,
+      alpha: fade * head.titleA,
     );
     batch.paint(canvas);
   }

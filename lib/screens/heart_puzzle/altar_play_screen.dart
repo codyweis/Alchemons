@@ -1188,38 +1188,13 @@ class _ResultCardState extends State<_ResultCard>
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            for (var i = 0; i < 3; i++)
-                              () {
-                                // Each star fills in turn, swelling a little.
-                                final s = ((v - .3 - i * .16) / .22).clamp(
-                                  0.0,
-                                  1.0,
-                                );
-                                final on = i < widget.stars;
-                                final k = on
-                                    ? Curves.easeOutBack.transform(s)
-                                    : 1.0;
-                                return Transform.scale(
-                                  scale: on ? .6 + .4 * k : 1,
-                                  child: Icon(
-                                    on && s > 0
-                                        ? Icons.star_rounded
-                                        : Icons.star_outline_rounded,
-                                    size: 38,
-                                    color: on && s > 0
-                                        ? Color.lerp(
-                                            t.textMuted,
-                                            t.amberBright,
-                                            s,
-                                          )
-                                        : t.textMuted,
-                                  ),
-                                );
-                              }(),
-                          ],
+                        // Each star lights in turn, from its heart out.
+                        SizedBox(
+                          width: 156,
+                          height: 46,
+                          child: CustomPaint(
+                            painter: _ResultStars(widget.stars, v, inK),
+                          ),
                         ),
                         const SizedBox(height: 10),
                         Text(
@@ -1259,6 +1234,36 @@ class _ResultCardState extends State<_ResultCard>
       },
     );
   }
+}
+
+/// The result's three stars in grains: ash until won, each won one lit in
+/// turn from its heart out to its tips.
+class _ResultStars extends CustomPainter {
+  _ResultStars(this.stars, this.v, this.shown);
+  final int stars;
+  final double v, shown;
+  static final RiteGrainBatch _batch = RiteGrainBatch();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (var i = 0; i < 3; i++) {
+      final s = ((v - .3 - i * .18) / .3).clamp(0.0, 1.0);
+      paintGrainStar(
+        _batch,
+        Offset(size.width / 2 + (i - 1) * 52, size.height / 2),
+        15,
+        lit: i < stars ? Curves.easeInOut.transform(s) : 0,
+        alpha: shown,
+        canvas: canvas,
+        salt: i,
+      );
+    }
+    _batch.paint(canvas);
+  }
+
+  @override
+  bool shouldRepaint(covariant _ResultStars old) =>
+      old.stars != stars || old.v != v || old.shown != shown;
 }
 
 // ═══════════════════════════ THE STAGE ═════════════════════════════════════

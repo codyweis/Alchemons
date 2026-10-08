@@ -41,6 +41,13 @@ AltarRealm altarRealmFor(AltarChapter c) => switch (c.name) {
   _ => AltarRealm(() => volcanoScene, 22.5),
 };
 
+/// The chapter's realm as a still, for the level select: baked from the
+/// real field at the chapter's hour (test/alchemy_realm_stills_bake_test.dart),
+/// so the page never builds a field to show one.
+String altarRealmStill(AltarChapter c) =>
+    'assets/images/ui/alchemy_realm_'
+    '${c.name.toLowerCase().replaceAll(' ', '_')}.jpg';
+
 /// The realm behind the stage, faded up once it has drawn itself.
 class AltarRealmView extends StatefulWidget {
   const AltarRealmView({super.key, required this.realm, this.onReady});

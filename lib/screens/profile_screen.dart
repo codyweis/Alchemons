@@ -31,7 +31,6 @@ import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
-import 'package:alchemons/screens/alchemy_chamber_screen.dart';
 import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
@@ -393,12 +392,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     await Navigator.push<void>(
       context,
       MaterialPageRoute(builder: (_) => const AltarLevelsScreen()),
-    );
-  }
-
-  Future<void> _openAlchemyChamber() async {
-    await Navigator.of(context).push<void>(
-      MaterialPageRoute(builder: (_) => const AlchemyChamberScreen()),
     );
   }
 
@@ -1601,12 +1594,6 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   List<_DebugAction> _debugActions() => [
-    _DebugAction(
-      'ALCHEMY CHAMBER',
-      'An interactive experiment in elemental matter',
-      'OPEN',
-      _openAlchemyChamber,
-    ),
     _DebugAction(
       'ALCHEMY',
       'Fusion puzzles in levels, chapter by chapter through the realms',

@@ -198,6 +198,84 @@ void paintColumn(
   }
 }
 
+/// A star as a grain sparkle: a bright grain and four arms [arm] long, and
+/// on a big one four short ones between. Unwon it is ash; [lit] runs the
+/// light out from its heart to its tips, each grain lifting a little as the
+/// light reaches it, as the goal's word lights. Pass [canvas] for its glow.
+void paintGrainStar(
+  RiteGrainBatch batch,
+  Offset c,
+  double arm, {
+  double lit = 0,
+  double alpha = 1,
+  Canvas? canvas,
+  int salt = 0,
+}) {
+  if (alpha <= .01) return;
+  if (canvas != null && lit > 0) {
+    vfxSpill(canvas, c, arm * 2.4, kAltarBrass, .28 * _ease(lit) * alpha);
+  }
+  // How lit a grain [frac] of the way out is.
+  double at(double frac) => ((lit * 1.5 - frac * .5)).clamp(0.0, 1.0);
+  void grain(Offset p, double frac, double fall, double width, {bool hot = false}) {
+    final k = at(frac);
+    final q = p - Offset(0, arm * .12 * math.sin(math.pi * k));
+    final col = Color.lerp(
+      kAltarAsh,
+      hot ? const Color(0xFFFFF1D0) : kAltarBrass,
+      k,
+    )!;
+    final a = (.26 + .74 * k) * fall * alpha;
+    batch.add(q.dx, q.dy, q.dx, q.dy, col, alpha: a, width: width);
+  }
+
+  grain(c, 0, 1, 2.6, hot: true);
+  // A big star has a bead of a heart, and arms that taper from it.
+  final big = arm >= 8;
+  if (big) {
+    for (var i = 0; i < 12; i++) {
+      final a = i / 6 * math.pi + (i >= 6 ? math.pi / 6 : 0);
+      final r = arm * (i < 6 ? .13 : .24);
+      grain(
+        c + Offset(math.cos(a), math.sin(a)) * r,
+        r / arm,
+        i < 6 ? 1 : .8,
+        2.6,
+        hot: i < 6,
+      );
+    }
+  }
+  final n = math.max(2, (arm / 3).round());
+  for (var d = 0; d < 4; d++) {
+    final dir = Offset(math.cos(d * math.pi / 2), math.sin(d * math.pi / 2));
+    final side = Offset(-dir.dy, dir.dx);
+    for (var j = 1; j <= n; j++) {
+      final frac = j / n;
+      final h = _hash(d * 31 + j * 7 + salt * 113);
+      // A grain or so off true, so a big star is grains and not a cross.
+      final p = c + dir * (arm * frac) + side * ((h - .5) * arm * .05);
+      final fall = .95 - .4 * frac;
+      grain(p, frac, fall, frac < .5 ? 2.6 : 2);
+      // Thick near the heart: a grain either side.
+      if (big && frac < .5) {
+        final w = arm * .07 * (1 - frac * 1.6);
+        grain(p + side * w, frac, fall * .8, 2);
+        grain(p - side * w, frac, fall * .8, 2);
+      }
+    }
+    if (big) {
+      final diag = Offset(
+        math.cos(d * math.pi / 2 + math.pi / 4),
+        math.sin(d * math.pi / 2 + math.pi / 4),
+      );
+      for (var j = 1; j <= 2; j++) {
+        final frac = .2 + j * .14;
+        grain(c + diag * (arm * frac), frac, .7 - .4 * frac, 2);
+      }
+    }
+  }
+}
+
 /// The goal, hung at the top of the stage as its word in grains: the
 /// element, or from species on the species' own name, as one word
 /// ("Poisonmane" — the author, 2026-10-08: "it's one species").
