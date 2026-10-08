@@ -402,8 +402,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// This is the one hidden frame worth paying for: it is where the fullscreen
   /// sky `FragmentShader` gets compiled by the driver and every first-use paint
   /// path is walked, so the reveal doesn't pay for them. `stepTime: 0` means no
-  /// simulation time passes — the dungeon is still at t=0 when you land, so the
-  /// entry hint gets its full 5.5s instead of burning 1.7s of it unseen.
+  /// simulation time passes — the dungeon is still at t=0 when you land.
   void _warmFrozenDungeon() {
     if (_dungeonWarmed || !_dungeonFrozen) return;
     final game = _game;

@@ -263,16 +263,13 @@ void main() {
     test(
       'entering twin_conduit names the room without handing over the method',
       () {
-        // THE SOLUTION-LEAK RULE, restored to the sentence it is about.
-        // For a while this pinned SILENCE instead, which settled the leak
-        // question by deleting the line — and cost the player any idea of
-        // where a door had put them. The line is back (§5.6: OBJECTIVE is
-        // the room-entry channel), so the rule it was written for applies
-        // again: an objective may state the goal and must never state the
-        // method. Air's twin_conduit is the room the rule was written for —
-        // it used to read "channel A with Lightning; arc B with Fire through
-        // the wind, or Lightning's own touch", the complete answer, free, at
-        // the door.
+        // THE SOLUTION-LEAK RULE, on the sentence it is about: an objective
+        // may state the goal and must never state the method. Air's
+        // twin_conduit is the room the rule was written for — it used to
+        // read "channel A with Lightning; arc B with Fire through the wind,
+        // or Lightning's own touch", the complete answer, free, at the door.
+        // Walking in says nothing now (the author, 2026-10-08); the goal is
+        // the first thing HINT hands over, so the rule applies there.
         final game = _buildGame();
         game.currentRoomId = 'storm_rune_hall';
         final door = game.currentRoom.doors.firstWhere(
@@ -282,6 +279,9 @@ void main() {
         _step(game, 0.2);
 
         expect(game.currentRoomId, 'twin_conduit');
+        expect(game.hintText, isNull, reason: 'walking in says nothing');
+        game.askForRoomHint();
+        expect(game.hintChannel, DungeonHintChannel.objective);
         expect(game.hintText, isNotNull);
         final line = game.hintText!.toLowerCase();
         for (final leak in ['lightning', 'fire', 'channel a', 'arc b']) {

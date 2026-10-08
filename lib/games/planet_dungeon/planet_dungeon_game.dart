@@ -333,6 +333,20 @@ class _RelicDropFx {
   bool get done => t >= duration;
 }
 
+/// A line a room held back for the HINT button (see `_arriveIn`).
+class _HeldLine {
+  const _HeldLine(this.text, this.ttl, {this.roomId, this.teachIds = const []});
+  final String text;
+  final double ttl;
+
+  /// The room it belongs to; null for the planet's primer, which holds
+  /// across rooms until read.
+  final String? roomId;
+
+  /// The one-time teach ids spent when it is read.
+  final List<String> teachIds;
+}
+
 class _DoorRevealFx {
   _DoorRevealFx({required this.roomId, required this.position});
 
@@ -2863,7 +2877,7 @@ class PlanetDungeonGame extends FlameGame {
   /// Whether something is waiting to be asked about — drives the HINT
   /// button's pulse, so the affordance advertises itself at the moment it has
   /// something worth saying.
-  bool get hintHasAnswer => _pendingAnswer != null;
+  bool get hintHasAnswer => _pendingAnswer != null || _heldLines.any(_heldHere);
 
   /// Set on a refusal so the world can flash at the point of contact. The
   /// renderer eases this to zero; nothing about it is text.
@@ -2904,39 +2918,69 @@ class PlanetDungeonGame extends FlameGame {
     return true;
   }
 
-  /// Room-entry goal line — WHAT, never HOW. (Unreferenced since Air's
-  /// crown line became a spoken consequence, 2026-09-25; kept as the
-  /// objective channel's named entry point.)
-  // ignore: unused_element
-  void _setObjectiveHint(String msg, [double ttl = 4.5]) =>
-      _emitHint(msg, DungeonHintChannel.objective, ttl);
+  /// The room whose goal line is still owed to the HINT button: the room
+  /// last walked into, until asked. The line is read when asked rather than
+  /// when you arrived, so a counted goal ("two of four woven") is never stale.
+  String? _goalOwedRoom;
 
-  /// WALKING INTO A ROOM IS NOT NARRATION.
+  /// One-time lines (the primer, room teaches) waiting for HINT, oldest
+  /// first. A teach is only spent (persisted as discovered) once it is read.
+  final List<_HeldLine> _heldLines = [];
+
+  /// WALKING INTO A ROOM SAYS NOTHING (the author, 2026-10-08: "the popups
+  /// are annoying when walking into rooms ... only pop them up when we
+  /// request hints").
   ///
-  /// §5.6 specifies the OBJECTIVE channel as "on room entry, one line, WHAT
-  /// not HOW" — and it had stopped appearing entirely. The "dungeon does not
-  /// narrate" rule was aimed at 382 world-response lines that answered every
-  /// tap, and the unasked-for gate it installed swallowed the room-entry line
-  /// with them. So for a long time the only way to learn where you had just
-  /// walked was to press HINT, and the player's report is exactly what you
-  /// would predict: *"sometimes I walk through doors and it's not intuitive
-  /// where I am — it shouldn't be a secret when walking through."*
+  /// A room used to speak three things as you arrived: its goal line (or its
+  /// name, when it had no goal), its one-time teach, and on the first descent
+  /// the planet's primer. All three are HELD now and handed over by the HINT
+  /// button, one per press: teaches first, then the goal, then the room's
+  /// reading. The minimap caption names every room ([kDungeonRoomLabels]),
+  /// so a doorway is still not a secret.
   ///
-  /// Arriving somewhere new is the one moment a room has something to say
-  /// that is not an answer to anything. It is a label, not a lesson, and it
-  /// goes through the unasked gate. Everything else stays behind it: a
-  /// refusal is still remembered rather than spoken, ambience is still
-  /// dropped, and insight is still Mask's to give.
-  void _announceRoomEntry(String msg, [double ttl = 4.5]) {
-    // A live refusal or reading still outranks it — you may have walked in
-    // mid-read — but nothing lower can stop a new room naming itself.
-    final live = hintText != null && _hintTtl > 0;
-    if (live && DungeonHintChannel.objective.priority < hintChannel.priority) {
-      return;
+  /// A held teach lights the button, because it is something new to read. A
+  /// goal line does not: nearly every room has one, and a button lit in
+  /// every room says nothing.
+  void _arriveIn(String roomId) {
+    _goalOwedRoom = roomId;
+    _heldLines.removeWhere((h) => h.roomId != null && h.roomId != roomId);
+  }
+
+  void _holdLine(
+    String msg, {
+    String? roomId,
+    List<String> teachIds = const [],
+    double ttl = 6.0,
+  }) {
+    _heldLines.removeWhere((h) => h.text == msg);
+    _heldLines.add(_HeldLine(msg, ttl, roomId: roomId, teachIds: teachIds));
+  }
+
+  /// A held line belongs to the planet (null) or to the room it was held in;
+  /// once you have left that room it is void.
+  bool _heldHere(_HeldLine h) => h.roomId == null || h.roomId == currentRoomId;
+
+  /// Hand over the next thing this room held back for HINT. False when it
+  /// has nothing left, so the press falls through to the reading.
+  bool _deliverHeld() {
+    _heldLines.removeWhere((h) => !_heldHere(h));
+    if (_heldLines.isNotEmpty) {
+      final h = _heldLines.removeAt(0);
+      for (final id in h.teachIds) {
+        _discoverCloud(id);
+      }
+      _emitHint(h.text, DungeonHintChannel.insight, h.ttl);
+      return true;
     }
-    hintText = msg;
-    hintChannel = DungeonHintChannel.objective;
-    _hintTtl = ttl;
+    if (_goalOwedRoom == currentRoomId) {
+      _goalOwedRoom = null;
+      final goal = _roomObjectiveHint(currentRoomId);
+      if (goal != null) {
+        _emitHint(goal, DungeonHintChannel.objective, 4.5);
+        return true;
+      }
+    }
+    return false;
   }
 
   /// Run [body] with every hint it emits tagged [channel]. Used to make the
@@ -3041,9 +3085,9 @@ class PlanetDungeonGame extends FlameGame {
   /// built, which is exactly the fault §5.7 names: a closing the player finds
   /// out about by walking into it.
   ///
-  /// Parked here, survives the clear, and outranks the room-entry line on the
-  /// arrival it belongs to — the room is named on the minimap anyway, and
-  /// what just happened to the shaft is the more urgent sentence.
+  /// Parked here, survives the clear, and is spoken on the arrival it belongs
+  /// to. It is a consequence of the door you chose, not the room describing
+  /// itself, so it still speaks while the room's own lines wait for HINT.
   String? _transitLine;
   double _transitTtl = 0;
 
@@ -3877,15 +3921,15 @@ class PlanetDungeonGame extends FlameGame {
 
   /// THE ONE-TIME TEACH.
   ///
-  /// A room that introduces a verb says so the first time you stand in it,
-  /// once ever, and never again. This is NOT the objective chatter coming
-  /// back: that spoke on every entry and was removed for training players to
-  /// ignore the capsule. A teach fires once per save, for the thing a player
-  /// genuinely cannot deduce by looking at the room.
+  /// A room that introduces a verb has a line for the thing a player
+  /// genuinely cannot deduce by looking at it. It no longer speaks as you
+  /// walk in (see [_arriveIn]): it is held for HINT, lights the button, and
+  /// is spent the first time it is read, once ever.
   ///
   /// Persisted through the discovery set (like "the seal remembers"), so it
-  /// survives death and re-entry the way knowledge should.
-  /// The dungeon is now live and visible: teach the planet's rule, then the
+  /// survives death and re-entry the way knowledge should. Unread, it is held
+  /// again the next time you come in.
+  /// The dungeon is now live and visible: hold the planet's rule, then the
   /// entrance room's verb if it has one.
   void beginRun() {
     _teachPrimer();
@@ -3894,11 +3938,12 @@ class PlanetDungeonGame extends FlameGame {
 
   void _teachRoom(DungeonRoom room) {
     final lines = <String>[];
+    final ids = <String>[];
     final line = room.teach;
     final id = 'teach:${room.id}';
     if (line != null && !discoveredClouds.contains(id)) {
-      _discoverCloud(id);
       lines.add(line);
+      ids.add(id);
     }
     // Blood: the first captive room also says where RESET ROOM is.
     if (_isRites) {
@@ -3906,28 +3951,26 @@ class PlanetDungeonGame extends FlameGame {
       if (reset != null) lines.add(reset);
     }
     if (lines.isEmpty) return;
-    _inHintChannel(
-      DungeonHintChannel.insight,
-      () => _forceHint(lines.join('. '), lines.length > 1 ? 8.0 : 6.0),
+    _holdLine(
+      lines.join('. '),
+      roomId: room.id,
+      teachIds: ids,
+      ttl: lines.length > 1 ? 8.0 : 6.0,
     );
   }
 
-  /// The planet's world rule, once ever, on the first descent. Called when
-  /// the dungeon goes live (see [beginRun]).
+  /// The planet's world rule, once ever, held for HINT from the first
+  /// descent until it is read. Called when the dungeon goes live (see
+  /// [beginRun]).
   void _teachPrimer() {
     if (layout.primer.isEmpty) return;
     const id = 'teach:primer';
     if (discoveredClouds.contains(id)) return;
-    _discoverCloud(id);
-    _inHintChannel(
-      DungeonHintChannel.insight,
-      () => _forceHint(layout.primer.join(' '), 8.0),
-    );
+    _holdLine(layout.primer.join(' '), teachIds: const [id], ttl: 8.0);
   }
 
-  /// Speak even though nobody asked. The ONLY callers are the teaches above:
-  /// a line shown once in a lifetime is a different thing from narration, and
-  /// it is the one exception the silence rule makes room for.
+  /// Speak even though nobody asked. The ONLY callers are the one-time
+  /// teaches met at an object (not on arrival) and the consequences below.
   /// THE WORLD SPEAKING ABOUT SOMETHING IT JUST TOOK FROM YOU.
   ///
   /// §5.6 says the dungeon does not narrate, and `_emitHint` enforces that
@@ -9851,11 +9894,13 @@ class PlanetDungeonGame extends FlameGame {
       // just told them something, and answering with the mural instead would
       // be a non-sequitur. Unless it is ALREADY on screen — then the press
       // wants the next thing, which is the reading.
+      // After that, whatever the room held back as you walked in (its
+      // teach, then its goal), and only then the reading.
       final pending = _pendingAnswer;
       _pendingAnswer = null;
       if (pending != null && pending != shown) {
         _emitHint(pending, _pendingChannel, 3.4);
-      } else {
+      } else if (!_deliverHeld()) {
         _inHintChannel(DungeonHintChannel.insight, () => _doReveal(a));
       }
       // A reading that had nothing to say must not blank the capsule.
@@ -10514,29 +10559,13 @@ class PlanetDungeonGame extends FlameGame {
     // attempt edge that referred to its objects) is void, so the entry
     // objective is never swallowed by a refusal you already walked away from.
     _clearHints();
-    // The room names itself as you arrive (§5.6: OBJECTIVE is the room-entry
-    // channel). This used to be dropped, which made every doorway a guess.
-    //
-    // A room with no GOAL still has an IDENTITY, and the second is what the
-    // player actually asked for: walking through a door should never be a
-    // secret. Connective rooms — Mud's hag knoll, Blood's arterial run,
-    // Crystal's nine cells, every manifold and causeway and stair — have
-    // nothing to want and used to arrive in silence. They say where you are.
+    // The room says nothing as you arrive: its goal and its teach wait for
+    // HINT (see [_arriveIn]). Only what the door itself just did to the world
+    // speaks.
     final transit = _transitLine;
-    if (_isRites) {
-      // Blood's rooms don't name themselves as you walk in (the author,
-      // 2026-10-06: "stop saying popups like the heart etc for when we go
-      // into the rooms"). The room is the picture; its one-time teach below
-      // still says a rule you couldn't see.
-      _transitLine = null;
-    } else if (transit != null) {
-      _transitLine = null;
-      _announceRoomEntry(transit, _transitTtl);
-    } else {
-      final hint =
-          _roomObjectiveHint(currentRoomId) ?? _roomIdentityLine(currentRoomId);
-      if (hint != null) _announceRoomEntry(hint);
-    }
+    _transitLine = null;
+    if (transit != null) speakConsequence(transit, _transitTtl);
+    _arriveIn(currentRoomId);
     _teachRoom(currentRoom);
     if (_isRites) _riteAfterTransit();
     _maybeSpawnGuardianCombat(currentRoom);
@@ -10767,24 +10796,6 @@ class PlanetDungeonGame extends FlameGame {
   /// Test seam for the objective-line audit.
   @visibleForTesting
   String? debugObjectiveHint(String roomId) => _roomObjectiveHint(roomId);
-
-  /// What a room IS, when it does not want anything — the minimap's own name
-  /// for it, said as a line. Deliberately the same source as the map caption,
-  /// so the words on arrival and the words on the chart are never two
-  /// different vocabularies for one place.
-  String? _roomIdentityLine(String roomId) {
-    final label = kDungeonRoomLabels[roomId];
-    if (label == null) return null;
-    final pretty = label
-        .split(' ')
-        .map(
-          (w) => w.isEmpty
-              ? w
-              : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}',
-        )
-        .join(' ');
-    return 'The $pretty';
-  }
 
   String? _roomObjectiveHint(String roomId) {
     final room = layout.rooms[roomId];
@@ -12924,7 +12935,6 @@ class PlanetDungeonGame extends FlameGame {
 
   /// The veil room's three curtains, in grains (air_art.dart).
   void _drawVeilCurtain(Canvas canvas, Rect b) => _paintVeilCurtains(canvas, b);
-
 
   void _drawSkyLoomMechanism(
     Canvas canvas,

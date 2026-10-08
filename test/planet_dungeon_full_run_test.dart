@@ -768,19 +768,17 @@ void main() {
     });
 
     test('walking in names the room; the reading is asked for, and tiered', () {
-      // This asserted SILENCE on arrival for a while. Played, that reads as
-      // disorientation — a player cannot tell where a door put them — so the
-      // room names itself again (§5.6: OBJECTIVE is the room-entry channel).
-      // What survives from the silent era is the part that always mattered:
-      // the reading narrows the METHOD by Intelligence, and the arrival line
-      // never names the answer.
+      // Walking in says nothing (the author, 2026-10-08: the arrival popups
+      // were annoying; the minimap caption names the room). The goal line is
+      // the first thing HINT hands over, the reading the next, and the
+      // reading narrows the METHOD by Intelligence while the goal never
+      // names the answer.
       final game = _harness(_trio());
       _walkIntoGaleEye(game);
-      expect(
-        game.hintText,
-        isNotNull,
-        reason: 'arriving in a room has to say which room',
-      );
+      expect(game.hintText, isNull, reason: 'walking in says nothing');
+
+      game.askForRoomHint();
+      expect(game.hintText, isNotNull);
       expect(game.hintChannel, DungeonHintChannel.objective);
 
       game.askForRoomHint();
@@ -812,6 +810,7 @@ void main() {
       _walkIntoGaleEye(sharp);
       _teleport(sharp, 'spiral_cloud', _eyeRoom(sharp).bounds.center);
       sharp.activateAbility();
+      sharp.askForRoomHint(); // the goal
       sharp.askForRoomHint();
       expect(sharp.hintChannel, DungeonHintChannel.insight);
       expect(

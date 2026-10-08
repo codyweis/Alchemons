@@ -24,10 +24,10 @@ const Map<String, String> kDungeonRoomLabels = {
   // EVERY ROOM IS NAMED. 124 of the 169 rooms had no label at all, so the
   // minimap caption was blank for three quarters of the game — which is half
   // of why a player reported walking through a door and not knowing where
-  // they were. The other half was the room-entry line, which had stopped
-  // appearing (see `_announceRoomEntry`). A room's label is its IDENTITY and
-  // is always available; its objective line is its GOAL and only exists when
-  // the room has one.
+  // they were. Since 2026-10-08 the caption is the ONLY thing that names a
+  // room as you walk in: the room's own lines wait for HINT (see
+  // `_arriveIn`). A room's label is its IDENTITY and is always available;
+  // its objective line is its GOAL and only exists when the room has one.
   // Earth — The Buried Giant.
   'barrow_gate': 'BARROW',
   'sternum_court': 'STERNUM',

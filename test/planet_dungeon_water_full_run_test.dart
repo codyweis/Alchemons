@@ -1042,7 +1042,8 @@ void main() {
     expect(game.progressReadout?.value, 'AGROUND');
   });
 
-  test('walking through a doorway NAMES THE ROOM, and no more', () {
+  test('walking through a doorway says nothing; HINT names the goal, and no '
+      'more', () {
     final game = _harness([_member(0, 'Water', 'pip')]);
     game.currentRoomId = 'drowned_court';
     final door = game.currentRoom.doors.firstWhere(
@@ -1053,28 +1054,19 @@ void main() {
       game.update(1 / 60);
     }
     expect(game.currentRoomId, 'ghost_gallery');
-    // THIS PINNED THE SILENCE, AND THE SILENCE WAS WRONG. For a while
-    // arriving announced nothing at all, on the reasoning that crossing a
-    // threshold is not an event worth narrating. Played, it reads as
-    // disorientation: *"sometimes I walk through doors and it's not
-    // intuitive where I am — it shouldn't be a secret when walking
-    // through."* §5.6 had it right the first time: OBJECTIVE is the
-    // room-entry channel.
-    //
-    // What survives from the silent era is the part that was always the
-    // real point — the line may name WHAT, never HOW.
-    expect(
-      game.hintText,
-      isNotNull,
-      reason: 'arriving somewhere new has to say where you are',
-    );
+    // Walking in says nothing (the author, 2026-10-08: the arrival popups
+    // were annoying). The minimap caption names the room, and the goal line
+    // is the first thing HINT hands over. It may name WHAT, never HOW.
+    expect(game.hintText, isNull, reason: 'walking in says nothing');
+    game.askForRoomHint();
+    expect(game.hintText, isNotNull);
     expect(game.hintChannel, DungeonHintChannel.objective);
     expect(
       game.hintText!.toLowerCase(),
       isNot(anyOf(contains('use '), contains('then '), contains('press '))),
       reason: 'an arrival names the room; it does not hand over the method',
     );
-    // And the method is still Mask's to give, when it is asked for.
+    // And the method is the reading's to give, on the next press.
     game.askForRoomHint();
     expect(game.hintText, isNotNull);
     expect(game.hintChannel, DungeonHintChannel.insight);

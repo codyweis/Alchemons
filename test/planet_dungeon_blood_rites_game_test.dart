@@ -431,8 +431,13 @@ void main() {
       enter(g, 'rite_water');
       expect(g.riteResetShown, isTrue);
       expect(g.discoveredClouds, contains('teach:rite_reset'));
-      expect(g.hintText, contains('RESET ROOM'));
+      // Walking in says nothing (the author, 2026-10-08): the line waits for
+      // HINT, which lights, and the button itself glows.
+      expect(g.hintText, isNull);
+      expect(g.hintHasAnswer, isTrue);
       expect(g.riteResetLit, isTrue);
+      g.askForRoomHint();
+      expect(g.hintText, contains('RESET ROOM'));
       final start = g.rites.water.key;
       flip(g);
       expect(g.rites.water.key, isNot(start));
@@ -443,16 +448,23 @@ void main() {
       enter(g, 'rite_circle');
       enter(g, 'rite_fire');
       expect(g.riteResetShown, isTrue);
+      g.askForRoomHint();
       expect(g.hintText ?? '', isNot(contains('RESET ROOM')));
     });
 
     test('EARTH: HINT says the two element tendrils fuse at the captive', () {
       final g = harness();
       enter(g, 'rite_earth');
-      g.askForRoomHint();
+      // What the room held back as you walked in (its teach, its goal) comes
+      // first; the reading follows on the next press.
+      final said = <String>[];
+      for (var i = 0; i < 4; i++) {
+        g.askForRoomHint();
+        said.add(g.hintText ?? '');
+      }
       expect(
-        g.hintText,
-        contains('Both element tendrils must reach the captive'),
+        said,
+        contains(contains('Both element tendrils must reach the captive')),
       );
     });
 

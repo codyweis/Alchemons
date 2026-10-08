@@ -468,6 +468,36 @@ pinned again on the room it was written for (Air's twin conduit, which once
 read out the complete answer at the door), and `dungeon_arrival_names_test`
 walks every door of every planet and fails any arrival that says nothing.
 
+### ARRIVING SAYS NOTHING — AND HINT HOLDS IT (2026-10-08)
+
+The author, after playing: **"the popups are annoying when walking into rooms
+in the dungeons ... only pop them up when we request hints."** So the
+arrival line is gone from the door again, and this time the minimap caption
+(every room is labelled, see above) is what keeps a doorway from being a
+secret.
+
+Nothing is lost: every line a room used to speak as you walked in is HELD
+for the HINT button, one per press, before the room's reading:
+
+  1. **One-time lines** — the planet's primer (first descent), the room's
+     teach, Steam's far-shore line, Blood's "where RESET ROOM is". A held
+     one LIGHTS the HINT button, and is spent (persisted as discovered) the
+     first time it is read; unread, it is held again next time. The primer
+     holds across rooms until read; everything else belongs to the room it
+     was held in.
+  2. **The goal line** (`_roomObjectiveHint`), read fresh when asked so a
+     counted goal is never stale. It does NOT light the button — nearly
+     every room has one.
+  3. **The reading** (`_doReveal`), as before.
+
+A refusal held from the last attempt still comes first. The room's NAME
+line ("The Narthex") is gone outright — the caption says it. What still
+speaks unasked: consequences of something you did (`speakConsequence`,
+including Ice's chute rides and the rimefall reset as you go through the
+door) and the few one-time teaches met at an OBJECT rather than on arrival
+(Ice's black ice, the rimefall price). `dungeon_arrival_silence_test` walks
+every door of every planet and fails any arrival that speaks the room.
+
 **Known wart:** `kDungeonRoomLabels` is keyed by room id ALONE, so two
 planets sharing an id share a caption. `mirror_gallery` is the only collision
 today and both really are mirror galleries; a future planet that reuses an id
@@ -506,8 +536,9 @@ higher interrupts lower and nothing ever stacks:
 2. **INSIGHT** — Mask's earned how-to, and the only channel allowed to teach
    method. Priority-protected: a revealed answer must never be stomped
    mid-read by flavor or a room line.
-3. **OBJECTIVE** — on room entry, one line, WHAT not HOW. Stops showing
-   once the room's star is banked.
+3. **OBJECTIVE** — the room's goal, one line, WHAT not HOW. Held on room
+   entry and handed over by HINT (2026-10-08). Stops once the room's star
+   is banked.
 4. **AMBIENT** — rare atmospheric flavor only. NO mechanics, NO stats, NO
    family names, NO element requirements, hard cooldown. If a line teaches
    anything, it belongs to Mask insight, not ambience. All 36 current
@@ -650,12 +681,14 @@ hook and `_clearHints()` one line later, so Ice's thaw and Mud's heave set
 their line and had it wiped inside the same call, and the room's own entry
 line took the slot. Both planets' one world-scale act has been silent since it
 was built. Transit lines are parked in `_transitLine` now and announced after
-the clear, outranking the room-entry line on the arrival they belong to.
+the clear, and spoken on the arrival they belong to (as consequences,
+since 2026-10-08, while the room's own lines wait for HINT).
 
 **AND A WARNING NOBODY IS SHOWN IS NOT A WARNING.** The first instinct was to
 warn at the foot of the rimefall on the BLOCKED channel — which §5.6 holds
 back until the hint button asks, so it would never have been read. Unasked,
-only two things speak: a room-entry line and a ONE-TIME TEACH. A price that
+only two things speak: a consequence and a ONE-TIME TEACH met at an object
+(since 2026-10-08 a room's arrival lines wait for HINT). A price that
 must be known before it is paid is therefore a teach, keyed and persisted like
 any other: said once in a lifetime, at the object, and only when there is
 something to lose (an empty shaft costs nothing to reset, so it says nothing).
@@ -3718,9 +3751,9 @@ SILENT (2026-10-06).**
     the heart etc for when we go into the rooms". Blood's rooms no longer
     announce themselves ("The Circle", "The Heart", "This captive is
     freed") as you walk in. The minimap caption still names each one, and a
-    room's one-time teach still says a rule the room can't show. Every other
-    planet keeps its arrival line (test/dungeon_arrival_names_test.dart
-    exempts Blood).
+    room's one-time teach still says a rule the room can't show. (Since
+    2026-10-08 no planet speaks on arrival; see §5.6 "ARRIVING SAYS
+    NOTHING".)
 
 **FAMILY SIZES IN EVERY DUNGEON (2026-10-06).** The author asked whether
 dungeons used the same Alchemon sizes as survival and space. They didn't.

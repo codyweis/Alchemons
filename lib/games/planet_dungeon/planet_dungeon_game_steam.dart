@@ -386,20 +386,21 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // STAR 2 — THE CASTING. It used to bank when the WHOLE PARTY stood on the
     // far shore, which cannot happen any more: the field needs a body holding
     // it or nobody gets across at all. The pour is the win now (see
-    // `_tryCasting`); all this does is greet whoever comes down over there,
-    // once, because a party arriving mid-air on an unfamiliar shore should be
-    // told what the shore is for.
+    // `_tryCasting`); all this does is keep a line for whoever comes down
+    // over there, once, because a party arriving mid-air on an unfamiliar
+    // shore should be able to ask what the shore is for.
     final far = room.platforms.isEmpty ? null : room.platforms.last;
     if (!castingGreeted &&
         far != null &&
         room.castingMoat != null &&
         creatures.any((c) => c.alive && far.inflate(2).contains(c.position))) {
       castingGreeted = true;
-      // Arriving on the far shore is an arrival, so it names itself through
-      // the room-entry path (a plain objective line from update is dropped).
-      _announceRoomEntry(
+      // Arriving on the far shore is an arrival, so like every arrival it
+      // holds its line for HINT (see `_arriveIn`) and lights the button.
+      _holdLine(
         'The casting moat. Earth raises rock onto the lip and Fire melts it '
         'down the channel. The melt cools back if nobody feeds it',
+        roomId: currentRoomId,
       );
     }
   }

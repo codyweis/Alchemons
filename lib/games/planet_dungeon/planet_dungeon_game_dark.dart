@@ -229,8 +229,7 @@ extension BlackSunDungeon on PlanetDungeonGame {
     _doorCooldown = 0.5;
     _camFocus = null;
     _clearHints();
-    final hint = _roomObjectiveHint(room) ?? _roomIdentityLine(room);
-    if (hint != null) _announceRoomEntry(hint);
+    _arriveIn(room);
     _teachRoom(currentRoom);
     onChanged();
   }
@@ -359,9 +358,7 @@ extension BlackSunDungeon on PlanetDungeonGame {
     _sunSnapAll();
     _doorCooldown = 0.5;
     _clearHints();
-    final hint =
-        _roomObjectiveHint(currentRoomId) ?? _roomIdentityLine(currentRoomId);
-    if (hint != null) _announceRoomEntry(hint);
+    _arriveIn(currentRoomId);
     _teachRoom(currentRoom);
     onChanged();
     return true;

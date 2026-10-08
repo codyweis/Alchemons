@@ -1103,8 +1103,9 @@ void main() {
     test('the floor says what the plate is, once, at the hole', () {
       final game = _harness(_idealTrio());
       game.beginRun();
-      // The primer owns the arrival: it is the rule of the whole shaft.
-      expect(game.hintText, contains(game.layout.primer.first));
+      // Arriving says nothing: the primer waits for HINT, which lights.
+      expect(game.hintText, isNull);
+      expect(game.hintHasAnswer, isTrue);
 
       // Walk up to a hole and the plate names itself, unasked.
       final cap = game.layout.rooms['rime_head']!.rime!.iceCap!;
@@ -1126,7 +1127,7 @@ void main() {
       // It was set as a hint by `passThroughDoor` and wiped by the same call
       // one line later, so this planet's one world-scale act was silent.
       final game = _harness(_idealTrio());
-      game.beginRun(); // the mouth's one-time teach is spent on arrival
+      game.beginRun(); // the mouth's lines are held for HINT, not spoken
       final sump = game.layout.rooms['cold_sump']!;
       game.currentRoomId = 'cold_sump';
       game.flueState['flue_a'] = RimeFlueState.stair;
@@ -1776,25 +1777,27 @@ void main() {
       game.creatures[ice].position = roof.centerAt(30);
       game.update(1 / 60);
       expect(game.currentRoomId, 'frowyrm_hollow');
-      // The hollow's own once-only teach outranks the fall's line on arrival,
-      // which is the engine's rule; what matters is that the party went.
+      // The fall's line is spoken and the hollow's own teach waits for HINT;
+      // what matters here is that the party went.
       expect(game.guardianAwake, isTrue);
     });
 
     test('the roof reads itself: arrival, insight, readout', () {
       final game = onTheRoof();
-      // Arriving names the room, and what it is the roof OF.
+      // Arriving says nothing; the first HINT names what it is the roof OF.
       game.currentRoomId = 'cold_sump';
       final sump = game.layout.rooms['cold_sump']!;
       game.passThroughDoor(
         sump.doors.firstWhere((d) => d.targetRoomId == 'star_font'),
       );
-      expect(game.hintText, contains('hollow'));
+      expect(game.hintText, isNull);
       final r = game.progressReadout;
       expect(r?.label, 'RITE');
       expect(r?.value, '0/2');
-      // The hint button reads the roof, not the shaft.
       game.setActive(light);
+      game.askForRoomHint();
+      expect(game.hintText, contains('hollow'));
+      // The next press reads the roof, not the shaft.
       game.askForRoomHint();
       expect(game.hintText, anyOf(contains('glass'), contains('drift')));
     });

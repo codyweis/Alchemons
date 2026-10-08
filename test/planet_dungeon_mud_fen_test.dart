@@ -791,7 +791,7 @@ void main() {
       // have (the Ice precedent).
       final game = _harness(_idealTrio());
       game.entryDoorRevealed = true;
-      game.beginRun(); // spend any one-time teach first
+      game.beginRun(); // any one-time teach is held for HINT, not spoken
       _drag(game, 'add_neck', 'hag_knoll');
       final fane = game.layout.rooms['drowned_fane']!;
       game.currentRoomId = 'drowned_fane';
