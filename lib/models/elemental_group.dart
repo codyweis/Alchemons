@@ -61,8 +61,6 @@ extension ElementalGroupX on ElementalGroup {
     ElementalGroup.verdant => const Color(0xFF66BB6A),
     ElementalGroup.arcane => const Color(0xFFAB47BC),
   };
-
-  String get iconPath => 'assets/icons/groups/${name.toLowerCase()}.png';
 }
 
 /// map group → stable id string
@@ -132,9 +130,6 @@ extension CreatureFamilyX on CreatureFamily {
     CreatureFamily.mask => const Color(0xFF90A4AE),
     CreatureFamily.mystic => const Color(0xFF7E57C2),
   };
-
-  String get iconPath =>
-      'assets/icons/families/${displayName.toLowerCase()}.png';
 }
 
 String familyOf(Creature c) => c.mutationFamily?.trim().isNotEmpty == true
