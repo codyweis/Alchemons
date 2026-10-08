@@ -6,9 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Going between screens as sand (VoidPortal.pushThroughSand and
-// leaveThroughSand): in from a circle, the page shown once ready and
-// usable; out again into the circle it came from with nothing more said;
-// and a page that cannot be pictured still leaves.
+// leaveThroughSand): in from a circle, the ball opening onto the page once
+// it is ready, and the page usable; out again into the circle it came from
+// with nothing more said; and a page that cannot be pictured still leaves.
 void main() {
   /// Frames, with real time now and then for pictures coming back off the
   /// raster thread.
@@ -140,7 +140,6 @@ void main() {
       image: blank(),
       pixelRatio: 1,
       size: const Size(860, 400),
-      way: SandWay.gather,
     );
     expect(out.goneBy, lessThan(out.doneBy));
     expect(out.doneBy, lessThan(1.4));
@@ -150,20 +149,32 @@ void main() {
       image: blank(),
       pixelRatio: 1,
       size: const Size(400, 860),
-      way: SandWay.gather,
       circle: const Rect.fromLTWH(40, 60, 160, 160),
     );
     expect(circle.doneBy, lessThan(1.2));
-
-    final into = SandPicture(
-      image: blank(),
-      pixelRatio: 1,
-      size: const Size(860, 400),
-      way: SandWay.assemble,
-    );
-    expect(into.doneBy, lessThan(1.5));
-    for (final p in [out, circle, into]) {
+    for (final p in [out, circle]) {
       p.dispose();
+    }
+  });
+
+  test('the ball opens from shut to past the corners', () {
+    const size = Size(860, 400);
+    final corner = size.center(Offset.zero).distance;
+    expect(SandHole.open(0), 0);
+    // Shut, its soft edge too: nothing of the page shows yet.
+    expect(
+      SandHole.radius(size, 0) + SandHole.feather(size, 0),
+      closeTo(0, 1e-9),
+    );
+    // Open: the whole screen clear, with time left for the sand to thin.
+    expect(SandHole.open(SandHole.time), 1);
+    expect(SandHole.radius(size, 1), greaterThanOrEqualTo(corner));
+    expect(SandHole.time, lessThan(2.2));
+    var last = -1.0;
+    for (var t = 0.0; t <= SandHole.time; t += 0.05) {
+      final open = SandHole.open(t);
+      expect(open, greaterThanOrEqualTo(last));
+      last = open;
     }
   });
 }

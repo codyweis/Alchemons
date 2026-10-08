@@ -11,9 +11,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Going between the map and a field as sand, both ways, over the real map:
-// in (the Valley's circle lifting into the ball, the turn, the ball coming
-// undone into the field) and out (the field into the ball, the turn, the
-// pour into the circle).
+// in (the Valley's circle lifting into the ball, the turn, the ball opening
+// onto the field) and out (the field into the ball, the turn, the pour into
+// the circle).
 //
 //   SANDEXIT_SRC=/tmp/valley/rest.png SANDEXIT_OUT=/tmp/sand \
 //     flutter test test/sand_passage_preview_test.dart --tags preview
@@ -94,25 +94,47 @@ void main() {
       image: mapImage(),
       pixelRatio: pr,
       size: tall,
-      way: SandWay.gather,
       circle: home,
       element: 'plant',
       seed: 5,
     );
-    final into = SandPicture(
-      image: field(),
-      pixelRatio: pr,
-      size: wide,
-      way: SandWay.assemble,
-      element: 'plant',
-      seed: 6,
-    );
-    // The overlay's timeline, with a 0.3 s turn and a 0.4 s load.
-    final swapAt = rise.doneBy + 0.1;
+    final live = field();
+    // The overlay's timeline: the ball out for a 0.3 s turn, lit again,
+    // then open onto the field (already built).
+    final dimAt = rise.doneBy + 0.1;
+    final swapAt = dimAt + 0.3;
     final inTurned = swapAt + 0.3;
-    final assembleAt = inTurned + 0.4;
-    final fadeAt = assembleAt + into.doneBy + 0.05;
-    final inEnd = fadeAt + 0.3;
+    final lightAt = inTurned + 0.06;
+    final openAt = lightAt + 0.35;
+    final inEnd = openAt + SandHole.time;
+
+    void paintHole(Canvas c, Size size, double open, Offset centre) {
+      final r = SandHole.radius(size, open);
+      // Going in the edge softens as it opens; leaving it stays tight.
+      final f = centre == size.center(Offset.zero)
+          ? SandHole.closingEdge(size)
+          : SandHole.feather(size, open);
+      final reach = r + f;
+      if (reach <= 0.5) {
+        c.drawRect(Offset.zero & size, Paint()..color = ground);
+        return;
+      }
+      final start = math.max(0.0, r) / reach;
+      final stops = [for (var k = 0; k <= 4; k++) start + (1 - start) * k / 4];
+      c.drawRect(
+        Offset.zero & size,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            centre,
+            reach,
+            [
+              for (final at in stops)
+                ground.withValues(alpha: smooth(r, reach, at * reach)),
+            ],
+            stops,
+          ),
+      );
+    }
 
     ui.Image inFrame(double t) {
       final portrait = t < inTurned;
@@ -120,27 +142,44 @@ void main() {
       final rec = ui.PictureRecorder();
       final c = Canvas(rec)..scale(pr);
       if (portrait) map.paint(c);
-      final gone = smooth(0, 1, (t - fadeAt) / 0.3);
-      if (t >= fadeAt) {
-        // The live field under the fading picture.
-        c.drawImageRect(
-          into.image,
-          Offset.zero & (wide * pr),
-          Offset.zero & wide,
-          Paint(),
+      if (t >= openAt) {
+        // The live field, settling back as the hole opens onto it.
+        final since = t - openAt;
+        final open = SandHole.open(since);
+        final k = 1 + 0.06 * (1 - open);
+        c
+          ..save()
+          ..translate(wide.width / 2, wide.height / 2)
+          ..scale(k)
+          ..translate(-wide.width / 2, -wide.height / 2)
+          ..drawImageRect(
+            live,
+            Offset.zero & (wide * pr),
+            Offset.zero & wide,
+            Paint()..filterQuality = FilterQuality.medium,
+          )
+          ..restore();
+        paintHole(c, size, open, SandHole.centre(size, open, rise.lean));
+        rise.paintOpen(c, size, t, since);
+      } else {
+        c.drawRect(
+          Offset.zero & size,
+          Paint()..color = ground.withValues(alpha: smooth(0, 0.6, t)),
         );
-      }
-      c.drawRect(
-        Offset.zero & size,
-        Paint()
-          ..color = ground.withValues(alpha: smooth(0, 0.6, t) * (1 - gone)),
-      );
-      if (t < swapAt) rise.paintHole(c, size, ground);
-      final since = t >= assembleAt ? t - assembleAt : null;
-      final fade = since == null ? 1.0 : 1 - smooth(0, 0.45, since);
-      if (fade > 0) rise.paintGather(c, size, t, fade: fade);
-      if (since != null) {
-        into.paintAssemble(c, size, t, since, opacity: 1 - gone);
+        if (t < swapAt) rise.paintHole(c, size, ground);
+        final lit = t < lightAt
+            ? 1 - smooth(dimAt, swapAt, t)
+            : smooth(lightAt, openAt, t);
+        if (lit > 0.002) {
+          final k = 0.55 + 0.45 * lit;
+          c
+            ..save()
+            ..translate(size.width / 2, size.height / 2)
+            ..scale(k)
+            ..translate(-size.width / 2, -size.height / 2);
+          rise.paintGather(c, size, t, fade: lit);
+          c.restore();
+        }
       }
       return rec.endRecording().toImageSync(
         (size.width * pr).round(),
@@ -153,7 +192,6 @@ void main() {
       image: field(),
       pixelRatio: pr,
       size: wide,
-      way: SandWay.gather,
       element: 'plant',
       seed: 3,
     );
@@ -167,18 +205,35 @@ void main() {
       final size = portrait ? tall : wide;
       final rec = ui.PictureRecorder();
       final c = Canvas(rec)..scale(pr);
-      if (portrait) map.paint(c);
-      final dark = t < pourAt ? 1.0 : 1 - smooth(0, 0.55, t - pourAt);
-      c.drawRect(
-        Offset.zero & size,
-        Paint()..color = ground.withValues(alpha: dark),
-      );
+      if (portrait) {
+        map.paint(c);
+        final dark = t < pourAt ? 1.0 : 1 - smooth(0, 0.55, t - pourAt);
+        c.drawRect(
+          Offset.zero & size,
+          Paint()..color = ground.withValues(alpha: dark),
+        );
+      } else {
+        // The field, still live, as the dark closes in on it.
+        c.drawImageRect(
+          live,
+          Offset.zero & (wide * pr),
+          Offset.zero & wide,
+          Paint()..filterQuality = FilterQuality.medium,
+        );
+        paintHole(
+          c,
+          size,
+          SandHole.closing(size, t),
+          size.center(Offset.zero),
+        );
+      }
       exit.paintGather(
         c,
         size,
         t,
         pourAt: t >= pourAt ? pourAt : null,
         home: home,
+        live: true,
       );
       return rec.endRecording().toImageSync(
         (size.width * pr).round(),
@@ -198,19 +253,26 @@ void main() {
       0.25,
       0.5,
       0.8,
-      swapAt,
-      assembleAt + 0.15,
-      assembleAt + 0.4,
-      assembleAt + 0.65,
-      assembleAt + 0.9,
-      fadeAt,
+      dimAt,
+      openAt,
+      openAt + 0.2,
+      openAt + 0.35,
+      openAt + 0.5,
+      openAt + 0.65,
+      openAt + 0.8,
+      openAt + 1.0,
+      openAt + 1.25,
+      openAt + 1.5,
     ]) {
       await save('in_${t.toStringAsFixed(2)}', inFrame(t));
     }
     for (final t in [
       0.0,
+      0.1,
+      0.2,
       0.3,
-      0.45,
+      0.4,
+      0.5,
       0.65,
       outSwap,
       pourAt,
@@ -250,7 +312,7 @@ void main() {
       }
     }
     rise.dispose();
-    into.dispose();
+    live.dispose();
     exit.dispose();
     map.dispose();
   });

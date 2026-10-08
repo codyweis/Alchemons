@@ -7,9 +7,14 @@
 //   is carried on a curling current to the middle, where the grains settle
 //   into a slowly turning ball of sand. The ball is round, so the phone can
 //   turn behind it unseen. Then it either pours itself into a circle on the
-//   screen behind (leaving a wild field for its realm on the map) or comes
-//   undone into the next screen, its pieces flying out from the middle and
-//   growing back into the picture where they belong (going in).
+//   screen behind (leaving a wild field for its realm on the map) or opens
+//   onto the next screen (going in): a hole widens from its middle with the
+//   live screen behind showing through it, and the sand is carried out on
+//   the hole's rim, thinning away before it reaches the edges.
+//
+//   A whole screen being left stays live while it goes: the dark closes in
+//   on it as the same hole, shutting, and the screen crumbles into its
+//   grains just ahead of the dark's edge.
 //
 //   What comes apart may be the whole screen or just a circle of it: a
 //   realm's circle on the map, the window home opens onto the home biome.
@@ -27,15 +32,6 @@ import 'dart:ui' as ui;
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:flutter/widgets.dart';
 
-/// Which way a [SandPicture]'s pieces go.
-enum SandWay {
-  /// From the picture into the ball, the rim first.
-  gather,
-
-  /// Out of the ball into the picture, the middle first.
-  assemble,
-}
-
 /// The ball every passage goes through: in the middle of the screen, turning.
 abstract final class SandBall {
   /// Its radius, in the screen's short side.
@@ -44,6 +40,75 @@ abstract final class SandBall {
   /// How fast it turns, rad/s, and how far its axis leans back.
   static const double turn = 0.85;
   static const double tilt = 0.42;
+}
+
+/// The hole in the dark a passage looks through: opening out of the ball
+/// onto the next screen ([SandPicture.paintOpen]), or closing in on a
+/// screen being left. Shared by what draws the dark round it and what
+/// draws the sand at its edge.
+abstract final class SandHole {
+  /// From the first grain moving to the last one gone.
+  static const double time = _widen + 0.05;
+
+  /// How long the hole takes to widen past the corners, and how much of
+  /// that it stays shut while the ball kindles.
+  static const double _widen = 1.85, _shut = 0.12;
+
+  /// How far open the hole is [since] seconds in: 0 shut, 1 past the
+  /// corners. Shut a moment as the ball kindles, then easing open.
+  static double open(double since) {
+    final u = ((since - _shut) / (_widen - _shut)).clamp(0.0, 1.0);
+    return u * u * (3 - 2 * u);
+  }
+
+  /// The hole's soft edge at [open], from clear to dark: wider as it opens.
+  static double feather(Size size, double open) =>
+      size.shortestSide * (0.12 + 0.3 * open);
+
+  /// The hole's clear radius at [open]: shut (its soft edge too) at 0, the
+  /// whole screen clear at 1.
+  static double radius(Size size, double open) {
+    final shut = feather(size, 0);
+    final past = size.center(Offset.zero).distance + shut;
+    return -shut + (past + shut) * open;
+  }
+
+  /// The hole's middle at [open]: drifting a little off the screen's, so it
+  /// is not a lens opening square on.
+  static Offset centre(Size size, double open, double lean) =>
+      size.center(Offset.zero) +
+      Offset.fromDirection(lean, size.shortestSide * 0.05 * open);
+
+  /// Leaving, the hole shuts from the corners in this long.
+  static const double closeTime = 0.5;
+
+  /// How open the hole is [t] seconds into leaving a screen of [size]: its
+  /// clear edge at the corners at first, so the dark starts in at once,
+  /// and 0 shut. Slow to start, then the middle goes quickly.
+  static double closing(Size size, double t) {
+    final u = (t / closeTime).clamp(0.0, 1.0);
+    return _cornered(size) * (1 - u * u);
+  }
+
+  /// When, leaving a screen of [size], the hole's clear edge reaches a
+  /// point it is [open] at ([openWhere]).
+  static double closesAt(Size size, double open) =>
+      closeTime * math.sqrt(1 - (open / _cornered(size)).clamp(0.0, 1.0));
+
+  /// Leaving, the hole's edge stays as tight as it is shut: the screen is
+  /// seen to crumble at it, not shed sand well inside a soft dark.
+  static double closingEdge(Size size) => feather(size, 0);
+
+  /// How open the hole is with its clear edge on the corners.
+  static double _cornered(Size size) =>
+      openWhere(size, size.center(Offset.zero).distance);
+
+  /// How open the hole is when its clear edge is [d] from its middle.
+  static double openWhere(Size size, double d) {
+    final shut = feather(size, 0);
+    final past = size.center(Offset.zero).distance + shut;
+    return ((d + shut) / (past + shut)).clamp(0.0, 1.0);
+  }
 }
 
 /// A picture of a screen (or of a circle on one) cut into pieces, each with
@@ -58,7 +123,6 @@ class SandPicture {
     required this.image,
     required this.pixelRatio,
     required Size size,
-    required this.way,
     Offset origin = Offset.zero,
     Offset? screenCentre,
     Rect? circle,
@@ -98,15 +162,18 @@ class SandPicture {
     _lr = Float32List(n);
     _la = Float32List(n);
     _mote = Int32List(n);
+    _band = Float32List(n);
+    _lag = Float32List(n);
+    _thin = Float32List(n);
+    _ox = Float32List(n);
+    _oy = Float32List(n);
+    _tone = Int32List(n);
 
     final rng = math.Random(seed);
     final ramp = essenceRamp(EssenceElement.of(element));
     final p1 = rng.nextDouble() * 2 * math.pi;
     final p2 = rng.nextDouble() * 2 * math.pi;
     final hw = _box.width / 2, hh = _box.height / 2;
-    final rimMax = round ? 1.0 : math.sqrt2;
-    final gather = way == SandWay.gather;
-    var motes = 0;
     var gone = 0.0, done = 0.0;
     for (var r = 0; r < _rows; r++) {
       for (var c = 0; c < _cols; c++) {
@@ -119,26 +186,35 @@ class SandPicture {
         // From the middle of the screen: where the ball is.
         _hx[i] = origin.dx + _box.left + (c + 0.5) * _cw - centre.dx;
         _hy[i] = origin.dy + _box.top + (r + 0.5) * _ch - centre.dy;
-        // One ragged front -- two slow waves round it and a touch of grit
-        // -- so the picture never shows a scatter of holes ahead of it.
         final a = math.atan2(y, x);
-        final tooth =
-            0.09 * math.sin(2 * a + p1) +
-            0.05 * math.sin(5 * a + p2) +
-            (rng.nextDouble() - 0.5) * 0.024;
-        final out = (rim / rimMax + tooth).clamp(0.0, 1.0);
-        if (gather) {
-          // The rim first; slow to start, then the middle goes quickly.
-          final span = round ? 0.38 : 0.5;
-          _rt[i] = span * math.sqrt(1 - out) + 0.012 * rng.nextDouble();
-          _life[i] = 0.5 + 0.22 * rng.nextDouble();
+        final double out;
+        if (round) {
+          // One ragged front -- two slow waves round it and a touch of
+          // grit -- so the circle never shows a scatter of holes ahead of
+          // it.
+          final tooth =
+              0.09 * math.sin(2 * a + p1) +
+              0.05 * math.sin(5 * a + p2) +
+              (rng.nextDouble() - 0.5) * 0.024;
+          out = (rim + tooth).clamp(0.0, 1.0);
         } else {
-          // The middle first, the picture opening out to its rim on one
-          // front: timed by when it ARRIVES, so nothing lands ahead of its
-          // neighbours and the picture fills in whole behind the front.
-          _life[i] = 0.45 + 0.2 * rng.nextDouble();
-          _rt[i] = 0.66 + 0.55 * out + 0.012 * rng.nextDouble() - _life[i];
+          // Just ahead of the dark closing in on it (SandHole.closing),
+          // raggedly: the screen still shows where a piece lifts off, so
+          // one that goes early leaves no hole, and none goes late.
+          final d = math.sqrt(_hx[i] * _hx[i] + _hy[i] * _hy[i]);
+          final early =
+              0.018 * (1 + math.sin(2 * a + p1)) +
+              0.01 * (1 + math.sin(5 * a + p2)) +
+              0.008 * rng.nextDouble();
+          out = SandHole.openWhere(size, d) + early;
         }
+        // The rim first; slow to start, then the middle goes quickly.
+        _rt[i] =
+            (round
+                ? 0.38 * math.sqrt(1 - out)
+                : SandHole.closesAt(size, out)) +
+            0.012 * rng.nextDouble();
+        _life[i] = 0.5 + 0.22 * rng.nextDouble();
         // All curl the same way, by different amounts: a current, not
         // spokes.
         _swing[i] = 0.12 + 0.22 * rng.nextDouble();
@@ -159,7 +235,6 @@ class SandPicture {
         if (rng.nextDouble() < _kMoteShare) {
           final tone = Color.lerp(ramp[2], ramp[3], rng.nextDouble())!;
           _mote[i] = tone.toARGB32() & 0xFFFFFF;
-          motes++;
         } else {
           _mote[i] = -1;
         }
@@ -167,13 +242,31 @@ class SandPicture {
     }
     goneBy = gone;
     doneBy = done;
+    // How each rides the rim of the hole the ball opens into: how far out
+    // of the rim's line (mostly just outside it, a few well out), how far
+    // behind it (a few trailing well inside, over what is showing), and
+    // how soon it thins away.
+    for (var i = 0; i < n; i++) {
+      final b = rng.nextDouble();
+      _band[i] = -0.03 + 0.22 * b * b;
+      final l = rng.nextDouble();
+      _lag[i] = l < 0.9 ? 0.12 * l : 0.12 + 0.18 * rng.nextDouble();
+      _thin[i] = 0.32 + 0.3 * rng.nextDouble();
+      _tone[i] = _mote[i] >= 0
+          ? _mote[i]
+          : Color.lerp(ramp[2], ramp[3], rng.nextDouble())!.toARGB32() &
+                0xFFFFFF;
+    }
+    _lean = rng.nextDouble() * 2 * math.pi;
+    _bank = rng.nextDouble() * 2 * math.pi;
     _xf = Float32List((n + _rows * 4) * 4);
     _src = Float32List((n + _rows * 4) * 4);
     _col = Int32List(n + _rows * 4);
-    _mxf = Float32List(motes * 4);
-    _msrc = Float32List(motes * 4);
-    _mcol = Int32List(motes);
-    for (var j = 0; j < motes; j++) {
+    // Room for every piece's light: opening, all of them carry one.
+    _mxf = Float32List(n * 4);
+    _msrc = Float32List(n * 4);
+    _mcol = Int32List(n);
+    for (var j = 0; j < n; j++) {
       _msrc[j * 4 + 2] = _kDot;
       _msrc[j * 4 + 3] = _kDot;
     }
@@ -192,7 +285,6 @@ class SandPicture {
   /// The screen as it stood, at [pixelRatio].
   final ui.Image image;
   final double pixelRatio;
-  final SandWay way;
 
   /// The share of pieces that also carry a grain of the element's light.
   static const double _kMoteShare = 0.2;
@@ -201,8 +293,16 @@ class SandPicture {
   /// out, the last has left the ball.
   late final double goneBy;
 
-  /// The last piece is in the ball (gathering), or back in its place.
+  /// The last piece is in the ball.
   late final double doneBy;
+
+  /// Which way the hole the ball opens into leans off the middle, for
+  /// [SandHole.centre].
+  double get lean => _lean;
+  late final double _lean;
+
+  /// Where round the hole's rim the sand banks thickest.
+  late final double _bank;
 
   /// From the pour setting off to the last grain gone.
   static const double pourTime = _kPour + 0.07 + 0.62;
@@ -231,6 +331,18 @@ class SandPicture {
 
   /// The element's light it carries (0xRRGGBB), or -1 for none.
   late final Int32List _mote;
+
+  // Per piece, opening: how far out of the rim's line it rides, how far
+  // behind it, how soon it thins away, and which way it was carried out
+  // (fixed the moment the opening began, so nothing swaps sides as the
+  // ball's turn dies away).
+  late final Float32List _band, _lag, _thin, _ox, _oy;
+  double? _openedAt;
+
+  /// The element's light every piece turns to once the rim has it
+  /// (0xRRGGBB): the screen's own colours would show as dark chips over
+  /// the bright one opening behind.
+  late final Int32List _tone;
 
   late final Float32List _xf, _src, _mxf, _msrc;
   late final Int32List _col, _mcol;
@@ -344,8 +456,16 @@ class SandPicture {
     return n + 1;
   }
 
-  int _glint(int m, int i, double px, double py, double size, double g) {
-    final tone = _mote[i];
+  int _glint(
+    int m,
+    int i,
+    double px,
+    double py,
+    double size,
+    double g, {
+    bool all = false,
+  }) {
+    final tone = all ? _tone[i] : _mote[i];
     if (g <= 0.01 || tone < 0) return m;
     final sc = size / _kDot;
     final j = m * 4;
@@ -382,12 +502,14 @@ class SandPicture {
     }
   }
 
-  /// Draws a [SandWay.gather] picture [t] seconds into coming apart, on a
-  /// screen of [size].
+  /// Draws the picture [t] seconds into coming apart, on a screen of
+  /// [size].
   ///
   /// [pourAt] is when the ball set off into [home] (a circle on the screen,
   /// in this canvas's coordinates; null: it thins out where it is). [fade]
-  /// dims the ball, for when the next screen is coming out of it.
+  /// dims the ball, for when it goes out while the phone turns. [live]: the
+  /// screen itself shows where nothing has left yet, through the closing
+  /// [SandHole], so only what has let go is drawn.
   void paintGather(
     Canvas canvas,
     Size size,
@@ -395,8 +517,8 @@ class SandPicture {
     double? pourAt,
     Rect? home,
     double fade = 1,
+    bool live = false,
   }) {
-    assert(way == SandWay.gather);
     final l = pourAt == null ? -1.0 : t - pourAt;
     final cx = size.width / 2, cy = size.height / 2;
     final ballR = SandBall.radius * size.shortestSide;
@@ -418,7 +540,7 @@ class SandPicture {
 
     // What the edge has not reached, row by row, as strips -- under the
     // sand that blows across it.
-    if (t < goneBy) {
+    if (!live && t < goneBy) {
       final xs = cx + _gx, ys = cy + _gy;
       for (var r = 0; r < _rows; r++) {
         var run = -1;
@@ -494,75 +616,113 @@ class SandPicture {
     _flush(canvas, n, m);
   }
 
-  /// Draws a [SandWay.assemble] picture coming out of the ball: [t] is the
+  /// Draws the ball, gathered, opening onto the screen behind: [t] is the
   /// passage's own clock (the ball's turn) and [since] how long ago the
-  /// ball began to come undone. [opacity] fades the finished picture off
-  /// the screen it stands in for.
-  void paintAssemble(
-    Canvas canvas,
-    Size size,
-    double t,
-    double since, {
-    double opacity = 1,
-  }) {
-    assert(way == SandWay.assemble);
-    final cx = size.width / 2, cy = size.height / 2;
+  /// opening began. The hole is [SandHole]'s; draw the dark round it
+  /// first. Its widening rim sweeps the sand up off the ball as it reaches
+  /// it and carries it out, curling, until it thins away.
+  void paintOpen(Canvas canvas, Size size, double t, double since) {
     final ballR = SandBall.radius * size.shortestSide;
-    final turn = SandBall.turn * t;
     final ct = math.cos(SandBall.tilt), st = math.sin(SandBall.tilt);
-    // Its grains come into the ball as the old ones go out of it.
-    final into = _smooth(0, 0.3, since);
-    var n = 0, m = 0;
-
-    // What has landed, row by row, as strips.
-    final x0 = cx + _gx, y0 = cy + _gy;
-    final strip = ((opacity * 255).round().clamp(0, 255) << 24) | 0xFFFFFF;
-    for (var r = 0; r < _rows; r++) {
-      var run = -1;
-      for (var c = 0; c <= _cols; c++) {
-        final i = r * _cols + c;
-        if (c < _cols && _in[i] == 1 && since >= _rt[i] + _life[i]) {
-          if (run < 0) run = c;
-          continue;
-        }
-        if (run < 0) continue;
-        n = _strip(n, r, run, c, x0, y0, strip);
-        run = -1;
-      }
-    }
-
-    if (since < doneBy) {
+    final from = t - since;
+    final opened = _openedAt;
+    if (opened == null || (opened - from).abs() > 1e-6) {
+      // Which way each is carried out: from where it sat in the ball as
+      // the opening began, nudged by a way of its own so the ones in the
+      // very middle have one.
+      _openedAt = from;
+      final turn = SandBall.turn * from;
       for (var i = 0; i < _in.length; i++) {
         if (_in[i] == 0) continue;
-        final a = since - _rt[i];
-        final u = (a / _life[i]).clamp(0.0, 1.0);
-        if (u >= 1) continue;
-        final e = _smoother(u);
         _ball(i, turn, ct, st);
-        final face = _face;
-        final rad = ballR * _deep[i];
-        final bx = cx + _bx * rad, by = cy + _by * rad;
-        final fx = cx + _hx[i], fy = cy + _hy[i];
-        final dx = fx - bx, dy = fy - by;
-        // Curling out the way the ball turns, as the gathering curled in.
-        final curl = -_swing[i] * math.sin(math.pi * e);
-        final px = bx + dx * e - dy * curl;
-        final py = by + dy * e + dx * curl;
-        // A grain until it is nearly home, then its piece grows back.
-        final s =
-            (_grain + (1 - _grain) * _smooth(0.88, 1, u)) *
-            (1 - 0.25 * (1 - face) * (1 - e));
-        final inBall = 0.35 + 0.65 * face;
-        final alpha = (inBall + (1 - inBall) * e) * into;
-        if (alpha > 0.004) {
-          n = _piece(n, i, px, py, s, _spin[i] * (1 - e) * 0.3, alpha);
-        }
-        final glow = u > 0 ? 0.75 * math.sin(math.pi * u) : 0.32 * face;
-        m = _glint(m, i, px, py, _cw * (0.8 + 0.9 * e), glow * into);
+        final x = _bx * _deep[i] * ballR + 2 * math.cos(_la[i]);
+        final y = _by * _deep[i] * ballR + 2 * math.sin(_la[i]);
+        final d = math.max(1e-3, math.sqrt(x * x + y * y));
+        _ox[i] = x / d;
+        _oy[i] = y / d;
       }
+    }
+    // The ball's turn dies away as it opens.
+    final turn =
+        SandBall.turn * (from + _kSteady * (1 - math.exp(-since / _kSteady)));
+    final open = SandHole.open(since);
+    final c = SandHole.centre(size, open, _lean);
+    final cx = size.width / 2, cy = size.height / 2;
+    final sweep = 0.22 * ballR;
+    final clear = SandHole.radius(size, open);
+    // The ball kindles as it loosens, every grain lighting.
+    final kindle = _smooth(0, 0.35, since);
+    final sag = size.shortestSide * 0.035;
+    final cb = math.cos(_bank), sb = math.sin(_bank);
+    var n = 0, m = 0;
+    for (var i = 0; i < _in.length; i++) {
+      if (_in[i] == 0) continue;
+      final o = SandHole.open(since - _lag[i]);
+      // Thinned away before the rim reaches the edges.
+      final keep = 1 - _smooth(_thin[i], _thin[i] + 0.3, open);
+      if (keep <= 0.004) continue;
+      _ball(i, turn, ct, st);
+      final face = _face;
+      final rad = ballR * _deep[i];
+      final bx = cx + _bx * rad, by = cy + _by * rad;
+      // The rim's line: the middle of the hole's soft edge, banked thicker
+      // in places, as heaped sand would be.
+      final f = SandHole.feather(size, o);
+      final line = SandHole.radius(size, o) + 0.45 * f;
+      final ux = _ox[i], uy = _oy[i];
+      // sin 3 * (its angle + the bank's), off its direction.
+      final s1 = uy * cb + ux * sb;
+      final bank = 1 + 0.5 * (3 * s1 - 4 * s1 * s1 * s1);
+      final rim = line * (1 + _band[i] * bank) + f * 0.25 * _band[i] * o;
+      // Swept up once the rim has reached where it sits in the ball.
+      final dx0 = bx - c.dx, dy0 = by - c.dy;
+      final d = math.sqrt(dx0 * dx0 + dy0 * dy0);
+      // A piece over what is showing is light already, whether or not its
+      // own (trailing) rim has come for it.
+      final w = math.max(
+        _smooth(-0.4 * sweep, sweep, rim - d),
+        _smooth(0, sweep, clear - d),
+      );
+      // Carried out curling, all the same way by different amounts, and
+      // sagging a little, as sand would.
+      final curl = (0.35 + 1.1 * _swing[i]) * o;
+      final cc = math.cos(curl), sc = math.sin(curl);
+      final r = math.max(rim, d);
+      final rx = c.dx + (ux * cc - uy * sc) * r;
+      final ry = c.dy + (ux * sc + uy * cc) * r + sag * o * o * _lr[i];
+      final px = bx + (rx - bx) * w, py = by + (ry - by) * w;
+      // In the ball its piece, the far side dimmer and smaller; swept up,
+      // a grain of light, growing as it rides out past the player and
+      // softer once it trails in over what is showing.
+      final inBall = (0.35 + 0.65 * face) * (1 - w) * keep;
+      if (inBall > 0.004) {
+        final s = _grain * (1 - 0.25 * (1 - face));
+        n = _piece(n, i, px, py, s, 0, inBall);
+      }
+      final over = _smooth(0, f * 0.5, line - 0.45 * f - r);
+      final light = w * (0.75 - 0.4 * over) * keep;
+      // In the ball, the light it had gathered (none, for most) swelling
+      // as it kindles.
+      final had = _mote[i] >= 0 ? 0.4 : 0.0;
+      final warm =
+          (had + ((0.3 + 0.3 * face) - had) * kindle) * (1 - w) * keep;
+      final held = _cw * (0.8 + 0.3 * kindle);
+      final carried = _cw * (1.2 + 1.4 * o) * (0.8 + 0.4 * _lr[i]);
+      m = _glint(
+        m,
+        i,
+        px,
+        py,
+        held + (carried - held) * w,
+        math.max(warm, light),
+        all: kindle > 0 || w > 0,
+      );
     }
     _flush(canvas, n, m);
   }
+
+  /// How quickly the ball's turn dies away as it opens, in seconds.
+  static const double _kSteady = 0.35;
 
   void dispose() {
     image.dispose();

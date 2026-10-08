@@ -515,7 +515,6 @@ class VoidPortal {
       image: image,
       pixelRatio: ratio,
       size: boundary.size,
-      way: SandWay.gather,
       origin: boundary.localToGlobal(Offset.zero),
       screenCentre: _screenCentre(),
       element: to.element,
@@ -570,8 +569,9 @@ class VoidPortal {
   /// Push [page] through sand: [from]'s circle comes apart into a turning
   /// ball in the middle of the screen as the screen goes dark, the phone is
   /// turned to [orientation] and [page] pushed behind the ball, and once
-  /// [ready] (or a safety timeout) the ball comes undone into [page], its
-  /// pieces flying out from the middle and growing back into the picture.
+  /// [ready] (or a safety timeout) the ball opens onto [page] itself, live:
+  /// a hole widens out of its middle, the sand carried out on its rim and
+  /// thinning away, while the page settles back from a little closer.
   ///
   /// [element] colours the light in the sand; [back] is where the page's
   /// sand pours when it is left through [leaveThroughSand]. Falls back to
@@ -607,17 +607,15 @@ class VoidPortal {
       );
     }
     final (image, boundary) = shot;
-    final seed = DateTime.now().millisecondsSinceEpoch;
     final source = SandPicture(
       image: image,
       pixelRatio: ratio,
       size: boundary.size,
-      way: SandWay.gather,
       origin: boundary.localToGlobal(Offset.zero),
       screenCentre: _screenCentre(),
       circle: from.circle,
       element: element,
-      seed: seed,
+      seed: DateTime.now().millisecondsSinceEpoch,
     );
     final turnTo = orientation == null || orientation.isEmpty
         ? null
@@ -627,6 +625,7 @@ class VoidPortal {
         turnTo == DeviceOrientation.landscapeRight;
     final needsTurn = turnTo != null && wideTo != _windowWide();
     final turned = ValueNotifier<bool>(!needsTurn);
+    final zoom = ValueNotifier<double>(_kOpenZoom);
     final picture = GlobalKey();
     final routeResult = Completer<T?>();
 
@@ -645,6 +644,7 @@ class VoidPortal {
                 page: page,
                 picture: picture,
                 turned: needsTurn ? turned : null,
+                zoom: zoom,
                 returnOrientation: returnOrientation,
                 back: back,
               ),
@@ -663,31 +663,14 @@ class VoidPortal {
       }
     }
 
-    // The page as built, to come out of the ball.
-    Future<SandPicture?> capture() async {
-      final shot = await _picture(picture, ratio);
-      if (shot == null) return null;
-      final (image, boundary) = shot;
-      return SandPicture(
-        image: image,
-        pixelRatio: ratio,
-        size: boundary.size,
-        way: SandWay.assemble,
-        origin: boundary.localToGlobal(Offset.zero),
-        screenCentre: _screenCentre(),
-        element: element,
-        seed: seed + 1,
-      );
-    }
-
     late OverlayEntry entry;
     entry = OverlayEntry(
       builder: (_) => _SandEnterOverlay(
         from: source,
         turns: needsTurn,
         swap: swap,
-        capture: capture,
         ready: ready,
+        zoom: zoom,
         onComplete: () {
           entry.remove();
           if (orientation != null && orientation.length > 1) {
@@ -836,16 +819,24 @@ class _PreTurned extends StatelessWidget {
 }
 
 /// A page pushed through a portal or sand: pictured by [picture], laid out
-/// wide while the phone turns ([turned], null for no turn), and told its
-/// way back.
+/// wide while the phone turns ([turned], null for no turn), drawn at
+/// [zoom] while the passage reveals it, and told its way back.
 Widget _passagePage({
   required Widget page,
   required GlobalKey picture,
   required ValueNotifier<bool>? turned,
+  ValueListenable<double>? zoom,
   required List<DeviceOrientation>? returnOrientation,
   required SandLanding? back,
 }) {
-  final body = RepaintBoundary(key: picture, child: page);
+  Widget body = RepaintBoundary(key: picture, child: page);
+  if (zoom != null) {
+    body = ValueListenableBuilder<double>(
+      valueListenable: zoom,
+      builder: (_, k, shown) => Transform.scale(scale: k, child: shown),
+      child: body,
+    );
+  }
   return _PassageScope(
     picture: picture,
     turned: turned,
@@ -1366,13 +1357,21 @@ class _SandExitPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final t = state._clock.t;
     final pourAt = state._pourAt;
-    // The black the page leaves behind, lifting off the screen behind as
-    // the sand pours.
-    _paintSandGround(
-      canvas,
-      size,
-      pourAt == null ? 1 : 1 - _sandSmooth(0, 0.55, t - pourAt),
-    );
+    if (pourAt == null) {
+      // The dark closing in on the page, still live, as it crumbles just
+      // ahead of the dark's edge: a tight edge, so it is seen to.
+      _paintSandHole(
+        canvas,
+        size,
+        SandHole.radius(size, SandHole.closing(size, t)),
+        SandHole.closingEdge(size),
+        size.center(Offset.zero),
+      );
+    } else {
+      // The black the page left behind, lifting off the screen behind as
+      // the sand pours.
+      _paintSandGround(canvas, size, 1 - _sandSmooth(0, 0.55, t - pourAt));
+    }
     final lit = state._veil.lit(t);
     if (lit <= 0.002) return;
     if (lit < 1) _SandVeil.drawIn(canvas, size, lit);
@@ -1383,6 +1382,7 @@ class _SandExitPainter extends CustomPainter {
       pourAt: pourAt,
       home: state._home,
       fade: lit,
+      live: true,
     );
     if (lit < 1) canvas.restore();
   }
@@ -1391,13 +1391,17 @@ class _SandExitPainter extends CustomPainter {
   bool shouldRepaint(_SandExitPainter old) => old.state != state;
 }
 
+/// How much closer than it is a page entered through sand is first shown,
+/// settling back as the ball opens onto it.
+const double _kOpenZoom = 1.06;
+
 class _SandEnterOverlay extends StatefulWidget {
   const _SandEnterOverlay({
     required this.from,
     required this.turns,
     required this.swap,
-    required this.capture,
     required this.ready,
+    required this.zoom,
     required this.onComplete,
   });
 
@@ -1409,10 +1413,10 @@ class _SandEnterOverlay extends StatefulWidget {
 
   /// Turns the phone and pushes the page, behind the ball.
   final Future<void> Function() swap;
-
-  /// The page as built, once it is ready.
-  final Future<SandPicture?> Function() capture;
   final ValueListenable<bool>? ready;
+
+  /// The page's scale, eased back to 1 as the ball opens onto it.
+  final ValueNotifier<double> zoom;
   final VoidCallback onComplete;
 
   @override
@@ -1432,16 +1436,13 @@ class _SandEnterOverlayState extends State<_SandEnterOverlay>
   /// so one that never says it is ready cannot trap the player.
   static const double _timeout = 8.0;
 
-  /// The finished picture fades off the live page in this long.
-  static const double _fade = 0.3;
-
   late final Ticker _ticker;
   final _clock = _SandClock();
-  bool _swapStarted = false, _swapped = false, _capturing = false;
-  bool _done = false;
+  bool _swapStarted = false, _swapped = false, _done = false;
   double _swappedAt = 0;
-  double? _assembleAt, _fadeAt;
-  SandPicture? _to;
+
+  /// When the ball opens onto the page (null: not yet known).
+  double? _openAt;
   final _veil = _SandVeil();
 
   @override
@@ -1471,40 +1472,23 @@ class _SandEnterOverlayState extends State<_SandEnterOverlay>
       );
     }
     if (_swapped &&
-        !_capturing &&
+        _openAt == null &&
         ((widget.ready?.value ?? true) || t - _swappedAt >= _timeout)) {
-      _capturing = true;
-      widget.capture().then(
-        (picture) {
-          if (!mounted || _done) {
-            picture?.dispose();
-            return;
-          }
-          _to = picture;
-          // Not before the ball has lit again after the turn.
-          _assembleAt = widget.turns
-              ? math.max(_clock.t, _veil.litBy)
-              : _clock.t;
-          if (picture == null) _fadeAt = _assembleAt;
-        },
-        onError: (Object _) {
-          if (mounted) _fadeAt = _clock.t;
-        },
-      );
+      // Not before the ball has lit again after the turn.
+      _openAt = widget.turns ? math.max(t, _veil.litBy) : t;
     }
-    final to = _to, assembleAt = _assembleAt;
-    if (to != null &&
-        assembleAt != null &&
-        _fadeAt == null &&
-        t - assembleAt >= to.doneBy + 0.05) {
-      _fadeAt = t;
-    }
-    final fadeAt = _fadeAt;
-    if (fadeAt != null && t >= fadeAt + _fade) {
-      _done = true;
-      _ticker.stop();
-      widget.onComplete();
-      return;
+    final openAt = _openAt;
+    if (openAt != null && t >= openAt) {
+      final since = t - openAt;
+      final open = SandHole.open(since);
+      widget.zoom.value = 1 + (_kOpenZoom - 1) * (1 - open);
+      if (since >= SandHole.time) {
+        widget.zoom.value = 1;
+        _done = true;
+        _ticker.stop();
+        widget.onComplete();
+        return;
+      }
     }
     _clock.tick(t);
   }
@@ -1514,7 +1498,6 @@ class _SandEnterOverlayState extends State<_SandEnterOverlay>
     _ticker.dispose();
     _clock.dispose();
     widget.from.dispose();
-    _to?.dispose();
     super.dispose();
   }
 
@@ -1532,6 +1515,41 @@ class _SandEnterOverlayState extends State<_SandEnterOverlay>
   }
 }
 
+/// The black round a [SandHole] about [centre]: clear out to [r], easing
+/// to dark across an edge [f] wide.
+final Paint _sandHolePaint = Paint();
+
+void _paintSandHole(
+  Canvas canvas,
+  Size size,
+  double r,
+  double f,
+  Offset centre,
+) {
+  if (r + f <= 0.5) {
+    _paintSandGround(canvas, size, 1);
+    return;
+  }
+  final reach = r + f;
+  final start = math.max(0.0, r) / reach;
+  final stops = <double>[], colors = <Color>[];
+  for (var k = 0; k <= 4; k++) {
+    final at = start + (1 - start) * k / 4;
+    stops.add(at);
+    colors.add(
+      _sandGround.withValues(alpha: _sandSmooth(r, reach, at * reach)),
+    );
+  }
+  _sandHolePaint.shader = ui.Gradient.radial(
+    centre,
+    reach,
+    colors,
+    stops,
+  );
+  canvas.drawRect(Offset.zero & size, _sandHolePaint);
+  _sandHolePaint.shader = null;
+}
+
 class _SandEnterPainter extends CustomPainter {
   _SandEnterPainter(this.state) : super(repaint: state._clock);
 
@@ -1540,31 +1558,34 @@ class _SandEnterPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final t = state._clock.t;
-    final fadeAt = state._fadeAt;
-    final gone = fadeAt == null ? 0.0 : _sandSmooth(0, 1, (t - fadeAt) / 0.3);
+    final from = state.widget.from;
+    final openAt = state._openAt;
+    if (openAt != null && t >= openAt) {
+      // Open onto the live page.
+      final since = t - openAt;
+      final open = SandHole.open(since);
+      _paintSandHole(
+        canvas,
+        size,
+        SandHole.radius(size, open),
+        SandHole.feather(size, open),
+        SandHole.centre(size, open, from.lean),
+      );
+      from.paintOpen(canvas, size, t, since);
+      return;
+    }
     _paintSandGround(
       canvas,
       size,
-      _sandSmooth(0, _SandEnterOverlayState._darken, t) * (1 - gone),
+      _sandSmooth(0, _SandEnterOverlayState._darken, t),
     );
-    final from = state.widget.from;
     if (!state._swapStarted) from.paintHole(canvas, size, _sandGround);
-    final assembleAt = state._assembleAt;
-    final since = assembleAt == null || t < assembleAt ? null : t - assembleAt;
-    final to = state._to;
-    // The circle's grains go out of the ball as the page's come into it,
-    // and out altogether while the phone turns.
+    // Out altogether while the phone turns.
     final lit = state._veil.lit(t);
-    final fade =
-        (since == null ? 1 - gone : 1 - _sandSmooth(0, 0.45, since)) * lit;
-    if (fade > 0.002) {
-      if (lit < 1) _SandVeil.drawIn(canvas, size, lit);
-      from.paintGather(canvas, size, t, fade: fade);
-      if (lit < 1) canvas.restore();
-    }
-    if (to != null && since != null) {
-      to.paintAssemble(canvas, size, t, since, opacity: 1 - gone);
-    }
+    if (lit <= 0.002) return;
+    if (lit < 1) _SandVeil.drawIn(canvas, size, lit);
+    from.paintGather(canvas, size, t, fade: lit);
+    if (lit < 1) canvas.restore();
   }
 
   @override
