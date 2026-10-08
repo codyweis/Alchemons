@@ -217,6 +217,11 @@ class FieldPassage extends PassageScene {
   @override
   Listenable? get listenable => target;
 
+  /// The map starts building while the hills are still growing, so it is
+  /// ready by the time they have.
+  @override
+  double get buildAt => 0.45;
+
   /// The map comes up under its dust once most of it has come down.
   @override
   double pageShown(double land) => _smooth(0.45, 1, land);
@@ -500,13 +505,13 @@ class EnhancePassage extends PassageScene {
   final ValueListenable<SpecimenGrains?> creature;
 
   @override
-  Duration get inward => const Duration(milliseconds: 650);
+  Duration get inward => const Duration(milliseconds: 520);
 
   @override
-  Duration get outward => const Duration(milliseconds: 800);
+  Duration get outward => const Duration(milliseconds: 650);
 
   @override
-  Duration get landing => const Duration(milliseconds: 850);
+  Duration get landing => const Duration(milliseconds: 700);
 
   @override
   Listenable? get listenable => creature;

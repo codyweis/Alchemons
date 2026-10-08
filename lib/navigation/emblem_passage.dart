@@ -105,6 +105,13 @@ abstract class PassageScene {
   /// Giving way to the page once it is ready.
   Duration get landing;
 
+  /// How far into growing the page starts to be built (it is unseen until it
+  /// is given way to). 1 waits for the icon to be fully grown, which leaves
+  /// it standing there while a heavy page reads what it needs; earlier gets
+  /// it ready by the time the icon has grown. The landing still waits for
+  /// the grow to finish.
+  double get buildAt => 1;
+
   void paint(
     Canvas canvas,
     EmblemStage s, {
@@ -266,6 +273,7 @@ class _PassageVeilState extends State<_PassageVeil>
   /// The page is in the tree (only once the screen is covered).
   bool _built = false;
   bool _landing = false;
+  bool _landPending = false;
   bool _closing = false;
   Timer? _timeout;
 
@@ -314,10 +322,13 @@ class _PassageVeilState extends State<_PassageVeil>
       case AnimationStatus.completed:
         // Not the frame a hero push lays the route out offstage to measure
         // it: its animation reads complete there, and nothing is covered.
-        if (_built || widget.route.offstage) return;
-        setState(() => _built = true);
-        // Once the page has laid out its first frame, wait on it.
-        WidgetsBinding.instance.addPostFrameCallback((_) => _awaitReady());
+        if (widget.route.offstage) return;
+        _beginBuild();
+        // Ready before the icon had finished growing: it lands now.
+        if (_landPending) {
+          _landPending = false;
+          _startLanding();
+        }
       case AnimationStatus.reverse:
         if (_closing) return;
         _timeout?.cancel();
@@ -330,8 +341,23 @@ class _PassageVeilState extends State<_PassageVeil>
     }
   }
 
+  /// Puts the page in the tree, and once it has laid out its first frame,
+  /// waits on it.
+  void _beginBuild() {
+    if (_built || !mounted) return;
+    setState(() => _built = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) => _awaitReady());
+  }
+
   /// Home's icon comes back the moment the scene is back in its box.
   void _onTick() {
+    if (!_built &&
+        !_closing &&
+        !widget.route.offstage &&
+        widget.animation.status == AnimationStatus.forward &&
+        widget.animation.value >= widget.route.scene.buildAt) {
+      _beginBuild();
+    }
     if (_closing && widget.animation.value <= 0) {
       widget.route.lifted?.value = false;
     }
@@ -371,6 +397,11 @@ class _PassageVeilState extends State<_PassageVeil>
     widget.route.ready?.removeListener(_onReady);
     _timeout?.cancel();
     if (!mounted || _landing || _closing) return;
+    // Still growing: it lands when the icon has grown (see [buildAt]).
+    if (widget.animation.status != AnimationStatus.completed) {
+      _landPending = true;
+      return;
+    }
     _landing = true;
     _land.forward();
   }
