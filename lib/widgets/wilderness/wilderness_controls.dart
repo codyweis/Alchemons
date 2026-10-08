@@ -1,6 +1,7 @@
 import 'package:alchemons/audio/audio.dart';
 // lib/widgets/wilderness/wilderness_controls.dart
 import 'package:alchemons/constants/design_tokens.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/wilderness/inventory_hud.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,7 @@ class WildernessControls extends StatelessWidget {
     this.leaveDialogTitle = 'LEAVE SCENE?',
     this.leaveDialogBody = 'Any active encounters will be lost.',
     this.leaveConfirmLabel = 'LEAVE',
-    this.leaveCancelLabel = 'CANCEL',
+    this.leaveCancelLabel = 'STAY',
     this.canLeave,
     this.onLeaveBlocked,
   });
@@ -77,110 +78,24 @@ class WildernessControls extends StatelessWidget {
     );
   }
 
-  void _showLeaveConfirmation(BuildContext context) {
+  Future<void> _showLeaveConfirmation(BuildContext context) async {
     if (canLeave != null && !canLeave!()) {
       onLeaveBlocked?.call();
       return;
     }
     HapticFeedback.mediumImpact();
-    showDialog(
-      context: context,
-      builder: (ctx) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 360),
-            child: CustomPaint(
-              painter: BracketFramePainter(
-                color: _wDanger.withValues(alpha: 0.85),
-                bracketSize: 12,
-                strokeWidth: 1.3,
-              ),
-              child: Container(
-                color: _wPalette.surfaceFill(),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 0),
-                      child: Row(
-                        children: [
-                          Container(width: 3, height: 26, color: _wDanger),
-                          const SizedBox(width: AppSpace.md),
-                          Expanded(
-                            child: Text(
-                              _toSentenceCase(leaveDialogTitle),
-                              style: bracketText(
-                                ctx,
-                                17,
-                                _wPalette.ink,
-                                weight: FontWeight.w700,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 12, 18, 0),
-                      child: Text(
-                        leaveDialogBody,
-                        style: bracketText(
-                          ctx,
-                          12.5,
-                          _wPalette.muted,
-                          weight: FontWeight.w500,
-                        ),
-                        strutStyle: const StrutStyle(height: 1.4),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _DialogButton(
-                              label: _toSentenceCase(leaveCancelLabel),
-                              color: _wPalette.muted,
-                              filled: false,
-                              onTap: () {
-                                HapticFeedback.lightImpact();
-                                Navigator.pop(ctx);
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: AppSpace.sm),
-                          Expanded(
-                            child: _DialogButton(
-                              label: _toSentenceCase(leaveConfirmLabel),
-                              color: _wDanger,
-                              filled: true,
-                              onTap: () {
-                                HapticFeedback.heavyImpact();
-                                Navigator.pop(ctx);
-                                onLeave();
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    final leave = await showBracketConfirm(
+      context,
+      palette: _wPalette,
+      accent: kLeaveDangerAccent,
+      title: leaveDialogTitle,
+      message: leaveDialogBody,
+      cancelLabel: leaveCancelLabel,
+      confirmLabel: leaveConfirmLabel,
     );
-  }
-
-  static String _toSentenceCase(String v) {
-    if (v.isEmpty) return v;
-    final lower = v.toLowerCase();
-    return lower[0].toUpperCase() + lower.substring(1);
+    if (!leave) return;
+    HapticFeedback.heavyImpact();
+    onLeave();
   }
 
   void _showInventoryOverlay(BuildContext context) {
@@ -300,50 +215,6 @@ class _ControlButton extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogButton extends StatelessWidget {
-  const _DialogButton({
-    required this.label,
-    required this.color,
-    required this.filled,
-    required this.onTap,
-  });
-
-  final String label;
-  final Color color;
-  final bool filled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      behavior: HitTestBehavior.opaque,
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: filled ? color : color.withValues(alpha: 0.6),
-          bracketSize: 8,
-          strokeWidth: filled ? 1.3 : 1.1,
-        ),
-        child: Container(
-          height: 42,
-          alignment: Alignment.center,
-          color: filled ? color : color.withValues(alpha: 0.10),
-          child: Text(
-            label,
-            style: bracketText(
-              context,
-              13,
-              filled ? Colors.white : color,
-              weight: FontWeight.w700,
-              letterSpacing: 0.4,
             ),
           ),
         ),

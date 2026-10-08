@@ -501,7 +501,7 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
                 dossierHud: true,
                 // After a failure, leaving costs the specimen — say so.
                 warnOnRun: _failedOnce,
-                runWarningTitle: 'Leave it?',
+                runWarningTitle: 'LET IT GO?',
                 runWarningBody:
                     'After a failed attempt it will not stay. If you leave '
                     'now, it is gone.',

@@ -23,6 +23,8 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 
 class RiftPortalScreen extends StatefulWidget {
   final RiftFaction faction;
@@ -214,57 +216,18 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   /// encounter's own run action already warns; this matches it.
   Future<void> _confirmExit(BuildContext context) async {
     HapticFeedback.lightImpact();
-    final leave = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        backgroundColor: const Color(0xFF17171A),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(6),
-          side: BorderSide(
-            color: widget.faction.primaryColor.withValues(alpha: 0.6),
-          ),
-        ),
-        title: const Text(
-          'LEAVE THE RIFT?',
-          style: TextStyle(
-            color: Color(0xFFE6E2DA),
-            fontFamily: 'monospace',
-            fontSize: 15,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.2,
-          ),
-        ),
-        content: const Text(
+    final leave = await showBracketConfirm(
+      context,
+      palette: BracketPalette.dark,
+      accent: kLeaveDangerAccent,
+      title: 'LEAVE THE RIFT?',
+      message:
           'Your Portal Key is already spent. Leaving now takes you back with '
           'nothing from this rift.',
-          style: TextStyle(color: Color(0xFF85827C), fontSize: 12, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: context.soundAction(
-              () => Navigator.of(dialogContext).pop(false),
-            ),
-            child: const Text(
-              'Stay',
-              style: TextStyle(color: Color(0xFF85827C)),
-            ),
-          ),
-          TextButton(
-            onPressed: context.soundAction(
-              () => Navigator.of(dialogContext).pop(true),
-            ),
-            child: Text(
-              'Leave',
-              style: TextStyle(
-                color: widget.faction.primaryColor,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
+      cancelLabel: 'STAY',
+      confirmLabel: 'LEAVE',
     );
-    if (leave == true && context.mounted) {
+    if (leave && context.mounted) {
       // false: the portal is not cleared, matching the run-away path.
       Navigator.of(context).pop(false);
     }

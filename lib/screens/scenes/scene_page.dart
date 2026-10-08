@@ -1578,7 +1578,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       leaveDialogTitle: 'LEAVE SCENE?',
                       leaveDialogBody: 'Any active encounters will be lost.',
                       leaveConfirmLabel: 'LEAVE',
-                      leaveCancelLabel: 'CANCEL',
+                      leaveCancelLabel: 'STAY',
                       canLeave: () =>
                           !(_shipPresent && _shipSceneId == widget.sceneId),
                       onLeaveBlocked: _showShipBeckoning,

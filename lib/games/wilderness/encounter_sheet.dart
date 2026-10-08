@@ -57,6 +57,7 @@ import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/models/wilderness.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/wilderness/device_selection_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -541,93 +542,19 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       _hide(false);
       return;
     }
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        const danger = Color(0xFFE0785A);
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 440),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: _kPalette.surfaceFill(),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: danger.withValues(alpha: 0.45),
-                  width: 1,
-                ),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            widget.runWarningTitle ?? 'Leave the void?',
-                            style: bracketText(
-                              ctx,
-                              17,
-                              _kPalette.ink,
-                              weight: FontWeight.w700,
-                              letterSpacing: 0.3,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: AppSpace.lg),
-                    Text(
-                      widget.runWarningBody ??
-                          'The void will remain in the rift, but this '
-                              'encounter will be lost if you return.',
-                      style: bracketText(
-                        ctx,
-                        12.5,
-                        _kPalette.muted,
-                        weight: FontWeight.w500,
-                      ),
-                      strutStyle: const StrutStyle(height: 1.45),
-                    ),
-                    const SizedBox(height: AppSpace.lg),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _DialogChoice(
-                            label: 'Stay',
-                            color: _kPalette.muted,
-                            filled: false,
-                            onTap: context.soundTap(
-                              () => Navigator.of(ctx).pop(false),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: AppSpace.sm),
-                        Expanded(
-                          child: _DialogChoice(
-                            label: 'Leave',
-                            color: danger,
-                            filled: true,
-                            onTap: context.soundTap(
-                              () => Navigator.of(ctx).pop(true),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        );
-      },
+    final confirmed = await showBracketConfirm(
+      context,
+      palette: _kPalette,
+      accent: kLeaveDangerAccent,
+      title: widget.runWarningTitle ?? 'LEAVE THE VOID?',
+      message:
+          widget.runWarningBody ??
+          'The void will remain in the rift, but this encounter will be '
+              'lost if you return.',
+      cancelLabel: 'STAY',
+      confirmLabel: 'LEAVE',
     );
-    if (confirmed == true) _hide(false);
+    if (confirmed) _hide(false);
   }
 
   void _hide([bool success = false]) {
@@ -1671,52 +1598,6 @@ class _ActionButton extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DialogChoice extends StatelessWidget {
-  const _DialogChoice({
-    required this.label,
-    required this.color,
-    required this.filled,
-    required this.onTap,
-  });
-
-  final String label;
-  final Color color;
-  final bool filled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        height: 42,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: filled
-              ? Color.lerp(const Color(0xFF0B0A0E), color, 0.22)
-              : const Color(0xFF0B0A0E),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-            color: color.withValues(alpha: filled ? 0.75 : 0.45),
-            width: 1,
-          ),
-        ),
-        child: Text(
-          label.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: filled ? Color.lerp(color, _parchment, 0.55) : color,
-            fontSize: 12.5,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.4,
-          ),
         ),
       ),
     );

@@ -329,8 +329,16 @@ class BracketIconButton extends StatelessWidget {
   }
 }
 
+/// Pale brass: the accent for a leave/exit question that costs nothing.
+const kLeaveQuietAccent = Color(0xFFB89656);
+
+/// Red: the accent for a leave/exit question where leaving loses something.
+const kLeaveDangerAccent = Color(0xFFE57373);
+
 /// Asks before something that cannot be undone, in the same frame as the
-/// screen asking. [amounts] are what changes hands, drawn as coins.
+/// screen asking. [amounts] are what changes hands, drawn as coins;
+/// [details] sits under the message for anything more (what a departure
+/// costs, say). Every leave/exit question in the game is asked this way.
 Future<bool> showBracketConfirm(
   BuildContext context, {
   required BracketPalette palette,
@@ -340,7 +348,9 @@ Future<bool> showBracketConfirm(
   List<(CoinKind, int)> amounts = const [],
   String amountsLabel = 'YOU RECEIVE',
   String? warning,
+  Widget? details,
   String confirmLabel = 'CONFIRM',
+  String cancelLabel = 'CANCEL',
 }) async {
   final result = await showDialog<bool>(
     context: context,
@@ -382,6 +392,7 @@ Future<bool> showBracketConfirm(
                 message,
                 style: bracketText(ctx, 14, palette.ink.withValues(alpha: 0.9)),
               ),
+              if (details != null) ...[const SizedBox(height: 14), details],
               if (amounts.isNotEmpty) ...[
                 const SizedBox(height: 16),
                 BracketSectionDivider(label: amountsLabel),
@@ -430,7 +441,7 @@ Future<bool> showBracketConfirm(
                 children: [
                   Expanded(
                     child: BracketButton(
-                      label: 'CANCEL',
+                      label: cancelLabel,
                       primary: false,
                       height: 42,
                       palette: palette,

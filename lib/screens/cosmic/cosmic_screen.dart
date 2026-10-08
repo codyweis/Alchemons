@@ -5750,17 +5750,14 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// quiet — no red, no alarm — when the hold is already empty.
   Future<void> _confirmLeave() async {
     final db = context.read<AlchemonsDatabase>();
-    final result = await showDialog<bool>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.72),
-      builder: (ctx) => LeaveExpeditionDialog(
-        cargoUnits: _game?.meter.total ?? 0,
-        cargoBreakdown: _game?.meter.breakdown ?? const {},
-        unbankedShards: _game?.shipWallet.shards ?? 0,
-        bankedShards: _homePlanet?.astralBank,
-      ),
+    final result = await showLeaveExpeditionConfirm(
+      context,
+      cargoUnits: _game?.meter.total ?? 0,
+      cargoBreakdown: _game?.meter.breakdown ?? const {},
+      unbankedShards: _game?.shipWallet.shards ?? 0,
+      bankedShards: _homePlanet?.astralBank,
     );
-    if (result == true && mounted) {
+    if (result && mounted) {
       await _flushVolatileState();
       if (!widget.memoryTutorial) {
         final alreadyReturned =
