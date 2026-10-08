@@ -28,6 +28,7 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/screens/cosmic/widgets/virtual_joystick.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/scheduler.dart' show Ticker;
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -87,6 +88,8 @@ class PlanetDungeonScreen extends StatefulWidget {
     this.raid,
     this.onRaidCleared,
     this.revealBeautyMask = false,
+    this.revealReady,
+    this.revealed,
   });
 
   final String element;
@@ -100,6 +103,13 @@ class PlanetDungeonScreen extends StatefulWidget {
   /// Persist-the-clear callback (RaidService.markLevelCleared), awaited right
   /// after the loot is granted.
   final Future<void> Function()? onRaidCleared;
+
+  /// For the way down from space (PlanetDescentPassage), which is then the
+  /// loading screen: the dungeon's own intro is left out, [revealReady] is
+  /// set once the dungeon is built and its first frame warmed, and it stays
+  /// frozen until [revealed] says the passage has shown it.
+  final ValueNotifier<bool>? revealReady;
+  final ValueListenable<bool>? revealed;
 
   @override
   State<PlanetDungeonScreen> createState() => _PlanetDungeonScreenState();
@@ -222,8 +232,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           }
         }
       });
+    _showIntro = !_underPassage;
     _introTicker = createTicker((elapsed) {
       if (!mounted) return;
+      if (_underPassage) {
+        _tickUnderPassage();
+        return;
+      }
       final secs = elapsed.inMicroseconds / 1e6;
       _warmFrozenDungeon();
       if (_introFadeStart == null && secs >= _descentSeconds && _ready) {
@@ -365,6 +380,21 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       // A reward earned mid-fight waits here for the room to go quiet.
       if (mounted && _rewardPending) unawaited(_offerPendingRewardIfSafe());
     });
+  }
+
+  /// Whether the way down from space is covering this screen (and stands in
+  /// for its intro).
+  bool get _underPassage => widget.revealReady != null;
+
+  /// Under the passage: warm the frozen dungeon, say it is ready, and thaw it
+  /// once the passage has shown it.
+  void _tickUnderPassage() {
+    _warmFrozenDungeon();
+    if (_dungeonWarmed) widget.revealReady?.value = true;
+    if (widget.revealed?.value ?? false) {
+      _introTicker.stop();
+      _thawDungeon();
+    }
   }
 
   /// Draw the frozen dungeon exactly once, while the descent still hides it.
@@ -872,7 +902,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   Widget _buildScene(BuildContext context) {
     final game = _game;
     if (!_ready || game == null) {
-      return Scaffold(backgroundColor: _C.bg, body: _descentIntro());
+      return Scaffold(
+        backgroundColor: _C.bg,
+        body: _underPassage ? null : _descentIntro(),
+      );
     }
 
     return PopScope(
@@ -2087,7 +2120,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         key: _tutUtilityKey,
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [castTile(0), const SizedBox(width: gap), castTile(1)],
+          children: [
+            castTile(0),
+            const SizedBox(width: gap),
+            castTile(1),
+          ],
         ),
       );
       bottom = KeyedSubtree(

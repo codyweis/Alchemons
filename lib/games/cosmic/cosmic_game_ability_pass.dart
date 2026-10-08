@@ -258,8 +258,6 @@ extension CosmicAbilityPass on CosmicGame {
             skyfallDuration: drop.duration,
             skyfallImpact: aim,
             skyfallDistance: drop.distance,
-            // Thrown at a place, not a body — see Projectile.skyfallTracks.
-            skyfallTracks: false,
             // "Twice as big" per design — the same as survival.
             radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
             visualScale: max(3.5, source.visualScale * 2.0),
@@ -817,25 +815,6 @@ extension CosmicAbilityPass on CosmicGame {
       );
     }
 
-    /// The live position a descending Let meteor keeps itself aimed at,
-    /// leashed to the neighbourhood of the point it was committed to.
-    Offset? liveSkyfallTarget(Projectile p) {
-      final leash = letSkyfallBlastRadius(p) + 140.0;
-      final centre = p.skyfallImpact;
-      var bestSq = leash * leash;
-      Offset? best;
-      for (final enemy in enemies) {
-        if (enemy.dead || enemy.health <= 0) continue;
-        final d = enemy.position - centre;
-        final dSq = d.dx * d.dx + d.dy * d.dy;
-        if (dSq < bestSq) {
-          bestSq = dSq;
-          best = enemy.position;
-        }
-      }
-      return best;
-    }
-
     /// A Let meteor touching down. Full damage to the body it lands on, a
     /// reduced share to everything else in the crater, and the element's
     /// ground effects whether or not anything was standing there.
@@ -909,11 +888,7 @@ extension CosmicAbilityPass on CosmicGame {
       // Let meteors fall. A descending meteor takes no collisions, lays no
       // trail and does not age — everything it does happens when it lands.
       if (p.isDescending) {
-        final landed = CosmicAbilityRuntime.advanceSkyfall(
-          p,
-          dt,
-          p.skyfallTracks ? liveSkyfallTarget(p) : null,
-        );
+        final landed = CosmicAbilityRuntime.advanceSkyfall(p, dt);
         if (landed) {
           detonateLetSkyfall(p);
           companionProjectiles.removeAt(i);
@@ -1320,9 +1295,7 @@ extension CosmicAbilityPass on CosmicGame {
           _spawnHitSpark(
             p.position,
             elementColor(
-              p.abilityFamily == 'mask'
-                  ? (p.element ?? 'Fire')
-                  : enemy.element,
+              p.abilityFamily == 'mask' ? (p.element ?? 'Fire') : enemy.element,
             ),
           );
           if (!enemy.provoked &&

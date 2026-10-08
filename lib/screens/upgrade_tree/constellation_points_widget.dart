@@ -2,10 +2,9 @@ import 'package:alchemons/audio/audio.dart';
 // lib/widgets/constellation_points_widget.dart
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/navigation/emblem_passage.dart';
-import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/cosmic/cosmic_screen.dart';
 import 'package:alchemons/screens/upgrade_tree/constellation_screen.dart';
-import 'package:alchemons/widgets/animations/alchemy_orb.dart';
+import 'package:alchemons/widgets/cosmic_ship_emblem.dart';
 import 'package:alchemons/widgets/home_emblems.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -14,50 +13,67 @@ import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
-/// Alchemy orb button — navigates to the Cosmic exploration game.
-/// Requires cosmic ship to enter; shows a warning otherwise.
+/// The way into space on home: the player's own ship, in grains, flying a
+/// figure of eight (widgets/cosmic_ship_emblem.dart). Touched, it carries
+/// them in — the ship grows into the middle of the screen, cruises there
+/// while the cosmos is built, and lands on the real ship as space comes up.
+/// Shown once the ship is unlocked.
 class CosmicOrbWidget extends StatefulWidget {
-  const CosmicOrbWidget({super.key});
+  const CosmicOrbWidget({super.key, this.animate = true});
+
+  /// Whether the ship flies (home stills it in performance mode).
+  final bool animate;
 
   @override
   State<CosmicOrbWidget> createState() => _CosmicOrbWidgetState();
 }
 
 class _CosmicOrbWidgetState extends State<CosmicOrbWidget> {
+  final GlobalKey _emblem = GlobalKey();
+  final ValueNotifier<bool> _lifted = ValueNotifier(false);
+  late final Future<String?> _unlocked = context
+      .read<AlchemonsDatabase>()
+      .settingsDao
+      .getSetting('cosmic_ship_unlocked');
+
+  @override
+  void dispose() {
+    _lifted.dispose();
+    super.dispose();
+  }
+
+  void _open() {
+    HapticFeedback.lightImpact();
+    // The passage is the loading screen: the ship cruises in the middle of
+    // the screen until the cosmos is built behind it.
+    final ready = ValueNotifier<bool>(false);
+    final target = ValueNotifier<ShipPassageTarget?>(null);
+    EmblemPassage.pushScene<void>(
+      context,
+      scene: CosmicShipPassage(target: target),
+      from: _emblem,
+      page: CosmicScreen(revealReady: ready, passageTarget: target),
+      ready: ready,
+      lifted: _lifted,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<String?>(
-      future: context.read<AlchemonsDatabase>().settingsDao.getSetting(
-        'cosmic_ship_unlocked',
-      ),
+      future: _unlocked,
       builder: (context, snapshot) {
-        final val = snapshot.data;
-        final unlocked = val == '1';
-
-        if (!unlocked) return const SizedBox.shrink();
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: FloatingAlchemyOrb(
-            onTap: () async {
-              HapticFeedback.lightImpact();
-              if (!context.mounted) return;
-              // The glyph portal is the loading screen: it holds until the
-              // cosmos is built behind it.
-              final ready = ValueNotifier<bool>(false);
-              VoidPortal.pushThroughGlyphs<void>(
-                context,
-                page: CosmicScreen(revealReady: ready),
-                title: 'The Cosmos',
-                ready: ready,
-                palette: const [
-                  Color(0xFFE4C16A), // amber
-                  Color(0xFF5BC8E8), // teal
-                  Color(0xFFB6AEFF), // starlight violet
-                ],
-                tint: const Color(0xFF4A3A8C),
-              );
-            },
+        if (snapshot.data != '1') return const SizedBox.shrink();
+        return GestureDetector(
+          onTap: context.soundAction(_open),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: CosmicShipEmblem(
+              key: _emblem,
+              size: 75,
+              animate: widget.animate,
+              lifted: _lifted,
+            ),
           ),
         );
       },

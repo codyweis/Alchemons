@@ -47,7 +47,6 @@ void main() {
             game: game,
             theme: FactionTheme.scorchForge(),
             markers: const [],
-            hasHomePlanet: false,
             onTeleport: (_) {},
             onNavigatePlanet: (_) {},
             onGoHome: () {},

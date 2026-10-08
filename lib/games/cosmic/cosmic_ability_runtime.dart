@@ -285,23 +285,11 @@ class CosmicAbilityRuntime {
   /// arrive early, and a Let that lands somewhere other than where its
   /// telegraph promised is worse than one that never moved.
   ///
-  /// [liveTarget] is the locked enemy's current position, or null once that
-  /// enemy is gone. While it is supplied the impact point tracks it, tightly
-  /// enough that an enemy cannot walk out from under the drop. That is
-  /// deliberate: choosing where and when to drop a meteor is the decision,
-  /// and making the player also lead a moving target would turn it into a
-  /// reflex test.
-  static bool advanceSkyfall(Projectile p, double dt, Offset? liveTarget) {
+  /// The impact point never moves once thrown. It used to slide after the
+  /// locked enemy, which made the rock read as a guided missile; it never
+  /// needed to, because no enemy covers the crater's radius in one descent.
+  static bool advanceSkyfall(Projectile p, double dt) {
     if (p.skyfallDuration <= 0 || p.skyfallRemaining <= 0) return false;
-
-    if (liveTarget != null) {
-      // Tracking tightens as the meteor closes, so the trajectory reads as
-      // committed early and unmissable late. A constant rate either looks
-      // like the rock is steering itself, or lets a fast enemy escape.
-      final closing = 1.0 - p.skyfallRemaining / p.skyfallDuration;
-      final pull = ((0.18 + 0.82 * closing) * dt * 12.0).clamp(0.0, 1.0);
-      p.skyfallImpact = Offset.lerp(p.skyfallImpact, liveTarget, pull)!;
-    }
 
     p.skyfallRemaining = max(0.0, p.skyfallRemaining - dt);
     final remaining = p.skyfallRemaining / p.skyfallDuration;

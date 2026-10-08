@@ -35,7 +35,6 @@ class MiniMapOverlay extends StatefulWidget {
     required this.game,
     required this.theme,
     required this.markers,
-    required this.hasHomePlanet,
     required this.onTeleport,
     required this.onNavigatePlanet,
     required this.onGoHome,
@@ -49,13 +48,18 @@ class MiniMapOverlay extends StatefulWidget {
     this.tutorialTargetLabel,
     this.debugShowAllContestArenasOnMap = false,
     this.debugEnableContestArenaTeleport = false,
+    this.reveal,
   });
+
+  /// The way the chart comes up from space (0, still the space view, to 1,
+  /// settled): the map settles out from close in on the ship as space
+  /// shrinks down into it. Null: the chart is simply there.
+  final Animation<double>? reveal;
 
   final CosmicWorld world;
   final CosmicGame game;
   final FactionTheme theme;
   final List<MapMarker> markers;
-  final bool hasHomePlanet;
 
   /// Returns 0..3 dungeon stars for a built-dungeon planet, or null for
   /// coming-soon planets (whose card shows no earned stars yet).
@@ -96,6 +100,27 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
   bool _didPrimeMapTransform = false;
   _MiniMapTravelPromptData? _travelPrompt;
   late List<CosmicPlanet> _discoveredPlanets;
+
+  /// The map's own box, and its world→chart scale before any zoom.
+  final GlobalKey _mapKey = GlobalKey(debugLabel: 'chart.map');
+  double? _chartScale;
+
+  /// Where the ship is on the chart as it stands (global coordinates), and
+  /// how many screen px a world unit is there — for the way between space
+  /// and the chart. Null until the map is laid out.
+  ({Offset at, double pxPerUnit})? shipOnChart() {
+    final scale = _chartScale;
+    final box = _mapKey.currentContext?.findRenderObject();
+    if (scale == null || box is! RenderBox || !box.attached || !box.hasSize) {
+      return null;
+    }
+    final m = _transformCtrl.value;
+    final local = MatrixUtils.transformPoint(m, widget.game.ship.pos * scale);
+    return (
+      at: box.localToGlobal(local),
+      pxPerUnit: scale * m.getMaxScaleOnAxis(),
+    );
+  }
 
   void _refreshPlanets() {
     _discoveredPlanets =
@@ -147,6 +172,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     required Size content,
     required double scale,
   }) {
+    _chartScale = scale;
     if (_didPrimeMapTransform ||
         viewport.isEmpty ||
         content.isEmpty ||
@@ -170,12 +196,9 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
       0.0,
     );
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _transformCtrl.value = Matrix4.identity()
-        ..translateByDouble(tx.toDouble(), ty.toDouble(), 0, 1)
-        ..scaleByDouble(initialZoom, initialZoom, 1, 1);
-    });
+    _transformCtrl.value = Matrix4.identity()
+      ..translateByDouble(tx.toDouble(), ty.toDouble(), 0, 1)
+      ..scaleByDouble(initialZoom, initialZoom, 1, 1);
   }
 
   /// World-space distance corresponding to [screenPx] on screen right now, so
@@ -455,14 +478,25 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     _removeMarkerNear(_worldFromViewport(details.localPosition, scale), scale);
   }
 
+  /// Home leads the carousel, ahead of the planets, once there is one.
+  bool get _homeFirst => widget.game.homePlanet != null;
+  int get _placeCount => _discoveredPlanets.length + (_homeFirst ? 1 : 0);
+
+  /// The carousel's planet at [index], or null for home.
+  CosmicPlanet? _placeAt(int index) {
+    final i =
+        index.clamp(0, max(0, _placeCount - 1)).toInt() - (_homeFirst ? 1 : 0);
+    return i < 0 ? null : _discoveredPlanets[i];
+  }
+
   void _navigateToSelected() {
-    if (_discoveredPlanets.isEmpty) return;
-    final target =
-        _discoveredPlanets[_planetIndex.clamp(
-          0,
-          _discoveredPlanets.length - 1,
-        )];
-    _runAfterBuild(() => widget.onNavigatePlanet(target));
+    if (_placeCount == 0) return;
+    final target = _placeAt(_planetIndex);
+    if (target == null) {
+      _runAfterBuild(widget.onGoHome);
+    } else {
+      _runAfterBuild(() => widget.onNavigatePlanet(target));
+    }
   }
 
   static String _poiLabel(POIType type) => switch (type) {
@@ -496,12 +530,10 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     _ => const Color(0xFF90CAF9),
   };
 
-
   @override
   Widget build(BuildContext context) {
-    if (_discoveredPlanets.isNotEmpty &&
-        _planetIndex >= _discoveredPlanets.length) {
-      _planetIndex = _discoveredPlanets.length - 1;
+    if (_placeCount > 0 && _planetIndex >= _placeCount) {
+      _planetIndex = _placeCount - 1;
     }
 
     return Material(
@@ -511,17 +543,15 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
         child: Column(
           children: [
             _Header(
-              hasHomePlanet: widget.hasHomePlanet,
               discoveredCount: _discoveredPlanets.length,
               planetTotal: widget.world.totalCount,
               markerCount: widget.markers.length,
               starTotal: widget.dungeonStarTotal,
               starMax: widget.dungeonStarMax,
-              onGoHome: () => _runAfterBuild(widget.onGoHome),
               onClose: widget.onClose,
             ),
             // ── Carousel + Navigate button (collapsible) ───────────────────
-            if (_discoveredPlanets.isNotEmpty) ...[
+            if (_placeCount > 0) ...[
               // One row: marker tools on the left, planets toggle on the
               // right. They were stacked, which cost the chart a whole extra
               // row the moment the tools appeared.
@@ -583,6 +613,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                     SizedBox(
                       height: 136,
                       child: _PlanetCarousel(
+                        home: _homeFirst ? widget.game : null,
                         planets: _discoveredPlanets,
                         selectedIndex: _planetIndex,
                         scrollController: _planetScrollCtrl,
@@ -595,18 +626,15 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                     ),
                     const SizedBox(height: 8),
                     _NavigateButton(
-                      planet:
-                          _discoveredPlanets[_planetIndex.clamp(
-                            0,
-                            _discoveredPlanets.length - 1,
-                          )],
+                      planet: _placeAt(_planetIndex),
+                      home: widget.game.homePlanet,
                       onTap: context.soundTap(_navigateToSelected),
                     ),
                     const SizedBox(height: 8),
                   ],
                 ),
             ],
-            if (_discoveredPlanets.isEmpty)
+            if (_placeCount == 0)
               _ChartToolRow(
                 showMarkerTools: true,
                 markerMode: _markerMode,
@@ -643,6 +671,8 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                 children: [
                   Positioned.fill(
                     child: _MapView(
+                      key: _mapKey,
+                      reveal: widget.reveal,
                       world: widget.world,
                       game: widget.game,
                       markers: widget.markers,
@@ -757,23 +787,19 @@ class _MiniMapTravelPromptData {
 /// ink with its readings under it, HOME and the close cross at the end.
 class _Header extends StatelessWidget {
   const _Header({
-    required this.hasHomePlanet,
     required this.discoveredCount,
     required this.planetTotal,
     required this.markerCount,
     this.starTotal = 0,
     this.starMax = 0,
-    required this.onGoHome,
     required this.onClose,
   });
 
-  final bool hasHomePlanet;
   final int discoveredCount;
   final int planetTotal;
   final int markerCount;
   final int starTotal;
   final int starMax;
-  final VoidCallback onGoHome;
   final VoidCallback onClose;
 
   @override
@@ -828,20 +854,7 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
-          if (hasHomePlanet) ...[
-            const SizedBox(width: 8),
-            _ChartChip(
-              label: 'HOME',
-              icon: AppIcons.home_rounded,
-              accent: kChartAmber,
-              active: true,
-              height: 32,
-              onTap: () {
-                HapticFeedback.lightImpact();
-                onGoHome();
-              },
-            ),
-          ],
+          // Home is the carousel's first card (NAVIGATE HOME), not a chip.
           CosmicCloseButton(onTap: onClose),
         ],
       ),
@@ -1128,6 +1141,7 @@ class _SwatchPainter extends CustomPainter {
 
 class _PlanetCarousel extends StatefulWidget {
   const _PlanetCarousel({
+    this.home,
     required this.planets,
     required this.selectedIndex,
     required this.scrollController,
@@ -1135,6 +1149,8 @@ class _PlanetCarousel extends StatefulWidget {
     this.dungeonStarsFor,
   });
 
+  /// The game, when home leads the carousel (card 0); null without a home.
+  final CosmicGame? home;
   final List<CosmicPlanet> planets;
   final int selectedIndex;
   final ScrollController scrollController;
@@ -1181,7 +1197,10 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
   @override
   Widget build(BuildContext context) {
     final planets = widget.planets;
-    if (planets.isEmpty) return const SizedBox.shrink();
+    final home = widget.home;
+    final lead = home == null ? 0 : 1;
+    final count = planets.length + lead;
+    if (count == 0) return const SizedBox.shrink();
 
     if (!_didPrimeScroll) {
       _didPrimeScroll = true;
@@ -1206,20 +1225,24 @@ class _PlanetCarouselState extends State<_PlanetCarousel> {
           physics: const BouncingScrollPhysics(),
           // padding adds sidePad on left; right side handled by last item margin
           padding: EdgeInsets.only(left: sidePad),
-          itemCount: planets.length,
+          itemCount: count,
           itemBuilder: (context, index) {
-            final planet = planets[index];
             final isSelected = index == widget.selectedIndex;
             // Every card except the last gets a right margin equal to _cardGap
-            final isLast = index == planets.length - 1;
+            final isLast = index == count - 1;
+            final onTap = context.soundTap(() => widget.onChanged(index));
             return Padding(
               padding: EdgeInsets.only(right: isLast ? sidePad : _cardGap),
-              child: _PlanetCard(
-                planet: planet,
-                isSelected: isSelected,
-                dungeonStars: widget.dungeonStarsFor?.call(planet),
-                onTap: context.soundTap(() => widget.onChanged(index)),
-              ),
+              child: home != null && index == 0
+                  ? _HomeCard(game: home, isSelected: isSelected, onTap: onTap)
+                  : _PlanetCard(
+                      planet: planets[index - lead],
+                      isSelected: isSelected,
+                      dungeonStars: widget.dungeonStarsFor?.call(
+                        planets[index - lead],
+                      ),
+                      onTap: onTap,
+                    ),
             );
           },
         );
@@ -1339,22 +1362,168 @@ class _PlanetCard extends StatelessWidget {
   }
 }
 
-// ── Navigate button (single, below carousel) ──────────────────────────────────
+// ── Home's card (first in the carousel) ───────────────────────────────────────
 
-class _NavigateButton extends StatelessWidget {
-  const _NavigateButton({required this.planet, required this.onTap});
+class _HomeCard extends StatelessWidget {
+  const _HomeCard({
+    required this.game,
+    required this.isSelected,
+    required this.onTap,
+  });
 
-  final CosmicPlanet planet;
+  final CosmicGame game;
+  final bool isSelected;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    const globeSize = 82.0;
+    final ink = Color.lerp(
+      game.homePlanet?.blendedColor ?? kChartAmber,
+      Colors.white,
+      0.3,
+    )!;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(() {
+        HapticFeedback.selectionClick();
+        onTap();
+      }),
+      child: SizedBox(
+        width: 112,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            RepaintBoundary(
+              child: SizedBox(
+                width: globeSize,
+                height: globeSize,
+                child: CustomPaint(
+                  isComplex: true,
+                  painter: _HomePreviewPainter(
+                    game: game,
+                    highlighted: isSelected,
+                    alpha: isSelected ? 1.0 : 0.5,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'HOME',
+              maxLines: 1,
+              textAlign: TextAlign.center,
+              style: panelLabel(
+                10.5,
+                isSelected ? ink : panelPalette.muted.withValues(alpha: 0.6),
+                spacing: 1.4,
+              ),
+            ),
+            // Where the planets show their stars.
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// The home planet on its card, wearing what it wears — the painter space
+/// and the chart draw it with.
+class _HomePreviewPainter extends CustomPainter {
+  const _HomePreviewPainter({
+    required this.game,
+    this.highlighted = false,
+    this.alpha = 1.0,
+  });
+
+  final CosmicGame game;
+  final bool highlighted;
+  final double alpha;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final hp = game.homePlanet;
+    if (hp == null) return;
+    final c = Offset(size.width / 2, size.height / 2);
+    final bounds = Rect.fromCenter(
+      center: c,
+      width: size.width + 40,
+      height: size.height + 40,
+    );
+    canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, alpha));
+    if (highlighted) {
+      const glow = 52.0;
+      canvas.drawCircle(
+        c,
+        glow,
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              hp.blendedColor.withValues(alpha: 0.22),
+              hp.blendedColor.withValues(alpha: 0),
+            ],
+          ).createShader(Rect.fromCircle(center: c, radius: glow)),
+      );
+    }
+    // Its body about the planets' size; rings and the like reach further.
+    game.paintHomeShowcase(
+      canvas,
+      Rect.fromCircle(center: c, radius: 68),
+      _PlanetPreviewPainter._moment,
+      wearing: game.activeCustomizations,
+      color: hp.activeColor,
+    );
+    canvas.drawRect(
+      bounds,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.Gradient.radial(
+          c,
+          bounds.shortestSide / 2,
+          const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+          const [0.0, 0.6, 1.0],
+        ),
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _HomePreviewPainter old) =>
+      old.game != game || old.highlighted != highlighted || old.alpha != alpha;
+}
+
+// ── Navigate button (single, below carousel) ──────────────────────────────────
+
+class _NavigateButton extends StatelessWidget {
+  const _NavigateButton({
+    required this.planet,
+    required this.home,
+    required this.onTap,
+  });
+
+  /// The planet it flies to; null for [home].
+  final CosmicPlanet? planet;
+  final HomePlanet? home;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final planet = this.planet;
     return Center(
       child: IntrinsicWidth(
         child: BracketButton(
-          label: 'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
+          label: planet == null
+              ? 'NAVIGATE HOME'
+              : 'NAVIGATE TO ${planetName(planet.element).toUpperCase()}',
           palette: panelPalette,
-          accent: elementInk(planet.element),
+          accent: planet == null
+              ? Color.lerp(
+                  home?.blendedColor ?? kChartAmber,
+                  Colors.white,
+                  0.25,
+                )!
+              : elementInk(planet.element),
           height: 36,
           onTap: () {
             HapticFeedback.lightImpact();
@@ -1455,6 +1624,8 @@ class _TravelPromptCard extends StatelessWidget {
 
 class _MapView extends StatefulWidget {
   const _MapView({
+    super.key,
+    this.reveal,
     required this.world,
     required this.game,
     required this.markers,
@@ -1486,6 +1657,9 @@ class _MapView extends StatefulWidget {
   final Offset? tutorialTargetPos;
   final Color? tutorialTargetColor;
   final String? tutorialTargetLabel;
+
+  /// See [MiniMapOverlay.reveal].
+  final Animation<double>? reveal;
 
   @override
   State<_MapView> createState() => _MapViewState();
@@ -1549,15 +1723,24 @@ class _MapViewState extends State<_MapView> {
         final contentH = worldH * scale;
 
         if (_lastFitSize != scale) {
+          final first = _lastFitSize < 0;
           _lastFitSize = scale;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            widget.onViewportReady(
-              viewport: Size(vw, vh),
-              content: Size(contentW, contentH),
-              scale: scale,
-            );
-          });
+          void report() => widget.onViewportReady(
+            viewport: Size(vw, vh),
+            content: Size(contentW, contentH),
+            scale: scale,
+          );
+          // The first layout frames the chart on the ship before anything
+          // is painted — nothing listens to the transform yet — so it opens
+          // already there instead of jumping in two frames late. A later
+          // resize waits for the frame to finish.
+          if (first) {
+            report();
+          } else {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) report();
+            });
+          }
         }
 
         return ClipRect(
@@ -1569,58 +1752,68 @@ class _MapViewState extends State<_MapView> {
               const RepaintBoundary(
                 child: CustomPaint(painter: _ChartStarsPainter()),
               ),
-              GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTapDown: (d) => widget.onTapDown(d, scale),
-                onTapUp: (d) => widget.onTapUp(d, scale),
-                onLongPressStart: (d) => widget.onLongPress(d, scale),
-                child: InteractiveViewer(
-                  transformationController: widget.transformCtrl,
-                  minScale: 1.0,
-                  maxScale: 8.0,
-                  boundaryMargin: EdgeInsets.zero,
-                  constrained: false,
-                  // The chart body — explored haze, territories, the belt,
-                  // the planets as they look in space — zooms with the
-                  // fingers and is recorded once per open.
-                  child: RepaintBoundary(
-                    child: SizedBox(
-                      width: contentW,
-                      height: contentH,
-                      child: CustomPaint(
-                        isComplex: true,
-                        willChange: false,
-                        painter: _ChartBodyPainter(
-                          world: widget.world,
-                          game: widget.game,
-                          scale: scale,
-                          revealedCellCount: widget.game.revealedCells.length,
-                          discoveredPlanetCount: widget.world.discoveredCount,
+              _settling(
+                scale,
+                Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTapDown: (d) => widget.onTapDown(d, scale),
+                      onTapUp: (d) => widget.onTapUp(d, scale),
+                      onLongPressStart: (d) => widget.onLongPress(d, scale),
+                      child: InteractiveViewer(
+                        transformationController: widget.transformCtrl,
+                        minScale: 1.0,
+                        maxScale: 8.0,
+                        boundaryMargin: EdgeInsets.zero,
+                        constrained: false,
+                        // The chart body — explored haze, territories, the belt,
+                        // the planets as they look in space — zooms with the
+                        // fingers and is recorded once per open.
+                        child: RepaintBoundary(
+                          child: SizedBox(
+                            width: contentW,
+                            height: contentH,
+                            child: CustomPaint(
+                              isComplex: true,
+                              willChange: false,
+                              painter: _ChartBodyPainter(
+                                world: widget.world,
+                                game: widget.game,
+                                scale: scale,
+                                revealedCellCount:
+                                    widget.game.revealedCells.length,
+                                discoveredPlanetCount:
+                                    widget.world.discoveredCount,
+                              ),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-              ),
-              // Everything you navigate BY — stations, landmarks, labels,
-              // markers, the ship — stays one size on the glass however far
-              // the chart is zoomed, and moves with it.
-              IgnorePointer(
-                child: RepaintBoundary(
-                  child: CustomPaint(
-                    painter: _ChartPinsPainter(
-                      world: widget.world,
-                      game: widget.game,
-                      scale: scale,
-                      transform: widget.transformCtrl,
-                      pulse: _pulseTick,
-                      markers: widget.markers,
-                      showAllContestArenas: widget.showAllContestArenas,
-                      tutorialTargetPos: widget.tutorialTargetPos,
-                      tutorialTargetColor: widget.tutorialTargetColor,
-                      tutorialTargetLabel: widget.tutorialTargetLabel,
+                    // Everything you navigate BY — stations, landmarks, labels,
+                    // markers, the ship — stays one size on the glass however far
+                    // the chart is zoomed, and moves with it.
+                    IgnorePointer(
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          painter: _ChartPinsPainter(
+                            world: widget.world,
+                            game: widget.game,
+                            scale: scale,
+                            transform: widget.transformCtrl,
+                            pulse: _pulseTick,
+                            markers: widget.markers,
+                            showAllContestArenas: widget.showAllContestArenas,
+                            tutorialTargetPos: widget.tutorialTargetPos,
+                            tutorialTargetColor: widget.tutorialTargetColor,
+                            tutorialTargetLabel: widget.tutorialTargetLabel,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
+                  ],
                 ),
               ),
               const IgnorePointer(
@@ -1628,6 +1821,38 @@ class _MapViewState extends State<_MapView> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+}
+
+/// How far in on the ship the chart starts as it comes up from space.
+const double _kChartSettle = 2.6;
+
+extension on _MapViewState {
+  /// [child] settling out from close in on the ship as the chart comes up
+  /// (and back in as it goes) — see [MiniMapOverlay.reveal]. Always a
+  /// Transform, so the map below it is never rebuilt.
+  Widget _settling(double scale, Widget child) {
+    final reveal = widget.reveal;
+    if (reveal == null) return child;
+    return AnimatedBuilder(
+      animation: reveal,
+      child: child,
+      builder: (_, child) {
+        final e = Curves.easeInOutCubic.transform(reveal.value.clamp(0.0, 1.0));
+        final k = exp(log(_kChartSettle) * (1 - e));
+        final focal = MatrixUtils.transformPoint(
+          widget.transformCtrl.value,
+          widget.game.ship.pos * scale,
+        );
+        return Transform(
+          transform: Matrix4.identity()
+            ..translateByDouble(focal.dx, focal.dy, 0, 1)
+            ..scaleByDouble(k, k, 1, 1)
+            ..translateByDouble(-focal.dx, -focal.dy, 0, 1),
+          child: child,
         );
       },
     );
@@ -2357,6 +2582,34 @@ class _ChartPinsPainter extends CustomPainter {
         _label(canvas, label, Color.lerp(col, Colors.white, 0.3)!, p, 9);
       }
     }
+
+    // Where the player is: the patch of space their view takes in, as a
+    // soft light round the ship — what space shrinks down into when the
+    // chart comes up — so the chart says at a glance where they are.
+    final half =
+        Offset(game.size.x, game.size.y) / (2 * max(0.05, game.cameraZoom));
+    final patch = Rect.fromPoints(
+      at(game.ship.pos - half),
+      at(game.ship.pos + half),
+    );
+    final pr = max(patch.longestSide * 0.62, 10.0);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        patch.inflate(patch.shortestSide * 0.3 + 3),
+        Radius.circular(patch.shortestSide * 0.6 + 3),
+      ),
+      Paint()
+        ..shader = ui.Gradient.radial(
+          patch.center,
+          pr,
+          [
+            kChartAmber.withValues(alpha: 0.22),
+            kChartAmber.withValues(alpha: 0.08),
+            kChartAmber.withValues(alpha: 0),
+          ],
+          const [0.0, 0.55, 1.0],
+        ),
+    );
 
     // The ship, on top of everything.
     paintChartShip(canvas, at(game.ship.pos), game.ship.angle);

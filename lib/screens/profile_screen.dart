@@ -1217,7 +1217,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         label: 'SOUND',
                         palette: palette,
                         children: [
-                          _ToggleRow(
+                          BracketToggleRow(
                             title: 'ALL SOUND',
                             description: 'Music and sound effects together',
                             value: audio.masterEnabled,
@@ -1226,7 +1226,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             palette: palette,
                             accent: accent,
                           ),
-                          _ToggleRow(
+                          BracketToggleRow(
                             title: 'MUSIC',
                             description: 'Background tracks',
                             value: audio.musicEnabled,
@@ -1235,7 +1235,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             palette: palette,
                             accent: accent,
                           ),
-                          _ToggleRow(
+                          BracketToggleRow(
                             title: 'SOUND EFFECTS',
                             description: 'Taps, alchemy and creatures',
                             value: audio.soundsEnabled,
@@ -1244,7 +1244,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             palette: palette,
                             accent: accent,
                           ),
-                          _ToggleRow(
+                          BracketToggleRow(
                             title: 'HAPTICS',
                             description:
                                 'Vibration when you act, get hit or earn a star',
@@ -1261,7 +1261,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         label: 'NOTIFICATIONS',
                         palette: palette,
                         children: [
-                          _ToggleRow(
+                          BracketToggleRow(
                             title: 'CULTIVATIONS',
                             description: 'When a vial is ready to extract',
                             value: _cultivationsEnabled,
@@ -1270,7 +1270,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             palette: palette,
                             accent: accent,
                           ),
-                          _ToggleRow(
+                          BracketToggleRow(
                             title: 'WILDERNESS',
                             description: 'When wild Alchemons appear',
                             value: _wildernessEnabled,
@@ -1279,7 +1279,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             palette: palette,
                             accent: accent,
                           ),
-                          _ToggleRow(
+                          BracketToggleRow(
                             title: 'EXTRACTIONS',
                             description: 'When a biome harvest finishes',
                             value: _extractionsEnabled,
@@ -1330,7 +1330,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         label: 'DEVELOPER',
                         palette: palette,
                         children: [
-                          _ToggleRow(
+                          BracketToggleRow(
                             title: 'DEBUG TOOLS',
                             description:
                                 'Testing shortcuts in the cosmos: unseal a '
@@ -1347,7 +1347,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           // appearing in a debug build with the switch OFF
                           // would read as the switch being broken.
                           if (_debugToolsEnabled) ...[
-                            _ToggleRow(
+                            BracketToggleRow(
                               title: 'FREE SHOP',
                               description:
                                   'Every shop purchase costs nothing while the '
@@ -2246,96 +2246,6 @@ class _Row extends StatelessWidget {
           ),
           if (below != null) ...[const SizedBox(height: 12), below!],
         ],
-      ),
-    );
-  }
-}
-
-class _ToggleRow extends StatelessWidget {
-  const _ToggleRow({
-    required this.title,
-    required this.description,
-    required this.value,
-    required this.enabled,
-    required this.onChanged,
-    required this.palette,
-    required this.accent,
-  });
-
-  final String title;
-  final String description;
-  final bool value;
-  final bool enabled;
-  final Future<void> Function(bool value) onChanged;
-  final BracketPalette palette;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    // The whole row is the switch: a thumb-sized target, not a 44px one.
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: enabled
-          ? context.soundAction(() {
-              HapticFeedback.selectionClick();
-              onChanged(!value);
-            })
-          : null,
-      child: _Row(
-        title: title,
-        description: description,
-        palette: palette,
-        trailing: _Toggle(
-          value: value,
-          enabled: enabled,
-          palette: palette,
-          accent: accent,
-        ),
-      ),
-    );
-  }
-}
-
-/// A switch in the kit's terms: a dark slot, its stone at the left when
-/// off, slid right and lit in the accent when on.
-class _Toggle extends StatelessWidget {
-  const _Toggle({
-    required this.value,
-    required this.enabled,
-    required this.palette,
-    required this.accent,
-  });
-
-  final bool value;
-  final bool enabled;
-  final BracketPalette palette;
-  final Color accent;
-
-  @override
-  Widget build(BuildContext context) {
-    const dur = Duration(milliseconds: 160);
-    return Opacity(
-      opacity: enabled ? 1 : 0.45,
-      child: AnimatedContainer(
-        duration: dur,
-        curve: Curves.easeOutCubic,
-        width: 44,
-        height: 24,
-        padding: const EdgeInsets.all(3),
-        color: value
-            ? palette.accentWash(accent, darkAlpha: 0.26)
-            : palette.bg0,
-        child: AnimatedAlign(
-          duration: dur,
-          curve: Curves.easeOutCubic,
-          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-          child: AnimatedContainer(
-            duration: dur,
-            width: 18,
-            height: 18,
-            color: value ? accent : palette.line,
-          ),
-        ),
       ),
     );
   }

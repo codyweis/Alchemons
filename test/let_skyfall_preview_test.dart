@@ -140,7 +140,7 @@ void main() {
         const step = 1 / 240.0;
         var guard = 0;
         while (meteor.skyfallProgress < target && guard++ < 600) {
-          CosmicAbilityRuntime.advanceSkyfall(meteor, step, null);
+          CosmicAbilityRuntime.advanceSkyfall(meteor, step);
         }
 
         drawLetSkyfallTelegraph(

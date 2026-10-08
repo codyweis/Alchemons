@@ -59,7 +59,8 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/fx/element_orb.dart' show ElementOrb;
-import 'package:alchemons/widgets/fx/elemental_essence.dart' show EssenceElement, essenceRamp;
+import 'package:alchemons/widgets/fx/elemental_essence.dart'
+    show EssenceElement, essenceRamp;
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/game.dart';
@@ -5218,8 +5219,7 @@ class PlanetDungeonGame extends FlameGame {
                 .toDouble();
             dmg = max(
               1,
-              (comp.maxHp * fraction * defenseMitigation(comp.physDef))
-                  .round(),
+              (comp.maxHp * fraction * defenseMitigation(comp.physDef)).round(),
             );
           }
           final remainingDamage = _landHitOnCompanion(hitIndex, dmg, enemy);
@@ -5353,26 +5353,6 @@ class PlanetDungeonGame extends FlameGame {
     return true;
   }
 
-  /// The live position a descending Let meteor should keep itself aimed at.
-  /// Leashed to the neighbourhood of the point it was already committed to —
-  /// see the survival implementation for why.
-  Offset? _liveSkyfallTarget(Projectile p) {
-    final leash = letSkyfallBlastRadius(p) + 140.0;
-    final centre = p.skyfallImpact;
-    var bestSq = leash * leash;
-    Offset? best;
-    for (final enemy in combatEnemies) {
-      if (enemy.isDead) continue;
-      final d = enemy.position - centre;
-      final dSq = d.dx * d.dx + d.dy * d.dy;
-      if (dSq < bestSq) {
-        bestSq = dSq;
-        best = enemy.position;
-      }
-    }
-    return best;
-  }
-
   /// A Let meteor touching down. Mirrors survival exactly: full damage to the
   /// body it lands on, a reduced share to everything else in the crater, and
   /// the element's ground effects either way.
@@ -5441,11 +5421,7 @@ class PlanetDungeonGame extends FlameGame {
       // Let meteors fall. Nothing about a descending meteor is in play — it
       // takes no collisions, lays no trail and does not age — until it lands.
       if (p.isDescending) {
-        final landed = CosmicAbilityRuntime.advanceSkyfall(
-          p,
-          dt,
-          p.skyfallTracks ? _liveSkyfallTarget(p) : null,
-        );
+        final landed = CosmicAbilityRuntime.advanceSkyfall(p, dt);
         if (landed) {
           _detonateLetSkyfall(p);
           combatProjectiles.removeAt(i);
@@ -9316,8 +9292,6 @@ class PlanetDungeonGame extends FlameGame {
           skyfallDuration: drop.duration,
           skyfallImpact: aim,
           skyfallDistance: drop.distance,
-          // Thrown at a place, not at a body — see Projectile.skyfallTracks.
-          skyfallTracks: false,
           radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
           visualScale: max(3.5, source.visualScale * 2.0),
           visualStyle: ProjectileVisualStyle.meteor,
@@ -16170,7 +16144,11 @@ class PlanetDungeonGame extends FlameGame {
       final k = c.sizeK;
       if (!c.alive) {
         canvas.drawOval(
-          Rect.fromCenter(center: Offset(0, 14 * k), width: 34 * k, height: 10 * k),
+          Rect.fromCenter(
+            center: Offset(0, 14 * k),
+            width: 34 * k,
+            height: 10 * k,
+          ),
           Paint()..color = Colors.black.withValues(alpha: 0.30),
         );
         final ticker = c.ticker;

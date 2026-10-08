@@ -55,7 +55,8 @@ import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/darklet_ring.dart';
 import 'package:alchemons/widgets/fx/grain_assembly.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
-import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
+import 'package:alchemons/widgets/fx/fusion_particles.dart'
+    show GrainBatch, SpecimenGrains;
 
 part 'cosmic_game_helpers.dart';
 part 'cosmic_game_components.dart';
@@ -74,6 +75,7 @@ part 'cosmic_game_wing.dart';
 part 'cosmic_game_horn.dart';
 part 'cosmic_game_kin.dart';
 part 'cosmic_game_mane.dart';
+part 'cosmic_game_travel.dart';
 
 /// Cached icon-glyph painters for item loot drops — same shop icon set
 /// resolved via [InventoryItemArtwork.offerFor], baked once per (icon, color)
@@ -135,51 +137,6 @@ TextPainter _worldLabel(
     textDirection: TextDirection.ltr,
   )..layout();
 }
-
-/// What a stroke of [width] under MaskFilter.blur(normal, [sigma]) drew,
-/// without the blur: a wide faint pass under a narrower brighter one (the
-/// [paintSoftRing] recipe), handed to [draw] for the shape's geometry.
-void _softStroke(
-  Paint p,
-  Color col,
-  double width,
-  double sigma,
-  void Function(Paint) draw,
-) {
-  if (col.a <= 0) return;
-  final peak = 1 - exp(-width / (1.9 * max(sigma, 0.01)));
-  draw(
-    p
-      ..maskFilter = null
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = width + sigma * 4
-      ..color = col.withValues(alpha: col.a * peak * 0.45),
-  );
-  draw(
-    p
-      ..strokeWidth = width + sigma * 1.5
-      ..color = col.withValues(alpha: col.a * peak * 0.6),
-  );
-}
-
-final Paint _softLinePaint = Paint();
-
-/// [_softStroke] for a blurred line.
-void _softLine(
-  Canvas c,
-  Offset a,
-  Offset b,
-  Color col,
-  double width,
-  double sigma, {
-  StrokeCap cap = StrokeCap.butt,
-}) => _softStroke(
-  _softLinePaint..strokeCap = cap,
-  col,
-  width,
-  sigma,
-  (p) => c.drawLine(a, b, p),
-);
 
 // ─────────────────────────────────────────────────────────
 // MAIN GAME
@@ -572,7 +529,32 @@ class CosmicGame extends FlameGame with PanDetector {
   void Function(String? element)? onNearPocketPortal;
 
   // Warp anomaly flash animation
-  double _warpFlash = 0; // counts down from 1.0
+  /// A flight across space under way (cosmic_game_travel.dart), and the
+  /// camera's ease back while it flies.
+  _ShipTravel? _travel;
+  double _travelZoom = 1;
+
+  /// Whether the ship is flying itself somewhere (steering waits).
+  bool get isTravelling => _travel != null;
+
+  /// How dark space is round a flight (1 while it crosses).
+  @visibleForTesting
+  double get travelVeil => _travel?.veil ?? 0;
+
+  /// Left out of the frame while a passage carries it in grains (the way
+  /// down into a planet), so there are never two of it.
+  bool hideShip = false;
+
+  /// Seconds the world has run (the clock planets and the ship animate by).
+  double get elapsedSeconds => _elapsed;
+
+  /// Where [world] is drawn on the game's view, the shortest way round the
+  /// wrapped world, in the view's own px.
+  Offset worldToView(Offset world) {
+    final z = cameraZoom;
+    final mid = Offset(camX + size.x / (2 * z), camY + size.y / (2 * z));
+    return Offset(size.x / 2, size.y / 2) + _toroidalDelta(world, mid) * z;
+  }
 
   // Home planet (player-built)
   HomePlanet? homePlanet;
@@ -932,7 +914,7 @@ class CosmicGame extends FlameGame with PanDetector {
   /// The zoom the world is drawn at: the player's preset, pushed in further
   /// while a portal tear plays.
   double get cameraZoom {
-    var z = _currentZoom * _camZoomMul;
+    var z = _currentZoom * _camZoomMul * _travelZoom;
     if (_contestPullBack > 0) {
       // A contest frames the whole arena, whatever the player's zoom.
       final frame = size.x / (CosmicContestArena.visualRadius * 2 * 1.06);
@@ -1232,7 +1214,13 @@ class CosmicGame extends FlameGame with PanDetector {
     joystickDirection = null;
   }
 
-  /// Teleport ship directly (for mini-map clicks).
+  /// Fly the ship to [worldPos] (the star chart's TRAVEL): out, across under
+  /// a dark of streaming space, and in (cosmic_game_travel.dart). With
+  /// [orbitRadius] it arrives in a planet's idle orbit.
+  void travelTo(Offset worldPos, {double? orbitRadius}) =>
+      _beginTravel(worldPos, orbitRadius: orbitRadius);
+
+  /// Put the ship at [worldPos] at once (sandbox and pocket returns).
   void teleportTo(Offset worldPos) {
     clearSteeringInput();
     ship.pos = worldPos;
@@ -2601,6 +2589,9 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // A flight under way overrides wherever the ship would have gone.
+    _stepTravel(dt);
+
     // ── wrap ship position ──
     ship.pos = _wrap(ship.pos);
     _clampShipToSandboxArena();
@@ -2754,12 +2745,6 @@ class CosmicGame extends FlameGame with PanDetector {
         }
         elemParticles.removeAt(i);
       }
-    }
-
-    // ── warp flash animation ──
-    if (_warpFlash > 0) {
-      _warpFlash -= dt * 1.2; // ~0.85 sec total
-      if (_warpFlash < 0) _warpFlash = 0;
     }
 
     // ── particle swarms: drift, orbit motes, collect ──
@@ -4742,11 +4727,8 @@ class CosmicGame extends FlameGame with PanDetector {
               2000 + warpRng.nextDouble() * (world_.worldSize.width - 4000),
               2000 + warpRng.nextDouble() * (world_.worldSize.height - 4000),
             );
-            // Trigger warp flash animation
-            _warpFlash = 1.0;
-            ship.pos = newPos;
-            _dragTarget = newPos;
-            _revealAround(ship.pos, 300);
+            // Thrown across space, as a chart flight is.
+            travelTo(newPos);
             break;
           case POIType.survivalPortal:
             // Handled via nearMarket proximity HUD, not one-shot.
@@ -6536,12 +6518,18 @@ class CosmicGame extends FlameGame with PanDetector {
       canvas.restore();
     }
 
+    // The dark a chart flight crosses under, over the world and under the
+    // ship (cosmic_game_travel.dart).
+    _renderTravelVeil(canvas, Rect.fromLTWH(cx, cy, screenW, screenH));
+
     // ── ship ──
     // Once a contest has begun the ship is parked at the arena's heart, where
     // it would sit on the stage; it is left out until the contest ends.
     final shipOffStage =
         _beautyContestCinematicActive && !_beautyContestIntroActive;
-    if (!_shipDead && !shipOffStage) {
+    if (hideShip) {
+      // Carried in grains by a passage (see [hideShip]).
+    } else if (!_shipDead && !shipOffStage) {
       // A Lava plate's glow, a tesla channel's current (cosmic_game_kin.dart).
       _renderKinShipOverlay(canvas);
       // Invincibility flash
@@ -6643,73 +6631,6 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // Fog is tracked for the mini-map only — no overlay on the live view.
-
-    // ── warp flash overlay ──
-    if (_warpFlash > 0) {
-      canvas.save();
-      canvas.translate(-cx, -cy); // move to screen-space
-
-      final t = _warpFlash; // 1.0 → 0.0
-      final sw = size.x / cameraZoom;
-      final sh = size.y / cameraZoom;
-      final center = Offset(sw / 2, sh / 2);
-
-      // Phase 1 (t > 0.5): bright purple/white flash from centre
-      if (t > 0.5) {
-        final flashT = ((t - 0.5) / 0.5).clamp(0.0, 1.0);
-        // Full-screen white flash
-        canvas.drawRect(
-          Rect.fromLTWH(0, 0, sw, sh),
-          Paint()..color = Color.fromRGBO(255, 255, 255, flashT * 0.8),
-        );
-        // Central purple burst
-        paintSoftCircle(
-          canvas,
-          center,
-          sw * 0.8 * flashT,
-          Color.fromRGBO(124, 77, 255, flashT * 0.5),
-          60 * flashT,
-        );
-      }
-
-      // Phase 2 (t <= 0.5): speed-line tunnel effect fading out
-      if (t <= 0.6) {
-        final tunnelT = (t / 0.6).clamp(0.0, 1.0);
-        // Radial streaks
-        for (var i = 0; i < 32; i++) {
-          final angle = (i / 32.0) * pi * 2;
-          final innerR = sw * 0.05 * (1.0 - tunnelT);
-          final outerR = sw * 0.9;
-          final streakWidth = 1.5 + 1.5 * sin(i * 3.7);
-          final alpha = tunnelT * 0.35;
-          _softLine(
-            canvas,
-            Offset(
-              center.dx + cos(angle) * innerR,
-              center.dy + sin(angle) * innerR,
-            ),
-            Offset(
-              center.dx + cos(angle) * outerR,
-              center.dy + sin(angle) * outerR,
-            ),
-            Color.fromRGBO(179, 136, 255, alpha),
-            streakWidth,
-            3,
-          );
-        }
-        // Vignette ring
-        paintSoftRing(
-          canvas,
-          center,
-          sw * 0.6,
-          Color.fromRGBO(124, 77, 255, tunnelT * 0.15),
-          sw * 0.4,
-          sw * 0.2,
-        );
-      }
-
-      canvas.restore();
-    }
 
     canvas.restore();
 

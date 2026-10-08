@@ -59,7 +59,31 @@ class EmblemPassage {
     ValueNotifier<bool>? revealed,
   }) {
     final navigator = Navigator.of(context);
-    final rect = _rectOf(from, navigator);
+    return pushSceneAt<T>(
+      context,
+      scene: scene,
+      from: _rectOf(from, navigator),
+      page: page,
+      ready: ready,
+      lifted: lifted,
+      revealed: revealed,
+    );
+  }
+
+  /// [pushScene] from a box on the screen ([from], global coordinates) —
+  /// for a scene that is something drawn rather than a widget, a planet in
+  /// space say. Null pushes plainly.
+  static Future<T?> pushSceneAt<T>(
+    BuildContext context, {
+    required PassageScene scene,
+    required Rect? from,
+    required Widget page,
+    ValueListenable<bool>? ready,
+    ValueNotifier<bool>? lifted,
+    ValueNotifier<bool>? revealed,
+  }) {
+    final navigator = Navigator.of(context);
+    final rect = from;
     if (rect == null) {
       revealed?.value = true;
       return navigator.push<T>(MaterialPageRoute(builder: (_) => page));

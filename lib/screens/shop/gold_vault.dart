@@ -159,10 +159,14 @@ class _Pour {
     this.duration,
     this.angle,
     this.reach,
-    this.bow,
-  );
+    this.bow, {
+    this.back = false,
+  });
   final int tablet, grain;
   final double start, duration, angle, reach, bow;
+
+  /// Sun to heap: gold given back when a smaller pack is chosen.
+  final bool back;
 }
 
 /// Everything in the case that is made of grains: the sun, its ring and
@@ -321,6 +325,8 @@ class GoldVaultField {
   /// Chooses heap [i]: the sun heads for its size, and unless [pour] is
   /// false the heap pours up into it.
   void select(int i, {bool pour = true}) {
+    final was = selected;
+    final wasG = _heapSize.isEmpty ? 1.0 : _heapSize[was];
     selected = i.clamp(0, golds.length - 1);
     final g = _heapSize.isEmpty ? 1.0 : _heapSize[selected];
     _sunTarget = 330 + (maxSun - 330) * math.pow(g, 0.6).toDouble();
@@ -336,6 +342,33 @@ class GoldVaultField {
       _radius = _radiusTarget;
       _ring = _ringTarget;
       _corona = _coronaTarget;
+      return;
+    }
+    if (g < wasG) {
+      // A smaller pack: the sun gives back what it holds over it, and the
+      // gold leaves its shell and pours down onto the heap it came from.
+      final heap = _heapU[was];
+      final n = (26 + 90 * (math.sqrt(wasG) - math.sqrt(g))).round();
+      for (var k = 0; k < n; k++) {
+        var grain = _rng.nextInt(heap.length);
+        for (var tries = 0; tries < 3; tries++) {
+          final cand = _rng.nextInt(heap.length);
+          if (_heapV[was][cand] > _heapV[was][grain]) grain = cand;
+        }
+        _pours.add(
+          _Pour(
+            was,
+            grain,
+            time + _rng.nextDouble() * 0.55,
+            0.75 + _rng.nextDouble() * 0.25,
+            _rng.nextDouble() * math.pi * 2,
+            // From the shell: the outside is what comes away.
+            0.8 + 0.2 * _rng.nextDouble(),
+            0.1 + (_rng.nextDouble() - 0.5) * 0.12,
+            back: true,
+          ),
+        );
+      }
       return;
     }
     final heap = _heapU[selected];
@@ -613,8 +646,8 @@ class GoldVaultField {
     b.draw(canvas, _heapGlintB, heapD * 1.2, _V.glint);
   }
 
-  /// The pours, heap to sun — drawn over the text, as a quick flourish,
-  /// so the stream reads unbroken from the shelf into the sun.
+  /// The pours, heap to sun (or sun back to heap) — drawn over the text, as
+  /// a quick flourish, so the stream reads unbroken between shelf and sun.
   void paintPours(Canvas canvas, GoldVaultLayout l) {
     if (_pours.isEmpty) return;
     final b = _pourBatch..clear();
@@ -626,11 +659,13 @@ class GoldVaultField {
       if (u < 0) continue;
       final base = l.heapBase(p.tablet);
       final (halfW, height) = l.heapSize(_heapSize[p.tablet]);
-      final from = Offset(
+      final grain = Offset(
         base.dx + _heapU[p.tablet][p.grain] * halfW,
         base.dy - _heapV[p.tablet][p.grain] * height,
       );
-      final to = c + Offset(math.cos(p.angle), math.sin(p.angle)) * r * p.reach;
+      final shell =
+          c + Offset(math.cos(p.angle), math.sin(p.angle)) * r * p.reach;
+      final (from, to) = p.back ? (shell, grain) : (grain, shell);
       final mid = (from + to) / 2;
       final span = to - from;
       final ctrl =

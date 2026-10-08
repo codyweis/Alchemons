@@ -138,7 +138,6 @@ void main() {
         game: game,
         theme: FactionTheme.scorchForge(),
         markers: const [],
-        hasHomePlanet: true,
         dungeonStarsFor: (p) => p.element == 'Fire' ? 3 : 1,
         dungeonStarTotal: 19,
         dungeonStarMax: 51,

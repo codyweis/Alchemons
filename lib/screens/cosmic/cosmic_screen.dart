@@ -8,7 +8,7 @@ import 'dart:math';
 import 'dart:async';
 import 'dart:ui' as ui;
 
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show ValueListenable, kDebugMode;
 
 import 'package:alchemons/navigation/home_descent.dart';
 import 'package:alchemons/navigation/world_transition.dart';
@@ -34,6 +34,7 @@ import 'package:alchemons/games/cosmic/contest_judging.dart';
 import 'package:alchemons/widgets/bracket_controls.dart'
     show BracketButton, CoinAmount;
 import 'package:alchemons/widgets/coin_icon.dart' show CoinKind;
+import 'package:alchemons/screens/cosmic/widgets/cosmic_settings_overlay.dart';
 import 'package:alchemons/screens/cosmic/widgets/station_panel_kit.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
     show ShardAmount, panelLabel, panelMono, panelPalette;
@@ -87,6 +88,11 @@ import 'widgets/mini_map_circle.dart';
 import 'widgets/contest_arena_overlays.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/cosmic_ship_emblem.dart';
+import 'package:alchemons/navigation/emblem_passage.dart';
+import 'widgets/planet_descent_passage.dart';
+import 'widgets/chart_zoom.dart';
+import 'widgets/space_action_glyphs.dart';
 
 const _cosmicMeterPalette = BracketPalette.dark;
 
@@ -95,6 +101,7 @@ class CosmicScreen extends StatefulWidget {
     super.key,
     this.memoryTutorial = false,
     this.revealReady,
+    this.passageTarget,
   });
 
   final bool memoryTutorial;
@@ -103,6 +110,11 @@ class CosmicScreen extends StatefulWidget {
   /// entry transition covering this screen (VoidPortal.pushThroughGlyphs)
   /// knows it can reveal a built scene instead of the loading spinner.
   final ValueNotifier<bool>? revealReady;
+
+  /// For the way in from home's ship (CosmicShipPassage): where the ship
+  /// stands on the screen, set once the scene is built and again as the
+  /// player leaves, so the ship of grains lands on it and lifts off it.
+  final ValueNotifier<ShipPassageTarget?>? passageTarget;
 
   @override
   State<CosmicScreen> createState() => _CosmicScreenState();
@@ -263,7 +275,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Home customization state
   HomeCustomizationState _customizationState = HomeCustomizationState();
-  static const _customizationPrefsKey = 'cosmic_home_customization_v1';
+  static const _customizationPrefsKey = kCosmicCustomizationPrefsKey;
   bool _showCustomizationMenu = false;
   bool _showShipMenu = false;
   bool _showSettingsMenu = false;
@@ -277,6 +289,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _awaitingShipMenuTap = false;
   bool _awaitingBuildHomeTap = false;
   bool _awaitingSurvivalMapTap = false;
+
+  /// Space as drawn, for the way down to the home biome: the home planet
+  /// comes apart as sand from this picture.
+  final GlobalKey _spaceScene = GlobalKey(debugLabel: 'space.scene');
 
   // The controls a coach mark can point at (widgets/coach_mark.dart).
   final GlobalKey _coachShipKey = GlobalKey(debugLabel: 'coach.ship');
@@ -447,6 +463,18 @@ class _CosmicScreenState extends State<CosmicScreen>
   // Meter animation
   late AnimationController _meterPulse;
   late AnimationController _miniMapCtrl;
+
+  /// The star chart's own fade as it comes up round the shrinking view of
+  /// space (widgets/chart_zoom.dart), and back.
+  late Animation<double> _miniMapFade;
+
+  /// Space pictured as the chart opened, shrinking into the chart and back
+  /// out of it; null when it could not be pictured (the chart just fades).
+  ChartZoom? _chartZoom;
+  bool _chartOpening = false;
+  final GlobalKey<MiniMapOverlayState> _chartKey = GlobalKey(
+    debugLabel: 'chart',
+  );
   late AnimationController _bloodRitualCtrl;
   late AnimationController _screenShakeCtrl;
   late AnimationController _survivalSignalArrowCtrl;
@@ -504,6 +532,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       widget.revealReady,
       () => mounted && _recipes != null && (_game?.isAttached ?? false),
     );
+    widget.revealReady?.addListener(_reportShipTarget);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -533,8 +562,15 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     _miniMapCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 220),
+      duration: const Duration(milliseconds: 750),
+      reverseDuration: const Duration(milliseconds: 600),
     );
+    // Never quite 0: a fade at 0 skips painting its child, and the chart's
+    // first (costly) frame is meant to be painted before it shows.
+    _miniMapFade = CurvedAnimation(
+      parent: _miniMapCtrl,
+      curve: const Interval(0.05, 0.55, curve: Curves.easeOut),
+    ).drive(Tween(begin: 0.004, end: 1.0));
 
     // The finale: long enough for every thorn of the crown to catch.
     _bloodRitualCtrl = AnimationController(
@@ -843,6 +879,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     game.hasMatterInjector =
         !widget.memoryTutorial && _customizationState.hasMatterInjector;
     game.activeShipSkin = _customizationState.activeShipSkin;
+    CosmicShipEmblem.skin.value = _customizationState.activeShipSkin;
     // Restore power-up levels
     game.ammoUpgradeLevel = _customizationState.ammoUpgradeLevel;
     game.missileUpgradeLevel = _customizationState.missileUpgradeLevel;
@@ -1746,6 +1783,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     if (!mounted) return;
     if (Navigator.of(context).canPop()) {
+      _reportShipTarget();
       await VoidPortal.pop<void>(context, config: VoidPortalConfig.cinematic);
     }
   }
@@ -4839,7 +4877,11 @@ class _CosmicScreenState extends State<CosmicScreen>
       return false;
     }
     _resetCosmicTouchState();
-    _game!.teleportTo(_homePlanet!.position);
+    // Flown home, into the orbit the ship keeps round it.
+    _game!.travelTo(
+      _homePlanet!.position,
+      orbitRadius: _homePlanet!.visualRadius * 2.2,
+    );
     HapticFeedback.lightImpact();
     return true;
   }
@@ -5044,14 +5086,14 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   static const _homeTourSteps = <(String, int)>[
     ('Deposit banks your cargo and shards at home.', 0),
-    ('Descend to your home\'s surface and set out your Alchemons.', 1),
-    ('Your home: upgrades, and the lab to customize your ship and planet.', 2),
+    ('Your home: upgrades, and the lab to customize your ship and planet.', 1),
+    ('Descend to your home\'s surface and set out your Alchemons.', 2),
   ];
 
   GlobalKey _homeTourTarget(int step) => switch (step) {
     0 => _coachDepositKey,
-    1 => _coachDescendKey,
-    _ => _coachHomeKey,
+    1 => _coachHomeKey,
+    _ => _coachDescendKey,
   };
 
   /// Starts the tour when the base's buttons are showing and nothing else
@@ -5102,6 +5144,19 @@ class _CosmicScreenState extends State<CosmicScreen>
     _armHomeTourTimer();
   }
 
+  /// What the hold carries, as colours, most first: its elements, and the
+  /// astral shards' pale crystal — the grains DEPOSIT's mark pours home.
+  List<Color> _cargoColors() {
+    final game = _game;
+    if (game == null) return const [];
+    final held = game.meter.breakdown.entries.where((e) => e.value > 0).toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    return [
+      for (final e in held.take(4)) elementColor(e.key),
+      if (game.shipWallet.shards > 0) const Color(0xFFBFD9F2),
+    ];
+  }
+
   Widget _buildLeftActionRail({required bool showHomeActions}) {
     final home = _homePlanet;
     final canDeposit =
@@ -5122,12 +5177,9 @@ class _CosmicScreenState extends State<CosmicScreen>
           key: _coachShipKey,
           accent: const Color(0xFF00E5FF),
           active: _awaitingShipMenuTap,
-          child: Icon(
-            AppIcons.rocket_launch_rounded,
-            color: _awaitingShipMenuTap
-                ? const Color(0xFF00E5FF)
-                : _cosmicMeterPalette.muted,
-            size: 20,
+          child: SpaceActionGlyph(
+            SpaceAction.ship,
+            skin: _customizationState.activeShipSkin,
           ),
         ),
       ),
@@ -5149,12 +5201,30 @@ class _CosmicScreenState extends State<CosmicScreen>
               accent: CosmicScreenStyles.amber,
               active: canDeposit,
               disabled: !canDeposit,
-              child: Icon(
-                AppIcons.file_upload_rounded,
-                color: canDeposit
-                    ? CosmicScreenStyles.amber
-                    : _cosmicMeterPalette.muted,
-                size: 20,
+              child: SpaceActionGlyph(
+                SpaceAction.deposit,
+                color: home.blendedColor,
+                cargo: _cargoColors(),
+                lit: canDeposit,
+              ),
+            ),
+          ),
+        ),
+        Tooltip(
+          message: 'Home base',
+          child: GestureDetector(
+            onTap: context.soundAction(() {
+              _advanceHomeTour(from: 1);
+              setState(() => _showHomeMenu = true);
+              unawaited(_refreshWalletCurrencies());
+            }),
+            child: _CosmicSquareHudButton(
+              key: _coachHomeKey,
+              accent: CosmicScreenStyles.amber,
+              active: true,
+              child: SpaceActionGlyph(
+                SpaceAction.home,
+                color: home.blendedColor,
               ),
             ),
           ),
@@ -5167,50 +5237,15 @@ class _CosmicScreenState extends State<CosmicScreen>
           child: GestureDetector(
             key: const ValueKey('cosmic.rail.descend'),
             onTap: context.soundAction(() {
-              _advanceHomeTour(from: 1);
+              _advanceHomeTour(from: 2);
               unawaited(_descendHome());
             }),
             child: _CosmicSquareHudButton(
               key: _coachDescendKey,
               accent: const Color(0xFFE4C16A),
-              child: Icon(
-                Icons.south_rounded,
-                color: const Color(0xFFE4C16A).withValues(alpha: 0.9),
-                size: 20,
-              ),
-            ),
-          ),
-        ),
-        Tooltip(
-          message: 'Home base',
-          child: GestureDetector(
-            onTap: context.soundAction(() {
-              _advanceHomeTour(from: 2);
-              setState(() => _showHomeMenu = true);
-              unawaited(_refreshWalletCurrencies());
-            }),
-            child: _CosmicSquareHudButton(
-              key: _coachHomeKey,
-              accent: CosmicScreenStyles.amber,
-              active: true,
-              child: Container(
-                width: 19,
-                height: 19,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      Color.lerp(home.blendedColor, Colors.white, 0.3)!,
-                      home.blendedColor,
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: home.blendedColor.withValues(alpha: 0.42),
-                      blurRadius: 6,
-                    ),
-                  ],
-                ),
+              child: SpaceActionGlyph(
+                SpaceAction.descend,
+                color: home.blendedColor,
               ),
             ),
           ),
@@ -5231,7 +5266,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Widget _buildRightHudButton({
-    required IconData icon,
+    IconData? icon,
+    Widget? glyph,
     required String semanticLabel,
     required Color accent,
     required bool active,
@@ -5246,11 +5282,13 @@ class _CosmicScreenState extends State<CosmicScreen>
         child: _CosmicSquareHudButton(
           accent: accent,
           active: active,
-          child: Icon(
-            icon,
-            color: active ? accent : _cosmicMeterPalette.muted,
-            size: 20,
-          ),
+          child:
+              glyph ??
+              Icon(
+                icon,
+                color: active ? accent : _cosmicMeterPalette.muted,
+                size: 20,
+              ),
         ),
       ),
     );
@@ -5339,7 +5377,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     return KeyedSubtree(
       key: _coachTetherKey,
       child: _buildRightHudButton(
-        icon: _companionTethered ? AppIcons.link : AppIcons.link_off,
+        // A magnet holding the party's grains (or letting them drift).
+        glyph: SpaceActionGlyph(
+          SpaceAction.tether,
+          color: const Color(0xFF42A5F5),
+          lit: _companionTethered,
+        ),
         semanticLabel: _companionTethered
             ? 'Companion tether linked; companions follow the ship'
             : 'Companion tether unlinked; companions hold position',
@@ -5776,8 +5819,33 @@ class _CosmicScreenState extends State<CosmicScreen>
           );
         }
       }
-      if (mounted) VoidPortal.pop(context);
+      if (mounted) {
+        _reportShipTarget();
+        VoidPortal.pop(context);
+      }
     }
+  }
+
+  /// Tells the way in (or out) where the ship stands on the screen: the
+  /// camera keeps it in the middle, at the camera's zoom.
+  void _reportShipTarget() {
+    final target = widget.passageTarget;
+    final game = _game;
+    if (target == null || game == null || !mounted || !game.isAttached) {
+      return;
+    }
+    final box = game.buildContext?.findRenderObject();
+    if (box is! RenderBox || !box.hasSize || !box.attached) return;
+    final zoom = game.cameraZoom;
+    final local = Offset(
+      (game.ship.pos.dx - game.camX) * zoom,
+      (game.ship.pos.dy - game.camY) * zoom,
+    );
+    target.value = ShipPassageTarget(
+      centre: box.localToGlobal(local),
+      scale: zoom,
+      heading: game.ship.angle + pi / 2,
+    );
   }
 
   /// Shows a simple "Are you sure?" confirmation dialog.
@@ -5872,6 +5940,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _game?.hasMissiles = _customizationState.hasMissiles;
       _game?.hasMatterInjector = _customizationState.hasMatterInjector;
       _game?.activeShipSkin = _customizationState.activeShipSkin;
+      CosmicShipEmblem.skin.value = _customizationState.activeShipSkin;
       // If orbitals were just crafted, add to stockpile
       if (recipeId == 'equip_orbitals' && _game != null) {
         _game!.orbitalStockpile += OrbitalSentinel.autoReplenishThreshold;
@@ -5903,6 +5972,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _game?.hasMissiles = _customizationState.hasMissiles;
     _game?.hasMatterInjector = _customizationState.hasMatterInjector;
     _game?.activeShipSkin = _customizationState.activeShipSkin;
+    CosmicShipEmblem.skin.value = _customizationState.activeShipSkin;
     HapticFeedback.selectionClick();
     setState(() {});
   }
@@ -6467,18 +6537,127 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// the planet requires. Stars are persisted inside the dungeon (instant
   /// bank); we just reload star state on return.
   /// Down to the home biome: the field under the home planet, where the
-  /// player's own Alchemons live. Through the glyph portal, turned to
-  /// landscape as the wild is, and back up to space the same way.
+  /// player's own Alchemons live. The way the home screen's portal goes
+  /// there: the home planet, where it hangs in space, comes apart as sand
+  /// into a turning ball, the turn to landscape happens on black, and the
+  /// biome comes together out of the sand. Leaving, its sand pours back
+  /// into the home planet.
   Future<void> _descendHome() async {
     _game?.pauseEngine();
     _playCosmicSfx(SoundCue.cosmicPortalOpen);
+    final circle = _homePlanetCircle();
     // The first one opens the home screen's portal to the same place.
-    await descendToHomeBiome(context, fromSpace: true);
+    await descendToHomeBiome(
+      context,
+      fromSpace: true,
+      from: circle == null
+          ? null
+          : SandSource(picture: _spaceScene, circle: circle),
+      back: (element) =>
+          SandLanding(element: element, circle: _homePlanetCircle),
+    );
     if (!mounted) return;
     unawaited(
       context.read<AudioController>().playCosmicExplorationMusic(cycle: false),
     );
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
+  }
+
+  /// The home planet where space draws it, in global coordinates; null when
+  /// there is none or the scene is not laid out.
+  Rect? _homePlanetCircle() {
+    final game = _game;
+    final home = game?.homePlanet;
+    final box = game?.buildContext?.findRenderObject();
+    if (game == null || home == null) return null;
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    return Rect.fromCircle(
+      center: box.localToGlobal(game.worldToView(home.position)),
+      radius: home.visualRadius * game.cameraZoom * 1.05,
+    );
+  }
+
+  /// Down into [planet] through the planet itself (PlanetDescentPassage):
+  /// the camera falls into it from where it hangs, the ship diving on ahead,
+  /// and its air is the loading screen for the page [build] makes (handed
+  /// the passage's ready/revealed). Returns once the player is back in
+  /// space and the ship of grains has landed on the real one. Space is
+  /// paused for all of it.
+  Future<void> _descendInto(
+    CosmicPlanet planet,
+    Widget Function(ValueNotifier<bool> ready, ValueListenable<bool> revealed)
+    build,
+  ) async {
+    final game = _game;
+    if (game == null) return;
+    final skin = CosmicShipEmblem.skin.value;
+    try {
+      await ShipGrains.of(skin).timeout(const Duration(milliseconds: 400));
+    } catch (_) {
+      // Drawn as the hull itself, then.
+    }
+    if (!mounted) return;
+    final box = game.buildContext?.findRenderObject();
+    final ready = ValueNotifier<bool>(false);
+    final revealed = ValueNotifier<bool>(false);
+    if (box is! RenderBox || !box.attached || !box.hasSize) {
+      game.pauseEngine();
+      revealed.value = true;
+      await Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => build(ready, revealed)));
+      return;
+    }
+    final zoom = game.cameraZoom;
+    final planetAt = Rect.fromCircle(
+      center: box.localToGlobal(game.worldToView(planet.position)),
+      radius: planet.radius * zoom,
+    );
+    final ship = ShipPose(
+      box.localToGlobal(game.worldToView(game.ship.pos)),
+      zoom,
+      game.ship.angle + pi / 2,
+    );
+    // One frame of space without the ship, then hold it there: the ship is
+    // the passage's now.
+    final away = ValueNotifier<bool>(true);
+    game.hideShip = true;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) {
+      game.hideShip = false;
+      return;
+    }
+    game.pauseEngine();
+    await EmblemPassage.pushSceneAt<void>(
+      context,
+      scene: PlanetDescentPassage(
+        art: planetArtFor(planet),
+        color: planet.color,
+        planet: planetAt,
+        ship: ship,
+        skin: skin,
+        planetTime: game.elapsedSeconds,
+        title: kPlanetDungeonLayouts[planet.element]?.descentTitle ?? '',
+      ),
+      from: planetAt,
+      page: build(ready, revealed),
+      ready: ready,
+      revealed: revealed,
+      lifted: away,
+    );
+    // Back in space: the ship of grains is still climbing out of the
+    // planet onto the real one. Space resumes once it has.
+    if (away.value) {
+      final done = Completer<void>();
+      void landed() {
+        if (!away.value && !done.isCompleted) done.complete();
+      }
+
+      away.addListener(landed);
+      await done.future.timeout(const Duration(seconds: 3), onTimeout: () {});
+      away.removeListener(landed);
+    }
+    game.hideShip = false;
   }
 
   Future<void> _enterDungeon(CosmicPlanet planet) async {
@@ -6512,14 +6691,14 @@ class _CosmicScreenState extends State<CosmicScreen>
         '1';
     if (!mounted) return;
 
-    _game?.pauseEngine();
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlanetDungeonScreen(
-          element: planet.element,
-          party: roster,
-          revealBeautyMask: revealBeautyMask,
-        ),
+    await _descendInto(
+      planet,
+      (ready, revealed) => PlanetDungeonScreen(
+        element: planet.element,
+        party: roster,
+        revealBeautyMask: revealBeautyMask,
+        revealReady: ready,
+        revealed: revealed,
       ),
     );
     if (!mounted) return;
@@ -6579,11 +6758,13 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
 
-    _game?.pauseEngine();
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) =>
-            PlanetDungeonScreen(element: planet.element, party: roster),
+    await _descendInto(
+      planet,
+      (ready, revealed) => PlanetDungeonScreen(
+        element: planet.element,
+        party: roster,
+        revealReady: ready,
+        revealed: revealed,
       ),
     );
     if (!mounted) return;
@@ -6647,15 +6828,15 @@ class _CosmicScreenState extends State<CosmicScreen>
     final roster = await _pickRaidSquad();
     if (roster == null || !mounted) return;
 
-    _game?.pauseEngine();
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => PlanetDungeonScreen(
-          element: planet.element,
-          party: roster,
-          raid: RaidConfig(level: raid.level, level3Clears: raid.level3Clears),
-          onRaidCleared: () => _raidService.markLevelCleared(),
-        ),
+    await _descendInto(
+      planet,
+      (ready, revealed) => PlanetDungeonScreen(
+        element: planet.element,
+        party: roster,
+        raid: RaidConfig(level: raid.level, level3Clears: raid.level3Clears),
+        onRaidCleared: () => _raidService.markLevelCleared(),
+        revealReady: ready,
+        revealed: revealed,
       ),
     );
     if (!mounted) return;
@@ -6791,6 +6972,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     required Color accent,
     required VoidCallback onTap,
     IconData? icon,
+    Widget? glyph,
     bool compact = false,
     bool fullWidth = false,
   }) {
@@ -6818,7 +7000,10 @@ class _CosmicScreenState extends State<CosmicScreen>
             mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              if (icon != null) ...[
+              if (glyph != null) ...[
+                glyph,
+                const SizedBox(width: 9),
+              ] else if (icon != null) ...[
                 Icon(icon, color: accent, size: fontSize + 3),
                 const SizedBox(width: 9),
               ],
@@ -7168,7 +7353,11 @@ class _CosmicScreenState extends State<CosmicScreen>
             _planetCta(
               label: raidActionLabel,
               accent: const Color(0xFFE25544),
-              icon: Icons.whatshot_rounded,
+              glyph: SpaceActionGlyph(
+                SpaceAction.raid,
+                size: 24,
+                color: planet.color,
+              ),
               fullWidth: true,
               onTap: context.soundTap(() => unawaited(_enterRaid(planet))),
             ),
@@ -7177,7 +7366,11 @@ class _CosmicScreenState extends State<CosmicScreen>
             _planetCta(
               label: 'DESCEND',
               accent: const Color(0xFFE4C16A),
-              icon: Icons.south_rounded,
+              glyph: SpaceActionGlyph(
+                SpaceAction.descend,
+                size: 24,
+                color: planet.color,
+              ),
               fullWidth: true,
               onTap: context.soundTap(() => unawaited(_enterDungeon(planet))),
             ),
@@ -7186,7 +7379,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               _planetCta(
                 label: 'SUMMON RAID  ·  $_raidBeaconQty',
                 accent: const Color(0xFFE25544),
-                icon: Icons.local_fire_department_rounded,
+                glyph: const SpaceActionGlyph(SpaceAction.summon, size: 20),
                 compact: true,
                 fullWidth: true,
                 onTap: context.soundTap(() => unawaited(_summonRaid(planet))),
@@ -7429,6 +7622,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _homeTourTimer?.cancel();
     ambienceRouteObserver.unsubscribe(this);
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
+    widget.revealReady?.removeListener(_reportShipTarget);
     _revealWhenReady.dispose();
     try {
       unawaited(context.read<AudioController>().playHomeMusic());
@@ -7461,33 +7655,84 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
     if (!_showMiniMap) {
-      _game?.pauseEngine();
+      unawaited(_openChart());
+    } else {
+      _closeMiniMap();
+    }
+  }
+
+  /// The camera pulls back off the ship into the star chart
+  /// (widgets/chart_zoom.dart): space is paused and pictured, and shrinks
+  /// round the ship into its patch on the chart as the chart settles out
+  /// round it.
+  Future<void> _openChart() async {
+    if (_chartOpening) return;
+    _chartOpening = true;
+    try {
+      final game = _game;
+      game?.pauseEngine();
+      final ratio = min(MediaQuery.devicePixelRatioOf(context), 3.0);
+      final shot = await ChartZoom.picture(_spaceScene, ratio);
+      if (!mounted) {
+        shot?.$1.dispose();
+        return;
+      }
+      ChartZoom? zoom;
+      if (shot != null && game != null) {
+        final (image, boundary) = shot;
+        final box = game.buildContext?.findRenderObject();
+        if (box is RenderBox && box.attached) {
+          zoom = ChartZoom(
+            image: image,
+            origin: boundary.localToGlobal(Offset.zero),
+            size: boundary.size,
+            ship: box.localToGlobal(game.worldToView(game.ship.pos)),
+            spacePxPerUnit: game.cameraZoom,
+          );
+        } else {
+          image.dispose();
+        }
+      }
+      _chartZoom?.dispose();
+      _miniMapCtrl.value = 0;
       setState(() {
+        _chartZoom = zoom;
         _showMiniMap = true;
         if (_awaitingSurvivalMapTap) {
           _awaitingSurvivalMapTap = false;
           _survivalMapTapped = true;
         }
       });
-      _miniMapCtrl.forward(from: 0.0);
-    } else {
-      _miniMapCtrl.reverse().then((_) {
-        if (!mounted) return;
-        _game?.resumeEngine();
-        setState(() => _showMiniMap = false);
-        if (_survivalMapTapped && !_survivalGuidanceActive) {
-          _runPostMapSurvivalGuidancePrompt();
-        }
+      // The chart's first frame records its whole body (planets, haze,
+      // territories) unseen; from the next, space starts to fall away into
+      // it — onto the ship, now that the chart can say where that is.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_showMiniMap) return;
+        _chartZoom?.onChart = _chartKey.currentState?.shipOnChart();
+        if (!_miniMapCtrl.isAnimating) _miniMapCtrl.forward();
       });
+    } finally {
+      _chartOpening = false;
     }
   }
 
   void _closeMiniMap() {
     if (!_showMiniMap && !_miniMapCtrl.isAnimating) return;
+    // Back down into the ship's patch, wherever the chart stands now.
+    final zoom = _chartZoom;
+    if (zoom != null) {
+      zoom.onChart = _chartKey.currentState?.shipOnChart() ?? zoom.onChart;
+    }
     _miniMapCtrl.reverse().then((_) {
       if (!mounted) return;
       _game?.resumeEngine();
-      setState(() => _showMiniMap = false);
+      setState(() {
+        _showMiniMap = false;
+        if (identical(_chartZoom, zoom)) _chartZoom = null;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!identical(_chartZoom, zoom)) zoom?.dispose();
+      });
       if (_survivalMapTapped && !_survivalGuidanceActive) {
         _runPostMapSurvivalGuidancePrompt();
       }
@@ -7716,7 +7961,13 @@ class _CosmicScreenState extends State<CosmicScreen>
           child: Stack(
             children: [
               // ── Flame game canvas ──
-              Positioned.fill(child: GameWidget(game: _game!)),
+              // Pictured for the way down to the home biome (its sand).
+              Positioned.fill(
+                child: RepaintBoundary(
+                  key: _spaceScene,
+                  child: GameWidget(game: _game!),
+                ),
+              ),
 
               if (showSignalArrow)
                 Positioned.fill(
@@ -8192,89 +8443,99 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Mini-map overlay (animated open/close) ──
+              // The camera pulls back off the ship into it: space shrinks into
+              // the ship's patch on the chart as the chart settles out round
+              // it (widgets/chart_zoom.dart), and back.
               if (showCosmicHud && (_showMiniMap || _miniMapCtrl.isAnimating))
                 Positioned.fill(
-                  child: AnimatedBuilder(
-                    animation: _miniMapCtrl,
-                    builder: (context, child) {
-                      final t = Curves.easeOutCubic.transform(
-                        _miniMapCtrl.value,
-                      );
-                      final translateY = (1 - t) * 40.0;
-                      return Transform.translate(
-                        offset: Offset(0, translateY),
-                        child: child,
-                      );
-                    },
-                    child: RepaintBoundary(
-                      child: MiniMapOverlay(
-                        world: _world,
-                        game: _game!,
-                        theme: theme,
-                        markers: _mapMarkers,
-                        // Dungeon planets show their earned stars (amber) on
-                        // the carousel; the header tallies the campaign.
-                        dungeonStarsFor: (p) =>
-                            kPlanetDungeonLayouts.containsKey(p.element)
-                            ? _planetStarState.starsEarned(p.element)
-                            : null,
-                        dungeonStarTotal: [
-                          for (final el in kPlanetDungeonLayouts.keys)
-                            _planetStarState.starsEarned(el),
-                        ].fold(0, (a, b) => a + b),
-                        dungeonStarMax: kPlanetDungeonLayouts.length * 3,
-                        tutorialTargetPos: tutorialTargetPos,
-                        tutorialTargetColor: const Color(0xFF8B5CF6),
-                        tutorialTargetLabel: 'SIGNAL',
-                        hasHomePlanet: _homePlanet != null,
-                        debugShowAllContestArenasOnMap:
-                            _contestDebugShowAllOnMap,
-                        debugEnableContestArenaTeleport:
-                            _contestDebugAllowMapTeleport,
-                        onTeleport: (pos) {
-                          final meterPct = _game!.meter.fillPct;
-                          if (meterPct > _teleportCapacity) {
-                            final capPct = (_teleportCapacity * 100).round();
-                            _showQuote(
-                              'Too much elemental energy! Lighten below $capPct% to teleport.',
-                            );
-                            HapticFeedback.heavyImpact();
-                            return;
-                          }
-                          _resetCosmicTouchState();
-                          _game?.teleportTo(pos);
-                          _closeMiniMap();
-                        },
-                        onNavigatePlanet: (planet) {
-                          final meterPct = _game!.meter.fillPct;
-                          if (meterPct > _teleportCapacity) {
-                            final capPct = (_teleportCapacity * 100).round();
-                            _showQuote(
-                              'Too much elemental energy! Lighten below $capPct% to teleport.',
-                            );
-                            HapticFeedback.heavyImpact();
-                            return;
-                          }
-                          _resetCosmicTouchState();
-                          _game?.teleportTo(planet.position);
-                          _showQuote(
-                            'Teleported to ${planetName(planet.element)}.',
-                          );
-                          HapticFeedback.lightImpact();
-                          _closeMiniMap();
-                        },
-                        onGoHome: () {
-                          if (_handleGoHome()) {
-                            _closeMiniMap();
-                          }
-                        },
-                        onClose: _closeMiniMap,
-                        onMarkersChanged: (markers) {
-                          setState(() => _mapMarkers = markers);
-                          _saveMapMarkers();
-                        },
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      FadeTransition(
+                        opacity: _miniMapFade,
+                        child: RepaintBoundary(
+                          child: MiniMapOverlay(
+                            key: _chartKey,
+                            reveal: _chartZoom == null ? null : _miniMapCtrl,
+                            world: _world,
+                            game: _game!,
+                            theme: theme,
+                            markers: _mapMarkers,
+                            // Dungeon planets show their earned stars (amber) on
+                            // the carousel; the header tallies the campaign.
+                            dungeonStarsFor: (p) =>
+                                kPlanetDungeonLayouts.containsKey(p.element)
+                                ? _planetStarState.starsEarned(p.element)
+                                : null,
+                            dungeonStarTotal: [
+                              for (final el in kPlanetDungeonLayouts.keys)
+                                _planetStarState.starsEarned(el),
+                            ].fold(0, (a, b) => a + b),
+                            dungeonStarMax: kPlanetDungeonLayouts.length * 3,
+                            tutorialTargetPos: tutorialTargetPos,
+                            tutorialTargetColor: const Color(0xFF8B5CF6),
+                            tutorialTargetLabel: 'SIGNAL',
+                            debugShowAllContestArenasOnMap:
+                                _contestDebugShowAllOnMap,
+                            debugEnableContestArenaTeleport:
+                                _contestDebugAllowMapTeleport,
+                            onTeleport: (pos) {
+                              final meterPct = _game!.meter.fillPct;
+                              if (meterPct > _teleportCapacity) {
+                                final capPct = (_teleportCapacity * 100)
+                                    .round();
+                                _showQuote(
+                                  'Too much elemental energy! Lighten below $capPct% to teleport.',
+                                );
+                                HapticFeedback.heavyImpact();
+                                return;
+                              }
+                              _resetCosmicTouchState();
+                              _game?.travelTo(pos);
+                              HapticFeedback.lightImpact();
+                              _closeMiniMap();
+                            },
+                            onNavigatePlanet: (planet) {
+                              final meterPct = _game!.meter.fillPct;
+                              if (meterPct > _teleportCapacity) {
+                                final capPct = (_teleportCapacity * 100)
+                                    .round();
+                                _showQuote(
+                                  'Too much elemental energy! Lighten below $capPct% to teleport.',
+                                );
+                                HapticFeedback.heavyImpact();
+                                return;
+                              }
+                              _resetCosmicTouchState();
+                              // Flown there, into the planet's idle orbit; the
+                              // arrival says where it is.
+                              _game?.travelTo(
+                                planet.position,
+                                orbitRadius: planet.radius * 2.0,
+                              );
+                              HapticFeedback.lightImpact();
+                              _closeMiniMap();
+                            },
+                            onGoHome: () {
+                              if (_handleGoHome()) {
+                                _closeMiniMap();
+                              }
+                            },
+                            onClose: _closeMiniMap,
+                            onMarkersChanged: (markers) {
+                              setState(() => _mapMarkers = markers);
+                              _saveMapMarkers();
+                            },
+                          ),
+                        ),
                       ),
-                    ),
+                      if (_chartZoom case final zoom?)
+                        IgnorePointer(
+                          child: CustomPaint(
+                            painter: ChartZoomPainter(zoom, _miniMapCtrl),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
 
@@ -8942,12 +9203,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                               child: _buildWeaponHudButton(
                                 accent: const Color(0xFFFF6F00),
                                 active: _isBoosting,
-                                child: Icon(
-                                  AppIcons.local_fire_department_rounded,
-                                  color: _isBoosting
-                                      ? const Color(0xFFFF6F00)
-                                      : Colors.white54,
-                                  size: 25,
+                                child: SpaceActionGlyph(
+                                  SpaceAction.boost,
+                                  size: 44,
+                                  color: const Color(0xFFFF6F00),
+                                  lit: _isBoosting,
                                 ),
                               ),
                             ),
@@ -8967,26 +9227,33 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   child: _buildWeaponHudButton(
                                     accent: const Color(0xFFE53935),
                                     active: _isShootingMissiles,
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
+                                    // The dart fills the tile; the count
+                                    // sits in its empty corner.
+                                    child: Stack(
+                                      clipBehavior: Clip.none,
                                       children: [
-                                        Icon(
-                                          AppIcons.gps_fixed_rounded,
-                                          color: _isShootingMissiles
-                                              ? const Color(0xFFE53935)
-                                              : Colors.white54,
-                                          size: 21,
+                                        SpaceActionGlyph(
+                                          SpaceAction.missile,
+                                          size: 44,
+                                          color: const Color(0xFFE53935),
+                                          lit: _isShootingMissiles,
                                         ),
-                                        Text(
-                                          '${_game?.missileAmmo ?? 0}',
-                                          style: TextStyle(
-                                            fontFamily: appFontFamily(context),
-                                            color: _isShootingMissiles
-                                                ? const Color(0xFFE53935)
-                                                : Colors.white38,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w800,
+                                        Positioned(
+                                          right: 1,
+                                          bottom: -1,
+                                          child: Text(
+                                            '${_game?.missileAmmo ?? 0}',
+                                            style: TextStyle(
+                                              fontFamily: appFontFamily(
+                                                context,
+                                              ),
+                                              color: _isShootingMissiles
+                                                  ? const Color(0xFFFF8A80)
+                                                  : Colors.white60,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                              height: 1,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -9006,12 +9273,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   // Lit only when it is firing: the coach
                                   // mark frames it while the memory waits.
                                   active: _isShooting,
-                                  child: Icon(
-                                    AppIcons.flash_on_rounded,
-                                    color: _isShooting
-                                        ? const Color(0xFF00E5FF)
-                                        : Colors.white54,
-                                    size: 25,
+                                  child: SpaceActionGlyph(
+                                    SpaceAction.gun,
+                                    size: 44,
+                                    color: const Color(0xFF00E5FF),
+                                    lit: _isShooting,
                                   ),
                                 ),
                               ),
@@ -9277,7 +9543,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
               // ── Settings overlay ──
               if (showCosmicHud && _showSettingsMenu)
-                _CosmicSettingsOverlay(
+                CosmicSettingsOverlay(
                   joystickEnabled: _showJoystick,
                   largeJoystickEnabled: _largeJoystick,
                   autoFireGunEnabled: _autoFireGun,
@@ -10467,450 +10733,6 @@ class _BloodRitualSpaceOverlayPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _BloodRitualSpaceOverlayPainter oldDelegate) {
     return oldDelegate.progress != progress || oldDelegate.game != game;
-  }
-}
-
-class _CosmicSettingsOverlay extends StatelessWidget {
-  const _CosmicSettingsOverlay({
-    required this.joystickEnabled,
-    required this.largeJoystickEnabled,
-    required this.autoFireGunEnabled,
-    required this.autoFireMissilesEnabled,
-    required this.boostToggleEnabled,
-    required this.onClose,
-    required this.onLeaveSpace,
-    required this.onToggleJoystick,
-    required this.onToggleLargeJoystick,
-    required this.onToggleAutoFireGun,
-    required this.onToggleAutoFireMissiles,
-    required this.onToggleBoostToggle,
-    required this.onReplayPrologue,
-    required this.onKinPortal,
-  });
-
-  final bool joystickEnabled;
-  final bool largeJoystickEnabled;
-  final bool autoFireGunEnabled;
-  final bool autoFireMissilesEnabled;
-  final bool boostToggleEnabled;
-  final VoidCallback onClose;
-  final VoidCallback onLeaveSpace;
-  final ValueChanged<bool> onToggleJoystick;
-  final ValueChanged<bool> onToggleLargeJoystick;
-  final ValueChanged<bool> onToggleAutoFireGun;
-  final ValueChanged<bool> onToggleAutoFireMissiles;
-  final ValueChanged<bool> onToggleBoostToggle;
-
-  /// Developer tool: replay THE FIRST CROSSING from here.
-  final VoidCallback onReplayPrologue;
-
-  /// Developer tool: jump into the Nexus pocket and its four Kin portals.
-  final VoidCallback onKinPortal;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: CosmicScreenStyles.bg0.withValues(alpha: 0.82),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: context.soundAction(onClose),
-        child: Center(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {},
-            child: Container(
-              constraints: const BoxConstraints(maxWidth: 360),
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    CosmicScreenStyles.bg3.withValues(alpha: 0.96),
-                    CosmicScreenStyles.bg1.withValues(alpha: 0.98),
-                    CosmicScreenStyles.bg0.withValues(alpha: 0.98),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: CosmicScreenStyles.borderAccent.withValues(alpha: 0.7),
-                  width: 1.2,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.55),
-                    blurRadius: 28,
-                    offset: const Offset(0, 12),
-                  ),
-                  BoxShadow(
-                    color: CosmicScreenStyles.amber.withValues(alpha: 0.07),
-                    blurRadius: 30,
-                    spreadRadius: 1,
-                  ),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          color: CosmicScreenStyles.amber.withValues(
-                            alpha: 0.11,
-                          ),
-                          border: Border.all(
-                            color: CosmicScreenStyles.amber.withValues(
-                              alpha: 0.34,
-                            ),
-                          ),
-                        ),
-                        child: const Icon(
-                          AppIcons.settings_rounded,
-                          color: CosmicScreenStyles.amberBright,
-                          size: 17,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'SHIP SETTINGS',
-                              style: TextStyle(
-                                fontFamily: appFontFamily(context),
-                                color: CosmicScreenStyles.textPrimary,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.8,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              'CONTROL BAY',
-                              style: TextStyle(
-                                fontFamily: appFontFamily(context),
-                                color: CosmicScreenStyles.amber.withValues(
-                                  alpha: 0.82,
-                                ),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 1.6,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: context.soundAction(onClose),
-                        icon: const Icon(AppIcons.close_rounded),
-                        color: CosmicScreenStyles.textSecondary,
-                        splashRadius: 18,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    height: 1,
-                    color: CosmicScreenStyles.borderMid.withValues(alpha: 0.7),
-                  ),
-                  const SizedBox(height: 12),
-                  _SettingsToggleRow(
-                    icon: AppIcons.gamepad_rounded,
-                    label: 'Joystick',
-                    subtitle: 'Show the movement stick on screen',
-                    value: joystickEnabled,
-                    onChanged: onToggleJoystick,
-                  ),
-                  const SizedBox(height: 8),
-                  _SettingsToggleRow(
-                    icon: AppIcons.open_in_full_rounded,
-                    label: 'Large Joystick',
-                    subtitle: 'Use the expanded movement pad',
-                    value: largeJoystickEnabled,
-                    onChanged: onToggleLargeJoystick,
-                  ),
-                  const SizedBox(height: 8),
-                  _SettingsToggleRow(
-                    icon: AppIcons.flash_on_rounded,
-                    label: 'Auto Fire — Turret',
-                    subtitle: 'Off, hold the gun button to fire by hand',
-                    value: autoFireGunEnabled,
-                    onChanged: onToggleAutoFireGun,
-                  ),
-                  const SizedBox(height: 8),
-                  _SettingsToggleRow(
-                    icon: AppIcons.gps_fixed_rounded,
-                    label: 'Auto Fire — Missiles',
-                    subtitle: 'Off, hold the missile button to fire by hand',
-                    value: autoFireMissilesEnabled,
-                    onChanged: onToggleAutoFireMissiles,
-                  ),
-                  const SizedBox(height: 8),
-                  _SettingsToggleRow(
-                    icon: AppIcons.local_fire_department_rounded,
-                    label: 'Boost Toggle',
-                    subtitle: 'Tap once to lock boost on/off',
-                    value: boostToggleEnabled,
-                    onChanged: onToggleBoostToggle,
-                  ),
-                  if (DebugSettingsService.toolsVisible) ...[
-                    const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Text(
-                          'DEVELOPER',
-                          style: TextStyle(
-                            fontFamily: appFontFamily(context),
-                            color: const Color(
-                              0xFF7BE88C,
-                            ).withValues(alpha: 0.8),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.6,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Container(
-                            height: 1,
-                            color: const Color(
-                              0xFF7BE88C,
-                            ).withValues(alpha: 0.28),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    SizedBox(
-                      width: double.infinity,
-                      child: GestureDetector(
-                        onTap: context.soundAction(onReplayPrologue),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF7BE88C,
-                            ).withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(
-                              color: const Color(
-                                0xFF7BE88C,
-                              ).withValues(alpha: 0.7),
-                              width: 1.3,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                AppIcons.auto_awesome_rounded,
-                                color: Color(0xFF7BE88C),
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'REPLAY: THE FIRST CROSSING',
-                                style: TextStyle(
-                                  fontFamily: appFontFamily(context),
-                                  color: const Color(0xFF7BE88C),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                      width: double.infinity,
-                      child: GestureDetector(
-                        onTap: context.soundAction(onKinPortal),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(
-                              0xFF7BE88C,
-                            ).withValues(alpha: 0.10),
-                            borderRadius: BorderRadius.circular(3),
-                            border: Border.all(
-                              color: const Color(
-                                0xFF7BE88C,
-                              ).withValues(alpha: 0.7),
-                              width: 1.3,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(
-                                AppIcons.auto_awesome_rounded,
-                                color: Color(0xFF7BE88C),
-                                size: 16,
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                'NEXUS: JUMP TO THE 4 KIN PORTALS',
-                                style: TextStyle(
-                                  fontFamily: appFontFamily(context),
-                                  color: const Color(0xFF7BE88C),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.3,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: GestureDetector(
-                      onTap: context.soundAction(onLeaveSpace),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 13),
-                        decoration: BoxDecoration(
-                          color: CosmicScreenStyles.danger.withValues(
-                            alpha: 0.10,
-                          ),
-                          borderRadius: BorderRadius.circular(3),
-                          border: Border.all(
-                            color: CosmicScreenStyles.danger.withValues(
-                              alpha: 0.58,
-                            ),
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            const Icon(
-                              AppIcons.logout_rounded,
-                              color: CosmicScreenStyles.danger,
-                              size: 17,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'LEAVE SPACE',
-                              style: TextStyle(
-                                fontFamily: appFontFamily(context),
-                                color: CosmicScreenStyles.danger,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.5,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SettingsToggleRow extends StatelessWidget {
-  const _SettingsToggleRow({
-    required this.icon,
-    required this.label,
-    required this.subtitle,
-    required this.value,
-    required this.onChanged,
-  });
-
-  final IconData icon;
-  final String label;
-  final String subtitle;
-  final bool value;
-  final ValueChanged<bool> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(10, 9, 7, 9),
-      decoration: BoxDecoration(
-        color: CosmicScreenStyles.bg2.withValues(alpha: 0.82),
-        borderRadius: BorderRadius.circular(3),
-        border: Border.all(color: CosmicScreenStyles.borderDim),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: CosmicScreenStyles.teal.withValues(alpha: 0.10),
-              border: Border.all(
-                color: CosmicScreenStyles.teal.withValues(alpha: 0.28),
-              ),
-            ),
-            child: Icon(icon, color: CosmicScreenStyles.teal, size: 15),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label.toUpperCase(),
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textPrimary,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.0,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontFamily: appFontFamily(context),
-                    color: CosmicScreenStyles.textMuted,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Transform.scale(
-            scale: 0.82,
-            child: Switch.adaptive(
-              value: value,
-              activeTrackColor: CosmicScreenStyles.teal.withValues(alpha: 0.45),
-              activeThumbColor: CosmicScreenStyles.teal,
-              inactiveTrackColor: CosmicScreenStyles.borderDim,
-              inactiveThumbColor: CosmicScreenStyles.textMuted,
-              onChanged: (v) {
-                HapticFeedback.selectionClick();
-                onChanged(v);
-              },
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }
 

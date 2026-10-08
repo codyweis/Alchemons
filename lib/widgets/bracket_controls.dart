@@ -469,3 +469,127 @@ Future<bool> showBracketConfirm(
   );
   return result ?? false;
 }
+
+/// A switch in the kit's terms: a dark slot, its stone at the left when
+/// off, slid right and lit in the accent when on.
+class BracketToggle extends StatelessWidget {
+  const BracketToggle({
+    super.key,
+    required this.value,
+    required this.palette,
+    required this.accent,
+    this.enabled = true,
+  });
+
+  final bool value;
+  final bool enabled;
+  final BracketPalette palette;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    const dur = Duration(milliseconds: 160);
+    return Opacity(
+      opacity: enabled ? 1 : 0.45,
+      child: AnimatedContainer(
+        duration: dur,
+        curve: Curves.easeOutCubic,
+        width: 44,
+        height: 24,
+        padding: const EdgeInsets.all(3),
+        color: value
+            ? palette.accentWash(accent, darkAlpha: 0.26)
+            : palette.bg0,
+        child: AnimatedAlign(
+          duration: dur,
+          curve: Curves.easeOutCubic,
+          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+          child: AnimatedContainer(
+            duration: dur,
+            width: 18,
+            height: 18,
+            color: value ? accent : palette.line,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A setting that is on or off: its name, what it does, and a
+/// [BracketToggle]. The whole row is the switch — a thumb-sized target,
+/// not a 44px one.
+class BracketToggleRow extends StatelessWidget {
+  const BracketToggleRow({
+    super.key,
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+    required this.palette,
+    required this.accent,
+    this.enabled = true,
+  });
+
+  final String title;
+  final String description;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+  final BracketPalette palette;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: enabled
+          ? context.soundAction(() {
+              HapticFeedback.selectionClick();
+              onChanged(!value);
+            })
+          : null,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: palette.ink,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.4,
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    description,
+                    style: bracketText(
+                      context,
+                      12.5,
+                      palette.muted,
+                    ).copyWith(height: 1.4),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            BracketToggle(
+              value: value,
+              enabled: enabled,
+              palette: palette,
+              accent: accent,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

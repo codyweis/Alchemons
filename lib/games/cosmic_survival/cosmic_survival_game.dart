@@ -14267,38 +14267,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
-  /// The live position the descending meteor should keep itself aimed at, or
-  /// null to let it land where it was already committed.
-  ///
-  /// Leashed on purpose: the drop tracks whatever is standing near the point
-  /// it was aimed at, and nothing else. Without the leash a meteor whose
-  /// original target died mid-fall would swing across the field to whoever
-  /// happened to be nearest, which looks like a guided missile and makes the
-  /// telegraph a lie.
-  Offset? _liveSkyfallTarget(Projectile p) {
-    final leash = letSkyfallBlastRadius(p) + 140.0;
-    final centre = p.skyfallImpact;
-    double bestSq = leash * leash;
-    Offset? best;
-    _visitEnemiesNear(centre, leash, (enemy) {
-      if (enemy.isDead) return false;
-      final dSq = _distanceSquared(enemy.position, centre);
-      if (dSq < bestSq) {
-        bestSq = dSq;
-        best = enemy.position;
-      }
-      return false;
-    });
-    for (final boss in allLivingBosses) {
-      final dSq = _distanceSquared(boss.position, centre);
-      if (dSq < bestSq) {
-        bestSq = dSq;
-        best = boss.position;
-      }
-    }
-    return best;
-  }
-
   /// A few sparks shed off the meteor on the way down, so the descent has
   /// something moving in it before the impact does the talking. Bounded and
   /// skipped entirely when the particle pool is busy.
@@ -15084,8 +15052,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           skyfallDuration: drop.duration,
           skyfallImpact: aim,
           skyfallDistance: drop.distance,
-          // Thrown at a place, not at a body — see Projectile.skyfallTracks.
-          skyfallTracks: false,
           // "Twice as big" per design.
           radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
           visualScale: max(3.5, source.visualScale * 2.0),
@@ -16961,11 +16927,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // everything it does happens when it lands.
       if (p.isDescending) {
         _spawnLetDescentEmbers(p);
-        final landed = CosmicAbilityRuntime.advanceSkyfall(
-          p,
-          dt,
-          p.skyfallTracks ? _liveSkyfallTarget(p) : null,
-        );
+        final landed = CosmicAbilityRuntime.advanceSkyfall(p, dt);
         if (landed) {
           if (p.letDeadfall) {
             _detonateLetDeadfall(p);

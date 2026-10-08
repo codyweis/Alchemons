@@ -634,13 +634,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _buildSectionHeader('SPECIAL UNLOCKS'),
-                _buildSpecialUnlocksGrid(
-                  theme,
-                  allCurrencies,
-                  resourceBalances,
-                ),
-
                 _buildSectionHeader('COMMON ITEMS'),
                 // The vial is a routine restock like the other two, so
                 // it shares their grid — same cell, same size — instead
@@ -663,6 +656,13 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                 // One grain field on one ticker; its own layer, and
                 // paused once it scrolls out of the viewport.
                 ViewportTickerGate(child: _buildGoldVaultSection(theme)),
+
+                _buildSectionHeader('SPECIAL UNLOCKS'),
+                _buildSpecialUnlocksGrid(
+                  theme,
+                  allCurrencies,
+                  resourceBalances,
+                ),
 
                 _buildSectionHeader('HARVEST DEVICES'),
                 _buildHarvestDevicesGrid(

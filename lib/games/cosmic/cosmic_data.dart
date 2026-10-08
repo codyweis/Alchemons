@@ -3084,6 +3084,9 @@ const List<HomeRecipe> kHomeRecipes = [
 
 /// Persisted state of which home recipes are unlocked and which are active.
 /// Also stores per-recipe sub-customization option values.
+/// Where the cosmic save keeps [HomeCustomizationState] (shared preferences).
+const String kCosmicCustomizationPrefsKey = 'cosmic_home_customization_v1';
+
 class HomeCustomizationState {
   final Set<String> unlockedIds;
   final Set<String> activeIds;
@@ -4776,24 +4779,13 @@ class Projectile {
   /// Seconds left in the descent. At 0 the meteor lands and detonates.
   double skyfallRemaining;
 
-  /// The point the meteor is committed to landing on. Re-aimed gently toward
-  /// the locked target while it falls, so a walking enemy cannot stroll out
-  /// from under it — the drop is a decision, never a reflex test.
+  /// The point the meteor is committed to landing on. Fixed at the throw: a
+  /// falling rock does not steer. Enemies move far less in one descent than
+  /// the crater is wide, so whoever it was thrown at is still underneath it.
   Offset skyfallImpact;
 
   /// How far above [skyfallImpact] the meteor starts, along -[angle].
   final double skyfallDistance;
-
-  /// Whether the descent re-aims at whatever is standing near its impact
-  /// point. True for a cast Let: the player picked a target and should not
-  /// also have to lead it.
-  ///
-  /// False for Dark's follow-up bombardment, which is thrown AT a place, not
-  /// at a body. Those are aimed at where the surrounding enemies stood at the
-  /// moment of the kill and land there regardless — a barrage that can be
-  /// walked out of is area denial, where five self-guiding meteors would just
-  /// be five more guaranteed hits.
-  final bool skyfallTracks;
 
   /// True while this projectile is still in the air on its way down. It takes
   /// no collisions, lays no trail, and ignores homing during this window.
@@ -4940,7 +4932,6 @@ class Projectile {
     double? skyfallRemaining,
     Offset? skyfallImpact,
     this.skyfallDistance = 0,
-    this.skyfallTracks = true,
     this.sourceSlotIndex,
     this.attachedToSlot = -2,
     this.letCasterIntelligence = 4.0,
@@ -5414,7 +5405,6 @@ Projectile copyProjectile(
   double? skyfallRemaining,
   Offset? skyfallImpact,
   double? skyfallDistance,
-  bool? skyfallTracks,
   double? letCasterIntelligence,
   int? sourceSlotIndex,
   int? attachedToSlot,
@@ -5487,7 +5477,6 @@ Projectile copyProjectile(
     skyfallRemaining: skyfallRemaining ?? p.skyfallRemaining,
     skyfallImpact: skyfallImpact ?? p.skyfallImpact,
     skyfallDistance: skyfallDistance ?? p.skyfallDistance,
-    skyfallTracks: skyfallTracks ?? p.skyfallTracks,
     letCasterIntelligence: letCasterIntelligence ?? p.letCasterIntelligence,
     sourceSlotIndex: sourceSlotIndex ?? p.sourceSlotIndex,
     attachedToSlot: attachedToSlot ?? p.attachedToSlot,

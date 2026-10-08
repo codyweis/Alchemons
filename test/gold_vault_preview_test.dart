@@ -178,7 +178,11 @@ void main() {
       await shoot(key, '${w}_3_celestial');
 
       await tester.tap(find.text('25').first);
-      for (var i = 0; i < 40; i++) {
+      for (var i = 0; i < 15; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await shoot(key, '${w}_3b_giving_back');
+      for (var i = 0; i < 25; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
       await shoot(key, '${w}_4_cache');

@@ -1368,7 +1368,7 @@ class _Wobble extends StatelessWidget {
 
 // ── the flask alone ─────────────────────────────────────────────────────────
 
-final GrainBatch _emblemBatch = GrainBatch(8);
+final GrainBatch _emblemBatch = GrainBatch(9);
 final Paint _emblemPaint = Paint();
 
 /// The chamber's flask on its own at any size, in the chamber's own glass:
@@ -1401,11 +1401,16 @@ void paintFlaskEmblem(
   canvas.drawPath(g.glass, p);
 
   // The liquid: grains turning slowly in the bottom of the bulb, below a
-  // surface that breathes.
+  // surface that breathes — over a luminous wash, as the chamber's own
+  // liquid is, so it reads as one body and not a heap of beads, and all of
+  // it inside the glass.
   final full = g.fullLevel, bottom = g.bottom;
   final lv = level.clamp(0.0, 1.0);
-  final surface =
-      bottom - (bottom - full) * lv + math.sin(time * 0.9) * r * 0.012;
+  final surface = bottom - (bottom - full) * lv;
+  double wave(double x) =>
+      surface +
+      r * 0.011 * math.sin((x - c.dx) / r * 5.2 + time * 1.5) +
+      r * 0.007 * math.sin((x - c.dx) / r * 9.1 - time * 2.2);
   // The liquid's light up the back wall.
   canvas.save();
   canvas.clipPath(g.glass);
@@ -1419,55 +1424,132 @@ void paintFlaskEmblem(
   canvas.restore();
   p.shader = null;
 
+  // Small, the grains are a touch coarser so they still read; large, as
+  // fine as the chamber's own.
+  final dot = math.max(1.45, r * 0.016);
   final b = _emblemBatch..clear();
-  final n = (200 + (r - 22).clamp(0.0, 200.0) * 9).round();
-  if (lv > 0.005) {
-    final depth = bottom - surface;
+  final depth = bottom - surface;
+  if (lv > 0.005 && depth > 0.5) {
+    canvas.save();
+    canvas.clipPath(g.bulb);
+    final body = Path()..moveTo(c.dx - r, wave(c.dx - r));
+    for (var k = 1; k <= 16; k++) {
+      final x = c.dx - r + 2 * r * k / 16;
+      body.lineTo(x, wave(x));
+    }
+    body
+      ..lineTo(c.dx + r, c.dy + r)
+      ..lineTo(c.dx - r, c.dy + r)
+      ..close();
+    p.shader = ui.Gradient.linear(
+      Offset(0, surface),
+      Offset(0, bottom),
+      [
+        a(ink, 0.46),
+        a(Color.lerp(ink, Colors.black, 0.35)!, 0.38),
+        a(Color.lerp(ink, Colors.black, 0.7)!, 0.52),
+      ],
+      const [0.0, 0.4, 1.0],
+    );
+    canvas.drawPath(body, p);
+    // Light at the surface, brightest in the middle.
+    final cw = math.max(g.chord(surface), r * 0.2);
+    p.shader = ui.Gradient.radial(Offset(c.dx, surface), cw, [
+      a(ink, 0.3),
+      Colors.transparent,
+    ]);
+    canvas.save();
+    canvas.translate(c.dx, surface);
+    canvas.scale(1, 0.14);
+    canvas.translate(-c.dx, -surface);
+    canvas.drawCircle(Offset(c.dx, surface), cw, p);
+    canvas.restore();
+    p.shader = null;
+
+    // As many grains as the liquid's cross-section holds at this grain, so
+    // it is as dense in the icon as on the bench.
+    final area = g.segmentArea(depth);
+    final n = (area / (dot * dot * 1.45)).round().clamp(60, 1600);
     for (var i = 0; i < n; i++) {
       // Each grain swirls on its own flat loop inside the liquid: across the
       // bulb at its depth and a little up and down, so the whole turns
       // without a grain ever leaving it.
       final u = math.pow(_h(i, 52), 0.8).toDouble();
-      final y0 = surface + depth * (0.06 + 0.9 * u);
+      final y0 = surface + depth * (0.04 + 0.94 * u);
       final ph = _h(i, 50) * math.pi * 2 + time * (0.25 + 0.35 * _h(i, 51));
-      final y = (y0 + math.cos(ph) * depth * 0.05).clamp(surface, bottom);
-      final x = c.dx + g.chord(y) * 0.94 * math.sin(ph);
-      final hot = (time * 0.35 + _h(i, 53) * 5) % 1.0 < 0.05;
-      final tone = hot
-          ? 4
-          : (y - surface < r * 0.07 ? 3 : (u > 0.9 ? 0 : (u > 0.55 ? 1 : 2)));
-      b.add(tone, x, y);
+      final y = (y0 + math.cos(ph) * depth * 0.05).clamp(
+        surface + dot * 0.6,
+        bottom - dot * 0.5,
+      );
+      final reach = 0.35 + 0.65 * math.sqrt(_h(i, 54));
+      final x =
+          c.dx + math.max(0.0, g.chord(y) - dot * 0.6) * reach * math.sin(ph);
+      final d = (y - surface) / depth;
+      final glint = (time * 0.3 + _h(i, 53) * 7) % 1.0 < 0.012;
+      b.add(
+        glint
+            ? 4
+            : d < 0.14
+            ? 3
+            : d < 0.42
+            ? 2
+            : d < 0.72
+            ? 1
+            : 0,
+        x,
+        y,
+      );
     }
+    // Its surface, picked out in grains.
+    final sw = g.chord(surface) * 0.95;
+    final sn = (sw * 2 / (dot * 1.3)).round();
+    for (var i = 0; i < sn; i++) {
+      final x =
+          c.dx -
+          sw +
+          2 * sw * ((_h(i, 11) + time * 0.02 * (_h(i, 12) - 0.5)) % 1.0);
+      final glint = (time * 0.5 + _h(i, 14) * 9) % 1.0 < 0.03;
+      b.add(glint ? 4 : 5, x, wave(x) + _h(i, 13) * r * 0.012);
+    }
+    final deep = Color.lerp(ink, const Color(0xFF0A0710), 0.58)!;
+    final hot = Color.lerp(ink, Colors.white, 0.24)!;
+    final white = Color.lerp(ink, Colors.white, 0.78)!;
+    b.draw(canvas, 3, dot * 2.6, a(ink, 0.1));
+    b.draw(canvas, 0, dot, a(deep, 0.9));
+    b.draw(canvas, 1, dot, a(Color.lerp(ink, deep, 0.45)!, 1));
+    b.draw(canvas, 2, dot, a(ink, 0.95));
+    b.draw(canvas, 3, dot * 1.05, a(hot, 0.9));
+    b.draw(canvas, 5, dot * 1.1, a(hot, 1));
+    b.draw(canvas, 4, dot * 1.25, a(white, 1));
+    canvas.restore();
   }
-  // Essence falling into the neck.
+
+  // Essence trickling into the neck: a few grains at their own pace, each
+  // coming out of the dark above the mouth and going out on the surface,
+  // with a faint light round it so the trickle reads as light.
   if (motes > 0) {
-    final top = g.mouthY - r * 0.42;
-    for (var i = 0; i < 8; i++) {
-      final ph = (time * 0.5 + i / 8) % 1.0;
-      final x = c.dx + math.sin(time * 2 + i * 1.7) * g.neckHalf * 0.45;
-      final y = top + ph * (surface - top);
-      b.add(5, x, y);
+    b.clear();
+    final top = g.mouthY - r * 0.5;
+    const count = 5;
+    for (var i = 0; i < count; i++) {
+      final speed = 0.42 + 0.22 * _h(i, 60);
+      final ph = (time * speed + _h(i, 61)) % 1.0;
+      // Falling, so quicker as it goes.
+      final fall = ph * (0.55 + 0.45 * ph);
+      final y = top + fall * (surface - top);
+      final drift = (1 - fall) * (_h(i, 62) - 0.5) * g.neckHalf * 1.2;
+      final x =
+          c.dx + drift + math.sin(time * 1.7 + i * 2.3) * g.neckHalf * 0.12;
+      final k = ph < 0.18 ? ph / 0.18 : (ph > 0.9 ? (1 - ph) / 0.1 : 1.0);
+      b.add(6 + (k > 0.66 ? 2 : (k > 0.33 ? 1 : 0)), x, y);
+    }
+    final mote = Color.lerp(ink, Colors.white, 0.55)!;
+    for (var f = 0; f < 3; f++) {
+      final k = (f + 1) / 3 * motes;
+      b.draw(canvas, 6 + f, dot * 2.3, a(ink, 0.09 * k));
+      b.draw(canvas, 6 + f, dot, a(mote, 0.95 * k));
     }
   }
-  // Small, the grains are coarse and bright enough to read as liquid at a
-  // glance; large, as fine as the chamber's own.
-  final small = 1 - ((r - 20) / 80).clamp(0.0, 1.0);
-  final dot = 1.6 + 1.5 * small;
-  final deep = Color.lerp(ink, const Color(0xFF0A0710), 0.58)!;
-  final hot = Color.lerp(ink, Colors.white, 0.24)!;
-  final white = Color.lerp(ink, Colors.white, 0.78)!;
-  b.draw(canvas, 2, dot * 2.4, a(ink, 0.08 + 0.1 * small));
-  b.draw(canvas, 0, dot, a(deep, 0.95));
-  b.draw(canvas, 1, dot, a(Color.lerp(ink, deep, 0.45)!, 1));
-  b.draw(canvas, 2, dot, a(ink, 0.95));
-  b.draw(canvas, 3, dot * 1.1, a(hot, 0.95));
-  b.draw(canvas, 4, dot * 1.3, a(white, 1));
-  b.draw(
-    canvas,
-    5,
-    dot * (1.1 + 0.25 * small),
-    a(Color.lerp(ink, Colors.white, 0.5)!, motes),
-  );
 
   // The glass's face: its thickness at the edge, the far side's shade, the
   // light come round through it, the catchlight, the neck and its lip —

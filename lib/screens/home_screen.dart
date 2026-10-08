@@ -376,7 +376,8 @@ class _MainShellState extends State<MainShell> {
 // Wrapper that pulses the cosmic orb when the ship home-animation flag is pending.
 class _AnimatedCosmicOrb extends StatefulWidget {
   final VoidCallback? onPulse;
-  const _AnimatedCosmicOrb({this.onPulse});
+  final bool animate;
+  const _AnimatedCosmicOrb({this.onPulse, this.animate = true});
 
   @override
   State<_AnimatedCosmicOrb> createState() => _AnimatedCosmicOrbState();
@@ -472,7 +473,7 @@ class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
         final s = _scale?.value ?? 1.0;
         return Transform.scale(scale: s, child: child);
       },
-      child: const CosmicOrbWidget(),
+      child: CosmicOrbWidget(animate: widget.animate),
     );
   }
 }
@@ -2451,7 +2452,10 @@ class _HomeScreenState extends State<HomeScreen>
                                   mainAxisSize: MainAxisSize.min,
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    _AnimatedCosmicOrb(onPulse: _playHomeShake),
+                                    _AnimatedCosmicOrb(
+                                      onPulse: _playHomeShake,
+                                      animate: _animationsEnabled,
+                                    ),
                                     const SizedBox(height: 4),
                                     Column(
                                       mainAxisSize: MainAxisSize.min,
