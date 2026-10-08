@@ -242,8 +242,9 @@ class EssenceRimField {
     return _depth[math.min(i, _depth.length - 1)];
   }
 
-  // How thick the bank lies overall; 1.0 was the first cut, halved 2026-10-06.
-  static const double _bankScale = 0.5;
+  // How thick the bank lies overall: the first cut. It was halved on
+  // 2026-10-06 and put back the same day.
+  static const double _bankScale = 1.0;
 
   void _measureBank() {
     final w = _w, h = _h, p = _p;

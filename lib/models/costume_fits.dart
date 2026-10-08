@@ -61,7 +61,7 @@ const _placements = <FamilyCostume, Map<String, (double, double, double)>>{
     'HOR16': (0.46, 0.24, 0.2),
     'HOR17': (0.42, 0.25, 0.2),
     'LET01': (0.438, 0.295, 0.244),
-    'LET02': (0.438, 0.238, 0.234),
+    'LET02': (0.415, 0.283, 0.2),
     'LET03': (0.432, 0.285, 0.222),
     'LET04': (0.412, 0.281, 0.19),
     'LET05': (0.5, 0.292, 0.19),
@@ -223,9 +223,9 @@ const _placements = <FamilyCostume, Map<String, (double, double, double)>>{
 /// How a species' head is tipped in frame 0, in radians (negative: the
 /// near side up), for a costume that lies along it.
 const _tilts = <FamilyCostume, Map<String, double>>{
-  // Off to the side of the crown, beside its puff of cloud: it leans with
-  // the slope it sits on.
-  FamilyCostume.partyHat: {'LET04': -0.2},
+  // Off to the side of the crown, beside the droplet or puff of cloud on
+  // top: it leans with the slope it sits on.
+  FamilyCostume.partyHat: {'LET02': -0.2, 'LET04': -0.2},
   FamilyCostume.sunglasses: {
     'PIP06': -0.029,
     'PIP07': -0.059,
@@ -569,10 +569,10 @@ const _frameFits = <FamilyCostume, Map<String, List<(double, double, double)>>>{
       (0.437, 0.3, 0.0),
     ],
     'LET02': [
-      (0.438, 0.238, 0.0),
-      (0.437, 0.243, 0.0),
-      (0.437, 0.249, 0.0),
-      (0.437, 0.242, 0.0),
+      (0.415, 0.283, 0.0),
+      (0.414, 0.288, 0.0),
+      (0.414, 0.294, 0.0),
+      (0.414, 0.287, 0.0),
     ],
     'LET03': [
       (0.432, 0.285, 0.0),

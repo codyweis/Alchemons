@@ -65,7 +65,7 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
 
     // Intro animations
     _introCtrl = AnimationController(
-      duration: const Duration(milliseconds: 380),
+      duration: const Duration(milliseconds: 160),
       vsync: this,
     );
     _scaleAnimation = Tween<double>(

@@ -50,7 +50,7 @@ class ExtractionDialogState extends State<ExtractionDialog>
   void initState() {
     super.initState();
     _enterCtrl = AnimationController(
-      duration: const Duration(milliseconds: 380),
+      duration: const Duration(milliseconds: 160),
       vsync: this,
     );
     _slideAnim = Tween<double>(

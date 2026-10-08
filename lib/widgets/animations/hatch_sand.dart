@@ -174,7 +174,7 @@ class HatchSandField {
   }
 
   /// How deep the bank runs in from the edge, as a share of the short side.
-  static const double _bank = 0.13;
+  static const double _bank = 0.075;
 
   /// The scatter across the black, as a share of the bank's thickness.
   static const double _scatter = 0.035;
@@ -213,9 +213,9 @@ class HatchSandField {
     final e = _inFrom(x, y) / _span;
     final edge =
         _bank +
-        0.13 * (_fbm(x / 120, y / 120, 7) - 0.5) +
-        0.04 * (_fbm(x / 40, y / 40, 9) - 0.5);
-    final inside = 1 - _smoothstep(edge - 0.05, edge + 0.01, e);
+        0.08 * (_fbm(x / 120, y / 120, 7) - 0.5) +
+        0.025 * (_fbm(x / 40, y / 40, 9) - 0.5);
+    final inside = 1 - _smoothstep(edge - 0.03, edge + 0.008, e);
     final deep = 0.55 + 0.45 * (1 - (e / edge).clamp(0.0, 1.0));
     final grain = 0.6 + 0.6 * _fbm(x / 80, y / 80, 3);
     return math.min(1.0, inside * deep * grain + (1 - inside) * _scatter);

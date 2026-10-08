@@ -658,7 +658,7 @@ class CultivationFlight {
   final CultivationHandoff handoff;
 
   /// Seconds on the way, then seconds handing over to the stage.
-  static const double travel = 0.7, settle = 0.2;
+  static const double travel = 0.3, settle = 0.1;
 
   _CultivationSphereState? _to;
   OverlayEntry? _entry;
