@@ -8,7 +8,6 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
@@ -28,7 +27,7 @@ import 'package:flutter_test/flutter_test.dart';
 // VOLCANO_OUT is a directory; one PNG per frame. VOLCANO_SIZE=751x475 picks
 // the screen (logical px), VOLCANO_SCALE the render scale, VOLCANO_HOURS the
 // hours of the day sheet. VOLCANO_ENCOUNTERS=1 adds the encounters (slower),
-// VOLCANO_BEFORE=1 the old picture volcano, VOLCANO_ONLY=day,loop,… a subset,
+// VOLCANO_ONLY=day,loop,… a subset,
 // VOLCANO_STAGE=0|1|2 the cone still, smoking or erupting for every frame
 // (the stages set shows all three anyway, and an eruption through a surge).
 void main() {
@@ -293,10 +292,6 @@ void main() {
               partner: 'LET01',
             ),
           ),
-      if (Platform.environment['VOLCANO_BEFORE'] == '1') ...[
-        ('before', await shoot(_imageVolcano, t: 1.5)),
-        ('before_right', await shoot(_imageVolcano, t: 1.5, pan: 700)),
-      ],
     ];
 
     await tester.runAsync(() async {
@@ -345,72 +340,3 @@ void main() {
     });
   });
 }
-
-/// The Volcano as it was: four parallax pictures and five spawns.
-final _imageVolcano = SceneDefinition(
-  worldWidth: 1500,
-  worldHeight: 850,
-  layers: const [
-    LayerDefinition(
-      id: SceneLayer.layer1,
-      imagePath: 'backgrounds/scenes/volcano/background.png',
-      parallaxFactor: 0.0,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer2,
-      imagePath: 'backgrounds/scenes/volcano/volcano.png',
-      parallaxFactor: 0.1,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer3,
-      imagePath: 'backgrounds/scenes/volcano/midground.png',
-      parallaxFactor: 0.4,
-      widthMul: 1.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer4,
-      imagePath: 'backgrounds/scenes/volcano/foreground.png',
-      parallaxFactor: 0.7,
-      widthMul: 1.0,
-    ),
-  ],
-  spawnPoints: [
-    SpawnPoint(
-      id: 'SP_volcano_01',
-      normalizedPos: const Offset(0.24, 0.72),
-      anchor: SceneLayer.layer4,
-      size: Vector2(80, 80),
-      battlePos: const Offset(0.54, 0.72),
-    ),
-    SpawnPoint(
-      id: 'SP_volcano_02',
-      normalizedPos: const Offset(0.60, 0.78),
-      anchor: SceneLayer.layer4,
-      size: Vector2(80, 80),
-      battlePos: const Offset(0.34, 0.78),
-    ),
-    SpawnPoint(
-      id: 'SP_volcano_04',
-      normalizedPos: const Offset(0.85, 0.74),
-      anchor: SceneLayer.layer4,
-      size: Vector2(75, 75),
-      battlePos: const Offset(0.55, 0.74),
-    ),
-    SpawnPoint(
-      id: 'SP_volcano_05',
-      normalizedPos: const Offset(0.38, 0.65),
-      anchor: SceneLayer.layer3,
-      size: Vector2(70, 70),
-      battlePos: const Offset(0.62, 0.65),
-    ),
-    SpawnPoint(
-      id: 'SP_volcano_03',
-      normalizedPos: const Offset(0.72, 0.58),
-      anchor: SceneLayer.layer3,
-      size: Vector2(72, 72),
-      battlePos: const Offset(0.44, 0.58),
-    ),
-  ],
-);

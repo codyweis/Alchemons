@@ -251,10 +251,12 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
     }
   }
 
-  Future<Image> _loadFallbackImage() async {
-    // Fallback logic: load a default image or handle the error gracefully
-    // For now, just load a placeholder image
-    return await game.images.load('backgrounds/scenes/swamp/sky.png');
+  // A sheet that fails to load leaves the creature blank rather than
+  // standing in some other picture.
+  Future<Image> _loadFallbackImage() {
+    final recorder = PictureRecorder();
+    Canvas(recorder);
+    return recorder.endRecording().toImage(1, 1);
   }
 
   AlchemyEffectComponent? _buildEffectComponent(String effect) {

@@ -28,7 +28,7 @@ import 'package:flutter_test/flutter_test.dart';
 // SWAMP_OUT is a directory; one PNG per frame. SWAMP_SIZE=751x475 picks the
 // screen (logical px), SWAMP_SCALE the render scale, SWAMP_HOURS the hours
 // of the day sheet. SWAMP_ENCOUNTERS=1 adds the encounters (slower),
-// SWAMP_BEFORE=1 the old picture swamp, SWAMP_ONLY=day,loop,… a subset,
+// SWAMP_ONLY=day,loop,… a subset,
 // SWAMP_DRY=1 the Swamp gone dry.
 void main() {
   final out = Platform.environment['SWAMP_OUT'];
@@ -267,8 +267,6 @@ void main() {
                 partner: 'LET08',
               ),
             ),
-      if (Platform.environment['SWAMP_BEFORE'] == '1')
-        ('before', await shoot(_imageSwamp, t: 1.5)),
     ];
 
     await tester.runAsync(() async {
@@ -314,36 +312,3 @@ void main() {
     });
   });
 }
-
-/// The Swamp as it was: five parallax pictures.
-final _imageSwamp = SceneDefinition(
-  worldWidth: 1000,
-  worldHeight: 1500,
-  layers: const [
-    LayerDefinition(
-      id: SceneLayer.layer1,
-      imagePath: 'backgrounds/scenes/swamp/sky.png',
-      parallaxFactor: 0.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer2,
-      imagePath: 'backgrounds/scenes/swamp/background.png',
-      parallaxFactor: 0.1,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer3,
-      imagePath: 'backgrounds/scenes/swamp/backtrees.png',
-      parallaxFactor: 0.2,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer4,
-      imagePath: 'backgrounds/scenes/swamp/fronttrees.png',
-      parallaxFactor: 0.5,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer5,
-      imagePath: 'backgrounds/scenes/swamp/foreground.png',
-      parallaxFactor: 1,
-    ),
-  ],
-);

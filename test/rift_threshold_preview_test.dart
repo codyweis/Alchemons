@@ -179,25 +179,17 @@ void main() {
       return (await codec.getNextFrame()).image;
     }
 
+    // Only the Valley still has pictures; the other fields are drawn in
+    // code, so their rifts open over black.
     const scenes = [
       ('valley', ['sky', 'backhills', 'hills'], RiftFaction.earthen),
-      ('volcano', ['background', 'volcano'], RiftFaction.volcanic),
-      ('sky', null, RiftFaction.verdant),
-      ('swamp', null, RiftFaction.oceanic),
-      ('arcane', null, RiftFaction.arcane),
+      ('volcano', <String>[], RiftFaction.volcanic),
+      ('sky', <String>[], RiftFaction.verdant),
+      ('swamp', <String>[], RiftFaction.oceanic),
+      ('arcane', <String>[], RiftFaction.arcane),
     ];
-    for (final (scene, layers, faction) in scenes) {
+    for (final (scene, names, faction) in scenes) {
       final dir = 'assets/images/backgrounds/scenes/$scene';
-      final names =
-          layers ??
-          (Directory(
-                  dir,
-                ).listSync().whereType<File>().map((f) => f.path).toList()
-                ..sort())
-              .map((p) => p.split('/').last.replaceAll('.png', ''))
-              .where((n) => !n.contains('fore'))
-              .take(3)
-              .toList();
       final images = <ui.Image>[];
       await tester.runAsync(() async {
         for (final n in names) {

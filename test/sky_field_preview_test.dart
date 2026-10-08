@@ -28,8 +28,7 @@ import 'package:flutter_test/flutter_test.dart';
 //
 // SKY_OUT is a directory; one PNG per frame. SKY_SIZE=751x475 picks the
 // screen (logical px), SKY_SCALE the render scale, SKY_HOURS the hours of
-// the day sheet. SKY_ENCOUNTERS=1 adds the encounters (slower), SKY_BEFORE=1
-// the old picture sky.
+// the day sheet. SKY_ENCOUNTERS=1 adds the encounters (slower).
 void main() {
   final out = Platform.environment['SKY_OUT'];
 
@@ -336,8 +335,6 @@ void main() {
         ('storm_flicker', await shoot(skyScene, t: 2.0, strike: false)),
         ('storm_calm', await shoot(skyScene, t: 1.0, strike: false)),
       ],
-      if (Platform.environment['SKY_BEFORE'] == '1')
-        ('before', await shoot(_imageSky, t: 1.5)),
     ];
 
     await tester.runAsync(() async {
@@ -379,26 +376,3 @@ void main() {
     });
   });
 }
-
-/// The Sky as it was: three parallax pictures.
-final _imageSky = SceneDefinition(
-  worldWidth: 1600,
-  worldHeight: 850,
-  layers: const [
-    LayerDefinition(
-      id: SceneLayer.layer1,
-      imagePath: 'backgrounds/scenes/sky/sky.png',
-      parallaxFactor: 0.0,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer2,
-      imagePath: 'backgrounds/scenes/sky/midground.png',
-      parallaxFactor: 0.1,
-    ),
-    LayerDefinition(
-      id: SceneLayer.layer3,
-      imagePath: 'backgrounds/scenes/sky/foreground.png',
-      parallaxFactor: 0.7,
-    ),
-  ],
-);

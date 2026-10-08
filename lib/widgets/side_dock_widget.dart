@@ -183,16 +183,6 @@ class SideDockFloating extends StatelessWidget {
             showDot: showHarvestDot,
           ),
         ),
-        // lockWrap(
-        //   locked: lockNonField,
-        //   child: _FloatingSideButton(
-        //     theme: theme,
-        //     size: 80,
-        //     label: 'Competitions',
-        //     assetPath: 'assets/images/ui/competeicon.png',
-        //     onTap: context.soundAction(onCompetitions),
-        //   ),
-        // ),
       ],
     );
   }

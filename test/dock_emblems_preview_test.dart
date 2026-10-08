@@ -9,8 +9,7 @@ import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// The dock as it stands — Field and Survival's painted icons, then the
-// Enhance and Harvest scenes — on the home screen's blue and on the dark,
+// The dock as it stands — the Field, Survival, Enhance and Harvest scenes — on the home screen's blue and on the dark,
 // plus the two scenes big at two moments.
 //
 //   DOCK_OUT=/tmp/dock.png flutter test \
@@ -21,15 +20,7 @@ void main() {
   testWidgets('dock emblem sheet', (tester) async {
     if (out == null) return;
     late SpecimenGrains creature;
-    final pngs = <ui.Image>[];
     await tester.runAsync(() async {
-      for (final name in ['fieldicon', 'trialsicon']) {
-        final codec = await ui.instantiateImageCodec(
-          File('assets/images/ui/$name.png').readAsBytesSync(),
-          targetWidth: 280,
-        );
-        pngs.add((await codec.getNextFrame()).image);
-      }
       final codec = await ui.instantiateImageCodec(
         File(DockEmblem.enhanceCreature).readAsBytesSync(),
         targetWidth: 96,
@@ -67,12 +58,6 @@ void main() {
         Paint()..color = grounds[g],
       );
     }
-    void png(ui.Image img, Offset at) => c.drawImageRect(
-      img,
-      Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
-      Rect.fromLTWH(at.dx, at.dy, dock, dock),
-      Paint()..filterQuality = FilterQuality.medium,
-    );
     void scene(DockEmblemKind k, Offset at, double t, bool dark) {
       c.save();
       c.translate(at.dx, at.dy);

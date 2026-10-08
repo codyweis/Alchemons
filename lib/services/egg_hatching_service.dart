@@ -5,7 +5,6 @@ import 'dart:math';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/utils/cultivation_time.dart';
-import 'package:alchemons/constants/egg.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/home_keepsakes.dart' show kEffigyBredCount;
@@ -14,7 +13,6 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/stat_system.dart';
-import 'package:alchemons/screens/breed/utils/breed_utils.dart';
 import 'package:alchemons/screens/progress_overview_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
@@ -688,8 +686,6 @@ class EggHatching {
     final instance = await db.creatureDao.getInstance(instanceId);
     final creature = repo.getCreatureById(instance?.baseId ?? '');
 
-    final elementName = offspring.types.first;
-    final palette = paletteForElement(elementName);
 
     Map<String, dynamic>? parentPayload;
     final parentageJson = instance?.parentageJson;
@@ -803,18 +799,9 @@ class EggHatching {
         quality: cinematicQuality,
       );
     } catch (e) {
-      // The alchemy cinematic never got far enough to drop the curtain, and
-      // the Lottie fallback must not play behind it.
+      // The alchemy cinematic never got far enough to drop the curtain; lift
+      // it and go straight to the result.
       HatchCurtain.lower();
-      if (!context.mounted) return;
-      final factionSvc = context.read<FactionService>();
-      final faction = factionSvc.current;
-      await playHatchCinematic(
-        context,
-        'assets/animations/egg_hatch.json',
-        palette,
-        faction,
-      );
     }
 
     if (!nav.mounted) return;
