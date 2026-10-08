@@ -114,6 +114,44 @@ void main() {
     await h.dispose();
   });
 
+  // A card chosen: its creature runs out of it as grains and settles onto
+  // the stage while the chamber rises round it (arrive_*.png).
+  testWidgets('stage arrival', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    final h = await EnhanceHarness.pump(tester);
+    Future<void> shoot(String name) async {
+      await tester.runAsync(() async {
+        final boundary =
+            EnhanceHarness.shotKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        File(
+          '$out/arrive_$name.png',
+        ).writeAsBytesSync(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+    }
+
+    var n = 0;
+    String tag(String s) => '${(n++).toString().padLeft(2, '0')}_$s';
+    await shoot(tag('picker'));
+    // A card low on the screen, so the current has somewhere to go.
+    final pick = Platform.environment['ARRIVE_CARD'] ?? '4';
+    await tester.tap(
+      find.byType(InstanceSprite).hitTestable().at(int.parse(pick)),
+      warnIfMissed: false,
+    );
+    for (var i = 0; i < 26; i++) {
+      await h.settle(2);
+      await shoot(tag('t'));
+    }
+    await h.settle(20);
+    await shoot(tag('settled'));
+    await h.dispose();
+  });
+
   testWidgets('enhance preview', (tester) async {
     if (out == null) return;
     Directory(out).createSync(recursive: true);

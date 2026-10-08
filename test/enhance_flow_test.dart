@@ -1,5 +1,6 @@
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/stage_arrival.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -74,6 +75,32 @@ void main() {
     expect(find.text('XP'), findsOneWidget);
     expect(find.textContaining('ORBS'), findsNothing);
     expect(find.textContaining('SOULS'), findsNothing);
+    await h.dispose();
+  });
+
+  testWidgets('a chosen card\'s creature is carried onto the stage as '
+      'grains, and the chamber is there once it lands', (tester) async {
+    final audio = _RecordingAudio();
+    final h = await EnhanceHarness.pump(tester, audio: audio);
+    // Below the sprite, on the card's name and stats: the card is still
+    // found, and its sprite read.
+    await tester.tap(find.text('Firehorn').first, warnIfMissed: false);
+    final flight = find.byWidgetPredicate(
+      (w) => w is CustomPaint && w.painter is StageArrivalPainter,
+    );
+    var flew = false;
+    for (var i = 0; i < 20 && !flew; i++) {
+      await h.settle(1);
+      flew = flight.evaluate().isNotEmpty;
+    }
+    expect(flew, isTrue, reason: 'the card was read into grains');
+    expect(audio.sounds, contains(SoundCue.creatureSummon));
+    // The chamber cannot be touched mid-flight.
+    expect(find.textContaining('CHOOSE AN ALCHEMON'), findsOneWidget);
+    await h.settle(60);
+    expect(flight, findsNothing);
+    expect(find.textContaining('CHOOSE AN ALCHEMON'), findsNothing);
+    expect(find.textContaining('FIREHORN'), findsOneWidget);
     await h.dispose();
   });
 

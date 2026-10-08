@@ -13,6 +13,10 @@
 //   above its head and plunges. Whatever it is, the readouts below show what
 //   it will do before you commit, and count it up after.
 //
+//   Choosing it is a passage too: the card's creature runs out of its card
+//   as grains and settles onto the stage, while the picker goes and the
+//   chamber rises round it (widgets/fx/stage_arrival.dart).
+//
 // This replaced a two-door entry (a three-step sacrifice wizard and a
 // separate Stat Infusion screen), each with its own picker.
 
@@ -46,11 +50,14 @@ import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:alchemons/widgets/fx/infusion_particles.dart';
 import 'package:alchemons/widgets/fx/kin_pour.dart';
 import 'package:alchemons/widgets/fx/power_orb.dart';
+import 'package:alchemons/widgets/fx/stage_arrival.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/gestures.dart' show HitTestResult;
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
+import 'package:flutter/rendering.dart'
+    show RenderRepaintBoundary, RenderSliverMultiBoxAdaptor;
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
@@ -175,6 +182,32 @@ class _FeedingScreenState extends State<FeedingScreen>
   final TextEditingController _search = TextEditingController();
   String _query = '';
 
+  // ── the way in, from the picker ──
+  /// 0 → 1 as a chosen Alchemon is carried onto the stage; 1 when settled
+  /// (and from the start when the screen opens straight onto one).
+  late final AnimationController _arrival;
+
+  /// Back to the picker: it comes up again rather than snapping in.
+  late final AnimationController _pickerIn;
+  StageArrival? _flight;
+  int _arrivalToken = 0;
+
+  /// The picker stays up, fading, while its card's creature leaves it.
+  bool _pickerLeaving = false;
+
+  /// The chamber holds still until the creature has nearly settled.
+  bool _arriving = false;
+
+  /// Where the last touch on the picker came down: the card it chose.
+  Offset? _lastDown;
+
+  /// The picker's Alchemons, so the chamber lays out on its first frame
+  /// and the grains know where to go.
+  List<CreatureInstance>? _lastAll;
+
+  /// The whole screen, the canvas the grains are painted on.
+  final GlobalKey _screenKey = GlobalKey();
+
   final GlobalKey _chamberKey = GlobalKey();
 
   /// The stage the sprite stands in; the infusion paints in its frame.
@@ -198,6 +231,16 @@ class _FeedingScreenState extends State<FeedingScreen>
     _soulSwapController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 620),
+    );
+    _arrival = AnimationController(
+      vsync: this,
+      value: 1,
+      duration: const Duration(milliseconds: 1600),
+    )..addListener(_onArrivalTick);
+    _pickerIn = AnimationController(
+      vsync: this,
+      value: 1,
+      duration: const Duration(milliseconds: 300),
     );
     unawaited(_refreshDiscovery());
     final revealed = widget.revealed;
@@ -231,6 +274,8 @@ class _FeedingScreenState extends State<FeedingScreen>
     _pourController.dispose();
     _xpController.dispose();
     _soulSwapController.dispose();
+    _arrival.dispose();
+    _pickerIn.dispose();
     _search.dispose();
     super.dispose();
   }
@@ -275,7 +320,13 @@ class _FeedingScreenState extends State<FeedingScreen>
   // ───────────────────────────── navigation ─────────────────────────────
 
   void _choose(CreatureInstance inst) {
+    if (_instanceId != null) return;
     HapticFeedback.selectionClick();
+    // The search's keyboard goes down with the picker.
+    FocusManager.instance.primaryFocus?.unfocus();
+    // Read before anything moves: the card the touch came down on.
+    final down = _lastDown;
+    final card = down == null ? null : _cardSpriteAt(down);
     setState(() {
       _instanceId = inst.instanceId;
       _tray = _Tray.kin;
@@ -284,7 +335,13 @@ class _FeedingScreenState extends State<FeedingScreen>
       _message = null;
       _soulStat = null;
       _soulArmed = false;
+      _pickerLeaving = true;
+      _arriving = true;
+      _flight = null;
     });
+    _pickerIn.value = 1;
+    _arrival.value = 0;
+    unawaited(_carryToStage(card));
   }
 
   void _back() {
@@ -294,14 +351,198 @@ class _FeedingScreenState extends State<FeedingScreen>
       Navigator.of(context).maybePop();
       return;
     }
+    _arrivalToken++;
+    _arrival.value = 1;
     setState(() {
       _instanceId = null;
       _kin.clear();
       _preview = null;
       _message = null;
       _dragHintVisible = false;
+      _flight = null;
+      _pickerLeaving = false;
+      _arriving = false;
+    });
+    _pickerIn.forward(from: 0);
+  }
+
+  // ───────────────────────────── the way in ─────────────────────────────
+
+  /// The picker is gone by a fifth of the way; the chamber can be touched
+  /// once the creature has nearly settled.
+  void _onArrivalTick() {
+    final t = _arrival.value;
+    // The grains land where the stage is now, not where it was.
+    final flight = _flight;
+    if (flight != null && t < 1) {
+      final body = _bodyKey.currentContext?.findRenderObject();
+      final screen = _screenKey.currentContext?.findRenderObject();
+      if (body is RenderBox &&
+          body.attached &&
+          body.hasSize &&
+          screen is RenderBox) {
+        flight.to =
+            screen.globalToLocal(body.localToGlobal(Offset.zero)) & body.size;
+      }
+    }
+    if ((_pickerLeaving && t > 0.22) || (_arriving && t > 0.82)) {
+      setState(() {
+        if (t > 0.22) _pickerLeaving = false;
+        if (t > 0.82) _arriving = false;
+      });
+    }
+  }
+
+  /// The card's creature, read into grains at its size on the stage, and
+  /// carried there; or, when the card could not be read, the chamber simply
+  /// rises with the creature fading in on it.
+  Future<void> _carryToStage(RenderRepaintBoundary? card) async {
+    final token = ++_arrivalToken;
+    final screen = _screenKey.currentContext?.findRenderObject();
+    Future<ui.Image>? shot;
+    var ratio = 1.0;
+    Offset? from;
+    if (card != null && card.attached && screen is RenderBox) {
+      // Fine enough to stand at the stage's size, not just the card's.
+      ratio = (230 / card.size.width * 1.4).clamp(
+        MediaQuery.devicePixelRatioOf(context),
+        6.0,
+      );
+      from = screen.globalToLocal(
+        card.localToGlobal(card.size.center(Offset.zero)),
+      );
+      try {
+        // The scene is taken now; only the pixels come later.
+        shot = card.toImage(pixelRatio: ratio);
+      } catch (_) {
+        shot = null;
+      }
+    }
+    final cardSize = card?.size.width ?? 1;
+
+    // Where it will stand: the chamber lays out on the next frame or so.
+    RenderBox? body;
+    for (var i = 0; i < 12 && mounted && token == _arrivalToken; i++) {
+      final ro = _bodyKey.currentContext?.findRenderObject();
+      if (ro is RenderBox && ro.attached && ro.hasSize) {
+        body = ro;
+        break;
+      }
+      await WidgetsBinding.instance.endOfFrame;
+    }
+
+    StageArrival? flight;
+    if (shot != null && from != null && body != null && screen is RenderBox) {
+      try {
+        final image = await shot;
+        try {
+          final data = await image.toByteData(
+            format: ui.ImageByteFormat.rawStraightRgba,
+          );
+          if (data != null && body.attached && screen.attached) {
+            final scale = body.size.width / cardSize;
+            // Read at the stage's size: the card's pixels, spaced as the
+            // stage sprite's are.
+            final grains = SpecimenGrains.fromRgba(
+              data.buffer.asUint8List(),
+              image.width,
+              image.height,
+              pixelRatio: ratio / scale,
+              maxGrains: 2600,
+              tones: 14,
+            );
+            if (grains.length >= 60) {
+              flight = StageArrival(
+                grains: grains,
+                from: from,
+                to:
+                    screen.globalToLocal(body.localToGlobal(Offset.zero)) &
+                    body.size,
+                scale: scale,
+              );
+            }
+          }
+        } finally {
+          image.dispose();
+        }
+      } catch (_) {
+        flight = null;
+      }
+    }
+    if (!mounted || token != _arrivalToken) return;
+    setState(() => _flight = flight);
+    if (flight != null) {
+      // Grains gathering, landing feet first: the summon's own sound.
+      context.sound(SoundCue.creatureSummon, owner: this, speed: 0.85);
+    }
+    await _arrival.forward(from: 0);
+    if (!mounted || token != _arrivalToken) return;
+    setState(() {
+      _flight = null;
+      _pickerLeaving = false;
+      _arriving = false;
     });
   }
+
+  /// The sprite of the card under [global]: the grid tile hit there, and
+  /// in it the first square repaint boundary smaller than the tile — the
+  /// box the card stands its sprite in. Null when that was not a card.
+  RenderRepaintBoundary? _cardSpriteAt(Offset global) {
+    final result = HitTestResult();
+    WidgetsBinding.instance.hitTestInView(
+      result,
+      global,
+      View.of(context).viewId,
+    );
+    RenderBox? tile;
+    for (final entry in result.path) {
+      final target = entry.target;
+      if (target is! RenderObject) continue;
+      RenderObject? node = target;
+      while (node != null && node.parent is! RenderSliverMultiBoxAdaptor) {
+        node = node.parent;
+      }
+      if (node is RenderBox && node.hasSize) tile = node;
+      break;
+    }
+    if (tile == null) return null;
+    final limit = tile.size;
+    RenderRepaintBoundary? found;
+    void visit(RenderObject o) {
+      if (found != null) return;
+      if (o is RenderRepaintBoundary && o.hasSize) {
+        final s = o.size;
+        if ((s.width - s.height).abs() < 0.5 &&
+            s.width < limit.width - 4 &&
+            s.height < limit.height - 4) {
+          found = o;
+          return;
+        }
+      }
+      o.visitChildren(visit);
+    }
+
+    tile.visitChildren(visit);
+    return found;
+  }
+
+  /// Part of the chamber rising into place as the creature arrives: hidden
+  /// until [start], in place by [end].
+  Widget _rise(double start, double end, Widget child) => AnimatedBuilder(
+    animation: _arrival,
+    child: child,
+    builder: (context, child) {
+      final u = ((_arrival.value - start) / (end - start)).clamp(0.0, 1.0);
+      final e = Curves.easeOutCubic.transform(u);
+      return Opacity(
+        opacity: e,
+        child: Transform.translate(
+          offset: Offset(0, 16 * (1 - e)),
+          child: child,
+        ),
+      );
+    },
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -320,6 +561,7 @@ class _FeedingScreenState extends State<FeedingScreen>
             child: Scaffold(
               backgroundColor: _kPalette.bg0,
               body: Stack(
+                key: _screenKey,
                 children: [
                   Positioned.fill(
                     child: DecoratedBox(
@@ -333,10 +575,70 @@ class _FeedingScreenState extends State<FeedingScreen>
                     ),
                   ),
                   SafeArea(
-                    child: _instanceId == null
-                        ? _buildPicker(theme)
-                        : _buildChamber(theme),
+                    // Keyed, so the picker keeps its place while it fades
+                    // out over the chamber coming in under it.
+                    child: Stack(
+                      children: [
+                        if (_instanceId != null)
+                          KeyedSubtree(
+                            key: const ValueKey('chamber'),
+                            child: IgnorePointer(
+                              ignoring: _arriving,
+                              child: _buildChamber(theme),
+                            ),
+                          ),
+                        if (_instanceId == null || _pickerLeaving)
+                          KeyedSubtree(
+                            key: const ValueKey('picker'),
+                            child: IgnorePointer(
+                              ignoring: _instanceId != null,
+                              child: AnimatedBuilder(
+                                animation: Listenable.merge([
+                                  _arrival,
+                                  _pickerIn,
+                                ]),
+                                child: _buildPicker(theme),
+                                builder: (context, child) {
+                                  final going = _instanceId != null
+                                      ? Curves.easeOut.transform(
+                                          (_arrival.value / 0.2).clamp(0, 1),
+                                        )
+                                      : 0.0;
+                                  final coming = Curves.easeOutCubic.transform(
+                                    _pickerIn.value,
+                                  );
+                                  return Opacity(
+                                    opacity: (1 - going) * coming,
+                                    child: Transform.translate(
+                                      offset: Offset(
+                                        0,
+                                        8 * going + 12 * (1 - coming),
+                                      ),
+                                      child: child,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
+                  if (_flight != null)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: AnimatedBuilder(
+                          animation: _arrival,
+                          builder: (context, _) => CustomPaint(
+                            painter: StageArrivalPainter(
+                              arrival: _flight!,
+                              t: _arrival.value,
+                              light: _kAccent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -361,39 +663,46 @@ class _FeedingScreenState extends State<FeedingScreen>
           ),
         ),
         Expanded(
-          child: StreamBuilder<List<CreatureInstance>>(
-            stream: db.creatureDao.watchAllInstances(),
-            builder: (context, snap) {
-              final all = snap.data;
-              if (all != null) _signalReady();
-              if (all != null && all.isEmpty) {
-                return const _QuietNote('No Alchemons yet.');
-              }
-              // Spare kin per species: the number that decides who is worth
-              // opening, shown on each card.
-              final spare = <String, int>{};
-              for (final inst in all ?? const <CreatureInstance>[]) {
-                if (inst.locked) continue;
-                spare.update(inst.baseId, (n) => n + 1, ifAbsent: () => 1);
-              }
-              return AllCreatureInstances(
-                theme: theme,
-                prefsScopeKey: 'enhance_select',
-                searchTextOverride: _query,
-                showInternalSearchBar: false,
-                allowEnhancementMode: true,
-                initialDetailMode: _orbsSeen
-                    ? InstanceDetailMode.enhancement
-                    : InstanceDetailMode.stats,
-                selectedInstanceIds: const [],
-                cardBadgeBuilder: (inst, species) {
-                  if (inst.level >= AlchemonStatSystem.maxLevel) return null;
-                  final n = (spare[inst.baseId] ?? 0) - (inst.locked ? 0 : 1);
-                  return n > 0 ? _KinBadge(count: n) : null;
-                },
-                onTap: _choose,
-              );
-            },
+          // Where a touch comes down, so a chosen card can be found again.
+          child: Listener(
+            onPointerDown: (e) => _lastDown = e.position,
+            child: StreamBuilder<List<CreatureInstance>>(
+              stream: db.creatureDao.watchAllInstances(),
+              builder: (context, snap) {
+                final all = snap.data;
+                if (all != null) {
+                  _lastAll = all;
+                  _signalReady();
+                }
+                if (all != null && all.isEmpty) {
+                  return const _QuietNote('No Alchemons yet.');
+                }
+                // Spare kin per species: the number that decides who is worth
+                // opening, shown on each card.
+                final spare = <String, int>{};
+                for (final inst in all ?? const <CreatureInstance>[]) {
+                  if (inst.locked) continue;
+                  spare.update(inst.baseId, (n) => n + 1, ifAbsent: () => 1);
+                }
+                return AllCreatureInstances(
+                  theme: theme,
+                  prefsScopeKey: 'enhance_select',
+                  searchTextOverride: _query,
+                  showInternalSearchBar: false,
+                  allowEnhancementMode: true,
+                  initialDetailMode: _orbsSeen
+                      ? InstanceDetailMode.enhancement
+                      : InstanceDetailMode.stats,
+                  selectedInstanceIds: const [],
+                  cardBadgeBuilder: (inst, species) {
+                    if (inst.level >= AlchemonStatSystem.maxLevel) return null;
+                    final n = (spare[inst.baseId] ?? 0) - (inst.locked ? 0 : 1);
+                    return n > 0 ? _KinBadge(count: n) : null;
+                  },
+                  onTap: _choose,
+                );
+              },
+            ),
           ),
         ),
       ],
@@ -406,6 +715,8 @@ class _FeedingScreenState extends State<FeedingScreen>
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
     return StreamBuilder<List<CreatureInstance>>(
+      // The picker's list, so a chosen Alchemon stands on the first frame.
+      initialData: _lastAll,
       stream: db.creatureDao.watchAllInstances(),
       builder: (context, snap) {
         final all = snap.data;
@@ -521,38 +832,53 @@ class _FeedingScreenState extends State<FeedingScreen>
       children: [
         Column(
           children: [
-            _EnhanceHeader(
-              subtitle: '${creature.name} · ${creature.rarity}'.toUpperCase(),
-              onBack: _back,
-              silver: silver,
+            // Coming in from the picker, the chamber rises round the
+            // creature in order: its name, then its level, its stats, the
+            // tray.
+            _rise(
+              0.08,
+              0.4,
+              _EnhanceHeader(
+                subtitle: '${creature.name} · ${creature.rarity}'.toUpperCase(),
+                onBack: _back,
+                silver: silver,
+              ),
             ),
             Expanded(child: _buildStage(creature, inst, inventory, silver)),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-              child: AnimatedBuilder(
-                animation: _xpController,
-                builder: (context, _) => _LevelLine(
-                  coord: _displayCoord(inst, rarity),
-                  rarity: rarity,
-                  preview: _preview,
-                  xpBoost: context
-                      .read<ConstellationEffectsService>()
-                      .getXpBoostMultiplier(),
+            _rise(
+              0.4,
+              0.72,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                child: AnimatedBuilder(
+                  animation: _xpController,
+                  builder: (context, _) => _LevelLine(
+                    coord: _displayCoord(inst, rarity),
+                    rarity: rarity,
+                    preview: _preview,
+                    xpBoost: context
+                        .read<ConstellationEffectsService>()
+                        .getXpBoostMultiplier(),
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 10),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              // Rebuilt with the level line while it counts, so the stats
-              // step up with each level it passes.
-              child: AnimatedBuilder(
-                animation: _xpController,
-                builder: (context, _) => _StatGrid(
-                  cells: [
-                    for (final type in AlchemicalPowerupType.values)
-                      _statCell(inst, type, previewLevel),
-                  ],
+            _rise(
+              0.46,
+              0.78,
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                // Rebuilt with the level line while it counts, so the stats
+                // step up with each level it passes.
+                child: AnimatedBuilder(
+                  animation: _xpController,
+                  builder: (context, _) => _StatGrid(
+                    cells: [
+                      for (final type in AlchemicalPowerupType.values)
+                        _statCell(inst, type, previewLevel),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -572,26 +898,35 @@ class _FeedingScreenState extends State<FeedingScreen>
                 ),
               ),
             const SizedBox(height: 12),
-            _TrayPanel(
-              trays: trays,
-              selected: tray,
-              counts: {
-                _Tray.kin: kin.length,
-                _Tray.orbs: orbQty,
-                _Tray.souls: soulQty,
-              },
-              onSelect: (t) {
-                if (_busy) return;
-                setState(() {
-                  _tray = t;
-                  _message = null;
-                });
-              },
-              child: switch (tray) {
-                _Tray.kin => _buildKinPage(creature, inst, kin, lockedKin),
-                _Tray.orbs => _buildOrbPage(creature, inst, inventory, silver),
-                _Tray.souls => _buildSoulPage(inst, soulQty, silver),
-              },
+            _rise(
+              0.52,
+              0.86,
+              _TrayPanel(
+                trays: trays,
+                selected: tray,
+                counts: {
+                  _Tray.kin: kin.length,
+                  _Tray.orbs: orbQty,
+                  _Tray.souls: soulQty,
+                },
+                onSelect: (t) {
+                  if (_busy) return;
+                  setState(() {
+                    _tray = t;
+                    _message = null;
+                  });
+                },
+                child: switch (tray) {
+                  _Tray.kin => _buildKinPage(creature, inst, kin, lockedKin),
+                  _Tray.orbs => _buildOrbPage(
+                    creature,
+                    inst,
+                    inventory,
+                    silver,
+                  ),
+                  _Tray.souls => _buildSoulPage(inst, soulQty, silver),
+                },
+              ),
             ),
             const SizedBox(height: 12),
           ],
@@ -700,10 +1035,17 @@ class _FeedingScreenState extends State<FeedingScreen>
                     child: TweenAnimationBuilder<Color?>(
                       tween: ColorTween(end: floorColor),
                       duration: const Duration(milliseconds: 220),
-                      builder: (context, c, _) => CustomPaint(
-                        painter: _FloorLightPainter(
-                          color: c ?? floorColor,
-                          strength: floorStrength,
+                      // Dark while the stage waits for the creature, and
+                      // brightening as it settles.
+                      builder: (context, c, _) => AnimatedBuilder(
+                        animation: _arrival,
+                        builder: (context, _) => CustomPaint(
+                          painter: _FloorLightPainter(
+                            color: c ?? floorColor,
+                            strength:
+                                floorStrength *
+                                StageArrival.floorLight(_arrival.value),
+                          ),
                         ),
                       ),
                     ),
@@ -712,15 +1054,21 @@ class _FeedingScreenState extends State<FeedingScreen>
                 Positioned(
                   bottom: 22,
                   // While the power-up has it in grains, the sprite steps
-                  // aside for them.
+                  // aside for them; so it does while it is carried in.
                   child: AnimatedBuilder(
-                    animation: _flashController,
+                    animation: Listenable.merge([_flashController, _arrival]),
                     builder: (context, child) => Opacity(
-                      opacity: _infusionBody != null && _animatingType != null
-                          ? InfusionPainter.spriteOpacity(
-                              _flashController.value,
-                            )
-                          : 1,
+                      opacity:
+                          (_infusionBody != null && _animatingType != null
+                              ? InfusionPainter.spriteOpacity(
+                                  _flashController.value,
+                                )
+                              : 1) *
+                          (_flight != null
+                              ? StageArrival.spriteOpacity(_arrival.value)
+                              : Curves.easeOut.transform(
+                                  ((_arrival.value - 0.25) / 0.4).clamp(0, 1),
+                                )),
                       child: child,
                     ),
                     child: AnimatedScale(
