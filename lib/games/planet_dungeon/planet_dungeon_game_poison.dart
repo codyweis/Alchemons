@@ -4127,15 +4127,17 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       _venomRise(
         at - const Offset(0, 2),
         _time,
+        // Low and wide, short trails: a breath of sour air over the bars.
+        // Tall and narrow with long trails it read as a plant in a pot.
         n: 200,
-        rise: 74,
-        half: 13,
-        spread: 36,
-        rate: 0.1,
-        sway: 9,
+        rise: 46,
+        half: 26,
+        spread: 52,
+        rate: 0.08,
+        sway: 14,
         ramp: _kVenomMiasmaRamp,
-        alpha: 0.26,
-        trail: 0.14,
+        alpha: 0.3,
+        trail: 0.04,
         seed: (at.dx * 7 + at.dy).round() & 0xFFF,
       );
     }
@@ -6190,13 +6192,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         _time,
         n: cured ? 300 : 170,
         rise: cured ? 82 : 62,
-        half: 3,
-        spread: cured ? 28 : 17,
+        half: 7,
+        spread: cured ? 30 : 22,
         rate: cured ? 0.2 : 0.13,
         sway: cured ? 6 : 10,
         ramp: cured ? _kVenomBoneRamp : _kVenomSickRamp,
         alpha: cured ? 0.5 : 0.4,
-        trail: 0.14,
+        trail: 0.045,
         seed: ward.id.length * 37,
       );
       _venomGrains.paint(canvas);

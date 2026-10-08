@@ -1043,15 +1043,17 @@ extension FuneralArt on PlanetDungeonGame {
         r.canCrystallize(id) &&
         funeralPairReady(_elementsNear(at, _kUrnPairReach));
     // The carving's three tones: body, the dark it turns into, and its rim.
+    // Moonlit stone, not near-black (2026-10-08): the urn is what every
+    // room is about, and in black it sank into the slate.
     final body = ghost
         ? _fCold.withValues(alpha: 0.24)
-        : const Color(0xFF1F2430);
+        : const Color(0xFF7D8699);
     final deep = ghost
         ? _fCold.withValues(alpha: 0.08)
-        : const Color(0xFF06070B);
+        : const Color(0xFF2E3442);
     final rim = ghost
         ? _fCold.withValues(alpha: 0.75)
-        : _fMoonRim.withValues(alpha: 0.5);
+        : const Color(0xFFE8EEF8).withValues(alpha: 0.95);
     // Its shadow and its foot.
     canvas.drawOval(
       Rect.fromCenter(center: at.translate(0, 24), width: 50, height: 12),
@@ -1417,13 +1419,13 @@ extension FuneralArt on PlanetDungeonGame {
     // faces — the belfry is a silhouette against the wall.
     final wood = ghost
         ? _fCold.withValues(alpha: 0.22)
-        : const Color(0xFF261F21);
+        : const Color(0xFF4E3F36);
     final woodDeep = ghost
         ? _fCold.withValues(alpha: 0.07)
-        : const Color(0xFF060405);
+        : const Color(0xFF1C1512);
     final woodRim = ghost
         ? _fCold.withValues(alpha: 0.7)
-        : _fMoonRim.withValues(alpha: 0.36);
+        : _fMoonRim.withValues(alpha: 0.6);
     const ironBand = Color(0xFF0E0D12);
     void timber(Path p, {double lift = 1.8}) => _funeralCarve(
       canvas,
@@ -1558,11 +1560,11 @@ extension FuneralArt on PlanetDungeonGame {
     _funeralCarve(
       canvas,
       b,
-      body: ghost ? _fCold.withValues(alpha: 0.3) : const Color(0xFF2E2418),
-      deep: ghost ? _fCold.withValues(alpha: 0.1) : const Color(0xFF0A0705),
+      body: ghost ? _fCold.withValues(alpha: 0.3) : const Color(0xFF8C6A36),
+      deep: ghost ? _fCold.withValues(alpha: 0.1) : const Color(0xFF3A2812),
       rim: ghost
           ? _fCold.withValues(alpha: 0.85)
-          : const Color(0xFFC9A066).withValues(alpha: 0.75),
+          : const Color(0xFFF2D290).withValues(alpha: 0.95),
       lift: 2.2,
     );
     // The lip: a band of darker bronze, its edge just caught.
@@ -1571,7 +1573,7 @@ extension FuneralArt on PlanetDungeonGame {
       Paint()
         ..color = ghost
             ? _fCold.withValues(alpha: 0.35)
-            : const Color(0xFF120D08),
+            : const Color(0xFF4A3418),
     );
     canvas.drawRect(
       const Rect.fromLTRB(-21, 31, 4, 31.9),

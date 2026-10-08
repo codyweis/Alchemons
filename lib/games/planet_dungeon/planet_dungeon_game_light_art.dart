@@ -100,22 +100,21 @@ final GlassPalette _kBronze = _sanctuaryStone(
   foot: const Color(0xFF1E160A),
 );
 
-/// A starlight's grains: deep amber so they hold on bright glass, up to
-/// white at the heart.
+/// A starlight's ray grains: pale gold at the tip to white at the root, the
+/// soft cream the filled rays were (deep amber read as an orange firework).
 const List<Color> _kStarGrains = [
-  Color(0xFFB8741E),
-  Color(0xFFF0B850),
-  Color(0xFFFFE6A8),
+  Color(0xFFEAC77E),
+  Color(0xFFFFE4A6),
+  Color(0xFFFFF4D6),
   Color(0xFFFFFFFF),
 ];
 
-/// A starlight's heart: gold over the white of its glow, never white on
-/// white.
+/// A starlight's heart: warm white over its white core.
 const List<Color> _kStarHeart = [
-  Color(0xFFC07820),
-  Color(0xFFE8A040),
-  Color(0xFFFFCC70),
-  Color(0xFFFFF0C8),
+  Color(0xFFF2D49A),
+  Color(0xFFFFE9BC),
+  Color(0xFFFFF6E0),
+  Color(0xFFFFFFFF),
 ];
 
 /// Steam's grains, a little grey so they show on ivory.
@@ -661,14 +660,26 @@ extension ShadowFloorArt on PlanetDungeonGame {
         _sanctuaryInk.add(
           pos(u0),
           pos(u),
-          _kStarGrains[q < 0.18 ? 2 : (q < 0.55 ? 1 : 0)],
-          .95 * min(1.0, long) * pow(1 - q, 0.7).toDouble() * min(1.0, u * 10),
+          _kStarGrains[q < 0.18 ? 3 : (q < 0.45 ? 2 : (q < 0.75 ? 1 : 0))],
+          .8 * min(1.0, long) * pow(1 - q, 0.9).toDouble() * min(1.0, u * 10),
         );
       }
     }
     _sanctuaryInk.paint(canvas, width: 1.8 * max(1.0, s));
-    // THE HEART: a knot of grains wheeling round it, gold over the white of
-    // its glow, the inside turning faster.
+    // The white core it burns from, under its heart.
+    canvas.drawCircle(
+      at,
+      core,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          at,
+          core,
+          [Colors.white, const Color(0xFFFFF4C8), const Color(0x00FFE08C)],
+          const [0, .6, 1],
+        ),
+    );
+    // THE HEART: a knot of grains wheeling round it, warm white over its
+    // core, the inside turning faster.
     final heart = _sanctuaryGrains.putIfAbsent('star|heart', () {
       final rng = Random(29);
       final pts = <Offset>[];

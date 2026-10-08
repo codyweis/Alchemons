@@ -1764,9 +1764,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
           ..addRRect(RRect.fromRectAndRadius(body, Radius.circular(r * 0.5))),
         under: under,
         light: light,
-        rim: 0.42,
-        top: const Color(0xFF3A2E20),
-        foot: const Color(0xFF1A130C),
+        rim: 0.55,
+        top: const Color(0xFF8C7656),
+        foot: const Color(0xFF4A3B28),
       );
       // One joint, where the next drum broke away.
       _dustGroove(
@@ -1789,7 +1789,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
         width: r * 0.95,
         height: r * 1.62,
       );
-      canvas.drawOval(end, Paint()..color = const Color(0xFF453626));
+      canvas.drawOval(end, Paint()..color = const Color(0xFFA08A68));
       canvas.drawArc(
         end,
         pi * 0.9,
@@ -1838,12 +1838,16 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       face.lineTo(p.dx, p.dy);
     }
     face.close();
+    // Weathered sandstone, not the city's black: in black a snapped column
+    // read as a top hat (2026-10-08).
     _dustCarve(
       canvas,
       face,
       under: under,
       light: Offset(r * 0.16, 0),
-      rim: 0.4,
+      rim: 0.55,
+      top: const Color(0xFF8C7656),
+      foot: const Color(0xFF4A3B28),
     );
     // Flutes down the near side: the one cue that says COLUMN.
     for (final th in const [0.28, 0.5, 0.72]) {
@@ -1866,9 +1870,9 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       top,
       under: under,
       light: Offset(r * 0.08, r * 0.1),
-      rim: 0.5,
-      top: const Color(0xFF3E3123),
-      foot: const Color(0xFF2A2117),
+      rim: 0.6,
+      top: const Color(0xFFB09878),
+      foot: const Color(0xFF8C7656),
     );
   }
 

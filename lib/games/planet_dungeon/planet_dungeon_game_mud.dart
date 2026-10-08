@@ -3035,7 +3035,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
         canvas,
         mat,
         t,
-        drift: 3,
+        drift: 1.4,
         alpha: 1,
         ramp: const [
           Color(0xFF1C2412),
@@ -3045,7 +3045,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ],
         glint: 0.003,
         width: 1.7,
-        trail: 0.14,
+        trail: 0.03,
       );
       canvas.save();
       canvas.clipRRect(stage);
@@ -3078,7 +3078,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
   }
 
   /// The entry rite's weed: its fibres as grains over a baked haze, built
-  /// once. ~3,800 grains, only while the weed is on the water.
+  /// once. ~3,200 grains, only while the weed is on the water.
   (GrainShape, ui.Picture) _fenWeedMat(DungeonRoom room, Rect b, Rect over) {
     final key = 'weed|${room.id}';
     final cached = _fenWeedCache[key];
@@ -3087,6 +3087,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
         ((x - b.left - b.width * 0.36) / (b.width * 0.26)).clamp(0.0, 1.0);
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
+    final rafts = <(Offset, double)>[];
     for (var i = 0; i < 18; i++) {
       final fx = (i * 37 % 100) / 100;
       final at = Offset(
@@ -3094,6 +3095,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
         over.top + over.height * ((i * 53 % 100) / 100),
       );
       final rr = 72.0 + (i % 3) * 20;
+      rafts.add((at, rr));
       c.drawCircle(
         at,
         rr,
@@ -3117,19 +3119,23 @@ extension SinkingAltarFen on PlanetDungeonGame {
       over.bottom,
     );
     var tries = 0;
-    while (pts.length < 3800 && tries < 60000) {
+    while (pts.length < 3200 && tries < 120000) {
       tries++;
       final q = Offset(
         box.left + rng.nextDouble() * box.width,
         box.top + rng.nextDouble() * box.height,
       );
       if (rng.nextDouble() > thinAt(q.dx)) continue;
-      // Clumped into rafts: denser near the haze's hearts.
-      final clump =
-          0.5 + 0.5 * sin(q.dx * 0.021 + q.dy * 0.013) * cos(q.dy * 0.017);
-      if (rng.nextDouble() > 0.35 + 0.65 * clump) continue;
+      // RAFTS ON OPEN WATER: the fibres lie in the haze's patches, thick at
+      // a raft's heart and fraying at its edge, with dark water between —
+      // spread evenly over the room they read as static (2026-10-08).
+      var clump = 0.0;
+      for (final (o, rr) in rafts) {
+        clump = max(clump, 1 - (q - o).distance / (rr * 0.85));
+      }
+      if (clump <= 0 || rng.nextDouble() > pow(clump, 1.4)) continue;
       pts.add(q);
-      sh.add(0.3 + 0.7 * rng.nextDouble() * clump);
+      sh.add(0.25 + 0.75 * clump * (0.6 + 0.4 * rng.nextDouble()));
     }
     final built = (GrainShape.points(pts, sh, seed: 31), rec.endRecording());
     _fenWeedCache[key] = built;

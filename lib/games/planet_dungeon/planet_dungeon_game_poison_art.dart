@@ -62,7 +62,7 @@ const List<Color> _kVenomMiasmaRamp = [
 
 /// Clean smoke, and sick smoke.
 final List<Color> _kVenomBoneRamp = grainRampFrom(const Color(0xFFD8CBA8));
-final List<Color> _kVenomSickRamp = grainRampFrom(const Color(0xFF8FD14F));
+final List<Color> _kVenomSickRamp = grainRampFrom(const Color(0xFF9DB86A));
 
 /// Grains climbing off [base]: [n] of them, each rising [rise] in its own
 /// time, fanning from [half] to [spread] either side and swaying as they go,

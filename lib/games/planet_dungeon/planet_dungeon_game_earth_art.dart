@@ -500,14 +500,16 @@ const List<Color> _kBarrowDustRamp = [
   Color(0xFFEAD9B0),
 ];
 
-/// The carved giant's stone: its dark, its lit face, and the light it
-/// catches at the rim.
-const Color _kGiantDark = Color(0xFF130E09);
-const Color _kGiantFace = Color(0xFF2E2318);
-const Color _kGiantRim = Color(0xFFC8A872);
+/// The carved giant: old bone, its shaded side, its lit face, and the light
+/// it catches at the rim. Bone, not the barrow's dark (2026-10-08): carved
+/// near-black, the hand, the ribs and the levers you move sank into the
+/// floor; they have to read as the brightest solid things in the room.
+const Color _kGiantDark = Color(0xFF5C4A31);
+const Color _kGiantFace = Color(0xFFA48B60);
+const Color _kGiantRim = Color(0xFFEAD6A6);
 
 /// The lit top of a carved piece of it (a disc, a weight).
-const Color _kGiantTop = Color(0xFF3A2C1D);
+const Color _kGiantTop = Color(0xFFB39A6C);
 
 /// The sky's dust (fine, near) and the haze under it, by viewport size.
 final Map<String, (GrainShape, GrainShape, ui.Picture)> _barrowDustCache = {};

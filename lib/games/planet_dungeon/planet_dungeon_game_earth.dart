@@ -3610,7 +3610,7 @@ extension BuriedGiant on PlanetDungeonGame {
           ..shader = ui.Gradient.linear(
             const Offset(-0.35 * w, -0.45 * h),
             const Offset(0.25 * w, 0.45 * h),
-            const [Color(0xFF3A231B), Color(0xFF170C08)],
+            const [Color(0xFF8A4A38), Color(0xFF3A1A12)],
           ),
       ),
     );
@@ -3625,7 +3625,7 @@ extension BuriedGiant on PlanetDungeonGame {
       const Color(0xFFB8E6DC),
       beat,
     )!;
-    final veinAlpha = guardianAwake ? 0.2 + 0.4 * beat : 0.1;
+    final veinAlpha = guardianAwake ? 0.3 + 0.4 * beat : 0.22;
     Paint veinPaint(double width) => Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
@@ -3646,7 +3646,7 @@ extension BuriedGiant on PlanetDungeonGame {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.3
         ..strokeJoin = StrokeJoin.round
-        ..color = const Color(0xFFD8A27A).withValues(alpha: 0.32 + 0.2 * beat),
+        ..color = const Color(0xFFF0C49A).withValues(alpha: 0.6 + 0.25 * beat),
     );
     canvas.restore();
     canvas.restore();

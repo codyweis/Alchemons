@@ -112,7 +112,7 @@ ElementOrb _riteOrb(String el, double r) => _riteOrbCache.putIfAbsent(
 const double _kRiteIceR = 21;
 
 /// A brazier's fire.
-const double _kRiteFireR = 13;
+const double _kRiteFireR = 17;
 
 /// Grains an orb handed over as it went (a melt, a fire put out), by square.
 final Map<String, SpecimenGrains> _riteHandedGrains = {};
@@ -2139,6 +2139,18 @@ extension BloodRitesArt on PlanetDungeonGame {
       canvas.scale(1 + .1 * land, 1 - .14 * land);
       canvas.translate(-foot.dx, -foot.dy);
     }
+    // Its own cold light round it, so a block of ice reads at a glance on
+    // the dark floor (the orb alone is dark glass).
+    canvas.drawCircle(
+      c,
+      _kRiteIceR * 1.9,
+      Paint()
+        ..shader = ui.Gradient.radial(c, _kRiteIceR * 1.9, [
+          const Color(0xFFD8F0FF).withValues(alpha: .34 * alpha * glass),
+          const Color(0xFF9FD4F2).withValues(alpha: .12 * alpha * glass),
+          const Color(0x009FD4F2),
+        ], const [0, .55, 1]),
+    );
     _riteOrb('Ice', _kRiteIceR).paint(
       canvas,
       c,
@@ -2324,6 +2336,17 @@ extension BloodRitesArt on PlanetDungeonGame {
     final orb = _riteOrb('Fire', _kRiteFireR);
     final at = c - const Offset(0, 7);
     if (lit) {
+      // The light a fire throws round itself: what says "burning" first.
+      canvas.drawCircle(
+        at,
+        _kRiteFireR * 2.8,
+        Paint()
+          ..shader = ui.Gradient.radial(at, _kRiteFireR * 2.8, [
+            const Color(0xFFFFB060).withValues(alpha: .42),
+            const Color(0xFFFF6A20).withValues(alpha: .14),
+            const Color(0x00FF6A20),
+          ], const [0, .45, 1]),
+      );
       orb.paint(canvas, at, _riteFireClock(c));
       return;
     }
@@ -2540,12 +2563,12 @@ extension BloodRitesArt on PlanetDungeonGame {
     final e = _riteEase(shown);
     final key = ch == 'a' ? _kRiteGold : const Color(0xFF9FB7C9);
     final pips = 'abc'.indexOf(ch) + 1;
-    final rim = Color.lerp(_kRiteWall.stoneTop, const Color(0xFFF2CFC8), .45)!;
-    final stone = Color.lerp(
-      _kRiteWall.stoneTop,
-      const Color(0xFFB07A80),
-      .18,
-    )!;
+    // The bars are metal in the key's own colour (gold or steel), so a shut
+    // gate stands out from the porphyry it is set in (2026-10-08: carved
+    // in the room's stone, the gates all but vanished).
+    final rim = Color.lerp(key, Colors.white, .45)!;
+    final stone = Color.lerp(key, Colors.black, .28)!;
+    final shade = Color.lerp(key, Colors.black, .7)!;
     final inner = Rect.fromLTRB(
       sq.left + 9,
       sq.top - 8,
@@ -2583,8 +2606,8 @@ extension BloodRitesArt on PlanetDungeonGame {
           Paint()
             ..shader = ui.Gradient.linear(b.topLeft, b.bottomRight, [
               stone,
-              Color.lerp(stone, _kRiteWall.stoneFace, .55)!,
-              _kRiteWall.stoneFace,
+              Color.lerp(stone, shade, .5)!,
+              shade,
             ], const [0, .5, 1]),
         );
         canvas.drawRect(
@@ -2610,7 +2633,7 @@ extension BloodRitesArt on PlanetDungeonGame {
           Paint()
             ..shader = ui.Gradient.linear(r.topCenter, r.bottomCenter, [
               stone,
-              Color.lerp(stone, _kRiteWall.stoneFace, .6)!,
+              Color.lerp(stone, shade, .6)!,
             ]),
         );
         canvas.drawRect(

@@ -11,6 +11,7 @@ import 'package:alchemons/audio/sound_cue.dart';
 
 import 'dart:async';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';

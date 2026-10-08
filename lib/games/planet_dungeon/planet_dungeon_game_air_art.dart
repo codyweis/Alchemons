@@ -38,11 +38,104 @@ final Map<String, (GrainShape, ui.Picture, Offset, double)?> _skyCloudShapes =
 const Map<String, int> _kWonderCloudGrains = {
   'anvil_cloud': 2400,
   'ring_cloud': 4200,
-  'spiral_cloud': 2400,
 };
 
-/// The spiral arm turns whole, this fast (radians/s): once in ~2½ minutes.
-const double _kSpiralCloudTurn = 0.04;
+/// Grains streaming along a curve: each has a place along it (u, 0..1), a
+/// side (-1..1, packed toward the middle) and its own pace; the caller says
+/// where (u, side) is at a moment. The curve may move as a whole (a spiral
+/// turning) but nothing winds up, because every grain is placed afresh each
+/// frame. Drawn in six brightness groups, one call each, from buffers made
+/// once.
+class _ArmFlow {
+  _ArmFlow(this.count, int seed)
+    : _u0 = Float32List(count),
+      _side = Float32List(count),
+      _pace = Float32List(count),
+      _lvl = Uint8List(count),
+      _buf = Float32List(count * 4) {
+    final rng = Random(seed);
+    for (var i = 0; i < count; i++) {
+      _u0[i] = rng.nextDouble();
+      _side[i] = rng.nextDouble() + rng.nextDouble() - 1;
+      _pace[i] = 0.75 + 0.5 * rng.nextDouble();
+    }
+  }
+
+  static const int _levels = 6;
+  final int count;
+  final Float32List _u0, _side, _pace, _buf;
+  final Uint8List _lvl;
+  final Int32List _n = Int32List(_levels), _at = Int32List(_levels);
+  static final Paint _paint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
+  /// [at] places grain [i] at (u, side) at time t. [speed] is how far along
+  /// the curve a grain goes in a second (negative runs it backwards).
+  /// [light] is 0..1 for a grain at (u, side); the ends fade on their own.
+  void paint(
+    Canvas canvas,
+    double t, {
+    required Offset Function(int i, double u, double side, double t) at,
+    required double Function(double u, double side) light,
+    required List<Color> ramp,
+    double speed = 0.05,
+    double trail = 0.05,
+    double alpha = 1,
+    double width = 1.7,
+  }) {
+    double frac(double v) => v - v.floorToDouble();
+    double fade(double u) => min(1.0, min(u, 1 - u) * 12);
+    _n.fillRange(0, _levels, 0);
+    for (var i = 0; i < count; i++) {
+      final u = frac(_u0[i] + t * speed * _pace[i]);
+      final l = (light(u, _side[i]) * fade(u)).clamp(0.0, 1.0);
+      final k = min(_levels - 1, (l * _levels).floor());
+      _lvl[i] = k;
+      _n[k]++;
+    }
+    var acc = 0;
+    for (var k = 0; k < _levels; k++) {
+      _at[k] = acc;
+      acc += _n[k];
+    }
+    final back = t - trail;
+    for (var i = 0; i < count; i++) {
+      final u = frac(_u0[i] + t * speed * _pace[i]);
+      var u0 = frac(_u0[i] + back * speed * _pace[i]);
+      if ((u - u0).abs() > 0.5) u0 = u; // wrapped: no streak across
+      final p = at(i, u, _side[i], t);
+      var q = at(i, u0, _side[i], back);
+      if ((p - q).distanceSquared < 0.09) q = p - const Offset(0.3, 0);
+      final o = _at[_lvl[i]]++ * 4;
+      _buf[o] = q.dx;
+      _buf[o + 1] = q.dy;
+      _buf[o + 2] = p.dx;
+      _buf[o + 3] = p.dy;
+    }
+    var from = 0;
+    for (var k = 0; k < _levels; k++) {
+      final c = _n[k];
+      if (c == 0) continue;
+      final shade = (k + 0.5) / _levels;
+      _paint
+        ..strokeWidth = width
+        ..color = ramp[(shade * (ramp.length - 1)).round()].withValues(
+          alpha: (alpha * (0.25 + 0.75 * shade)).clamp(0.0, 1.0),
+        );
+      canvas.drawRawPoints(
+        ui.PointMode.lines,
+        Float32List.sublistView(_buf, from * 4, (from + c) * 4),
+        _paint,
+      );
+      from += c;
+    }
+  }
+}
+
+final _ArmFlow _spiralRoomFlow = _ArmFlow(3200, 17);
+final _ArmFlow _spiralTrophyFlow = _ArmFlow(2200, 41);
+final Map<String, ui.Picture> _spiralHaze = {};
 
 /// The cloud pickups' and plumes' shapes, built once.
 final Map<String, GrainShape> _skyIconShapes = {};
@@ -90,7 +183,10 @@ extension WindCrownArt on PlanetDungeonGame {
     // The room's own cloud, live: grains wandering about its shape over a
     // faint haze of it — the dust ring's recipe, many small lights on real
     // motion over a soft lane. The ring turns, inner faster than outer; the
-    // spiral arm turns whole; the anvil only churns.
+    // spiral's arm stays put and streams; the anvil only churns.
+    if (room.id == 'spiral_cloud') {
+      _paintSpiralCloud(canvas, room, b.deflate(8));
+    }
     final cloud = _skyCloudShapes.putIfAbsent(
       key,
       () => _buildWonderCloud(room, b.deflate(8)),
@@ -278,7 +374,7 @@ extension WindCrownArt on PlanetDungeonGame {
     final at = _skyPennants[room.id];
     if (at == null || at.isEmpty) return;
     final light = _skyZoneOf(room).light;
-    const n = 14;
+    const n = 26;
     for (var i = 0; i < at.length; i++) {
       final p = at[i] + const Offset(0, 4);
       for (var j = 0; j < n; j++) {
@@ -301,7 +397,8 @@ extension WindCrownArt on PlanetDungeonGame {
           q.dx,
           q.dy,
           light,
-          alpha: 0.75 * min(1.0, u * 8) * (1 - u),
+          alpha: min(1.0, u * 8) * (1 - u * 0.7),
+          width: 2.4,
         );
       }
     }
@@ -312,6 +409,7 @@ extension WindCrownArt on PlanetDungeonGame {
     DungeonRoom room,
     Rect r,
   ) {
+    if (room.id == 'spiral_cloud') return null; // its own flow, below
     final puffs = _wonderCloudPuffs(room, r);
     if (puffs == null) return null;
     final centre = Offset(r.left + r.width * 0.5, r.top + r.height * 0.46);
@@ -324,11 +422,13 @@ extension WindCrownArt on PlanetDungeonGame {
     if (room.id == 'ring_cloud') {
       final rad = min(r.width, r.height) * 0.47;
       grains.orbit(centre, (d) => 0.07 * pow(rad / d, 1.5).toDouble());
-    } else if (room.id == 'spiral_cloud') {
-      turn = _kSpiralCloudTurn;
-      grains.orbit(centre, (_) => turn);
     }
-    // The haze: one soft gradient per puff, so they gather into a lane.
+    return (grains, _bakeCloudHaze(puffs), centre, turn);
+  }
+
+  /// The haze under a cloud: one soft gradient per puff, so they gather into
+  /// a lane.
+  ui.Picture _bakeCloudHaze(List<(Offset, double)> puffs, {double a = 0.08}) {
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
     for (final (o, rad) in puffs) {
@@ -339,13 +439,43 @@ extension WindCrownArt on PlanetDungeonGame {
         Paint()
           ..shader = RadialGradient(
             colors: [
-              const Color(0xFFC8D6E8).withValues(alpha: 0.08),
+              const Color(0xFFC8D6E8).withValues(alpha: a),
               const Color(0x00C8D6E8),
             ],
           ).createShader(Rect.fromCircle(center: o, radius: rr)),
       );
     }
-    return (grains, rec.endRecording(), centre, turn);
+    return rec.endRecording();
+  }
+
+  /// THE SPIRAL CLOUD: its arm stays where it is (it used to turn whole,
+  /// which in a minute or two carried it over the door), and its grains
+  /// stream along it from the thick tail toward the thin head, the way wind
+  /// is drawn round into an eye. ~3,200 grains over a baked haze.
+  void _paintSpiralCloud(Canvas canvas, DungeonRoom room, Rect r) {
+    final o = Offset(r.left + r.width * 0.5, r.top + r.height * 0.46);
+    canvas.drawPicture(
+      _spiralHaze.putIfAbsent(
+        '${r.width.round()}x${r.height.round()}',
+        () => _bakeCloudHaze(_wonderCloudPuffs(room, r)!, a: 0.11),
+      ),
+    );
+    _spiralRoomFlow.paint(
+      canvas,
+      _time,
+      speed: -0.022,
+      trail: 0.06,
+      width: 1.7,
+      alpha: 0.95,
+      ramp: kAirGrainRamp,
+      at: (i, u, side, t) {
+        final a = -pi / 2 + u * pi * 1.6;
+        final size = 10.0 + u * 22;
+        final rad = 262.0 + u * 30 + side * size;
+        return o + Offset(cos(a), sin(a) * 0.9) * rad;
+      },
+      light: (u, side) => 0.35 + 0.65 * (1 - side.abs()) * (0.55 + 0.45 * u),
+    );
   }
 
   /// THE WONDER CLOUDS were only a name and a faint floor carving. Each now
@@ -1509,50 +1639,53 @@ extension WindCrownGlassPieces on PlanetDungeonGame {
     }
   }
 
-  /// THE SPIRAL, ONCE IT IS WON, in grains: three arms wound from the core,
-  /// each grain turning at its own radius — the inside faster, the way a
-  /// real disc does — with a bright bar across the middle. ~900 grains.
+  /// THE SPIRAL'S TROPHY, in grains: three arms that turn TOGETHER, about
+  /// once every 20 s, while their grains stream outward along them, with a
+  /// bright bar across the core. The arms used to turn faster inside than
+  /// outside with nothing to stop it, so within a minute they wound into
+  /// rings that looked still (in the old stroked drawing too). ~2,200 grains.
   void _paintSpiralTrophy(Canvas canvas, Offset c) {
-    final shape = _skyIconShapes.putIfAbsent('spiral|trophy', () {
-      final rng = Random(41);
+    const turn = 0.32;
+    final ramp = grainRampFrom(const Color(0xFF5BC8E8));
+    _spiralTrophyFlow.paint(
+      canvas,
+      _time,
+      speed: 0.06,
+      trail: 0.035,
+      width: 1.8,
+      ramp: ramp,
+      at: (i, u, side, t) {
+        // Just over one winding from core to rim: wound tighter (it was
+        // three) the arms read as rings.
+        final r = 8 + u * 104;
+        final w = 3 + r * 0.2;
+        final a = (i % 3) * pi * 2 / 3 + 0.072 * r + turn * t + side * w / r;
+        return c + Offset(cos(a), sin(a)) * r;
+      },
+      light: (u, side) => (1 - 0.7 * u) * (0.45 + 0.55 * (1 - side.abs())),
+    );
+    // The bar of light across the core, turning with the arms.
+    final bar = _skyIconShapes.putIfAbsent('spiral|bar', () {
+      final rng = Random(43);
       final pts = <Offset>[];
       final shade = <double>[];
-      for (var k = 0; k < 3; k++) {
-        for (var j = 0; j < 280; j++) {
-          // Anywhere along the arm, spread across it (never in steps, or
-          // the grains line up into spokes), wider as it winds out.
-          final i = 4 + rng.nextDouble() * 70;
-          final r = i * 1.5;
-          final spread = (rng.nextDouble() - 0.5) * (0.05 + 3.5 / r);
-          final a = k * pi * 2 / 3 + i * 0.27 + spread;
-          pts.add(Offset(cos(a), sin(a)) * (r + (rng.nextDouble() - 0.5) * 2));
-          shade.add(1 - 0.8 * r / 111);
-        }
+      for (var j = 0; j < 80; j++) {
+        final x = (rng.nextDouble() - 0.5) * 44;
+        pts.add(Offset(x, (rng.nextDouble() - 0.5) * (12 - x.abs() * 0.2)));
+        shade.add(1 - x.abs() / 30);
       }
-      // The bar of light across the core.
-      for (var j = 0; j < 70; j++) {
-        pts.add(
-          Offset(
-            (rng.nextDouble() - 0.5) * 44,
-            (rng.nextDouble() - 0.5) * 12 * (0.4 + 0.6 * rng.nextDouble()),
-          ),
-        );
-        shade.add(1);
-      }
-      return GrainShape.points(pts, shade, seed: 41)
-        ..orbit(Offset.zero, (r) => 0.13 * (1 + 40 / (r + 40)));
+      return GrainShape.points(pts, shade, seed: 43);
     });
     paintGrainShape(
       canvas,
-      shape,
+      bar,
       _time,
       origin: c,
-      drift: 1.2,
-      alpha: 0.85,
-      ramp: grainRampFrom(const Color(0xFF5BC8E8)),
-      glint: 0.01,
-      width: 1.7,
-      trail: 0.05,
+      rotation: turn * _time,
+      spin: turn,
+      drift: 0.6,
+      ramp: ramp,
+      width: 1.8,
     );
   }
 
