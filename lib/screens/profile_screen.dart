@@ -33,6 +33,7 @@ import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/screens/alchemy_chamber_screen.dart';
 import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
+import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
@@ -384,6 +385,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     await Navigator.push<void>(
       context,
       MaterialPageRoute(builder: (_) => const DungeonDebugScreen()),
+    );
+  }
+
+  Future<void> _openAltars() async {
+    HapticFeedback.mediumImpact();
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const AltarLevelsScreen()),
     );
   }
 
@@ -1597,6 +1606,12 @@ class _ProfileScreenState extends State<ProfileScreen>
       'An interactive experiment in elemental matter',
       'OPEN',
       _openAlchemyChamber,
+    ),
+    _DebugAction(
+      'ALCHEMY',
+      'Fusion puzzles in levels, chapter by chapter through the realms',
+      'OPEN',
+      _openAltars,
     ),
     _DebugAction(
       'DUNGEON DEBUG',

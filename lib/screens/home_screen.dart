@@ -15,6 +15,7 @@ import 'package:alchemons/screens/pureblood_rite_screen.dart';
 import 'package:alchemons/screens/splash_screen.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/navigation/home_descent.dart';
+import 'package:alchemons/games/heart_puzzle/alchemy_unlock.dart';
 import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_lobby_stage.dart';
@@ -62,7 +63,6 @@ import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/fx/starter_vial_handoff.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -80,7 +80,10 @@ import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/screens/home_biome/home_biome_window.dart';
+import 'package:alchemons/widgets/alchemy_emblem.dart';
 import 'package:alchemons/widgets/home_emblems.dart';
+import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
+import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/widgets/home_portal.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
@@ -838,6 +841,62 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _relicEmblem = GlobalKey();
   final ValueNotifier<bool> _relicLifted = ValueNotifier(false);
 
+  /// ALCHEMY: open once every formula is found; until then shown locked,
+  /// lit as far as the player has come.
+  AlchemyUnlock _alchemy = AlchemyUnlock.none;
+  final GlobalKey _alchemyEmblem = GlobalKey();
+  final ValueNotifier<bool> _alchemyLifted = ValueNotifier(false);
+
+  Future<void> _refreshAlchemy() async {
+    try {
+      final u = await AlchemyUnlock.load(
+        db: context.read<AlchemonsDatabase>(),
+        catalog: context.read<CreatureCatalog>(),
+      );
+      if (mounted) setState(() => _alchemy = u);
+    } catch (_) {}
+  }
+
+  Future<void> _openAlchemy() async {
+    final u = _alchemy;
+    if (!u.open) {
+      HapticFeedback.selectionClick();
+      // The way on is the encyclopedia: what is left to find is there.
+      final go = await showStoryDialog(
+        context,
+        beats: [
+          StoryBeat(
+            title: 'Alchemy',
+            message:
+                'Opens once every element and species formula in the '
+                'encyclopedia has been found.\n\n${u.found} of ${u.total} found.',
+          ),
+        ],
+        primaryLabel: 'ENCYCLOPEDIA',
+        secondaryLabel: 'CLOSE',
+        barrierDismissible: true,
+      );
+      if (go == true && mounted) {
+        await Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => const AlchemicalEncyclopediaScreen(),
+          ),
+        );
+        // Formulas may have been seen there; read the count again.
+        if (mounted) await _refreshAlchemy();
+      }
+      return;
+    }
+    HapticFeedback.heavyImpact();
+    EmblemPassage.pushScene<void>(
+      context,
+      scene: const AlchemyPassageScene(),
+      from: _alchemyEmblem,
+      page: const AltarLevelsScreen(),
+      lifted: _alchemyLifted,
+    );
+  }
+
   /// The dock's Field, Harvest, Survival and Enhance emblems, which carry
   /// the player to their screens the same way, and whether each is away
   /// doing so.
@@ -947,6 +1006,7 @@ class _HomeScreenState extends State<HomeScreen>
       async.unawaited(_maybeRunCosmicMemoryHomeEvent());
       async.unawaited(_maybePlayEnhanceCelebration());
       async.unawaited(_syncHomePortal());
+      async.unawaited(_refreshAlchemy());
     }
   }
 
@@ -1298,6 +1358,7 @@ class _HomeScreenState extends State<HomeScreen>
       await _migrateLegacyBossRelics();
       await _refreshHasAnyRelic();
       await _refreshSurvivalUnlocked();
+      await _refreshAlchemy();
 
       // Load featured hero
       await _refreshFeatured(notify: false);
@@ -2207,7 +2268,7 @@ class _HomeScreenState extends State<HomeScreen>
                             // Renders nothing today; it used to be wrapped in an
                             // Expanded, which would now compete with the hero's
                             // Flexible for the same remaining space.
-                            _buildHomeContent(theme),
+                            _buildHomeContent(theme, hs),
                           ],
                         ),
                       ),
@@ -2521,8 +2582,56 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildHomeContent(FactionTheme theme) {
-    return const SizedBox.shrink();
+  /// Under the hero: ALCHEMY, open or locked (the author, 2026-10-08: "in
+  /// the middle, under the portal/showcase area").
+  Widget _buildHomeContent(FactionTheme theme, double hs) {
+    final u = _alchemy;
+    if (u.total == 0 && !u.debug) return const SizedBox.shrink();
+    final label = TextStyle(
+      color: theme.text,
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 1.1,
+    );
+    return Opacity(
+      opacity: _isFieldTutorialActive ? 0.4 : 1.0,
+      child: IgnorePointer(
+        ignoring: _isFieldTutorialActive,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _openAlchemy,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              AlchemyEmblem(
+                key: _alchemyEmblem,
+                size: 84 * hs,
+                open: u.open,
+                progress: u.progress,
+                animate: _animationsEnabled,
+                lifted: _alchemyLifted,
+              ),
+              Transform.translate(
+                offset: const Offset(0, -6),
+                child: Text('ALCHEMY', style: label),
+              ),
+              if (!u.open)
+                Transform.translate(
+                  offset: const Offset(0, -4),
+                  child: Text(
+                    '${u.found} / ${u.total} FORMULAS',
+                    style: label.copyWith(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w500,
+                      color: theme.text.withValues(alpha: .6),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _playHomeShake() {
@@ -2959,15 +3068,6 @@ class _HomeScreenState extends State<HomeScreen>
             ParticleTitle(
               darkBackdrop: theme.brightness == Brightness.dark,
               active: _animationsEnabled,
-            ),
-            Text(
-              'Research Facility',
-              style: GoogleFonts.cinzelDecorative(
-                color: theme.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.4,
-              ),
             ),
           ],
         ),
