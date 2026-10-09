@@ -2375,7 +2375,7 @@ extension FrozenObservatory on PlanetDungeonGame {
                 (a.position - f.headPos).distance < 110,
           );
       if (near) {
-        _setAmbientHint('Black ice, old enough to have gone the colour of it');
+        _setAmbientHint('Black ice, old enough to have gone the color of it');
         return;
       }
     }

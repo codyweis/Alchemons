@@ -3,7 +3,7 @@
 //
 //  The "Alchemons" logo on the home screen, built from a few thousand grains
 //  sampled out of the logo image itself — each sits where a piece of the
-//  lettering was and takes that piece's colour. At launch they stream in and
+//  lettering was and takes that piece's color. At launch they stream in and
 //  settle letter by letter. Once settled they hold still and twinkle.
 //
 //  Touch it:
@@ -29,7 +29,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// What the title can be made of. [original] keeps the logo's own colours;
+/// What the title can be made of. [original] keeps the logo's own colors;
 /// [isVoid] is black matter and changes what touch does.
 class TitleHue {
   const TitleHue(this.id, this.label, this.swatch, this.dark, this.light);
@@ -45,7 +45,7 @@ class TitleHue {
   bool get isVoid => id == 'void';
 }
 
-/// The logo's own colours.
+/// The logo's own colors.
 const TitleHue kGoldTitleHue = TitleHue(
   'original',
   'Gold',
@@ -124,7 +124,7 @@ TitleHue titleHue(String? id) =>
 const String kTitleAsset = 'assets/images/ui/alchemonstitle.png';
 
 /// The logo, read into grains: where each sits (in the 300×60 box the logo
-/// always occupied), its colour tone, and which letter it belongs to.
+/// always occupied), its color tone, and which letter it belongs to.
 class TitleSamples {
   TitleSamples._(
     this.hx,
@@ -138,7 +138,7 @@ class TitleSamples {
   /// The box the title is laid out in, as the image used to be shown.
   static const Size box = Size(300, 60);
 
-  /// Number of colour tones the logo is sorted into, darkest first.
+  /// Number of color tones the logo is sorted into, darkest first.
   static const int toneCount = 10;
 
   final Float32List hx, hy;
@@ -209,7 +209,7 @@ class TitleSamples {
     }
     final n = xs.length;
 
-    // Sort the colours into tones: a few rounds of k-means, seeded across
+    // Sort the colors into tones: a few rounds of k-means, seeded across
     // the range of brightness, then numbered dark to light.
     double lum(int i) => 0.3 * rs[i] + 0.59 * gs[i] + 0.11 * bs[i];
     final order = List.generate(n, (i) => i)
@@ -369,7 +369,7 @@ class TitleParticleField {
   TitleHue _hue, _oldHue;
   TitleHue get hue => _hue;
 
-  // The recolouring ripple.
+  // The recoloring ripple.
   double _hueX = 0, _hueY = 0, _hueT0 = -100;
   static const double _hueSpeed = 340;
 
@@ -450,7 +450,7 @@ class TitleParticleField {
     _settled = false;
   }
 
-  /// Sets the colour at once, with no ripple.
+  /// Sets the color at once, with no ripple.
   void setHueNow(TitleHue next) {
     _hue = next;
     _oldHue = next;
@@ -470,8 +470,8 @@ class TitleParticleField {
 
   void step(double dt, double now) {
     final waves = _waves..removeWhere((w) => now - w.t0 > 1.4);
-    final recolouring = now - _hueT0 < 1.2;
-    if (_settled && pointer == null && waves.isEmpty && !recolouring) return;
+    final recoloring = now - _hueT0 < 1.2;
+    if (_settled && pointer == null && waves.isEmpty && !recoloring) return;
 
     final p = pointer;
     final isVoid = _hue.isVoid;
@@ -562,8 +562,8 @@ class TitleParticleField {
         }
       }
 
-      if (recolouring) {
-        // A glint runs with the recolouring front.
+      if (recoloring) {
+        // A glint runs with the recoloring front.
         final r = (now - _hueT0) * _hueSpeed;
         final dx = hx - _hueX, dy = hy - _hueY;
         final g = (sqrt(dx * dx + dy * dy) - r) / 8;
@@ -609,14 +609,14 @@ class TitleParticleField {
 
   // ── the look ────────────────────────────────────────────────────────────
 
-  // Buckets: tones of the old colour, tones of the new, glints, and one for
+  // Buckets: tones of the old color, tones of the new, glints, and one for
   // the glow under everything.
   static const int _tones = TitleSamples.toneCount;
   static const int _glint = 2 * _tones;
   static const int _glow = 2 * _tones + 1;
   final _Batch _batch = _Batch(2 * _tones + 2);
 
-  // The resting letters, batched once per colour.
+  // The resting letters, batched once per color.
   _Batch? _cache;
   String? _cacheHue;
 
@@ -682,7 +682,7 @@ class TitleParticleField {
     }
 
     _batch.clear();
-    final recolouring = now - _hueT0 < 1.2;
+    final recoloring = now - _hueT0 < 1.2;
     for (var i = 0; i < n; i++) {
       if (now < release[i]) continue;
       final px = x[i], py = y[i];
@@ -692,7 +692,7 @@ class TitleParticleField {
         _batch.add(_glint, px, py);
         continue;
       }
-      final newer = !recolouring || _inNewHue(i, now);
+      final newer = !recoloring || _inNewHue(i, now);
       _batch.add(
         newer ? _tones + _bucket(hue, i) : _bucket(_oldHue, i),
         px,
@@ -955,7 +955,7 @@ class _ParticleTitleState extends State<ParticleTitle>
     _openPicker(d.localPosition);
   }
 
-  // ── the colour picker ─────────────────────────────────────────────────
+  // ── the color picker ─────────────────────────────────────────────────
 
   void _openPicker(Offset from) {
     _closePicker();
@@ -1045,7 +1045,7 @@ class _TitlePainter extends CustomPainter {
       old.field != field || old.dark != dark;
 }
 
-/// The row of colours a long press brings up.
+/// The row of colors a long press brings up.
 class _TitleHuePicker extends StatelessWidget {
   const _TitleHuePicker({required this.current, required this.onPick});
 

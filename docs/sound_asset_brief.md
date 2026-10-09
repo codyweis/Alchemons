@@ -71,7 +71,7 @@ The first five rows already have cue definitions and calls in the app. Their gen
 | P1 | `sfx_combat_danger.wav` | 0.30–0.60 s | Readable incoming attack warning |
 | P1 | `sfx_combat_victory.wav` | 2.00–3.50 s | Won: grains swell in from wide, settle, two glasses bloom |
 | P1 | `sfx_combat_defeat.wav` | 1.50–2.50 s | Lost: grains falling away and a muted glass |
-| P1 | `sfx_combat_special_cast.wav` | 0.30–0.50 s | Quiet mechanism releasing; a special has gone off. Layers UNDER the element cue, which says which element it was — so it carries no colour of its own and no flourish |
+| P1 | `sfx_combat_special_cast.wav` | 0.30–0.50 s | Quiet mechanism releasing; a special has gone off. Layers UNDER the element cue, which says which element it was — so it carries no color of its own and no flourish |
 
 ### Alchemon auto-attacks, one per family
 

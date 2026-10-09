@@ -11,6 +11,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/screens/story/beauty_mask_reveal.dart';
 import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/campaign_rewards_button.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -144,6 +145,14 @@ void main() {
         await CampaignJournalService(db).load();
       });
       final key = GlobalKey();
+      // Not pumpAndSettle: a sphere whose reward is waiting keeps turning, so
+      // this screen never settles. Long enough for a route or a sheet.
+      Future<void> settle() async {
+        for (var i = 0; i < 12; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
+      }
+
       await tester.pumpWidget(
         MultiProvider(
           providers: [
@@ -180,37 +189,40 @@ void main() {
       await tester.runAsync(() async {
         await Future<void>.delayed(const Duration(milliseconds: 80));
       });
-      await tester.pumpAndSettle();
-      expect(find.text('ACHIEVEMENTS'), findsOneWidget);
+      await settle();
+      expect(find.text('Achievements'), findsOneWidget);
       expect(find.text('What remained'), findsOneWidget);
-      expect(find.text('4 REWARDS READY'), findsOneWidget);
+      expect(find.text('4 READY'), findsOneWidget);
       await capture(tester, key, 'achievements_home');
-      await tester.tap(find.text('STORY PROGRESS'));
-      await tester.pumpAndSettle();
-      expect(find.text('YOUR MAIN STORY'), findsOneWidget);
+      await tester.tap(find.text('STORY SO FAR'));
+      await settle();
+      expect(find.text('Story so far'), findsOneWidget);
       await capture(tester, key, 'achievements_story');
-      await tester.pageBack();
-      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(AppIcons.arrow_back_rounded));
+      await settle();
       await tester.tap(find.text('MEMORIES').last);
-      await tester.pumpAndSettle();
+      await settle();
+      expect(find.text('Memories'), findsOneWidget);
       await capture(tester, key, 'achievements_memories');
-      await tester.pageBack();
-      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(AppIcons.arrow_back_rounded));
+      await settle();
       final collectAll = find.text('COLLECT ALL');
       await tester.ensureVisible(collectAll);
       await tester.runAsync(() async {
         await tester.tap(collectAll);
         await Future<void>.delayed(const Duration(milliseconds: 180));
       });
-      await tester.pumpAndSettle();
+      await settle();
       final saved = await tester.runAsync(
         () => CampaignJournalService(db).load(),
       );
       expect(saved!.ready.map((a) => a.id), isEmpty);
-      await tester.pumpAndSettle();
+      await settle();
       await tester.drag(find.byType(ListView).first, const Offset(0, 1200));
-      await tester.pumpAndSettle();
-      expect(find.text('ALL REWARDS COLLECTED'), findsOneWidget);
+      await settle();
+      // Nothing left to collect, so the ready band has gone.
+      expect(find.text('COLLECT ALL'), findsNothing);
+      expect(find.text('4 READY'), findsNothing);
       await capture(tester, key, 'achievements_after_collect');
       expect(
         saved.claimed,

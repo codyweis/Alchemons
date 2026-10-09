@@ -230,7 +230,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   /// Every grain of the realm to the orb's middle, then out to its place
-  /// (the faction picker's opening), in the orb's own colour.
+  /// (the faction picker's opening), in the orb's own color.
   void _emergeWhenLaidOut() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -254,7 +254,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
       final group = ElementalGroup.values.byName(faction.name);
       field
-        ..emergeFrom(centre, colour: group.color.toARGB32())
+        ..emergeFrom(centre, color: group.color.toARGB32())
         // Into the knot now, so the first frame shown is the knot and not
         // the settled realm it is about to leave.
         ..step(0);
@@ -2239,7 +2239,7 @@ class _Row extends StatelessWidget {
 }
 
 /// The other kind of button, sunk into its panel as a darker well: the
-/// kit's quiet fill alone is the panel's own colour.
+/// kit's quiet fill alone is the panel's own color.
 class _QuietButton extends StatelessWidget {
   const _QuietButton({
     required this.label,
@@ -2409,7 +2409,7 @@ class _FontChoice extends StatelessWidget {
   }
 }
 
-/// One perk: a diamond in the division's colour, its name, what it gives.
+/// One perk: a diamond in the division's color, its name, what it gives.
 class _PerkRow extends StatelessWidget {
   const _PerkRow({
     required this.title,

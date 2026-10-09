@@ -34,7 +34,7 @@ class HarvesterGlyph extends StatelessWidget {
   final String biomeId;
   final double size;
 
-  /// Overrides the element's own colour — used to carry a can-afford state.
+  /// Overrides the element's own color — used to carry a can-afford state.
   final Color? color;
 
   /// Off for a still frame; a shop card scrolling past does not need to run.
@@ -79,7 +79,7 @@ class _HarvesterPainter extends CustomPainter {
     'arcane',
   ];
 
-  /// One field per device, size and colour: the shell is seeded once.
+  /// One field per device, size and color: the shell is seeded once.
   static final Map<(String, int, int, int), HarvestParticleField> _fields = {};
 
   HarvestParticleField _field(double s, Color specimen) {

@@ -206,7 +206,7 @@ void main() {
         expect(c.draws, lessThanOrEqualTo(60), reason: '$id heavy: ${c.draws}');
       }
     }
-    // The premium colours' bodies, blur-free too.
+    // The premium colors' bodies, blur-free too.
     for (final id in ['Void', 'Radiant']) {
       final c = _CensusCanvas();
       expect(fx.paintPremiumAura(c as Canvas, p, r, 3, id), isTrue);

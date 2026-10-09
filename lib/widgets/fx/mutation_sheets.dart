@@ -9,12 +9,12 @@
 // frames, same layout, so every place that can draw a sprite draws this one
 // unchanged and pays nothing extra per frame.
 //
-//   • Transmuted — the sheet's own light and shade, recoloured from dark
+//   • Transmuted — the sheet's own light and shade, recolored from dark
 //     bronze to pale gold, with a polished highlight across each frame. The
-//     creature's tint is not applied on top: gold replaces the colour.
+//     creature's tint is not applied on top: gold replaces the color.
 //   • Alchemized — the sheet re-read as grains, frame by frame: the summoning's
 //     particles, at rest but never settling back into a sprite. Grains keep the
-//     creature's colours, so tints still show; a prismatic one is read in
+//     creature's colors, so tints still show; a prismatic one is read in
 //     rainbow, and the usual prismatic hue cycle then sets it flowing.
 //
 // The pixel work runs on a background isolate. A big (1200px-frame) sheet is
@@ -31,7 +31,7 @@ import 'package:flame/cache.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/foundation.dart' show compute, debugPrint;
 
-/// The colour a mutation is named in: gold for Transmuted, the pale violet of
+/// The color a mutation is named in: gold for Transmuted, the pale violet of
 /// loose grains for Alchemized.
 ui.Color mutationAccent(AlchemonMutation mutation) => switch (mutation) {
   AlchemonMutation.transmuted => const ui.Color(0xFFE4C16A),
@@ -247,7 +247,7 @@ const List<(double, int)> _goldRamp = [
   (1.00, 0xFFFAF0),
 ];
 
-/// The highlight's colour.
+/// The highlight's color.
 const int _glintColor = 0xFFF6D6;
 
 /// How far a species' gold is pulled toward a middle brightness. A dark
@@ -394,7 +394,7 @@ Uint8List alchemizeRgba(MutationBakeJob job, {required bool rainbow}) {
   final src = job.rgba;
   final w = job.width, h = job.height;
   final out = Uint8List(w * h * 4);
-  // Accumulated straight colour and coverage, composited at the end.
+  // Accumulated straight color and coverage, composited at the end.
   final accR = Float32List(w * h),
       accG = Float32List(w * h),
       accB = Float32List(w * h),
@@ -420,7 +420,7 @@ Uint8List alchemizeRgba(MutationBakeJob job, {required bool rainbow}) {
     if (cx >= w || cy >= h) continue;
     // The same grains every frame, each wandering a little from frame to
     // frame: the body moves under them and they seethe, rather than a fixed
-    // mosaic recolouring.
+    // mosaic recoloring.
     final home = math.Random(5);
     final wobble = math.Random(101 + f);
     final radius = sp * 0.5;
@@ -434,7 +434,7 @@ Uint8List alchemizeRgba(MutationBakeJob job, {required bool rainbow}) {
         final jy = sy + hy + (wobble.nextDouble() - 0.5) * 0.3 * sp;
         final twinkle = wobble.nextDouble();
 
-        // The patch's colour, alpha-weighted over five taps.
+        // The patch's color, alpha-weighted over five taps.
         var a = 0.0, r = 0.0, g = 0.0, b = 0.0;
         for (final (tx, ty) in const [
           (0.0, 0.0),
@@ -490,7 +490,7 @@ Uint8List alchemizeRgba(MutationBakeJob job, {required bool rainbow}) {
     if (a <= 0) continue;
     final k = a.clamp(0.0, 1.0);
     final o = i * 4;
-    // Straight colour of the topmost coverage, premultiplied on the way out.
+    // Straight color of the topmost coverage, premultiplied on the way out.
     out[o] = (accR[i] * k).round().clamp(0, 255);
     out[o + 1] = (accG[i] * k).round().clamp(0, 255);
     out[o + 2] = (accB[i] * k).round().clamp(0, 255);

@@ -36,7 +36,7 @@ import 'package:flutter/painting.dart';
 
 // ── look ────────────────────────────────────────────────────────────────────
 
-/// One core's colours, and the unit shaders built from them.
+/// One core's colors, and the unit shaders built from them.
 class OrbLook {
   OrbLook._(this.ink, this.rim, this.essence, this.hot);
 
@@ -159,7 +159,7 @@ final Map<OrbBaseSkin, OrbLook> _looks = {
   ),
 };
 
-/// The colours of [skin]'s core.
+/// The colors of [skin]'s core.
 OrbLook orbLook(OrbBaseSkin skin) =>
     _looks[skin] ?? _looks[OrbBaseSkin.defaultOrb]!;
 
@@ -728,7 +728,7 @@ final Path _gemTable = () {
 final Map<OrbLook, ui.Shader> _gemFaces = {};
 
 /// A facet of dark glass whose outer edge catches light — in white, so the
-/// light's colour can be laid over it as it shifts.
+/// light's color can be laid over it as it shifts.
 ui.Shader _gemFace(OrbLook l) => _gemFaces[l] ??= ui.Gradient.radial(
   Offset.zero,
   1.0,
@@ -747,7 +747,7 @@ void _prism(Canvas c, OrbLook l, double t) {
   c.save();
   c.rotate(spin);
   for (var i = 0; i < _gemFacets.length; i++) {
-    // Each facet throws its own colour, and the colours walk round.
+    // Each facet throws its own color, and the colors walk round.
     final hue = (t * 22 + i * 45) % 360;
     final col = HSVColor.fromAHSV(1, hue, 0.5, 1).toColor();
     _fill
@@ -1092,7 +1092,7 @@ void paintOrbField(
 const double kCoreFallSeconds = 2.6;
 
 /// The core's grains for its fall: (angle, depth 0 centre..1 rim, reach,
-/// turn, colour bucket). Laid out once.
+/// turn, color bucket). Laid out once.
 final List<(double, double, double, double, int)> _fallGrains = () {
   final r = Random(83);
   return [
@@ -1152,7 +1152,7 @@ void paintCoreFall(
     c.restore();
   }
 
-  // The grains: buckets are colour (lit, light, dim) × trail (head, mid,
+  // The grains: buckets are color (lit, light, dim) × trail (head, mid,
   // tail).
   _fallN.fillRange(0, 9, 0);
   void add(int b, double x, double y) {
@@ -1181,7 +1181,7 @@ void paintCoreFall(
   // The grains appear as the glass gives them up and dim as they drift.
   final glow = _ease(0.05, 0.4, t) * (1 - _ease(1.3, kCoreFallSeconds, t));
   if (glow <= 0.01) return;
-  final colours = [l.grainLit, Color.lerp(l.essence, l.rim, 0.3)!, l.grainDim];
+  final colors = [l.grainLit, Color.lerp(l.essence, l.rim, 0.3)!, l.grainDim];
   const sizes = [2.6, 2.2, 1.9];
   const trail = [1.0, 0.45, 0.2];
   for (var col = 0; col < 3; col++) {
@@ -1190,8 +1190,8 @@ void paintCoreFall(
       if (_fallN[b] == 0) continue;
       _dots
         ..strokeWidth = sizes[col] * (1 - 0.18 * k)
-        ..color = colours[col].withValues(
-          alpha: (colours[col].a * glow * trail[k]).clamp(0.0, 1.0),
+        ..color = colors[col].withValues(
+          alpha: (colors[col].a * glow * trail[k]).clamp(0.0, 1.0),
         );
       c.drawRawPoints(
         ui.PointMode.points,

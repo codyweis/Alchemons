@@ -141,7 +141,7 @@ class _FeedingScreenState extends State<FeedingScreen>
   late final AnimationController _soulSwapController;
   AlchemicalPowerupType? _animatingType;
 
-  /// Set for kin: the power-up is lit gold, not a stat's colour.
+  /// Set for kin: the power-up is lit gold, not a stat's color.
   Color? _animatingTint;
   AlchemicalPowerupType? _launchingType;
   String? _deltaLabel;
@@ -1002,7 +1002,7 @@ class _FeedingScreenState extends State<FeedingScreen>
             final armed = _draggingType != null;
             final kinChosen = _kin.isNotEmpty && !_busy;
             // The floor is always lit a little — it is where it stands — and
-            // brighter, in the colour of what is coming, when something is.
+            // brighter, in the color of what is coming, when something is.
             final floorColor = hovering
                 ? (candidate.first?.type.color ?? _kAccent)
                 : refusing

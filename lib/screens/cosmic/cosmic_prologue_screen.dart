@@ -5,7 +5,7 @@ import 'package:alchemons/audio/audio.dart';
 // cosmic space, before the exploration tutorial picks up.
 //
 // Flow:
-//   1. Space blooms open: colour-shifting stars flare in and wink out, warp
+//   1. Space blooms open: color-shifting stars flare in and wink out, warp
 //      streaks pull past, nebulae turn over slowly.
 //   2. A Stabilized Harvester hangs in the middle. Tap it to retrieve it.
 //   3. Four elemental stars unfurl — Fire, Water, Earth, Air.
@@ -93,7 +93,7 @@ const CreatureStats kCrossingLetStats = CreatureStats(
 ///
 /// Two things are deliberately not left to the wild generator:
 ///   • **Pigment.** Fresh genetics can land on pale, vibrant or albino tinting.
-///     The Let's prismatic sheen should read against true colours, not on top
+///     The Let's prismatic sheen should read against true colors, not on top
 ///     of a washed-out or hue-shifted body, so the `tinting` track is forced
 ///     back to `normal`. Everything else about the genetics (size and so on)
 ///     is left alone.
@@ -735,7 +735,7 @@ class _ElementPortalState extends State<_ElementPortal> {
           width: 132,
           height: 132,
           child: CustomPaint(
-            // No name, no icon — the colour is the whole label.
+            // No name, no icon — the color is the whole label.
             painter: _VortexPortalPainter(
               field: _field,
               color: _portalColor(widget.element),
@@ -749,7 +749,7 @@ class _ElementPortalState extends State<_ElementPortal> {
   }
 }
 
-/// The element's colour lifted toward white so muddy ones still read against
+/// The element's color lifted toward white so muddy ones still read against
 /// near-black.
 Color _portalColor(String element) =>
     Color.lerp(elementColor(element), Colors.white, 0.22)!;
@@ -806,7 +806,7 @@ class _VortexPortalPainter extends CustomPainter {
 ///
 /// It is the same rift, carried on: spun up and falling in. The field's own
 /// dive zooms the grains past and ends black, so the encounter cuts in from
-/// the dark rather than from a wash of the element colour.
+/// the dark rather than from a wash of the element color.
 class _PortalTakeoverPainter extends CustomPainter {
   const _PortalTakeoverPainter({
     required this.origin,
@@ -993,7 +993,7 @@ double _erf(double x) {
 /// A soft glow behind a line of text, standing in for a blurred text Shadow.
 ///
 /// A `Shadow(blurRadius: 22)` puts a sigma-13 haze around the glyphs; across
-/// a single line that reads as a wide, low ellipse of the colour, which is
+/// a single line that reads as a wide, low ellipse of the color, which is
 /// what this paints — a stretched radial gradient, no filter.
 class _LabelGlowPainter extends CustomPainter {
   const _LabelGlowPainter(this.color);

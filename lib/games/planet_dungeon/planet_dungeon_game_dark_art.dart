@@ -7,11 +7,11 @@
 // the blood bridges, which are panes of red glass laid over nothing.
 //
 // THE PORTALS are the point. A mouth is a black sun set in an obsidian face:
-// a pool of its Dark's colour spilling onto the floor in front of it, an
+// a pool of its Dark's color spilling onto the floor in front of it, an
 // accretion disc of filled, tapered arms turning into it (brighter on one
 // side, the way a real one is), motes spiralling down, and — while its pair
 // is whole — a WINDOW: the other end's room, seen through it, bodies and
-// beams and all. Casting throws a comet of colour at the wall and the mouth
+// beams and all. Casting throws a comet of color at the wall and the mouth
 // tears open from a slit; walking through one pulls you in and throws you
 // out of the other.
 //
@@ -70,7 +70,7 @@ const Color _kSunBloodHot = Color(0xFFFFC4C4);
 const Color _kSunBronze = Color(0xFF8A6A36);
 const Color _kSunGold = Color(0xFFD6B25E);
 
-Color _sunOwnerColour(String o) => o == 'purple' ? _kSunPurple : _kSunOrange;
+Color _sunOwnerColor(String o) => o == 'purple' ? _kSunPurple : _kSunOrange;
 Color _sunOwnerHot(String o) => o == 'purple' ? _kSunPurpleHot : _kSunOrangeHot;
 
 double _sunEase(double t) {
@@ -507,7 +507,7 @@ extension BlackSunArt on PlanetDungeonGame {
   // ── Beams ────────────────────────────────────────────────
 
   /// Every beam's run through [room]: a wide soft glow, a bright body and a
-  /// white core, with motes riding it in the colour of the portals it has
+  /// white core, with motes riding it in the color of the portals it has
   /// been through — white, purple, orange — and blood once it has been
   /// through both.
   void _renderSunBeams(Canvas canvas, String room, SunEval e, {double alpha = 1}) {
@@ -745,15 +745,15 @@ extension BlackSunArt on PlanetDungeonGame {
       final p = blackSun.state.pos[n]!;
       if (p.room != pd.id) continue;
       final bc = sunCentre(p.x, p.y);
-      final col = n == 'light' ? _kSunWhite : _sunOwnerColour(n);
+      final col = n == 'light' ? _kSunWhite : _sunOwnerColor(n);
       canvas.drawCircle(bc, 30, Paint()..shader = ui.Gradient.radial(bc, 30, [col.withValues(alpha: .7), col.withValues(alpha: 0)]));
       canvas.drawCircle(bc, 12, Paint()..color = col);
     }
     canvas.restore();
-    // A tint of the owner's colour over the view: you are looking through it.
+    // A tint of the owner's color over the view: you are looking through it.
     canvas.drawOval(
       Rect.fromCenter(center: c, width: rx * 2, height: ry * 2),
-      Paint()..color = _sunOwnerColour(owner).withValues(alpha: .12),
+      Paint()..color = _sunOwnerColor(owner).withValues(alpha: .12),
     );
   }
 
@@ -792,7 +792,7 @@ extension BlackSunArt on PlanetDungeonGame {
     final cf = sunCastFace(_sunWorld, blackSun.state, e, me, dir);
     if (cf.face == null) return;
     final (c, _) = _sunMouthAt(def, cf.face!);
-    final col = _sunOwnerColour(me);
+    final col = _sunOwnerColor(me);
     // Where it would open: a few motes already circling the spot.
     for (var i = 0; i < 10; i++) {
       final a = i * 2 * pi / 10 + _time * 1.6;
@@ -815,14 +815,14 @@ extension BlackSunArt on PlanetDungeonGame {
   }
 
   void _renderSunMoments(Canvas canvas, SunRoomDef def) {
-    // A cast: a comet of colour thrown from the Dark to the wall.
+    // A cast: a comet of color thrown from the Dark to the wall.
     final cs = blackSun.castStreak;
     if (cs != null) {
       final (from, dir, owner, t0) = cs;
       final t = (_time - t0) / .22;
       final at = blackSun.state.ends[owner];
       if (t < 1 && at != null) {
-        final col = _sunOwnerColour(owner);
+        final col = _sunOwnerColor(owner);
         final head = from + Offset(kSunDx[dir] * 1.0, kSunDy[dir] * 1.0) * (t * 420);
         final tail = from + Offset(kSunDx[dir] * 1.0, kSunDy[dir] * 1.0) * (max(0.0, t - .35) * 420);
         final n = Offset(-kSunDy[dir] * 1.0, kSunDx[dir] * 1.0);
@@ -846,7 +846,7 @@ extension BlackSunArt on PlanetDungeonGame {
       final p = blackSun.state.pos[n]!;
       if (t >= 1 || p.room != def.id) continue;
       final c = sunCentre(p.x, p.y);
-      final col = n == 'light' ? _kSunWhiteGlow : _sunOwnerColour(n);
+      final col = n == 'light' ? _kSunWhiteGlow : _sunOwnerColor(n);
       for (var i = 0; i < 12; i++) {
         final a = i * pi / 6 + t * 3;
         final rr = 8 + 44 * _sunEase(t);

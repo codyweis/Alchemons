@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // The guardian's death in grains of itself: the field on its own (no blur,
-// no hoops, a draw per colour, the crest), and in the dungeon (the body is
+// no hoops, a draw per color, the crest), and in the dungeon (the body is
 // read, the raid still waits for it, the relic still follows it).
 
 GuardianGrainDeath _disc() => GuardianGrainDeath(color: const Color(0xFFE05030))
@@ -103,7 +103,7 @@ void main() {
       }
     });
 
-    test('a draw per colour, not per grain', () {
+    test('a draw per color, not per grain', () {
       final d = _disc();
       expect(d.grains!.length, greaterThan(500));
       for (var t = 0.0; t < GuardianGrainDeath.duration; t += 0.1) {
@@ -129,7 +129,7 @@ void main() {
       );
     });
 
-    testWidgets('a painted body is read into grains of its own colour', (
+    testWidgets('a painted body is read into grains of its own color', (
       tester,
     ) async {
       await tester.runAsync(() async {

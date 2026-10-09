@@ -343,7 +343,7 @@ void paintMysticDawnStar({
 // ─────────────────────────────────────────────────────────────────────────
 
 /// A body that died and got back up on your side: its own shape gone pale
-/// and hollow, a veil trailing it, cold light where the colour was.
+/// and hollow, a veil trailing it, cold light where the color was.
 void paintMysticRevenant({
   required ui.Canvas canvas,
   required ui.Offset position,

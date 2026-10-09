@@ -39,7 +39,7 @@ void main() {
          * (0.22 - fl * 0.08) * uIntensity;
   }
 
-  // Dry haze washing the whole frame out — this planet has no wet colour.
+  // Dry haze washing the whole frame out — this planet has no wet color.
   col = mix(col, uColorC, 0.06);
   col *= 1.0 - smoothstep(0.55, 1.05, length(uv - 0.5)) * 0.38;
   fragColor = vec4(col, 1.0);

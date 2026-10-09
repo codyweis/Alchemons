@@ -1864,7 +1864,7 @@ const Set<String> kPolishedDungeons = <String>{
   'Lava',
   // Poison — promoted 2026-09-14 on the author's own account of having
   // played it. Its maxim was rebuilt into a real errand on 2026-09-04 (The
-  // Dose: three colours walked home to the cross) and its art foundation
+  // Dose: three colors walked home to the cross) and its art foundation
   // landed with the rest; the record here had simply not caught up, and
   // §7.9's list was stale rather than the planet unfinished.
   'Poison',
@@ -1883,7 +1883,7 @@ const Set<String> kPolishedDungeons = <String>{
   'Plant',
   // Spirit — promoted 2026-09-28 on the author's account, after the
   // Unfinished Funeral redesign (party Spirit·Blood·Dust), its art pass, the
-  // linked-beam bearers' court, the coloured mourners and the Empty Urn
+  // linked-beam bearers' court, the colored mourners and the Empty Urn
   // maxim, played on device.
   'Spirit',
   // Light — promoted 2026-09-30 on the author's account, after the Shadow
@@ -2182,7 +2182,7 @@ class ElementStorage {
 // HOME PLANET
 // ─────────────────────────────────────────────────────────
 
-/// A premium home planet colour: not an element's, bought with several.
+/// A premium home planet color: not an element's, bought with several.
 /// Its [id] is stored in [HomePlanet.activeColor] / [HomePlanet.unlockedColors]
 /// alongside element names, so no save format changes.
 class PremiumHomeColor {
@@ -2203,7 +2203,7 @@ class PremiumHomeColor {
   final Map<String, int> cost;
 }
 
-/// The premium colours, each drawn specially (see `_paintHomeSphere`):
+/// The premium colors, each drawn specially (see `_paintHomeSphere`):
 /// Void is Nythralor's black, Radiant a light too bright to look at.
 const List<PremiumHomeColor> kPremiumHomeColors = [
   PremiumHomeColor(
@@ -2227,7 +2227,7 @@ PremiumHomeColor? premiumHomeColor(String? id) {
   return null;
 }
 
-/// The colour a home planet colour id shows as: an element's, a premium
+/// The color a home planet color id shows as: an element's, a premium
 /// one's swatch, or the default gray for none.
 Color homeColorSwatch(String? id) {
   if (id == null) return const Color(0xFF607D8B);

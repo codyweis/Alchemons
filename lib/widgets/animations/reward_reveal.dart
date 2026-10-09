@@ -1,7 +1,7 @@
 // lib/widgets/animations/reward_reveal.dart
 //
 // REWARDS ARRIVING. Each reward's row opens as a faint slot, and the reward
-// gathers into it out of drifting grains of its own colour: they come in
+// gathers into it out of drifting grains of its own color: they come in
 // from round the slot on a slow turn, trailing, settle where the item will
 // be, and dim into it as the item's own art comes up. The name and amount
 // follow. One after another, overlapping, eased at both ends — nothing
@@ -312,7 +312,7 @@ class _RevealRow extends StatelessWidget {
   }
 }
 
-/// A reward gathering out of grains of its colour into the middle of its
+/// A reward gathering out of grains of its color into the middle of its
 /// slot. They start spread along the reward's own row — where its name and
 /// amount will be — and drift in on a gentle arc, so the row fills from the
 /// inside rather than being sprayed into from off the edge. Paints only

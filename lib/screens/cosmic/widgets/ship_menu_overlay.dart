@@ -7,7 +7,7 @@
 //
 // Each figure is said once. Fuel used to appear twice (under the booster
 // and again under supplies), the sentinels twice too, and every value wore
-// a coloured pill of its own.
+// a colored pill of its own.
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -646,7 +646,7 @@ class ShipMenuOverlayState extends State<ShipMenuOverlay> {
 
 /// What placing a home here would do, when it would do something to note:
 /// orbit a planet whose pull the ship is in, or not go at all. A line in
-/// the planet's colour inside a bracket frame, with a quiet way out.
+/// the planet's color inside a bracket frame, with a quiet way out.
 class PlacementNote extends StatelessWidget {
   const PlacementNote({
     super.key,

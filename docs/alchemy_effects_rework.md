@@ -5,7 +5,7 @@ Written 2026-10-01. The plan is approved.
 **Status (2026-10-01): Steps 1, 2 and part of 3 built. 14 effects are on the shared painter in every host, and the old widget, Flame and canvas copies are deleted. Not device-played.**
 - **Step 3, the two the user picked:**
   - **Will-o'-Wisps** (`will_o_wisps`, `alchemy.will_o_wisps`, offer `effects.will_o_wisps`, 20g). Four soft marsh lights on slow unrepeating paths. Each is a pale heart in a wide glow, with a short trail and a light pool on the ground beneath it. Each one is in front of the creature or behind it depending on its own depth.
-  - **Elemental Dust Ring** (`dust_ring`, `alchemy.dust_ring`, offer `effects.dust_ring`, 35g). Cindrath's `_ParticleRing` recipe at creature scale, in the element's colours (`auraElement`, as the Elemental Aura uses): soft lanes and about 450 fine grains with Keplerian shear and twinkle, far half behind and near half in front. The shop card shows it in Dust.
+  - **Elemental Dust Ring** (`dust_ring`, `alchemy.dust_ring`, offer `effects.dust_ring`, 35g). Cindrath's `_ParticleRing` recipe at creature scale, in the element's colors (`auraElement`, as the Elemental Aura uses): soft lanes and about 450 fine grains with Keplerian shear and twinkle, far half behind and near half in front. The shop card shows it in Dust.
   - Both have front layers.
   - Renders: `docs/alchemy_effects_step3_*.png`.
   - Evaporating edge was not picked.
@@ -17,18 +17,18 @@ Written 2026-10-01. The plan is approved.
   - Census: at most 14 draws a frame (Wavebreaker); 0 blurs.
   - Renders: `docs/alchemy_effects_step2.png`, `docs/alchemy_effects_step2_in_context.png`, `docs/alchemy_effects_step1_elements.png`.
 - **Rounds 1–3 (Step 1), what the user ruled:**
-  - Prismatic is bold and colourful.
+  - Prismatic is bold and colorful.
   - Four-point stars are cheesy, so no star shapes anywhere.
   - The aura shows the creature's own element (or its pigment faction's).
   - Buying an effect only toasts.
   - Effects belong in the grids.
 - `lib/widgets/fx/alchemy_effects/`:
-  - `alchemy_effect_paint.dart`: the dispatcher plus the shared kit — one `GrainBatch`, the unit-gradient `_pool` and `_ripple`, the unit-path `_shape`, `_hsv`/`_mix`, and `_Atlas` (soft grains and petals in one `drawRawAtlas` call, each its own colour, size and turn, additive on the dark plate).
+  - `alchemy_effect_paint.dart`: the dispatcher plus the shared kit — one `GrainBatch`, the unit-gradient `_pool` and `_ripple`, the unit-path `_shape`, `_hsv`/`_mix`, and `_Atlas` (soft grains and petals in one `drawRawAtlas` call, each its own color, size and turn, additive on the dark plate).
   - One part file per effect; `elemental_aura.dart` has the 17 element motions on `essenceRamp`/`essencePool`.
   - `alchemy_effect_view.dart`: wraps the sprite as its `child`, painter behind and `foregroundPainter` in front, on `GlyphClock`, in its own `RepaintBoundary`.
-- **Prismatic, redirected by the user:** "barely noticeable … should be an awesome prismatic one with awesome colors; the old one was close, just not performant and up to date." It is now bold and colourful:
+- **Prismatic, redirected by the user:** "barely noticeable … should be an awesome prismatic one with awesome colors; the old one was close, just not performant and up to date." It is now bold and colorful:
   - three hues drifting through each other as a glow behind it;
-  - 7 soft coloured shafts turning slowly;
+  - 7 soft colored shafts turning slowly;
   - a tipped ring of 190 rainbow grains (the planet dust-ring recipe) passing behind and then in front of the creature;
   - a spectral pool at its feet.
   - Hues cycle every 12 s. The §4 "restraint" brief for Prismatic is superseded.
@@ -100,7 +100,7 @@ The widget files live in `lib/widgets/animations/sprite_effects/`.
 **Problems:**
 
 - **Look.** Almost everything is built from rings, dial ticks, spokes and flat discs.
-  - Volcanic, Void, Blood and Strength each sit a coloured coin behind the creature, so they read as stickers.
+  - Volcanic, Void, Blood and Strength each sit a colored coin behind the creature, so they read as stickers.
   - Golden Rite and Beauty read as clock faces, and Speed reads as a loading spinner.
   - Prismatic, the most expensive at 100g, is the worst: its blurred glow washes far past the creature.
   - Elemental is 5 tiny dots that barely register.
@@ -168,7 +168,7 @@ The user approved this direction. Build in this order:
 **Step 1 — shared painter plus the two worst offenders.** Render a preview and show the user before doing anything else.
 
 1. **Prismatic Cascade** (rebuild; highest price, worst look, most expensive). Clear glass prism motes drift slowly upward and around the body. Each one occasionally splits into a short spectral smear: red→violet in 3–4 grains, a dispersion. Add a faint pale-white light pool at the feet. Hue appears only in the split grains, never as a giant wash. This should feel like the rarest effect because of restraint and sparkle quality, not size.
-2. **Elemental Aura** (rebuild as particles). Element-coloured grains whose motion is that element's essence form, at aura scale and low density. Take the colours from the per-element `_Look` ramps in `lib/widgets/fx/elemental_essence.dart`. Motion per element:
+2. **Elemental Aura** (rebuild as particles). Element-colored grains whose motion is that element's essence form, at aura scale and low density. Take the colors from the per-element `_Look` ramps in `lib/widgets/fx/elemental_essence.dart`. Motion per element:
    - **Fire:** embers rise.
    - **Water:** droplets roll and bob.
    - **Earth:** grit settles at the feet.

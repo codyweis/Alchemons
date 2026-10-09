@@ -235,7 +235,7 @@ extension CosmicGameCompanionsAndContests on CosmicGame {
     }
   }
 
-  /// Reads a companion — its first frame, coloured by its genetics, at the
+  /// Reads a companion — its first frame, colored by its genetics, at the
   /// size it is drawn — into grains for its summoning and its recall. Small:
   /// a summoning lasts under a second and up to three can play at once.
   Future<void> _readCompanionGrains(

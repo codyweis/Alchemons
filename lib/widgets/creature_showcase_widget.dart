@@ -179,7 +179,7 @@ class PresentationData {
   });
 }
 
-/// The featured specimen's glow: its faction's colour at the heart, fading
+/// The featured specimen's glow: its faction's color at the heart, fading
 /// through the accent into nothing past the edge of its 220 box.
 ///
 /// One radial gradient. It replaced a gradient disc over a 40px blurred

@@ -310,7 +310,7 @@ extension StormCircuitArt on PlanetDungeonGame {
     canvas.restore();
   }
 
-  /// A station pad: a brass-rimmed disc of glass the colour of the element it
+  /// A station pad: a brass-rimmed disc of glass the color of the element it
   /// is keyed to — faint and waiting until that element stands on it.
   void _drawGlassPad(Canvas canvas, Offset pos, Color col, bool on) {
     canvas.save();

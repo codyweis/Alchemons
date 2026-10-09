@@ -316,7 +316,7 @@ class StationPrice extends StatelessWidget {
   final Map<String, int> cost;
   final Map<String, int>? was;
 
-  /// The currencies there is not enough of; drawn in the warning colour.
+  /// The currencies there is not enough of; drawn in the warning color.
   final Set<String> short;
   final double size;
 

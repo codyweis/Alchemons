@@ -62,7 +62,7 @@ const Color _kSpace = Color(0xFF020010);
 
 // ── the hull, in grains ─────────────────────────────────────────────────────
 
-/// A hull read into grains, coloured by its own light.
+/// A hull read into grains, colored by its own light.
 @immutable
 class ShipGrains {
   const ShipGrains._(
@@ -75,7 +75,7 @@ class ShipGrains {
   );
 
   /// Each grain's place, in hull units (nose up, about 45 tall), and its
-  /// colour as an index into [colors].
+  /// color as an index into [colors].
   final Float32List hx, hy;
   final Uint8List tone;
   final List<Color> colors;
@@ -145,7 +145,7 @@ class ShipGrains {
     }
   }
 
-  /// The hull's own colours turned to its light: the obsidian, which is
+  /// The hull's own colors turned to its light: the obsidian, which is
   /// near black and would vanish on the dark, becomes a dim grain of its
   /// rim light; what was lit stays lit, up to white-hot.
   static List<Color> _inked(List<Color> tones, ShipLight l) {

@@ -44,7 +44,7 @@ float fbm(vec2 p) {
   return v;
 }
 
-// Shared palette helpers. Mixes the three contract colours by a 0..1 ramp.
+// Shared palette helpers. Mixes the three contract colors by a 0..1 ramp.
 vec3 palette3(float t, vec3 a, vec3 b, vec3 c) {
   t = clamp(t, 0.0, 1.0);
   return t < 0.5 ? mix(a, b, t * 2.0) : mix(b, c, (t - 0.5) * 2.0);
@@ -56,7 +56,7 @@ vec2 dungeonUV() {
 }
 
 // CRYSTAL — Lumishara, the Prism Labyrinth. Seen from inside a cut stone:
-// hard faceted planes, and light SPLIT into its colours along their edges.
+// hard faceted planes, and light SPLIT into its colors along their edges.
 // The dispersion is the signature and it belongs to no other planet; keep the
 // geometry angular so it cannot be read as Water's caustics.
 // uColorA stone dark, uColorB lattice violet, uColorC white refraction.

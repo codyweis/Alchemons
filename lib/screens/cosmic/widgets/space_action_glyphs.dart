@@ -5,12 +5,12 @@
 // the star chart's material (glass lit from inside, light pooled round it,
 // grains) instead of stock arrows and icons:
 //
-//   deposit  the cargo, grains in its own elements' colours, falling into
+//   deposit  the cargo, grains in its own elements' colors, falling into
 //            the home planet's bead — which is what a deposit does: the
-//            hold's elements go into home's colour
+//            hold's elements go into home's color
 //   descend  the curve of a planet's face below, a grain diving down into
 //            it and lighting where it goes in
-//   home     the home planet, a lit bead in its own colour
+//   home     the home planet, a lit bead in its own color
 //   ship     the hull the player flies, in its grains
 //   raid     a planet with the storm of an overrun on it (the chart's own)
 //   summon   the raid beacon (the item's own glyph)
@@ -70,7 +70,7 @@ class SpaceActionGlyph extends StatefulWidget {
   final SpaceAction kind;
   final double size;
 
-  /// The light it is drawn in: home's colour (deposit, home), the planet's
+  /// The light it is drawn in: home's color (deposit, home), the planet's
   /// (descend, raid).
   final Color color;
 
@@ -424,7 +424,7 @@ class SpaceActionPainter extends CustomPainter {
     );
   }
 
-  /// Home's bead: a sphere in its colour lit from the upper left, bright
+  /// Home's bead: a sphere in its color lit from the upper left, bright
   /// enough to read at a button's size, its light round it.
   void _bead(Canvas canvas, Offset at, double r, double alpha) {
     final m = stoneLightFor(color);
@@ -471,7 +471,7 @@ class SpaceActionPainter extends CustomPainter {
       final fall = ph * ph;
       final y = top + (bead.dy - r * 0.6 - top) * fall;
       final x = c.dx + from * (1 - fall);
-      // Bucket by colour (up to 6), and the last moments in the fade one.
+      // Bucket by color (up to 6), and the last moments in the fade one.
       b.add(ph > 0.88 ? 7 : i % math.min(colors.length, 6), x, y);
     }
     for (var k = 0; k < math.min(colors.length, 6); k++) {

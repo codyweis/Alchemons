@@ -1602,7 +1602,7 @@ void main() {
   });
 
   group('the crypt reads the fight it actually has', () {
-    test('Blightfang\'s reading is about brews and shells, not a colour', () {
+    test('Blightfang\'s reading is about brews and shells, not a color', () {
       // `monastery.wearing` is never set: ANY brew opens the shell (never
       // the same one twice running). The old reading promised a one-brew
       // lock the fight does not have.

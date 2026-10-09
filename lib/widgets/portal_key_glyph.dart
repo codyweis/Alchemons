@@ -28,7 +28,7 @@ class PortalKeyGlyph extends StatefulWidget {
   final String biomeId;
   final double size;
 
-  /// Overrides the element's own colour.
+  /// Overrides the element's own color.
   final Color? color;
 
   /// Off for a still frame; a market row scrolling past does not need to run.
@@ -165,7 +165,7 @@ class _PortalKeyPainter extends CustomPainter {
     _t,
   );
 
-  // Shaders cut once per size and colour, at the origin, and drawn through a
+  // Shaders cut once per size and color, at the origin, and drawn through a
   // translate: a market row of five keys was cutting five gradients a frame.
   static final Map<(int, int), Shader> _poolShaders = {};
   static final Map<(int, int), Shader> _bodyShaders = {};
@@ -335,7 +335,7 @@ class _PortalKeyPainter extends CustomPainter {
     _p.shader = null;
     canvas.restore();
 
-    // Now and then a glint runs down it. Each colour keeps its own time, so
+    // Now and then a glint runs down it. Each color keeps its own time, so
     // a row of five does not flash together.
     final cycle = ((t + (color.toARGB32() % 7) * 0.53) % 3.6) / 3.6;
     if (cycle < 0.16 && s >= 20) {

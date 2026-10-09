@@ -1,10 +1,10 @@
 // lib/widgets/costume/costume_color_sheet.dart
 //
-// A COSTUME'S COLOUR, picked on the creature that will wear it.
+// A COSTUME'S COLOR, picked on the creature that will wear it.
 //
 //   The creature stands in the middle wearing it as it is now — the whole
 //   Wing under a hat, a Pip's face close for its nose; round it, a ring of
-//   every colour the costume comes in, and under it a row of hand-picked
+//   every color the costume comes in, and under it a row of hand-picked
 //   ones. Asked when a costume goes on, from any of the places one can, and
 //   again whenever the Effect slot is asked to change it (free).
 
@@ -25,7 +25,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-/// Asks for the colour of the [costume] that [instance] is putting on (or
+/// Asks for the color of the [costume] that [instance] is putting on (or
 /// already wears), shown on it. [confirmLabel] names what saying yes does.
 /// Null if the player backs out.
 Future<Color?> pickCostumeColor(
@@ -151,7 +151,7 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
     final palette = BracketPalette.of(context);
     final accent = bracketReadableAccent(context.read<FactionTheme>());
     final costume = widget.costume;
-    // Wearing everything it wears now, and this in the colour picked.
+    // Wearing everything it wears now, and this in the color picked.
     final worn = widget.instance.copyWith(
       costumes: Value(
         WornCostumes.on(
@@ -168,7 +168,7 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              '${costume.noun.toUpperCase()} COLOUR',
+              '${costume.noun.toUpperCase()} COLOR',
               style: bracketText(
                 context,
                 12.5,
@@ -255,7 +255,7 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
   }
 }
 
-/// A hand-picked colour: a disc of the costume's own material in it — the
+/// A hand-picked color: a disc of the costume's own material in it — the
 /// hat's velvet, the nose's glass, the glasses' smoked lens — the chosen
 /// one ringed in gold.
 class _Swatch extends StatelessWidget {
@@ -310,7 +310,7 @@ class _SwatchPainter extends CustomPainter {
       old.costume != costume || old.color != color || old.chosen != chosen;
 }
 
-/// Every colour the costume comes in round the creature, red at the top,
+/// Every color the costume comes in round the creature, red at the top,
 /// and a gold-rimmed knob on the one picked.
 class _HueRingPainter extends CustomPainter {
   _HueRingPainter({
@@ -324,11 +324,11 @@ class _HueRingPainter extends CustomPainter {
   final FamilyCostume costume;
   final double radius, band;
 
-  /// Where the knob sits, in turns; null for a colour off the ring.
+  /// Where the knob sits, in turns; null for a color off the ring.
   final double? hue;
   final Color color;
 
-  /// Each costume's ring of colours, about its own centre: made once.
+  /// Each costume's ring of colors, about its own centre: made once.
   static final Map<FamilyCostume, Shader> _wheels = {};
   static Shader _wheel(FamilyCostume costume) =>
       _wheels[costume] ??= ui.Gradient.sweep(
@@ -419,7 +419,7 @@ void _velvetDisc(Canvas canvas, Offset c, double r, Color color) {
 }
 
 /// A bead of [color] lit as the nose is: a pale cap up on the left, the
-/// colour, a deep edge, and a glint.
+/// color, a deep edge, and a glint.
 void _glassDisc(Canvas canvas, Offset c, double r, Color color) {
   const white = Color(0xFFFFFFFF);
   canvas.drawCircle(

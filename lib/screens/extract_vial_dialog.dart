@@ -351,7 +351,7 @@ class _Button extends StatelessWidget {
   }
 }
 
-/// A flask outline, echoing the vial card's frame colours.
+/// A flask outline, echoing the vial card's frame colors.
 class _RulePainter extends CustomPainter {
   const _RulePainter({required this.accent});
   final Color accent;

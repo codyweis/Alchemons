@@ -5,7 +5,7 @@
 //
 // Vitrea is the one planet made of glass already, so the repaint is in its
 // own file (planet_dungeon_game_crystal.dart): a chamber is glazed as a
-// WINDOW — a border of its colour, a light lattice, a medallion whose petal
+// WINDOW — a border of its color, a light lattice, a medallion whose petal
 // count is its mark — rather than a sheet cut through by long black cracks,
 // and it is baked per chamber. The doors are prism glass in the stone.
 //
@@ -30,9 +30,9 @@ final Map<int, List<Color>> _beamGrainRamps = {};
 /// The closed elliptical courses held notes circle on, by key.
 final Map<String, List<Offset>> _noteCourses = {};
 
-/// The beam's grains for wheel step [hue]: its colour, lit toward white.
+/// The beam's grains for wheel step [hue]: its color, lit toward white.
 List<Color> _beamGrainRamp(int hue) => _beamGrainRamps.putIfAbsent(hue, () {
-  final c = PrismLabyrinthKeep._wheelColour(hue);
+  final c = PrismLabyrinthKeep._wheelColor(hue);
   return [
     Color.lerp(c, const Color(0xFF0A0810), 0.4)!,
     c,

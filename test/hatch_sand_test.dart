@@ -12,12 +12,12 @@ void main() {
   const water = [Color(0xFF1574A1), Color(0xFF38BDF8), Color(0xFF7DD3FC)];
 
   HatchSandField sandOf({
-    HatchSandColour colour = HatchSandColour.elements,
+    HatchSandColor color = HatchSandColor.elements,
     bool loose = false,
   }) => HatchSandField(
     paletteA: fire,
     paletteB: water,
-    colour: colour,
+    color: color,
     loose: loose,
   )..layout(size);
 
@@ -76,7 +76,7 @@ void main() {
     var rightWarm = 0, rightAll = 0, leftWarm = 0, leftAll = 0;
     for (var i = 0; i < f.grainCount; i++) {
       final at = f.debugGrainAt(i);
-      final c = f.debugColourOf(i);
+      final c = f.debugColorOf(i);
       final warm = ((c >> 16) & 0xFF) > (c & 0xFF);
       if (at.dx > size.width * 0.85) {
         rightAll++;
@@ -126,14 +126,14 @@ void main() {
       return sw.elapsedMicroseconds / 60;
     }
 
-    for (final (name, colour, loose) in [
-      ('elements', HatchSandColour.elements, false),
-      ('prismatic', HatchSandColour.prismatic, false),
-      ('gilded', HatchSandColour.gilded, false),
-      ('alchemized', HatchSandColour.elements, true),
+    for (final (name, color, loose) in [
+      ('elements', HatchSandColor.elements, false),
+      ('prismatic', HatchSandColor.prismatic, false),
+      ('gilded', HatchSandColor.gilded, false),
+      ('alchemized', HatchSandColor.elements, true),
     ]) {
       final build = Stopwatch()..start();
-      final f = sandOf(colour: colour, loose: loose);
+      final f = sandOf(color: color, loose: loose);
       final built = build.elapsedMicroseconds;
       run(f, 1.5);
       final rest = time(f, (_) {});

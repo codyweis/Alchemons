@@ -106,9 +106,9 @@ TextPainter _itemIconPainter(IconData icon, Color color) {
 }
 
 /// World labels (planet names, POI tags, whirl counters, …) laid out once
-/// per distinct (text, colour, size, weight, spacing) instead of every
-/// frame. Keyed on the colour's 8-bit ARGB — all the canvas can show — so a
-/// cached label paints exactly what a fresh one would. Callers whose colour
+/// per distinct (text, color, size, weight, spacing) instead of every
+/// frame. Keyed on the color's 8-bit ARGB — all the canvas can show — so a
+/// cached label paints exactly what a fresh one would. Callers whose color
 /// animates quantize it first. Cleared wholesale if it ever grows past 512.
 final Map<(String, int, double, FontWeight?, double?), TextPainter>
 _worldLabelPainters = {};
@@ -441,10 +441,10 @@ class CosmicGame extends FlameGame with PanDetector {
   VoidCallback? onWildTearStarted;
 
   // Territories are lived in; the deep space between them is sparse.
-  static const int _maxWildInTerritory = 5;
-  static const double _wildIntervalInTerritory = 6.0;
-  static const int _maxWildInDeepSpace = 2;
-  static const double _wildIntervalInDeepSpace = 15.0;
+  static const int _maxWildInTerritory = 3;
+  static const double _wildIntervalInTerritory = 20.0;
+  static const int _maxWildInDeepSpace = 1;
+  static const double _wildIntervalInDeepSpace = 45.0;
 
   /// Share of a territory's arrivals that are its own element; the rest are
   /// strays from anywhere already discovered.
@@ -5751,7 +5751,7 @@ class CosmicGame extends FlameGame with PanDetector {
           break;
         case LootType.healthOrb:
         case LootType.elementParticle:
-          // A glass orb of light, grains of its colour circling it
+          // A glass orb of light, grains of its color circling it
           // (poi_art.dart).
           paintLootOrb(
             canvas,
@@ -5800,7 +5800,7 @@ class CosmicGame extends FlameGame with PanDetector {
               tint.withValues(alpha: 0.28 * fadeAlpha * pulse),
               12,
             );
-            // One glyph, so its fade goes in its colour — no layer. Alpha in
+            // One glyph, so its fade goes in its color — no layer. Alpha in
             // 1/32 steps keeps the painter cache to a few entries per icon.
             final fadeQ = (fadeAlpha.clamp(0.0, 1.0) * 32).round() / 32;
             if (fadeQ > 0) {

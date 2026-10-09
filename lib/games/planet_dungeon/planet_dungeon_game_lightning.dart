@@ -2014,7 +2014,7 @@ extension StormCircuit on PlanetDungeonGame {
     }
   }
 
-  /// The colour a wing throws into the gallery's glass.
+  /// The color a wing throws into the gallery's glass.
   Color _wingLight(String trunkId) => switch (trunkId) {
     'trunk_pylon' => const Color(0xFFBFE6FF), // the hall of bolts
     'trunk_vault' => const Color(0xFFE9D27A), // the treasury's hoarded amber
@@ -2054,7 +2054,7 @@ extension StormCircuit on PlanetDungeonGame {
       }
 
       // The glass. Inert slate when nothing shines into it; silvered and
-      // wing-coloured when its own wing is the one being fed.
+      // wing-colored when its own wing is the one being fed.
       canvas.drawRect(
         rect,
         Paint()

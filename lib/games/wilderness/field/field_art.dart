@@ -14,10 +14,10 @@ import 'package:alchemons/models/scenes/spawn_point.dart';
 // parts (grass, motes), drawn every frame in the layer's own units. The sky
 // sits behind every layer, fixed to the screen like anything at infinity.
 //
-// The light changes with the hour, so a still sheet is not baked in colour.
+// The light changes with the hour, so a still sheet is not baked in color.
 // A body sheet is baked as maps — how hazed, how lit, how shaded each pixel
-// is — and a colour matrix for the hour turns those into colour as it is
-// drawn. A light sheet is baked white, and coloured column by column with
+// is — and a color matrix for the hour turns those into color as it is
+// drawn. A light sheet is baked white, and colored column by column with
 // the light falling at that x, so a rim can blaze under a low sun and go
 // dark away from it. Relighting the whole field is a uniform per draw.
 
@@ -118,11 +118,11 @@ class FieldSheet {
   /// be baked coarser than crisp near ones.
   final double resolution;
 
-  /// Which of the field's colour grades turns this body sheet's maps into
-  /// colour (see [FieldArt.grade]).
+  /// Which of the field's color grades turns this body sheet's maps into
+  /// color (see [FieldArt.grade]).
   final int grade;
 
-  /// A light sheet: baked white, coloured per column by [FieldArt.lightAt].
+  /// A light sheet: baked white, colored per column by [FieldArt.lightAt].
   final bool light;
 
   /// How much of it shows this frame (1 when null); at 0 it is not drawn at
@@ -206,11 +206,11 @@ abstract class FieldArt {
   /// field's clock (seconds).
   void prepare(double hour, {double time = 0}) {}
 
-  /// The colour matrix for body sheets of [grade] this frame, or null to
+  /// The color matrix for body sheets of [grade] this frame, or null to
   /// draw them as baked.
   ColorFilter? grade(int grade);
 
-  /// The light falling on [layer] at local [x] this frame: its colour, with
+  /// The light falling on [layer] at local [x] this frame: its color, with
   /// strength in the alpha.
   Color lightAt(SceneLayer layer, double x, FieldView view);
 
@@ -327,7 +327,7 @@ class FieldRandom {
   double range(double a, double b) => a + (b - a) * _r.nextDouble();
 }
 
-/// A colour of maps for baking a body sheet: [r], [g], [b] in 0–1 are
+/// A color of maps for baking a body sheet: [r], [g], [b] in 0–1 are
 /// whatever the sheet's grade reads them as.
 Color fieldMap(double r, double g, double b, [double a = 1]) => Color.from(
   alpha: a.clamp(0.0, 1.0),
@@ -336,8 +336,8 @@ Color fieldMap(double r, double g, double b, [double a = 1]) => Color.from(
   blue: b.clamp(0.0, 1.0),
 );
 
-/// The colour matrix that reads a body sheet's maps as
-/// `base + r·rCol + g·gCol + b·bCol` (each a colour offset, may be negative),
+/// The color matrix that reads a body sheet's maps as
+/// `base + r·rCol + g·gCol + b·bCol` (each a color offset, may be negative),
 /// keeping the sheet's own alpha.
 ColorFilter fieldGrade({
   required Color base,
@@ -351,10 +351,10 @@ ColorFilter fieldGrade({
   0, 0, 0, 1, 0,
 ]);
 
-/// [a] − [b] as a colour offset.
+/// [a] − [b] as a color offset.
 (double, double, double) fieldDiff(Color a, Color b) =>
     (a.r - b.r, a.g - b.g, a.b - b.b);
 
-/// [c] scaled by [k] as a colour offset.
+/// [c] scaled by [k] as a color offset.
 (double, double, double) fieldScale(Color c, double k) =>
     (c.r * k, c.g * k, c.b * k);

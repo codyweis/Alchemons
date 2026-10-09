@@ -50,7 +50,7 @@ final PointBatch _nebSoft = PointBatch(520);
 final PointBatch _nebMid = PointBatch(520);
 final PointBatch _nebHot = PointBatch(120);
 
-/// A nebula of [element]'s colour at [at], [radius] across. Once [spent]
+/// A nebula of [element]'s color at [at], [radius] across. Once [spent]
 /// it is thin. [ship] is where the ship is, so the cloud parts round it.
 void paintNebula(
   Canvas c, {
@@ -396,7 +396,7 @@ final Map<Color, _Lair> _lairs = {};
 final PointBatch _wakeRing = PointBatch(90);
 final PointBatch _embers = PointBatch(40);
 
-/// A boss lair at [at] for a boss of [element]'s colour. [wakeRadius] is how
+/// A boss lair at [at] for a boss of [element]'s color. [wakeRadius] is how
 /// close the ship can come before it wakes, marked by a faint ring of grains.
 void paintBossLair(
   Canvas c, {
@@ -491,7 +491,7 @@ void paintLoreNote(
 // ── Loot ────────────────────────────────────────────────────────────────────
 //
 // What a fight leaves behind: glass orbs of light (health, element), each
-// with a few grains of its colour circling it, and astral shards — a cut
+// with a few grains of its color circling it, and astral shards — a cut
 // crystal of violet glass turning slowly. Material, like the stations' orbs.
 
 final PointBatch _lootGrains = PointBatch(12);

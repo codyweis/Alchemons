@@ -63,7 +63,7 @@ class _StaminaElixirPainter extends CustomPainter {
 abstract final class _ElixirPaint {
   static const double stillTime = 1.7;
 
-  // ── the draught's colours, deep to white ──
+  // ── the draught's colors, deep to white ──
   static const Color _ink = Color(0xFF05080A);
   static const Color _essence = Color(0xFF6FD873);
   static const List<Color> _tones = [

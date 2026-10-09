@@ -66,7 +66,7 @@ const List<int> kSunDy = [-1, 0, 1, 0];
 const List<String> kSunDirWord = ['north', 'east', 'south', 'west'];
 int sunOpp(int d) => (d + 2) % 4;
 
-/// Beam colour bits.
+/// Beam color bits.
 const int kSunWhite = 1, kSunBlood = 2;
 
 typedef SunCell = ({int x, int y});
@@ -380,7 +380,7 @@ class SunBeam {
 /// What the world looks like in [s]: which squares are lit (and how), which
 /// seals burn, which doors stand open, and every beam's road.
 class SunEval {
-  final Map<String, Map<int, int>> lit; // room → square key → colour bits
+  final Map<String, Map<int, int>> lit; // room → square key → color bits
   final Set<String> sealsLit; // 'room:x,y'
   final Set<String> live; // triggers live, 'room:x,y'
   final Set<String> open; // doors open, 'room:x,y'

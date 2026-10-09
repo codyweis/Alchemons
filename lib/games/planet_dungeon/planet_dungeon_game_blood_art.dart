@@ -13,7 +13,7 @@
 //
 // WHAT STOPS YOU READS AS SOLID (2026-10-06, the author: "so many times I'm
 // walking and can't tell something is blocking my path"). The first pass
-// gave wall tops the floor's own colour, so a lone wall square in a room
+// gave wall tops the floor's own color, so a lone wall square in a room
 // was a faint seam. Walls now stand up out of a darker floor: a lighter
 // porphyry top, a lit arris and a dark face toward the viewer, their shadow
 // thrown on the floor in front; a wall with wall in front runs on unbroken.
@@ -90,7 +90,7 @@ double _riteEase(double t) {
 // and Sanguorath's shell a ring of stickers. Now an element that is a thing
 // in a puzzle is its Codex orb (ice, a brazier's fire, the Dust and Water
 // roots); a pair root is the same dark glass lit from inside in its pair's
-// colour; what is elemental (lava, smoke, the shell) is grains; and what is
+// color; what is elemental (lava, smoke, the shell) is grains; and what is
 // furniture (the gates, the bellows) is near-black carved stone, its key in
 // leaded glass. Nothing the puzzles read moved: squares, timings, states.
 
@@ -126,7 +126,7 @@ GrainShape? _riteLavaCrust, _riteLavaEmbers;
 /// Sanguorath's shell in grains, by element.
 final Map<String, GrainShape> _riteShellGrains = {};
 
-/// A colour that is not an element, as a ball of grains in dark glass lit
+/// A color that is not an element, as a ball of grains in dark glass lit
 /// from inside: the Codex orb's material (element_orb.dart), for the Earth
 /// room's pair roots. A few dark notches across it say which pair it is.
 class _RiteBead {
@@ -1393,7 +1393,7 @@ extension BloodRitesArt on PlanetDungeonGame {
     );
   }
 
-  /// One of the hearth's glass sockets: dim glass in an element's colour,
+  /// One of the hearth's glass sockets: dim glass in an element's color,
   /// full of light once that element's tendril is home.
   void _riteSocket(Canvas canvas, Offset at, Color col, bool lit) {
     final gem = Path()
@@ -1455,8 +1455,8 @@ extension BloodRitesArt on PlanetDungeonGame {
   }
 
   /// A root. A pair's root (a b c) is a bead of dark glass lit from inside
-  /// in its pair's colour, one to three notches cut across it so pairs read
-  /// without colour too; an element root (d w) is its element's Codex orb.
+  /// in its pair's color, one to three notches cut across it so pairs read
+  /// without color too; an element root (d w) is its element's Codex orb.
   /// The root you lead from glows.
   void _riteRoot(Canvas canvas, Offset at, String id) {
     final col = _kRitePair[id] ?? _kRiteBlood;
@@ -2563,7 +2563,7 @@ extension BloodRitesArt on PlanetDungeonGame {
     final e = _riteEase(shown);
     final key = ch == 'a' ? _kRiteGold : const Color(0xFF9FB7C9);
     final pips = 'abc'.indexOf(ch) + 1;
-    // The bars are metal in the key's own colour (gold or steel), so a shut
+    // The bars are metal in the key's own color (gold or steel), so a shut
     // gate stands out from the porphyry it is set in (2026-10-08: carved
     // in the room's stone, the gates all but vanished).
     final rim = Color.lerp(key, Colors.white, .45)!;

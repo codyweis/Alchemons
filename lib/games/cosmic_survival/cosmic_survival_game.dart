@@ -618,7 +618,7 @@ class _MysticRevenant {
   /// Seconds left before it goes back to being dead.
   double life;
 
-  /// Ramps 0 → 1 as the body turns over: the colour drains out of it and the
+  /// Ramps 0 → 1 as the body turns over: the color drains out of it and the
   /// glow comes up. The turn is the whole point of the mechanic, so it is
   /// animated rather than instant.
   double rise = 0;
@@ -3398,7 +3398,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // for a basic and for a special, so the one thing a player most
         // needs to hear — the cooldown you were waiting on just spent
         // itself — sounded identical to the shot before it. The element cue
-        // carries the colour; this only marks the distinction, quietly, and
+        // carries the color; this only marks the distinction, quietly, and
         // several ability families append no projectile at all (the world
         // mystics, the kin supports), so it cannot live in the appender.
         // Each family now has its own cast gesture (Wing's sounds where its

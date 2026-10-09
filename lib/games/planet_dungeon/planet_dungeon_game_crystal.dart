@@ -915,7 +915,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       case 0:
         _setAmbientHint('Somewhere in the walls, stone slides on stone');
       case 1:
-        _setAmbientHint('The glass keeps a colour it was never given');
+        _setAmbientHint('The glass keeps a color it was never given');
       default:
         _setAmbientHint('Your own shape walks the far wall, a moment late');
     }
@@ -1462,11 +1462,11 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     // You are meant to see the machinery THROUGH the glass.
     c.drawRect(r, Paint()..color = glass.withValues(alpha: 0.12));
     final fill = Paint();
-    // Every pane colour, jamb colour and bevel colour is resolved at BUILD
+    // Every pane color, jamb color and bevel color is resolved at BUILD
     // time, so the render loop allocates no Colors and does no lerping.
 
     // The cames carry the whole read for a PALE or a BLACK chamber: the Pale
-    // Cell and the Black Cell have almost no colour to spend, so what tells
+    // Cell and the Black Cell have almost no color to spend, so what tells
     // the player a slab of glass is standing in the socket at all is its
     // leadwork and its ground edges, not its hue. They are dark and definite.
     final came = Paint()
@@ -1485,7 +1485,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       ..color = _keepVoid.withValues(alpha: 0.16);
     for (var i = 0; i < gl.panes.length; i++) {
       final light = i >= gl.latticeFrom && i < gl.latticeTo;
-      c.drawPath(gl.panes[i], fill..color = gl.paneColours[i]);
+      c.drawPath(gl.panes[i], fill..color = gl.paneColors[i]);
       c.drawPath(gl.panes[i], light ? latticeCame : came);
       if (!light) c.drawPath(gl.panes[i], lead);
     }
@@ -1533,7 +1533,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       // round by the sum of their notches. It was nowhere on screen.
       //
       // Glazed, not ticked (2026-10-08): each notch is a small pane leaded
-      // into the ring — a lit one in its step's colour and standing proud of
+      // into the ring — a lit one in its step's color and standing proud of
       // the ring, a dark one smoked and set short. They were stroked ticks,
       // which read as a dial's cartoon tick marks.
       if (chamber.id != 'waiting') {
@@ -1552,7 +1552,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
             c,
             pane,
             lit
-                ? _wheelColour(k + 1).withValues(alpha: 0.92)
+                ? _wheelColor(k + 1).withValues(alpha: 0.92)
                 : _kPrismGlass.frostAt(k),
             _kPrismGlass,
             lead: lit ? 1.8 : 1.2,
@@ -1835,7 +1835,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       hue += f.chamberAt(c)?.bend ?? 0;
       if (c == cell) break;
     }
-    final tone = _wheelColour(hue % 12);
+    final tone = _wheelColor(hue % 12);
     canvas.drawRect(kBeamBand, Paint()..color = tone.withValues(alpha: 0.22));
     canvas.drawLine(
       Offset(kBeamBand.left, kBeamBand.center.dy),
@@ -1873,7 +1873,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
   }
 
-  static Color _wheelColour(int step) {
+  static Color _wheelColor(int step) {
     const wheel = [
       Color(0xFFE05A4A),
       Color(0xFFE0864A),
@@ -1942,7 +1942,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   }
 
   /// A SHOVE-PLATE IS A TREAD-PLATE SET IN THE STONE. It was a 40px square in
-  /// two colours — the verb the player uses more than any other on this
+  /// two colors — the verb the player uses more than any other on this
   /// planet, drawn as a swatch. There is a chamfered rebate, a cast plate
   /// bedded in it on two hold-down bolts, and a chevron cast into the tread
   /// pointing at the wall this plate sends the chamber through, so which way
@@ -2228,7 +2228,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   /// glass, the step it was cut to read marked in gold, and — while the lamp
   /// burns — a pointer on the step the beam actually reaches. When they
   /// meet, the whole rose lights. It was a small tinted disc that named the
-  /// target colour and nothing else.
+  /// target color and nothing else.
   void _renderEastRose(Canvas canvas) {
     final f = _keep;
     final c = kEastRose - const Offset(28, 0);
@@ -2241,7 +2241,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         _fx.glow!,
         c,
         70,
-        _wheelColour(kRoseHue).withValues(alpha: 0.5),
+        _wheelColor(kRoseHue).withValues(alpha: 0.5),
       );
     }
     for (var k = 0; k < 12; k++) {
@@ -2260,12 +2260,12 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         )
         ..close();
       // Leaded, like every pane in the keep (2026-10-08): the wheel was flat
-      // fills with a black stroke, which read as a colour-picker.
+      // fills with a black stroke, which read as a color-picker.
       paintPane(
         canvas,
         pane,
         Color.lerp(
-          _wheelColour(k),
+          _wheelColor(k),
           Colors.black,
           0.18,
         )!.withValues(alpha: solved || k == kRoseHue ? 0.92 : 0.36),
@@ -2330,7 +2330,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   void _renderIndexPlate(Canvas canvas, int here) {
     const origin = Offset(20, 20);
     // 20, not 26: at full size and full saturation the plate was the loudest
-    // thing in the room — a colour swatch card hung in the corner of a keep.
+    // thing in the room — a color swatch card hung in the corner of a keep.
     // It has to be readable, not dominant.
     //
     // LEADED, NOT SWATCHED (2026-10-08): it still read as a swatch card —
@@ -3635,24 +3635,24 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
   /// A chamber's leadwork, as a WINDOW rather than a shattered sheet
   /// (docs/dungeons.md §7.11). Five free cuts ran long black lines across
   /// every slab and read as cracks; the chamber is now glazed the way a
-  /// glazier would: a border of its own colour in quarries round the edge,
+  /// glazier would: a border of its own color in quarries round the edge,
   /// a faint diamond lattice over the middle you can see the bed through, and
   /// a medallion at the heart whose petal count is the chamber's own — so
-  /// colour AND shape say which of the eight has arrived. Cached per chamber
+  /// color AND shape say which of the eight has arrived. Cached per chamber
   /// id, never per cell.
   _KeepGlass _buildChamberGlass(Rect slab, PrismChamber chamber) {
     final glass = Color(chamber.argb);
     final rng = _KeepRng(_keepHash(chamber.id));
     final panes = <Path>[];
-    final paneColours = <Color>[];
+    final paneColors = <Color>[];
     final arrises = <(Offset, Offset)>[];
     const band = 22.0;
     final inner = slab.deflate(band);
 
-    // THE BORDER: quarries of the chamber's colour, the strongest glass on it.
+    // THE BORDER: quarries of the chamber's color, the strongest glass on it.
     void quarry(Rect q) {
       panes.add(Path()..addRect(q));
-      paneColours.add(
+      paneColors.add(
         Color.lerp(
           glass,
           _keepSheen,
@@ -3700,7 +3700,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         final cut = Path.combine(PathOperation.intersect, d, field);
         if (cut.getBounds().isEmpty) continue;
         panes.add(cut);
-        paneColours.add(
+        paneColors.add(
           Color.lerp(
             glass,
             _keepSheen,
@@ -3712,13 +3712,13 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
 
     final latticeTo = panes.length;
 
-    // THE MEDALLION: the chamber's mark, in its full colour.
+    // THE MEDALLION: the chamber's mark, in its full color.
     final c = inner.center;
     final n = _kChamberPetals[chamber.id] ?? 6;
     for (var k = 0; k < n; k++) {
       final a0 = -pi / 2 + k * 2 * pi / n;
       panes.add(sectorPath(c, 16, 50, a0, a0 + 2 * pi / n));
-      paneColours.add(
+      paneColors.add(
         Color.lerp(
           glass,
           _keepSheen,
@@ -3727,7 +3727,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       );
     }
     panes.add(Path()..addOval(Rect.fromCircle(center: c, radius: 16)));
-    paneColours.add(_keepSheen.withValues(alpha: 0.42));
+    paneColors.add(_keepSheen.withValues(alpha: 0.42));
 
     // Chips out of the slab's corners.
     final chips = <Path>[];
@@ -3754,13 +3754,13 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
     return _KeepGlass(
       panes: panes,
-      paneColours: paneColours,
+      paneColors: paneColors,
       arrises: arrises,
       chips: chips,
       latticeFrom: latticeFrom,
       latticeTo: latticeTo,
       // A ground edge is always lighter than the body it was cut out of, so
-      // the jambs and the rim bevel are the chamber's own colour lifted.
+      // the jambs and the rim bevel are the chamber's own color lifted.
       jamb: Color.lerp(glass, _keepSheen, 0.34)!,
       bevel: Color.lerp(glass, _keepSheen, 0.22)!.withValues(alpha: 0.34),
     );
@@ -3805,7 +3805,7 @@ final Map<String, _KeepGround> _keepGroundCache = {};
 /// Each chamber's glass, baked (§7.11).
 final Map<String, ui.Picture> _chamberGlassCache = {};
 
-/// A chamber's medallion petal count: its mark, alongside its colour.
+/// A chamber's medallion petal count: its mark, alongside its color.
 const Map<String, int> _kChamberPetals = {
   'hearth': 8,
   'cinnabar': 3,
@@ -3869,12 +3869,12 @@ class _KeepFloor extends _KeepGround {
 class _KeepGlass extends _KeepGround {
   final List<Path> panes;
 
-  /// Fully resolved per-pane colours — the render loop allocates nothing.
-  final List<Color> paneColours;
+  /// Fully resolved per-pane colors — the render loop allocates nothing.
+  final List<Color> paneColors;
   final List<(Offset, Offset)> arrises;
   final List<Path> chips;
 
-  /// The chamber's colour lifted toward the sheen: what a ground edge looks
+  /// The chamber's color lifted toward the sheen: what a ground edge looks
   /// like, and the only thing that lets the Black Cell show a doorway.
   final Color jamb;
   final Color bevel;
@@ -3885,7 +3885,7 @@ class _KeepGlass extends _KeepGround {
 
   _KeepGlass({
     required this.panes,
-    required this.paneColours,
+    required this.paneColors,
     required this.arrises,
     required this.chips,
     required this.latticeFrom,

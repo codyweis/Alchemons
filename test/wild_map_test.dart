@@ -168,10 +168,10 @@ void main() {
       f
         ..step(1 / 60)
         ..paint(_CensusCanvas());
-      // The sand, the dust of the volcano, the swamp's grains, the cloud
-      // and the tree (three layers each), and Arcane: nothing in the empty
-      // circle.
-      expect(f.debugPictures, 1 + 4 * 3 + 1);
+      // The grains spilled round the three realms out and Arcane, the
+      // sand, the dust of the volcano, the swamp's grains, the cloud and the
+      // tree (three layers each), and Arcane: nothing in the empty circle.
+      expect(f.debugPictures, 3 + 1 + 1 + 4 * 3 + 1);
     });
 
     test('the first four in their own circles: the map as it always was', () {
@@ -221,16 +221,17 @@ void main() {
       f
         ..step(1 / 60)
         ..paint(_CensusCanvas());
-      // The sand, the dust of the valley, the volcano, the dunes, the cloud
-      // (three layers each; the swamp and its tree are not out), and Arcane.
-      expect(f.debugPictures, 1 + 4 * 3 + 1);
+      // The grains spilled round each realm and Arcane, the sand, the dust
+      // of the valley, the volcano, the dunes, the cloud (three layers each;
+      // the swamp and its tree are not out), and Arcane.
+      expect(f.debugPictures, 5 + 1 + 4 * 3 + 1);
       f.ready = {'dunes'};
       for (var i = 0; i < 150; i++) {
         f.step(1 / 60);
       }
       expect(f.debugFormOf(WildRealm.dunes), 1);
       f.paint(_CensusCanvas());
-      expect(f.debugPictures, 1 + 1 + 3 * 3 + 1);
+      expect(f.debugPictures, 5 + 1 + 1 + 3 * 3 + 1);
 
       final at = f.circleOf(WildRealm.dunes).center;
       for (var i = 0; i < 12; i++) {
@@ -244,7 +245,7 @@ void main() {
       }
       expect(f.debugDisplacement, lessThan(0.05));
       f.paint(_CensusCanvas());
-      expect(f.debugPictures, 1 + 1 + 3 * 3 + 1);
+      expect(f.debugPictures, 5 + 1 + 1 + 3 * 3 + 1);
     });
 
     test('a sandstorm drives dust across it; after one, glass glitters', () {
@@ -335,7 +336,7 @@ void main() {
         ..paint(_CensusCanvas());
       // The sand, the dust of the valley, the geode, the volcano, the
       // swamp and its tree, three layers each.
-      expect(f.debugPictures, 1 + 5 * 3);
+      expect(f.debugPictures, 4 + 1 + 5 * 3);
       f.ready = {'geode'};
       for (var i = 0; i < 150; i++) {
         f.step(1 / 60);
@@ -354,7 +355,7 @@ void main() {
       expect(f.debugDisplacement, lessThan(0.05));
       f.paint(_CensusCanvas());
       // Its shape one picture, its rim live.
-      expect(f.debugPictures, 1 + 1 + 4 * 3);
+      expect(f.debugPictures, 4 + 1 + 1 + 4 * 3);
     });
 
     test('singing rolls light through it, shape or dust; nowhere else', () {
@@ -500,7 +501,7 @@ void main() {
         ..paint(_CensusCanvas());
       // The sand, the dust of the valley, the tidal shelf, the swamp, the
       // cloud and the tree, three layers each.
-      expect(f.debugPictures, 1 + 5 * 3);
+      expect(f.debugPictures, 4 + 1 + 5 * 3);
       f.ready = {'tidal'};
       for (var i = 0; i < 150; i++) {
         f.step(1 / 60);
@@ -518,7 +519,7 @@ void main() {
       }
       expect(f.debugDisplacement, lessThan(0.05));
       f.paint(_CensusCanvas());
-      expect(f.debugPictures, 1 + 1 + 4 * 3);
+      expect(f.debugPictures, 4 + 1 + 1 + 4 * 3);
     });
 
     test(
@@ -629,10 +630,11 @@ void main() {
       f.step(1 / 60);
       f.paint(_CensusCanvas());
     }
-    // The sand; the dust of the realms' still grains, the cloud and the
-    // tree, three layers each (the Sky has no still grains); and Arcane. No
-    // rims, with nothing waiting.
-    expect(f.debugPictures, 1 + 5 * 3 + 1);
+    // The grains spilled round each realm and Arcane; the sand; the dust of
+    // the realms' still grains, the cloud and the tree, three layers each
+    // (the Sky has no still grains); and Arcane. No rims, with nothing
+    // waiting.
+    expect(f.debugPictures, 5 + 1 + 5 * 3 + 1);
     final rest = f.debugGrains;
     expect(rest, lessThan(4000), reason: 'only the meadow, lava and movers');
 
@@ -654,7 +656,7 @@ void main() {
     f.paint(_CensusCanvas());
     expect(
       f.debugPictures,
-      1 + 5 * 3 + 1,
+      5 + 1 + 5 * 3 + 1,
       reason: 'settled, it goes back to pictures',
     );
   });
@@ -697,7 +699,7 @@ void main() {
       }
       f.paint(_CensusCanvas());
       // The sand, the Valley whole, the others' dust in layers, Arcane.
-      expect(f.debugPictures, 1 + 1 + 4 * 3 + 1);
+      expect(f.debugPictures, 5 + 1 + 1 + 4 * 3 + 1);
       expect(f.debugChunkPictures, 0);
     },
   );
@@ -711,7 +713,7 @@ void main() {
     // the swamp's still grains and its tree are one picture each; the
     // Valley, the Volcano and the cloud are dust, three layers each
     // (Arcane is closed).
-    expect(f.debugPictures, 1 + 1 + 1 + 3 * 3);
+    expect(f.debugPictures, 4 + 1 + 1 + 1 + 3 * 3);
     expect(f.debugGrains, greaterThan(500), reason: 'the swamp rim, live');
   });
 
@@ -791,10 +793,10 @@ void main() {
     final closed = _field(ready: {'arcane'});
     // Its rim is the one group drawn live; quiet, there is none; closed,
     // nothing of Arcane at all.
-    expect(pictures(quiet), 17);
-    expect(pictures(waiting), 17);
+    expect(pictures(quiet), 22);
+    expect(pictures(waiting), 22);
     expect(waiting.debugGrains, greaterThan(quiet.debugGrains + 300));
-    expect(pictures(closed), 16);
+    expect(pictures(closed), 20);
     expect(closed.debugGrains, quiet.debugGrains);
   });
 
@@ -875,14 +877,18 @@ void main() {
       // On its way: drawn grain by grain, no picture of the Valley.
       expect(f.debugFormOf(WildRealm.valley), inExclusiveRange(0, 1));
       f.paint(_CensusCanvas());
-      expect(f.debugPictures, 1 + 4 * 3);
+      expect(f.debugPictures, 4 + 1 + 4 * 3);
       for (var i = 0; i < 60; i++) {
         f.step(1 / 60);
       }
       expect(f.debugFormOf(WildRealm.valley), 1);
       expect(f.debugFormOf(WildRealm.sky), 0, reason: 'nothing in the Sky');
       f.paint(_CensusCanvas());
-      expect(f.debugPictures, 1 + 1 + 4 * 3, reason: 'its shape, one picture');
+      expect(
+        f.debugPictures,
+        4 + 1 + 1 + 4 * 3,
+        reason: 'its shape, one picture',
+      );
 
       // Emptied, it comes apart again.
       f.ready = {};
@@ -891,7 +897,23 @@ void main() {
       }
       expect(f.debugFormOf(WildRealm.valley), 0);
       f.paint(_CensusCanvas());
-      expect(f.debugPictures, 1 + 5 * 3);
+      expect(f.debugPictures, 4 + 1 + 5 * 3);
+    });
+
+    test('a finger in the dark between the circles stirs what they spill', () {
+      final f = _field();
+      f.step(1 / 60);
+      // Down the map's left edge, between the rows: outside every circle.
+      for (var i = 0; i < 12; i++) {
+        f
+          ..stir(Offset(14, 250 + i * 10.0), const Offset(0, 10), 1 / 60)
+          ..step(1 / 60);
+      }
+      expect(f.debugDisplacement, greaterThan(2));
+      for (var i = 0; i < 240; i++) {
+        f.step(1 / 60);
+      }
+      expect(f.debugDisplacement, lessThan(0.05));
     });
 
     test('an opened map gathers its waiting realms after a moment', () {
@@ -912,14 +934,15 @@ void main() {
     });
 
     test('dust drifts round in layers; a shape holds still', () {
-      // Arcane's turn is the one other.
+      // Arcane's turn is the one other, but for the grains spilled round
+      // each circle, which turn slowly whatever the realm is doing.
       final dust = _field(arcane: true);
-      expect(turns(dust), 5 * 3 + 1);
+      expect(turns(dust), 5 * 3 + 1 + 5);
       final shaped = _field(
         arcane: true,
         ready: {'valley', 'sky', 'volcano', 'swamp'},
       );
-      expect(turns(shaped), 1);
+      expect(turns(shaped), 1 + 5);
     });
 
     test('a finger stirs the dust, and it settles back into its drift', () {
@@ -937,7 +960,7 @@ void main() {
       }
       expect(f.debugDisplacement, lessThan(0.05));
       f.paint(_CensusCanvas());
-      expect(f.debugPictures, 1 + 5 * 3);
+      expect(f.debugPictures, 4 + 1 + 5 * 3);
     });
   });
 

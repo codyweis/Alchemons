@@ -477,7 +477,7 @@ class VoidPortal {
   }
 
   /// Leave the current page as sand: it comes apart into grains of its own
-  /// colour that gather into a turning ball, the page is popped (with
+  /// color that gather into a turning ball, the page is popped (with
   /// [result]) behind it, and the ball pours into [landing]'s circle on the
   /// screen behind.
   ///
@@ -573,7 +573,7 @@ class VoidPortal {
   /// a hole widens out of its middle, the sand carried out on its rim and
   /// thinning away, while the page settles back from a little closer.
   ///
-  /// [element] colours the light in the sand; [back] is where the page's
+  /// [element] colors the light in the sand; [back] is where the page's
   /// sand pours when it is left through [leaveThroughSand]. Falls back to
   /// [pushThroughGlyphs] (spelling [title]) when [from] cannot be pictured.
   /// Completes with the route's result when the page is popped.

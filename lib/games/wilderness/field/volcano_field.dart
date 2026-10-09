@@ -59,7 +59,7 @@ class VolcanoField extends _GrainField {
   static const _gAshTop = 5, _gFarLava = 6, _gMidLava = 7, _gLava = 8;
   static const _gGlow = 9;
 
-  /// Daylight colours of the land; the hour's ambient light multiplies
+  /// Daylight colors of the land; the hour's ambient light multiplies
   /// them.
   static const _albedo = <int, Color>{
     _gRange: Color(0xFF6C2C32),
@@ -72,7 +72,7 @@ class VolcanoField extends _GrainField {
   /// The plume's ash in daylight, and an eruption's, darker.
   static const _plumeAsh = Color(0xFF6E5A54), _eruptionAsh = Color(0xFF4A3C38);
 
-  /// The lava's crust, and the colours its heat runs through.
+  /// The lava's crust, and the colors its heat runs through.
   static const _crust = Color(0xFF34201E);
   static const _lavaOrange = Color(0xFFF05A1C), _lavaHot = Color(0xFFFFCC52);
 
@@ -264,7 +264,7 @@ class VolcanoField extends _GrainField {
   }
 
   /// The lava's grades, breathing: the crust lit as the hour lights rock,
-  /// the heat its own colour (hazed with distance), and its light on what
+  /// the heat its own color (hazed with distance), and its light on what
   /// stands over it.
   void _gradeLava(_Light l) {
     final hz = l.skyAt(0.585);
@@ -1367,7 +1367,7 @@ class VolcanoField extends _GrainField {
 
   /// The billows the plume is drawn with, side by side in one image: three
   /// lumps of smoke, each lit on top and shaded under, in grey so the
-  /// hour's colour can be laid over them.
+  /// hour's color can be laid over them.
   Image? _billows;
   static const _billowSize = 320.0;
 
@@ -4624,7 +4624,7 @@ class VolcanoField extends _GrainField {
         f.my[j] = p.dy;
         f.w[j] = w;
       }
-      // Each section's colours across it, once: fading up where it comes
+      // Each section's colors across it, once: fading up where it comes
       // in, crusted over in patches behind the front, hottest at it.
       var v = 0;
       for (var j = 0; j <= n; j++) {

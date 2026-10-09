@@ -326,7 +326,7 @@ class _BracketDialogFrame extends StatelessWidget {
 }
 
 /// A square-cornered text field on the darker ground: hairline in the
-/// palette's line colour, the accent when focused.
+/// palette's line color, the accent when focused.
 class _BracketField extends StatelessWidget {
   const _BracketField({
     required this.controller,

@@ -40,17 +40,17 @@ class CosmicScreenStyles {
 // SHIP MENU OVERLAY
 // ─────────────────────────────────────────────────────────
 
-/// Element colours are tuned for planets against a starfield. Several of them —
+/// Element colors are tuned for planets against a starfield. Several of them —
 /// Dark (#4A148C), Mud (#5D4037), Earth (#795548), Spirit (#3F51B5) — are close
 /// to invisible as small text or hairline borders on the panel chrome, which is
-/// near-black. Lift toward white before using an element colour as UI ink.
+/// near-black. Lift toward white before using an element color as UI ink.
 ///
 /// The portal painter does the same thing for the same reason.
 Color elementInk(String element) {
   // Lerping toward white washes a saturated element out while still leaving a
   // dark one dark — Dark (#4A148C) at 32% white is still too dim to read as
   // small text. Raising lightness with the hue intact fixes both ends: the
-  // vivid elements keep their colour and the murky ones actually lift.
+  // vivid elements keep their color and the murky ones actually lift.
   final hsl = HSLColor.fromColor(elementColor(element));
   return hsl
       .withSaturation(hsl.saturation.clamp(0.42, 1.0))
@@ -62,5 +62,5 @@ Color elementInk(String element) {
 ///
 /// Saves can carry keys from builds where the element list was different, and
 /// `elementColor` renders anything unknown as flat grey — so it shows up as a
-/// real-looking resource with no colour. Filter storage listings through this.
+/// real-looking resource with no color. Filter storage listings through this.
 bool isKnownElement(String key) => kElementColors.containsKey(key);

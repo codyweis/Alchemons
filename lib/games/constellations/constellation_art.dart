@@ -3,14 +3,14 @@
 // What the star chart is made of.
 //
 // A skill is a stone cut from obsidian: a dark hexagonal crown of facets
-// round a flat table, its colour coming only from light — the edge that
+// round a flat table, its color coming only from light — the edge that
 // catches it, the core that burns once the skill is owned. Nothing strokes an
 // outline or a hoop. A link between two skills is a stream of grains, poured
 // from the parent into the child; unlocking a skill is that pour arriving and
 // the stone igniting.
 //
 // Each tree has one light (verdigris, amber, ember), and that light is the
-// only colour the tree uses: its stones, its grains, its patch of sky and its
+// only color the tree uses: its stones, its grains, its patch of sky and its
 // tab on the screen all read it from [treeLight].
 //
 // The glyphs are inked here as filled shapes, one per kind of skill, instead
@@ -41,7 +41,7 @@ class TreeLight {
 }
 
 const Map<ConstellationTree, TreeLight> kTreeLights = {
-  // Verdigris — the alchemist's own colour.
+  // Verdigris — the alchemist's own color.
   ConstellationTree.breeder: TreeLight(
     Color(0xFF040909),
     Color(0xFF0E1C1C),

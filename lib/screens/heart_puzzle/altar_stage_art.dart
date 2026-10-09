@@ -9,7 +9,7 @@
 //   · A SEAT is a ring of sand grains on the ground, turning slowly; it
 //     brightens when something stands on it or a creature is carried over.
 //   · An ALTAR is its two seats over one pool of floor light, warming with
-//     the colours of the pair on it.
+//     the colors of the pair on it.
 //   · Its COLUMN is a faint shaft up to the goal, a few motes rising in it.
 //   · The SPLIT stage is a sand ring cut in two, its halves breathing apart.
 //   · The GOAL hangs at the top as its word in grains: unlit ash until it
@@ -80,7 +80,7 @@ void paintFloorPool(
 
 /// A seat: a ring of sand grains lying on the ground round [c], turning.
 /// [glow] 0–1 brightens it (something on it, or carried over it); [tint]
-/// colours the lit grains toward an element.
+/// colors the lit grains toward an element.
 void paintSeatRing(
   RiteGrainBatch batch,
   Offset c,
@@ -281,7 +281,7 @@ void paintGrainStar(
 /// ("Poisonmane" — the author, 2026-10-08: "it's one species").
 ///
 /// It gathers in from below when the level opens; it stays unlit ash, with a
-/// faint breath of its element's colour, until the goal is made — then the
+/// faint breath of its element's color, until the goal is made — then the
 /// light runs through it from where the made thing arrives ([lightFrom]).
 class AltarGoalWord {
   AltarGoalWord(this.el, this.word, this.family)
@@ -330,7 +330,7 @@ class AltarGoalWord {
     final la = litAt;
     final litSince = la == null ? -1.0 : time - la;
     final litAll = la == null ? 0.0 : _ease(litSince / 1.1) * lit;
-    // The light it gives: a breath of its colour while it waits, full once
+    // The light it gives: a breath of its color while it waits, full once
     // it is made.
     vfxSpill(
       canvas,
@@ -368,7 +368,7 @@ class AltarGoalWord {
         }
         final shimmer = .82 + .18 * math.sin(time * 1.6 + i * 2.1);
         // Made but not yet done (an orb still hangs): warmed toward its
-        // colour, not lit.
+        // color, not lit.
         final ash = Color.lerp(kAltarAsh, ramp[2], .12 + .38 * held)!;
         final shade = h > .88 ? ramp[3] : ramp[2];
         final col = k <= 0 ? ash : Color.lerp(ash, shade, k)!;

@@ -35,7 +35,7 @@ Six ambience loops are also connected, using a separate single-loop player.
   rather than to a wall of launches. Wired in both the dungeon and survival; a
   kin's cue fires at the beam's RELEASE, not when the charge starts.
 - **`sfx_combat_special_cast.wav`** marks that a special — rather than a basic
-  — just went off. The element cue still carries the colour; this only makes
+  — just went off. The element cue still carries the color; this only makes
   the distinction, at a little over half gain and with no flourish, because
   survival played the same generic launch blip for a basic and a special and
   the dungeon marked the difference with the element cue alone. It is emitted

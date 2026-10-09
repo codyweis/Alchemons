@@ -254,7 +254,7 @@ class NavEmblemPainter extends CustomPainter {
 
   final NavEmblemKind kind;
 
-  /// The Let's element: the colour of the light it stands in.
+  /// The Let's element: the color of the light it stands in.
   final String element;
 
   /// The Let; null (nothing drawn) until its sheet has loaded.

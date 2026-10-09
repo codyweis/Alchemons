@@ -927,7 +927,7 @@ void main() {
       );
     });
 
-    test('THE DOSE: three colours walked home to the cross', () {
+    test('THE DOSE: three colors walked home to the cross', () {
       final found = <String>[];
       final game = _harness(_idealTrio(), onCloud: found.add);
       final m = game.monastery;
@@ -938,7 +938,7 @@ void main() {
         expect(m.wispStage, stage);
         final wants = kWispOrder[stage];
 
-        // ── ONLY ITS OWN COLOUR MOVES IT. Checked against the ANCHOR, not
+        // ── ONLY ITS OWN COLOR MOVES IT. Checked against the ANCHOR, not
         // the live position: the wisp flies loops of its own, so where it
         // happens to be from one frame to the next means nothing. The
         // anchor is the errand.

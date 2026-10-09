@@ -27,7 +27,7 @@ part of 'grain_field.dart';
 //
 // Still sheets are baked as maps (see field_art.dart), read through the
 // hour's grades:
-//   far      r = haze, b = haze × how low (horizon-coloured), g = fleck
+//   far      r = haze, b = haze × how low (horizon-colored), g = fleck
 //   water    r = the sky in it, b = murk, g = light on it
 //   mist     r = thinner, g = lit
 //   near     r = haze, b = shade, g = fleck
@@ -45,7 +45,7 @@ class SwampField extends _GrainField {
   static const _gBark = 5, _gLeaf = 6, _gMoss = 7, _gPeat = 8, _gStone = 9;
   static const _gTurf = 10, _gMud = 11;
 
-  /// Daylight colours of the land and water; the hour's ambient light
+  /// Daylight colors of the land and water; the hour's ambient light
   /// multiplies them.
   static const _albedo = <int, Color>{
     _gFar: Color(0xFF3E7A60),
@@ -75,7 +75,7 @@ class SwampField extends _GrainField {
     _gWater: (Color(0xFF2E3A28), 0.5),
   };
 
-  /// Grade [g]'s daylight colour, as dry as the Swamp is.
+  /// Grade [g]'s daylight color, as dry as the Swamp is.
   Color _albedoOf(int g) {
     final a = _albedo[g]!;
     final d = dry;
@@ -726,7 +726,7 @@ class SwampField extends _GrainField {
 
   // ── Far: the haze, the forest, the lake ──────────────────────────────────
 
-  /// The lake's colour where its maps read [sky] (the sky in it) and
+  /// The lake's color where its maps read [sky] (the sky in it) and
   /// [murk], as the water grade would make it.
   Color _lakeAt(double sky, double murk) {
     final l = _light, a = _albedoOf(_gWater);
@@ -2507,7 +2507,7 @@ class SwampField extends _GrainField {
   double _mudHaze(double y) =>
       ((_h * 0.72 - y) / (_h * 0.11)).clamp(0.0, 1.0) * 0.8;
 
-  /// The mud's colour where its maps read [haze] and [shade], as its grade
+  /// The mud's color where its maps read [haze] and [shade], as its grade
   /// would make it.
   Color _mudAt(double haze, double shade) {
     final l = _light, a = _albedoOf(_gMud);
@@ -2912,7 +2912,7 @@ class SwampField extends _GrainField {
   }
 
   /// The last water: each pool the sky in it, murkier toward its near
-  /// side. On the mud's own sheet: its grade's haze is the colour of the
+  /// side. On the mud's own sheet: its grade's haze is the color of the
   /// sky low down, which is what still water holds.
   void _paintPools(Canvas c, double w, SceneLayer layer) {
     for (final p in _pools[layer] ?? const <_Pool>[]) {
@@ -3094,7 +3094,7 @@ class SwampField extends _GrainField {
       any = true;
     }
     if (!any) return;
-    // The floor's own colour, lifted and lit: dust in the air catches the
+    // The floor's own color, lifted and lit: dust in the air catches the
     // light the cracked ground under it does not.
     final col = Color.lerp(
       _mudAt(0.25, -0.15),
@@ -3334,7 +3334,7 @@ class SwampField extends _GrainField {
       green: 0.34 * a.g,
       blue: 0.28 * a.b,
     );
-    // Gone dry it is a pale crust, the colour of the floor it lies on.
+    // Gone dry it is a pale crust, the color of the floor it lies on.
     final d = dry;
     for (var tone = 0; tone < 4; tone++) {
       var col = Color.lerp(

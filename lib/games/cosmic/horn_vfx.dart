@@ -12,7 +12,7 @@ import 'vfx_shapes.dart';
 /// three.
 ///
 /// Written in the Mask traps' material language, not the old vector-glyph
-/// one: muted materials instead of saturated element colour, filled tapered
+/// one: muted materials instead of saturated element color, filled tapered
 /// shapes instead of hairlines, and light that pools on the ground through a
 /// radial gradient rather than a stack of flat discs or a blur. The first
 /// pass at this file drew cracks and arcs as bright strokes and read as clip
@@ -1183,7 +1183,7 @@ typedef HornBeamEmit =
 
 const ui.Color _white = ui.Color(0xFFFFFFFF);
 
-/// The flash colour of a Lightning discharge (and its hit spark).
+/// The flash color of a Lightning discharge (and its hit spark).
 ui.Color get hornLightningFlashColor =>
     ui.Color.lerp(elementColor('Lightning'), _white, 0.55)!;
 

@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/achievements/achievement_sphere.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -104,6 +105,10 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
   /// permanent furniture.
   int _tasksOutstanding = 0;
 
+  /// Of those, the ones visited with their silver still to collect: a reward
+  /// actually waiting, unlike a place not yet been to.
+  int _tasksEarned = 0;
+
   /// What [refresh] last loaded from. A database write that leaves this
   /// unchanged cannot change the snapshot or the task count, so it is answered
   /// with one small query instead of a full journal load.
@@ -174,15 +179,14 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
       // Tasks are collected on this same screen, so the badge has to count
       // them too — otherwise the reward the player was told to come back for
       // is the one thing the button does not mention.
-      final tasksOutstanding = (await OnboardingTaskService(
-        db,
-      ).outstanding(shop: shop)).length;
+      final tasks = await OnboardingTaskService(db).outstanding(shop: shop);
       if (!mounted) return;
       _loadedFrom = signature;
       final previous = _snapshot;
       setState(() {
         _snapshot = next;
-        _tasksOutstanding = tasksOutstanding;
+        _tasksOutstanding = tasks.length;
+        _tasksEarned = tasks.where((t) => t.$2 == TaskState.earned).length;
       });
       if (widget.enabled && (_route?.isCurrent ?? false)) {
         final fresh = next.ready
@@ -227,58 +231,93 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
 
   /// The slab: what you have finished, what is waiting, and a way in.
   ///
-  /// Built to be read at a glance from the top of the home screen — the count
-  /// tells you where you are, the track shows it without needing the numbers,
-  /// and the whole thing changes colour when something is actually claimable
-  /// so it reads as a call to action rather than another stat.
-  Widget _bar(BuildContext context, int ready) {
+  /// Built to be read at a glance from the home screen. Its sphere is the
+  /// whole set as the achievements screen draws each one: forming as more is
+  /// collected, gold rising inside while something waits. The count says the
+  /// same in figures, and the slab is lit from below when there is something
+  /// to collect, so it reads as a call to action rather than another stat.
+  ///
+  /// Only a reward actually waiting lights it. Places not yet visited are
+  /// counted too, because a list nobody is told about is a list nobody opens,
+  /// but as tasks rather than as READY: nothing is there to collect yet.
+  Widget _bar(BuildContext context) {
     final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
     final snapshot = _snapshot;
     final total = campaignAchievements.length;
     final done = snapshot?.claimed.length ?? 0;
+    final ready = (snapshot?.ready.length ?? 0) + _tasksEarned;
+    final unvisited = _tasksOutstanding - _tasksEarned;
     final hasReady = ready > 0;
-    final accent = hasReady ? fc.mint : fc.amberBright;
+    final label = hasReady
+        ? 'Achievements, $ready rewards ready'
+        : unvisited > 0
+        ? 'Achievements, $unvisited tasks to do'
+        : 'Achievements, $done of $total collected';
+
+    Widget sphere(double size) => RepaintBoundary(
+      child: AchievementSphere(
+        size: size,
+        tone: fc.amberBright,
+        state: hasReady
+            ? AchievementSphereState.ready
+            : done >= total
+            ? AchievementSphereState.sealed
+            : AchievementSphereState.underway,
+        progress: total == 0 ? 0 : done / total,
+        seed: 7,
+        gold: fc.rewardGold,
+        // Still on the home screen unless something is waiting there.
+        animate: hasReady,
+      ),
+    );
+
+    Widget slab({required Widget child, required EdgeInsets padding}) =>
+        CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: hasReady
+                ? fc.rewardGold.withValues(alpha: 0.8)
+                : palette.line,
+            strokeWidth: 1.2,
+          ),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 260),
+            padding: padding,
+            color: hasReady
+                ? Color.alphaBlend(
+                    palette.accentWash(fc.rewardGold, darkAlpha: 0.08),
+                    palette.chromeFill(),
+                  )
+                : palette.chromeFill(),
+            child: child,
+          ),
+        );
 
     if (widget.docked) {
       return Semantics(
         button: true,
-        label: hasReady
-            ? 'Achievements, $ready rewards ready'
-            : 'Achievements, $done of $total collected',
+        label: label,
         child: GestureDetector(
           onTap: context.soundAction(widget.enabled ? open : null),
           behavior: HitTestBehavior.opaque,
           child: Opacity(
             opacity: widget.enabled ? 1 : 0.4,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(0, 9, 10, 9),
-              decoration: BoxDecoration(
-                color: fc.bg2,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(4),
-                ),
-                border: Border.all(
-                  color: hasReady
-                      ? accent.withValues(alpha: 0.65)
-                      : fc.borderDim,
-                ),
-              ),
+            child: slab(
+              padding: const EdgeInsets.fromLTRB(4, 4, 8, 4),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Container(width: 3, height: 34, color: accent),
-                  const SizedBox(width: 10),
-                  Badge(
-                    isLabelVisible: hasReady,
-                    label: Text('$ready'),
-                    backgroundColor: fc.rewardGold,
-                    textColor: fc.onColor(fc.rewardGold),
-                    child: Icon(
-                      AppIcons.emoji_events_outlined,
-                      size: 18,
-                      color: accent,
+                  sphere(40),
+                  if (hasReady || unvisited > 0)
+                    Text(
+                      '${hasReady ? ready : unvisited}',
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: hasReady ? fc.rewardGold : palette.ink,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -289,38 +328,24 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
 
     return LayoutBuilder(
       builder: (context, c) {
-        // In the home toolbar this sits between the avatar and the wallet,
-        // which leaves it around 200px. The word ACHIEVEMENTS and the count
-        // together do not fit there, and the trophy already says what this is
-        // — so the narrow form keeps the number and drops the prose.
+        // On a narrow phone the word ACHIEVEMENTS and the count together do
+        // not fit beside the sphere, and the sphere already says what this
+        // is — so the narrow form keeps the number and drops the prose.
         final roomy = c.maxWidth >= 235;
         return Semantics(
           button: true,
-          label: hasReady
-              ? 'Achievements, $ready rewards ready'
-              : 'Achievements, $done of $total collected',
+          label: label,
           child: GestureDetector(
             onTap: context.soundAction(widget.enabled ? open : null),
             behavior: HitTestBehavior.opaque,
             child: Opacity(
               opacity: widget.enabled ? 1 : 0.4,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 260),
-                padding: EdgeInsets.fromLTRB(0, 9, roomy ? 12 : 10, 9),
-                decoration: BoxDecoration(
-                  color: fc.bg2,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: hasReady
-                        ? accent.withValues(alpha: 0.65)
-                        : fc.borderDim,
-                  ),
-                ),
+              child: slab(
+                padding: EdgeInsets.fromLTRB(4, 4, roomy ? 10 : 8, 4),
                 child: Row(
                   children: [
-                    // The 3px rule the rest of the app uses to head a panel.
-                    Container(width: 3, height: 34, color: accent),
-                    const SizedBox(width: 10),
+                    sphere(42),
+                    const SizedBox(width: 6),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -336,7 +361,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
                                       fontFamily: 'monospace',
-                                      color: fc.textSecondary,
+                                      color: palette.ink,
                                       fontSize: 10,
                                       fontWeight: FontWeight.w800,
                                       letterSpacing: 1.8,
@@ -345,11 +370,19 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
                                 ),
                               if (roomy) const Spacer(),
                               Text(
-                                hasReady ? '$ready READY' : '$done / $total',
+                                hasReady
+                                    ? '$ready READY'
+                                    : unvisited > 0
+                                    ? '$unvisited TASKS'
+                                    : '$done / $total',
                                 maxLines: 1,
                                 style: TextStyle(
                                   fontFamily: 'monospace',
-                                  color: hasReady ? accent : fc.textMuted,
+                                  color: hasReady
+                                      ? fc.rewardGold
+                                      : unvisited > 0
+                                      ? palette.ink
+                                      : palette.muted,
                                   fontSize: 10,
                                   fontWeight: FontWeight.w800,
                                   letterSpacing: 1.2,
@@ -357,25 +390,25 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 7),
                           // Collected against the whole set. A claimable reward
                           // does not move this — you have to go and take it.
                           LayoutBuilder(
                             builder: (context, c) => Stack(
                               children: [
                                 Container(
-                                  height: 3,
+                                  height: 2,
                                   width: double.infinity,
-                                  color: fc.borderDim,
+                                  color: palette.lineSoft,
                                 ),
                                 AnimatedContainer(
                                   duration: const Duration(milliseconds: 420),
                                   curve: Curves.easeOutCubic,
-                                  height: 3,
+                                  height: 2,
                                   width:
                                       c.maxWidth *
                                       (total == 0 ? 0.0 : done / total),
-                                  color: accent,
+                                  color: fc.amberBright.withValues(alpha: 0.85),
                                 ),
                               ],
                             ),
@@ -388,7 +421,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
                       Icon(
                         AppIcons.chevron_right_rounded,
                         size: 16,
-                        color: fc.textMuted,
+                        color: palette.muted,
                       ),
                     ],
                   ],
@@ -414,7 +447,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
       child: Icon(Icons.emoji_events_outlined, color: widget.color),
     );
     if (widget.style == CampaignRewardsStyle.bar) {
-      return _bar(context, count);
+      return _bar(context);
     }
 
     if (widget.style == CampaignRewardsStyle.tile) {

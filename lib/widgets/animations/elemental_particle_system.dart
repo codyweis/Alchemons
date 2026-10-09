@@ -354,7 +354,7 @@ class AlchemyBrewingPainter extends CustomPainter {
   // Shared, not per-instance. A new painter is built every frame inside the
   // AnimatedBuilder, so instance fields here were six Paint allocations per
   // frame per card — the opposite of what caching them was for. Painting is
-  // synchronous on the UI thread and each draw sets its own colour first, so
+  // synchronous on the UI thread and each draw sets its own color first, so
   // one set for every card is safe.
   static final _particlePaint = Paint()..style = PaintingStyle.fill;
   static final _glowPaint = Paint()..style = PaintingStyle.fill;
@@ -367,7 +367,7 @@ class AlchemyBrewingPainter extends CustomPainter {
 
   // ── Energy field shader cache ───────────────────────────────────────────
   // Rebuilt 60x/sec for a gradient whose only inputs are the two parent
-  // colours and the radius, none of which change between frames. And it only
+  // colors and the radius, none of which change between frames. And it only
   // runs above speedMultiplier 2.0, so it was the nearly-done chambers — the
   // ones most likely to be on screen together — paying for it.
   // Keyed, not single-slot: two chambers of different elements both past the

@@ -140,7 +140,7 @@ const GlassPalette kBasaltGlass = GlassPalette(
 
 /// The Wind-Crown Spire: sky glass in navy lead, set in pale cloud-slate.
 /// Open air, not a building: the stone is light, the glass is the sky's own
-/// colour, and the live pane runs cyan to white rather than ember.
+/// color, and the live pane runs cyan to white rather than ember.
 const GlassPalette kZephyrGlass = GlassPalette(
   lead: Color(0xFF070A10),
   leadLight: Color(0xFFBFD2E6),
@@ -469,7 +469,7 @@ const GlassPalette kVerdantGlass = GlassPalette(
   joint: Color(0xFF0A0C08),
 );
 
-/// Vitrea: prism glass — violet, and whatever colour a chamber was cut in —
+/// Vitrea: prism glass — violet, and whatever color a chamber was cut in —
 /// in black lead, and the keep's grey-violet dressed stone.
 const GlassPalette kPrismGlass = GlassPalette(
   lead: Color(0xFF0A0810),

@@ -440,7 +440,7 @@ ContestVerdict judgeEntrant(
     if (c.contrast && rivalElement != null) {
       final rival = _cap(rivalElement);
       if (rival == element) {
-        add('SAME COLOURS AS THE RIVAL', -0.3);
+        add('SAME COLORS AS THE RIVAL', -0.3);
       } else if (_groupOf(rival) != null &&
           _groupOf(rival) == _groupOf(element)) {
         add('MUCH LIKE THE RIVAL', -0.12);

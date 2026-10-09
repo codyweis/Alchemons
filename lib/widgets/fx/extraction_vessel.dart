@@ -2,7 +2,7 @@
 //
 // The harvest chamber: the working Alchemon stands on a bench beside a
 // round-bottomed flask of dark glass (the dock's harvest emblem). While a job
-// runs, grains peel off the creature in its own colours, heat into the
+// runs, grains peel off the creature in its own colors, heat into the
 // element's as they arc across into the neck, and gather as a glowing liquid
 // of grains whose level IS the job's progress. A tap splashes the liquid and shakes a
 // burst of essence loose (the tap boost). Full, it breathes; collected, it
@@ -270,7 +270,7 @@ class ExtractionVesselField {
   int _rip = 0;
 
   /// The creature's grains, read off its sprite, centred on [at] (box
-  /// coordinates). Peeled motes leave from them in its own colours.
+  /// coordinates). Peeled motes leave from them in its own colors.
   void setSpecimen(SpecimenGrains? grains, Offset at) {
     _specimen = (grains == null || grains.length == 0) ? null : grains;
     _specimenAt = at;
@@ -690,7 +690,7 @@ class ExtractionVesselField {
 
     _paintFloor(canvas, g, ink);
 
-    // The glass body: dark smoke, faintly the element's colour.
+    // The glass body: dark smoke, faintly the element's color.
     final glass = g.glass;
     _p.shader = ui.Gradient.radial(c + Offset(-r * 0.25, -r * 0.35), r * 1.45, [
       Color.lerp(ink, const Color(0xFF0A090D), 0.8)!.withValues(alpha: 0.6),
@@ -1196,7 +1196,7 @@ class _ExtractionVesselState extends State<ExtractionVessel>
   }
 
   /// Reads the creature, as drawn, into grains: the motes that peel off it
-  /// leave in its own colours.
+  /// leave in its own colors.
   Future<void> _scheduleRead() async {
     final id = widget.creatureId;
     if (_reading || id == null || _readFor == id) return;
@@ -1236,7 +1236,7 @@ class _ExtractionVesselState extends State<ExtractionVessel>
         image.dispose();
       }
     } catch (_) {
-      // No read just means the motes leave in the element's colour.
+      // No read just means the motes leave in the element's color.
     } finally {
       _reading = false;
     }
@@ -1393,7 +1393,7 @@ void paintFlaskEmblem(
   Color a(Color color, double k) =>
       color.withValues(alpha: (color.a * k * alpha).clamp(0.0, 1.0));
 
-  // The glass body: dark smoke, faintly the liquid's colour.
+  // The glass body: dark smoke, faintly the liquid's color.
   p.shader = ui.Gradient.radial(c + Offset(-r * 0.25, -r * 0.35), r * 1.45, [
     a(Color.lerp(ink, const Color(0xFF0A090D), 0.8)!, 0.75),
     a(const Color(0xFF07060A), 0.92),

@@ -1680,15 +1680,15 @@ extension SinkingAltarFen on PlanetDungeonGame {
   //     the map you are authoring existed only in the player's head.
 
   /// One tint per watercourse, used on the marker stones and the chart. They
-  /// never colour the crossing itself — MIRE / SOD / DROWNED owns that read,
-  /// and a second colour system laid over it would fight the first.
+  /// never color the crossing itself — MIRE / SOD / DROWNED owns that read,
+  /// and a second color system laid over it would fight the first.
   static const List<Color> _sloughInk = [
     Color(0xFF7FA8C9), // the Cormorant
     Color(0xFFC98F6A), // the Adder
     Color(0xFF9C8FC9), // the Tarn
   ];
 
-  Color _sloughColour(String slough) =>
+  Color _sloughColor(String slough) =>
       _sloughInk[(kSloughOrder[slough] ?? 0) % _sloughInk.length];
 
   /// The crossing the active creature is standing at, if any — the one a
@@ -2731,7 +2731,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
     // COTTON-GRASS. Scattered pale tufts — the only light thing down here,
     // which is exactly why there are far fewer of them: on a floor this dark
-    // the palest colour in the room should be something you can press.
+    // the palest color in the room should be something you can press.
     final tufts = (b.width * b.height / 30000).clamp(6, 16).toInt();
     for (var i = 0; i < tufts; i++) {
       for (var attempt = 0; attempt < 14; attempt++) {
@@ -2827,7 +2827,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       ..sort((a, b) => (kSloughOrder[a] ?? 0).compareTo(kSloughOrder[b] ?? 0));
     for (var r = 0; r < sloughs.length; r++) {
       final slough = sloughs[r];
-      final ink = _sloughColour(slough);
+      final ink = _sloughColor(slough);
       final y = origin.dy + padY + rowH * r + rowH / 2;
       // The watercourse's own mark, so the stones in the world and the rows
       // on the chart are obviously the same three things.
@@ -3226,10 +3226,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
 
   /// A CROSSING, DRAWN AS A CROSSING.
   ///
-  /// It used to be a 92px stub of colour at the bank, which put the one thing
+  /// It used to be a 92px stub of color at the bank, which put the one thing
   /// this planet is ABOUT — is that ground firm, soft, or gone — into a smudge
   /// mostly hidden behind its own door plate, and made the three states
-  /// distinguishable only by fill colour at arm's length. A crossing now runs
+  /// distinguishable only by fill color at arm's length. A crossing now runs
   /// from the head you work it at all the way OUT to the doorway it leads
   /// through, so the map you are authoring is legible from the middle of the
   /// room, and the drowned ones read as gone from across it.
@@ -3264,7 +3264,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
   /// wearing the same mark share their water — which is the one fact the
   /// planet's rule turns on and the one fact nothing used to state.
   void _renderFordMarker(Canvas canvas, BogFord ford, Offset head) {
-    final ink = _sloughColour(ford.slough);
+    final ink = _sloughColor(ford.slough);
     final at = head + const Offset(0, -46);
     // A short cut stone, leaning, with a mossy foot — dark, the dusk on its
     // edge (2026-10-08: a grey card with a pale outline, a signboard).
@@ -3293,7 +3293,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
       }),
     );
     canvas.restore();
-    // The watercourse's mark, in a rondel of its own coloured glass set into
+    // The watercourse's mark, in a rondel of its own colored glass set into
     // the face — the one fact the planet's rule turns on, lit (§7.11).
     paintRondel(
       canvas,
@@ -3885,7 +3885,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
   }
 
   /// BOGDRYA'S MIRE ANCHOR — quaking floor until a Mud hand sets it, and
-  /// then a pad of hard ground you can plant a foot on. It was a coloured
+  /// then a pad of hard ground you can plant a foot on. It was a colored
   /// circle; firm ground and soft ground have to look like different things
   /// in the one room where standing on the wrong one loses the fight.
   void _renderMireAnchor(Canvas canvas, Offset at, {required bool firm}) {

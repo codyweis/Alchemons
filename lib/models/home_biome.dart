@@ -182,7 +182,7 @@ enum HomeRealm {
     ],
   ),
   // Bought in the shop, for a home only — never in the wild
-  // (models/shop_scenes.dart). A floor of sand in colours the player picks
+  // (models/shop_scenes.dart). A floor of sand in colors the player picks
   // (games/wilderness/field/home_sand_field.dart): no weather, no hour.
   sand(
     'Living Sands',

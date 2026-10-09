@@ -21,7 +21,7 @@ const _elements = [
   'Spirit', 'Crystal', 'Light', 'Plant', 'Fire', 'Water', 'Earth', 'Air',
 ];
 
-const _colour = {
+const _color = {
   'Steam': Color(0xFFC8D0D8), 'Lava': Color(0xFFE2541C), 'Mud': Color(0xFF6E5038),
   'Ice': Color(0xFF9FD8EC), 'Dust': Color(0xFFD8B98A), 'Lightning': Color(0xFFF2D65A),
   'Poison': Color(0xFF86C94A), 'Dark': Color(0xFF5A3A8A), 'Spirit': Color(0xFFD8D0FF),
@@ -50,7 +50,7 @@ void main() {
     var drawn = 0;
     for (var r = 0; r < _elements.length; r++) {
       final el = _elements[r];
-      final body = RiteBody(_colour[el]!)..force(radius: 18);
+      final body = RiteBody(_color[el]!)..force(radius: 18);
       for (var k = 0; k < beats; k++) {
         final at = Offset(k * cw + cw / 2, r * chh + chh - 40);
         final fx = HeartRiseFx(body: body, el: el, at: at, reach: reach, hits: true);

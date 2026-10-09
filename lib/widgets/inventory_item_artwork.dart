@@ -19,6 +19,7 @@ import 'package:alchemons/widgets/alchemical_powerup_orb_sphere.dart';
 import 'package:alchemons/widgets/animations/sprite_effects/static_effect_snapshot.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/widgets/instant_extractor_glyph.dart';
 import 'package:alchemons/widgets/portal_key_glyph.dart';
 import 'package:alchemons/widgets/raid_beacon_glyph.dart';
@@ -103,6 +104,14 @@ class InventoryItemArtwork extends StatelessWidget {
     final riftKey = PortalKeyGlyph.biomeForInventoryKey(inventoryKey);
     if (riftKey != null) {
       return PortalKeyGlyph(biomeId: riftKey, size: size, animate: animate);
+    }
+
+    // Harvesters are the harvest itself at icon size. The shop and the
+    // inventory asked for them by name; a payout row (an achievement's
+    // reward) fell through to a stock icon.
+    final harvester = harvesterBiomeForKey(inventoryKey);
+    if (harvester != null) {
+      return HarvesterGlyph(biomeId: harvester, size: size, animate: animate);
     }
 
     // 2a. Alchemical Resonance is the plainest effect — soft amber light and

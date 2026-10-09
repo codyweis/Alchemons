@@ -98,7 +98,7 @@ class FactionRealmField {
   Float32List _sz = Float32List(0), _ph = Float32List(0);
   Float32List _aux = Float32List(0);
   Int32List _c = Int32List(0), _c2 = Int32List(0);
-  // The grains' colours for the other page (ink while dark, and back).
+  // The grains' colors for the other page (ink while dark, and back).
   Int32List _cOther = Int32List(0), _c2Other = Int32List(0);
   Uint8List _role = Uint8List(0), _busy = Uint8List(0);
 
@@ -133,9 +133,9 @@ class FactionRealmField {
   @visibleForTesting
   int get grainCount => _n;
 
-  /// Grain [i]'s colour on the current page.
+  /// Grain [i]'s color on the current page.
   @visibleForTesting
-  int debugColourOf(int i) => _c[i];
+  int debugColorOf(int i) => _c[i];
 
   void layout(Size size) {
     if (size.isEmpty || size == _size) return;
@@ -154,19 +154,19 @@ class FactionRealmField {
     final pending = _pendingEmerge;
     if (pending != null) {
       _pendingEmerge = null;
-      emergeFrom(pending.$1, spread: pending.$2, colour: pending.$3);
+      emergeFrom(pending.$1, spread: pending.$2, color: pending.$3);
     }
   }
 
   (Offset, double, int?)? _pendingEmerge;
 
   /// The realm gathers itself out of a knot of grains at [at]: every grain
-  /// starts there, in [colour], and flies out to its place (the opening's
+  /// starts there, in [color], and flies out to its place (the opening's
   /// last page ends in that knot, and the faction picker opens on it).
   /// Before the field has a size, it waits for [layout].
-  void emergeFrom(Offset at, {double spread = 40, int? colour}) {
+  void emergeFrom(Offset at, {double spread = 40, int? color}) {
     if (_n == 0 || _size.isEmpty) {
-      _pendingEmerge = (at, spread, colour);
+      _pendingEmerge = (at, spread, color);
       return;
     }
     final next = _compose(_faction, _n, _size, 11);
@@ -176,7 +176,7 @@ class FactionRealmField {
     _fs = Float32List(_n);
     // Parchment by default; sepia on the light page, where parchment
     // would vanish into the paper.
-    final knot = colour ?? (_ink ? 0xFF4A3C30 : 0xFFE8DCC8);
+    final knot = color ?? (_ink ? 0xFF4A3C30 : 0xFFE8DCC8);
     _fc = Int32List(_n)..fillRange(0, _n, knot);
     for (var i = 0; i < _n; i++) {
       // A soft knot: dense at the middle, thinning out.
@@ -204,10 +204,10 @@ class FactionRealmField {
     _hy = comp.y;
     _sz = comp.s;
     _aux = comp.aux;
-    _c = comp.colours(_ink);
-    _c2 = comp.colours2(_ink);
-    _cOther = comp.colours(!_ink);
-    _c2Other = comp.colours2(!_ink);
+    _c = comp.colors(_ink);
+    _c2 = comp.colors2(_ink);
+    _cOther = comp.colors(!_ink);
+    _c2Other = comp.colors2(!_ink);
     _role = comp.role;
     _ph = Float32List(_n);
     for (var i = 0; i < _n; i++) {
@@ -345,7 +345,7 @@ class FactionRealmField {
     _dropPictures();
   }
 
-  // Where grain [i] is on its way: home, size and colour.
+  // Where grain [i] is on its way: home, size and color.
   double _e(int i) {
     final p = ((_reformT - 0.45 * _ph[i]) / (_reformSecs - 0.45)).clamp(
       0.0,
@@ -361,7 +361,7 @@ class FactionRealmField {
       _hx[i] = _fx[i] + (tg.x[j] - _fx[i]) * e;
       _hy[i] = _fy[i] + (tg.y[j] - _fy[i]) * e;
       _sz[i] = _fs[i] + (tg.s[j] - _fs[i]) * e;
-      _c[i] = _mix(_fc[i], tg.colours(_ink)[j], e);
+      _c[i] = _mix(_fc[i], tg.colors(_ink)[j], e);
     }
   }
 
@@ -1107,7 +1107,7 @@ class FactionRealmField {
 
   void _emitReform() {
     final tg = _target!;
-    final to = tg.colours(_ink);
+    final to = tg.colors(_ink);
     for (var i = 0; i < _n; i++) {
       final e = _e(i), j = _targetOf[i];
       final x = _hx[i] + _ox[i], y = _hy[i] + _oy[i];
@@ -1247,7 +1247,7 @@ class FactionRealmField {
   final Paint _inkWashPaint = Paint();
   Object? _inkWashKey;
 
-  // On the light page, a wash of the ground's own colour laid under its
+  // On the light page, a wash of the ground's own color laid under its
   // grains, so the ground reads as a body (earth, water) and not as loose
   // specks on the paper. One gradient; no light breathes on paper.
   void _paintInkWash(Canvas canvas, double p) {
@@ -1400,8 +1400,8 @@ class _Comp {
   double waterY = 0;
   int i = 0;
 
-  Int32List colours(bool ink) => ink ? ic : c;
-  Int32List colours2(bool ink) => ink ? ic2 : c2;
+  Int32List colors(bool ink) => ink ? ic : c;
+  Int32List colors2(bool ink) => ink ? ic2 : c2;
 
   void add(
     double px,
@@ -1435,9 +1435,9 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
   final cols = (w / FactionRealmField._col).ceil() + 2;
   comp.top = Float32List(cols);
 
-  // A fine dust over [0, yMax), drifting in banks, denser low. [colour]
+  // A fine dust over [0, yMax), drifting in banks, denser low. [color]
   // gives (dark, ink).
-  void dust(int count, double yMax, (int, int) Function(double d) colour) {
+  void dust(int count, double yMax, (int, int) Function(double d) color) {
     var tries = 0;
     while (comp.i < n && count > 0 && tries < count * 40) {
       tries++;
@@ -1446,14 +1446,14 @@ _Comp _compose(FactionId f, int n, Size size, int seed) {
       final p = (0.22 + 0.9 * d * d) * (0.3 + 0.7 * y / yMax);
       if (r.nextDouble() > p) continue;
       final size = 1.0 + 1.1 * r.nextDouble();
-      final (dark, ink) = colour(d);
+      final (dark, ink) = color(d);
       comp.add(x, y, size, dark, ink: ink);
       count--;
     }
   }
 
   // On the light page each realm is a plate in ink and earth pigments: what
-  // glows on the dark page is the strongest colour on the light one (the
+  // glows on the dark page is the strongest color on the light one (the
   // seams cinnabar, the veins viridian, the waterline indigo), and the
   // ground a stipple that deepens as it goes down.
   switch (f) {
@@ -1929,7 +1929,7 @@ ui.Image _buildAtlas() {
   );
 }
 
-/// Sprites of one kind, each its own colour, size and place, in one call.
+/// Sprites of one kind, each its own color, size and place, in one call.
 class _Batch {
   _Batch(this._src);
 

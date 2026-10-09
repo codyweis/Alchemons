@@ -206,7 +206,7 @@ class HomeBiomeScreen extends StatefulWidget {
 }
 
 /// Which tray is open along the bottom while arranging: Living Sands has
-/// two, its colours and its settings.
+/// two, its colors and its settings.
 enum _Tray { none, scenery, keepsakes, decor, sand, sandSettings }
 
 class _HomeBiomeScreenState extends State<HomeBiomeScreen>
@@ -238,7 +238,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   bool _arranging = false;
   _Tray _tray = _Tray.none;
 
-  /// Which of Living Sands' colours the sand tray is picking: one of its
+  /// Which of Living Sands' colors the sand tray is picking: one of its
   /// sands, or (at [kSandMaxCount]) the shimmer.
   int _sandSlot = 0;
 
@@ -401,7 +401,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     unawaited(_standResidents(game));
   }
 
-  /// The colour scenery comes apart into when it is carried: the realm's
+  /// The color scenery comes apart into when it is carried: the realm's
   /// own light.
   Color _ghostTint(HomeRealm realm) => switch (realm) {
     HomeRealm.valley => const Color(0xFFD7E8A8),
@@ -1603,7 +1603,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
             onTap: () => _openTray(_Tray.decor),
           ),
           const SizedBox(width: 16),
-          // Living Sands has no weather and no hour: only its colours and
+          // Living Sands has no weather and no hour: only its colors and
           // how it lies.
           if (_layout.realm == HomeRealm.sand) ...[
             _Chip(
@@ -1865,7 +1865,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     letterSpacing: 1.2,
   );
 
-  /// Living Sands' colours: how many sands, each one's colour and the
+  /// Living Sands' colors: how many sands, each one's color and the
   /// shimmer's, and strips to pick the chosen one's.
   Widget _sandTray(BuildContext context) {
     final style = _layout.sandStyle;

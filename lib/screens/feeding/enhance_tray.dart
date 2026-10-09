@@ -483,7 +483,7 @@ class _KinCard extends StatelessWidget {
   final CreatureInstance instance;
   final bool chosen;
 
-  /// (colour, Potential) per stat, for those who can read it.
+  /// (color, Potential) per stat, for those who can read it.
   final List<(Color, int)>? potentials;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
@@ -678,7 +678,7 @@ class _OrbTile extends StatelessWidget {
             translation: const Offset(-0.5, -0.5),
             child: PowerOrb(type: type, size: size * 1.2, lit: true),
           ),
-          // Where it came from: a faint pool of its colour, not a hoop.
+          // Where it came from: a faint pool of its color, not a hoop.
           childWhenDragging: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

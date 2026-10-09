@@ -14,7 +14,7 @@ from sounds.core import ROOT, SR, Mix, smooth
 # What the card shows (ElementalEssence.reveal, from the moment it is let go):
 #   * the specimen's element form is already up as grains,
 #   * they swirl home along a curve, feet first, cooling from the element's
-#     shades into the creature's own colours,
+#     shades into the creature's own colors,
 #   * they LAND (the card's lock, below) and the sprite comes back under them.
 #
 # A rare specimen (new discovery, prismatic, mutation, legendary, mystic) gets
@@ -42,7 +42,7 @@ def _reveal(m, appear, land, rare):
         return np.where(t < land, gather, settle + stray)
 
     def bright(t):
-        # Hot element shades to the creature's own colours: fine to coarse.
+        # Hot element shades to the creature's own colors: fine to coarse.
         # The settle itself is the coarsest moment: grains on grains.
         cool = 0.78 - 0.42 * smooth(t, appear, land + 0.1)
         return cool - 0.14 * np.exp(-np.abs(t - land - 0.04) / 0.08)

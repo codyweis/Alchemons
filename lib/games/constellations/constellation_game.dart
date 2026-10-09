@@ -2136,13 +2136,13 @@ class StarfieldBackground extends Component
   // ---- Batched drawing ----
   //
   // Three thousand stars used to mean three thousand `drawCircle` calls. They
-  // are bucketed by size, brightness and colour and drawn with
+  // are bucketed by size, brightness and color and drawn with
   // `drawRawPoints`, so the whole field costs at most `_bucketCount` draw
   // calls however many stars are on screen.
   static const int _sizeBuckets = 3;
   static const int _alphaBuckets = 4;
-  static const int _colourBuckets = 2;
-  static const int _bucketCount = _sizeBuckets * _alphaBuckets * _colourBuckets;
+  static const int _colorBuckets = 2;
+  static const int _bucketCount = _sizeBuckets * _alphaBuckets * _colorBuckets;
   static const double _maxStarSize = 3.2;
 
   final List<Float32List> _bucketPoints = List.generate(
@@ -2152,7 +2152,7 @@ class StarfieldBackground extends Component
   );
   final Int32List _bucketLengths = Int32List(_bucketCount);
   final List<Paint> _bucketPaints = List.generate(_bucketCount, (i) {
-    final colour = i ~/ (_sizeBuckets * _alphaBuckets);
+    final color = i ~/ (_sizeBuckets * _alphaBuckets);
     final sizeIndex = (i ~/ _alphaBuckets) % _sizeBuckets;
     final alphaIndex = i % _alphaBuckets;
     final diameter = ((sizeIndex + 0.5) / _sizeBuckets) * _maxStarSize * 2.0;
@@ -2161,7 +2161,7 @@ class StarfieldBackground extends Component
       ..strokeWidth = diameter
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke
-      ..color = (colour == 0 ? _parchment : _warm).withValues(alpha: alpha);
+      ..color = (color == 0 ? _parchment : _warm).withValues(alpha: alpha);
   }, growable: false);
 
   void _push(int bucket, double x, double y) {
@@ -2224,10 +2224,10 @@ class StarfieldBackground extends Component
       var sizeIndex = ((star.size / _maxStarSize) * _sizeBuckets).floor();
       if (sizeIndex >= _sizeBuckets) sizeIndex = _sizeBuckets - 1;
       if (sizeIndex < 0) sizeIndex = 0;
-      final colour = star.warm ? 1 : 0;
+      final color = star.warm ? 1 : 0;
 
       _push(
-        (colour * _sizeBuckets + sizeIndex) * _alphaBuckets + alphaIndex,
+        (color * _sizeBuckets + sizeIndex) * _alphaBuckets + alphaIndex,
         drawX,
         drawY,
       );

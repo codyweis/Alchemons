@@ -19,7 +19,7 @@ import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 class RaidPulseFx {
   RaidPulseFx({required this.color});
 
-  /// The guardian's element colour.
+  /// The guardian's element color.
   final Color color;
 
   static const double telegraph = 1.5;
@@ -43,8 +43,8 @@ class RaidPulseFx {
   bool get gathering => washFrom == null;
   bool get done => t >= duration;
 
-  // Buckets: [0, _bands) the element colour by alpha band, then the same
-  // bands in the brightened colour for grains packed into the body.
+  // Buckets: [0, _bands) the element color by alpha band, then the same
+  // bands in the brightened color for grains packed into the body.
   final GrainBatch _batch = GrainBatch(_bands * 2);
 
   static double _hash(int i, int k) {

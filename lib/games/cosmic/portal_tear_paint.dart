@@ -82,7 +82,7 @@ void _paintGlow(
   );
 }
 
-/// The burning slit itself: white at the heart, the element's colour at the
+/// The burning slit itself: white at the heart, the element's color at the
 /// edge.
 void _paintHot(
   Canvas canvas,

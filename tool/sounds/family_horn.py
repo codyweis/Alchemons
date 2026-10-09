@@ -2,7 +2,7 @@
 scored to what is drawn.
 
 THE BASIC (createFamilyBasicAttack 'horn', cosmic_data.dart): one plain
-element-coloured orb, 1.5x the size and 1.8x the radius of a shot, at 0.65
+element-colored orb, 1.5x the size and 1.8x the radius of a shot, at 0.65
 speed (Projectile.speed 600 -> 390 px/s). A horn fights close
 (_familyPreferredDistance: attackRange x 0.38, ~45-60 px off its target;
 range ~115 px), so the slug is in the target 0.1-0.3 s after it leaves and
@@ -43,7 +43,7 @@ and two moments after the cast that had no sound of their own:
   discharge  ...and lets it go as a chain shockwave.
 
 The element accent (sfx_element_*) still plays on the cast frame, at full
-gain, and carries the colour; everything here is the HORN: its weight, its
+gain, and carries the color; everything here is the HORN: its weight, its
 horn and sinew, the air it shoves, what it hits. Weight comes from many
 damped modes, soft contacts and rough air -- never from a low tone that
 drops (a kick), never from a dense bright burst (a crash).
@@ -429,7 +429,7 @@ def void(v=0):
 
 
 def _cavity(rng, n, f0, ratios, q, drift=0.015):
-    """Air heard from inside a hollow: noise coloured by the cavity's own
+    """Air heard from inside a hollow: noise colored by the cavity's own
     resonances, which for a dome are inharmonic (the zeros of a sphere's
     Bessel modes, not a harmonic series), so it is the hush in a shell,
     never a note. Each resonance wanders by [drift] so none settles."""

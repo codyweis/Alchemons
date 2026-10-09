@@ -54,7 +54,7 @@ class SurvivalPartySlotState {
 
 /// A party member as a small specimen case: out in the arena, it stands lit
 /// in its element's light inside an amber frame; in reserve, it waits dim
-/// and colourless in dark glass. Its state, health and special sit outside
+/// and colorless in dark glass. Its state, health and special sit outside
 /// the art, in the HUD's monospace and glass tube.
 class SurvivalPartySlot extends StatelessWidget {
   const SurvivalPartySlot({

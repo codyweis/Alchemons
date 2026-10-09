@@ -37,7 +37,7 @@ class SkyField extends _GrainField {
 
   static const _gSea = 0, _gCloud = 1, _gRock = 2, _gTurf = 3, _gTree = 4;
 
-  /// Daylight colours of the isles; the hour's ambient light multiplies them.
+  /// Daylight colors of the isles; the hour's ambient light multiplies them.
   static const _albedo = <int, Color>{
     _gRock: Color(0xFFB8B4AE),
     _gTurf: Color(0xFF4E8248),
@@ -1315,7 +1315,7 @@ class SkyField extends _GrainField {
     }
   }
 
-  /// The colour of falling water this hour: the cloud's light, a little
+  /// The color of falling water this hour: the cloud's light, a little
   /// clearer.
   Color get _water {
     final l = _light;

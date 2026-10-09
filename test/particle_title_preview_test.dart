@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // The home screen's particle title, frame by frame: the intro filling in
-// letter by letter, a drag, a tap, a recolour, Void's black hole, and the
+// letter by letter, a drag, a tap, a recolor, Void's black hole, and the
 // light theme — plus what each costs.
 //
 //   TITLE_OUT=/tmp/title.png flutter test \
@@ -88,11 +88,11 @@ void main() {
     t = run(f, t, t + 0.25);
     frames.add(('tap +0.37', shoot(f, t)));
 
-    // Recolour to violet from the left.
+    // Recolor to violet from the left.
     t = run(f, t, t + 1.5);
     f.setHue(titleHue('violet'), 20, 30, t);
     t = run(f, t, t + 0.45);
-    frames.add(('recolour violet', shoot(f, t)));
+    frames.add(('recolor violet', shoot(f, t)));
     t = run(f, t, t + 2);
     frames.add(('violet, rest', shoot(f, t)));
 
@@ -115,7 +115,7 @@ void main() {
     t = run(f, t, t + 0.2);
     frames.add(('void tap +0.35', shoot(f, t)));
 
-    // The light theme, and the ember colour.
+    // The light theme, and the ember color.
     final light = TitleParticleField(ink)..settleNow();
     frames.add(('light theme', shoot(light, 10, dark: false)));
     final ember = TitleParticleField(gold, hue: titleHue('ember'))..settleNow();

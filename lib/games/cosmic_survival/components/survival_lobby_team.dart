@@ -5,6 +5,9 @@
 // in the corner, its name engraved beneath — and empty slots as plain ink.
 // Still art, not the animated sprite: the lobby is idle while the player
 // reads it, and nothing here should repaint every frame.
+//
+// Each case flies between here and the team picker (SurvivalTeamHero): the
+// chosen team comes down into its slots, and CHANGE TEAM carries it up.
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
@@ -82,7 +85,7 @@ class SurvivalLobbyTeam extends StatelessWidget {
                 if (i > 0) const SizedBox(width: 6),
                 Expanded(
                   child: i < members.length
-                      ? _TeamSlot(member: members[i])
+                      ? _TeamSlot(member: members[i], slot: i)
                       // A row with nobody in it has no names to line up
                       // with, so its empty slots leave no room for one.
                       : _EmptySlot(nameLine: members.isNotEmpty),
@@ -117,15 +120,20 @@ String _count(int n) => switch (n) {
   _ => '$n',
 };
 
+/// The width a portrait is decoded at (the screen precaches at the same, so
+/// a newly chosen case lands with its portrait already drawn).
+const int kSurvivalTeamCaseCacheWidth = 192;
+
 /// The case's height for its width, and the engraved line under it.
 const double _caseAspect = 1.0;
 const double _lineGap = 6;
 const double _lineHeight = 13;
 
 class _TeamSlot extends StatelessWidget {
-  const _TeamSlot({required this.member});
+  const _TeamSlot({required this.member, required this.slot});
 
   final CosmicPartyMember member;
+  final int slot;
 
   @override
   Widget build(BuildContext context) {
@@ -138,46 +146,50 @@ class _TeamSlot extends StatelessWidget {
         children: [
           AspectRatio(
             aspectRatio: _caseAspect,
-            child: ClipRect(
-              child: CustomPaint(
-                painter: CaseLightPainter(color: light),
-                child: LayoutBuilder(
-                  builder: (context, box) {
-                    final art = box.maxWidth * 0.74;
-                    return Stack(
-                      children: [
-                        Positioned(
-                          left: 0,
-                          right: 0,
-                          bottom: box.maxHeight * 0.08,
-                          child: Center(
-                            child: member.imagePath == null
-                                ? SizedBox.square(dimension: art)
-                                : Image.asset(
-                                    member.imagePath!,
-                                    width: art,
-                                    height: art,
-                                    fit: BoxFit.contain,
-                                    cacheWidth: 192,
-                                    errorBuilder: (_, _, _) =>
-                                        SizedBox.square(dimension: art),
-                                  ),
-                          ),
-                        ),
-                        Positioned(
-                          top: 5,
-                          left: 6,
-                          child: Text(
-                            'LV ${member.level}',
-                            style: caseMono(
-                              9,
-                              panelPalette.ink.withValues(alpha: 0.85),
+            child: SurvivalTeamHero(
+              instanceId: member.instanceId,
+              slot: slot,
+              child: ClipRect(
+                child: CustomPaint(
+                  painter: CaseLightPainter(color: light),
+                  child: LayoutBuilder(
+                    builder: (context, box) {
+                      final art = box.maxWidth * 0.74;
+                      return Stack(
+                        children: [
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: box.maxHeight * 0.08,
+                            child: Center(
+                              child: member.imagePath == null
+                                  ? SizedBox.square(dimension: art)
+                                  : Image.asset(
+                                      member.imagePath!,
+                                      width: art,
+                                      height: art,
+                                      fit: BoxFit.contain,
+                                      cacheWidth: kSurvivalTeamCaseCacheWidth,
+                                      errorBuilder: (_, _, _) =>
+                                          SizedBox.square(dimension: art),
+                                    ),
                             ),
                           ),
-                        ),
-                      ],
-                    );
-                  },
+                          Positioned(
+                            top: 5,
+                            left: 6,
+                            child: Text(
+                              'LV ${member.level}',
+                              style: caseMono(
+                                9,
+                                panelPalette.ink.withValues(alpha: 0.85),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
@@ -234,4 +246,72 @@ class _EmptySlot extends StatelessWidget {
       ],
     );
   }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// THE FLIGHT
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// How long the team picker takes to open and to close: long enough for the
+/// cases' flight between it and the lobby to be followed by eye.
+const Duration kSurvivalTeamPickerIn = Duration(milliseconds: 420);
+const Duration kSurvivalTeamPickerOut = Duration(milliseconds: 620);
+
+/// The team picker's route: the platform's own page transition, slowed to
+/// the flight's pace.
+class SurvivalTeamPickerRoute<T> extends MaterialPageRoute<T> {
+  SurvivalTeamPickerRoute({required super.builder});
+
+  @override
+  Duration get transitionDuration => kSurvivalTeamPickerIn;
+
+  @override
+  Duration get reverseTransitionDuration => kSurvivalTeamPickerOut;
+}
+
+/// A team member's case, flying between the team picker's row and the
+/// lobby's slots. Both ends wear one of these; the lobby's case (still art)
+/// is what flies either way, so the flight never shows an empty case while
+/// the picker is still reading its specimens.
+class SurvivalTeamHero extends StatelessWidget {
+  const SurvivalTeamHero({
+    super.key,
+    required this.instanceId,
+    required this.slot,
+    required this.child,
+  });
+
+  final String instanceId;
+
+  /// Left to right: each slot leaves a beat after the one before it.
+  final int slot;
+  final Widget child;
+
+  /// The share of the flight between one slot setting off and the next.
+  static const double _beat = 0.07;
+
+  @override
+  Widget build(BuildContext context) {
+    return Hero(
+      tag: ('survival.team', instanceId),
+      createRectTween: (begin, end) =>
+          _SlotFlight(slot.clamp(0, 4) * _beat, begin, end),
+      flightShuttleBuilder: (_, _, direction, from, to) =>
+          ((direction == HeroFlightDirection.push ? from : to).widget as Hero)
+              .child,
+      child: child,
+    );
+  }
+}
+
+/// An arc, travelled within its slot's share of the flight.
+class _SlotFlight extends MaterialRectArcTween {
+  _SlotFlight(double start, Rect? begin, Rect? end)
+    : _within = Interval(start, start + 1 - 4 * SurvivalTeamHero._beat),
+      super(begin: begin, end: end);
+
+  final Interval _within;
+
+  @override
+  Rect lerp(double t) => super.lerp(_within.transform(t));
 }

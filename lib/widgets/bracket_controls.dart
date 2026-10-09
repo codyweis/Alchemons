@@ -24,7 +24,7 @@ String formatCoins(int amount) {
   return out.toString();
 }
 
-/// The colour a coin's amount is written in. Pale gold and silver read on
+/// The color a coin's amount is written in. Pale gold and silver read on
 /// the dark palette; on the light one's parchment they wash out, so there
 /// it is a deep gold and plain ink.
 Color coinColor(CoinKind kind, [BracketPalette? palette]) {

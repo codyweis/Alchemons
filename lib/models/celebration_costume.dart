@@ -8,7 +8,7 @@ part 'costume_fits.dart';
 /// in its place. Each fits the species it has been fitted to (see
 /// costume_fits.dart) and is part of the sprite, not an effect round it:
 /// each sprite renderer paints it after the frame, in the frame's own space
-/// (see `CostumePaint.paintWorn`). Each carries its colour, picked as it goes
+/// (see `CostumePaint.paintWorn`). Each carries its color, picked as it goes
 /// on and changed free after. What a creature wears is a [WornCostumes].
 enum FamilyCostume {
   /// Alchemical Celebration: a stardust party hat.
@@ -45,7 +45,7 @@ enum FamilyCostume {
     offerId: 'effects.alchemical_nose',
     previewKey: FamilyCostume.nosePreview,
     noun: 'nose',
-    // The glass's own colour, between its lit cap and its deep edge.
+    // The glass's own color, between its lit cap and its deep edge.
     defaultColor: Color(0xFFEE254B),
     presets: [
       Color(0xFFEE254B), // ruby
@@ -115,13 +115,13 @@ enum FamilyCostume {
   /// What it is, in a line of UI: "hat", "nose", "sunglasses".
   final String noun;
 
-  /// Its colour when none was picked: the one it was designed in.
+  /// Its color when none was picked: the one it was designed in.
   final Color defaultColor;
 
-  /// Hand-picked colours, offered beside the hue ring.
+  /// Hand-picked colors, offered beside the hue ring.
   final List<Color> presets;
 
-  /// How strong and how light every colour round the ring is.
+  /// How strong and how light every color round the ring is.
   final double ringSaturation, ringValue;
 
   static const hatPreview = 'celebration';
@@ -132,7 +132,7 @@ enum FamilyCostume {
   /// the nose over their bridge, the hat over everything above.
   static const paintOrder = [sunglasses, nose, partyHat];
 
-  /// Its colour at [hue] in turns round the wheel (0..1): the same depth in
+  /// Its color at [hue] in turns round the wheel (0..1): the same depth in
   /// every hue, so no pick reads as another material.
   Color colorForHue(double hue) => HSVColor.fromAHSV(
     1,
@@ -215,22 +215,22 @@ enum FamilyCostume {
       values.where((c) => c.previewKey == key).firstOrNull;
 }
 
-/// What one creature wears: which costumes, each in its colour. Saved in
+/// What one creature wears: which costumes, each in its color. Saved in
 /// its `costumes` column as `<species>:<tag>[#RRGGBB],<tag>…` — the species
-/// says where each is fitted, so a renderer needs nothing else; no colour is
+/// says where each is fitted, so a renderer needs nothing else; no color is
 /// the costume's own.
 class WornCostumes {
   const WornCostumes(this.species, this.colors);
 
   final String species;
 
-  /// Each costume worn, in its colour.
+  /// Each costume worn, in its color.
   final Map<FamilyCostume, Color> colors;
 
   bool get isEmpty => colors.isEmpty;
   bool wears(FamilyCostume costume) => colors.containsKey(costume);
 
-  /// Its colour on this creature: the picked one, or its own.
+  /// Its color on this creature: the picked one, or its own.
   Color colorOf(FamilyCostume costume) =>
       colors[costume] ?? costume.defaultColor;
 
@@ -263,7 +263,7 @@ class WornCostumes {
   }
 
   /// What [saved] says is worn — only costumes that fit its species, in
-  /// colours that read. Read every frame by the renderers, so kept.
+  /// colors that read. Read every frame by the renderers, so kept.
   static WornCostumes? parse(String? saved) {
     if (saved == null || saved.isEmpty) return null;
     final kept = _parsed[saved];

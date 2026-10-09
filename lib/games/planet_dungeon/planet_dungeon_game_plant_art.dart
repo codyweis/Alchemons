@@ -394,7 +394,7 @@ class _GreenBake {
   }
 }
 
-/// A creature element's pane colour: its own colour, a third of the way into
+/// A creature element's pane color: its own color, a third of the way into
 /// the glass so it reads as stained, not as a UI chip.
 Color _paneTint(String element) =>
     Color.lerp(elementColor(element), _kVerdantGlass.liveCore, 0.18)!;
@@ -803,7 +803,7 @@ extension ConservatoryArt on PlanetDungeonGame {
         );
       }
     }
-    // The heart: a carved boss with the product's glyph-colour in it.
+    // The heart: a carved boss with the product's glyph-color in it.
     paintRondel(
       canvas,
       c,
@@ -841,7 +841,7 @@ extension ConservatoryArt on PlanetDungeonGame {
   }
 
   /// A ring's answer: the climate it made rolls out across the floor as a
-  /// pool of light and petals of its colour; a refusal only shudders the
+  /// pool of light and petals of its color; a refusal only shudders the
   /// stone.
   void _renderRingFx(Canvas canvas) {
     for (final f in _green.rings) {
@@ -881,7 +881,7 @@ extension ConservatoryArt on PlanetDungeonGame {
             const [0.55, 0.85, 1.0],
           ),
       );
-      // Petals of its colour going out with it — in grains, loosening as
+      // Petals of its color going out with it — in grains, loosening as
       // they go (they were flat leaf shapes).
       final ramp = grainRampFrom(f.color);
       for (var i = 0; i < 10; i++) {
@@ -1133,7 +1133,7 @@ extension ConservatoryArt on PlanetDungeonGame {
   }
 
   /// A raised planter: a carved stone drum with a leaded-glass collar, lit in
-  /// its climate's colour once the plant in it is thriving.
+  /// its climate's color once the plant in it is thriving.
   void _drawPlanter(
     Canvas canvas,
     Offset at,
@@ -2075,7 +2075,7 @@ extension ConservatoryArt on PlanetDungeonGame {
     if (seedAt != null) _renderSeedPlanter(canvas, seedAt);
   }
 
-  /// Three motes, one per wing's colour, fly in through the wing doors, then
+  /// Three motes, one per wing's color, fly in through the wing doors, then
   /// wind round each other over the planter and bind (the Rite-of-Three's
   /// thread-and-bind, re-aimed at the planter).
   void _renderMotes(Canvas canvas, DungeonRoom room, Offset c) {
@@ -2110,7 +2110,7 @@ extension ConservatoryArt on PlanetDungeonGame {
       )!;
       heads.add(p);
       cols.add(col);
-      // Its trail: a tapered ribbon of its colour back along the curve.
+      // Its trail: a tapered ribbon of its color back along the curve.
       final trail = [
         for (var k = 0; k <= 8; k++)
           () {
@@ -2190,7 +2190,7 @@ extension ConservatoryArt on PlanetDungeonGame {
           }(),
       ];
       // Dark wood, each strand lit only along one edge in its wing's
-      // colour (2026-10-08; a flat brown ribbon with a broad pale stripe).
+      // color (2026-10-08; a flat brown ribbon with a broad pale stripe).
       canvas.drawPath(
         vfxRibbon(spine, 13, 5),
         Paint()..color = Color.lerp(const Color(0xFF1E1812), tints[s], 0.12)!,
@@ -2317,7 +2317,7 @@ extension ConservatoryArt on PlanetDungeonGame {
         continue;
       }
       // Each is SET in the crown like a jewel: a dark leaded cup behind it,
-      // so its colour reads against the leaves from across the hub.
+      // so its color reads against the leaves from across the hub.
       paintRondel(
         canvas,
         at,
@@ -2335,7 +2335,7 @@ extension ConservatoryArt on PlanetDungeonGame {
           _fx.glow!,
           at,
           40,
-          _rootColour(kRootTarget[n]!).withValues(alpha: 0.6 * (1 - k)),
+          _rootColor(kRootTarget[n]!).withValues(alpha: 0.6 * (1 - k)),
         );
       }
     }
@@ -2395,7 +2395,7 @@ extension ConservatoryArt on PlanetDungeonGame {
 
   /// Three glass-lined channels from the great planter to the seed's:
   /// moisture (Water's blue), light (Crystal's), frost (Spirit's). Filled once
-  /// the great plant stands; each drawn back runs dry, the colour flowing
+  /// the great plant stands; each drawn back runs dry, the color flowing
   /// AWAY from the seed.
   void _renderSeedChannels(Canvas canvas, Offset from, Offset to, double rise) {
     final showSeed = _greySeedPlanted;
@@ -4054,7 +4054,7 @@ extension ConservatoryArt on PlanetDungeonGame {
           _fx.glow!,
           at,
           30 + 40 * u,
-          _rootColour(fx.to).withValues(alpha: 0.6 * (1 - u)),
+          _rootColor(fx.to).withValues(alpha: 0.6 * (1 - u)),
         );
       }
       if (lift > 0 && _fx.ready) {
@@ -4079,7 +4079,7 @@ extension ConservatoryArt on PlanetDungeonGame {
         final pulse = 0.5 + 0.5 * sin(_time * 3);
         for (final (n, to) in g.roots.preview(e.key, made.product!)) {
           final at = kRootAt[n]!;
-          final col = _rootColour(to);
+          final col = _rootColor(to);
           if (_fx.ready) {
             drawGlow(
               canvas,
@@ -4104,7 +4104,7 @@ extension ConservatoryArt on PlanetDungeonGame {
     _drawRootStump(canvas, kRootStump);
   }
 
-  Color _rootColour(RootState s) => switch (s) {
+  Color _rootColor(RootState s) => switch (s) {
     RootState.dry => const Color(0xFF8A7652),
     RootState.wet => const Color(0xFF4FA3D8),
     RootState.frozen => _gFrost,
@@ -4210,7 +4210,7 @@ extension ConservatoryArt on PlanetDungeonGame {
         _fx.glow!,
         at,
         r * 2.4,
-        _rootColour(
+        _rootColor(
           state,
         ).withValues(alpha: state == RootState.lit ? 0.35 : 0.2),
       );
@@ -4355,7 +4355,7 @@ extension ConservatoryArt on PlanetDungeonGame {
       if (w <= 0.01) continue;
       _drawArenaWash(canvas, room, centre, cl, w);
     }
-    // While the arena holds a climate, each ring's heart takes the colour of
+    // While the arena holds a climate, each ring's heart takes the color of
     // what it needs — water, ice or light — and a bead of it hangs over the
     // ring, readable mid-fight. The climate, never the recipe.
     final c = greenhouse.arena;

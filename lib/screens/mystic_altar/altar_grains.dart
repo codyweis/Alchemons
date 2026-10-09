@@ -2,7 +2,7 @@
 //
 // What the Mystic Altar is drawn from: its relics, its Mystics and their
 // offerings, each read out of its painting into grains (see SpecimenGrains),
-// and the colours each element burns with here. Everything on the altar is
+// and the colors each element burns with here. Everything on the altar is
 // made of these, the way the fusion, the harvest and the cultivations are.
 
 import 'dart:async';
@@ -134,7 +134,7 @@ class AltarGrains {
 List<Color> altarRamp(String element) =>
     essenceRamp(EssenceElement.of(element));
 
-/// An element's one colour here — its lit shade, which every element's ramp
+/// An element's one color here — its lit shade, which every element's ramp
 /// keeps bright enough to read on the altar's black. Dark's lit shade sinks,
 /// so it burns at its glint.
 Color altarAccent(String element) {
@@ -143,7 +143,7 @@ Color altarAccent(String element) {
   return e == EssenceElement.dark ? r[3] : r[2];
 }
 
-/// An element's colour as words: its accent lifted toward parchment, so
+/// An element's color as words: its accent lifted toward parchment, so
 /// Lava's and Blood's reds and Dark's violet stay legible.
 Color altarInk(String element) =>
     Color.lerp(altarAccent(element), AltarTone.parchment, 0.35)!;

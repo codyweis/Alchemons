@@ -1,7 +1,7 @@
 // lib/games/cosmic/station_art.dart
 //
 // The six stations of open space, in the ship's material: obsidian plates
-// whose colour comes only from the light inside them, glass that holds that
+// whose color comes only from the light inside them, glass that holds that
 // light, and grains for anything that moves. Nothing strokes an outline or a
 // hoop. Each one is shaped by what it does:
 //
@@ -50,7 +50,7 @@ StationKind? stationKindFor(POIType type) => switch (type) {
 };
 
 extension StationKindX on StationKind {
-  /// The station's light, which is also its colour on the map and the HUD.
+  /// The station's light, which is also its color on the map and the HUD.
   Color get accent => switch (this) {
     StationKind.harvester => const Color(0xFFFFB300),
     StationKind.riftKey => const Color(0xFF8C62FF),
@@ -77,7 +77,7 @@ extension StationKindX on StationKind {
   };
 }
 
-/// The five elemental groups' colours, in harvester/key order.
+/// The five elemental groups' colors, in harvester/key order.
 const List<Color> kStationGroupColors = [
   Color(0xFFEF5350), // volcanic
   Color(0xFF42A5F5), // oceanic

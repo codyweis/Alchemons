@@ -160,7 +160,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
   _Pick? _pick;
 
   /// Pictures of the planet wearing each effect, by what they were drawn
-  /// with (effect, colour, options).
+  /// with (effect, color, options).
   final Map<String, ui.Image> _thumbs = {};
 
   @visibleForTesting
@@ -576,7 +576,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           ),
           _sizeRow(planet),
           const SizedBox(height: 14),
-          _section('COLOUR', trailing: _colorName(planet.activeColor)),
+          _section('COLOR', trailing: _colorName(planet.activeColor)),
           _colorSwatches(planet),
         ],
         const SizedBox(height: 14),
@@ -652,7 +652,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                     final owned =
                         id == null || planet.unlockedColors.contains(id);
                     if (owned) {
-                      // An owned colour is one tap: it is cheap to undo.
+                      // An owned color is one tap: it is cheap to undo.
                       setState(() => _pick = null);
                       _after(() => widget.onSelectColor(id));
                     } else {
@@ -693,7 +693,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     );
   }
 
-  /// The planet wearing [id] alone, drawn once and kept until the colour or
+  /// The planet wearing [id] alone, drawn once and kept until the color or
   /// the effect's options change.
   ui.Image? _thumbFor(String id) {
     final paint = widget.paintHome;
@@ -973,7 +973,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
       children: [
         _dockTitle(
           _colorName(id).toUpperCase(),
-          subtitle: premium != null ? 'PREMIUM COLOUR' : 'COLOUR',
+          subtitle: premium != null ? 'PREMIUM COLOR' : 'COLOR',
         ),
         _costs(cost),
         _action(
@@ -1416,7 +1416,7 @@ class _Swatch extends StatelessWidget {
 
 // ── painters ────────────────────────────────────────────────────────────────
 
-/// A colour as a small lit sphere: owned ones full, locked ones a dim
+/// A color as a small lit sphere: owned ones full, locked ones a dim
 /// ghost of themselves.
 class _SwatchPainter extends CustomPainter {
   _SwatchPainter(this.id, {required this.owned, required this.craftable});

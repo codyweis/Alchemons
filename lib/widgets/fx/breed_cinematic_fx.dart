@@ -25,7 +25,7 @@ class FusionRevealData {
 
   final FusionRevealKind kind;
 
-  /// Dominant reveal colour (element colour for pure elements, gold for pure
+  /// Dominant reveal color (element color for pure elements, gold for pure
   /// lineages, the parent mix for a standard fusion).
   final Color accent;
 
@@ -55,7 +55,7 @@ class FusionRevealData {
 /// From the core on it is all particles ([FusionBurstField]): [grains] — what
 /// the two specimens were read into, when the host merged them itself — are
 /// held as one hot knot, erupt, and gather back into the cultivation with its
-/// sigil drawn in grains. Without them it uses balls of the two colours.
+/// sigil drawn in grains. Without them it uses balls of the two colors.
 ///
 /// The route closes only after BOTH the animation AND the task complete (the
 /// task usually finishes far sooner than the ~5.5s timeline). A skip control
@@ -1168,7 +1168,7 @@ class _PhaseLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final (text, vis) = _labelFor(t);
     final isReveal = _isReveal;
-    // Pure-line reveals get the accent colour for their headline.
+    // Pure-line reveals get the accent color for their headline.
     final color =
         (isReveal &&
             outcome != null &&

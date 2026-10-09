@@ -65,7 +65,7 @@ class AltarCellPainter extends CustomPainter {
     final o = orb;
 
     // Shade under it, so it reads over a bright realm; and light on the
-    // ground under the next one, or the made goal's colour.
+    // ground under the next one, or the made goal's color.
     paintFloorShade(canvas, ring + const Offset(0, -6), 30, 20, locked ? .3 : .5);
     if (next) {
       paintFloorPool(

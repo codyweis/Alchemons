@@ -585,7 +585,7 @@ const List<CosmicContestHintLore> kCosmicContestHintLore = [
   CosmicContestHintLore(
     id: 'beauty_bad_elements',
     text:
-        'A critic\'s card: "In the contrast rounds, wear different colours from the rival."',
+        'A critic\'s card: "In the contrast rounds, wear different colors from the rival."',
   ),
   CosmicContestHintLore(
     id: 'speed_bad_elements',

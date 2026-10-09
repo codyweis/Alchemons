@@ -6,7 +6,7 @@ import 'dart:ui';
 ///
 /// Its glass takes the picked [color]: the lit cap, the deep edge, the
 /// glow and the grains are all made from it, in the same steps for every
-/// colour. The highlight and the gold and violet bubbles stay as they are.
+/// color. The highlight and the gold and violet bubbles stay as they are.
 abstract final class AlchemicalClownNose {
   static final _particles = CelebrationParticles();
   static void paint(
@@ -28,7 +28,7 @@ abstract final class AlchemicalClownNose {
     const white = Color(0xFFFFFFFF);
     final lit = Color.lerp(color, white, 0.45)!;
     final grain = Color.lerp(color, white, 0.55)!;
-    // Darkened evenly, so the edge keeps the colour's hue.
+    // Darkened evenly, so the edge keeps the color's hue.
     final deep = Color.from(
       alpha: 1,
       red: color.r * 0.55,

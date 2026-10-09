@@ -11,7 +11,7 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Living Sands: a home realm the shop sells that is only ever a home, a
-// rippled floor of sand in colours and a lie the player picks.
+// rippled floor of sand in colors and a lie the player picks.
 void main() {
   const rose = HomeSandStyle(
     colors: [
@@ -57,7 +57,7 @@ void main() {
         }),
         const HomeSandStyle(),
       );
-      // A colour saved without its alpha is opaque.
+      // A color saved without its alpha is opaque.
       expect(
         HomeSandStyle.fromJson({
           'colors': [0x00E88AA0],
@@ -94,7 +94,7 @@ void main() {
       expect(HomeSandStyle.fromJson({'motion': 'mixes'}).stays, isTrue);
     });
 
-    test('fewer sands keeps the colours of the ones put away', () {
+    test('fewer sands keeps the colors of the ones put away', () {
       final three = rose.withColor(2, const Color(0xFF00FF00));
       final one = three.copyWith(count: 1);
       expect(one.sands, [rose.colors.first]);
@@ -231,20 +231,20 @@ void main() {
     test('restyled, every grain keeps its place', () {
       final f = floor();
       final at = [for (var i = 0; i < f.grainCount; i++) f.debugGrainAt(i)];
-      final was = [for (var i = 0; i < f.grainCount; i++) f.debugColourOf(i)];
+      final was = [for (var i = 0; i < f.grainCount; i++) f.debugColorOf(i)];
       f
         ..style = rose.copyWith(motion: SandMotion.springsBack)
         ..step(1 / 60);
       var changed = 0;
       for (var i = 0; i < f.grainCount; i++) {
         expect(f.debugGrainAt(i), at[i]);
-        if (f.debugColourOf(i) != was[i]) changed++;
+        if (f.debugColorOf(i) != was[i]) changed++;
       }
       expect(changed, greaterThan(f.grainCount * 0.9));
       // The same as a floor laid that way from the start.
       final fresh = floor(rose.copyWith(motion: SandMotion.springsBack));
       for (var i = 0; i < f.grainCount; i += 97) {
-        expect(f.debugColourOf(i), fresh.debugColourOf(i));
+        expect(f.debugColorOf(i), fresh.debugColorOf(i));
       }
       f.dispose();
       fresh.dispose();

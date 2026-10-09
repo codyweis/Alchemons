@@ -210,7 +210,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
   /// as a gradient of the same shape (a blur pass per frame is the jank
   /// source in space; this looks the same and costs a plain fill).
   void _paintHomeAura(Canvas canvas, Offset pos, double vr, Color col) {
-    // The premium colours are drawn their own way.
+    // The premium colors are drawn their own way.
     if (HomeEffectsArt.instance.paintPremiumAura(
       canvas,
       pos,
@@ -238,7 +238,7 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     );
   }
 
-  /// The home planet's body: the same glowing sphere in its colour it has
+  /// The home planet's body: the same glowing sphere in its color it has
   /// always been, now lit like the rest of space — a luminous rim of
   /// atmosphere, the far side falling into shadow, and a slow breath of
   /// light inside it.

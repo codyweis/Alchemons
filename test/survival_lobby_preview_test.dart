@@ -126,6 +126,49 @@ void main() {
     await save.dispose(tester);
   });
 
+  // CHANGE TEAM carries three cases up into the picker's team row; two more
+  // are chosen there, and CHOOSE TEAM carries all five down into the
+  // lobby's slots, frame by frame.
+  testWidgets('team flight', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    phone(tester);
+    final save = await LobbySave.create(
+      tester,
+      team: const ['own-1', 'own-2', 'own-3'],
+    );
+    final key = GlobalKey();
+    await open(tester, save, key);
+    var n = 0;
+    String tag(String s) => 'flight_${(n++).toString().padLeft(2, '0')}_$s';
+    await shoot(tester, key, tag('lobby'));
+
+    await tester.tap(find.byKey(const ValueKey('survival.changeTeam')));
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(milliseconds: 60));
+      await shoot(tester, key, tag('up'));
+    }
+    await settleLobby(tester, 20);
+    for (final id in ['own-4', 'own-5']) {
+      await tester.tap(find.byKey(ValueKey(id)).hitTestable().first);
+      await settleLobby(tester, 3);
+    }
+    await shoot(tester, key, tag('picked'));
+
+    await tester.tap(find.byKey(const ValueKey('partyPicker.confirm')));
+    for (var i = 0; i < 16; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+      await tester.pump(const Duration(milliseconds: 55));
+      await shoot(tester, key, tag('down'));
+    }
+    await settleLobby(tester, 10);
+    await shoot(tester, key, tag('landed'));
+    expect(tester.takeException(), isNull);
+    await save.dispose(tester);
+  });
+
   testWidgets('survival lobby with a team chosen', (tester) async {
     if (out == null) return;
     Directory(out).createSync(recursive: true);

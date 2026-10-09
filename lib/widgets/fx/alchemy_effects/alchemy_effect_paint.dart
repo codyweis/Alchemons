@@ -207,7 +207,7 @@ final Map<int, Shader> _poolShaders = {};
 
 /// Light lying on the ground: an ellipse [rx] by [ry] round ([x], [y]),
 /// soft from the middle out, with no edge. One gradient at unit radius per
-/// colour, stretched by the canvas, so no size ever makes a new shader.
+/// color, stretched by the canvas, so no size ever makes a new shader.
 void _pool(
   Canvas c,
   double x,
@@ -265,10 +265,10 @@ void _shape(
 Color _fade(Color c, double k) =>
     c.withValues(alpha: (c.a * k).clamp(0.0, 1.0));
 
-/// A colour as 0xRRGGBB, for the atlas.
+/// A color as 0xRRGGBB, for the atlas.
 int _rgb(Color c) => c.toARGB32() & 0xFFFFFF;
 
-/// Between two 0xRRGGBB colours.
+/// Between two 0xRRGGBB colors.
 int _mix(int a, int b, double t) {
   final k = t.clamp(0.0, 1.0);
   int ch(int s) {
@@ -317,7 +317,7 @@ void _ripple(
   c.restore();
 }
 
-/// A colour from a hue in turns (0..1 round the wheel), as 0xRRGGBB.
+/// A color from a hue in turns (0..1 round the wheel), as 0xRRGGBB.
 int _hsv(double hue, double s, double v) {
   final h = (hue - hue.floorToDouble()) * 6;
   final i = h.floor();
@@ -336,7 +336,7 @@ int _hsv(double hue, double s, double v) {
       (b * 255).round();
 }
 
-/// Soft sprites in one drawRawAtlas call, each its own colour, size and
+/// Soft sprites in one drawRawAtlas call, each its own color, size and
 /// turn: glowing grains, and petals of light. Buffers are preallocated; the
 /// atlas image is drawn once, on first use.
 abstract final class _Atlas {

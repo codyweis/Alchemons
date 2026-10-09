@@ -449,7 +449,7 @@
         ctx.strokeStyle = `rgba(${col},.18)`; ctx.lineWidth = U * .42; ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(cx2, cy2); ctx.stroke();
         ctx.strokeStyle = `rgba(${col},.45)`; ctx.lineWidth = U * .18; ctx.stroke();
         ctx.strokeStyle = blood ? 'rgba(255,170,170,.95)' : 'rgba(255,255,245,.95)'; ctx.lineWidth = U * .06; ctx.stroke();
-        // Motes riding the beam: the colours of the portals it has been through.
+        // Motes riding the beam: the colors of the portals it has been through.
         const len = Math.hypot(cx2 - ax, cy2 - ay);
         const n = Math.max(1, Math.floor(len / (U * .5)));
         for (let k = 0; k < n; k++) {

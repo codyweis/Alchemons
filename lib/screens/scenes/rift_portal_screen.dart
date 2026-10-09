@@ -533,7 +533,7 @@ class _ExitPortalButton extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.all(8),
-        // Matches the encounter's buttons: dark, rounded, the rift's colour
+        // Matches the encounter's buttons: dark, rounded, the rift's color
         // as a quiet rim.
         decoration: BoxDecoration(
           color: const Color(0xFF0B0A0E).withValues(alpha: 0.9),

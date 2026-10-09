@@ -173,6 +173,11 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   final Map<String, WildMonComponent> _wildBySpawnId = {};
   final Map<String, int> _wildRenderVersionBySpawnId = {};
+
+  /// Wilds stepped off the field while another one is engaged, kept as they
+  /// were rolled so they come back the same creature (genes, nature,
+  /// prismatic) instead of being rolled again.
+  final Map<String, WildMonComponent> _hiddenWildBySpawnId = {};
   String? _currentEncounterSpawnId; // keep this to track which one is engaged
   ShipLandingComponent? _shipBeacon;
   String? _pendingShipSpawnId;
@@ -504,6 +509,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     final desired = <String, WildSpawn>{
       for (final s in svc.spawns) s.spawnPointId: s,
     };
+    _hiddenWildBySpawnId.removeWhere((id, _) => !desired.containsKey(id));
 
     if (_mode == SceneMode.encounter && _currentEncounterSpawnId != null) {
       desired.removeWhere((id, _) => id != _currentEncounterSpawnId);
@@ -554,8 +560,16 @@ class SceneGame extends FlameGame with ScaleDetector {
     // is still mounted.
     _wildBySpawnId.remove(spawnId)?.removeFromParent();
 
+    // A wild that only stepped aside for another's encounter comes back as
+    // itself; anything else is a new creature and is rolled fresh.
+    final kept = _hiddenWildBySpawnId.remove(spawnId);
     Creature? hydrated;
-    if (wildVisualResolver != null) {
+    if (kept != null &&
+        kept.hydrated != null &&
+        kept.speciesId == speciesId &&
+        kept.rarityLabel == rarity.name) {
+      hydrated = kept.hydrated;
+    } else if (wildVisualResolver != null) {
       hydrated = await wildVisualResolver!(speciesId, rarity);
     }
     if (_wildRenderVersionBySpawnId[spawnId] != renderVersion) {
@@ -795,6 +809,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     _wildRenderVersionBySpawnId[spawnId] =
         (_wildRenderVersionBySpawnId[spawnId] ?? 0) + 1;
     _wildBySpawnId.remove(spawnId)?.removeFromParent();
+    _hiddenWildBySpawnId.remove(spawnId);
   }
 
   /// Puts the cosmic ship at [spawnId], seated in the grass there. With
@@ -1020,8 +1035,10 @@ class SceneGame extends FlameGame with ScaleDetector {
 
     final toHide = _wildBySpawnId.keys.where((id) => id != spawnId).toList();
     for (final id in toHide) {
-      _wildBySpawnId[id]?.removeFromParent();
-      _wildBySpawnId.remove(id);
+      final wild = _wildBySpawnId.remove(id);
+      if (wild == null) continue;
+      wild.removeFromParent();
+      _hiddenWildBySpawnId[id] = wild;
     }
 
     _frameOnWild(spawnId);
@@ -1552,7 +1569,7 @@ class SceneGame extends FlameGame with ScaleDetector {
   final Set<String> _hidden = {};
   _PieceGhost? _ghost;
 
-  /// The colour a carried piece of scenery comes apart into.
+  /// The color a carried piece of scenery comes apart into.
   Color ghostTint = const Color(0xFFE4C16A);
 
   /// Whether the residents live in the field when left alone (see
@@ -3027,7 +3044,7 @@ class _BakedSheet {
   final Paint paint = Paint()..filterQuality = FilterQuality.medium;
 }
 
-/// Draws a layer's baked sheets: body sheets through the hour's colour
+/// Draws a layer's baked sheets: body sheets through the hour's color
 /// grade, light sheets in narrow columns each tinted with the light that
 /// falls there — one atlas draw for the lot.
 class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {

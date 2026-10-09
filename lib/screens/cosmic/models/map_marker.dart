@@ -4,16 +4,16 @@ import 'package:flutter/material.dart';
 
 /// The silhouette a marker is drawn with.
 ///
-/// Shape carries as much identity as colour: on a dark star chart, six dots in
-/// six hues are hard to tell apart at a glance (and impossible for a colour
+/// Shape carries as much identity as color: on a dark star chart, six dots in
+/// six hues are hard to tell apart at a glance (and impossible for a color
 /// blind player), whereas six silhouettes read instantly.
 enum MarkerShape { pin, triangle, square, diamond, star, cross }
 
 class MapMarker {
   final Offset worldPos;
 
-  /// Marker type, 0–5. Each index is one colour *and* one shape. Older saves
-  /// only ever wrote 0–2, and those indices still mean the same three colours.
+  /// Marker type, 0–5. Each index is one color *and* one shape. Older saves
+  /// only ever wrote 0–2, and those indices still mean the same three colors.
   final int colorIndex;
 
   const MapMarker({required this.worldPos, required this.colorIndex});

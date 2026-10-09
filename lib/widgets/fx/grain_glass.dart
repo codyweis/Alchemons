@@ -6,10 +6,10 @@
 // catalyst are all one of these doing something different.
 //
 // Two lineages can share a sphere, turning against each other the way a
-// cultivation's parents do, or split by where a grain is (a colour sweeping
+// cultivation's parents do, or split by where a grain is (a color sweeping
 // through). [gather] below 1 scatters the grains outward along a swirl, so a
 // sphere can be shown forming. No blur: points in batches and radial
-// gradients, cached per size and colour.
+// gradients, cached per size and color.
 
 import 'dart:math' as math;
 import 'dart:ui' as ui;

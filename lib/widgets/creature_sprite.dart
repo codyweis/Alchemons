@@ -273,7 +273,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
     }
 
     // Worn costumes are part of the sprite: over its frame, at that frame's
-    // fit, and clear of its colouring.
+    // fit, and clear of its coloring.
     final costumes = widget.costumes;
     if (WornCostumes.parse(costumes) != null) {
       sprite = WornCostume(

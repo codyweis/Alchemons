@@ -56,7 +56,7 @@ Offset _curl(double x, double y, double t, double seed) => Offset(
 ///  * 0.00 – 0.55  each source comes apart, top to bottom (the host draws its
 ///                 sprite below [crestLocal]);
 ///  * 0.25 – 2.10  its grains leave in turn and run along bowed, wandering
-///                 ways, turning the colour of what they will become;
+///                 ways, turning the color of what they will become;
 ///  * 1.70 – 2.10  they settle into the new body's shape, and the host fades
 ///                 the new body in by [reveal] as the grains go out.
 /// With no sources the grains pour in from [from] (the four arriving, an
@@ -130,7 +130,7 @@ class RiteMorphFx {
         end = tAt + Offset(tg.hx[m], tg.hy[m]);
         c1 = tg.tones[tg.tone[m]];
       }
-      // Poured from a point (no body coming apart): already the colours of
+      // Poured from a point (no body coming apart): already the colors of
       // what they will become.
       final from0 = c0 ?? c1;
       final h = _hash(k + 11);
@@ -243,7 +243,7 @@ const List<Offset> _kUp = [Offset(0, -1), Offset(1, 0), Offset(0, 1), Offset(-1,
 ///                        the head reaching the first thing hanging there;
 ///  * to [returnAt]       they hold, and wash over what they reached;
 ///  * to [duration]       they come back down the column and gather into the
-///                        creature, cooling to its own colours; the host
+///                        creature, cooling to its own colors; the host
 ///                        fades its sprite back in by [spriteAlpha].
 class HeartRiseFx {
   HeartRiseFx({
@@ -758,7 +758,7 @@ void paintHeartBands(
   }
 }
 
-/// A pair that would not fuse: a breath of both their colours, and nothing.
+/// A pair that would not fuse: a breath of both their colors, and nothing.
 void paintHeartFizzle(RiteGrainBatch batch, Offset at, double since, Color a, Color b) {
   if (since >= .9) return;
   for (var i = 0; i < 46; i++) {

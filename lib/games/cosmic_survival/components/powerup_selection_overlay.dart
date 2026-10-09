@@ -30,12 +30,12 @@ class _C {
 /// are common, so two of the three cards on screen were the same beige almost
 /// every time, and the one thing the player most needs to tell apart at a
 /// glance — is this a ship gun, a companion stat, my Mystic's world — carried
-/// no colour at all. Rarity keeps its own chip, where being occasionally
+/// no color at all. Rarity keeps its own chip, where being occasionally
 /// identical does no harm.
 ///
-/// A Mystic world surge is coloured by its ELEMENT: it upgrades one specific
+/// A Mystic world surge is colored by its ELEMENT: it upgrades one specific
 /// world standing on the map, and it should look like that world.
-/// Lifts a colour until it can carry white text beside it and hold its own
+/// Lifts a color until it can carry white text beside it and hold its own
 /// against the brighter elements.
 ///
 /// The element palette is tuned for creatures on a light card, so the earthy
@@ -290,9 +290,9 @@ class _PowerUpCard extends StatelessWidget {
     final hasTarget = isCompanion && offeredName != null;
 
     // Dark glass lit from behind at its medallion and from below in the
-    // category's colour. The medallion — a lens with the category's light in
+    // category's color. The medallion — a lens with the category's light in
     // it — is the one saturated thing per card, so the eye still sorts the
-    // offers by colour before reading a word.
+    // offers by color before reading a word.
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),

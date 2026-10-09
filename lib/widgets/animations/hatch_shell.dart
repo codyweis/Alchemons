@@ -498,7 +498,7 @@ enum ShellRarity { normal, variant, prismatic }
 ///     to pale-gold ramp, with a polished glint sweeping across the shell.
 ///   * Alchemized — the strands are strings of grains: each tube dims to a
 ///     faint thread with a grain on every segment, the grains flowing along
-///     it, never settling into a solid tube. Colours kept.
+///     it, never settling into a solid tube. Colors kept.
 /// The two never meet (a prismatic is never Transmuted; a child carries at
 /// most one), so each is a single branch.
 class ShellMutationLook {
@@ -604,7 +604,7 @@ class HatchShellTuning {
 
   /// THE SHELL AS STREAM TUBES — the look of the CFD stream-tube reference
   /// the shell was always modelled on: hundreds of thin, glossy tubes (a
-  /// dark edge, the strand's colour, a bright highlight down the middle)
+  /// dark edge, the strand's color, a bright highlight down the middle)
   /// packed close enough to read as one smooth shape. The flat ribbons were
   /// too few and too wide for that, and read soft; this is the same strands,
   /// shapes and motion, only more of them and drawn as tubes.
@@ -667,12 +667,12 @@ class HatchShellModel {
   final List<_Strand> _strands;
   List<_Strand> get _s => _strands;
 
-  // 6 rails per sample, in DUPLICATED pairs at the same offset so the colour
+  // 6 rails per sample, in DUPLICATED pairs at the same offset so the color
   // steps are hard edges rather than gradients:
   //     -1.0 dark | -0.33 dark : -0.33 lit | +0.33 lit : +0.33 dark | +1.0 dark
   // That reproduces the prototype exactly — a solid dark ribbon body with a
   // crisp bright filament down its centre at 33% of the width. Interpolating
-  // the colour across the ribbon instead made every strand a soft mass, which
+  // the color across the ribbon instead made every strand a soft mass, which
   // is what read as blurry; widening the lit band only made it worse.
   late final Float32List positions;
   late final Int32List colors;
@@ -767,9 +767,9 @@ class HatchShellPainter extends CustomPainter {
 
   final HatchShellModel model;
 
-  /// Each element's FULL three-colour palette, exactly as the prototype used
-  /// them: a strand's colour is mixed between entries [0] and [1], and entry
-  /// [2] is the bright accent. Collapsing these to one colour per element is
+  /// Each element's FULL three-color palette, exactly as the prototype used
+  /// them: a strand's color is mixed between entries [0] and [1], and entry
+  /// [2] is the bright accent. Collapsing these to one color per element is
   /// what made the shell look washed out — all the vivid variation lived in
   /// the spread between [0] and [1].
   final List<Color> paletteA;
@@ -835,8 +835,8 @@ class HatchShellPainter extends CustomPainter {
   /// line grows out of it, fading as it converges into the shell.
   static final GrainBatch _nodes = GrainBatch(8);
 
-  /// Alchemized strands' grains: 9 colours (4 hue steps per parent, and the
-  /// accent) x 3 brightness levels. A strand's colour is snapped to its
+  /// Alchemized strands' grains: 9 colors (4 hue steps per parent, and the
+  /// accent) x 3 brightness levels. A strand's color is snapped to its
   /// step, which the eye cannot tell from its own at grain size.
   static final GrainBatch _beads = GrainBatch(27);
 
@@ -1042,7 +1042,7 @@ class HatchShellPainter extends CustomPainter {
       // Bright while its line grows out of it; gone once it has converged.
       m.rootAlpha[k] = (1 - form) * (1 - unrav) * opacity * b.aMul;
 
-      // ---- colour ---------------------------------------------------------
+      // ---- color ---------------------------------------------------------
       final isAcc = st.accent < accMix;
       Color c = isAcc ? accent : Color.lerp(pal0, pal1, st.hue)!;
       if (rarity == ShellRarity.prismatic) {
@@ -1080,10 +1080,10 @@ class HatchShellPainter extends CustomPainter {
 
       if (m.tubes) {
         // ---- emit tube rails --------------------------------------------
-        // Three rails, the colour interpolated across them: a dark edge
+        // Three rails, the color interpolated across them: a dark edge
         // either side running into a bright core — a lit tube, where the
         // ribbons were a flat band with hard-stepped edges. The strand's own
-        // colour is the middle of that run. Three rails and not five: the
+        // color is the middle of that run. Three rails and not five: the
         // body rails bought nothing the gradient does not already give, and
         // cost two fifths of the vertices and half the index writes.
         final hiR = coreR + ((255 - coreR) * 0.5).round();
@@ -1238,7 +1238,7 @@ class HatchShellPainter extends CustomPainter {
         }
 
         put(0, -1.0, edge);
-        put(1, -inner, edge); // hard step: same offset, different colour
+        put(1, -inner, edge); // hard step: same offset, different color
         put(2, -inner, core);
         put(3, inner, core);
         put(4, inner, edge);
@@ -1287,7 +1287,7 @@ class HatchShellPainter extends CustomPainter {
       colors: Int32List.sublistView(m.colors, 0, vertCursor),
       indices: Uint16List.sublistView(m.indices, 0, ic),
     );
-    // The paint must stay SHADER-LESS: with no shader the per-vertex colours
+    // The paint must stay SHADER-LESS: with no shader the per-vertex colors
     // are what gets drawn, carrying both the depth shading and the lit ribbon
     // core. Verified in test/hatch_shell_vertices_test.dart, which also pins
     // that per-vertex alpha blends rather than rendering opaque.
@@ -1722,7 +1722,7 @@ class HatchShellAmbientPainter extends CustomPainter {
       ..isAntiAlias = true;
 
     // A 2px antialiased round point is almost entirely soft edge, which reads
-    // as fuzz rather than as a mote. Each one is drawn as a coloured body with
+    // as fuzz rather than as a mote. Each one is drawn as a colored body with
     // a small, fully opaque near-white core on top — the hard centre is what
     // makes it look like a point of light instead of a smudge.
     if (nb > 0) {

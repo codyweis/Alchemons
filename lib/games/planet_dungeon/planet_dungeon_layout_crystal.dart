@@ -17,7 +17,7 @@
 //               reserved for Crystal)
 // §6.10 fixes the flavour: *Prism Labyrinth · Crystal+Lightning+Spirit ·
 // Crystalmask/Lightninghorn/Spiritpip · rooms can be rearranged*, with beam
-// colours, the mirror crack, the Sky Keep, and the two recipes
+// colors, the mirror crack, the Sky Keep, and the two recipes
 // **Lightning+Crystal→Spirit** and **Crystal+Spirit→Light**.
 //
 // (§6.10 was written before §5.5 existed and puts the sliding grid on Star 3
@@ -307,7 +307,7 @@ class PrismChamber {
   final int facets;
 
   /// How far round the keep's twelve-step wheel this glass bends a light that
-  /// crosses it, west to east. Bends ADD, so the beam's colour depends on
+  /// crosses it, west to east. Bends ADD, so the beam's color depends on
   /// WHICH chambers stand in the middle row and not on their order — a
   /// deliberate order-independence that keeps Star 0 out of Air's ordering
   /// seat and Fire's sequence seat (§5.5).
@@ -316,7 +316,7 @@ class PrismChamber {
   /// One of the three shard thrones the Throne Star must see served at once.
   final bool throne;
 
-  /// The glass's own colour, for the renderer.
+  /// The glass's own color, for the renderer.
   final int argb;
 
   const PrismChamber({
@@ -865,7 +865,7 @@ const DungeonLayout crystalLayout = DungeonLayout(
       name: 'Prism Star',
       earnAnnouncement:
           'The Prism Star is yours. The light reaches the rose in the right '
-          'colour',
+          'color',
     ),
     DungeonStarSpec(
       name: 'Throne Star',

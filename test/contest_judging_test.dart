@@ -280,7 +280,7 @@ void main() {
     expect(el(beauty, 'Poison'), lessThan(el(beauty, 'Plant')));
     // "Under moonlight, silver, blue and shadow are lovely. Fire and light look harsh."
     expect(el(beauty, 'Dark', 3), greaterThan(el(beauty, 'Light', 3)));
-    // "In the contrast rounds, wear different colours from the rival."
+    // "In the contrast rounds, wear different colors from the rival."
     final same = judgeEntrant(
       beauty,
       2,

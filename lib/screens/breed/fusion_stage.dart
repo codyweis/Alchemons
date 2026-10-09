@@ -16,7 +16,7 @@ TextStyle _mono(
   letterSpacing: spacing,
 );
 
-/// An element's colour, deepened on the parchment where the pale ones
+/// An element's color, deepened on the parchment where the pale ones
 /// (Air, Light, Ice) would wash out.
 Color _readable(Color c, BracketPalette palette) =>
     palette.isDark ? c : Color.lerp(c, Colors.black, 0.32)!;
@@ -275,7 +275,7 @@ class _ReadinessLine extends StatelessWidget {
 
 /// The floor the pair stand on: a broad faint light, a pool of each one's
 /// element under it, and where the two pools meet; behind them, the room
-/// lit faintly in their colours. An empty place keeps a dim, colourless
+/// lit faintly in their colors. An empty place keeps a dim, colorless
 /// pool. [lit] dims each light as the merge empties its chamber.
 class _FusionFloorPainter extends CustomPainter {
   const _FusionFloorPainter({
@@ -321,7 +321,7 @@ class _FusionFloorPainter extends CustomPainter {
     final w = size.width;
     final dark = palette.isDark;
     final floor = dark ? const Color(0xFFB8A27A) : const Color(0xFF6B5A40);
-    // The room behind them, lit faintly in their colours from the middle.
+    // The room behind them, lit faintly in their colors from the middle.
     final present = [
       for (var s = 0; s < 2; s++)
         if (colors[s] != null && frames[s] > 0) colors[s]!,

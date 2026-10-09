@@ -3,7 +3,7 @@
 // The star chart's screen: the chart itself (ConstellationGame) under a thin
 // layer of chrome in the bracket language the lab and the market use — a
 // header with the points balance, a tab per tree with its count, and the
-// chosen tree's name at the foot. Each tree's colour is its light from
+// chosen tree's name at the foot. Each tree's color is its light from
 // constellation_art.dart, so a tab, its stones and its sky always agree.
 
 import 'dart:async';
@@ -501,8 +501,8 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   @override
   Widget build(BuildContext context) {
     // The star chart is a dark surface by design — its own palette is
-    // hardcoded dark, and the node colours come from FactionTheme. In light
-    // mode that read handed the game light-theme colours to draw stars and
+    // hardcoded dark, and the node colors come from FactionTheme. In light
+    // mode that read handed the game light-theme colors to draw stars and
     // hexes with, so the whole chart washed out.
     return ForcedFactionBrightness(
       brightness: Brightness.dark,

@@ -6,7 +6,7 @@
 // summoning: the creature is read into grains (see [SpecimenGrains]), and
 // they swirl in from round where it will stand, each settling into its own
 // place, hot with the creature's element as it flies and cooling to its own
-// colour as it lands — feet first, crown last. Recalled, it comes apart the
+// color as it lands — feet first, crown last. Recalled, it comes apart the
 // other way and streams off to wherever it is going.
 //
 // Plain Dart, driven by a 0..1 time: a host steps nothing, it only paints.
@@ -111,7 +111,7 @@ class GrainAssembly {
       final oy = math.sin(a) * _r0[i] * scale * left * 0.75;
       final x = at.dx + hx + ox, y = at.dy + hy + oy;
       if (v >= 1) {
-        // Landed: its own colour, the odd one catching the light.
+        // Landed: its own color, the odd one catching the light.
         if (_phase[i] > 0.97 && u < 0.92) {
           b.add(_glintB, x, y);
         } else {

@@ -3834,8 +3834,8 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// element it wants. Reading the room has to work before any of it is
   /// touched — you should be able to look at a corner from across the void
   /// and know it wants Fire, or Earth AND Fire, without walking over. So the
-  /// arcs carry the element's own colour, and a two-handed corner is split
-  /// down the middle rather than being some blended third colour that reads
+  /// arcs carry the element's own color, and a two-handed corner is split
+  /// down the middle rather than being some blended third color that reads
   /// as a fourth element nobody has.
   void _drawCrucibleSeals(Canvas canvas, DungeonRoom room) {
     if (room.crucibleSeals.isEmpty) return;
@@ -4260,12 +4260,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       7,
     );
 
-    void label(String text, Color colour, double dy, double size) {
+    void label(String text, Color color, double dy, double size) {
       final tp = TextPainter(
         text: TextSpan(
           text: text,
           style: TextStyle(
-            color: colour,
+            color: color,
             fontSize: size,
             fontWeight: FontWeight.w900,
             letterSpacing: 1.0,

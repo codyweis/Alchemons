@@ -398,7 +398,7 @@ class _GameInventoryOverlayState extends State<GameInventoryOverlay> {
 
     if (selectedInstance == null || !mounted) return;
 
-    // A costume goes on in a colour picked on the creature, beside its
+    // A costume goes on in a color picked on the creature, beside its
     // effect and any other costumes.
     final costume = FamilyCostume.ofItem(item.key);
     if (costume != null) {

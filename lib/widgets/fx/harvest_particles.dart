@@ -73,7 +73,7 @@ class HarvestParticleField {
   /// The radius the shell settles at, from the specimen's size.
   final double cage;
 
-  /// The specimen's own colour, which lights the stage.
+  /// The specimen's own color, which lights the stage.
   final Color specimenColor;
 
   /// How long a take plays once the roll has held, and a break once it has
@@ -194,7 +194,7 @@ class HarvestParticleField {
 
   bool get hasSpecimen => _specimen != null;
 
-  /// A ball in the specimen's colour, for a take with nothing read: the
+  /// A ball in the specimen's color, for a take with nothing read: the
   /// shell still closes on something you can see go.
   SpecimenGrains? _stand;
 
@@ -752,7 +752,7 @@ class HarvestParticleField {
     );
     _p
       ..shader = shader
-      // The shader carries the colour; the paint's alpha scales it.
+      // The shader carries the color; the paint's alpha scales it.
       ..color = Color.fromRGBO(0, 0, 0, alpha.clamp(0.0, 1.0));
     canvas.save();
     canvas.translate(at.dx, at.dy);

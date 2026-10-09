@@ -15,7 +15,7 @@
 //   paintDustGlyph   the star dust count's symbol: a small heap of gold grains
 //   paintRaidGlyph   an overrun planet: an orb with a crimson storm round it
 //
-// Every shader here is built once per colour and cached; a mark is a handful
+// Every shader here is built once per color and cached; a mark is a handful
 // of disc fills and at most one point pass.
 
 import 'dart:math';
@@ -189,7 +189,7 @@ CutStone _stone(ChartGlyph g, Color col) => _stones[(g, col)] ??= () {
 }();
 
 /// Cut glass is a dozen faceted paths and a clip; the pin layer repaints on
-/// every pan frame, so each (kind, colour, turn) is baked once into a small
+/// every pan frame, so each (kind, color, turn) is baked once into a small
 /// image and stamped after that.
 final Map<(ChartGlyph, Color, double), ui.Image> _baked = {};
 final Paint _stamp = Paint()..filterQuality = FilterQuality.medium;
@@ -421,7 +421,7 @@ void paintDustGlyph(Canvas c, Offset at, double s) {
 const Color _raidEmber = Color(0xFFE25544);
 final StoneLight _raidLight = StoneLight(_raidEmber);
 
-/// An overrun planet: an orb of [planet]'s colour inside a crimson storm of
+/// An overrun planet: an orb of [planet]'s color inside a crimson storm of
 /// grains, in an [s]-pixel box centred on [at].
 void paintRaidGlyph(Canvas c, Offset at, double s, Color planet) {
   final r = s * 0.24;

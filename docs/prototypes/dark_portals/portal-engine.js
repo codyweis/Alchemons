@@ -157,7 +157,7 @@
   function traceAll(R, S, open) {
     const lit = new Map();       // "x,y" -> WHITE|BLOOD bits
     const socketsLit = new Set();
-    const beams = [];            // for drawing: [{ pts:[[x,y,colour]...], from }]
+    const beams = [];            // for drawing: [{ pts:[[x,y,color]...], from }]
     const sources = [];
     if (S.shine >= 0) sources.push({ x: S.pos.light[0], y: S.pos.light[1], d: S.shine, from: 'light' });
     for (const e of R.emitters) sources.push({ x: e.x, y: e.y, d: e.d, from: 'emitter' });

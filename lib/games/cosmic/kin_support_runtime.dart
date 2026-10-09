@@ -19,7 +19,7 @@ import 'horn_runtime.dart' show hornStatScale;
 const double kKinSpecialCooldownStretch = 1.6;
 
 /// Where a Kin emitter pours its particles: position, velocity, size, life
-/// and colour — the same shape both games' particle pools take.
+/// and color — the same shape both games' particle pools take.
 typedef KinVfxEmit =
     void Function(
       double x,

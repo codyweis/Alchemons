@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 /// essences drifting round it, taking turns to be the one it answers to.
 ///
 /// An essence is a loose swarm of its element's grains. When its turn comes
-/// it streams into the core, its colour sweeps through the core's grains from
+/// it streams into the core, its color sweeps through the core's grains from
 /// the side it came in, and it gathers again where it was — so the icon is
 /// never showing one faction, which is the whole point of the offer.
 class FactionEssenceGlyph extends StatelessWidget {
@@ -41,11 +41,11 @@ class _FactionEssencePainter extends CustomPainter {
   /// One essence's turn; four make the loop.
   static const double _turn = 2.4;
 
-  /// A still glyph sits just after a handover: the core one faction's colour
+  /// A still glyph sits just after a handover: the core one faction's color
   /// through, the essence that gave it gathered again.
   static const double _still = 0.96 * _turn;
 
-  /// The four playable factions, in their own colours — the same ones the
+  /// The four playable factions, in their own colors — the same ones the
   /// harvest strip and the exchange use.
   static final List<Color> _colors = [
     for (final f in Factions.all)
@@ -87,7 +87,7 @@ class _FactionEssencePainter extends CustomPainter {
     final before = _colors[(k - 1) % n];
     final now = _colors[k];
 
-    // The colour front sweeps through the core from where the essence came.
+    // The color front sweeps through the core from where the essence came.
     final (ha, _) = _homes[k];
     final ux = math.cos(ha), uy = math.sin(ha);
     final front = 1.25 - 2.5 * GrainGlass.smooth((u - 0.28) / 0.5);

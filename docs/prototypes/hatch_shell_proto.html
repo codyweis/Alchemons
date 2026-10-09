@@ -655,7 +655,7 @@ function drawFrame(t, time){
   const bB = blendB(behB, behR, fuseE);
   const pA = blendPalette(palA, palR, fuseE);
   const pB = blendPalette(palB, palR, fuseE);
-  // LAYER 3 — rarity. Variant hands the accent strands to the faction colour,
+  // LAYER 3 — rarity. Variant hands the accent strands to the faction color,
   // so a variant reads as foreign threads running through the same creature.
   const acc = rarity==='variant' ? factionRgb : palR[2];
   const accMix = rarity==='variant' ? Math.max(U.accent, 0.32) : U.accent;

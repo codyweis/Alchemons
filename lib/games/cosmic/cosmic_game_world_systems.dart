@@ -2862,7 +2862,7 @@ extension CosmicGameWorldSystems on CosmicGame {
     );
 
     // ── Label (drawn every frame) ──
-    // Its colour walks the aurora's eight in 1/32 steps (one every ~0.1 s,
+    // Its color walks the aurora's eight in 1/32 steps (one every ~0.1 s,
     // too fine to see) so the 256 shades are laid out once and reused.
     final ci = ((t * 0.3).floor()) % 8;
     final labelColor = Color.lerp(

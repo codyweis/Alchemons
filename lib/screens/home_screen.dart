@@ -3130,7 +3130,7 @@ class _HomeScreenState extends State<HomeScreen>
         Column(
           children: [
             // The title in particles: it fills in letter by letter at
-            // launch; drag through it, tap it, hold it to recolour it.
+            // launch; drag through it, tap it, hold it to recolor it.
             ParticleTitle(
               darkBackdrop: theme.brightness == Brightness.dark,
               active: _animationsEnabled,

@@ -327,7 +327,7 @@ class _PotentialReadout extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
       // Opaque: the figures read against open sky. No accent
-      // edge — the rarity chip beside it owns the line's colour.
+      // edge — the rarity chip beside it owns the line's color.
       color: _kPalette.bg0.withValues(alpha: 0.86),
       child: Row(
         mainAxisSize: MainAxisSize.min,

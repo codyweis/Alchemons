@@ -390,7 +390,7 @@ void main() {
     rule(c, y, w);
     y += 20;
     text(c, 'THE SIX', Offset(40, y), size: 18, color: amber, spacing: 4);
-    text(c, 'one boss per archetype; the element colours its light',
+    text(c, 'one boss per archetype; the element colors its light',
         Offset(160, y + 4), size: 13, color: muted);
     y += 34;
     const bossElements = ['Fire', 'Water', 'Crystal', 'Dark'];

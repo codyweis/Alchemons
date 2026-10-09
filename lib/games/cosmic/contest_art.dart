@@ -30,7 +30,7 @@ import 'package:flutter/animation.dart';
 import 'package:flutter/painting.dart';
 
 extension ContestTraitLight on CosmicContestTrait {
-  /// The arena's light: the trait's colour, deepened so it reads as light
+  /// The arena's light: the trait's color, deepened so it reads as light
   /// in stone rather than as a pastel.
   Color get light => switch (this) {
     CosmicContestTrait.beauty => const Color(0xFFF07AA8),

@@ -322,7 +322,7 @@ class CultivationVialStage extends StatelessWidget {
 
 /// Where this cultivation is standing ("CHAMBER 2", "COLD STORAGE"): a plain
 /// word in the stage's corner. It wore a squared border in the rarity's
-/// colour, which made a place read as a status.
+/// color, which made a place read as a status.
 class CultivationChamberPill extends StatelessWidget {
   const CultivationChamberPill({super.key, required this.label});
 

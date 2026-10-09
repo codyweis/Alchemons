@@ -1,82 +1,39 @@
-import 'package:alchemons/audio/audio.dart';
 // lib/screens/party_picker/party_picker.dart
 //
-// SQUAD PICKER — Scorched Forge header + squad panel,
-//                original AllCreatureInstances filter/sort/card view.
+// The team picker: the wild's party, survival's team, a raid squad. It
+// wears the slide-up specimen picker's look (all_specimens_page.dart) — the
+// shared search bar and lit display cases — with the team over the grid as
+// a row of small cases, the way the survival lobby shows it.
 
+import 'dart:async';
+
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
+import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
-import 'party_picker_dialogs.dart';
-import 'team_builder_dialog.dart';
+import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
+    show
+        CaseLightPainter,
+        MarkDiamond,
+        caseElementLight,
+        caseMono,
+        kCaseGilt,
+        kCaseGlassInk;
+import 'package:alchemons/widgets/specimen_search_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
-// ──────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS
-// ──────────────────────────────────────────────────────────────────────────────
-
-class _C {
-  static ForgeTokens _t = ForgeTokens(factionThemeFor(null));
-  static void bind(BuildContext context) {
-    _t = ForgeTokens(context.read<FactionTheme>());
-  }
-
-  static Color get bg0 => _t.bg0;
-  static Color get bg1 => _t.bg1;
-  static Color get bg2 => _t.bg2;
-
-  static Color get amber => _t.amber;
-
-  static Color get success => _t.success;
-  static Color get warn => const Color(0xFFF97316);
-
-  static Color get textPrimary => _t.textPrimary;
-  static Color get textSecondary => _t.textSecondary;
-  static Color get textMuted => _t.textMuted;
-
-  static Color get borderDim => _t.borderDim;
-}
-
-class _T {
-  static TextStyle get heading => TextStyle(
-    fontFamily: 'monospace',
-    color: _C.textPrimary,
-    fontSize: 13,
-    fontWeight: FontWeight.w700,
-    letterSpacing: 2.0,
-  );
-
-  static TextStyle get label => TextStyle(
-    fontFamily: 'monospace',
-    color: _C.textSecondary,
-    fontSize: 12,
-    fontWeight: FontWeight.w600,
-    letterSpacing: 1.6,
-  );
-}
-
-class _ScanlinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.black.withValues(alpha: 0.07);
-    for (double y = 0; y < size.height; y += 3) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), p);
-    }
-  }
-
-  @override
-  bool shouldRepaint(_) => false;
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
-// SCREEN
-// ──────────────────────────────────────────────────────────────────────────────
+import 'party_picker_dialogs.dart';
+import 'team_builder_dialog.dart';
 
 class PartyPickerScreen extends StatefulWidget {
   const PartyPickerScreen({
@@ -88,6 +45,8 @@ class PartyPickerScreen extends StatefulWidget {
     this.teamStorageKey = 'saved_teams_party_picker',
     this.initialSelection,
     this.confirmLabel,
+    this.onConfirm,
+    this.teamCaseWrapper,
   });
 
   /// When false the "Deploy Team?" confirmation dialog is skipped.
@@ -117,29 +76,60 @@ class PartyPickerScreen extends StatefulWidget {
   /// only sets a team rather than sending it out.
   final String? confirmLabel;
 
+  /// Given the chosen team when it is confirmed, and awaited before the
+  /// picker closes — so the screen beneath is already showing that team
+  /// while the picker leaves (and anything flying has somewhere to land).
+  final Future<void> Function(List<PartyMember> members)? onConfirm;
+
+  /// Wraps each case in the team row, by slot and instance. The survival
+  /// lobby wraps them in Heroes, so the chosen cases fly down into its own
+  /// slots.
+  final Widget Function(int slot, String instanceId, Widget teamCase)?
+  teamCaseWrapper;
+
   @override
   State<PartyPickerScreen> createState() => _PartyPickerScreenState();
 }
 
 class _PartyPickerScreenState extends State<PartyPickerScreen> {
+  final TextEditingController _searchController = TextEditingController();
+  Timer? _debounce;
+  String _searchText = '';
+
   /// Incrementing this tells AllCreatureInstances to reset all filters.
   int _clearVersion = 0;
 
-  /// Tracks whether AllCreatureInstances has any active filters (drives the X button highlight).
-  bool _hasActiveFilters = false;
+  /// Whether a search, sort or filter is set (shows the search bar's reset).
+  bool _hasResettableState = false;
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // BUILD
-  // ──────────────────────────────────────────────────────────────────────────
+  /// True while [PartyPickerScreen.onConfirm] runs, so a second tap does not
+  /// hand the team over twice.
+  bool _handingOver = false;
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onQueryChanged(String text) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 220), () {
+      if (!mounted) return;
+      setState(() => _searchText = text.trim());
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    _C.bind(context);
     final db = context.watch<AlchemonsDatabase>();
     final theme = context.watch<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
+    final accent = bracketReadableAccent(theme);
 
     Widget body = Scaffold(
-      backgroundColor: _C.bg0,
+      backgroundColor: palette.bg1,
       body: SafeArea(
         child: StreamBuilder<List<CreatureInstance>>(
           stream: db.creatureDao.watchAllInstances(),
@@ -148,20 +138,53 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
             return Consumer<SelectedPartyNotifier>(
               builder: (ctx2, party, _) {
                 return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    _buildHeader(ctx2, theme, party),
-                    _buildSquadPanel(allInstances, party, ctx2),
+                    _buildHeader(ctx2, theme, palette, accent, party),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
+                      child: SpecimenSearchBar(
+                        palette: palette,
+                        accent: accent,
+                        controller: _searchController,
+                        hint: 'Search your specimens',
+                        onChanged: _onQueryChanged,
+                        showReset: _hasResettableState,
+                        onReset: () {
+                          _debounce?.cancel();
+                          _searchController.clear();
+                          setState(() {
+                            _searchText = '';
+                            _clearVersion++;
+                          });
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 16, 14, 2),
+                      child: _TeamRow(
+                        party: party,
+                        allInstances: allInstances,
+                        palette: palette,
+                        caseWrapper: widget.teamCaseWrapper,
+                      ),
+                    ),
                     Expanded(
                       child: AllCreatureInstances(
                         theme: theme,
+                        caseCards: true,
                         prefsScopeKey: 'party_picker_all_instances',
+                        searchTextOverride: _searchText,
+                        showInternalSearchBar: false,
                         clearVersion: _clearVersion,
                         onResettableStateChanged: (hasResettableState) {
-                          if (_hasActiveFilters == hasResettableState) return;
+                          if (_hasResettableState == hasResettableState) {
+                            return;
+                          }
                           WidgetsBinding.instance.addPostFrameCallback((_) {
                             if (!mounted) return;
                             setState(
-                              () => _hasActiveFilters = hasResettableState,
+                              () => _hasResettableState = hasResettableState,
                             );
                           });
                         },
@@ -172,7 +195,14 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                             _handleCardTap(ctx2, inst, party, allInstances),
                       ),
                     ),
-                    _buildFooter(ctx2, party, theme, allInstances),
+                    _buildFooter(
+                      ctx2,
+                      party,
+                      theme,
+                      palette,
+                      accent,
+                      allInstances,
+                    ),
                   ],
                 );
               },
@@ -210,63 +240,45 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
   Widget _buildHeader(
     BuildContext ctx,
     FactionTheme theme,
+    BracketPalette palette,
+    Color accent,
     SelectedPartyNotifier party,
   ) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: _C.borderDim)),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
       child: Row(
         children: [
-          GestureDetector(
-            onTap: ctx.soundAction(() => Navigator.of(ctx).pop()),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _C.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: _C.borderDim),
-              ),
-              child: Icon(
-                AppIcons.arrow_back_rounded,
-                color: _C.textSecondary,
-                size: 18,
-              ),
-            ),
+          BracketIconButton(
+            icon: AppIcons.arrow_back_rounded,
+            onTap: () => Navigator.of(ctx).pop(),
+            palette: palette,
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
+          // Shrinks rather than running into SAVED on a narrow phone with
+          // large text.
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 6,
-                      height: 6,
-                      margin: const EdgeInsets.only(right: 8, bottom: 1),
-                      decoration: BoxDecoration(
-                        color: _C.success,
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                    Text('ASSEMBLE SQUAD', style: _T.heading),
-                  ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'SELECT UP TO ${party.maxSize} CREATURES',
-                  style: _T.label.copyWith(color: _C.textMuted),
-                ),
-              ],
+            child: Text(
+              'CHOOSE A TEAM',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: caseMono(13, palette.ink, spacing: 1.6),
             ),
           ),
-          // Teams button
-          GestureDetector(
-            onTap: ctx.soundAction(() async {
-              await showDialog<void>(
+          const SizedBox(width: 10),
+          // The quiet fill alone vanishes on the page's bg1.
+          Container(
+            width: 82,
+            color: palette.bg0,
+            child: BracketButton(
+              key: const ValueKey('partyPicker.savedTeams'),
+              label: 'SAVED',
+              height: 38,
+              primary: false,
+              palette: palette,
+              accent: accent,
+              onTap: () => showDialog<void>(
                 context: ctx,
+                barrierColor: Colors.black.withValues(alpha: 0.7),
                 builder: (_) => TeamBuilderDialog(
                   theme: theme,
                   storageKey: widget.teamStorageKey,
@@ -274,289 +286,14 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                   activeMemberIds: party.members
                       .map((m) => m.instanceId)
                       .toList(),
+                  onApply: (ids) => party.setMembers([
+                    for (final id in ids) PartyMember(instanceId: id),
+                  ]),
                 ),
-              );
-            }),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: _C.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: _C.borderDim),
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'TEAMS',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: _C.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Clear filters button (X) — highlighted when filters are active
-          GestureDetector(
-            onTap: ctx.soundAction(() => setState(() => _clearVersion++)),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: _hasActiveFilters
-                    ? _C.amber.withValues(alpha: 0.16)
-                    : _C.bg2,
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(
-                  color: _hasActiveFilters ? _C.amber : _C.borderDim,
-                ),
-              ),
-              child: Icon(
-                AppIcons.close_rounded,
-                color: _hasActiveFilters ? _C.amber : _C.textMuted,
-                size: 18,
               ),
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // SQUAD PANEL
-  // ──────────────────────────────────────────────────────────────────────────
-
-  Widget _buildSquadPanel(
-    List<CreatureInstance> allInstances,
-    SelectedPartyNotifier party,
-    BuildContext ctx,
-  ) {
-    final repo = ctx.read<CreatureCatalog>();
-    final count = party.members.length;
-    final maxSize = party.maxSize;
-    final isReady = count > 0;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        color: _C.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: isReady ? _C.success.withValues(alpha: 0.55) : _C.borderDim,
-          width: isReady ? 1.5 : 1,
-        ),
-        boxShadow: isReady
-            ? [
-                BoxShadow(
-                  color: _C.success.withValues(alpha: 0.10),
-                  blurRadius: 16,
-                ),
-              ]
-            : null,
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(3),
-        child: Stack(
-          children: [
-            Positioned.fill(child: CustomPaint(painter: _ScanlinePainter())),
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header row
-                  Row(
-                    children: [
-                      Text(
-                        'SQUAD  $count / $maxSize',
-                        style: _T.label.copyWith(
-                          color: isReady ? _C.success : _C.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (count > 0)
-                        GestureDetector(
-                          onTap: ctx.soundAction(
-                            () => ctx.read<SelectedPartyNotifier>().clear(),
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _C.bg1,
-                              borderRadius: BorderRadius.circular(3),
-                              border: Border.all(color: _C.borderDim),
-                            ),
-                            child: Text(
-                              'CLEAR',
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.textSecondary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ),
-                        ),
-                      const Spacer(),
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 200),
-                        child: isReady
-                            ? Row(
-                                key: const ValueKey('ready'),
-                                children: [
-                                  Icon(
-                                    AppIcons.check_rounded,
-                                    color: _C.success,
-                                    size: 12,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'READY',
-                                    style: _T.label.copyWith(color: _C.success),
-                                  ),
-                                ],
-                              )
-                            : Text(
-                                key: const ValueKey('empty'),
-                                'SELECT CREATURES',
-                                style: _T.label.copyWith(color: _C.warn),
-                              ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // Slot rows
-                  _buildSlotRow(
-                    allInstances,
-                    party,
-                    repo,
-                    0,
-                    maxSize.clamp(1, 5),
-                  ),
-                  if (maxSize > 5) ...[
-                    const SizedBox(height: 6),
-                    _buildSlotRow(allInstances, party, repo, 5, maxSize),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSlotRow(
-    List<CreatureInstance> allInstances,
-    SelectedPartyNotifier party,
-    CreatureCatalog repo,
-    int from,
-    int to,
-  ) {
-    return Row(
-      children: List.generate(to - from, (i) {
-        final slotIndex = from + i;
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(right: i < (to - from - 1) ? 5 : 0),
-            child: _buildSquadSlot(allInstances, party, repo, slotIndex),
-          ),
-        );
-      }),
-    );
-  }
-
-  Widget _buildSquadSlot(
-    List<CreatureInstance> allInstances,
-    SelectedPartyNotifier party,
-    CreatureCatalog repo,
-    int slotIndex,
-  ) {
-    final member = slotIndex < party.members.length
-        ? party.members[slotIndex]
-        : null;
-    final instanceId = member?.instanceId;
-    final instance = instanceId != null
-        ? allInstances.firstWhereOrNull((i) => i.instanceId == instanceId)
-        : null;
-    final isFilled = instance != null;
-    final species = isFilled ? repo.getCreatureById(instance.baseId) : null;
-
-    return GestureDetector(
-      onTap: context.soundAction(
-        isFilled
-            ? () => context.read<SelectedPartyNotifier>().toggle(instanceId!)
-            : null,
-      ),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        height: 58,
-        decoration: BoxDecoration(
-          color: isFilled ? _C.success.withValues(alpha: 0.10) : _C.bg1,
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: isFilled ? _C.success.withValues(alpha: 0.55) : _C.borderDim,
-            width: isFilled ? 1.5 : 1,
-          ),
-        ),
-        child: isFilled
-            ? Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (species != null)
-                    Expanded(
-                      child: Center(
-                        child: InstanceSprite(
-                          creature: species,
-                          instance: instance,
-                          size: 28,
-                        ),
-                      ),
-                    )
-                  else
-                    Icon(AppIcons.help_outline, size: 20, color: _C.textMuted),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
-                    ),
-                    child: Text(
-                      '${slotIndex + 1}',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: _C.success,
-                        fontSize: 7,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                ],
-              )
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(AppIcons.add_rounded, size: 16, color: _C.textMuted),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${slotIndex + 1}',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: _C.textMuted,
-                      fontSize: 7,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
       ),
     );
   }
@@ -569,77 +306,50 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     BuildContext ctx,
     SelectedPartyNotifier party,
     FactionTheme theme,
+    BracketPalette palette,
+    Color accent,
     List<CreatureInstance> allInstances,
   ) {
     final count = party.members.length;
     final canDeploy = count > 0;
-    final label = canDeploy
-        ? '${widget.confirmLabel ?? 'Deploy Team'}  ·  $count Selected'
-        : 'Select Creatures to Continue';
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: _C.bg1,
-        border: Border(top: BorderSide(color: _C.borderDim)),
+        color: palette.bg1,
+        border: Border(top: BorderSide(color: palette.lineSoft)),
       ),
-      child: GestureDetector(
-        onTap: ctx.soundAction(
-          canDeploy
-              ? () async {
-                  if (widget.showDeployConfirm && ctx.mounted) {
-                    final confirmed = await showDialog<bool>(
-                      context: ctx,
-                      barrierDismissible: false,
-                      builder: (_) => DeployConfirmDialog(
-                        theme: theme,
-                        partyCount: count,
-                        maxSize: party.maxSize,
-                        availableCount: allInstances.length,
-                      ),
-                    );
-                    if (confirmed != true) return;
-                  }
-
-                  if (ctx.mounted) {
-                    Navigator.pop(
-                      ctx,
-                      ctx.read<SelectedPartyNotifier>().members,
-                    );
-                  }
-                }
-              : null,
-        ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          decoration: BoxDecoration(
-            color: canDeploy ? _C.success : _C.bg2,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: canDeploy
-                  ? _C.success.withValues(alpha: 0.8)
-                  : _C.borderDim,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                label.toUpperCase(),
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: canDeploy ? _C.bg0 : _C.textMuted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.5,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+        child: BracketButton(
+          key: const ValueKey('partyPicker.confirm'),
+          label: (widget.confirmLabel ?? 'Deploy Team').toUpperCase(),
+          enabled: canDeploy,
+          palette: palette,
+          accent: accent,
+          onTap: () async {
+            if (_handingOver) return;
+            if (widget.showDeployConfirm) {
+              final confirmed = await showDialog<bool>(
+                context: ctx,
+                barrierDismissible: false,
+                barrierColor: Colors.black.withValues(alpha: 0.7),
+                builder: (_) => DeployConfirmDialog(
+                  theme: theme,
+                  partyCount: count,
+                  maxSize: party.maxSize,
+                  availableCount: allInstances.length,
                 ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
+              );
+              if (confirmed != true) return;
+            }
+            final members = List.of(party.members);
+            if (widget.onConfirm case final hand?) {
+              setState(() => _handingOver = true);
+              await hand(members);
+              if (!mounted) return;
+            }
+            if (ctx.mounted) Navigator.pop(ctx, members);
+          },
         ),
       ),
     );
@@ -656,7 +366,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     List<CreatureInstance> allInstances,
   ) {
     if (party.contains(inst.instanceId)) {
-      ctx.read<SelectedPartyNotifier>().toggle(inst.instanceId);
+      party.toggle(inst.instanceId);
       return;
     }
 
@@ -688,50 +398,321 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
         family != null &&
         (isMystic || widget.enforceUniqueFamily) &&
         party.members.any((m) => familyOf(m.instanceId) == family);
-    final hasMysticAlready = isMystic && clashingFamily;
 
     if (hasSameSpecies) {
-      ScaffoldMessenger.of(ctx).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${species?.name ?? 'This species'} is already in your squad.',
-            style: const TextStyle(fontFamily: 'monospace'),
-          ),
-          backgroundColor: _C.warn,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
+      showGameSnack(
+        ctx,
+        '${species?.name ?? 'This species'} is already in your team.',
       );
       return;
     }
-    if (clashingFamily && !hasMysticAlready) {
-      ScaffoldMessenger.of(ctx).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Only one $family is allowed in a raid squad.',
-            style: const TextStyle(fontFamily: 'monospace'),
-          ),
-          backgroundColor: _C.warn,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
+    if (clashingFamily) {
+      showGameSnack(
+        ctx,
+        isMystic
+            ? 'Only one Mystic is allowed per team.'
+            : 'Only one $family is allowed in a raid squad.',
       );
       return;
     }
-    if (hasMysticAlready) {
-      ScaffoldMessenger.of(ctx).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Only one Mystic is allowed per squad.',
-            style: TextStyle(fontFamily: 'monospace'),
+    party.toggle(inst.instanceId);
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// THE TEAM
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// The team over the grid: a heading with the count, then one small case
+/// per slot — the creature in its element's light, its level in the corner,
+/// its name engraved beneath. Tapping one takes it out.
+class _TeamRow extends StatelessWidget {
+  const _TeamRow({
+    required this.party,
+    required this.allInstances,
+    required this.palette,
+    this.caseWrapper,
+  });
+
+  final SelectedPartyNotifier party;
+  final List<CreatureInstance> allInstances;
+  final BracketPalette palette;
+  final Widget Function(int slot, String instanceId, Widget teamCase)?
+  caseWrapper;
+
+  /// The widest a slot grows, so a four-slot team on a wide phone does not
+  /// push the grid down with cases bigger than the grid's own.
+  static const double _maxSlot = 76;
+  static const double _gap = 6;
+  static const int _perRow = 5;
+
+  @override
+  Widget build(BuildContext context) {
+    final repo = context.read<CreatureCatalog>();
+    final count = party.members.length;
+    final maxSize = party.maxSize;
+
+    final filled = <(CreatureInstance, Creature)?>[
+      for (final m in party.members)
+        () {
+          final inst = allInstances.firstWhereOrNull(
+            (i) => i.instanceId == m.instanceId,
+          );
+          final species = inst == null
+              ? null
+              : repo.getCreatureById(inst.baseId);
+          return inst == null || species == null ? null : (inst, species);
+        }(),
+    ];
+
+    // One height whatever the team: the grid under it must not jump when
+    // the first one is picked, nor when the last is taken out.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(
+          height: 24,
+          child: Row(
+            children: [
+              Text('TEAM', style: caseMono(10.5, palette.muted, spacing: 1.8)),
+              const SizedBox(width: 10),
+              Expanded(child: Container(height: 1, color: palette.lineSoft)),
+              const SizedBox(width: 10),
+              Text(
+                '$count / $maxSize',
+                style: caseMono(10.5, palette.ink.withValues(alpha: 0.8)),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  key: const ValueKey('partyPicker.clear'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: context.soundAction(party.clear),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 4, 0, 4),
+                    child: Text(
+                      'CLEAR',
+                      style: caseMono(10.5, palette.muted, spacing: 1.4),
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
-          backgroundColor: Color(0xFFF97316),
-          behavior: SnackBarBehavior.floating,
-          duration: Duration(seconds: 2),
         ),
-      );
-      return;
-    }
-    ctx.read<SelectedPartyNotifier>().toggle(inst.instanceId);
+        const SizedBox(height: 6),
+        LayoutBuilder(
+          builder: (context, box) {
+            final perRow = maxSize < _perRow ? maxSize : _perRow;
+            final slot = ((box.maxWidth - _gap * (perRow - 1)) / perRow).clamp(
+              0.0,
+              _maxSlot,
+            );
+            final rows = (maxSize / _perRow).ceil();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var r = 0; r < rows; r++) ...[
+                  if (r > 0) const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      for (
+                        var i = r * _perRow;
+                        i < maxSize && i < (r + 1) * _perRow;
+                        i++
+                      ) ...[
+                        if (i > r * _perRow) const SizedBox(width: _gap),
+                        SizedBox(
+                          width: slot,
+                          child: i < filled.length
+                              ? _TeamSlot(
+                                  entry: filled[i],
+                                  number: i + 1,
+                                  palette: palette,
+                                  wrapCase: caseWrapper == null
+                                      ? null
+                                      : (c) => caseWrapper!(
+                                          i,
+                                          party.members[i].instanceId,
+                                          c,
+                                        ),
+                                  onRemove: () =>
+                                      party.toggle(party.members[i].instanceId),
+                                )
+                              : _EmptySlot(palette: palette),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+const double _lineGap = 5;
+const double _lineHeight = 12;
+
+class _TeamSlot extends StatelessWidget {
+  const _TeamSlot({
+    required this.entry,
+    required this.number,
+    required this.palette,
+    required this.onRemove,
+    this.wrapCase,
+  });
+
+  /// Null while the instance is still being read, or if it has gone.
+  final (CreatureInstance, Creature)? entry;
+  final int number;
+  final BracketPalette palette;
+  final VoidCallback onRemove;
+
+  /// Wraps the case (not its engraved line), e.g. in a Hero.
+  final Widget Function(Widget teamCase)? wrapCase;
+
+  static Widget _bare(Widget teamCase) => teamCase;
+
+  @override
+  Widget build(BuildContext context) {
+    final entry = this.entry;
+    final light = entry == null ? palette.muted : caseElementLight(entry.$2);
+    final inst = entry?.$1;
+    final species = entry?.$2;
+    final name = inst?.nickname?.trim().isNotEmpty == true
+        ? inst!.nickname!
+        : species?.name ?? '';
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onRemove),
+      child: Semantics(
+        button: true,
+        label: inst == null
+            ? 'Slot $number'
+            : 'Remove $name, level ${inst.level}',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: (wrapCase ?? _bare)(
+                CustomPaint(
+                  foregroundPainter: BracketFramePainter(
+                    color: kCaseGilt,
+                    strokeWidth: 1.6,
+                  ),
+                  child: ClipRect(
+                    child: CustomPaint(
+                      painter: CaseLightPainter(color: light),
+                      child: LayoutBuilder(
+                        builder: (context, box) {
+                          final art = box.maxWidth * 0.72;
+                          return Stack(
+                            children: [
+                              if (inst != null && species != null)
+                                Positioned(
+                                  left: 0,
+                                  right: 0,
+                                  bottom: box.maxHeight * 0.08,
+                                  child: Center(
+                                    child: RepaintBoundary(
+                                      child: species.spriteData != null
+                                          ? InstanceSprite(
+                                              creature: species,
+                                              instance: inst,
+                                              size: art,
+                                            )
+                                          : Image.asset(
+                                              'assets/images/${species.image}',
+                                              width: art,
+                                              height: art,
+                                              fit: BoxFit.contain,
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              if (inst != null)
+                                Positioned(
+                                  top: 4,
+                                  left: 5,
+                                  child: Text(
+                                    'LV ${inst.level}',
+                                    style: caseMono(
+                                      8.5,
+                                      kCaseGlassInk.withValues(alpha: 0.85),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: _lineGap),
+            SizedBox(
+              height: _lineHeight,
+              child: Row(
+                children: [
+                  MarkDiamond(
+                    color: light,
+                    size: 5,
+                    prismatic: inst?.isPrismaticSkin ?? false,
+                  ),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: caseMono(8.5, palette.ink, spacing: 0.5),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EmptySlot extends StatelessWidget {
+  const _EmptySlot({required this.palette});
+
+  final BracketPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AspectRatio(
+          aspectRatio: 1,
+          child: ColoredBox(
+            color: palette.bg0.withValues(alpha: 0.7),
+            child: Center(
+              child: Icon(
+                AppIcons.add_rounded,
+                size: 16,
+                color: palette.muted.withValues(alpha: 0.6),
+              ),
+            ),
+          ),
+        ),
+        // A filled slot's engraved line, kept so the row never changes
+        // height.
+        const SizedBox(height: _lineGap + _lineHeight),
+      ],
+    );
   }
 }

@@ -7,7 +7,7 @@
 //   pressed, and every piece the edge passes lets go -- a moment's hang, then
 //   up on a rising draught, turning and shrinking -- and as it goes it turns
 //   from a piece of the card into a grain of the specimen's own sand (the
-//   rim's colours: the element's light shades, gold, or the rainbow) and
+//   rim's colors: the element's light shades, gold, or the rainbow) and
 //   thins out to nothing. The dim the card sat on lifts with it, so the
 //   screen comes back as the card goes.
 //
@@ -30,7 +30,7 @@ import 'package:alchemons/widgets/animations/hatch_shell.dart'
     show ShellMutationLook;
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/essence_rim.dart'
-    show RimColour, rimPrismHue;
+    show RimColor, rimPrismHue;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -56,7 +56,7 @@ class CardDissolve {
     required BuildContext context,
     required GlobalKey boundaryKey,
     String? element,
-    RimColour colour = RimColour.element,
+    RimColor color = RimColor.element,
     Color barrier = const Color(0x00000000),
     bool reduced = false,
     int seed = 0,
@@ -99,7 +99,7 @@ class CardDissolve {
       pixelRatio: pixelRatio,
       size: rect.size,
       element: element,
-      colour: colour,
+      color: color,
       reduced: reduced,
       seed: seed,
     );
@@ -126,7 +126,7 @@ class CardDissolveField {
     required this.pixelRatio,
     required Size size,
     String? element,
-    RimColour colour = RimColour.element,
+    RimColor color = RimColor.element,
     bool reduced = false,
     int seed = 0,
   }) : _w = size.width,
@@ -194,19 +194,19 @@ class CardDissolveField {
         _spin[i] = (rng.nextDouble() - 0.5) * 10;
         end = math.max(end, _rt[i] + _hang[i] + _life[i]);
         if (rng.nextDouble() < moteShare) {
-          final tone = switch (colour) {
-            RimColour.element => Color.lerp(
+          final tone = switch (color) {
+            RimColor.element => Color.lerp(
               ramp[2],
               ramp[3],
               rng.nextDouble(),
             )!,
-            RimColour.gilded => Color.lerp(
+            RimColor.gilded => Color.lerp(
               ShellMutationLook.gold,
               ShellMutationLook.paleGold,
               rng.nextDouble(),
             )!,
             // Once round the rainbow, corner to corner, as the rim is.
-            RimColour.prismatic => rimPrismHue(
+            RimColor.prismatic => rimPrismHue(
               (x01 * 0.75 + (y / _h) * 0.25) * 12,
             ),
           };

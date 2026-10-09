@@ -117,16 +117,20 @@ void main() {
     expect(picker.initialSelection, isNull);
     expect(picker.maxSelections, 5);
     expect(picker.confirmLabel, 'Choose Team');
+    Finder pickerShows(String text) => find.descendant(
+      of: find.byType(PartyPickerScreen),
+      matching: find.text(text),
+    );
 
     // The picker's grid fills from a database stream, in an order the test
     // does not fix (they were all made in the same instant): take the first
     // two on screen.
     const names = [
-      'Waterlet',
-      'Lavapip',
-      'Poisonhorn',
-      'Earthmane',
-      'Firemask',
+      'WATERLET',
+      'LAVAPIP',
+      'POISONHORN',
+      'EARTHMANE',
+      'FIREMASK',
     ];
     List<String> onScreen() => [
       for (final n in names)
@@ -139,7 +143,8 @@ void main() {
       await tester.tap(find.text(name).hitTestable().first);
       await settleLobby(tester, 2);
     }
-    await tester.tap(find.textContaining('CHOOSE TEAM  ·  2 SELECTED'));
+    expect(pickerShows('2 / 5'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('partyPicker.confirm')));
     await settleLobby(tester, 20);
 
     // Back in the lobby with the team shown and saved; nothing started.
@@ -160,7 +165,7 @@ void main() {
           .initialSelection,
       chosen,
     );
-    expect(find.textContaining('CHOOSE TEAM  ·  2 SELECTED'), findsOneWidget);
+    expect(pickerShows('2 / 5'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await save.dispose(tester);

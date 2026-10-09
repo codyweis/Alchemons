@@ -22,7 +22,7 @@ part of 'grain_field.dart';
 //
 // Still sheets are baked as maps (see field_art.dart), read through the
 // hour's grades:
-//   far grades   r = haze, b = haze × how low (horizon-coloured), g = fleck
+//   far grades   r = haze, b = haze × how low (horizon-colored), g = fleck
 //   near grades  r = haze, b = shade, g = fleck
 
 class DunesField extends _GrainField {
@@ -36,7 +36,7 @@ class DunesField extends _GrainField {
   static const _gButtes = 0, _gFarSand = 1, _gSand = 2, _gFloor = 3;
   static const _gStone = 4, _gRock = 5, _gLip = 6;
 
-  /// Daylight colours of the land; the hour's ambient light multiplies them.
+  /// Daylight colors of the land; the hour's ambient light multiplies them.
   static const _albedo = <int, Color>{
     _gButtes: Color(0xFF8E6656),
     _gFarSand: Color(0xFFC29C74),
@@ -74,7 +74,7 @@ class DunesField extends _GrainField {
     _ => 0.85,
   };
 
-  /// The live sand's colours, shade to lit, for the hour.
+  /// The live sand's colors, shade to lit, for the hour.
   List<Color> _sandTones = const [
     Color(0xFF000000),
     Color(0xFF000000),
@@ -123,7 +123,7 @@ class DunesField extends _GrainField {
       );
     }
 
-    // The loose sand on the floor: the floor's own colour in shade, in half
+    // The loose sand on the floor: the floor's own color in shade, in half
     // light, lit, and catching the rim light along a ripple's crest.
     final s = sil(_gFloor);
     Color k(double f) => Color.from(

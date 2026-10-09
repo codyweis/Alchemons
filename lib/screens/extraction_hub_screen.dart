@@ -973,7 +973,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
     HapticFeedback.lightImpact();
 
     // The resources visibly leave the chamber and land on the total they are
-    // added to, in the biome's own colour. A beat in, so they come out of the
+    // added to, in the biome's own color. A beat in, so they come out of the
     // stream rather than ahead of it.
     if (flight != null && got > 0) {
       unawaited(

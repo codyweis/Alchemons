@@ -2527,7 +2527,7 @@ List<(Offset, double)> _dustLineGrains(
 }
 
 /// LOOSE GRAINS worked out from time alone — a throw, a trickle, a flame —
-/// bucketed by colour and drawn in a handful of calls, each one a short
+/// bucketed by color and drawn in a handful of calls, each one a short
 /// streak from where it was a moment ago.
 class _DustInk {
   final Map<int, List<Offset>> _runs = {};

@@ -53,7 +53,7 @@ void main() {
     }
 
     // Row 1b — the two spinning worlds side by side. They are the pair most
-    // at risk of reading as the same effect in two colours.
+    // at risk of reading as the same effect in two colors.
     for (var i = 0; i < 3; i++) {
       drawMysticTornado(
         canvas: canvas,

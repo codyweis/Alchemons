@@ -151,7 +151,7 @@ class HeartRunState {
   /// a fresh one is loaded after each use, so species vary).
   final Map<String, DungeonCreature> templates = {};
 
-  /// A small fizzle where a pair would not fuse, in both their colours.
+  /// A small fizzle where a pair would not fuse, in both their colors.
   Offset? fizzleAt;
   double fizzleT = -9;
   List<Color> fizzleCols = const [Color(0xFFB8B0A8), Color(0xFFB8B0A8)];
@@ -513,7 +513,7 @@ extension BloodHeartDungeon on PlanetDungeonGame {
       front.moved(alt.front),
     );
     if (f == null) {
-      // They don't fuse: a little of each colour, and nothing more.
+      // They don't fuse: a little of each color, and nothing more.
       h
         ..fizzleAt = riteCentreOf(alt.front.x, alt.front.y)
         ..fizzleT = _time

@@ -8,7 +8,7 @@ import 'package:alchemons/audio/audio.dart';
 // entire appeal is the creatures, the one screen that previews them showed
 // none of them — you had to recognise "Emberlet" from a string. It also
 // predated the square dark dialog language used by the skill and vial
-// dialogs, and its rarity colours were a private copy.
+// dialogs, and its rarity colors were a private copy.
 //
 // This shows the actual sprites, sized to content, in the shared language.
 
@@ -198,13 +198,13 @@ class WildernessPeekDialog extends StatelessWidget {
   }
 
   Widget _row(PeekedSpawn spawn) {
-    final colour = rarityColor(spawn.rarityName);
+    final color = rarityColor(spawn.rarityName);
     final sprite = spawn.creature?.spriteData;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: _bgRaised,
-        border: Border.all(color: colour.withValues(alpha: 0.35)),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -249,7 +249,7 @@ class WildernessPeekDialog extends StatelessWidget {
                 Text(
                   spawn.rarityName.toUpperCase(),
                   style: TextStyle(
-                    color: colour,
+                    color: color,
                     fontSize: 10,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.2,
@@ -259,7 +259,7 @@ class WildernessPeekDialog extends StatelessWidget {
             ),
           ),
           // A quiet rarity rail rather than a pill competing with the name.
-          Container(width: 3, height: 34, color: colour),
+          Container(width: 3, height: 34, color: color),
         ],
       ),
     );

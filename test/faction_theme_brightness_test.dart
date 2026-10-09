@@ -57,8 +57,8 @@ void main() {
     }
   });
 
-  test('text colour agrees with the icon colour it sits beside', () {
-    // These disagreed before: icons took the theme's own text colour while
+  test('text color agrees with the icon color it sits beside', () {
+    // These disagreed before: icons took the theme's own text color while
     // text took the ambient one.
     for (final brightness in Brightness.values) {
       final ambient = brightness == Brightness.dark
@@ -78,7 +78,7 @@ void main() {
   });
 
   test(
-    'the passed text theme still supplies typography, only colours change',
+    'the passed text theme still supplies typography, only colors change',
     () {
       final ambient = ThemeData.light().textTheme.copyWith(
         bodyMedium: const TextStyle(fontSize: 42, fontWeight: FontWeight.w900),

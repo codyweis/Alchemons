@@ -34,7 +34,7 @@ def take():
     m.grains(lambda tt: 900 * np.exp(-tt / 0.05) * (tt < 0.3), _flat(0.62),
              _flat(0.0), amp=0.5, weight=_flat(0.4))
     knock(m, 0.0, _dark_glass(m.rng, 610, ring=0.25), amp=0.03,
-          attack=0.012, tau=0.006, colour=3000, floor=300)
+          attack=0.012, tau=0.006, color=3000, floor=300)
     m.air(0.0, 0.32, 600, 3200, amp=0.02, rise=0.25)
     m.room(t60=0.6, wet=0.16)
     return m.finish(loudness_db=-35.0, fade_out=0.15)
@@ -44,7 +44,7 @@ def set_down(v=0):
     m = Mix(0.75, seed=8010 + v)
     # A press onto stone: it leans in, it does not crack.
     knock(m, 0.01, _stone(m.rng, 290 + 25 * v, ring=0.09), amp=0.45,
-          attack=0.022, tau=0.012, colour=2600, floor=250)
+          attack=0.022, tau=0.012, color=2600, floor=250)
     # Grit spilling off its foot as it settles.
     m.grains(lambda tt: np.where(tt > 0.02, 1500 * np.exp(-(tt - 0.02) / 0.09), 0),
              _flat(0.38), lambda tt: 0.15 * np.sin(9 * tt), amp=0.5,
@@ -62,7 +62,7 @@ def scenery_gather():
              amp=0.5, weight=_flat(0.45))
     # ...and setting into the piece: a coarse settle round a soft stone.
     knock(m, 0.4, _stone(m.rng, 270, ring=0.12), amp=0.3, attack=0.04,
-          tau=0.016, colour=2200, floor=240)
+          tau=0.016, color=2200, floor=240)
     m.grains(lambda tt: np.where(tt > 0.4, 1800 * np.exp(-(tt - 0.4) / 0.14), 0),
              _flat(0.3), _flat(0.0), amp=0.5, weight=_flat(0.55))
     m.air(0.0, 0.6, 400, 2600, amp=0.02, rise=0.6)
@@ -159,7 +159,7 @@ def portal(v=0):
          lambda tt: 0.07 * smooth(tt, 0, 0.12) * (1 - smooth(tt, 0.6, 1.0)),
          width_oct=0.7, spread=0.5, flutter=0.3)
     knock(m, 0.12, _dark_glass(m.rng, 170 + 20 * v, ring=0.9), amp=0.05,
-          attack=0.07, tau=0.02, colour=1600, floor=160)
+          attack=0.07, tau=0.02, color=1600, floor=160)
     m.grains(lambda tt: 1500 * (1 - smooth(tt, 0.1, 0.8)),
              lambda tt: 0.7 - 0.4 * smooth(tt, 0, 0.8),
              lambda tt: 0.6 * np.sin(2 * math.pi * 2.2 * tt) * (1 - smooth(tt, 0, 0.8)),
@@ -309,7 +309,7 @@ def stone_stir(v=0):
     m = Mix(1.5, seed=8200 + v)
     grind(m, 0.0, 0.8, lambda tt: np.sin(math.pi * np.clip(tt / 0.8, 0, 1)) ** 1.5 * 0.7,
           _stone(m.rng, 220 + 30 * v, ring=0.15), amp=0.3, rate=(8, 40),
-          jitter=0.4, colour=2600, floor=220)
+          jitter=0.4, color=2600, floor=220)
     m.grains(lambda tt: 600 * smooth(tt, 0.2, 0.6) * (1 - smooth(tt, 0.8, 1.3)),
              _flat(0.3), _flat(0.0), amp=0.5, weight=_flat(0.45))
     m.room(t60=1.0, wet=0.22)
@@ -353,7 +353,7 @@ def heartbeat():
     m = Mix(1.4, seed=8230)
     for at, amp in ((0.04, 0.6), (0.32, 0.38)):
         knock(m, at, _dark_glass(m.rng, 262, ring=0.45), amp=amp,
-              attack=0.035, tau=0.022, colour=2400, floor=250)
+              attack=0.035, tau=0.022, color=2400, floor=250)
         burst(m, at, 200, 900, attack=0.03, tau=0.05, amp=0.03)
     m.room(t60=0.9, wet=0.2)
     return m.finish(loudness_db=-32.0, fade_out=0.35)
@@ -378,7 +378,7 @@ def orrery():
     m = Mix(2.4, seed=8250)
     grind(m, 0.0, 2.1, lambda tt: 0.5 * smooth(tt, 0, 0.4) * (1 - smooth(tt, 1.6, 2.1)),
           _dark_glass(m.rng, 410, ring=0.3), amp=0.25, rate=(30, 90),
-          jitter=0.35, colour=3600, floor=260)
+          jitter=0.35, color=3600, floor=260)
     for at in (0.55, 1.2, 1.8):
         m.glass(at, 1240 * m.rng.uniform(0.95, 1.05), amp=0.015, ring=0.5,
                 attack=0.01, brightness=0.5)

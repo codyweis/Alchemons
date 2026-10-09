@@ -4,7 +4,7 @@ part of 'planet_art.dart';
 //  THE HOME PLANET'S CUSTOMIZATIONS — redrawn with what worked in space
 //
 //  The home planet itself keeps its own look (a glowing sphere in the
-//  player's colour). What it wears is drawn here, with the techniques that
+//  player's color). What it wears is drawn here, with the techniques that
 //  won out on the seventeen planets: rings of hundreds of grains on real
 //  orbits (Cindrath's ring, the favourite), an ember corona (Pyrathis), a
 //  feeding accretion disk (Nythralor), shaded moons (Aquathos), soft veils
@@ -198,10 +198,10 @@ class HomeEffectsArt {
     if (active.contains('lightning_rod')) _lightningRod(c, p, r, t, o);
   }
 
-  // ── the premium colours ───────────────────────────────────────────────
+  // ── the premium colors ───────────────────────────────────────────────
 
-  /// The glow round a home planet in a premium colour ([colorId]); false
-  /// when the colour is not one, and the ordinary glow should be drawn.
+  /// The glow round a home planet in a premium color ([colorId]); false
+  /// when the color is not one, and the ordinary glow should be drawn.
   bool paintPremiumAura(
     Canvas c,
     Offset p,
@@ -246,7 +246,7 @@ class HomeEffectsArt {
     return false;
   }
 
-  /// The body of a home planet in a premium colour; false when [colorId]
+  /// The body of a home planet in a premium color; false when [colorId]
   /// is not one.
   bool paintPremiumBody(
     Canvas c,
@@ -482,7 +482,7 @@ class HomeEffectsArt {
   /// over the top of the planet, the way light comes round a black hole, so
   /// the planet sits inside a crown of its own disk. Its density runs from
   /// Nythralor's up to a storm thicker than the Singularity's, and it burns
-  /// in any of five colours or drifts through them all.
+  /// in any of five colors or drifts through them all.
   void _blackHole(
     Canvas c,
     Offset p,
@@ -1179,7 +1179,7 @@ class HomeEffectsArt {
   }
 
   /// Lumishara's cut-gem skin over the home planet, in the planet's own
-  /// colour: flat facets shaded by which way they face, translucent so the
+  /// color: flat facets shaded by which way they face, translucent so the
   /// world shows through, and a glint that travels across them as they turn.
   void _crystalSpires(
     Canvas c,

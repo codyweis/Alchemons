@@ -914,7 +914,7 @@ class ShopService extends ChangeNotifier {
       id: 'effects.dust_ring',
       name: 'Elemental Dust Ring',
       description:
-          "A tipped ring of orbiting dust round your Alchemon, like a ringed world's, in the colours of its element.",
+          "A tipped ring of orbiting dust round your Alchemon, like a ringed world's, in the colors of its element.",
       icon: AppIcons.scatter_plot_outlined,
       iconColor: const Color(0xFFE8C08A),
       cost: const {'gold': 35},

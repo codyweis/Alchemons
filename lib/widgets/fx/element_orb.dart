@@ -92,7 +92,7 @@ const Map<EssenceElement, Color> _tints = {
   EssenceElement.blood: Color(0xFFD01E2A),
 };
 
-/// An element's colour, as its orb shows it.
+/// An element's color, as its orb shows it.
 Color elementOrbTint(EssenceElement e) => _tints[e]!;
 
 /// An element as a ball of its grains in glass.
@@ -139,10 +139,10 @@ class ElementOrb {
   final _Habit _habit;
   final List<Color> _ramp;
 
-  /// The element's colour, for its light and its glass.
+  /// The element's color, for its light and its glass.
   late final Color color;
 
-  /// Its grains' colours, darkest first: the far side, then the near.
+  /// Its grains' colors, darkest first: the far side, then the near.
   late final List<Color> tones;
 
   late final Float32List _lat, _lon, _rad, _ph;

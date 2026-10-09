@@ -250,7 +250,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   }
 
   /// A powerup as it appears everywhere else: a glowing orb in its stat
-  /// colour with the branded glyph.
+  /// color with the branded glyph.
   Widget _powerupOrb(AlchemicalPowerupType type, double size) {
     return Container(
       width: size,
@@ -300,7 +300,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   // Star rewards used to be a list of text lines under a row of star glyphs,
   // in a panel of their own design. Survival's surge offer is the dialog the
   // game already does best: a near-black plate with bracket corners, and each
-  // thing on it a CARD whose colour says what kind of thing it is before a
+  // thing on it a CARD whose color says what kind of thing it is before a
   // word is read. A star payout is the same kind of moment, so it wears the
   // same clothes: every reward is a card, and the Star 3 choice is three of
   // them to pick between.
@@ -840,8 +840,8 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   }
 }
 
-/// Lifts a colour until it holds its own as an accent on the near-black
-/// plate (the survival surge's rule: earthy element colours otherwise land
+/// Lifts a color until it holds its own as an accent on the near-black
+/// plate (the survival surge's rule: earthy element colors otherwise land
 /// on the panel's own background).
 Color _legible(Color c) {
   final hsl = HSLColor.fromColor(c);

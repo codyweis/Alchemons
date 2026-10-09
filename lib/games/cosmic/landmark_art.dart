@@ -467,7 +467,7 @@ final Paint _veilPaint = Paint()..color = const Color(0xFFFFFFFF);
 
 /// The prismatic aurora centred on [at], [radius] across: curtains of light
 /// in every hue, each a sheet bright along its lower hem and fading as it
-/// rises, rippling and drifting through the colours. Until its reward is
+/// rises, rippling and drifting through the colors. Until its reward is
 /// [claimed], a small turning ring of the eight hues marks its heart.
 void paintPrismaticAurora(
   Canvas c, {

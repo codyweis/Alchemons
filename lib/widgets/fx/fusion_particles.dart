@@ -6,7 +6,7 @@ import 'package:flutter/rendering.dart';
 
 // The fusion chamber's merge, in particles — the home title's recipe applied
 // to the two specimens. Each is read into grains that sit where its pixels
-// were and carry their colours, so at rest the grains ARE the sprite (same
+// were and carry their colors, so at rest the grains ARE the sprite (same
 // shape, same markings), only made of particles. Then the two pour into the
 // orb and become one.
 
@@ -22,7 +22,7 @@ class SpecimenGrains {
   /// in logical px.
   final Float32List hx, hy;
 
-  /// Each grain's colour, as an index into [tones].
+  /// Each grain's color, as an index into [tones].
   final Uint8List tone;
 
   /// The specimen's palette, darkest first.
@@ -33,7 +33,7 @@ class SpecimenGrains {
 
   int get length => hx.length;
 
-  /// Colours each specimen is sorted into. Enough that a painted sprite
+  /// Colors each specimen is sorted into. Enough that a painted sprite
   /// keeps its shading and its small accents (eyes, a horn tip); each tone
   /// is one draw.
   static const int toneCount = 32;
@@ -46,7 +46,7 @@ class SpecimenGrains {
   ///
   /// Reading the screen rather than the sprite sheet gets exactly what the
   /// player is looking at — this frame of the animation, with the genetics
-  /// colouring already on it — and a few hundred pixels where the sheet
+  /// coloring already on it — and a few hundred pixels where the sheet
   /// would be 20 MB. Null when there is nothing there to read.
   static Future<SpecimenGrains?> capture(
     RenderRepaintBoundary boundary, {
@@ -102,7 +102,7 @@ class SpecimenGrains {
     final xs = <double>[], ys = <double>[];
     final rs = <double>[], gs = <double>[], bs = <double>[];
     // Each grain is the alpha-weighted mean of five taps across its cell, so
-    // it takes the patch's colour rather than whichever pixel it landed on.
+    // it takes the patch's color rather than whichever pixel it landed on.
     const taps = [0.0, 0.0, -1.0, -1.0, 1.0, -1.0, -1.0, 1.0, 1.0, 1.0];
     for (var sy = sp / 2; sy < h; sy += sp) {
       for (var sx = sp / 2; sx < w; sx += sp) {
@@ -180,7 +180,7 @@ class SpecimenGrains {
     );
   }
 
-  /// Sorts the grains' colours into at most [toneCount] tones: k-means on an
+  /// Sorts the grains' colors into at most [toneCount] tones: k-means on an
   /// even subsample, seeded farthest-point so a small accent that is unlike
   /// the rest still gets a tone of its own, then numbered dark to light.
   static (Uint8List, List<Color>) _quantise(
@@ -215,7 +215,7 @@ class SpecimenGrains {
       return best;
     }
 
-    // First seed: the sample nearest the mean colour.
+    // First seed: the sample nearest the mean color.
     var mr = 0.0, mg = 0.0, mb = 0.0;
     for (final i in sub) {
       mr += rs[i];
@@ -326,7 +326,7 @@ class FusionMergeHandoff {
 ///                 cloud round the orb — a sphere of both, the two turning
 ///                 opposite ways so each winds through the other
 ///  * 1.90 – 2.15  the whole cloud, both of them, turning as one
-///  * 2.15 – 2.60  it falls into the orb, the colours run together and it
+///  * 2.15 – 2.60  it falls into the orb, the colors run together and it
 ///                 goes out in a bloom
 class FusionParticleField {
   factory FusionParticleField({
@@ -432,7 +432,7 @@ class FusionParticleField {
   double _laidAt = double.nan, _laidClock = double.nan;
   Offset _laidShiftA = Offset.zero, _laidShiftB = Offset.zero;
 
-  /// What both colours run together into at the end.
+  /// What both colors run together into at the end.
   final Color _fused;
 
   // Per specimen: the crest's range, the way to the orb, the way the arcs

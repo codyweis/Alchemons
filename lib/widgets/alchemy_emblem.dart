@@ -162,7 +162,7 @@ void paintAlchemyTitle(
 
 // ── the alchemy orb ────────────────────────────────────────────────────
 
-/// Grains on a sphere (golden-angle), each in one element's colour.
+/// Grains on a sphere (golden-angle), each in one element's color.
 final List<(double, double, double, Color, double)> _orbGrains = () {
   const n = 340;
   final tints = [for (final e in EssenceElement.values) elementOrbTint(e)];
@@ -222,7 +222,7 @@ void paintAlchemyOrb(
     // The whole ball drifts through one element at a time; a fifth of its
     // grains keep their own element and sparkle through it.
     final col = h > .8 ? own : Color.lerp(own, inner, .78)!;
-    final colour = h > .93
+    final color = h > .93
         ? Color.lerp(col, const Color(0xFFFFF6E6), .65)!
         : Color.lerp(Color.lerp(col, Colors.black, .4)!, col, lit)!;
     batch.add(
@@ -230,7 +230,7 @@ void paintAlchemyOrb(
       p.dy,
       p.dx,
       p.dy,
-      colour,
+      color,
       alpha: a,
       width: near > .55 && h > .7 ? width + .4 : width,
     );
@@ -238,7 +238,7 @@ void paintAlchemyOrb(
   batch.paint(canvas);
 }
 
-/// The orb's grains as they stand at [time] (where, what colour, how near
+/// The orb's grains as they stand at [time] (where, what color, how near
 /// the viewer, 0..1), for a moment that takes the orb apart.
 List<(Offset, Color, double)> alchemyOrbGrainsAt(
   Offset c,

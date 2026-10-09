@@ -853,7 +853,7 @@ class _GeneticsBlock extends StatelessWidget {
         ],
         // Only deviations earn a line. Every other variant name says which
         // track it belongs to on its own -- GIANT is obviously a size, ALBINO
-        // obviously a colour -- so a card printing NORMAL twice was spending
+        // obviously a color -- so a card printing NORMAL twice was spending
         // two rows to say nothing, and reading as if it named two of the same
         // thing.
         ..._spaced([
@@ -1074,7 +1074,7 @@ class _PrismaticChip extends StatelessWidget {
   }
 }
 
-/// A wild-fusion mutation, in the colour of what it made the creature:
+/// A wild-fusion mutation, in the color of what it made the creature:
 /// gold for Transmuted, the pale violet of loose grains for Alchemized.
 class _MutationChip extends StatelessWidget {
   const _MutationChip({required this.mutation});

@@ -10,7 +10,7 @@
 //   * An awakened seat burns: it lights its stretch of the ring in its
 //     element and pours a stream of grains into the heart.
 //
-// So the whole altar fills with colour as the Mystics wake, and the heart
+// So the whole altar fills with color as the Mystics wake, and the heart
 // turns from arcane violet to blood once every stream is running.
 //
 // Plain Dart and time-driven, like every grain field in the game: the screen
@@ -485,7 +485,7 @@ class AltarHubField {
     final hr = _r * 0.34 * (1 + 0.05 * beat + 0.25 * surge);
     final chosen = selected < 0;
 
-    // Its colours: arcane violet asleep, warming toward blood as the
+    // Its colors: arcane violet asleep, warming toward blood as the
     // sixteen wake, blood once they all have.
     final asleep = [
       const Color(0xFF1D1530),
@@ -611,7 +611,7 @@ class AltarHubField {
   // Until its relic is set it is a secret: a formless drift of particles,
   // ash while the relic is unearned, faintly its element's once the relic
   // is in hand. Setting the relic gathers the drift into the Mystic, a ghost
-  // of grains that fills in with colour as its offerings are given and is
+  // of grains that fills in with color as its offerings are given and is
   // whole once it is awake. Turning to another seat pours the grains across.
 
   AltarSeat? _shown, _from;
@@ -787,7 +787,7 @@ class AltarHubField {
     );
 
     final d = math.max(0.9, g.step * scale * 0.98);
-    // Lit grains: its own colours, a little sunk toward the void so the
+    // Lit grains: its own colors, a little sunk toward the void so the
     // apparition never outshines the altar in front of it.
     for (var k = 0; k < tones; k++) {
       b.draw(

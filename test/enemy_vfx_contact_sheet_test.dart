@@ -18,7 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// judged side by side instead of one at a time mid-fight.
 ///
 /// Main look only — one neutral element per row, since element tinting is a
-/// recolour rather than a different shape.
+/// recolor rather than a different shape.
 ///
 ///   ENEMY_SHEET_OUT=docs/ability_sheets flutter test \
 ///     test/enemy_vfx_contact_sheet_test.dart --tags preview
@@ -120,7 +120,7 @@ void main() {
 
     label(title, const Offset(12, 10), const Color(0xFFE8DCC0), size: 15);
     label(
-      'silhouette only — element tint is a recolour, not a different shape',
+      'silhouette only — element tint is a recolor, not a different shape',
       const Offset(12, 30),
       const Color(0xFF6B7688),
       size: 9,

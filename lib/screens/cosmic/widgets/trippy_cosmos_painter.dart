@@ -5,7 +5,7 @@
 // It is the open-world cosmic sky first — same near-black ground, same dense
 // field of small white twinkling stars — with an abstract layer laid over it:
 // orrery rings, fine measurement ticks, chord lines drawn between stars, and
-// colour that surfaces and sinks again. Everything in that layer is deliberately
+// color that surfaces and sinks again. Everything in that layer is deliberately
 // faint. The sky should read as instrument-grade and slightly unreal, not as a
 // rainbow.
 
@@ -13,7 +13,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
-/// The cosmic world's own background colour — matched on purpose.
+/// The cosmic world's own background color — matched on purpose.
 const Color kCosmosGround = Color(0xFF020010);
 
 class _Star {
@@ -33,7 +33,7 @@ class _Star {
   final double brightness;
   final double twinkleSpeed;
 
-  /// Where on the wheel this star sits when it surfaces in colour.
+  /// Where on the wheel this star sits when it surfaces in color.
   final double hue;
 
   /// Phase and rate of the slow surface/sink cycle.
@@ -48,7 +48,7 @@ class _Chord {
 }
 
 /// Faint, slow, instrument-like. Stars twinkle white; a minority surface into
-/// colour and sink back; rings and chords turn behind them.
+/// color and sink back; rings and chords turn behind them.
 class TrippyCosmosPainter extends CustomPainter {
   TrippyCosmosPainter({
     required this.t,
@@ -103,8 +103,8 @@ class TrippyCosmosPainter extends CustomPainter {
     });
   }
 
-  /// Muted spectrum — desaturated on purpose so colour reads as a tint on a
-  /// white star, never as a coloured dot.
+  /// Muted spectrum — desaturated on purpose so color reads as a tint on a
+  /// white star, never as a colored dot.
   static Color _spectrum(double h, double alpha) {
     const stops = [
       Color(0xFFFF8AB0),
@@ -156,8 +156,8 @@ class TrippyCosmosPainter extends CustomPainter {
     }
   }
 
-  /// Very faint colour drifting under everything — the sky is never quite one
-  /// colour, but you should have to look for it.
+  /// Very faint color drifting under everything — the sky is never quite one
+  /// color, but you should have to look for it.
   void _paintDrift(Canvas canvas, Size size, Offset c) {
     for (var i = 0; i < 4; i++) {
       final a = t * (0.05 + i * 0.013) + i * 1.7;
@@ -218,7 +218,7 @@ class TrippyCosmosPainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// Dense white twinkle, with a minority of stars surfacing into colour and
+  /// Dense white twinkle, with a minority of stars surfacing into color and
   /// sinking back out again.
   List<Offset> _paintStars(Canvas canvas, Size size, Offset centre) {
     final dot = Paint();

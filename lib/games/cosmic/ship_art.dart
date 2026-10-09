@@ -2,7 +2,7 @@
 //
 // The player's ship: a hull cut from obsidian with its light trapped inside.
 // It is the enemies' material (enemy_body_art.dart) turned to the player's
-// side — dark plates whose colour comes only from light: a core burning in
+// side — dark plates whose color comes only from light: a core burning in
 // the canopy, the leading edges catching it, seams where it leaks out
 // between plates, the engines' glow on the hull. Nothing strokes an outline,
 // a panel line or a hoop.
@@ -127,7 +127,7 @@ final Map<String?, ShipLight> _lights = {
 };
 
 /// The light of the hull [skin] ('skin_phantom', …; null for the standard
-/// hull). Anything that flies with the ship takes its colour from here.
+/// hull). Anything that flies with the ship takes its color from here.
 ShipLight shipLight(String? skin) => _lights[skin] ?? _lights[null]!;
 
 // ── shared drawing state ────────────────────────────────────────────────────
@@ -292,7 +292,7 @@ class _Plate {
     return Offset(x / n, y / n);
   }
 
-  /// Light along the edge a→b: nothing a little way in, the rim colour at
+  /// Light along the edge a→b: nothing a little way in, the rim color at
   /// the edge itself.
   static ui.Shader _edgeLight(
     Offset a,

@@ -410,7 +410,7 @@ Path _fenTaper(Offset a, Offset ctrl, Offset b, double w0, double w1) {
 }
 
 /// LOOSE GRAINS worked out from time alone — bubbles, silt, cotton seed —
-/// bucketed by colour and drawn in a handful of calls, each a short streak
+/// bucketed by color and drawn in a handful of calls, each a short streak
 /// from where it was a moment ago.
 class _FenInk {
   final Map<int, List<Offset>> _runs = {};

@@ -7,7 +7,7 @@
 //   its head, burns brighter there for as long as the roll is worth, then
 //   plunges in. Then a wave of the stat's light runs up the specimen from its
 //   feet, and where it passes the specimen comes apart into grains of
-//   itself, lit in that colour, and settles back together.
+//   itself, lit in that color, and settles back together.
 //
 //   Nothing happens round the specimen — no orbit, no rings, no streams
 //   wound about it: the user called that cheesy. All of it is the specimen
@@ -242,7 +242,7 @@ class InfusionPainter extends CustomPainter {
         if (pulse > 0.9 && ph > 0.8) {
           b.add(_glintB, px, py);
         } else if (pulse > 0.2) {
-          // Its own colours, lit through with the stat's as it passes.
+          // Its own colors, lit through with the stat's as it passes.
           b.add(_litB + (g.tone[i] * 6) ~/ math.max(1, tones.length), px, py);
         } else {
           b.add(math.min(g.tone[i], 19), px, py);
@@ -264,7 +264,7 @@ class InfusionPainter extends CustomPainter {
           canvas,
           _litB + k,
           d * 1.05,
-          // Towards the stat's own colour, not towards white: the specimen
+          // Towards the stat's own color, not towards white: the specimen
           // stays itself, lit.
           Color.lerp(rep, Color.lerp(color, Colors.white, 0.12 * k)!, 0.42)!,
         );

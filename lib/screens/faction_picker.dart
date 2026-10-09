@@ -114,7 +114,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
         accent: const Color(0xFF96CEB4),
         group: ElementalGroup.oceanic,
       ),
-      // Each division in its realm's colours: Earthen the ochre of its
+      // Each division in its realm's colors: Earthen the ochre of its
       // strata, Verdant the green of the seeds its wind carries.
       make(
         FactionId.earthen,

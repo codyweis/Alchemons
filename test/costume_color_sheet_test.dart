@@ -1,4 +1,4 @@
-// A costume's colour step: shown on the creature, a preset or a turn of the
+// A costume's color step: shown on the creature, a preset or a turn of the
 // ring picks it, and backing out picks nothing — for a Wing's hat, a Pip's
 // nose and a Horn's sunglasses.
 //
@@ -108,7 +108,7 @@ void main() {
       });
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));
-      expect(find.text('$noun COLOUR'), findsOneWidget);
+      expect(find.text('$noun COLOR'), findsOneWidget);
       // Shown on the creature, wearing it.
       expect(find.byType(WornCostume), findsOneWidget);
       await act();
