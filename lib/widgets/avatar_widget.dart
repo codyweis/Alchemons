@@ -29,7 +29,7 @@ class AvatarButton extends StatelessWidget {
   final FactionTheme theme;
   final VoidCallback onTap;
 
-  static const double _size = 70;
+  static const double _size = 80;
 
   @override
   Widget build(BuildContext context) {
