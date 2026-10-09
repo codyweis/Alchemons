@@ -475,8 +475,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
           title: 'Alchemy is Power',
           message:
               'Tap the wild Alchemon, then choose one of yours to fuse with it. '
-              'Wild Alchemons are stronger, so what you make from them starts '
-              'strong.',
+              'Fusing with a wild Alchemon can produce rare mutations, which '
+              'only happen in the wild.',
         ),
       ],
     );
