@@ -206,7 +206,12 @@ void main() {
       await settle(2);
     }
 
-    const base = HomeBiomeLayout(hour: 18.8, residents: household);
+    // The same household in every realm (each keeps its own).
+    final base = HomeBiomeLayout(
+      hour: 18.8,
+      residents: household,
+      households: {for (final r in HomeRealm.values) r.name: household},
+    );
     for (final realm in HomeRealm.values) {
       if (!wants(realm.name)) continue;
       await shoot(realm.name, base.copyWith(realm: realm));

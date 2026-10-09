@@ -41,8 +41,17 @@ void main() {
   );
   bool floats(String id) => id == 'wing';
 
+  // The same household in every realm: for what is about how a realm stands
+  // its residents, not about whose they are.
+  final everywhere = HomeBiomeLayout(
+    residents: household.residents,
+    households: {
+      for (final r in HomeRealm.values) r.name: household.residents,
+    },
+  );
+
   test('a layout survives the save', () {
-    final layout = household
+    final layout = everywhere
         .copyWith(realm: HomeRealm.swamp, hour: () => 18.8)
         .withMood('dry');
     final back = HomeBiomeLayout.fromJson(layout.toJson());
@@ -58,6 +67,46 @@ void main() {
       expect(b.lift, a.lift == null ? isNull : closeTo(a.lift!, 1e-4));
       expect(b.flip, a.flip);
     }
+  });
+
+  // They used to be one household that every realm shared, so arranging
+  // the Swamp rearranged the Valley.
+  test('each realm keeps its own household', () {
+    final valley = household;
+    final swamp = valley.copyWith(realm: HomeRealm.swamp);
+    expect(swamp.residents, isEmpty, reason: 'a realm nobody lives in yet');
+    final settled = swamp.copyWith(
+      residents: const [HomeResident(instanceId: 'swampy', x: 0.5)],
+    );
+    expect(settled.residents.single.instanceId, 'swampy');
+    final back = settled.copyWith(realm: HomeRealm.valley);
+    expect(back.residents, valley.residents);
+    expect(
+      back.copyWith(realm: HomeRealm.swamp).residents.single.instanceId,
+      'swampy',
+    );
+
+    // And the save keeps them apart.
+    final saved = HomeBiomeLayout.fromJson(settled.toJson());
+    expect(saved.realm, HomeRealm.swamp);
+    expect(saved.residents.single.instanceId, 'swampy');
+    expect(
+      saved.copyWith(realm: HomeRealm.valley).residents.map((r) => r.x),
+      valley.residents.map((r) => closeTo(r.x, 1e-4)),
+    );
+  });
+
+  test('an older save keeps its one household in the realm it chose', () {
+    final old = HomeBiomeLayout.fromJson({
+      'realm': 'sky',
+      'residents': [
+        {'id': 'a', 'x': 0.2},
+        {'id': 'b', 'x': 0.6},
+      ],
+    });
+    expect(old.realm, HomeRealm.sky);
+    expect(old.residents.map((r) => r.instanceId), ['a', 'b']);
+    expect(old.copyWith(realm: HomeRealm.valley).residents, isEmpty);
   });
 
   test('each realm remembers its own weather', () {
@@ -78,13 +127,17 @@ void main() {
       HomeRealm.open(arcane: true),
       HomeRealm.values.where((r) => shopSceneOf(r.sceneId) == null),
     );
-    // A home made in the Arcane comes back in the Valley while it is locked,
-    // residents and all, and as it was once it opens.
-    final arcaneHome = household.copyWith(realm: HomeRealm.arcane);
+    // A home made in the Arcane comes back in the Valley while it is locked
+    // (with the Valley's own household), and as it was once it opens.
+    final arcaneHome = const HomeBiomeLayout().copyWith(
+      realm: HomeRealm.arcane,
+      residents: household.residents,
+    );
     expect(arcaneHome.within(locked).realm, HomeRealm.valley);
+    expect(arcaneHome.within(locked).residents, isEmpty);
     expect(
-      arcaneHome.within(locked).residents.length,
-      household.residents.length,
+      arcaneHome.within(locked).copyWith(realm: HomeRealm.arcane).residents,
+      household.residents,
     );
     expect(
       arcaneHome.within(HomeRealm.open(arcane: true)).realm,
@@ -234,7 +287,7 @@ void main() {
   // no ground of its own.
   for (final realm in HomeRealm.values.where((r) => r != HomeRealm.sand)) {
     test('every resident in the ${realm.name} that stands has ground', () {
-      final layout = household.copyWith(realm: realm);
+      final layout = everywhere.copyWith(realm: realm);
       final scene = layout.scene(floats);
       const h = 412.0;
       final field = fieldOf(realm)
@@ -264,7 +317,7 @@ void main() {
   }
 
   test('the Sky builds an isle under each standing resident, and no more', () {
-    final layout = household.copyWith(realm: HomeRealm.sky);
+    final layout = everywhere.copyWith(realm: HomeRealm.sky);
     final scene = layout.scene(floats);
     const h = 412.0;
     SkyField built({required bool partners}) {
@@ -306,7 +359,7 @@ void main() {
     tester.view.physicalSize = const Size(915, 412) * 2;
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
-    var layout = household.copyWith(realm: HomeRealm.sky);
+    var layout = everywhere.copyWith(realm: HomeRealm.sky);
     final game = SceneGame(scene: layout.scene(floats), showcase: true);
     await tester.pumpWidget(
       Directionality(

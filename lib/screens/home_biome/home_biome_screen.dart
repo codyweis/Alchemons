@@ -304,19 +304,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     _realms = await HomeRealm.openNow(_db.settingsDao);
     _ledger = await KeepsakeLedger.load(_db, _speciesName);
     _decor = await DecorLedger.load(_db);
-    var layout = (await HomeBiomeLayout.load(_db.settingsDao)).within(_realms);
-    final kept = <HomeResident>[];
-    for (final r in layout.residents) {
-      final inst = await _db.creatureDao.getInstance(r.instanceId);
-      final creature = inst == null ? null : hydrateResident(inst, _catalog);
-      // Released, sold or fused away since: it no longer lives here.
-      if (inst == null || creature == null) continue;
-      _looks[r.instanceId] = (creature, inst);
-      kept.add(r);
-    }
-    if (kept.length != layout.residents.length) {
-      layout = layout.copyWith(residents: kept);
-    }
+    var layout = await _keepLiving(
+      (await HomeBiomeLayout.load(_db.settingsDao)).within(_realms),
+    );
     // Keepsakes no longer owned (a save restored from before them) go.
     final owned = _placedOwned(layout);
     if (owned.length != layout.placed.length) layout = layout.withPlaced(owned);
@@ -331,6 +321,24 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           ) ??
           Future<void>.value(),
     );
+  }
+
+  /// [layout] with its realm's residents given their looks in [_looks], and
+  /// without any released, sold or fused away since: they no longer live
+  /// there. Each realm keeps its own household, so this is asked of each
+  /// realm as it is entered.
+  Future<HomeBiomeLayout> _keepLiving(HomeBiomeLayout layout) async {
+    final kept = <HomeResident>[];
+    for (final r in layout.residents) {
+      final inst = await _db.creatureDao.getInstance(r.instanceId);
+      final creature = inst == null ? null : hydrateResident(inst, _catalog);
+      if (inst == null || creature == null) continue;
+      _looks[r.instanceId] = (creature, inst);
+      kept.add(r);
+    }
+    return kept.length == layout.residents.length
+        ? layout
+        : layout.copyWith(residents: kept);
   }
 
   /// What stands in [layout]'s realm that the player may have: their own
@@ -451,6 +459,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   /// Which of a keepsake's copies [p] is (the second portal is orange).
   int _copyOf(HomePiece p) => keepsakeCopyOf(p);
 
+  /// Counts realm changes, so a slow one does not land after a later one.
+  int _realmSwitch = 0;
+
   Future<void> _setRealm(HomeRealm realm) async {
     if (realm == _layout.realm) return;
     HapticFeedback.selectionClick();
@@ -463,7 +474,10 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         _tray = _Tray.none;
       }
     });
-    var layout = _layout.copyWith(realm: realm);
+    // Its own household comes with it, looked up as it is entered.
+    final switching = ++_realmSwitch;
+    var layout = await _keepLiving(_layout.copyWith(realm: realm));
+    if (!mounted || switching != _realmSwitch) return;
     layout = layout.withPlaced(_placedOwned(layout));
     _commit(_settle(layout));
     unawaited(

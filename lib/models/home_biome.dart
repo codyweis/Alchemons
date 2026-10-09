@@ -868,9 +868,10 @@ class HomeBiomeLayout {
     this.moods = const {},
     this.hour,
     this.residents = const [],
+    Map<String, List<HomeResident>> households = const {},
     this.pieces = const {},
     this.seen = const {},
-  });
+  }) : _households = households;
 
   final HomeRealm realm;
   final HomeSandStyle sandStyle;
@@ -882,7 +883,21 @@ class HomeBiomeLayout {
   /// The hour the field is held at, 0–24; null follows the phone's clock.
   final double? hour;
 
+  /// Who lives in the current realm. Each realm keeps its own household,
+  /// as it keeps its own scenery: they used to be one list that every realm
+  /// shared, so arranging the Swamp rearranged the Valley.
   final List<HomeResident> residents;
+
+  /// The other realms' households, by realm name. Its entry for the
+  /// current realm, if any, is stale: [residents] is that one.
+  final Map<String, List<HomeResident>> _households;
+
+  /// Who lives in each realm, by realm name, the current one included.
+  Map<String, List<HomeResident>> get households => {
+    for (final e in _households.entries)
+      if (e.key != realm.name && e.value.isNotEmpty) e.key: e.value,
+    if (residents.isNotEmpty) realm.name: residents,
+  };
 
   /// What the player has placed in each realm, by realm name: its own
   /// scenery and their keepsakes. A realm with no entry stands as its wild
@@ -909,6 +924,8 @@ class HomeBiomeLayout {
   /// How many of [kind] stand in the current realm, tried ones included.
   int placedOf(String kind) => placed.where((p) => p.kind == kind).length;
 
+  /// A changed layout. A new [realm] brings its own household with it;
+  /// [residents] are those of the realm the result is in.
   HomeBiomeLayout copyWith({
     HomeRealm? realm,
     HomeSandStyle? sandStyle,
@@ -917,15 +934,20 @@ class HomeBiomeLayout {
     List<HomeResident>? residents,
     Map<String, List<HomePiece>>? pieces,
     Set<String>? seen,
-  }) => HomeBiomeLayout(
-    realm: realm ?? this.realm,
-    sandStyle: sandStyle ?? this.sandStyle,
-    moods: moods ?? this.moods,
-    hour: hour != null ? hour() : this.hour,
-    residents: residents ?? this.residents,
-    pieces: pieces ?? this.pieces,
-    seen: seen ?? this.seen,
-  );
+  }) {
+    final to = realm ?? this.realm;
+    final all = households;
+    return HomeBiomeLayout(
+      realm: to,
+      sandStyle: sandStyle ?? this.sandStyle,
+      moods: moods ?? this.moods,
+      hour: hour != null ? hour() : this.hour,
+      residents: residents ?? all[to.name] ?? const [],
+      households: all,
+      pieces: pieces ?? this.pieces,
+      seen: seen ?? this.seen,
+    );
+  }
 
   HomeBiomeLayout withMood(String id) =>
       copyWith(moods: {...moods, realm.name: id});
@@ -1290,7 +1312,13 @@ class HomeBiomeLayout {
     'sandStyle': sandStyle.toJson(),
     if (moods.isNotEmpty) 'moods': moods,
     if (hour != null) 'hour': hour,
+    // The current realm's, as before each realm kept its own, so an older
+    // build still finds someone at home.
     'residents': [for (final r in residents) r.toJson()],
+    'households': {
+      for (final e in households.entries)
+        e.key: [for (final r in e.value) r.toJson()],
+    },
     if (pieces.isNotEmpty)
       'pieces': {
         for (final e in pieces.entries)
@@ -1305,14 +1333,30 @@ class HomeBiomeLayout {
 
   static HomeBiomeLayout fromJson(Object? json) {
     if (json is! Map) return const HomeBiomeLayout();
+    final realm = HomeRealm.byName(json['realm'] as String?);
     final moods = json['moods'];
     final hour = json['hour'];
-    final residents = json['residents'];
+    final householdsRaw = json['households'];
     final pieces = json['pieces'];
     final seenRaw = json['seen'];
-    final seen = <String>{};
+
+    List<HomeResident> household(Object? list) {
+      if (list is! List) return const [];
+      final ids = <String>{};
+      return [
+        for (final r in list.map(HomeResident.fromJson))
+          if (r != null && ids.add(r.instanceId)) r,
+      ].take(kHomeBiomeMaxResidents).toList();
+    }
+
+    final households = <String, List<HomeResident>>{
+      if (householdsRaw is Map)
+        for (final e in householdsRaw.entries)
+          if (e.key is String && HomeRealm.values.any((r) => r.name == e.key))
+            e.key as String: household(e.value),
+    };
     return HomeBiomeLayout(
-      realm: HomeRealm.byName(json['realm'] as String?),
+      realm: realm,
       sandStyle: HomeSandStyle.fromJson(json['sandStyle']),
       moods: moods is Map
           ? {
@@ -1322,12 +1366,12 @@ class HomeBiomeLayout {
             }
           : const {},
       hour: hour is num ? hour.toDouble() % 24 : null,
-      residents: residents is List
-          ? [
-              for (final r in residents.map(HomeResident.fromJson))
-                if (r != null && seen.add(r.instanceId)) r,
-            ].take(kHomeBiomeMaxResidents).toList()
-          : const [],
+      // A save from before each realm kept its own household had one, that
+      // all of them shared: it stays with the realm the player had chosen.
+      residents: householdsRaw is Map
+          ? households[realm.name] ?? const []
+          : household(json['residents']),
+      households: households,
       pieces: pieces is Map
           ? {
               for (final e in pieces.entries)
