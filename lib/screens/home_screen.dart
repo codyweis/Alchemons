@@ -61,6 +61,7 @@ import 'package:drift/drift.dart' hide Column;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/fx/ship_reveal_fx.dart';
 import 'package:alchemons/widgets/fx/starter_vial_handoff.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -373,7 +374,10 @@ class _MainShellState extends State<MainShell> {
   }
 }
 
-// Wrapper that pulses the cosmic orb when the ship home-animation flag is pending.
+// The ship's emblem on home. The first time it is shown after the ship is
+// claimed it is revealed (ship_reveal_fx.dart) — held back until home is
+// actually on screen, since the claim happens out in the wild with home
+// covered by the routes on top of it.
 class _AnimatedCosmicOrb extends StatefulWidget {
   final VoidCallback? onPulse;
   final bool animate;
@@ -385,81 +389,120 @@ class _AnimatedCosmicOrb extends StatefulWidget {
 
 class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
     with SingleTickerProviderStateMixin {
-  AnimationController? _ctrl;
-  Animation<double>? _scale;
+  static const _pendingKey = 'cosmic_ship_home_anim_pending';
+
+  late final AnimationController _reveal = AnimationController(
+    vsync: this,
+    duration: ShipReveal.duration,
+  )..addListener(_onRevealTick);
+  final _veil = OverlayPortalController();
   bool _visible = false;
+
+  /// Unlocked, and its reveal still to play: the emblem holds its place
+  /// unseen until it does.
+  bool _revealPending = false;
+  bool _impacted = false;
   bool _wiredSettings = false;
-  bool _isPulsing = false;
+  late AlchemonsDatabase _db;
   async.StreamSubscription<String?>? _shipUnlockedSub;
   async.StreamSubscription<String?>? _shipAnimPendingSub;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-    _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.42), weight: 44),
-      TweenSequenceItem(tween: Tween(begin: 1.42, end: 1.08), weight: 20),
-      TweenSequenceItem(tween: Tween(begin: 1.08, end: 1.34), weight: 18),
-      TweenSequenceItem(tween: Tween(begin: 1.34, end: 1.0), weight: 18),
-    ]).animate(CurvedAnimation(parent: _ctrl!, curve: Curves.easeInOutCubic));
-  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_wiredSettings) return;
     _wiredSettings = true;
-    final db = context.read<AlchemonsDatabase>();
+    _db = context.read<AlchemonsDatabase>();
 
-    _shipUnlockedSub = db.settingsDao
+    _shipUnlockedSub = _db.settingsDao
         .watchSetting('cosmic_ship_unlocked')
-        .listen((raw) {
+        .listen((raw) async {
           final unlocked = raw == '1';
           if (!mounted || unlocked == _visible) return;
-          setState(() => _visible = unlocked);
+          // Whether it is still to be revealed is read before it is shown,
+          // so it never stands there for a frame ahead of its own reveal.
+          final pending =
+              unlocked && await _db.settingsDao.getSetting(_pendingKey) == '1';
+          if (!mounted) return;
+          setState(() {
+            _visible = unlocked;
+            _revealPending = pending;
+          });
+          _maybeStartReveal();
         });
 
-    _shipAnimPendingSub = db.settingsDao
-        .watchSetting('cosmic_ship_home_anim_pending')
-        .listen((raw) {
-          if (raw == '1') {
-            _consumePendingPulse(db);
-          }
-        });
+    _shipAnimPendingSub = _db.settingsDao.watchSetting(_pendingKey).listen((
+      raw,
+    ) {
+      if (raw != '1' || !mounted || _revealPending) return;
+      setState(() => _revealPending = true);
+      _maybeStartReveal();
+    });
   }
 
-  Future<void> _consumePendingPulse(AlchemonsDatabase db) async {
-    if (!mounted || _isPulsing) return;
-    _isPulsing = true;
-    widget.onPulse?.call();
+  @override
+  void didUpdateWidget(covariant _AnimatedCosmicOrb old) {
+    super.didUpdateWidget(old);
+    if (widget.animate && !old.animate) _maybeStartReveal();
+  }
 
-    try {
-      _ctrl?.stop();
-      _ctrl?.reset();
-      await _ctrl?.forward();
-      await Future.delayed(const Duration(milliseconds: 260));
-      if (!mounted) return;
-      _ctrl?.reset();
-      await _ctrl?.forward();
-    } catch (_) {
-      // ignore animation errors if lifecycle changes mid-pulse
-    } finally {
-      try {
-        await db.settingsDao.deleteSetting('cosmic_ship_home_anim_pending');
-      } catch (_) {}
-      _isPulsing = false;
+  bool get _canReveal =>
+      mounted &&
+      _visible &&
+      _revealPending &&
+      widget.animate &&
+      !_reveal.isAnimating;
+
+  void _maybeStartReveal() {
+    if (!_canReveal) return;
+    // After this frame has laid the emblem out where it will stand.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startReveal());
+  }
+
+  void _startReveal() {
+    if (!_canReveal) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      async.unawaited(_finishReveal());
+      return;
     }
+    _impacted = false;
+    _veil.show();
+    HapticFeedback.mediumImpact();
+    context.sound(SoundCue.cosmicDiscovery, owner: this);
+    _reveal.forward(from: 0).whenComplete(_finishReveal);
+  }
+
+  void _onRevealTick() {
+    if (_impacted || _reveal.value < ShipReveal.impactAt) return;
+    _impacted = true;
+    HapticFeedback.heavyImpact();
+    widget.onPulse?.call();
+  }
+
+  Future<void> _finishReveal() async {
+    if (_veil.isShowing) _veil.hide();
+    if (mounted) setState(() => _revealPending = false);
+    try {
+      await _db.settingsDao.deleteSetting(_pendingKey);
+    } catch (_) {}
+  }
+
+  /// The emblem's middle, in the overlay's coordinates.
+  Offset _centre() {
+    final box = context.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) {
+      return Offset.zero;
+    }
+    final global = box.localToGlobal(box.size.center(Offset.zero));
+    final overlay = Overlay.maybeOf(context)?.context.findRenderObject();
+    return overlay is RenderBox ? overlay.globalToLocal(global) : global;
   }
 
   @override
   void dispose() {
     _shipUnlockedSub?.cancel();
     _shipAnimPendingSub?.cancel();
-    _ctrl?.dispose();
+    _reveal.dispose();
     super.dispose();
   }
 
@@ -467,13 +510,19 @@ class _AnimatedCosmicOrbState extends State<_AnimatedCosmicOrb>
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
 
-    return AnimatedBuilder(
-      animation: _ctrl!,
-      builder: (context, child) {
-        final s = _scale?.value ?? 1.0;
-        return Transform.scale(scale: s, child: child);
-      },
-      child: CosmicOrbWidget(animate: widget.animate),
+    return OverlayPortal(
+      controller: _veil,
+      overlayChildBuilder: (context) => Positioned.fill(
+        child: ShipRevealOverlay(progress: _reveal, centre: _centre),
+      ),
+      child: AnimatedBuilder(
+        animation: _reveal,
+        builder: (context, child) => Transform.scale(
+          scale: _revealPending ? ShipReveal.emblemScale(_reveal.value) : 1,
+          child: child,
+        ),
+        child: CosmicOrbWidget(animate: widget.animate),
+      ),
     );
   }
 }
