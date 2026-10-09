@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/animations/elemental_particle_system.dart';
 import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/half_cultivation_chip.dart';
@@ -233,14 +234,35 @@ class SlotInfoDialogState extends State<SlotInfoDialog>
                   centre: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // The figure is the stage's ink, not the rarity's
+                      // colour: a common's is a dark grey that all but
+                      // vanished on this black stage (the first vial anyone
+                      // cultivates is a common). The rarity tints the word
+                      // over it instead, lifted toward the ink to read.
+                      Text(
+                        'READY IN',
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: Color.lerp(
+                            rarityColor,
+                            BracketPalette.dark.ink,
+                            0.45,
+                          ),
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.6,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
                       Text(
                         BreedConstants.formatRemaining(_remainingFor(slot)),
                         style: TextStyle(
                           fontFamily: 'monospace',
-                          color: rarityColor,
-                          fontSize: 15,
+                          color: BracketPalette.dark.ink,
+                          fontSize: 22,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 0.6,
+                          letterSpacing: 0.8,
+                          height: 1.1,
                         ),
                       ),
                       // The catalyst, where its effect is actually felt.
