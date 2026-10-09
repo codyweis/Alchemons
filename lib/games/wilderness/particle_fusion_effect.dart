@@ -117,6 +117,10 @@ class ParticleFusionEffect extends Component {
     return done.future;
   }
 
+  /// SKIP: jumps to wherever it is running, and the run lands on the next
+  /// frame (once the pair have been read, if that is still going on).
+  void finishNow() => _t = _target;
+
   /// Both turn to grains where they stand, and hold there.
   Future<void> calibrate() => _runTo(FusionParticleField.standTime, 0.6);
 

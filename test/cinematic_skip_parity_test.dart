@@ -32,6 +32,18 @@ void main() {
     );
   });
 
+  test("the chamber's merge offers the same SKIP in the same corner", () {
+    // The fusion is two parts — the merge in the chamber, then this route —
+    // and SKIP used to appear only in the second.
+    final chamber = File(
+      'lib/screens/breed/breed_tab.dart',
+    ).readAsStringSync();
+    expect(chamber, contains('CinematicSkipButton(onTap: _skipMerge)'));
+    expect(chamber, contains('bottom: 24'));
+    expect(chamber, contains('right: 24'));
+    expect(chamber, contains('startSkipped: skipped'));
+  });
+
   test('and dress it the same', () {
     for (final src in [hatch, fusion]) {
       expect(src, contains('0x14FFFFFF'), reason: 'the same slab fill');

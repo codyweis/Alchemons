@@ -91,6 +91,10 @@ class EncounterOverlay extends StatefulWidget {
   /// on. Null hosts fall back to the route drawing the pair itself.
   final Future<FusionMergeHandoff?> Function(Color party, Color wild)?
   onFusionInScene;
+
+  /// SKIP during the in-scene merge: the host finishes it at once. The
+  /// cinematic after it then opens already skipped.
+  final VoidCallback? onFusionSkip;
   final Creature hydratedWildCreature;
   final bool highlightPartyHUD; // 🆕 Tutorial highlighting
   final bool isTutorial; // 🆕 Tutorial mode flag
@@ -148,6 +152,7 @@ class EncounterOverlay extends StatefulWidget {
     this.onPreRollShake,
     this.onHarvestInScene,
     this.onFusionInScene,
+    this.onFusionSkip,
     required this.hydratedWildCreature,
     this.highlightPartyHUD = false, // 🆕 Default to false
     this.isTutorial = false, // 🆕 Default to false
@@ -181,6 +186,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   String? _chosenInstanceId;
   bool _busy = false;
   bool _wildReady = false;
+
+  /// Open while a fusion's in-scene merge can be skipped; set by SKIP.
+  bool _mergeSkippable = false, _mergeSkipped = false;
+
+  /// Holds that SKIP in the screen's corner, where the cinematic's own
+  /// stands, so it does not jump when the route opens.
+  final _mergeSkipPortal = OverlayPortalController();
 
   int _wildFusionQty = 0;
 
@@ -582,8 +594,31 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     super.dispose();
   }
 
+  /// SKIP over the in-scene merge: the host finishes it at once, and the
+  /// cinematic after it opens on the reveal.
+  void _skipMerge() {
+    if (!_mergeSkippable || _mergeSkipped) return;
+    _mergeSkipped = true;
+    _mergeSkippable = false;
+    if (_mergeSkipPortal.isShowing) _mergeSkipPortal.hide();
+    context.audio?.stopSoundOwner(this);
+    widget.onFusionSkip?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
+    return OverlayPortal(
+      controller: _mergeSkipPortal,
+      overlayChildBuilder: (context) => Positioned(
+        bottom: 24,
+        right: 24,
+        child: CinematicSkipButton(onTap: _skipMerge),
+      ),
+      child: _buildEncounter(context),
+    );
+  }
+
+  Widget _buildEncounter(BuildContext context) {
     final wildCreature = _wildCreature;
     final showWildPotentials = context
         .watch<ConstellationEffectsService>()
@@ -884,6 +919,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         // time the route opens there is nothing left to duplicate, so it is
         // told not to draw any specimens at all.
         final mergeInScene = widget.onFusionInScene;
+        _mergeSkipped = false;
         // Same stage-clearing as the extraction: the pair meet in the scene,
         // and this panel is sitting on top of half of it.
         if (mergeInScene != null) {
@@ -896,10 +932,18 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         if (mergeInScene != null && ctx.mounted) {
           ctx.sound(SoundCue.fusionPour, owner: this);
         }
+        // The whole fusion can be skipped from here, the merge in the
+        // scene included — not only the cinematic after it.
+        if (mergeInScene != null && widget.onFusionSkip != null) {
+          _mergeSkippable = true;
+          _mergeSkipPortal.show();
+        }
         final handoff = mergeInScene == null
             ? null
             : await mergeInScene(colorA, colorB);
         final merged = handoff != null;
+        _mergeSkippable = false;
+        if (_mergeSkipPortal.isShowing) _mergeSkipPortal.hide();
 
         if (!ctx.mounted) return;
         final outcome = await showAlchemyFusionCinematic<_FusionOutcome>(
@@ -916,6 +960,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           leftColor: colorA,
           rightColor: colorB,
           minDuration: Duration(milliseconds: merged ? 2600 : 4350),
+          startSkipped: _mergeSkipped,
           task: () async {
             return _breedWithWild(ctx, instance, speciesB, breedingService);
           },
@@ -978,6 +1023,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         }
       }
     } finally {
+      _mergeSkippable = false;
+      if (mounted && _mergeSkipPortal.isShowing) _mergeSkipPortal.hide();
       if (mounted) setState(() => _busy = false);
     }
   }

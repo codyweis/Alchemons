@@ -116,4 +116,24 @@ void main() {
     expect(find.text('CHOOSE ONE MORE'), findsOneWidget);
     await h.dispose();
   });
+
+  // SKIP used to appear only once the chamber's merge was over and the
+  // cinematic had opened, so the first half of every fusion had to be
+  // watched. It is offered from the first grain now, and skips both halves.
+  testWidgets('SKIP during the merge passes the whole fusion', (tester) async {
+    final h = await FusionHarness.pump(tester, p1: 'fh', p2: 'wh');
+    expect(find.text('SKIP'), findsNothing);
+    await tester.tap(find.text('FUSE'));
+    await h.settle(4);
+    expect(find.text('SKIP'), findsOneWidget, reason: 'offered in the merge');
+    expect(fuseEnabled(tester), isFalse);
+
+    await tester.tap(find.text('SKIP'));
+    // About a second. Played through, the merge alone is 2.6 s
+    // and the cinematic after it 2.8 s.
+    await h.settle(30);
+    expect(find.text('SKIP'), findsNothing, reason: 'the cinematic has gone');
+    expect(fuseEnabled(tester), isTrue, reason: 'the chamber is back');
+    await h.dispose();
+  });
 }

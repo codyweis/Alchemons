@@ -19,7 +19,7 @@
 // refusals (resting, cross-family, Mystics, no room) that only came as
 // dialogs after INITIATE FUSION was pressed.
 
-import 'dart:async' show Timer;
+import 'dart:async' show Completer, Timer;
 import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
@@ -110,6 +110,16 @@ class _BreedingTabState extends State<BreedingTab>
   /// The merge, in particles: both specimens read into grains at the tap,
   /// then poured into the knot. Null when no merge is running.
   FusionParticleField? _fusionField;
+
+  /// Open while the merge can be skipped; completed by SKIP. The whole
+  /// fusion skips from here: the merge ends where it stands and the
+  /// cinematic opens on its reveal.
+  Completer<void>? _mergeSkip;
+
+  /// Holds that SKIP in the screen's corner, where the cinematic's own
+  /// stands (cinematic_skip_parity_test), so it does not jump when the
+  /// route opens over the chamber.
+  final _mergeSkipPortal = OverlayPortalController();
 
   /// Seconds into the merge.
   double get _mergeTime =>
@@ -346,18 +356,29 @@ class _BreedingTabState extends State<BreedingTab>
     // Cross-Species Lineage can be unlocked while this tab sits open.
     context.watch<ConstellationEffectsService>();
     final palette = BracketPalette.fromTheme(theme);
-    return StreamBuilder<List<IncubatorSlot>>(
-      stream: _slots,
-      builder: (context, slotSnap) => StreamBuilder<List<Egg>>(
-        stream: _stored,
-        builder: (context, storedSnap) {
-          final room = _Room.of(
-            slotSnap.data,
-            storedSnap.data?.length,
-            _storageCapacity,
-          );
-          return _buildChamber(theme, palette, room);
-        },
+    return OverlayPortal(
+      controller: _mergeSkipPortal,
+      // The same SKIP the cinematic shows, from the first grain: it used to
+      // appear only once the merge was over and the route had opened, so
+      // half the fusion could not be passed.
+      overlayChildBuilder: (context) => Positioned(
+        bottom: 24,
+        right: 24,
+        child: CinematicSkipButton(onTap: _skipMerge),
+      ),
+      child: StreamBuilder<List<IncubatorSlot>>(
+        stream: _slots,
+        builder: (context, slotSnap) => StreamBuilder<List<Egg>>(
+          stream: _stored,
+          builder: (context, storedSnap) {
+            final room = _Room.of(
+              slotSnap.data,
+              storedSnap.data?.length,
+              _storageCapacity,
+            );
+            return _buildChamber(theme, palette, room);
+          },
+        ),
       ),
     );
   }
@@ -983,28 +1004,50 @@ class _BreedingTabState extends State<BreedingTab>
       // responsive, so none of this can be a constant.
       final read = await grains;
       if (!mounted) return;
-      setState(
-        () => _fusionField = _buildFusionField(read, speciesA, speciesB),
-      );
+      final skip = Completer<void>();
+      setState(() {
+        _fusionField = _buildFusionField(read, speciesA, speciesB);
+        _mergeSkip = skip;
+      });
+      _mergeSkipPortal.show();
       context.sound(SoundCue.fusionMerge, owner: this);
-      await _preCinematicFadeController.forward();
+      // SKIP stops the controller, and a stopped forward() never completes:
+      // whichever comes first.
+      await Future.any([_preCinematicFadeController.forward(), skip.future]);
+      final skipped = skip.isCompleted;
+      if (mounted) {
+        _mergeSkipPortal.hide();
+        setState(() => _mergeSkip = null);
+      }
 
       // let that max-charged knot hang briefly
-      await Future.delayed(const Duration(milliseconds: 140));
+      if (!skipped) await Future.delayed(const Duration(milliseconds: 140));
 
       // now jump to cinematic + actual breeding
       if (!mounted) return;
-      await _performBreeding();
+      await _performBreeding(skipped: skipped);
     } finally {
       if (mounted) {
         _preCinematicFadeController.reset();
+        if (_mergeSkipPortal.isShowing) _mergeSkipPortal.hide();
         setState(() {
           _isBreeding = false;
           _fusionField = null;
+          _mergeSkip = null;
         });
         _loadStorageCapacity();
       }
     }
+  }
+
+  /// SKIP over the merge: it ends where it stands, and the fusion goes on
+  /// to the cinematic already skipped.
+  void _skipMerge() {
+    final skip = _mergeSkip;
+    if (skip == null || skip.isCompleted) return;
+    context.audio?.stopSoundOwner(this);
+    _preCinematicFadeController.value = 1.0;
+    skip.complete();
   }
 
   /// Reads both chamber sprites into grains, exactly as they are showing.
@@ -1135,7 +1178,7 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  Future<void> _performBreeding() async {
+  Future<void> _performBreeding({bool skipped = false}) async {
     if (selectedParent1 == null || selectedParent2 == null) return;
 
     try {
@@ -1193,6 +1236,7 @@ class _BreedingTabState extends State<BreedingTab>
         // the chamber before this opens, so the route only has the eruption
         // and the reveal left to play.
         minDuration: const Duration(milliseconds: 2800),
+        startSkipped: skipped,
         task: () async {
           final result = await breedingService.breedInstances(
             selectedParent1!,

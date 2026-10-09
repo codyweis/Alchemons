@@ -282,6 +282,7 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
   /// Through the calibration wait both turn to grains where they stand and
   /// hold there, so the verdict lands on something already changing.
   void _fusionCalibrating() {
+    _mergeSkipAsked = false;
     final ally = _partyCreature;
     if (ally == null) return;
     setState(
@@ -355,11 +356,32 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
       _fusionField = field;
       _mergeColors = (party, wild);
     });
-    await _merge.forward();
+    if (_mergeSkipAsked) {
+      _merge.value = 1.0;
+    } else {
+      // SKIP stops the controller, and a stopped forward() never completes:
+      // whichever comes first.
+      final skip = _mergeSkip = Completer<void>();
+      await Future.any([_merge.forward(), skip.future]);
+      _mergeSkip = null;
+    }
     return FusionMergeHandoff(
       at: Rect.fromCenter(center: field.core, width: 1, height: 1),
       grains: field.specimens,
     );
+  }
+
+  /// SKIP was asked for during this attempt: the merge finishes at once,
+  /// or (still reading the pair) never plays.
+  bool _mergeSkipAsked = false;
+  Completer<void>? _mergeSkip;
+
+  void _skipFusion() {
+    _mergeSkipAsked = true;
+    final skip = _mergeSkip;
+    if (skip == null || skip.isCompleted) return;
+    _merge.value = 1.0;
+    skip.complete();
   }
 
   /// The grains run back into the two of them as they are thrown apart.
@@ -512,6 +534,7 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
                 // The pair merge here, as the two you were looking at —
                 // the cinematic then only plays the burst where they met.
                 onFusionInScene: _fuseInScene,
+                onFusionSkip: _skipFusion,
                 onFusionCalibrating: _fusionCalibrating,
                 onFusionFailedInScene: _fusionFailed,
                 onPartyCreatureSelected: (c) {

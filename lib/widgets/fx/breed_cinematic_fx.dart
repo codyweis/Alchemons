@@ -69,6 +69,7 @@ Future<T?> showAlchemyFusionCinematic<T>({
   required Color rightColor,
   Duration minDuration = const Duration(milliseconds: 4350),
   bool allowSkip = true,
+  bool startSkipped = false,
   Rect? leftSlotRect,
   Rect? rightSlotRect,
   Rect? coreRect,
@@ -88,6 +89,7 @@ Future<T?> showAlchemyFusionCinematic<T>({
         rightColor: rightColor,
         minDuration: minDuration,
         allowSkip: allowSkip,
+        startSkipped: startSkipped,
         leftSlotRect: leftSlotRect,
         rightSlotRect: rightSlotRect,
         coreRect: coreRect,
@@ -148,6 +150,7 @@ class _AlchemyFusionCinematicPage<T> extends StatefulWidget {
     required this.rightColor,
     required this.minDuration,
     required this.allowSkip,
+    required this.startSkipped,
     required this.leftSlotRect,
     required this.rightSlotRect,
     required this.coreRect,
@@ -165,6 +168,11 @@ class _AlchemyFusionCinematicPage<T> extends StatefulWidget {
   final Color rightColor;
   final Duration minDuration;
   final bool allowSkip;
+
+  /// The player skipped before this opened (the chamber's merge has its
+  /// own SKIP): it opens on the reveal and leaves as soon as the fusion is
+  /// written, instead of playing the eruption the player asked to pass.
+  final bool startSkipped;
   final Rect? leftSlotRect;
   final Rect? rightSlotRect;
   final Rect? coreRect;
@@ -261,7 +269,14 @@ class _AlchemyFusionCinematicPageState<T>
     );
 
     HapticFeedback.mediumImpact();
-    _ctrl.forward(from: _ctrl.value);
+    if (widget.startSkipped) {
+      // Straight to the end: the status listener then waits on the task
+      // (breathing if it is still out) and closes the route behind it.
+      _skipped = true;
+      _ctrl.value = 1.0;
+    } else {
+      _ctrl.forward(from: _ctrl.value);
+    }
 
     // Run the task in parallel.
     () async {
@@ -530,7 +545,7 @@ class _AlchemyFusionCinematicPageState<T>
                           child: AnimatedOpacity(
                             duration: const Duration(milliseconds: 200),
                             opacity: _skipped ? 0.0 : 1.0,
-                            child: _SkipButton(onTap: _skip),
+                            child: CinematicSkipButton(onTap: _skip),
                           ),
                         ),
                     ],
@@ -1188,8 +1203,10 @@ class _PhaseLabel extends StatelessWidget {
   }
 }
 
-class _SkipButton extends StatelessWidget {
-  const _SkipButton({required this.onTap});
+/// SKIP, as the fusion and hatching cinematics show it; the breed chamber
+/// puts the same one over its merge.
+class CinematicSkipButton extends StatelessWidget {
+  const CinematicSkipButton({super.key, required this.onTap});
   final VoidCallback onTap;
 
   @override

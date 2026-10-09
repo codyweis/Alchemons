@@ -733,6 +733,9 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// where they stand while the verdict is waited on.
   void startFusionCalibration() => _startFusion()?.calibrate();
 
+  /// SKIP over the merge: the pair finish pouring together at once.
+  void skipFusion() => _fusion?.finishNow();
+
   /// The roll failed: the grains run back into the pair.
   Future<void> recoilFusion() async {
     final fx = _fusion;

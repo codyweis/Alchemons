@@ -1461,6 +1461,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                         ),
                     onFusionInScene: (party, wild) =>
                         _game.playFusionOnEncounter(),
+                    onFusionSkip: _game.skipFusion,
                     // Both turn to grains through the wait for the verdict,
                     // and run back into themselves if it goes against them.
                     onFusionCalibrating: _game.startFusionCalibration,
