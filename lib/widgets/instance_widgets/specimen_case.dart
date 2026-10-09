@@ -14,6 +14,7 @@ import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/element_orb.dart';
@@ -153,14 +154,32 @@ class SpecimenCase extends StatelessWidget {
                                 style: caseMono(9.5, kCaseGlassInk),
                               ),
                             ),
-                          if (cornerBadge != null || selectionNumber != null)
+                          if (cornerBadge != null ||
+                              instance.isFavorite ||
+                              selectionNumber != null)
                             Positioned(
                               top: 4,
                               right: 4,
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.end,
+                                spacing: 4,
                                 children: [
                                   if (cornerBadge != null) cornerBadge!,
+                                  // The same star the favourite toggle lights
+                                  // in the detail sheet: the gilt frame alone
+                                  // was too quiet to find one by.
+                                  if (instance.isFavorite)
+                                    Container(
+                                      padding: const EdgeInsets.all(3),
+                                      color: Colors.black.withValues(
+                                        alpha: 0.45,
+                                      ),
+                                      child: const Icon(
+                                        AppIcons.star_filled,
+                                        size: 11,
+                                        color: Color(0xFFE91E63),
+                                      ),
+                                    ),
                                   if (selectionNumber != null)
                                     Container(
                                       width: 16,
