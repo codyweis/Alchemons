@@ -449,7 +449,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _memoryAwaitingFlight = false;
   bool _memoryAwaitingTetherToggle = false;
   bool _memoryAwaitingGunToggle = false;
-  bool _memoryTetherLessonVisible = false;
   bool _memoryCombatStarted = false;
   bool _memoryBossSpawned = false;
   bool _memoryCompleting = false;
@@ -1613,7 +1612,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _memoryFlightStart = _game?.ship.pos;
     setState(() {
       _memoryTutorialPrompt =
-          'Fly a little way. Your Alchemon follows while the tether is linked.';
+          'Fly a little way. Your Alchemon follows while the magnet is lit.';
     });
     _watchMemoryFlightWithCompanion();
   }
@@ -1633,12 +1632,15 @@ class _CosmicScreenState extends State<CosmicScreen>
       if ((game.ship.pos - start).distance < 150) return;
 
       timer.cancel();
+      // The magnet has been on the HUD since the summon, so a player may
+      // have unlinked it already; the lesson starts from linked either way.
+      _companionTethered = true;
+      game.companionTethered = true;
       setState(() {
         _memoryAwaitingFlight = false;
         _memoryAwaitingTetherToggle = true;
-        _memoryTetherLessonVisible = true;
         _memoryTutorialPrompt =
-            'Tap the chain to unlink the tether. Your Alchemon will hold its '
+            'Tap the magnet to unlink the tether. Your Alchemon will hold its '
             'ground and fight there.';
       });
     });
@@ -1653,7 +1655,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     setState(() {
       _memoryAwaitingTetherToggle = false;
-      _memoryTetherLessonVisible = false;
       _memoryAwaitingGunToggle = true;
       _memoryTutorialPrompt =
           'Tap the lightning button to switch on auto-fire. Tap it again to '
@@ -9347,9 +9348,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                             _buildSlowModeButton(),
                             const SizedBox(height: 10),
                           ],
-                          if ((showCosmicHud ||
-                                  (isMemoryTutorial &&
-                                      _memoryTetherLessonVisible)) &&
+                          // In the memory too: its first prompt already
+                          // speaks of the tether, so the magnet stands beside
+                          // the summoned Alchemon from the start.
+                          if ((showCosmicHud || isMemoryTutorial) &&
                               _activeCompanionSlots.isNotEmpty) ...[
                             _buildCompanionTetherButton(),
                             const SizedBox(height: 10),
