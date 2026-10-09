@@ -1765,6 +1765,10 @@ class ShopService extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Re-reads every held count. The cache only follows the shop's own
+  /// sales and grants; items spent or given elsewhere move the table alone.
+  Future<void> refreshInventory() => _loadInventoryCache();
+
   Future<void> refreshInventoryForOffer(String offerId) async {
     final offer = _resolveOfferById(offerId);
     final key = offer?.inventoryKey;

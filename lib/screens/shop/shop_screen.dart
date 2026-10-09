@@ -146,6 +146,9 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<BlackMarketService>().checkNow();
+      // Purchase limits read the service's held counts, which drift as
+      // items are used outside the shop.
+      context.read<ShopService>().refreshInventory();
     });
 
     () async {
@@ -1677,6 +1680,18 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     await _purchaseSlot(slotNumber, offer.cost);
   }
 
+  /// The service's held counts only see its own sales, and most items are
+  /// also spent and granted elsewhere (a Wild Fusion in the field, a
+  /// tutorial top-up), so the count is read fresh before a dialog shows it.
+  Future<void> _refreshHeldCount(ShopService shop, ShopOffer offer) async {
+    if (offer.inventoryKey == null) return;
+    try {
+      await shop.refreshInventoryForOffer(offer.id);
+    } catch (_) {
+      // The cached count is still a count.
+    }
+  }
+
   Future<void> _showDetails(
     BuildContext context,
     ShopOffer offer,
@@ -1685,6 +1700,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   ) async {
     final theme = context.read<FactionTheme>();
     final shopService = context.read<ShopService>();
+    await _refreshHeldCount(shopService, offer);
+    if (!context.mounted) return;
     final canPurchaseDaily = shopService.canPurchase(offer.id);
     final invQty = offer.inventoryKey != null
         ? shopService.inventoryCountForOffer(offer.id)
@@ -1709,6 +1726,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   ) async {
     final theme = context.read<FactionTheme>();
     final shopService = context.read<ShopService>();
+    await _refreshHeldCount(shopService, offer);
+    if (!context.mounted) return;
     final effectiveCost = shopService.getEffectiveCost(offer);
     final canPurchaseDaily = shopService.canPurchase(offer.id);
     final invQty = offer.inventoryKey != null
