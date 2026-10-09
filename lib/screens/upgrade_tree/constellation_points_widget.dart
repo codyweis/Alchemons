@@ -70,7 +70,7 @@ class _CosmicOrbWidgetState extends State<CosmicOrbWidget> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             child: CosmicShipEmblem(
               key: _emblem,
-              size: 90,
+              size: 75,
               animate: widget.animate,
               lifted: _lifted,
             ),
