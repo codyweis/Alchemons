@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
@@ -12,10 +14,10 @@ class OpeningWildernessService {
   /// The biomes still to be explored before the ship turns up, in order,
   /// **head first** — and only the head is open.
   ///
-  /// Recovering the ship needs all four core biomes visited, but nothing was
+  /// The opening means all four core biomes to be seen, but nothing was
   /// pushing the player out of the two the tutorial already took them
-  /// through, so they could farm those two indefinitely and never trip the
-  /// discovery that moves the story on.
+  /// through, so they could farm those two indefinitely and never see the
+  /// rest. (The ship comes later, on [shipArrivalVisit].)
   ///
   /// Opening the remaining two together left the player choosing between two
   /// unfamiliar regions with nothing to choose on. One at a time is the same
@@ -29,11 +31,19 @@ class OpeningWildernessService {
   static const String shipHuntKey = 'wilderness_ship_hunt_scenes_v1';
   static const String shipUnlockedKey = 'cosmic_ship_unlocked';
 
-  /// Set when the fourth core biome is first entered: the ship is owed, and
-  /// comes down with the Valley's next batch of wild rather than on its own,
-  /// so the Valley lights up once, with both in it, and there is never a
-  /// stretch where the ship is there and the region reads as empty.
+  /// The ship is owed but has not come down yet: it lands on the next
+  /// visit to a wild realm that is not a tutorial. Left by older saves
+  /// (where the fourth core biome armed it for the Valley's next batch).
   static const String shipArmedKey = 'cosmic_ship_armed';
+
+  /// Every entry into a wild realm, counted from the first tutorial on.
+  static const String wildVisitsKey = 'wild_scene_visits_v1';
+
+  /// The visit the ship comes down on, in whichever realm it is. The
+  /// opening's road ends after the fourth, with all four core realms seen;
+  /// it used to arrive right there, before the map had been the player's
+  /// for a single trip.
+  static const int shipArrivalVisit = 8;
 
   static const Set<String> coreScenes = {'valley', 'sky', 'swamp', 'volcano'};
 
@@ -240,6 +250,51 @@ class OpeningWildernessService {
     final after = await openShipHuntScene(settings);
     if (after == before) return const [];
     return after != null ? [after] : coreScenes.toList(growable: false);
+  }
+
+  /// Counts a visit to the wild realm [sceneId], and brings the cosmic
+  /// ship down in it on the visit it is due ([shipArrivalVisit]), so it can
+  /// arrive in any realm. Returns whether it landed here.
+  ///
+  /// A tutorial field ([tutorial], or the capture tutorial's) has no room
+  /// for it and does not show it, so there it is armed for the next visit
+  /// instead; an armed ship from an older save lands on the next visit too.
+  static Future<bool> registerWildVisit(
+    SettingsDao settings,
+    String sceneId, {
+    bool tutorial = false,
+  }) async {
+    final seen = (await settings.getSetting('visited_biomes') ?? '')
+        .split(',')
+        .where((s) => s.isNotEmpty)
+        .toSet();
+    if (coreScenes.contains(sceneId) && seen.add(sceneId)) {
+      await settings.setSetting('visited_biomes', seen.join(','));
+    }
+
+    // A save from before the count began is credited with a visit for each
+    // core realm it had seen, so it is not sent round all eight again.
+    final counted = await settings.getSetting(wildVisitsKey);
+    final before = counted == null
+        ? math.max(0, seen.length - 1)
+        : int.tryParse(counted) ?? 0;
+    final visits = before + 1;
+    await settings.setSetting(wildVisitsKey, '$visits');
+
+    if (await settings.getSetting('cosmic_ship_claimed') == '1') return false;
+    if (await settings.getSetting('cosmic_ship_scene') != null) return false;
+    final armed = await settings.getSetting(shipArmedKey) == '1';
+    if (!armed && visits < shipArrivalVisit) return false;
+
+    if (tutorial || await isCaptureTutorialScene(settings, sceneId)) {
+      if (!armed) await settings.setSetting(shipArmedKey, '1');
+      return false;
+    }
+    await settings.setSetting('cosmic_ship_scene', sceneId);
+    // The crash-landing plays on this render (scene_page consumes it).
+    await settings.setSetting('cosmic_ship_arrival_pending', '1');
+    await settings.deleteSetting(shipArmedKey);
+    return true;
   }
 
   static Future<void> advanceToCaptureTutorial(

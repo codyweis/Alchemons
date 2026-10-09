@@ -812,52 +812,19 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     await _spawnService.ensureSpawnsForScene(widget.sceneId);
   }
 
-  // Track which biomes the player has visited and spawn the cosmic ship
+  // Counts this visit to the wild, and brings the cosmic ship down into
+  // this realm on the visit it is due (OpeningWildernessService).
   Future<void> _registerVisitedBiome() async {
     // feature flag check — proceed only if enabled
     if (!kEnableCosmicShip) return;
     try {
-      final settings = _db.settingsDao;
-      final raw = await settings.getSetting('visited_biomes') ?? '';
-      final parts = raw.isEmpty
-          ? <String>[]
-          : raw.split(',').where((s) => s.isNotEmpty).toList();
-      final set = parts.toSet();
-      const allowed = {'volcano', 'valley', 'sky', 'swamp'};
-      if (!allowed.contains(widget.sceneId)) return;
-      if (!set.contains(widget.sceneId)) {
-        set.add(widget.sceneId);
-        await settings.setSetting('visited_biomes', set.join(','));
-      }
-
-      // All four seen and the ship not yet claimed: it is owed to the Valley.
-      final visitedCount = set.where((s) => allowed.contains(s)).length;
-      final existingShip = await settings.getSetting('cosmic_ship_scene');
-      final claimed = (await settings.getSetting('cosmic_ship_claimed')) == '1';
-      final armed =
-          await settings.getSetting(OpeningWildernessService.shipArmedKey) ==
-          '1';
-      if (existingShip != null && existingShip != 'valley' && !claimed) {
-        await settings.setSetting('cosmic_ship_scene', 'valley');
-      }
-      if (visitedCount >= 4 && existingShip == null && !claimed && !armed) {
-        // It comes down with the Valley's next batch of wild, and nothing
-        // announces it: whoever goes into the Valley finds it there. The
-        // spawn service lands it; an empty Valley entered right now is
-        // filled on the way in, so that is a batch too.
-        //
-        // A Valley already holding wild is lit on the map already, so the
-        // ship joins those rather than waiting for them to be cleared.
-        final valleyWaiting =
-            widget.sceneId != 'valley' &&
-            _spawnService.getSceneSpawnCount('valley') > 0;
-        if (valleyWaiting) {
-          await settings.setSetting('cosmic_ship_scene', 'valley');
-          await settings.setSetting('cosmic_ship_arrival_pending', '1');
-        } else {
-          await settings.setSetting(OpeningWildernessService.shipArmedKey, '1');
-        }
-      }
+      // When it lands, the scene loads its state just after this and plays
+      // the landing in front of the player.
+      await OpeningWildernessService.registerWildVisit(
+        _db.settingsDao,
+        widget.sceneId,
+        tutorial: widget.isTutorial,
+      );
     } catch (e) {
       debugPrint('Error registering visited biome: $e');
     }
@@ -866,12 +833,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   Future<void> _loadShipState() async {
     try {
       final settings = _db.settingsDao;
-      var scene = await settings.getSetting('cosmic_ship_scene');
+      final scene = await settings.getSetting('cosmic_ship_scene');
       final claimed = (await settings.getSetting('cosmic_ship_claimed')) == '1';
-      if (scene != null && scene != 'valley' && !claimed) {
-        await settings.setSetting('cosmic_ship_scene', 'valley');
-        scene = 'valley';
-      }
       if (mounted) {
         setState(() {
           _shipSceneId = scene;
@@ -947,10 +910,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   Future<void> _syncShipBeaconPlacement() async {
     if (_isCosmicPlanetMode) return;
-    final shouldShow =
-        _shipPresent &&
-        _shipSceneId == widget.sceneId &&
-        widget.sceneId == 'valley';
+    final shouldShow = _shipPresent && _shipSceneId == widget.sceneId;
     if (!shouldShow) {
       _shipSpawnId = null;
       _shipBeaconPlaced = false;

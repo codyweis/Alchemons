@@ -138,9 +138,10 @@ class _MapScreenState extends State<MapScreen>
   /// not laid out again while it is open.
   final double _tide = TidalField.tideAt(DateTime.now());
 
-  /// The cosmic ship has come down in the Valley and waits to be claimed:
-  /// the Valley's rim pulses, as for anything else waiting there.
-  bool _shipWaitsInValley = false;
+  /// The realm the cosmic ship has come down in and waits, unclaimed: its
+  /// rim pulses, as for anything else waiting there. Null when it is
+  /// nowhere (not yet arrived, or claimed).
+  String? _shipScene;
   late final AnimationController _mapController;
   late final Animation<double> _mapScale;
   late final Animation<double> _mapOpacity;
@@ -178,7 +179,7 @@ class _MapScreenState extends State<MapScreen>
       if (mounted && slots.join(',') != _wildSlots.join(',')) {
         setState(() => _wildSlots = slots);
       }
-      await _refreshShipWaitsInValley();
+      await _refreshShipScene();
       if (widget.revealReady != null) {
         await _reportCircles();
         return;
@@ -206,25 +207,23 @@ class _MapScreenState extends State<MapScreen>
     widget.revealReady?.value = true;
   }
 
-  /// Whether the ship is down in the Valley and unclaimed, read fresh.
+  /// The realm the ship is down in and unclaimed, read fresh.
   ///
-  /// It lands while the player is in some other realm, so the map that sent
-  /// them there has to look again when they come back — not just when it
-  /// was first built.
-  Future<bool> _readShipWaitsInValley(AlchemonsDatabase db) async {
+  /// It lands in whichever realm the player is in when it arrives, so the
+  /// map has to look again when they come back — not just when it was
+  /// first built.
+  Future<String?> _readShipScene(AlchemonsDatabase db) async {
     final ship = await db.settingsDao.getSetting('cosmic_ship_scene');
     final claimed =
         await db.settingsDao.getSetting('cosmic_ship_claimed') == '1';
-    return ship == 'valley' && !claimed;
+    return claimed ? null : ship;
   }
 
-  Future<void> _refreshShipWaitsInValley() async {
+  Future<void> _refreshShipScene() async {
     if (!mounted) return;
-    final waits = await _readShipWaitsInValley(
-      context.read<AlchemonsDatabase>(),
-    );
-    if (mounted && waits != _shipWaitsInValley) {
-      setState(() => _shipWaitsInValley = waits);
+    final scene = await _readShipScene(context.read<AlchemonsDatabase>());
+    if (mounted && scene != _shipScene) {
+      setState(() => _shipScene = scene);
     }
   }
 
@@ -389,7 +388,7 @@ class _MapScreenState extends State<MapScreen>
                       arcaneUnlocked: _arcaneUnlocked,
                       slots: _wildSlots,
                       tide: _tide,
-                      shipWaitsInValley: _shipWaitsInValley,
+                      shipScene: _shipScene,
                       landing: _mapLanding,
                       onSelectRegion: (biomeId, scene) {
                         _handleRegionTap(context, biomeId, scene);
@@ -585,11 +584,10 @@ class _MapScreenState extends State<MapScreen>
       return;
     }
 
-    // The ship is something waiting there too — the map lights the Valley
-    // for it — and it lands the moment the fourth realm is entered, a
-    // minute before the Valley's own wild arrive. Without this, the region
-    // the player was just told to go back to answered "nothing here".
-    final shipWaits = biomeId == 'valley' && await _readShipWaitsInValley(db);
+    // The ship is something waiting there too — the map lights its realm
+    // for it — and that realm's wild may have been cleared since it came
+    // down. Without this, the region it waits in answered "nothing here".
+    final shipWaits = await _readShipScene(db) == biomeId;
     if (!context.mounted) return;
 
     final sceneSpawnCount = spawnService.getSceneSpawnCount(biomeId);
@@ -772,7 +770,7 @@ class _MapScreenState extends State<MapScreen>
       );
     }
     // The ship may have come down (or been claimed) while we were away.
-    await _refreshShipWaitsInValley();
+    await _refreshShipScene();
   }
 
   Future<bool> _confirmExpeditionReadiness(
@@ -1126,7 +1124,7 @@ class _WildMap extends StatelessWidget {
     this.onPeekRegion,
     this.arcaneUnlocked = false,
     this.slots = kCoreRealms,
-    this.shipWaitsInValley = false,
+    this.shipScene,
     this.tide = 0.5,
     this.landing,
   });
@@ -1141,7 +1139,9 @@ class _WildMap extends StatelessWidget {
 
   /// The tide on the Tidal Shelf as the map opened (0 low, 1 high).
   final double tide;
-  final bool shipWaitsInValley;
+
+  /// The realm the unclaimed ship waits in, lit as if something were there.
+  final String? shipScene;
 
   /// Where a field being left finds its realm's circle.
   final WildMapLanding? landing;
@@ -1167,7 +1167,7 @@ class _WildMap extends StatelessWidget {
     final ready = <String>{
       for (final id in _scenes.keys)
         if (spawnService.getSceneSpawnCount(id) > 0) id,
-      if (shipWaitsInValley) 'valley',
+      ?shipScene,
     };
     final volcano = switch (spawnService.fieldStageFor(
       'volcano',

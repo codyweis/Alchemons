@@ -1,7 +1,8 @@
 // lib/games/wilderness/ship_landing.dart
 //
-// The cosmic ship coming down in the Valley, waiting in the grass to be
-// claimed, and leaving with its new pilot.
+// The cosmic ship coming down in a wild realm (whichever the player is in
+// on the visit it is due), waiting in the grass to be claimed, and leaving
+// with its new pilot.
 //
 // It is the ship the player flies in space (ship_art.dart): the same
 // obsidian hull with its light trapped inside, the same wake of grains.
