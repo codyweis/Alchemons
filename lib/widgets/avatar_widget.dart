@@ -1,9 +1,10 @@
 // lib/widgets/avatar_widget.dart
 //
 // The profile button on home: the player's division, as the starter orb they
-// chose it by in the faction picker — the same orb, turning — set in a dark
-// medallion with a gold rim, the pair of the Upgrade medallion across the
-// screen. It replaced an illustrated sticker (a baby dragon in a mortar)
+// chose it by in the faction picker — the same orb, turning — held in a
+// soft white glow. It wore a dark medallion with a gold rim once, which read
+// as a frame round a picture rather than a light. It replaced an
+// illustrated sticker (a baby dragon in a mortar)
 // that bobbed forever. Tapped, the orb flies out of the medallion into the
 // profile's header (ProfileScreen.route).
 
@@ -44,7 +45,7 @@ class AvatarButton extends StatelessWidget {
         child: Stack(
           fit: StackFit.expand,
           children: [
-            const CustomPaint(painter: _MedallionPainter(front: false)),
+            const CustomPaint(painter: _GlowPainter()),
             Center(
               child: Hero(
                 tag: kDivisionOrbHeroTag,
@@ -61,9 +62,6 @@ class AvatarButton extends StatelessWidget {
                 ),
               ),
             ),
-            const IgnorePointer(
-              child: CustomPaint(painter: _MedallionPainter(front: true)),
-            ),
           ],
         ),
       ),
@@ -71,54 +69,33 @@ class AvatarButton extends StatelessWidget {
   }
 }
 
-/// Behind the orb, the medallion's dark glass; in front of it, its gold rim
-/// and a catchlight. The rim is a filled band, not a stroke.
-class _MedallionPainter extends CustomPainter {
-  const _MedallionPainter({required this.front});
-
-  final bool front;
+/// Behind the orb, a pool of white light that fades to nothing at the
+/// button's edge: no ring and no blur, only a radial gradient.
+class _GlowPainter extends CustomPainter {
+  const _GlowPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
     final r = size.shortestSide / 2;
-    if (!front) {
-      canvas.drawCircle(
-        c,
-        r * 0.96,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            c + Offset(-r * 0.3, -r * 0.35),
-            r * 1.4,
-            const [Color(0xFF1C1822), Color(0xFF060508)],
-          ),
-      );
-      return;
-    }
-    final band = Rect.fromCircle(center: c, radius: r);
-    canvas.drawPath(
-      Path()
-        ..fillType = PathFillType.evenOdd
-        ..addOval(Rect.fromCircle(center: c, radius: r * 0.98))
-        ..addOval(Rect.fromCircle(center: c, radius: r * 0.955)),
+    canvas.drawCircle(
+      c,
+      r,
       Paint()
-        ..shader = ui.Gradient.linear(
-          band.topLeft,
-          band.bottomRight,
-          const [Color(0xFFF2D58A), Color(0xFF8A6420), Color(0xFFC9A04E)],
-          const [0.0, 0.6, 1.0],
+        ..shader = ui.Gradient.radial(
+          c,
+          r,
+          [
+            Colors.white.withValues(alpha: 0.46),
+            Colors.white.withValues(alpha: 0.22),
+            Colors.white.withValues(alpha: 0.07),
+            Colors.white.withValues(alpha: 0),
+          ],
+          const [0.0, 0.45, 0.78, 1.0],
         ),
     );
-    canvas.save();
-    canvas.translate(c.dx - r * 0.42, c.dy - r * 0.5);
-    canvas.rotate(-0.7);
-    canvas.drawOval(
-      Rect.fromCenter(center: Offset.zero, width: r * 0.42, height: r * 0.16),
-      Paint()..color = Colors.white.withValues(alpha: 0.32),
-    );
-    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _MedallionPainter old) => old.front != front;
+  bool shouldRepaint(covariant _GlowPainter old) => false;
 }
