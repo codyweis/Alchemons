@@ -38,7 +38,10 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/fx/keepsake_art.dart';
 import 'package:alchemons/widgets/fx/keepsake_view.dart';
 import 'package:alchemons/services/shop_service.dart';
@@ -1714,6 +1717,12 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
               accent: _amber,
               onTap: () => _twice('buy', () => _buy(p)),
             ),
+          )
+          // What the player holds of the coin it costs, beside the price:
+          // the tray's purse is put away while a piece is being tried.
+          ..add(const SizedBox(width: 6))
+          ..add(
+            _HeldCoins(kind: decor.gold > 0 ? CoinKind.gold : CoinKind.silver),
           );
       }
       chip(
@@ -1777,28 +1786,47 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         ],
         SizedBox(
           height: 112,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
+          child: Row(
             children: [
-              for (final tier in DecorTier.values) ...[
-                _TrayLabel(tier.label),
-                const SizedBox(width: 6),
-                for (final d in HomeDecor.ofTier(tier)) ...[
-                  _DecorTile(
-                    decor: d,
-                    owned: _decor.allowedOf(d.id),
-                    placed: _layout.placed
-                        .where((p) => p.kind == d.id && !p.trial)
-                        .length,
-                    onTap: () => _place(d.id, keepsake: true),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                const SizedBox(width: 10),
-              ],
+              // What the player holds, beside what is for sale: the decor
+              // is bought here, and the purse was nowhere on screen.
+              CurrencyDisplayWidget(
+                palette: _palette,
+                fill: Color.alphaBlend(
+                  _palette.surfaceFill(),
+                  const Color(0xFF05060B),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: _decorShelf()),
             ],
           ),
         ),
+      ],
+    );
+  }
+
+  /// Every piece of decor by tier, scrolling along the tray.
+  Widget _decorShelf() {
+    return ListView(
+      scrollDirection: Axis.horizontal,
+      children: [
+        for (final tier in DecorTier.values) ...[
+          _TrayLabel(tier.label),
+          const SizedBox(width: 6),
+          for (final d in HomeDecor.ofTier(tier)) ...[
+            _DecorTile(
+              decor: d,
+              owned: _decor.allowedOf(d.id),
+              placed: _layout.placed
+                  .where((p) => p.kind == d.id && !p.trial)
+                  .length,
+              onTap: () => _place(d.id, keepsake: true),
+            ),
+            const SizedBox(width: 6),
+          ],
+          const SizedBox(width: 10),
+        ],
       ],
     );
   }
@@ -2360,6 +2388,71 @@ class _HudButton extends StatelessWidget {
 }
 
 /// One choice: brackets in the accent when chosen.
+/// How much of one coin the player holds, live, in a slip the height of a
+/// chip — set beside a BUY chip.
+class _HeldCoins extends StatefulWidget {
+  const _HeldCoins({required this.kind});
+
+  final CoinKind kind;
+
+  @override
+  State<_HeldCoins> createState() => _HeldCoinsState();
+}
+
+class _HeldCoinsState extends State<_HeldCoins> {
+  // Held, so a rebuild of the row does not open a new query.
+  late final Stream<Map<String, int>> _wallet = context
+      .read<AlchemonsDatabase>()
+      .currencyDao
+      .watchAllCurrencies();
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Map<String, int>>(
+      stream: _wallet,
+      builder: (context, snap) {
+        final held =
+            snap.data?[widget.kind == CoinKind.gold ? 'gold' : 'silver'] ?? 0;
+        return CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: _palette.line.withValues(alpha: 0.9),
+            bracketSize: 7,
+            strokeWidth: 1,
+          ),
+          child: Container(
+            height: 32,
+            alignment: Alignment.center,
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            color: _palette.chromeMutedFill(darkAlpha: 0.62),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'HAVE',
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: _palette.muted,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.3,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                CoinAmount(
+                  kind: widget.kind,
+                  amount: held,
+                  size: 11,
+                  color: coinColor(widget.kind, _palette),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _Chip extends StatelessWidget {
   const _Chip({
     required this.label,

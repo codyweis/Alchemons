@@ -12,10 +12,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class CurrencyDisplayWidget extends StatefulWidget {
-  const CurrencyDisplayWidget({super.key, this.fill});
+  const CurrencyDisplayWidget({super.key, this.fill, this.palette});
 
   /// Behind the figures; the palette's surface when left out.
   final Color? fill;
+
+  /// The theme's palette when left out; a HUD that is dark whatever the
+  /// theme passes its own.
+  final BracketPalette? palette;
 
   @override
   State<CurrencyDisplayWidget> createState() => _CurrencyDisplayWidgetState();
@@ -30,7 +34,7 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget> {
 
   @override
   Widget build(BuildContext context) {
-    final palette = BracketPalette.of(context);
+    final palette = widget.palette ?? BracketPalette.of(context);
     return StreamBuilder<Map<String, int>>(
       stream: _currencies,
       builder: (context, snap) {

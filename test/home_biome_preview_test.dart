@@ -463,12 +463,7 @@ void main() {
           layout = layout.withPlaced([
             ...realm.defaultPieces,
             for (final (id, x, back) in sets[i])
-              HomePiece(
-                id: id,
-                kind: id.split('#').first,
-                x: x,
-                back: back,
-              ),
+              HomePiece(id: id, kind: id.split('#').first, x: x, back: back),
           ]);
           await shoot('keepsakes_${realm.name}_$i', layout, seconds: 5);
         }
@@ -559,29 +554,41 @@ void main() {
         final off = 1.33 * realm.near.size / period;
         await shoot(
           'spring_${realm.name}',
-          base.copyWith(
-            realm: realm,
-            hour: () => hour,
-            residents: [
-              HomeResident(
-                instanceId: 'water_pip',
-                x: 0.15 - off,
-                beside: 'PIECE_hot_spring#0',
-              ),
-              HomeResident(
-                instanceId: 'plant_let',
-                x: 0.15 + off,
-                beside: 'PIECE_hot_spring#0',
-              ),
-            ],
-          ).withPlaced([
-            ...realm.defaultPieces,
-            const HomePiece(id: 'hot_spring#0', kind: 'hot_spring', x: 0.15),
-          ]),
+          base
+              .copyWith(
+                realm: realm,
+                hour: () => hour,
+                residents: [
+                  HomeResident(
+                    instanceId: 'water_pip',
+                    x: 0.15 - off,
+                    beside: 'PIECE_hot_spring#0',
+                  ),
+                  HomeResident(
+                    instanceId: 'plant_let',
+                    x: 0.15 + off,
+                    beside: 'PIECE_hot_spring#0',
+                  ),
+                ],
+              )
+              .withPlaced([
+                ...realm.defaultPieces,
+                const HomePiece(
+                  id: 'hot_spring#0',
+                  kind: 'hot_spring',
+                  x: 0.15,
+                ),
+              ]),
           seconds: 1,
           then: () async {
-            expect(game().debugVisit('HOME_water_pip', 'PIECE_hot_spring#0'), isTrue);
-            expect(game().debugVisit('HOME_plant_let', 'PIECE_hot_spring#0'), isTrue);
+            expect(
+              game().debugVisit('HOME_water_pip', 'PIECE_hot_spring#0'),
+              isTrue,
+            );
+            expect(
+              game().debugVisit('HOME_plant_let', 'PIECE_hot_spring#0'),
+              isTrue,
+            );
             game().debugPanTo(0.15 * realm.wildScene.worldWidth - 230);
             await settle(70);
           },
@@ -599,26 +606,30 @@ void main() {
       ]) {
         await shoot(
           'pool_${realm.name}_${hour.round()}',
-          base.copyWith(
-            realm: realm,
-            hour: () => hour,
-            residents: [
-              const HomeResident(instanceId: 'fire_horn', x: 0.02),
-              // Beside the pool, out at its rim.
-              HomeResident(
-                instanceId: 'water_pip',
-                x: 0.15 + 1.24 * realm.near.size / realm.period(realm.near.layer),
-                beside: 'PIECE_reflecting_pool#0',
-              ),
-            ],
-          ).withPlaced([
-            ...realm.defaultPieces,
-            const HomePiece(
-              id: 'reflecting_pool#0',
-              kind: 'reflecting_pool',
-              x: 0.15,
-            ),
-          ]),
+          base
+              .copyWith(
+                realm: realm,
+                hour: () => hour,
+                residents: [
+                  const HomeResident(instanceId: 'fire_horn', x: 0.02),
+                  // Beside the pool, out at its rim.
+                  HomeResident(
+                    instanceId: 'water_pip',
+                    x:
+                        0.15 +
+                        1.24 * realm.near.size / realm.period(realm.near.layer),
+                    beside: 'PIECE_reflecting_pool#0',
+                  ),
+                ],
+              )
+              .withPlaced([
+                ...realm.defaultPieces,
+                const HomePiece(
+                  id: 'reflecting_pool#0',
+                  kind: 'reflecting_pool',
+                  x: 0.15,
+                ),
+              ]),
           seconds: 1,
           then: () async {
             expect(
@@ -657,7 +668,21 @@ void main() {
           await settle(3);
           await tester.tap(find.text('DECOR'));
           await settle(3);
-          await tester.drag(find.text('LIVING PIECES'), const Offset(-900, 0));
+          // The purse stands at the head of the shelf, so the Living Pieces
+          // start off screen: scroll the shelf itself to the spring.
+          final shelf = tester.element(
+            find
+                .ancestor(
+                  of: find.text('CURIOS'),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          );
+          await tester.scrollUntilVisible(
+            find.text('HOT SPRING'),
+            300,
+            scrollable: find.byElementPredicate((e) => e == shelf),
+          );
           await settle(3);
           await tester.tap(find.text('HOT SPRING'));
           await settle(8);
@@ -676,38 +701,40 @@ void main() {
         final size = realm.near.size / period;
         await shoot(
           'shared_${realm.name}',
-          base.copyWith(
-            realm: realm,
-            residents: [
-              HomeResident(
-                instanceId: 'fire_horn',
-                x: 0.10 + size * 0.62,
-                beside: 'PIECE_ember_torch#0',
-              ),
-              const HomeResident(instanceId: 'plant_let', x: 0.20),
-              HomeResident(
-                instanceId: 'water_pip',
-                x: 0.20 + size * 0.78,
-                beside: 'HOME_plant_let',
-              ),
-              HomeResident(
-                instanceId: 'light_horn',
-                x: 0.31 - size * 0.62,
-                beside: 'PIECE_twin_portals#0',
-              ),
-            ],
-          ).withPlaced([
-            const HomePiece(
-              id: 'ember_torch#0',
-              kind: 'ember_torch',
-              x: 0.10,
-            ),
-            const HomePiece(
-              id: 'twin_portals#0',
-              kind: 'twin_portals',
-              x: 0.31,
-            ),
-          ]),
+          base
+              .copyWith(
+                realm: realm,
+                residents: [
+                  HomeResident(
+                    instanceId: 'fire_horn',
+                    x: 0.10 + size * 0.62,
+                    beside: 'PIECE_ember_torch#0',
+                  ),
+                  const HomeResident(instanceId: 'plant_let', x: 0.20),
+                  HomeResident(
+                    instanceId: 'water_pip',
+                    x: 0.20 + size * 0.78,
+                    beside: 'HOME_plant_let',
+                  ),
+                  HomeResident(
+                    instanceId: 'light_horn',
+                    x: 0.31 - size * 0.62,
+                    beside: 'PIECE_twin_portals#0',
+                  ),
+                ],
+              )
+              .withPlaced([
+                const HomePiece(
+                  id: 'ember_torch#0',
+                  kind: 'ember_torch',
+                  x: 0.10,
+                ),
+                const HomePiece(
+                  id: 'twin_portals#0',
+                  kind: 'twin_portals',
+                  x: 0.31,
+                ),
+              ]),
           seconds: 3,
         );
       }
