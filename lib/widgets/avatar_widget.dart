@@ -86,9 +86,9 @@ class _GlowPainter extends CustomPainter {
           c,
           r,
           [
-            Colors.white.withValues(alpha: 0.46),
-            Colors.white.withValues(alpha: 0.22),
-            Colors.white.withValues(alpha: 0.07),
+            Colors.white.withValues(alpha: 0.34),
+            Colors.white.withValues(alpha: 0.16),
+            Colors.white.withValues(alpha: 0.05),
             Colors.white.withValues(alpha: 0),
           ],
           const [0.0, 0.45, 0.78, 1.0],
