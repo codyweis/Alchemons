@@ -106,6 +106,11 @@ class CosmicScreen extends StatefulWidget {
 
   final bool memoryTutorial;
 
+  /// Set once the survival signal has been followed to its source (the
+  /// tutorial that ends with "Survival Portal unlocked").
+  static const survivalIntroCompletedPrefsKey =
+      'cosmic_survival_intro_completed_v1';
+
   /// Set true once the scene is loaded and its game is attached, so an
   /// entry transition covering this screen (VoidPortal.pushThroughGlyphs)
   /// knows it can reveal a built scene instead of the loading spinner.
@@ -137,7 +142,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   static const _cosmicIntroCompletedKey = 'cosmic_intro_completed_v1';
   static const _cosmicPrologueCompletedKey = 'cosmic_prologue_completed_v1';
   static const _cosmicSurvivalIntroCompletedKey =
-      'cosmic_survival_intro_completed_v1';
+      CosmicScreen.survivalIntroCompletedPrefsKey;
   static const _planetStarStatePrefsKey = 'cosmic_planet_stars';
   static const _planetGatesPrefsKey = 'cosmic_planet_gates_unsealed';
 
@@ -4595,6 +4600,13 @@ class _CosmicScreenState extends State<CosmicScreen>
       _survivalMapTapped = false;
       _survivalGuidanceActive = false;
     });
+    // Home's Survival button reads this row, and reaching the signal is
+    // what "unlocked" means: the portal's own discovery only fires at its
+    // very centre, which a player told it is unlocked may never fly to.
+    await context
+        .read<AlchemonsDatabase>()
+        .settingsDao
+        .setCosmicSurvivalPortalDiscovered();
     await _markSurvivalIntroComplete();
     await _markCosmicIntroComplete();
     if (!mounted) return;

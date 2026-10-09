@@ -993,6 +993,7 @@ class _HomeScreenState extends State<HomeScreen>
         async.unawaited(_maybeRunCosmicMemoryHomeEvent());
         async.unawaited(_maybePlayEnhanceCelebration());
         async.unawaited(_syncHomePortal());
+        async.unawaited(_refreshSurvivalUnlocked());
       }
     }
   }
@@ -1008,6 +1009,9 @@ class _HomeScreenState extends State<HomeScreen>
       async.unawaited(_maybePlayEnhanceCelebration());
       async.unawaited(_syncHomePortal());
       async.unawaited(_refreshAlchemy());
+      // Survival opens in space, behind a route home stays mounted under;
+      // read only at start-up, its button waited for the next launch.
+      async.unawaited(_refreshSurvivalUnlocked());
     }
   }
 
@@ -2934,7 +2938,16 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _refreshSurvivalUnlocked() async {
     final db = context.read<AlchemonsDatabase>();
-    final unlocked = await db.settingsDao.isCosmicSurvivalPortalDiscovered();
+    var unlocked = await db.settingsDao.isCosmicSurvivalPortalDiscovered();
+    if (!unlocked) {
+      // A save that followed the signal before its tutorial wrote the row:
+      // it was told the portal was unlocked, so it is.
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(CosmicScreen.survivalIntroCompletedPrefsKey) ?? false) {
+        await db.settingsDao.setCosmicSurvivalPortalDiscovered();
+        unlocked = true;
+      }
+    }
     if (mounted && unlocked != _survivalUnlocked) {
       setState(() => _survivalUnlocked = unlocked);
     }
