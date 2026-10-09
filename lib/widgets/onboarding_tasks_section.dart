@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'dart:math' as math;
-
 import 'package:alchemons/audio/audio.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
@@ -15,7 +13,9 @@ import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/section_router.dart';
 import 'package:alchemons/widgets/achievements/reward_collect_burst.dart';
-import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -182,73 +182,80 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
     // Nothing at all until it is loaded, and nothing ever again once done.
     if (tasks == null || tasks.isEmpty) return const SizedBox.shrink();
     final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
     final readyCount = tasks.where((t) => t.$2 == TaskState.earned).length;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: 26),
-        Row(
-          children: [
-            Text(
-              'TASKS',
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: fc.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2.0,
+        // The journal's shelf head: a bar, spaced capitals, a hairline.
+        Padding(
+          padding: const EdgeInsets.only(top: 28, bottom: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 3,
+                height: 16,
+                color: fc.amberBright,
+                margin: const EdgeInsets.only(right: 10),
               ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              readyCount > 0 ? '$readyCount READY' : '${tasks.length} LEFT',
-              style: TextStyle(
-                color: readyCount > 0 ? fc.mint : fc.textMuted,
-                fontSize: 10,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.4,
+              Text(
+                'TASKS',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: fc.amberBright,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 2.2,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  height: 1,
+                  color: fc.amberBright.withValues(alpha: 0.2),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                readyCount > 0 ? '$readyCount READY' : '${tasks.length} LEFT',
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: readyCount > 0 ? fc.rewardGold : palette.muted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.6,
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 4),
         Text(
           'Places you have not been. Each one pays '
           '$kTaskSilverReward silver for showing up.',
-          style: TextStyle(color: fc.textMuted, height: 1.5, fontSize: 12),
+          style: bracketText(
+            context,
+            12.5,
+            palette.muted,
+          ).copyWith(height: 1.35),
         ),
         if (readyCount > 1) ...[
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: context.soundAction(_claiming ? null : _collectAll),
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 9),
-              decoration: BoxDecoration(
-                color: fc.mint.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(3),
-                border: Border.all(color: fc.mint.withValues(alpha: 0.6)),
-              ),
-              child: Text(
-                _claiming
-                    ? 'COLLECTING…'
-                    : 'COLLECT ALL  ·  '
-                          '${readyCount * kTaskSilverReward} SILVER',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.mint,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.2,
-                ),
-              ),
+          const SizedBox(height: 12),
+          BracketButton(
+            label: _claiming ? 'COLLECTING…' : 'COLLECT ALL',
+            onTap: _collectAll,
+            enabled: !_claiming,
+            palette: palette,
+            accent: fc.rewardGold,
+            height: 42,
+            trailing: CoinAmount(
+              kind: CoinKind.silver,
+              amount: readyCount * kTaskSilverReward,
+              size: 11.5,
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
         for (final (task, state) in tasks)
           _TaskRow(
             key: _keyFor(task.id),
@@ -263,11 +270,11 @@ class _OnboardingTasksSectionState extends State<OnboardingTasksSection> {
   }
 }
 
-/// Matches _AchievementCard beside it: the same forge palette, the same 4px
-/// plate, and the same surge when a reward is taken — a task and an
-/// achievement are collected on one screen, so collecting should feel like
-/// one action, not two.
-class _TaskRow extends StatefulWidget {
+/// A place not visited yet: its name, what is there, and GO. Once the player
+/// has been, the row is lit from below in gold and the button becomes
+/// COLLECT — the same light a ready achievement wears beside it, easing on
+/// rather than popping.
+class _TaskRow extends StatelessWidget {
   const _TaskRow({
     super.key,
     required this.task,
@@ -284,160 +291,90 @@ class _TaskRow extends StatefulWidget {
   final VoidCallback onCollect;
 
   @override
-  State<_TaskRow> createState() => _TaskRowState();
-}
-
-class _TaskRowState extends State<_TaskRow>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _seal = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 620),
-  );
-
-  @override
-  void didUpdateWidget(covariant _TaskRow old) {
-    super.didUpdateWidget(old);
-    // The row is removed from the list the moment it is claimed, so the
-    // surge plays on the transition INTO earned — the moment the reward
-    // appears, which is the moment worth marking.
-    if (widget.state == TaskState.earned && old.state != TaskState.earned) {
-      _seal.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _seal.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
-    final ready = widget.state == TaskState.earned;
-    return AnimatedBuilder(
-      animation: _seal,
-      builder: (context, child) {
-        final t = _seal.value;
-        final surge = math.sin(t * math.pi);
-        return Transform.scale(
-          scale: 1 + 0.035 * Curves.easeOut.transform(surge),
-          child: Container(
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: ready ? Color.lerp(fc.bg2, fc.mint, 0.06) : fc.bg2,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: Color.lerp(
-                  ready ? fc.mint.withValues(alpha: 0.55) : fc.borderDim,
-                  fc.rewardGold,
-                  surge * 0.8,
-                )!,
-                width: 1 + surge * 0.8,
-              ),
+    final palette = BracketPalette.of(context);
+    final ready = state == TaskState.earned;
+    final row = Padding(
+      padding: const EdgeInsets.fromLTRB(6, 12, 6, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  task.title,
+                  style: bracketText(
+                    context,
+                    15,
+                    palette.ink,
+                    weight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  ready ? '$kTaskSilverReward silver waiting.' : task.blurb,
+                  style: bracketText(
+                    context,
+                    12,
+                    palette.muted,
+                  ).copyWith(height: 1.25),
+                ),
+              ],
             ),
-            child: child,
           ),
-        );
-      },
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
-        child: Row(
-          children: [
-            Icon(
-              ready ? AppIcons.check_circle_rounded : widget.task.icon,
-              size: 17,
-              color: ready ? fc.mint : fc.amberBright,
-            ),
-            const SizedBox(width: 11),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    widget.task.title,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textPrimary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
+          const SizedBox(width: 14),
+          // At least as wide as GO, and as wide as its label beyond that, so
+          // COLLECT is never cut short at a large text size.
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 62),
+            child: ready
+                ? BracketButton(
+                    label: 'COLLECT',
+                    onTap: onCollect,
+                    enabled: !busy,
+                    palette: palette,
+                    accent: fc.rewardGold,
+                    height: 34,
+                  )
+                // A quiet button on a bg0 well: the kit's quiet fill alone
+                // vanishes on the page.
+                : Container(
+                    color: palette.bg0,
+                    child: BracketButton(
+                      label: 'GO',
+                      onTap: onGo,
+                      palette: palette,
+                      accent: fc.amber,
+                      primary: false,
+                      height: 34,
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    ready
-                        ? '$kTaskSilverReward silver waiting.'
-                        : widget.task.blurb,
-                    style: TextStyle(
-                      color: fc.textMuted,
-                      fontSize: 11,
-                      height: 1.35,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            _TaskButton(
-              label: ready ? 'Collect' : 'Go',
-              accent: ready ? fc.mint : fc.amberBright,
-              onTap: ready
-                  ? (widget.busy ? null : widget.onCollect)
-                  : widget.onGo,
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
-  }
-}
-
-/// The journal's own button shape, which lives inside its screen — repeated
-/// here rather than exported, because reaching into that file for one
-/// private helper would drag the whole screen along with it.
-class _TaskButton extends StatelessWidget {
-  const _TaskButton({
-    required this.label,
-    required this.accent,
-    required this.onTap,
-  });
-
-  final String label;
-  final Color accent;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    final enabled = onTap != null;
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-        decoration: BoxDecoration(
-          color: accent.withValues(alpha: enabled ? 0.12 : 0.05),
-          borderRadius: BorderRadius.circular(3),
-          border: Border.all(
-            color: accent.withValues(alpha: enabled ? 0.6 : 0.25),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: enabled ? accent : fc.textMuted,
-                fontSize: 11,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.2,
-              ),
+    return Column(
+      children: [
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: ready ? 1.0 : 0.0),
+          duration: const Duration(milliseconds: 620),
+          curve: Curves.easeOutCubic,
+          builder: (context, lit, child) => CustomPaint(
+            foregroundPainter: BracketFramePainter(
+              color: fc.rewardGold.withValues(alpha: 0.8 * lit),
+              strokeWidth: 1.2,
             ),
-          ],
+            child: Container(
+              color: palette.accentWash(fc.rewardGold, darkAlpha: 0.06 * lit),
+              child: child,
+            ),
+          ),
+          child: row,
         ),
-      ),
+        Container(height: 1, color: palette.lineSoft),
+      ],
     );
   }
 }

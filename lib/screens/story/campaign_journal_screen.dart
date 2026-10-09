@@ -1,16 +1,17 @@
 import 'package:alchemons/widgets/onboarding_tasks_section.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:alchemons/widgets/achievements/achievement_sphere.dart';
 import 'package:alchemons/widgets/achievements/reward_collect_burst.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
-import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/widgets/element_resource_glyph.dart';
@@ -20,6 +21,13 @@ import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+/// The achievements: the main story as a row of chapter beads over the
+/// current chapter, then every other achievement as a grain sphere, three
+/// across per category, that forms as it is worked towards. Tapping one
+/// opens what it asks and what it pays.
+///
+/// It was a list of outlined cards in a mint and amber of its own until
+/// 2026-10, the last screen still in that look.
 class CampaignJournalScreen extends StatefulWidget {
   const CampaignJournalScreen({super.key});
 
@@ -38,17 +46,56 @@ class CampaignJournalScreen extends StatefulWidget {
   State<CampaignJournalScreen> createState() => _CampaignJournalScreenState();
 }
 
+/// The categories the spheres are shelved under, in page order. The main
+/// story is not one of them: its chapters are the beads at the top.
+const _shelves = ['Collection', 'Exploration', 'Survival', 'Challenges'];
+
+/// Which shelf an achievement lives on.
+///
+/// Cultivating specific families and breeding a species true are collection
+/// goals — they are about what ends up in the catalog, not about a system
+/// being exercised — so they sit with the discovery counts rather than in
+/// the Challenges bucket everything unmatched falls into.
+String _shelfOf(CampaignAchievement a) {
+  if (campaignMissionIds.contains(a.id)) return 'Story';
+  const collection = {'collection', 'fuse_', 'pure_'};
+  if (collection.any(a.id.startsWith)) return 'Collection';
+  if (a.id.startsWith('survival')) return 'Survival';
+  const exploration = {'planets', 'raid', 'portal', 'maxim', 'constellation'};
+  if (exploration.any(a.id.startsWith)) return 'Exploration';
+  return 'Challenges';
+}
+
+/// A shelf's grains: the element whose matter it is closest to, so the
+/// colors are ones the game already uses (the shop's element strip). The
+/// story is pale brass.
+Color _toneOf(String shelf, FC fc) => switch (shelf) {
+  'Story' => fc.amberBright,
+  'Collection' => ElementResources.byKey['res_verdant']!.color,
+  'Exploration' => ElementResources.byKey['res_arcane']!.color,
+  'Survival' => ElementResources.byKey['res_volcanic']!.color,
+  _ => ElementResources.byKey['res_oceanic']!.color,
+};
+
+TextStyle _mono(double size, Color color, {double spacing = 1.6}) => TextStyle(
+  fontFamily: 'monospace',
+  color: color,
+  fontSize: size,
+  fontWeight: FontWeight.w800,
+  letterSpacing: spacing,
+  height: 1.2,
+);
+
 class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   late Future<CampaignSnapshot> _snapshot;
   bool _claiming = false;
-  String _filter = 'All';
 
-  /// Live card rects, so the collect burst can leave from the row you tapped
-  /// rather than from some fixed point on the screen.
-  final Map<String, GlobalKey> _cardKeys = {};
+  /// Live sphere rects, so the collect burst leaves from the sphere that was
+  /// collected rather than from some fixed point on the screen.
+  final Map<String, GlobalKey> _sphereKeys = {};
 
-  /// Ids mid-collect, held so the card can seal itself before the list rebuilds
-  /// underneath the animation.
+  /// Ids mid-collect, held so the sphere can settle before the snapshot
+  /// reloads underneath it.
   final Set<String> _collecting = {};
 
   CampaignJournalService get service =>
@@ -73,17 +120,17 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   }
 
   GlobalKey _keyFor(String id) =>
-      _cardKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'ach_$id'));
+      _sphereKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'ach_$id'));
 
   Rect? _rectFor(String id) {
-    final ctx = _cardKeys[id]?.currentContext;
+    final ctx = _sphereKeys[id]?.currentContext;
     if (ctx == null || !ctx.mounted) return null;
     final box = ctx.findRenderObject();
     if (box is! RenderBox || !box.hasSize) return null;
     return box.localToGlobal(Offset.zero) & box.size;
   }
 
-  /// Where the coins are headed: the top-right of the bar, which is where the
+  /// Where the coins are headed: the top-right corner, which is where the
   /// wallet lives everywhere else in the game.
   Offset get _walletTarget {
     final media = MediaQuery.of(context);
@@ -98,9 +145,8 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     try {
       var fired = 0;
       for (final reward in rewards) {
-        // The rect is read BEFORE the claim, because once the snapshot
-        // refreshes the row moves into the collected section and its rect is
-        // somewhere else entirely.
+        // The rect is read BEFORE the claim; a sphere scrolled out of view
+        // has none, and its coins simply do not fly.
         final rect = _rectFor(reward.id);
 
         if (await service.claim(
@@ -152,9 +198,8 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
       }
     } finally {
       // No waiting for the coins: the burst lives in the root overlay and
-      // captured its start rect already, so the list is free to reshuffle
-      // underneath it. No `return` in here either — it would swallow anything
-      // thrown above.
+      // captured its start rect already. No `return` in here either — it
+      // would swallow anything thrown above.
       if (mounted) {
         await refresh();
       }
@@ -171,367 +216,242 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     showGameSnack(context, message, accent: FC.of(context).rewardGold);
   }
 
-  /// Which tab an achievement lives under.
-  ///
-  /// Cultivating specific families and breeding a species true are collection
-  /// goals — they are about what ends up in the catalog, not about a system
-  /// being exercised — so they sit with the discovery counts rather than in
-  /// the Challenges bucket everything unmatched falls into.
-  String category(CampaignAchievement a) {
-    if (campaignMissionIds.contains(a.id)) return 'Story';
-    const collection = {'collection', 'fuse_', 'pure_'};
-    if (collection.any(a.id.startsWith)) return 'Collection';
-    if (a.id.startsWith('survival')) return 'Survival';
-    const exploration = {'planets', 'raid', 'portal', 'maxim', 'constellation'};
-    if (exploration.any(a.id.startsWith)) return 'Exploration';
-    return 'Challenges';
+  AchievementSphereState _stateOf(CampaignSnapshot s, CampaignAchievement a) {
+    if (s.claimed.contains(a.id) || _collecting.contains(a.id)) {
+      return AchievementSphereState.sealed;
+    }
+    if (s.earned(a)) return AchievementSphereState.ready;
+    if (s.isSpoiler(a)) return AchievementSphereState.hidden;
+    return AchievementSphereState.underway;
   }
-
 
   // ── Pieces ────────────────────────────────────────────────────────────────
 
-  /// A reward, drawn with the coins the rest of the game uses rather than the
-  /// words "Gold" and "Silver".
-  Widget rewardLabel(CampaignAchievement a, {double size = 13}) {
-    final fc = FC.of(context);
-    Widget coin(Widget icon, int amount, Color color) => Row(
+  /// A reward, drawn with the coins and item art the rest of the game uses
+  /// rather than the words "Gold" and "Silver".
+  Widget rewardLabel(CampaignAchievement a, {double size = 12.5}) {
+    final palette = BracketPalette.of(context);
+    Widget item(Widget art, int amount, Color color) => Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        icon,
+        art,
         const SizedBox(width: 4),
-        Text(
-          '$amount',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: color,
-            fontSize: size,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
+        Text('×$amount', style: _mono(size * 0.92, color, spacing: 0.4)),
       ],
     );
 
-    // Items and resources are drawn with their own artwork, because a reward
-    // the player cannot picture is not much of a reward — and the glyphs
-    // already exist everywhere else these items appear.
     return Wrap(
       spacing: 12,
       runSpacing: 6,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
         if (a.gold > 0)
-          coin(CoinIcon.gold(size: size + 2), a.gold, fc.rewardGold),
+          CoinAmount(kind: CoinKind.gold, amount: a.gold, size: size),
         if (a.silver > 0)
-          coin(CoinIcon.silver(size: size + 2), a.silver, fc.rewardSilver),
+          CoinAmount(kind: CoinKind.silver, amount: a.silver, size: size),
         for (final entry in a.items.entries)
-          coin(
-            InventoryItemArtwork(inventoryKey: entry.key, size: size + 5),
+          item(
+            InventoryItemArtwork(inventoryKey: entry.key, size: size * 1.6),
             entry.value,
-            fc.textSecondary,
+            palette.muted,
           ),
         for (final entry in a.resources.entries)
-          if (ElementResources.byKey[entry.key] != null)
-            coin(
+          if (ElementResources.byKey[entry.key] case final res?)
+            item(
               ElementResourceGlyph(
-                biomeId: ElementResources.byKey[entry.key]!.biomeId,
-                color: ElementResources.byKey[entry.key]!.color,
-                size: size + 5,
+                biomeId: res.biomeId,
+                color: res.color,
+                size: size * 1.6,
                 animate: false,
               ),
               entry.value,
-              ElementResources.byKey[entry.key]!.color,
+              res.color,
             ),
       ],
     );
   }
 
-  Widget _sectionHeader(String title, {Color? accent, Widget? trailing}) {
+  /// One status word under a sphere, in the same place on every one.
+  Widget _status(CampaignSnapshot s, CampaignAchievement a) {
     final fc = FC.of(context);
-    final color = accent ?? fc.amberBright;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(width: 3, height: 13, color: color),
-          const SizedBox(width: 8),
-          Text(
-            title.toUpperCase(),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2.0,
-            ),
-          ),
-          if (trailing != null) ...[const Spacer(), trailing],
-        ],
+    final palette = BracketPalette.of(context);
+    return switch (_stateOf(s, a)) {
+      AchievementSphereState.underway => Text(
+        '${s.progress(a)} / ${a.target}'
+        '${a.metric == 'collectionPercent' ? '%' : ''}',
+        style: _mono(10.5, palette.ink.withValues(alpha: 0.75), spacing: 0.6),
       ),
-    );
+      AchievementSphereState.ready => Text(
+        'READY',
+        style: _mono(10, fc.rewardGold),
+      ),
+      AchievementSphereState.sealed => Text(
+        'SEALED',
+        style: _mono(9.5, palette.muted),
+      ),
+      AchievementSphereState.hidden => Text(
+        '—',
+        style: _mono(10, palette.muted),
+      ),
+    };
   }
 
-  /// Squared, outlined action. The stock FilledButton was the loudest thing on
-  /// the screen and the only 20px-radius shape in the app.
-  Widget _forgeButton({
-    required String label,
-    required VoidCallback? onTap,
-    Color? accent,
-    bool dense = false,
-  }) {
-    final fc = FC.of(context);
-    final color = accent ?? fc.amberBright;
-    final enabled = onTap != null;
-    return Opacity(
-      opacity: enabled ? 1 : 0.45,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: context.soundAction(onTap),
-          borderRadius: BorderRadius.circular(3),
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: dense ? 10 : 14,
-              vertical: dense ? 7 : 10,
-            ),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(3),
-              border: Border.all(color: color.withValues(alpha: 0.55)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    label.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: color,
-                      fontSize: dense ? 10 : 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
+  // ── The sheet ─────────────────────────────────────────────────────────────
 
-  Widget card(String title, String text, {Widget? action}) {
+  /// What a sphere asks and what it pays, with COLLECT when it is ready.
+  Future<void> _openSheet(CampaignSnapshot s, CampaignAchievement a) async {
+    HapticFeedback.selectionClick();
     final fc = FC.of(context);
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: fc.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: fc.borderDim),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: double.infinity,
-            color: fc.bg3,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            child: Text(
-              title.toUpperCase(),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: fc.amberBright,
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.6,
+    final palette = BracketPalette.of(context);
+    final shelf = _shelfOf(a);
+    final tone = _toneOf(shelf, fc);
+    final chapter = campaignMissionIds.indexOf(a.id);
+    final isCurrent = s.currentMission?.id == a.id;
+    // The current chapter is drawn forming, as its bead is, never hidden.
+    final state = isCurrent ? AchievementSphereState.underway : _stateOf(s, a);
+    final progress = s.progress(a) / a.target;
+
+    final collect = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: palette.bg1,
+      barrierColor: Colors.black.withValues(alpha: 0.6),
+      shape: const RoundedRectangleBorder(),
+      isScrollControlled: true,
+      builder: (sheet) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 36, height: 3, color: palette.line),
+              const SizedBox(height: 4),
+              AchievementSphere(
+                size: 150,
+                tone: tone,
+                state: state,
+                progress: isCurrent ? 0.45 + 0.55 * progress : progress,
+                seed: AchievementSphere.seedFor(a.id),
+                gold: fc.rewardGold,
               ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  text,
-                  style: TextStyle(color: fc.textSecondary, height: 1.55),
-                ),
-                if (action != null) ...[const SizedBox(height: 14), action],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget achievement(CampaignSnapshot s, CampaignAchievement a) {
-    final fc = FC.of(context);
-    final spoiler = s.isSpoiler(a);
-    final collected = s.claimed.contains(a.id) || _collecting.contains(a.id);
-    final ready = s.earned(a) && !collected;
-    final accent = collected
-        ? fc.textMuted
-        : ready
-        ? fc.mint
-        : fc.amberBright;
-
-    return _AchievementCard(
-      key: ValueKey('reward_${a.id}'),
-      cardKey: _keyFor(a.id),
-      collected: collected,
-      ready: ready,
-      accent: accent,
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (collected) ...[
-                  Icon(AppIcons.check_circle, color: accent, size: 20),
-                  const SizedBox(width: 11),
-                ],
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        // Still shows the reward and the row, so the player
-                        // knows something is there — just not what it is.
-                        spoiler ? 'Undiscovered' : a.title,
-                        style: TextStyle(
-                          color: collected ? fc.textMuted : fc.textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        spoiler
-                            ? 'Continue the main story to reveal this.'
-                            : a.description,
-                        style: TextStyle(
-                          color: fc.textMuted,
-                          fontSize: 12,
-                          height: 1.45,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (collected)
-                  Text(
-                    'SEALED',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.textMuted,
-                      fontSize: 9,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.6,
-                    ),
-                  ),
-              ],
-            ),
-            if (!s.earned(a)) ...[
-              const SizedBox(height: 12),
-              _ProgressTrack(
-                value: s.progress(a) / a.target,
-                color: fc.amberBright,
-                track: fc.borderDim,
+              Text(
+                chapter >= 0
+                    ? 'MAIN STORY · CHAPTER ${chapter + 1}'
+                    : shelf.toUpperCase(),
+                style: _mono(10, tone, spacing: 2),
               ),
               const SizedBox(height: 6),
               Text(
-                '${s.progress(a)} / ${a.target}'
-                '${a.metric == 'collectionPercent' ? '%' : ''}',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.textMuted,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                ),
+                a.title,
+                textAlign: TextAlign.center,
+                style: bracketText(sheet, 24, palette.ink),
               ),
-            ],
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Opacity(
-                    opacity: collected ? 0.45 : 1,
-                    child: rewardLabel(a),
-                  ),
-                ),
-                if (ready)
-                  _forgeButton(
-                    label: 'Collect',
-                    accent: fc.mint,
-                    dense: true,
-                    onTap: _claiming ? null : () => claim([a]),
-                  ),
+              const SizedBox(height: 6),
+              Text(
+                isCurrent ? campaignMissionInstructions[a.id]! : a.description,
+                textAlign: TextAlign.center,
+                style: bracketText(
+                  sheet,
+                  13.5,
+                  palette.muted,
+                ).copyWith(height: 1.35),
+              ),
+              if (state == AchievementSphereState.underway && a.target > 1) ...[
+                const SizedBox(height: 16),
+                _Track(value: progress, color: tone),
+                const SizedBox(height: 6),
+                _status(s, a),
               ],
-            ),
-          ],
+              const SizedBox(height: 16),
+              Opacity(
+                opacity: state == AchievementSphereState.sealed ? 0.45 : 1,
+                child: rewardLabel(a, size: 14),
+              ),
+              const SizedBox(height: 20),
+              if (state == AchievementSphereState.ready)
+                SizedBox(
+                  width: double.infinity,
+                  child: BracketButton(
+                    label: 'COLLECT',
+                    onTap: () => Navigator.of(sheet).pop(true),
+                    palette: palette,
+                    accent: fc.rewardGold,
+                  ),
+                )
+              else if (state == AchievementSphereState.sealed)
+                Text('COLLECTED', style: _mono(10.5, palette.muted)),
+            ],
+          ),
         ),
       ),
     );
+    // Collected after the sheet has gone, so the coins leave from the sphere
+    // on the page rather than from under a closing sheet.
+    if (collect == true && mounted && !_claiming) await claim([a]);
   }
 
   // ── Archive ───────────────────────────────────────────────────────────────
 
   void showArchive(CampaignSnapshot s, {required bool memories}) {
     final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => Theme(
-          data: journalTheme,
-          child: Scaffold(
-            backgroundColor: fc.bg1,
-            appBar: AppBar(
-              backgroundColor: fc.bg1,
-              surfaceTintColor: Colors.transparent,
-              title: Text(
-                memories ? 'MEMORIES' : 'STORY PROGRESS',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: fc.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.0,
-                ),
-              ),
-            ),
-            body: ListView(
-              padding: const EdgeInsets.all(18),
-              children: memories
-                  ? memoryCards(s)
-                  : [
-                      _ArchiveHeading(
-                        title: 'Your main story',
-                        accent: fc.amberBright,
+        builder: (page) => Scaffold(
+          backgroundColor: palette.bg0,
+          body: SafeArea(
+            bottom: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 8, 18, 4),
+                  child: Row(
+                    children: [
+                      BracketIconButton(
+                        icon: AppIcons.arrow_back_rounded,
+                        onTap: () => Navigator.of(page).pop(),
+                        palette: palette,
+                        size: 42,
                       ),
+                      const SizedBox(width: 12),
                       Text(
-                        'Milestones advance as you play. Collecting a reward '
-                        'never blocks the next mission.',
-                        style: TextStyle(
-                          color: fc.textMuted,
-                          height: 1.5,
-                          fontSize: 12,
-                        ),
+                        memories ? 'Memories' : 'Story so far',
+                        style: bracketText(page, 24, palette.ink),
                       ),
-                      const SizedBox(height: 18),
-                      for (final (index, a) in campaignMissions.indexed)
-                        _ChapterRow(
-                          index: index,
-                          achievement: a,
-                          snapshot: s,
-                          isCurrent: s.currentMission?.id == a.id,
-                        ),
                     ],
+                  ),
+                ),
+                Expanded(
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(18, 12, 18, 40),
+                    children: memories
+                        ? memoryEntries(page, s)
+                        : [
+                            Text(
+                              'Milestones advance as you play. Collecting a '
+                              'reward never blocks the next chapter.',
+                              style: bracketText(
+                                page,
+                                13,
+                                palette.muted,
+                              ).copyWith(height: 1.4),
+                            ),
+                            const SizedBox(height: 14),
+                            for (final (index, a) in campaignMissions.indexed)
+                              _ChapterRow(
+                                index: index,
+                                achievement: a,
+                                snapshot: s,
+                                isCurrent: s.currentMission?.id == a.id,
+                                state: _stateOf(s, a),
+                                tone: _toneOf('Story', fc),
+                                gold: fc.rewardGold,
+                              ),
+                          ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
@@ -539,292 +459,348 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     );
   }
 
-  List<Widget> memoryCards(CampaignSnapshot s) => [
-    Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Text(
-        'Fragments from another presence. A memory is not necessarily the truth.',
-        style: TextStyle(color: FC.of(context).textMuted, height: 1.5),
+  List<Widget> memoryEntries(BuildContext page, CampaignSnapshot s) {
+    final palette = BracketPalette.of(page);
+    final seen = campaignEntries.where((e) => s.seen.contains(e.id)).toList();
+    return [
+      Text(
+        'Fragments from another presence. A memory is not necessarily the '
+        'truth.',
+        style: bracketText(page, 13, palette.muted).copyWith(height: 1.4),
       ),
-    ),
-    for (final e in campaignEntries.where((e) => s.seen.contains(e.id)))
-      card(e.title, e.text),
-    if (s.seen.isEmpty)
-      card('An empty page', 'Your journey has only just begun.'),
-    if (s.seen.contains('awakening'))
-      ExpansionTile(
-        title: const Text('The opening passages'),
-        subtitle: const Text('Preserved as they appeared before waking'),
-        children: [
-          for (final p in AlchemonsStory.darkPrelude)
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Text(p.mainText, style: const TextStyle(height: 1.5)),
-            ),
-        ],
-      ),
-    if (s.seen.contains('extraction'))
-      card(
-        'An older echo',
-        AlchemonsStory.breedingIntro
-            .map((p) => '${p.mainText}\n${p.subtitle ?? ''}')
-            .join('\n'),
-      ),
-  ];
-
-  /// The app's own theme with the journal's gold and surfaces laid over it.
-  ///
-  /// It used to start from a stock `ThemeData.dark()`/`light()`, which
-  /// carries none of the app's text theme — so every line on the screen
-  /// that did not name a font came out in the platform's default one,
-  /// whatever the player had picked in their profile.
-  ThemeData get journalTheme {
-    final theme = context.read<FactionTheme>();
-    final fc = FC(theme);
-    final brightness = theme.isDark ? Brightness.dark : Brightness.light;
-    final gold = fc.rewardGold;
-    return Theme.of(context).copyWith(
-      scaffoldBackgroundColor: fc.bg1,
-      appBarTheme: AppBarTheme(
-        backgroundColor: fc.bg1,
-        surfaceTintColor: Colors.transparent,
-      ),
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: gold,
-        brightness: brightness,
-      ).copyWith(primary: gold, onPrimary: fc.onColor(gold)),
-    );
+      const SizedBox(height: 8),
+      for (final e in seen) _Entry(title: e.title, text: e.text),
+      if (s.seen.isEmpty)
+        const _Entry(
+          title: 'An empty page',
+          text: 'Your journey has only just begun.',
+        ),
+      if (s.seen.contains('awakening'))
+        _Fold(
+          title: 'The opening passages',
+          subtitle: 'Preserved as they appeared before waking',
+          text: AlchemonsStory.darkPrelude.map((p) => p.mainText).join('\n\n'),
+        ),
+      if (s.seen.contains('extraction'))
+        _Entry(
+          title: 'An older echo',
+          text: AlchemonsStory.breedingIntro
+              .map((p) => '${p.mainText}\n${p.subtitle ?? ''}')
+              .join('\n'),
+        ),
+    ];
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return Scaffold(
+      backgroundColor: palette.bg0,
+      body: FutureBuilder<CampaignSnapshot>(
+        future: _snapshot,
+        builder: (context, state) {
+          final s = state.data;
+          return SafeArea(
+            bottom: false,
+            child: Column(
+              children: [
+                _Header(snapshot: s),
+                Expanded(
+                  child: state.hasError
+                      ? Center(
+                          child: SizedBox(
+                            width: 240,
+                            child: BracketButton(
+                              label: 'COULD NOT LOAD · RETRY',
+                              onTap: refresh,
+                              palette: palette,
+                              accent: FC.of(context).amber,
+                              primary: false,
+                              height: 40,
+                            ),
+                          ),
+                        )
+                      // Loading takes a frame or two; a spinner would only
+                      // flash.
+                      : s == null
+                      ? const SizedBox.shrink()
+                      : _page(s),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _page(CampaignSnapshot s) {
     final fc = FC.of(context);
-    return Theme(
-      data: journalTheme,
-      child: Scaffold(
-        backgroundColor: fc.bg1,
-        appBar: AppBar(
-          backgroundColor: fc.bg1,
-          surfaceTintColor: Colors.transparent,
-          title: Text(
-            'ACHIEVEMENTS',
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: fc.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 2.4,
+    final current = s.currentMission;
+    final ready = s.ready.where((a) => !_collecting.contains(a.id)).toList();
+
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        10,
+        16,
+        28 + MediaQuery.of(context).padding.bottom,
+      ),
+      children: [
+        _ChapterBeads(
+          snapshot: s,
+          stateOf: (a) => _stateOf(s, a),
+          keyFor: _keyFor,
+          tone: _toneOf('Story', fc),
+          gold: fc.rewardGold,
+          onTap: (a) => _openSheet(s, a),
+        ),
+        const SizedBox(height: 10),
+        _StoryPanel(
+          current: current,
+          snapshot: s,
+          rewardLabel: current == null ? null : rewardLabel(current, size: 13),
+          onProgress: () => showArchive(s, memories: false),
+          onMemories: () => showArchive(s, memories: true),
+        ),
+        if (ready.isNotEmpty) ...[
+          const SizedBox(height: 14),
+          _ReadyBand(
+            count: ready.length,
+            gold: ready.fold(0, (v, a) => v + a.gold),
+            silver: ready.fold(0, (v, a) => v + a.silver),
+            claiming: _claiming,
+            onCollectAll: () => claim(ready),
+          ),
+        ],
+
+        // Under anything claimable: a reward the player can collect right
+        // now outranks a room they have not visited.
+        const OnboardingTasksSection(),
+
+        for (final shelf in _shelves) ...[
+          _ShelfHead(
+            title: shelf.toUpperCase(),
+            trailing:
+                '${campaignAchievements.where((a) => _shelfOf(a) == shelf && s.claimed.contains(a.id)).length}'
+                ' / ${campaignAchievements.where((a) => _shelfOf(a) == shelf).length}',
+          ),
+          _SphereWall(
+            children: [
+              for (final a in campaignAchievements)
+                if (_shelfOf(a) == shelf)
+                  _SphereCell(
+                    key: ValueKey('reward_${a.id}'),
+                    sphereKey: _keyFor(a.id),
+                    title: a.title,
+                    state: _stateOf(s, a),
+                    progress: s.progress(a) / a.target,
+                    seed: AchievementSphere.seedFor(a.id),
+                    tone: _toneOf(shelf, fc),
+                    gold: fc.rewardGold,
+                    status: _status(s, a),
+                    onTap: () => _openSheet(s, a),
+                  ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ── Header ──────────────────────────────────────────────────────────────────
+
+/// One row: the name, what has been collected of the whole set, and a way
+/// out.
+class _Header extends StatelessWidget {
+  const _Header({required this.snapshot});
+
+  final CampaignSnapshot? snapshot;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final s = snapshot;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 8, 12, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Achievements',
+                maxLines: 1,
+                style: bracketText(context, 24, palette.ink),
+              ),
             ),
           ),
+          if (s != null) ...[
+            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              color: palette.surfaceFill(),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${s.claimed.length} / ${campaignAchievements.length}',
+                    style: _mono(14, palette.ink, spacing: 0.6),
+                  ),
+                  const SizedBox(height: 2),
+                  Text('COLLECTED', style: _mono(8.5, palette.muted)),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(width: 8),
           // Closes rather than pops one route.
           //
           // Collecting a task from a notification pushes this screen, and
           // that notification can fire while it is already open — so a back
           // arrow could leave two or three journals stacked behind each
           // other, each needing its own press. This leaves for good.
-          automaticallyImplyLeading: false,
-          actions: [
-            IconButton(
-              tooltip: 'Close',
-              onPressed: context.soundAction(() {
-                // Every journal on the stack, and nothing below them: the
-                // notification can push this over the shop or the
-                // constellations, and closing must not take those with it.
-                Navigator.of(context).popUntil(
-                  (r) =>
-                      r.settings.name != CampaignJournalScreen.routeName ||
-                      r.isFirst,
-                );
-              }),
-              icon: Icon(AppIcons.close_rounded, color: fc.textSecondary),
-            ),
-          ],
-        ),
-        body: FutureBuilder<CampaignSnapshot>(
-          future: _snapshot,
-          builder: (context, state) {
-            if (state.hasError) {
-              return Center(
-                child: _forgeButton(
-                  label: 'Could not load · retry',
-                  onTap: context.soundAction(refresh),
-                ),
+          BracketIconButton(
+            icon: AppIcons.close_rounded,
+            palette: palette,
+            size: 42,
+            onTap: () {
+              // Every journal on the stack, and nothing below them: the
+              // notification can push this over the shop or the
+              // constellations, and closing must not take those with it.
+              Navigator.of(context).popUntil(
+                (r) =>
+                    r.settings.name != CampaignJournalScreen.routeName ||
+                    r.isFirst,
               );
-            }
-            if (!state.hasData) {
-              return Center(
-                child: CircularProgressIndicator(
-                  color: fc.amberBright,
-                  strokeWidth: 2,
-                ),
-              );
-            }
-            final s = state.data!;
-            final current = s.currentMission;
-            // The filter applies to all three sections, not just the middle
-            // one. Ready and collected used to ignore it, so picking a
-            // category still left every earned achievement from every other
-            // category on screen — which looks exactly like a filter that
-            // does nothing.
-            bool inFilter(CampaignAchievement a) =>
-                _filter == 'All' || category(a) == _filter;
-
-            final ready = s.ready.where(inFilter).toList();
-            final available =
-                campaignAchievements
-                    .where((a) => !s.earned(a) && inFilter(a))
-                    .toList()
-                  ..sort(
-                    (a, b) => (s.progress(b) / b.target).compareTo(
-                      s.progress(a) / a.target,
-                    ),
-                  );
-            final collected = campaignAchievements
-                .where((a) => s.claimed.contains(a.id) && inFilter(a))
-                .toList();
-
-            return RefreshIndicator(
-              color: fc.amberBright,
-              backgroundColor: fc.bg2,
-              onRefresh: refresh,
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 10, 16, 28),
-                children: [
-                  _StoryBanner(
-                    current: current,
-                    snapshot: s,
-                    rewardLabel: current == null
-                        ? null
-                        : rewardLabel(current, size: 14),
-                    onProgress: () => showArchive(s, memories: false),
-                    onMemories: () => showArchive(s, memories: true),
-                    forgeButton: _forgeButton,
-                  ),
-                  const SizedBox(height: 22),
-
-                  if (ready.isNotEmpty) ...[
-                    _sectionHeader(
-                      '${ready.length} reward${ready.length == 1 ? '' : 's'} ready',
-                      accent: fc.mint,
-                    ),
-                    _forgeButton(
-                      label: _claiming ? 'Collecting…' : 'Collect all',
-                      accent: fc.mint,
-                      onTap: _claiming ? null : () => claim(ready),
-                    ),
-                    const SizedBox(height: 6),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 2, bottom: 12),
-                      child: Row(
-                        children: [
-                          CoinIcon.gold(size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${ready.fold(0, (v, a) => v + a.gold)}',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: fc.rewardGold,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          CoinIcon.silver(size: 14),
-                          const SizedBox(width: 4),
-                          Text(
-                            '${ready.fold(0, (v, a) => v + a.silver)}',
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: fc.rewardSilver,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    for (final a in ready) achievement(s, a),
-                    const SizedBox(height: 18),
-                  ] else ...[
-                    _sectionHeader('All rewards collected', accent: fc.mint),
-                    Padding(
-                      padding: const EdgeInsets.only(left: 11, bottom: 20),
-                      child: Text(
-                        'Your next milestones are below.',
-                        style: TextStyle(color: fc.textMuted, fontSize: 12),
-                      ),
-                    ),
-                  ],
-
-                  // Under the story and above the achievements, but below
-                  // anything claimable: a reward the player can collect right
-                  // now outranks a room they have not visited, and eight task
-                  // rows above it would push it off a phone screen.
-                  const OnboardingTasksSection(),
-
-                  _sectionHeader('Next achievements'),
-                  _FilterRow(
-                    selected: _filter,
-                    onSelect: (f) => setState(() => _filter = f),
-                  ),
-                  const SizedBox(height: 14),
-                  for (final a in available) achievement(s, a),
-                  if (available.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 24),
-                      child: Text(
-                        'No unfinished achievements in this category.',
-                        style: TextStyle(color: fc.textMuted),
-                      ),
-                    ),
-
-                  if (collected.isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    Theme(
-                      data: Theme.of(
-                        context,
-                      ).copyWith(dividerColor: Colors.transparent),
-                      child: ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
-                        iconColor: fc.textMuted,
-                        collapsedIconColor: fc.textMuted,
-                        title: Text(
-                          'COLLECTED · ${collected.length} / '
-                          '${campaignAchievements.where(inFilter).length}',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: fc.textMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.6,
-                          ),
-                        ),
-                        children: [
-                          for (final a in collected) achievement(s, a),
-                        ],
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            );
-          },
-        ),
+            },
+          ),
+        ],
       ),
     );
   }
 }
 
-// ── Story banner ────────────────────────────────────────────────────────────
+// ── Chapter beads ───────────────────────────────────────────────────────────
 
-class _StoryBanner extends StatelessWidget {
-  const _StoryBanner({
+/// The main story as a row of spheres on a thread: chapters done are formed,
+/// the current one is forming (and larger), the ones ahead are dark glass.
+/// A chapter whose reward is waiting glows gold like any ready sphere.
+class _ChapterBeads extends StatelessWidget {
+  const _ChapterBeads({
+    required this.snapshot,
+    required this.stateOf,
+    required this.keyFor,
+    required this.tone,
+    required this.gold,
+    required this.onTap,
+  });
+
+  final CampaignSnapshot snapshot;
+  final AchievementSphereState Function(CampaignAchievement) stateOf;
+  final GlobalKey Function(String id) keyFor;
+  final Color tone;
+  final Color gold;
+  final ValueChanged<CampaignAchievement> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final current = snapshot.currentMission;
+    return LayoutBuilder(
+      builder: (context, c) {
+        final slot = c.maxWidth / campaignMissions.length;
+        final bead = (slot * 0.86).clamp(18.0, 32.0);
+        final big = (slot * 1.12).clamp(22.0, 42.0);
+        return SizedBox(
+          height: big,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              Positioned(
+                left: slot / 2,
+                right: slot / 2,
+                child: Container(
+                  height: 1,
+                  color: palette.line.withValues(alpha: 0.6),
+                ),
+              ),
+              Row(
+                children: [
+                  for (final a in campaignMissions)
+                    SizedBox(
+                      width: slot,
+                      child: Center(
+                        child: _bead(
+                          context,
+                          a,
+                          a.id == current?.id,
+                          bead,
+                          big,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _bead(
+    BuildContext context,
+    CampaignAchievement a,
+    bool isCurrent,
+    double bead,
+    double big,
+  ) {
+    final state = stateOf(a);
+    final sphere = SizedBox.square(
+      key: keyFor(a.id),
+      dimension: isCurrent ? big : bead,
+      child: AchievementSphere(
+        size: isCurrent ? big : bead,
+        tone: tone,
+        // The current chapter is shown forming even before any of it is
+        // done, so the eye finds it; it is never hidden like the ones after.
+        state: isCurrent ? AchievementSphereState.underway : state,
+        progress: isCurrent
+            ? 0.45 + 0.55 * snapshot.progress(a) / a.target
+            : snapshot.progress(a) / a.target,
+        seed: AchievementSphere.seedFor(a.id),
+        gold: gold,
+      ),
+    );
+    // Nothing to read about a chapter not reached yet.
+    if (state == AchievementSphereState.hidden && !isCurrent) return sphere;
+    return Semantics(
+      button: true,
+      label: isCurrent ? 'Current chapter: ${a.title}' : a.title,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(() => onTap(a)),
+        child: sphere,
+      ),
+    );
+  }
+}
+
+// ── Story panel ─────────────────────────────────────────────────────────────
+
+/// The current chapter: the one lit panel on the page.
+class _StoryPanel extends StatelessWidget {
+  const _StoryPanel({
     required this.current,
     required this.snapshot,
     required this.rewardLabel,
     required this.onProgress,
     required this.onMemories,
-    required this.forgeButton,
   });
 
   final CampaignAchievement? current;
@@ -832,241 +808,364 @@ class _StoryBanner extends StatelessWidget {
   final Widget? rewardLabel;
   final VoidCallback onProgress;
   final VoidCallback onMemories;
-  final Widget Function({
-    required String label,
-    required VoidCallback? onTap,
-    Color? accent,
-    bool dense,
-  })
-  forgeButton;
 
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
-    final chapter = current == null
+    final palette = BracketPalette.of(context);
+    final mission = current;
+    final chapter = mission == null
         ? 'MAIN STORY · COMPLETE'
         : 'MAIN STORY · CHAPTER '
-              '${campaignMissionIds.indexOf(current!.id) + 1} / ${campaignMissions.length}';
+              '${campaignMissionIds.indexOf(mission.id) + 1} OF ${campaignMissions.length}';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: fc.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: fc.amber.withValues(alpha: 0.40)),
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: fc.amber.withValues(alpha: 0.8),
+        strokeWidth: 1.2,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Container(
+        color: palette.accentWash(fc.amber, darkAlpha: 0.07),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // The chapter line runs long on a narrow phone; it has to be
+            // allowed to shrink rather than push the panel open.
+            Text(
+              chapter,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: _mono(10.5, fc.amberBright, spacing: 1.8),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              mission?.title ?? 'The ritual continues',
+              style: bracketText(context, 22, palette.ink),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              mission == null
+                  ? 'The collection remains. Exploration, Survival, contests, '
+                        'and rites are yours to continue.'
+                  : campaignMissionInstructions[mission.id]!,
+              style: bracketText(
+                context,
+                13,
+                palette.muted,
+              ).copyWith(height: 1.35),
+            ),
+            if (mission != null) ...[
+              const SizedBox(height: 12),
+              rewardLabel!,
+              if (mission.target > 1) ...[
+                const SizedBox(height: 12),
+                _Track(
+                  value: snapshot.progress(mission) / mission.target,
+                  color: fc.amberBright,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  '${snapshot.progress(mission)} / ${mission.target} complete',
+                  style: _mono(
+                    10.5,
+                    palette.ink.withValues(alpha: 0.75),
+                    spacing: 0.6,
+                  ),
+                ),
+              ],
+            ],
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: _QuietButton(label: 'STORY SO FAR', onTap: onProgress),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _QuietButton(label: 'MEMORIES', onTap: onMemories),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A secondary button on a bg0 well: the kit's quiet fill alone vanishes on
+/// a panel (the profile's buttons do the same).
+class _QuietButton extends StatelessWidget {
+  const _QuietButton({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return Container(
+      color: palette.bg0,
+      child: BracketButton(
+        label: label,
+        onTap: onTap,
+        palette: palette,
+        accent: FC.of(context).amber,
+        primary: false,
+        height: 36,
+      ),
+    );
+  }
+}
+
+// ── Ready band ──────────────────────────────────────────────────────────────
+
+/// How many rewards wait and what they come to, with one button for all of
+/// them. Lit from below in gold: it is the thing to do on this page.
+class _ReadyBand extends StatelessWidget {
+  const _ReadyBand({
+    required this.count,
+    required this.gold,
+    required this.silver,
+    required this.claiming,
+    required this.onCollectAll,
+  });
+
+  final int count;
+  final int gold;
+  final int silver;
+  final bool claiming;
+  final VoidCallback onCollectAll;
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
+    return CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: fc.rewardGold.withValues(alpha: 0.8),
+        strokeWidth: 1.2,
+      ),
+      child: Container(
+        color: palette.accentWash(fc.rewardGold, darkAlpha: 0.06),
+        padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('$count READY', style: _mono(11, fc.rewardGold)),
+                  const SizedBox(height: 5),
+                  Wrap(
+                    spacing: 10,
+                    children: [
+                      CoinAmount(kind: CoinKind.gold, amount: gold, size: 11.5),
+                      CoinAmount(
+                        kind: CoinKind.silver,
+                        amount: silver,
+                        size: 11.5,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            SizedBox(
+              width: 150,
+              child: BracketButton(
+                label: claiming ? 'COLLECTING…' : 'COLLECT ALL',
+                onTap: onCollectAll,
+                enabled: !claiming,
+                palette: palette,
+                accent: fc.rewardGold,
+                height: 38,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Shelves ─────────────────────────────────────────────────────────────────
+
+/// The shop's section head: a bar, spaced capitals, a hairline to the edge,
+/// and how many of the shelf are collected.
+class _ShelfHead extends StatelessWidget {
+  const _ShelfHead({required this.title, required this.trailing});
+
+  final String title;
+  final String trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 28, bottom: 12),
+      child: Row(
         children: [
           Container(
-            width: double.infinity,
-            color: fc.bg3,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-            child: Row(
-              children: [
-                Container(width: 3, height: 12, color: fc.amberBright),
-                const SizedBox(width: 8),
-                // The chapter line runs long on a narrow phone; it has to be
-                // allowed to shrink rather than push the strip open.
-                Expanded(
-                  child: Text(
-                    chapter,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: fc.amberBright,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ),
-              ],
+            width: 3,
+            height: 16,
+            color: fc.amberBright,
+            margin: const EdgeInsets.only(right: 10),
+          ),
+          Text(title, style: _mono(12, fc.amberBright, spacing: 2.2)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Container(
+              height: 1,
+              color: fc.amberBright.withValues(alpha: 0.2),
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  current?.title ?? 'The ritual continues',
-                  style: TextStyle(
-                    color: fc.textPrimary,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 7),
-                Text(
-                  current == null
-                      ? 'The collection remains. Exploration, Survival, contests, and rites are yours to continue.'
-                      : campaignMissionInstructions[current!.id]!,
-                  style: TextStyle(
-                    color: fc.textSecondary,
-                    height: 1.5,
-                    fontSize: 12,
-                  ),
-                ),
-                if (current != null) ...[
-                  const SizedBox(height: 12),
-                  rewardLabel!,
-                  if (current!.target > 1) ...[
-                    const SizedBox(height: 10),
-                    _ProgressTrack(
-                      value: snapshot.progress(current!) / current!.target,
-                      color: fc.amberBright,
-                      track: fc.borderDim,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${snapshot.progress(current!)} / ${current!.target} complete',
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: fc.textMuted,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ],
-                const SizedBox(height: 14),
-                // Wrap, not Row: the two labels do not fit side by side on a
-                // narrow phone, and a button that cannot fit should drop to
-                // the next line rather than be clipped.
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    forgeButton(
-                      label: 'Story progress',
-                      onTap: context.soundAction(onProgress),
-                      dense: true,
-                    ),
-                    forgeButton(
-                      label: 'Memories',
-                      onTap: context.soundAction(onMemories),
-                      dense: true,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(width: 10),
+          Text(trailing, style: _mono(10, palette.muted, spacing: 0.6)),
         ],
       ),
     );
   }
 }
 
-// ── Achievement shell ───────────────────────────────────────────────────────
+/// Three across on a phone, more on anything wider, every cell the same
+/// width so the spheres line up in columns.
+class _SphereWall extends StatelessWidget {
+  const _SphereWall({required this.children});
 
-/// Handles the card's own reaction to being collected: a brief surge, then it
-/// settles into a dimmed, sealed state.
-class _AchievementCard extends StatefulWidget {
-  const _AchievementCard({
-    super.key,
-    required this.cardKey,
-    required this.collected,
-    required this.ready,
-    required this.accent,
-    required this.child,
-  });
+  final List<Widget> children;
 
-  final GlobalKey cardKey;
-  final bool collected;
-  final bool ready;
-  final Color accent;
-  final Widget child;
-
-  @override
-  State<_AchievementCard> createState() => _AchievementCardState();
-}
-
-class _AchievementCardState extends State<_AchievementCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _seal = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 620),
-  );
-
-  @override
-  void didUpdateWidget(covariant _AchievementCard old) {
-    super.didUpdateWidget(old);
-    // Fires on the transition into collected, not on a card that was already
-    // collected when the list was built.
-    if (widget.collected && !old.collected) _seal.forward(from: 0);
-  }
-
-  @override
-  void dispose() {
-    _seal.dispose();
-    super.dispose();
-  }
+  static const double _gap = 8;
 
   @override
   Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    return AnimatedBuilder(
-      animation: _seal,
-      builder: (context, child) {
-        final t = _seal.value;
-        // Up quickly, then settle — the card acknowledges the tap before it
-        // goes quiet.
-        final surge = math.sin(t * math.pi);
-        return Transform.scale(
-          scale: 1 + 0.035 * Curves.easeOut.transform(surge),
-          child: Container(
-            key: widget.cardKey,
-            margin: const EdgeInsets.only(bottom: 10),
-            decoration: BoxDecoration(
-              color: widget.ready ? Color.lerp(fc.bg2, fc.mint, 0.06) : fc.bg2,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: Color.lerp(
-                  widget.ready
-                      ? widget.accent.withValues(alpha: 0.55)
-                      : fc.borderDim,
-                  fc.rewardGold,
-                  surge * 0.8,
-                )!,
-                width: 1 + surge * 0.8,
-              ),
-            ),
-            child: child,
-          ),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final columns = ((c.maxWidth + _gap) / (120 + _gap)).floor().clamp(
+          3,
+          8,
+        );
+        final cell = (c.maxWidth - _gap * (columns - 1)) / columns;
+        return Wrap(
+          spacing: _gap,
+          runSpacing: 24,
+          children: [
+            for (final child in children) SizedBox(width: cell, child: child),
+          ],
         );
       },
-      child: widget.child,
+    );
+  }
+}
+
+class _SphereCell extends StatelessWidget {
+  const _SphereCell({
+    super.key,
+    required this.sphereKey,
+    required this.title,
+    required this.state,
+    required this.progress,
+    required this.seed,
+    required this.tone,
+    required this.gold,
+    required this.status,
+    required this.onTap,
+  });
+
+  final GlobalKey sphereKey;
+  final String title;
+  final AchievementSphereState state;
+  final double progress;
+  final int seed;
+  final Color tone;
+  final Color gold;
+  final Widget status;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    return Semantics(
+      button: true,
+      label: title,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(onTap),
+        child: Column(
+          children: [
+            // Its own layer: a running sphere repaints every frame, and
+            // without one each of those frames would repaint the wall.
+            RepaintBoundary(
+              child: SizedBox.square(
+                key: sphereKey,
+                dimension: 74,
+                child: AchievementSphere(
+                  size: 74,
+                  tone: tone,
+                  state: state,
+                  progress: progress,
+                  seed: seed,
+                  gold: gold,
+                ),
+              ),
+            ),
+            const SizedBox(height: 2),
+            // Two lines at whatever size the player reads at, so every
+            // status word in a row sits on one line.
+            SizedBox(
+              height:
+                  MediaQuery.textScalerOf(context).scale(12.5) * 1.1 * 2 + 2,
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: bracketText(
+                  context,
+                  12.5,
+                  state == AchievementSphereState.sealed
+                      ? palette.muted
+                      : palette.ink,
+                  weight: FontWeight.w600,
+                ).copyWith(height: 1.1),
+              ),
+            ),
+            const SizedBox(height: 2),
+            SizedBox(
+              height: MediaQuery.textScalerOf(context).scale(13),
+              child: FittedBox(fit: BoxFit.scaleDown, child: status),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 // ── Small parts ─────────────────────────────────────────────────────────────
 
-/// A 3px track. The stock LinearProgressIndicator came with a rounded cap and
-/// a Material colour scheme that fought everything around it.
-class _ProgressTrack extends StatelessWidget {
-  const _ProgressTrack({
-    required this.value,
-    required this.color,
-    required this.track,
-  });
+/// A 2px track on a hairline. The stock LinearProgressIndicator came with a
+/// rounded cap and a Material color scheme that fought everything around it.
+class _Track extends StatelessWidget {
+  const _Track({required this.value, required this.color});
 
   final double value;
   final Color color;
-  final Color track;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, c) => Stack(
+    final palette = BracketPalette.of(context);
+    return SizedBox(
+      height: 2,
+      child: Stack(
         children: [
-          Container(height: 3, width: double.infinity, color: track),
-          Container(
-            height: 3,
-            width: c.maxWidth * value.clamp(0.0, 1.0),
-            color: color,
+          Container(color: palette.lineSoft),
+          FractionallySizedBox(
+            widthFactor: value.clamp(0.0, 1.0),
+            child: Container(color: color.withValues(alpha: 0.85)),
           ),
         ],
       ),
@@ -1074,174 +1173,209 @@ class _ProgressTrack extends StatelessWidget {
   }
 }
 
-class _FilterRow extends StatelessWidget {
-  const _FilterRow({required this.selected, required this.onSelect});
-
-  final String selected;
-  final ValueChanged<String> onSelect;
-
-  static const _filters = [
-    'All',
-    'Collection',
-    'Story',
-    'Exploration',
-    'Survival',
-    'Challenges',
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = FC.of(context);
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final f in _filters)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: GestureDetector(
-                onTap: context.soundAction(() {
-                  HapticFeedback.selectionClick();
-                  onSelect(f);
-                }),
-                // Outline and coloured text, never a fill: a filled chip reads
-                // as a button you are meant to press again.
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 7,
-                  ),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(3),
-                    border: Border.all(
-                      color: selected == f ? fc.amberBright : fc.borderDim,
-                    ),
-                  ),
-                  child: Text(
-                    f.toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: selected == f ? fc.amberBright : fc.textMuted,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
+/// A chapter in the story-so-far list: its bead, its name, where it stands.
 class _ChapterRow extends StatelessWidget {
   const _ChapterRow({
     required this.index,
     required this.achievement,
     required this.snapshot,
     required this.isCurrent,
+    required this.state,
+    required this.tone,
+    required this.gold,
   });
 
   final int index;
   final CampaignAchievement achievement;
   final CampaignSnapshot snapshot;
   final bool isCurrent;
+  final AchievementSphereState state;
+  final Color tone;
+  final Color gold;
 
   @override
   Widget build(BuildContext context) {
     final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
     final done = snapshot.earned(achievement);
     final revealed = done || isCurrent;
-    final accent = done
-        ? fc.mint
-        : isCurrent
-        ? fc.amberBright
-        : fc.textMuted;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: fc.bg2,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: isCurrent ? accent.withValues(alpha: 0.5) : fc.borderDim,
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              AchievementSphere(
+                size: 44,
+                tone: tone,
+                state: isCurrent ? AchievementSphereState.underway : state,
+                progress: isCurrent
+                    ? 0.45 +
+                          0.55 *
+                              snapshot.progress(achievement) /
+                              achievement.target
+                    : 0,
+                seed: AchievementSphere.seedFor(achievement.id),
+                gold: gold,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'CHAPTER ${index + 1}',
+                      style: _mono(
+                        9.5,
+                        isCurrent ? fc.amberBright : palette.muted,
+                        spacing: 1.8,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      revealed ? achievement.title : 'Undiscovered',
+                      style: bracketText(
+                        context,
+                        15,
+                        revealed ? palette.ink : palette.muted,
+                        weight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      done
+                          ? 'Complete · ${snapshot.claimed.contains(achievement.id) ? 'reward collected' : 'reward ready'}'
+                          : isCurrent
+                          ? campaignMissionInstructions[achievement.id]!
+                          : 'Continue the main story to reveal this chapter.',
+                      style: bracketText(
+                        context,
+                        12,
+                        palette.muted,
+                      ).copyWith(height: 1.3),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            done
-                ? AppIcons.check_circle
-                : isCurrent
-                ? AppIcons.radio_button_checked
-                : AppIcons.lock_outline,
-            color: accent,
-            size: 18,
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  revealed
-                      ? achievement.title
-                      : 'Chapter ${index + 1} · Undiscovered',
-                  style: TextStyle(
-                    color: revealed ? fc.textPrimary : fc.textMuted,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  done
-                      ? 'Complete${snapshot.claimed.contains(achievement.id) ? ' · Reward collected' : ' · Reward ready'}'
-                      : isCurrent
-                      ? campaignMissionInstructions[achievement.id]!
-                      : 'Continue the main story to reveal this chapter.',
-                  style: TextStyle(
-                    color: fc.textMuted,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+        Container(height: 1, color: palette.lineSoft),
+      ],
     );
   }
 }
 
-class _ArchiveHeading extends StatelessWidget {
-  const _ArchiveHeading({required this.title, required this.accent});
+/// A memory: its title in spaced capitals, its text, a hairline under it.
+class _Entry extends StatelessWidget {
+  const _Entry({required this.title, required this.text});
 
   final String title;
-  final Color accent;
+  final String text;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 10),
-    child: Row(
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(width: 3, height: 13, color: accent),
-        const SizedBox(width: 8),
+        const SizedBox(height: 16),
+        Text(title.toUpperCase(), style: _mono(11, fc.amberBright)),
+        const SizedBox(height: 8),
         Text(
-          title.toUpperCase(),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: accent,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-            letterSpacing: 2.0,
+          text,
+          style: bracketText(
+            context,
+            14,
+            palette.ink.withValues(alpha: 0.85),
+          ).copyWith(height: 1.5),
+        ),
+        const SizedBox(height: 16),
+        Container(height: 1, color: palette.lineSoft),
+      ],
+    );
+  }
+}
+
+/// A memory long enough to keep folded until asked for.
+class _Fold extends StatefulWidget {
+  const _Fold({
+    required this.title,
+    required this.subtitle,
+    required this.text,
+  });
+
+  final String title;
+  final String subtitle;
+  final String text;
+
+  @override
+  State<_Fold> createState() => _FoldState();
+}
+
+class _FoldState extends State<_Fold> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: context.soundAction(() => setState(() => _open = !_open)),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.title.toUpperCase(),
+                        style: _mono(11, fc.amberBright),
+                      ),
+                      const SizedBox(height: 5),
+                      Text(
+                        widget.subtitle,
+                        style: bracketText(context, 12.5, palette.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  _open ? 'CLOSE' : 'READ',
+                  style: _mono(10, palette.ink, spacing: 1.4),
+                ),
+              ],
+            ),
           ),
         ),
+        AnimatedSize(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.topCenter,
+          child: _open
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 16),
+                  child: Text(
+                    widget.text,
+                    style: bracketText(
+                      context,
+                      14,
+                      palette.ink.withValues(alpha: 0.85),
+                    ).copyWith(height: 1.5),
+                  ),
+                )
+              : const SizedBox(width: double.infinity),
+        ),
+        Container(height: 1, color: palette.lineSoft),
       ],
-    ),
-  );
+    );
+  }
 }
