@@ -140,7 +140,7 @@ class _ConstellationPointsWidgetState extends State<ConstellationPointsWidget> {
                 HomeEmblem(
                   key: _emblem,
                   kind: HomeEmblemKind.constellation,
-                  size: 80,
+                  size: 64,
                   animate: widget.animate,
                   lifted: _lifted,
                 ),

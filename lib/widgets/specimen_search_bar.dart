@@ -20,6 +20,8 @@ class SpecimenSearchBar extends StatefulWidget {
     required this.showReset,
     required this.onReset,
     this.focusNode,
+    this.compact,
+    this.onToggleCompact,
   });
 
   final BracketPalette palette;
@@ -30,6 +32,11 @@ class SpecimenSearchBar extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final bool showReset;
   final VoidCallback onReset;
+
+  /// When [onToggleCompact] is set, a button at the right end switches the
+  /// grid between 3 and 4 per row; [compact] is the 4-per-row state.
+  final bool? compact;
+  final VoidCallback? onToggleCompact;
 
   @override
   State<SpecimenSearchBar> createState() => _SpecimenSearchBarState();
@@ -136,6 +143,34 @@ class _SpecimenSearchBarState extends State<SpecimenSearchBar> {
                 child: Text(
                   'RESET',
                   style: style.copyWith(fontSize: 11, letterSpacing: 1.2),
+                ),
+              ),
+            ),
+          ),
+        ],
+        if (widget.onToggleCompact != null) ...[
+          const SizedBox(width: 10),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: context.soundAction(widget.onToggleCompact),
+            child: CustomPaint(
+              foregroundPainter: BracketFramePainter(
+                color: widget.compact == true ? widget.accent : palette.line,
+                strokeWidth: 1.2,
+              ),
+              child: Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                color: widget.compact == true
+                    ? palette.accentWash(widget.accent)
+                    : null,
+                child: Icon(
+                  widget.compact == true
+                      ? AppIcons.grid_view_rounded
+                      : AppIcons.grid_nine,
+                  size: 18,
+                  color: widget.compact == true ? widget.accent : palette.muted,
                 ),
               ),
             ),

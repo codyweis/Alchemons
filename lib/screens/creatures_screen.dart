@@ -102,10 +102,24 @@ class CreaturesScreenState extends State<CreaturesScreen> {
         final saved = CatalogLayout.values.where((l) => l.name == raw);
         if (saved.isNotEmpty) setState(() => _layout = saved.first);
       }();
+      () async {
+        final raw = await _settings.getSetting(_condensedKey);
+        if (!mounted || raw == null) return;
+        setState(() => _condensed = raw == '1');
+      }();
     }
   }
 
   bool _layoutRead = false;
+
+  /// Four specimens per row instead of three.
+  bool _condensed = true;
+  static const _condensedKey = 'creatures_specimens_condensed';
+
+  void _toggleCondensed() {
+    setState(() => _condensed = !_condensed);
+    _settings.setSetting(_condensedKey, _condensed ? '1' : '0');
+  }
 
   void _setLayout(CatalogLayout layout) {
     setState(() => _layout = layout);
@@ -280,6 +294,8 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                             ? 'Search these specimens'
                             : 'Search your specimens',
                         onChanged: _onQueryChanged,
+                        compact: _condensed,
+                        onToggleCompact: _tab == 0 ? _toggleCondensed : null,
                         showReset: _tab == 0 && _specimensResettable,
                         onReset: () {
                           _searchCtrl.clear();
@@ -332,6 +348,7 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                                   child: AllCreatureInstances(
                                     theme: theme,
                                     caseCards: true,
+                                    caseColumns: _condensed ? 4 : 3,
                                     bottomInset: dockInset,
                                     speciesIdFilter: _speciesFilter,
                                     prefsScopeKey: 'creatures_all_specimens',

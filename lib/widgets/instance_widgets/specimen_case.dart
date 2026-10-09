@@ -12,6 +12,11 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/parent_snapshot.dart' show decodeGenetics;
+import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/models/wild_fusion.dart';
+import 'package:alchemons/utils/genetics_util.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -21,6 +26,10 @@ import 'package:alchemons/widgets/fx/element_orb.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+
+/// What a case prints in its top-right corner: nothing, the four stats, or
+/// what is unusual in the genes.
+enum CaseView { plain, stats, potential, genetics }
 
 /// Gilt: a favourite's frame, and the Codex's "new" color.
 const Color kCaseGilt = Color(0xFFE4B356);
@@ -62,6 +71,8 @@ class SpecimenCase extends StatelessWidget {
     this.selectionNumber,
     this.cornerBadge,
     this.sortBy,
+    this.view = CaseView.plain,
+    this.showStamina = true,
   });
 
   final Creature species;
@@ -76,6 +87,10 @@ class SpecimenCase extends StatelessWidget {
   /// When the grid is sorted by a stat, that stat's figure is engraved in
   /// the case's top corner, so the order can be read.
   final SortBy? sortBy;
+  final CaseView view;
+
+  /// The stamina ticks beside the name; the condensed grid has no room.
+  final bool showStamina;
 
   @override
   Widget build(BuildContext context) {
@@ -147,8 +162,7 @@ class SpecimenCase extends StatelessWidget {
                               right: 8,
                               bottom: 5,
                               child: Text(
-                                '${sort.shortLabel} '
-                                '${sort.valueForInstance(instance).toStringAsFixed(1)}',
+                                '${sort.shortLabel} ${_sortFigure(sort, instance)}',
                                 textAlign: TextAlign.center,
                                 maxLines: 1,
                                 style: caseMono(9.5, kCaseGlassInk),
@@ -156,7 +170,8 @@ class SpecimenCase extends StatelessWidget {
                             ),
                           if (cornerBadge != null ||
                               instance.isFavorite ||
-                              selectionNumber != null)
+                              selectionNumber != null ||
+                              view != CaseView.plain)
                             Positioned(
                               top: 4,
                               right: 4,
@@ -196,6 +211,15 @@ class SpecimenCase extends StatelessWidget {
                                         ),
                                       ),
                                     ),
+                                  if (view == CaseView.stats)
+                                    _caseStats(instance)
+                                  else if (view == CaseView.potential)
+                                    _caseStats(instance, potential: true)
+                                  else if (view == CaseView.genetics)
+                                    _caseGenetics(
+                                      instance,
+                                      box.maxWidth * 0.62,
+                                    ),
                                 ],
                               ),
                             ),
@@ -224,11 +248,12 @@ class SpecimenCase extends StatelessWidget {
                   style: caseMono(9.5, palette.ink, spacing: 0.9),
                 ),
               ),
-              StaminaTicks(
-                bars: stamina.bars,
-                max: stamina.max,
-                palette: palette,
-              ),
+              if (showStamina)
+                StaminaTicks(
+                  bars: stamina.bars,
+                  max: stamina.max,
+                  palette: palette,
+                ),
             ],
           ),
         ],
@@ -356,4 +381,109 @@ class StaminaTicks extends StatelessWidget {
         ),
     ],
   );
+}
+
+Widget _caseLine(String label, Color color, String value) => Row(
+  mainAxisSize: MainAxisSize.min,
+  children: [
+    Text(label, style: caseMono(8.5, color, spacing: 0.4)),
+    const SizedBox(width: 3),
+    Text(
+      value,
+      style: caseMono(
+        8.5,
+        kCaseGlassInk.withValues(alpha: 0.9),
+        weight: FontWeight.w700,
+        spacing: 0.2,
+      ),
+    ),
+  ],
+);
+
+/// The four stats as the detail cards rate them (a few hundred), or with
+/// [potential] their potentials, marked P.
+Widget _caseStats(CreatureInstance i, {bool potential = false}) {
+  String f(double current, double pot) => potential
+      ? 'P${AlchemonStatSystem.normalizePotential(pot)}'
+      : '${AlchemonStatSystem.displayRating(current)}';
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.end,
+    mainAxisSize: MainAxisSize.min,
+    spacing: 2,
+    children: [
+      _caseLine(
+        'SPD',
+        const Color(0xFFFDE047),
+        f(i.statSpeed, i.statSpeedPotential),
+      ),
+      _caseLine(
+        'INT',
+        const Color(0xFFC084FC),
+        f(i.statIntelligence, i.statIntelligencePotential),
+      ),
+      _caseLine(
+        'STR',
+        const Color(0xFFF87171),
+        f(i.statStrength, i.statStrengthPotential),
+      ),
+      _caseLine(
+        'BEA',
+        const Color(0xFFF9A8D4),
+        f(i.statBeauty, i.statBeautyPotential),
+      ),
+    ],
+  );
+}
+
+/// Only what deviates earns a line, as on the detail cards.
+Widget _caseGenetics(CreatureInstance i, double maxWidth) {
+  final genetics = decodeGenetics(i.geneticsJson);
+  final size = genetics?.get('size') ?? 'normal';
+  final tint = genetics?.get('tinting') ?? 'normal';
+  final variant = i.variantFaction?.trim() ?? '';
+  final mutation = AlchemonMutation.byId(i.mutation);
+  final lines = <(String, Color)>[
+    if (i.isPrismaticSkin == true) ('PRISMATIC', const Color(0xFFE040FB)),
+    if (mutation != null)
+      (mutation.label.toUpperCase(), mutationAccent(mutation)),
+    if (variant.isNotEmpty) (variant.toUpperCase(), kCaseGilt),
+    if (size != 'normal') ((sizeLabels[size] ?? size).toUpperCase(), kCaseGilt),
+    if (tint != 'normal') ((tintLabels[tint] ?? tint).toUpperCase(), kCaseGilt),
+    if (i.natureId?.isNotEmpty == true)
+      (i.natureId!.toUpperCase(), kCaseGlassInk),
+    if (i.natureId2?.isNotEmpty == true)
+      (i.natureId2!.toUpperCase(), kCaseGlassInk),
+  ];
+  return ConstrainedBox(
+    constraints: BoxConstraints(maxWidth: maxWidth),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      spacing: 2,
+      children: [
+        for (final (text, color) in lines)
+          Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: caseMono(8.5, color, spacing: 0.4),
+          ),
+      ],
+    ),
+  );
+}
+
+/// A stat sort's figure as the detail cards print it: a rating, or the
+/// potential on its own scale.
+String _sortFigure(SortBy sort, CreatureInstance i) {
+  final v = sort.valueForInstance(i);
+  return switch (sort) {
+    SortBy.potentialSpeed ||
+    SortBy.potentialIntelligence ||
+    SortBy.potentialStrength ||
+    SortBy.potentialBeauty => 'P${AlchemonStatSystem.normalizePotential(v)}',
+    SortBy.combinedPotential =>
+      'P${AlchemonStatSystem.normalizePotential(i.statSpeedPotential) + AlchemonStatSystem.normalizePotential(i.statIntelligencePotential) + AlchemonStatSystem.normalizePotential(i.statStrengthPotential) + AlchemonStatSystem.normalizePotential(i.statBeautyPotential)}',
+    _ => '${AlchemonStatSystem.displayRating(v)}',
+  };
 }

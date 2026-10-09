@@ -185,6 +185,7 @@ class AppIcons {
   static const IconData grain_rounded = PhosphorIconsBold.dotsThree;
   static const IconData graphic_eq_rounded = PhosphorIconsBold.equalizer;
   static const IconData grass_rounded = PhosphorIconsBold.plant;
+  static const IconData grid_nine = PhosphorIconsBold.gridNine;
   static const IconData grid_3x3_rounded = PhosphorIconsBold.squaresFour;
   static const IconData grid_view_rounded = PhosphorIconsBold.squaresFour;
   static const IconData group_add_rounded = PhosphorIconsBold.userPlus;

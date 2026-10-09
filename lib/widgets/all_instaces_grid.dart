@@ -11,6 +11,7 @@ import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dar
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart';
 import 'package:alchemons/widgets/instance_widgets/intance_filter_panel.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
@@ -74,6 +75,9 @@ class AllCreatureInstances extends StatefulWidget {
   /// pickers that read stats, genetics or enhancement off each card.
   final bool caseCards;
 
+  /// Cases per row on a phone (3, or 4 when condensed).
+  final int caseColumns;
+
   /// Only this species' specimens (a species id like 'LET01'), set from
   /// outside — the Creatures tab after a species is picked in the catalog.
   final String? speciesIdFilter;
@@ -104,6 +108,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.caseCards = false,
     this.speciesIdFilter,
     this.bottomInset = 0,
+    this.caseColumns = 3,
   });
 
   @override
@@ -193,6 +198,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     'filterVariant': _filterVariant,
     'filterPurity': _filterPurity.name,
     'detailMode': _detailMode.name,
+    'caseView': _caseView.name,
   };
 
   void _fromPrefs(Map<String, dynamic> p) {
@@ -226,6 +232,10 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
       (e) => e.name == (p['detailMode'] ?? _detailMode.name),
       orElse: () => widget.initialDetailMode,
     );
+    _caseView = CaseView.values.firstWhere(
+      (e) => e.name == p['caseView'],
+      orElse: () => CaseView.plain,
+    );
     if (_detailMode == InstanceDetailMode.info ||
         (_detailMode == InstanceDetailMode.enhancement &&
             !widget.allowEnhancementMode)) {
@@ -246,6 +256,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   }
 
   late InstanceDetailMode _detailMode;
+
+  /// What the cases print in their top-right corner.
+  CaseView _caseView = CaseView.plain;
 
   @override
   void initState() {
@@ -645,21 +658,38 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     }
   }
 
+  /// A stat sort lit in its stat's color, as on the detail cards.
+  static Color? _statSortColor(SortBy sort) => switch (sort.statFamily) {
+    'speed' => const Color(0xFFFDE047),
+    'intelligence' => const Color(0xFFC084FC),
+    'strength' => const Color(0xFFF87171),
+    'beauty' => const Color(0xFFF9A8D4),
+    _ => sort == SortBy.combinedPotential ? const Color(0xFFFDE047) : null,
+  };
+
   /// The case view's sort row: words on one line, the active one lit.
   Widget _caseSortRow(bool hasPotentialAnalyzer) {
     final palette = BracketPalette.fromTheme(widget.theme);
     final accent = bracketReadableAccent(widget.theme);
-    Widget word(String label, bool on, VoidCallback onTap) => GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: context.soundAction(onTap),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(4, 8, 10, 8),
-        child: Text(
-          label,
-          style: caseMono(10.5, on ? accent : palette.muted, spacing: 1.2),
-        ),
-      ),
-    );
+    Widget word(String label, bool on, VoidCallback onTap, [Color? lit]) =>
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: context.soundAction(() {
+            HapticFeedback.lightImpact();
+            onTap();
+          }),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(4, 8, 10, 8),
+            child: Text(
+              label,
+              style: caseMono(
+                12.5,
+                on ? (lit ?? accent) : palette.muted,
+                spacing: 1.2,
+              ),
+            ),
+          ),
+        );
     final levelOn = _sortBy == SortBy.levelHigh || _sortBy == SortBy.levelLow;
     return Padding(
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
@@ -674,7 +704,13 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
               child: Row(
                 children: [
                   word(
-                    _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
+                    'FAVS',
+                    _filterFavorites,
+                    () => _mutate(() => _filterFavorites = !_filterFavorites),
+                    const Color(0xFFF472B6),
+                  ),
+                  word(
+                    _sortBy == SortBy.oldest ? 'OLD' : 'NEW',
                     _sortBy == SortBy.newest || _sortBy == SortBy.oldest,
                     () => _mutate(() {
                       _sortBy = _sortBy == SortBy.newest
@@ -683,7 +719,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     }),
                   ),
                   word(
-                    levelOn && _sortBy == SortBy.levelLow ? 'LEVEL ↑' : 'LEVEL',
+                    levelOn && _sortBy == SortBy.levelLow ? 'LVL ↑' : 'LVL',
                     levelOn,
                     () => _mutate(() {
                       _sortBy = _sortBy == SortBy.levelHigh
@@ -692,18 +728,65 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     }),
                   ),
                   word(
-                    _sortBy.isStatSort ? _sortBy.shortLabel : 'STATS',
-                    _sortBy.isStatSort,
+                    _sortBy.isBaseStatSort ? _sortBy.shortLabel : 'STATS',
+                    _sortBy.isBaseStatSort,
                     () => _mutate(() {
-                      _sortBy = _sortBy.nextStatSort(
-                        includePotential: hasPotentialAnalyzer,
-                      );
+                      _sortBy = _sortBy.nextStatSort(includePotential: false);
                     }),
+                    _statSortColor(_sortBy),
                   ),
+                  // Potentials sort on their own once the analyzer is
+                  // unlocked: the four stats, then all four together.
+                  if (hasPotentialAnalyzer)
+                    word(
+                      switch (_sortBy) {
+                        SortBy.combinedPotential => 'TOTPOT',
+                        _ when _sortBy.isPotentialSort => _sortBy.shortLabel,
+                        _ => 'POT',
+                      },
+                      _sortBy.isPotentialSort,
+                      () => _mutate(() {
+                        const cycle = [
+                          SortBy.potentialSpeed,
+                          SortBy.potentialIntelligence,
+                          SortBy.potentialStrength,
+                          SortBy.potentialBeauty,
+                          SortBy.combinedPotential,
+                        ];
+                        final at = cycle.indexOf(_sortBy);
+                        _sortBy = cycle[(at + 1) % cycle.length];
+                      }),
+                      _statSortColor(_sortBy),
+                    ),
                   word(
-                    'STAMINA',
+                    'STAM',
                     _sortBy == SortBy.staminaHigh,
                     () => _mutate(() => _sortBy = SortBy.staminaHigh),
+                    const Color(0xFF4ADE80),
+                  ),
+                  word(
+                    switch (_caseView) {
+                      CaseView.plain => 'PLAIN',
+                      CaseView.stats => 'STATS',
+                      CaseView.potential => 'POTENTIAL',
+                      CaseView.genetics => 'GENETICS',
+                    },
+                    _caseView != CaseView.plain,
+                    () => _mutate(() {
+                      // POTENTIAL only once the analyzer is unlocked.
+                      final order = [
+                        for (final v in CaseView.values)
+                          if (v != CaseView.potential || hasPotentialAnalyzer)
+                            v,
+                      ];
+                      final at = order.indexOf(_caseView);
+                      _caseView = order[(at + 1) % order.length];
+                    }),
+                    switch (_caseView) {
+                      CaseView.genetics => const Color(0xFF7DD3FC),
+                      CaseView.potential => const Color(0xFFFDE047),
+                      _ => const Color(0xFFF87171),
+                    },
                   ),
                 ],
               ),
@@ -711,7 +794,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
           ),
           const SizedBox(width: 8),
           word(
-            _filtersOpen ? 'FILTER ▴' : 'FILTER ▾',
+            _filtersOpen ? 'MORE ▴' : 'MORE ▾',
             _filtersOpen || _hasAdvancedFilters || _hasBrowseChipSelection,
             () => _mutate(() => _filtersOpen = !_filtersOpen),
           ),
@@ -826,7 +909,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     runSpacing: 6,
                     children: [
                       BracketControlChip(
-                        label: _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
+                        label: _sortBy == SortBy.oldest ? 'OLD' : 'NEW',
                         accentColor: widget.theme.primary,
                         labelFontSize: 10.5,
                         selected:
@@ -1041,11 +1124,15 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                 onPickNature: (val) => _mutate(() => _filterNature = val),
                 natureOptions: _buildNatureOptions(),
                 filterFavorites: _filterFavorites,
-                onToggleFavorites: () =>
-                    _mutate(() => _filterFavorites = !_filterFavorites),
+                // The cases have FAVS in their sort row.
+                onToggleFavorites: widget.caseCards
+                    ? null
+                    : () => _mutate(() => _filterFavorites = !_filterFavorites),
                 filterHasStamina: _filterHasStamina,
-                onToggleHasStamina: () =>
-                    _mutate(() => _filterHasStamina = !_filterHasStamina),
+                onToggleHasStamina: widget.caseCards
+                    ? null
+                    : () =>
+                          _mutate(() => _filterHasStamina = !_filterHasStamina),
                 showSortRow: false,
                 showClearChip: false,
                 showInactiveBrackets: false,
@@ -1076,7 +1163,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                           ? SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: responsiveCrossAxisCount(
                                 context,
-                                phoneCols: 3,
+                                phoneCols: widget.caseColumns,
                               ),
                               childAspectRatio: 0.74,
                               crossAxisSpacing: 8,
@@ -1128,6 +1215,12 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                             isSelected: isSelected,
                             selectionNumber: selectionNumber,
                             sortBy: _sortBy,
+                            showStamina: widget.caseColumns < 4,
+                            view:
+                                _caseView == CaseView.potential &&
+                                    !hasPotentialAnalyzer
+                                ? CaseView.stats
+                                : _caseView,
                             cornerBadge: widget.cardBadgeBuilder?.call(
                               inst,
                               creature,

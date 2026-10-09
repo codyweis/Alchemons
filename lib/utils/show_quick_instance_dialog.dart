@@ -354,65 +354,67 @@ class _QuickInstanceCardState extends State<_QuickInstanceCard> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // ── Header: who it is ──────────────────────────────────────
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        hasNick ? nick : creature.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: bracketText(
-                          context,
-                          20,
-                          palette.ink,
-                          weight: FontWeight.w600,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      if (hasNick)
+            IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         Text(
-                          creature.name,
+                          hasNick ? nick : creature.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: bracketText(
                             context,
-                            12,
-                            palette.muted,
-                            fontStyle: FontStyle.italic,
+                            20,
+                            palette.ink,
+                            weight: FontWeight.w600,
+                            letterSpacing: 0.4,
                           ),
                         ),
-                      const SizedBox(height: 8),
-                      RarityElementMark(
-                        species: creature,
-                        prismatic: _instance.isPrismaticSkin == true,
-                      ),
-                    ],
+                        if (hasNick)
+                          Text(
+                            creature.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: bracketText(
+                              context,
+                              12,
+                              palette.muted,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        const SizedBox(height: 8),
+                        RarityElementMark(
+                          species: creature,
+                          prismatic: _instance.isPrismaticSkin == true,
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                _FramedIconButton(
-                  icon: isFavorite
-                      ? AppIcons.star_filled
-                      : AppIcons.star_border_rounded,
-                  iconColor: isFavorite ? favoriteAccent : palette.muted,
-                  frameColor: isFavorite ? favoriteAccent : palette.line,
-                  palette: palette,
-                  busy: _favoriteBusy,
-                  onTap: _toggleFavorite,
-                ),
-                const SizedBox(width: 8),
-                _FramedIconButton(
-                  icon: AppIcons.close_rounded,
-                  iconColor: palette.muted,
-                  frameColor: palette.line,
-                  palette: palette,
-                  onTap: () => Navigator.of(context).pop(),
-                ),
-              ],
+                  const SizedBox(width: 10),
+                  _FramedIconButton(
+                    icon: isFavorite
+                        ? AppIcons.star_filled
+                        : AppIcons.star_border_rounded,
+                    iconColor: isFavorite ? favoriteAccent : palette.muted,
+                    frameColor: isFavorite ? favoriteAccent : palette.line,
+                    palette: palette,
+                    busy: _favoriteBusy,
+                    onTap: _toggleFavorite,
+                  ),
+                  const SizedBox(width: 8),
+                  _FramedIconButton(
+                    icon: AppIcons.close_rounded,
+                    iconColor: palette.muted,
+                    frameColor: palette.line,
+                    palette: palette,
+                    onTap: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 12),
 
@@ -755,23 +757,21 @@ class _FramedIconButton extends StatelessWidget {
       child: CustomPaint(
         painter: BracketFramePainter(
           color: frameColor.withValues(alpha: 0.8),
-          bracketSize: 7,
+          bracketSize: 9,
         ),
         child: Container(
-          width: 34,
-          height: 34,
+          width: 52,
           alignment: Alignment.center,
-          color: palette.surfaceFill(lightAlpha: 0.94),
           child: busy
               ? SizedBox(
-                  width: 14,
-                  height: 14,
+                  width: 20,
+                  height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 1.8,
                     valueColor: AlwaysStoppedAnimation<Color>(iconColor),
                   ),
                 )
-              : Icon(icon, color: iconColor, size: 17),
+              : Icon(icon, color: iconColor, size: 24),
         ),
       ),
     );

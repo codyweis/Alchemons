@@ -784,120 +784,132 @@ class _HeaderBar extends StatelessWidget {
           bottom: BorderSide(color: palette.line.withValues(alpha: 0.5)),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: instance != null
-                    ? InkWell(
-                        onTap: context.soundAction(
-                          nicknameBusy
-                              ? null
-                              : () {
-                                  HapticFeedback.lightImpact();
-                                  onEditName();
-                                },
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  displayName,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: bracketText(
-                                    context,
-                                    20,
-                                    palette.ink,
-                                    weight: FontWeight.w600,
-                                    letterSpacing: 0.4,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: instance != null
+                            ? InkWell(
+                                onTap: context.soundAction(
+                                  nicknameBusy
+                                      ? null
+                                      : () {
+                                          HapticFeedback.lightImpact();
+                                          onEditName();
+                                        },
+                                ),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 2,
                                   ),
+                                  child: Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          displayName,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: bracketText(
+                                            context,
+                                            20,
+                                            palette.ink,
+                                            weight: FontWeight.w600,
+                                            letterSpacing: 0.4,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      if (nicknameBusy)
+                                        SizedBox(
+                                          width: 13,
+                                          height: 13,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 1.6,
+                                            valueColor:
+                                                AlwaysStoppedAnimation<Color>(
+                                                  _dialogAccent(context),
+                                                ),
+                                          ),
+                                        )
+                                      else
+                                        Icon(
+                                          AppIcons.edit_outlined,
+                                          size: 14,
+                                          color: palette.muted,
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            : Text(
+                                creature.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: bracketText(
+                                  context,
+                                  20,
+                                  palette.ink,
+                                  weight: FontWeight.w600,
+                                  letterSpacing: 0.4,
                                 ),
                               ),
-                              const SizedBox(width: 8),
-                              if (nicknameBusy)
-                                SizedBox(
-                                  width: 13,
-                                  height: 13,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.6,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                      _dialogAccent(context),
-                                    ),
-                                  ),
-                                )
-                              else
-                                Icon(
-                                  AppIcons.edit_outlined,
-                                  size: 14,
-                                  color: palette.muted,
-                                ),
-                            ],
-                          ),
-                        ),
-                      )
-                    : Text(
-                        creature.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: bracketText(
-                          context,
-                          20,
-                          palette.ink,
-                          weight: FontWeight.w600,
-                          letterSpacing: 0.4,
-                        ),
                       ),
-              ),
-              const SizedBox(width: 10),
-              if (instance != null) ...[
-                _HeaderIconButton(
-                  // star_rounded and star_border_rounded are the same outline
-                  // glyph, so the "on" state never actually filled.
-                  icon: isFavorite
-                      ? AppIcons.star_filled
-                      : AppIcons.star_border_rounded,
-                  iconColor: isFavorite ? favoriteAccent : palette.muted,
-                  frameColor: isFavorite ? favoriteAccent : palette.line,
-                  busy: favoriteBusy,
-                  onTap: favoriteBusy ? null : onToggleFavorite,
-                ),
-                const SizedBox(width: 8),
-              ],
-              _HeaderIconButton(
-                icon: AppIcons.close_rounded,
-                iconColor: palette.muted,
-                frameColor: palette.line,
-                onTap: context.soundAction(onClose),
-              ),
-            ],
-          ),
-          if (hasNickname) ...[
-            const SizedBox(height: 2),
-            Text(
-              creature.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: bracketText(
-                context,
-                12,
-                palette.muted,
-                weight: FontWeight.w500,
-                fontStyle: FontStyle.italic,
+                    ],
+                  ),
+                  if (hasNickname) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      creature.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(
+                        context,
+                        12,
+                        palette.muted,
+                        weight: FontWeight.w500,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  RarityElementMark(
+                    species: creature,
+                    prismatic: creature.isPrismaticSkin == true,
+                  ),
+                ],
               ),
             ),
+            const SizedBox(width: 10),
+            if (instance != null) ...[
+              _HeaderIconButton(
+                // star_rounded and star_border_rounded are the same outline
+                // glyph, so the "on" state never actually filled.
+                icon: isFavorite
+                    ? AppIcons.star_filled
+                    : AppIcons.star_border_rounded,
+                iconColor: isFavorite ? favoriteAccent : palette.muted,
+                frameColor: isFavorite ? favoriteAccent : palette.line,
+                busy: favoriteBusy,
+                onTap: favoriteBusy ? null : onToggleFavorite,
+              ),
+              const SizedBox(width: 8),
+            ],
+            _HeaderIconButton(
+              icon: AppIcons.close_rounded,
+              iconColor: palette.muted,
+              frameColor: palette.line,
+              onTap: context.soundAction(onClose),
+            ),
           ],
-          const SizedBox(height: 8),
-          RarityElementMark(
-            species: creature,
-            prismatic: creature.isPrismaticSkin == true,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -920,7 +932,6 @@ class _HeaderIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = _bp(context);
     return GestureDetector(
       onTap: context.soundAction(
         onTap == null
@@ -933,24 +944,22 @@ class _HeaderIconButton extends StatelessWidget {
       child: CustomPaint(
         painter: BracketFramePainter(
           color: frameColor.withValues(alpha: 0.8),
-          bracketSize: 7,
+          bracketSize: 9,
           strokeWidth: 1,
         ),
         child: Container(
-          width: 32,
-          height: 32,
+          width: 52,
           alignment: Alignment.center,
-          color: palette.surfaceFill(lightAlpha: 0.94),
           child: busy
               ? SizedBox(
-                  width: 14,
-                  height: 14,
+                  width: 20,
+                  height: 20,
                   child: CircularProgressIndicator(
                     strokeWidth: 1.8,
                     valueColor: AlwaysStoppedAnimation<Color>(iconColor),
                   ),
                 )
-              : Icon(icon, color: iconColor, size: 16),
+              : Icon(icon, color: iconColor, size: 24),
         ),
       ),
     );
