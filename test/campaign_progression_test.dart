@@ -423,5 +423,61 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('cosmic_fog_state_v2', 'changed');
     await expectMoved('the cosmic fog state in SharedPreferences');
+    await db.settingsDao.setSetting('enc.family.outcomes.v2', '["x"]');
+    await expectMoved('a formula recorded in the encyclopedia');
+    await prefs.setString('altars.stars.v1', '{"1":2}');
+    await expectMoved('an altar solved');
+    await prefs.setString('cosmic_home_planet_v1', 'built');
+    await expectMoved('the home planet built');
+    await db.creatureDao.insertInstance(
+      instanceId: 'gilded',
+      baseId: 'LET02',
+      mutation: 'transmuted',
+    );
+    await expectMoved('a mutated specimen');
+  });
+
+  test(
+    'the newer systems earn their achievements from what they keep',
+    () async {
+      final journal = CampaignJournalService(db);
+      CampaignAchievement byId(String id) =>
+          campaignAchievements.firstWhere((a) => a.id == id);
+      var s = await journal.load();
+      for (final id in [
+        'alchemy_1',
+        'home_planet',
+        'mutation_1',
+        'planet_stars_1',
+        'contest_master',
+        'formulas_10',
+      ]) {
+        expect(s.earned(byId(id)), isFalse, reason: '$id on a new save');
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('altars.stars.v1', '{"1":3,"2":1}');
+      await prefs.setString('cosmic_home_planet_v1', 'built');
+      await db.creatureDao.insertInstance(
+        instanceId: 'gilded',
+        baseId: 'LET02',
+        mutation: 'transmuted',
+      );
+      s = await journal.load();
+      expect(s.earned(byId('alchemy_1')), isTrue);
+      expect(s.progress(byId('alchemy_15')), 2);
+      expect(s.progress(byId('alchemy_stars')), 4);
+      expect(s.earned(byId('home_planet')), isTrue);
+      expect(s.earned(byId('mutation_1')), isTrue);
+    },
+  );
+
+  test('the main story is listed in chapter order', () {
+    final story = campaignAchievements
+        .where((a) => campaignMissionIds.contains(a.id))
+        .map((a) => a.id)
+        .toList();
+    expect(story, campaignMissionIds);
+    expect(kHiddenMaximCount, greaterThan(6));
   });
 }

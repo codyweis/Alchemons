@@ -83,7 +83,7 @@ Generated from authored text found in the repo.
 ## Cosmic: Ship Discovery
 
 - Source: `lib/screens/scenes/scene_page.dart`
-- Reachability: Reachable after visiting all four core biomes and finding the ship in valley.
+- Reachability: Reachable after the ship comes down (the eighth visit to the wild, in whichever realm) and is claimed.
 
 - [Dialog] The Cosmic Ship
 - "Recognizing that the world is but an illusion, does not act as if it were real, so he escapes suffering."

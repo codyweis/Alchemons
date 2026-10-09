@@ -5944,6 +5944,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!confirmed || !mounted) return;
     final success = _customizationState.tryUnlock(recipeId, _elementStorage);
     if (success) {
+      unawaited(
+        CampaignJournalService.mark(
+          context.read<AlchemonsDatabase>().settingsDao,
+          'customization',
+        ),
+      );
       _saveCustomizationState();
       _saveElementStorage();
       // Update game visuals

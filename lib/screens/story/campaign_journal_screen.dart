@@ -182,7 +182,17 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     const collection = {'collection', 'fuse_', 'pure_'};
     if (collection.any(a.id.startsWith)) return 'Collection';
     if (a.id.startsWith('survival')) return 'Survival';
-    const exploration = {'planets', 'raid', 'portal', 'maxim', 'constellation'};
+    const alchemy = {'alchemy_', 'formulas_', 'mutation_'};
+    if (alchemy.any(a.id.startsWith)) return 'Alchemy';
+    const exploration = {
+      'planets',
+      'planet_stars',
+      'home_planet',
+      'raid',
+      'portal',
+      'maxim',
+      'constellation',
+    };
     if (exploration.any(a.id.startsWith)) return 'Exploration';
     return 'Challenges';
   }
@@ -447,7 +457,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
               const SizedBox(height: 6),
               Text(
                 '${s.progress(a)} / ${a.target}'
-                '${a.metric == 'collectionPercent' ? '%' : ''}',
+                '${a.metric.endsWith('Percent') ? '%' : ''}',
                 style: TextStyle(
                   fontFamily: 'monospace',
                   color: fc.textMuted,
@@ -1086,6 +1096,7 @@ class _FilterRow extends StatelessWidget {
     'All',
     'Collection',
     'Story',
+    'Alchemy',
     'Exploration',
     'Survival',
     'Challenges',

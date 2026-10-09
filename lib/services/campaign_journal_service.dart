@@ -9,6 +9,9 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/data/mystic_altar_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/heart_puzzle/heart_puzzle_levels.dart';
+import 'package:alchemons/games/heart_puzzle/heart_puzzle_progress.dart';
+import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -69,12 +72,6 @@ const campaignEntries = [
   ),
 ];
 
-/// Metrics that are simply "how many times has the player done this".
-///
-/// Each is a settings counter bumped by [CampaignJournalService.bump] at the
-/// place the thing happens. Kept in one map so the metric name, the storage
-/// key and the read all come from a single line — a counter that is written
-/// under one key and read under another fails silently forever.
 /// The mutation families with a "cultivate five" achievement.
 ///
 /// Generated rather than hand-written: six near-identical entries invite the
@@ -97,6 +94,12 @@ String fusionMetric(String family) =>
 /// Every skill on every constellation tree.
 final kConstellationSkillCount = ConstellationCatalog.allSkills.length;
 
+/// Metrics that are simply "how many times has the player done this".
+///
+/// Each is a settings counter bumped by [CampaignJournalService.bump] at the
+/// place the thing happens. Kept in one map so the metric name, the storage
+/// key and the read all come from a single line — a counter that is written
+/// under one key and read under another fails silently forever.
 final kCampaignCounters = <String, String>{
   for (final f in kFusionFamilies)
     fusionMetric(f): 'campaign_fuse_family_${f}_v1',
@@ -113,12 +116,10 @@ final kCampaignCounters = <String, String>{
   'purebredNew': 'campaign_pure_new_species_v1',
 };
 
-/// How many hidden maxims exist to be found.
-///
-/// Six planets carry one today; the intention is one per planet. Raise this as
-/// they are added — until then "every maxim" must not ask for maxims that do
-/// not exist, or it can never be earned.
-const kHiddenMaximCount = 6;
+/// How many hidden maxims exist to be found: one on every planet now. It
+/// was six while only six carried one, and was left there as the rest were
+/// added, so "every maxim" paid out after any six.
+final kHiddenMaximCount = kCosmicPlanetEntry.length;
 
 class CampaignAchievement {
   const CampaignAchievement(
@@ -151,6 +152,69 @@ class CampaignAchievement {
 }
 
 final campaignAchievements = <CampaignAchievement>[
+  // ── The main story, in chapter order ──────────────────────────────────────
+  // The ready and collected lists keep this order, and the last three
+  // chapters used to head it: a finished save listed its ending first.
+  CampaignAchievement(
+    'first_extraction',
+    'Awakened',
+    'Extract your first specimen.',
+    'extraction',
+    1,
+    1,
+    100,
+  ),
+  CampaignAchievement(
+    'ship',
+    'Beyond the veil',
+    'Recover the cosmic ship.',
+    'ship',
+    1,
+    1,
+    200,
+  ),
+  CampaignAchievement(
+    'revelation',
+    'Beauty falls away',
+    'Witness the first planetary revelation.',
+    'revelation',
+    1,
+    1,
+    300,
+  ),
+  CampaignAchievement(
+    'guardian_1',
+    'What remained',
+    'Overcome a planetary guardian.',
+    'guardians',
+    1,
+    1,
+    400,
+  ),
+  CampaignAchievement(
+    'mystic_1',
+    'A familiar practice',
+    'Complete a Mystic summoning ritual.',
+    'mystics',
+    1,
+    1,
+    500,
+    items: {
+      InvKeys.powerupSpeed: 2,
+      InvKeys.powerupIntelligence: 2,
+      InvKeys.powerupStrength: 2,
+      InvKeys.powerupBeauty: 2,
+    },
+  ),
+  CampaignAchievement(
+    'guardian_16',
+    'The unsealed worlds',
+    'Overcome all 16 non-Blood guardians.',
+    'guardians',
+    16,
+    1,
+    600,
+  ),
   CampaignAchievement(
     'blood_guardian',
     'The last guardian',
@@ -178,6 +242,17 @@ final campaignAchievements = <CampaignAchievement>[
     1,
     900,
   ),
+  CampaignAchievement(
+    'ending',
+    'Reborn',
+    'Complete the Blood Ring ritual.',
+    'ending',
+    1,
+    1,
+    1000,
+  ),
+
+  // ── Collection ────────────────────────────────────────────────────────────
   CampaignAchievement(
     'collection_10',
     'First specimens',
@@ -227,75 +302,6 @@ final campaignAchievements = <CampaignAchievement>[
     // The longest task in the game paid less than a single portal key.
     100,
     5000,
-  ),
-  CampaignAchievement(
-    'first_extraction',
-    'Awakened',
-    'Extract your first specimen.',
-    'extraction',
-    1,
-    1,
-    100,
-  ),
-  CampaignAchievement(
-    'ship',
-    'Beyond the veil',
-    'Recover the cosmic ship.',
-    'ship',
-    1,
-    1,
-    200,
-  ),
-  CampaignAchievement(
-    'revelation',
-    'Beauty falls away',
-    'Witness the first planetary revelation.',
-    'revelation',
-    1,
-    1,
-    300,
-  ),
-  CampaignAchievement(
-    'guardian_1',
-    'What remained',
-    'Overcome a planetary guardian.',
-    'guardians',
-    1,
-    1,
-    400,
-  ),
-  CampaignAchievement(
-    'guardian_16',
-    'The unsealed worlds',
-    'Overcome all 16 non-Blood guardians.',
-    'guardians',
-    16,
-    1,
-    600,
-  ),
-  CampaignAchievement(
-    'mystic_1',
-    'A familiar practice',
-    'Complete a Mystic summoning ritual.',
-    'mystics',
-    1,
-    1,
-    500,
-    items: {
-      InvKeys.powerupSpeed: 2,
-      InvKeys.powerupIntelligence: 2,
-      InvKeys.powerupStrength: 2,
-      InvKeys.powerupBeauty: 2,
-    },
-  ),
-  CampaignAchievement(
-    'ending',
-    'Reborn',
-    'Complete the Blood Ring ritual.',
-    'ending',
-    1,
-    1,
-    1000,
   ),
   // ── Practice: the systems, taught by paying you in them ───────────────────
   for (final f in kFusionFamilies)
@@ -393,11 +399,80 @@ final campaignAchievements = <CampaignAchievement>[
   CampaignAchievement(
     'customization_1',
     'Made your own',
-    'Customize the cosmic ship.',
+    // It was only ever set by a home planet colour, while it asked for the
+    // ship; either counts now.
+    'Customize your ship or your home planet.',
     'customization',
     1,
     1,
     150,
+  ),
+
+  // ── Alchemy: the formulas, the altars they open, what the wild makes ──────
+  CampaignAchievement(
+    'formulas_10',
+    'A page of formulas',
+    'Record 10 formulas in the Alchemical Encyclopedia.',
+    'formulas',
+    10,
+    1,
+    200,
+  ),
+  CampaignAchievement(
+    'formulas_all',
+    'The altars open',
+    'Record every element and family formula. Alchemy opens with the last.',
+    'formulasPercent',
+    100,
+    3,
+    800,
+  ),
+  CampaignAchievement(
+    'alchemy_1',
+    'The first transmutation',
+    'Solve an altar in Alchemy.',
+    'altars',
+    1,
+    1,
+    300,
+  ),
+  CampaignAchievement(
+    'alchemy_15',
+    'Fifteen answers',
+    'Solve 15 altars.',
+    'altars',
+    15,
+    2,
+    600,
+  ),
+  CampaignAchievement(
+    'alchemy_all',
+    'Every altar answered',
+    'Solve every altar.',
+    'altars',
+    kAltarLevels.length,
+    5,
+    1500,
+  ),
+  CampaignAchievement(
+    'alchemy_stars',
+    'Not a move wasted',
+    'Earn three stars on every altar.',
+    'altarStars',
+    kAltarLevels.length * 3,
+    5,
+    1000,
+    items: {InvKeys.alchemyPrismaticCascade: 1},
+  ),
+  CampaignAchievement(
+    'mutation_1',
+    'Changed in the crossing',
+    'Cultivate an Alchemized or Transmuted Alchemon.',
+    'mutations',
+    1,
+    2,
+    500,
+    items: {InvKeys.alchemyRitualGold: 1},
   ),
 
   // ── Exploration ───────────────────────────────────────────────────────────
@@ -424,9 +499,36 @@ final campaignAchievements = <CampaignAchievement>[
     'The whole sky',
     'Discover every planet.',
     'planets',
-    17,
+    kCosmicPlanetEntry.length,
     3,
     1000,
+  ),
+  CampaignAchievement(
+    'home_planet',
+    'A home among the stars',
+    'Build your home planet in cosmic space.',
+    'homePlanet',
+    1,
+    1,
+    300,
+  ),
+  CampaignAchievement(
+    'planet_stars_1',
+    'Every star on a world',
+    'Earn all three stars on a planet.',
+    'planetsCleared',
+    1,
+    2,
+    400,
+  ),
+  CampaignAchievement(
+    'planet_stars_all',
+    'Every world, every star',
+    'Earn all three stars on every planet.',
+    'planetsCleared',
+    kCosmicPlanetEntry.length,
+    10,
+    3000,
   ),
   CampaignAchievement(
     'portal_1',
@@ -574,6 +676,15 @@ final campaignAchievements = <CampaignAchievement>[
     2,
     250,
   ),
+  CampaignAchievement(
+    'contest_master',
+    'The judges have no more to ask',
+    'Win every round of one kind of contest.',
+    'contestsMastered',
+    1,
+    3,
+    600,
+  ),
 ];
 
 /// Existing achievement IDs are also mission rewards: one milestone, one payout.
@@ -600,8 +711,11 @@ const campaignMissionInstructions = {
   // Deliberately does not name what is waiting. This is the first objective a
   // new player reads, and it used to give away the discovery it is sending
   // them to make.
+  // Where it comes down is wherever the player is when it does (the eighth
+  // trip into the wild, OpeningWildernessService.shipArrivalVisit); this
+  // used to send them back to the Valley for it.
   'ship':
-      'Finish the wilderness fusion and harvest. Visit Valley, Sky, Swamp and Volcano, then return to Valley — something there did not survive the crossing intact.',
+      'Finish the wilderness fusion and harvest, then keep exploring the wild realms. Something is falling toward them, and it will find you there.',
   'revelation':
       'In cosmic space, complete a planet’s elemental gate offering. Assemble its required descent party and enter.',
   'guardian_1':
@@ -679,12 +793,14 @@ class CampaignJournalService {
   static const _contestsPref = 'cosmic_trait_contests_v1';
   static const _ringPref = 'cosmic_blood_ring_v1';
   static const _fogPref = 'cosmic_fog_state_v2';
+  static const _altarsPref = 'altars.stars.v1';
+  static const _homePlanetPref = 'cosmic_home_planet_v1';
 
   /// Settings rows [load] reads, as GLOB patterns and exact keys. Every
   /// counter in [kCampaignCounters], every claim flag, [revelationKey],
   /// [endingKey], the seen list and the survival-cleared record all live
   /// under `campaign_`.
-  static const _settingGlobs = ['campaign_*', 'altar_summoned_*'];
+  static const _settingGlobs = ['campaign_*', 'altar_summoned_*', 'enc.*'];
   static const _settingKeys = [
     'first_extraction_done',
     'cosmic_ship_unlocked',
@@ -717,7 +833,9 @@ class CampaignJournalService {
           '(SELECT COUNT(*) FROM player_creatures WHERE discovered = 1) AS c, '
           '(SELECT COUNT(*) FROM constellation_unlocks) AS u, '
           '(SELECT COALESCE(MAX(best_wave), 0) FROM survival_high_score '
-          'WHERE id = 1) AS w',
+          'WHERE id = 1) AS w, '
+          '(SELECT COUNT(*) FROM creature_instances '
+          'WHERE mutation IS NOT NULL) AS m',
           variables: [
             for (final g in _settingGlobs) Variable.withString(g),
             for (final k in _settingKeys) Variable.withString(k),
@@ -730,12 +848,15 @@ class CampaignJournalService {
       row.data['c'],
       row.data['u'],
       row.data['w'],
+      row.data['m'],
       // Compared with ==, which short-circuits on the identical cached
       // String the preferences instance hands back.
       prefs.getString(_starsPref),
       prefs.getString(_contestsPref),
       prefs.getString(_ringPref),
       prefs.getString(_fogPref),
+      prefs.getString(_altarsPref),
+      prefs.getString(_homePlanetPref),
     ];
   }
 
@@ -775,6 +896,18 @@ class CampaignJournalService {
         .length;
     final blood = summoned('boss_017');
     final ring = BloodRing.deserialise(prefs.getString(_ringPref) ?? '');
+    final altars = await AltarProgress.load();
+    final altarStars = [
+      for (var level = 1; level <= kAltarLevels.length; level++)
+        altars.starsOf(level),
+    ];
+    final formulas = await AlchemicalEncyclopediaService.formulaCount(db);
+    final mutated = await db
+        .customSelect(
+          'SELECT COUNT(*) AS n FROM creature_instances '
+          'WHERE mutation IS NOT NULL',
+        )
+        .getSingle();
     final legacyScore = await db.getSurvivalHighScore();
     final reached = max(
       int.tryParse(settings['cosmic_survival_best_wave'] ?? '') ?? 0,
@@ -823,6 +956,22 @@ class CampaignJournalService {
           (int.tryParse(settings['campaign_weekly_rites_v1'] ?? '') ?? 0),
       for (final t in CosmicContestTrait.values)
         t.name: contests.completedLevels(t),
+      'contestsMastered': CosmicContestTrait.values
+          .where(contests.isMastered)
+          .length,
+      'planetsCleared': kCosmicPlanetEntry.keys
+          .where((e) => stars.starsEarned(e) >= 3)
+          .length,
+      'homePlanet': (prefs.getString(_homePlanetPref) ?? '').isEmpty ? 0 : 1,
+      'altars': altarStars.where((s) => s > 0).length,
+      'altarStars': altarStars.fold(0, (a, b) => a + min(3, b)),
+      'formulas': formulas.found,
+      'formulasPercent': formulas.total == 0
+          ? 0
+          : formulas.found * 100 ~/ formulas.total,
+      // Read off the specimens that carry one, so a save from before this
+      // achievement is credited with the ones it already has.
+      'mutations': mutated.read<int>('n'),
     };
     final seen = _decodeSet(settings[_seenKey]);
     // Recover milestone records for older saves without inventing missing quotes.

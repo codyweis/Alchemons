@@ -1334,7 +1334,6 @@ class _FeedingScreenState extends State<FeedingScreen>
       _xpFrom = before;
       _xpTo = null;
     });
-    unawaited(CampaignJournalService.mark(db.settingsDao, 'enhance'));
 
     // Where each kin card sits and where the specimen stands, on one canvas.
     final body = await _captureBody();
@@ -1382,6 +1381,10 @@ class _FeedingScreenState extends State<FeedingScreen>
       maxLevel: AlchemonStatSystem.maxLevel,
       strictSpecies: true,
     );
+    // Counted once it has taken, not when it was asked for.
+    if (result.ok) {
+      unawaited(CampaignJournalService.mark(db.settingsDao, 'enhance'));
+    }
     if (!mounted) return;
     if (!result.ok) {
       setState(() {
@@ -1486,7 +1489,6 @@ class _FeedingScreenState extends State<FeedingScreen>
     if (_busy) return;
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
-    unawaited(CampaignJournalService.mark(db.settingsDao, 'orbUse'));
     _orbController.reset();
     _flashController.reset();
     HapticFeedback.mediumImpact();
@@ -1528,6 +1530,9 @@ class _FeedingScreenState extends State<FeedingScreen>
       powerup: type,
       repo: repo,
     );
+    if (result.ok) {
+      unawaited(CampaignJournalService.mark(db.settingsDao, 'orbUse'));
+    }
     if (!mounted) return;
     setState(() {
       _busy = false;
@@ -1551,7 +1556,6 @@ class _FeedingScreenState extends State<FeedingScreen>
     if (_busy) return;
     final db = context.read<AlchemonsDatabase>();
     final repo = context.read<CreatureCatalog>();
-    unawaited(CampaignJournalService.mark(db.settingsDao, 'soulUse'));
     _orbController.reset();
     _flashController.reset();
     HapticFeedback.mediumImpact();
@@ -1573,6 +1577,9 @@ class _FeedingScreenState extends State<FeedingScreen>
       stat: type,
       repo: repo,
     );
+    if (result.ok) {
+      unawaited(CampaignJournalService.mark(db.settingsDao, 'soulUse'));
+    }
     if (!mounted) return;
     if (!result.ok) {
       setState(() {

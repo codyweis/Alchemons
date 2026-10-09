@@ -355,6 +355,37 @@ class AlchemicalEncyclopediaService {
         : EncyclopediaDiscoveryResult(unlocked: unlocked);
   }
 
+  /// How many formulas are found, elements and families together, of all
+  /// there are: the count ALCHEMY opens on (AlchemyUnlock), without the
+  /// specimen scan [loadSnapshot] makes for the Codex.
+  static Future<({int found, int total})> formulaCount(
+    AlchemonsDatabase db,
+  ) async {
+    final recipes = await _loadCatalog();
+    final family = _pairKeysFromOutcomeKeys(
+      recipes.familyRecipes,
+      await _readDiscoveredOutcomeSet(
+        db,
+        currentKey: _familyDiscoveredKey,
+        legacyPairKey: _legacyFamilyDiscoveredKey,
+        recipesByPair: recipes.familyByPair,
+      ),
+    );
+    final element = _pairKeysFromOutcomeKeys(
+      recipes.elementRecipes,
+      await _readDiscoveredOutcomeSet(
+        db,
+        currentKey: _elementDiscoveredKey,
+        legacyPairKey: _legacyElementDiscoveredKey,
+        recipesByPair: recipes.elementByPair,
+      ),
+    );
+    return (
+      found: family.length + element.length,
+      total: recipes.familyRecipes.length + recipes.elementRecipes.length,
+    );
+  }
+
   static Future<_RecipeCatalog> _loadCatalog() async =>
       _catalog ??= await _buildCatalog();
 
