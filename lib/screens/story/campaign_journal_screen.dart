@@ -187,7 +187,6 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     return 'Challenges';
   }
 
-
   // ── Pieces ────────────────────────────────────────────────────────────────
 
   /// A reward, drawn with the coins the rest of the game uses rather than the
@@ -563,7 +562,10 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
             ),
         ],
       ),
-    if (s.seen.contains('extraction'))
+    // It plays at the first fusion, not the first extraction (the starter
+    // vial, which fuses nothing): the memory keeps until it has been heard.
+    if (context.read<StoryManager?>()?.hasSeen(StoryEvent.firstBreeding) ??
+        false)
       card(
         'An older echo',
         AlchemonsStory.breedingIntro

@@ -27,6 +27,7 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
     show kCompanionSpeciesScale;
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/screens/story/first_fusion_story.dart';
 import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -1256,6 +1257,10 @@ class _BreedingTabState extends State<BreedingTab>
         selectedParent1 = null;
         selectedParent2 = null;
       });
+
+      // The first time two become one, the older presence remembers it.
+      await maybePlayFirstFusionStory(context);
+      if (!mounted) return;
 
       widget.onBreedingComplete();
     } catch (e) {

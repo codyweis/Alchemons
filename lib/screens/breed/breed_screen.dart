@@ -3,7 +3,6 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/breed/breed_tab.dart';
 import 'package:alchemons/screens/breed/nursery_tab.dart';
-import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/services/push_notification_service.dart';
@@ -13,7 +12,6 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
-import 'package:alchemons/widgets/starter_granted_dialog.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -150,27 +148,9 @@ class _BreedScreenState extends State<BreedScreen> {
         await db.settingsDao.getSetting('first_extraction_done') == '1';
 
     if (!firstDone && mounted) {
-      final story = context.read<StoryManager>();
-      story.trigger(StoryEvent.firstBreeding);
-      final pages = story.drainQueue();
-
-      if (pages.isNotEmpty) {
-        // The introduction and the remembered lines it introduces are one
-        // dialog with two pages, not two dialogs back to back.
-        await SystemDialog.playStory(
-          context,
-          pages,
-          lead: const [
-            StoryBeat(
-              title: 'An older echo',
-              message:
-                  'The first vial opens. Another presence speaks as though it remembers an earlier ritual.',
-            ),
-          ],
-        );
-        await story.acknowledge(StoryEvent.firstBreeding);
-      }
-
+      // "Two becomes one again" used to play here, on the starter vial —
+      // which fuses nothing. It waits for the first real fusion now
+      // (first_fusion_story.dart).
       await db.settingsDao.setSetting('first_extraction_done', '1');
       await db.settingsDao.deleteSetting('tutorial_extraction_pending');
       await db.settingsDao.setNavLocked(false);

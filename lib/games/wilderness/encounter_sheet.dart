@@ -24,6 +24,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/screens/story/first_fusion_story.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/services/breeding_service.dart';
@@ -932,6 +933,11 @@ class _EncounterOverlayState extends State<EncounterOverlay>
           }
           return;
         }
+        if (!mounted || !ctx.mounted) return;
+
+        // The first time two become one, the older presence remembers it —
+        // before the encounter closes and the field tutorial moves on.
+        await maybePlayFirstFusionStory(ctx);
         if (!mounted || !ctx.mounted) return;
 
         // Show it BEFORE closing. Closing the encounter tears down the
