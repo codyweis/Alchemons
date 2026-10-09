@@ -32,6 +32,7 @@ import 'package:alchemons/widgets/nursery/extraction_result_card.dart';
 import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/widgets/mutation_intro_dialog.dart';
 import 'package:alchemons/widgets/pure_breeding_intro_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -1003,6 +1004,10 @@ class EggHatching {
         onDeferDiscoveryFlight: onDeferDiscoveryFlight,
       ),
     );
+    // Here rather than after the single hatch, so the batch ceremony (which
+    // shows this same card per specimen) explains it too.
+    if (!context.mounted) return;
+    await maybeShowFirstMutationExtractionDialog(context, instance: instance);
   }
 
   // ============================================================================
