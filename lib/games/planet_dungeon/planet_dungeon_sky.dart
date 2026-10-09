@@ -227,7 +227,7 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
 /// afterwards fell through to it, so a bog, a foundry and an eclipse all stood
 /// on the same slab of blue-grey stone.
 ///
-/// Alphas are the caller's business; these are opaque colours. The FLOOR
+/// Alphas are the caller's business; these are opaque colors. The FLOOR
 /// TRANSLUCENCY RULE (§8) puts the fill at 0.50–0.60 so the shader still
 /// carries the room's mood.
 ({Color top, Color bottom}) dungeonFloorTint(String element) {
@@ -236,8 +236,8 @@ const Map<String, DungeonSkyConfig> kDungeonSkyConfigs = {
     // No sky either — keep the historical neutral rather than inventing one.
     return (top: const Color(0xFF2A3646), bottom: const Color(0xFF1A222E));
   }
-  // Toward the horizon colour so the stone reads as lit BY this planet, and
-  // down toward the base colour at the near edge so the slab still has depth.
+  // Toward the horizon color so the stone reads as lit BY this planet, and
+  // down toward the base color at the near edge so the slab still has depth.
   return (
     top: Color.lerp(cfg.colorA, cfg.colorB, 0.55)!,
     bottom: Color.lerp(cfg.colorA, const Color(0xFF000000), 0.20)!,

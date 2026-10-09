@@ -33,7 +33,7 @@ Uint8List _redAndBlue(int w, int h) {
 
 void main() {
   group('SpecimenGrains', () {
-    test('grains sit where the pixels were and keep their colour', () {
+    test('grains sit where the pixels were and keep their color', () {
       // 120 logical px read at 2x.
       final g = SpecimenGrains.fromRgba(
         _redAndBlue(240, 240),
@@ -268,7 +268,7 @@ void main() {
       }
     });
 
-    test('a draw per colour, not per grain', () {
+    test('a draw per color, not per grain', () {
       final b = burst();
       for (var u = 0.0; u < 2.6; u += 0.25) {
         // Two specimens' tones near and far, the sigil, embers, glow and

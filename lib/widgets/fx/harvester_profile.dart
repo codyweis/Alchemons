@@ -39,7 +39,7 @@ class HarvesterProfile {
 
   final String biomeId;
 
-  /// Shell colour. The specimen's own colour still lights the stage; this is
+  /// Shell color. The specimen's own color still lights the stage; this is
   /// the apparatus, and the apparatus belongs to the harvester.
   final Color accent;
 
@@ -75,10 +75,10 @@ class HarvesterProfile {
   /// Writes a bound octagram behind the specimen.
   final bool sigil;
 
-  /// Each band takes a different element's colour.
+  /// Each band takes a different element's color.
   final bool prismatic;
 
-  /// This device in another light — one colour, say, for a greyed-out
+  /// This device in another light — one color, say, for a greyed-out
   /// button — or without its sigil where it would be too small to read.
   HarvesterProfile copyWith({Color? accent, bool? prismatic, bool? sigil}) =>
       HarvesterProfile(
@@ -117,7 +117,7 @@ class HarvesterProfile {
         _ => null,
       });
 
-  /// Colour of band [i] — the accent, unless the unit is prismatic, in which
+  /// Color of band [i] — the accent, unless the unit is prismatic, in which
   /// case each band carries a different element.
   Color ringColor(int i) {
     if (!prismatic) return accent;

@@ -151,7 +151,7 @@ void paintPlainPlanet(Canvas canvas, Offset c, double r, Color col) {
   );
 }
 
-/// A bolt in flight, nose up: a hot head trailing its colour.
+/// A bolt in flight, nose up: a hot head trailing its color.
 void paintBoltGlyph(Canvas canvas, Offset at, double u, Color col) {
   final tail = Path()
     ..moveTo(at.dx - 2.4 * u, at.dy - 2 * u)
@@ -280,7 +280,7 @@ class _ShipStagePainter extends _StagePainter {
   final String? skin;
   final bool orbitals;
 
-  /// When ammo is on show, the colour its bolts fly in.
+  /// When ammo is on show, the color its bolts fly in.
   final Color? bolts;
   final bool repeater, missiles;
 
@@ -444,7 +444,7 @@ class ShipStage extends StatefulWidget {
   /// How many sentinels are out, when [orbitals] is on.
   final int orbitalCount;
 
-  /// When fire is on show, the colour its bolts fly in.
+  /// When fire is on show, the color its bolts fly in.
   final Color? bolts;
   final bool repeater, missiles;
   final double zoom;

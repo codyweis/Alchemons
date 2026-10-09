@@ -1,7 +1,7 @@
 // lib/widgets/fx/keepsake_art.dart
 //
 // The keepsakes of the home biome (models/home_keepsakes.dart), drawn in
-// code in the game's own material: obsidian whose colour comes only from the
+// code in the game's own material: obsidian whose color comes only from the
 // light inside it, glass that holds that light, and grains for whatever
 // moves. Seen from the side, standing on the ground of a field.
 //
@@ -153,7 +153,7 @@ abstract class KeepsakeArt {
   }
 
   /// The art for a keepsake [id]; [copy] tells a pair apart (the portals,
-  /// one of each colour). Null for none such.
+  /// one of each color). Null for none such.
   static KeepsakeArt? of(String id, {int copy = 0, int style = 0}) =>
       _decorArt(id, style) ?? _keepsakeArt(id, copy);
 
@@ -426,7 +426,7 @@ void _flame(
 
 double _hash(int i, int salt) => hash01(i, salt);
 
-/// Grains drawn in one pass per colour.
+/// Grains drawn in one pass per color.
 class _Grains {
   _Grains(int n) : _batch = PointBatch(n);
   final PointBatch _batch;

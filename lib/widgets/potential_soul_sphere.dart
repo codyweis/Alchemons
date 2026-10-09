@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// Stat Infusion: a wisp of light burning up out of a white-hot heart (see
 /// [SoulWispPaint]). A flame, where a power orb is a sphere.
 ///
-/// [tint] recolours it to the stat it is set to; null keeps the canonical
+/// [tint] recolors it to the stat it is set to; null keeps the canonical
 /// violet. [animate] lets it burn — on the shared glyph clock, and only
 /// while its screen is showing; a still one is a single frame.
 class PotentialSoulSphere extends StatefulWidget {
@@ -22,7 +22,7 @@ class PotentialSoulSphere extends StatefulWidget {
   final Color? tint;
   final bool animate;
 
-  /// The soul's own colour, unset to any stat.
+  /// The soul's own color, unset to any stat.
   static const Color canonical = Color(0xFFB66CFF);
 
   @override

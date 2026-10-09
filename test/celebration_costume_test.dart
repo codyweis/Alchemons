@@ -169,13 +169,13 @@ void main() {
   });
 
   test(
-    'a costume changes colour free, and back to its own saves plain',
+    'a costume changes color free, and back to its own saves plain',
     () async {
       const ruby = Color(0xFF8A2338), amber = Color(0xFF8C5A14);
       await shop.purchase(glasses.offerId);
       expect(await wear('horn', glasses, amber), true);
       expect(await costumes('horn'), 'HOR03:sunglasses#8C5A14');
-      // Put on again in another colour: the same pair, no second one spent.
+      // Put on again in another color: the same pair, no second one spent.
       await shop.purchase(glasses.offerId);
       expect(await wear('horn', glasses, ruby), true);
       expect(await owned(InvKeys.alchemySunglasses), 1);
@@ -189,7 +189,7 @@ void main() {
         true,
       );
       expect(await costumes('horn'), 'HOR03:sunglasses');
-      // Only something wearing it can be recoloured.
+      // Only something wearing it can be recolored.
       expect(
         await recolorCostume(db, instanceId: 'horn', costume: hat, color: ruby),
         false,
@@ -201,7 +201,7 @@ void main() {
     },
   );
 
-  test('a saved string reads back only what fits, in colours that read', () {
+  test('a saved string reads back only what fits, in colors that read', () {
     expect(WornCostumes.parse(null), isNull);
     expect(WornCostumes.parse(''), isNull);
     expect(WornCostumes.parse('nonsense'), isNull);

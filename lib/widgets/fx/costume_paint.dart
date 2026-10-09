@@ -76,7 +76,7 @@ abstract final class CostumePaint {
 
   /// Paints costume [costume] on its own, with no creature, in a box
   /// centred on [center] with half-side [r] (the shop's and inventory's
-  /// cards). [color] is the colour it is worn in; null is its own.
+  /// cards). [color] is the color it is worn in; null is its own.
   static void paintPreview(
     Canvas canvas,
     FamilyCostume costume,

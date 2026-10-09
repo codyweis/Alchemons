@@ -41,7 +41,7 @@ Offset _curl(double x, double y, double t, double seed) => Offset(
 
 // ═══════════════════════════ DRAWING GRAINS ════════════════════════════════
 
-/// Collects grains by colour and width, then draws each group in one call:
+/// Collects grains by color and width, then draws each group in one call:
 /// a trail (the segment from where it was) for moving grains, a point for
 /// still ones.
 class RiteGrainBatch {
@@ -195,7 +195,7 @@ class RiteGrainField {
 
 /// A creature as it stood, read into grains of itself. Until the read lands
 /// the host draws the sprite; a body that cannot be read is a disc of its
-/// colour.
+/// color.
 class RiteBody {
   RiteBody(this.color);
 
@@ -292,7 +292,7 @@ class RiteReleaseFx {
   /// Where the captive lies, and the door its blood leaves by.
   final Offset at, exit;
 
-  /// The ingredients: each a path (ending at the captive) and its colour.
+  /// The ingredients: each a path (ending at the captive) and its color.
   final List<(List<Offset>, Color)> sources;
 
   final RiteBody body;

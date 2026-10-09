@@ -259,7 +259,7 @@ void main() {
       // Nothing rebuilds to animate. (The knot's portraits decode in real
       // time, and once in a while land in the measured frame: one rebuild.)
       expect(f.rebuilt, lessThanOrEqualTo(1), reason: reason);
-      // The background's motes are batched by colour, size and strength, the
+      // The background's motes are batched by color, size and strength, the
       // knot's grains by tone. A circle per mote was ~160.
       expect(f.census.counts['drawCircle'] ?? 0, lessThan(30), reason: reason);
       expect(f.census.draws, lessThan(100), reason: reason);

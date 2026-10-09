@@ -151,7 +151,7 @@ class _EtchedDivider extends StatelessWidget {
 final ForgeTokens _brass = ForgeTokens(factionThemeFor(null));
 
 /// A pane of the run's ink. Plain unless it has an [accent]: then it is the
-/// thing on screen to read, and is lit from below in that colour.
+/// thing on screen to read, and is lit from below in that color.
 class _SurvivalPlate extends StatelessWidget {
   final Widget child;
   final Color? accent;
@@ -708,26 +708,43 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   }
 
   /// Choose the team, starting from the one already chosen. Picking only
-  /// sets the team; START takes it in.
+  /// sets the team; START takes it in. The team's cases fly between the
+  /// picker and the lobby (SurvivalTeamHero) both ways.
   Future<void> _pickTeam() async {
     if (_entrance.active || _phase != _Phase.lobby) return;
     final current = [for (final m in _team) m.instanceId];
-    final result = await Navigator.of(context).push<List<PartyMember>>(
-      MaterialPageRoute(
+    await Navigator.of(context).push<List<PartyMember>>(
+      SurvivalTeamPickerRoute(
         builder: (_) => PartyPickerScreen(
           showDeployConfirm: false,
           enforceUniqueSpecies: false,
           maxSelections: _defaultPartySize,
           initialSelection: current.isEmpty ? null : current,
           confirmLabel: 'Choose Team',
+          onConfirm: _takeTeam,
+          teamCaseWrapper: (slot, id, teamCase) =>
+              SurvivalTeamHero(instanceId: id, slot: slot, child: teamCase),
         ),
       ),
     );
-    if (result == null || result.isEmpty || !mounted) return;
+  }
 
-    final ids = [for (final m in result.take(_defaultPartySize)) m.instanceId];
+  /// Sets the chosen team while the picker is still up, so its slots are
+  /// standing in the lobby, portraits decoded, for the cases to land in.
+  Future<void> _takeTeam(List<PartyMember> chosen) async {
+    final ids = [for (final m in chosen.take(_defaultPartySize)) m.instanceId];
     final team = await _buildParty(ids);
     if (team == null || team.isEmpty || !mounted) return;
+    await Future.wait([
+      for (final m in team)
+        if (m.imagePath case final path?)
+          precacheImage(
+            ResizeImage(AssetImage(path), width: kSurvivalTeamCaseCacheWidth),
+            context,
+            onError: (_, _) {},
+          ),
+    ]);
+    if (!mounted) return;
     setState(() => _team = team);
     await _saveTeam([for (final m in team) m.instanceId]);
   }
@@ -3580,7 +3597,7 @@ class _PauseActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The thing to do is a wash lit from below in its colour; the way out
+    // The thing to do is a wash lit from below in its color; the way out
     // beside it is a quiet unlit fill.
     return GestureDetector(
       onTap: context.soundAction(onTap),
@@ -3764,7 +3781,7 @@ class _PauseVitalBar extends StatelessWidget {
 
 /// The world a fielded Mystic has made, and the trade that holds it.
 ///
-/// Coloured by element and given the widest banner on the screen, because it
+/// Colored by element and given the widest banner on the screen, because it
 /// is the largest thing on the map and the only run state a player cannot see
 /// the edges of from inside the fight.
 class _PauseWorldPanel extends StatelessWidget {
@@ -3791,7 +3808,7 @@ class _PauseWorldPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final accent = elementColor(element);
-    // A wash of the element's colour, lit from below in it: the one pane on
+    // A wash of the element's color, lit from below in it: the one pane on
     // this screen that is about the world rather than the fight.
     return CustomPaint(
       foregroundPainter: BracketFramePainter(color: accent, strokeWidth: 1.3),
@@ -4598,7 +4615,7 @@ class _MiniReadout extends StatelessWidget {
   }
 }
 
-/// A perk chip's fill: the ink with a breath of the perk's colour in it.
+/// A perk chip's fill: the ink with a breath of the perk's color in it.
 Color _chipWash(Color tint) =>
     Color.alphaBlend(tint.withValues(alpha: 0.1), _C.bg1);
 

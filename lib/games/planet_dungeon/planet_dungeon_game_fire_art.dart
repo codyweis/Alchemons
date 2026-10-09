@@ -45,10 +45,10 @@ final Map<String, List<Path>> _collarCache = {};
 /// The fresco's wind, as a course for its grains (by room id).
 final Map<String, List<Offset>> _cathedralWindCache = {};
 
-/// Grain ramps for growth, by the colour of its glass.
+/// Grain ramps for growth, by the color of its glass.
 final Map<int, List<Color>> _cinderSprigRamps = {};
 
-/// Grain ramps for flames drawn in other colours, by core and outer.
+/// Grain ramps for flames drawn in other colors, by core and outer.
 final Map<int, List<Color>> _cinderFlameRamps = {};
 
 extension CinderCathedralArt on PlanetDungeonGame {
@@ -1910,7 +1910,7 @@ extension CinderCathedralArt on PlanetDungeonGame {
         );
       }
     }
-    // The story, told in lead and coloured glass: the chain of censers, the
+    // The story, told in lead and colored glass: the chain of censers, the
     // wind that carries the flame between them, the bell it rings.
     final chain = Path();
     final cs = _frescoCensers(panel);
@@ -2841,7 +2841,7 @@ extension CinderCathedralArt on PlanetDungeonGame {
     );
   }
 
-  /// The grain ramp for a flame of these colours: the essence's own for the
+  /// The grain ramp for a flame of these colors: the essence's own for the
   /// plain flame (a step brighter when it is a small one, or a few grains of
   /// it read as red), built once for any other.
   List<Color> _flameRamp(Color core, Color outer, double h) {

@@ -393,7 +393,7 @@ extension ConservatoryDungeon on PlanetDungeonGame {
     if (t >= kBudEnd) {
       s.budBurstT = 99;
       // THE CLUE: cut to the hub, where the great plant's crown flowers in
-      // the shape of the door's roots — the colours the door will want.
+      // the shape of the door's roots — the colors the door will want.
       final hub = layout.rooms['conservatory']!.grove!.greatPlanter!;
       s.crownBloomT = 0;
       cutTo('conservatory', hub - const Offset(0, 150), hold: kCrownCut);

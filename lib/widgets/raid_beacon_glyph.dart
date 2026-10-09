@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 /// call, a few grains drawn back in to it from the dark. The call and the
 /// answer.
 ///
-/// Near-black stone whose colour comes only from the light in and round it,
+/// Near-black stone whose color comes only from the light in and round it,
 /// and grains for the signal — the same material as the stations and the
 /// power orbs. The old beacon was a pink outlined shard inside stroked
 /// rings.
@@ -268,7 +268,7 @@ abstract final class _BeaconPaint {
     canvas.save();
     canvas.translate(c.dx, c.dy);
     canvas.scale(s);
-    // A shared Paint draws a shader at its colour's alpha: start opaque.
+    // A shared Paint draws a shader at its color's alpha: start opaque.
     _p.color = const Color(0xFF000000);
 
     // ── the stone ──

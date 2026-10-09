@@ -50,14 +50,14 @@ class HomeSandStyle {
     this.motion = SandMotion.springsBack,
   });
 
-  /// The five sands' colours. Only the first [count] are laid; the rest are
+  /// The five sands' colors. Only the first [count] are laid; the rest are
   /// kept for when there are more again.
   final List<Color> colors;
 
   /// How many sands are laid, 1 to [kSandMaxCount].
   final int count;
 
-  /// The colour of the flecks and glints through the sand.
+  /// The color of the flecks and glints through the sand.
   final Color shimmer;
 
   final SandPattern pattern;
@@ -99,7 +99,7 @@ class HomeSandStyle {
     motion: motion ?? this.motion,
   );
 
-  /// With sand [i]'s colour [color].
+  /// With sand [i]'s color [color].
   HomeSandStyle withColor(int i, Color color) => HomeSandStyle(
     colors: [for (final (j, c) in colors.indexed) j == i ? color : c],
     count: count,
@@ -156,7 +156,7 @@ class HomeSandStyle {
   static HomeSandStyle fromJson(Object? value) {
     const defaults = HomeSandStyle();
     if (value is! Map) return defaults;
-    Color? colour(Object? v) =>
+    Color? color(Object? v) =>
         v is int && v >= 0 && v <= 0xFFFFFFFF ? Color(v | 0xFF000000) : null;
     double share(String key, double fallback) {
       final v = value[key];
@@ -167,18 +167,18 @@ class HomeSandStyle {
     final colors = [...kSandDefaultColors];
     if (saved is List) {
       for (var i = 0; i < saved.length && i < kSandMaxCount; i++) {
-        colors[i] = colour(saved[i]) ?? colors[i];
+        colors[i] = color(saved[i]) ?? colors[i];
       }
     } else {
       // Saved before there could be more than two.
-      colors[0] = colour(value['first']) ?? colors[0];
-      colors[1] = colour(value['second']) ?? colors[1];
+      colors[0] = color(value['first']) ?? colors[0];
+      colors[1] = color(value['second']) ?? colors[1];
     }
     final count = value['count'];
     return HomeSandStyle(
       colors: colors,
       count: count is int ? count.clamp(1, kSandMaxCount) : defaults.count,
-      shimmer: colour(value['shimmer']) ?? defaults.shimmer,
+      shimmer: color(value['shimmer']) ?? defaults.shimmer,
       pattern:
           SandPattern.values
               .where((p) => p.name == value['pattern'])

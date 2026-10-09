@@ -6,7 +6,7 @@
 //  viewer. A planet paints in the same order —
 //
 //    back   halo in space, far halves of rings and moons
-//    body   (clipped to the disc) surface colour → the night-side shade →
+//    body   (clipped to the disc) surface color → the night-side shade →
 //           anything that glows on its own, so it still glows at night
 //           → atmosphere on the limb
 //    front  near halves of rings and moons
@@ -96,7 +96,7 @@ abstract class PlanetArt {
   void paintFront(Canvas c, Offset p, double r, double t) {}
 
   /// How its territory tints space. Low-alpha versions of bright element
-  /// colours go muddy on near-black, so each planet picks its own.
+  /// colors go muddy on near-black, so each planet picks its own.
   Color get territoryTint;
 
   /// How strongly [territoryTint] washes the territory at its heart.
@@ -292,13 +292,13 @@ void _softStroke(Canvas c, Path path, Color col, double width, double sigma) {
   );
 }
 
-/// The glow every planet used to sit in: a disc of its colour at 15%, two
+/// The glow every planet used to sit in: a disc of its color at 15%, two
 /// and a half radii wide, softened.
 void _oldAura(Canvas c, Offset p, double r, Color col) =>
     _softCircle(c, p, r * 2.5, col.withValues(alpha: 0.15), 30);
 
 /// The original sphere shading: a highlight toward the upper left, the
-/// colour, and a shadow toward the edge.
+/// color, and a shadow toward the edge.
 void _oldSphere(
   Canvas c,
   Offset p,
@@ -325,7 +325,7 @@ void _oldSphere(
 }
 
 /// Many round dots in a few draws. Points are gathered into buckets (one
-/// per colour and size) and each bucket goes out as a single drawRawPoints
+/// per color and size) and each bucket goes out as a single drawRawPoints
 /// call with round caps — the GPU draws hundreds of dots in one go, where a
 /// path of hundreds of ovals had to be tessellated every frame. Buffers are
 /// kept between frames, so steady state allocates nothing.
@@ -936,7 +936,7 @@ class TerritoryMotes {
     this.spin = 0.6,
   });
 
-  /// Colour over a life: born → mid → dying.
+  /// Color over a life: born → mid → dying.
   final Color born, mid, dying;
   final MoteMotion motion;
   final MoteShape shape;
@@ -955,7 +955,7 @@ class TerritoryMotes {
 
   static const _cap = 90;
 
-  /// Life is drawn in [_stages] steps: each mote's colour and strength are
+  /// Life is drawn in [_stages] steps: each mote's color and strength are
   /// its stage's, so motes can be gathered and drawn a stage at a time.
   static const _stages = 6;
 
@@ -1001,7 +1001,7 @@ class TerritoryMotes {
     _flush(c, depth);
   }
 
-  /// A stage's colour: born → mid → dying over the life.
+  /// A stage's color: born → mid → dying over the life.
   Color _stageColor(int stage) {
     final life = (stage + 0.5) / _stages;
     return life < 0.4

@@ -25,7 +25,7 @@ final Path _shotWake = Path()
   ..close();
 final Paint _shotPaint = Paint();
 
-/// Per element: the wake's fade, the bead's lit glass, and the halo colour.
+/// Per element: the wake's fade, the bead's lit glass, and the halo color.
 final Map<String, (ui.Shader, ui.Shader, Color)> _shotLooks = {};
 
 /// An enemy's or boss's shot at [p] heading [angle], [radius] across: a

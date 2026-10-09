@@ -23,7 +23,7 @@ part of 'enemy_body_art.dart';
 //    warden      the Armillary    brass rings turning on three axes round a
 //                                 sun, runes of light set in them
 //
-//  The element colours the light; the form is the archetype's. All in unit
+//  The element colors the light; the form is the archetype's. All in unit
 //  space: the caller translates to the boss and scales by its radius.
 // ─────────────────────────────────────────────────────────────────────────────
 

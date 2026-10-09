@@ -67,7 +67,7 @@ class GoldVaultOffer {
 // ── palette ──────────────────────────────────────────────────────────────────
 //
 // The case is dark in both themes: it is a vault, and gold needs the dark to
-// glow against. So its colours are its own, not the theme's.
+// glow against. So its colors are its own, not the theme's.
 
 abstract final class _V {
   static const caseTop = Color(0xFF100C07);

@@ -186,7 +186,7 @@ void main() {
 
     test('the rocks keep the checkerboard balanced', () {
       // The load-bearing constraint, and the one that is invisible by eye. A
-      // path over N cells alternates colours, so a field whose two colours
+      // path over N cells alternates colors, so a field whose two colors
       // differ by more than one has NO full cover from any square, however it
       // is played. An earlier staggered layout looked perfectly reasonable
       // and was impossible for exactly this reason.

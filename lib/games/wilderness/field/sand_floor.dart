@@ -1,10 +1,10 @@
 // lib/games/wilderness/field/sand_floor.dart
 //
 // LIVING SANDS' FLOOR. A tile of fine particles on the dark, seamless end
-// to end, in the one to five colours the player picks, lying as they
+// to end, in the one to five colors the player picks, lying as they
 // choose: poured together in veins, laid in layers, in broad drifts, or
 // mixed grain by grain. Each grain is a little lighter or darker than the
-// next, and a dust of the shimmer's colour lies through them, a few of it
+// next, and a dust of the shimmer's color lies through them, a few of it
 // catching the light now and then. Between the grains is the dark: where
 // they are moved off it, it shows.
 //
@@ -14,11 +14,11 @@
 // stay there — grooves down to the dark, ridges, craters — until smoothed.
 // Or they mix: the grains under the finger are swirled along with it and
 // those round it flow in behind, as a stylus drawn through marbling, so the
-// colours are drawn through each other and nothing is dug (a tap twists
+// colors are drawn through each other and nothing is dug (a tap twists
 // them).
 //
 // Cheap at rest: one picture of the still grains, and the glints. A stir
-// draws grain by grain only the squares it moves. New colours or shimmer
+// draws grain by grain only the squares it moves. New colors or shimmer
 // dress the grains where they lie (a few ms); density and grain size only
 // draw the picture again; only a new pattern reads the floor again. No
 // blur.
@@ -262,7 +262,7 @@ class SandFloor {
   Offset debugFirstLieOf(int i) => Offset(_ix[i], _iy[i]);
 
   @visibleForTesting
-  int debugColourOf(int i) => _c[i];
+  int debugColorOf(int i) => _c[i];
 
   /// Whether every grain lies still.
   @visibleForTesting
@@ -349,7 +349,7 @@ class SandFloor {
 
   // ── Dressing ────────────────────────────────────────────────────────────
 
-  // Each sand's colours from deep shadow to pale light, and the shimmer's.
+  // Each sand's colors from deep shadow to pale light, and the shimmer's.
   static const int _levels = 32;
   List<Int32List> _ramps = const [];
   Int32List _shimmerRamp = Int32List(0);
@@ -416,7 +416,7 @@ class SandFloor {
     return lo - _bandFrom;
   }
 
-  /// Grain [k]'s colours, at rest and lit, in the style as it is now.
+  /// Grain [k]'s colors, at rest and lit, in the style as it is now.
   void _dressGrain(int k) {
     final st = _style;
     final ramp = _ramps[_sandOf(_u[k], _dith[k], st.count)];
@@ -441,7 +441,7 @@ class SandFloor {
     if (_read != st.pattern) _readPattern();
     final was = _dressed;
     _dressed = st;
-    // Only the density, the grain or how it moves: the same colours.
+    // Only the density, the grain or how it moves: the same colors.
     if (was != null &&
         st.copyWith(
               density: was.density,
@@ -1251,7 +1251,7 @@ ui.Image _buildAtlas() {
   );
 }
 
-/// Sprites of one kind, each its own colour, size and place, in one call.
+/// Sprites of one kind, each its own color, size and place, in one call.
 class _Batch {
   _Batch(this._src);
 

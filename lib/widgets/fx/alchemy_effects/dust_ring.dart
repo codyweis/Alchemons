@@ -2,7 +2,7 @@ part of 'alchemy_effect_paint.dart';
 
 /// ELEMENTAL DUST RING — Cindrath's ring (the planet dust ring, the
 /// player's favourite of the planet work) round a creature, in its
-/// element's colours.
+/// element's colors.
 ///
 /// Soft lanes of dust in a tipped plane, and a few hundred grains on their
 /// orbits over them — inner grains faster than outer, the way a real ring

@@ -10,7 +10,7 @@
 // gathers back out of its element.
 //
 // The window stays open for as long as the player leaves it. Its rim is a few
-// hundred grains turning in the faction's colours; the field inside is only
+// hundred grains turning in the faction's colors; the field inside is only
 // built once the hole has finished opening (its first frame bakes its art,
 // which would stall the grains falling in) and is dropped when it shuts.
 // Nothing here ticks while it is shut.
@@ -117,7 +117,7 @@ class HomePortalHero extends StatefulWidget {
   /// read into grains as it falls in.
   final GlobalKey spriteKey;
 
-  /// The faction's colour: the rim's grains are shades of it.
+  /// The faction's color: the rim's grains are shades of it.
   final Color tone;
 
   /// The player opened (true) or closed (false) it with a circle.
@@ -743,7 +743,7 @@ class _HomePortalArt {
     for (var i = 0; i < _darkCount; i++) {
       final r = _dRho[i] * rw;
       final a = _dTheta[i];
-      // Most are black; one in six carries a little of the faction's colour.
+      // Most are black; one in six carries a little of the faction's color.
       b.add(
         _dPh[i] < 0.16 ? 1 : 0,
         c.dx + math.cos(a) * r,
@@ -814,9 +814,9 @@ class _HomePortalArt {
     }
     final step = math.max(1, tones ~/ 16);
     for (var k = 0; k < 16; k++) {
-      final colour = g.tones[math.min(tones - 1, k * step)];
-      b.draw(canvas, k, f.size, colour);
-      b.draw(canvas, k + 16, f.size * 0.8, colour.withValues(alpha: 0.45));
+      final color = g.tones[math.min(tones - 1, k * step)];
+      b.draw(canvas, k, f.size, color);
+      b.draw(canvas, k + 16, f.size * 0.8, color.withValues(alpha: 0.45));
     }
   }
 

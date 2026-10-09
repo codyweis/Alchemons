@@ -224,7 +224,7 @@ final Map<String, _MonasteryGround> _monasteryGroundCache = {};
 ///
 /// THE FLOOR AND THE WALL HAVE TO BE DIFFERENT MATERIALS, not the same
 /// material with noise on it. The first two passes of this floor were
-/// COURSES — rows of stones of a wall's size, in a wall's colour, each with a
+/// COURSES — rows of stones of a wall's size, in a wall's color, each with a
 /// lit top edge — and courses of lit-topped stones is exactly how this engine
 /// draws masonry seen face-on. The result was a room with a wall band at the
 /// top (the ward bays), a wall band at the bottom (the arcade) and a third
@@ -957,7 +957,7 @@ class VenomMonastery {
   Offset sealBurstAt = Offset.zero;
 
   /// Whether the burst is a wrong dose (violet) rather than a seal parting
-  /// (green). Same animation, and it must not be the same colour: one is
+  /// (green). Same animation, and it must not be the same color: one is
   /// what was always in there, the other is what you just made.
   bool burstIsSick = false;
 
@@ -1192,7 +1192,7 @@ class VenomMonastery {
   /// THE SICK WISP (the lost maxim). It wears one element at a time and is
   /// shoved to the cross by a hand of that element, a press at a time. At the
   /// cross it circles, sheds, and comes back wearing the next one. Three
-  /// colours home and the maxim is yours.
+  /// colors home and the maxim is yours.
   Offset? wisp = kWispStart;
 
   /// HOW FAR ALONG IT IS. The wisp flies loops of its own around this
@@ -1584,7 +1584,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
               intensity: 1.3,
             );
           } else {
-            // Back out into the corridor, wearing the next colour.
+            // Back out into the corridor, wearing the next color.
             m
               ..wisp = kWispStart
               ..wispAnchor = kWispStart
@@ -2011,7 +2011,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       intensity: 0.8,
     );
 
-    // NO LINE FOR A GIVE. The pot takes the colour, the jar on the shelf
+    // NO LINE FOR A GIVE. The pot takes the color, the jar on the shelf
     // drops by one, and both are on screen — saying it as well is the same
     // fact three times, eight times a run.
     if (m.pot.length < 2) return true;
@@ -3386,10 +3386,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// It wears one element at a time and only a hand of that element can
   /// touch it. Press, and it is shoved a stride toward the cross; press
   /// again, walking with it, until it gets there. At the cross it circles,
-  /// sheds the colour, and comes back wearing the next one. Three colours
+  /// sheds the color, and comes back wearing the next one. Three colors
   /// home and it is cured.
   ///
-  /// The colours are the game's own, so there is no code to crack: purple is
+  /// The colors are the game's own, so there is no code to crack: purple is
   /// Poison, green is Plant, brown is Mud, exactly as they are on the party.
   /// And the first press teaches the whole thing, because the wisp visibly
   /// moves toward the cross and nothing else happens.
@@ -3996,7 +3996,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // masonry elevation with furniture floating in front of it.
     //
     // WARM, too, against wall stone that is darker and cooler. A floor and a
-    // wall in the same colour are interchangeable no matter what shape they
+    // wall in the same color are interchangeable no matter what shape they
     // are cut into.
     final crack = Paint()
       ..style = PaintingStyle.stroke
@@ -5133,7 +5133,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// Dressed stone, the material this whole house is built of. A lit top
   /// edge and a shadowed foot is the whole difference between a block and a
-  /// rectangle of a slightly different colour.
+  /// rectangle of a slightly different color.
   void _stoneBlock(Canvas canvas, Rect r, {double radius = 3}) {
     final rr = RRect.fromRectAndRadius(r, Radius.circular(radius));
     // COOLER AND DARKER THAN THE PAVING. Everything cut from this goes on a
@@ -5391,7 +5391,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final a = active;
     if (a == null || !a.alive) return;
     final at = a.position + Offset(15, -30 + sin(_time * 3.0) * 2.0);
-    // Coloured by the draught, matching the vessel it came out of, so what
+    // Colored by the draught, matching the vessel it came out of, so what
     // is in your hand and what you took it from are the same thing.
     final tint = switch (d) {
       WardDraught.stilling => const Color(0xFFBFD8D0),
@@ -5494,11 +5494,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final m = monastery;
     if (!m.invading) return;
     final t = m.invade;
-    // GREEN COMING OFF THE HEART, ITS OWN COLOUR BY THE DOOR. A woken plague
+    // GREEN COMING OFF THE HEART, ITS OWN COLOR BY THE DOOR. A woken plague
     // stops being "the sick green in the wards" the moment it is awake.
     final col = m.invadeSick
         ? _venomSick
-        : _invadeColour(t, brewById(m.pendingFight ?? m.fighting));
+        : _invadeColor(t, brewById(m.pendingFight ?? m.fighting));
     final (headRoom, head) = _invadeAt(t);
     final inWard = room.id == m.invadeWardRoom;
     if (!inWard && room.id != 'ambulatory') return;
@@ -5643,7 +5643,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// star of long jointed tentacles with a wave of light travelling out
   /// along each — and the crawl and the boss were drawing a small ring of
   /// short stubby tendrils instead, which is a different animal wearing the
-  /// same colour. There is one implementation now, and the ward, the crawl
+  /// same color. There is one implementation now, and the ward, the crawl
   /// and the fight all call it.
   ///
   /// [reach] is how far the veins go, not the size of the core: the core is
@@ -5723,27 +5723,27 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   /// — a boss whose tentacles were 50px long was the tell that it was not.
   static const double _kPlagueReach = 230.0;
 
-  /// WHAT COLOUR THIS PLAGUE IS ONCE IT IS AWAKE.
+  /// WHAT COLOR THIS PLAGUE IS ONCE IT IS AWAKE.
   ///
   /// Everything in the lazaret is the same sick green until it is woken, and
   /// then each of the three becomes its own thing — the way a wrongly-dosed
   /// strain used to go violet when it took the wrong physic and swelled. If
   /// all three arrive green there is nothing to tell them apart in the one
   /// room where telling them apart is the whole fight.
-  Color _plagueColour(PlaguePotion p) => switch (p.pot) {
+  Color _plagueColor(PlaguePotion p) => switch (p.pot) {
     CauldronReaction.bloom => const Color(0xFFE3B23C), // Breath: pollen gold
     CauldronReaction.climb => const Color(0xFFB03050), // Blood: crimson
     CauldronReaction.rot => const Color(0xFF8A4FB0), // Decay: violet rot
     CauldronReaction.pure => _venomLive,
   };
 
-  /// The colour partway through the crawl: it is still the ward's green when
+  /// The color partway through the crawl: it is still the ward's green when
   /// it comes off the heart, and fully itself by the time it is through the
   /// door.
-  Color _invadeColour(double t, PlaguePotion? p) {
+  Color _invadeColor(double t, PlaguePotion? p) {
     if (p == null) return _venomLive;
     final k = (t / _kInvadeCross).clamp(0.0, 1.0);
-    return Color.lerp(_venomLive, _plagueColour(p), k)!;
+    return Color.lerp(_venomLive, _plagueColor(p), k)!;
   }
 
   /// HOW BIG THE THING IS, ACROSS THE WHOLE CRAWL.
@@ -6207,7 +6207,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       // THE SACRISTY: an arched cupboard set in the wall, iron-banded and
       // barred while the ward is foul. Three readable states — barred, open
       // and holding something, emptied — where before all three were one
-      // rounded rectangle in three colours.
+      // rounded rectangle in three colors.
       final sr = Rect.fromCenter(center: ward.sacristy, width: 38, height: 50);
       _stoneBlock(canvas, sr.inflate(5), radius: 6);
       final arch = Path()
@@ -6228,7 +6228,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       );
       if (!cured) {
         // BARRED. Iron across the mouth, and it is the bars that say "not
-        // yet" rather than a colour you have to have seen before.
+        // yet" rather than a color you have to have seen before.
         // Dark iron, lit along the top of each bar.
         for (var i = 0; i < 3; i++) {
           final y = sr.top + 16 + i * 12.0;
@@ -6321,7 +6321,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           Rect.fromCenter(center: at, width: 26, height: 20),
           radius: 3,
         );
-        final col = _brewColour(potion);
+        final col = _brewColor(potion);
         _drawSocketLens(canvas, at, full ? col : null);
         if (!full) continue;
         canvas.drawCircle(
@@ -6434,10 +6434,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
   }
 
-  /// THE SICK WISP, wearing its colour and showing where it was pushed.
+  /// THE SICK WISP, wearing its color and showing where it was pushed.
   ///
   /// Three things have to be legible or the errand is invisible: WHAT it is
-  /// (a little sick thing, not an enemy), WHICH colour it is wearing (so you
+  /// (a little sick thing, not an enemy), WHICH color it is wearing (so you
   /// know whose hand it wants), and THAT it moved when you pressed (so the
   /// first shove teaches the whole mechanic without a word).
   void _renderSickWisp(Canvas canvas, DungeonRoom room) {
@@ -6494,7 +6494,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
     // Bobbing where it was left.
     //
-    // A WISP OF GRAINS (2026-10-08): a knot of its colour turning about a
+    // A WISP OF GRAINS (2026-10-08): a knot of its color turning about a
     // bright heart over a soft haze, breathing with its beat, and shedding
     // grains up off it because it is sick. It was three stacked discs and
     // four dots.
@@ -6533,7 +6533,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (_fx.ready) {
       drawGlow(canvas, _fx.glow!, at, 34, col.withValues(alpha: 0.24));
     }
-    // How many colours are home is scored in glass on the cross itself
+    // How many colors are home is scored in glass on the cross itself
     // (`_drawDoseRose`), so the errand keeps its mark after it is done.
   }
 
@@ -6673,7 +6673,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // What is standing in it: sick green until the vial goes in, then clear.
     final water = done ? const Color(0xFFD8F0E4) : _venomSick;
     _drawFontGlass(canvas, bowl.deflate(9), water, done);
-    // The water turning slowly over the glass, in grains of its own colour
+    // The water turning slowly over the glass, in grains of its own color
     // (it was two stroked rings spreading across it).
     _venomChurn(
       at,
@@ -6815,7 +6815,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
 
   /// WHAT PATIENT ZERO IS WEARING. The whole finale turns on it, so it is on
   /// the boss rather than behind the hint button: the plague's own veins,
-  /// in the plague's own colour, working over the thing that made them.
+  /// in the plague's own color, working over the thing that made them.
   void _renderBlightfangPlague(Canvas canvas, DungeonRoom room) {
     final g = room.guardian;
     if (g == null || !guardianAwake || hasStar(g.starIndex)) return;
@@ -6823,7 +6823,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final at = _guardianPosition(g);
     final open = m.blightLull > 0;
     final brew = brewById(m.lullBrew);
-    final hue = brew == null ? _venomSick : _plagueColour(brew);
+    final hue = brew == null ? _venomSick : _plagueColor(brew);
     final e = _guardianEnemy;
 
     // ── ITS ATTACKS, while a shell is off. The same rings, slams and rot
@@ -6833,7 +6833,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
 
     // ── WHAT IS ON IT. Open: the brew's veins working over it, in the
-    // brew's colour. Shut: plates of shell, and nothing lands.
+    // brew's color. Shut: plates of shell, and nothing lands.
     _drawPlagueForm(
       canvas,
       at,
@@ -6937,9 +6937,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final potion = brewById(m.fighting);
     if (potion == null) return;
     final body = _plagueBody;
-    // The plague's own colour, not the brew's — what is on the floor belongs
+    // The plague's own color, not the brew's — what is on the floor belongs
     // to the thing that put it there.
-    final col = _plagueColour(potion);
+    final col = _plagueColor(potion);
 
     // ── THE MARKS ──
     for (final mark in m.marks) {
@@ -7043,10 +7043,10 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // ── THE BODY: THE SAME THING THAT CRAWLED IN ──
     //
     // Drawn here rather than by the shared enemy painter, at the size and in
-    // the colour the crawl left it, because the point of the crawl is that
+    // the color the crawl left it, because the point of the crawl is that
     // this IS that. A generic blob appearing where the animation ended makes
     // the whole arrival a cutscene about something else.
-    final hue = _plagueColour(potion);
+    final hue = _plagueColor(potion);
     final hit = body.hitFlash > 0
         ? Color.lerp(hue, Colors.white, body.hitFlash.clamp(0.0, 1.0))!
         : hue;
@@ -7197,7 +7197,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     for (final p in kPlaguePotions) {
       final at = m.relicAt[p.id];
       if (at == null) continue;
-      final col = _brewColour(p);
+      final col = _brewColor(p);
       final lift = sin(_time * 1.8 + at.dx * 0.02) * 3.0;
       final c = Offset(at.dx, at.dy + lift);
       // Halo on the floor, so it is findable across a dark corridor.
@@ -7246,7 +7246,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (potion == null) return;
     final at = m.pourAt;
     final k = 1 - m.pour; // 0 → 1 over the beat
-    final col = _brewColour(potion);
+    final col = _brewColor(potion);
 
     // The bottle's contents arriving: a stream down onto the heart.
     if (k < 0.34) {
@@ -7434,7 +7434,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
   }
 
-  /// The bottle in hand, wearing its own brew's colour — the same colour it
+  /// The bottle in hand, wearing its own brew's color — the same color it
   /// had in the pot and will have on the plague.
   void _renderCarriedBottle(Canvas canvas) {
     final m = monastery;
@@ -7447,7 +7447,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (relic != null) {
       final p = brewById(relic);
       if (p == null) return;
-      final col = _brewColour(p);
+      final col = _brewColor(p);
       _venomHaze(canvas, at, 18, col, 0.2);
       // A reliquary: a little gabled case of smoked glass in lead with the
       // brew's rondel in its heart (2026-10-08; it was a bronze-outlined
@@ -7465,7 +7465,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
     final p = brewById(held);
     if (p == null) return;
-    final col = _brewColour(p);
+    final col = _brewColor(p);
     canvas.save();
     canvas.translate(at.dx, at.dy);
     canvas.rotate(sin(_time * 1.4) * 0.10);
@@ -7473,9 +7473,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     canvas.restore();
   }
 
-  /// A brew's colour, used in the pot, in the bottle, on the plague and on
+  /// A brew's color, used in the pot, in the bottle, on the plague and on
   /// the relic — one identity in every place it is seen.
-  Color _brewColour(PlaguePotion p) => switch (p.pot) {
+  Color _brewColor(PlaguePotion p) => switch (p.pot) {
     CauldronReaction.pure => const Color(0xFFD8F0E4),
     CauldronReaction.bloom => const Color(0xFFB6E24A),
     CauldronReaction.climb => const Color(0xFF6B4B86),
@@ -7511,13 +7511,13 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final spent = _larderSpent(el);
       final x = x0 + 60 + (x1 - x0 - 120) * (els.length == 1 ? 0.5 : i / 2);
       final at = Offset(x, y);
-      final col = _elementBrewColour(el);
+      final col = _elementBrewColor(el);
       // A stoppered jar, filled to the level of what the house has left in
       // hands rather than in glass: two gives per alchemon, and the jar
       // empties as they are spent.
       //
       // LEADED GLASS (2026-10-08): the jar is dark glass in lead, and what
-      // is left in it is a pane of the element's colour up to its level,
+      // is left in it is a pane of the element's color up to its level,
       // the lead running across at the line. It was an outlined cartoon jar
       // with a bright bronze lid.
       final jar = Rect.fromCenter(center: at, width: 26, height: 34);
@@ -7600,7 +7600,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   ///
   /// The pot has to answer the hand — one contribution has to be visible as
   /// a change in the pot, or giving reads as pressing a button at a prop.
-  /// So: the brew's colour is the elements in it, the surface lifts a ring
+  /// So: the brew's color is the elements in it, the surface lifts a ring
   /// per ingredient, and a finished brew sits on the rim as a stoppered
   /// flask until a hand carries it out.
   void _renderCauldron(Canvas canvas, Offset c) {
@@ -7713,9 +7713,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     );
     canvas.drawOval(mouth, Paint()..color = const Color(0xFF050705));
     if (pot.isNotEmpty) {
-      Color brew = _elementBrewColour(pot.first);
+      Color brew = _elementBrewColor(pot.first);
       for (var i = 1; i < pot.length; i++) {
-        brew = Color.lerp(brew, _elementBrewColour(pot[i]), 0.5)!;
+        brew = Color.lerp(brew, _elementBrewColor(pot[i]), 0.5)!;
       }
       final lift = 2.0 + 3.0 * pot.length;
       final surf = Rect.fromCenter(
@@ -7723,7 +7723,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
         width: mouth.width - 8,
         height: mouth.height - 6,
       );
-      // The brew: its body dark in its own colour, and the roll on it in
+      // The brew: its body dark in its own color, and the roll on it in
       // grains — turning over and simmering, so a full pot is never still.
       // It was a flat disc with two stroked rings expanding across it.
       canvas.drawOval(
@@ -7794,7 +7794,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     //
     // LEADED GLASS (2026-10-08). The house's vessels are the one thing in
     // the laboratory you act on, so they are glass in lead on a carved bench
-    // — a full one is a pane of its brew's colour, an empty one dark glass,
+    // — a full one is a pane of its brew's color, an empty one dark glass,
     // a spent one smoked. They were outlined cartoon jars with a stroked
     // ring pulsing round the full ones.
     final bench = c + const Offset(200, 0);
@@ -7813,7 +7813,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
           m.bottled.contains(potion.id) || m.carriedPotion == potion.id;
       final gone = m.woken.contains(potion.id) || m.slain.contains(potion.id);
       final inHand = m.carriedPotion == potion.id;
-      final col = _brewColour(potion);
+      final col = _brewColor(potion);
       if (full && !inHand) {
         _venomHaze(canvas, at, 22, col, 0.16 + 0.06 * sin(_time * 2.6 + i));
       }
@@ -8094,7 +8094,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     }
   }
 
-  Color _elementBrewColour(String element) => switch (element) {
+  Color _elementBrewColor(String element) => switch (element) {
     'Poison' => const Color(0xFF6FBF3A),
     'Plant' => const Color(0xFF2E8B4A),
     'Mud' => const Color(0xFF8A6A3C),

@@ -175,7 +175,7 @@ class _ResourceTotalState extends State<_ResourceTotal>
     final ready = state?.ready ?? false;
     final unlocked = state?.unlocked ?? true;
     // Ready is the state worth spotting without reading anything, so it takes
-    // the glyph's colour. Locked holds still — nothing is running in it.
+    // the glyph's color. Locked holds still — nothing is running in it.
     final glyphColor = ready ? t.success : widget.resource.color;
 
     final entry = AnimatedBuilder(

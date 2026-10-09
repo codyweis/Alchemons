@@ -70,7 +70,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   final Paint _imagePaint = Paint()..filterQuality = FilterQuality.medium;
 
   /// Draws this frame of the creature in its parent's units at [alpha] of
-  /// itself — its genetics colouring and any cut kept, its aura not — for
+  /// itself — its genetics coloring and any cut kept, its aura not — for
   /// an image of it, such as its reflection in still glass. One draw;
   /// nothing until it has loaded.
   void renderImage(Canvas canvas, double alpha) {
@@ -109,7 +109,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   }
 
   /// This frame of the creature, exactly as it is being drawn — its genetics
-  /// colouring and size included — read into grains centred on this
+  /// coloring and size included — read into grains centred on this
   /// component's centre, in its local units. Null if it has not loaded.
   Future<SpecimenGrains?> readGrains({
     required double pixelRatio,

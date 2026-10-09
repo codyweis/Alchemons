@@ -98,7 +98,7 @@ void main() {
       });
     });
 
-    test('each shader body is distinct, not a recoloured copy', () {
+    test('each shader body is distinct, not a recolored copy', () {
       final bodies = <String, String>{};
       for (final element in kPlanetDungeonLayouts.keys) {
         final f = File(

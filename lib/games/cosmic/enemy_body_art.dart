@@ -30,7 +30,7 @@ part 'boss_forms.dart';
 
 // ── palette ─────────────────────────────────────────────────────────────────
 
-/// One element's enemy colours and the unit shaders built from them.
+/// One element's enemy colors and the unit shaders built from them.
 class EnemyPalette {
   EnemyPalette._(this.ink, this.face, this.rim, this.essence, this.hot);
 
@@ -228,7 +228,7 @@ final Map<String, EnemyPalette> _palettes = {};
 final Map<int, EnemyPalette> _tintedPalettes = {};
 
 /// The palette for [element], or for [tint] in [element]'s material when a
-/// body is drawn in a colour of its own.
+/// body is drawn in a color of its own.
 EnemyPalette enemyPalette(String element, [Color? tint]) {
   if (tint == null) {
     return _palettes[element] ??= EnemyPalette._of(
@@ -635,7 +635,7 @@ void paintPhantomBody(
 //
 // A lava bomb: a lump of obsidian, black and glossy, tumbling slowly as it
 // comes, with the furnace inside glowing through its crust in veins that
-// breathe. Colour here is light, never surface — the rock is black, and
+// breathe. Color here is light, never surface — the rock is black, and
 // what reads is where the heat shows, the glints as faces turn, and its own
 // light catching its edge. Winding up, the crust cracks open along every
 // face with the light pouring out between, and it fires.
@@ -721,7 +721,7 @@ void paintBruteBody(
 // crystal, each turning on its own axis as the ring turns, seen from above
 // and in front so the far ones stand behind the fire and the near ones
 // before it — and lit by it: the faces turned to the fire burn in its
-// colour, the faces turned away stay black. Embers boil up between them. Winding up, the ring closes in
+// color, the faces turned away stay black. Embers boil up between them. Winding up, the ring closes in
 // on the fire; striking, it is blown wide.
 
 final List<FacetMesh> _stones = [

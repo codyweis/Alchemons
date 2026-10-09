@@ -679,9 +679,9 @@ enum SoundCue {
     // louder than the shot (the brief's own rule for frequent launches).
     _ when isFamilyBasic => .34,
     // It layers beneath the caster's element cue, which plays at full gain
-    // and is the part that carries any colour.
+    // and is the part that carries any color.
     SoundCue.combatSpecialCast => .55,
-    // Family casts sit under the element accent, which carries the colour.
+    // Family casts sit under the element accent, which carries the color.
     SoundCue.specialPip ||
     SoundCue.specialPipSeeker ||
     SoundCue.specialPipHeavy ||

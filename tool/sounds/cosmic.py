@@ -127,7 +127,7 @@ def _peak1(y):
     return y / (np.max(np.abs(y)) + 1e-12)
 
 
-def knock(m, at, body, amp, attack=0.003, tau=0.004, colour=4000, pan=0.0,
+def knock(m, at, body, amp, attack=0.003, tau=0.004, color=4000, pan=0.0,
           width=0.0, floor=120):
     """[body] (freqs, t60s, gains) struck at [at]: a short noise touch that
     leans in over [attack] and dies over [tau], rung through the body. For a
@@ -142,7 +142,7 @@ def knock(m, at, body, amp, attack=0.003, tau=0.004, colour=4000, pan=0.0,
                    np.exp(-(t - attack) / tau))
     out = np.zeros((2, n))
     for ch in range(2):
-        exc = _low(m.rng.normal(0, 1, n) * env, colour)
+        exc = _low(m.rng.normal(0, 1, n) * env, color)
         # The two sides hear the body from a little apart.
         out[ch] = _modes(exc, f * (1 + (ch - 0.5) * 0.004 * width), t60, g)
     out = signal.sosfilt(_sos('highpass', floor), out, axis=-1)
@@ -172,7 +172,7 @@ def _stick_slip(rng, speed, rate_lo, rate_hi, jitter=0.3, slide=0.15):
 
 
 def grind(m, start, length, speed, body, amp, rate=(10, 60), jitter=0.3,
-          slide=0.15, colour=3000, pan=0.0, width=0.6, floor=120):
+          slide=0.15, color=3000, pan=0.0, width=0.6, floor=120):
     """A mechanism or a mass moving against itself: stick-slip friction at
     [speed](t) (0..1), rung through [body]. (Below [floor] Hz is taken out,
     as for a knock.)"""
@@ -184,7 +184,7 @@ def grind(m, start, length, speed, body, amp, rate=(10, 60), jitter=0.3,
     shared = _stick_slip(m.rng, sp, *rate, jitter=jitter, slide=slide)
     for ch in range(2):
         own = _stick_slip(m.rng, sp, *rate, jitter=jitter, slide=slide)
-        exc = _low((1 - width) * shared + width * own, colour)
+        exc = _low((1 - width) * shared + width * own, color)
         out[ch] = _modes(exc, body[0], body[1], body[2])
     out = signal.sosfilt(_sos('highpass', floor), out, axis=-1)
     out = _peak1(out) * amp
@@ -400,7 +400,7 @@ def orb_pickup(v=0):
         f0 = rng.uniform(3200, 5600)
         knock(m, at, _plate(rng, f0, ring=rng.uniform(0.035, 0.07)),
               amp=0.1 * rng.uniform(0.6, 1.0), attack=0.0015, tau=0.0012,
-              colour=9000, pan=rng.uniform(-0.4, 0.4))
+              color=9000, pan=rng.uniform(-0.4, 0.4))
     # The warm light of it, low under the flakes: a small dark glass, barely.
     m.glass(0.004, 690 + 40 * v, amp=0.035, ring=0.15, attack=0.012,
             brightness=0.3, beat=2.0, ratios=[1.0, 2.32, 4.25])
@@ -422,7 +422,7 @@ def orb_deposit():
     # 60 ms -- a weight received, not a blow; dense stone modes, so it is a
     # thud of matter and never a bell), a low breath, a deep swell.
     knock(m, 0.3, _stone(m.rng, 190, count=26, ring=0.09), amp=0.22, attack=0.06,
-          tau=0.05, colour=1300, width=1.0, floor=150)
+          tau=0.05, color=1300, width=1.0, floor=150)
     rush(m, 0.12, 0.9, lambda t: 420 - 150 * smooth(t, 0, 0.6),
          lambda t: 0.012 * smooth(t, 0, 0.25) * (1 - smooth(t, 0.3, 0.9)),
          width_oct=0.9, spread=0.9)
@@ -453,7 +453,7 @@ def anomaly_burst():
     # Space tearing: dense friction, fast while the flash holds.
     tear = lambda t: smooth(t, 0.0, 0.025) * (1 - smooth(t, 0.05, flash + 0.05))
     grind(m, 0.0, flash + 0.1, tear, _stone(m.rng, 900, count=14, ring=0.03),
-          amp=0.22, rate=(300, 1400), jitter=0.6, slide=0.4, colour=7000, width=0.9)
+          amp=0.22, rate=(300, 1400), jitter=0.6, slide=0.4, color=7000, width=0.9)
     # The weight of it: displaced air under the flash.
     rumble(m, 0.0, WARP, lambda t: smooth(t, 0, 0.03) * (1 - smooth(t, 0.05, WARP)),
            amp=0.03, lo=50, hi=260)
@@ -489,7 +489,7 @@ def portal_open():
     # The strain: something very large turning against itself.
     grind(m, 0.15, o - 0.1, lambda t: smooth(t, 0, o - 0.3) * (1 - smooth(t, o - 0.2, o - 0.12)),
           _stone(m.rng, 120, count=18, ring=0.2), amp=0.25, rate=(9, 30),
-          jitter=0.35, colour=2200, floor=160)
+          jitter=0.35, color=2200, floor=160)
     # It gives: the pressure goes out of it, low and wide -- a different air
     # from the hiss that drew it in, and a deep glass under it.
     rush(m, o - 0.02, 1.1, lambda t: 520 - 300 * smooth(t, 0, 1.0),
@@ -521,10 +521,10 @@ def starforge_activate():
         * (1 - 0.65 * smooth(t, seat - 0.3 - 0.6, seat - 0.3)) * (t < seat - 0.3)
     body = _stone(m.rng, 170, count=22, ring=0.1)
     grind(m, 0.3, seat - 0.3 + 0.05, turn, body, amp=0.22, rate=(6, 34),
-          jitter=0.35, slide=0.25, colour=3200, width=0.5, floor=160)
+          jitter=0.35, slide=0.25, color=3200, width=0.5, floor=160)
     # The seat: stone set on stone, pressing in over 30 ms.
     knock(m, seat, _stone(m.rng, 150, count=24, ring=0.3), amp=0.17,
-          attack=0.03, tau=0.025, colour=2000, width=1.0, floor=170)
+          attack=0.03, tau=0.025, color=2000, width=1.0, floor=170)
     m.grains(lambda t: np.where(t > seat + 0.02, 2000 * np.exp(-(t - seat - 0.02) / 0.18), 0),
              lambda t: 0.3 + 0 * t, lambda t: 0.2 * np.sin(9 * t), amp=1.0,
              weight=lambda t: 0.45 + 0 * t)
@@ -585,7 +585,7 @@ def cache_open():
         * smooth(t, 0.9, 0.96)
     grind(m, 0.85, 1.45, lambda t: part_speed(t + 0.85),
           _dark_glass(m.rng, 820, ring=0.045), amp=0.07, rate=(12, 70),
-          jitter=0.4, slide=0.3, colour=5000, width=0.7, floor=250)
+          jitter=0.4, slide=0.3, color=5000, width=0.7, floor=250)
     # The seal's shards whirling up: air cut by six blades, their pass rate
     # rising with the spin, gone as they fly.
     spin = lambda t: 10 * tau(t) / CACHE * 6 / (2 * math.pi)
@@ -621,7 +621,7 @@ def cache_open():
         at = CACHE + 0.02 + rng.uniform(0, 0.25)
         knock(m, at, _plate(rng, rng.uniform(2600, 4800), ring=0.09),
               amp=0.15 * rng.uniform(0.5, 1), attack=0.002, tau=0.0015,
-              colour=9000, pan=rng.uniform(-0.8, 0.8))
+              color=9000, pan=rng.uniform(-0.8, 0.8))
     m.glass(CACHE - 0.02, 311, amp=0.11, ring=1.2, attack=0.06, brightness=0.3,
             beat=1.2)
     m.room(t60=1.3, wet=0.25)
@@ -662,9 +662,9 @@ def scan():
     speed = lambda t: smooth(t, 0.0, 0.12) * (1 - smooth(t, 0.3, settle - 0.01)) \
         + 0.25 * np.exp(-((t - settle - 0.05) / 0.03) ** 2)
     grind(m, 0.0, settle + 0.15, speed, _stone(m.rng, 420, count=20, ring=0.05),
-          amp=0.07, rate=(20, 110), jitter=0.25, slide=0.35, colour=6000, width=0.5)
+          amp=0.07, rate=(20, 110), jitter=0.25, slide=0.35, color=6000, width=0.5)
     knock(m, settle, _stone(m.rng, 380, count=14, ring=0.06), amp=0.13,
-          attack=0.008, tau=0.004, colour=4000, floor=250)
+          attack=0.008, tau=0.004, color=4000, floor=250)
     # The sweep: a fan of motes crossing left to right.
     m.grains(lambda t: 1000 * smooth(t, 0.08, 0.2) * (1 - smooth(t, 0.45, 0.7)),
              lambda t: 0.85 + 0 * t, lambda t: -0.8 + 1.6 * smooth(t, 0.08, 0.7),
@@ -749,11 +749,11 @@ def space_loop():
     for at, length, f0, pan in ((8.0, 4.5, 55, -0.5), (19.5, 5.0, 48, 0.6)):
         grind(m, at, length, lambda t, length=length: np.sin(math.pi * np.clip(t / length, 0, 1)) ** 2,
               _stone(rng, f0 * 2.5, count=16, ring=0.4), amp=0.1, rate=(3, 9),
-              jitter=0.4, slide=0.3, colour=700, pan=pan, width=0.8)
+              jitter=0.4, slide=0.3, color=700, pan=pan, width=0.8)
     # The hull ticking as it cools, close and tiny.
     for at in (6.1, 6.45, 17.3, 26.8):
         knock(m, at, _dark_glass(rng, rng.uniform(900, 1300), ring=0.08),
-              amp=0.05, attack=0.002, tau=0.001, colour=6000,
+              amp=0.05, attack=0.002, tau=0.001, color=6000,
               pan=rng.uniform(-0.5, 0.5))
     m.room(t60=3.2, wet=0.35, darkness=2600)
     y = m.finish(loudness_db=-42.0, fade_out=0)
@@ -885,7 +885,7 @@ def wave_start():
         at = 0.15 + 0.85 * rng.random() ** 0.7
         knock(m, at, _stone(rng, rng.uniform(300, 700), count=10, ring=0.04),
               amp=0.15 * rng.uniform(0.4, 1.0) * float(smooth(np.array(at), 0.1, 0.6)),
-              attack=0.006, tau=0.004, colour=2200, pan=rng.uniform(-0.95, 0.95))
+              attack=0.006, tau=0.004, color=2200, pan=rng.uniform(-0.95, 0.95))
     m.room(t60=1.6, wet=0.32, darkness=2400)
     return m.finish(loudness_db=-31.0, fade_out=0.3)
 
@@ -913,7 +913,7 @@ def milestone():
     in, a long exhale, dust coming down, a deep glass under it all."""
     m = Mix(2.4, seed=7301)
     knock(m, 0.04, _stone(m.rng, 120, count=24, ring=0.45), amp=0.3,
-          attack=0.035, tau=0.03, colour=1800, width=1.0)
+          attack=0.035, tau=0.03, color=1800, width=1.0)
     rush(m, 0.0, 2.0, lambda t: 1300 * (300 / 1300) ** smooth(t, 0, 1.8),
          lambda t: 0.022 * smooth(t, 0, 0.08) * (1 - smooth(t, 0.1, 2.0)),
          width_oct=1.1, spread=1.0)
@@ -951,7 +951,7 @@ def boss_arrive():
          width_oct=1.1, spread=1.0, flutter=0.3)
     grind(m, 0.0, 0.5, lambda t: smooth(t, 0, 0.04) * (1 - smooth(t, 0.04, 0.45)),
           _stone(m.rng, 260, count=16, ring=0.05), amp=0.2, rate=(200, 700),
-          jitter=0.6, slide=0.4, colour=3500, width=0.9)
+          jitter=0.6, slide=0.4, color=3500, width=0.9)
     # Its mass driven in: a low rush closing, and its body groaning as it
     # moves (slow stick-slip through a huge stone).
     glide = lambda t: smooth(t, 0.0, 0.15) * (1 - 0.7 * smooth(t, 0.4, BOSS_SETTLE)) \
@@ -962,10 +962,10 @@ def boss_arrive():
          pan=lambda t: -0.3 + 0.3 * smooth(t, 0, BOSS_SETTLE))
     grind(m, 0.1, BOSS_SETTLE, lambda t: glide(t + 0.1),
           _stone(m.rng, 80, count=22, ring=0.3), amp=0.5, rate=(7, 18),
-          jitter=0.3, slide=0.3, colour=2000, width=0.6, floor=150)
+          jitter=0.3, slide=0.3, color=2000, width=0.6, floor=150)
     # Settled: weight pressing in over 40 ms, and the field holding it.
     knock(m, BOSS_SETTLE, _stone(m.rng, 90, count=26, ring=0.5), amp=0.35,
-          attack=0.04, tau=0.04, colour=1600, width=1.0)
+          attack=0.04, tau=0.04, color=1600, width=1.0)
     rumble(m, BOSS_SETTLE - 0.02, 1.35, lambda t: smooth(t, 0, 0.05) * (1 - smooth(t, 0.05, 1.35)),
            amp=0.02, lo=35, hi=240)
     m.room(t60=2.2, wet=0.32, darkness=2600)
@@ -981,7 +981,7 @@ def outbreak():
     # Stretching: a slow wet creak through a soft low body.
     grind(m, 0.0, 0.8, lambda t: smooth(t, 0, 0.3) * (1 - smooth(t, 0.4, 0.8)),
           _stone(m.rng, 220, count=14, ring=0.05), amp=0.3, rate=(14, 40),
-          jitter=0.5, slide=0.6, colour=1800, width=0.5)
+          jitter=0.5, slide=0.6, color=1800, width=0.5)
     bubbles(m, 0.1, 1.2, lambda t: 90 * smooth(t, 0, 0.25) * (1 - smooth(t, 0.4, 1.15)),
             lambda t: 0.75 - 0.35 * smooth(t, 0.0, 1.0), amp=0.07,
             pan=lambda t: np.sin(5 * t) * 0.4, spread=0.4)
@@ -1024,11 +1024,11 @@ def powerup_choose():
     # (Floors at 300 Hz: a small glass seat has no weight below that, and
     # a low bump under it would read as a drum.)
     knock(m, seat, _dark_glass(m.rng, 610, ring=0.1), amp=0.08,
-          attack=0.003, tau=0.002, colour=5000, floor=300)
+          attack=0.003, tau=0.002, color=5000, floor=300)
     knock(m, seat + 0.014, _dark_glass(m.rng, 640, ring=0.13), amp=0.12,
-          attack=0.004, tau=0.003, colour=4000, floor=300)
+          attack=0.004, tau=0.003, color=4000, floor=300)
     knock(m, seat + 0.012, _stone(m.rng, 320, count=12, ring=0.05), amp=0.06,
-          attack=0.004, tau=0.003, colour=2500, floor=300)
+          attack=0.004, tau=0.003, color=2500, floor=300)
     m.room(t60=0.8, wet=0.2)
     return m.finish(loudness_db=-31.0, fade_out=0.25)
 
@@ -1062,7 +1062,7 @@ def altar_rift_tear():
     grind(m, 0.3, ALTAR_TEAR - 0.3,
           lambda t: (0.25 + 0.75 * s(t + 0.3) ** 2) * smooth(t, 0, 0.5),
           _stone(m.rng, 120, count=18, ring=0.2), amp=0.2, rate=(6, 36),
-          jitter=0.35, colour=2200)
+          jitter=0.35, color=2200)
     # Drawn in: a hiss sinking as the swell tightens.
     rush(m, 0.0, ALTAR_TEAR + 0.08,
          lambda t: 3800 * (1000 / 3800) ** s(t / 0.9),
@@ -1072,7 +1072,7 @@ def altar_rift_tear():
     # going out, low and wide, with a deep glass under it.
     tear = lambda t: smooth(t, 0, 0.04) * (1 - smooth(t, 0.05, 0.4))
     grind(m, ALTAR_TEAR - 0.04, 0.45, tear, _stone(m.rng, 900, count=14, ring=0.03),
-          amp=0.16, rate=(300, 1300), jitter=0.6, slide=0.4, colour=7000, width=0.9)
+          amp=0.16, rate=(300, 1300), jitter=0.6, slide=0.4, color=7000, width=0.9)
     rush(m, ALTAR_TEAR - 0.04, 1.3, lambda t: 560 - 320 * smooth(t, 0, 1.2),
          lambda t: 0.035 * smooth(t, 0, 0.04) * (1 - smooth(t, 0.05, 1.3)),
          width_oct=1.0, spread=1.0)
@@ -1141,7 +1141,7 @@ def ship_bolt(v=0):
     _zap(m, 0.0, 3400 * j, 750 * j, 0.12, q=11, amp=0.07, tone=0.15,
          pan=(rng.random() - 0.5) * 0.2)
     knock(m, 0.001, _dark_glass(rng, _HULL_F0 * (1.9 + 0.2 * rng.random()), ring=0.05),
-          amp=0.025, attack=0.002, tau=0.003, colour=3000, floor=300)
+          amp=0.025, attack=0.002, tau=0.003, color=3000, floor=300)
     m.room(t60=0.35, wet=0.14)
     return m.finish(loudness_db=-35.0, fade_out=0.05)
 
@@ -1152,7 +1152,7 @@ def ship_missile():
     its roar thinning as it goes."""
     m = Mix(0.8, seed=6111)
     knock(m, 0.0, _dark_glass(m.rng, _HULL_F0 * 1.4, ring=0.12), amp=0.05,
-          attack=0.004, tau=0.004, colour=2500, floor=250)
+          attack=0.004, tau=0.004, color=2500, floor=250)
     roar(m, 0.03, 0.7,
          lambda t: smooth(t, 0, 0.02) * np.exp(-np.maximum(t - 0.05, 0) / 0.22),
          amp=0.06, body_lo=180, body_hi=1400, rasp=0.8, crackle=45, hiss=0.25)

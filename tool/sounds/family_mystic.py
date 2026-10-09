@@ -8,7 +8,7 @@ alchemon_combat_stats.dart; open space and the dungeons play only the basic):
 THE BASIC (createFamilyBasicAttack, cosmic_data.dart, case 'mystic'):
   three projectiles released on the SAME frame in a tight fan (angle +/-0.12
   rad), ProjectileVisualStyle.standard at visualScale 0.7 -- a soft element-
-  coloured mote (core r 2.1 px, glow r 3.5 px), no trail -- flying at the
+  colored mote (core r 2.1 px, glow r 3.5 px), no trail -- flying at the
   default 600 px/s. The Mystic's reach is ~220-300 px, so a mote is on its
   way ~0.35-0.5 s; the hit has its own cue (combatHitLight). Interval
   1.5 s / power factor: roughly every 1-1.5 s, from up to three slots.

@@ -94,7 +94,7 @@ const kWildCoreSlots = ['valley', 'sky', 'volcano', 'swamp'];
 enum WildVolcano { still, smoking, erupting }
 
 // The parts the map is made of. A grain remembers its part: it decides its
-// colour, how it moves and what the weather does to it.
+// color, how it moves and what the weather does to it.
 const int _rock = 0, _farRock = 1, _meadow = 2; // Valley
 const int _cloud = 3; // Sky
 // Volcano: the cone, the lava down its right face (glowing whenever it is
@@ -112,6 +112,9 @@ const int _amethyst = 21, _quartz = 22, _geoRock = 23;
 // The Tidal Shelf: its sun, the sea, the sand at its foot.
 const int _sun = 24, _sea = 26;
 const int _tideSand = 28;
+// Past each circle (and Arcane's): a few of its grains drifting in the
+// dark, its light spilling out.
+const int _spill = 30;
 
 /// Where the Tidal Shelf's horizon stands at a [tide] (0 low water, 1
 /// high), in its unit square: a little higher at high water.
@@ -126,8 +129,11 @@ double _pathHalf(double h, double v) => 0.06 + (v - h) * 0.55;
 
 // Groups, in the order they draw. Each is one picture at rest, and only
 // the ones a finger reaches go back to live grains.
-const int _gSand = 0; // every realm's circle of sand
-const int _gStill = 1; // one per realm: its grains that never move
+// One per realm, then Arcane's: its grains past its circle, turning slowly
+// round it, under everything.
+const int _gSpill = 0;
+const int _gSand = _gSpill + _nRealms + 1; // every realm's circle of sand
+const int _gStill = _gSand + 1; // one per realm: its grains that never move
 const int _gRim = _gStill + _nRealms; // one per realm: live while it pulses
 const int _gCloud = _gRim + _nRealms, _gTree = _gCloud + 1;
 const int _gLive = _gCloud + 2, _gArcane = _gCloud + 3;
@@ -144,9 +150,10 @@ const _layerTurn = [0.1, -0.075, 0.05];
 
 /// Whether [part] is one of a realm's shape: scattered as dust until
 /// something waits in it.
-bool _isShape(int part) => part < _sand || part >= _lava2;
+bool _isShape(int part) => (part < _sand || part >= _lava2) && part != _spill;
 
 int _groupOf(int part, int realm) => switch (part) {
+  _spill => _gSpill + realm,
   _sand => _gSand,
   _rim => realm < _nRealms ? _gRim + realm : _gArcRim,
   _cloud => _gCloud,
@@ -881,7 +888,7 @@ class WildMapField {
   // ── Grains ────────────────────────────────────────────────────────────
 
   // Every grain, in group order: where each rests now, its push from the
-  // flow, its colour clear and under its realm's weather, its part, its
+  // flow, its color clear and under its realm's weather, its part, its
   // realm (4 = Arcane) and its height in the shape's square. And for a
   // shape's grain: its place in the shape and in the dust (where it rests
   // now is one of the two), its layer of dust, and when it sets off and how
@@ -1057,7 +1064,7 @@ class WildMapField {
       (_tau * _circleR / 0.7).round(),
       () => 1 - 0.022 * rng.nextDouble(),
       () => grain * (0.0022 + 0.001 * rng.nextDouble()),
-      (r) => _argb(0.8 + 0.2 * rng.nextDouble(), 0.74, 0.58, 1),
+      (r) => _argb(0.46 + 0.14 * rng.nextDouble(), 0.74, 0.58, 1),
     );
     arc(
       _arcFill,
@@ -1076,6 +1083,65 @@ class WildMapField {
           (_mix(0xFF5ED07A, 0xFFA6F0B0, rng.nextDouble()) & 0xFFFFFF),
     );
 
+    // Past each circle, a few of its realm's grains in the dark, thinning
+    // as they go: its light spilling out. Arcane's too. Their own dice, so
+    // everything else comes out as it always has.
+    void spill(
+      int i,
+      Offset c,
+      double from,
+      double reach,
+      int count,
+      List<int> colors,
+      double bright,
+      math.Random dice,
+    ) {
+      for (var k = 0; k < count; k++) {
+        final q = math.pow(dice.nextDouble(), 1.8).toDouble();
+        final r = from + reach * q;
+        final a = dice.nextDouble() * _tau;
+        final col = colors[dice.nextInt(colors.length)];
+        final al = (0.22 + bright * dice.nextDouble()) * (1 - _smooth(q));
+        final argb = (_byte(al) << 24) | (col & 0xFFFFFF);
+        add(
+          _Seed(
+            c.dx + math.cos(a) * r,
+            c.dy + math.sin(a) * r,
+            grain * (0.0021 + 0.0013 * dice.nextDouble()),
+            argb,
+            argb,
+            _spill,
+            i,
+            q,
+          ),
+        );
+      }
+    }
+
+    for (var i = 0; i < _nRealms; i++) {
+      if (!_shown[i]) continue;
+      spill(
+        i,
+        _centre[i],
+        _ringR * 1.14,
+        _ringR * 1.15,
+        850,
+        _spillGrains[i],
+        0.5,
+        math.Random(_seed + 600 + i),
+      );
+    }
+    spill(
+      _arcI,
+      _mid,
+      _circleR * 1.15,
+      _circleR * 1.4,
+      420,
+      const [0xFFA080F0, 0xFF8C70E0],
+      0.45,
+      math.Random(_seed + 700),
+    );
+
     final all = <_Seed>[];
     final chunkFrom = <int>[], chunkLayer = <int>[];
     for (var g = 0; g < _groups; g++) {
@@ -1087,10 +1153,11 @@ class WildMapField {
         // it, and each layer of dust keeps together so it can turn as one;
         // within a chunk grains keep their order.
         final seeds = groups[g];
+        final side = _isSpill(g) ? _spillChunkSide : _chunkSide;
         int keyOf(_Seed s) {
           final under = s.part == _arcRing ? 0 : 1;
-          final cx = (s.x / _chunkSide).floor().clamp(0, 255);
-          final cy = (s.y / _chunkSide).floor().clamp(0, 255);
+          final cx = (s.x / side).floor().clamp(0, 255);
+          final cy = (s.y / side).floor().clamp(0, 255);
           return (under << 20) | (s.layer << 16) | (cy << 8) | cx;
         }
 
@@ -1181,6 +1248,7 @@ class WildMapField {
     _alpha = Float32List(_n);
     _realm = Uint8List(_n);
     _part = Uint8List(_n);
+    final spillDice = math.Random(_seed + 800);
     for (var k = 0; k < _n; k++) {
       final s = all[k];
       _fx[k] = s.x;
@@ -1192,16 +1260,10 @@ class WildMapField {
       final shaped = s.realm >= _nRealms || _formed[s.realm] == 1;
       _hx[k] = shaped ? s.x : s.sx;
       _hy[k] = shaped ? s.y : s.sy;
-      // When it sets off as the realm gathers, and how far round it swings
-      // on the way: the way its layer was turning.
-      _delay[k] = dust.nextDouble() * _stagger;
-      final way = s.realm < _nRealms ? _turnWay(s.realm, s.layer) : 1.0;
-      _curl[k] = way * (0.12 + 0.26 * dust.nextDouble());
       _size2[k] = s.size;
       _v[k] = s.v;
       _realm[k] = s.realm;
       _part[k] = s.part;
-      _ph[k] = rng.nextDouble() * _tau;
       final c = s.col, a = s.alt;
       _alpha[k] = ((c >> 24) & 0xFF) / 255;
       _r[k] = ((c >> 16) & 0xFF) / 255;
@@ -1210,6 +1272,18 @@ class WildMapField {
       _ar[k] = ((a >> 16) & 0xFF) / 255;
       _ag[k] = ((a >> 8) & 0xFF) / 255;
       _ab[k] = (a & 0xFF) / 255;
+      if (s.part == _spill) {
+        // Spilled grains never gather, and throw their own dice: the rest
+        // come out as they always have.
+        _ph[k] = spillDice.nextDouble() * _tau;
+        continue;
+      }
+      // When it sets off as the realm gathers, and how far round it swings
+      // on the way: the way its layer was turning.
+      _delay[k] = dust.nextDouble() * _stagger;
+      final way = s.realm < _nRealms ? _turnWay(s.realm, s.layer) : 1.0;
+      _curl[k] = way * (0.12 + 0.26 * dust.nextDouble());
+      _ph[k] = rng.nextDouble() * _tau;
     }
     // Where each is drawn: at rest until the field first steps, so a frame
     // painted straight after layout has every grain in place.
@@ -1247,6 +1321,9 @@ class WildMapField {
   // the map, each one picture at rest. While a finger stirs the group,
   // only the chunks with a grain off its place are drawn grain by grain.
   static const double _chunkSide = 40;
+  // (Spilled grains lie thin over a wide ring: bigger squares, so a stir
+  // anywhere near draws few pictures of them.)
+  static const double _spillChunkSide = 100;
   static bool _chunked(int g) =>
       g < _gStill + _nRealms || g == _gCloud || g == _gTree || g == _gArcane;
   final Int32List _chunk0 = Int32List(_groups), _chunk1 = Int32List(_groups);
@@ -1291,12 +1368,26 @@ class WildMapField {
   }
 
   /// Whether group [g] is drawn whole, grain by grain: every grain of it
-  /// moves or changes colour this frame.
+  /// moves or changes color this frame.
   bool _whole(int g) =>
       g == _gLive || (g == _gCloud && _flash > 0) || _travelling(g);
 
   static bool _isRim(int g) =>
       (g >= _gRim && g < _gRim + _nRealms) || g == _gArcRim;
+
+  static bool _isSpill(int g) => g >= _gSpill && g <= _gSpill + _nRealms;
+
+  /// What spill group [g] turns round: its realm's circle, or Arcane's.
+  Offset _spillCentre(int g) =>
+      g - _gSpill == _arcI ? _mid : _centre[g - _gSpill];
+
+  /// How far spill group [g] has turned: slowly, alternate realms the
+  /// other way, Arcane's the way its disc turns.
+  double _spillAngle(int g) {
+    final i = g - _gSpill;
+    if (i == _arcI) return time * 0.06;
+    return time * 0.035 * (i.isEven ? 1 : -1) + i * 0.9;
+  }
 
   /// Where in its pulse realm [i]'s rim (or Arcane's, [_arcI]) is: each
   /// its own.
@@ -1310,7 +1401,7 @@ class WildMapField {
     return _ready[i] * (0.6 + 0.4 * pulse);
   }
 
-  /// A grain's colour in [part] at (u, v) of its square, the colour its
+  /// A grain's color in [part] at (u, v) of its square, the color its
   /// realm's weather turns it (Valley: snow; Sky: storm; Swamp: dry), and
   /// the part it turns out to be (a snowcap on the rock, lava on the cone).
   (int, int, int) _look(
@@ -1648,6 +1739,76 @@ class WildMapField {
     0xFF8A949C,
   ];
 
+  // The light each realm spills into the dark round its circle, clear (its
+  // weather's light, [_washAlt], tints it).
+  static const _spillLight = [
+    0xFF78BE78, // Valley
+    0xFF96AFEB, // Sky
+    0xFFE6602E, // Volcano
+    0xFF46AA82, // Swamp
+    0xFFC8964E, // Dunes
+    0xFF9A6AE0, // Geode
+    0xFF4A9AB0, // Tidal
+  ];
+
+  // The grains each realm spills, by realm.
+  static const _spillGrains = [
+    [0xFF96B482, 0xFFB0B4CE, 0xFFCDC060], // meadow, rock, a gold fleck
+    [0xFFD6DCF0, 0xFFB4C0E4], // cloud
+    [0xFFEC6E2E, 0xFFAA6A4A], // embers, the cone
+    [0xFF6E9650, 0xFF3C8C82, 0xFFA07046], // moss, the pool, mud
+    [0xFFD8B47A, 0xFFB08850], // sand
+    [0xFFA77BE0, 0xFFD8D0F0], // amethyst, quartz
+    [0xFF3E8A9A, 0xFFF0A860, 0xFFD0B080], // sea, sun, sand
+  ];
+
+  // Each realm's ring of light (and Arcane's, last), and the color it was
+  // made for.
+  final List<Shader?> _spillShader = List.filled(_nRealms + 1, null);
+  final List<int> _spillShaderFor = List.filled(_nRealms + 1, 0);
+  final Paint _spillPaint = Paint()..blendMode = BlendMode.plus;
+
+  /// Each realm lights the dark round its circle in its own color, a
+  /// little more once it has gathered, and Arcane the middle violet; where
+  /// two meet, their lights mix. The light is brightest at the rim and
+  /// none in the middle, so what is in a circle looks as it did.
+  void _paintSpillLight(Canvas canvas) {
+    for (var i = 0; i <= _nRealms; i++) {
+      final arc = i == _arcI;
+      if (arc ? !arcane : !_shown[i]) continue;
+      final c = arc ? _mid : _centre[i];
+      final r = arc ? _circleR : _ringR;
+      final reach = r * (arc ? 3.2 : 2.4);
+      final int argb;
+      if (arc) {
+        argb = _argb(0.07, 0.5, 0.35, 0.9);
+      } else {
+        final col = _mix(_spillLight[i], _washAlt[i], _wx[i] * 0.6);
+        argb = (_byte(0.075 + 0.025 * _form[i]) << 24) | (col & 0xFFFFFF);
+      }
+      if (_spillShader[i] == null || _spillShaderFor[i] != argb) {
+        final peak = Color(argb), none = peak.withAlpha(0);
+        final from = r * (arc ? 0.7 : 0.55) / reach;
+        final top = r / reach;
+        _spillShaderFor[i] = argb;
+        _spillShader[i] = ui.Gradient.radial(
+          c,
+          reach,
+          [
+            none,
+            none,
+            peak,
+            peak.withValues(alpha: peak.a * 0.6),
+            peak.withValues(alpha: peak.a * 0.22),
+            none,
+          ],
+          [0, from, top, top + (1 - top) * 0.3, top + (1 - top) * 0.62, 1],
+        );
+      }
+      canvas.drawCircle(c, reach, _spillPaint..shader = _spillShader[i]);
+    }
+  }
+
   void _paintWashes() {
     final t = time;
     for (final (x, y, r, i) in _washes) {
@@ -1744,7 +1905,7 @@ class WildMapField {
   // ── The rainbow rain leaves ───────────────────────────────────────────
 
   // Its grains, arching over the Valley's range in the air before it:
-  // place, size and colour (alpha already faded toward the circle's edge);
+  // place, size and color (alpha already faded toward the circle's edge);
   // and a few soft lights along each band.
   Float32List _bowX = Float32List(0), _bowY = Float32List(0);
   Float32List _bowS = Float32List(0);
@@ -2512,7 +2673,7 @@ class WildMapField {
   /// standing on folded hems, green below and violet above.
   // The northern lights' columns, each [_auroraRise] grains tall: what
   // never changes along one, worked out once. Each grain's sideways
-  // scatter; and by height, its colour (green at the hem, through blue, to
+  // scatter; and by height, its color (green at the hem, through blue, to
   // violet at the top) and how bright (brightest just above the hem,
   // thinning upward).
   static const int _auroraRise = 22;
@@ -3571,11 +3732,20 @@ class WildMapField {
         c = mx - mx * ac + my * as;
         f = my - mx * as - my * ac;
       default:
-        break;
+        if (_isSpill(g)) {
+          final sa = _spillAngle(g), cs = math.cos(sa), sn = math.sin(sa);
+          final o = _spillCentre(g);
+          a = cs;
+          b = -sn;
+          d = sn;
+          e = cs;
+          c = o.dx - o.dx * cs + o.dy * sn;
+          f = o.dy - o.dx * sn - o.dy * cs;
+        }
     }
     final det = a * e - b * d;
     var ia = e / det, ib = -b / det, id = -d / det, ie = a / det;
-    final spin = g == _gArcane || turning;
+    final spin = g == _gArcane || turning || _isSpill(g);
     final chunkLayer = _chunkLayer;
 
     final hxs = _hx, hys = _hy, oxs = _ox, oys = _oy, vxs = _vx, vys = _vy;
@@ -3588,7 +3758,7 @@ class WildMapField {
     final tw = _tw, th = _th;
     final chunkFrom = _chunkFrom, chunkTo = _chunkTo, chunkBusy = _chunkBusy;
     final alphas = _alpha;
-    // Each grain's colour at rest, at this group's brightness now.
+    // Each grain's color at rest, at this group's brightness now.
     final faded = fade != 1.0;
     if (faded) {
       for (var k = _from[g], end = _to[g]; k < end; k++) {
@@ -3765,7 +3935,7 @@ class WildMapField {
   static final Paint _add = Paint()
     ..filterQuality = FilterQuality.medium
     ..blendMode = BlendMode.plus;
-  // Ink: each colour deepened, so grains read as stipple on the page and
+  // Ink: each color deepened, so grains read as stipple on the page and
   // the lights as darker, warmer marks.
   static final Paint _inkOver = Paint()
     ..filterQuality = FilterQuality.medium
@@ -3813,6 +3983,8 @@ class WildMapField {
       _chunkPics[c]?.dispose();
       _chunkPics[c] = null;
     }
+    // (The rings of light are made where the circles were.)
+    _spillShader.fillRange(0, _spillShader.length, null);
     _picKey = null;
   }
 
@@ -3840,7 +4012,7 @@ class WildMapField {
   List<double> get _key => [
     for (var i = 0; i < _nRealms; i++) _wx[i],
     _rain[0],
-    // The left run of lava's colour.
+    // The left run of lava's color.
     _erupt,
     ink ? 1 : 0,
   ];
@@ -3954,14 +4126,17 @@ class WildMapField {
 
     _wash.clear();
     _paintWashes();
-    if (!ink) _wash.draw(canvas, _atlas!, _add);
+    if (!ink) {
+      _paintSpillLight(canvas);
+      _wash.draw(canvas, _atlas!, _add);
+    }
     _glow.clear();
 
     for (var g = 0; g < _groups; g++) {
       // (The live grains' pass draws the movers and weather too, so it
       // runs even with none of its own.)
       if (_to[g] == _from[g] && g != _gLive) continue;
-      if (g == _gArcane && !arcane) continue;
+      if ((g == _gArcane || g == _gSpill + _arcI) && !arcane) continue;
       if (g >= _gRim && g < _gRim + _nRealms && _ready[g - _gRim] <= 0) {
         continue;
       }
@@ -4048,7 +4223,7 @@ class WildMapField {
     return true;
   }
 
-  /// The batches rebuilt at rest in new colours, with every grain put back
+  /// The batches rebuilt at rest in new colors, with every grain put back
   /// where the last step left it (no time passing).
   void _restepBatches() {
     _litGlow.clear();
@@ -4082,8 +4257,16 @@ class WildMapField {
           ..rotate(_arcTurn)
           ..translate(-_mid.dx, -_mid.dy);
       default:
-        draw();
-        return;
+        if (!_isSpill(g)) {
+          draw();
+          return;
+        }
+        final c = _spillCentre(g);
+        canvas
+          ..save()
+          ..translate(c.dx, c.dy)
+          ..rotate(_spillAngle(g))
+          ..translate(-c.dx, -c.dy);
     }
     draw();
     canvas.restore();
@@ -4191,9 +4374,9 @@ class WildMapField {
     return true;
   }
 
-  // A grain's colour under its realm's weather, set by [_colour].
+  // A grain's color under its realm's weather, set by [_color].
   double _cr = 0, _cg = 0, _cb = 0;
-  void _colour(int k) {
+  void _color(int k) {
     final ri = _realm[k];
     // The left run of lava wakes only in eruption.
     final w = ri >= _nRealms ? 0.0 : (_part[k] == _lava2 ? _erupt : _wx[ri]);
@@ -4215,7 +4398,7 @@ class WildMapField {
     for (var c = _chunk0[g]; c < _chunk1[g]; c++) {
       _chunkS0[c] = into.n;
       for (var k = _chunkFrom[c]; k < _chunkTo[c]; k++) {
-        _colour(k);
+        _color(k);
         _slot[k] = into.add(
           _hx[k],
           _hy[k],
@@ -4227,7 +4410,7 @@ class WildMapField {
     }
     if (_chunk1[g] > _chunk0[g]) return;
     for (var k = _from[g]; k < _to[g]; k++) {
-      _colour(k);
+      _color(k);
       _slot[k] = into.add(
         _hx[k],
         _hy[k],
@@ -4253,7 +4436,7 @@ class WildMapField {
     final t = time;
     final travelling = _travelling(g);
     for (var k = _from[g]; k < _to[g]; k++) {
-      _colour(k);
+      _color(k);
       var r = _cr, gg = _cg, b = _cb, a = _alpha[k];
       final x = _px[k], y = _py[k];
       if (travelling) {
@@ -4617,7 +4800,7 @@ ui.Image _buildAtlas() {
   );
 }
 
-/// Grains of one sprite, each its own colour and size, in one atlas call.
+/// Grains of one sprite, each its own color and size, in one atlas call.
 /// Grows as it needs to and keeps its size.
 class _Batch {
   _Batch(this._src);

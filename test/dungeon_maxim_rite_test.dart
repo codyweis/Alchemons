@@ -132,7 +132,7 @@ void main() {
   });
 
   test('a fallen party member still lends its element', () {
-    // You brought three. One dying on the way down does not remove its colour
+    // You brought three. One dying on the way down does not remove its color
     // from the reaction — it was part of the descent.
     final g = _game('Air', []);
     for (final c in g.creatures.skip(1)) {

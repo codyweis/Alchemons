@@ -180,7 +180,7 @@ class ArenaSky {
 /// it holds, and a belt of dust at the rim — hundreds of grains on slow
 /// orbits over a soft lane, the planets' particle-ring recipe laid flat.
 /// The belt is the core's outermost dust lane, so it takes the core's
-/// colour: a different core lights a different arena.
+/// color: a different core lights a different arena.
 class ArenaRim {
   ArenaRim() {
     final r = Random(1140);

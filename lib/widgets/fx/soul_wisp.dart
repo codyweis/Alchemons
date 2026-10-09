@@ -6,7 +6,7 @@
 // above. Nothing drawn in lines: grains, and two gradients for its light.
 //
 // It is a flame where a power orb is a sphere, so the two never read as the
-// same kind of thing. [tint] is its colour: the soul's canonical violet, or
+// same kind of thing. [tint] is its color: the soul's canonical violet, or
 // the stat it has been set to.
 
 import 'dart:math' as math;
@@ -161,7 +161,7 @@ abstract final class SoulWispPaint {
     _p.shader = null;
 
     final d = math.max(0.9, s * 0.017);
-    // Hot at the base, its colour through the body, deep at the tip.
+    // Hot at the base, its color through the body, deep at the tip.
     final ramp = [
       _lerp(tint, const ui.Color(0xFFFFFFFF), 0.75),
       _lerp(tint, const ui.Color(0xFFFFFFFF), 0.45),

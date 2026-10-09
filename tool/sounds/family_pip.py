@@ -35,7 +35,7 @@ Material: the darts are small hard points, so their sound is the flick that
 lets them go and the air they cut -- a thin band that recedes and dims as
 the dart leaves. No tone, no whine (the cartoon ricochet "pyeww" is exactly
 the thing not to make), no glass ring: the element accent layers on top of
-the special and carries any colour.
+the special and carries any color.
 """
 import math
 import warnings

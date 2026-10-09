@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 // `mkdir -p build/room_audit` and run this to get the pictures; CI has no
 // such directory and writes none (the Poison precedent — `flutter test`
 // passes neither --dart-define nor the environment through to the isolate).
-// It also prints an INK RANKING: edge pixels and distinct colours per room.
+// It also prints an INK RANKING: edge pixels and distinct colors per room.
 //
 // READ IT AS A SMOKE ALARM, NOT A SCORE. It was originally captioned as an
 // "emptiness ranking" with the note that under ~600 is a box, and eight
@@ -106,7 +106,7 @@ void main() {
           }
           final raw = await img.toByteData(format: ui.ImageByteFormat.rawRgba);
           final b = raw!.buffer.asUint8List();
-          // Distinct quantised colours = how much is actually drawn, and
+          // Distinct quantised colors = how much is actually drawn, and
           // "edge" pixels = how much of it has shape rather than wash.
           final palette = <int>{};
           var edges = 0;

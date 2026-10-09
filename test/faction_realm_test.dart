@@ -46,16 +46,16 @@ void main() {
   test('the light page has its own pigments, and gives the dark back', () {
     for (final id in FactionId.values) {
       final f = FactionRealmField(faction: id)..layout(size);
-      final dark = [for (var i = 0; i < f.grainCount; i++) f.debugColourOf(i)];
+      final dark = [for (var i = 0; i < f.grainCount; i++) f.debugColorOf(i)];
       f.ink = true;
       var changed = 0;
       for (var i = 0; i < f.grainCount; i++) {
-        if (f.debugColourOf(i) != dark[i]) changed++;
+        if (f.debugColorOf(i) != dark[i]) changed++;
       }
       expect(changed, greaterThan(f.grainCount * 0.9), reason: id.name);
       f.ink = false;
       for (var i = 0; i < f.grainCount; i++) {
-        expect(f.debugColourOf(i), dark[i], reason: '${id.name} grain $i');
+        expect(f.debugColorOf(i), dark[i], reason: '${id.name} grain $i');
       }
       f.dispose();
     }

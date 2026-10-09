@@ -122,7 +122,7 @@ void main() {
         'keep_nw',
         setup: (g) => g.discoveredClouds.add(kCrystalKnowThyselfEggId),
       );
-      // Two chambers, told apart by colour AND medallion.
+      // Two chambers, told apart by color AND medallion.
       await shoot('hearth', 'keep_core');
       await shoot('selenite', 'keep_ne');
 

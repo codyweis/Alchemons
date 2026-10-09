@@ -665,39 +665,51 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
       padding: const EdgeInsets.fromLTRB(10, 4, 10, 0),
       child: Row(
         children: [
-          word(
-            _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
-            _sortBy == SortBy.newest || _sortBy == SortBy.oldest,
-            () => _mutate(() {
-              _sortBy = _sortBy == SortBy.newest
-                  ? SortBy.oldest
-                  : SortBy.newest;
-            }),
+          // The sorts slide sideways when they do not fit — a narrow phone
+          // set to large text — and FILTER stays pinned at the end.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  word(
+                    _sortBy == SortBy.oldest ? 'OLDEST' : 'NEWEST',
+                    _sortBy == SortBy.newest || _sortBy == SortBy.oldest,
+                    () => _mutate(() {
+                      _sortBy = _sortBy == SortBy.newest
+                          ? SortBy.oldest
+                          : SortBy.newest;
+                    }),
+                  ),
+                  word(
+                    levelOn && _sortBy == SortBy.levelLow ? 'LEVEL ↑' : 'LEVEL',
+                    levelOn,
+                    () => _mutate(() {
+                      _sortBy = _sortBy == SortBy.levelHigh
+                          ? SortBy.levelLow
+                          : SortBy.levelHigh;
+                    }),
+                  ),
+                  word(
+                    _sortBy.isStatSort ? _sortBy.shortLabel : 'STATS',
+                    _sortBy.isStatSort,
+                    () => _mutate(() {
+                      _sortBy = _sortBy.nextStatSort(
+                        includePotential: hasPotentialAnalyzer,
+                      );
+                    }),
+                  ),
+                  word(
+                    'STAMINA',
+                    _sortBy == SortBy.staminaHigh,
+                    () => _mutate(() => _sortBy = SortBy.staminaHigh),
+                  ),
+                ],
+              ),
+            ),
           ),
-          word(
-            levelOn && _sortBy == SortBy.levelLow ? 'LEVEL ↑' : 'LEVEL',
-            levelOn,
-            () => _mutate(() {
-              _sortBy = _sortBy == SortBy.levelHigh
-                  ? SortBy.levelLow
-                  : SortBy.levelHigh;
-            }),
-          ),
-          word(
-            _sortBy.isStatSort ? _sortBy.shortLabel : 'STATS',
-            _sortBy.isStatSort,
-            () => _mutate(() {
-              _sortBy = _sortBy.nextStatSort(
-                includePotential: hasPotentialAnalyzer,
-              );
-            }),
-          ),
-          word(
-            'STAMINA',
-            _sortBy == SortBy.staminaHigh,
-            () => _mutate(() => _sortBy = SortBy.staminaHigh),
-          ),
-          const Spacer(),
+          const SizedBox(width: 8),
           word(
             _filtersOpen ? 'FILTER ▴' : 'FILTER ▾',
             _filtersOpen || _hasAdvancedFilters || _hasBrowseChipSelection,
@@ -1101,7 +1113,9 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                         final index = orderedSelectionIds.indexOf(
                           inst.instanceId,
                         );
-                        if (index >= 0 && index < 3) {
+                        // The cases number a whole team (five in survival);
+                        // the detail cards have room for three.
+                        if (index >= 0 && (widget.caseCards || index < 3)) {
                           selectionNumber = index + 1;
                         }
 

@@ -41,7 +41,7 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart'
 // THE STRAINS — behaviour IS the diagnosis (§6.13)
 // ─────────────────────────────────────────────────────────
 
-/// What a ward's contagion DOES. Never a colour, never a label: the player
+/// What a ward's contagion DOES. Never a color, never a label: the player
 /// reads the habit and nothing else (the ash-garden playtest lesson — an icon
 /// that "means" something is not a fact the player owns; a thing that visibly
 /// keeps a beat is).
@@ -572,12 +572,12 @@ class PriorsSeal {
 const String kPoisonDoseEggId = 'egg:poison_the_dose';
 
 /// THE DOSE, in order. The sick wisp wears one element at a time and answers
-/// only that one, and the colours are the game's own: Poison is purple,
+/// only that one, and the colors are the game's own: Poison is purple,
 /// Plant green, Mud brown. Nothing new to learn, because the player has been
 /// looking at those three on their own party since they picked it.
 const List<String> kWispOrder = ['Poison', 'Plant', 'Mud'];
 
-/// Where it comes back to after each colour. Far enough from the cross that
+/// Where it comes back to after each color. Far enough from the cross that
 /// getting it home is an errand, near enough that three of them is not a
 /// chore: the cross stands at x=1230 and a shove is 150.
 const Offset kWispStart = Offset(430, 250);

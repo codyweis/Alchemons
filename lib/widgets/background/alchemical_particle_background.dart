@@ -24,7 +24,7 @@ class _Particle {
   final double amplitudeX;
   final double amplitudeY;
 
-  /// Which batch it is drawn in: its colour, size and strength.
+  /// Which batch it is drawn in: its color, size and strength.
   final int bucket;
   double x = 0;
   double y = 0;
@@ -87,7 +87,7 @@ class _AlchemicalParticleBackgroundState
   Size? _lastSize;
 
   /// The palette the motes were made from, and their batches: one point
-  /// draw per colour, size and strength rather than a circle per mote.
+  /// draw per color, size and strength rather than a circle per mote.
   List<Color> _palette = _particleColors;
   GrainBatch _batch = GrainBatch(_particleColors.length * _MoteLook.count);
 

@@ -4,7 +4,7 @@
 // below when it is the live thing, readings in spaced monospace, and gauges
 // as glass tubes with matter settled in them (the space HUD's meter tube)
 // rather than flat bars. The orb's gauge is lit in the core's own light, the
-// same colour as the ring of cells round the core in the arena.
+// same color as the ring of cells round the core in the arena.
 
 import 'dart:math';
 import 'dart:ui' show PointMode;
@@ -21,7 +21,7 @@ class HudInk {
   static const amber = Color(0xFFE4B356);
   static const danger = Color(0xFFFF6B5E);
 
-  /// The ship's own colour: the pale steel of its hull's lit edge.
+  /// The ship's own color: the pale steel of its hull's lit edge.
   static const ship = Color(0xFF8FC9D6);
 }
 
@@ -40,7 +40,7 @@ TextStyle hudMono(
 );
 
 /// A pane of the HUD's dark glass, lit from below in [accent] when that is
-/// a colour of its own (the plain [HudInk.line] draws nothing).
+/// a color of its own (the plain [HudInk.line] draws nothing).
 class HudGlass extends StatelessWidget {
   const HudGlass({
     super.key,

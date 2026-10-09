@@ -15,7 +15,7 @@ part of 'grain_field.dart';
 //
 // Its own wonders: a great prism stands on the ledge under the first crack,
 // and while the shaft finds it (late morning to mid afternoon, as the sun
-// leans) it splits the light into a fan of colour across the cave — by
+// leans) it splits the light into a fan of color across the cave — by
 // moonlight, a faint silver one. A black pool on the floor gives back the
 // crystals round it; water drips into it from far overhead, and a finger
 // drawn through it sends rings out. After dark, threads of glowworm light
@@ -47,7 +47,7 @@ class GeodeField extends _GrainField {
   static const _gWall = 0, _gRoof = 1, _gLedge = 2, _gFloor = 3;
   static const _gAmethyst = 4, _gQuartz = 5, _gIce = 6, _gRind = 7;
 
-  /// The colours of the cave, lit; the hour's light multiplies them.
+  /// The colors of the cave, lit; the hour's light multiplies them.
   static const _albedo = <int, Color>{
     _gWall: Color(0xFF615578),
     _gRoof: Color(0xFF34303E),
@@ -60,14 +60,14 @@ class GeodeField extends _GrainField {
   };
 
   /// The light crystals give of their own, by type, as a share of their
-  /// colour: how they show in the dark.
+  /// color: how they show in the dark.
   static const _emit = <int, double>{
     _gAmethyst: 0.42,
     _gQuartz: 0.3,
     _gIce: 0.38,
   };
 
-  static const _glowColour = <int, Color>{
+  static const _glowColor = <int, Color>{
     _gAmethyst: Color(0xFFC6A2FF),
     _gQuartz: Color(0xFFE6EEFF),
     _gIce: Color(0xFFA8F0FF),
@@ -107,7 +107,7 @@ class GeodeField extends _GrainField {
       );
     }
 
-    final shaft = _shaftColour;
+    final shaft = _shaftColor;
     (double, double, double) fleck(Color s, double k) => (
       s.r * 0.6 + shaft.r * k,
       s.g * 0.6 + shaft.g * k,
@@ -127,9 +127,9 @@ class GeodeField extends _GrainField {
 
   // ── The light through the cracks ─────────────────────────────────────────
 
-  /// The colour of the light coming down the shafts: the sun's by day, the
+  /// The color of the light coming down the shafts: the sun's by day, the
   /// moon's by night.
-  Color get _shaftColour {
+  Color get _shaftColor {
     final byMoon = _sunUp < -0.05;
     if (!byMoon) {
       return Color.lerp(
@@ -178,7 +178,7 @@ class GeodeField extends _GrainField {
   Color lightAt(SceneLayer layer, double x, FieldView view) {
     if (layer == mid) _midLeft = view.left;
     final s = _shaftStrength;
-    final shaft = _shaftColour;
+    final shaft = _shaftColor;
     if (s <= 0.01 || _cracks.isEmpty) {
       return shaft.withValues(alpha: 0);
     }
@@ -1096,7 +1096,7 @@ class GeodeField extends _GrainField {
   }
 
   /// A crystal's lit edge on a light sheet: light lying along its lit face,
-  /// strongest toward the tip, which the shafts colour.
+  /// strongest toward the tip, which the shafts color.
   void _crystalEdge(Canvas c, _Crystal k) {
     final dir = Offset(math.sin(k.angle), -math.cos(k.angle));
     final side = Offset(-dir.dy, dir.dx);
@@ -1489,7 +1489,7 @@ class GeodeField extends _GrainField {
       any = true;
     }
     if (!any) return;
-    final col = Color.lerp(_shaftColour, const Color(0xFFFFFFFF), 0.5)!;
+    final col = Color.lerp(_shaftColor, const Color(0xFFFFFFFF), 0.5)!;
     _sparkBatch
       ..draw(canvas, 0, 1.2 * _u, col.withValues(alpha: 0.55 * alpha))
       ..draw(canvas, 1, 3.0 * _u, col.withValues(alpha: 0.16 * alpha))
@@ -1511,7 +1511,7 @@ class GeodeField extends _GrainField {
         final at = cx + shift;
         if (at + hw * 3 < view.left || at - hw * 3 > view.right) continue;
         // A strip of triangles down the crack, side to side, each corner
-        // the sky's colour at its height.
+        // the sky's color at its height.
         final (left, right, mouth) = _crackOutline(at, cx, hw);
         final pos = <Offset>[], cols = <Color>[];
         for (var i = 0; i + 1 < left.length; i++) {
@@ -1560,7 +1560,7 @@ class GeodeField extends _GrainField {
   void _paintShafts(Canvas canvas, FieldView view) {
     final s = _shaftStrength;
     if (s < 0.02) return;
-    final col = _shaftColour;
+    final col = _shaftColor;
     final y1 = _h * 0.8;
     for (final shift in _shiftsFor(mid, view, 300 * _u)) {
       for (final (cx0, hw) in _cracks) {
@@ -1610,7 +1610,7 @@ class GeodeField extends _GrainField {
   void _paintPools(Canvas canvas, FieldView view) {
     final s = _shaftStrength;
     if (s < 0.02) return;
-    final col = _shaftColour;
+    final col = _shaftColor;
     final period = _period(mid);
     for (final (cx, hw) in _cracks) {
       final y = _h * 0.86;
@@ -1645,7 +1645,7 @@ class GeodeField extends _GrainField {
   }
 
   /// The floor round each cluster lit by its own glow: little by day, a
-  /// pool of its colour at night.
+  /// pool of its color at night.
   void _paintCrystalLight(Canvas canvas, FieldView view) {
     final k = 0.04 + 0.2 * _dark;
     for (final shift in _shiftsFor(floor, view, 120 * _u)) {
@@ -1654,7 +1654,7 @@ class GeodeField extends _GrainField {
         if (x + cl.reach * 2 < view.left || x - cl.reach * 2 > view.right) {
           continue;
         }
-        final col = _glowColour[cl.type]!;
+        final col = _glowColor[cl.type]!;
         final c = Offset(x, cl.crystals.first.base.dy);
         final r = cl.reach * 1.6;
         canvas.drawOval(
@@ -1781,7 +1781,7 @@ class GeodeField extends _GrainField {
         _dustBatch.add(level, px, y);
       }
     }
-    final col = Color.lerp(_shaftColour, const Color(0xFFFFFFFF), 0.5)!;
+    final col = Color.lerp(_shaftColor, const Color(0xFFFFFFFF), 0.5)!;
     for (var lv = 0; lv < 3; lv++) {
       _dustBatch.draw(
         canvas,
@@ -1830,7 +1830,7 @@ class GeodeField extends _GrainField {
 
   final GrainBatch _glowBatch = GrainBatch(6);
 
-  /// Each crystal's tip glowing in its own colour: faint by day, plain at
+  /// Each crystal's tip glowing in its own color: faint by day, plain at
   /// night, bright while it rings.
   void _paintGlow(
     Canvas canvas,
@@ -1854,7 +1854,7 @@ class GeodeField extends _GrainField {
       }
     }
     _rings.removeWhere((r) => t - r.$4 > _ringLife);
-    // Each crystal lit from inside in its own colour: nothing at its foot,
+    // Each crystal lit from inside in its own color: nothing at its foot,
     // filling toward its tip — all of them in one mesh. A ringing one fills
     // brighter, and sparkles run up through it.
     final base = 0.16 + 0.5 * _dark + 0.3 * singing;
@@ -1867,7 +1867,7 @@ class GeodeField extends _GrainField {
       for (final cl in clusters) {
         final x0 = cl.x + shift;
         if (x0 + cl.reach < view.left || x0 - cl.reach > view.right) continue;
-        final col = _glowColour[cl.type]!;
+        final col = _glowColor[cl.type]!;
         final ti = types.indexOf(cl.type);
         for (final k in cl.crystals) {
           final tipAt = cl.tipOf(k) + Offset(shift, 0);
@@ -1954,7 +1954,7 @@ class GeodeField extends _GrainField {
     if (sparkled) {
       for (var i = 0; i < 3; i++) {
         final col = Color.lerp(
-          _glowColour[types[i]]!,
+          _glowColor[types[i]]!,
           const Color(0xFFFFFFFF),
           0.5,
         )!;
@@ -1991,7 +1991,7 @@ class GeodeField extends _GrainField {
     }
     if (!any) return;
     final col = Color.lerp(
-      _glowColour[_gAmethyst]!,
+      _glowColor[_gAmethyst]!,
       const Color(0xFFFFFFFF),
       0.5,
     )!;
@@ -2083,7 +2083,7 @@ class GeodeField extends _GrainField {
     return _shaftStrength * math.exp(-d * d);
   }
 
-  /// The colours the prism splits the light into.
+  /// The colors the prism splits the light into.
   static const _spectrum = [
     Color(0xFFFF6B6B),
     Color(0xFFFFB45C),
@@ -2095,9 +2095,9 @@ class GeodeField extends _GrainField {
 
   final GrainBatch _fleckBatch = GrainBatch(6);
 
-  /// The prism splitting the shaft: a fan of colour thrown sideways across
+  /// The prism splitting the shaft: a fan of color thrown sideways across
   /// the cave, brightest where it falls on the far wall, and flecks of each
-  /// colour twinkling there. By moonlight it is faint and nearly silver.
+  /// color twinkling there. By moonlight it is faint and nearly silver.
   void _paintPrism(Canvas canvas, FieldView view) {
     final hit = _prismHit;
     if (hit < 0.03) return;
@@ -2143,7 +2143,7 @@ class GeodeField extends _GrainField {
           BlendMode.dst,
           _plus,
         );
-        // Where it lands on the wall: a soft smear of the colour.
+        // Where it lands on the wall: a soft smear of the color.
         final land = at((a0 + a1) / 2, length * 0.84);
         canvas.drawOval(
           Rect.fromCenter(center: land, width: 46 * _u, height: 22 * _u),
@@ -2329,7 +2329,7 @@ class GeodeField extends _GrainField {
     final t = view.time;
     _tarnRings.removeWhere((r) => t - r.$3 > 2.2);
     _tarnBatch.clear();
-    final light = Color.lerp(_shaftColour, const Color(0xFFFFFFFF), 0.4)!;
+    final light = Color.lerp(_shaftColor, const Color(0xFFFFFFFF), 0.4)!;
     final period = _period(floor);
     for (final p in pools) {
       final s0 = _tarnShape(p);
@@ -2390,7 +2390,7 @@ class GeodeField extends _GrainField {
   }
 
   /// The glow of the crystals round a pool lying on its water: a soft
-  /// upright smear of each one's colour, trembling.
+  /// upright smear of each one's color, trembling.
   void _paintTarnShimmer(
     Canvas canvas,
     FieldView view,
@@ -2407,7 +2407,7 @@ class GeodeField extends _GrainField {
           final d = _loopDelta(cl.x, s0.x, floor);
           if (d.abs() > s0.hw * 1.05) continue;
           final x = sx + d.clamp(-s0.hw * 0.8, s0.hw * 0.8);
-          final col = _glowColour[cl.type]!;
+          final col = _glowColor[cl.type]!;
           final tremble = 0.85 + 0.15 * math.sin(t * 3.1 + cl.x);
           final c = Offset(x, s0.y - s0.hh * 0.2);
           final r = s0.hh * 1.1;

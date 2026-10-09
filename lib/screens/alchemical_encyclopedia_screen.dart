@@ -58,11 +58,11 @@ TextStyle _mono(
   letterSpacing: spacing,
 );
 
-/// An element's colour as its orb shows it.
+/// An element's color as its orb shows it.
 Color _elementTint(String element) =>
     elementOrbTint(EssenceElement.of(element));
 
-/// A family's colour.
+/// A family's color.
 Color _familyTint(String family) {
   for (final f in CreatureFamily.values) {
     if (f.displayName == family) return f.color;

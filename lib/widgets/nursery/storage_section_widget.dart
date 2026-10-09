@@ -725,7 +725,7 @@ String _fmtShort(Duration d) {
   return '${s}s';
 }
 
-/// The two element types a stored cultivation's sphere is coloured by.
+/// The two element types a stored cultivation's sphere is colored by.
 List<String> _sphereTypes(
   Map<String, dynamic> payload,
   ElementalGroup elementGroup,
@@ -756,7 +756,7 @@ Path _hexPath(Size size, double inset) {
 }
 
 /// A stasis cell in material, not line: an ice bevel (a filled hex, lit from
-/// above) holding a well of dark glass, with the vial's colour pooled in it
+/// above) holding a well of dark glass, with the vial's color pooled in it
 /// and frost grown up from the floor in tapered crystals.
 class _StasisCellPainter extends CustomPainter {
   const _StasisCellPainter({

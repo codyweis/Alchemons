@@ -5,7 +5,7 @@ Where they play (SoundCue.forElement / SoundCue.elementX):
     (cosmic_survival_game.dart, the special branch) and the dungeons
     (planet_dungeon_game.dart, tryCast) -- layered OVER the plain
     combatSpecialCast, which sits under it at .55 gain and carries nothing
-    elemental; this cue is the colour
+    elemental; this cue is the color
   * a Mystic waking at the Mystic Altar and an offering landing in the boss
     altar's Mystic (giving crosses 0.72)
   * inside the planet dungeons' puzzles, as "this element just did its

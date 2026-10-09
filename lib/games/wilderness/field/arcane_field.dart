@@ -26,7 +26,7 @@ part of 'grain_field.dart';
 //
 // Still sheets are baked as maps (see field_art.dart), read through the
 // hour's grades:
-//   veil     r = the hem's colour, g = the dust's; alpha = how thick
+//   veil     r = the hem's color, g = the dust's; alpha = how thick
 //   stone    r = haze, g = what its gloss gives back, b = shade
 
 class ArcaneField extends _GrainField {
@@ -38,7 +38,7 @@ class ArcaneField extends _GrainField {
 
   static const _gVeil = 0, _gFar = 1, _gStone = 2;
 
-  /// Daylight colours of what stands on the glass; the hour's ambient light
+  /// Daylight colors of what stands on the glass; the hour's ambient light
   /// multiplies them.
   static const _albedo = <int, Color>{
     _gFar: Color(0xFF221C3A),
@@ -290,11 +290,11 @@ class ArcaneField extends _GrainField {
     final by = view.screenY(view.height);
     const glass = Color(0xFF020106);
     const n = 8;
-    final colours = <Color>[], stops = <double>[];
+    final colors = <Color>[], stops = <double>[];
     for (var i = 0; i <= n; i++) {
       final f = i / n;
       final up = (_glassLine - (1 - _glassLine) * f).clamp(0.0, 1.0);
-      colours.add(Color.lerp(glass, l.skyAt(up), _fresnel(f))!);
+      colors.add(Color.lerp(glass, l.skyAt(up), _fresnel(f))!);
       stops.add(f);
     }
     canvas.drawRect(
@@ -303,7 +303,7 @@ class ArcaneField extends _GrainField {
         ..shader = Gradient.linear(
           Offset(0, hy),
           Offset(0, by),
-          colours,
+          colors,
           stops,
         ),
     );
@@ -368,15 +368,15 @@ class ArcaneField extends _GrainField {
     }
     final z = _u * view.zoom;
     final a = l.stars.clamp(0.0, 1.0);
-    for (final (warm, colour) in const [
+    for (final (warm, color) in const [
       (0, Color(0xFFE2EAFF)),
       (1, Color(0xFFFFDCD2)),
     ]) {
       b
-        ..draw(canvas, warm * 3, 1.1 * z, colour.withValues(alpha: 0.42 * a))
-        ..draw(canvas, warm * 3 + 1, 1.5 * z, colour.withValues(alpha: 0.7 * a))
-        ..draw(canvas, warm * 3 + 2, 5.5 * z, colour.withValues(alpha: 0.1 * a))
-        ..draw(canvas, warm * 3 + 2, 2.0 * z, colour.withValues(alpha: a));
+        ..draw(canvas, warm * 3, 1.1 * z, color.withValues(alpha: 0.42 * a))
+        ..draw(canvas, warm * 3 + 1, 1.5 * z, color.withValues(alpha: 0.7 * a))
+        ..draw(canvas, warm * 3 + 2, 5.5 * z, color.withValues(alpha: 0.1 * a))
+        ..draw(canvas, warm * 3 + 2, 2.0 * z, color.withValues(alpha: a));
     }
   }
 
@@ -494,14 +494,14 @@ class ArcaneField extends _GrainField {
     }
     void ring(GrainBatch b) {
       final g = 1.25 * _u * view.zoom;
-      for (final (k, colour) in const [
+      for (final (k, color) in const [
         (0, Color(0xFFDDFFF8)),
         (3, Color(0xFF8E7EF0)),
       ]) {
         b
-          ..draw(canvas, k, g, colour.withValues(alpha: 0.22 * vis))
-          ..draw(canvas, k + 1, g * 1.15, colour.withValues(alpha: 0.5 * vis))
-          ..draw(canvas, k + 2, g * 1.35, colour.withValues(alpha: 0.95 * vis));
+          ..draw(canvas, k, g, color.withValues(alpha: 0.22 * vis))
+          ..draw(canvas, k + 1, g * 1.15, color.withValues(alpha: 0.5 * vis))
+          ..draw(canvas, k + 2, g * 1.35, color.withValues(alpha: 0.95 * vis));
       }
     }
 
@@ -766,7 +766,7 @@ class ArcaneField extends _GrainField {
       }
     }
     final vis = 0.5 + 0.5 * _light.stars.clamp(0.0, 1.0);
-    for (final (k, colour) in const [
+    for (final (k, color) in const [
       (0, Color(0xFFE6EEFF)),
       (3, Color(0xFFA8F6D2)),
       (6, Color(0xFFFFE4A6)),
@@ -776,7 +776,7 @@ class ArcaneField extends _GrainField {
           canvas,
           k + level,
           (1.2 + 0.35 * level) * z,
-          colour.withValues(alpha: (0.3 + 0.32 * level) * vis),
+          color.withValues(alpha: (0.3 + 0.32 * level) * vis),
         );
       }
     }
@@ -941,7 +941,7 @@ class ArcaneField extends _GrainField {
     final p = _loop ? w : 0.0;
     double n(double x, double wave, int seed) =>
         fieldLoopNoise(x, wave * _u, seed, p);
-    // Veils: long lenses of soft colour, their lower edges lit.
+    // Veils: long lenses of soft color, their lower edges lit.
     final r = FieldRandom(808);
     const veils = [
       (0.55, 46.0, 0.34),
@@ -1732,7 +1732,7 @@ class ArcaneField extends _GrainField {
 /// A meteor across the void, in screen pixels: when it came, how long it
 /// flies and how long what it leaves glows after, where it came from and
 /// which way it goes, how fast, how long its trail, how bright, whether a
-/// fireball, and its colour (0 white, 1 green, 2 gold).
+/// fireball, and its color (0 white, 1 green, 2 gold).
 class _Meteor {
   _Meteor({
     required this.born,

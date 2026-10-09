@@ -75,7 +75,7 @@ class _RewardBurst extends StatefulWidget {
   final int silver;
   final VoidCallback onDone;
 
-  /// Theme-resolved coin colours, used when [tint] does not override them.
+  /// Theme-resolved coin colors, used when [tint] does not override them.
   final Color coinGold;
   final Color coinSilver;
 

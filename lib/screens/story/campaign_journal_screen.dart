@@ -77,6 +77,10 @@ Color _toneOf(String shelf, FC fc) => switch (shelf) {
   _ => ElementResources.byKey['res_oceanic']!.color,
 };
 
+/// The tag a sphere flies under, from its place on the page to the middle of
+/// the lifted view and back.
+String _sphereHeroTag(String id) => 'achievement_sphere_$id';
+
 TextStyle _mono(double size, Color color, {double spacing = 1.6}) => TextStyle(
   fontFamily: 'monospace',
   color: color,
@@ -97,6 +101,14 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   /// Ids mid-collect, held so the sphere can settle before the snapshot
   /// reloads underneath it.
   final Set<String> _collecting = {};
+
+  /// Ids collected in the lifted view. Their sphere already settled there, so
+  /// the one on the page lands settled rather than settling a second time.
+  final Set<String> _settledAway = {};
+
+  Duration _settleFor(String id) => _settledAway.contains(id)
+      ? Duration.zero
+      : const Duration(milliseconds: 900);
 
   CampaignJournalService get service =>
       CampaignJournalService(context.read<AlchemonsDatabase>());
@@ -137,25 +149,33 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     return Offset(media.size.width - 34, media.padding.top + 26);
   }
 
-  Future<void> claim(List<CampaignAchievement> rewards) async {
-    if (_claiming) return;
+  /// Collects [rewards], each one's coins leaving from its sphere — or from
+  /// the rect in [from], for a sphere lifted off the page. True when
+  /// anything was paid.
+  Future<bool> claim(
+    List<CampaignAchievement> rewards, {
+    Map<String, Rect?> from = const {},
+  }) async {
+    if (_claiming) return false;
     setState(() => _claiming = true);
     var gold = 0;
     var silver = 0;
+    var paid = false;
     try {
       var fired = 0;
       for (final reward in rewards) {
         // The rect is read BEFORE the claim; a sphere scrolled out of view
         // has none, and its coins simply do not fly.
-        final rect = _rectFor(reward.id);
+        final rect = from[reward.id] ?? _rectFor(reward.id);
 
         if (await service.claim(
           reward.id,
           boosts: context.read<TimedBoostService>(),
         )) {
+          paid = true;
           gold += reward.gold;
           silver += reward.silver;
-          if (!mounted) return;
+          if (!mounted) return true;
 
           HapticFeedback.mediumImpact();
           context.sound(SoundCue.achievementUnlock, owner: this);
@@ -183,7 +203,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
           }
         }
       }
-      if (!mounted) return;
+      if (!mounted) return paid;
       if (gold + silver > 0) HapticFeedback.heavyImpact();
       _notify(
         gold + silver > 0
@@ -210,6 +230,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
         });
       }
     }
+    return paid;
   }
 
   void _notify(String message) {
@@ -296,98 +317,51 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     };
   }
 
-  // ── The sheet ─────────────────────────────────────────────────────────────
+  // ── A sphere, lifted ──────────────────────────────────────────────────────
 
-  /// What a sphere asks and what it pays, with COLLECT when it is ready.
-  Future<void> _openSheet(CampaignSnapshot s, CampaignAchievement a) async {
+  /// Lifts a sphere out of the page: it flies up and grows in the middle of
+  /// the darkened screen, and what it asks and pays eases in under it.
+  Future<void> _openSphere(CampaignSnapshot s, CampaignAchievement a) async {
     HapticFeedback.selectionClick();
     final fc = FC.of(context);
     final palette = BracketPalette.of(context);
     final shelf = _shelfOf(a);
-    final tone = _toneOf(shelf, fc);
     final chapter = campaignMissionIds.indexOf(a.id);
     final isCurrent = s.currentMission?.id == a.id;
+    final progress = s.progress(a) / a.target;
     // The current chapter is drawn forming, as its bead is, never hidden.
     final state = isCurrent ? AchievementSphereState.underway : _stateOf(s, a);
-    final progress = s.progress(a) / a.target;
 
-    final collect = await showModalBottomSheet<bool>(
-      context: context,
-      backgroundColor: palette.bg1,
-      barrierColor: Colors.black.withValues(alpha: 0.6),
-      shape: const RoundedRectangleBorder(),
-      isScrollControlled: true,
-      builder: (sheet) => SafeArea(
-        top: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(width: 36, height: 3, color: palette.line),
-              const SizedBox(height: 4),
-              AchievementSphere(
-                size: 150,
-                tone: tone,
-                state: state,
-                progress: isCurrent ? 0.45 + 0.55 * progress : progress,
-                seed: AchievementSphere.seedFor(a.id),
-                gold: fc.rewardGold,
-              ),
-              Text(
-                chapter >= 0
-                    ? 'MAIN STORY · CHAPTER ${chapter + 1}'
-                    : shelf.toUpperCase(),
-                style: _mono(10, tone, spacing: 2),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                a.title,
-                textAlign: TextAlign.center,
-                style: bracketText(sheet, 24, palette.ink),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                isCurrent ? campaignMissionInstructions[a.id]! : a.description,
-                textAlign: TextAlign.center,
-                style: bracketText(
-                  sheet,
-                  13.5,
-                  palette.muted,
-                ).copyWith(height: 1.35),
-              ),
-              if (state == AchievementSphereState.underway && a.target > 1) ...[
-                const SizedBox(height: 16),
-                _Track(value: progress, color: tone),
-                const SizedBox(height: 6),
-                _status(s, a),
-              ],
-              const SizedBox(height: 16),
-              Opacity(
-                opacity: state == AchievementSphereState.sealed ? 0.45 : 1,
-                child: rewardLabel(a, size: 14),
-              ),
-              const SizedBox(height: 20),
-              if (state == AchievementSphereState.ready)
-                SizedBox(
-                  width: double.infinity,
-                  child: BracketButton(
-                    label: 'COLLECT',
-                    onTap: () => Navigator.of(sheet).pop(true),
-                    palette: palette,
-                    accent: fc.rewardGold,
-                  ),
-                )
-              else if (state == AchievementSphereState.sealed)
-                Text('COLLECTED', style: _mono(10.5, palette.muted)),
-            ],
-          ),
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierColor: palette.bg0.withValues(alpha: 0.95),
+        barrierLabel: 'Close',
+        transitionDuration: const Duration(milliseconds: 560),
+        reverseTransitionDuration: const Duration(milliseconds: 420),
+        pageBuilder: (_, _, _) => _LiftedSphere(
+          heroTag: _sphereHeroTag(a.id),
+          seed: AchievementSphere.seedFor(a.id),
+          tone: _toneOf(shelf, fc),
+          state: state,
+          progress: isCurrent ? 0.45 + 0.55 * progress : progress,
+          label: chapter >= 0
+              ? 'MAIN STORY · CHAPTER ${chapter + 1}'
+              : shelf.toUpperCase(),
+          title: a.title,
+          text: isCurrent ? campaignMissionInstructions[a.id]! : a.description,
+          track: state == AchievementSphereState.underway && a.target > 1
+              ? progress
+              : null,
+          status: _status(s, a),
+          reward: rewardLabel(a, size: 14),
+          onCollect: (from) {
+            _settledAway.add(a.id);
+            return claim([a], from: {a.id: from});
+          },
         ),
       ),
     );
-    // Collected after the sheet has gone, so the coins leave from the sphere
-    // on the page rather than from under a closing sheet.
-    if (collect == true && mounted && !_claiming) await claim([a]);
   }
 
   // ── Archive ───────────────────────────────────────────────────────────────
@@ -537,10 +511,23 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   }
 
   Widget _page(CampaignSnapshot s) {
-    final fc = FC.of(context);
     final current = s.currentMission;
     final ready = s.ready.where((a) => !_collecting.contains(a.id)).toList();
 
+    // Every sphere turns, so the page holds still while something covers it
+    // (a lifted sphere, the story so far): nobody sees those frames.
+    return TickerMode(
+      enabled: ModalRoute.isCurrentOf(context) ?? true,
+      child: _wall(s, current, ready),
+    );
+  }
+
+  Widget _wall(
+    CampaignSnapshot s,
+    CampaignAchievement? current,
+    List<CampaignAchievement> ready,
+  ) {
+    final fc = FC.of(context);
     return ListView(
       padding: EdgeInsets.fromLTRB(
         16,
@@ -553,9 +540,10 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
           snapshot: s,
           stateOf: (a) => _stateOf(s, a),
           keyFor: _keyFor,
+          settleFor: _settleFor,
           tone: _toneOf('Story', fc),
           gold: fc.rewardGold,
-          onTap: (a) => _openSheet(s, a),
+          onTap: (a) => _openSphere(s, a),
         ),
         const SizedBox(height: 10),
         _StoryPanel(
@@ -594,6 +582,8 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                   _SphereCell(
                     key: ValueKey('reward_${a.id}'),
                     sphereKey: _keyFor(a.id),
+                    heroTag: _sphereHeroTag(a.id),
+                    settle: _settleFor(a.id),
                     title: a.title,
                     state: _stateOf(s, a),
                     progress: s.progress(a) / a.target,
@@ -601,7 +591,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                     tone: _toneOf(shelf, fc),
                     gold: fc.rewardGold,
                     status: _status(s, a),
-                    onTap: () => _openSheet(s, a),
+                    onTap: () => _openSphere(s, a),
                   ),
             ],
           ),
@@ -695,6 +685,7 @@ class _ChapterBeads extends StatelessWidget {
     required this.snapshot,
     required this.stateOf,
     required this.keyFor,
+    required this.settleFor,
     required this.tone,
     required this.gold,
     required this.onTap,
@@ -703,6 +694,7 @@ class _ChapterBeads extends StatelessWidget {
   final CampaignSnapshot snapshot;
   final AchievementSphereState Function(CampaignAchievement) stateOf;
   final GlobalKey Function(String id) keyFor;
+  final Duration Function(String id) settleFor;
   final Color tone;
   final Color gold;
   final ValueChanged<CampaignAchievement> onTap;
@@ -764,17 +756,24 @@ class _ChapterBeads extends StatelessWidget {
     final sphere = SizedBox.square(
       key: keyFor(a.id),
       dimension: isCurrent ? big : bead,
-      child: AchievementSphere(
-        size: isCurrent ? big : bead,
-        tone: tone,
-        // The current chapter is shown forming even before any of it is
-        // done, so the eye finds it; it is never hidden like the ones after.
-        state: isCurrent ? AchievementSphereState.underway : state,
-        progress: isCurrent
-            ? 0.45 + 0.55 * snapshot.progress(a) / a.target
-            : snapshot.progress(a) / a.target,
-        seed: AchievementSphere.seedFor(a.id),
-        gold: gold,
+      child: Hero(
+        tag: _sphereHeroTag(a.id),
+        child: RepaintBoundary(
+          child: AchievementSphere(
+            size: isCurrent ? big : bead,
+            tone: tone,
+            // The current chapter is shown forming even before any of it is
+            // done, so the eye finds it; it is never hidden like the ones
+            // after.
+            state: isCurrent ? AchievementSphereState.underway : state,
+            progress: isCurrent
+                ? 0.45 + 0.55 * snapshot.progress(a) / a.target
+                : snapshot.progress(a) / a.target,
+            seed: AchievementSphere.seedFor(a.id),
+            gold: gold,
+            settle: settleFor(a.id),
+          ),
+        ),
       ),
     );
     // Nothing to read about a chapter not reached yet.
@@ -1065,6 +1064,8 @@ class _SphereCell extends StatelessWidget {
   const _SphereCell({
     super.key,
     required this.sphereKey,
+    required this.heroTag,
+    required this.settle,
     required this.title,
     required this.state,
     required this.progress,
@@ -1076,6 +1077,8 @@ class _SphereCell extends StatelessWidget {
   });
 
   final GlobalKey sphereKey;
+  final String heroTag;
+  final Duration settle;
   final String title;
   final AchievementSphereState state;
   final double progress;
@@ -1096,19 +1099,23 @@ class _SphereCell extends StatelessWidget {
         onTap: context.soundAction(onTap),
         child: Column(
           children: [
-            // Its own layer: a running sphere repaints every frame, and
-            // without one each of those frames would repaint the wall.
-            RepaintBoundary(
-              child: SizedBox.square(
-                key: sphereKey,
-                dimension: 74,
-                child: AchievementSphere(
-                  size: 74,
-                  tone: tone,
-                  state: state,
-                  progress: progress,
-                  seed: seed,
-                  gold: gold,
+            SizedBox.square(
+              key: sphereKey,
+              dimension: 74,
+              child: Hero(
+                tag: heroTag,
+                // Its own layer: a sphere repaints every frame it turns, and
+                // without one each of those frames would repaint the wall.
+                child: RepaintBoundary(
+                  child: AchievementSphere(
+                    size: 74,
+                    tone: tone,
+                    state: state,
+                    progress: progress,
+                    seed: seed,
+                    gold: gold,
+                    settle: settle,
+                  ),
                 ),
               ),
             ),
@@ -1143,6 +1150,294 @@ class _SphereCell extends StatelessWidget {
       ),
     );
   }
+}
+
+// ── A sphere, lifted ────────────────────────────────────────────────────────
+
+/// A sphere lifted off the page. It flies in under its [heroTag] and grows in
+/// the middle of the darkened screen with its light pooling under it, and
+/// what it asks and pays eases in below as it arrives. Tapping the dark round
+/// it, or the sphere itself, sets it back.
+///
+/// It was a stock bottom sheet until 2026-10. Collecting happens here now:
+/// the coins leave from this sphere, it settles from gold to quiet where it
+/// stands, and then it flies home.
+class _LiftedSphere extends StatefulWidget {
+  const _LiftedSphere({
+    required this.heroTag,
+    required this.seed,
+    required this.tone,
+    required this.state,
+    required this.progress,
+    required this.label,
+    required this.title,
+    required this.text,
+    required this.track,
+    required this.status,
+    required this.reward,
+    required this.onCollect,
+  });
+
+  final String heroTag;
+  final int seed;
+  final Color tone;
+  final AchievementSphereState state;
+  final double progress;
+  final String label;
+  final String title;
+  final String text;
+
+  /// 0..1 for a progress track under the words, or null for none.
+  final double? track;
+  final Widget status;
+  final Widget reward;
+
+  /// Collects, the coins leaving from [from]; true when it paid.
+  final Future<bool> Function(Rect? from) onCollect;
+
+  @override
+  State<_LiftedSphere> createState() => _LiftedSphereState();
+}
+
+class _LiftedSphereState extends State<_LiftedSphere> {
+  static const double _size = 200;
+
+  late AchievementSphereState _state = widget.state;
+  bool _busy = false;
+  final _sphereKey = GlobalKey();
+
+  void _close() {
+    if (!_busy) Navigator.of(context).pop();
+  }
+
+  Future<void> _collect() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final box = _sphereKey.currentContext?.findRenderObject();
+    final from = box is RenderBox && box.hasSize
+        ? box.localToGlobal(Offset.zero) & box.size
+        : null;
+    final paid = await widget.onCollect(from);
+    if (!mounted) return;
+    if (!paid) {
+      setState(() => _busy = false);
+      return;
+    }
+    // The gold goes out of it where it stands, then it goes home.
+    setState(() => _state = AchievementSphereState.sealed);
+    await Future<void>.delayed(const Duration(milliseconds: 1100));
+    if (!mounted) return;
+    _busy = false;
+    Navigator.of(context).pop();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fc = FC.of(context);
+    final palette = BracketPalette.of(context);
+    // The words come in once the sphere has nearly landed, and leave before
+    // it flies back.
+    final words = CurvedAnimation(
+      parent: ModalRoute.of(context)!.animation!,
+      curve: const Interval(0.4, 1, curve: Curves.easeOutCubic),
+      reverseCurve: const Interval(0.5, 1, curve: Curves.easeIn),
+    );
+    final track = widget.track;
+
+    // A transparent Material for the text theme: a route with no Scaffold
+    // otherwise draws its words in the debug style.
+    return Material(
+      type: MaterialType.transparency,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(_close),
+        child: SafeArea(
+          child: Stack(
+            children: [
+              Align(
+                alignment: Alignment.topRight,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(0, 8, 12, 0),
+                  child: FadeTransition(
+                    opacity: words,
+                    child: BracketIconButton(
+                      icon: AppIcons.close_rounded,
+                      onTap: _close,
+                      palette: palette,
+                      size: 42,
+                    ),
+                  ),
+                ),
+              ),
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(32, 60, 32, 40),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 260,
+                        height: 236,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            // The light it stands in, low under it, coming up
+                            // as it lands.
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              height: 64,
+                              child: FadeTransition(
+                                opacity: words,
+                                child: CustomPaint(
+                                  painter: _PoolPainter(widget.tone),
+                                ),
+                              ),
+                            ),
+                            SizedBox.square(
+                              key: _sphereKey,
+                              dimension: _size,
+                              child: Hero(
+                                tag: widget.heroTag,
+                                child: AchievementSphere(
+                                  size: _size,
+                                  tone: widget.tone,
+                                  state: _state,
+                                  progress: widget.progress,
+                                  seed: widget.seed,
+                                  gold: fc.rewardGold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      FadeTransition(
+                        opacity: words,
+                        child: SlideTransition(
+                          position: Tween(
+                            begin: const Offset(0, 0.05),
+                            end: Offset.zero,
+                          ).animate(words),
+                          // The words keep their taps; only the dark round
+                          // them (and the sphere) sets it back.
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () {},
+                            child: Column(
+                              children: [
+                                Text(
+                                  widget.label,
+                                  textAlign: TextAlign.center,
+                                  style: _mono(10, widget.tone, spacing: 2),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  widget.title,
+                                  textAlign: TextAlign.center,
+                                  style: bracketText(context, 26, palette.ink),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  widget.text,
+                                  textAlign: TextAlign.center,
+                                  style: bracketText(
+                                    context,
+                                    14,
+                                    palette.muted,
+                                  ).copyWith(height: 1.4),
+                                ),
+                                if (track != null) ...[
+                                  const SizedBox(height: 18),
+                                  SizedBox(
+                                    width: 220,
+                                    child: _Track(
+                                      value: track,
+                                      color: widget.tone,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
+                                  widget.status,
+                                ],
+                                const SizedBox(height: 20),
+                                AnimatedOpacity(
+                                  duration: const Duration(milliseconds: 600),
+                                  opacity:
+                                      _state == AchievementSphereState.sealed
+                                      ? 0.45
+                                      : 1,
+                                  child: widget.reward,
+                                ),
+                                const SizedBox(height: 24),
+                                AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 420),
+                                  child: switch (_state) {
+                                    AchievementSphereState.ready => SizedBox(
+                                      key: const ValueKey('collect'),
+                                      width: 240,
+                                      child: BracketButton(
+                                        label: 'COLLECT',
+                                        onTap: _collect,
+                                        enabled: !_busy,
+                                        palette: palette,
+                                        accent: fc.rewardGold,
+                                      ),
+                                    ),
+                                    AchievementSphereState.sealed => Text(
+                                      'COLLECTED',
+                                      key: const ValueKey('collected'),
+                                      style: _mono(10.5, palette.muted),
+                                    ),
+                                    _ => const SizedBox(height: 46),
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The soft pool of light a lifted sphere stands in, in its own tone.
+class _PoolPainter extends CustomPainter {
+  const _PoolPainter(this.tone);
+
+  final Color tone;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromCenter(
+      center: Offset(size.width / 2, size.height * 0.5),
+      width: size.width,
+      height: size.height,
+    );
+    canvas.drawOval(
+      rect,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            tone.withValues(alpha: 0.2),
+            tone.withValues(alpha: 0.06),
+            tone.withValues(alpha: 0),
+          ],
+          stops: const [0, 0.5, 1],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _PoolPainter old) => old.tone != tone;
 }
 
 // ── Small parts ─────────────────────────────────────────────────────────────

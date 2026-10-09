@@ -106,7 +106,7 @@ void main() {
         shots[name] = hash;
       }
 
-      // The ambulatory's cross: the Dose unscored, two colours home, the
+      // The ambulatory's cross: the Dose unscored, two colors home, the
       // heart blooming as the rite binds, and kept on a later descent.
       // The entrance pot: two of three have given.
       await shoot(
@@ -141,7 +141,7 @@ void main() {
         'cross_blooming',
         'ambulatory',
         setup: (g) {
-          // The third colour home: the wisp is gone, as it is in play.
+          // The third color home: the wisp is gone, as it is in play.
           g.monastery
             ..wispStage = 3
             ..wisp = null;

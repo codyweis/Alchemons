@@ -862,7 +862,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.alchemyDustRing,
       name: 'Elemental Dust Ring',
       description:
-          "A tipped ring of orbiting dust in the colours of an Alchemon's element, like a ringed world's.",
+          "A tipped ring of orbiting dust in the colors of an Alchemon's element, like a ringed world's.",
       icon: AppIcons.scatter_plot_outlined,
     ),
     InvKeys.staminaPotion: InventoryItemDef(

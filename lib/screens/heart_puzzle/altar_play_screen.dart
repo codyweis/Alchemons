@@ -503,7 +503,7 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
         fb = feet[b.id] ?? seatFeet(ai, 1);
     final spA = bodies.ready(a.el, a.fam), spB = bodies.ready(b.el, b.fam);
     if (f == null) {
-      // A pair that makes nothing: a breath of their colours, and nothing.
+      // A pair that makes nothing: a breath of their colors, and nothing.
       HapticFeedback.selectionClick();
       setState(() {
         _moment = _Moment(

@@ -267,6 +267,8 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
         progress: total == 0 ? 0 : done / total,
         seed: 7,
         gold: fc.rewardGold,
+        // Still on the home screen unless something is waiting there.
+        animate: hasReady,
       ),
     );
 

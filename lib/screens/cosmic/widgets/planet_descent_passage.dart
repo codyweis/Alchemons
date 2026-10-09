@@ -7,7 +7,7 @@
 //          swells from its place to fill the screen, faster as it nears,
 //          while the ship — in grains — dives on ahead of the camera and
 //          vanishes into it. Inside, the screen is the planet's own air
-//          rushing past in its colours, the dungeon's name quiet in the
+//          rushing past in its colors, the dungeon's name quiet in the
 //          middle, for as long as the dungeon takes to build
 //   land   the rush slows and thins, and the dungeon comes up under it
 //   up     the rush runs the other way, out of the planet; it shrinks back
@@ -66,7 +66,7 @@ class PlanetDescentPassage extends PassageScene {
     this.title = '',
   });
 
-  /// The planet's own art, and its colour (its air is that colour).
+  /// The planet's own art, and its color (its air is that color).
   final PlanetArt art;
   final Color color;
 
@@ -153,7 +153,7 @@ class PlanetDescentPassage extends PassageScene {
     // The planet: swelling from its place as the camera falls toward it —
     // faster as it nears, as anything you fall toward does — and coming
     // apart into its own grains as the camera reaches it, so it never
-    // stands over the whole screen as a flat sheet of colour.
+    // stands over the whole screen as a flat sheet of color.
     final r0 = planet.shortestSide / 2;
     final pr = r0 / (1 - 0.8 * _ease(open));
     final pc = Offset.lerp(planet.center, centre, _smooth(0, 0.7, open))!;
@@ -218,7 +218,7 @@ class PlanetDescentPassage extends PassageScene {
     return t - last;
   }
 
-  /// Inside the planet's air: its colour, deepest at the edges.
+  /// Inside the planet's air: its color, deepest at the edges.
   void _paintAir(Canvas canvas, Size size, Offset centre, double alpha) {
     final r = math.sqrt(size.width * size.width + size.height * size.height);
     canvas.drawRect(
@@ -270,7 +270,7 @@ class PlanetDescentPassage extends PassageScene {
     }
   }
 
-  /// The planet's air rushing past: grains in its colours coming out of the
+  /// The planet's air rushing past: grains in its colors coming out of the
   /// middle and drawing out into runs as they near the edge (or, climbing
   /// out, pouring back into the middle).
   void _paintRush(

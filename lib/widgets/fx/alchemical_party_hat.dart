@@ -25,8 +25,8 @@ abstract final class AlchemicalPartyHat {
 
   /// Dark velvet, shaded along the rays from the tip as a cone is: lit on
   /// its left flank, falling off to the right, so the grains are what
-  /// shine on it. The ramp is the picked colour (the lit flank) darkened in
-  /// the same steps for every colour; one shader per colour, kept.
+  /// shine on it. The ramp is the picked color (the lit flank) darkened in
+  /// the same steps for every color; one shader per color, kept.
   static const _ramp = [0.18, 0.39, 0.68, 1.0, 0.51];
   static final Map<int, Shader> _bodies = {};
   static final Paint _bodyPaint = Paint();
@@ -35,8 +35,8 @@ abstract final class AlchemicalPartyHat {
     final key = velvet.toARGB32();
     final kept = _bodies[key];
     if (kept != null) return kept;
-    // A screenful of hats in a handful of colours; a long session of
-    // recolouring should not grow this without end.
+    // A screenful of hats in a handful of colors; a long session of
+    // recoloring should not grow this without end.
     if (_bodies.length >= 32) _bodies.clear();
     return _bodies[key] = ui.Gradient.sweep(
       const Offset(0, -_tall),

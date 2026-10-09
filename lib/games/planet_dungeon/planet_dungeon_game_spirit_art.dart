@@ -86,7 +86,7 @@ const List<Color> _kAshGrains = [
 ];
 
 /// THE PAST'S STONE: the same courses as the present, re-struck cold and
-/// clean — joints faintly lit, the floor the colour of deep water.
+/// clean — joints faintly lit, the floor the color of deep water.
 const GlassPalette _kPastGlass = GlassPalette(
   lead: Color(0xFF07090C),
   leadLight: Color(0xFFC8F4F0),
@@ -1276,7 +1276,7 @@ extension FuneralArt on PlanetDungeonGame {
           dot(c.translate(k * 5.0 * scale, 4 * scale), 2.2);
         }
       default:
-        // YOURS: three figures, each in its own colour.
+        // YOURS: three figures, each in its own color.
         var k = -1;
         for (final c2 in creatures.take(3)) {
           canvas.drawCircle(
@@ -1643,7 +1643,7 @@ extension FuneralArt on PlanetDungeonGame {
     _drawGhost(canvas, right, alpha: alpha, phase: 3);
 
     // Element-colored offerings pass from BOTH hands into the ashes: a
-    // stream of grains in each hand's colour, arcing over and thinning out
+    // stream of grains in each hand's color, arcing over and thinning out
     // as it lands. ~40 grains a hand.
     const dust = Color(0xFFCBB58A);
     const spirit = Color(0xFF9B8CFF);
@@ -2107,7 +2107,7 @@ extension FuneralArt on PlanetDungeonGame {
     }
   }
 
-  /// A mourner's colour: its element, cooled a little into the past.
+  /// A mourner's color: its element, cooled a little into the past.
   Color _mournerTint(int stone) =>
       Color.lerp(elementColor(kMournerAt[stone] ?? 'Spirit'), _fCold, 0.3)!;
 
@@ -2191,7 +2191,7 @@ extension FuneralArt on PlanetDungeonGame {
 
   /// The six kneelers round the empty urn, and the echoes the alcove kept of
   /// the party: bright kneeling figures in the past, each in its creature's
-  /// colour, and faint in the present — the one room where your own past
+  /// color, and faint in the present — the one room where your own past
   /// shows through.
   void _renderAlcove(Canvas canvas, FuneralRoom fr, bool ghost) {
     final r = _run;
@@ -2736,7 +2736,7 @@ void _funeralCarve(
   canvas.restore();
 }
 
-/// Tiny lit grains drawn as short trailed strokes, gathered per colour and
+/// Tiny lit grains drawn as short trailed strokes, gathered per color and
 /// alpha step so a frame's flames, ashes and offerings are a few
 /// drawPoints calls. Callers draw from small fixed ramps, so the runs stay
 /// few.

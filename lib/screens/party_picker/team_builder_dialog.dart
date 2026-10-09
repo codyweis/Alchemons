@@ -1,16 +1,27 @@
-import 'package:alchemons/audio/audio.dart';
+// lib/screens/party_picker/team_builder_dialog.dart
+//
+// Saved teams, over the team picker: the team now chosen with a way to save
+// it, and the saved ones as rows of small lit cases — tap one to take it.
+// Framed as every bracket dialog is (showBracketConfirm).
+
 import 'dart:convert';
 
+import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/wilderness.dart';
-import 'package:alchemons/widgets/creature_sprite.dart';
-import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/providers/selected_party.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
+    show CaseLightPainter, caseElementLight, caseMono, kCaseGilt;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
 class TeamBuilderDialog extends StatefulWidget {
   const TeamBuilderDialog({
@@ -26,7 +37,7 @@ class TeamBuilderDialog extends StatefulWidget {
   /// Settings key used to persist teams. Pass a different key for survival.
   final String storageKey;
 
-  /// How many member slots to display per team (use 10 for survival)
+  /// How many member slots to display per team.
   final int slotCount;
 
   /// Optional current active member ids (instance ids) to save from.
@@ -66,158 +77,9 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
     return true;
   }
 
-  Widget _buildTeamSprites(
-    ForgeTokens t,
-    List<String> members, {
-    bool highlight = false,
-  }) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: List.generate(widget.slotCount, (j) {
-          if (j >= members.length) {
-            return Container(
-              width: 42,
-              height: 42,
-              margin: const EdgeInsets.only(right: 6),
-              decoration: BoxDecoration(
-                color: t.bg1,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: highlight
-                      ? t.success.withValues(alpha: 0.35)
-                      : t.borderDim,
-                ),
-              ),
-            );
-          }
-
-          final id = members[j];
-          final inst = _instancesById[id];
-          if (inst == null) {
-            return Container(
-              width: 42,
-              height: 42,
-              margin: const EdgeInsets.only(right: 6),
-              decoration: BoxDecoration(
-                color: t.bg1,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: highlight
-                      ? t.success.withValues(alpha: 0.35)
-                      : t.borderDim,
-                ),
-              ),
-              child: Icon(
-                AppIcons.help_outline,
-                color: t.textSecondary,
-                size: 20,
-              ),
-            );
-          }
-          final creature = _creaturesById[inst.baseId];
-          if (creature == null) {
-            return Container(
-              width: 42,
-              height: 42,
-              margin: const EdgeInsets.only(right: 6),
-              decoration: BoxDecoration(
-                color: t.bg1,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: highlight
-                      ? t.success.withValues(alpha: 0.35)
-                      : t.borderDim,
-                ),
-              ),
-              child: Icon(
-                AppIcons.help_outline,
-                color: t.textSecondary,
-                size: 20,
-              ),
-            );
-          }
-
-          return Container(
-            margin: const EdgeInsets.only(right: 6),
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(4),
-              border: highlight
-                  ? Border.all(color: t.success.withValues(alpha: 0.55))
-                  : null,
-            ),
-            child: InstanceSprite(creature: creature, instance: inst, size: 42),
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildTeamRow(
-    ForgeTokens t,
-    List<String> members, {
-    required Widget trailing,
-    bool highlight = false,
-    String? label,
-    Color? labelColor,
-    GestureTapCallback? onTap,
-  }) {
-    final accent = labelColor ?? t.success;
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: highlight ? t.success.withValues(alpha: 0.12) : t.bg2,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: highlight ? t.success.withValues(alpha: 0.75) : t.borderDim,
-            width: highlight ? 1.4 : 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Flexible(
-              fit: FlexFit.loose,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (label != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(AppIcons.check_circle, color: accent, size: 14),
-                          const SizedBox(width: 6),
-                          Text(
-                            label,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: accent,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.1,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  _buildTeamSprites(t, members, highlight: highlight),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            trailing,
-          ],
-        ),
-      ),
-    );
-  }
+  static List<String> _membersOf(Map<String, dynamic> team) =>
+      (team['members'] as List<dynamic>?)?.whereType<String>().toList() ??
+      const [];
 
   @override
   void initState() {
@@ -269,188 +131,212 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
   }
 
   Future<void> _saveCurrentAs() async {
-    final membersList =
-        widget.activeMemberIds ??
-        context
-            .read<SelectedPartyNotifier>()
-            .members
-            .map((m) => m.instanceId)
-            .toList();
-    if (membersList.isEmpty) return;
+    final members = _activeTeamMemberIds;
+    if (members.isEmpty) return;
 
-    final messenger = ScaffoldMessenger.of(context);
     if (_teams.length >= _maxSavedTeams) {
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Text(
-            'You can save up to 10 teams. Delete one to add another.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showGameSnack(
+        context,
+        'You can save up to 10 teams. Delete one to add another.',
       );
       return;
     }
 
-    final members = membersList;
-    final entry = {'members': members};
-    setState(() {
-      _teams.add(entry);
-    });
+    setState(() => _teams.add({'members': members}));
     await _persist();
-    // show a quick confirmation
-    messenger.showSnackBar(
-      const SnackBar(
-        content: Text('Team saved'),
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
+    if (mounted) showGameSnack(context, 'Team saved.');
   }
 
   Future<void> _applyTeam(int idx) async {
-    final t = _teams[idx];
-    final savedMembers = (t['members'] as List<dynamic>)
-        .whereType<String>()
-        .toList();
+    final savedMembers = _membersOf(_teams[idx]);
     final members = savedMembers
         .where((id) => _instancesById.containsKey(id))
         .take(widget.slotCount)
         .toList();
     if (members.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'That saved team no longer has any available creatures.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
+      showGameSnack(
+        context,
+        'That saved team no longer has any of its Alchemons.',
       );
       return;
     }
 
-    final partyMembers = members
-        .map((id) => PartyMember(instanceId: id))
-        .toList();
     if (widget.onApply != null) {
       widget.onApply!(members);
     } else {
-      context.read<SelectedPartyNotifier>().setMembers(partyMembers);
+      context.read<SelectedPartyNotifier>().setMembers([
+        for (final id in members) PartyMember(instanceId: id),
+      ]);
     }
-    if (members.length != savedMembers.length && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Loaded ${members.length} valid creature${members.length == 1 ? '' : 's'} from that saved team.',
-          ),
-          behavior: SnackBarBehavior.floating,
-        ),
+    if (members.length != savedMembers.length) {
+      showGameSnack(
+        context,
+        'Loaded ${members.length} of that team; the rest are gone.',
       );
     }
     Navigator.pop(context);
   }
 
   Future<void> _deleteTeam(int idx) async {
-    final t = ForgeTokens(widget.theme);
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+    final confirmed = await showBracketConfirm(
+      context,
+      palette: BracketPalette.fromTheme(widget.theme),
+      accent: kLeaveDangerAccent,
+      title: 'DELETE TEAM',
+      message: 'Delete this saved team? The Alchemons in it stay yours.',
+      confirmLabel: 'DELETE',
+    );
+    if (!confirmed || !mounted) return;
+    setState(() => _teams.removeAt(idx));
+    await _persist();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.fromTheme(widget.theme);
+    final accent = bracketReadableAccent(widget.theme);
+    final active = _activeTeamMemberIds;
+    final alreadySaved = _teams.any((t) => _isActiveTeam(_membersOf(t)));
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: accent.withValues(alpha: 0.9),
+          strokeWidth: 1.3,
+        ),
         child: Container(
-          decoration: BoxDecoration(
-            color: t.bg1,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(color: t.borderAccent, width: 1),
+          color: palette.bg1,
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.8,
           ),
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: t.bg0,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(3),
-                  ),
-                ),
-                child: Text(
-                  'DELETE TEAM',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: t.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-              Container(height: 1, color: t.borderDim),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: Column(
-                  children: [
-                    Text(
-                      'Delete this saved team?',
-                      style: TextStyle(color: t.textSecondary),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'SAVED TEAMS',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: caseMono(14, palette.ink, spacing: 1.8),
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: context.soundAction(
-                              () => Navigator.pop(ctx, false),
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: t.bg2,
-                                borderRadius: BorderRadius.circular(3),
-                                border: Border.all(color: t.borderDim),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                'CANCEL',
-                                style: TextStyle(
-                                  color: t.textSecondary,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: GestureDetector(
-                            onTap: context.soundAction(
-                              () => Navigator.pop(ctx, true),
-                            ),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 10),
-                              decoration: BoxDecoration(
-                                color: t.danger.withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(3),
-                                border: Border.all(
-                                  color: t.danger.withValues(alpha: 0.4),
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                'DELETE',
-                                style: TextStyle(
-                                  color: t.danger,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+                  ),
+                  if (!_loading)
+                    Text(
+                      '${_teams.length} / $_maxSavedTeams',
+                      style: caseMono(10.5, palette.muted, spacing: 1.2),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              _label('THIS TEAM', palette),
+              const SizedBox(height: 8),
+              if (active.isEmpty)
+                Text(
+                  'Choose a team in the picker to save it here.',
+                  style: bracketText(context, 13, palette.muted),
+                )
+              else
+                Row(
+                  children: [
+                    Expanded(child: _cases(active, palette)),
+                    const SizedBox(width: 10),
+                    Container(
+                      width: 72,
+                      color: palette.bg0,
+                      child: BracketButton(
+                        key: const ValueKey('savedTeams.save'),
+                        label: alreadySaved ? 'SAVED' : 'SAVE',
+                        height: 36,
+                        primary: false,
+                        enabled: !alreadySaved && !_loading,
+                        palette: palette,
+                        accent: accent,
+                        onTap: _saveCurrentAs,
+                      ),
                     ),
                   ],
+                ),
+              const SizedBox(height: 18),
+              _label('SAVED', palette),
+              const SizedBox(height: 8),
+              Flexible(
+                child: _loading
+                    ? const SizedBox(height: 48)
+                    : _teams.isEmpty
+                    ? Text(
+                        'No saved teams yet.',
+                        style: bracketText(context, 13, palette.muted),
+                      )
+                    : ListView.separated(
+                        shrinkWrap: true,
+                        padding: EdgeInsets.zero,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: _teams.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 8),
+                        itemBuilder: (_, i) =>
+                            _savedRow(i, _membersOf(_teams[i]), palette),
+                      ),
+              ),
+              const SizedBox(height: 18),
+              BracketButton(
+                label: 'CLOSE',
+                height: 42,
+                primary: false,
+                palette: palette,
+                accent: accent,
+                onTap: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _label(String text, BracketPalette palette) => Row(
+    children: [
+      Text(text, style: caseMono(10.5, palette.muted, spacing: 1.8)),
+      const SizedBox(width: 10),
+      Expanded(child: Container(height: 1, color: palette.lineSoft)),
+    ],
+  );
+
+  /// A saved team: its cases on a dark well, lit in gilt when it is the
+  /// team now chosen. Tap to take it; the bin deletes it.
+  Widget _savedRow(int i, List<String> members, BracketPalette palette) {
+    final inUse = _isActiveTeam(members);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(() => _applyTeam(i)),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: inUse ? kCaseGilt : palette.line,
+          strokeWidth: 1.4,
+        ),
+        child: Container(
+          color: palette.bg0,
+          padding: const EdgeInsets.fromLTRB(8, 8, 6, 8),
+          child: Row(
+            children: [
+              Expanded(child: _cases(members, palette)),
+              const SizedBox(width: 8),
+              GestureDetector(
+                key: ValueKey('savedTeams.delete.$i'),
+                behavior: HitTestBehavior.opaque,
+                onTap: context.soundAction(() => _deleteTeam(i)),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Icon(
+                    AppIcons.delete_outline,
+                    size: 16,
+                    color: kLeaveDangerAccent.withValues(alpha: 0.85),
+                  ),
                 ),
               ),
             ],
@@ -458,177 +344,62 @@ class _TeamBuilderDialogState extends State<TeamBuilderDialog> {
         ),
       ),
     );
-    if (confirm != true) return;
-    setState(() {
-      _teams.removeAt(idx);
-    });
-    await _persist();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final t = ForgeTokens(widget.theme);
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-      child: Container(
-        decoration: BoxDecoration(
-          color: t.bg1,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: t.borderAccent, width: 1),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  /// One small case per slot, left to right; a slot past the team's end is
+  /// plain ink, and one whose Alchemon has gone shows a question.
+  Widget _cases(List<String> members, BracketPalette palette) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        const gap = 5.0;
+        final n = widget.slotCount;
+        final size = ((box.maxWidth - gap * (n - 1)) / n).clamp(0.0, 44.0);
+        return Row(
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: t.bg0,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(3),
+            for (var j = 0; j < n; j++) ...[
+              if (j > 0) const SizedBox(width: gap),
+              SizedBox.square(
+                dimension: size,
+                child: _miniCase(
+                  j < members.length ? members[j] : null,
+                  size,
+                  palette,
                 ),
               ),
-              child: Row(
-                children: [
-                  Text(
-                    'TEAM BUILDER',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.5,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(height: 1, color: t.borderDim),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.7,
-              ),
-              child: SingleChildScrollView(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                  child: Column(
-                    children: [
-                      if (_activeTeamMemberIds.isEmpty)
-                        Container(
-                          width: double.infinity,
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: t.bg2,
-                            borderRadius: BorderRadius.circular(4),
-                            border: Border.all(color: t.borderDim),
-                          ),
-                          child: Text(
-                            'Select a team in the picker to save it here.',
-                            style: TextStyle(color: t.textSecondary),
-                          ),
-                        )
-                      else
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: _buildTeamRow(
-                            t,
-                            _activeTeamMemberIds,
-                            highlight: true,
-                            label: 'CURRENT SELECTED TEAM',
-                            labelColor: t.success,
-                            trailing: IconButton(
-                              onPressed: context.soundAction(_saveCurrentAs),
-                              icon: Icon(AppIcons.save_rounded, color: t.amber),
-                              tooltip: 'Save team',
-                            ),
-                          ),
-                        ),
-                      if (_loading) const CircularProgressIndicator(),
-                      if (!_loading && _teams.isEmpty)
-                        Text(
-                          'No saved teams',
-                          style: TextStyle(color: t.textSecondary),
-                        ),
-                      if (!_loading && _teams.isNotEmpty)
-                        Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: List.generate(_teams.length, (i) {
-                            final team = _teams[i];
-                            final members =
-                                (team['members'] as List<dynamic>?)
-                                    ?.whereType<String>()
-                                    .toList() ??
-                                [];
-                            final isActive = _isActiveTeam(members);
-                            return _buildTeamRow(
-                              t,
-                              members,
-                              onTap: context.soundAction(() => _applyTeam(i)),
-                              highlight: isActive,
-                              label: isActive ? 'DEPLOYED' : null,
-                              labelColor: t.success,
-                              trailing: IconButton(
-                                onPressed: context.soundAction(
-                                  () => _deleteTeam(i),
-                                ),
-                                icon: Icon(
-                                  AppIcons.delete_outline,
-                                  color: t.danger,
-                                ),
-                                tooltip: 'Delete team',
-                              ),
-                            );
-                          }),
-                        ),
-                      if (!_loading)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 6),
-                          child: Text(
-                            '${_teams.length} / $_maxSavedTeams saved teams',
-                            style: TextStyle(
-                              color: t.textSecondary,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: context.soundAction(
-                                () => Navigator.pop(context),
-                              ),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: t.bg2,
-                                  borderRadius: BorderRadius.circular(3),
-                                  border: Border.all(color: t.borderDim),
-                                ),
-                                alignment: Alignment.center,
-                                child: Text(
-                                  'Close',
-                                  style: TextStyle(
-                                    color: t.textSecondary,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
+            ],
           ],
+        );
+      },
+    );
+  }
+
+  Widget _miniCase(String? id, double size, BracketPalette palette) {
+    if (id == null) {
+      return ColoredBox(color: palette.bg1.withValues(alpha: 0.8));
+    }
+    final inst = _instancesById[id];
+    final creature = inst == null ? null : _creaturesById[inst.baseId];
+    if (inst == null || creature == null) {
+      return ColoredBox(
+        color: palette.bg1.withValues(alpha: 0.8),
+        child: _loading
+            ? null
+            : Icon(
+                AppIcons.help_outline,
+                size: size * 0.4,
+                color: palette.muted,
+              ),
+      );
+    }
+    return ClipRect(
+      child: CustomPaint(
+        painter: CaseLightPainter(color: caseElementLight(creature)),
+        child: Center(
+          child: InstanceSprite(
+            creature: creature,
+            instance: inst,
+            size: size * 0.82,
+          ),
         ),
       ),
     );

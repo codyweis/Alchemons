@@ -294,7 +294,7 @@ class _ConstellationScene {
   static const int _count = 560;
   static const int _iconCount = 104;
 
-  /// The chart's star colours (StarfieldBackground): parchment, a few warm.
+  /// The chart's star colors (StarfieldBackground): parchment, a few warm.
   static const Color _parchment = Color(0xFFE8DCC8);
   static const Color _warm = Color(0xFFE9B860);
 
@@ -339,7 +339,7 @@ class _ConstellationScene {
     }
   }
 
-  // Buckets: (colour, size class, brightness step).
+  // Buckets: (color, size class, brightness step).
   static int _bucket(int hue, int cls, int step) => (hue * 3 + cls) * 3 + step;
   static final GrainBatch _b = GrainBatch(18);
 

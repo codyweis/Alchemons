@@ -1425,7 +1425,7 @@ class _PartyMemberCard extends StatelessWidget {
 // ==========================================
 // ACTION PANEL (Bottom) - Horizontal row
 // ==========================================
-/// Button and dialog text: parchment, tinted by the action's colour.
+/// Button and dialog text: parchment, tinted by the action's color.
 const Color _parchment = Color(0xFFE8DCC8);
 
 class _ActionPanel extends StatelessWidget {
@@ -1553,7 +1553,7 @@ class _ActionButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 18),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          // Opaque, so it reads on any backdrop, with the action's colour
+          // Opaque, so it reads on any backdrop, with the action's color
           // rising from its foot like light from below — not a neon rim.
           gradient: LinearGradient(
             begin: Alignment.topCenter,

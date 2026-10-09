@@ -72,7 +72,7 @@ enum EnemyTrait {
 }
 
 /// Rare elite modifier. Orthogonal to everything above, and already the most
-/// legible thing in the game — a coloured ring plus a pip bar.
+/// legible thing in the game — a colored ring plus a pip bar.
 ///
 /// Renamed off the `Survival` prefix: an elite brute in open space means
 /// exactly what one in a survival wave means.

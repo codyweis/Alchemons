@@ -3,7 +3,7 @@
 // A POWER ORB, in grains: a small sphere of its stat's light, lit from the
 // upper left, with a bright heart, turning — the same particle language as
 // the cultivation sphere and the gold vault's sun. Each stat moves its own
-// way, so the four read apart before their colours do:
+// way, so the four read apart before their colors do:
 //
 //   speed         turns fast, with a comet of grains whipping round it
 //   intelligence  a tipped disk of grains orbiting it, as round an atom
@@ -65,7 +65,7 @@ abstract final class PowerOrbPaint {
     AlchemicalPowerupType.beauty => 0.45,
   };
 
-  /// The orb's tones, deep to white, from its colour.
+  /// The orb's tones, deep to white, from its color.
   static List<Color> _tones(Color c) => [
     Color.lerp(c, const Color(0xFF07060B), 0.62)!,
     Color.lerp(c, const Color(0xFF07060B), 0.32)!,

@@ -22,7 +22,7 @@ double _contrast(Color a, Color b) {
 
 void main() {
   group('element ink on panel chrome', () {
-    // The cosmic panels are near-black. Raw element colours are tuned for
+    // The cosmic panels are near-black. Raw element colors are tuned for
     // planets against a starfield, and several are unreadable here: Dark sits
     // at 1.59:1 and Mud at 2.03:1 against bg1, which is why element chips
     // "looked off". `elementInk` lifts them.
@@ -56,7 +56,7 @@ void main() {
 
     test('ink keeps the element recognisable', () {
       // A lift that washes everything to near-white would pass the contrast
-      // bar while destroying the colour coding.
+      // bar while destroying the color coding.
       for (final element in kElementColors.keys) {
         final raw = elementColor(element);
         final ink = elementInk(element);

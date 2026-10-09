@@ -113,7 +113,7 @@ void main() {
     expect(find.text('12 SPECIMENS DETECTED'), findsOneWidget);
   });
 
-  test('rarity colours are distinct per tier', () {
+  test('rarity colors are distinct per tier', () {
     final seen = <Color>{};
     for (final r in ['legendary', 'rare', 'uncommon', 'common']) {
       expect(seen.add(WildernessPeekDialog.rarityColor(r)), isTrue, reason: r);

@@ -257,7 +257,7 @@ void main() {
         ..bottled.clear();
 
       // THE SLEEPER AND THE BOSS, side by side in the shots: the same shape
-      // in the ward and in the corridor, differing only in size and colour.
+      // in the ward and in the corridor, differing only in size and color.
       // Three creatures playing one part is what this replaced.
       for (final p in kPlaguePotions) {
         g.monastery.triage.open(p.wardId!);
@@ -305,7 +305,7 @@ void main() {
       }
 
       // THE BODY, one shot per plague. Three plagues that arrive the same
-      // colour are one plague, and the body has to look like the thing that
+      // color are one plague, and the body has to look like the thing that
       // crawled in rather than the shared Poison blob.
       final bodies = <int>{};
       for (final p in kPlaguePotions) {
@@ -454,9 +454,9 @@ void main() {
         ..bars = 0
         ..marks.clear();
 
-      // THE SICK WISP, one shot per colour, plus the circle at the cross.
-      // Three stages that all drew the same colour would make the errand
-      // unreadable: the colour IS which hand it wants.
+      // THE SICK WISP, one shot per color, plus the circle at the cross.
+      // Three stages that all drew the same color would make the errand
+      // unreadable: the color IS which hand it wants.
       final wisps = <int>{};
       final crossAt = poisonLayout.rooms['ambulatory']!.priorsSeal!.position;
       for (var stage = 0; stage < kWispOrder.length; stage++) {
@@ -480,7 +480,7 @@ void main() {
         wisps.length,
         kWispOrder.length,
         reason:
-            'the colour is which hand it wants, so three stages that '
+            'the color is which hand it wants, so three stages that '
             'look alike are one stage',
       );
       await _shot(

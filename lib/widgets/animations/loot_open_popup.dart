@@ -1,7 +1,7 @@
 // lib/widgets/animations/loot_open_popup.dart
 //
 // A loot box opened from the inventory. The rewards gather into their rows
-// out of grains of their own colour (reward_reveal.dart) — the same arrival
+// out of grains of their own color (reward_reveal.dart) — the same arrival
 // as the end of a survival run. A tap anywhere brings them all in at once.
 
 import 'package:alchemons/utils/faction_util.dart';

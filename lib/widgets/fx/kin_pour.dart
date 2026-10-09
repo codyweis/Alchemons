@@ -6,7 +6,7 @@
 //   another, and its grains lift and arc up into the specimen, warming
 //   towards gold as they go. Where they land they sink into its body: each
 //   grain comes to rest on a grain of the specimen and is gone. Kin are the
-//   same species, so their grains are the specimen's own colours.
+//   same species, so their grains are the specimen's own colors.
 //
 //   Nothing is drawn round the specimen. The stream goes into it.
 //

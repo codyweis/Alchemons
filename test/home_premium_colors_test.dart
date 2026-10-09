@@ -3,7 +3,7 @@ import 'package:alchemons/screens/cosmic/widgets/customization_menu_overlay.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// The premium home colours (Void, Radiant): shown on the HOME tab with what
+// The premium home colors (Void, Radiant): shown on the HOME tab with what
 // they cost, unlockable only with every element in hand, selectable once
 // owned, and kept across a save.
 
@@ -62,7 +62,7 @@ Future<void> _tapDockAction(WidgetTester tester) async {
 }
 
 void main() {
-  testWidgets('both premium colours show, with their costs, on a phone', (
+  testWidgets('both premium colors show, with their costs, on a phone', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(360, 780);
@@ -75,7 +75,7 @@ void main() {
     await _settle(tester);
     await _tapSwatch(tester, 'Void');
     expect(find.text('VOID BLACK'), findsOneWidget);
-    expect(find.text('PREMIUM COLOUR'), findsOneWidget);
+    expect(find.text('PREMIUM COLOR'), findsOneWidget);
     expect(find.text('Dark 0/400'), findsOneWidget);
     await _tapSwatch(tester, 'Radiant');
     expect(find.text('RADIANT LIGHT'), findsOneWidget);
@@ -118,7 +118,7 @@ void main() {
     expect(asked, ['Void']);
   });
 
-  testWidgets('an owned premium colour selects, and shows as current', (
+  testWidgets('an owned premium color selects, and shows as current', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(880, 900);
@@ -138,15 +138,15 @@ void main() {
       ),
     );
     await _settle(tester);
-    // The current colour reads by its name, not a missing element.
+    // The current color reads by its name, not a missing element.
     expect(find.text('RADIANT LIGHT'), findsWidgets);
-    // Owned, a colour is one tap.
+    // Owned, a color is one tap.
     await _tapSwatch(tester, 'Void');
     expect(picked, ['Void']);
     expect(tester.takeException(), isNull);
   });
 
-  test('a premium colour survives a save, and tints as its swatch', () {
+  test('a premium color survives a save, and tints as its swatch', () {
     final planet = HomePlanet(
       position: const Offset(100, 200),
       activeColor: 'Void',
@@ -158,7 +158,7 @@ void main() {
     expect(back.blendedColor, premiumHomeColor('Void')!.swatch);
     expect(homeColorSwatch('Fire'), kElementColors['Fire']);
     expect(homeColorSwatch(null), const Color(0xFF607D8B));
-    // A colour id nobody knows falls back rather than throwing.
+    // A color id nobody knows falls back rather than throwing.
     expect(homeColorSwatch('Nonsense'), const Color(0xFF607D8B));
   });
 }

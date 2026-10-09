@@ -14,7 +14,7 @@
 // Everything a frame asks for goes into one vertex buffer and out in a
 // single drawVertices call per [MeshBatch.flush], so a solid costs one draw
 // however many faces it has. The paint stays shader-less, so the per-vertex
-// colours are what is drawn (as in hatch_shell.dart).
+// colors are what is drawn (as in hatch_shell.dart).
 
 import 'dart:math';
 import 'dart:typed_data';
@@ -376,7 +376,7 @@ class MeshBatch {
   /// [seamAlpha] 0 draws no seams (a solid shell, or a glass one).
   /// [lit] is how much the one light can brighten a face — lower for
   /// obsidian. [fire] lights faces from a point ([gx], [gy], [gz]) in the
-  /// caller's space, in the essence's colour: a solid lit by the fire it
+  /// caller's space, in the essence's color: a solid lit by the fire it
   /// stands round.
   void add(
     FacetMesh mesh,
@@ -572,7 +572,7 @@ class MeshBatch {
     }
   }
 
-  /// Adds one flat-coloured quad, for bands and ribbons.
+  /// Adds one flat-colored quad, for bands and ribbons.
   void quad(
     double x0,
     double y0,

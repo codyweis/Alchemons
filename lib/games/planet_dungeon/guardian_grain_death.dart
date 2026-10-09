@@ -22,13 +22,13 @@ import 'package:flutter/painting.dart';
 ///  * 1.25 – 2.00  IMPLODE. Outline first, every grain is drawn round and in
 ///                 to the core, faster as it goes, into one hot turning knot.
 ///  * 2.00 – 2.45  BURST. The knot goes: a filled, lopsided spray of the
-///                 guardian's own colours over a pool of light.
+///                 guardian's own colors over a pool of light.
 ///  * 2.45 – 3.60  SETTLE. The spray slows and goes out grain by grain; the
 ///                 embers rise and fade last.
 class GuardianGrainDeath {
   GuardianGrainDeath({required this.color});
 
-  /// The guardian's element colour: its heat, its light, its embers.
+  /// The guardian's element color: its heat, its light, its embers.
   final Color color;
 
   static const double seize = 1.25;
@@ -55,7 +55,7 @@ class GuardianGrainDeath {
   static const double _crestStart = 0.06, _crestDur = 0.42;
 
   /// The latest the crest may start if the read is slow. Past it, the body
-  /// is a disc of its colour rather than a body still standing at implode.
+  /// is a disc of its color rather than a body still standing at implode.
   static const double _crestLatest = 0.6;
   static const double _seamFrom = 0.45;
   static const double _releaseSpread = 0.34, _flight = 0.4;
@@ -115,7 +115,7 @@ class GuardianGrainDeath {
     }
   }
 
-  /// A ball of the guardian's colour, for a body that could not be read.
+  /// A ball of the guardian's color, for a body that could not be read.
   void useFallback({double radius = 34}) {
     if (_grains != null) return;
     _seed(SpecimenGrains.disc(color, radius: radius));
@@ -462,7 +462,7 @@ class GuardianGrainDeath {
       b.add(bucket, x, y);
     }
 
-    // Heat: the colours run hot as it is drawn in, and cool as it flies.
+    // Heat: the colors run hot as it is drawn in, and cool as it flies.
     final heat = bt < 0 ? 0.5 * iT * iT : 0.5 * math.exp(-4.5 * bt);
     final d = _step * 1.28 * (1 - 0.25 * sT);
     final spray = 1 - 0.45 * sT;

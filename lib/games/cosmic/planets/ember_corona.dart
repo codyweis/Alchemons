@@ -42,7 +42,7 @@ class _EmberCorona {
            ),
        ];
 
-  /// An ember's colour as it cools, newest first, and how strongly it
+  /// An ember's color as it cools, newest first, and how strongly it
   /// shows at each stage.
   static const _stages = [
     (Color(0xFFFFE6A0), 0.95),

@@ -1,6 +1,6 @@
 // lib/widgets/fx/rift_vortex.dart
 //
-// A rift as grains: a tipped disk in its faction's colour falling into a
+// A rift as grains: a tipped disk in its faction's color falling into a
 // black core, turning faster as it falls, with a ring of light hugging the
 // core and dust drawn in from the dark. The same rift is the small one out in
 // the wilderness (RiftPortalComponent) and the big one its threshold opens
@@ -16,7 +16,7 @@ import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:alchemons/widgets/portal_key_glyph.dart';
 import 'package:flutter/material.dart';
 
-/// A rift's colours, drawn from its faction: ink at the disk's cold rim,
+/// A rift's colors, drawn from its faction: ink at the disk's cold rim,
 /// white-hot at the core's edge.
 class RiftPalette {
   RiftPalette(Color base)
@@ -168,7 +168,7 @@ class RiftVortexField {
           reach,
           backdrop
               // Opening with the rift, so a rift that opens out of black
-              // (the inside of one, after the fall) does not cut to colour.
+              // (the inside of one, after the fall) does not cut to color.
               ? [
                   pal.tint.withValues(alpha: o),
                   pal.tint.withValues(alpha: 0.35 * o),

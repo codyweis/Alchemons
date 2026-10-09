@@ -1326,10 +1326,10 @@ class _Light {
     this.seaDeep,
   });
 
-  /// Sky colours at [stops] of the layer height.
+  /// Sky colors at [stops] of the layer height.
   final List<Color> sky;
 
-  /// Multiplies the land's daylight colours.
+  /// Multiplies the land's daylight colors.
   final Color ambient;
 
   /// The light catching edges, and how strongly.
@@ -1352,10 +1352,10 @@ class _Light {
   final double firefly;
 
   /// Clouds seen from above: their sunlit tops and the shade down between
-  /// them. A field with no cloud below it leaves these to the cloud colours.
+  /// them. A field with no cloud below it leaves these to the cloud colors.
   final Color? seaTop, seaDeep;
 
-  /// Where [sky]'s colours sit, as fractions of the layer height.
+  /// Where [sky]'s colors sit, as fractions of the layer height.
   final List<double> stops;
 
   static const valleyStops = [

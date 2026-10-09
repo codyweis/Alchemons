@@ -592,7 +592,7 @@ class _CostumesTile extends StatelessWidget {
           instance: instance,
           costume: costume,
           confirmLabel: recolor
-              ? 'SAVE COLOUR'
+              ? 'SAVE COLOR'
               : 'WEAR ${costume.noun.toUpperCase()}',
         );
         if (color == null || !context.mounted) return;
@@ -606,7 +606,7 @@ class _CostumesTile extends StatelessWidget {
         }
         final noun = costume.noun;
         message = recolor
-            ? '${noun[0].toUpperCase()}${noun.substring(1)} colour saved'
+            ? '${noun[0].toUpperCase()}${noun.substring(1)} color saved'
             : 'Wearing ${costume.title}';
     }
     onChanged?.call();
@@ -696,7 +696,7 @@ class _CostumeRow extends StatelessWidget {
               ),
             ),
             if (wearing) ...[
-              button('COLOUR', _CostumeAction.recolor),
+              button('COLOR', _CostumeAction.recolor),
               const SizedBox(width: 6),
               button('TAKE OFF', _CostumeAction.off, primary: false),
             ] else if (owned > 0)

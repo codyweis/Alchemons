@@ -138,7 +138,7 @@ A one-time cinematic, played the first time a player ever enters cosmic space,
    so muddy elements still read against near-black. They spin fast while tearing
    open and settle into a lazy turn.
 
-   **No names, no icons — the colour is the whole label**, and there is no
+   **No names, no icons — the color is the whole label**, and there is no
    instruction line. Do not add one back.
 
    Each arm is stroked with a `SweepGradient` keyed to its own angular span so
@@ -150,7 +150,7 @@ A one-time cinematic, played the first time a player ever enters cosmic space,
    (`_PortalTakeoverPainter`). It grows from that portal's real on-screen
    position (captured per-gate `GlobalKey`), drifts toward centre, spins up
    hard, and closes to black from progress 0.45 so you fall into the event
-   horizon rather than into a flat wash of the element colour. The creature is
+   horizon rather than into a flat wash of the element color. The creature is
    built during this, so the encounter is ready on arrival.
 5. **Encounter** — the chosen element calls a **prismatic Let** of that element
    out of the dark: `mutationFamily == 'let'`, falling back to any non-Mystic
@@ -168,7 +168,7 @@ A one-time cinematic, played the first time a player ever enters cosmic space,
    | Skin | prismatic |
 
    The pigment override matters: fresh genetics can land on pale, vibrant, warm,
-   cool or albino, and the prismatic sheen should sit on true colours rather
+   cool or albino, and the prismatic sheen should sit on true colors rather
    than on a washed-out or hue-shifted body. Only the `tinting` track is
    touched — size and everything else stay as rolled.
 
@@ -186,7 +186,7 @@ Three layers, bottom to top:
    `0xFF020010` ground, same dense field of small white twinkling stars on the
    same size and brightness distribution. Over it an abstract layer, deliberately
    faint: orrery rings, a slowly turning bearing scale of tick marks, hairline
-   chords between star pairs that surface and vanish, and a low-alpha colour
+   chords between star pairs that surface and vanish, and a low-alpha color
    drift. A minority of stars surface into a **desaturated** tint and sink back.
 2. **`AlchemicalParticleBackground`** — the shop's own particle system, reused
    as-is with a colder palette (`_cosmosParticleColors`) at 1.35 density. This
@@ -194,7 +194,7 @@ Three layers, bottom to top:
    star chart; keep the two vibes aligned.
 3. The phase content (harvester / portals / encounter).
 
-The rule for this screen: colour is a tint on a white star, never a coloured
+The rule for this screen: color is a tint on a white star, never a colored
 dot; the abstract layer should read as instrument-grade and slightly unreal.
 Anything that reads as a rainbow is wrong.
 
@@ -331,7 +331,7 @@ What replaced it:
    draws the recipe's target percentages as notches on the meter fill — a
    hairline at each cumulative boundary with an element-tinted cap. A segment
    stopping short of its notch is under-filled; one running past is over.
-   Matching the recipe is now "line your colours up with the marks".
+   Matching the recipe is now "line your colors up with the marks".
 2. **`PlanetRecipeStrip`** — a single 26pt band under the HUD carrying what the
    notches cannot say: planet name, targets in words, match %, pin, and the
    UNSEAL button (which only exists once the gate can actually be opened).
@@ -389,7 +389,7 @@ through `planetName()` too.
 `HomePlanetMenuOverlay` fills the screen in three bands:
 
 * **Top dock** — identity only: planet orb, `HOME BASE`, size class. Bottom edge
-  tinted with the planet's colour.
+  tinted with the planet's color.
 * **Middle** — the only scrolling part, grouped by **where the thing actually
   lives**:
 
@@ -408,7 +408,7 @@ usually below the fold. What the player came to look at and what they came to
 press are now both always on screen.
 
 **The deposit readout is gone on purpose.** The panel used to report an
-"N ELEMENTS DEPOSITED" total and a colour-mix bar built from
+"N ELEMENTS DEPOSITED" total and a color-mix bar built from
 `HomePlanet.colorMix`. That mix no longer drives anything — `blendedColor`
 returns `kElementColors[activeColor]` or a default grey and never reads
 `colorMix` — so the panel was reporting a number with no consequences. Don't
@@ -421,7 +421,7 @@ game-wide currency the shop calls *Shards* and it sits in `WALLET`;
 most of that distinction, but SHARDS and ASTRAL still share the diamond icon —
 worth splitting if it reads ambiguously in play.
 
-**Two layout traps this hit**, both in the colour-mix bar, both worth knowing
+**Two layout traps this hit**, both in the color-mix bar, both worth knowing
 because the bar renders as *nothing* rather than as something wrong:
 
 1. A `Row` of `Expanded` children has no intrinsic width. Inside a `Column`
@@ -458,7 +458,7 @@ the player chose, so it confirms through `LandscapeDialog` before doing either.
 It re-checks the shard balance after the dialog closes — the dialog is open long
 enough for the number to change.
 
-### Element colours are not UI ink
+### Element colors are not UI ink
 
 `kElementColors` is tuned for planets against a starfield. Against the panel
 chrome (`bg1`, near-black) several elements are unreadable:
@@ -473,7 +473,7 @@ chrome (`bg1`, near-black) several elements are unreadable:
 
 Use `elementInk(element)` — not `elementColor` — for element-tinted text,
 borders and chips on panel chrome. It lifts 32% toward white, which clears 3:1
-for every element while staying recognisably the element's colour.
+for every element while staying recognisably the element's color.
 `test/cosmic_element_ink_test.dart` pins both halves of that: the contrast
 floor, and a drift ceiling so a future "fix" can't just wash everything to
 near-white and call it legible.
@@ -518,7 +518,7 @@ on the tab it left on.
 
 ### Preview on planet
 
-Once the lab changes something visible on the home planet — size tier, colour —
+Once the lab changes something visible on the home planet — size tier, color —
 `_homePreviewDirty` flips and a **PREVIEW ON PLANET** button appears at the top
 of the panel, above the tabs. It hides the lab (`_previewingHome`) so the planet
 is actually visible, and an **END PREVIEW** button in the world brings the lab

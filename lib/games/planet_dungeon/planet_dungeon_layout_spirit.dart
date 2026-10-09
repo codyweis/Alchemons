@@ -193,7 +193,7 @@ class BearerFlags {
 // ─────────────────────────────────────────────────────────
 
 /// The five kneeling stones round the bier, and which mourner knelt at which
-/// in the past. Each mourner glows its element's colour, and only that
+/// in the past. Each mourner glows its element's color, and only that
 /// element may take its place: the rite reads WHO knelt where, not just
 /// where — sixty ways to place three, and one of them is the funeral.
 const Map<int, String> kMournerAt = {0: 'Dust', 2: 'Blood', 3: 'Spirit'};

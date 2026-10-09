@@ -59,7 +59,7 @@ import 'package:alchemons/services/debug_settings_service.dart';
 // SCREEN
 // ──────────────────────────────────────────────────────────────────────────────
 
-/// The shop, always in oceanic colours.
+/// The shop, always in oceanic colors.
 ///
 /// It used to wear the player's faction, so the same screen looked like four
 /// different screens depending on allegiance — and the shop is a shop
@@ -403,11 +403,11 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   // ── SECTION HEADER ─────────────────────────────────────────────────────────
 
-  /// Every section header, in one colour.
+  /// Every section header, in one color.
   ///
   /// They each used to carry their own accent — amber here, the gold vault's
   /// yellow there, the powerups' violet below — which read as ten unrelated
-  /// headings rather than one list. There is no colour argument any more, so
+  /// headings rather than one list. There is no color argument any more, so
   /// a new section cannot reintroduce a tenth hue.
   ///
   /// Gold in the dark, black in the light: the dark palette is the one this
@@ -2315,7 +2315,7 @@ class _ShopPowerupOrbState extends State<_ShopPowerupOrb>
 
 /// The way out of the shop to the specimen exchange: a small bracketed door,
 /// lit in its accent while it can be walked through, quiet in the line
-/// colour while it is shut.
+/// color while it is shut.
 class _ShopDoor extends StatelessWidget {
   const _ShopDoor({
     required this.icon,

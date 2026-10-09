@@ -685,12 +685,12 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     final left = game.raidTimeRemaining;
     if (left == null) return const SizedBox.shrink();
     final urgent = left.inSeconds <= 60;
-    final colour = urgent ? const Color(0xFFE25544) : const Color(0xFFE4C16A);
+    final color = urgent ? const Color(0xFFE25544) : const Color(0xFFE4C16A);
     String two(int v) => v.toString().padLeft(2, '0');
 
     return CustomPaint(
       foregroundPainter: BracketFramePainter(
-        color: colour,
+        color: color,
         bracketSize: 7,
         strokeWidth: 1.2,
       ),
@@ -699,17 +699,17 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         padding: const EdgeInsets.only(right: 12),
         decoration: BoxDecoration(
           color: _C.bg.withValues(alpha: 0.82),
-          border: Border.all(color: colour.withValues(alpha: 0.42)),
+          border: Border.all(color: color.withValues(alpha: 0.42)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 3, height: 30, color: colour),
+            Container(width: 3, height: 30, color: color),
             const SizedBox(width: 10),
             Text(
               'L${widget.raid!.safeLevel}',
               style: TextStyle(
-                color: colour.withValues(alpha: 0.82),
+                color: color.withValues(alpha: 0.82),
                 fontSize: 10,
                 fontWeight: FontWeight.w900,
                 letterSpacing: 1.0,
@@ -719,7 +719,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             Text(
               '${two(left.inMinutes)}:${two(left.inSeconds % 60)}',
               style: TextStyle(
-                color: colour,
+                color: color,
                 fontSize: 13,
                 fontWeight: FontWeight.w900,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -1997,7 +1997,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     const cell = _kPadCell, gap = _kPadGap, wide = cell * 2 + gap;
 
     // THE BLACK SUN: a Dark in a grid room has two ends to cast, so the top
-    // row is two tiles — CAST I and CAST II, in its portal's colour — and
+    // row is two tiles — CAST I and CAST II, in its portal's color — and
     // Light's one tile says what it does (SHINE / PUT OUT).
     Widget castTile(int end) {
       final purple = game.sunActiveIsPurple;
@@ -2197,7 +2197,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   );
 
   /// One square of the action pad: a dark tile, bracketed corners in the
-  /// button's colour, and a solid band along the foot that fills as a
+  /// button's color, and a solid band along the foot that fills as a
   /// cooldown (or a glide's charge) comes back. No glow, no blur.
   Widget _padTile({
     required double width,

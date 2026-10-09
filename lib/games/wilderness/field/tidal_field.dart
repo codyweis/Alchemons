@@ -140,12 +140,12 @@ class TidalField extends _GrainField {
     );
   }
 
-  // ── The hour's colours ───────────────────────────────────────────────────
+  // ── The hour's colors ───────────────────────────────────────────────────
 
   /// How dark the hour is: 1 at night. The sea lights up with it.
   double _night = 0;
 
-  /// The water's colours for the live parts: deep, shallow over the flat,
+  /// The water's colors for the live parts: deep, shallow over the flat,
   /// foam, and the sea's own light after dark.
   Color _seaMid = const Color(0xFF000000),
       _deep = const Color(0xFF000000),
@@ -219,7 +219,7 @@ class TidalField extends _GrainField {
     final sea = sil(_gSeaNear);
     _seaNear = sea;
     _hazeLow = hazeLow;
-    // The near sea's own colour where the swimmers are, a third of the way
+    // The near sea's own color where the swimmers are, a third of the way
     // down it, as it is baked: what is drawn over them must match it.
     _seaMid = Color.from(
       alpha: 1,
@@ -981,7 +981,7 @@ class TidalField extends _GrainField {
   final GrainBatch _pathBatch = GrainBatch(3);
 
   /// The sun's path on the water in [view], or the moon's: where it runs
-  /// down the sea, how wide it spreads near, its colour, and how bright it
+  /// down the sea, how wide it spreads near, its color, and how bright it
   /// is — brightest with the light low. Null when there is none.
   ({double x, double spread, Color color, double strength})? _path(
     FieldView view,
@@ -1062,7 +1062,7 @@ class TidalField extends _GrainField {
   /// Where the sea stands at the reef rocks' feet.
   double get _reefLine => _h * 0.72;
 
-  /// The nearer sea's colour at [y], as its sheet is baked and graded (see
+  /// The nearer sea's color at [y], as its sheet is baked and graded (see
   /// [_paintNearSea]) — what is drawn over the sea must match it.
   Color _nearSeaAt(double y) {
     final f = ((y - _h * 0.6) / (_h * 0.3)).clamp(0.0, 1.0);
@@ -1159,7 +1159,7 @@ class TidalField extends _GrainField {
   /// [c] with [a] for its alpha, as a mesh vertex wants it.
   static int _argb(Color c, double a) => _at(_rgb(c), a);
 
-  /// [c] without its alpha, for [_at] and [_mix] — colours worked as ints
+  /// [c] without its alpha, for [_at] and [_mix] — colors worked as ints
   /// so the hundreds of vertices a frame allocate nothing.
   static int _rgb(Color c) => c.toARGB32() & 0xFFFFFF;
 
@@ -1936,7 +1936,7 @@ class TidalField extends _GrainField {
   final GrainBatch _anemoneBatch = GrainBatch(6);
   double _shelfSeen = -1;
 
-  static const _anemoneColours = [
+  static const _anemoneColors = [
     Color(0xFFE86A9A),
     Color(0xFF8EE0A0),
     Color(0xFFF2A65E),
@@ -2002,7 +2002,7 @@ class TidalField extends _GrainField {
       }
     }
     for (var c = 0; c < 3; c++) {
-      final col = Color.lerp(_anemoneColours[c], _light.ambient, 0.5)!;
+      final col = Color.lerp(_anemoneColors[c], _light.ambient, 0.5)!;
       _anemoneBatch
         ..draw(canvas, c * 2, 1.0 * _u, col.withValues(alpha: 0.7))
         ..draw(
@@ -2308,7 +2308,7 @@ class TidalField extends _GrainField {
 
 /// Soft filled shapes built up over a frame and drawn in one call: the
 /// sea's moving water — waves, white water, swash — which may not be drawn
-/// as paths every frame. Each vertex carries its own colour, so a shape
+/// as paths every frame. Each vertex carries its own color, so a shape
 /// fades to nothing at its edges by its vertices alone.
 class _WaterMesh {
   Float32List _pos = Float32List(8192);

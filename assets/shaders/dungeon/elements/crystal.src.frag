@@ -1,5 +1,5 @@
 // CRYSTAL — Lumishara, the Prism Labyrinth. Seen from inside a cut stone:
-// hard faceted planes, and light SPLIT into its colours along their edges.
+// hard faceted planes, and light SPLIT into its colors along their edges.
 // The dispersion is the signature and it belongs to no other planet; keep the
 // geometry angular so it cannot be read as Water's caustics.
 // uColorA stone dark, uColorB lattice violet, uColorC white refraction.

@@ -32,7 +32,7 @@ extension NotificationBannerTypeExtension on NotificationBannerType {
   String toKey() => name;
 }
 
-/// Each notice's colour, readable on the theme's ground. The dock buttons
+/// Each notice's color, readable on the theme's ground. The dock buttons
 /// that open the same screens wear their dot in it ([HomeNoticeDot]).
 Color homeNoticeAccent(NotificationBannerType type, {required bool dark}) =>
     switch (type) {
@@ -589,7 +589,7 @@ class _NoticeSigilPainter extends CustomPainter {
 }
 
 /// The dot a dock button wears while there is something ready behind it, in
-/// the colour of the notice for the same thing.
+/// the color of the notice for the same thing.
 class HomeNoticeDot extends StatelessWidget {
   const HomeNoticeDot({super.key, required this.color, this.size = 11});
 

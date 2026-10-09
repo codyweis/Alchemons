@@ -19,7 +19,7 @@ import 'package:provider/provider.dart';
 // The chrome around the tree is the app's bare look: tags, headings and
 // buttons are flat fills with no frame. Only two things are lit from below:
 // the node in focus and the button that buys it. Everything else that is
-// "chosen" (the family, the equipped branch) says so with colour alone, so
+// "chosen" (the family, the equipped branch) says so with color alone, so
 // the eye has one place to go. Progress is drawn once, on the tree itself:
 // filled, checked gems and the sap running up to them.
 
@@ -443,7 +443,7 @@ class _FamilyMedallion extends StatelessWidget {
         key: ValueKey('mastery-family-${family.name}'),
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        // The family in view is in full colour; the rest are dimmed.
+        // The family in view is in full color; the rest are dimmed.
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1076,7 +1076,7 @@ class _BranchHead extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         // A flat ink tag over the bough. The equipped branch is washed in the
-        // family's colour and says so, but it is not lit: the light belongs to
+        // family's color and says so, but it is not lit: the light belongs to
         // the node in focus and the button that buys it.
         child: Container(
           color: active
@@ -1117,7 +1117,7 @@ class _BranchHead extends StatelessWidget {
                         ),
                       )
                     : equippable
-                    // A quiet wash in the family's colour: something to
+                    // A quiet wash in the family's color: something to
                     // press, but not the thing lit on this screen.
                     ? Center(
                         child: Container(

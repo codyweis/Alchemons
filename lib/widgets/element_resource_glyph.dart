@@ -16,7 +16,7 @@ import 'package:flutter/material.dart';
 /// carries it at a 15px chip; the motion carries it anywhere bigger. Points
 /// in batches and cached gradients — no blur, no stroked rings.
 class ElementResourceGlyph extends StatefulWidget {
-  /// Takes the biome id and colour rather than a resource object, because the
+  /// Takes the biome id and color rather than a resource object, because the
   /// codebase has two unrelated `ElementResource` types — one in `constants/`
   /// carrying an IconData, one in `models/` carrying an ImageProvider — and
   /// every surface that draws a resource holds one or the other.
@@ -122,7 +122,7 @@ class _ElementParticlePainter extends CustomPainter {
   static final Paint _p = Paint();
   static final GrainBatch _b = GrainBatch(8);
 
-  /// Gradients, built once per element, size and colour: the essence's
+  /// Gradients, built once per element, size and color: the essence's
   /// body of light does not move with its grains.
   static final Map<(int, int, int), ui.Shader> _shaders = {};
 

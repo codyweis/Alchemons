@@ -153,7 +153,7 @@ class LeaveExpeditionDetails extends StatelessWidget {
     );
   }
 
-  /// One loss: a small mark in its colour, what it is, and where it went.
+  /// One loss: a small mark in its color, what it is, and where it went.
   Widget _lossRow(
     BuildContext context, {
     required Color tint,

@@ -8,10 +8,10 @@
 // gains is apothecary glass on the things that mean something:
 //
 //   · the prior's cross carries a rondel at its crossing, and that is where
-//     THE DOSE is scored: one pane of the wisp's colour for each colour walked
+//     THE DOSE is scored: one pane of the wisp's color for each color walked
 //     home, the heart blooming white as the rite binds — and kept, on every
 //     later descent. The maxim used to leave nothing at all;
-//   · a relic socket at the cross's foot is a glass lens, the brew's colour
+//   · a relic socket at the cross's foot is a glass lens, the brew's color
 //     once a reliquary is set in it;
 //   · the lustral font holds its water as a pane of glass, sick green until
 //     the vial goes in and clear after.
@@ -314,7 +314,7 @@ extension VenomMonasteryArt on PlanetDungeonGame {
   }
 
   /// THE DOSE, scored in glass at the cross's crossing. Three petals, one per
-  /// colour the wisp must be walked home in — dark until that colour is home,
+  /// color the wisp must be walked home in — dark until that color is home,
   /// then its own glass — round a heart that blooms white as the rite binds.
   /// Found, all of it stays lit.
   void _drawDoseRose(Canvas canvas, Offset c) {
@@ -377,7 +377,7 @@ extension VenomMonasteryArt on PlanetDungeonGame {
     }
   }
 
-  /// A relic socket's lens: dark glass, and the brew's own colour once full.
+  /// A relic socket's lens: dark glass, and the brew's own color once full.
   void _drawSocketLens(Canvas canvas, Offset at, Color? brew) {
     canvas.save();
     canvas.translate(at.dx, at.dy);
@@ -517,9 +517,9 @@ extension VenomMonasteryArt on PlanetDungeonGame {
 
   /// THE GATE POT (2026-10-08 look): a near-black iron pot on a bed of
   /// stirring embers, the draught in it a churn of grains — one band per
-  /// gift, in the giver's colour, so the pot visibly fills as you give — and
+  /// gift, in the giver's color, so the pot visibly fills as you give — and
   /// a rondel of glass for each hand, lit when that hand has given. It was a
-  /// flat oval pot with a bronze outline, rings of flat colour and outlined
+  /// flat oval pot with a bronze outline, rings of flat color and outlined
   /// dots.
   void _drawEntrancePot(Canvas canvas) {
     final m = monastery;
@@ -571,7 +571,7 @@ extension VenomMonasteryArt on PlanetDungeonGame {
       height: 30,
     );
     canvas.drawOval(rim, Paint()..color = const Color(0xFF161915));
-    // The draught: one band of colour per gift, the pot filling as you give.
+    // The draught: one band of color per gift, the pot filling as you give.
     final givers = [
       for (final cr in creatures)
         if (m.entryGiven.contains(cr.member.instanceId)) cr.member.element,
@@ -583,7 +583,7 @@ extension VenomMonasteryArt on PlanetDungeonGame {
         final outer = 1 - i / max(1, givers.length);
         final inner = 1 - (i + 1) / max(1, givers.length);
         final col = elementColor(givers[i]);
-        // The band's body, dark in its colour, under its grains.
+        // The band's body, dark in its color, under its grains.
         canvas.drawOval(
           Rect.fromCenter(
             center: surface.center,
@@ -638,7 +638,7 @@ extension VenomMonasteryArt on PlanetDungeonGame {
         ..strokeCap = StrokeCap.round
         ..color = _kVenomGlass.leadLight.withValues(alpha: 0.3),
     );
-    // One rondel per hand, lit in the colour of whoever gave.
+    // One rondel per hand, lit in the color of whoever gave.
     final hands = creatures.where((cr) => cr.alive).toList();
     for (var i = 0; i < hands.length; i++) {
       final at = c + Offset((i - (hands.length - 1) / 2) * 22, 50);

@@ -114,7 +114,7 @@ def orb(v=0):
              weight=lambda tt: 0.4 + 0 * tt)
     # Into the heart: the glass taken in, softly.
     knock(m, ORB_FLIGHT - 0.01, _dark_glass(m.rng, 420 * (1 + 0.03 * v), ring=0.35),
-          amp=0.05, attack=0.012, tau=0.006, colour=2500, floor=250)
+          amp=0.05, attack=0.012, tau=0.006, color=2500, floor=250)
     # The power climbing the body: grains lifting, swelling, settling.
     u = np.clip((t - ORB_FLIGHT) / ORB_FLASH, 0, 1)
     swell = np.sin(math.pi * np.minimum(1.0, u / 0.85)) * (t > ORB_FLIGHT)
@@ -174,7 +174,7 @@ def soul(tier):
         # warm air -- bigger with the roll. A jackpot answers itself 110 ms
         # later (the screen's second thump).
         knock(m, O - 0.01, _dark_glass(m.rng, 300 - 15 * tier, ring=0.5 + 0.15 * tier),
-              amp=0.05 + 0.012 * tier, attack=0.02, tau=0.01, colour=2200, floor=180)
+              amp=0.05 + 0.012 * tier, attack=0.02, tau=0.01, color=2200, floor=180)
         u = np.clip((t - O) / F, 0, 1)
         swell = np.sin(math.pi * np.minimum(1.0, u / 0.85)) * (t > O)
         m.grains(lambda tt: np.interp(tt, grid, (2200 + 700 * tier) * swell),
@@ -213,9 +213,9 @@ def max_level():
          amp=0.05, body_lo=160, body_hi=1300, rasp=0.4, crackle=25, hiss=0.12)
     # Two low glass bodies blooming under it -- weight, not a chime.
     knock(m, 0.16, _dark_glass(m.rng, 233, ring=1.4), amp=0.05, attack=0.05,
-          tau=0.012, colour=2000, floor=160)
+          tau=0.012, color=2000, floor=160)
     knock(m, 0.18, _dark_glass(m.rng, 347, ring=1.0), amp=0.035, attack=0.05,
-          tau=0.012, colour=2400, floor=200)
+          tau=0.012, color=2400, floor=200)
     m.air(0.0, 1.8, 240, 2200, amp=0.04, rise=0.2)
     m.room(t60=1.7, wet=0.28)
     return m.finish(loudness_db=-30.0, fade_out=0.5)

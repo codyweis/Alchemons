@@ -3505,7 +3505,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
 
   /// THE YARD IS A SURVEY, NOT A CHESSBOARD.
   ///
-  /// It was fifteen identical rounded rectangles in three flat colours, which
+  /// It was fifteen identical rounded rectangles in three flat colors, which
   /// is the single most schematic object on the planet and the one the player
   /// spends the most time reading. The MECHANIC needs the lattice — a cell's
   /// load count and its neighbours are the puzzle — so the lattice stays, and
@@ -4782,7 +4782,7 @@ _RuinsGround _buildRuinsGround(DungeonRoom room) {
           ];
           continue;
         }
-        // A cell's load is a HEAP lying in the square, not a coloured tile.
+        // A cell's load is a HEAP lying in the square, not a colored tile.
         g.yardDrift[i] = _dustBlob(
           rect.center.translate((rnd() - 0.5) * 7, (rnd() - 0.5) * 7),
           rect.width * 0.38,

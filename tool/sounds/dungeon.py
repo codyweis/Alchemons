@@ -700,7 +700,7 @@ def amb_ruins():
     m = Mix(total, seed=6401)
     _bed(m, r, 0.006, 0.0035)
     # The draught: three loose bands with their own slow swells, so the
-    # wind's colour wanders without ever whistling.
+    # wind's color wanders without ever whistling.
     for fc, bw in ((520, 380), (840, 520), (1300, 800)):
         g = _sway(r, m.n, 0.09, 0.45, power=1.5)
         for ch in range(2):

@@ -253,7 +253,7 @@ class _DungeonRow extends StatelessWidget {
                                   // star_rounded vs star_outline_rounded:
                                   // those two are the same Phosphor glyph, so
                                   // that pairing would separate earned from
-                                  // unearned by colour alone.
+                                  // unearned by color alone.
                                   child: Icon(
                                     (stars & (1 << i)) != 0
                                         ? AppIcons.star_filled

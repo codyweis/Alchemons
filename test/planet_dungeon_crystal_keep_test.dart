@@ -119,7 +119,7 @@ int permParity(List<int> p) {
 
 /// THE CONSERVED QUANTITY. Every shunt transposes the hollow with an
 /// orthogonal neighbour — flipping sgn(π) — and moves the hollow one step on a
-/// bipartite lattice, flipping the colour of its cell. Their XOR is therefore
+/// bipartite lattice, flipping the color of its cell. Their XOR is therefore
 /// invariant, and the reachable orbit is exactly the arrangements that share
 /// the start's value of it.
 int parityClass(List<int> p) {
@@ -375,7 +375,7 @@ void main() {
 
   group('THE PARITY PROOF', () {
     test(
-      'every legal shunt conserves sgn(π) XOR the hollow\'s cell colour',
+      'every legal shunt conserves sgn(π) XOR the hollow\'s cell color',
       () {
         final f = PrismKeepField();
         final want = parityClass(start);

@@ -4,7 +4,7 @@
 //
 //   Tap an Alchemon on its details and it is read into grains of itself
 //   (see [SpecimenGrains]): at rest they ARE the sprite. Then they come
-//   loose, heat into its element's colours, and do what that element does —
+//   loose, heat into its element's colors, and do what that element does —
 //   a Fire one burns up into a flame, an Earth one crumbles to a heap at its
 //   feet, a Dark one spirals into a point, a Crystal one cracks into facets —
 //   and gather back into it, feet first, crown last.
@@ -401,7 +401,7 @@ const Map<EssenceElement, _Timing> _timings = {
 ///                 the element's shades as they go
 ///  * to ~1.5      the element's form: the flame, the heap, the void
 ///  * 1.45 – 2.3   home again along a swirl, feet first, cooling to its own
-///                 colours as each lands
+///                 colors as each lands
 ///  * 2.28 – 2.6   the sprite comes back under them and they go out
 class EssenceField {
   EssenceField(this.grains, this.element)
@@ -1334,7 +1334,7 @@ class EssenceField {
       final ret = _ret[i];
       final own = math.min(g.tone[i], nt - 1);
       if (t < rel || t >= ret + tm.outDur) {
-        // At home, its own colour: still the sprite, or the sprite again.
+        // At home, its own color: still the sprite, or the sprite again.
         final landed = t >= ret + tm.outDur;
         if (landed && t < ret + tm.outDur + 0.05 && _p1[i] < 0.05) {
           b.add(_glintB, ox + hx, oy + hy);

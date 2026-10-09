@@ -27,7 +27,7 @@ const List<Color> kAirGrainRamp = [
   Color(0xFFFFFFFF),
 ];
 
-/// A four-step ramp around one colour, for grains tinted to a state.
+/// A four-step ramp around one color, for grains tinted to a state.
 List<Color> grainRampFrom(Color c) {
   final o = c.withValues(alpha: 1);
   return [

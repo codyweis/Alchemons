@@ -36,7 +36,7 @@ enum GlassesView {
 ///
 /// Smoked glass in a dark obsidian frame with gold hinge pins. The lenses
 /// take the picked [tint]: darker at the brow, clearer toward the cheek, in
-/// the same steps for every colour. A soft sheen glides across the lenses
+/// the same steps for every color. A soft sheen glides across the lenses
 /// as one reflection now and then, and a few gold grains twinkle on the
 /// brow bar.
 abstract final class AlchemicalSunglasses {

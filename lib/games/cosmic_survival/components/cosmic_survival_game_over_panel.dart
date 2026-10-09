@@ -279,7 +279,7 @@ class _CosmicSurvivalGameOverPanelState
 }
 
 /// A results action: the way forward is a wash lit from below, the other two
-/// quiet fills in their colour. The label may shrink: three actions share the
+/// quiet fills in their color. The label may shrink: three actions share the
 /// row where two used to.
 class _ResultsButton extends StatelessWidget {
   const _ResultsButton({

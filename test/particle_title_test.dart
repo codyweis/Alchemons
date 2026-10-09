@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // The home title in particles, through its real gestures: it loads and
 // animates, a tap and a drag are taken without error, a long press brings
-// up the colours, and the choice is kept.
+// up the colors, and the choice is kept.
 
 const _gold = 'assets/images/ui/alchemonstitle.png';
 
@@ -41,7 +41,7 @@ void main() {
     expect(s.letter.reduce((a, b) => a > b ? a : b), 8);
   });
 
-  testWidgets('tap, drag and long press all work, and the colour is kept',
+  testWidgets('tap, drag and long press all work, and the color is kept',
       (tester) async {
     await tester.pumpWidget(_host());
     await _load(tester);
@@ -58,7 +58,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     expect(tester.takeException(), isNull);
 
-    // Hold: the colours come up; choose Void (the last).
+    // Hold: the colors come up; choose Void (the last).
     await tester.longPressAt(centre);
     await tester.pump(const Duration(milliseconds: 300));
     final swatches = find.descendant(

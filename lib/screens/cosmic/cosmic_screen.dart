@@ -5144,7 +5144,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _armHomeTourTimer();
   }
 
-  /// What the hold carries, as colours, most first: its elements, and the
+  /// What the hold carries, as colors, most first: its elements, and the
   /// astral shards' pale crystal — the grains DEPOSIT's mark pours home.
   List<Color> _cargoColors() {
     final game = _game;
@@ -6199,7 +6199,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
-  /// A premium colour costs several elements at once; all or nothing.
+  /// A premium color costs several elements at once; all or nothing.
   Future<void> _handleUnlockPremiumColor(PremiumHomeColor premium) async {
     String? short() {
       for (final e in premium.cost.entries) {
@@ -6965,7 +6965,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   /// A planet-surface action (DESCEND / ENTER RAID / SUMMON RAID): a plate of
-  /// dark glass washed with its colour, in accent brackets, the word in the
+  /// dark glass washed with its color, in accent brackets, the word in the
   /// console's type — the same button as the station sheets and the lab.
   Widget _planetCta({
     required String label,
@@ -10515,7 +10515,7 @@ class _CosmicSandboxOverlayState extends State<_CosmicSandboxOverlay>
   }
 }
 
-/// The survival signal's colour: its map blip, its edge arrow, the coach
+/// The survival signal's color: its map blip, its edge arrow, the coach
 /// mark on the map button.
 const _signalColor = Color(0xFFB794F6);
 

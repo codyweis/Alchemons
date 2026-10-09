@@ -287,7 +287,7 @@ class _RuneStone extends KeepsakeArt {
   }
 }
 
-/// A banner in a faction's colours on a tall pole, moving with the wind.
+/// A banner in a faction's colors on a tall pole, moving with the wind.
 class _Banner extends KeepsakeArt {
   _Banner(int style)
     : super(

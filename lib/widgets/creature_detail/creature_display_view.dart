@@ -90,7 +90,7 @@ class _CreatureDisplayViewState extends State<CreatureDisplayView> {
           children: [
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 260),
-              // Filled: a plain colour has no size of its own, and the
+              // Filled: a plain color has no size of its own, and the
               // switcher's default layout would shrink it to nothing.
               layoutBuilder: (current, previous) => Stack(
                 fit: StackFit.expand,

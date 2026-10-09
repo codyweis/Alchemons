@@ -18,7 +18,7 @@
 //   The stage sits on the left with the stat profile beside it, as the old
 //   sprite dock did. What is notable about the specimen (a new discovery, a
 //   mutation, prismatic skin, a variant, its purity) is engraved in one quiet
-//   line under the two, rather than as coloured badges stuck to its corners.
+//   line under the two, rather than as colored badges stuck to its corners.
 //
 // One card for every extraction, single or batch -- the batch awaits it once
 // per specimen -- so there is never a lesser second copy of it to drift.
@@ -221,7 +221,7 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
           context: context,
           boundaryKey: _cardKey,
           element: _species.types.isEmpty ? null : _species.types.first,
-          colour: _rimColour(mutation),
+          color: _rimColor(mutation),
           barrier: kExtractionCardBarrier,
           reduced: widget.cinematicQuality == CinematicQuality.performance,
           seed: _instance.instanceId.hashCode,
@@ -238,12 +238,12 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
     }
   }
 
-  RimColour _rimColour(AlchemonMutation? mutation) =>
+  RimColor _rimColor(AlchemonMutation? mutation) =>
       mutation == AlchemonMutation.transmuted
-      ? RimColour.gilded
+      ? RimColor.gilded
       : _instance.isPrismaticSkin == true
-      ? RimColour.prismatic
-      : RimColour.element;
+      ? RimColor.prismatic
+      : RimColor.element;
 
   void _openDetails() {
     if (_closing) return;
@@ -302,7 +302,7 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
           child: EssenceRim(
             element: element,
             pour: _revealed,
-            colour: _rimColour(mutation),
+            color: _rimColor(mutation),
             loose: mutation == AlchemonMutation.alchemized,
             looseLight: mutationAccent(AlchemonMutation.alchemized),
             fleck: variant == null ? null : FactionColors.of(variant),
@@ -804,7 +804,7 @@ class _StageLightPainter extends CustomPainter {
 
 /// The marks as one engraved line under the specimen and its stats: small
 /// letterspaced capitals in muted ink, each after a small diamond of its own
-/// colour. No boxes, no fills -- the colour is in the diamond, the words
+/// color. No boxes, no fills -- the color is in the diamond, the words
 /// stay quiet.
 class _Inscription extends StatelessWidget {
   const _Inscription({

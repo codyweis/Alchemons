@@ -225,7 +225,7 @@ void main() {
   });
 }
 
-/// Stands in for a CreatureSprite: a block of colour that says it is ready
+/// Stands in for a CreatureSprite: a block of color that says it is ready
 /// after its first frame, as the real one does once loaded.
 class _FakeSprite extends StatefulWidget {
   const _FakeSprite({required this.announces});

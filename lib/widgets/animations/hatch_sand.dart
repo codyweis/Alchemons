@@ -36,8 +36,8 @@ import 'package:flutter/widgets.dart';
 
 const double _tau = math.pi * 2;
 
-/// What the sand is coloured as.
-enum HatchSandColour {
+/// What the sand is colored as.
+enum HatchSandColor {
   /// The two parents' sands, each on its own side, marbled where they meet.
   elements,
 
@@ -67,7 +67,7 @@ class HatchSandField {
   HatchSandField({
     required List<Color> paletteA,
     required List<Color> paletteB,
-    this.colour = HatchSandColour.elements,
+    this.color = HatchSandColor.elements,
     this.loose = false,
     this.fleck,
     this.looseLight = const Color(0xFFB9A7F5),
@@ -75,12 +75,12 @@ class HatchSandField {
   }) : _pa = _three(paletteA),
        _pb = _three(paletteB);
 
-  final HatchSandColour colour;
+  final HatchSandColor color;
 
   /// Alchemized: the grains never settle. See the file's head.
   final bool loose;
 
-  /// A variant's colour: a scatter of grains of it, twinkling.
+  /// A variant's color: a scatter of grains of it, twinkling.
   final Color? fleck;
 
   /// The light loose grains glint in (Alchemized's violet).
@@ -141,7 +141,7 @@ class HatchSandField {
   Offset debugGrainAt(int i) => Offset(_hx[i] + _ox[i], _hy[i] + _oy[i]);
 
   @visibleForTesting
-  int debugColourOf(int i) => _c[i];
+  int debugColorOf(int i) => _c[i];
 
   // ── Squares (for the pictures) ────────────────────────────────────────
 
@@ -290,15 +290,15 @@ class HatchSandField {
         ? 0.34 + 0.46 * math.pow(r.nextDouble(), 1.4)
         : 0.32 + 0.48 * math.pow(r.nextDouble(), 1.5);
     _role[i] = _still;
-    switch (colour) {
-      case HatchSandColour.elements:
+    switch (color) {
+      case HatchSandColor.elements:
         _c[i] = _shade(body, v, 0.95);
         _c2[i] = _shade(Color.lerp(body, p[2], 0.55)!, 1, 1);
         if (r.nextDouble() < 0.02) {
           _role[i] = _twinkle;
           _c2[i] = _shade(p[2], 1, 1);
         }
-      case HatchSandColour.prismatic:
+      case HatchSandColor.prismatic:
         final hue = _hueAt(x, y);
         final c = Color(_prismAt(hue));
         // A little brighter than the parents' sands: the bands are the point.
@@ -306,7 +306,7 @@ class HatchSandField {
         _c2[i] = _shade(c, 1, 1);
         _aux[i] = hue;
         if (r.nextDouble() < 0.07) _role[i] = _turn;
-      case HatchSandColour.gilded:
+      case HatchSandColor.gilded:
         final g = ShellMutationLook.gilt(body, shade: r.nextDouble());
         _c[i] = _shade(g, v + 0.08, 0.95);
         _c2[i] = _shade(Color.lerp(g, ShellMutationLook.paleGold, 0.6)!, 1, 1);
@@ -790,7 +790,7 @@ class HatchSandField {
 
   static const double _polishPeriod = 2.6;
 
-  // How lit a glinting grain is now, 0..1, and the colour it peaks at.
+  // How lit a glinting grain is now, 0..1, and the color it peaks at.
   (double, int) _glintOf(int k) {
     switch (_role[k]) {
       case _polish:
@@ -915,7 +915,7 @@ ui.Image _buildAtlas() {
   );
 }
 
-/// Sprites of one kind, each its own colour, size and place, in one call.
+/// Sprites of one kind, each its own color, size and place, in one call.
 class _Batch {
   _Batch(this._src);
 

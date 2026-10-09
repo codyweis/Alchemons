@@ -7,7 +7,7 @@
 //
 //   Harvest   the flask rises to the middle of the screen and swirls while
 //             the chamber is got ready, then settles onto the chamber's own
-//             flask on the bench — its liquid taking that chamber's colour
+//             flask on the bench — its liquid taking that chamber's color
 //             and level — and gives way to it
 //   Field     the dawn hills grow into a window of grains; the grains come
 //             loose and drift down into the map's realm circles as the dust
@@ -80,7 +80,7 @@ class HarvestFlaskTarget {
   final Offset centre;
   final double radius;
 
-  /// The liquid's colour, and how full it stands (0..1 of full).
+  /// The liquid's color, and how full it stands (0..1 of full).
   final Color ink;
   final double level;
 }
@@ -183,7 +183,7 @@ class FieldCircle {
   final Offset centre;
   final double radius;
 
-  /// The colour of the realm's dust.
+  /// The color of the realm's dust.
   final Color tint;
 }
 

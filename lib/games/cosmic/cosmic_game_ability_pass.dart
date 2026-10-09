@@ -1291,7 +1291,7 @@ extension CosmicAbilityPass on CosmicGame {
             );
             consumed = true;
           }
-          // A trap sparks in its own colour, as Survival's do.
+          // A trap sparks in its own color, as Survival's do.
           _spawnHitSpark(
             p.position,
             elementColor(

@@ -1549,7 +1549,7 @@ class _DungeonFullMapPainter extends CustomPainter {
   }
 
   /// NYTHRALOR: a portal whose two ends are in different rooms is drawn on
-  /// the chart between them, in its Dark's colour — so where a portal comes
+  /// the chart between them, in its Dark's color — so where a portal comes
   /// out is never something to remember across rooms.
   void _drawSunPortals(Canvas canvas, DungeonChart chart, Set<String> known) {
     final s = game.blackSun.state;

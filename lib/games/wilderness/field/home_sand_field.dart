@@ -1,10 +1,10 @@
 // lib/games/wilderness/field/home_sand_field.dart
 //
 // LIVING SANDS. A home realm that is nothing but sand: a floor of particles
-// on the dark in the one to five colours the player picks, lying as they
+// on the dark in the one to five colors the player picks, lying as they
 // choose (see SandFloor). A finger drawn through it stirs it and it springs
 // back — or, as the player would rather, ploughs it and it stays, or swirls
-// the colours through each other — until it is smoothed.
+// the colors through each other — until it is smoothed.
 //
 // The floor is one tile about a screen wide, seamless end to end, laid
 // round the home's loop on the back layer — so it pans with the residents
@@ -44,8 +44,8 @@ class HomeSandField extends FieldArt {
   HomeSandStyle get style => _floor.style;
 
   /// Takes effect from the next frame, doing again only what changed: new
-  /// colours dress every grain where it lies, cheap enough to follow a
-  /// finger along a colour strip.
+  /// colors dress every grain where it lies, cheap enough to follow a
+  /// finger along a color strip.
   set style(HomeSandStyle style) => _floor.style = style;
 
   /// The floor itself, for previews and tests.

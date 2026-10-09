@@ -1,6 +1,6 @@
 // lib/screens/home_biome/home_sand_tray.dart
 //
-// Living Sands' trays. The colour of one of its sands, picked on three
+// Living Sands' trays. The color of one of its sands, picked on three
 // strips of sand: its hue, how strong it is, and how light. And its
 // amounts — how thick, how coarse, how much shimmer — each on
 // a strip of the sand showing more of it further along. Each strip is a
@@ -37,7 +37,7 @@ class SandColorStrips extends StatefulWidget {
 }
 
 class _SandColorStripsState extends State<SandColorStrips> {
-  // Kept as picked, not read back from the colour: a grey has no hue, and
+  // Kept as picked, not read back from the color: a grey has no hue, and
   // drawing its saturation back up must find the hue it had.
   late HSLColor _hsl = HSLColor.fromColor(widget.color);
 

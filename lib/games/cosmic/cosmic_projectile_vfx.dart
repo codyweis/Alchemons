@@ -1224,7 +1224,7 @@ bool drawManeElementalProjectileVisual({
         ..color = color.withValues(alpha: 0.20 * scaled * pulse)
         ..maskFilter = null,
     );
-    // Element colour carries the body. The old fill was `white` — the element
+    // Element color carries the body. The old fill was `white` — the element
     // hue lerped 42% toward white and then laid down at 0.72 — which washed
     // Lava, Dust and Plant out to the same cream and left hue doing all the
     // work of telling them apart.
@@ -3618,7 +3618,7 @@ bool drawLetElementalProjectileVisual({
 ///
 /// Without this every element was the same hexagon at the same size trailing
 /// the same wedge, and identity rested entirely on a small accent stuck to the
-/// front — which is what made the family read as one asset recoloured 17 times.
+/// front — which is what made the family read as one asset recolored 17 times.
 /// Earth is a slow heavy boulder with a stubby fat wake; Lightning is a small
 /// fast sliver with a long thin one; Steam has almost no body at all.
 ///
@@ -4114,7 +4114,7 @@ void _drawSkyfallMeteor(
           travelDir: travelDir,
           spread: descent * (0.22 + i * 0.14),
           size: (2.6 - i * 0.5) * vs,
-          // Each pass tinted a little differently so the scatter splits colour
+          // Each pass tinted a little differently so the scatter splits color
           // the way a prism does rather than repeating one white spark.
           color: ui.Color.lerp(
             const ui.Color(0xFFFFFFFF),
@@ -4216,7 +4216,7 @@ void _drawSkyfallMeteor(
       // motif every other Let had already had removed for looking like a UI
       // element, and on this one it read as a monocle.
       //
-      // Mud's element colour is nearly black, so the globs carry a lifted tone
+      // Mud's element color is nearly black, so the globs carry a lifted tone
       // or the whole cast disappears against space.
       final glob = ui.Color.lerp(color, const ui.Color(0xFFC79A6B), 0.55)!;
       // Wet mass clinging to the rock, lumpy and off-centre rather than a
@@ -5448,7 +5448,7 @@ void emitZoneParticles(Projectile p, Random rng, ZoneVfxEmit emit) {
 /// Voltara's white-blue bolt core.
 const ui.Color kLightningBoltCore = ui.Color(0xFFEAF6FF);
 
-/// Voltara's cool halo tone, the colour that makes the bolt read as electric.
+/// Voltara's cool halo tone, the color that makes the bolt read as electric.
 const ui.Color kLightningBoltGlow = ui.Color(0xFF6BA8FF);
 
 const int _kBoltMaxSteps = 18;
@@ -6311,7 +6311,7 @@ void drawDirectionalBloom({
 /// A wake that flows.
 ///
 /// The wedge this replaces was three nested triangles: straight sides, a blunt
-/// cut across the head and a hard point at the tail. Whatever colour went into
+/// cut across the head and a hard point at the tail. Whatever color went into
 /// it, the eye read cut paper — and because every Let wore the same wedge at
 /// the same angle, the family had one silhouette seventeen times over, and
 /// that silhouette was a slipstream, which is Mane's.
@@ -6442,7 +6442,7 @@ void drawPlumeWake({
     path.close();
 
     // Alpha ramps to nothing at the tail so the wake ends by dissolving, and
-    // the colour cools from white-hot at the head to element at the far end.
+    // the color cools from white-hot at the head to element at the far end.
     _shapePaint
       ..color = const ui.Color(0xFFFFFFFF)
       ..shader = ui.Gradient.linear(
@@ -6672,7 +6672,7 @@ const int kManeTrailParticleBudget = 48;
 /// something deliberately invoked rather than something spilled.
 ///
 /// [sides] varies the inner polygon per element, so a Fire cast and an Ice cast
-/// are different figures rather than the same circle in two colours.
+/// are different figures rather than the same circle in two colors.
 ///
 /// Cost: two stroked paths, two short arcs and two small fills. A twenty-orb
 /// cast draws well under what the four concentric circles per Pip dart used to.
@@ -6735,7 +6735,7 @@ void drawMysticSigil({
 
 /// How many sides a Mystic sigil's inner figure has, per element — so the
 /// seventeen ultimates are seventeen different figures and not one shape
-/// recoloured. Grouped by temperament rather than at random: the volatile
+/// recolored. Grouped by temperament rather than at random: the volatile
 /// elements get the tightest, sharpest figures.
 int mysticSigilSides(String? element) => switch (element) {
   'Fire' || 'Lightning' || 'Spirit' => 3,
@@ -7369,9 +7369,9 @@ void drawMysticPoisonPatch({
 /// scaled by [bloom], which carries it up out of the floor and back down.
 ///
 /// Deliberately a different SHAPE per element rather than one sprout in
-/// seventeen colours: a world the player cannot identify from the ground at a
+/// seventeen colors: a world the player cannot identify from the ground at a
 /// glance is not really changing the map, it is tinting it.
-/// Element colours are tuned for creatures on a light card; several are so
+/// Element colors are tuned for creatures on a light card; several are so
 /// dark they vanish as ground cover on a near-black floor. Lift lightness with
 /// the hue intact — lerping toward white would wash out the vivid ones.
 ui.Color _floraInk(ui.Color c) {
@@ -7622,7 +7622,7 @@ void drawMysticFlora({
       // and pops. Deliberately sunk INTO the ground where Earth's stone is
       // pushed out of it, so the two brown worlds are not one texture twice.
       final churn = 0.82 + 0.18 * sin(time * 1.6 + seed);
-      // Mud's element colour is the darkest in the palette and this was
+      // Mud's element color is the darkest in the palette and this was
       // darkening it further, so a mire pit on a near-black floor was almost
       // nothing at all. Lifted, and the rim catches light like wet ground.
       for (var i = 0; i < 4; i++) {

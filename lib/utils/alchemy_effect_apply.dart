@@ -47,7 +47,7 @@ Future<void> removeAlchemyEffect(
 
 /// Puts [costume] on a creature in [color] (its own if null), using up
 /// one; it is worn beside its effect and any other costumes. If it already
-/// wears one, only the colour changes, free. False if it does not fit the
+/// wears one, only the color changes, free. False if it does not fit the
 /// species, or none is owned.
 Future<bool> wearCostume(
   AlchemonsDatabase db, {

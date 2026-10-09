@@ -788,7 +788,7 @@ evidence channels say exactly what they said before, they are just drawn as
 objects instead of as marks. The braziers were 16px half-discs that the
 tallow column covered outright, so a tier-3 brazier read as a pale mushroom;
 the basin is a tapered iron cup on a plinth now, and its RIM stands above
-anything the wax can climb. The wax column is narrower and tallow-coloured,
+anything the wax can climb. The wax column is narrower and tallow-colored,
 drawn BEHIND the iron, with the melt line — the one edge the eye measures —
 still on top and still the brightest thing on the object. Soot fans are
 tapering smudges rather than three hard black spikes; drift streaks carry a
@@ -1638,7 +1638,7 @@ Every dungeon's treasure room (relic chamber / reliquary / pearl vault /
 marrow vault — each gated behind that planet's signature mechanic) holds
 the planet's BOTTLED ESSENCE: an element-tinted shimmer with orbit-motes
 over the shrine. Walking to it makes the essence FIZZLE INTO THE AIR (a
-rising mote burst in the element's colour, no blast) and grants **5 gold,
+rising mote burst in the element's color, no blast) and grants **5 gold,
 once ever** — `cache:<element>_vault` on the persisted discovery channel;
 the screen pays the gold in `_onCloudDiscovered`. The claimed shrine keeps
 its art but loses the shimmer. AUTHORING RULE: every future planet's vault
@@ -1899,8 +1899,8 @@ quotation constants are deleted from the code — nothing left to drift.
 13. **Poison — The Dose:** the sick wisp wears one element at a time and only
     a hand of THAT element can touch it. Each press shoves it a stride toward
     the lustral cross — about six, walked with it — and at the cross it sheds
-    the colour and comes back out wearing the next. Purple, then green, then
-    brown, which are the game's own element colours, so there is no code to
+    the color and comes back out wearing the next. Purple, then green, then
+    brown, which are the game's own element colors, so there is no code to
     crack: the player has been looking at those three on their own party
     since they picked it. Rebuilt 2026-09-04.
 14. **Spirit — Stuff of Dreams:** THE UNDUG GRAVE (§9.9). At the far end of
@@ -2838,7 +2838,7 @@ same question about the STAR.
   · ✅ **STAR 1 IS NO LONGER A FOOT-RACE.** See §9.10.
   · ✅ **THE BOSS ROOM DREW NOTHING AND TAUGHT NOTHING.** Frowyrm's hoarfrost
     pillar — the fight's only verb, and the thing its lull is gated on —
-    starts SHATTERED, and shattered was five 16px stumps in wall-colour: a
+    starts SHATTERED, and shattered was five 16px stumps in wall-color: a
     smudge in a dark hollow. It is a broken pillar now, bright fracture faces
     on a lit socket with the GHOST of the whole pillar standing over it, so
     the room says what it is missing. Insight in that room fell through to
@@ -3094,7 +3094,7 @@ had to be big enough to read).
 
 **Not yet.** The device. The pane-ahead targeting is the orrery's facing
 idiom and has the orrery's preview (the pane the hand would work is outlined
-in its element's colour), but whether a thumb finds it natural on glass is
+in its element's color), but whether a thumb finds it natural on glass is
 the device's to say.
 
 ### §9.12 ICE'S LOST MAXIM — the shaft you were told never to make
@@ -3375,7 +3375,7 @@ build.js from rites.src.html + earth/water/hub-engine.js + rites-rooms.js;
     side and its twin on the other as its mirror image. Every step Blood
     takes, the twin takes the mirrored one (north is north, east is west).
     Each is stopped by its own side's walls, so walking into a wall moves
-    only the other one. Plates hold the gate of their colour open on the
+    only the other one. Plates hold the gate of their color open on the
     far side while somebody stands on them (a gate won't close on anybody);
     a pit sends you both back to the pool. Win: Blood on the bellows and the
     twin on the lava sluice after the same step. *Found while authoring:* a
@@ -3620,7 +3620,7 @@ zoomed in more and cut scene to the elements."
     core, uneven rays of light. At the head they billow round what hangs
     there (a filled churning cloud, never a ring), hold 0.8s, then come
     back down the column and gather into the creature, cooling to its own
-    colours, and its sprite fades back under them. What hangs there is
+    colors, and its sprite fades back under them. What hangs there is
     grains too (HeartMatter): a five-faced ice chunk lit on its upper-left
     edges, a crystal cluster grown from one side (prisms, not a star), a
     knotted tangle of blood-thorn, the torn edge of a tear in the air round
@@ -3708,7 +3708,7 @@ altar 3 a Spirit with Lava above it, altar 4 Earth. One way, seven moves:
 Visually, the risen element's grains billow round what hangs there. When
 they fuse, the hanging element's grains swirl in, the cloud turns to the
 new element's shades (`HeartRiseFx.into`), and what they made pours down
-onto the altar in those colours. The hanging elements are each element's
+onto the altar in those colors. The hanging elements are each element's
 Fusion Codex orb (`ElementOrb`: a ball of its grains in dark glass, its
 own tint and habit). The first version used loose grain shapes (a wisp, a
 glob, a clod), and the author found them unclear: "they look too particly".
@@ -3720,7 +3720,7 @@ fades and its grains, as they stood (`grainsAt`), swirl into the cloud
 the element in a cool particle fade away"). A tap on the room
 (`PlanetDungeonGame.tapWorld`, from a translucent GestureDetector round the
 GameWidget) that lands on a hanging orb, or on Blood's binding, shows the
-element's name below it in grains of its colours (`HeartWordFx`). The name
+element's name below it in grains of its colors (`HeartWordFx`). The name
 is sampled from bold upper-case text (`heartWordOf`) and read in advance
 when the Heart is entered. The grains stream out of the orb into the
 letters, left to right; they shimmer for 1.3s, then come loose letter by
@@ -3831,7 +3831,7 @@ on the Fold and came back with six things; all six are in.
     while that line is up. A reset shows the room whole again for a
     moment.
   · **"Can't tell something is blocking my path."** The wall tops had the
-    floor's own colour, so a lone wall square was a faint seam. Walls now
+    floor's own color, so a lone wall square was a faint seam. Walls now
     stand up out of a darker floor. Each has a lighter porphyry top, a lit
     arris, a dark face and a shadow thrown on the floor in front, and a run
     of wall reads as laid stone. The Earth plates' stones are boulders that
@@ -3843,11 +3843,11 @@ on the Fold and came back with six things; all six are in.
     near face lights, grit comes off it and the phone ticks, once for each
     thing pressed against. This covers the Air room's pushes too.
   · **The tendril floor "seems random".** The two element tendrils have no
-    partner of their own colour. HINT in the Earth room now says first:
+    partner of their own color. HINT in the Earth room now says first:
     "Both element tendrils must reach the captive. They fuse there". The
-    captive's hearth carries two glass sockets in the tendrils' colours,
+    captive's hearth carries two glass sockets in the tendrils' colors,
     and each lights when its tendril comes home. The element roots glow
-    in their own colour, and Dust's mark is a heap of grains (it wore
+    in their own color, and Dust's mark is a heap of grains (it wore
     Earth's sign).
   Tests: the game test's "the polish" group (the camera at 916×265, the
   Fire room held still, the flip's pace, no jam line, RESET ROOM and its one teach, the Earth hint,
@@ -3909,7 +3909,7 @@ sound. Rendered room by room first, then:
         flatline). The header's rule is WHERE, not WHEN, and the doors
         already honoured it (stand in the doorway; the beat opens it). Now a
         right hand pressed off-phase is LAID: a collar of the element's
-        colour breathes round the mouth or the cock, and it takes by itself
+        color breathes round the mouth or the cock, and it takes by itself
         when its phase comes round, as long as the party is still in that
         chamber. Leaving lifts the hand. Pinned in the orrery test.
       – *The heart, felt:* a heavy lub-dub haptic the whole time you are on
@@ -4071,7 +4071,7 @@ tending circle. On entering, the room says what is wrong, in plain words.
   but every wing teaches parking and switching if entered first.
 
 **THE CUTSCENE — THE THREE BECOME ONE.** When the third plant blooms, the
-camera cuts to the Conservatory (`cutTo`). A mote of each bloom's colour flies
+camera cuts to the Conservatory (`cutTo`). A mote of each bloom's color flies
 in through its wing's door and settles into the central planter, bound by the
 Rite-of-Three thread-and-bind visuals re-aimed at the planter. A single great
 plant rises from it. Its roots run to the north wall and pry the sealed door
@@ -4145,7 +4145,7 @@ thin). *The tree is the clue.*
     sibling tip D); and the frozen knot then dams the water that re-wets A.
     The east root must be lit while the knot is still wet, or frost takes it.
   · **Fair.** A GHOST: stand a pair in a ring and the buds that press would
-    change glow in their new colour — never the target. PRUNE at the stump
+    change glow in their new color — never the target. PRUNE at the stump
     sheds every climate, free and unlimited (most states can no longer reach
     the crown). All three bodies in one ring: *"Not like this"*. Hints bare:
     *"The roots are knotted."* No progress readout — a match count would turn
@@ -4244,7 +4244,7 @@ Decisions taken while building, each open to overrule:
   · **Botanica.** Strike (1.3 s, the wash rolls out from the flower) → holds
     until fixed → restoration (1.0 s) → a full 6 s lull. Never the same
     climate twice running. Each ring's heart (and a bead over it) takes the
-    colour of the climate's fix while one is held — never the recipe.
+    color of the climate's fix while one is held — never the recipe.
   · **The three specimens are alchemical, not garden plants** (the user,
     2026-09-27): the Dry Bed's QUICKSILVER ROSE (a rosette of water-glass
     cradling a floating bead of living water, under ▽), the Hothouse's RIME
@@ -4610,7 +4610,7 @@ one real bug in the boss room. Rendered room by room first, then:
       – *A glared mirror sill was drawn LOCKED* (bars, gold keyhole). Its
         glass is white glare now, no bars; at its foot black mirror flags,
         and a pool of glare spills in over them while lit. An open glass
-        leaf has a threshold of lit panes. The coloured plates are gone.
+        leaf has a threshold of lit panes. The colored plates are gone.
       – *Sills swapped in one frame.* Dark's eased doors are shared now
         (`_worldDoorWalls` / `_easeWorldDoors` in the glass part): glass
         leaves split open or seal over, mirror sills flood with glare, over
@@ -5011,17 +5011,17 @@ Eclipse Vault's code is gone; `DungeonRoom.eclipse` became `DungeonRoom.sun`
     island, for good. Easiest found in chamber III, where the burning-glass's
     own column has two obsidian faces looking at each other.
   · THE PAD: a Dark in a grid room gets CAST I and CAST II (tinted its
-    portal's colour); Light's tile reads SHINE / PUT OUT.
+    portal's color); Light's tile reads SHINE / PUT OUT.
   · THE ART (`planet_dungeon_game_dark_art.dart`): near-black carved walls,
     dark flags, and the void a real hole down to the black-hole sky (the
     engine's plain floor is skipped for grid rooms). A portal is a black sun:
-    a pool of its colour on the floor, thick accretion arms turning into it,
+    a pool of its color on the floor, thick accretion arms turning into it,
     a hot arc going round its rim (sweep gradient), motes falling in, one or
     two bars for I or II — and, while its pair is whole, a WINDOW: the other
     end's room drawn inside it (the other room's baked picture, clipped),
     with its beams, bridges and bodies. Casting throws a comet at the wall
     and the mouth tears open; coming through throws the body out in a
-    burst. Beams are layered glow with motes in the colour of the portals
+    burst. Beams are layered glow with motes in the color of the portals
     they have been through; blood bridges are panes of red glass in lead.
   · TESTS: `planet_dungeon_dark_black_sun_test.dart` replays every room's
     proved plan against the Dart rules (plans generated into
@@ -5115,7 +5115,7 @@ graded "a wait". Rendered room by room first, then:
     palette itself was an umbral indigo with a cream corona at full
     intensity — a blue dusk; the horizon is a bruise now, the corona a dim
     violet, the intensity halved. The lit quarters keep their pewter floor
-    on purpose: the coin-coloured light is the contrast the eclipse is read
+    on purpose: the coin-colored light is the contrast the eclipse is read
     against. Also found on the way: the render AUDIT was lying about every
     planet's sky. With no shader in a test, the engine fell back to one
     generic blue-dusk gradient, so every room-audit PNG of every planet
@@ -5424,7 +5424,7 @@ state on that line agrees with the count.
 fen's rules had a solver, two independent no-strand searches pinned equal, a
 provably-unique choir and thirty-odd green tests — and on screen the planet
 whose entire premise is *what is the ground like under you* stood on the
-generic rounded slab with a 92px smudge of colour at each wall standing in for
+generic rounded slab with a 92px smudge of color at each wall standing in for
 a crossing. The first render of the mire gate was an empty dark box. A drag to
 sod and the drowning it caused changed a few hundred bytes of the frame and
 nothing a person could see; the render harness's own checksum passed on
@@ -5464,7 +5464,7 @@ exactly that, which is why it now also asserts the states look different.
     that quake and the ribs of what the fen has eaten. In the one room where
     standing on the wrong ground loses the fight, a temple floor was telling
     the player the opposite of the truth.
-  · ✅ **THE MIRE ANCHOR was the same size and colour as the soft ground it
+  · ✅ **THE MIRE ANCHOR was the same size and color as the soft ground it
     is the exception to.** It is the only firm footing in Bogdrya's hollow and
     the whole reason the mystic can be struck.
   · ✅ **THE ENTRY RITE HAD NOTHING TO AIM AT.** The fen opens under a skin of
@@ -5513,7 +5513,7 @@ exactly that, which is why it now also asserts the states look different.
     the wallow, both altars, the sough, the lead, the sink, the peat cuts, the
     mire anchor, and every ford head) and re-rolls a spot that lands on one;
     counts are down about 40% (pools 6→4, hummocks 11→7, cotton 23→14, and
-    cotton is the palest colour in the room, so on a floor this dark the
+    cotton is the palest color in the room, so on a floor this dark the
     brightest thing should be something you can press); and the fen is
     **clipped to the stage** it lies on. The floating weed is deliberately
     exempt from that clip — a mat cut off flat along the room's edge is the
@@ -5649,7 +5649,7 @@ the west doorstep to the chapel door east, across a court of nine flags.
 **THE RITE — THE THREE MOURNERS** (reworked; deepened 2026-09-28 — "which
 3 of 5" was a copy task, and a miss showed ghosts beside the right stones).
 Around the bier in the vigil chapel are five kneelers. In the past three
-mourners kneel at three of them, and EACH GLOWS ITS ELEMENT'S COLOUR —
+mourners kneel at three of them, and EACH GLOWS ITS ELEMENT'S COLOR —
 sand for Dust, red for Blood, Spirit's own. In the present only that element
 may take its mourner's place: crystallize the mourners' urn and fit it at
 the bier's head; kneel each creature where its own mourner knelt (idle
@@ -5657,7 +5657,7 @@ bodies hold where they are left); Blood, kneeling at the red mourner's
 stone, pulses. Sixty ways to place three; one is the funeral. A miss lifts
 nothing and says nothing about which place was right. The rite is access,
 not a star; it is redone each descent. It also teaches the maxim's
-language: a coloured kneeling figure stands for one of your creatures.
+language: a colored kneeling figure stands for one of your creatures.
   · Hint tiers: *"The mourners never took their places"* · *"Three places
     at the bier are empty"* · *"N of yours are not where a mourner knelt."*
 
@@ -5682,7 +5682,7 @@ Dust clears it and the cache is there. Before or after the bell.
 only room whose past is empty — so it keeps yours.
   · **The rule, found by doing it:** each time Spirit passes INTO the past at
     the alcove's memorial stone, the party leaves kneeling echoes where it
-    stands, each in its creature's colour. They stay for the run — bright in
+    stands, each in its creature's color. They stay for the run — bright in
     the past, faint in the present, the one room where your own past shows
     through — until the next passing replaces them.
   · **The urn:** six kneelers ring it and it fills only when all six are
@@ -6265,7 +6265,7 @@ fen above is carrying all the water it can.
 
 One oblique line on the HINT button and nothing after it: *the cut was dug to
 take the fen's worst, and nothing has ever bloomed out of clean water.* It
-does not tier and it does not track progress — the sink's own colour is the
+does not tier and it does not track progress — the sink's own color is the
 only readout the secret has. Nothing is consumed; a wrong hand gets a burst
 and a sentence about what it sees, and a heave washes the lead out so it can
 always be walked again.
@@ -6335,8 +6335,8 @@ see any of that.
     not tell which was which, and a puzzle whose entire question is *what do
     you cast, and in what order* felt like guessing. Each cavity is cut to
     its form now (a smooth slab; a key with its wards and bow) and tinted
-    the colour that metal runs down the channel as, so the bead you are
-    watching and the mold it is heading for are the same colour.
+    the color that metal runs down the channel as, so the bead you are
+    watching and the mold it is heading for are the same color.
   · ✅ **A DEAD RUNNER LOOKS DEAD** — the worst thing this planet did to a
     player. A plugged arm silently EATS a pour (`_leaveBy`: *"it congeals
     against cold metal and is simply gone"*), one of only five, and the floor
@@ -6948,7 +6948,7 @@ is honest, so the art is too.
 
 **AND THE CORNERS HAVE TO NAME THEMSELVES FROM ACROSS THE VOID.** You are
 planning who to send where before anyone moves, so a socket has to be readable
-at distance: element-coloured arcs, split down the middle when a corner wants
+at distance: element-colored arcs, split down the middle when a corner wants
 two, lifted toward white because Earth's brown and Steam's grey-blue both sit
 too close to the terrace stone to read unlit. Sealed corners become bolted
 caps — **cross-braced, not saltire**: at 45° the four sealed corners read as
@@ -7481,7 +7481,7 @@ and its own compositions.
     said tiles read as safe) — baked now, with the fissures mostly dead and a
     few breathing, where before 26 plates and 34 forked cracks were rebuilt
     every frame. Glass: levers on glass bases with glass-bead notches (the
-    setting lit); mold flasks rimmed in the colour of the metal they take,
+    setting lit); mold flasks rimmed in the color of the metal they take,
     silver with a good casting, smoked when spoiled; the crucible's
     sight-glass, the accumulator's gauge, the cowl's green louvres, the
     chiller's frosted lip, the ward's glass keyhole (burning while you hold
@@ -7579,10 +7579,10 @@ and its own compositions.
     `planet_dungeon_game_poison_art.dart`, `kVenomGlass`. The monastery was
     already a built house (walls, bays, beds, flags) and keeps its stone.
     Apothecary glass on what means something: relic sockets at the cross's
-    foot are glass lenses in the brew's colour once full; the lustral font's
+    foot are glass lenses in the brew's color once full; the lustral font's
     water is a pane, sick until the vial goes in. THE DOSE used to leave
     nothing: it is now scored in a glass rondel at the prior's crossing — a
-    pane of each colour as the wisp is walked home in it (the score pips moved
+    pane of each color as the wisp is walked home in it (the score pips moved
     here from the wisp), the heart blooming white as the rite binds, kept on
     every later descent. Drawn ABOVE the ambulatory's gloom, like the
     cressets: the first render put it under and the gloom ate it.
@@ -7638,9 +7638,9 @@ and its own compositions.
     itself is in `planet_dungeon_game_crystal.dart`. Vitrea is already glass,
     so the fault was the GLAZING: five free cuts ran long black lines across
     every chamber and read as cracks. A chamber is now glazed as a window — a
-    border of quarries in its colour, a light diamond lattice you see the bed
+    border of quarries in its color, a light diamond lattice you see the bed
     through, and a medallion whose petal count is the chamber's own mark
-    (`_kChamberPetals`), so colour and shape both say which slab arrived —
+    (`_kChamberPetals`), so color and shape both say which slab arrived —
     and it is BAKED per chamber (it was ~20 paths ×3 per frame). Doors are
     prism glass in the stone. KNOW THYSELF showed only while the Black Cell
     stood wedged again; now the Black Cell's medallion silvers petal by petal
@@ -7749,7 +7749,7 @@ of poured brews only). Woken/slain plagues and the open font stay. Test:
 the plagues test brews Bloomvenom twice and finishes from what came back.
 (2) THE ENTRANCE POT. The quarantine door no longer opens to one Poison
 press: a pot in the middle of the lazar gate takes ONE gift from every hand,
-any element (pips light in each giver's colour), brews, and the wax runs off
+any element (pips light in each giver's color), brews, and the wax runs off
 the door. None of it counts against the brewing gives.
 
 **AIR, THIRD PASS (2026-09-24, the author: "a lot of rooms can be
@@ -7758,7 +7758,7 @@ carving — under an identical dotted balustrade. Now: (1) a dark bed under
 the flags so carving reads, carving lips in the zone's light; (2) THREE
 ZONES by wing (`_skyZoneOf`): dawn gold up the spire, clear day among the
 clouds and the loom, violet in the storm, guardian and relic rooms — a wash
-over the stone and the colour of carving and pennants; (3) the balustrade is
+over the stone and the color of carving and pennants; (3) the balustrade is
 a PARAPET: heavy posts ~150px apart, a rail on most spans and a gap where the
 wind took one, and pennants on the north posts drawn live (a few triangles a
 frame); (4) platforms have a thick dark edge, a dark bed and the zone light;

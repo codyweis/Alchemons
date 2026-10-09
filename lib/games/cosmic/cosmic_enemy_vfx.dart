@@ -395,7 +395,7 @@ ui.Image _buildSwarmAtlas() {
 /// Bodies that may use the baked sentinel/phantom cells, or keep only their
 /// attack telegraph drawn live, once the field is dense. Anything that carries
 /// information the atlas cannot show (elite, trait, roots, a hard freeze,
-/// custom colour) still gets the full renderer.
+/// custom color) still gets the full renderer.
 bool canBakeDenseSurvivalEnemy(CosmicSurvivalEnemy enemy) =>
     _swarmColumn(enemy.tier, false, 0) >= 0 &&
     !enemy.isElite &&
@@ -749,7 +749,7 @@ final Path _enemyTendril = Path()
 
 final Map<int, ui.Shader> _tendrilShaders = {};
 
-/// Living limbs, filled — dark flesh at the root going to the colour's
+/// Living limbs, filled — dark flesh at the root going to the color's
 /// light at the tips, no outline.
 void drawEnemyTendrils(
   Canvas canvas,
@@ -889,7 +889,7 @@ TextPainter _bossNamePainter(String name, Color color) {
   );
 }
 
-/// A boss's palette: its own colour in its element's material, pushed
+/// A boss's palette: its own color in its element's material, pushed
 /// toward blood-red while it is enraged.
 EnemyPalette _bossPalette(String element, Color color, bool enraged) {
   final base = enraged ? Color.lerp(color, const Color(0xFFE53935), 0.35)! : color;

@@ -19,7 +19,7 @@ import 'package:flutter_test/flutter_test.dart';
 //     test/home_customization_preview_test.dart --tags preview
 //
 // HOME_ONLY=id,id limits it to those customizations; HOME_COLOR picks the
-// planet's colour (an element name); HOME_CELL sets each picture's size.
+// planet's color (an element name); HOME_CELL sets each picture's size.
 void main() {
   final out = Platform.environment['HOME_OUT'];
 

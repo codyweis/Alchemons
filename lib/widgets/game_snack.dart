@@ -41,7 +41,7 @@ void showGameSnack(
   @Deprecated('Notices no longer show an icon; drop the argument')
   IconData? icon,
 
-  /// The severity colour. It tints the bar and the border; it is
+  /// The severity color. It tints the bar and the border; it is
   /// never the background.
   Color? accent,
   SnackBarAction? action,

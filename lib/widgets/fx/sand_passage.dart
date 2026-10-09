@@ -3,7 +3,7 @@
 // GOING BETWEEN PLACES AS SAND.
 //
 //   A screen being left comes apart: an edge closes in from its rim, and
-//   every piece it passes lets go, shrinks to a grain of its own colour and
+//   every piece it passes lets go, shrinks to a grain of its own color and
 //   is carried on a curling current to the middle, where the grains settle
 //   into a slowly turning ball of sand. The ball is round, so the phone can
 //   turn behind it unseen. Then it either pours itself into a circle on the
@@ -340,7 +340,7 @@ class SandPicture {
   double? _openedAt;
 
   /// The element's light every piece turns to once the rim has it
-  /// (0xRRGGBB): the screen's own colours would show as dark chips over
+  /// (0xRRGGBB): the screen's own colors would show as dark chips over
   /// the bright one opening behind.
   late final Int32List _tone;
 

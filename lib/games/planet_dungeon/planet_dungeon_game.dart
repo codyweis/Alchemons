@@ -286,7 +286,7 @@ class _KinBeamFx {
 /// appearing over a still-standing body gave the kill no weight. The body is
 /// read into grains of itself the moment it falls, and they play the death
 /// ([GuardianGrainDeath]): it seizes and cracks, implodes to the core,
-/// detonates in a spray of its own colours, and settles. In a raid the
+/// detonates in a spray of its own colors, and settles. In a raid the
 /// rewards wait for it; in a dungeon the relic rises out of what is left.
 class _GuardianDeathFx {
   _GuardianDeathFx({
@@ -785,7 +785,7 @@ class PlanetDungeonGame extends FlameGame {
   // What pays out now is a REACTION, and it is made from the party you
   // brought: your three creatures' elements are drawn out of them, bound over
   // the thing you found, and the binding throws the gold. Descend with a
-  // different trio and it is a different reaction — three different colours,
+  // different trio and it is a different reaction — three different colors,
   // a differently-tinted yield. The secret is the same; what the planet makes
   // of it depends on who was standing there.
   //
@@ -7325,7 +7325,7 @@ class PlanetDungeonGame extends FlameGame {
       return false;
     }
     // TWO CUES, AND THEY SAY DIFFERENT THINGS. The element cue carries the
-    // colour — which element just went off — and has always played here. The
+    // color — which element just went off — and has always played here. The
     // family cue is the special's own gesture, which also says it was a
     // SPECIAL rather than a basic. Wing's sounds where its beam starts (the
     // only place its length is known), and Lightning Wing's accent waits for
@@ -8397,7 +8397,7 @@ class PlanetDungeonGame extends FlameGame {
       body.readyAt ??= before;
     } else if (body.readFailed || fx.t > 0.5) {
       // A body that could not be read (or not in time) dies as a ball of
-      // its colour rather than standing whole into the implosion.
+      // its color rather than standing whole into the implosion.
       body.useFallback();
       body.readyAt ??= before;
     }
@@ -14975,7 +14975,7 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Where element [i]'s thread starts: on its own bearer if that creature is
   /// still standing in this room, otherwise on the ring around the focus, so
-  /// a fallen party member's colour still shows up in the reaction.
+  /// a fallen party member's color still shows up in the reaction.
   Offset _riteSource(int i, Offset focus) {
     if (i < creatures.length) {
       final c = creatures[i];
@@ -15591,7 +15591,7 @@ class PlanetDungeonGame extends FlameGame {
       // chasing alongside it).
       if (identical(enemy, _guardianEnemy)) continue;
       // Poison (§8): a plague is drawn as the thing that crawled in, in its
-      // own colour. Swapping it for the generic Poison blob at the end of
+      // own color. Swapping it for the generic Poison blob at the end of
       // the crawl would undo the whole point of the crawl.
       if (_isVenom && identical(enemy, monastery.body)) continue;
       final base = elementColor(enemy.element);

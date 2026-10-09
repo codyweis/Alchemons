@@ -19,7 +19,7 @@ part of 'grain_field.dart';
 //
 // Still sheets are baked as maps (see field_art.dart), read through the
 // hour's grades:
-//   far grades   r = haze, b = haze × how low (horizon-coloured), g = fleck
+//   far grades   r = haze, b = haze × how low (horizon-colored), g = fleck
 //   near grades  r = haze, b = shade, g = fleck
 //   clouds       r = underside, g = glitter
 
@@ -34,7 +34,7 @@ class ValleyField extends _GrainField {
   static const _gRanges = 0, _gHillFar = 1, _gHill = 2, _gGround = 3;
   static const _gTree = 4, _gCloud = 5, _gRock = 6;
 
-  /// Daylight colours of the land; the hour's ambient light multiplies them.
+  /// Daylight colors of the land; the hour's ambient light multiplies them.
   static const _albedo = <int, Color>{
     _gRanges: Color(0xFF5E6E8E),
     _gHillFar: Color(0xFF48606C),
@@ -767,7 +767,7 @@ class ValleyField extends _GrainField {
   ];
   final GrainBatch _bowBatch = GrainBatch(6);
 
-  /// The bow's colours, inside to out.
+  /// The bow's colors, inside to out.
   static const _bowColors = [
     Color(0xFF8E6CF0),
     Color(0xFF5A8CF0),
@@ -784,8 +784,8 @@ class ValleyField extends _GrainField {
   }
 
   /// After the rain: a bow in the sky opposite the sun — soft bands of
-  /// colour, a fainter second bow outside it with its colours turned
-  /// round, and grains of each colour drifting slowly along it. By night
+  /// color, a fainter second bow outside it with its colors turned
+  /// round, and grains of each color drifting slowly along it. By night
   /// it is a moonbow, nearly white.
   void _paintRainbow(Canvas canvas, Size screen, FieldView view) {
     final a = aftermath * (1 - rain);

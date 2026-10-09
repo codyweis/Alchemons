@@ -158,7 +158,7 @@ class _ElementalCachePopupState extends State<ElementalCachePopup>
                   child: CustomPaint(
                     // Bracket corners + warm panel: the same chrome the dungeon
                     // reward popup uses. This card was a blue-black rounded
-                    // rect with an element-coloured hairline, which belonged to
+                    // rect with an element-colored hairline, which belonged to
                     // no other screen in the game.
                     foregroundPainter: const BracketFramePainter(
                       color: _C.amber,

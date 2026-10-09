@@ -1731,7 +1731,7 @@ extension BloodRitesDungeon on PlanetDungeonGame {
     return room.bounds.topCenter;
   }
 
-  /// The room's two ingredients, each as a way to the captive and a colour.
+  /// The room's two ingredients, each as a way to the captive and a color.
   List<(List<Offset>, Color)> _riteSources(String el, Offset at) {
     const dust = Color(0xFFD4B072), water = Color(0xFF4F9BD8);
     const fire = Color(0xFFF08A3A), ice = Color(0xFFBFE8F5);
@@ -2079,7 +2079,7 @@ extension BloodRitesDungeon on PlanetDungeonGame {
           _setInsightHint('The seal is open');
         }
       case RiteKind.earth:
-        // The two element tendrils have no partner of their own colour, so
+        // The two element tendrils have no partner of their own color, so
         // they read as strays (the author, 2026-10-06: "seems random"). Say
         // where they go, and that it is a fusion, before anything else.
         final f = rites.earthFloor;

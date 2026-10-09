@@ -94,7 +94,7 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
 
   final mutation = inst?.mutation ?? creature?.wildMutation;
 
-  // Gold replaces the colour: a Transmuted creature shows no tint, pigment
+  // Gold replaces the color: a Transmuted creature shows no tint, pigment
   // (so no variant faction either — its aura takes its own element), albino
   // or prismatic (it is never rolled prismatic; this keeps it so).
   if (mutation == AlchemonMutation.transmuted.id) {

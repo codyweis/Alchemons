@@ -1,7 +1,7 @@
 // lib/screens/mystic_altar/altar_chrome.dart
 //
 // The altar's words and buttons, in the bracket language the market and the
-// rift use: dark in either theme, monospace labels, element colour only as
+// rift use: dark in either theme, monospace labels, element color only as
 // an accent. The one control of its own is the hold — setting a relic,
 // giving an offering and performing the rite each cost something that does
 // not come back, so each is held rather than tapped, and letting go early

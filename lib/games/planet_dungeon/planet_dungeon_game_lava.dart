@@ -98,7 +98,7 @@ const Color _worksDamp = Color(0xFFBFE07A); // firedamp
 /// WARDED METAL. The die is driven by STEAM, so metal that has been through
 /// it comes out steam-tempered — blue-white instead of the gold it used to
 /// be, which sat close enough to the hot core that "warded" and "just
-/// running" were the same glance. It is the colour the key forms are cut in
+/// running" were the same glance. It is the color the key forms are cut in
 /// too, so the charge you are watching and the form it is heading for match.
 const Color _worksWarded = Color(0xFF9FD8EE);
 
@@ -141,7 +141,7 @@ class MoltenWorks {
   double blackGlass = -1;
 
   /// Whether the die's first stamp has been explained. The hit, the steam and
-  /// the colour change carry every one after it — saying it again each time a
+  /// the color change carry every one after it — saying it again each time a
   /// charge passes is the chatter §5.6 exists to stop.
   bool saidWarded = false;
 }
@@ -318,7 +318,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       final wasOccupied =
           dest.kind == FoundryNodeKind.mold && s.molds.containsKey(dest.id);
       final event = s.arrive();
-      // THE DIE COMING DOWN. The charge changes colour on the far side of
+      // THE DIE COMING DOWN. The charge changes color on the far side of
       // this node — gold-hot going in, steam-tempered blue coming out — so
       // the moment it happens gets a hit and a gout of steam, or the change
       // reads as the renderer wobbling rather than as the works working.
@@ -1368,7 +1368,7 @@ extension MoltenReliquary on PlanetDungeonGame {
   /// A FORM THROWING A CHARGE BACK OUT. Plays once, where it happened.
   ///
   /// The point is that a failure has to be visible from across the room and
-  /// at the moment it occurs — not inferable afterwards from the colour of a
+  /// at the moment it occurs — not inferable afterwards from the color of a
   /// slab. Reported from play: a spoiled key looked like the span.
   void _renderSpoilBurst(Canvas canvas) {
     final t = works.spoil;
@@ -1835,7 +1835,7 @@ extension MoltenReliquary on PlanetDungeonGame {
   }
 
   /// A PLATE OF IRON with a bevel, which is what every fixture on this planet
-  /// is made of. Flat single-colour rectangles read as placeholder geometry;
+  /// is made of. Flat single-color rectangles read as placeholder geometry;
   /// a lit top lip and a shadowed foot are the whole difference between a
   /// grey box and a thing cast in a works.
   void _ironPlate(
@@ -2310,7 +2310,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     // about how casting works.
     _ironPlate(canvas, cavity.inflate(7), radius: 2);
     // THE FLASK'S GLASS says what the form takes, and then what it holds:
-    // the wanted metal's colour while empty, silver with a good casting in
+    // the wanted metal's color while empty, silver with a good casting in
     // it, smoked once it has been spoiled.
     final wantTint = switch (n.wants ?? PourForm.plain) {
       PourForm.plain => const Color(0xFFFFD9A0),
@@ -2354,9 +2354,9 @@ extension MoltenReliquary on PlanetDungeonGame {
       // in what order" felt like guessing. The insight line has always said
       // *"every form wants one kind of metal"*; the floor never showed WHICH.
       //
-      // Now the cavity is cut to its form and tinted the colour that form
+      // Now the cavity is cut to its form and tinted the color that form
       // runs down the channel as, so the bead you are watching and the mold
-      // it is heading for are the same colour.
+      // it is heading for are the same color.
       final want = n.wants ?? PourForm.plain;
       final tint = switch (want) {
         PourForm.plain => _worksCore,
@@ -2440,7 +2440,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     final ch = s.line.channel(p.channelId);
     final (roomId, at) = ch.pointAt(p.t);
     if (roomId != room.id) return;
-    final colour = switch (p.form) {
+    final color = switch (p.form) {
       PourForm.plain => _worksCore,
       PourForm.stamped => _worksWarded,
       PourForm.gassed => _worksDamp,
@@ -2452,12 +2452,12 @@ extension MoltenReliquary on PlanetDungeonGame {
       canvas.drawCircle(
         back,
         10.0 - k * 1.6,
-        Paint()..color = colour.withValues(alpha: 0.20 * (4 - k)),
+        Paint()..color = color.withValues(alpha: 0.20 * (4 - k)),
       );
     }
-    canvas.drawCircle(at, 12, Paint()..color = colour);
+    canvas.drawCircle(at, 12, Paint()..color = color);
     if (_fx.ready) {
-      drawGlow(canvas, _fx.glow!, at, 46, colour.withValues(alpha: 0.42));
+      drawGlow(canvas, _fx.glow!, at, 46, color.withValues(alpha: 0.42));
     }
   }
 

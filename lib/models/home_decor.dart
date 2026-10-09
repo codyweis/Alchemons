@@ -124,7 +124,7 @@ class HomeDecor {
     HomeDecor(
       'banner',
       'Faction Banner',
-      'A banner in a faction\'s colours, moving with the wind.',
+      'A banner in a faction\'s colors, moving with the wind.',
       tier: DecorTier.curio,
       silver: 800,
       max: 8,

@@ -5,7 +5,7 @@
 <style>
   /* Layout: one column, a stage that holds the room, the room's own
      controls under it. Dark only, like the game: blood-black stone, crimson,
-     old gold, and each element's own colour. */
+     old gold, and each element's own color. */
   :root {
     color-scheme: dark;
     --night: #110b0d;
@@ -1398,7 +1398,7 @@
     ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
   }
 
-  // The captive: a curled figure in its element's colour, held by blood
+  // The captive: a curled figure in its element's color, held by blood
   // threads. `t` 0..1 dissolves it (the grains leave as particles).
   function captive(cx, cy, r, el, gone) {
     if (gone >= 1) return;
@@ -2361,7 +2361,7 @@
   }
 
   // A fusion: the two spiral into the front stone, shedding grains, and what
-  // they make grows there out of its own colour.
+  // they make grows there out of its own color.
   function drawFuse(f) {
     const k = Math.min(1, f.t / .7);
     if (f.kind === 'fuse') {
@@ -2691,7 +2691,7 @@
 
   // THE CAPTURE (a sketch of the game's cutscene): Blood steps into the Heart,
   // comes apart into grains, and the grains are drawn into the niche and
-  // bound; then the four pour in, each in its own colour, and stand.
+  // bound; then the four pour in, each in its own color, and stand.
   function heartCapture(dt) {
     const t = heart.capture += dt;
     const [bx, by] = heart.R.blood;

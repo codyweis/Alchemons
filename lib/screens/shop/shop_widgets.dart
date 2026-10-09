@@ -534,7 +534,7 @@ class _ForgeCostRow extends StatelessWidget {
     Widget leading;
     if (biome != null) {
       // The particle field carries the element through its motion, so the
-      // colour is free to carry the can-afford state instead.
+      // color is free to carry the can-afford state instead.
       leading = ElementResourceGlyph(
         biomeId: biome,
         color: hasEnough
@@ -791,7 +791,7 @@ Widget _buildOfferPreview(
     );
   }
 
-  // 1b-0. The extractor and the beacon shared one swirl asset in two colours.
+  // 1b-0. The extractor and the beacon shared one swirl asset in two colors.
   // They draw as what they do now.
   if (offer.inventoryKey == InvKeys.instantHatch) {
     final live = InstantExtractorGlyph(size: size, animate: animate);
@@ -2353,7 +2353,7 @@ class DialogResourceDisplay extends StatelessWidget {
       child: Row(
         children: [
           if (resource != null)
-            // The motion says which element it is, so the colour is free to
+            // The motion says which element it is, so the color is free to
             // carry the can-afford state instead.
             ElementResourceGlyph(
               biomeId: resource.biomeId,

@@ -114,7 +114,7 @@ Normal Survival wave caps and alchemical-meter balance remain the next gameplay 
 **Fixes.**
 - **Flat enemy grid.** The Map-of-buckets grid became a column-major counting-sort window around the orb (arena + 700), with an overflow list for anything further out. Same cells, same per-cell order.
 - **Skip discarded target picks.** While a companion's target lock holds, the stabiliser returns the current target and ignores the fresh pick, so the pick is no longer computed. No behaviour change.
-- **Dense-field atlas (≥1,200 bodies).** Sentinels and phantoms are baked into the atlas from the detailed renderer; bodies mid-attack stay in the batch with only their telegraph drawn live. Elites, traits, roots, hard freezes and custom colours keep the full renderer.
+- **Dense-field atlas (≥1,200 bodies).** Sentinels and phantoms are baked into the atlas from the detailed renderer; bodies mid-attack stay in the batch with only their telegraph drawn live. Elites, traits, roots, hard freezes and custom colors keep the full renderer.
 
 **Device, 3,000 sustained** (p95 build / raster ms; "mixed" = 5% ranged sentinels):
 

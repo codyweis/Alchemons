@@ -19,7 +19,7 @@ import 'package:flutter/services.dart';
 // long press lets a finger stir it.
 
 /// What a cultivation is made of: its two parents, read from their
-/// portraits in their own colouring — or, for one with no parents on record
+/// portraits in their own coloring — or, for one with no parents on record
 /// (a vial, a wild founder), shades of its elements.
 class CultivationGrains {
   CultivationGrains._();
@@ -77,7 +77,7 @@ class CultivationGrains {
       );
       final src = (await codec.getNextFrame()).image;
       final paint = Paint()..filterQuality = FilterQuality.medium;
-      final filter = _colouring(genetics, prismatic);
+      final filter = _coloring(genetics, prismatic);
       if (filter != null) paint.colorFilter = ColorFilter.matrix(filter);
       final rec = ui.PictureRecorder();
       Canvas(rec).drawImage(src, Offset.zero, paint);
@@ -103,8 +103,8 @@ class CultivationGrains {
     });
   }
 
-  /// The genetics colouring a sprite is drawn with, as one matrix.
-  static List<double>? _colouring(Genetics? g, bool prismatic) {
+  /// The genetics coloring a sprite is drawn with, as one matrix.
+  static List<double>? _coloring(Genetics? g, bool prismatic) {
     final bri = briFromGenes(g), sat = satFromGenes(g), hue = hueFromGenes(g);
     if (bri == 1.45 && !prismatic) return albinoMatrix(bri);
     List<double>? m;
@@ -117,7 +117,7 @@ class CultivationGrains {
     return m;
   }
 
-  /// [a] after [b], for 4×5 colour matrices.
+  /// [a] after [b], for 4×5 color matrices.
   static List<double> _compose(List<double> a, List<double> b) {
     final out = List<double>.filled(20, 0);
     for (var r = 0; r < 4; r++) {
@@ -138,7 +138,7 @@ class CultivationGrains {
   }
 }
 
-/// An element's colour, whichever way its name is cased ('fire', 'Fire').
+/// An element's color, whichever way its name is cased ('fire', 'Fire').
 Color cultivationTypeColor(String type) {
   final t = type.trim();
   if (t.isEmpty) return const Color(0xFFE4C16A);
@@ -179,7 +179,7 @@ class CultivationSphereField {
       final g = parents[s];
       for (var j = 0; j < per; j++, i++) {
         _side[i] = s;
-        // Evenly through its grains, so its colours come in the proportions
+        // Evenly through its grains, so its colors come in the proportions
         // it has them.
         _tone[i] = g.length == 0 ? 0 : g.tone[(j * g.length) ~/ per];
         _lat[i] = math.asin(rng.nextDouble() * 2 - 1);

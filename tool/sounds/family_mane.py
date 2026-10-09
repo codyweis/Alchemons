@@ -250,7 +250,7 @@ def crackle(m, start, length, rate, low, high, amp, pan=0.0, size=None):
             s *= size(u[idx])
         x[idx] = s * m.rng.choice([-1.0, 1.0], len(idx))
     # Every spit its own little noise burst (one shared kernel would give
-    # the whole crackle one fixed comb of a colour): eight kernels, the
+    # the whole crackle one fixed comb of a color): eight kernels, the
     # discharges dealt among them.
     k = round(0.0012 * SR)
     deal = m.rng.integers(0, 8, n)

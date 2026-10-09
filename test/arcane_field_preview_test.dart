@@ -404,13 +404,13 @@ void _paintOldMotes(Canvas c, Size screen, double t) {
   for (var i = 0; i < n; i++) {
     final x = r.nextDouble() * screen.width;
     final y = r.nextDouble() * screen.height;
-    final colour = palette[r.nextInt(palette.length)];
+    final color = palette[r.nextInt(palette.length)];
     final look = r.nextInt(4);
     c.drawCircle(
       Offset(x, y),
       look < 2 ? 0.875 : 1.625,
       Paint()
-        ..color = colour.withValues(alpha: (look.isEven ? 0.325 : 0.575) * 0.9),
+        ..color = color.withValues(alpha: (look.isEven ? 0.325 : 0.575) * 0.9),
     );
   }
 }

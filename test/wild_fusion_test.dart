@@ -305,7 +305,7 @@ void main() {
       expect(v.isAlbino, isFalse);
       expect(v.isPrismatic, isFalse);
 
-      // An Alchemized one keeps its pigment: grains take its colours.
+      // An Alchemized one keeps its pigment: grains take its colors.
       final grains = visualsFromInstance(
         albino.copyWith(wildMutation: 'alchemized'),
         null,
@@ -375,7 +375,7 @@ void main() {
       expect(stray, 0);
     });
 
-    test('prismatic grains are a rainbow, plain grains keep the colour', () {
+    test('prismatic grains are a rainbow, plain grains keep the color', () {
       const size = 96;
       final src = disc(200, 80, 40, size: size);
       Set<int> hues(MutationLook look) {

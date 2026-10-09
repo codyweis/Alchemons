@@ -4,9 +4,9 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Which BlendMode makes `drawVertices` honour per-vertex colours (including
+/// Which BlendMode makes `drawVertices` honour per-vertex colors (including
 /// their alpha) is the one thing the shell painter cannot be reasoned about
-/// from the docs — the vertex colours are the *source* and the paint is the
+/// from the docs — the vertex colors are the *source* and the paint is the
 /// destination, which is the opposite of the intuitive reading. This pins it.
 Future<ui.Image> _render(BlendMode mode, Color paintColor) async {
   final rec = ui.PictureRecorder();
@@ -45,9 +45,9 @@ Future<Color> _centerPixel(ui.Image img) async {
 
 void main() {
   const green = Color(0xFF00FF00);
-  const red = Color(0xFFFF0000); // paint colour, must be ignored
+  const red = Color(0xFFFF0000); // paint color, must be ignored
 
-  test('drawVertices: which blend mode yields the vertex colours', () async {
+  test('drawVertices: which blend mode yields the vertex colors', () async {
     final results = <BlendMode, Color>{};
     for (final mode in [
       BlendMode.src,
@@ -63,14 +63,14 @@ void main() {
     print('drawVertices blend probe (vertex=green, paint=red): $results');
 
     // Finding: with a paint that has no SHADER, every blend mode yields the
-    // vertex colours — the paint's plain colour does not participate. The
+    // vertex colors — the paint's plain color does not participate. The
     // shell painter therefore only needs its paint to stay shader-less.
     for (final e in results.entries) {
       expect(
         e.value,
         green,
         reason:
-            'vertex colours must survive ${e.key} with a shader-less '
+            'vertex colors must survive ${e.key} with a shader-less '
             'paint; the shell painter depends on this',
       );
     }

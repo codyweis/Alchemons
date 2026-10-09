@@ -393,7 +393,7 @@ def danger():
 
 def special_cast():
     """A special went off: a latch releasing, no flourish. Layered under the
-    caster's element cue (gain .55), which carries the colour."""
+    caster's element cue (gain .55), which carries the color."""
     m = Mix(0.4, seed=5180)
     rng = m.rng
     # The pawl clicking free: a small damped metal tick.

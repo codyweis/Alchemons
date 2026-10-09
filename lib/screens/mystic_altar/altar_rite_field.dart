@@ -5,7 +5,7 @@
 //   The Mystic stands in the middle as grains of itself, most of them ash —
 //   a pattern no one holds yet. Round it, a circle of seats, one for each of
 //   its element's kinds. Each offering given flies into it as grains, and
-//   its share of the Mystic fills in with colour: by the last, the whole
+//   its share of the Mystic fills in with color: by the last, the whole
 //   creature is there, only made of grains.
 //
 //   The rite (summon, in seconds) pours every offering and the relic into
@@ -472,7 +472,7 @@ class AltarRiteField {
     );
     if (g == null) return;
 
-    // Giving: the specimen arrives at its seat in full colour, then pours
+    // Giving: the specimen arrives at its seat in full color, then pours
     // into the Mystic.
     final giving = o.given ? o.giving : 1.0;
     final arrive = o.given ? _smooth(0.0, 0.22, giving) : 0.0;

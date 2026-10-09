@@ -21,7 +21,7 @@ import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// Gilt: a favourite's frame, and the Codex's "new" colour.
+/// Gilt: a favourite's frame, and the Codex's "new" color.
 const Color kCaseGilt = Color(0xFFE4B356);
 
 /// Ink on the dark glass, in either theme.

@@ -84,7 +84,7 @@ extension BloodHeartArt on PlanetDungeonGame {
     for (final w in h.words.values) {
       w.paint(canvas, rites.batch, _time);
     }
-    // A pair that would not fuse: a breath of their colours, and nothing.
+    // A pair that would not fuse: a breath of their colors, and nothing.
     final fz = h.fizzleAt;
     if (fz != null && _time - h.fizzleT < .9) {
       paintHeartFizzle(rites.batch, fz, _time - h.fizzleT, h.fizzleCols[0], h.fizzleCols[1]);

@@ -335,7 +335,7 @@ void main() {
           await settle(60);
         },
       );
-      // Arranging, with the colours open on the second of three sands.
+      // Arranging, with the colors open on the second of three sands.
       await shoot(
         'sand_tray',
         sands.copyWith(sandStyle: const HomeSandStyle(count: 3)),

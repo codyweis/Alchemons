@@ -333,7 +333,7 @@ class ForgeTokens {
       isDark ? const Color(0xFFCDB07A) : const Color(0xFFA16207);
 
   // ── Reward palette ─────────────────────────────────────────────────────────
-  // Coin and "ready" colours. The dark values are what the forge aesthetic was
+  // Coin and "ready" colors. The dark values are what the forge aesthetic was
   // drawn around; a pale gold, mint or silver on a parchment surface is
   // unreadable, so light mode gets darkened counterparts doing the same job.
   Color get rewardGold =>
@@ -474,7 +474,7 @@ extension FactionMaterialTheme on FactionTheme {
           );
 
     // The caller passes the AMBIENT text theme (whatever brightness the app is
-    // currently in), so its colours must be re-tinted for THIS theme. Without
+    // currently in), so its colors must be re-tinted for THIS theme. Without
     // this, a dark theme built while the app is in light mode reports
     // `brightness: dark` and sets light icons, but every piece of text that
     // relies on the inherited style renders near-black — invisible on the
@@ -532,7 +532,7 @@ extension FactionMaterialTheme on FactionTheme {
 ///
 /// For the places whose identity is the place rather than the player — the
 /// shop is a shop no matter who walks into it, and it was picking up whatever
-/// colours the player's allegiance happened to bring, which made the same
+/// colors the player's allegiance happened to bring, which made the same
 /// screen look like four different screens.
 ///
 /// Brightness is deliberately not forced: a player in light mode stays in

@@ -2879,8 +2879,8 @@ const DungeonLayout _fireLayout = DungeonLayout(
       // on a field this size.
       //
       // The four rocks are placed to balance the checkerboard (two on each
-      // colour), which is what keeps a full-cover path possible at all: a
-      // path over 26 cells alternates colours, so an unbalanced field is
+      // color), which is what keeps a full-cover path possible at all: a
+      // path over 26 cells alternates colors, so an unbalanced field is
       // impossible no matter how it is played. An earlier staggered layout
       // looked fine and had NO Hamiltonian path from any square.
       //

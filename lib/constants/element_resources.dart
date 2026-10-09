@@ -6,7 +6,7 @@ class ElementResource {
   final String biomeLabel; // 'Volcanic'
   final String settingsKey; // 'res_volcanic' (used in Settings table)
   /// Kept for the places too small for a particle field to read — a 12px
-  /// affordability chip, where the glyph would be mush and the colour has to
+  /// affordability chip, where the glyph would be mush and the color has to
   /// carry a can-afford / cannot-afford state.
   final IconData icon;
   final Color color; // biome primary color

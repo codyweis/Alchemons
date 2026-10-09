@@ -193,7 +193,7 @@ void _paintPlanetForBackdrop(Canvas canvas, CosmicPlanet p, double elapsed) {
 
 /// A planet's territory as a soft wash, centred on [pos] (the planet's
 /// position as rendered, after wrapping). Each planet picks its own tint —
-/// its element colour at this strength often reads as mud. One gradient
+/// its element color at this strength often reads as mud. One gradient
 /// fill.
 void paintTerritoryWash(Canvas canvas, CosmicPlanet p, Offset pos) {
   const r = kPlanetTerritoryRadius;

@@ -22,10 +22,10 @@ enum AchievementSphereState {
 /// An achievement drawn as grain glass: the sphere forms as it is worked
 /// towards, glows gold while its reward waits, and dims once collected.
 ///
-/// Only a ready sphere runs (on the shared [GlyphClock]); everything else is
-/// painted once and held, so a screen of them costs nothing to scroll. The
-/// change from ready to sealed eases over [settle] rather than switching, and
-/// the clock keeps running through it so the grains do not jump.
+/// Every sphere with something in it turns, on the shared [GlyphClock] (one
+/// ticker for all of them). [animate] off holds one still on the frame the
+/// clock last showed — the home bar does that when nothing is waiting. The
+/// change from ready to sealed eases over [settle] rather than switching.
 class AchievementSphere extends StatelessWidget {
   const AchievementSphere({
     super.key,
@@ -36,6 +36,7 @@ class AchievementSphere extends StatelessWidget {
     this.seed = 0,
     this.gold = const Color(0xFFE4C16A),
     this.settle = const Duration(milliseconds: 900),
+    this.animate = true,
   });
 
   final double size;
@@ -54,6 +55,9 @@ class AchievementSphere extends StatelessWidget {
 
   final Duration settle;
 
+  /// Whether it turns. A hidden sphere never does: there is nothing in it.
+  final bool animate;
+
   /// A stable seed from an id.
   static int seedFor(String id) =>
       id.codeUnits.fold(0, (v, c) => (v * 31 + c) % 997);
@@ -68,12 +72,9 @@ class AchievementSphere extends StatelessWidget {
       duration: settle,
       curve: Curves.easeInOutCubic,
       builder: (context, seal, _) {
-        final running =
-            state == AchievementSphereState.ready ||
-            (state == AchievementSphereState.sealed && seal < 0.999);
         return GrainGlyph(
           size: size,
-          animate: running,
+          animate: animate && state != AchievementSphereState.hidden,
           painter: (clock) => _SpherePainter(
             clock: clock,
             tone: tone,

@@ -3078,7 +3078,7 @@ extension BuriedGiant on PlanetDungeonGame {
       }
       rough.close();
       // Carved earth until the seed wakes in it; then the crystal's own
-      // colour shows through.
+      // color shows through.
       canvas.drawPath(
         rough,
         Paint()

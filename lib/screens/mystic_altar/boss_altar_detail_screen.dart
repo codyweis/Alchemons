@@ -2,7 +2,7 @@
 //
 // ONE MYSTIC'S ALTAR. The Mystic stands in the middle as a ghost of grains;
 // round it, a seat for every kind of its element. Tap a seat to give one of
-// that kind — it flies in, and its share of the Mystic fills with colour.
+// that kind — it flies in, and its share of the Mystic fills with color.
 // With every seat given (and, for Blood, every other Mystic awake), the rite
 // is held, and performed: the offerings and the relic pour into a knot, the
 // knot bursts, and the Mystic comes out of it as its element and gathers

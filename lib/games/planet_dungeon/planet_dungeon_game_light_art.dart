@@ -836,7 +836,7 @@ extension ShadowFloorArt on PlanetDungeonGame {
     canvas.save();
     canvas.clipRect(floor);
     // THE LIGHT ON THE WELL: each starlight's glow, cut to its cone and laid
-    // on the GLASS only — the stone and the walls keep their own colour, so
+    // on the GLASS only — the stone and the walls keep their own color, so
     // the lightwell is the one bright thing in the room.
     final glass = _glassPaths.putIfAbsent(def.id, () {
       final p = Path();
@@ -1805,7 +1805,7 @@ void _sanctuaryCarve(
   canvas.restore();
 }
 
-/// Tiny lit grains drawn as short trailed strokes, gathered per colour and
+/// Tiny lit grains drawn as short trailed strokes, gathered per color and
 /// alpha step so a frame's starlight rays, steam and bolts are a few
 /// drawPoints calls. Callers draw from small fixed ramps.
 class _SanctuaryInk {

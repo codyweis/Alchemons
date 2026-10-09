@@ -195,8 +195,13 @@ void main() {
     await scrollShot('05_survival_challenges');
     await scrollShot('06_bottom', by: 2000);
 
-    // A ready sphere's sheet, then collecting from it.
+    // Every reached sphere turns: the same view half a second apart.
     await show(const CampaignJournalScreen());
+    await shoot('06b_turning_a');
+    await settle(6);
+    await shoot('06c_turning_b');
+
+    // A ready sphere lifted off the page, then collected there.
     final harvest = find.text('Field collector');
     await tester.scrollUntilVisible(
       harvest,
@@ -205,17 +210,22 @@ void main() {
     );
     await settle(4);
     await tester.tap(harvest);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 220));
+    await shoot('07a_lifting');
     await settle();
-    await shoot('07_sheet_ready');
-    // The sheet's, not a task row's.
+    await shoot('07_lifted_ready');
     await tester.tap(find.text('COLLECT').last);
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 200)),
     );
+    await tester.pump(const Duration(milliseconds: 120));
     await tester.pump(const Duration(milliseconds: 300));
     await shoot('08_collecting');
+    await settle(6);
+    await shoot('08b_settled_in_place');
     await settle(14);
-    await shoot('09_collected');
+    await shoot('09_home_again');
 
     // An underway one.
     final mask = find.text('A lineage of masks');
@@ -227,7 +237,13 @@ void main() {
     await settle(4);
     await tester.tap(mask);
     await settle();
-    await shoot('10_sheet_underway');
+    await shoot('10_lifted_underway');
+
+    // The current chapter's bead.
+    await show(const CampaignJournalScreen());
+    await tester.tap(find.bySemanticsLabel('Current chapter: What remained'));
+    await settle();
+    await shoot('10b_lifted_chapter');
 
     // The archive pages.
     await show(const CampaignJournalScreen());

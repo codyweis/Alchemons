@@ -136,7 +136,7 @@ class FusionBurstField {
   void _seed(List<SpecimenGrains> grains, int maxGrains) {
     final rng = math.Random(29);
     // As many of each specimen as it had, in proportion, up to the cap —
-    // sampled evenly through its grains, so its colours come in the same
+    // sampled evenly through its grains, so its colors come in the same
     // proportions it had them.
     final total = grains[0].length + grains[1].length;
     final take = [
@@ -270,8 +270,8 @@ class FusionBurstField {
 
   /// Paints the cinematic's particles at [u] seconds round [core]. [accent]
   /// and [sigil] are the reveal's (null until the outcome is known: the
-  /// cultivation is then drawn in the parents' own colours with the octagram).
-  /// [colors] are the two specimens' element colours. [clock] keeps the
+  /// cultivation is then drawn in the parents' own colors with the octagram).
+  /// [colors] are the two specimens' element colors. [clock] keeps the
   /// settled cultivation turning while the cinematic waits.
   void paint(
     Canvas canvas,
@@ -383,7 +383,7 @@ class FusionBurstField {
       b.add((far ? _farOff : 0) + s * _tones + _tone[i], x, y);
     }
 
-    // How far a pure reveal's colours have run into its accent.
+    // How far a pure reveal's colors have run into its accent.
     final formed = _clamp01((u - _shellFrom) / (_lockEnd - _shellFrom));
     final into = accent == null ? 0.0 : (pure ? 0.65 : 0.25) * formed;
     final grain = 1.6 + 0.5 * (1 - formed) * (burstT > 0 ? 1 : 0);

@@ -19,7 +19,7 @@ const _palette = BracketPalette.dark;
 // METER / RECIPE ALIGNMENT
 //
 // The recipe's target notches are drawn onto the meter fill, so "matching the
-// recipe" reads as "line your colours up with the marks". That only works if
+// recipe" reads as "line your colors up with the marks". That only works if
 // both are laid out in the SAME order — hence one function for each, used by
 // both the fill and the painter, and a test that pins them together.
 // ─────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ class TopHud extends StatefulWidget {
 
   /// Recipe of the planet the ship is standing at, if any. When set, its
   /// target percentages are drawn onto the meter as notches, so matching the
-  /// recipe becomes "line your colours up with the marks" rather than reading
+  /// recipe becomes "line your colors up with the marks" rather than reading
   /// a separate card.
   final PlanetRecipe? recipe;
 

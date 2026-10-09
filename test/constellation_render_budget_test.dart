@@ -126,7 +126,7 @@ void main() {
       far.get('drawRawPoints'),
       lessThanOrEqualTo(24 + 16),
       reason:
-          'stars are bucketed by size, brightness and colour (3*4*2), and '
+          'stars are bucketed by size, brightness and color (3*4*2), and '
           'every grain on every link shares one layer of at most 16 classes',
     );
     // The whole point: far must not cost meaningfully more than near.

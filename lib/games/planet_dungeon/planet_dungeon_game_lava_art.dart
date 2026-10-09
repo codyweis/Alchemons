@@ -12,7 +12,7 @@
 //
 //   · every lever stands on a glass base, and its notches are glass beads with
 //     the setting it is in alight;
-//   · every mold's flask is rimmed in glass the colour of the metal it takes
+//   · every mold's flask is rimmed in glass the color of the metal it takes
 //     (white-hot plain · blue-white warded · green gassed), silver once it
 //     holds a good casting and smoked once it has been spoiled;
 //   · the crucible has a sight-glass, the accumulator a gauge, the purge cowl
@@ -454,8 +454,8 @@ extension MoltenReliquaryArt on PlanetDungeonGame {
 
   /// AN EMPTY FORM, CUT INTO THE SAND: the shape it casts — a key's bit and
   /// wards for warded metal, a smooth bar for a span — as a sunk hollow, its
-  /// far wall in shadow, its near lip catching the colour of the metal it
-  /// wants, and that colour faint in the bottom of it (2026-10-08). It was
+  /// far wall in shadow, its near lip catching the color of the metal it
+  /// wants, and that color faint in the bottom of it (2026-10-08). It was
   /// the same shape traced in thin tinted lines, which read as an icon.
   void _drawFormRecess(Canvas canvas, Rect inner, PourForm want, Color tint) {
     final shape = Path();
@@ -489,7 +489,7 @@ extension MoltenReliquaryArt on PlanetDungeonGame {
       shape.shift(const Offset(0, -1.8)),
       Paint()..color = const Color(0xE6040302),
     );
-    // The near lip, catching the metal's colour — a sliver, not an outline.
+    // The near lip, catching the metal's color — a sliver, not an outline.
     canvas.drawPath(
       shape.shift(const Offset(0, 1.4)),
       Paint()..color = tint.withValues(alpha: 0.6),
@@ -571,7 +571,7 @@ extension MoltenReliquaryArt on PlanetDungeonGame {
   }
 
   /// A mold flask's glass rim — the form SAYING what it takes. [tint] is the
-  /// colour of the metal it wants; [heat] how strongly the rim shows it.
+  /// color of the metal it wants; [heat] how strongly the rim shows it.
   void _drawFlaskGlass(Canvas canvas, Rect cavity, Color tint, double alpha) {
     final outer = cavity.inflate(7);
     final strips = [

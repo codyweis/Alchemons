@@ -181,7 +181,7 @@
   }
 
   // A fusion: the two spiral into the front stone, shedding grains, and what
-  // they make grows there out of its own colour.
+  // they make grows there out of its own color.
   function drawFuse(f) {
     const k = Math.min(1, f.t / .7);
     if (f.kind === 'fuse') {
@@ -511,7 +511,7 @@
 
   // THE CAPTURE (a sketch of the game's cutscene): Blood steps into the Heart,
   // comes apart into grains, and the grains are drawn into the niche and
-  // bound; then the four pour in, each in its own colour, and stand.
+  // bound; then the four pour in, each in its own color, and stand.
   function heartCapture(dt) {
     const t = heart.capture += dt;
     const [bx, by] = heart.R.blood;

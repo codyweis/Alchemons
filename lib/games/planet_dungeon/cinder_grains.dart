@@ -73,7 +73,7 @@ const List<Color> kBillowRamp = [
   Color(0xFFB4AAA0),
 ];
 
-/// A four-step ramp for a flame drawn in other colours ([outer] its body,
+/// A four-step ramp for a flame drawn in other colors ([outer] its body,
 /// [core] its root): deep, outer, core, and the core gone white.
 List<Color> flameRampOf(Color core, Color outer) => [
   Color.lerp(outer, const Color(0xFF000000), 0.35)!,

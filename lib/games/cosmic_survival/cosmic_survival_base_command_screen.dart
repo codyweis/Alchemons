@@ -838,7 +838,7 @@ class _LitTabIndicatorPainter extends BoxPainter {
 
 /// A card in the bare language: a flat ink fill, square, no frame. The
 /// chosen one (the orb or hull in use) is [lit] from below in its own
-/// colour over a faint wash of it; a finished one is only [washed].
+/// color over a faint wash of it; a finished one is only [washed].
 class _PlateBox extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
@@ -873,7 +873,7 @@ class _PlateBox extends StatelessWidget {
 
 // ── Forge Button ───────────────────────────────────────────────────────────
 
-/// A buy button in the bare language: square, a wash of the item's colour
+/// A buy button in the bare language: square, a wash of the item's color
 /// lit from below while it can be pressed, a dim unlit fill when it cannot.
 class _ForgeButton extends StatelessWidget {
   final String label;
@@ -1108,7 +1108,7 @@ class _OrbSkinCard extends StatelessWidget {
 
 // ── Ship Hull Card ─────────────────────────────────────────────────────────
 
-/// A hull's colour is the light inside it.
+/// A hull's color is the light inside it.
 Color _shipAccent(String? skinId) => shipLight(skinId).essence;
 
 class _ShipHullCard extends StatelessWidget {
@@ -1438,7 +1438,7 @@ class _AbilityCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Ability icon on a flat tile of its colour once unlocked.
+              // Ability icon on a flat tile of its color once unlocked.
               Container(
                 width: 42,
                 height: 42,

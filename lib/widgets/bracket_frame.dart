@@ -11,9 +11,9 @@ import 'package:alchemons/utils/faction_util.dart';
 /// a sill of light along its bottom edge, fading at both ends, and a glow
 /// rising off it. (It drew four corner brackets until 2026-10.)
 ///
-/// Whether a frame is chosen is read from the colour its caller passes. One
+/// Whether a frame is chosen is read from the color its caller passes. One
 /// of the palettes' own greys is an ordinary frame and draws nothing. A
-/// colour of its own lights up as it nears full strength, so a frame faded
+/// color of its own lights up as it nears full strength, so a frame faded
 /// to say "not this one" stays dark, and one whose strength is animated
 /// brightens smoothly rather than switching on.
 class BracketFramePainter extends CustomPainter {

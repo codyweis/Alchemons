@@ -7,7 +7,7 @@
 // every plain room is a slab of cloud-slate hanging in the shader sky, with a
 // front face, rock trailing underneath, and a balustrade where a cathedral
 // would have walls. The platforms are the same stone. The glass is the sky's
-// own colour, and it sits only where Air asks something of you:
+// own color, and it sits only where Air asks something of you:
 //
 //   · the compass in the hub is a rose of glass set into the floor — three
 //     rings of panes, one per star, each filling as its star comes on (wind
@@ -140,7 +140,7 @@ final Map<String, ui.Picture> _spiralHaze = {};
 /// The cloud pickups' and plumes' shapes, built once.
 final Map<String, GrainShape> _skyIconShapes = {};
 
-/// A wing's light: the wash over its stone, and the colour its carving and
+/// A wing's light: the wash over its stone, and the color its carving and
 /// pennants catch.
 class _SkyZone {
   const _SkyZone(this.wash, this.light);

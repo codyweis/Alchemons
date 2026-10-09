@@ -454,11 +454,11 @@ class PortalPainter extends CustomPainter {
   final String title;
   final Color accent;
 
-  /// Glyph accent colours, overriding the element's. For portals that are not
+  /// Glyph accent colors, overriding the element's. For portals that are not
   /// a planet.
   final List<Color>? palette;
 
-  /// Void wash colour, overriding the element's sky tint.
+  /// Void wash color, overriding the element's sky tint.
   final Color? tint;
 
   static const int _rings = 6;

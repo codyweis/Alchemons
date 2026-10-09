@@ -44,7 +44,7 @@ float fbm(vec2 p) {
   return v;
 }
 
-// Shared palette helpers. Mixes the three contract colours by a 0..1 ramp.
+// Shared palette helpers. Mixes the three contract colors by a 0..1 ramp.
 vec3 palette3(float t, vec3 a, vec3 b, vec3 c) {
   t = clamp(t, 0.0, 1.0);
   return t < 0.5 ? mix(a, b, t * 2.0) : mix(b, c, (t - 0.5) * 2.0);
@@ -96,7 +96,7 @@ void main() {
          * (0.22 - fl * 0.08) * uIntensity;
   }
 
-  // Dry haze washing the whole frame out — this planet has no wet colour.
+  // Dry haze washing the whole frame out — this planet has no wet color.
   col = mix(col, uColorC, 0.06);
   col *= 1.0 - smoothstep(0.55, 1.05, length(uv - 0.5)) * 0.38;
   fragColor = vec4(col, 1.0);

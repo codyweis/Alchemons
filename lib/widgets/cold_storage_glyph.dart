@@ -45,7 +45,7 @@ class _ColdStoragePainter extends CustomPainter {
   static const _iceDeep = Color(0xFF16324A);
   static const _socket = Color(0xFF233240);
 
-  /// What the full cells hold, in the element colours the nursery uses.
+  /// What the full cells hold, in the element colors the nursery uses.
   static final List<Color> _held = [
     for (final id in const ['oceanic', 'volcanic', 'verdant', 'arcane'])
       ElementResources.byBiomeId[id]!.color,
@@ -120,7 +120,7 @@ class _ColdStoragePainter extends CustomPainter {
 
     // The frosted bevel: ice lit from the upper left, deep at the lower
     // right. A filled band, not a line. (Opaque first: a shader is drawn at
-    // the paint colour's alpha, and the frost below leaves it faint.)
+    // the paint color's alpha, and the frost below leaves it faint.)
     _p.color = const Color(0xFF000000);
     _p.shader = ui.Gradient.linear(box.topLeft, box.bottomRight, [
       Color.lerp(_socket, _frost, 0.1 + 0.55 * lit)!,

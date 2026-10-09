@@ -108,7 +108,7 @@ class ExtractionVial {
 /// is, so the grains glow.
 const Color kVialGlass = Color(0xE60B0A10);
 
-/// The light a vial gives off: a soft pool of its colour, never a ring or a
+/// The light a vial gives off: a soft pool of its color, never a ring or a
 /// disc. [strength] scales it (a ready cultivation glows a little more).
 class VialLightPool extends StatelessWidget {
   const VialLightPool({super.key, required this.color, this.strength = 1});
@@ -137,8 +137,8 @@ class VialLightPool extends StatelessWidget {
 }
 
 /// A vial held up to the light: what it holds — a sphere of its elements'
-/// grains, turning as a cultivation does — over a soft pool of its colour.
-/// No card or disc round it: a flat ball of colour read as a button rather
+/// grains, turning as a cultivation does — over a soft pool of its color.
+/// No card or disc round it: a flat ball of color read as a button rather
 /// than a thing.
 class ExtractionVialOrb extends StatelessWidget {
   const ExtractionVialOrb({super.key, required this.vial, required this.size});
@@ -269,9 +269,9 @@ class ExtractionVialCard extends StatelessWidget {
     final hasNameTag = showTags && nameTag.isNotEmpty;
     final hasFooter = vial.price != null;
 
-    // A case of smoked glass, its corners in the vial's colour — brighter
+    // A case of smoked glass, its corners in the vial's color — brighter
     // the rarer — and the vial held up in it. It used to be a card of
-    // saturated colour, which read as a button rather than a thing.
+    // saturated color, which read as a button rather than a thing.
     return GestureDetector(
       onTap: context.soundAction(onTap),
       child: CustomPaint(

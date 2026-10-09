@@ -2,7 +2,7 @@
 //
 // The material the stations and the contest arenas of open space are cut
 // from — the ship's material (ship_art.dart) for things that stand still:
-// obsidian whose colour comes only from the light inside it, glass that holds
+// obsidian whose color comes only from the light inside it, glass that holds
 // that light, and grains for anything that moves.
 //
 //   StoneLight   a light and the stone and glass round it, with its shaders

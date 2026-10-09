@@ -186,7 +186,7 @@ void main() {
     );
     await settle(10);
     await shoot('2_costume_sheet');
-    Navigator.of(tester.element(find.text('COLOUR').first)).pop();
+    Navigator.of(tester.element(find.text('COLOR').first)).pop();
     await settle();
 
     // 4. The quick look, wearing them.

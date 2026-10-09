@@ -212,7 +212,7 @@ class _MiniCirclePainter extends CustomPainter {
         continue;
       }
       if (!inView(p)) continue;
-      // A station is the colour it is lit in space.
+      // A station is the color it is lit in space.
       final c =
           kind?.accent ??
           switch (poi.type) {

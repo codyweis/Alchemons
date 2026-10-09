@@ -2,24 +2,24 @@ part of 'alchemy_effect_paint.dart';
 
 /// PRISMATIC CASCADE — the dearest effect, and it should look it.
 ///
-/// White light broken into every colour round the creature:
+/// White light broken into every color round the creature:
 ///   * an iridescent glow behind it, three hues drifting through each other
 ///   * two tipped rings of rainbow grains crossing round it like an
 ///     armillary, turning opposite ways, each passing behind and then in
-///     front, its colours running round as it turns, a grain now and then
+///     front, its colors running round as it turns, a grain now and then
 ///     flaring white
 ///   * the spectrum pooled at its feet
 ///
 /// The hues cycle through the whole wheel. No blur: gradient pools and one
 /// atlas call per layer for both rings' grains.
 abstract final class _Prismatic {
-  /// Seconds for the colours to go once round the wheel.
+  /// Seconds for the colors to go once round the wheel.
   static const double _cycle = 12;
 
-  /// Pool colours by hue, quantised so a cycling hue reuses a colour.
+  /// Pool colors by hue, quantised so a cycling hue reuses a color.
   static const int _hueSteps = 48;
 
-  /// A pool colour by hue.
+  /// A pool color by hue.
   static Color _poolColor(double hue, bool dark) {
     final q = ((hue - hue.floorToDouble()) * _hueSteps).floor() % _hueSteps;
     return Color(0xFF000000 | _hueRgb(q / _hueSteps, dark));
@@ -134,7 +134,7 @@ final class _PrismaticRing {
   /// Radians a second at radius 1; the outer grains lag behind.
   final double spin;
 
-  /// Where on the wheel its colours start.
+  /// Where on the wheel its colors start.
   final double hueShift;
 
   final List<double> _rho, _th0, _lift, _gSize, _tw;

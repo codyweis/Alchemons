@@ -17,7 +17,7 @@
 //
 //   Dressed as the hatch's sand is (hatch_sand.dart): gilded for a
 //   Transmuted, with a polish passing over it; a rainbow once round for a
-//   prismatic skin, its glints turning through the hues; a variant's colour
+//   prismatic skin, its glints turning through the hues; a variant's color
 //   as a twinkling scatter. An Alchemized one never settles: its bank runs
 //   round the card like a river.
 //
@@ -38,8 +38,8 @@ import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-/// What the rim's sand is coloured as.
-enum RimColour {
+/// What the rim's sand is colored as.
+enum RimColor {
   /// The specimen's element.
   element,
 
@@ -99,7 +99,7 @@ Color _hue12(double h) {
 class EssenceRimField {
   EssenceRimField({
     required this.element,
-    this.colour = RimColour.element,
+    this.color = RimColor.element,
     this.loose = false,
     this.fleck,
     this.looseLight = const Color(0xFFB9A7F5),
@@ -108,12 +108,12 @@ class EssenceRimField {
   });
 
   final EssenceElement element;
-  final RimColour colour;
+  final RimColor color;
 
   /// Alchemized: the bank never settles. See the file's head.
   final bool loose;
 
-  /// A variant's colour: a scatter of grains of it, twinkling.
+  /// A variant's color: a scatter of grains of it, twinkling.
   final Color? fleck;
 
   /// The light loose grains glint in (Alchemized's violet).
@@ -160,7 +160,7 @@ class EssenceRimField {
   int _drifters = 0;
   double _pourEnd = 0;
 
-  // Colours.
+  // Colors.
   List<Color> _tones = const [];
   Color _glint = const Color(0xFFFFFBEA);
   Color _drift = const Color(0xFFFFFBEA);
@@ -171,7 +171,7 @@ class EssenceRimField {
   GrainBatch _main = GrainBatch(1);
   GrainBatch _trailA = GrainBatch(1), _trailB = GrainBatch(1);
   final GrainBatch _live = GrainBatch(_liveBuckets);
-  final List<Color> _liveColour = List.filled(
+  final List<Color> _liveColor = List.filled(
     _liveBuckets,
     const Color(0x00000000),
   );
@@ -292,8 +292,8 @@ class EssenceRimField {
 
   void _dressTones() {
     final tones = <Color>[];
-    switch (colour) {
-      case RimColour.element:
+    switch (color) {
+      case RimColor.element:
         final ramp = essenceRamp(element);
         for (var k = 0; k < 8; k++) {
           final x = (0.14 + 0.8 * k / 7) * 3;
@@ -302,7 +302,7 @@ class EssenceRimField {
         }
         _glint = ramp[3];
         _drift = Color.lerp(ramp[2], ramp[3], 0.35)!;
-      case RimColour.gilded:
+      case RimColor.gilded:
         for (var k = 0; k < 8; k++) {
           final v = k / 7;
           tones.add(
@@ -325,7 +325,7 @@ class EssenceRimField {
           ShellMutationLook.paleGold,
           0.5,
         )!;
-      case RimColour.prismatic:
+      case RimColor.prismatic:
         for (var k = 0; k < 12; k++) {
           tones.add(
             Color.lerp(_hue12(k.toDouble()), const Color(0xFF000000), 0.06)!,
@@ -352,7 +352,7 @@ class EssenceRimField {
 
     void level(int at, Color c, double dia, [List<double> a = _levelAlpha]) {
       for (var i = 0; i < a.length; i++) {
-        _liveColour[at + i] = c.withValues(alpha: a[i]);
+        _liveColor[at + i] = c.withValues(alpha: a[i]);
         _liveDia[at + i] = dia * _k;
       }
     }
@@ -365,7 +365,7 @@ class EssenceRimField {
     level(_dr, _drift, 1.6);
     level(_po, ShellMutationLook.paleGold, 1.7, const [0.3, 0.55, 0.8, 1.0]);
     for (var i = 0; i < 12; i++) {
-      _liveColour[_tu + i] = _hue12(i.toDouble()).withValues(alpha: 0.92);
+      _liveColor[_tu + i] = _hue12(i.toDouble()).withValues(alpha: 0.92);
       _liveDia[_tu + i] = 1.6 * _k;
     }
   }
@@ -437,23 +437,23 @@ class EssenceRimField {
       final v = r.nextDouble();
       final size = stray ? 0 : (v < 0.45 ? 0 : (v < 0.83 ? 1 : 2));
 
-      // Its colour, and whether it does anything.
+      // Its color, and whether it does anything.
       var tone = 0;
       var role = _still;
-      switch (colour) {
-        case RimColour.element:
-        case RimColour.gilded:
+      switch (color) {
+        case RimColor.element:
+        case RimColor.gilded:
           tone = (math.pow(r.nextDouble(), 1.3) * 8).floor().clamp(0, 7);
-        case RimColour.prismatic:
+        case RimColor.prismatic:
           final hue = (s / p * 12 + 2.6 * (_noise(s, 150, 17) - 0.5) + 12) % 12;
           tone = hue.floor().clamp(0, 11);
           _aux[i] = hue;
       }
       final roll = r.nextDouble();
-      if (colour == RimColour.gilded && roll < 0.09) {
+      if (color == RimColor.gilded && roll < 0.09) {
         role = _polish;
         _aux[i] = 0.7 * _px / w + 0.3 * _py / h;
-      } else if (colour == RimColour.prismatic && roll < 0.07) {
+      } else if (color == RimColor.prismatic && roll < 0.07) {
         role = _turn;
       } else if (roll > 0.975) {
         role = _twinkle;
@@ -644,7 +644,7 @@ class EssenceRimField {
     }
     if (since > 0) _addDrifters(since);
     for (var b = 0; b < _liveBuckets; b++) {
-      _live.draw(canvas, b, _liveDia[b], _liveColour[b]);
+      _live.draw(canvas, b, _liveDia[b], _liveColor[b]);
     }
   }
 
@@ -747,7 +747,7 @@ class EssenceRim extends StatefulWidget {
     required this.element,
     required this.pour,
     required this.child,
-    this.colour = RimColour.element,
+    this.color = RimColor.element,
     this.loose = false,
     this.fleck,
     this.looseLight = const Color(0xFFB9A7F5),
@@ -760,7 +760,7 @@ class EssenceRim extends StatefulWidget {
   final String? element;
   final bool pour;
   final Widget child;
-  final RimColour colour;
+  final RimColor color;
   final bool loose;
   final Color? fleck;
   final Color looseLight;
@@ -782,7 +782,7 @@ class _EssenceRimState extends State<EssenceRim>
 
   EssenceRimField _build() => EssenceRimField(
     element: EssenceElement.of(widget.element),
-    colour: widget.colour,
+    color: widget.color,
     loose: widget.loose,
     fleck: widget.fleck,
     looseLight: widget.looseLight,
@@ -800,7 +800,7 @@ class _EssenceRimState extends State<EssenceRim>
   void didUpdateWidget(EssenceRim old) {
     super.didUpdateWidget(old);
     if (old.element != widget.element ||
-        old.colour != widget.colour ||
+        old.color != widget.color ||
         old.loose != widget.loose ||
         old.fleck != widget.fleck ||
         old.seed != widget.seed ||

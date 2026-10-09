@@ -1,7 +1,7 @@
 // lib/screens/scenes/rift_threshold.dart
 //
 // THE RIFT THRESHOLD — what a wilderness rift shows when it is tapped: the
-// rift itself, a disk of grains in the faction's colour falling into a black
+// rift itself, a disk of grains in the faction's color falling into a black
 // core, and the key that opens it.
 //
 // Holding the button turns the key; the rift spins up as it turns. Let go
@@ -391,7 +391,7 @@ class _RiftPainter extends CustomPainter {
     s._pal,
     keyFrom: s._keyFrom,
     keyFlight: s._keyFrom == null ? 0 : s._keyFlight,
-    // The shop's key, in the shop's colour.
+    // The shop's key, in the shop's color.
     keyColor: ElementResources.byBiomeId[s.widget.faction.name]?.color,
   );
 
@@ -560,7 +560,7 @@ class _KeyAndTurn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = state;
-    // Named in the key's own colour, the one the Shop sells it in.
+    // Named in the key's own color, the one the Shop sells it in.
     final color =
         ElementResources.byBiomeId[s.widget.faction.name]?.color ??
         s.widget.faction.primaryColor;

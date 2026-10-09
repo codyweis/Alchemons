@@ -2550,7 +2550,7 @@ class _ChartPinsPainter extends CustomPainter {
       }
     }
 
-    // Markers — each type has its own silhouette as well as its own colour,
+    // Markers — each type has its own silhouette as well as its own color,
     // so they stay distinguishable without relying on hue alone.
     final markerInk = Paint()
       ..color = Colors.black.withValues(alpha: 0.55)

@@ -86,9 +86,9 @@ Future<void> playHatchingCinematicAlchemy({
 
   /// The element the egg is hatching INTO. This is the prototype's third
   /// palette (`elemR`): at [HatchShellTuning.fuseAt] both parent palettes
-  /// blend into it, so the shell is already wearing the offspring's colour by
+  /// blend into it, so the shell is already wearing the offspring's color by
   /// the time it unravels. Without it the fuse resolves to a flat single
-  /// colour and the ceremony has no colour identity at its climax.
+  /// color and the ceremony has no color identity at its climax.
   String? resultTypeId,
   required Color paletteMain,
   ImageProvider? creatureSilhouette,
@@ -298,11 +298,11 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
         widget.parentBTypeId ?? widget.parentATypeId,
         widget.paletteMain,
       ),
-      colour: mutation == AlchemonMutation.transmuted
-          ? HatchSandColour.gilded
+      color: mutation == AlchemonMutation.transmuted
+          ? HatchSandColor.gilded
           : widget.hintType == HatchHintType.prismatic
-          ? HatchSandColour.prismatic
-          : HatchSandColour.elements,
+          ? HatchSandColor.prismatic
+          : HatchSandColor.elements,
       // Alchemized never settles: its sand doesn't either.
       loose: mutation == AlchemonMutation.alchemized,
       fleck: widget.hintType == HatchHintType.variant
@@ -350,7 +350,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
     reduced: widget.quality == CinematicQuality.performance,
   );
 
-  /// The shell wants an element's FULL three-colour palette, not one colour:
+  /// The shell wants an element's FULL three-color palette, not one color:
   /// strands mix between entries 0 and 1, and entry 2 is the bright accent.
   static List<Color> _elementPalette(String? typeId, Color fallback) {
     final cfg = typeId == null ? null : ElementalConfigs.getConfig(typeId);
@@ -747,7 +747,7 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                             // non-null for elementally pure lineages, so
                             // every ordinary hatch was fusing into
                             // [paletteMain] repeated three times -- a flat
-                            // colour standing in for an element palette.
+                            // color standing in for an element palette.
                             paletteResult: _elementPalette(
                               widget.resultTypeId ?? widget.pureElementTypeId,
                               _pureColor ?? widget.paletteMain,
@@ -1010,7 +1010,7 @@ class _SilhouetteReveal extends StatelessWidget {
       );
     }
 
-    // Gold replaces the colour, as it does on the sheet.
+    // Gold replaces the color, as it does on the sheet.
     if (mutation == AlchemonMutation.transmuted) {
       child = ShaderMask(
         shaderCallback: (bounds) => const LinearGradient(
