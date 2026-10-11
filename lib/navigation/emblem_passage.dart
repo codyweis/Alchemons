@@ -88,7 +88,9 @@ class EmblemPassage {
       revealed?.value = true;
       return navigator.push<T>(MaterialPageRoute(builder: (_) => page));
     }
-    lifted?.value = true;
+    // A held scene leaves the icon in its place until it lifts off: the
+    // page's first frames are paid with the icon still there, not a gap.
+    if (!scene.buildFirst) lifted?.value = true;
     return navigator.push<T>(
       EmblemPassageRoute<T>(
         scene: scene,
@@ -135,6 +137,14 @@ abstract class PassageScene {
   /// it ready by the time the icon has grown. The landing still waits for
   /// the grow to finish.
   double get buildAt => 1;
+
+  /// Builds the page at the tap and holds the icon in its place until the
+  /// page says it is ready (or [_kHoldTimeout] passes), then grows. Whatever
+  /// the page's first frames cost is paid while the icon still rests, as a
+  /// beat after the tap, so the way in plays through without a catch. For a
+  /// page heavy enough that building it froze the scene at its hold
+  /// (Enhance's picker did, on a release build). Overrides [buildAt].
+  bool get buildFirst => false;
 
   void paint(
     Canvas canvas,
@@ -262,6 +272,23 @@ class EmblemPassageRoute<T> extends PageRoute<T> implements SelfLeavingRoute {
     Widget child,
   ) => _PassageVeil(route: this, animation: animation, child: child);
 
+  /// A [PassageScene.buildFirst] passage does not start growing on the push:
+  /// it is held at its start until the page is ready ([_lift]).
+  @override
+  TickerFuture didPush() {
+    final pushed = super.didPush();
+    if (scene.buildFirst) controller!.stop();
+    return pushed;
+  }
+
+  /// Lets a held passage grow.
+  void _lift() {
+    final c = controller;
+    if (c != null && c.status == AnimationStatus.forward && !c.isAnimating) {
+      c.forward();
+    }
+  }
+
   @override
   void dispose() {
     lifted?.value = false;
@@ -271,6 +298,10 @@ class EmblemPassageRoute<T> extends PageRoute<T> implements SelfLeavingRoute {
 
 /// A page that never says it is ready cannot keep the player waiting.
 const Duration _kReadyTimeout = Duration(seconds: 6);
+
+/// Nor can it keep a [PassageScene.buildFirst] icon from lifting off: past
+/// this it grows anyway, and the landing waits for the page as usual.
+const Duration _kHoldTimeout = Duration(milliseconds: 500);
 
 class _PassageVeil extends StatefulWidget {
   const _PassageVeil({
@@ -301,6 +332,10 @@ class _PassageVeilState extends State<_PassageVeil>
   bool _closing = false;
   Timer? _timeout;
 
+  /// A [PassageScene.buildFirst] passage still waiting at its start.
+  bool _held = false;
+  Timer? _holdTimeout;
+
   late final Listenable _repaint = Listenable.merge([
     widget.animation,
     _land,
@@ -325,6 +360,14 @@ class _PassageVeilState extends State<_PassageVeil>
       ..addStatusListener(_onLand)
       ..addListener(_onLanding);
     syncGlyphClock();
+    // Not by the animation's status: a hero push lays the route out offstage
+    // on its first frame, where the animation reads complete.
+    if (widget.route.scene.buildFirst) {
+      // The page goes in now, while the icon still stands in its place.
+      _held = _built = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _awaitReady());
+      _holdTimeout = Timer(_kHoldTimeout, _lift);
+    }
     _onRoute(widget.animation.status);
   }
 
@@ -335,6 +378,7 @@ class _PassageVeilState extends State<_PassageVeil>
       ..removeListener(_onTick);
     widget.route.ready?.removeListener(_onReady);
     _timeout?.cancel();
+    _holdTimeout?.cancel();
     _land.dispose();
     releaseGlyphClock();
     super.dispose();
@@ -356,6 +400,8 @@ class _PassageVeilState extends State<_PassageVeil>
       case AnimationStatus.reverse:
         if (_closing) return;
         _timeout?.cancel();
+        _holdTimeout?.cancel();
+        _held = false;
         widget.route.ready?.removeListener(_onReady);
         _land.stop();
         setState(() => _closing = true);
@@ -421,13 +467,25 @@ class _PassageVeilState extends State<_PassageVeil>
     widget.route.ready?.removeListener(_onReady);
     _timeout?.cancel();
     if (!mounted || _landing || _closing) return;
-    // Still growing: it lands when the icon has grown (see [buildAt]).
+    // Still growing: it lands when the icon has grown (see [buildAt]). A
+    // held icon has what it was waiting for, and grows now.
     if (widget.animation.status != AnimationStatus.completed) {
       _landPending = true;
+      _lift();
       return;
     }
     _landing = true;
     _land.forward();
+  }
+
+  /// A held icon lifts off. The home icon goes and the scene's copy of it
+  /// is drawn on the same frame, so it neither blinks nor doubles.
+  void _lift() {
+    _holdTimeout?.cancel();
+    if (!_held || !mounted || _closing) return;
+    widget.route.lifted?.value = true;
+    setState(() => _held = false);
+    widget.route._lift();
   }
 
   double _clamp01(double x) => x < 0 ? 0 : (x > 1 ? 1 : x);
@@ -465,7 +523,8 @@ class _PassageVeilState extends State<_PassageVeil>
       land: _given,
       closing: _closing,
     );
-    _ScenePainter? painter(bool back) => settled
+    // Held, the home icon is still standing in its place: nothing to draw.
+    _ScenePainter? painter(bool back) => settled || _held
         ? null
         : _ScenePainter(scene, back: back, stage: stage, repaint: _repaint);
     return AbsorbPointer(
@@ -483,7 +542,12 @@ class _PassageVeilState extends State<_PassageVeil>
               animation: _fade,
               builder: (_, child) =>
                   Opacity(opacity: scene.pageShown(_given), child: child),
-              child: _built ? widget.child : const SizedBox.expand(),
+              // Its own layer: the window and the fade change every frame
+              // of the landing, and the page under them should be recorded
+              // once rather than with each of those frames.
+              child: RepaintBoundary(
+                child: _built ? widget.child : const SizedBox.expand(),
+              ),
             ),
           ),
           IgnorePointer(

@@ -16,7 +16,11 @@ import 'package:provider/provider.dart';
 /// straight away otherwise (and where no [StoryManager] is provided).
 Future<void> maybePlayFirstFusionStory(BuildContext context) async {
   final story = context.read<StoryManager?>();
-  if (story == null || story.hasSeen(StoryEvent.firstBreeding)) return;
+  if (story == null) return;
+  // The seen-set loads from the save asynchronously; asking before it is in
+  // played this again on the first fusion of every launch.
+  await story.ready;
+  if (!context.mounted || story.hasSeen(StoryEvent.firstBreeding)) return;
   story.trigger(StoryEvent.firstBreeding);
   final pages = story.drainQueue();
   if (pages.isEmpty) return;

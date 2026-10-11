@@ -17,6 +17,7 @@ import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
+import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
@@ -636,7 +637,7 @@ void main() {
       expect(newRun.primary, isFalse);
       expect(find.byKey(const ValueKey('survival.start')), findsNothing);
 
-      // The run's team, and no changing it.
+      // The run's team, which can still be changed — at the run's cost.
       expect(find.text('WATERLET'), findsOneWidget);
       expect(
         tester
@@ -644,12 +645,12 @@ void main() {
               find.byKey(const ValueKey('survival.changeTeam')),
             )
             .enabled,
-        isFalse,
+        isTrue,
       );
       expect(
         find.text(
-          'This team is in the saved wave 46 run. Start a new run to change '
-          'it.',
+          'This team is in the saved wave 46 run. Changing it abandons that '
+          'run.',
         ),
         findsOneWidget,
       );
@@ -743,6 +744,58 @@ void main() {
       expect(masteryEarned(save), before);
       expect(game(tester).party.map((m) => m.instanceId), kLobbyTeam);
       expect(game(tester).spawner.currentWave, 1);
+      expect(tester.takeException(), isNull);
+
+      await save.dispose(tester);
+    });
+
+    testWidgets('CHANGE TEAM abandons the kept run, then opens the picker', (
+      tester,
+    ) async {
+      phone(tester);
+      final save = await LobbySave.create(tester, team: kLobbyTeam);
+      await tester.runAsync(
+        () => SuspendedRunStore(save.db).save(keptRun(save, wave: 46)),
+      );
+      final before = masteryEarned(save);
+      await tester.pumpWidget(withAudio(save));
+      await settleLobby(tester, 12);
+
+      // Kept is kept, and no picker.
+      await tester.tap(find.byKey(const ValueKey('survival.changeTeam')));
+      await settleLobby(tester, 6);
+      expect(
+        find.text('Abandon the wave 46 run? Its mastery is lost.'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('KEEP'));
+      await settleLobby(tester, 6);
+      expect(await savedRun(tester, save), isNotNull);
+      expect(find.byType(PartyPickerScreen), findsNothing);
+      expect(find.byKey(const ValueKey('survival.continue')), findsOneWidget);
+
+      // Abandoned: gone, nothing paid, the picker open on the same team, and
+      // the lobby back to START underneath it.
+      await tester.tap(find.byKey(const ValueKey('survival.changeTeam')));
+      await settleLobby(tester, 6);
+      await tester.tap(find.text('ABANDON'));
+      await settleLobby(tester, 20);
+      expect(await savedRunRow(tester, save), isNull);
+      expect(masteryEarned(save), before);
+      expect(
+        tester
+            .widget<PartyPickerScreen>(find.byType(PartyPickerScreen))
+            .initialSelection,
+        kLobbyTeam,
+      );
+      expect(
+        find.byKey(const ValueKey('survival.start'), skipOffstage: false),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('survival.continue'), skipOffstage: false),
+        findsNothing,
+      );
       expect(tester.takeException(), isNull);
 
       await save.dispose(tester);

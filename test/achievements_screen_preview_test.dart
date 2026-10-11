@@ -227,6 +227,28 @@ void main() {
     await settle(14);
     await shoot('09_home_again');
 
+    // A ready sphere collected where it sits on the wall.
+    final lets = find.byKey(const ValueKey('reward_fuse_let_5'));
+    await tester.scrollUntilVisible(
+      lets,
+      -300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.ensureVisible(lets);
+    await settle(4);
+    await shoot('09b_wall_ready');
+    await tester.tap(
+      find.descendant(of: lets, matching: find.text('COLLECT')),
+    );
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 200)),
+    );
+    await tester.pump(const Duration(milliseconds: 120));
+    await tester.pump(const Duration(milliseconds: 300));
+    await shoot('09c_wall_collecting');
+    await settle(14);
+    await shoot('09d_wall_collected');
+
     // An underway one.
     final mask = find.text('A lineage of masks');
     await tester.scrollUntilVisible(

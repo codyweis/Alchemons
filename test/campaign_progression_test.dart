@@ -347,6 +347,24 @@ void main() {
     completed.dispose();
   });
 
+  test('a story heard once stays heard when asked before the load is awaited',
+      () async {
+    final first = StoryManager(db.settingsDao);
+    await first.ready;
+    await first.acknowledge(StoryEvent.firstBreeding);
+    // The app provider starts the load without awaiting it; the first fusion
+    // of a launch asks right after.
+    final relaunched = StoryManager(db.settingsDao)..loadSeen();
+    await relaunched.ready;
+    expect(relaunched.hasSeen(StoryEvent.firstBreeding), isTrue);
+    final cold = StoryManager(db.settingsDao);
+    await cold.ready;
+    expect(cold.hasSeen(StoryEvent.firstBreeding), isTrue);
+    first.dispose();
+    relaunched.dispose();
+    cold.dispose();
+  });
+
   test('legacy ship owners are not sent back to the starter mission', () async {
     await db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
     final snapshot = await CampaignJournalService(db).load();

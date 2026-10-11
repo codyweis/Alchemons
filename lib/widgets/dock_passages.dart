@@ -513,6 +513,11 @@ class EnhancePassage extends PassageScene {
   @override
   Duration get landing => const Duration(milliseconds: 700);
 
+  /// The picker is heavy to build; built at its hold it froze the creature
+  /// there for a moment, so it is built before the creature lifts off.
+  @override
+  bool get buildFirst => true;
+
   @override
   Listenable? get listenable => creature;
 

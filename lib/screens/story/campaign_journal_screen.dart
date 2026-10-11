@@ -24,8 +24,9 @@ import 'package:provider/provider.dart';
 
 /// The achievements: the main story as a row of chapter beads over the
 /// current chapter, then every other achievement as a grain sphere, three
-/// across per category, that forms as it is worked towards. Tapping one
-/// opens what it asks and what it pays.
+/// across per category, that forms as it is worked towards. What each asks
+/// is written under it, and a waiting reward is collected right there;
+/// tapping a sphere opens what it pays.
 ///
 /// It was a list of outlined cards in a mint and amber of its own until
 /// 2026-10, the last screen still in that look.
@@ -608,12 +609,19 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
                     heroTag: _sphereHeroTag(a.id),
                     settle: _settleFor(a.id),
                     title: a.title,
+                    description: a.description,
                     state: _stateOf(s, a),
                     progress: s.progress(a) / a.target,
                     seed: AchievementSphere.seedFor(a.id),
                     tone: _toneOf(shelf, fc),
                     gold: fc.rewardGold,
                     status: _status(s, a),
+                    // A waiting reward is collected where it sits; opening
+                    // the sphere is for reading what it pays.
+                    onCollect: _stateOf(s, a) == AchievementSphereState.ready
+                        ? () => claim([a])
+                        : null,
+                    collecting: _claiming,
                     onTap: () => _openSphere(s, a),
                   ),
             ],
@@ -1054,7 +1062,9 @@ class _ShelfHead extends StatelessWidget {
 }
 
 /// Three across on a phone, more on anything wider, every cell the same
-/// width so the spheres line up in columns.
+/// width so the spheres line up in columns. A row is as tall as its longest
+/// description, and every cell in it is stretched to that height so the
+/// status words along the bottom stay level.
 class _SphereWall extends StatelessWidget {
   const _SphereWall({required this.children});
 
@@ -1071,11 +1081,23 @@ class _SphereWall extends StatelessWidget {
           8,
         );
         final cell = (c.maxWidth - _gap * (columns - 1)) / columns;
-        return Wrap(
-          spacing: _gap,
-          runSpacing: 24,
+        return Column(
           children: [
-            for (final child in children) SizedBox(width: cell, child: child),
+            for (var i = 0; i < children.length; i += columns) ...[
+              if (i > 0) const SizedBox(height: 24),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    for (final (j, child)
+                        in children.skip(i).take(columns).indexed) ...[
+                      if (j > 0) const SizedBox(width: _gap),
+                      SizedBox(width: cell, child: child),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ],
         );
       },
@@ -1090,12 +1112,15 @@ class _SphereCell extends StatelessWidget {
     required this.heroTag,
     required this.settle,
     required this.title,
+    required this.description,
     required this.state,
     required this.progress,
     required this.seed,
     required this.tone,
     required this.gold,
     required this.status,
+    required this.onCollect,
+    required this.collecting,
     required this.onTap,
   });
 
@@ -1103,17 +1128,26 @@ class _SphereCell extends StatelessWidget {
   final String heroTag;
   final Duration settle;
   final String title;
+  final String description;
   final AchievementSphereState state;
   final double progress;
   final int seed;
   final Color tone;
   final Color gold;
   final Widget status;
+
+  /// Set while the reward waits: a COLLECT takes the status word's place.
+  final VoidCallback? onCollect;
+
+  /// A collect is under way somewhere on the page; this one waits for it.
+  final bool collecting;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final palette = BracketPalette.of(context);
+    final sealed = state == AchievementSphereState.sealed;
+    final collect = onCollect;
     return Semantics(
       button: true,
       label: title,
@@ -1143,31 +1177,47 @@ class _SphereCell extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
-            // Two lines at whatever size the player reads at, so every
-            // status word in a row sits on one line.
-            SizedBox(
-              height:
-                  MediaQuery.textScalerOf(context).scale(12.5) * 1.1 * 2 + 2,
-              child: Text(
-                title,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: bracketText(
-                  context,
-                  12.5,
-                  state == AchievementSphereState.sealed
-                      ? palette.muted
-                      : palette.ink,
-                  weight: FontWeight.w600,
-                ).copyWith(height: 1.1),
+            // The row stretches every cell to its tallest, so the title and
+            // description run at their own length and the status words still
+            // line up along the bottom.
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: bracketText(
+                context,
+                12.5,
+                sealed ? palette.muted : palette.ink,
+                weight: FontWeight.w600,
+              ).copyWith(height: 1.1),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              description,
+              textAlign: TextAlign.center,
+              style: bracketText(
+                context,
+                11,
+                palette.muted.withValues(alpha: sealed ? 0.6 : 1),
+              ).copyWith(height: 1.3),
+            ),
+            const Spacer(),
+            const SizedBox(height: 6),
+            if (collect != null)
+              BracketButton(
+                label: 'COLLECT',
+                onTap: collect,
+                enabled: !collecting,
+                palette: palette,
+                accent: gold,
+                height: 28,
+              )
+            else
+              SizedBox(
+                height: MediaQuery.textScalerOf(context).scale(13),
+                child: FittedBox(fit: BoxFit.scaleDown, child: status),
               ),
-            ),
-            const SizedBox(height: 2),
-            SizedBox(
-              height: MediaQuery.textScalerOf(context).scale(13),
-              child: FittedBox(fit: BoxFit.scaleDown, child: status),
-            ),
           ],
         ),
       ),

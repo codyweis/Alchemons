@@ -29,16 +29,11 @@ class SurvivalLobbyTeam extends StatelessWidget {
     required this.loaded,
     required this.accent,
     required this.onChoose,
-    this.locked = false,
     this.note,
   });
 
   final List<CosmicPartyMember> members;
   final int slots;
-
-  /// The team is a saved run's, and stays as that run left it: it cannot be
-  /// changed until the run ends or is abandoned.
-  final bool locked;
 
   /// A plain line under the slots saying why the team is as it is, in place
   /// of the empty team's prompt.
@@ -77,7 +72,6 @@ class SurvivalLobbyTeam extends StatelessWidget {
                 label: members.isEmpty ? 'CHOOSE TEAM' : 'CHANGE TEAM',
                 height: 30,
                 primary: false,
-                enabled: !locked,
                 palette: panelPalette,
                 accent: accent,
                 onTap: onChoose,
@@ -89,7 +83,7 @@ class SurvivalLobbyTeam extends StatelessWidget {
         GestureDetector(
           key: const ValueKey('survival.teamSlots'),
           behavior: HitTestBehavior.opaque,
-          onTap: locked ? null : context.soundAction(onChoose),
+          onTap: context.soundAction(onChoose),
           child: Row(
             children: [
               for (var i = 0; i < slots; i++) ...[

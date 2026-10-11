@@ -12,7 +12,8 @@ import 'package:alchemons/services/campaign_journal_service.dart';
 //
 // A run is kept as each wave begins and when the player leaves it with SAVE &
 // EXIT (survival_suspended_run.dart). While one is kept the lobby offers
-// CONTINUE in place of START, with its team fixed; NEW RUN abandons it.
+// CONTINUE in place of START, with its team; NEW RUN abandons it, and so
+// does CHANGE TEAM, which then opens the picker.
 
 import 'dart:async';
 import 'dart:convert';
@@ -757,10 +758,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   /// sets the team; START takes it in. The team's cases fly between the
   /// picker and the lobby (SurvivalTeamHero) both ways.
   Future<void> _pickTeam() async {
-    // A kept run's team is that run's until it ends or is abandoned.
-    if (_entrance.active || _phase != _Phase.lobby || _suspended != null) {
+    if (_entrance.active || _phase != _Phase.lobby) return;
+    // A kept run's team is that run's: choosing another abandons the run.
+    if (_suspended != null &&
+        !await _abandonSuspended(title: 'CHANGE TEAM')) {
       return;
     }
+    if (!mounted) return;
     final current = [for (final m in _team) m.instanceId];
     await Navigator.of(context).push<List<PartyMember>>(
       SurvivalTeamPickerRoute(
@@ -997,17 +1001,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     }
   }
 
-  /// Asks before a new run takes the kept run's place: the kept run ends
-  /// there, with no rewards and no mastery. True once it is gone (or when
-  /// there was none).
-  Future<bool> _abandonSuspended() async {
+  /// Asks before a new run or a new team takes the kept run's place: the
+  /// kept run ends there, with no rewards and no mastery. True once it is
+  /// gone (or when there was none).
+  Future<bool> _abandonSuspended({String title = 'NEW RUN'}) async {
     final run = _suspended;
     if (run == null) return true;
     final abandon = await showBracketConfirm(
       context,
       palette: BracketPalette.dark,
       accent: kLeaveDangerAccent,
-      title: 'NEW RUN',
+      title: title,
       message: 'Abandon the wave ${run.wave} run? Its mastery is lost.',
       cancelLabel: 'KEEP',
       confirmLabel: 'ABANDON',
@@ -2429,7 +2433,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                               loaded: _teamLoaded,
                               accent: _brass.amber,
                               onChoose: () => unawaited(_pickTeam()),
-                              locked: suspended != null,
                               note: suspended == null
                                   ? null
                                   : _suspendedBroken
@@ -2438,8 +2441,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                                         'in your collection, so that run '
                                         'cannot continue.'
                                   : 'This team is in the saved wave '
-                                        '${suspended.wave} run. Start a new '
-                                        'run to change it.',
+                                        '${suspended.wave} run. Changing it '
+                                        'abandons that run.',
                             ),
                             const SizedBox(height: 22),
                             // What each family has toward its next node; a

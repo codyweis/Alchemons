@@ -19,13 +19,18 @@ class StoryManager extends ChangeNotifier {
   final Set<StoryEvent> _seen = {};
   final List<StoryPage> _queue = [];
   final Set<StoryEvent> _queuedEvents = {};
+  Future<void>? _loading;
 
-  /// Call once at app boot (e.g., from a provider init).
-  Future<void> loadSeen() async {
-    final loaded = await _persist.loadSeen();
-    _seen
-      ..clear()
-      ..addAll(loaded);
+  /// Call once at app boot (e.g., from a provider init). Repeat calls share
+  /// the first load.
+  Future<void> loadSeen() => _loading ??= _load();
+
+  /// Completes once the saved seen-set is in. [hasSeen] answers false until
+  /// then, so anything deciding whether to play a story awaits this first.
+  Future<void> get ready => loadSeen();
+
+  Future<void> _load() async {
+    _seen.addAll(await _persist.loadSeen());
   }
 
   Future<void> _saveSeen() async {

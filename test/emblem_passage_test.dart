@@ -32,6 +32,34 @@ class _PageState extends State<_Page> {
   );
 }
 
+/// A bare scene that builds its page first, and remembers how far it has
+/// grown.
+class _HeldScene extends PassageScene {
+  double open = -1;
+
+  @override
+  Duration get inward => const Duration(milliseconds: 500);
+
+  @override
+  Duration get outward => const Duration(milliseconds: 500);
+
+  @override
+  Duration get landing => const Duration(milliseconds: 400);
+
+  @override
+  bool get buildFirst => true;
+
+  @override
+  void paint(
+    Canvas canvas,
+    EmblemStage s, {
+    required bool back,
+    required bool front,
+  }) {
+    if (front) open = s.open;
+  }
+}
+
 void main() {
   late GlobalKey emblem;
   late ValueNotifier<bool> lifted;
@@ -205,6 +233,84 @@ void main() {
     await tester.pumpAndSettle();
     expect(built, 0);
     expect(lifted.value, isFalse);
+  });
+
+  group('a scene that builds its page first', () {
+    Future<_HeldScene> pushHeld(
+      WidgetTester tester, {
+      ValueNotifier<bool>? ready,
+      VoidCallback? onBuilt,
+    }) async {
+      await pumpHome(tester, HomeEmblemKind.altar);
+      final scene = _HeldScene();
+      EmblemPassage.pushScene<void>(
+        nav.currentContext!,
+        scene: scene,
+        from: emblem,
+        page: _Page(onBuilt: onBuilt ?? () {}, onTap: () {}),
+        ready: ready,
+        lifted: lifted,
+      );
+      await tester.pump();
+      return scene;
+    }
+
+    testWidgets('builds at the tap and lifts off once the page is ready', (
+      tester,
+    ) async {
+      final ready = ValueNotifier(false);
+      var built = 0;
+      final scene = await pushHeld(
+        tester,
+        ready: ready,
+        onBuilt: () => built++,
+      );
+      expect(built, 1, reason: 'the page goes in with the tap');
+      await tester.pump(const Duration(milliseconds: 200));
+      // The home icon waits in its place, and the scene draws no copy of it
+      // beside it.
+      expect(lifted.value, isFalse);
+      expect(scene.open, -1);
+
+      ready.value = true;
+      await tester.pump();
+      expect(lifted.value, isTrue, reason: 'it lifts off');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(scene.open, greaterThan(0));
+      expect(scene.open, lessThan(1));
+      // Ready already: it gives way the moment it has grown.
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(pageOpacity(tester).opacity, greaterThan(0));
+      await tester.pumpAndSettle();
+      expect(pageOpacity(tester).opacity, 1);
+      expect(built, 1, reason: 'built once');
+    });
+
+    testWidgets('a page that never says ready only holds it briefly', (
+      tester,
+    ) async {
+      final scene = await pushHeld(tester, ready: ValueNotifier(false));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(scene.open, -1);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(scene.open, greaterThan(0), reason: 'it lifts off anyway');
+      await tester.pump(const Duration(seconds: 7));
+      await tester.pumpAndSettle();
+      expect(pageOpacity(tester).opacity, 1);
+    });
+
+    testWidgets('backing out while it is held goes home', (tester) async {
+      await pushHeld(tester, ready: ValueNotifier(false));
+      await tester.pump(const Duration(milliseconds: 100));
+      nav.currentState!.pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(_Page), findsNothing);
+      expect(lifted.value, isFalse);
+      await tester.tapAt(const Offset(40, 500));
+      expect(homeTaps, 1);
+    });
   });
 
   testWidgets('an emblem not laid out falls back to a plain push', (
