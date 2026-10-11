@@ -1,11 +1,11 @@
 {
-    "name": "alchemons",
-    "short_name": "alchemons",
+    "name": "Alchemons",
+    "short_name": "Alchemons",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#09090b",
+    "theme_color": "#09090b",
+    "description": "Extract, breed and fuse Alchemons.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

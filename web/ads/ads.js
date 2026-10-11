@@ -1,0 +1,144 @@
+// The browser build's ad bridge: AdSense display units beside the game and
+// H5 Games Ads (adBreak) for between-screens and rewarded ads. The game
+// reaches it through window.alchemonsAds (lib/services/web_ads_bridge_web.dart).
+// Every call settles even when ads are off, blocked or unfilled, so the game
+// never waits on an ad that is not coming.
+(function () {
+  'use strict';
+
+  const cfg = Object.assign(
+    { client: '', slots: {}, interstitialGapSec: 90, startAd: true },
+    window.ALCHEMONS_ADS || {},
+  );
+  cfg.slots = Object.assign({ railLeft: '', railRight: '', bottom: '' }, cfg.slots);
+  const params = new URLSearchParams(location.search);
+  const test = params.has('adtest');
+  const preview = params.has('adpreview');
+
+  // 'off' | 'loading' | 'ready' | 'blocked'
+  let script = cfg.client ? 'loading' : 'off';
+  window.adsbygoogle = window.adsbygoogle || [];
+  const adBreak = (o) => window.adsbygoogle.push(o);
+
+  if (cfg.client) {
+    const s = document.createElement('script');
+    s.async = true;
+    s.crossOrigin = 'anonymous';
+    s.src =
+      'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' +
+      encodeURIComponent(cfg.client);
+    s.setAttribute('data-ad-frequency-hint', cfg.interstitialGapSec + 's');
+    if (test) s.setAttribute('data-adbreak-test', 'on');
+    s.onload = () => { script = 'ready'; };
+    s.onerror = () => { script = 'blocked'; };
+    document.head.appendChild(s);
+    adBreak({ preloadAdBreaks: 'on', sound: 'on' }); // adConfig
+  }
+
+  const usable = () => script === 'ready' || script === 'loading';
+  let lastBreak = 0;
+  let showing = false;
+
+  /// One adBreak, wrapped so it always settles. Resolves with whether an ad
+  /// actually played. A break that never starts (no fill, not approved yet,
+  /// blocked) gives up after [patienceMs].
+  function runBreak(options, onStart, onEnd, patienceMs) {
+    return new Promise((resolve) => {
+      if (!usable() || showing) return resolve({ played: false });
+      let started = false;
+      let ended = false;
+      let settled = false;
+      const end = () => {
+        if (!started || ended) return;
+        ended = true;
+        showing = false;
+        try { onEnd && onEnd(); } catch (_) {}
+      };
+      const finish = (result) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        end();
+        resolve(result);
+      };
+      const timer = setTimeout(() => { if (!started) finish({ played: false }); }, patienceMs);
+      adBreak(Object.assign({}, options, {
+        beforeAd() {
+          started = true;
+          showing = true;
+          lastBreak = Date.now();
+          try { onStart && onStart(); } catch (_) {}
+        },
+        afterAd: end,
+        adBreakDone(info) {
+          finish({ played: !!(info && info.breakStatus === 'viewed'), info });
+        },
+      }));
+    });
+  }
+
+  function interstitial(placement, onStart, onEnd, type) {
+    const gap = cfg.interstitialGapSec * 1000;
+    if (Date.now() - lastBreak < gap) return Promise.resolve(null);
+    return runBreak({ type: type || 'next', name: String(placement) }, onStart, onEnd, 5000)
+      .then(() => null);
+  }
+
+  function rewarded(placement, onStart, onEnd) {
+    let viewed = false;
+    return runBreak(
+      {
+        type: 'reward',
+        name: String(placement),
+        // The player already chose to watch by pressing the button.
+        beforeReward(showAdFn) { showAdFn(); },
+        adViewed() { viewed = true; },
+        adDismissed() { viewed = false; },
+      },
+      onStart,
+      onEnd,
+      6000,
+    ).then(() => viewed);
+  }
+
+  // ── Display units ───────────────────────────────────────────────────────
+
+  /// Fills [box] with a display unit of [w]×[h] (or a placeholder in preview
+  /// mode). Returns false when there is nothing to show there.
+  function mountDisplay(box, slotKey, w, h) {
+    box.replaceChildren();
+    const slot = cfg.slots[slotKey] || (slotKey === 'railRight' ? cfg.slots.railLeft : '');
+    if (preview && !(cfg.client && slot)) {
+      const ph = document.createElement('div');
+      ph.className = 'ad-placeholder';
+      ph.style.width = w + 'px';
+      ph.style.height = h + 'px';
+      ph.textContent = w + ' × ' + h;
+      box.appendChild(ph);
+      return true;
+    }
+    if (!cfg.client || !slot || script === 'blocked') return false;
+    const ins = document.createElement('ins');
+    ins.className = 'adsbygoogle';
+    ins.style.display = 'inline-block';
+    ins.style.width = w + 'px';
+    ins.style.height = h + 'px';
+    ins.setAttribute('data-ad-client', cfg.client);
+    ins.setAttribute('data-ad-slot', slot);
+    if (test) ins.setAttribute('data-adtest', 'on');
+    box.appendChild(ins);
+    try { window.adsbygoogle.push({}); } catch (_) {}
+    return true;
+  }
+
+  window.alchemonsAds = {
+    get configured() { return !!cfg.client && usable(); },
+    get showing() { return showing; },
+    get startAd() { return !!cfg.startAd; },
+    get hasBottom() { return preview || (!!cfg.client && !!cfg.slots.bottom); },
+    get hasRails() { return preview || (!!cfg.client && !!(cfg.slots.railLeft || cfg.slots.railRight)); },
+    interstitial,
+    rewarded,
+    mountDisplay,
+  };
+})();

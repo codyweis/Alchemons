@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'sound_cue.dart';
+import 'package:alchemons/audio/playable_asset.dart';
 
 /// Small injectable boundary: tests exercise scheduling without platform audio.
 abstract class SoundVoice {
@@ -15,7 +16,7 @@ class JustAudioSoundVoice implements SoundVoice {
   final AudioPlayer _player = AudioPlayer();
   @override
   Future<void> load(String asset) async {
-    await _player.setAsset(asset);
+    await _player.setAsset(playableAsset(asset));
   }
 
   @override

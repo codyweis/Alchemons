@@ -6,11 +6,13 @@ import 'package:alchemons/audio/sound_effects_player.dart';
 export 'package:alchemons/audio/sound_cue.dart';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:alchemons/audio/playable_asset.dart';
 
 enum MusicCue {
   home,
@@ -125,8 +127,20 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     final lifecycleState = WidgetsBinding.instance.lifecycleState;
     _appIsForeground =
         lifecycleState == null || lifecycleState == AppLifecycleState.resumed;
+    WebAds.showing.addListener(_onAdShowing);
     _bootstrapFuture = _bootstrap();
   }
+
+  /// A web ad covers the page: go quiet the way the background does, and
+  /// pick back up when it closes. Never fires on iOS or Android.
+  void _onAdShowing() {
+    _syncSounds();
+    if (WebAds.showing.value) unawaited(stopSustained());
+    unawaited(_applyMusicState());
+  }
+
+  /// Audible: in the foreground and not behind an ad.
+  bool get _audible => _appIsForeground && !WebAds.showing.value;
 
   /// just_audio copies each asset into a cache file the first time it plays
   /// and never looks at it again, so a sound changed in an update would keep
@@ -182,7 +196,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
 
   bool get effectiveMusicEnabled => _masterEnabled && _musicEnabled;
   bool get effectiveSoundsEnabled => _masterEnabled && _soundsEnabled;
-  bool get _shouldPlayMusic => effectiveMusicEnabled && _appIsForeground;
+  bool get _shouldPlayMusic => effectiveMusicEnabled && _audible;
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -336,7 +350,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
         break;
       }
       try {
-        await _musicPlayer.setAsset(candidate);
+        await _musicPlayer.setAsset(playableAsset(candidate));
         if (request != _musicRequest) return;
         loaded = candidate;
         break;
@@ -383,7 +397,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     if (_disposed ||
         !_isLoaded ||
         !effectiveSoundsEnabled ||
-        !_appIsForeground) {
+        !_audible) {
       return;
     }
     await _sounds.play(cue, owner: owner, speed: speed);
@@ -407,7 +421,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     _sustainCue = cue;
     _sustainGeneration++;
     try {
-      await _sustainPlayer.setAsset(cue.asset);
+      await _sustainPlayer.setAsset(playableAsset(cue.asset));
       await _sustainPlayer.setLoopMode(LoopMode.one);
       await _sustainPlayer.setVolume(volume);
       await _sustainPlayer.play();
@@ -443,7 +457,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
 
   void _syncSounds() {
     final enabled =
-        !_disposed && _isLoaded && effectiveSoundsEnabled && _appIsForeground;
+        !_disposed && _isLoaded && effectiveSoundsEnabled && _audible;
     _sounds.setEnabled(enabled);
     _ambience.setEnabled(enabled);
   }
@@ -484,7 +498,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
         break;
       }
       try {
-        await _musicPlayer.setAsset(asset);
+        await _musicPlayer.setAsset(playableAsset(asset));
         if (request != _musicRequest) return;
         loaded = asset;
         break;
@@ -580,7 +594,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
 
     for (final candidate in _prioritizeCodecCandidates(ordered)) {
       try {
-        await _musicPlayer.setAsset(candidate);
+        await _musicPlayer.setAsset(playableAsset(candidate));
         _currentMusicAsset = candidate;
         _lastCosmicMusicAsset = candidate;
 
@@ -692,6 +706,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    WebAds.showing.removeListener(_onAdShowing);
     _masterSub?.cancel();
     _musicSub?.cancel();
     _soundsSub?.cancel();

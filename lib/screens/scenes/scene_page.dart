@@ -44,6 +44,7 @@ import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -509,6 +510,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    // Browser build only: leaving is a natural pause for an ad.
+    WebAds.breakAfter('field');
     _revealWhenReady.dispose();
     try {
       if (_isCosmicPlanetMode) {

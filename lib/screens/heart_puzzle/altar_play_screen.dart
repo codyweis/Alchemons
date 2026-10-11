@@ -38,6 +38,7 @@ import 'package:alchemons/screens/heart_puzzle/altar_realm.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_recipe_book.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_stage_art.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/fx/element_orb.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
@@ -299,6 +300,8 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
 
   @override
   void dispose() {
+    // Browser build only: leaving is a natural pause for an ad.
+    WebAds.breakAfter('puzzle');
     _ticker.dispose();
     _tick.dispose();
     super.dispose();

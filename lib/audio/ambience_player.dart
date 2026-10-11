@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:alchemons/audio/playable_asset.dart';
 
 enum AmbienceCue {
   cosmicSpace('amb_cosmic_space_loop'),
@@ -45,7 +46,7 @@ class _JustAudioAmbienceVoice implements AmbienceVoice {
   @override
   Future<void> load(String asset) async {
     await _player.setLoopMode(LoopMode.one);
-    await _player.setAsset(asset);
+    await _player.setAsset(playableAsset(asset));
   }
 
   @override

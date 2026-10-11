@@ -67,6 +67,7 @@ import 'package:alchemons/games/cosmic_survival/components/survival_orb_entrance
 import 'package:alchemons/games/cosmic_survival/survival_suspended_run.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
     show PanelReadout, PanelRow, PanelSectionHeader, panelLabel, panelPalette;
+import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
     show MarkDiamond, elementLight;
 import 'package:flame/game.dart';
@@ -474,6 +475,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
   @override
   void dispose() {
+    // Browser build only: leaving is a natural pause for an ad.
+    WebAds.breakAfter('survival');
     WidgetsBinding.instance.removeObserver(this);
     _soundController?.stopSoundOwner(this);
     _hudTimer?.cancel();

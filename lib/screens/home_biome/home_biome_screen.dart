@@ -45,6 +45,7 @@ import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/fx/keepsake_art.dart';
 import 'package:alchemons/widgets/fx/keepsake_view.dart';
 import 'package:alchemons/services/shop_service.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -289,6 +290,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   @override
   void dispose() {
+    // Browser build only: leaving is a natural pause for an ad.
+    WebAds.breakAfter('home_biome');
     _disarm?.cancel();
     _reveal.dispose();
     _sweep.dispose();

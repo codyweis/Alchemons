@@ -1,6 +1,7 @@
 // lib/services/push_notification_service.dart
 
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
@@ -79,8 +80,16 @@ class PushNotificationService {
   /// the middle of the opening, between choosing a faction and the starter
   /// vial, before the player had anything a notification could be about. It
   /// is asked for after the first extraction instead ([requestPermissions]).
+  /// False on the web, which has no local notifications: every method below
+  /// quietly does nothing there.
+  Future<bool> _ready() async {
+    if (kIsWeb) return false;
+    if (!_initialized) await initialize();
+    return true;
+  }
+
   Future<void> initialize({bool requestPermission = true}) async {
-    if (_initialized) return;
+    if (_initialized || kIsWeb) return;
 
     // Initialize timezone data
     tz.initializeTimeZones();
@@ -135,6 +144,7 @@ class PushNotificationService {
   /// The system's notification permission prompt (iOS/macOS, Android 13+).
   /// Safe to call more than once: the OS only ever asks once.
   Future<void> requestPermissions() async {
+    if (kIsWeb) return;
     // Request permissions for iOS/macOS
     if (Platform.isIOS || Platform.isMacOS) {
       await _notifications
@@ -238,7 +248,7 @@ class PushNotificationService {
   }) async {
     // Built on the way out instead; see _suppressScheduling.
     if (_suppressScheduling) return;
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     if (!await _prefs.isCultivationsEnabled()) return;
 
     final now = DateTime.now();
@@ -366,7 +376,7 @@ class PushNotificationService {
   }) async {
     // Silent while they are already here; the in-app banner has it.
     if (_suppressImmediate) return;
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     if (!await _prefs.isCultivationsEnabled()) return;
 
     await _notifications.show(
@@ -393,6 +403,7 @@ class PushNotificationService {
   }
 
   Future<void> cancelEggNotification({int? slotIndex}) async {
+    if (kIsWeb) return;
     if (slotIndex != null) {
       final safeSlotIndex = slotIndex.clamp(0, 99);
       await _notifications.cancel(eggHatchingBaseId + safeSlotIndex);
@@ -425,7 +436,7 @@ class PushNotificationService {
   }
 
   Future<void> cancelEggReadySummaryNotification() async {
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     await _notifications.cancel(eggReadyConsolidatedId);
   }
 
@@ -434,7 +445,7 @@ class PushNotificationService {
   // ============================================================================
 
   Future<void> cancelLegacyWildernessSpawnNotifications() async {
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     for (int i = 0; i < 100; i++) {
       await _notifications.cancel(wildernessSpawnBaseId + i);
     }
@@ -447,7 +458,7 @@ class PushNotificationService {
   }) async {
     // Built on the way out instead; see _suppressScheduling.
     if (_suppressScheduling) return;
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
 
     if (!await _prefs.isWildernessEnabled()) {
       await _notifications.cancel(wildernessScheduledId);
@@ -484,7 +495,7 @@ class PushNotificationService {
   }
 
   Future<void> cancelWildernessSpawnNotification() async {
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     await _notifications.cancel(wildernessScheduledId);
     debugPrint('🔕 Cancelled scheduled wilderness notification');
   }
@@ -496,7 +507,7 @@ class PushNotificationService {
   }) async {
     // Silent while they are already here; the in-app banner has it.
     if (_suppressImmediate) return;
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     if (!await _prefs.isWildernessEnabled()) return;
 
     await _notifications.show(
@@ -520,6 +531,7 @@ class PushNotificationService {
   }
 
   Future<void> cancelWildernessNotifications() async {
+    if (kIsWeb) return;
     // Cancel all wilderness notifications (individual + consolidated)
     for (int i = 0; i < 100; i++) {
       await _notifications.cancel(wildernessSpawnBaseId + i);
@@ -530,7 +542,7 @@ class PushNotificationService {
   }
 
   Future<void> cancelWildernessSummaryNotification() async {
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     await _notifications.cancel(wildernessConsolidatedId);
     debugPrint('🔕 Cancelled wilderness summary notification');
   }
@@ -545,7 +557,7 @@ class PushNotificationService {
   }) async {
     // Built on the way out instead; see _suppressScheduling.
     if (_suppressScheduling) return;
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     if (!await _prefs.isExtractionsEnabled()) return;
 
     final localReadyTime = readyTime.isUtc ? readyTime.toLocal() : readyTime;
@@ -584,7 +596,7 @@ class PushNotificationService {
   }) async {
     // Silent while they are already here; the in-app banner has it.
     if (_suppressImmediate) return;
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     if (!await _prefs.isExtractionsEnabled()) return;
 
     await _notifications.show(
@@ -610,13 +622,13 @@ class PushNotificationService {
   }
 
   Future<void> cancelHarvestSummaryNotification() async {
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     await _notifications.cancel(harvestConsolidatedId);
     debugPrint('🔕 Cancelled harvest summary notification');
   }
 
   Future<void> cancelHarvestScheduledNotification() async {
-    if (!_initialized) await initialize();
+    if (!await _ready()) return;
     await _notifications.cancel(harvestScheduledId);
 
     // Cleanup any legacy per-biome harvest schedules from older builds.
@@ -628,6 +640,7 @@ class PushNotificationService {
   }
 
   Future<void> cancelHarvestNotification({String? biomeId}) async {
+    if (kIsWeb) return;
     await cancelHarvestScheduledNotification();
     if (biomeId == null) {
       await _notifications.cancel(harvestConsolidatedId);
@@ -677,6 +690,7 @@ class PushNotificationService {
 
   // Cancel all notifications
   Future<void> cancelAll() async {
+    if (kIsWeb) return;
     await _notifications.cancelAll();
     _eggHatchWindowSlots.clear();
     _eggHatchWindowConsolidatedIds.clear();
@@ -685,6 +699,7 @@ class PushNotificationService {
 
   // Get pending notifications (for debugging)
   Future<List<PendingNotificationRequest>> getPendingNotifications() async {
+    if (kIsWeb) return const [];
     return await _notifications.pendingNotificationRequests();
   }
 

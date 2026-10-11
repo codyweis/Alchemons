@@ -1,38 +1,59 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <!--
-    If you are serving your web app in a path other than the root, change the
-    href value below to reflect the base path you are serving from.
-
-    The path provided below has to start and end with a slash "/" in order for
-    it to work correctly.
-
-    For more details:
-    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
-
-    This is a placeholder for base href that will be replaced by the value of
-    the `--base-href` argument provided to `flutter build`.
-  -->
+  <!-- Replaced by `flutter build web --base-href /play/` (tool/build_web.sh). -->
   <base href="$FLUTTER_BASE_HREF">
 
   <meta charset="UTF-8">
-  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Play Alchemons</title>
+  <meta name="description" content="Play Alchemons free in your browser: extract, breed and fuse Alchemons, explore the wild and the cosmos.">
+  <meta name="theme-color" content="#09090b">
 
-  <!-- iOS meta tags & icons -->
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Play Alchemons">
+  <meta property="og:description" content="Free in your browser. Extract, breed and fuse Alchemons.">
+  <meta property="og:url" content="https://alchemons.com/play/">
+  <meta property="og:image" content="https://alchemons.com/assets/brand/og.jpg">
+  <meta name="twitter:card" content="summary_large_image">
+
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="alchemons">
+  <meta name="apple-mobile-web-app-title" content="Alchemons">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/png" href="favicon.png"/>
-
-  <title>alchemons</title>
+  <link rel="icon" type="image/png" href="favicon.png">
   <link rel="manifest" href="manifest.json">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shell.css">
 </head>
 <body>
+  <canvas id="sand" aria-hidden="true"></canvas>
+
+  <div class="rail-ad" id="ad-left"><span class="ad-label">Advertisement</span><div class="ad-box"></div></div>
+  <div class="rail-ad" id="ad-right"><span class="ad-label">Advertisement</span><div class="ad-box"></div></div>
+
+  <main id="column">
+    <div id="game"></div>
+    <div id="gate">
+      <img class="gate-logo" src="brand/logo.webp" alt="Alchemons" width="884" height="219">
+      <button id="play" type="button" disabled>Loading</button>
+      <p class="gate-note">Free to play in your browser. Your save stays in this browser; sign in from your profile in the game to back it up and carry it to the app.</p>
+      <nav class="gate-links" aria-label="Site">
+        <a href="/">Alchemons.com</a>
+        <a href="/privacy/">Privacy</a>
+      </nav>
+    </div>
+  </main>
+
+  <div id="bottom-ad"></div>
+
+  <script src="ads/config.js"></script>
+  <script src="ads/ads.js"></script>
+  <script src="sand/star_sand.js"></script>
+  <script src="shell.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

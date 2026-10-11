@@ -36,6 +36,7 @@ import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart'
     show riteCaptivesFrom, riteSpeciesFrom;
 import 'package:alchemons/services/creature_repository.dart'
     show CreatureCatalog;
+import 'package:alchemons/services/web_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _C {
@@ -808,6 +809,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
   @override
   void dispose() {
+    // Browser build only: leaving is a natural pause for an ad.
+    WebAds.breakAfter('dungeon');
     _soundController?.stopSoundOwner(this);
     // Belt and braces: _prepareExit drops it on the normal pop, but a screen
     // torn down another way must not leave a listener on the static notifier.

@@ -12,6 +12,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -200,6 +201,8 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
 
   @override
   void dispose() {
+    // Browser build only: leaving is a natural pause for an ad.
+    WebAds.breakAfter('rift');
     _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
     // Back to whatever is behind: portrait for space, matching every other
     // landscape screen ("all four" left the phone sideways on the way back

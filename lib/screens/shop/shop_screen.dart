@@ -28,6 +28,7 @@ import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/screens/shop/alchemon_exchange_screen.dart';
 import 'package:alchemons/screens/shop/gold_vault.dart';
 import 'package:alchemons/screens/shop/shop_widgets.dart';
+import 'package:alchemons/screens/shop/web_ad_gold.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/black_market_service.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -49,6 +50,7 @@ import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/wallet_panel.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/perf/viewport_ticker_gate.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1072,6 +1074,21 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                 ? AppIcons.shopping_bag_rounded
                 : AppIcons.error_rounded,
             color: started ? goldAccent : t.danger,
+          );
+        }
+
+        if (kIsWeb) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            child: WebAdGoldCard(
+              onResult: (message, {required ok}) => _toast(
+                message,
+                icon: ok ? AppIcons.check_rounded : AppIcons.error_rounded,
+                color: ok
+                    ? t.readableAccent(const Color(0xFFFFD700))
+                    : t.danger,
+              ),
+            ),
           );
         }
 

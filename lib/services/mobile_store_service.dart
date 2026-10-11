@@ -76,13 +76,16 @@ class _PendingRedeem {
 
 class MobileStoreService extends ChangeNotifier {
   MobileStoreService(this._db, this._accountService, this._verification) {
-    _purchaseSub = _iap.purchaseStream.listen(
-      _handlePurchaseUpdates,
-      onError: (Object error, StackTrace stackTrace) {
-        _lastError = 'Store stream error: $error';
-        notifyListeners();
-      },
-    );
+    // No store on the web: touching the plugin there throws.
+    if (!kIsWeb) {
+      _purchaseSub = _iap.purchaseStream.listen(
+        _handlePurchaseUpdates,
+        onError: (Object error, StackTrace stackTrace) {
+          _lastError = 'Store stream error: $error';
+          notifyListeners();
+        },
+      );
+    }
     _accountListener = () => unawaited(drainPendingRedeems());
     _accountService.addListener(_accountListener);
     unawaited(refreshCatalog());
@@ -99,7 +102,7 @@ class MobileStoreService extends ChangeNotifier {
   final AccountService _accountService;
   final PurchaseVerificationService _verification;
   final InAppPurchase _iap = InAppPurchase.instance;
-  late final StreamSubscription<List<PurchaseDetails>> _purchaseSub;
+  StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
   late final VoidCallback _accountListener;
 
   static const List<GoldPackDefinition> _catalog = [
@@ -469,7 +472,7 @@ class MobileStoreService extends ChangeNotifier {
   @override
   void dispose() {
     _accountService.removeListener(_accountListener);
-    _purchaseSub.cancel();
+    _purchaseSub?.cancel();
     super.dispose();
   }
 }

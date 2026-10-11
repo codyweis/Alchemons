@@ -90,6 +90,7 @@ import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/cosmic_ship_emblem.dart';
 import 'package:alchemons/navigation/emblem_passage.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'widgets/planet_descent_passage.dart';
 import 'widgets/chart_zoom.dart';
 import 'widgets/space_action_glyphs.dart';
@@ -7638,6 +7639,8 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   @override
   void dispose() {
+    // Browser build only: leaving is a natural pause for an ad.
+    WebAds.breakAfter('space');
     _homeTourTimer?.cancel();
     ambienceRouteObserver.unsubscribe(this);
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);

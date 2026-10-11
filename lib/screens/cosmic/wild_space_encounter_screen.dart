@@ -25,6 +25,7 @@ import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/wilderness.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
@@ -170,6 +171,8 @@ class _WildSpaceEncounterScreenState extends State<WildSpaceEncounterScreen>
 
   @override
   void dispose() {
+    // Browser build only: leaving is a natural pause for an ad.
+    WebAds.breakAfter('space_encounter');
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
