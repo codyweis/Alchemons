@@ -74,6 +74,151 @@ AlchemonCombatStats _perfectStats(String family) =>
       );
     });
 
+/// [instance] as the arena summons it: its stats with the constellation's
+/// bonuses, its sprite and its look. The Battle tab and the debug ability lab
+/// both build it here, so the two always show the same creature.
+CosmicPartyMember _summonedMemberFor(
+  BuildContext context, {
+  required CreatureInstance instance,
+  required Creature creature,
+  required String family,
+  required String element,
+}) {
+  final bonuses = context.read<ConstellationEffectsService>();
+  final i = instance;
+  return CosmicPartyMember(
+    instanceId: 'preview_${i.instanceId}',
+    baseId: i.baseId,
+    displayName: i.nickname ?? creature.name,
+    imagePath: 'assets/images/${creature.image}',
+    element: element,
+    family: family,
+    level: i.level,
+    statSpeed: bonuses.applyCombatStatBonus('speed', i.statSpeed),
+    statIntelligence: bonuses.applyCombatStatBonus(
+      'intelligence',
+      i.statIntelligence,
+    ),
+    statStrength: bonuses.applyCombatStatBonus('strength', i.statStrength),
+    statBeauty: bonuses.applyCombatStatBonus('beauty', i.statBeauty),
+    statSpeedPotential: i.statSpeedPotential,
+    statIntelligencePotential: i.statIntelligencePotential,
+    statStrengthPotential: i.statStrengthPotential,
+    statBeautyPotential: i.statBeautyPotential,
+    slotIndex: 0,
+    staminaBars: 3,
+    staminaMax: 3,
+    spriteSheet: creature.spriteData != null
+        ? sheetFromCreature(creature)
+        : null,
+    spriteVisuals: visualsFromInstance(creature, instance),
+  );
+}
+
+/// Opens the full ability preview for [instance], exactly as the Battle tab's
+/// "full view" does.
+Future<void> openAbilityPreviewFor(
+  BuildContext context, {
+  required CreatureInstance instance,
+  required Creature creature,
+}) {
+  final family = creature.mutationFamily ?? 'Unknown';
+  final element = creature.types.firstOrNull ?? 'Normal';
+  return _openAbilityPreview(
+    context,
+    member: _summonedMemberFor(
+      context,
+      instance: instance,
+      creature: creature,
+      family: family,
+      element: element,
+    ),
+    family: family,
+    element: element,
+  );
+}
+
+/// Opens the full ability preview for a species nobody has to own: built from
+/// its species base stats at level 10 with [potential] in every stat and
+/// [enhancementRank] on each. The profile's debug ability lab uses it to test
+/// every Alchemon at a chosen stat band.
+Future<void> openAbilityPreviewForSpecies(
+  BuildContext context, {
+  required Creature creature,
+  required int potential,
+  int enhancementRank = 0,
+}) {
+  final family = creature.mutationFamily ?? 'Unknown';
+  final element = creature.types.firstOrNull ?? 'Normal';
+  final base =
+      creature.baseStats ??
+      const SpeciesBaseStats(
+        speed: 50,
+        intelligence: 50,
+        strength: 50,
+        beauty: 50,
+      );
+  double stat(int speciesBase) => AlchemonStatSystem.effectiveInternal(
+    speciesBase: speciesBase,
+    level: AlchemonStatSystem.maxLevel,
+    potential: potential,
+    enhancementRank: enhancementRank,
+  );
+  return _openAbilityPreview(
+    context,
+    member: CosmicPartyMember(
+      instanceId: 'lab_${creature.id}',
+      baseId: creature.id,
+      displayName: creature.name,
+      imagePath: 'assets/images/${creature.image}',
+      element: element,
+      family: family,
+      level: AlchemonStatSystem.maxLevel,
+      statSpeed: stat(base.speed),
+      statIntelligence: stat(base.intelligence),
+      statStrength: stat(base.strength),
+      statBeauty: stat(base.beauty),
+      statSpeedPotential: potential.toDouble(),
+      statIntelligencePotential: potential.toDouble(),
+      statStrengthPotential: potential.toDouble(),
+      statBeautyPotential: potential.toDouble(),
+      slotIndex: 0,
+      staminaBars: 3,
+      staminaMax: 3,
+      spriteSheet: creature.spriteData != null
+          ? sheetFromCreature(creature)
+          : null,
+      spriteVisuals: visualsFromInstance(creature, null),
+    ),
+    family: family,
+    element: element,
+  );
+}
+
+Future<void> _openAbilityPreview(
+  BuildContext context, {
+  required CosmicPartyMember member,
+  required String family,
+  required String element,
+}) {
+  final basic = _cosmicFamilyBasicInfo(family, element);
+  final special = cosmicFamilySpecialInfo(family, element);
+  return AbilityPreviewScreen.open(
+    context,
+    AbilityPreviewSubject(
+      member: member,
+      autoAttackName: basic.name,
+      autoAttackDescription: basic.description,
+      autoAttackIcon: basic.icon,
+      specialName: cosmicSpecialAbilityName(family, element),
+      specialSubtitle: special.subtitle,
+      specialDescription: special.description,
+      specialIcon: special.icon,
+      accent: _elementAccentColor(element),
+    ),
+  );
+}
+
 class _BattleSheet extends StatefulWidget {
   const _BattleSheet({
     required this.instance,
@@ -137,37 +282,14 @@ class _BattleSheetState extends State<_BattleSheet> {
 
   /// The creature as a summoned companion: constellation bonuses applied,
   /// its own sheet and visuals.
-  CosmicPartyMember _summonedMember(BuildContext context) {
-    final bonuses = context.read<ConstellationEffectsService>();
-    final i = widget.instance;
-    return CosmicPartyMember(
-      instanceId: 'preview_${i.instanceId}',
-      baseId: i.baseId,
-      displayName: i.nickname ?? widget.creature.name,
-      imagePath: 'assets/images/${widget.creature.image}',
-      element: widget.element,
-      family: widget.family,
-      level: i.level,
-      statSpeed: bonuses.applyCombatStatBonus('speed', i.statSpeed),
-      statIntelligence: bonuses.applyCombatStatBonus(
-        'intelligence',
-        i.statIntelligence,
-      ),
-      statStrength: bonuses.applyCombatStatBonus('strength', i.statStrength),
-      statBeauty: bonuses.applyCombatStatBonus('beauty', i.statBeauty),
-      statSpeedPotential: i.statSpeedPotential,
-      statIntelligencePotential: i.statIntelligencePotential,
-      statStrengthPotential: i.statStrengthPotential,
-      statBeautyPotential: i.statBeautyPotential,
-      slotIndex: 0,
-      staminaBars: 3,
-      staminaMax: 3,
-      spriteSheet: widget.creature.spriteData != null
-          ? sheetFromCreature(widget.creature)
-          : null,
-      spriteVisuals: visualsFromInstance(widget.creature, widget.instance),
-    );
-  }
+  CosmicPartyMember _summonedMember(BuildContext context) =>
+      _summonedMemberFor(
+        context,
+        instance: widget.instance,
+        creature: widget.creature,
+        family: widget.family,
+        element: widget.element,
+      );
 
   Future<void> _openFullPreview(
     _CosmicBasicInfo basic,

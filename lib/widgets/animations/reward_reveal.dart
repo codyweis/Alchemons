@@ -32,6 +32,11 @@ class LootOpeningEntry {
   final String? imagePath;
   final Widget Function(double size)? visualBuilder;
 
+  /// Where the amount came from, when it is made of parts (each creature's
+  /// share of a family's mastery): a quiet line under the name, and a list
+  /// in the detail.
+  final List<RewardBreakdownLine> breakdown;
+
   const LootOpeningEntry({
     required this.icon,
     this.coin,
@@ -40,8 +45,32 @@ class LootOpeningEntry {
     required this.color,
     this.imagePath,
     this.visualBuilder,
+    this.breakdown = const [],
   });
 }
+
+/// One part of a reward's amount: who or what, and how much.
+class RewardBreakdownLine {
+  const RewardBreakdownLine({required this.label, required this.amount});
+
+  final String label;
+  final String amount;
+}
+
+/// [entry]'s breakdown as one line of text: each part's name quiet, its
+/// amount in the reward's color.
+TextSpan _breakdownSpan(LootOpeningEntry entry) => TextSpan(
+  children: [
+    for (final (i, line) in entry.breakdown.indexed) ...[
+      if (i > 0) const TextSpan(text: '   '),
+      TextSpan(text: '${line.label.toUpperCase()} '),
+      TextSpan(
+        text: line.amount,
+        style: TextStyle(color: entry.color.withValues(alpha: 0.9)),
+      ),
+    ],
+  ],
+);
 
 /// A reward's own art, standing in a soft pool of its light — no disc, no
 /// ring round it.
@@ -263,17 +292,40 @@ class _RevealRow extends StatelessWidget {
               Expanded(
                 child: FadeTransition(
                   opacity: words,
-                  child: Text(
-                    (entry.name ?? '').toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.5,
-                    ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        (entry.name ?? '').toUpperCase(),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: Colors.white.withValues(alpha: 0.85),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                      if (entry.breakdown.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text.rich(
+                          _breakdownSpan(entry),
+                          key: const ValueKey('reward.breakdown'),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: Colors.white.withValues(alpha: 0.5),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.6,
+                            height: 1.35,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ),
@@ -484,6 +536,42 @@ Future<void> showRewardDetail(BuildContext context, LootOpeningEntry entry) {
                   letterSpacing: 1,
                 ),
               ),
+              if (entry.breakdown.isNotEmpty) ...[
+                const SizedBox(height: 14),
+                for (final line in entry.breakdown)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            line.label.toUpperCase(),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: BracketPalette.dark.muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 1,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          line.amount,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            color: entry.color,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
               const SizedBox(height: 20),
               GestureDetector(
                 behavior: HitTestBehavior.opaque,

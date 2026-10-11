@@ -262,6 +262,20 @@ void main() {
     final water = game.debugBeamFx.where((fx) => fx.wingElement == 'Water');
     expect(water, isNotEmpty);
     expect(water.last.end, game.ship.pos);
+    // A live beam is painted once a frame, straight from the live beam: no
+    // stack of per-frame copies in the beam list (they made ~5 overlapping
+    // beams and took slots in its 24-entry cap).
+    _step(game, keep, 8);
+    expect(
+      game.debugBeamFx.where((fx) => fx.wingElement == 'Water'),
+      hasLength(1),
+      reason: 'one live Water beam, painted once',
+    );
+    expect(
+      game.debugBeamListLength,
+      0,
+      reason: 'a live beam laid copies of itself into the beam list',
+    );
     final shipBefore = game.shipHealth;
     _step(game, keep, 40);
     expect(game.shipHealth, greaterThan(shipBefore), reason: 'no heal');
@@ -526,6 +540,26 @@ void main() {
       game.update(_dt);
     }
     expect(game.debugWingBeams(wildSide: true), isEmpty);
+  });
+
+  test("Earth's and Spirit's co-fired beams hold half the wing's", () async {
+    for (final (element, anchor) in [('Earth', 'core'), ('Spirit', 'ship')]) {
+      final game = await _deepSpace();
+      final comp = _summon(game, 'Wing', element);
+      final target = _enemy(game, const Offset(160, 0));
+      final beams = _cast(game, comp, [target]);
+      final own = beams.firstWhere((b) => b.anchor == 'caster');
+      final co = beams.firstWhere(
+        (b) => b.anchor == anchor,
+        orElse: () => fail('$element opened no $anchor beam'),
+      );
+      // Opened on the same frame, so they have aged alike since.
+      expect(
+        co.life,
+        closeTo(own.life * WingBeamRules.coBeamLifeShare, 0.02),
+        reason: '$element: the co-beam held as long as the wing',
+      );
+    }
   });
 
   test('both games draw and rule Wing from the one shared copy', () {

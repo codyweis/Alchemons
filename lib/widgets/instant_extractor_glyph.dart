@@ -108,9 +108,11 @@ class _InstantExtractorPainter extends CustomPainter {
         final back = k * 0.035;
         final rr = r * (1.5 - 0.5 * (q - back));
         final aa = a - back * 2.0;
-        _p.color = Color.lerp(_b, Colors.white, 0.4)!.withValues(
-          alpha: (0.7 - k * 0.22) * fade,
-        );
+        _p.color = Color.lerp(
+          _b,
+          Colors.white,
+          0.4,
+        )!.withValues(alpha: (0.7 - k * 0.22) * fade);
         canvas.drawCircle(
           o + Offset(math.cos(aa) * rr, math.sin(aa) * rr * 0.9),
           d * (0.55 - k * 0.12),

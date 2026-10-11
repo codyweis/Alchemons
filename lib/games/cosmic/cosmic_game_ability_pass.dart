@@ -130,11 +130,23 @@ extension CosmicAbilityPass on CosmicGame {
           final casterOnly = isPip && projectile.element == 'Blood';
           final objectiveOnly = isPip && projectile.element == 'Light';
           if (!casterOnly) {
+            final objectiveHeal =
+                power *
+                (objectiveOnly ? 1.0 : CosmicAbilityRuntime.leechObjectiveShare);
+            // Mane Blood heals with every body its shot crosses: survival's
+            // per-caster ceiling.
             _healOpenObjective(
-              power *
-                  (objectiveOnly
-                      ? 1.0
-                      : CosmicAbilityRuntime.leechObjectiveShare),
+              projectile.abilityFamily == 'mane'
+                  ? _healCeiling.grant(
+                      slot: projectile.sourceSlotIndex,
+                      amount: objectiveHeal,
+                      pool: CosmicGame.shipMaxHealth,
+                      beauty:
+                          _sourceMember(projectile)?.statBeauty ??
+                          kAbilityStatAverage,
+                      now: _elapsed,
+                    )
+                  : objectiveHeal,
             );
           }
           if (!objectiveOnly) {
@@ -258,9 +270,13 @@ extension CosmicAbilityPass on CosmicGame {
             skyfallDuration: drop.duration,
             skyfallImpact: aim,
             skyfallDistance: drop.distance,
-            // "Twice as big" per design — the same as survival.
-            radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
-            visualScale: max(3.5, source.visualScale * 2.0),
+            // Bigger than its parent, per design — the same as survival.
+            radiusMultiplier: CosmicAbilityRuntime.darkLetFollowupRadius(
+              source,
+            ),
+            visualScale: CosmicAbilityRuntime.darkLetFollowupVisualScale(
+              source,
+            ),
             visualStyle: ProjectileVisualStyle.meteor,
             homing: false,
             homingStrength: 2.4,
@@ -765,6 +781,7 @@ extension CosmicAbilityPass on CosmicGame {
             _spawnHitSpark(enemy.position, elementColor('Plant'));
             break;
           case 'Lava':
+            if (!ManeRuntime.dropsLavaBlob(projectile)) break;
             companionProjectiles.add(
               ManeRuntime.lavaBlob(projectile, enemy.position),
             );
@@ -772,7 +789,15 @@ extension CosmicAbilityPass on CosmicGame {
           case 'Blood':
             // Every pierce restores what the cast protects.
             _healOpenObjective(
-              ManeRuntime.bloodPierceHeal(projectile).toDouble(),
+              _healCeiling.grant(
+                slot: projectile.sourceSlotIndex,
+                amount: ManeRuntime.bloodPierceHeal(projectile).toDouble(),
+                pool: CosmicGame.shipMaxHealth,
+                beauty:
+                    _sourceMember(projectile)?.statBeauty ??
+                    kAbilityStatAverage,
+                now: _elapsed,
+              ),
             );
             _spawnHitSpark(enemy.position, elementColor('Blood'));
             break;
@@ -1047,7 +1072,9 @@ extension CosmicAbilityPass on CosmicGame {
           p.trailTimer += dt;
           if (p.trailTimer >= ManeRuntime.dustPuffInterval) {
             p.trailTimer = 0;
-            companionProjectiles.add(ManeRuntime.dustTrailPuff(p));
+            if (ManeRuntime.dustTrailHasRoom(companionProjectiles)) {
+              companionProjectiles.add(ManeRuntime.dustTrailPuff(p));
+            }
           }
         }
         if (p.turretInterval > 0 &&
@@ -1162,12 +1189,7 @@ extension CosmicAbilityPass on CosmicGame {
       // A Horn piece's own trail — Spirit's phantoms, Crystal's shards, the
       // Light barrier's storm — on top of any zone wisps, as survival runs.
       if (p.abilityFamily == 'horn' && _abilityVfx.length < 130) {
-        emitHornProjectileParticles(
-          p,
-          _rng,
-          _hornParticle,
-          _beamFx.length < 22 ? _hornBeam : null,
-        );
+        emitHornProjectileParticles(p, _rng, _hornParticle);
       }
 
       // Cluster fragmentation: split into sub-projectiles at half-life

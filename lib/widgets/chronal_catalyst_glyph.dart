@@ -71,11 +71,16 @@ class _ChronalPainter extends CustomPainter {
       _gap(canvas, o, rFast * 1.04, slow, gap, gapLight * 1.4);
       // The core as one lit bead.
       _p.color = const Color(0xFF000000);
-      _p.shader = ui.Gradient.radial(o, s * 0.24, [
-        Color.lerp(color, Colors.white, 0.6)!,
-        color.withValues(alpha: 0.8),
-        Color.lerp(color, const Color(0xFF07060B), 0.6)!.withValues(alpha: 0),
-      ], const [0.0, 0.5, 1.0]);
+      _p.shader = ui.Gradient.radial(
+        o,
+        s * 0.24,
+        [
+          Color.lerp(color, Colors.white, 0.6)!,
+          color.withValues(alpha: 0.8),
+          Color.lerp(color, const Color(0xFF07060B), 0.6)!.withValues(alpha: 0),
+        ],
+        const [0.0, 0.5, 1.0],
+      );
       canvas.drawCircle(o, s * 0.24, _p);
       _p.shader = null;
       for (final (a, rr) in [(slow, rSlow), (fast, rFast)]) {
@@ -128,11 +133,16 @@ class _ChronalPainter extends CustomPainter {
   ) {
     if (light <= 0.01 || sweep <= 0.01) return;
     _p.color = const Color(0xFF000000);
-    _p.shader = ui.Gradient.radial(o, r, [
-      color.withValues(alpha: 0.0),
-      color.withValues(alpha: 0.2 * light),
-      color.withValues(alpha: 0.0),
-    ], const [0.25, 0.7, 1.0]);
+    _p.shader = ui.Gradient.radial(
+      o,
+      r,
+      [
+        color.withValues(alpha: 0.0),
+        color.withValues(alpha: 0.2 * light),
+        color.withValues(alpha: 0.0),
+      ],
+      const [0.25, 0.7, 1.0],
+    );
     canvas.drawArc(
       Rect.fromCircle(center: o, radius: r),
       from,
@@ -145,9 +155,11 @@ class _ChronalPainter extends CustomPainter {
     for (var i = 0; i < 26; i++) {
       final a = from + sweep * GrainGlass.h(i, 31);
       final rr = r * (0.45 + 0.5 * GrainGlass.h(i, 32));
-      _p.color = Color.lerp(color, Colors.white, 0.3)!.withValues(
-        alpha: 0.5 * light * (0.4 + 0.6 * GrainGlass.h(i, 33)),
-      );
+      _p.color = Color.lerp(
+        color,
+        Colors.white,
+        0.3,
+      )!.withValues(alpha: 0.5 * light * (0.4 + 0.6 * GrainGlass.h(i, 33)));
       canvas.drawCircle(
         o + Offset(math.cos(a) * rr, math.sin(a) * rr),
         d * 0.5,

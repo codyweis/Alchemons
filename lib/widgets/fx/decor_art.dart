@@ -247,8 +247,9 @@ class _RuneStone extends KeepsakeArt {
       _at + Offset(r * 0.48, up ? r * 0.32 : -r * 0.32),
       _at + Offset(-r * 0.48, up ? r * 0.32 : -r * 0.32),
     ]);
-    Path bar() => Path()
-      ..addRect(Rect.fromCenter(center: _at, width: r * 1.5, height: 2.6));
+    Path bar() =>
+        Path()
+          ..addRect(Rect.fromCenter(center: _at, width: r * 1.5, height: 2.6));
     final ring = Path()
       ..fillType = PathFillType.evenOdd
       ..addOval(Rect.fromCircle(center: _at, radius: r * 0.9))
@@ -266,10 +267,8 @@ class _RuneStone extends KeepsakeArt {
         Path.combine(PathOperation.difference, tri(false), hole(false)),
         bar(),
       ),
-      4 => ring
-        ..addOval(Rect.fromCircle(center: _at, radius: r * 0.2)),
-      _ => _poly(crescentPoints(r * 0.8, -2.2, 2.2, r * 0.7))
-          .shift(_at),
+      4 => ring..addOval(Rect.fromCircle(center: _at, radius: r * 0.2)),
+      _ => _poly(crescentPoints(r * 0.8, -2.2, 2.2, r * 0.7)).shift(_at),
     };
   }
 
@@ -317,10 +316,7 @@ class _Banner extends KeepsakeArt {
     final wave = 1 + 0.6 * k.stir;
     Offset at(double u, double v) {
       final ripple = math.sin(k.t * 2.2 - u * 4) * 5 * u * wave;
-      return Offset(
-        3 + u * w,
-        top + v * h * (1 - u * 0.12) + ripple + u * 4,
-      );
+      return Offset(3 + u * w, top + v * h * (1 - u * 0.12) + ripple + u * 4);
     }
 
     const n = 10;
@@ -415,11 +411,14 @@ class _Planter extends KeepsakeArt {
 /// Lanterns hanging in the air on nothing, drifting. Their point is in the
 /// air, not on the ground.
 class _SkyLanterns extends KeepsakeArt {
-  _SkyLanterns(int style) : super(_pick(const [
-    Color(0xFFFFB45A),
-    Color(0xFFF29BC0),
-    Color(0xFFA9E8FF),
-  ], style));
+  _SkyLanterns(int style)
+    : super(
+        _pick(const [
+          Color(0xFFFFB45A),
+          Color(0xFFF29BC0),
+          Color(0xFFA9E8FF),
+        ], style),
+      );
 
   static const _hung = <(double, double, double)>[
     (-44, 0, 1.5),
@@ -507,11 +506,19 @@ class _WindChimes extends KeepsakeArt {
       final hang = top + dir * 18;
       final end = hang + dir * len;
       final n = Offset(-dir.dy, dir.dx) * 4.2;
-      _glass(c, m, _poly([hang - n, hang + n, end + n * 0.8, end - n * 0.8]),
-          end, 14);
+      _glass(
+        c,
+        m,
+        _poly([hang - n, hang + n, end + n * 0.8, end - n * 0.8]),
+        end,
+        14,
+      );
       // Its thread, a sliver of stone.
-      _solid(c, _poly([top - n * 0.2, top + n * 0.2, hang + n * 0.2, hang - n * 0.2]),
-          m.ink);
+      _solid(
+        c,
+        _poly([top - n * 0.2, top + n * 0.2, hang + n * 0.2, hang - n * 0.2]),
+        m.ink,
+      );
       paintDisc(c, m.spark, end, 3, 0.4 + 0.5 * k.stir);
     }
   }
@@ -859,8 +866,12 @@ class _HotSpring extends KeepsakeArt {
     // The far rim of rocks, and the basin the water lies in.
     for (var i = 0; i < 8; i++) {
       final x = -178 + i * 51.0;
-      _boulder(c, Offset(x, -22), 36 + 8 * math.sin(i * 1.7).abs(),
-          18 + 9 * math.sin(i * 2.3).abs());
+      _boulder(
+        c,
+        Offset(x, -22),
+        36 + 8 * math.sin(i * 1.7).abs(),
+        18 + 9 * math.sin(i * 2.3).abs(),
+      );
     }
     _solid(c, Path()..addOval(_surface.inflate(4)), _rock.ink);
   }
@@ -879,11 +890,16 @@ class _HotSpring extends KeepsakeArt {
     _shade(
       c,
       Path()..addRect(_surface),
-      ui.Gradient.linear(const Offset(0, -30), const Offset(0, 24), [
-        _a(Color.lerp(_body, _sheen, 0.45 + 0.2 * k.daylight)!, 1),
-        _a(_body, 1),
-        _a(_deep, 1),
-      ], const [0.0, 0.42, 1.0]),
+      ui.Gradient.linear(
+        const Offset(0, -30),
+        const Offset(0, 24),
+        [
+          _a(Color.lerp(_body, _sheen, 0.45 + 0.2 * k.daylight)!, 1),
+          _a(_body, 1),
+          _a(_deep, 1),
+        ],
+        const [0.0, 0.42, 1.0],
+      ),
     );
     // Its warmth showing from under it, more by night.
     paintDisc(c, m.pool, const Offset(0, -2), 170, 0.5 + 0.6 * k.night);
@@ -892,12 +908,13 @@ class _HotSpring extends KeepsakeArt {
       final f = (k.t / (11 + i * 4) + i * 0.31) % 1.0;
       _solid(
         c,
-        Path()
-          ..addOval(Rect.fromCenter(
+        Path()..addOval(
+          Rect.fromCenter(
             center: Offset(-210 + f * 420, -20 + i * 10.0),
             width: 90 - i * 12,
             height: 3.2,
-          )),
+          ),
+        ),
         _a(_sheen, 0.22 - 0.03 * i),
       );
     }
@@ -911,19 +928,24 @@ class _HotSpring extends KeepsakeArt {
       final band = Path()
         ..fillType = PathFillType.evenOdd
         ..addOval(Rect.fromCenter(center: at, width: r * 2, height: r * 0.5))
-        ..addOval(Rect.fromCenter(
-          center: at + const Offset(0, 0.6),
-          width: r * 2 - 5,
-          height: r * 0.5 - 2.4,
-        ));
+        ..addOval(
+          Rect.fromCenter(
+            center: at + const Offset(0, 0.6),
+            width: r * 2 - 5,
+            height: r * 0.5 - 2.4,
+          ),
+        );
       _solid(c, band, _a(_sheen, 0.22 * fade));
     }
 
     final busy = math.min(1.0, k.stir);
     for (final seat in const [-100.0, 0.0, 100.0]) {
       for (var j = 0; j < 3; j++) {
-        ripple(Offset(seat, -2), ((k.t * 0.5 + j / 3 + seat * 0.003) % 1.0),
-            busy);
+        ripple(
+          Offset(seat, -2),
+          ((k.t * 0.5 + j / 3 + seat * 0.003) % 1.0),
+          busy,
+        );
       }
     }
     for (var i = 0; i < 3; i++) {
@@ -976,10 +998,12 @@ class _HotSpring extends KeepsakeArt {
     _shade(
       c,
       near,
-      ui.Gradient.linear(const Offset(0, -4), const Offset(0, 60), [
-        _a(_body, 0.6),
-        _a(_deep, 0.96),
-      ], const [0.0, 0.7]),
+      ui.Gradient.linear(
+        const Offset(0, -4),
+        const Offset(0, 60),
+        [_a(_body, 0.6), _a(_deep, 0.96)],
+        const [0.0, 0.7],
+      ),
     );
     // The waterline, where it meets them: a lit edge that moves with it.
     final edge = Path()
@@ -992,8 +1016,12 @@ class _HotSpring extends KeepsakeArt {
     // over whatever sits in it.
     for (var i = 0; i < 7; i++) {
       final x = -162 + i * 54.0 + (i.isEven ? 0 : 6);
-      _boulder(c, Offset(x, 74), 50 + 8 * math.sin(i * 1.3).abs(),
-          40 + 8 * math.sin(i * 2.1).abs());
+      _boulder(
+        c,
+        Offset(x, 74),
+        50 + 8 * math.sin(i * 1.3).abs(),
+        40 + 8 * math.sin(i * 2.1).abs(),
+      );
     }
   }
 
@@ -1001,13 +1029,29 @@ class _HotSpring extends KeepsakeArt {
   void _boulder(Canvas c, Offset foot, double w, double h) {
     final rock = Path()
       ..moveTo(foot.dx - w / 2, foot.dy)
-      ..cubicTo(foot.dx - w / 2, foot.dy - h * 0.9, foot.dx - w * 0.2,
-          foot.dy - h * 1.05, foot.dx + w * 0.08, foot.dy - h)
-      ..cubicTo(foot.dx + w * 0.4, foot.dy - h * 0.95, foot.dx + w / 2,
-          foot.dy - h * 0.5, foot.dx + w / 2, foot.dy)
+      ..cubicTo(
+        foot.dx - w / 2,
+        foot.dy - h * 0.9,
+        foot.dx - w * 0.2,
+        foot.dy - h * 1.05,
+        foot.dx + w * 0.08,
+        foot.dy - h,
+      )
+      ..cubicTo(
+        foot.dx + w * 0.4,
+        foot.dy - h * 0.95,
+        foot.dx + w / 2,
+        foot.dy - h * 0.5,
+        foot.dx + w / 2,
+        foot.dy,
+      )
       ..close();
     _solid(c, rock, _rock.ink);
-    _shade(c, rock, _litAcross(_rock, foot.dx - w / 2, foot.dx + w / 2, k: 0.45));
+    _shade(
+      c,
+      rock,
+      _litAcross(_rock, foot.dx - w / 2, foot.dx + w / 2, k: 0.45),
+    );
   }
 }
 
@@ -1055,9 +1099,18 @@ class _ElderTree extends KeepsakeArt {
     for (final (a, b, w) in _branches) {
       final d = b - a;
       final n = Offset(-d.dy, d.dx) / d.distance;
-      final branch = _poly([a + n * w, b + n * w * 0.35, b - n * w * 0.35, a - n * w]);
+      final branch = _poly([
+        a + n * w,
+        b + n * w * 0.35,
+        b - n * w * 0.35,
+        a - n * w,
+      ]);
       _solid(c, branch, _bark.ink);
-      _shade(c, branch, _litAcross(_bark, math.min(a.dx, b.dx), math.max(a.dx, b.dx), k: 0.4));
+      _shade(
+        c,
+        branch,
+        _litAcross(_bark, math.min(a.dx, b.dx), math.max(a.dx, b.dx), k: 0.4),
+      );
     }
   }
 
@@ -1131,8 +1184,12 @@ class _Stage extends KeepsakeArt {
     // The sign in its floor: a ring and its four points, filled.
     final sign = Path()
       ..fillType = PathFillType.evenOdd
-      ..addOval(Rect.fromCenter(center: const Offset(0, -44), width: 150, height: 10))
-      ..addOval(Rect.fromCenter(center: const Offset(0, -44), width: 120, height: 6));
+      ..addOval(
+        Rect.fromCenter(center: const Offset(0, -44), width: 150, height: 10),
+      )
+      ..addOval(
+        Rect.fromCenter(center: const Offset(0, -44), width: 120, height: 6),
+      );
     _solid(c, sign, _a(m.hot, 0.7));
   }
 
@@ -1267,10 +1324,7 @@ class _ReflectingPool extends KeepsakeArt {
 
   /// Where a looker stands: at either end, on the rim, looking in.
   @override
-  List<Offset> seats(KeepsakeTime k) => const [
-    Offset(-226, 0),
-    Offset(226, 0),
-  ];
+  List<Offset> seats(KeepsakeTime k) => const [Offset(-226, 0), Offset(226, 0)];
 
   @override
   Rect get mirror => _water;
@@ -1314,16 +1368,25 @@ class _ReflectingPool extends KeepsakeArt {
     // Deep water, and the sky in it: day blue-white, night the moon's grey
     // violet — strongest at the far edge.
     final day = k.daylight;
-    final sky = Color.lerp(const Color(0xFF6E7FB8), const Color(0xFFB9D3F0), day)!;
-    _solid(c, water, Color.lerp(const Color(0xFF070A14), const Color(0xFF16263A), day)!);
+    final sky = Color.lerp(
+      const Color(0xFF6E7FB8),
+      const Color(0xFFB9D3F0),
+      day,
+    )!;
+    _solid(
+      c,
+      water,
+      Color.lerp(const Color(0xFF070A14), const Color(0xFF16263A), day)!,
+    );
     _shade(
       c,
       Path()..addRect(_water),
-      ui.Gradient.linear(const Offset(0, -8), const Offset(0, 56), [
-        _a(sky, 0.55 + 0.15 * day),
-        _a(sky, 0.18),
-        _a(sky, 0.04),
-      ], const [0.0, 0.45, 1.0]),
+      ui.Gradient.linear(
+        const Offset(0, -8),
+        const Offset(0, 56),
+        [_a(sky, 0.55 + 0.15 * day), _a(sky, 0.18), _a(sky, 0.04)],
+        const [0.0, 0.45, 1.0],
+      ),
     );
     // Reflected light drifting across in long slow streaks, broken by a
     // ripple when something stirs it.
@@ -1333,12 +1396,13 @@ class _ReflectingPool extends KeepsakeArt {
       final wob = math.sin(k.t * 2.4 + i) * 3 * k.stir;
       _solid(
         c,
-        Path()
-          ..addOval(Rect.fromCenter(
+        Path()..addOval(
+          Rect.fromCenter(
             center: Offset(-200 + f * 400 + wob, y),
             width: 70 - i * 8,
             height: 3.4,
-          )),
+          ),
+        ),
         _a(const Color(0xFFFFFFFF), 0.08 + 0.1 * day),
       );
     }

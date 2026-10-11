@@ -974,6 +974,9 @@ class CosmicGame extends FlameGame with PanDetector {
 
   @override
   Future<void> onLoad() async {
+    // The ability particle grain (ability_grains.dart), built off the frame;
+    // particles draw as plain discs until it lands.
+    AbilityGrainSprite.ensureLoaded().ignore();
     // Ship starts at the center of the world
     ship = ShipComponent(
       pos: Offset(world_.worldSize.width / 2, world_.worldSize.height / 2),
@@ -2311,6 +2314,10 @@ class CosmicGame extends FlameGame with PanDetector {
   // ── update loop ────────────────────────────────────────
 
   double _elapsed = 0;
+
+  /// Survival's per-caster heal ceiling ([HealCeiling]), with the ship
+  /// standing in for the orb.
+  final HealCeiling _healCeiling = HealCeiling();
 
   @override
   void update(double dt) {
@@ -3732,6 +3739,12 @@ class CosmicGame extends FlameGame with PanDetector {
               element: g.member.element,
               specialCooldownReduction: g.stats.specialCooldownReduction,
               abilityAtk: g.stats.abilityAtk,
+            );
+            CasterPieces.onCast(
+              companionProjectiles,
+              slot: g.member.slotIndex,
+              family: g.member.family,
+              element: g.member.element,
             );
             _clearPipPoisonWeb(g.member);
             _soundOpenSpecial(
@@ -5986,6 +5999,7 @@ class CosmicGame extends FlameGame with PanDetector {
         canvas: canvas,
         centre: mark,
         color: elementColor(cp.element ?? 'Fire'),
+        element: cp.element,
         radius: letSkyfallBlastRadius(cp),
         progress: cp.skyfallProgress,
         time: _elapsed,

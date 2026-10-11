@@ -342,7 +342,7 @@ class _MainShellState extends State<MainShell> {
               current: _currentSection,
               onSelect: (s) => _goToSection(s, withHaptic: false),
               theme: theme,
-              faction: context.watch<FactionService>().current,
+              dockSet: context.watch<FactionService>().dockSet,
             ),
           ),
           // The splash dissolves into home rather than cutting: touches pass

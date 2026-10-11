@@ -35,14 +35,16 @@ family attack chassis
 
 ## Tree and economy
 
-Every family has three paths with three sequential silver nodes and one gold capstone.
+Every family has three paths (Mystic two) of three sequential nodes and a capstone, bought with that family's own mastery points. Since 2026-10-09 masteries are earned by playing survival, not bought with silver and gold.
 
 | Tier | Cost | Purpose |
 | --- | ---: | --- |
-| Path I | 1,000 silver | Establishes the path's core behavior |
-| Path II | 5,000 silver | Adds its first meaningful interaction |
-| Path III | 10,000 silver | Completes the path's combat loop |
-| Capstone | 10 gold | Dramatically changes the visible combat rhythm |
+| Path I | 25 mastery | Establishes the path's core behavior |
+| Path II | 75 mastery | Adds its first meaningful interaction |
+| Path III | 150 mastery | Completes the path's combat loop |
+| Capstone | 300 mastery | Dramatically changes the visible combat rhythm |
+
+Earning (per creature since 2026-10-10, `familyMasteryCreatureAwards`): when a survival run ends in a death, its base is `1 + w ~/ 10` points for each wave `w` it cleared (`familyMasteryPointsForRun`; a run lost on wave 41 cleared 40; 19 waves is 29, 39 is 99, 59 is 209, 79 is 359). Each creature in the party earns its own points: `0.5 × base` if it was deployed at any point (`CosmicSurvivalGame.deployedCompanionSlots`, kept in the suspended run), or `0.125 × base` if it sat in reserve the whole run; plus `0.5 × base × N × c`, where N is how many were deployed and c is its share of the team: the mean, over damage dealt, kills and healing done (only the axes the team has any of), of its part of the team total (all zero: an even split). Capped at `1.5 × base`, rounded, at least 1 if deployed. A family is paid the sum of its creatures, so bringing more of a family earns it more; an average deployed creature earns about one base. The results list each family's points as a reward row with each creature's part under it. Balances (and lifetime earned) live in the settings key `survival.family_mastery_points_v1`, so the cloud save carries them. Nodes bought with silver or gold before the change stay owned; nothing was refunded, and every family started at 0.
 
 Rules:
 
@@ -51,7 +53,7 @@ Rules:
 - Buying another path does not automatically replace the equipped path.
 - A partially purchased path may be equipped and grants its purchased nodes.
 - Selecting or resetting a family branch costs nothing.
-- Owning every unlock across all eight families costs 384,000 silver and 240 gold before discounts.
+- Owning a family's whole tree costs 1,650 of its mastery (Mystic 1,100).
 
 The economy controls collection progression. The one-path limit preserves build choice after everything is owned.
 

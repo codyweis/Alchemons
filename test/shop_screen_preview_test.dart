@@ -89,6 +89,8 @@ void main() {
         for (final c in json['creatures'] as List)
           Creature.fromJson(c as Map<String, dynamic>),
       ]);
+      // A Volcanic player: the shop sells Volcanic's two dock sets.
+      await db.settingsDao.setSetting('player_faction_v1', 'volcanic');
       await db.currencyDao.addGold(184);
       await db.currencyDao.addSilver(12450);
       var n = 0;
@@ -206,6 +208,12 @@ void main() {
       await tester.tap(cosmetics.first, warnIfMissed: false);
       await settle(30);
       await shoot('04_cosmetics');
+      // A dock set for sale: the whole dock it would make.
+      await tester.tap(find.text('Lavalet').first, warnIfMissed: false);
+      await settle(20);
+      await shoot('04b_dock_set_dialog');
+      tester.state<NavigatorState>(find.byType(Navigator).first).pop();
+      await settle(16);
       // Down to the home decor.
       for (var i = 0; i < 4; i++) {
         await tester.dragFrom(const Offset(195, 600), const Offset(0, -560));

@@ -210,9 +210,7 @@ class SandPicture {
         }
         // The rim first; slow to start, then the middle goes quickly.
         _rt[i] =
-            (round
-                ? 0.38 * math.sqrt(1 - out)
-                : SandHole.closesAt(size, out)) +
+            (round ? 0.38 * math.sqrt(1 - out) : SandHole.closesAt(size, out)) +
             0.012 * rng.nextDouble();
         _life[i] = 0.5 + 0.22 * rng.nextDouble();
         // All curl the same way, by different amounts: a current, not
@@ -704,8 +702,7 @@ class SandPicture {
       // In the ball, the light it had gathered (none, for most) swelling
       // as it kindles.
       final had = _mote[i] >= 0 ? 0.4 : 0.0;
-      final warm =
-          (had + ((0.3 + 0.3 * face) - had) * kindle) * (1 - w) * keep;
+      final warm = (had + ((0.3 + 0.3 * face) - had) * kindle) * (1 - w) * keep;
       final held = _cw * (0.8 + 0.3 * kindle);
       final carried = _cw * (1.2 + 1.4 * o) * (0.8 + 0.4 * _lr[i]);
       m = _glint(

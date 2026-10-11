@@ -60,11 +60,11 @@ void main() {
     game.onRemove();
   });
 
-  test('artillery parks past companion reach and shells the orb', () async {
+  test('artillery parks in the middle ring and shells the orb', () async {
     final game = await gameAtWave(14);
-    // A companion parked on the ship cannot answer these: the hold distance
-    // is the archetype.
-    expect(kSiegeHoldRange, greaterThan(600));
+    // Survival parks it closer than the open world does (2026-10-10): in the
+    // ring the Manes and Masks patrol, so the team's own strength answers it.
+    expect(CosmicSurvivalBalance.artilleryHoldRange, lessThan(kSiegeHoldRange));
 
     // Shells are in flight only part of the time, so watch across the run.
     var shellsSeen = 0;
@@ -83,7 +83,9 @@ void main() {
     expect(artillery, isNotEmpty);
     final parked = artillery.where(
       (e) =>
-          ((e.position - game.orb.position).distance - kSiegeHoldRange).abs() <
+          ((e.position - game.orb.position).distance -
+                  CosmicSurvivalBalance.artilleryHoldRange)
+              .abs() <
           160,
     );
     expect(

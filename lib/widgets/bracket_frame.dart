@@ -53,12 +53,17 @@ class BracketFramePainter extends CustomPainter {
     canvas.drawRect(
       Rect.fromLTWH(0, h - sill * 0.5, w, sill),
       Paint()
-        ..shader = ui.Gradient.linear(Offset.zero, Offset(w, 0), [
-          tone.withValues(alpha: 0),
-          hot.withValues(alpha: lit),
-          hot.withValues(alpha: lit),
-          tone.withValues(alpha: 0),
-        ], const [0, 0.3, 0.7, 1]),
+        ..shader = ui.Gradient.linear(
+          Offset.zero,
+          Offset(w, 0),
+          [
+            tone.withValues(alpha: 0),
+            hot.withValues(alpha: lit),
+            hot.withValues(alpha: lit),
+            tone.withValues(alpha: 0),
+          ],
+          const [0, 0.3, 0.7, 1],
+        ),
     );
     final rise = math.min(h * 0.75, 40.0);
     canvas.drawRect(

@@ -156,6 +156,11 @@ class LobbySave {
           final mastery = FamilyMasteryService(db);
           await mastery.load();
           if (!fresh) {
+            // Enough of each family's mastery for the tiers bought below.
+            await mastery.addPoints(const {
+              CreatureFamily.let: 260,
+              CreatureFamily.pip: 120,
+            });
             for (final (family, path, tiers) in const [
               (CreatureFamily.let, 'let.bombardment', 3),
               (CreatureFamily.pip, 'pip.salvo', 2),
@@ -288,9 +293,10 @@ ScrollableState lobbyScroll(WidgetTester tester) => tester
     )
     .firstWhere((s) => s.position.axis == Axis.vertical);
 
-/// True while the lobby is on screen.
+/// True while the lobby is on screen (its dock: START, or CONTINUE and NEW
+/// RUN while a run is kept).
 bool lobbyShown() =>
-    find.byKey(const ValueKey('survival.start')).evaluate().isNotEmpty;
+    find.byKey(const ValueKey('survival.dock')).evaluate().isNotEmpty;
 
 /// The screen starts the run's music; under test there is nothing to play it
 /// on, and the real controller opens audio players as it is built.

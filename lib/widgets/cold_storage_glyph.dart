@@ -122,12 +122,17 @@ class _ColdStoragePainter extends CustomPainter {
     // right. A filled band, not a line. (Opaque first: a shader is drawn at
     // the paint color's alpha, and the frost below leaves it faint.)
     _p.color = const Color(0xFF000000);
-    _p.shader = ui.Gradient.linear(box.topLeft, box.bottomRight, [
-      Color.lerp(_socket, _frost, 0.1 + 0.55 * lit)!,
-      Color.lerp(_socket, _ice, 0.1 + 0.35 * lit)!,
-      Color.lerp(const Color(0xFF0C141C), _iceDeep, 0.6 * lit)!,
-      Color.lerp(const Color(0xFF0C141C), _iceDeep, lit)!,
-    ], const [0.0, 0.3, 0.6, 1.0]);
+    _p.shader = ui.Gradient.linear(
+      box.topLeft,
+      box.bottomRight,
+      [
+        Color.lerp(_socket, _frost, 0.1 + 0.55 * lit)!,
+        Color.lerp(_socket, _ice, 0.1 + 0.35 * lit)!,
+        Color.lerp(const Color(0xFF0C141C), _iceDeep, 0.6 * lit)!,
+        Color.lerp(const Color(0xFF0C141C), _iceDeep, lit)!,
+      ],
+      const [0.0, 0.3, 0.6, 1.0],
+    );
     canvas.drawPath(_hex(c, outer), _p);
 
     // The glass well inside it.

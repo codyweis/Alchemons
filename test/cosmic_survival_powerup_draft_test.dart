@@ -171,7 +171,8 @@ void main() {
       expect(state.apply(keystone), isTrue);
       expect(state.hasKeystone, isTrue);
       expect(state.fireRateMultiplier, closeTo(1.20, 0.0001));
-      expect(state.speedBonus(0), closeTo(0.45, 0.0001));
+      // Chrono Surge adds 10% of the companion's own Speed.
+      expect(state.speedBonus(0, 4.0), closeTo(0.40, 0.0001));
       expect(generateKeystoneChoices(state, 9, party: const []), isEmpty);
     });
   });

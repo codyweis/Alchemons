@@ -25,6 +25,8 @@ import 'survival_lobby_harness.dart';
 //   3_full_length.png     the whole scroll length in one tall viewport
 //   4_empty_team.png      the mid-game save with no team chosen yet
 //   5_fresh_save.png      a brand-new save: no team, no upgrades, default orb
+//   6_fold_cover.png      the Fold's cover screen (344 wide) at 1.3x text,
+//                         the whole scroll length
 //
 //   LOBBY_OUT=/tmp/lobby flutter test \
 //     test/survival_lobby_preview_test.dart --tags preview
@@ -214,6 +216,35 @@ void main() {
     try {
       await open(tester, save, key);
       await shoot(tester, key, '4_empty_team');
+    } finally {
+      debugDisableShadows = true;
+    }
+
+    await save.dispose(tester);
+  });
+
+  testWidgets('survival lobby on the Fold cover at 1.3x text', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    tester.view.physicalSize = const Size(344 * kLobbyDpr, 882 * kLobbyDpr);
+    tester.view.devicePixelRatio = kLobbyDpr;
+    tester.platformDispatcher.textScaleFactorTestValue = 1.3;
+    addTearDown(tester.view.reset);
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+    final save = await LobbySave.create(tester, team: kLobbyTeam);
+    final key = GlobalKey();
+    debugDisableShadows = false;
+    try {
+      await open(tester, save, key);
+      final extent = lobbyScroll(tester).position.maxScrollExtent;
+      tester.view.physicalSize = Size(
+        344 * kLobbyDpr,
+        (882 + extent + 2) * kLobbyDpr,
+      );
+      await settleLobby(tester, 4);
+      expect(tester.takeException(), isNull);
+      await shoot(tester, key, '6_fold_cover');
     } finally {
       debugDisableShadows = true;
     }

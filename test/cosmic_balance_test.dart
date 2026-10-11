@@ -1067,7 +1067,9 @@ void main() {
         'Plant': (105.0, 3.3),
         'Ice': (85.0, 2.5),
         'Poison': (95.0, 3.2),
-        'Dark': (85.0, 2.8),
+        // The void bolt's pull was cut to 80 px authored in the final
+        // balance pass (2026-10-10).
+        'Dark': (65.0, 2.8),
         'Blood': (75.0, 2.9),
       };
 

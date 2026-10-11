@@ -179,8 +179,7 @@ class _WornCostumePainter extends CustomPainter {
     this.frameSize,
     this.frameIndex,
     this.clock,
-  )
-    : super(repaint: clock);
+  ) : super(repaint: clock);
 
   final String costumes;
   final Size frameSize;
@@ -204,5 +203,7 @@ class _WornCostumePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_WornCostumePainter old) =>
-      old.costumes != costumes || old.frameSize != frameSize || old.clock != clock;
+      old.costumes != costumes ||
+      old.frameSize != frameSize ||
+      old.clock != clock;
 }

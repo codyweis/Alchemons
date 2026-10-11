@@ -7,6 +7,7 @@ import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/economy_balance.dart';
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
@@ -401,6 +402,19 @@ class ShopService extends ChangeNotifier {
         rewardType: 'boost',
         limit: PurchaseLimit.once,
       ),
+    // ── Dock sets (models/dock_sets.dart): sold only in their faction ──
+    for (final s in kDockSets)
+      if (!s.free)
+        ShopOffer(
+          id: s.offerId,
+          name: s.name,
+          description: "The dock's icons, drawn with the ${s.name}.",
+          icon: AppIcons.home_rounded,
+          cost: const {'gold': 150},
+          reward: const {},
+          rewardType: 'boost',
+          limit: PurchaseLimit.once,
+        ),
     // ── Home decor (models/home_decor.dart) ──
     for (final d in HomeDecor.all)
       ShopOffer(
@@ -1278,6 +1292,10 @@ class ShopService extends ChangeNotifier {
     final offer = _resolveOfferById(offerId);
     if (offer == null) return false; // unknown offer -> not purchasable
     if (!_isContestEffectOfferUnlocked(offerId)) return false;
+    // A dock set: sold while in its faction, until it is owned.
+    if (DockSet.byOffer(offerId) case final set?) {
+      return set.faction == _factions.current && !_factions.ownsDockSet(set);
+    }
 
     switch (offer.limit) {
       case PurchaseLimit.once:
@@ -1481,6 +1499,11 @@ class ShopService extends ChangeNotifier {
   }
 
   Future<bool> _applyBoost(String offerId, int qty) async {
+    // A dock set: owned, and on the dock.
+    if (DockSet.byOffer(offerId) case final set?) {
+      await _factions.grantDockSet(set);
+      return true;
+    }
     // A scene: its realm opens in the wild and at home.
     final scene = shopSceneByOffer(offerId);
     if (scene != null) {

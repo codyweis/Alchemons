@@ -98,7 +98,9 @@ class _ActiveWingBeam {
     required this.origin,
     required this.angle,
     this.anchor = _WingAnchor.caster,
-  }) : life = descriptor.duration,
+  }) : life = anchor == _WingAnchor.caster
+           ? descriptor.duration
+           : WingBeamRules.coBeamLife(descriptor),
        tickTimer = descriptor.tickInterval,
        chargeTimer = descriptor.chargeTime;
 
@@ -114,6 +116,10 @@ class _ActiveWingBeam {
 
   /// Steam executes the first body it touches, once.
   bool steamKillUsed = false;
+
+  /// Where the beam landed on its last update, for the render pass to paint
+  /// it from (null until it has fired). Visual only.
+  Offset? drawEnd;
 
   bool get dead => life <= 0;
 }
@@ -309,13 +315,9 @@ extension CosmicWing on CosmicGame {
       }
 
       final end = _wingBeamEndpoint(beam);
-      emitWingBeamSegments(
-        descriptor: d,
-        origin: beam.origin,
-        end: end,
-        tetherTo: ship.pos,
-        segment: _wingSegment,
-      );
+      // The render pass paints the beam once a frame from here (see
+      // _renderOpenWingBeams), as survival does; nothing goes into _beamFx.
+      beam.drawEnd = end;
       if (_abilityVfx.length < kWingBeamParticleBudget) {
         emitWingBeamParticles(
           descriptor: d,
@@ -621,7 +623,13 @@ extension CosmicWing on CosmicGame {
         // The objective's share (the ship, standing in for the orb), and the
         // caster's whole — the ship's instead if the caster is gone.
         _feedWingObjective(
-          effectPower * CosmicAbilityRuntime.leechObjectiveShare,
+          _healCeiling.grant(
+            slot: beam.caster.member.slotIndex,
+            amount: effectPower * CosmicAbilityRuntime.leechObjectiveShare,
+            pool: CosmicGame.shipMaxHealth,
+            beauty: beam.caster.member.statBeauty,
+            now: _elapsed,
+          ),
         );
         if (_wingCasterLive(caster)) {
           caster.heal(effectPower.round());
@@ -635,11 +643,14 @@ extension CosmicWing on CosmicGame {
             CosmicAbilityRuntime.buffHasteMultiplier,
           );
         }
-      case AbilityEffectKind.flower:
       case AbilityEffectKind.alchemyBonus:
         _feedWingObjective(
           effectPower * CosmicAbilityRuntime.flowerObjectiveShare,
         );
+      case AbilityEffectKind.flower:
+        // Survival's rule: a Plant beam's flowers are its reward, not a
+        // heal on every tick.
+        break;
       default:
         _applyOpenWingEffect(effect, enemy, origin, power, radius, duration);
     }
@@ -773,11 +784,46 @@ extension CosmicWing on CosmicGame {
       p.dy + radius >= view.top - margin &&
       p.dy - radius <= view.bottom + margin;
 
-  /// Every beam segment laid this frame (both sides lay into one list), then
-  /// the party's Fire and Poison rings.
+  /// Every live line beam on both sides, painted once straight from the live
+  /// beams (as survival does), then the short-lived pieces in the beam list
+  /// (Lightning's blast, a charge's sparks), then the party's Fire and
+  /// Poison rings.
   void _renderOpenWingBeams(Canvas canvas) {
     final view = _wingView;
+    for (final beams in [_activeWingBeams, _wildSide.wingBeams]) {
+      for (final beam in beams) {
+        final end = beam.drawEnd;
+        if (beam.dead || beam.chargeTimer > 0 || end == null) continue;
+        final fade = wingBeamFade(beam.life);
+        emitWingBeamSegments(
+          descriptor: beam.descriptor,
+          origin: beam.origin,
+          end: end,
+          tetherTo: ship.pos,
+          segment: (start, segEnd, color, width, life, element) {
+            final mid = Offset(
+              (start.dx + segEnd.dx) * 0.5,
+              (start.dy + segEnd.dy) * 0.5,
+            );
+            final halfLength = (segEnd - start).distance * 0.5;
+            if (!_wingInView(mid, halfLength + width * 2, view, 28)) return;
+            drawAdvancedAbilityBeam(
+              canvas: canvas,
+              start: start,
+              end: segEnd,
+              color: color,
+              wingElement: element,
+              width: width,
+              alpha: fade,
+              time: _elapsed,
+            );
+          },
+        );
+      }
+    }
     for (final fx in _beamFx) {
+      final alpha = fx.alpha;
+      if (alpha <= 0) continue;
       final mid = Offset(
         (fx.start.dx + fx.end.dx) * 0.5,
         (fx.start.dy + fx.end.dy) * 0.5,
@@ -791,7 +837,7 @@ extension CosmicWing on CosmicGame {
         color: fx.color,
         wingElement: fx.wingElement,
         width: fx.width,
-        alpha: fx.alpha,
+        alpha: alpha,
         time: _elapsed,
       );
     }
@@ -862,18 +908,47 @@ extension CosmicWing on CosmicGame {
     for (final f in _wingFlowers) f.position,
   ];
 
-  /// The beam segments laid for drawing this frame: (element, width).
+  /// The beam pieces the render pass paints this frame: each live beam's
+  /// pieces, once (as [_renderOpenWingBeams] gets them from
+  /// [emitWingBeamSegments]), then the short-lived pieces in the beam list.
   @visibleForTesting
   List<({Offset start, Offset end, String? wingElement, double width})>
-  get debugBeamFx => [
-    for (final fx in _beamFx)
-      (
+  get debugBeamFx {
+    final out =
+        <({Offset start, Offset end, String? wingElement, double width})>[];
+    for (final beams in [_activeWingBeams, _wildSide.wingBeams]) {
+      for (final beam in beams) {
+        final end = beam.drawEnd;
+        if (beam.dead || beam.chargeTimer > 0 || end == null) continue;
+        emitWingBeamSegments(
+          descriptor: beam.descriptor,
+          origin: beam.origin,
+          end: end,
+          tetherTo: ship.pos,
+          segment: (start, segEnd, color, width, life, element) => out.add((
+            start: start,
+            end: segEnd,
+            wingElement: element,
+            width: width,
+          )),
+        );
+      }
+    }
+    for (final fx in _beamFx) {
+      out.add((
         start: fx.start,
         end: fx.end,
         wingElement: fx.wingElement,
         width: fx.width,
-      ),
-  ];
+      ));
+    }
+    return out;
+  }
+
+  /// Entries in the beam list itself (short-lived pieces only: a live beam
+  /// no longer lays a copy of itself there every frame).
+  @visibleForTesting
+  int get debugBeamListLength => _beamFx.length;
 
   /// Particles in the shared ability pool.
   @visibleForTesting

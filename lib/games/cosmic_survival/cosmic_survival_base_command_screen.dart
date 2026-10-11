@@ -175,10 +175,9 @@ class _CosmicSurvivalBaseCommandScreenState
                         parent: ClampingScrollPhysics(),
                       ),
                       children: [
+                        // Bought with each family's own mastery points,
+                        // which the panel reads itself — not the purse.
                         FamilyMasteryPanel(
-                          silverBalance: _silverBalance,
-                          goldBalance: _goldBalance,
-                          onCurrencyChanged: _loadCurrencies,
                           initialFamily: widget.initialMasteryFamily,
                         ),
                         _buildOrbSkinsTab(svc, shopService),
@@ -247,7 +246,8 @@ class _CosmicSurvivalBaseCommandScreenState
           ),
           const SizedBox(width: 10),
           // Both coins, because this screen spends both: orb skins are
-          // priced in gold, everything else in silver.
+          // priced in gold, everything else but mastery in silver (mastery
+          // spends each family's own points, shown on its tab).
           CoinPurse(
             gold: _goldBalance,
             silver: _silverBalance,

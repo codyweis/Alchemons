@@ -416,14 +416,23 @@ void main() {
       reason: 'the cast is the sky changing, not a bolt thrown',
     );
 
+    // The beat this caster's storm keeps: quicker for a stronger Mystic
+    // ([mysticWorldTempo]), but steady for this one.
+    final beat = game.mysticWorldBeat(0)!;
+
     // Just under one interval: nothing yet.
-    run(game, (CosmicSurvivalGame.kMysticStrikeInterval * 60).round() - 20);
+    run(game, (beat * 60).round() - 20);
     expect(game.mysticStrikeCount(0), isZero);
 
-    // Three intervals in, three bolts — a fixed rhythm the player can count on
-    // and play around, which is why the interval does not scale with stats.
-    run(game, (CosmicSurvivalGame.kMysticStrikeInterval * 60 * 3).round());
+    // Three intervals in, three bolts — a steady rhythm the player can count
+    // on and play around.
+    run(game, (beat * 60 * 3).round());
     expect(game.mysticStrikeCount(0), inInclusiveRange(3, 4));
+    expect(
+      game.mysticWorldBeat(0),
+      closeTo(beat, 1e-9),
+      reason: 'the beat drifted while the same Mystic stood',
+    );
 
     // It stops with its caster, though it left nothing standing to fade — a
     // world on a clock has to end the same way a world made of things does.
@@ -446,7 +455,7 @@ void main() {
       // Run to the moment the sky marks a spot.
       for (
         var f = 0;
-        f < (CosmicSurvivalGame.kMysticStrikeInterval * 60).round() + 120;
+        f < (game.mysticWorldBeat(0)! * 60).round() + 120;
         f++
       ) {
         keepAlive(game);
@@ -495,7 +504,7 @@ void main() {
     // catches nothing — it had already settled.
     for (
       var f = 0;
-      f < (CosmicSurvivalGame.kMysticQuakeInterval * 60).round() + 120;
+      f < (game.mysticWorldBeat(0)! * 60).round() + 120;
       f++
     ) {
       for (final e in game.enemies) {

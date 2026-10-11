@@ -68,6 +68,14 @@ abstract final class ManeRuntime {
   /// Lightning: 5–10 small orbs thrown toward scattered points round
   /// [scatterCenter]; each blooms into a shock field where it lands.
   /// [clamp] keeps a landing point inside the host's play space.
+  /// How many orbs a cast places: the cast's own lane count, which the
+  /// special sets from Beauty (5 weak, 7 average, 12 perfect), held to the
+  /// board's 5-10. It used to be a roll of 5-10 whatever the caster, so the
+  /// field never grew with stats, and once the stacking rule stopped its
+  /// fields piling up (ability pass M7) it lost a third of its damage at
+  /// perfect and read as an early-game special.
+  static int lightningOrbCount(int castLanes) => castLanes.clamp(5, 10);
+
   static List<Projectile> lightningOrbs(
     Projectile base, {
     required Offset casterPos,
@@ -76,9 +84,10 @@ abstract final class ManeRuntime {
     required double scatterRadius,
     required Random rng,
     required Offset Function(Offset) clamp,
+    required int count,
     int? slot,
   }) {
-    final orbCount = 5 + rng.nextInt(6);
+    final orbCount = lightningOrbCount(count);
     final orbs = <Projectile>[];
     for (var i = 0; i < orbCount; i++) {
       final a = angle + i * 2.399963 + (rng.nextDouble() - 0.5) * 0.42;
@@ -225,6 +234,23 @@ abstract final class ManeRuntime {
   static bool shedsDustPuffs(Projectile p) =>
       p.abilityFamily == 'mane' && p.element == 'Dust';
 
+  /// Most Dust puffs on the field at once. A well-bred Mane keeps a dozen
+  /// Dust shots in flight, and their trails held about 106 of the 220
+  /// shared projectile slots at every stat level; the same budget Pip's mud
+  /// trail uses ([kPipMudTrailBudget]) keeps the line without the crowd.
+  static const int dustTrailBudget = 48;
+
+  /// Whether another Dust puff fits under [dustTrailBudget].
+  static bool dustTrailHasRoom(Iterable<Projectile> projectiles) {
+    var puffs = 0;
+    for (final p in projectiles) {
+      if (p.stationary && p.element == 'Dust' && p.abilityFamily == 'mane') {
+        if (++puffs >= dustTrailBudget) return false;
+      }
+    }
+    return true;
+  }
+
   /// Dust: one slow-cloud puff under the projectile.
   static Projectile dustTrailPuff(Projectile p) => Projectile(
     position: p.position,
@@ -304,6 +330,18 @@ abstract final class ManeRuntime {
       ),
   ];
 
+  /// Most blobs one Lava shot drops: the first bodies it pierces.
+  static const int lavaBlobsPerShot = 4;
+
+  /// Whether this pierce drops a lava blob. Only the shot does: a blob is
+  /// itself a piercing Mane Lava projectile, so letting blobs drop blobs
+  /// chained them until they filled 217 of the 220 shared projectile slots.
+  /// And only for its first [lavaBlobsPerShot] bodies: a well-bred Mane
+  /// fires often enough that one blob per body still filled the pool.
+  /// Call it after the pierce is recorded in [Projectile.effectHitIds].
+  static bool dropsLavaBlob(Projectile p) =>
+      !p.stationary && p.effectHitIds.length <= lavaBlobsPerShot;
+
   /// Lava: a burning blob left at the pierce point.
   static Projectile lavaBlob(Projectile p, Offset at) => Projectile(
     position: at,
@@ -340,7 +378,12 @@ abstract final class ManeRuntime {
   static const double plantRootTime = 2.6;
 
   /// Plant: a rooted body's kill detonates the root on everything near it.
-  static const double plantRootExplodeRadius = 165.0;
+  /// 70 px: at 165 one kill blew up most of a lane and re-rooted it, so the
+  /// chain carried the vine to about 5x the median special at every band;
+  /// its hits already killed what they reached, so only reach, growth and
+  /// rate moved it (ability pass, final balance, 2026-10-10). Every mode
+  /// reads this.
+  static const double plantRootExplodeRadius = 70.0;
   static const double plantRootExplodeShare = 2.1;
   static const double plantRootChainTime = 1.4;
 
@@ -433,6 +476,12 @@ abstract final class ManeLightWard {
     required Projectile template,
     int? slot,
   }) {
+    // The ladder is an average Mane's; the caster's size scale (its cast's
+    // radius over the authored one) widens every rung. Rings never moved with
+    // any stat before.
+    final reach = (template.effectRadius / kManeLightWardEffectRadius)
+        .clamp(1.0, kAbilityReachCeiling)
+        .toDouble();
     if (rings.length < ringCap) {
       // Every ring is born at level 0 however far along the ward is.
       final index = rings.length;
@@ -449,8 +498,8 @@ abstract final class ManeLightWard {
           damage: template.damage,
           life: template.life,
           speedMultiplier: 0,
-          radiusMultiplier: kManeLightRadiusByLevel.first,
-          visualScale: kManeLightVisualByLevel.first,
+          radiusMultiplier: kManeLightRadiusByLevel.first * reach,
+          visualScale: kManeLightVisualByLevel.first * reach,
           piercing: true,
           visualStyle: ProjectileVisualStyle.slash,
           sourceSlotIndex: slot,
@@ -482,9 +531,16 @@ abstract final class ManeLightWard {
       0,
       kManeLightVisualByLevel.length - 1,
     );
+    // The ring keeps the reach it was hung with: its size over its rung.
+    final ringReach =
+        ring.radiusMultiplier /
+        kManeLightRadiusByLevel[ring.effectStacks.clamp(
+          0,
+          kManeLightRadiusByLevel.length - 1,
+        )];
     ring.effectStacks = level;
-    ring.visualScale = kManeLightVisualByLevel[level];
-    ring.radiusMultiplier = kManeLightRadiusByLevel[level];
+    ring.visualScale = kManeLightVisualByLevel[level] * ringReach;
+    ring.radiusMultiplier = kManeLightRadiusByLevel[level] * ringReach;
     ring.damage *= 1.42;
     ring.effectRadius = min(ring.effectRadius * 1.24, 300);
     // Feeding renews the ward as well as growing it.

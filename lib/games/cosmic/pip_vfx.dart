@@ -19,10 +19,6 @@ import 'vfx_shapes.dart';
 /// five material pieces plus the bounce notches.
 
 final ui.Paint _paint = ui.Paint();
-final ui.Paint _stroke = ui.Paint()
-  ..style = ui.PaintingStyle.stroke
-  ..strokeCap = ui.StrokeCap.round
-  ..strokeJoin = ui.StrokeJoin.round;
 
 enum _Head { barb, heavy, needle, prism }
 
@@ -32,6 +28,49 @@ _Head _headFor(String element) => switch (element) {
   'Crystal' || 'Light' => _Head.prism,
   _ => _Head.barb,
 };
+
+/// Pip Steam's cloud, worn on the pip (canvas at its centre) while its
+/// attack-speed ramp climbs: puffs rising off the body and billowing as
+/// they go — never circling it — each a soft pool with a lit top, thicker
+/// and brighter as [progress] (0 → 1, the ramp toward its +300% peak)
+/// climbs, and vapour grains lifting through them. Shared by survival and
+/// open space. (It was four faint pools of steam's light at 0.16 alpha: on
+/// the dark arena the pip looked bare.)
+void drawPipSteamCloud({
+  required ui.Canvas canvas,
+  required double progress,
+  required double time,
+}) {
+  final p = progress.clamp(0.0, 1.0);
+  final m = vfxMaterial('Steam');
+  vfxSpill(canvas, const ui.Offset(0, -6), 22 + 10 * p, m.light, 0.1 + 0.12 * p);
+  // Puffs leave from the flanks and roll up and outward, so they show round
+  // the body rather than hiding behind it.
+  for (var i = 0; i < 4; i++) {
+    final ph = (time * 0.45 + i * 0.25) % 1.0;
+    final side = i.isEven ? -1.0 : 1.0;
+    final c = ui.Offset(
+      side * (16.0 + 12.0 * ph + 2.0 * i) + sin(time * 1.1 + i * 2.3) * 3.0,
+      -2.0 - ph * 38.0,
+    );
+    final r = 10.0 + 8.0 * ph + p * 5.0;
+    final a = sin(ph * pi);
+    vfxSpill(canvas, c, r, m.light, (0.36 + 0.3 * p) * a);
+    vfxSpill(
+      canvas,
+      c - ui.Offset(0, r * 0.3),
+      r * 0.5,
+      m.glint,
+      (0.16 + 0.2 * p) * a,
+    );
+  }
+  vfxGrainsDiscard();
+  for (var i = 0; i < 5; i++) {
+    final ph = (time * 0.6 + i * 0.2 + vfxHash(i * 3.1)) % 1.0;
+    vfxGrain((vfxHash(i * 5.7) - 0.5) * 22 + sin(time + i) * 2, 2 - ph * 30);
+  }
+  vfxGrainsFlush(canvas, 2.0, m.glint, 0.3 + 0.35 * p);
+}
 
 /// One pip dart at [position]. [special] darts get the long trail and the
 /// bounce notches; basics share the silhouette but stay light.
@@ -44,7 +83,13 @@ void drawPipDart({
 }) {
   final element = projectile.element ?? 'Fire';
   final m = vfxMaterial(element);
-  final tint = ui.Color.lerp(elementColor(element), m.mid, 0.25)!;
+  // The material's lit colour leaned toward the element colour: ~30% for
+  // the glowing elements so they don't go pale, less for the rest.
+  final tint = ui.Color.lerp(
+    m.light,
+    elementColor(element),
+    kVfxGlowingElements.contains(element) ? 0.30 : 0.18,
+  )!;
   final vs = projectile.visualScale.clamp(0.72, 2.3).toDouble();
   final head = _headFor(element);
   final pulse = 0.85 + 0.15 * sin(time * 6.5 + projectile.life * 2.5);
@@ -54,20 +99,22 @@ void drawPipDart({
   canvas.rotate(projectile.angle);
 
   // Light thrown ahead of and around it, stretched along travel.
-  canvas.save();
-  canvas.scale(2.4, 1);
-  vfxSpill(
-    canvas,
-    const ui.Offset(-1.5, 0),
-    6.5 * vs,
-    tint,
-    (special ? 0.34 : 0.2) * pulse,
-  );
-  canvas.restore();
+  // A basic fires three at a time, all the time: it keeps the silhouette and
+  // the streak and leaves the spill to the special.
+  // A special is still one small dart (its hit is the dart), so its
+  // presence comes from what it carries, not a bigger head: a brighter pool
+  // of light stretched along its flight and a long wake of its own light
+  // that shows the line it ricochets along.
+  if (special) {
+    canvas.save();
+    canvas.scale(2.6, 1);
+    vfxSpill(canvas, const ui.Offset(-2.5, 0), 8.5 * vs, tint, 0.42 * pulse);
+    canvas.restore();
+  }
 
   // The trail: a tapered streak of the dart's own light.
-  final trailLen = (special ? 34.0 : 15.0) * vs;
-  final trailW = (special ? 4.2 : 2.6) * vs * (head == _Head.heavy ? 1.3 : 1);
+  final trailLen = (special ? 52.0 : 15.0) * vs;
+  final trailW = (special ? 5.0 : 2.6) * vs * (head == _Head.heavy ? 1.3 : 1);
   final trail = ui.Path()
     ..moveTo(0, -trailW / 2)
     ..quadraticBezierTo(-trailW * 1.5, -trailW / 2, -trailLen, 0)
@@ -183,15 +230,19 @@ void _drawHead(
         ..addPolygon([pts[0], pts[1], ui.Offset(len * 0.15, -w * 0.45)], true);
       vfxFillPath(canvas, edge, m.glint, molten ? 0.9 : 0.5);
       if (molten) {
+        // The fire in its seam: a filled sliver of molten light that swells
+        // in the middle and pinches out at both ends, not a stroked line.
         final glow = 0.6 + 0.4 * sin(time * 5);
-        final seam = ui.Path()
-          ..moveTo(len * 0.5, 0)
-          ..lineTo(-len * 0.1, w * 0.2)
-          ..lineTo(-len * 0.35, -w * 0.1);
-        _stroke
-          ..color = m.glint.withValues(alpha: 0.85 * glow)
-          ..strokeWidth = 1.1 * vs;
-        canvas.drawPath(seam, _stroke);
+        final seam = vfxLensRibbon(
+          vfxPolylineSpine([
+            ui.Offset(len * 0.5, 0),
+            ui.Offset(-len * 0.1, w * 0.2),
+            ui.Offset(-len * 0.35, -w * 0.1),
+          ]),
+          1.5 * vs,
+          taper: 0.4,
+        );
+        vfxFillPath(canvas, seam, m.glint, 0.85 * glow);
       }
     case _Head.needle:
       // Long and slim. Blood's swells into a bead behind the point.
@@ -266,24 +317,33 @@ void _drawTrailMaterial(
   double life,
 ) {
   if (element == 'Lightning') {
-    final step = (time * 18).floorToDouble();
-    for (var b = 0; b < 2; b++) {
-      final path = ui.Path()..moveTo(-4 * vs, 0);
-      for (var k = 1; k <= 4; k++) {
-        path.lineTo(
+    // Two arcs streaming off the needle. Their bends ease from one hashed
+    // pose to the next a couple of times a second instead of snapping
+    // eighteen times a second, the path curves through them rather than
+    // zig-zagging, and both are filled lens ribbons sharing a faint wide
+    // band and a lit core: two fills.
+    final glow = ui.Path();
+    final core = ui.Path();
+    final corners = <ui.Offset>[];
+    final arc = <ui.Offset>[];
+    // One arc per dart: a volley of seven arrives bunched, and two bright
+    // arcs each read as a fan of white hairlines.
+    corners
+      ..clear()
+      ..add(ui.Offset(-4 * vs, 0));
+    for (var k = 1; k <= 4; k++) {
+      corners.add(
+        ui.Offset(
           -4 * vs - trailLen * 0.7 * k / 4,
-          (vfxHash(step + b * 5 + k) - 0.5) * 9 * vs,
-        );
-      }
-      _stroke
-        ..color = m.light.withValues(alpha: 0.25)
-        ..strokeWidth = 3.2 * vs;
-      canvas.drawPath(path, _stroke);
-      _stroke
-        ..color = m.glint.withValues(alpha: 0.9)
-        ..strokeWidth = 1.0 * vs;
-      canvas.drawPath(path, _stroke);
+          (vfxGlide(k * 1.0, time, 2.6) - 0.5) * 7 * vs,
+        ),
+      );
     }
+    vfxCurveSpine(corners, perSegment: 3, into: arc..clear());
+    vfxLensRibbon(arc, 5.0 * vs, taper: 0.15, taperEnd: 0.6, into: glow);
+    vfxLensRibbon(arc, 1.9 * vs, taper: 0.15, taperEnd: 0.6, into: core);
+    vfxFillPath(canvas, glow, m.light, 0.26);
+    vfxFillPath(canvas, core, ui.Color.lerp(m.glint, tint, 0.35)!, 0.8);
     return;
   }
   const n = 5;

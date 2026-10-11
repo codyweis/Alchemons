@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'cosmic_data.dart';
+import 'vfx_shapes.dart';
 
 // Material vocabulary for Mane specials. Every shader and path is built once.
 // Animation uses transforms and bounded analytic details: no spawned particles,
@@ -46,10 +47,6 @@ final _ribbon = ui.Path()
   ..cubicTo(4, -15, -12, -9, -36, 4)
   ..cubicTo(-12, -2, -1, 9, 17, 0)
   ..close();
-final _curl = ui.Path()
-  ..moveTo(-28, 8)
-  ..cubicTo(-6, -17, 22, -13, 14, 5)
-  ..cubicTo(9, 17, -3, 9, 3, 3);
 final _wave = ui.Path()
   ..moveTo(-12, -29)
   ..cubicTo(14, -26, 23, 18, -9, 30)
@@ -135,23 +132,34 @@ final _thorn = ui.Path()
   ..lineTo(-4, -5)
   ..quadraticBezierTo(2, -4, 4, 0)
   ..close();
+// An arc writhing through the old zig-zag's corners (curved through their
+// midpoints) with one branch, so the ribbon reads as a discharge, not a
+// zig-zag wire.
 final _bolt = ui.Path()
   ..moveTo(-19, 4)
-  ..lineTo(-10, -2)
-  ..lineTo(-6, 3)
-  ..lineTo(0, -5)
-  ..lineTo(4, -1)
-  ..lineTo(16, -7)
-  ..moveTo(-6, 3)
-  ..lineTo(-2, 11)
-  ..lineTo(4, 12);
+  ..quadraticBezierTo(-10, -2, -8, 0.5)
+  ..quadraticBezierTo(-6, 3, -3, -1)
+  ..quadraticBezierTo(0, -5, 2, -3)
+  ..quadraticBezierTo(4, -1, 16, -7)
+  ..moveTo(-5.75, 1.4)
+  ..quadraticBezierTo(-2, 10, 4, 12);
+
+// One paint for every Mane painter: a painter is built per effect per frame,
+// and every draw below sets the fields it uses.
+final ui.Paint _manePaint = ui.Paint();
+
+/// The scorch under a Mane Lightning field (Lightning's dark material).
+const ui.Color _scorch = ui.Color(0xFF14162A);
+
+/// The broken ground under a Mane Earth quake (Earth's dark material).
+const ui.Color _earthDark = ui.Color(0xFF1E1610);
 
 class _Painter {
   final ui.Canvas c;
   final _Material m;
   final double t;
   final double fade;
-  final ui.Paint p = ui.Paint();
+  final ui.Paint p = _manePaint;
   _Painter(this.c, this.m, this.t, this.fade);
   void glow(double x, double y, double rx, double ry, double alpha) {
     c.save();
@@ -180,15 +188,16 @@ class _Painter {
     );
   }
 
+  /// A seam, crest, cord or arc along [path]: one filled ribbon that swells
+  /// to ~1.5x [width] in the middle and tapers to points, so it reads as
+  /// material rather than a stroked wire. Every caller passes a static path,
+  /// so the ribbon is flattened once and reused.
   void line(ui.Path path, double width, double alpha, {bool dark = false}) {
     c.drawPath(
-      path,
+      vfxRibbonAlongStaticPath(path, width * 1.5, taper: 0.4),
       p
-        ..style = ui.PaintingStyle.stroke
+        ..style = ui.PaintingStyle.fill
         ..shader = dark ? m.glass : null
-        ..strokeWidth = width
-        ..strokeCap = ui.StrokeCap.round
-        ..strokeJoin = ui.StrokeJoin.round
         ..color = (dark ? const ui.Color(0xFFFFFFFF) : m.light).withValues(
           alpha: alpha * fade,
         ),
@@ -250,7 +259,9 @@ class _Painter {
       c.translate(-f * 15, 0);
       c.scale(1, 0.88 + f * 0.2);
       fill(_wave, sin(f * pi) * 0.6);
-      line(_crest, 0.45, sin(f * pi) * 0.6);
+      // A broad band of foam on the crest, not a bright hairline (three of
+      // them stacked read as ruled lines across the wave).
+      line(_crest, 0.95, sin(f * pi) * 0.34);
       c.restore();
     }
     for (var i = 0; i < 5; i++) {
@@ -293,6 +304,41 @@ class _Painter {
       fill(_stone, sin(f * pi));
       c.restore();
     }
+  }
+
+  /// A quake zone: the ground broken over the whole patch — a dark stain
+  /// with lit fault lines running across it and small stones jolting up
+  /// out of it on a slow beat, dust hanging over it. It was two expanding
+  /// hairline cracks.
+  void quake() {
+    final beat = (t * 0.9) % 1.0;
+    final jolt = pow(1 - beat, 3).toDouble();
+    vfxFillPath(
+      c,
+      vfxBlob(ui.Offset.zero, 23, 2.7, n: 14, wobble: 0.18),
+      _earthDark,
+      0.5 * fade,
+    );
+    glow(0, 0, 26, 24, 0.08 + 0.12 * jolt);
+    for (var i = 0; i < 2; i++) {
+      c.save();
+      c.rotate(i * 1.9 + 0.3);
+      c.scale(1.5);
+      line(_fracture, 0.45, 0.3 + 0.35 * jolt);
+      c.restore();
+    }
+    for (var i = 0; i < 5; i++) {
+      final a = i * 2.399963 + 0.6;
+      final d = 20 * sqrt((i + 0.5) / 5);
+      final lift = jolt * (1.5 + (i % 3)) * 1.6;
+      c.save();
+      c.translate(cos(a) * d, sin(a) * d * 0.9 - lift);
+      c.rotate(a + jolt * 0.4);
+      c.scale(0.17 + 0.05 * (i % 3));
+      fill(_stone, 0.9);
+      c.restore();
+    }
+    flecks(4, speed: 0.5);
   }
 
   void vapor({bool dust = false, bool poison = false, bool field = false}) {
@@ -346,17 +392,105 @@ class _Painter {
     }
   }
 
+  /// A shock field on the ground: a scorch in the stone, charge pooled
+  /// over it and three arcs crawling across it, each easing from one hashed
+  /// pose to the next. Two fills for the arcs.
+  void lightningField() {
+    final flash = 0.65 + 0.25 * (vfxGlide(0.7, t, 2.5) * 2 - 1);
+    vfxFillPath(
+      c,
+      vfxBlob(ui.Offset.zero, 15, 4.1, wobble: 0.26),
+      _scorch,
+      0.6 * fade,
+    );
+    glow(0, 0, 25, 25, 0.3 * flash);
+    final glowPath = ui.Path();
+    final core = ui.Path();
+    // Two discharges crawling across the field from edge to edge, each its
+    // own way (three chords through the middle read as an asterisk).
+    for (var i = 0; i < 2; i++) {
+      final a0 = i * 2.7 + (vfxGlide(i * 3.1, t, 1.2) - 0.5) * 1.4;
+      final a1 = a0 + 1.7 + 0.6 * vfxGlide(i * 5.7 + 0.4, t, 1.5);
+      vfxArcInto(
+        glowPath,
+        core,
+        vfxPolar(a0, 20 + 4 * vfxGlide(i * 2.2, t, 1.9)),
+        vfxPolar(a1, 18),
+        i * 9.0 + 2.0,
+        t,
+        width: 1.3,
+        amp: 0.24,
+      );
+    }
+    c.drawPath(
+      glowPath,
+      p
+        ..style = ui.PaintingStyle.fill
+        ..shader = null
+        ..color = m.light.withValues(alpha: 0.24 * flash * fade),
+    );
+    c.drawPath(
+      core,
+      p..color = m.light.withValues(alpha: 0.85 * flash * fade),
+    );
+  }
+
+  /// A thrown orb in flight: a small ball of charge with its light round it
+  /// and one arc writhing on its skin — the size of its contact, a few
+  /// times over in glow, where it was the generic dot with a white core.
+  void lightningOrb() {
+    final flash = 0.7 + 0.3 * (vfxGlide(1.3, t, 3.0) * 2 - 1);
+    glow(0, 0, 22, 22, 0.42 * flash);
+    glow(0, 0, 7, 7, 0.8);
+    final glowPath = ui.Path();
+    final core = ui.Path();
+    final a0 = (vfxGlide(2.1, t, 2.2) - 0.5) * 4;
+    vfxArcInto(
+      glowPath,
+      core,
+      vfxPolar(a0, 7),
+      vfxPolar(a0 + 2.4, 8),
+      3.3,
+      t,
+      width: 1.3,
+      amp: 0.5,
+    );
+    c.drawPath(
+      glowPath,
+      p
+        ..style = ui.PaintingStyle.fill
+        ..shader = null
+        ..color = m.light.withValues(alpha: 0.3 * flash * fade),
+    );
+    c.drawPath(
+      core,
+      p..color = m.light.withValues(alpha: 0.9 * flash * fade),
+    );
+    flecks(2, speed: 1.4);
+  }
+
   void lightning() {
-    final tick = (t * 9).floor();
-    final flash = 0.6 + 0.3 * sin(tick * 2.4);
+    // The arcs re-aim a couple of times a second, easing from one hashed pose
+    // to the next, instead of snapping to a new one nine times a second.
+    final flash = 0.6 + 0.3 * (vfxGlide(0.7, t, 2.5) * 2 - 1);
     glow(0, 0, 23, 17, 0.33);
-    glow(0, 0, 6, 5, 0.8);
+    glow(0, 0, 6, 5, 0.6);
+    // Both arcs run along the slash, one a little behind and to the side of
+    // the other, so the piece reads as a charged streak travelling, not a
+    // crossed glyph (they used to swing up to 2.6 rad apart: an X).
     for (var i = 0; i < 2; i++) {
       c.save();
-      c.rotate(sin(tick * 1.7 + i) * 2.8);
-      c.scale(0.85 + 0.2 * sin(tick + i), i == 0 ? 1 : -0.7);
-      line(_bolt, 2, flash * 0.15);
-      line(_bolt, 0.5, flash);
+      c.translate(i == 0 ? 0 : -4, i == 0 ? -1.5 : 2.5);
+      c.rotate((i == 0 ? 0 : 0.22) + (vfxGlide(i * 3.7 + 1.1, t, 2.2) - 0.5) * 0.4);
+      // Never mirrored: a flipped copy of the bolt crosses the first one.
+      c.scale(
+        0.85 + 0.2 * (vfxGlide(i * 5.3 + 2.9, t, 2.2) * 2 - 1),
+        i == 0 ? 1 : 0.75,
+      );
+      // A broad faint band of charge under a lit core that swells along
+      // each arc: plasma in a crack, not a white wire.
+      line(_bolt, 2.8, flash * 0.18);
+      line(_bolt, 0.85, flash * 0.85);
       c.restore();
     }
   }
@@ -377,12 +511,14 @@ class _Painter {
 
   void plant() {
     glow(0, 0, 24, 14, 0.17);
+    // Lean cords: the vine's art grows with its rings as it feeds, so
+    // its body stays slim enough not to swamp the field when it is large.
     for (var i = 0; i < 3; i++) {
       c.save();
       c.translate(-i * 3.0, sin(t * 2 + i) * 3);
       c.scale(1, i == 1 ? -0.85 : 0.8 + i * 0.1);
-      line(_root, 1.8, 0.85, dark: true);
-      line(_root, 0.25, 0.35);
+      line(_root, 1.0, 0.8, dark: true);
+      line(_root, 0.2, 0.35);
       c.translate(5, -5);
       c.rotate(sin(t + i) * 0.15);
       fill(_thorn, 0.8);
@@ -420,18 +556,20 @@ class _Painter {
   }
 
   void light() {
-    // Orbiting ward levels already determine visualScale in the gameplay code.
-    // Small local geometry keeps the highest levels inside their old footprint.
-    glow(0, 0, 17, 14, 0.32);
-    glow(0, 0, 7, 7, 0.95);
+    // A held mote of light: a warm glow round a soft lit heart (no white
+    // pip), two veils of it breathing where they lie and a few grains of
+    // light drifting off behind. Nothing circles it — the ward's own orbit
+    // is the only motion round the creature.
+    glow(0, 0, 18, 15, 0.45);
+    glow(0, 0, 8, 7, 0.62 + 0.1 * sin(t * 2.4));
     for (var i = 0; i < 2; i++) {
       c.save();
-      c.rotate(t * 0.5 + i * pi);
-      c.scale(0.3, 0.2);
-      line(_curl, 0.9, 0.55);
+      c.rotate(i * pi + 0.5);
+      c.scale(0.5 + 0.05 * sin(t * 1.3 + i), 0.3);
+      fill(_ribbon, 0.2);
       c.restore();
     }
-    glow(sin(t * 1.7) * 2, cos(t * 1.7) * 2, 3, 2, 0.65);
+    flecks(3, speed: 0.4);
   }
 
   void fire() {
@@ -527,7 +665,7 @@ class _Painter {
   void zone(String element) {
     switch (element) {
       case 'Lightning':
-        lightning();
+        lightningField();
       case 'Steam':
         vapor(field: true);
       case 'Dust':
@@ -537,13 +675,7 @@ class _Painter {
       case 'Plant':
         plant();
       case 'Earth':
-        for (var i = 0; i < 2; i++) {
-          final f = (t * 0.8 + i * 0.5) % 1.0;
-          c.save();
-          c.scale(0.5 + f);
-          line(_fracture, 0.7, sin(f * pi) * 0.6);
-          c.restore();
-        }
+        quake();
       case 'Lava':
         lavaPool();
       case 'Mud':
@@ -564,6 +696,45 @@ class _Painter {
 int maneLavaPoolCrowd = 0;
 const kManeLavaPoolLiteAbove = 24;
 
+/// How far each Mane piece's art reaches at scale 1, in local units: the
+/// faint edge of its glow and wake, measured (phase-4 audit, drawn extent
+/// over visualScale).
+const Map<String, double> _maneArtReach = {
+  'Water': 36,
+  'Lava': 47,
+  'Ice': 53,
+  'Steam': 36,
+  'Earth': 35,
+  'Mud': 36,
+  'Dust': 38,
+  'Crystal': 31,
+  'Air': 59,
+  'Plant': 32,
+  'Poison': 38,
+  'Spirit': 39,
+  'Dark': 33,
+  'Blood': 46,
+  'Fire': 44,
+  'Light': 20,
+  'Lightning': 17,
+};
+
+/// The scale a moving Mane piece is drawn at: its visualScale — Mane's scaler
+/// grows visualScale and radiusMultiplier together (scaleManeProjectile), so
+/// the art keeps step with the contact radius — but never so large that the
+/// art reaches past the piece's own snare or effect ring (decision
+/// 2026-10-10): the ring is what it does, and art drawn past it overstates
+/// it. Uncapped, the masses reached ~10x their contact at perfect and the fed
+/// Plant vine filled the screen. A Plant vine's rings grow as it feeds, so
+/// its art grows with them.
+double maneArtScale(Projectile projectile, {double floor = 0.65}) {
+  final s = max(floor, projectile.visualScale);
+  final ring = max(projectile.effectRadius, projectile.snareRadius);
+  final reach = _maneArtReach[projectile.element];
+  if (ring <= 0 || reach == null) return s;
+  return max(0.3, min(s, ring / reach));
+}
+
 /// Whether this effect owns its ambient motion instead of using spawned wisps.
 bool usesAlchemicalManeVisual(Projectile projectile) {
   if (projectile.abilityFamily != 'mane' ||
@@ -572,8 +743,8 @@ bool usesAlchemicalManeVisual(Projectile projectile) {
   }
   if (!projectile.stationary && projectile.element == 'Lava') return false;
   return projectile.visualStyle == ProjectileVisualStyle.slash ||
-      (projectile.stationary &&
-          projectile.visualStyle == ProjectileVisualStyle.sigil);
+      (projectile.visualStyle == ProjectileVisualStyle.sigil &&
+          (projectile.stationary || projectile.element == 'Lightning'));
 }
 
 /// Claims only authored Mane specials, leaving basic attacks and other families
@@ -599,20 +770,12 @@ bool drawAlchemicalManeVisual({
       24.0,
       max(projectile.effectRadius, projectile.snareRadius),
     ).clamp(24.0, 220.0);
-    canvas.scale(radius / 26);
+    // Zone geometry reaches about 28 local units: kept inside the ring.
+    canvas.scale(radius / 28);
     _Painter(canvas, material, phase, fade).zone(element!);
   } else {
     canvas.rotate(projectile.angle);
-    canvas.scale(
-      projectile.visualScale.clamp(
-        0.65,
-        element == 'Light'
-            ? 24.0
-            : element == 'Plant'
-            ? kManePlantMaxVisual
-            : 4.4,
-      ),
-    );
+    canvas.scale(maneArtScale(projectile));
     final p = _Painter(canvas, material, phase, fade);
     switch (element) {
       case 'Water':
@@ -630,7 +793,10 @@ bool drawAlchemicalManeVisual({
       case 'Mud':
         p.mud();
       case 'Lightning':
-        p.lightning();
+        // The scattered orbs fly as sigils; the special itself is a slash.
+        projectile.visualStyle == ProjectileVisualStyle.sigil
+            ? p.lightningOrb()
+            : p.lightning();
       case 'Crystal':
         p.crystal();
       case 'Plant':

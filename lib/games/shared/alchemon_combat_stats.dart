@@ -305,6 +305,13 @@ const double kAlchemonBaseSpecialCooldown = 12.5;
 /// rare action; it runs on its own base rather than the shared one.
 const double kMaskBaseSpecialCooldown = 22.5;
 
+/// The SPECIAL a Mask's cadence is measured from: a Mask's SPECIAL at the
+/// P50 band (internal stats ≈4.3, level 10). A stronger special brings a
+/// Mask's traps back sooner like every other family's, but relative to this
+/// point, so the base and the element table still say how long a P50 Mask
+/// waits — and it still waits longer than any other family.
+const int kMaskReferenceSpecial = 61;
+
 /// A Mystic's special is its world, which only Survival runs. Everywhere
 /// else — open space, the planet dungeons — a Mystic fights with its auto
 /// attack and has no special to cast (user ruling, 2026-10-02).
@@ -391,9 +398,14 @@ double alchemonSpecialInterval({
     element,
   );
   if (f == 'mask') {
+    // Rides SPECIAL like everyone else (user, 2026-10-10): it used to read
+    // only its recharge stats, so its cadence gained ×1.4 from P50 to perfect
+    // while every other family's gained ×2.5-3.
     return kMaskBaseSpecialCooldown /
         specialCooldownReduction *
-        elementMultiplier;
+        elementMultiplier *
+        alchemonSpecialPowerFactor(kMaskReferenceSpecial) /
+        alchemonSpecialPowerFactor(abilityAtk);
   }
   if (f == 'mystic') {
     // 0 at baseline, 1 once SPECIAL saturates (36) or recharge upgrades
@@ -428,6 +440,114 @@ double alchemonSpecialInterval({
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  MYSTIC WORLDS — what SPECIAL buys a special that is cast once
+//
+//  Every other family turns a stronger SPECIAL into casts: its special comes
+//  back about three times sooner from P50 to perfect, on top of hitting harder.
+//  A Mystic lights one world per deployment, so recasting buys it nothing.
+//  Its SPECIAL buys the world itself instead (user, 2026-10-10: "scale world
+//  strength with SPECIAL so worlds hold about 2-3x at every band"): how hard a
+//  damage world lands ([mysticWorldIntensity]) and how fast and how far it
+//  works ([mysticWorldTempo]). A world's beat still holds steady for a given
+//  creature, so a player can count on it; a stronger creature's beats faster.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// The SPECIAL at which a damage world deals its authored damage. A Mystic's
+/// SPECIAL is about 81 at P50, 153 at P90 and 240 at P100 + Enhancement 10.
+const int kMysticWorldReferenceSpecial = 140;
+
+/// The worlds whose identity is the damage they deal. The control and support
+/// worlds (Water's hold, Dark's maw, Steam's vents, Ice's cold, Mud's weight,
+/// Dust's haze, Blood's tithe, Light's dawn, Crystal's vein) are not scaled
+/// here: what they hold and how far they reach are their own stat hooks.
+const Set<String> kMysticDamageWorlds = {
+  'Plant',
+  'Earth',
+  'Air',
+  'Poison',
+  'Spirit',
+  'Fire',
+  'Lightning',
+  'Lava',
+};
+
+/// How hard a damage world of [element] lands, as a multiplier on its
+/// authored damage, at the caster's SPECIAL ([abilityAtk]).
+///
+/// It follows the line of [alchemonSpecialPowerFactor] — the factor every
+/// other family's cadence reads — but without that factor's ×6 cap: the cap
+/// stops a recast running away, and a world is not recast. Relative to
+/// [kMysticWorldReferenceSpecial], it is about ×0.65 at P50, ×1.1 at P90 and
+/// ×1.6 at P100 + Enhancement 10, so a world's share of the fight holds level
+/// across the bands instead of starting huge and ending at the median.
+///
+/// The Grove and the Quaking land at 0.65 of that: at P50 they were 7.3x and
+/// 6.7x the median special, twice the next world (ability pass M2).
+double mysticWorldIntensity({
+  required String element,
+  required int abilityAtk,
+}) {
+  if (!kMysticDamageWorlds.contains(element)) return 1.0;
+  final weight = switch (element) {
+    'Plant' || 'Earth' => 0.65,
+    _ => 1.0,
+  };
+  final curve =
+      (1.0 + max(0, abilityAtk) / 30.0) /
+      (1.0 + kMysticWorldReferenceSpecial / 30.0);
+  // A run's stat pickups keep raising SPECIAL; past perfect a world stops
+  // gaining well before it can run away.
+  return weight * curve.clamp(0.0, 2.5);
+}
+
+/// The SPECIAL at which a damage world keeps its authored tempo: a Mystic's
+/// SPECIAL at the P50 band (internal stats ≈4.3, level 10).
+const int kMysticWorldTempoReferenceSpecial = 81;
+
+/// How much faster — and, where a world works by covering ground, how much
+/// wider — a damage world of [element] works at the caster's SPECIAL
+/// ([abilityAtk]), relative to its authored tempo at P50.
+///
+/// A world's hits already kill most of what they reach at every band, so
+/// landing harder ([mysticWorldIntensity]) buys it little. What the median
+/// special gains from casts that come back about three times sooner, a world
+/// gains here instead: a vine's lash and an ember's reignite come round
+/// sooner, a revenant strikes sooner, the storm and the quake beat faster,
+/// the tornado walks its circuit faster and the miasma spreads wider. The
+/// curve is [alchemonSpecialPowerFactor]'s line, uncapped, normalised to 1 at
+/// P50: about ×1.2 at P70, ×1.65 at P90 and ×2.4 at P100 + Enhancement 10
+/// (ability pass, final balance, 2026-10-10). Control and support worlds keep
+/// their own stat hooks and are not scaled here.
+double mysticWorldTempo({
+  required String element,
+  required int abilityAtk,
+}) {
+  if (!kMysticDamageWorlds.contains(element)) return 1.0;
+  final curve =
+      (1.0 + max(0, abilityAtk) / 30.0) /
+      (1.0 + kMysticWorldTempoReferenceSpecial / 30.0);
+  // A run's stat pickups keep raising SPECIAL; past about ×3 a world's beat
+  // stops quickening before it turns into a continuous beam.
+  return curve.clamp(0.6, 3.0).toDouble();
+}
+
+/// A world quantity that should run from nothing to its full value across the
+/// real stat band — 0 at the low anchor, 0.25 at an average stat, 1.0 at
+/// perfect — read off the anchored curve.
+///
+/// Three worlds read their range from `hornStatScale(stat, min: 0 or 0.5,
+/// max: 1.0)`, which is already 1.0 at stat 3, so every fielded creature had
+/// the top of the range: the Ice blizzard's full 55% slow (which then
+/// prevented about 73% of incoming at every band), the Spirit host's full
+/// cap and the Lava world's full nine fissures (ability pass M6).
+double mysticWorldHookProgress(double stat) => scaledAbilityValue(
+  stat,
+  atLow: 0.0,
+  atAverage: 0.25,
+  atPerfect: 1.0,
+).clamp(0.0, 1.0);
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  WHAT EACH STAT FEEDS — the contract the Battle tab prints
 //
 //  Written out from the formulas above. alchemon_stat_feeds_test.dart raises
@@ -453,8 +573,8 @@ enum AlchemonCombatOutput {
 /// where the formula blends them. Strength's share of auto-attack speed is
 /// null: it works through P-ATK and stops at P-ATK 41
 /// ([alchemonBasicAttackPowerFactor]). The special's power stats likewise
-/// speed its recharge through SPECIAL, except a Mask's, which reads only its
-/// recharge stats.
+/// speed its recharge through SPECIAL, in every family — a Mask's too since
+/// 2026-10-10 ([kMaskReferenceSpecial]).
 Map<AlchemonCombatOutput, Map<AlchemonStat, double?>> alchemonStatFeeds(
   String family,
 ) {
@@ -498,9 +618,8 @@ Map<AlchemonCombatOutput, Map<AlchemonStat, double?>> alchemonStatFeeds(
     },
     AlchemonCombatOutput.specialInterval: {
       ...specialRecharge,
-      if (f != 'mask')
-        for (final stat in specialPower.keys)
-          if (!specialRecharge.containsKey(stat)) stat: null,
+      for (final stat in specialPower.keys)
+        if (!specialRecharge.containsKey(stat)) stat: null,
     },
   };
 }

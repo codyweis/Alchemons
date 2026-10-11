@@ -86,6 +86,13 @@ void main() {
         await db.currencyDao.addGold(100);
         mastery = FamilyMasteryService(db);
         await mastery.load();
+        // Each family's mastery: the buys below, and a little over, so some
+        // prices read as affordable and some don't.
+        await mastery.addPoints(const {
+          CreatureFamily.mane: 210,
+          CreatureFamily.kin: 700,
+          CreatureFamily.mystic: 60,
+        });
         for (final id in [
           'mane.assault.honed_pair',
           'mane.assault.crosscut',
@@ -116,9 +123,6 @@ void main() {
           family: CreatureFamily.mystic,
           nodeId: 'mystic.firmament.native_air',
         );
-        // What is left to spend, so some prices read as unaffordable.
-        final silver = await db.currencyDao.getSilverBalance();
-        await db.currencyDao.spendSilver(silver - 12000);
       });
 
       final boundary = GlobalKey();

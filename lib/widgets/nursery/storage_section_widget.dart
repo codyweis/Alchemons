@@ -1214,9 +1214,7 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
                       Positioned(
                         top: 10,
                         left: 14,
-                        child: CultivationChamberPill(
-                          label: 'COLD STORAGE',
-                        ),
+                        child: CultivationChamberPill(label: 'COLD STORAGE'),
                       ),
                       Positioned(
                         bottom: 0,

@@ -11,8 +11,10 @@
 // of a finished run is the one control that must never be the casualty.
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/widgets/animations/reward_reveal.dart';
+import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
@@ -275,6 +277,41 @@ class _CosmicSurvivalGameOverPanelState
         ),
       ),
     ),
+  );
+}
+
+/// The mastery [points] a run earned [family], as a results row ("+99 Horn
+/// mastery"): drawn by the creature of that family that was fielded
+/// ([imagePath], its portrait), in the family's color, so it stands in the
+/// same pool of light as every other reward. [creatures] is what each of the
+/// family's creatures earned toward it (name, points), shown under the name
+/// and listed in the row's detail.
+LootOpeningEntry familyMasteryRewardEntry({
+  required CreatureFamily family,
+  required int points,
+  required String? imagePath,
+  List<(String, int)> creatures = const [],
+}) {
+  Widget fallback(double size) =>
+      Icon(AppIcons.pets_rounded, color: family.color, size: size * 0.66);
+  return LootOpeningEntry(
+    icon: AppIcons.pets_rounded,
+    name: '${family.displayName} mastery',
+    label: '+$points',
+    color: family.color,
+    breakdown: [
+      for (final (name, earned) in creatures)
+        RewardBreakdownLine(label: name, amount: '+$earned'),
+    ],
+    visualBuilder: (size) => imagePath == null
+        ? fallback(size)
+        : Image.asset(
+            imagePath,
+            width: size,
+            height: size,
+            fit: BoxFit.contain,
+            errorBuilder: (_, _, _) => fallback(size),
+          ),
   );
 }
 

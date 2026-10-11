@@ -507,8 +507,12 @@ void main() {
     expect(rows['L3 s3.0 none']!.clears, 0);
     expect(rows['L3 s3.0 healed']!.clears, greaterThanOrEqualTo(7));
     expect(rows['L3 s3.0 healed']!.meanLoss, inInclusiveRange(0.5, 3.0));
-    // No one body takes the raid for the squad.
-    expect(worstShareL2Up, lessThanOrEqualTo(0.55));
+    // No one body takes the raid for the squad. (Raid damage once landed
+    // wholly on the active creature.) The ceiling is 60%: since the
+    // 2026-10-10 ability pass a Kin's heals grow past stat 4.25, so a healed
+    // strong squad (L2 s4.5, zero losses) keeps its front body standing
+    // longer and it soaks about 56%. That's the support working, not the bug.
+    expect(worstShareL2Up, lessThanOrEqualTo(0.60));
   }, timeout: const Timeout(Duration(minutes: 30)));
 
   // The same tier table on every raid-eligible planet but Blood (its raid

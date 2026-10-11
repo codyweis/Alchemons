@@ -96,7 +96,6 @@ void main() {
               alpha: 1,
               time: time,
               wingElement: element,
-              particles: col != 2,
             );
           }
           canvas.restore();

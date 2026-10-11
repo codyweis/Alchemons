@@ -60,15 +60,42 @@ void main() {
       expect(elite, greaterThan(average * 1.7));
     });
 
-    test('Power above 100 helps without breaking the survival curve', () {
+    test('Power past the knee keeps climbing, then tapers', () {
       final legacyPeak = CosmicSurvivalBalance.survivalStatPower(5.0);
       final absolutePeak = CosmicSurvivalBalance.survivalStatPower(9.0);
+      // About a base-100 species at P100 with full Enhancement.
+      final extreme = CosmicSurvivalBalance.survivalStatPower(17.0);
 
       expect(absolutePeak, greaterThan(legacyPeak));
-      expect(absolutePeak, closeTo(legacyPeak * 1.30, 0.000001));
+      expect(
+        absolutePeak,
+        closeTo(
+          legacyPeak * (1 + CosmicSurvivalBalance.statPowerPastKnee),
+          0.000001,
+        ),
+      );
+      // Past 9 each point buys less than it did between 5 and 9, and even the
+      // extreme stays within reach of a perfect ordinary breed.
+      expect(
+        (extreme - absolutePeak) / 8,
+        lessThan((absolutePeak - legacyPeak) / 4),
+      );
+      expect(extreme, lessThan(legacyPeak * 3.6));
       expect(
         CosmicSurvivalBalance.estimatedWaveReach(averageStat: 9.0),
         greaterThan(CosmicSurvivalBalance.estimatedWaveReach(averageStat: 5.0)),
+      );
+    });
+
+    test('late pressure leaves waves 1-40 alone, then climbs at half pace', () {
+      for (var wave = 1; wave <= 40; wave++) {
+        expect(CosmicSurvivalBalance.latePressure(wave), wave.toDouble());
+      }
+      expect(CosmicSurvivalBalance.latePressure(60), 50);
+      expect(CosmicSurvivalBalance.latePressure(80), 60);
+      expect(
+        CosmicSurvivalBalance.enemyWaveHpScale(41),
+        greaterThan(CosmicSurvivalBalance.enemyWaveHpScale(40)),
       );
     });
 
@@ -122,13 +149,14 @@ void main() {
         CosmicSurvivalBalance.enemyWaveHpScale(15),
         inInclusiveRange(1.5, 1.8),
       );
+      // Wave 50 sits past the late-pressure turn, so it presses like 45.
       expect(
         CosmicSurvivalBalance.enemyWaveHpScale(50),
-        inInclusiveRange(3.8, 4.4),
+        inInclusiveRange(3.4, 4.0),
       );
       expect(
         CosmicSurvivalBalance.enemyWaveDamageScale(50),
-        inInclusiveRange(3.8, 4.4),
+        inInclusiveRange(3.4, 4.0),
       );
       // Neither runs away from the other, in either direction.
       final hp = CosmicSurvivalBalance.enemyWaveHpScale(50);
@@ -181,7 +209,7 @@ void main() {
     );
 
     group('horde waves', () {
-      test('field holds at 1,000 through wave 50, then climbs to 3,000', () {
+      test('field holds at 1,000 through wave 60, then climbs to 3,000', () {
         for (var wave = 1; wave <= 120; wave++) {
           final limit = CosmicSurvivalBalance.activeEnemyLimit(
             wave,
@@ -194,13 +222,13 @@ void main() {
             ),
           );
           expect(limit, greaterThanOrEqualTo(64));
-          if (wave <= 50) expect(limit, lessThanOrEqualTo(1000));
+          if (wave <= 60) expect(limit, lessThanOrEqualTo(1000));
         }
-        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(75), 2000);
-        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(100), 3000);
-        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(140), 3000);
+        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(100), 1800);
+        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(160), 3000);
+        expect(CosmicSurvivalBalance.hordeActiveCeilingForWave(200), 3000);
         expect(
-          CosmicSurvivalBalance.activeEnemyLimit(100, bossWave: false),
+          CosmicSurvivalBalance.activeEnemyLimit(160, bossWave: false),
           3000,
         );
         expect(CosmicSurvivalBalance.activeEnemyLimit(10, bossWave: true), 24);

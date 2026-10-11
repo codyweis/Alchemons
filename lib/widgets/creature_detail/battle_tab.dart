@@ -109,7 +109,6 @@ List<CosmicAbilityDescriptionLine> _specialScalingLines(String family) {
     CosmicAbilityDescriptionLine(
       label: 'Recharge',
       body: switch (f) {
-        'mask' => '$recharge.',
         'mystic' => '$recharge. A stronger SPECIAL brings it down toward 60s.',
         _ => '$recharge. A stronger SPECIAL also comes back sooner.',
       },

@@ -309,9 +309,7 @@ class _HandoffViewState extends State<_HandoffView>
           ),
           IgnorePointer(
             child: RepaintBoundary(
-              child: CustomPaint(
-                painter: _PourPainter(_pour, repaint: _frame),
-              ),
+              child: CustomPaint(painter: _PourPainter(_pour, repaint: _frame)),
             ),
           ),
           Positioned.fromRect(

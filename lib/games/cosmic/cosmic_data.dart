@@ -4714,11 +4714,13 @@ class Projectile {
 
   // ── Escort/turret fields (Kin ship wards) ──
 
-  /// If > 0, orbiting projectile fires a turret shot every N seconds.
-  final double turretInterval;
+  /// If > 0, orbiting projectile fires a turret shot every N seconds. Not
+  /// final: a piece can be armed after it is placed (the Kin Spirit wisp at
+  /// tier 3), and re-powered by a recast.
+  double turretInterval;
 
   /// Damage of each turret shot.
-  final double turretDamage;
+  double turretDamage;
 
   /// Homing turn rate of turret shots. If 0, the shot is straight.
   final double turretHomingStrength;
@@ -4849,6 +4851,12 @@ class Projectile {
 
   /// Shared family ability metadata resolved by combat runtimes.
   final String abilityFamily;
+
+  /// Whose auto-attack this is, for the painters only. A basic keeps
+  /// [abilityFamily] empty because combat reads that as "an auto-attack"
+  /// (auto-attack perks, mastery damage source, Pip+Mud, Mane's basic blade);
+  /// this is what lets a family's painter claim its own basic without that.
+  String basicFamily = '';
   final AbilityEffectKind hitEffect;
   final AbilityEffectKind killEffect;
   final AbilityEffectKind pierceEffect;
@@ -5319,6 +5327,35 @@ double _specialStatScaleFromBaseline(
   return (1.0 + (clamped - baseline) * perPoint).clamp(min, max).toDouble();
 }
 
+/// [_specialStatScaleFromBaseline] for an ability's own strengths (a heal, a
+/// blessing, a support's duration): the same value at or below an average
+/// stat, still growing past it where the legacy curve has clamped
+/// ([abilityHookValue]).
+double _specialHookScaleFromBaseline(
+  double stat, {
+  double baseline = 4.0,
+  double perPoint = 0.10,
+  double min = 0.8,
+  double max = 1.2,
+}) => abilityHookValue(
+  stat,
+  legacy: _specialStatScaleFromBaseline(
+    stat,
+    baseline: baseline,
+    perPoint: perPoint,
+    min: min,
+    max: max,
+  ),
+  atAverage: _specialStatScaleFromBaseline(
+    kAbilityStatAverage,
+    baseline: baseline,
+    perPoint: perPoint,
+    min: min,
+    max: max,
+  ),
+  rising: perPoint >= 0,
+);
+
 double _specialCountScaleFromBaseline(
   double beauty,
   double intelligence, {
@@ -5510,6 +5547,7 @@ Projectile copyProjectile(
   clone.letDeadfall = p.letDeadfall;
   clone.letCraterRadius = p.letCraterRadius;
   clone.letCraterShare = p.letCraterShare;
+  clone.basicFamily = p.basicFamily;
   // A copy is a fresh projectile with the same rules: it inherits the ceiling
   // but not the tally, or a ricochet would arrive already spent.
   clone.maxHitsPerEnemy = p.maxHitsPerEnemy;
@@ -5531,21 +5569,26 @@ double elementalSpecialCooldownMultiplierSurvival(
       // Heavy commitment cadence — traps persist 30+s with the boosted
       // persistence floor, so the *placement* is the rare action, not
       // the upkeep. Each cast should feel earned.
-      'Light' => 3.60,
-      'Dark' => 3.20,
-      'Spirit' => 2.95,
-      'Blood' => 2.65,
-      'Ice' => 2.40,
-      'Lightning' => 2.20,
-      'Plant' || 'Earth' => 2.05,
-      'Lava' || 'Crystal' => 1.90,
-      'Poison' || 'Steam' => 1.75,
-      'Fire' => 1.65,
-      'Dust' => 1.55,
-      'Water' => 1.50,
-      'Mud' => 1.45,
-      'Air' => 1.40,
-      _ => 1.70,
+      //
+      // Halved 2026-10-10 (ability pass, M1): at 1.40-3.60 on a 22.5 s base a
+      // Mask recast every 23-77 s and its family sat at 0.16-0.29x the median
+      // special at every band. Mask still runs on its own, longer base and
+      // still recasts slower than any other family (kMaskBaseSpecialCooldown).
+      'Light' => 1.80,
+      'Dark' => 1.60,
+      'Spirit' => 1.475,
+      'Blood' => 1.325,
+      'Ice' => 1.20,
+      'Lightning' => 1.10,
+      'Plant' || 'Earth' => 1.025,
+      'Lava' || 'Crystal' => 0.95,
+      'Poison' || 'Steam' => 0.875,
+      'Fire' => 0.825,
+      'Dust' => 0.775,
+      'Water' => 0.75,
+      'Mud' => 0.725,
+      'Air' => 0.70,
+      _ => 0.85,
     },
     'let' => switch (element) {
       'Dark' => 2.10,
@@ -5574,13 +5617,17 @@ double elementalSpecialCooldownMultiplierSurvival(
     //
     // Lightning is exempt and keeps its old figure: it places 5-10 orbs that
     // persist and shock on their own, so its cadence was never the fan's.
+    //
+    // Fire throws a fan, not one shot, and the fan recharging as fast as the
+    // lightest Manes made it 4-6x the median special at every band; Plant's
+    // vine chains its roots through a crowd. Both recharge with the heavy
+    // throws (ability pass, final balance, 2026-10-10).
     'mane' => switch (element) {
       'Lightning' => 1.10,
-      'Dark' || 'Light' || 'Spirit' || 'Crystal' => 1.13,
+      'Dark' || 'Light' || 'Spirit' || 'Crystal' || 'Fire' || 'Plant' => 1.13,
       'Lava' ||
       'Blood' ||
       'Earth' ||
-      'Plant' ||
       'Steam' ||
       'Water' ||
       'Mud' ||
@@ -5706,7 +5753,10 @@ Projectile _scaleLetProjectile(
     atAverage: 1.0,
     atPerfect: 1.75,
   );
-  final radiusScaleMul = scaledAbilityValue(
+  // A reach: held to the ceiling past perfect, so the blast (and Earth's
+  // crater and Dark's twice-as-big follow-ups, which are built from it) stops
+  // widening on the log tail.
+  final radiusScaleMul = scaledAbilityReach(
     beauty,
     atLow: 0.74,
     atAverage: 1.0,
@@ -5825,7 +5875,9 @@ CosmicSpecialResult _hornSpecial(
       min: 0.84,
       max: 1.20,
     );
-    final durationScale = _specialStatScaleFromBaseline(
+    // How long a planted guard holds (Light's barrier, the decoys, walls and
+    // lanes) is the tank's support, so it keeps growing past an average stat.
+    final durationScale = _specialHookScaleFromBaseline(
       casterIntelligence,
       perPoint: 0.08,
       min: 0.88,
@@ -5852,6 +5904,12 @@ CosmicSpecialResult _hornSpecial(
       snareRadius: p.snareRadius * shieldVisualScale,
       tauntRadius: p.tauntRadius * shieldVisualScale,
       interceptRadius: p.interceptRadius * shieldVisualScale,
+      // The impact zone's own reach (Water's pull, Steam's geyser, Earth's
+      // quake) never moved with any stat. A zone that taunts AND drags
+      // (Dust's cyclone, Dark's void) keeps its authored reach.
+      effectRadius:
+          p.effectRadius *
+          (hornZoneHoldsReach(p) ? 1.0 : hornZoneReach(casterBeauty)),
       trailInterval: p.trailInterval > 0
           ? (p.trailInterval / controlScale).clamp(0.07, 0.35).toDouble()
           : p.trailInterval,
@@ -6838,7 +6896,12 @@ CosmicSpecialResult _wingSpecial(
           ),
         );
       }
-      final seekerCount = scaledCount(4, min: 3, max: 6);
+      // Half the seekers, and shorter-lived: Dark's laser comes back twice
+      // as often by design, and the homing, piercing seekers rode that
+      // doubled rate too. They were what made it 4-5x the median special at
+      // P50-P90; the lances and the beam barely moved it (ability pass,
+      // final balance, 2026-10-10).
+      final seekerCount = (scaledCount(4, min: 3, max: 6) / 2).round();
       final tip = Offset(
         origin.dx + cos(baseAngle) * 92,
         origin.dy + sin(baseAngle) * 92,
@@ -6851,7 +6914,7 @@ CosmicSpecialResult _wingSpecial(
             angle: a,
             element: element,
             damage: damage * 1.1,
-            life: 2.8,
+            life: 1.6,
             speedMultiplier: 1.0,
             homing: true,
             homingStrength: 3.8,
@@ -7203,7 +7266,11 @@ CosmicSpecialResult _wingSpecial(
             angle: a,
             element: element,
             damage: damage * 1.7,
-            life: 3.6,
+            // They reap what is near the wing and fade. At 3.6 s the homing,
+            // piercing spirits crossed the whole field hunting, and Spirit
+            // measured about 3.5-3.9x the median special through P90
+            // (ability pass, final balance, 2026-10-10).
+            life: 2.0,
             speedMultiplier: 0.7,
             homing: true,
             homingStrength: 5.0,
@@ -7527,12 +7594,18 @@ const int kManeLightMaxGrowth = 10;
 const List<double> kManeLightVisualByLevel = [1.3, 2.4, 3.6, 5.2, 6.0];
 const List<double> kManeLightRadiusByLevel = [1.4, 2.6, 3.9, 5.6, 7.35];
 
+/// The ward's authored effect radius. The Mane scaler multiplies it by the
+/// caster's size scale, so the cast's radius over this is that scale (1.0 at
+/// an average stat) and the rings grow with it.
+const double kManeLightWardEffectRadius = 76.0;
+
 /// Ceilings for the Mane+Plant vine as it thickens on every enemy it passes
 /// through. Lower than the old Light ball's 28/24 because the vine grows on a
 /// gentler multiplier over more bites, and because it also drags a snare field
-/// that scales with it.
-const double kManePlantMaxRadius = 18.0;
-const double kManePlantMaxVisual = 15.0;
+/// that scales with it. Halved in the final balance pass (2026-10-10): a vine
+/// eight times its launch size swept most of the field.
+const double kManePlantMaxRadius = 9.0;
+const double kManePlantMaxVisual = 7.5;
 
 /// How long a Let meteor spends falling before it lands, in seconds.
 ///
@@ -7846,6 +7919,24 @@ CosmicSpecialResult _pipSpecial(
       homingStrength: p.homingStrength * guidanceScale,
       visualScale: p.visualScale * visualScaleMul,
       bounceCount: scaledBounce(p.bounceCount),
+      // A snare or intercept field is a reach like the effect radius below,
+      // and it never moved with any stat. Grows from average up only.
+      snareRadius:
+          p.snareRadius *
+          scaledAbilityReach(
+            casterBeauty,
+            atLow: 1.0,
+            atAverage: 1.0,
+            atPerfect: 1.28,
+          ),
+      interceptRadius:
+          p.interceptRadius *
+          scaledAbilityReach(
+            casterBeauty,
+            atLow: 1.0,
+            atAverage: 1.0,
+            atPerfect: 1.28,
+          ),
       abilityFamily: 'pip',
       hitEffect: p.hitEffect == AbilityEffectKind.none
           ? _pipHitEffect(p.element ?? '')
@@ -8926,15 +9017,17 @@ CosmicSpecialResult _maneSpecial(
       );
     case 'Fire':
       // Design board: "(3–8) fireballs shot out and travel fast." The count
-      // is the ability, so it scales off Beauty across the whole fielded
-      // band rather than nudging within the board's original range: four
-      // from a weak creature, eight from an average one, sixteen from a
-      // perfected one.
+      // scales off Beauty inside the board's range: four from a weak
+      // creature, five from an average one, six from a perfected one. It
+      // used to run 4 / 8 / 16, and each fireball pierces the whole lane, so
+      // the count was the fan's coverage: 4-6x the median special at every
+      // band, the strongest in the game at perfect. Damage trims barely
+      // moved it (ability pass, final balance, 2026-10-10).
       final fireballCount = scaledAbilityCount(
         casterBeauty,
         atLow: 4,
-        atAverage: 8,
-        atPerfect: 16,
+        atAverage: 5,
+        atPerfect: 6,
         potential: casterBeautyPotential,
       );
       // THE PAYLOAD IS SHARED, NOT MULTIPLIED. Every other Mane is one heavy
@@ -9192,11 +9285,16 @@ CosmicSpecialResult _maneSpecial(
               abilityFamily: 'mane',
               pierceEffect: AbilityEffectKind.blackHole,
               effectPower: damage * 0.55,
-              effectRadius: 180,
+              // The pull reaches 80 px. At 180 it hauled most of a lane into
+              // the bolt's path and Dark measured 3.8-4.5x the median
+              // special at every band; its hits already killed what they
+              // reached, so only the reach moved it (ability pass, final
+              // balance, 2026-10-10).
+              effectRadius: 80,
               effectDuration: 1.5,
               // Survival per-frame hook reads snareRadius as the pull
               // radius for the traveling void bolt.
-              snareRadius: 180,
+              snareRadius: 80,
               snareMoveMultiplier: 0.55,
             ),
           ],
@@ -9294,7 +9392,7 @@ CosmicSpecialResult _maneSpecial(
               followSourceCompanion: true,
               pierceEffect: _manePierceEffect('Light'),
               effectPower: damage * 0.34,
-              effectRadius: 76,
+              effectRadius: kManeLightWardEffectRadius,
               effectDuration: 1.2,
             ),
           ],
@@ -9447,6 +9545,38 @@ double _maneElementVisualScale(String e) => switch (e) {
   _ => 1.0,
 };
 
+/// The Mask traps that spring on CONTACT: Air's pads, Light's void, Blood's
+/// blob, Crystal's crystals, Fire's balls and Water's nets. Each acts on the
+/// body that touches its trigger (`Projectile.radius * radiusMultiplier`);
+/// every other Mask trap ticks an area instead.
+const Set<String> kMaskContactTrapElements = {
+  'Air',
+  'Light',
+  'Blood',
+  'Crystal',
+  'Fire',
+  'Water',
+};
+
+/// How many times its authored `radius` a contact trap's trigger reaches at
+/// an average stat. Authored radii run 1.5 (Air) to 2.4 (Crystal), so a
+/// trigger is about 25-40 px at an average stat.
+const double kMaskContactReachAtAverage = 5.5;
+
+/// A contact trap's trigger scale by Beauty — the stat that sets how much
+/// floor each Mask fixture denies — on the same anchored curve as the rest of
+/// a fixture's size, held to [kAbilityReachCeiling].
+///
+/// The trigger used to be the authored radius alone, 3-11 px: once the art
+/// was drawn honestly at it, a trap was nearly invisible, and the board's
+/// "3-7 large crystals" were specks (ability pass, 2026-10-10).
+double maskContactReach(double beauty) => scaledAbilityReach(
+  beauty,
+  atLow: 0.78 * kMaskContactReachAtAverage,
+  atAverage: kMaskContactReachAtAverage,
+  atPerfect: 1.52 * kMaskContactReachAtAverage,
+);
+
 // ─────────────────────────────────────────────────────────
 // MASK — Mine Field / Decoy Assault
 // COMPLETE REWORK: Decoys now ACTIVELY SEEK enemies on spawn.
@@ -9513,11 +9643,17 @@ CosmicSpecialResult _maskSpecial(
       min: 0.88,
       max: 1.25,
     );
+    // A contact trap's radius IS its trigger, and its art is drawn at it.
+    final springsOnContact =
+        p.tickEffect == AbilityEffectKind.none &&
+        kMaskContactTrapElements.contains(p.element);
     return copyProjectile(
       p,
       damage: p.damage * impactScale,
       life: p.life * durationScale,
-      radiusMultiplier: p.radiusMultiplier * visualScaleMul,
+      radiusMultiplier:
+          p.radiusMultiplier *
+          (springsOnContact ? maskContactReach(casterBeauty) : visualScaleMul),
       visualScale: p.visualScale * visualScaleMul,
       decoyHp: p.decoy ? p.decoyHp * impactScale : p.decoyHp,
       deathExplosionDamage: p.deathExplosionDamage * impactScale,
@@ -9904,7 +10040,12 @@ CosmicSpecialResult _maskSpecial(
           copyProjectile(
             geyser,
             turretInterval: 0.95,
-            turretDamage: damage * 0.75,
+            // Half the SPECIAL a shot. Since a placed turret's shots are
+            // credited to its caster, the geysers read 7-13x the median
+            // special on a held boss at 0.75 (a boss is the one body every
+            // geyser reaches); the field share did not move (ability pass,
+            // final balance, 2026-10-10).
+            turretDamage: damage * 0.5,
             turretSpeedMultiplier: 1.15,
             turretHomingStrength: 1.6,
           ),
@@ -10027,7 +10168,10 @@ CosmicSpecialResult _kinSpecial(
   Offset? targetPos,
 ) {
   Projectile scaleKinProjectile(Projectile p) {
-    final supportScale = _specialStatScaleFromBaseline(
+    // A Kin's support numbers keep growing past an average stat
+    // ([_specialHookScaleFromBaseline]); its motion (speeds, orbits, homing)
+    // stays on the legacy curve.
+    final supportScale = _specialHookScaleFromBaseline(
       casterBeauty,
       perPoint: 0.10,
       min: 0.84,
@@ -10047,7 +10191,7 @@ CosmicSpecialResult _kinSpecial(
       min: 0.82,
       max: 1.24,
     );
-    final durationScale = _specialStatScaleFromBaseline(
+    final durationScale = _specialHookScaleFromBaseline(
       casterIntelligence,
       perPoint: 0.10,
       min: 0.86,
@@ -10074,6 +10218,11 @@ CosmicSpecialResult _kinSpecial(
       decoyHp: p.decoy ? p.decoyHp * supportScale : p.decoyHp,
       tauntRadius: p.tauntRadius * controlScale,
       tauntStrength: p.tauntStrength * controlScale,
+      // What a piece does each tick (a garden's or rain cloud's heal, an
+      // updraft's shove, a dart's poison) grows past an average stat with the
+      // rest of the support. Once a caster holds only two casts' worth of
+      // pieces (CasterPieces), this is what a better Kin brings.
+      effectPower: p.effectPower * abilityHookGrowthFactor(casterBeauty),
       turretInterval: p.turretInterval > 0
           ? (p.turretInterval / controlScale).clamp(0.35, 2.0)
           : p.turretInterval,
@@ -10092,19 +10241,19 @@ CosmicSpecialResult _kinSpecial(
     );
   }
 
-  final healScale = _specialStatScaleFromBaseline(
+  final healScale = _specialHookScaleFromBaseline(
     casterBeauty,
     perPoint: 0.11,
     min: 0.84,
     max: 1.20,
   );
-  final blessingScale = _specialStatScaleFromBaseline(
+  final blessingScale = _specialHookScaleFromBaseline(
     casterBeauty,
     perPoint: 0.08,
     min: 0.86,
     max: 1.18,
   );
-  final controlScale = _specialStatScaleFromBaseline(
+  final controlScale = _specialHookScaleFromBaseline(
     casterIntelligence,
     perPoint: 0.10,
     min: 0.86,
@@ -11265,6 +11414,105 @@ double scaledAbilityValue(
   return atAverage + (atPerfect - atAverage) * t;
 }
 
+/// How far an ability's own strengths — heal shares, slow and root holds,
+/// support durations, a zone's reach — grow past an average stat: ×1 at the
+/// average anchor, this at perfect, and [scaledAbilityValue]'s log tail past
+/// it. About ×1.65 from Potential 50 to Potential 100 + Enhancement 10.
+const double kAbilityHookGrowthAtPerfect = 1.75;
+
+/// The growth factor [kAbilityHookGrowthAtPerfect] describes, at [stat]: 1.0
+/// at or below the average anchor.
+double abilityHookGrowthFactor(double stat) => scaledAbilityValue(
+  stat,
+  atLow: 1.0,
+  atAverage: 1.0,
+  atPerfect: kAbilityHookGrowthAtPerfect,
+);
+
+/// A hook authored on the old 1-5 stat band, carried onto the anchored curve.
+///
+/// [legacy] is the hook's old value at [stat] and [atAverage] its old value at
+/// the average anchor. At or below average the old value stands, so an
+/// average creature plays exactly as it did. Past average the old curves read
+/// stats through the compressed legacy rating and clamped, so they stopped
+/// moving around Potential 70 while SPECIAL kept tripling; here the hook keeps
+/// growing from its average value by [abilityHookGrowthFactor], and never
+/// reads below the old curve. [rising] is false for a hook that shrinks as
+/// the stat grows (a charge time, a drop interval).
+double abilityHookValue(
+  double stat, {
+  required double legacy,
+  required double atAverage,
+  bool rising = true,
+}) {
+  if (!(stat > kAbilityStatAverage)) return legacy;
+  final growth = abilityHookGrowthFactor(stat);
+  return rising
+      ? max(legacy, atAverage * growth)
+      : min(legacy, atAverage / growth);
+}
+
+/// The decent band the art audit judges at (about Potential 55).
+const double kAbilityStatDecent = 4.65;
+
+/// A gameplay radius never grows past this many times its size at the decent
+/// band, so a perfect, enhanced creature's zone or blast is big but readable
+/// and its telegraph does not swallow the core.
+const double kAbilityReachCeiling = 1.6;
+
+/// [scaledAbilityValue] for a gameplay radius (a zone's reach, a blast),
+/// held to [kAbilityReachCeiling] times its decent-band value. Without the
+/// ceiling the log tail past perfect keeps widening it for every
+/// Enhancement rank and every high-base species.
+double scaledAbilityReach(
+  double stat, {
+  required double atLow,
+  required double atAverage,
+  required double atPerfect,
+}) {
+  final value = scaledAbilityValue(
+    stat,
+    atLow: atLow,
+    atAverage: atAverage,
+    atPerfect: atPerfect,
+  );
+  final ceiling =
+      kAbilityReachCeiling *
+      scaledAbilityValue(
+        kAbilityStatDecent,
+        atLow: atLow,
+        atAverage: atAverage,
+        atPerfect: atPerfect,
+      );
+  return min(value, ceiling);
+}
+
+/// How far a Horn's impact zones (the pull, the geyser, the quake, the void)
+/// and the caps on a ram's deferred burst reach, by Beauty: the guard's own
+/// anchored swing above an average stat, unchanged at and below it.
+double hornZoneReach(double beauty) =>
+    scaledAbilityReach(beauty, atLow: 1.0, atAverage: 1.0, atPerfect: 1.65);
+
+/// A Horn impact zone that taunts and drags at once — Dust's cyclone, Dark's
+/// void — keeps its authored drag reach at every stat. The taunt already
+/// hauls the wave onto the impact beside the orb; a wider drag on top of it
+/// pulled more of the wave together there, and measured as less control and
+/// less protection at perfect, not more (ability pass, Phase 2 review).
+bool hornZoneHoldsReach(Projectile p) =>
+    p.tauntRadius > 0 &&
+    (p.tickEffect == AbilityEffectKind.pull ||
+        p.tickEffect == AbilityEffectKind.blackHole);
+
+/// How far a Let's ground (a contact or kill zone) reaches, by the caster's
+/// Intelligence — the stat that holds reach and fallout everywhere else in
+/// the Let scaler. Unchanged at and below an average stat.
+double letZoneReach(double intelligence) => scaledAbilityReach(
+  intelligence,
+  atLow: 1.0,
+  atAverage: 1.0,
+  atPerfect: 1.5,
+);
+
 /// Scales an authored projectile/placement count across the real stat band.
 ///
 /// Every family should scale off whichever stat its ability is about — Beauty
@@ -11321,6 +11569,27 @@ const double kContactTickSeconds = 1 / 60;
 const double kManeBasicSpeedMultiplier = 0.5;
 
 List<Projectile> createFamilyBasicAttack({
+  required Offset origin,
+  required double angle,
+  required String element,
+  required String family,
+  required double damage,
+}) {
+  final shots = _familyBasicShots(
+    origin: origin,
+    angle: angle,
+    element: element,
+    family: family,
+    damage: damage,
+  );
+  // Render-only tag; see [Projectile.basicFamily].
+  for (final shot in shots) {
+    shot.basicFamily = family.toLowerCase();
+  }
+  return shots;
+}
+
+List<Projectile> _familyBasicShots({
   required Offset origin,
   required double angle,
   required String element,

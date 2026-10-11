@@ -250,25 +250,62 @@ void main() {
         );
       },
     );
-    test('Spirit collects at the ship and clears enemies only at six', () {
+    test('Spirit banks wisps across casts and clears at a cast and a half', () {
       final game = openArena();
       final enemy = openEnemy(const Offset(500, 0));
       game.enemies.add(enemy);
-      for (var i = 0; i < 6; i++) {
-        // One wisp at a time, laid where the ship will take it.
-        game.activateMaskPlacements([cast('Spirit').first]);
+      final perCast = cast('Spirit').length;
+      final clearAt = maskSpiritClearThreshold(perCast);
+      expect(
+        clearAt,
+        greaterThan(perCast),
+        reason: 'one cast cleared the field on its own',
+      );
+      // Far past the collector's magnet, so only the wisp walked onto the
+      // ship is taken.
+      const parked = Offset(100000, 0);
+      var collected = 0;
+      var casts = 0;
+      while (collected < clearAt) {
+        game.activateMaskPlacements(cast('Spirit'));
+        casts++;
         expect(
           game.companionProjectiles,
           isEmpty,
           reason: 'wisps are collectibles, not projectiles',
         );
-        final wisp = game.debugMaskSpiritWisps.single..position = game.ship.pos;
-        game.updateMaskRuntime(0.01);
-        expect(wisp.dead, isTrue);
-        expect(game.debugMaskSpiritWisps, isEmpty);
-        expect(enemy.dead, i == 5);
+        final wisps = [...game.debugMaskSpiritWisps];
+        for (final w in wisps) {
+          w.position = parked;
+        }
+        for (final wisp in wisps) {
+          if (collected >= clearAt) break;
+          wisp.position = game.ship.pos;
+          game.updateMaskRuntime(0.01);
+          expect(wisp.dead, isTrue);
+          collected++;
+          expect(
+            enemy.dead,
+            collected == clearAt,
+            reason: 'wisp $collected of $clearAt',
+          );
+        }
       }
+      expect(casts, 2, reason: 'the clear should take the second cast');
       expect(game.debugMaskSpiritNukeFlash, 1.0);
+    });
+    test('the Spirit clear threshold counts in casts, not wisps', () {
+      // A weak caster's four wisps, an average eight, a perfect fourteen:
+      // every one takes a cast and a half to clear.
+      expect(kMaskSpiritCastsPerClear, 1.5);
+      expect(maskSpiritClearThreshold(4), 6);
+      expect(maskSpiritClearThreshold(8), 12);
+      expect(maskSpiritClearThreshold(14), 21);
+      expect(maskSpiritClearThreshold(1), 2, reason: 'never a one-wisp clear');
+      expect(maskSpiritClearThreshold(0), 2);
+      for (var n = 1; n <= 20; n++) {
+        expect(maskSpiritClearThreshold(n), greaterThan(n));
+      }
     });
     for (final element in [
       'Lava',
@@ -672,7 +709,7 @@ void main() {
             game.update(1 / 60);
             shots.addAll(
               game.companionProjectiles.where(
-                (p) => p.abilityFamily.isEmpty && p.element == 'Steam',
+                (p) => !identical(p, geyser) && p.element == 'Steam',
               ),
             );
           }
@@ -684,6 +721,17 @@ void main() {
         run(70);
         expect(shots, isNotEmpty);
         expect(shots.every((s) => s.homing && s.homingStrength > 0), isTrue);
+        // The shots are the caster's: credited to its slot and filed as its
+        // special, not as an anonymous auto attack (final balance pass).
+        expect(
+          shots.every(
+            (s) =>
+                s.sourceSlotIndex == geyser.sourceSlotIndex &&
+                s.abilityFamily == geyser.abilityFamily,
+          ),
+          isTrue,
+        );
+        expect(geyser.abilityFamily, 'mask');
       },
     );
     test(
@@ -914,7 +962,7 @@ void main() {
       );
     }
     test(
-      'Spirit echo creates pickups and sixth collection kills armored enemies, not bosses',
+      'Spirit echo creates pickups and the clearing collection kills armored enemies, not bosses',
       () async {
         final game = await survivalArena('Spirit');
         final comp = game.activeCompanions[0]!;
@@ -936,7 +984,9 @@ void main() {
         final boss = game.spawner.createBossForWave(5, const Offset(-400, 0))!;
         game.activeBoss = boss;
         final hp = boss.hp;
-        comp.maskSpiritWispBank = 5;
+        // One wisp short of this cast's clear.
+        expect(comp.maskSpiritClearAt, greaterThan(1));
+        comp.maskSpiritWispBank = comp.maskSpiritClearAt - 1;
         game.ship.position = game.debugMaskSpiritWispPositions.first;
         game.update(0.001);
         expect(enemy.isDead, isTrue);

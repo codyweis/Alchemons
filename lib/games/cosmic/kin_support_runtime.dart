@@ -12,7 +12,9 @@ import 'dart:ui';
 import 'package:alchemons/models/stat_system.dart';
 
 import 'cosmic_data.dart';
-import 'horn_runtime.dart' show hornStatScale;
+import 'horn_runtime.dart' show abilityHookScale;
+import 'package:alchemons/games/shared/alchemon_combat_stats.dart'
+    show alchemonSpecialPowerFactor;
 
 /// A Kin's special waits this much longer than its table cooldown. Every Kin
 /// is a build-defining support and the cast is what sets it running.
@@ -36,25 +38,32 @@ abstract final class KinSupport {
   // ── how long a cast runs (Intelligence stretches it) ─────────────────────
 
   static double lavaPlateDuration(double intelligence) =>
-      9.0 * hornStatScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.40);
+      9.0 *
+      abilityHookScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.40);
 
   static double iceChargeDuration(double intelligence) =>
-      4.0 * hornStatScale(intelligence, perPoint: -0.06, min: 0.70, max: 1.15);
+      4.0 *
+      abilityHookScale(intelligence, perPoint: -0.06, min: 0.70, max: 1.15);
 
   static double steamBoilerDuration(double intelligence) =>
-      10.0 * hornStatScale(intelligence, perPoint: 0.12, min: 0.80, max: 1.60);
+      10.0 *
+      abilityHookScale(intelligence, perPoint: 0.12, min: 0.80, max: 1.60);
 
   static double lightningChargeDuration(double intelligence) =>
-      10.0 * hornStatScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.40);
+      10.0 *
+      abilityHookScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.40);
 
   static double mudEnchantDuration(double intelligence) =>
-      5.0 * hornStatScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.40);
+      5.0 *
+      abilityHookScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.40);
 
   static double darkVeilDuration(double intelligence) =>
-      7.0 * hornStatScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.50);
+      7.0 *
+      abilityHookScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.50);
 
   static double bloodPactDuration(double intelligence) =>
-      9.0 * hornStatScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.50);
+      9.0 *
+      abilityHookScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.50);
 
   /// Starts the timed support a cast of [element] sets running on [k]. Dust,
   /// Spirit and Earth lay a piece instead (the host builds it from the
@@ -150,10 +159,10 @@ abstract final class KinSupport {
   // ── Ice: the charge and its release ──────────────────────────────────────
 
   static double iceReleaseRadius(double beauty) =>
-      220.0 * hornStatScale(beauty, perPoint: 0.40, min: 0.85, max: 6.0);
+      220.0 * abilityHookScale(beauty, perPoint: 0.40, min: 0.85, max: 6.0);
 
   static double iceSlowDuration(double intelligence) =>
-      4.0 * hornStatScale(intelligence, perPoint: 0.18, min: 0.90, max: 2.0);
+      4.0 * abilityHookScale(intelligence, perPoint: 0.18, min: 0.90, max: 2.0);
 
   /// The 90% slow the design asks for.
   static const double iceSlowMultiplier = 0.10;
@@ -175,7 +184,7 @@ abstract final class KinSupport {
 
   /// Beauty scales each stack's potency (5% base).
   static double steamPerStack(double beauty) =>
-      0.05 * hornStatScale(beauty, perPoint: 0.10, min: 0.85, max: 1.40);
+      0.05 * abilityHookScale(beauty, perPoint: 0.10, min: 0.85, max: 1.40);
 
   /// The attack-cooldown multiplier every companion gets at [stacks].
   static double steamHasteMultiplier(int stacks, double beauty) =>
@@ -243,12 +252,19 @@ abstract final class KinSupport {
     required double beauty,
     int? slot,
   }) {
-    final segCount =
-        7 + (AlchemonStatSystem.combatProgress(beauty) * 4).round();
-    const arcSpanRad = 2.094; // ~120° front arc
+    // An average Kin raises ten stones over a ~120° front. Past average the
+    // wall grows longer at that spacing ([abilityHookGrowthFactor]), up to
+    // two thirds of the way round; the old count read the compressed legacy
+    // rating and only packed the same arc tighter.
+    final growth = abilityHookGrowthFactor(beauty);
+    final segCount = max(
+      7 + (AlchemonStatSystem.combatProgress(beauty) * 4).round(),
+      (10 * growth).round(),
+    );
+    final arcSpanRad = min(2.094 * growth, 4.19);
     const arcRadius = 110.0;
     final lifeSeconds =
-        12.0 * hornStatScale(beauty, perPoint: 0.10, min: 0.85, max: 1.40);
+        12.0 * abilityHookScale(beauty, perPoint: 0.10, min: 0.85, max: 1.40);
     return [
       for (var i = 0; i < segCount; i++)
         () {
@@ -336,7 +352,7 @@ abstract final class KinSupport {
     int? slot,
   }) {
     final radius =
-        160.0 * hornStatScale(beauty, perPoint: 0.12, min: 0.85, max: 1.55);
+        160.0 * abilityHookScale(beauty, perPoint: 0.12, min: 0.85, max: 1.55);
     return Projectile(
       position: at,
       angle: 0,
@@ -344,7 +360,7 @@ abstract final class KinSupport {
       damage: 0,
       life:
           30.0 *
-          hornStatScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.50),
+          abilityHookScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.50),
       speedMultiplier: 0,
       piercing: true,
       stationary: true,
@@ -391,6 +407,40 @@ abstract final class KinSupport {
 
   static const double spiritWispLife = 60.0;
 
+  /// Tier 3's own attack: a shot at the nearest body this often for a kin
+  /// at [spiritWispReferenceSpecial]...
+  static const double spiritWispShotInterval = 0.8;
+
+  /// ...a Kin's SPECIAL at the P50 band...
+  static const int spiritWispReferenceSpecial = 50;
+
+  /// ...for this share of the kin's SPECIAL.
+  static const double spiritWispShotShare = 0.5;
+
+  /// Seconds between the wisp's shots for a kin of SPECIAL [power]. The wisp
+  /// is a standing piece, so the recasts a stronger SPECIAL buys every other
+  /// special arrive here as a faster shot instead — the same
+  /// [alchemonSpecialPowerFactor] line the cadence reads.
+  static double spiritWispShotIntervalFor(num power) =>
+      spiritWispShotInterval *
+      alchemonSpecialPowerFactor(spiritWispReferenceSpecial) /
+      alchemonSpecialPowerFactor(power.round());
+
+  /// What one wisp shot hits for, at the kin's SPECIAL [power].
+  static double spiritWispShotDamage(num power) =>
+      power * spiritWispShotShare;
+
+  /// Tier 4: each kill the Spirit kin makes heals it for this share of its
+  /// SPECIAL (the dungeon's wisp has always done the same).
+  static const double spiritWispKillHealShare = 0.12;
+
+  /// What a tier-4 wisp's kill heals its kin for, at the kin's SPECIAL
+  /// [power]; nothing below tier 4.
+  static double spiritWispKillHeal(Projectile? wisp, num power) =>
+      wisp != null && wisp.effectCount >= 4
+      ? power * spiritWispKillHealShare
+      : 0.0;
+
   static bool isSpiritWisp(Projectile p, int? slot) =>
       p.sourceSlotIndex == slot &&
       p.abilityFamily == 'kin' &&
@@ -409,8 +459,9 @@ abstract final class KinSupport {
   }
 
   /// A new wisp orbiting the Spirit kin at [casterPos]. Tier 1 at spawn;
-  /// it tiers up on the kin's kills.
-  static Projectile spiritWisp(Offset casterPos, int? slot) {
+  /// it tiers up on the kin's kills. [power] is the kin's SPECIAL, which its
+  /// tier-3 shot hits off.
+  static Projectile spiritWisp(Offset casterPos, int? slot, {num power = 0}) {
     const orbitR = 56.0;
     return Projectile(
       position: Offset(casterPos.dx + orbitR, casterPos.dy),
@@ -425,11 +476,20 @@ abstract final class KinSupport {
       orbitTime: 999.0,
       holdOrbit: true,
       followSourceCompanion: true,
+      // A companion, not a shot: a body it brushes passes through it. It
+      // used to be spent on its first contact like a bullet, so it died
+      // before it could ever tier up and measured as doing nothing at all
+      // (ability pass M16).
+      piercing: true,
       radiusMultiplier: 1.4,
       visualScale: 1.2,
       visualStyle: ProjectileVisualStyle.sigil,
       sourceSlotIndex: slot,
       abilityFamily: 'kin',
+      // Armed from tier 3 ([applySpiritWispTier]).
+      turretDamage: spiritWispShotDamage(power),
+      turretSpeedMultiplier: 1.1,
+      turretHomingStrength: 2.4,
       // effectStacks = kill count, effectCount = current tier (1..4)
       effectStacks: 0,
       effectCount: 1,
@@ -444,10 +504,17 @@ abstract final class KinSupport {
       ? 2
       : 1;
 
-  /// Sets the wisp's form for [kills]: T1 just orbits, T2 draws aggro.
-  /// (T3's attack and T4's heal are on the design board only.)
-  static void applySpiritWispTier(Projectile wisp, int kills) {
+  /// Sets the wisp's form for [kills], per the design board: T1 just orbits,
+  /// T2 draws aggro, T3 shoots at the nearest body ([spiritWispShotInterval];
+  /// every mode's turret pass fires it), and T4 also heals the kin on its
+  /// kills ([spiritWispKillHeal]).
+  static void applySpiritWispTier(
+    Projectile wisp,
+    int kills, {
+    num power = spiritWispReferenceSpecial,
+  }) {
     final tier = spiritWispTier(kills);
+    wisp.turretInterval = tier >= 3 ? spiritWispShotIntervalFor(power) : 0;
     if (wisp.effectCount == tier) return; // no change
     wisp.effectCount = tier;
     wisp.visualScale = 1.0 + 0.4 * (tier - 1);
@@ -602,8 +669,10 @@ void emitKinPhoenixBurst({
   }
 }
 
-/// A radial burst of [radius] (a Mane Light ring feeding, a detonation).
-/// Checks for room once, as survival's does.
+/// A bloom of grains reaching about [radius] (a Mane Light ring feeding, a
+/// detonation): random headings and a spread of speeds, so it swells out
+/// with depth instead of firing an evenly spaced ring of rays. Checks for
+/// room once, as survival's does.
 void emitDetonationBurst({
   required Offset center,
   required Color color,
@@ -615,8 +684,8 @@ void emitDetonationBurst({
   if (!hasRoom()) return;
   final burstCount = max(10, (radius / 10).round()).clamp(10, 26);
   for (var i = 0; i < burstCount; i++) {
-    final angle = (i / burstCount) * pi * 2;
-    final speed = radius * (1.4 + rng.nextDouble() * 0.6);
+    final angle = rng.nextDouble() * pi * 2;
+    final speed = radius * (0.7 + rng.nextDouble() * 1.3);
     emit(
       center.dx,
       center.dy,

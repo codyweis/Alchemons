@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/nav_emblems.dart';
@@ -30,7 +31,8 @@ void main() {
       ]);
     });
 
-    unawaited(precacheNavLets(catalog, FactionId.volcanic));
+    final set = DockSet.of(FactionId.volcanic);
+    unawaited(precacheNavLets(catalog, set));
     await tester.pumpWidget(
       Provider<CreatureCatalog>.value(
         value: catalog,
@@ -41,7 +43,7 @@ void main() {
               for (final kind in NavEmblemKind.values)
                 NavEmblem(
                   kind: kind,
-                  faction: FactionId.volcanic,
+                  dockSet: set,
                   size: 55,
                   animate: kind == NavEmblemKind.home,
                 ),

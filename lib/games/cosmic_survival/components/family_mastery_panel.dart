@@ -6,7 +6,6 @@ import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart' show BracketFramePainter;
-import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:provider/provider.dart';
@@ -30,7 +29,6 @@ const _panel = Color(0xFF151518);
 const _text = Color(0xFFE6E2DA);
 const _muted = Color(0xFF85827C);
 const _dim = Color(0xFF46454A);
-const _silver = Color(0xFFC0C0C0);
 const _gold = Color(0xFFFFC94A);
 const _danger = Color(0xFFC0574A);
 const _selection = Color(0xFFFFE7B0);
@@ -52,18 +50,11 @@ const Map<CreatureFamily, String> _familyPortraits = {
       'assets/images/creatures/mystic/MYS14_spiritmystic.png',
 };
 
+/// A family's survival mastery tree, bought with that family's own mastery
+/// points (earned by clearing waves with it fielded), so the balance and the
+/// prices come from [FamilyMasteryService] rather than the wallet.
 class FamilyMasteryPanel extends StatefulWidget {
-  const FamilyMasteryPanel({
-    super.key,
-    required this.silverBalance,
-    required this.goldBalance,
-    required this.onCurrencyChanged,
-    this.initialFamily,
-  });
-
-  final int silverBalance;
-  final int goldBalance;
-  final Future<void> Function() onCurrencyChanged;
+  const FamilyMasteryPanel({super.key, this.initialFamily});
 
   /// The family whose tree is shown first. Mane when not given.
   final CreatureFamily? initialFamily;
@@ -119,6 +110,8 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
     final focusedId =
         _focusedNodes[_family] ?? _defaultFocus(tree, owned, selectedPathId);
     final focused = FamilyMasteryCatalog.entryForNode(focusedId)!;
+    final points = mastery.pointsFor(_family);
+    bool canAfford(FamilyMasteryNodeDef node) => points >= node.cost;
 
     return ColoredBox(
       color: _background,
@@ -128,6 +121,7 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
             key: const ValueKey('mastery-family-selector'),
             selected: _family,
             chassis: tree.chassis,
+            points: points,
             progress: {
               for (final family in CreatureFamily.values)
                 family:
@@ -153,7 +147,7 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
                       owned: owned,
                       selectedPathId: selectedPathId,
                       focusedNodeId: focusedId,
-                      canAfford: _canAfford,
+                      canAfford: canAfford,
                       celebration: _celebration,
                       celebratedNodeId: _celebratedNodeId,
                       busyPathId: _busyPathId,
@@ -171,7 +165,8 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
             path: focused.path,
             node: focused.node,
             owned: owned,
-            canAfford: _canAfford(focused.node),
+            points: points,
+            canAfford: canAfford(focused.node),
             armed: _armedNodeId == focused.node.id,
             purchasing: _busyNodeId == focused.node.id,
             blocked: _busy,
@@ -181,11 +176,6 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
       ),
     );
   }
-
-  bool _canAfford(FamilyMasteryNodeDef node) =>
-      node.currency == FamilyMasteryCurrency.gold
-      ? widget.goldBalance >= node.cost
-      : widget.silverBalance >= node.cost;
 
   /// Opens on the next thing worth buying: the equipped branch first, then
   /// any branch with an available node.
@@ -255,12 +245,11 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
       _busyNodeId = node.id;
     });
     final result = await mastery.purchaseNode(family: family, nodeId: node.id);
-    await widget.onCurrencyChanged();
     if (!mounted) return;
     setState(() => _busyNodeId = null);
 
     if (result != FamilyMasteryPurchaseResult.purchased) {
-      _showResult(_purchaseMessage(result), false);
+      _showResult(_purchaseMessage(result, family), false);
       return;
     }
 
@@ -313,20 +302,24 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
 
 // ── Family rail ────────────────────────────────────────────────────────────
 
-/// The eight families, and under them the one in view: its name and what its
-/// attack does. Each medallion's ring is how much of that family's tree is
-/// bought.
+/// The eight families, and under them the one in view: its name, what its
+/// attack does, and the mastery it has to spend. Each medallion's ring is how
+/// much of that family's tree is bought.
 class _FamilyRail extends StatelessWidget {
   const _FamilyRail({
     super.key,
     required this.selected,
     required this.chassis,
+    required this.points,
     required this.progress,
     required this.onSelect,
   });
 
   final CreatureFamily selected;
   final String chassis;
+
+  /// [selected]'s mastery points to spend.
+  final int points;
   final Map<CreatureFamily, double> progress;
   final ValueChanged<CreatureFamily> onSelect;
 
@@ -359,45 +352,78 @@ class _FamilyRail extends StatelessWidget {
           const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final base = DefaultTextStyle.of(
-                  context,
-                ).style.merge(_captionStyle);
-                // Room for the longest family's line at this width, so
-                // switching families never moves the tree.
-                return SizedBox(
-                  height: _roomFor(
-                    'caption',
-                    [
-                      for (final tree in kFamilyMasteryTrees)
-                        TextSpan(
-                          style: base,
-                          children: [_captionSpan(tree.family, tree.chassis)],
-                        ),
+            child: Row(
+              children: [
+                Expanded(child: _caption(context)),
+                const SizedBox(width: 12),
+                // What the family has to spend, up where the family is
+                // chosen (the dock repeats it beside the price).
+                // One line no taller than the caption's, so the tree below
+                // keeps all its room.
+                Text.rich(
+                  key: const ValueKey('mastery-points-top'),
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: _formatNumber(points),
+                        style: TextStyle(color: selected.color),
+                      ),
+                      const TextSpan(
+                        text: ' MASTERY',
+                        style: TextStyle(color: _muted, fontSize: 8.5),
+                      ),
                     ],
-                    width: constraints.maxWidth,
-                    scaler: MediaQuery.textScalerOf(context),
-                    maxLines: 2,
                   ),
-                  child: Center(
-                    child: Text.rich(
-                      key: const ValueKey('mastery-family-caption'),
-                      _captionSpan(selected, chassis),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: _captionStyle,
-                    ),
+                  maxLines: 1,
+                  style: const TextStyle(
+                    fontFamily: 'monospace',
+                    color: _text,
+                    fontSize: 11.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.6,
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
         ],
       ),
     );
   }
+
+  Widget _caption(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final base = DefaultTextStyle.of(context).style.merge(_captionStyle);
+      // Room for the longest family's line at this width, so
+      // switching families never moves the tree.
+      return SizedBox(
+        height: _roomFor(
+          'caption',
+          [
+            for (final tree in kFamilyMasteryTrees)
+              TextSpan(
+                style: base,
+                children: [_captionSpan(tree.family, tree.chassis)],
+              ),
+          ],
+          width: constraints.maxWidth,
+          scaler: MediaQuery.textScalerOf(context),
+          maxLines: 2,
+        ),
+        child: Center(
+          child: Text.rich(
+            key: const ValueKey('mastery-family-caption'),
+            _captionSpan(selected, chassis),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: _captionStyle,
+          ),
+        ),
+      );
+    },
+  );
 }
 
 const _captionStyle = TextStyle(color: _muted, fontSize: 11.5, height: 1.3);
@@ -1252,7 +1278,11 @@ class _MasteryNode extends StatelessWidget {
                 height: 15,
                 child: state == _NodeState.available
                     ? Center(
-                        child: _PriceTag(node: node, affordable: affordable),
+                        child: _PriceTag(
+                          node: node,
+                          color: color,
+                          affordable: affordable,
+                        ),
                       )
                     : null,
               ),
@@ -1611,37 +1641,35 @@ class _CheckBadge extends StatelessWidget {
   }
 }
 
+/// A node's price in its family's mastery points, in the family's color —
+/// one currency per tree, so no coin beside it.
 class _PriceTag extends StatelessWidget {
-  const _PriceTag({required this.node, required this.affordable});
+  const _PriceTag({
+    required this.node,
+    required this.color,
+    required this.affordable,
+  });
 
   final FamilyMasteryNodeDef node;
+  final Color color;
   final bool affordable;
 
   @override
   Widget build(BuildContext context) {
-    final gold = node.currency == FamilyMasteryCurrency.gold;
-    final currencyColor = gold ? _gold : _silver;
     return Container(
-      padding: const EdgeInsets.fromLTRB(4, 2, 6, 2),
+      padding: const EdgeInsets.fromLTRB(5, 2, 5, 2),
       color: Color.alphaBlend(
-        currencyColor.withValues(alpha: affordable ? 0.12 : 0.05),
+        color.withValues(alpha: affordable ? 0.12 : 0.05),
         _background,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          CoinIcon(kind: gold ? CoinKind.gold : CoinKind.silver, size: 9),
-          const SizedBox(width: 3),
-          Text(
-            _compactNumber(node.cost),
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: affordable ? currencyColor : _danger,
-              fontSize: 8.5,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
+      child: Text(
+        _masteryPrice(node.cost),
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: affordable ? color : _danger,
+          fontSize: 8.5,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -1663,6 +1691,7 @@ class _UpgradeDock extends StatelessWidget {
     required this.path,
     required this.node,
     required this.owned,
+    required this.points,
     required this.canAfford,
     required this.armed,
     required this.purchasing,
@@ -1674,6 +1703,9 @@ class _UpgradeDock extends StatelessWidget {
   final FamilyMasteryPathDef path;
   final FamilyMasteryNodeDef node;
   final Set<String> owned;
+
+  /// The family's mastery points to spend.
+  final int points;
   final bool canAfford;
   final bool armed;
   final bool purchasing;
@@ -1718,17 +1750,47 @@ class _UpgradeDock extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            '${path.name.toUpperCase()}  ·  ${path.role}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: color,
-              fontSize: 9,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.5,
-            ),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '${path.name.toUpperCase()}  ·  ${path.role}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: color,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // What the family has to spend, beside what it is spent on.
+              Text.rich(
+                key: const ValueKey('mastery-points-balance'),
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${family.displayName.toUpperCase()} MASTERY ',
+                    ),
+                    TextSpan(
+                      text: _formatNumber(points),
+                      style: TextStyle(color: color),
+                    ),
+                  ],
+                ),
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: _muted,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 3),
           Row(
@@ -1821,8 +1883,6 @@ class _UpgradeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final gold = node.currency == FamilyMasteryCurrency.gold;
-
     // A square wash with no frame. While it is the thing to do (ready,
     // confirming, buying) it is lit from below; confirming burns brighter
     // and paler, its light rising up the whole face. The other states are
@@ -1934,13 +1994,8 @@ class _UpgradeButton extends StatelessWidget {
                           Text(label, style: textStyle),
                           if (showPrice) ...[
                             const SizedBox(width: 12),
-                            CoinIcon(
-                              kind: gold ? CoinKind.gold : CoinKind.silver,
-                              size: 17,
-                            ),
-                            const SizedBox(width: 5),
                             Text(
-                              _formatNumber(node.cost),
+                              _masteryPrice(node.cost),
                               style: textStyle.copyWith(
                                 fontSize: 15,
                                 letterSpacing: 0.4,
@@ -2122,8 +2177,8 @@ double _roomFor(
 
 final _roomCache = <(String, double, TextScaler), double>{};
 
-String _compactNumber(int value) =>
-    value >= 1000 ? '${value ~/ 1000}K' : '$value';
+/// A price in mastery points, in plain words: "75 MASTERY".
+String _masteryPrice(int cost) => '${_formatNumber(cost)} MASTERY';
 
 String _formatNumber(int value) {
   final source = value.toString();
@@ -2135,15 +2190,18 @@ String _formatNumber(int value) {
   return result.toString();
 }
 
-String _purchaseMessage(FamilyMasteryPurchaseResult result) => switch (result) {
+String _purchaseMessage(
+  FamilyMasteryPurchaseResult result,
+  CreatureFamily family,
+) => switch (result) {
   FamilyMasteryPurchaseResult.purchased =>
     'Mastery unlocked for the entire family.',
   FamilyMasteryPurchaseResult.alreadyOwned =>
     'That mastery is already unlocked.',
   FamilyMasteryPurchaseResult.prerequisiteMissing =>
     'Unlock the previous tier first.',
-  FamilyMasteryPurchaseResult.insufficientSilver => 'Not enough silver.',
-  FamilyMasteryPurchaseResult.insufficientGold => 'Not enough gold.',
+  FamilyMasteryPurchaseResult.insufficientPoints =>
+    'Not enough ${family.displayName} mastery.',
   FamilyMasteryPurchaseResult.wrongFamily =>
     'That mastery belongs to another family.',
   FamilyMasteryPurchaseResult.invalidNode => 'That mastery could not be found.',

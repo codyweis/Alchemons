@@ -28,6 +28,7 @@ Offset conductMoveVector({
   required double dist,
   required Offset norm,
   required Offset tangent,
+  double siegeHold = kSiegeHoldRange,
 }) => switch (conduct) {
   EnemyConduct.charge => norm,
 
@@ -44,13 +45,14 @@ Offset conductMoveVector({
   EnemyConduct.orbit => (norm * 0.55 + tangent * 0.85),
   EnemyConduct.standoff => dist > 240 ? norm : tangent * 0.8,
 
-  // Parks at [kSiegeHoldRange] and strafes there. That distance is the whole
-  // point: it is past what a companion parked on the ship can answer, so the
-  // player either brings something with reach or goes out to it.
+  // Parks at [siegeHold] ([kSiegeHoldRange] unless the mode says otherwise)
+  // and strafes there. That distance is the whole point: past what a
+  // companion parked on the ship can answer, the player either brings
+  // something with reach or goes out to it. Survival parks it closer.
   EnemyConduct.siege =>
-    dist > kSiegeHoldRange
+    dist > siegeHold
         ? norm * 0.85
-        : dist < kSiegeHoldRange - 90
+        : dist < siegeHold - 90
         ? -norm * 0.5
         : tangent * 0.35,
 

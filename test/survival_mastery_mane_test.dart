@@ -500,7 +500,8 @@ void main() {
         // A fan keeps the rest of its cast for the target even on the cast
         // that builds the circuit.
         expect(shots.skip(1).every((p) => !p.holdOrbit), isTrue);
-        expect(shots.length - 1, greaterThan(4));
+        // Five fireballs at an average Beauty since the final balance pass.
+        expect(shots.length - 1, greaterThanOrEqualTo(3));
       },
     );
 
@@ -1040,9 +1041,11 @@ void main() {
         targetPos: const Offset(200, 0),
       ).projectiles.length;
 
+      // 4 / 5 / 6 inside the board's 3-8 since the final balance pass
+      // (2026-10-10); it was 4 / 8 / 16.
       expect(fireballs(2.6), 4);
-      expect(fireballs(4.31), 8);
-      expect(fireballs(11.75), 16);
+      expect(fireballs(4.31), 5);
+      expect(fireballs(11.75), 6);
     });
 
     test('Lightning scales on its own flatter curve, not Fire\'s', () {

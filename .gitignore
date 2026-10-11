@@ -44,3 +44,13 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 .claude/
+
+# Trailer video drafts stay local (hundreds of MB).
+/trailer/*.mp4
+
+# Ability audit: only the original sheets and final/ are kept in the repo;
+# the in-between pass renders are local working material.
+/docs/ability_vfx_audit/phase1/
+/docs/ability_vfx_audit/phase4_shared/
+/docs/ability_vfx_audit/phase4_sizing/
+/docs/ability_vfx_audit/phase4_final/

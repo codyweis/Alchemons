@@ -134,8 +134,11 @@ class _FactionEssencePainter extends CustomPainter {
       final rr = s * 0.065 * math.sqrt(GrainGlass.h(j, 41 + salt));
       final p = c + Offset(math.cos(a) * rr, math.sin(a) * rr * 0.85);
       final lift = GrainGlass.h(j, 42 + salt);
-      _p.color = Color.lerp(color, Colors.white, 0.15 + 0.5 * lift)!
-          .withValues(alpha: (0.55 + 0.45 * lift) * alpha);
+      _p.color = Color.lerp(
+        color,
+        Colors.white,
+        0.15 + 0.5 * lift,
+      )!.withValues(alpha: (0.55 + 0.45 * lift) * alpha);
       canvas.drawCircle(p, d * (0.4 + 0.25 * lift), _p);
     }
   }
@@ -173,8 +176,11 @@ class _FactionEssencePainter extends CustomPainter {
         final qq = (q - k * 0.04).clamp(0.0, 1.0);
         final jitter = (GrainGlass.h(j, 50 + salt) - 0.5) * s * 0.04 * (1 - qq);
         final p = at(qq) + Offset(jitter, jitter * 0.6);
-        _p.color = Color.lerp(color, Colors.white, 0.35 - k * 0.1)!
-            .withValues(alpha: (0.85 - k * 0.28) * fade);
+        _p.color = Color.lerp(
+          color,
+          Colors.white,
+          0.35 - k * 0.1,
+        )!.withValues(alpha: (0.85 - k * 0.28) * fade);
         canvas.drawCircle(p, d * (0.5 - k * 0.1), _p);
       }
     }

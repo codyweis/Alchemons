@@ -36,6 +36,29 @@ double hornStatScale(
   return (1.0 + (clamped - 3.0) * perPoint).clamp(min, max).toDouble();
 }
 
+/// [hornStatScale] for an ability's own strengths — a heal share, a hold, a
+/// support's duration — that should keep growing with the creature. At or
+/// below an average stat it is exactly [hornStatScale]; past it, where the
+/// legacy curve has read stats through the compressed rating and clamped, it
+/// keeps climbing on the anchored curve ([abilityHookValue]). A negative
+/// [perPoint] (a charge time) keeps shrinking instead.
+double abilityHookScale(
+  double stat, {
+  double perPoint = 0.12,
+  double min = 0.82,
+  double max = 1.22,
+}) => abilityHookValue(
+  stat,
+  legacy: hornStatScale(stat, perPoint: perPoint, min: min, max: max),
+  atAverage: hornStatScale(
+    kAbilityStatAverage,
+    perPoint: perPoint,
+    min: min,
+    max: max,
+  ),
+  rising: perPoint >= 0,
+);
+
 /// The fixed numbers of the Horn specials.
 abstract final class HornRules {
   /// How fast a horn rams, before the cast's speed multiplier.
@@ -124,16 +147,27 @@ abstract final class HornRules {
 /// capped and short-lived stationary fixtures stretched, so each impact reads.
 /// (Survival also caps the sweeps at this point, but those values are
 /// overwritten by the cast straight after, so the sweeps are never clamped.)
-void clampHornChargeBurst(List<Projectile> burst) {
+///
+/// The snare and effect caps are an average horn's; [reach] ([hornZoneReach]
+/// of the caster's Beauty) grows them with the zones, or a capped zone could
+/// never grow. The taunt cap stays put: a wider taunt hauls more of the wave
+/// onto the impact beside the orb, and measured as less protection, not more.
+void clampHornChargeBurst(List<Projectile> burst, {double reach = 1.0}) {
+  final snareMax = HornRules.burstSnareMax * reach;
+  const tauntMax = HornRules.burstTauntMax;
+  final effectMax = HornRules.burstEffectMax * reach;
   for (final p in burst) {
-    if (p.snareRadius > HornRules.burstSnareMax) {
-      p.snareRadius = HornRules.burstSnareMax;
+    if (p.snareRadius > snareMax) {
+      p.snareRadius = snareMax;
     }
-    if (p.tauntRadius > HornRules.burstTauntMax) {
-      p.tauntRadius = HornRules.burstTauntMax;
+    if (p.tauntRadius > tauntMax) {
+      p.tauntRadius = tauntMax;
     }
-    if (p.effectRadius > HornRules.burstEffectMax) {
-      p.effectRadius = HornRules.burstEffectMax;
+    // A zone that taunts and drags keeps an average horn's cap
+    // ([hornZoneHoldsReach]).
+    final cap = hornZoneHoldsReach(p) ? HornRules.burstEffectMax : effectMax;
+    if (p.effectRadius > cap) {
+      p.effectRadius = cap;
     }
     if (p.stationary && p.life < HornRules.burstStationaryLifeMin) {
       p.life = HornRules.burstStationaryLifeMin;
@@ -263,7 +297,7 @@ double hornLightningAbsorbMultiplier(double beauty) =>
 /// Plant: how long a ram's victims are rooted, by intelligence.
 double hornPlantRootDuration(double intelligence) =>
     HornRules.plantRootBase *
-    hornStatScale(intelligence, perPoint: 0.20, min: 0.80, max: 1.80);
+    abilityHookScale(intelligence, perPoint: 0.20, min: 0.80, max: 1.80);
 
 /// Blood: the HP given up at the cast and the ram damage it buys, or null
 /// when the horn has too little to give.
@@ -300,11 +334,21 @@ int hornBloodKillHeal(int maxHp, double beauty) => math.max(
 double hornPoisonAuraScale(double intelligence) =>
     hornStatScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.30);
 
-/// Mud: how often the sludge drops, sparse at 3 and dense at 5. Read off the
-/// raw stat, as survival does.
+/// Mud: how often the sludge drops, sparse at 3 and dense at 5, read off the
+/// raw stat as survival does — and denser still past that as the creature
+/// grows ([abilityHookValue]), where the old curve stopped at 5.
 double hornMudInterval(double intelligence) {
-  final t = ((intelligence - 3.0) / 2.0).clamp(0.0, 1.0);
-  return 1.45 + (0.58 - 1.45) * t;
+  double legacy(double stat) {
+    final t = ((stat - 3.0) / 2.0).clamp(0.0, 1.0);
+    return 1.45 + (0.58 - 1.45) * t;
+  }
+
+  return abilityHookValue(
+    intelligence,
+    legacy: legacy(intelligence),
+    atAverage: legacy(kAbilityStatAverage),
+    rising: false,
+  );
 }
 
 /// Lava: how far a kill's flames look for prey and how many there are.

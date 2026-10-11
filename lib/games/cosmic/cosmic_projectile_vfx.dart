@@ -10,6 +10,10 @@ import 'pip_vfx.dart';
 import 'wing_vfx.dart';
 import 'mask_trap_vfx.dart';
 import 'let_vfx.dart';
+import 'basic_vfx.dart';
+import 'ability_grains.dart';
+import 'vfx_shapes.dart';
+export 'ability_grains.dart';
 export 'horn_vfx.dart';
 export 'let_vfx.dart';
 export 'mystic_world_vfx.dart';
@@ -88,44 +92,47 @@ bool drawMysticOrbitalFixtureVisual({
   return true;
 }
 
-/// A bright core, halo and element-tinted comet tail, so a Mystic cast reads
-/// as an ultimate rather than a regular dart.
-void _paintMysticComet(
-  ui.Canvas canvas,
-  Projectile projectile,
-  ui.Offset position,
-  ui.Color color,
-  double time, {
+/// A Mystic cast in flight (or a parked one no ground painter claims), so it
+/// reads as an ultimate rather than a regular dart: a comet of its element's
+/// material — light pooled round it, a tapered tail of that light lit across
+/// its width, a body and a lit head of the material. No white pip and no
+/// trail of flat discs (each a new Paint). Four fills, cached light; shared
+/// by survival, open space and dungeons.
+void drawMysticComet({
+  required ui.Canvas canvas,
+  required Projectile projectile,
+  required ui.Offset position,
+  required ui.Color color,
+  required double time,
   bool reduceAmbient = false,
 }) {
-  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
+  final m = vfxMaterial(projectile.element);
   final radius = (1.65 * projectile.visualScale).clamp(1.4, 6.1).toDouble();
   final pulse = 0.78 + 0.22 * sin(time * 4.0 + projectile.life);
+  final a = projectile.angle;
   if (!reduceAmbient) {
-    canvas.drawCircle(
-      position,
-      radius * 2.6,
-      ui.Paint()..color = color.withValues(alpha: 0.18 * pulse),
+    vfxSpill(canvas, position, radius * 3.0, m.light, 0.26 * pulse);
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    canvas.rotate(a + pi);
+    final h = radius * 1.8;
+    vfxCrossLit(
+      canvas,
+      vfxLens(radius * 7.5, h, radius * 0.6, radius * 4.5),
+      h / 2,
+      m.light,
+      m.light,
+      0.42,
+      plateau: 0.2,
     );
-    for (var i = 1; i <= 3; i++) {
-      final fade = 1.0 - i * 0.30;
-      canvas.drawCircle(
-        position - dir * (radius * 2.0 * i),
-        radius * (1.0 + i * 0.18) * 0.55,
-        ui.Paint()..color = color.withValues(alpha: 0.32 * fade),
-      );
-    }
+    canvas.restore();
   }
-  canvas.drawCircle(
-    position,
-    radius,
-    ui.Paint()..color = color.withValues(alpha: 0.92 * pulse),
-  );
-  canvas.drawCircle(
-    position,
-    radius * 0.42,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.85 * pulse),
+  vfxFillPath(canvas, vfxDrop(position, radius, a), m.mid, 0.92 * pulse);
+  vfxFillPath(
+    canvas,
+    vfxDrop(position + vfxPolar(a, radius * 0.2), radius * 0.55, a),
+    m.glint,
+    0.9 * pulse,
   );
   drawProjectileRoleOverlay(
     canvas: canvas,
@@ -136,7 +143,32 @@ void _paintMysticComet(
   );
 }
 
-/// The canonical three-layer beam used by Wing specials and Kin basic lasers.
+void _paintMysticComet(
+  ui.Canvas canvas,
+  Projectile projectile,
+  ui.Offset position,
+  ui.Color color,
+  double time, {
+  bool reduceAmbient = false,
+}) => drawMysticComet(
+  canvas: canvas,
+  projectile: projectile,
+  position: position,
+  color: color,
+  time: time,
+  reduceAmbient: reduceAmbient,
+);
+
+/// A beam in the game's beam list: Wing's elemental beams (wing_vfx.dart),
+/// and the element-less pieces other abilities route through the list — a
+/// healing beam's core, a charge's swell and micro-arcs, Horn's arcs and
+/// chords, the orb turret and reflect.
+///
+/// The element-less beam is light, not a rod: a lens that tapers to points at
+/// both ends, lit across its width and fading to nothing at its edge, with a
+/// thinner lit core inside it. Two fills. (It was three stacked round-capped
+/// strokes with a near-white core and five loose dots: the hairline-laser
+/// look the material pass replaced everywhere else.)
 void drawAdvancedAbilityBeam({
   required ui.Canvas canvas,
   required ui.Offset start,
@@ -145,12 +177,10 @@ void drawAdvancedAbilityBeam({
   required double width,
   required double alpha,
   double time = 0,
-  bool particles = true,
   String? wingElement,
 }) {
-  // Wing beams have their own art (wing_vfx.dart). Element-less beams — Kin
-  // lasers, and the tiny arcs and glints other abilities route through the
-  // beam list — keep the plain three-layer line below.
+  // Wing beams have their own art (wing_vfx.dart), always with their
+  // material: the material is what tells the elements apart.
   if (wingElement != null) {
     drawWingBeam(
       canvas: canvas,
@@ -160,61 +190,37 @@ void drawAdvancedAbilityBeam({
       width: width,
       alpha: alpha,
       time: time,
-      details: particles,
     );
     return;
   }
   final a = alpha.clamp(0.0, 1.0);
-  canvas.drawLine(
-    start,
-    end,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.18 * a)
-      ..strokeWidth = width * 3.0
-      ..strokeCap = ui.StrokeCap.round,
-  );
-  canvas.drawLine(
-    start,
-    end,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.54 * a)
-      ..strokeWidth = width * 1.35
-      ..strokeCap = ui.StrokeCap.round,
-  );
-  canvas.drawLine(
-    start,
-    end,
-    ui.Paint()
-      ..color = ui.Color.lerp(
-        color,
-        const ui.Color(0xFFFFFFFF),
-        0.72,
-      )!.withValues(alpha: 0.86 * a)
-      ..strokeWidth = max(1.2, width * 0.38)
-      ..strokeCap = ui.StrokeCap.round,
-  );
-  final delta = end - start;
-  final distance = delta.distance;
-  if (!particles || distance <= 0.01) return;
-  final unit = delta / distance;
-  final perp = ui.Offset(-unit.dy, unit.dx);
-  for (var i = 0; i < 5; i++) {
-    final progress = ((time * 1.8 + i * 0.19) % 1.0).toDouble();
-    final p =
-        start +
-        unit * distance * progress +
-        perp * sin(progress * pi * 4 + i) * width * 0.55;
-    canvas.drawCircle(
-      p,
-      1.3 + width * 0.08,
-      ui.Paint()
-        ..color = ui.Color.lerp(
-          color,
-          const ui.Color(0xFFFFFFFF),
-          0.45,
-        )!.withValues(alpha: 0.58 * a),
-    );
+  if (a <= 0.004) return;
+  final w = max(1.0, width);
+  // The core is the colour's own lit tint, not white.
+  final core = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.35)!;
+  final d = end - start;
+  final len = d.distance;
+  if (len < 1.0) {
+    // A point — a charge swelling where the wing stands: a soft bead.
+    vfxSpill(canvas, start, w * 1.6, color, 0.5 * a);
+    vfxSpill(canvas, start, w * 0.6, core, 0.55 * a);
+    return;
   }
+  canvas.save();
+  canvas.translate(start.dx, start.dy);
+  canvas.rotate(atan2(d.dy, d.dx));
+  final glowH = w * 2.6;
+  vfxCrossLit(
+    canvas,
+    vfxLens(len, glowH, w * 1.6, w * 1.6),
+    glowH / 2,
+    color,
+    color,
+    0.42 * a,
+    plateau: 0.1,
+  );
+  vfxFillPath(canvas, vfxLens(len, max(1.0, w * 0.42), w, w), core, 0.8 * a);
+  canvas.restore();
 }
 
 /// Wing's elemental beam, shared by every game mode (art in wing_vfx.dart).
@@ -226,7 +232,6 @@ void drawWingElementBeam({
   required double width,
   required double alpha,
   required double time,
-  bool details = true,
 }) => drawWingBeam(
   canvas: canvas,
   start: start,
@@ -235,7 +240,6 @@ void drawWingElementBeam({
   width: width,
   alpha: alpha,
   time: time,
-  details: details,
 );
 
 /// Canonical Wing beam charge telegraph (art in wing_vfx.dart).
@@ -371,7 +375,10 @@ bool drawPipElementalProjectileVisual({
   if (element == null || projectile.visualStyle != ProjectileVisualStyle.dart) {
     return false;
   }
+  // A Pip's own auto-attack is a Pip dart too. It carries none of the tempo
+  // signals below, so without its family tag it fell to the generic dot.
   final hasPipTempoSignals =
+      projectile.basicFamily == 'pip' ||
       projectile.homing ||
       projectile.bounceCount > 0 ||
       projectile.snareRadius > 0 ||
@@ -483,19 +490,6 @@ final _maneIceInnerLight = ui.Gradient.radial(
   const [ui.Color(0x807DDACB), ui.Color(0x20418389), ui.Color(0x00173949)],
   const [0.0, 0.48, 1.0],
 );
-// A small salt-like seal suspended inside the ice; its broken engraving is
-// intentionally subordinate to the mineral silhouette, not an exterior badge.
-final _maneIceSeal = ui.Path()
-  ..moveTo(-5, -4)
-  ..lineTo(5, -4)
-  ..lineTo(0, 5)
-  ..close()
-  ..moveTo(-3.4, -0.5)
-  ..lineTo(3.0, -0.5)
-  ..moveTo(-1, -8)
-  ..lineTo(1, -8)
-  ..moveTo(-1, 8)
-  ..lineTo(1, 8);
 final _maneIceVeins = ui.Path()
   ..moveTo(-18, -2)
   ..lineTo(-12, -4)
@@ -524,7 +518,7 @@ void _drawManeIceMass(
   ui.Offset position,
   double time,
 ) {
-  final scale = projectile.visualScale.clamp(0.75, 3.4).toDouble();
+  final scale = maneArtScale(projectile, floor: 0.75);
   final phase = time + projectile.angle;
   final opacity = (projectile.life / 0.22).clamp(0.0, 1.0);
   final breakup = (1 - opacity) * (1 - opacity);
@@ -593,48 +587,32 @@ void _drawManeIceMass(
   facet(_maneIceUpperFacet, _maneIceRefraction, 0.56, -3, -10);
   facet(_maneIceFrontFacet, _maneIceRefraction, 0.44, 10, 3);
   facet(_maneIceHull, _maneIceInnerLight, 0.8, 0, 0);
-  paint
-    ..shader = null
-    ..style = ui.PaintingStyle.stroke
-    ..strokeWidth = 0.24
-    ..strokeJoin = ui.StrokeJoin.bevel;
-  canvas.drawPath(
-    _maneIceVeins,
-    paint
-      ..color = const ui.Color(
-        0xFFB2D6C9,
-      ).withValues(alpha: 0.32 * opacity * (1 - breakup)),
+  // Veins and the lit edge as filled slivers in the glass (cached ribbons
+  // along the static paths), not hairline strokes; the engraved seal that
+  // sat inside it is gone — a glyph, not ice.
+  paint.shader = null;
+  vfxFillPath(
+    canvas,
+    vfxRibbonAlongStaticPath(_maneIceVeins, 0.6, taper: 0.4),
+    const ui.Color(0xFFB2D6C9),
+    0.32 * opacity * (1 - breakup),
   );
-  canvas.drawPath(
-    _maneIceEdge,
-    paint
-      ..color = const ui.Color(
-        0xFFE0FAFF,
-      ).withValues(alpha: 0.40 * opacity * (1 - breakup)),
+  vfxFillPath(
+    canvas,
+    vfxRibbonAlongStaticPath(_maneIceEdge, 0.9, taper: 0.4),
+    const ui.Color(0xFFE0FAFF),
+    0.40 * opacity * (1 - breakup),
   );
-  // Tarnished gold etching breathes softly inside the cold glass.
-  canvas.save();
-  canvas.rotate(-projectile.angle + 0.08 * sin(phase * 0.6));
-  canvas.drawPath(
-    _maneIceSeal,
-    paint
-      ..strokeWidth = 0.28
-      ..color = const ui.Color(0xFFD2C79F).withValues(
-        alpha: (0.26 + 0.07 * sin(phase * 1.5)) * opacity * (1 - breakup),
-      ),
-  );
-  canvas.restore();
-  // A single moving glint along the leading facet; the mass itself stays solid.
+  // A single moving glint along the leading facet: a small lit sliver.
   final glint = 0.28 + 0.18 * sin(time * 4 + projectile.angle);
-  canvas.drawLine(
-    const ui.Offset(16, -8),
-    const ui.Offset(19, -3),
-    paint
-      ..strokeWidth = 0.55
-      ..color = const ui.Color(0xFFE9EDDB).withValues(alpha: glint * opacity),
-  );
+  vfxFillPath(canvas, _maneIceGlint, const ui.Color(0xFFE9EDDB), glint * opacity);
   canvas.restore();
 }
+
+final _maneIceGlint = vfxLensRibbon(
+  vfxPolylineSpine(const [ui.Offset(16, -8), ui.Offset(19, -3)]),
+  1.3,
+);
 
 // Obsidian suspended over molten material. All paths and shaders are reused.
 final _maneLavaBody = ui.Path()
@@ -715,7 +693,7 @@ void _drawManeLavaMass(
   ui.Offset position,
   double time,
 ) {
-  final scale = projectile.visualScale.clamp(0.75, 3.4).toDouble();
+  final scale = maneArtScale(projectile, floor: 0.75);
   final opacity = (projectile.life / 0.25).clamp(0.0, 1.0);
   final phase = time + projectile.angle;
   final heat = 0.68 + 0.20 * sin(phase * 2.1);
@@ -790,23 +768,18 @@ void _drawManeLavaMass(
     );
   }
   canvas.restore();
-  // Wide, faint heat under a narrow molten seam; no blur or offscreen layer.
+  // Wide, faint heat under a narrow molten seam: filled ribbons along the
+  // seams (cached), not strokes; no blur or offscreen layer.
   paint
     ..shader = _maneLavaHeat
-    ..style = ui.PaintingStyle.stroke
-    ..strokeJoin = ui.StrokeJoin.round
-    ..strokeCap = ui.StrokeCap.round;
+    ..style = ui.PaintingStyle.fill;
   canvas.drawPath(
-    _maneLavaSeams,
-    paint
-      ..strokeWidth = 2.8
-      ..color = ui.Color.fromRGBO(255, 255, 255, 0.12 * heat * opacity),
+    vfxRibbonAlongStaticPath(_maneLavaSeams, 3.2, taper: 0.35),
+    paint..color = ui.Color.fromRGBO(255, 255, 255, 0.12 * heat * opacity),
   );
   canvas.drawPath(
-    _maneLavaSeams,
-    paint
-      ..strokeWidth = 0.45
-      ..color = ui.Color.fromRGBO(255, 255, 255, 0.55 * heat * opacity),
+    vfxRibbonAlongStaticPath(_maneLavaSeams, 0.8, taper: 0.4),
+    paint..color = ui.Color.fromRGBO(255, 255, 255, 0.55 * heat * opacity),
   );
   canvas.save();
   canvas.clipPath(_maneLavaBody);
@@ -814,20 +787,25 @@ void _drawManeLavaMass(
   glow(18 - run * 33, 2 + sin(run * pi * 2) * 4, 7, 4, sin(run * pi) * 0.65);
   canvas.restore();
   paint
-    ..style = ui.PaintingStyle.stroke
+    ..style = ui.PaintingStyle.fill
     ..shader = _maneLavaHeat;
-  // A small hot meniscus along the leading face sells the liquid beneath.
-  canvas.drawArc(
-    const ui.Rect.fromLTWH(8, -9, 12, 17),
-    -0.9,
-    1.55,
-    false,
-    paint
-      ..strokeWidth = 0.55
-      ..color = ui.Color.fromRGBO(255, 255, 255, 0.55 * heat * opacity),
+  // A small hot meniscus along the leading face sells the liquid beneath:
+  // a filled crescent, not a stroked arc.
+  canvas.drawPath(
+    _maneLavaMeniscus,
+    paint..color = ui.Color.fromRGBO(255, 255, 255, 0.55 * heat * opacity),
   );
   canvas.restore();
 }
+
+final _maneLavaMeniscus = vfxEllipseCrescent(
+  const ui.Offset(14, -0.5),
+  6,
+  8.5,
+  1.1,
+  -0.9 + 1.55 / 2,
+  1.55,
+);
 
 // A consuming void: smoky silver-violet material spirals inward, disappearing
 // behind an opaque centre. Cached geometry/shaders, no blur or particle pool.
@@ -873,10 +851,18 @@ void _drawManeDarkVoid(
   ui.Offset position,
   double time,
 ) {
-  final scale = projectile.visualScale.clamp(0.75, 3.4).toDouble();
+  final scale = maneArtScale(projectile, floor: 0.75);
   final fade = (projectile.life / 0.3).clamp(0.0, 1.0);
   final phase = time + projectile.angle;
   final paint = ui.Paint();
+  // The reach it drags from (its snare), faintly bent light out to the real
+  // edge: the halo below is the body, this is the pull, and the flecks are
+  // drawn in from its rim. (The art stopped at ~0.45 of the pull at low.)
+  final pull = max(projectile.snareRadius, projectile.effectRadius);
+  final pullLocal = max(30.0, pull / scale);
+  if (pull > 0) {
+    vfxSpill(canvas, position, pull, vfxMaterial('Dark').light, 0.1 * fade);
+  }
   canvas.save();
   canvas.translate(position.dx, position.dy);
   canvas.rotate(projectile.angle);
@@ -909,7 +895,7 @@ void _drawManeDarkVoid(
   paint.shader = null;
   for (var i = 0; i < 6; i++) {
     final t = (phase * 0.48 + i / 6) % 1.0;
-    final radius = 30 - 24 * t * t;
+    final radius = pullLocal - (pullLocal - 6) * t * t;
     final a = i * 2.399 + t * 2.5;
     final at = ui.Offset(cos(a), sin(a) * 0.85) * radius;
     canvas.drawCircle(
@@ -965,116 +951,24 @@ bool drawManeElementalProjectileVisual({
     return true;
   }
 
-  // Stationary Mane placements (Lightning orbs, Lava blobs from pierce,
-  // Steam puffs along path, Mud puddle from split, Plant explosion
-  // zones, etc.) get the modern terrain-zone painters so they read as
-  // distinct fixtures instead of small abstract slashes.
+  // A parked Mane piece the alchemical painter does not claim (Ice and Dark
+  // have no zone of their own there) lies on its element's ground, sized to
+  // the area it affects — the shared material painter, not the old flat
+  // concentric discs and legacy zone art.
   if (projectile.stationary && projectile.abilityFamily == 'mane') {
     final radius = max(
       24.0,
-      [
-        projectile.effectRadius,
-        projectile.snareRadius * 0.95,
-      ].fold<double>(0, (a, b) => max(a, b)),
+      max(projectile.effectRadius, projectile.snareRadius * 0.95),
     ).clamp(24.0, 220.0).toDouble();
-    final pulse = 0.78 + 0.22 * sin(time * 1.6 + projectile.life * 0.8);
-    final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.4)!;
-    final glowR = radius * 1.05;
-    // Layered concentric circles fake a radial blur without the
-    // expensive MaskFilter.blur pass — outer is faintest, inner is
-    // strongest. Reads as soft glow but is essentially free.
-    final glowPaint = ui.Paint();
-    for (var i = 4; i >= 1; i--) {
-      glowPaint.color = color.withValues(alpha: (0.04 + i * 0.025) * pulse);
-      canvas.drawCircle(position, glowR * (0.6 + i * 0.12), glowPaint);
-    }
-    final visScale = projectile.visualScale.clamp(0.7, 4.0).toDouble();
-    switch (element) {
-      case 'Lava':
-        _paintLavaPool(canvas, position, radius, color, time, pulse, visScale);
-        return true;
-      case 'Mud':
-        _paintMudPool(canvas, position, radius, color, time, pulse, visScale);
-        return true;
-      case 'Steam':
-        _paintSteamGeyser(
-          canvas,
-          position,
-          radius,
-          color,
-          time,
-          pulse,
-          visScale,
-        );
-        return true;
-      case 'Plant':
-        // Mane's rooted residue is damaging growth, not a bed.
-        _paintPlantZone(
-          canvas,
-          position,
-          radius,
-          color,
-          time,
-          pulse,
-          visScale,
-          style: PlantZoneStyle.vines,
-        );
-        return true;
-      case 'Lightning':
-        _paintLightningField(
-          canvas,
-          position,
-          radius,
-          color,
-          white,
-          time,
-          pulse,
-          visScale,
-        );
-        return true;
-      case 'Fire':
-        _paintFireZone(
-          canvas,
-          position,
-          radius,
-          color,
-          white,
-          time,
-          pulse,
-          visScale,
-        );
-        return true;
-      case 'Poison':
-        _paintPoisonPool(
-          canvas,
-          position,
-          radius,
-          color,
-          time,
-          pulse,
-          visScale,
-        );
-        return true;
-      case 'Ice':
-        _paintIcePillar(
-          canvas,
-          position,
-          radius,
-          color,
-          white,
-          time,
-          pulse,
-          visScale,
-        );
-        return true;
-      case 'Water':
-        _paintWaterPool(canvas, position, radius, color, time, pulse, visScale);
-        return true;
-      default:
-        // Fall through to the slash renderer below for elements without
-        // a dedicated zone painter.
-        break;
-    }
+    drawVfxElementGround(
+      canvas: canvas,
+      element: element,
+      center: position,
+      radius: radius,
+      time: time,
+      seed: (identityHashCode(projectile) % 97) * 0.37,
+    );
+    return true;
   }
 
   if (element == 'Dark' &&
@@ -1099,681 +993,11 @@ bool drawManeElementalProjectileVisual({
     return true;
   }
 
-  final vs = element == 'Light'
-      ? projectile.visualScale.clamp(0.75, 24.0).toDouble()
-      : projectile.visualScale.clamp(0.75, 3.4).toDouble();
-  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
-  final perp = ui.Offset(-dir.dy, dir.dx);
-  // Heavier catapult shots — slash body bigger so the projectile feels
-  // weighty in flight rather than a thin streak.
-  final len = (projectile.stationary ? 32.0 : 26.0) * vs;
-  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
-  final pulse = 0.72 + 0.28 * sin(time * 5.5 + projectile.life * 2.0);
-
-  // Motion trail for moving manes — directional gradient streak +
-  // staggered afterimage discs. The gradient line gives the soft
-  // "motion blur" feel without any MaskFilter.blur (which is a
-  // full-screen render pass per draw and expensive at scale).
-  if (!projectile.stationary) {
-    // The clump of wisps riding behind the blade. Drawn, not spawned into the
-    // shared particle pool — see [drawManeTrailWisps].
-    drawManeTrailWisps(
-      canvas: canvas,
-      position: position,
-      travelDir: dir,
-      color: color,
-      time: time,
-      scale: vs,
-      radiusMultiplier: projectile.radiusMultiplier,
-      seed: projectile.life,
-    );
-    // The slipstream. Three afterimage discs used to stand in for motion, and
-    // a chain of concentric circles behind a fast object reads as a caterpillar
-    // — it has no direction and no edge.
-    //
-    // Reuses the Let meteor's wake painter at almost no waviness, which is
-    // exactly the contrast between the two families: a falling rock drags a
-    // turbulent, meandering plume, a blade fired flat leaves a tight clean
-    // slipstream. Same code, opposite end of the same dial.
-    final travelUnit = dir.distance > 0.01
-        ? dir / dir.distance
-        : const ui.Offset(1, 0);
-    drawPlumeWake(
-      canvas: canvas,
-      head: position,
-      travelDir: travelUnit,
-      length: len * 2.4,
-      headWidth: 7.0 * vs,
-      color: color,
-      time: time,
-      alpha: 0.34 * pulse,
-      hotColor: white,
-      layers: 2,
-      seed: projectile.life + projectile.angle,
-      waveAmplitude: 0.10,
-      waveFrequency: 0.7,
-    );
-  }
-
-  final fillPaint = ui.Paint();
-  final strokePaint = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round;
-  final groundedRadius = projectile.snareRadius > 0
-      ? (projectile.snareRadius * 0.36).clamp(26.0, 96.0) * vs
-      : (24.0 * projectile.radiusMultiplier.clamp(1.0, 3.4) * vs);
-
-  void drawCoreSlash({
-    double width = 3.0,
-    double glowWidth = 8.0,
-    double alpha = 0.86,
-    double lengthScale = 1.0,
-  }) {
-    // A cleave with an edge and a direction.
-    //
-    // This was three stacked translucent discs plus a disc body plus a centre
-    // pip — a fake radial blur. It is cheap, but a stack of concentric circles
-    // has no axis and no outline, so eight Mane elements collapsed into the
-    // same fuzzy ball separated only by hue, and none of them read as the
-    // catapult/piercing cast they are.
-    final coreR = (4.5 + glowWidth * 0.45) * vs;
-    final scaled = alpha.clamp(0.0, 1.0);
-    final travelDir = dir.distance > 0.01
-        ? dir / dir.distance
-        : const ui.Offset(1, 0);
-    // Bloom stretched along travel instead of pooled round the body.
-    drawDirectionalBloom(
-      canvas: canvas,
-      centre: position,
-      travelDir: travelDir,
-      length: coreR * 2.5 * lengthScale,
-      width: coreR * 1.05,
-      color: color,
-      alpha: 0.26 * scaled * pulse,
-    );
-    // The blade itself.
-    //
-    // Length and bank vary per projectile off a hash of its own angle. The fan
-    // angles come from the ability's mechanics and are not ours to touch, but a
-    // fan of identical blades reads as a splayed hand; uneven ones read as a
-    // spray of cuts. Deterministic, so it does not shimmer frame to frame.
-    final jitter = (sin(projectile.angle * 12.9898) * 43758.5453);
-    final vary = 0.72 + 0.56 * (jitter - jitter.floorToDouble());
-    final bladeLen = coreR * 3.4 * vary * lengthScale;
-    final bladeWidth = coreR * 0.62;
-    // No spin term. The old core rolled on `time`, which is what made every
-    // Mane blade read as a tumbling stick rather than something thrown edge-on.
-    final blade = buildBladePath(
-      centre: position,
-      travelDir: travelDir,
-      length: bladeLen,
-      width: bladeWidth,
-      bank: (vary - 1.0) * 0.5,
-    );
-    // A wider, fainter echo of the same silhouette sitting under the blade, so
-    // the edge has some thickness to it without a second hard outline.
-    canvas.drawPath(
-      buildBladePath(
-        centre: position,
-        travelDir: travelDir,
-        length: bladeLen * 1.16,
-        width: bladeWidth * 1.7,
-        bank: (vary - 1.0) * 0.5,
-      ),
-      fillPaint
-        ..color = color.withValues(alpha: 0.20 * scaled * pulse)
-        ..maskFilter = null,
-    );
-    // Element color carries the body. The old fill was `white` — the element
-    // hue lerped 42% toward white and then laid down at 0.72 — which washed
-    // Lava, Dust and Plant out to the same cream and left hue doing all the
-    // work of telling them apart.
-    canvas.drawPath(
-      blade,
-      fillPaint
-        ..color = color.withValues(alpha: 0.80 * scaled)
-        ..maskFilter = null,
-    );
-    // A hot spine down the middle, tapering with the blade: the light along the
-    // edge, rather than an outline drawn round the whole shape.
-    canvas.drawPath(
-      buildBladePath(
-        centre: position + travelDir * bladeLen * 0.06,
-        travelDir: travelDir,
-        length: bladeLen * 0.74,
-        width: bladeWidth * 0.34,
-        bank: (vary - 1.0) * 0.5,
-      ),
-      fillPaint
-        ..color = white.withValues(alpha: 0.85 * scaled * pulse)
-        ..maskFilter = null,
-    );
-  }
-
-  void drawEarthRockProjectile() {
-    // Softened — was a solid 13-point rotating silhouette with a hard
-    // outline and cracks. Now layered translucent halos in earthy
-    // tones, mirroring the soft "particle cluster" feel of the
-    // other Mane projectiles. Per-frame survival particles fill in
-    // the chunky-rock impression with actual moving particles.
-    final rockRadius =
-        5.8 * vs * sqrt(projectile.radiusMultiplier.clamp(1.0, 4.6).toDouble());
-    final base = ui.Color.lerp(color, const ui.Color(0xFF4A362B), 0.32)!;
-    final high = ui.Color.lerp(color, const ui.Color(0xFFE2C6A8), 0.34)!;
-    // A boulder, with an outline and a tumble. The halo-ring version had no
-    // silhouette at all, which is why the heaviest Mane cast read as the
-    // lightest.
-    final travelDirE = dir.distance > 0.01
-        ? dir / dir.distance
-        : const ui.Offset(1, 0);
-    drawDirectionalBloom(
-      canvas: canvas,
-      centre: position,
-      travelDir: travelDirE,
-      length: rockRadius * 2.2,
-      width: rockRadius * 1.1,
-      color: base,
-      alpha: 0.24 * pulse,
-    );
-    canvas.drawPath(
-      buildTumblingShardPath(
-        centre: position,
-        radius: rockRadius * 0.95,
-        travelDir: travelDirE,
-        spin: time * 1.9 + projectile.life,
-        elongation: 1.12,
-        flatten: 0.92,
-      ),
-      ui.Paint()
-        ..color = base.withValues(alpha: 0.92)
-        ..maskFilter = null,
-    );
-    // Lit leading edge, so the boulder has a face taking the impact.
-    drawShardLeadingRim(
-      canvas: canvas,
-      centre: position,
-      radius: rockRadius * 0.93,
-      travelDir: travelDirE,
-      spin: time * 1.9 + projectile.life,
-      color: high.withValues(alpha: 0.75),
-      width: 1.8 * vs,
-      elongation: 1.12,
-      flatten: 0.92,
-    );
-    // White-hot center pip for visibility.
-    canvas.drawCircle(
-      position,
-      rockRadius * 0.22,
-      ui.Paint()
-        ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.55)
-        ..maskFilter = null,
-    );
-  }
-
-  void drawGroundPatch() {
-    if (!projectile.stationary) return;
-
-    switch (element) {
-      case 'Earth':
-      case 'Mud':
-      case 'Lava':
-        _drawCrackedPlate(canvas, position, color, groundedRadius, vs, time);
-        break;
-      case 'Plant':
-        _drawVinePatch(
-          canvas,
-          position,
-          color,
-          groundedRadius * 0.82,
-          vs,
-          time,
-        );
-        break;
-      case 'Fire':
-      case 'Poison':
-      default:
-        canvas.drawOval(
-          ui.Rect.fromCenter(
-            center: position,
-            width: groundedRadius * 2.0,
-            height: groundedRadius * 1.35,
-          ),
-          fillPaint..color = color.withValues(alpha: 0.20),
-        );
-        canvas.drawCircle(
-          position,
-          groundedRadius * 0.82,
-          strokePaint
-            ..color = color.withValues(alpha: 0.34)
-            ..strokeWidth = 1.5 * vs
-            ..maskFilter = null,
-        );
-    }
-  }
-
-  void drawControlRead({double scale = 1.0}) {
-    // Per design feedback: removed the outlined control-read ring
-    // ("just let the effects show"). The snare/intercept gameplay
-    // still works the same — the indicator outline is just gone.
-  }
-
-  switch (element) {
-    case 'Fire':
-      drawGroundPatch();
-      // A fireball with a burning wake, not a ring with a dot in it.
-      //
-      // This was a filled disc, an off-centre highlight, and a stroked circle
-      // pulsing around the outside — which is the exact recipe for a targeting
-      // reticle, and it read as UI chrome sitting on the battlefield rather
-      // than as the fastest shot in the family.
-      drawCoreSlash(width: 3.4, glowWidth: 9.0, alpha: 0.80);
-      // Embers shedding off the back, on their own cycles.
-      for (var i = 0; i < 4; i++) {
-        final t = (time * 1.5 + i * 0.25 + projectile.angle) % 1.0;
-        canvas.drawCircle(
-          position -
-              dir * (len * 0.4 + len * 1.0 * t) +
-              perp * sin(time * 3.0 + i * 1.7) * 3.0 * vs * t,
-          (2.0 - 1.2 * t) * vs,
-          fillPaint
-            ..color = const ui.Color(
-              0xFFFFB050,
-            ).withValues(alpha: (1 - t) * 0.85)
-            ..maskFilter = null,
-        );
-      }
-      drawSparkleGlints(
-        canvas: canvas,
-        centre: position,
-        travelDir: dir.distance > 0.01
-            ? dir / dir.distance
-            : const ui.Offset(1, 0),
-        spread: 22.0 * vs,
-        size: 2.0 * vs,
-        color: const ui.Color(0xFFFFC46A),
-        time: time,
-        count: 4,
-        seed: projectile.angle * 5.0,
-        alpha: 0.8,
-      );
-      drawControlRead(scale: 1.05);
-      break;
-    case 'Lightning':
-      // The shared bolt, the same one the Let meteor and every other discharge
-      // in the game use. This was a hand-rolled three-segment polyline stroked
-      // hard white — a drawn zigzag with fixed corners, so it never flickered,
-      // never branched, and read as a lightning ICON rather than a discharge.
-      drawCoreSlash(width: 2.4, glowWidth: 7.2, alpha: 0.62);
-      final boltGlow = ui.Color.lerp(color, kLightningBoltGlow, 0.55)!;
-      drawLightningBolt(
-        canvas,
-        position - dir * len * 1.5,
-        position + dir * len * 0.6,
-        time: time,
-        width: 1.1 * vs,
-        jitter: 1.9 * vs,
-        segmentLength: 5.5 * vs,
-        core: kLightningBoltCore,
-        glow: boltGlow,
-        alpha: 0.92,
-        branches: 1,
-        glowPasses: 2,
-        seed: projectile.angle * 7.0,
-      );
-      drawLightningCrackle(
-        canvas,
-        position,
-        7.0 * vs,
-        time: time,
-        count: 2,
-        width: 0.9 * vs,
-        glow: boltGlow,
-        glowPasses: 1,
-        seed: projectile.angle * 3.1,
-      );
-      break;
-    case 'Water':
-      // A wall, broadside to the direction it is sweeping.
-      //
-      // These were axis-aligned ovals — wide in screen-x regardless of where
-      // the shot was going. The comment claimed "perpendicular to travel", but
-      // Rect.fromCenter has no idea what travel is, so the only time the wall
-      // read as a wall was when it happened to be moving vertically. Fired
-      // sideways, which is most of the time, it was a bright pip inside
-      // concentric rings: an eye.
-      //
-      // Rotated into the travel frame it is broad ACROSS the direction of
-      // motion and thin along it, which is the sweep the design asks for.
-      final wallW = 11.0 * vs;
-      final wallH = 24.0 * vs;
-      canvas.save();
-      canvas.translate(position.dx, position.dy);
-      canvas.rotate(atan2(dir.dy, dir.dx));
-      for (var i = 3; i >= 1; i--) {
-        final r = (i / 3.0);
-        canvas.drawOval(
-          ui.Rect.fromCenter(
-            center: ui.Offset.zero,
-            width: wallW * (0.7 + r * 0.6),
-            height: wallH * (0.7 + r * 0.6),
-          ),
-          ui.Paint()
-            ..color = color.withValues(alpha: (0.06 + i * 0.05) * pulse)
-            ..maskFilter = null,
-        );
-      }
-      // The crest: a curved front face bulging the way it is travelling, so
-      // the wall has a leading edge carrying the water rather than a centre.
-      final crest = ui.Path()
-        ..moveTo(0, -wallH * 0.46)
-        ..quadraticBezierTo(wallW * 0.95, 0, 0, wallH * 0.46)
-        ..quadraticBezierTo(wallW * 0.30, 0, 0, -wallH * 0.46)
-        ..close();
-      canvas.drawPath(
-        crest,
-        ui.Paint()
-          ..color = white.withValues(alpha: 0.50 * pulse)
-          ..maskFilter = null,
-      );
-      canvas.restore();
-      // No white centre pip. A bright dot in the middle of concentric rings is
-      // what made this read as a pupil; the crest is the bright part of a wave,
-      // and it belongs on the leading face.
-      drawControlRead(scale: 1.0);
-      break;
-    case 'Ice':
-      drawCoreSlash(width: 3.1, glowWidth: 8.4, alpha: 0.76);
-      // Frost as light catching on crystal, not a drawn snowflake. The six
-      // even spokes of _drawFrostStar read as a winter-holiday sticker pinned
-      // to the blade — symmetrical, axis-less, and the last hard asterisk in
-      // the family after the Let meteors dropped theirs for the same reason.
-      drawSparkleGlints(
-        canvas: canvas,
-        centre: position,
-        travelDir: dir.distance > 0.01
-            ? dir / dir.distance
-            : const ui.Offset(1, 0),
-        spread: 20.0 * vs,
-        size: 2.6 * vs,
-        color: const ui.Color(0xFFCFEAFF),
-        time: time,
-        count: 6,
-        seed: projectile.angle * 3.0,
-        alpha: 0.85,
-      );
-      // Rime shearing off the trailing edge as it freezes the air behind it.
-      for (var i = 0; i < 3; i++) {
-        final t = (time * 0.85 + i * 0.34 + projectile.angle) % 1.0;
-        canvas.drawCircle(
-          position -
-              dir * (len * 0.5 + len * 0.7 * t) +
-              perp * sin(time * 2.0 + i) * 3.0 * vs,
-          (1.6 + 2.4 * t) * vs,
-          fillPaint
-            ..color = const ui.Color(
-              0xFFCFEAFF,
-            ).withValues(alpha: (1 - t) * 0.24)
-            ..maskFilter = null,
-        );
-      }
-      drawControlRead(scale: 1.08);
-      break;
-    case 'Steam':
-      // Pressure Vent Cuts — scalding vapour venting off the cleave.
-      //
-      // This was four flat circles at alpha 0.13 drifting behind the blade:
-      // grey on a dark field, no edge, no heat, and the only thing separating
-      // it from the other soft elements was hue it barely had. The design has
-      // it laying down steam damage zones as it travels, so the blade should
-      // look like it is venting, not fogging.
-      drawCoreSlash(width: 2.8, glowWidth: 7.0, alpha: 0.80);
-      final vapour = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.60)!;
-      for (var i = 0; i < 4; i++) {
-        // Each puff boils off, expands and thins on its own cycle, so the
-        // vapour billows instead of sitting there as a static smear.
-        final t = (time * 1.3 + i * 0.25 + projectile.angle) % 1.0;
-        final p =
-            position -
-            dir * (len * 0.35 + len * 1.5 * t) +
-            perp * sin(time * 1.9 + i * 2.0) * 6.0 * vs * t;
-        canvas.drawCircle(
-          p,
-          (2.6 + 6.5 * t) * vs,
-          fillPaint
-            ..color = vapour.withValues(alpha: (1 - t) * (1 - t) * 0.30)
-            ..maskFilter = null,
-        );
-      }
-      // A bright vent at the trailing edge — the point the pressure escapes.
-      canvas.drawCircle(
-        position - dir * len * 0.45,
-        2.2 * vs * (0.8 + 0.2 * sin(time * 8.0)),
-        fillPaint
-          ..color = vapour.withValues(alpha: 0.62 * pulse)
-          ..maskFilter = null,
-      );
-      drawControlRead(scale: 1.05);
-      break;
-    case 'Earth':
-      drawEarthRockProjectile();
-      drawControlRead(scale: 1.30);
-      break;
-    case 'Lava':
-      drawCoreSlash(width: 5.6, glowWidth: 13.0, alpha: 0.88);
-      // Molten shed off the cleave. This was a straight cream rod drawn the
-      // full length of the blade and out past both ends — the single most
-      // stick-like thing in the family, and it sat on the element whose whole
-      // read is that it is liquid.
-      for (var i = 0; i < 3; i++) {
-        final t = (time * 0.9 + i * 0.34 + projectile.angle) % 1.0;
-        final drip =
-            position -
-            dir * (len * 0.3 + len * 0.9 * t) +
-            perp * sin(time * 2.0 + i * 2.1) * 3.4 * vs * t;
-        canvas.drawCircle(
-          drip,
-          (2.4 - 1.5 * t) * vs,
-          fillPaint
-            ..color = const ui.Color(
-              0xFFFF8A2B,
-            ).withValues(alpha: (1 - t) * 0.80)
-            ..maskFilter = null,
-        );
-      }
-      drawControlRead(scale: 1.08);
-      break;
-    case 'Mud':
-      drawGroundPatch();
-      drawCoreSlash(width: 5.4, glowWidth: 12.0, alpha: 0.78);
-      canvas.drawOval(
-        ui.Rect.fromCenter(
-          center: position,
-          width: 30.0 * vs,
-          height: 17.0 * vs,
-        ),
-        fillPaint
-          ..color = color.withValues(alpha: 0.16)
-          ..maskFilter = null,
-      );
-      drawControlRead(scale: 1.18);
-      break;
-    case 'Dust':
-      drawCoreSlash(width: 2.1, glowWidth: 7.0, alpha: 0.66);
-      for (var i = 0; i < 9; i++) {
-        final a = time * 1.5 + i * pi * 2 / 9;
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * (7.0 + i) * vs,
-          1.1 * vs,
-          fillPaint
-            ..color = color.withValues(alpha: 0.40)
-            ..maskFilter = null,
-        );
-      }
-      break;
-    case 'Crystal':
-      drawCoreSlash(width: 3.2, glowWidth: 8.5, alpha: 0.82);
-      _drawCrystalSigil(canvas, position, color, 12.0 * vs, vs, time);
-      break;
-    case 'Air':
-      // Windblade Sweep — the fastest thing in the family, at twice the speed
-      // of everything else.
-      //
-      // It used to wear _drawAirSwirl: two thin stroked spirals centred on the
-      // body, at alpha 0.30. Curls drawn around a point say nothing about
-      // direction, and on the one element defined by how fast it is going,
-      // that left the whole cast reading as a faint smudge.
-      //
-      // Air is shown by what it drags along: motes streaming past the blade,
-      // stretched back down the travel line. The helper is left alone — three
-      // other abilities still use it as intended.
-      drawCoreSlash(width: 2.2, glowWidth: 7.5, alpha: 0.78);
-      for (var i = 0; i < 7; i++) {
-        final t = (time * 2.6 + i * 0.143 + projectile.angle) % 1.0;
-        final h = sin((i + 1) * 12.9898 + projectile.angle * 78.233) * 43758.5;
-        final lateral = ((h - h.floorToDouble()) - 0.5) * 2.0;
-        final p =
-            position -
-            dir * (len * 0.3 + len * 2.1 * t) +
-            perp * lateral * 6.0 * vs * (0.3 + t);
-        // Drawn as short streaks rather than dots: at this speed a round mote
-        // reads as standing still.
-        canvas.drawLine(
-          p,
-          p - dir * (5.0 + 7.0 * (1 - t)) * vs,
-          strokePaint
-            ..color = white.withValues(alpha: (1 - t) * 0.55)
-            ..strokeWidth = 1.0 * vs
-            ..maskFilter = null,
-        );
-      }
-      break;
-    case 'Plant':
-      drawGroundPatch();
-      drawCoreSlash(width: 2.6, glowWidth: 7.4, alpha: 0.68, lengthScale: 0.92);
-      _drawVinePatch(canvas, position, color, 15.0 * vs, vs, time);
-      drawCoreSlash(width: 2.1, glowWidth: 6.2, alpha: 0.50, lengthScale: 0.70);
-      drawControlRead(scale: 1.12);
-      break;
-    case 'Poison':
-      drawGroundPatch();
-      drawCoreSlash(width: 2.8, glowWidth: 8.0, alpha: 0.64, lengthScale: 0.86);
-      canvas.drawCircle(
-        position,
-        21.0 * vs * pulse,
-        fillPaint
-          ..color = color.withValues(alpha: 0.14)
-          ..maskFilter = null,
-      );
-      drawCoreSlash(width: 1.9, glowWidth: 5.5, alpha: 0.44, lengthScale: 0.66);
-      drawControlRead(scale: 1.10);
-      break;
-    case 'Spirit':
-      drawCoreSlash(width: 2.4, glowWidth: 7.2, alpha: 0.62, lengthScale: 0.90);
-      _drawSpiritHalo(canvas, position, color, 14.0 * vs, vs, time);
-      break;
-    case 'Dark':
-      // A void that swallows, shown by what is falling into it.
-      //
-      // This was a near-black disc laid over the blade: on a black starfield it
-      // subtracted the artwork and put nothing back, so the slowest, heaviest
-      // shot in the family was also the hardest one to see. The design has it
-      // dragging enemies inward the whole way, so draw the drag — motes hauled
-      // in from around it, winking out at the horizon — and give the horizon a
-      // lit rim so the sphere has an edge against the dark.
-      drawCoreSlash(width: 4.1, glowWidth: 11.0, alpha: 0.76);
-      final voidR = 13.0 * vs;
-      canvas.drawCircle(
-        position,
-        voidR,
-        fillPaint
-          ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.88)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position,
-        voidR,
-        strokePaint
-          ..color = ui.Color.lerp(
-            color,
-            const ui.Color(0xFFFFFFFF),
-            0.35,
-          )!.withValues(alpha: 0.55 * pulse)
-          ..strokeWidth = 1.4 * vs
-          ..maskFilter = null,
-      );
-      for (var i = 0; i < 6; i++) {
-        final t = (time * 0.8 + i * 0.167 + projectile.angle) % 1.0;
-        final a = i * (pi * 2 / 6) + t * 2.6;
-        final rr = voidR * (2.5 - 1.7 * t);
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * rr,
-          1.5 * vs * (1 - t * 0.8),
-          fillPaint
-            ..color = const ui.Color(
-              0xFFB06BE8,
-            ).withValues(alpha: (1 - t) * 0.70 * pulse)
-            ..maskFilter = null,
-        );
-      }
-      drawControlRead(scale: 1.06);
-      break;
-    case 'Light':
-      canvas.drawCircle(
-        position,
-        15.0 * vs * pulse,
-        fillPaint
-          ..color = color.withValues(alpha: 0.16)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position,
-        7.0 * vs,
-        fillPaint
-          ..color = color.withValues(alpha: 0.82)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position - dir * 1.6 * vs - perp * 1.2 * vs,
-        3.2 * vs,
-        fillPaint
-          ..color = white.withValues(alpha: 0.72)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position,
-        11.0 * vs,
-        strokePaint
-          ..color = white.withValues(alpha: 0.38 * pulse)
-          ..strokeWidth = max(1.0, 0.9 * vs)
-          ..maskFilter = null,
-      );
-      drawControlRead(scale: 1.0);
-      break;
-    case 'Blood':
-      drawCoreSlash(width: 4.8, glowWidth: 11.0, alpha: 0.84);
-      canvas.drawCircle(
-        position,
-        12.0 * vs * pulse,
-        fillPaint
-          ..color = color.withValues(alpha: 0.18)
-          ..maskFilter = null,
-      );
-      drawControlRead(scale: 1.0);
-      break;
-    default:
-      drawCoreSlash();
-      drawControlRead();
-  }
-
-  if (projectile.interceptCharges > 0) {
-    strokePaint
-      ..color = white.withValues(alpha: 0.55 * pulse)
-      ..strokeWidth = 1.6 * vs
-      ..maskFilter = null;
-    canvas.drawCircle(position, 20.0 * vs, strokePaint);
-  }
-
-  return true;
+  // Every Mane slash is claimed above — the alchemical specials, the basics,
+  // the Ice / Lava / Dark masses and the parked fixtures. Anything else
+  // falls to the generic painter. (The legacy slash renderer that sat here,
+  // with its trail wisps and stroked edges, could no longer be reached.)
+  return false;
 }
 
 bool drawHornElementalProjectileVisual({
@@ -1804,1653 +1028,48 @@ bool drawHornElementalProjectileVisual({
   return true;
 }
 
-/// Paints a ground-zone style trap visual sized to the projectile's
-/// gameplay radius (effect/snare). Modern game traps read as terrain
-/// patches, not floating sigils — a poison pool, a crystal cluster,
-/// an ice field, etc.
+/// Paints a ground-zone style visual sized to the projectile's gameplay
+/// radius (snare > effect > taunt): a horn's trail patch, else its element's
+/// ground ([drawVfxElementGround]) — Kin's healing garden is a growth bed
+/// with buds. A trap that just fired ([Projectile.abilityGrowthTimer]) swells
+/// in its own material's light; the white flash discs are gone.
 void _drawMaskGroundZone({
   required ui.Canvas canvas,
   required Projectile projectile,
   required ui.Offset position,
-  required ui.Color color,
-  required ui.Color white,
   required double time,
 }) {
   final element = projectile.element ?? '';
-  // Zone radius derived from gameplay flags: snare > effect > taunt.
-  final zoneR = () {
-    final candidates = <double>[
+  final zoneR = max(
+    20.0,
+    max(
       projectile.snareRadius,
-      projectile.effectRadius,
-      projectile.tauntRadius * 0.45,
-    ];
-    final best = candidates.fold<double>(0, (a, b) => max(a, b));
-    return max(20.0, best).clamp(20.0, 260.0).toDouble();
-  }();
-  final vs = projectile.visualScale.clamp(0.7, 4.0).toDouble();
-  // Soft animated pulse. Slower/lower for ambient pool look.
-  final pulse = 0.78 + 0.22 * sin(time * 1.6 + projectile.life * 0.8);
-  final breathe = 1.0 + 0.04 * sin(time * 1.2 + projectile.life);
-  final zoneSize = zoneR * breathe;
-
-  switch (element) {
-    case 'Poison':
-      if (projectile.abilityFamily == 'horn') {
-        drawHornTrailPatch(
-          canvas: canvas,
-          element: 'Poison',
-          position: position,
-          radius: zoneSize,
-          time: time,
-          fade: (projectile.life / 0.5).clamp(0.0, 1.0),
-        );
-      } else {
-        _paintPoisonPool(canvas, position, zoneSize, color, time, pulse, vs);
-      }
-      break;
-    case 'Lava':
-      _paintLavaPool(canvas, position, zoneSize, color, time, pulse, vs);
-      break;
-    case 'Mud':
-      if (projectile.abilityFamily == 'horn') {
-        drawHornTrailPatch(
-          canvas: canvas,
-          element: 'Mud',
-          position: position,
-          radius: zoneSize,
-          time: time,
-          fade: (projectile.life / 0.5).clamp(0.0, 1.0),
-        );
-      } else {
-        _paintMudPool(canvas, position, zoneSize, color, time, pulse, vs);
-      }
-      break;
-    case 'Water':
-      _paintWaterPool(canvas, position, zoneSize, color, time, pulse, vs);
-      break;
-    case 'Fire':
-      // Mask Fire balls flash on contact (ball→pool ignition).
-      final fireFlash = projectile.abilityFamily == 'mask'
-          ? projectile.abilityGrowthTimer.clamp(0.0, 1.0).toDouble()
-          : 0.0;
-      if (fireFlash > 0.05) {
-        final burstR = zoneSize * (1.0 + 0.65 * (1.0 - fireFlash));
-        canvas.drawCircle(
-          position,
-          burstR,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFFFE7B0,
-            ).withValues(alpha: 0.28 * fireFlash),
-        );
-        canvas.drawCircle(
-          position,
-          burstR * 0.55,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFFFB060,
-            ).withValues(alpha: 0.50 * fireFlash),
-        );
-      }
-      if (projectile.abilityFamily == 'horn') {
-        drawHornTrailPatch(
-          canvas: canvas,
-          element: 'Fire',
-          position: position,
-          radius: zoneSize,
-          time: time,
-          fade: (projectile.life / 0.5).clamp(0.0, 1.0),
-        );
-      } else {
-        _paintFireZone(
-          canvas,
-          position,
-          zoneSize,
-          color,
-          white,
-          time,
-          pulse,
-          vs,
-        );
-      }
-      break;
-    case 'Plant':
-      _paintPlantZone(
-        canvas,
-        position,
-        zoneSize,
-        color,
-        time,
-        pulse,
-        vs,
-        // Only Mask's vine gets the writhing tendril overlay on top (see
-        // drawMaskPlantWormyTendrils, which the games call for mask+Plant
-        // alone). Every other family's Plant zone was being drawn as the
-        // deliberately-bare moss patch that overlay was designed to sit
-        // under, and then nothing arrived to sit on it.
-        //
-        // Kin's is a healing GARDEN that drops flowers to harvest — attack
-        // tendrils would be the wrong picture for it anyway. It gets growth
-        // of its own instead.
-        style: switch (projectile.abilityFamily) {
-          'mask' => PlantZoneStyle.bare,
-          'kin' => PlantZoneStyle.garden,
-          _ => PlantZoneStyle.vines,
-        },
-      );
-      break;
-    case 'Crystal':
-      final crystalFlash = projectile.abilityGrowthTimer.clamp(0.0, 1.0);
-      _paintCrystalCluster(
-        canvas,
-        position,
-        zoneSize * (1.0 + 0.45 * crystalFlash),
-        color,
-        white,
-        time,
-        pulse * (1.0 + 0.35 * crystalFlash),
-        vs * (1.0 + 0.25 * crystalFlash),
-      );
-      if (crystalFlash > 0.05) {
-        // Shatter burst: layered white halo bursting outward.
-        final burstR = zoneSize * (1.0 + 0.7 * (1.0 - crystalFlash));
-        canvas.drawCircle(
-          position,
-          burstR,
-          ui.Paint()..color = white.withValues(alpha: 0.22 * crystalFlash),
-        );
-        canvas.drawCircle(
-          position,
-          burstR * 0.55,
-          ui.Paint()..color = white.withValues(alpha: 0.45 * crystalFlash),
-        );
-      }
-      break;
-    case 'Ice':
-      _paintIcePillar(
-        canvas,
-        position,
-        zoneSize,
-        color,
-        white,
-        time,
-        pulse,
-        vs,
-      );
-      break;
-    case 'Lightning':
-      _paintLightningField(
-        canvas,
-        position,
-        zoneSize,
-        color,
-        white,
-        time,
-        pulse,
-        vs,
-      );
-      break;
-    case 'Steam':
-      _paintSteamGeyser(canvas, position, zoneSize, color, time, pulse, vs);
-      break;
-    case 'Light':
-      // Mask Light void flashes brightly on instakill, then collapses.
-      final lightFlash = projectile.abilityFamily == 'mask'
-          ? projectile.abilityGrowthTimer.clamp(0.0, 1.0).toDouble()
-          : 0.0;
-      _paintLightVoid(
-        canvas,
-        position,
-        zoneSize * (1.0 + 0.50 * lightFlash),
-        color,
-        white,
-        time,
-        pulse * (1.0 + 0.50 * lightFlash),
-        vs * (1.0 + 0.30 * lightFlash),
-      );
-      if (lightFlash > 0.05) {
-        // White-hot collapse — dome of brightness shrinking inward.
-        final burstR = zoneSize * (0.8 + 1.2 * lightFlash);
-        canvas.drawCircle(
-          position,
-          burstR,
-          ui.Paint()..color = white.withValues(alpha: 0.45 * lightFlash),
-        );
-        canvas.drawCircle(
-          position,
-          burstR * 0.45,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFFFFFFF,
-            ).withValues(alpha: 0.85 * lightFlash),
-        );
-      }
-      break;
-    case 'Dark':
-      _paintDarkVoid(canvas, position, zoneSize, color, time, pulse, vs);
-      break;
-    case 'Spirit':
-      _paintSpiritWisp(
-        canvas,
-        position,
-        zoneSize,
-        color,
-        white,
-        time,
-        pulse,
-        vs,
-      );
-      break;
-    case 'Blood':
-      _paintBloodBlob(canvas, position, zoneSize, color, time, pulse, vs);
-      break;
-    case 'Earth':
-      // Mask Earth heal pool flashes green on each heal tick.
-      final earthFlash = projectile.abilityFamily == 'mask'
-          ? projectile.abilityGrowthTimer.clamp(0.0, 1.0).toDouble()
-          : 0.0;
-      _paintEarthPool(
-        canvas,
-        position,
-        zoneSize * (1.0 + 0.25 * earthFlash),
-        color,
-        time,
-        pulse * (1.0 + 0.40 * earthFlash),
-        vs,
-      );
-      if (earthFlash > 0.05) {
-        // Soft green heal pulse.
-        final healR = zoneSize * (0.65 + 0.45 * (1.0 - earthFlash));
-        canvas.drawCircle(
-          position,
-          healR,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFB7FFB7,
-            ).withValues(alpha: 0.32 * earthFlash),
-        );
-      }
-      break;
-    case 'Air':
-      // Activation flash: when the trap just knocked an enemy back,
-      // abilityGrowthTimer is bumped to 1.0 and decays survival-side.
-      // Pump zone scale + brightness + draw a brief outward gust ring
-      // so the player sees which pad is firing.
-      final airFlash = projectile.abilityGrowthTimer.clamp(0.0, 1.0);
-      final airScale = 1.0 + 0.55 * airFlash;
-      final airPulse = pulse * (1.0 + 0.40 * airFlash);
-      _paintAirGust(
-        canvas,
-        position,
-        zoneSize * airScale,
-        color,
-        white,
-        time,
-        airPulse,
-        vs * (1.0 + 0.25 * airFlash),
-      );
-      if (airFlash > 0.05) {
-        // Outward gust ring — soft expanding halo that swells as the
-        // pad fires. Two layered fills (bright inner, faint outer)
-        // for the alchemical particle look.
-        final gustR = zoneSize * (1.10 + 0.55 * (1.0 - airFlash));
-        canvas.drawCircle(
-          position,
-          gustR,
-          ui.Paint()
-            ..color = white.withValues(alpha: 0.18 * airFlash)
-            ..maskFilter = null,
-        );
-        canvas.drawCircle(
-          position,
-          gustR * 0.55,
-          ui.Paint()
-            ..color = white.withValues(alpha: 0.35 * airFlash)
-            ..maskFilter = null,
-        );
-      }
-      break;
-    case 'Dust':
-      _paintDustField(canvas, position, zoneSize, color, time, pulse, vs);
-      break;
-    default:
-      _paintGenericZone(canvas, position, zoneSize, color, time, pulse, vs);
-  }
-}
-
-void _paintZoneFill(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color, {
-  double alpha = 0.28,
-  // ignore: unused_element
-  double rim = 0.55,
-}) {
-  // Soft fill only — outline rim removed per design feedback ("just
-  // let the effects show"). The `rim` parameter is kept for back-
-  // compat with existing callers but no longer rendered.
-  final fill = ui.Paint()..color = color.withValues(alpha: alpha);
-  canvas.drawCircle(position, radius, fill);
-}
-
-void _paintBubbles(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color tint,
-  double time,
-  int count,
-  double pulse, {
-  double sizeMul = 1.0,
-}) {
-  final p = ui.Paint();
-  for (var i = 0; i < count; i++) {
-    final phase = (time * 0.9 + i * 0.7) % 1.0;
-    final a = i * (pi * 2 / count) + time * 0.18;
-    final r = radius * (0.25 + 0.55 * phase);
-    final pos = position + ui.Offset(cos(a), sin(a)) * r;
-    final size = radius * (0.05 + 0.07 * (1 - phase)) * sizeMul;
-    p.color = tint.withValues(alpha: (1 - phase) * 0.7 * pulse);
-    canvas.drawCircle(pos, size, p);
-  }
-}
-
-void _paintPoisonPool(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Organic sickly pool — irregular silhouette + position-seeded
-  // bubble + vapor placements so each pool reads as a unique
-  // splotch, not a stamped sprite.
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  // Irregular outer blob (11 vertices, position-seeded wobble).
-  final body = ui.Path();
-  const points = 11;
-  for (var i = 0; i < points; i++) {
-    final a = i * pi * 2 / points;
-    final wob = 0.78 + 0.32 * ((seed + i * 53) % 100) / 100.0;
-    final p = position + ui.Offset(cos(a), sin(a)) * radius * 0.95 * wob;
-    if (i == 0) {
-      body.moveTo(p.dx, p.dy);
-    } else {
-      body.lineTo(p.dx, p.dy);
-    }
-  }
-  body.close();
-  canvas.drawPath(
-    body,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.28 * pulse)
-      ..maskFilter = null,
-  );
-  // Inner darker splotch (offset slightly from center).
-  final innerColor = ui.Color.lerp(color, const ui.Color(0xFF2B0E3A), 0.45)!;
-  final innerOffset = ui.Offset(
-    (((seed >> 3) % 20) - 10) * 0.6,
-    (((seed >> 7) % 20) - 10) * 0.6,
-  );
-  canvas.drawCircle(
-    position + innerOffset,
-    radius * 0.55,
-    ui.Paint()
-      ..color = innerColor.withValues(alpha: 0.30 * pulse)
-      ..maskFilter = null,
-  );
-  // Bubbling dots at stable-random positions, twinkling per-bubble.
-  final bubble = ui.Paint()..maskFilter = null;
-  for (var i = 0; i < 6; i++) {
-    final h = (seed + i * 131) & 0xFFFF;
-    final a = (h % 360) * pi / 180;
-    final r = radius * (0.20 + ((h >> 4) % 70) / 100.0);
-    final p = position + ui.Offset(cos(a), sin(a)) * r;
-    final twinkle = 0.45 + 0.55 * ((sin(time * 2.4 + (h % 17)) + 1) * 0.5);
-    bubble.color = color.withValues(alpha: twinkle * 0.70 * pulse);
-    canvas.drawCircle(p, 1.4 * vs + (h % 8) * 0.14, bubble);
-  }
-  // 2-3 vapor wisps rising from seeded base positions — short
-  // dashes that fade as they travel upward.
-  final vapor = ui.Paint()
-    ..maskFilter = null
-    ..strokeCap = ui.StrokeCap.round
-    ..strokeWidth = 1.6 * vs;
-  for (var i = 0; i < 3; i++) {
-    final h = (seed + i * 211) & 0xFFFF;
-    final phase = (time * 0.5 + (h % 100) / 100.0) % 1.0;
-    final bx = (((h >> 5) % 80) - 40) * 0.012;
-    final by = (((h >> 9) % 80) - 40) * 0.012;
-    final base = position + ui.Offset(bx, by) * radius;
-    final tip = base + ui.Offset(0, -radius * 0.55 * phase);
-    vapor.color = color.withValues(alpha: (1 - phase) * 0.55 * pulse);
-    canvas.drawLine(base, tip, vapor);
-  }
-}
-
-void _paintLavaPool(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Organic molten splotch — replaces the stamped 90° crack +
-  // 60° ember pattern with position-seeded irregular shapes so
-  // each pool reads as a unique molten blob, not a sprite.
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  // Irregular 11-vertex outer blob silhouette.
-  final body = ui.Path();
-  const points = 11;
-  for (var i = 0; i < points; i++) {
-    final a = i * pi * 2 / points;
-    final wob = 0.78 + 0.32 * ((seed + i * 47) % 100) / 100.0;
-    final p = position + ui.Offset(cos(a), sin(a)) * radius * 0.95 * wob;
-    if (i == 0) {
-      body.moveTo(p.dx, p.dy);
-    } else {
-      body.lineTo(p.dx, p.dy);
-    }
-  }
-  body.close();
-  // Soft body fill.
-  canvas.drawPath(
-    body,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.34 * pulse)
-      ..maskFilter = null,
-  );
-  // Hot inner glow at ~55% radius — single soft fill, no crack lines.
-  final hot = ui.Color.lerp(color, const ui.Color(0xFFFFE08A), 0.5)!;
-  canvas.drawCircle(
-    position,
-    radius * 0.55,
-    ui.Paint()
-      ..color = hot.withValues(alpha: 0.45 * pulse)
-      ..maskFilter = null,
-  );
-  // Bright white-hot core pip.
-  canvas.drawCircle(
-    position,
-    radius * 0.18,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFE8A0).withValues(alpha: 0.85 * pulse)
-      ..maskFilter = null,
-  );
-  // Stable per-pool ember dots at seeded positions — animate alpha
-  // only (no orbital motion) so they read as glowing pops on the
-  // surface, not a rotating ring.
-  final ember = ui.Paint()..maskFilter = null;
-  for (var i = 0; i < 5; i++) {
-    final h = (seed + i * 131) & 0xFFFF;
-    final a = (h % 360) * pi / 180;
-    final r = radius * (0.25 + ((h >> 4) % 65) / 100.0);
-    final p = position + ui.Offset(cos(a), sin(a)) * r;
-    // Twinkle phase per-ember so they pop in/out independently.
-    final twinkle = 0.55 + 0.45 * ((sin(time * 2.0 + (h % 17)) + 1) * 0.5);
-    ember.color = const ui.Color(
-      0xFFFFD160,
-    ).withValues(alpha: twinkle * 0.85 * pulse);
-    canvas.drawCircle(p, 1.6 * vs + (h % 9) * 0.12, ember);
-  }
-}
-
-void _paintMudPool(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Organic mud splotch — irregular silhouette + position-seeded
-  // lumps so each pool reads as a unique sloppy splat, not a
-  // stamped four-lump square pattern.
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  // 11-point wobbly silhouette.
-  final body = ui.Path();
-  const points = 11;
-  for (var i = 0; i < points; i++) {
-    final a = i * pi * 2 / points;
-    final wob = 0.78 + 0.32 * ((seed + i * 41) % 100) / 100.0;
-    final p = position + ui.Offset(cos(a), sin(a)) * radius * 0.95 * wob;
-    if (i == 0) {
-      body.moveTo(p.dx, p.dy);
-    } else {
-      body.lineTo(p.dx, p.dy);
-    }
-  }
-  body.close();
-  canvas.drawPath(
-    body,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.34 * pulse)
-      ..maskFilter = null,
-  );
-  // Position-seeded dark lumps at irregular positions (no cardinal
-  // 90° grid).
-  final lump = ui.Paint()..maskFilter = null;
-  final darkColor = ui.Color.lerp(color, const ui.Color(0xFF000000), 0.40)!;
-  for (var i = 0; i < 5; i++) {
-    final h = (seed + i * 137) & 0xFFFF;
-    final a = (h % 360) * pi / 180;
-    final r = radius * (0.18 + ((h >> 4) % 60) / 100.0);
-    final p = position + ui.Offset(cos(a), sin(a)) * r;
-    lump.color = darkColor.withValues(alpha: 0.50 * pulse);
-    canvas.drawCircle(p, radius * (0.10 + ((h >> 8) % 14) / 100.0), lump);
-  }
-  _paintBubbles(canvas, position, radius * 0.7, color, time * 0.6, 4, pulse);
-}
-
-void _paintWaterPool(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Organic water puddle silhouette + animated ripples (the rings
-  // are kept since they ARE the authentic water-effect motion).
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  final body = ui.Path();
-  const points = 11;
-  for (var i = 0; i < points; i++) {
-    final a = i * pi * 2 / points;
-    final wob = 0.78 + 0.32 * ((seed + i * 67) % 100) / 100.0;
-    final p = position + ui.Offset(cos(a), sin(a)) * radius * 0.95 * wob;
-    if (i == 0) {
-      body.moveTo(p.dx, p.dy);
-    } else {
-      body.lineTo(p.dx, p.dy);
-    }
-  }
-  body.close();
-  canvas.drawPath(
-    body,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.26 * pulse)
-      ..maskFilter = null,
-  );
-  // Inner highlight pip — bright water reflection.
-  canvas.drawCircle(
-    position,
-    radius * 0.18,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.40 * pulse)
-      ..maskFilter = null,
-  );
-  // Animated ripple rings — kept as stroke since they ARE the
-  // water effect (expanding wave fronts).
-  final ripple = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeWidth = 1.2 * vs;
-  for (var i = 0; i < 3; i++) {
-    final phase = ((time * 0.5 + i * 0.33) % 1.0);
-    final r = radius * (0.4 + 0.55 * phase);
-    ripple.color = color.withValues(alpha: (1 - phase) * 0.55 * pulse);
-    canvas.drawCircle(position, r, ripple);
-  }
-}
-
-void _paintFireZone(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  ui.Color white,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Organic flame patch — irregular charred ground silhouette +
-  // position-seeded flame blobs that flicker independently. No
-  // stamped 7-tongue rosette pattern.
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  // 11-point charred ground silhouette.
-  final body = ui.Path();
-  const points = 11;
-  for (var i = 0; i < points; i++) {
-    final a = i * pi * 2 / points;
-    final wob = 0.78 + 0.32 * ((seed + i * 59) % 100) / 100.0;
-    final p = position + ui.Offset(cos(a), sin(a)) * radius * 0.95 * wob;
-    if (i == 0) {
-      body.moveTo(p.dx, p.dy);
-    } else {
-      body.lineTo(p.dx, p.dy);
-    }
-  }
-  body.close();
-  final ground = ui.Color.lerp(color, const ui.Color(0xFF1A0000), 0.55)!;
-  canvas.drawPath(
-    body,
-    ui.Paint()
-      ..color = ground.withValues(alpha: 0.34 * pulse)
-      ..maskFilter = null,
-  );
-  // Hot core glow.
-  canvas.drawCircle(
-    position,
-    radius * 0.50,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.50 * pulse)
-      ..maskFilter = null,
-  );
-  // Bright white-hot center pip.
-  canvas.drawCircle(
-    position,
-    radius * 0.18,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFE8A0).withValues(alpha: 0.85 * pulse)
-      ..maskFilter = null,
-  );
-  // 5 flame blobs at seeded irregular positions, flickering scale
-  // independently. Each is a soft circle, not a quadratic-bezier
-  // tongue silhouette.
-  final flameColor = ui.Color.lerp(color, white, 0.35)!;
-  final flame = ui.Paint()..maskFilter = null;
-  for (var i = 0; i < 5; i++) {
-    final h = (seed + i * 163) & 0xFFFF;
-    final a = (h % 360) * pi / 180;
-    final r = radius * (0.30 + ((h >> 4) % 50) / 100.0);
-    final p = position + ui.Offset(cos(a), sin(a)) * r;
-    final flicker = 0.55 + 0.45 * ((sin(time * 5.0 + (h % 23)) + 1) * 0.5);
-    flame.color = flameColor.withValues(alpha: flicker * 0.62 * pulse);
-    canvas.drawCircle(
-      p,
-      radius * (0.10 + ((h >> 8) % 14) / 100.0) * flicker,
-      flame,
+      max(projectile.effectRadius, projectile.tauntRadius * 0.45),
+    ),
+  ).clamp(20.0, 260.0).toDouble();
+  final zoneSize = zoneR * (1.0 + 0.04 * sin(time * 1.2 + projectile.life));
+  if (projectile.abilityFamily == 'horn' &&
+      (element == 'Poison' || element == 'Mud' || element == 'Fire')) {
+    drawHornTrailPatch(
+      canvas: canvas,
+      element: element,
+      position: position,
+      radius: zoneSize,
+      time: time,
+      fade: (projectile.life / 0.5).clamp(0.0, 1.0),
     );
-  }
-}
-
-/// What a Plant ground zone is a picture OF.
-///
-/// All three used to render as the same bare moss patch, because that patch
-/// was authored to sit under Mask's writhing tendril overlay and stay out of
-/// its way — and that overlay is drawn for Mask alone. Every other family's
-/// Plant zone was the empty bed of a picture whose subject never arrived.
-enum PlantZoneStyle {
-  /// Mask: the tendrils are drawn over the top, so the bed stays bare.
-  bare,
-
-  /// Kin: a healing garden that drops collectible flowers. Shoots rise and
-  /// ripen into buds, so the bed looks like something producing them.
-  garden,
-
-  /// Let and Mane: damaging growth. Creeping thorned vines that spread from
-  /// where they took root — the board's "vines grow from the ground and remain
-  /// until an enemy collides with them".
-  vines,
-}
-
-void _paintPlantZone(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs, {
-  PlantZoneStyle style = PlantZoneStyle.bare,
-}) {
-  final dark = ui.Color.lerp(color, const ui.Color(0xFF1F4F22), 0.55)!;
-  canvas.drawCircle(
-    position,
-    radius * 0.55,
-    ui.Paint()
-      ..color = dark.withValues(alpha: 0.22 * pulse)
-      ..maskFilter = null,
-  );
-  // Mask's vine has writhing tendrils drawn over the top of this, so the
-  // patch stays bare on purpose and lets them carry the movement.
-  if (style == PlantZoneStyle.bare) return;
-
-  if (style == PlantZoneStyle.vines) {
-    // Thorned creepers spreading out from where they rooted. Slower and
-    // heavier than the garden's shoots, and barbed rather than budding,
-    // because these exist to hurt whatever walks into them.
-    final vine = ui.Color.lerp(color, const ui.Color(0xFF2E7D32), 0.40)!;
-    final creeper = ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeCap = ui.StrokeCap.round
-      ..maskFilter = null;
-    for (var i = 0; i < 6; i++) {
-      final a = i * (pi * 2 / 6) + sin(time * 0.35 + i) * 0.22;
-      final dir = ui.Offset(cos(a), sin(a));
-      final perp = ui.Offset(-dir.dy, dir.dx);
-      // Creeps out and back on a long slow cycle, so the patch looks alive
-      // without ever reading as a spinning asterisk.
-      final reach = radius * (0.62 + 0.26 * sin(time * 0.5 + i * 1.3));
-      final mid = position + dir * reach * 0.55 + perp * reach * 0.26;
-      final tip = position + dir * reach;
-      creeper
-        ..color = vine.withValues(alpha: 0.60 * pulse)
-        ..strokeWidth = 2.0 * vs;
-      canvas.drawPath(
-        ui.Path()
-          ..moveTo(position.dx, position.dy)
-          ..quadraticBezierTo(mid.dx, mid.dy, tip.dx, tip.dy),
-        creeper,
-      );
-      // Thorns along the outer half — what makes this a hazard and not a bed.
-      for (var j = 1; j <= 2; j++) {
-        final t = 0.55 + j * 0.2;
-        final on =
-            position + dir * reach * t + perp * reach * 0.26 * sin(t * pi);
-        final barb = perp * (j.isEven ? 3.0 : -3.0) * vs;
-        creeper
-          ..color = vine.withValues(alpha: 0.70 * pulse)
-          ..strokeWidth = 1.2 * vs;
-        canvas.drawLine(on, on + barb - dir * 1.5 * vs, creeper);
-      }
-    }
     return;
   }
-
-  // Garden: nothing is coming to fill this one in, so it grows its own.
-  //
-  // A garden, not a trap: shoots rising from the bed on their own cycles,
-  // each swelling to a bud at the top. Kin's Plant drops a collectible
-  // flower every few seconds, and the bed should look like something that
-  // is producing them rather than a flat patch of moss.
-  final leaf = ui.Color.lerp(color, const ui.Color(0xFF8FE07A), 0.45)!;
-  final bloom = ui.Color.lerp(color, const ui.Color(0xFFFFF0A8), 0.55)!;
-  final stalk = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..maskFilter = null;
-  for (var i = 0; i < 7; i++) {
-    final h1 = sin((i + 1) * 12.9898) * 43758.5453;
-    final h2 = sin((i + 1) * 39.3468) * 24634.6345;
-    final u = h1 - h1.floorToDouble();
-    final v = h2 - h2.floorToDouble();
-    // Each shoot runs its own slow grow-and-reseed cycle.
-    final t = (time * 0.28 + u) % 1.0;
-    final grow = sin(t * pi).clamp(0.0, 1.0);
-    if (grow < 0.05) continue;
-    final a = u * pi * 2;
-    final root = position + ui.Offset(cos(a), sin(a)) * radius * 0.44 * v;
-    // Leans a little as it rises, so the bed does not read as a pincushion.
-    final lean = sin(time * 0.9 + i * 1.7) * radius * 0.07;
-    final tip = root + ui.Offset(lean, -radius * 0.42 * grow);
-    stalk
-      ..color = leaf.withValues(alpha: 0.55 * grow * pulse)
-      ..strokeWidth = 1.5 * vs;
-    canvas.drawPath(
-      ui.Path()
-        ..moveTo(root.dx, root.dy)
-        ..quadraticBezierTo(
-          root.dx + lean * 0.4,
-          (root.dy + tip.dy) * 0.5,
-          tip.dx,
-          tip.dy,
-        ),
-      stalk,
-    );
-    // The bud swells only near the top of the cycle, so a shoot visibly
-    // ripens rather than being born with a flower on it.
-    final ripe = ((grow - 0.55) / 0.45).clamp(0.0, 1.0);
-    if (ripe > 0) {
-      canvas.drawCircle(
-        tip,
-        (1.1 + 1.6 * ripe) * vs,
-        ui.Paint()..color = bloom.withValues(alpha: 0.75 * ripe * pulse),
-      );
-    }
-  }
-}
-
-void _paintCrystalCluster(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  ui.Color white,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Cluster of upright crystal shards growing outward from a base.
-  // Position-seeded shard placement so each cluster reads unique
-  // instead of a perfect 72°-rotation pattern.
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  // Base patch (soft fill, no outline).
-  canvas.drawCircle(
-    position,
-    radius * 0.6,
-    ui.Paint()
-      ..color = ui.Color.lerp(
-        color,
-        const ui.Color(0xFF000000),
-        0.55,
-      )!.withValues(alpha: 0.28 * pulse)
-      ..maskFilter = null,
-  );
-  // 5 shards at seeded irregular angles + varying lengths/widths.
-  const shardCount = 5;
-  for (var i = 0; i < shardCount; i++) {
-    final h1 = (seed + i * 191) & 0xFFFF;
-    final a = (h1 % 360) * pi / 180;
-    final hLen = radius * (0.65 + ((h1 >> 4) % 30) / 100.0);
-    final tip = position + ui.Offset(cos(a), sin(a)) * hLen;
-    final w = radius * (0.14 + ((h1 >> 8) % 10) / 100.0);
-    final left = position + ui.Offset(cos(a + pi / 2), sin(a + pi / 2)) * w;
-    final right = position + ui.Offset(cos(a - pi / 2), sin(a - pi / 2)) * w;
-    final shard = ui.Path()
-      ..moveTo(left.dx, left.dy)
-      ..lineTo(tip.dx, tip.dy)
-      ..lineTo(right.dx, right.dy)
-      ..close();
-    canvas.drawPath(
-      shard,
-      ui.Paint()..color = color.withValues(alpha: 0.58 * pulse),
-    );
-    // Soft tip glint — a small filled circle at the shard tip
-    // instead of a stroked highlight line, so the shard reads as a
-    // glowing pip rather than a hard-outlined geometric sprite.
-    canvas.drawCircle(
-      tip,
-      max(1.6, 1.8 * vs),
-      ui.Paint()..color = white.withValues(alpha: 0.55 * pulse),
-    );
-  }
-}
-
-void _paintIcePillar(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  ui.Color white,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Faint frost mist + soft pillar core. No hard snowflake rosette,
-  // no outlined diamond — layered translucent halos carry the read,
-  // per-frame frost motes (spawned survival-side) provide the
-  // sparkle. Pulse drives a subtle breathing shimmer.
-  final mistOuter = ui.Paint()
-    ..color = ui.Color.lerp(color, white, 0.6)!.withValues(alpha: 0.16 * pulse);
-  canvas.drawCircle(position, radius * 1.05, mistOuter);
-  final mistMid = ui.Paint()
-    ..color = ui.Color.lerp(color, white, 0.5)!.withValues(alpha: 0.22 * pulse);
-  canvas.drawCircle(position, radius * 0.78, mistMid);
-  final mistInner = ui.Paint()
-    ..color = ui.Color.lerp(
-      color,
-      white,
-      0.35,
-    )!.withValues(alpha: 0.32 * pulse);
-  canvas.drawCircle(position, radius * 0.55, mistInner);
-  // Soft pillar core — three layered halos shape a vertical "column"
-  // by offsetting the centers slightly upward each layer.
-  final coreA = ui.Paint()..color = color.withValues(alpha: 0.42 * pulse);
-  canvas.drawCircle(
-    position + ui.Offset(0, -radius * 0.10),
-    radius * 0.40,
-    coreA,
-  );
-  final coreB = ui.Paint()
-    ..color = ui.Color.lerp(
-      color,
-      white,
-      0.55,
-    )!.withValues(alpha: 0.55 * pulse);
-  canvas.drawCircle(
-    position + ui.Offset(0, -radius * 0.18),
-    radius * 0.26,
-    coreB,
-  );
-  // Bright pip for the icy hot-center.
-  final pip = ui.Paint()..color = white.withValues(alpha: 0.85 * pulse);
-  canvas.drawCircle(position + ui.Offset(0, -radius * 0.22), 1.6 * vs, pip);
-}
-
-void _paintLightningField(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  ui.Color white,
-  double time,
-  double pulse,
-  double vs, {
-  bool reduceAmbient = false,
-}) {
-  _paintZoneFill(
-    canvas,
-    position,
-    radius,
-    color,
-    alpha: 0.22 * pulse,
-    rim: 0.5,
-  );
-  // The Voltara bolt, at field scale. The old version drew five straight
-  // chords through the centre, which read as a spoked wheel rather than a
-  // storm; these are real jagged discharges that fork and flicker off their
-  // own beats. `drawLightningCrackle` is the shared renderer, so the same
-  // arcs appear in survival, cosmic space and the dungeons.
-  final glow = ui.Color.lerp(color, kLightningBoltGlow, 0.55)!;
-  drawLightningCrackle(
-    canvas,
-    position,
-    radius * 0.80,
+  drawVfxElementGround(
+    canvas: canvas,
+    element: element,
+    center: position,
+    radius: zoneSize,
     time: time,
-    count: 5,
-    width: 1.9 * vs,
-    // Voltara's white-blue, not the field's own tint — the discharge is the
-    // hottest thing in the zone and should read that way.
-    core: kLightningBoltCore,
-    glow: glow,
-    alpha: 0.9 * pulse,
-    glowPasses: reduceAmbient ? 0 : 2,
-    branches: reduceAmbient ? 0 : 1,
+    seed: (identityHashCode(projectile) % 97) * 0.37,
+    flash: projectile.abilityGrowthTimer.clamp(0.0, 1.0).toDouble(),
+    garden: projectile.abilityFamily == 'kin' && element == 'Plant',
   );
-  // A ground strike into the centre — the field's heartbeat, one bright bolt
-  // dropping in on a slow cadence so the zone punches instead of humming.
-  final strikePhase = (time * 0.9) % 1.0;
-  if (strikePhase < 0.30) {
-    final fade = 1.0 - strikePhase / 0.30;
-    final a = _boltNoise((time * 0.9).floorToDouble(), 1.0) * pi;
-    drawLightningBolt(
-      canvas,
-      position + ui.Offset(cos(a), sin(a)) * radius,
-      position,
-      time: time,
-      width: 2.4 * vs,
-      jitter: radius * 0.16,
-      segmentLength: max(8.0, radius * 0.22),
-      core: kLightningBoltCore,
-      glow: glow,
-      alpha: fade,
-      branches: reduceAmbient ? 0 : 2,
-      glowPasses: reduceAmbient ? 0 : 2,
-    );
-  }
-  // Bright core
-  final core = ui.Paint()..color = white.withValues(alpha: 0.9 * pulse);
-  canvas.drawCircle(position, radius * 0.18, core);
-}
-
-void _paintSteamGeyser(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Geyser opening + rising puffs.
-  final base = ui.Paint()
-    ..color = ui.Color.lerp(
-      color,
-      const ui.Color(0xFF000000),
-      0.6,
-    )!.withValues(alpha: 0.5 * pulse);
-  canvas.drawCircle(position, radius * 0.35, base);
-  // Rising puffs
-  for (var i = 0; i < 4; i++) {
-    final phase = (time * 0.6 + i * 0.25) % 1.0;
-    final pos = position + ui.Offset(0, -radius * phase);
-    final p = ui.Paint()
-      ..color = color.withValues(alpha: (1 - phase) * 0.65 * pulse);
-    canvas.drawCircle(pos, radius * (0.18 + phase * 0.3), p);
-  }
-}
-
-void _paintLightVoid(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  ui.Color white,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Soft luminous well — layered faint halos that pulse with `time`,
-  // a brighter inner core, and a single white-hot pip. No spokes,
-  // no rune-ring outline. Position-seeded micro-glints provide the
-  // alchemical sparkle without geometric stamping.
-  final breathe = 0.9 + 0.10 * sin(time * 1.7);
-  final haloOuter = ui.Paint()..color = white.withValues(alpha: 0.10 * pulse);
-  canvas.drawCircle(position, radius * 1.05 * breathe, haloOuter);
-  final haloMid = ui.Paint()..color = white.withValues(alpha: 0.22 * pulse);
-  canvas.drawCircle(position, radius * 0.75 * breathe, haloMid);
-  final haloInner = ui.Paint()..color = white.withValues(alpha: 0.40 * pulse);
-  canvas.drawCircle(position, radius * 0.45 * breathe, haloInner);
-  final coreTint = ui.Paint()..color = color.withValues(alpha: 0.45 * pulse);
-  canvas.drawCircle(position, radius * 0.28, coreTint);
-  final pip = ui.Paint()..color = white.withValues(alpha: 0.95 * pulse);
-  canvas.drawCircle(position, max(2.2, 1.6 * vs), pip);
-  // Position-seeded micro-glints — placed once per spawn (no orbiting
-  // sweep) so the well reads as static-but-alive instead of a
-  // rotating ring.
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  final glint = ui.Paint();
-  for (var i = 0; i < 5; i++) {
-    final h = (seed + i * 197) & 0xFFFF;
-    final a = (h % 360) * pi / 180;
-    final r = radius * (0.40 + ((h >> 4) % 50) / 100.0);
-    final twinkle = 0.55 + 0.45 * sin(time * 2.1 + i * 1.3);
-    glint.color = white.withValues(alpha: 0.75 * pulse * twinkle);
-    canvas.drawCircle(
-      position + ui.Offset(cos(a), sin(a)) * r,
-      1.1 * vs,
-      glint,
-    );
-  }
-}
-
-void _paintDarkVoid(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Black hole — dark fill + soft purple halo + spiral arms.
-  // (Removed the hard accretion ring outline per design feedback;
-  // halo + spirals carry the read.)
-  final pit = ui.Paint()
-    ..color = const ui.Color(0xFF000000).withValues(alpha: 0.85 * pulse);
-  canvas.drawCircle(position, radius * 0.55, pit);
-  final accretion = ui.Paint()..color = color.withValues(alpha: 0.28 * pulse);
-  canvas.drawCircle(position, radius * 0.72, accretion);
-  // Spiral arms
-  final spiral = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeWidth = 1.5 * vs
-    ..color = color.withValues(alpha: 0.6 * pulse);
-  for (var arm = 0; arm < 3; arm++) {
-    final p = ui.Path();
-    const segs = 22;
-    for (var i = 0; i < segs; i++) {
-      final t = i / (segs - 1);
-      final a = arm * (pi * 2 / 3) + t * pi * 1.5 - time * 0.7;
-      final r = radius * (0.95 - t * 0.45);
-      final pt = position + ui.Offset(cos(a), sin(a)) * r;
-      if (i == 0) {
-        p.moveTo(pt.dx, pt.dy);
-      } else {
-        p.lineTo(pt.dx, pt.dy);
-      }
-    }
-    canvas.drawPath(p, spiral);
-  }
-}
-
-void _paintSpiritWisp(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  ui.Color white,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Soft glowing wisp orbs drifting around a central faint core.
-  final faint = ui.Paint()..color = color.withValues(alpha: 0.18 * pulse);
-  canvas.drawCircle(position, radius * 0.7, faint);
-  for (var i = 0; i < 4; i++) {
-    final a = time * 0.4 + i * (pi / 2);
-    final r = radius * (0.4 + 0.18 * sin(time * 1.5 + i));
-    final pos = position + ui.Offset(cos(a), sin(a)) * r;
-    final glow = ui.Paint()..color = white.withValues(alpha: 0.7 * pulse);
-    canvas.drawCircle(pos, radius * 0.14, glow);
-    final tint = ui.Paint()..color = color.withValues(alpha: 0.55 * pulse);
-    canvas.drawCircle(pos, radius * 0.08, tint);
-  }
-}
-
-void _paintBloodBlob(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Pulsing irregular blob of blood with darker core.
-  final blob = ui.Path();
-  const lobes = 11;
-  for (var i = 0; i < lobes; i++) {
-    final a = i * (pi * 2 / lobes);
-    final r = radius * (0.85 + 0.12 * sin(time * 1.5 + i * 0.9));
-    final pt = position + ui.Offset(cos(a), sin(a)) * r;
-    if (i == 0) {
-      blob.moveTo(pt.dx, pt.dy);
-    } else {
-      blob.lineTo(pt.dx, pt.dy);
-    }
-  }
-  blob.close();
-  final fill = ui.Paint()..color = color.withValues(alpha: 0.65 * pulse);
-  canvas.drawPath(blob, fill);
-  final core = ui.Paint()
-    ..color = const ui.Color(0xFF3A0008).withValues(alpha: 0.7 * pulse);
-  canvas.drawCircle(position, radius * 0.4, core);
-  // Drips around the rim
-  for (var i = 0; i < 5; i++) {
-    final a = i * (pi * 2 / 5) + time * 0.3;
-    final tip = position + ui.Offset(cos(a), sin(a)) * radius * 1.05;
-    final p = ui.Paint()..color = color.withValues(alpha: 0.6 * pulse);
-    canvas.drawCircle(tip, radius * 0.08, p);
-  }
-}
-
-void _paintEarthPool(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Healing earth ground patch with green moss and stones.
-  _paintZoneFill(canvas, position, radius, color, alpha: 0.3 * pulse, rim: 0.5);
-  // Green moss tint
-  final moss = ui.Paint()
-    ..color = const ui.Color(0xFF3A7A2E).withValues(alpha: 0.4 * pulse);
-  canvas.drawCircle(position, radius * 0.7, moss);
-  // Scattered stones
-  for (var i = 0; i < 6; i++) {
-    final a = i * (pi * 2 / 6) + time * 0.05;
-    final r = radius * (0.35 + (i % 2) * 0.3);
-    final pos = position + ui.Offset(cos(a), sin(a)) * r;
-    final stone = ui.Paint()
-      ..color = ui.Color.lerp(
-        color,
-        const ui.Color(0xFF2A1A0A),
-        0.4,
-      )!.withValues(alpha: 0.85 * pulse);
-    canvas.drawCircle(pos, radius * 0.08, stone);
-  }
-  // Healing pulse — soft expanding halo (no hard outline ring).
-  final pulseR = radius * (0.5 + 0.4 * (sin(time * 1.2) + 1) / 2);
-  final pulseFill = ui.Paint()
-    ..color = const ui.Color(
-      0xFFB7FFB7,
-    ).withValues(alpha: 0.18 * pulse * (1.0 - (pulseR / radius)));
-  canvas.drawCircle(position, pulseR, pulseFill);
-}
-
-void _paintAirGust(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  ui.Color white,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Soft updraft — three layered translucent halos + a few
-  // position-seeded twinkling motes. No stroked spirals, no solid
-  // tint circle. The actual rising wind streamers come from the
-  // per-frame survival particle pass (`_spawnZoneParticles`).
-  final faint = ui.Color.lerp(color, white, 0.55)!;
-  // Three layered translucent rings — fade outward, never solid.
-  canvas.drawCircle(
-    position,
-    radius * 0.95,
-    ui.Paint()..color = color.withValues(alpha: 0.08 * pulse),
-  );
-  canvas.drawCircle(
-    position,
-    radius * 0.65,
-    ui.Paint()..color = color.withValues(alpha: 0.14 * pulse),
-  );
-  canvas.drawCircle(
-    position,
-    radius * 0.38,
-    ui.Paint()..color = faint.withValues(alpha: 0.20 * pulse),
-  );
-  // Air being LIFTED, not air sitting still.
-  //
-  // Three flat halos and five twinkling dots said "soft blue circle" and
-  // nothing else — the comment promised rising streamers from the particle
-  // pass, but a zone this size needs the lift in its own art or it reads as a
-  // puddle. This is an updraft column: enemies are supposed to be unable to
-  // walk through it because it picks them up.
-  final lift = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..maskFilter = null;
-  for (var i = 0; i < 9; i++) {
-    final h1 = sin((i + 1) * 12.9898) * 43758.5453;
-    final u = h1 - h1.floorToDouble();
-    // Each streamer rises on its own loop and restarts at the floor.
-    final t = (time * 0.85 + u) % 1.0;
-    final a = u * pi * 2;
-    // Spirals inward as it climbs, so the column reads as drawing air up
-    // through itself rather than as parallel lines drifting.
-    final band = radius * (0.86 - 0.34 * t);
-    final swirl = a + t * 1.5;
-    final base = position + ui.Offset(cos(swirl), sin(swirl)) * band;
-    final rise = radius * 0.55 * t;
-    final fade = sin(t * pi).clamp(0.0, 1.0);
-    lift
-      ..color = faint.withValues(alpha: 0.42 * fade * pulse)
-      ..strokeWidth = (1.5 - 0.6 * t) * vs;
-    canvas.drawPath(
-      ui.Path()
-        ..moveTo(base.dx, base.dy)
-        ..quadraticBezierTo(
-          base.dx + cos(swirl + 0.6) * radius * 0.10,
-          base.dy - rise * 0.55,
-          base.dx,
-          base.dy - rise,
-        ),
-      lift,
-    );
-  }
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  for (var i = 0; i < 5; i++) {
-    final h = (seed + i * 197) & 0xFFFF;
-    final a = (h % 360) * pi / 180;
-    final r = radius * (0.25 + ((h >> 4) % 55) / 100.0);
-    final twinkle = 0.55 + 0.45 * sin(time * 2.2 + i * 1.7);
-    canvas.drawCircle(
-      position + ui.Offset(cos(a), sin(a)) * r,
-      1.0 * vs,
-      ui.Paint()..color = white.withValues(alpha: 0.75 * pulse * twinkle),
-    );
-  }
-}
-
-void _paintDustField(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  // Faint sand cloud — layered translucent halos + a handful of
-  // softly-twinkling motes at seeded positions. The orbiting per-
-  // frame dust motes (spawned survival-side) carry the swirl.
-  canvas.drawCircle(
-    position,
-    radius * 1.0,
-    ui.Paint()..color = color.withValues(alpha: 0.10 * pulse),
-  );
-  canvas.drawCircle(
-    position,
-    radius * 0.70,
-    ui.Paint()..color = color.withValues(alpha: 0.16 * pulse),
-  );
-  canvas.drawCircle(
-    position,
-    radius * 0.42,
-    ui.Paint()..color = color.withValues(alpha: 0.22 * pulse),
-  );
-  final seed = position.dx.floor() * 7919 + position.dy.floor() * 6113;
-  final mote = ui.Paint();
-  for (var i = 0; i < 7; i++) {
-    final h = (seed + i * 211) & 0xFFFF;
-    final a = (h % 360) * pi / 180;
-    final r = radius * (0.20 + ((h >> 4) % 65) / 100.0);
-    final twinkle = 0.45 + 0.55 * sin(time * 2.4 + i * 0.9);
-    mote.color = color.withValues(alpha: 0.55 * pulse * twinkle);
-    canvas.drawCircle(position + ui.Offset(cos(a), sin(a)) * r, 1.1 * vs, mote);
-  }
-}
-
-void _paintGenericZone(
-  ui.Canvas canvas,
-  ui.Offset position,
-  double radius,
-  ui.Color color,
-  double time,
-  double pulse,
-  double vs,
-) {
-  _paintZoneFill(canvas, position, radius, color, alpha: 0.3 * pulse);
-}
-
-// Legacy small-sigil core renderer. Kept for cosmic-mode parity in
-// case we re-enable per-style fall-throughs; mask survival path uses
-// _drawMaskGroundZone instead.
-// ignore: unused_element
-void _drawMaskCoreForElementLegacy({
-  required ui.Canvas canvas,
-  required String element,
-  required ui.Offset position,
-  required ui.Color color,
-  required ui.Color white,
-  required double coreR,
-  required double vs,
-  required double time,
-  required double pulse,
-  required ui.Paint fillPaint,
-  required ui.Paint linePaint,
-}) {
-  final stroke = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round;
-
-  switch (element) {
-    case 'Plant':
-      // Vine bloom: 5 curling tendrils sprouting outward.
-      const branches = 5;
-      for (var i = 0; i < branches; i++) {
-        final a = i * (pi * 2 / branches) + time * 0.12;
-        final tip = position + ui.Offset(cos(a), sin(a)) * coreR * 1.6;
-        final mid =
-            position + ui.Offset(cos(a + 0.5), sin(a + 0.5)) * coreR * 1.0;
-        final path = ui.Path()
-          ..moveTo(position.dx, position.dy)
-          ..quadraticBezierTo(mid.dx, mid.dy, tip.dx, tip.dy);
-        stroke
-          ..color = color.withValues(alpha: 0.78 * pulse)
-          ..strokeWidth = 1.6 * vs;
-        canvas.drawPath(path, stroke);
-      }
-      fillPaint.color = white.withValues(alpha: 0.85 * pulse);
-      canvas.drawCircle(position, coreR * 0.55, fillPaint);
-      break;
-
-    case 'Fire':
-    case 'Lava':
-      // Flame teardrops licking upward.
-      const tongues = 6;
-      for (var i = 0; i < tongues; i++) {
-        final a = i * (pi * 2 / tongues) + sin(time * 3 + i) * 0.18;
-        final r = coreR * (1.1 + 0.35 * (1 + sin(time * 6 + i)) / 2);
-        final tip = position + ui.Offset(cos(a), sin(a)) * r * 1.5;
-        final base = position + ui.Offset(cos(a), sin(a)) * coreR * 0.4;
-        final path = ui.Path()
-          ..moveTo(base.dx, base.dy)
-          ..quadraticBezierTo(
-            position.dx + cos(a + 0.4) * coreR * 0.9,
-            position.dy + sin(a + 0.4) * coreR * 0.9,
-            tip.dx,
-            tip.dy,
-          )
-          ..quadraticBezierTo(
-            position.dx + cos(a - 0.4) * coreR * 0.9,
-            position.dy + sin(a - 0.4) * coreR * 0.9,
-            base.dx,
-            base.dy,
-          );
-        fillPaint.color = color.withValues(alpha: 0.65 * pulse);
-        canvas.drawPath(path, fillPaint);
-      }
-      fillPaint.color = white.withValues(alpha: 0.85 * pulse);
-      canvas.drawCircle(position, coreR * 0.5, fillPaint);
-      break;
-
-    case 'Lightning':
-      // Jagged bolt cross — angular, fast.
-      const arms = 4;
-      for (var i = 0; i < arms; i++) {
-        final a = i * (pi / 2) + time * 0.05;
-        final p1 = position + ui.Offset(cos(a), sin(a)) * coreR * 0.5;
-        final p2 =
-            position + ui.Offset(cos(a + 0.45), sin(a + 0.45)) * coreR * 1.0;
-        final p3 =
-            position + ui.Offset(cos(a - 0.25), sin(a - 0.25)) * coreR * 1.5;
-        stroke
-          ..color = white.withValues(alpha: 0.85 * pulse)
-          ..strokeWidth = 1.8 * vs;
-        canvas.drawLine(position, p1, stroke);
-        canvas.drawLine(p1, p2, stroke);
-        canvas.drawLine(p2, p3, stroke);
-      }
-      fillPaint.color = white.withValues(alpha: 0.95 * pulse);
-      canvas.drawCircle(position, coreR * 0.45, fillPaint);
-      break;
-
-    case 'Ice':
-      // Six-fold snowflake/pillar.
-      const spokes = 6;
-      for (var i = 0; i < spokes; i++) {
-        final a = i * (pi * 2 / spokes);
-        final tip = position + ui.Offset(cos(a), sin(a)) * coreR * 1.6;
-        stroke
-          ..color = color.withValues(alpha: 0.85 * pulse)
-          ..strokeWidth = 1.6 * vs;
-        canvas.drawLine(position, tip, stroke);
-        // Side prongs near tip
-        final prongA = tip - ui.Offset(cos(a), sin(a)) * coreR * 0.45;
-        final pL =
-            prongA + ui.Offset(cos(a + pi / 2), sin(a + pi / 2)) * coreR * 0.3;
-        final pR =
-            prongA + ui.Offset(cos(a - pi / 2), sin(a - pi / 2)) * coreR * 0.3;
-        stroke.strokeWidth = 1.1 * vs;
-        canvas.drawLine(prongA, pL, stroke);
-        canvas.drawLine(prongA, pR, stroke);
-      }
-      fillPaint.color = white.withValues(alpha: 0.88 * pulse);
-      canvas.drawCircle(position, coreR * 0.4, fillPaint);
-      break;
-
-    case 'Crystal':
-      // Hexagonal faceted gem.
-      final hex = ui.Path();
-      for (var i = 0; i < 6; i++) {
-        final a = i * (pi / 3) + time * 0.08;
-        final p = position + ui.Offset(cos(a), sin(a)) * coreR * 1.2;
-        if (i == 0) {
-          hex.moveTo(p.dx, p.dy);
-        } else {
-          hex.lineTo(p.dx, p.dy);
-        }
-      }
-      hex.close();
-      fillPaint.color = color.withValues(alpha: 0.65 * pulse);
-      canvas.drawPath(hex, fillPaint);
-      stroke
-        ..color = white.withValues(alpha: 0.7 * pulse)
-        ..strokeWidth = 1.4 * vs;
-      canvas.drawPath(hex, stroke);
-      // Inner triangles for facets
-      for (var i = 0; i < 6; i += 2) {
-        final a = i * (pi / 3) + time * 0.08;
-        final p = position + ui.Offset(cos(a), sin(a)) * coreR * 1.2;
-        stroke.strokeWidth = 1.0 * vs;
-        canvas.drawLine(position, p, stroke);
-      }
-      break;
-
-    case 'Light':
-      // Bright halo with rays — distinct from execute void.
-      fillPaint.color = white.withValues(alpha: 0.9 * pulse);
-      canvas.drawCircle(position, coreR * 0.65, fillPaint);
-      stroke
-        ..color = white.withValues(alpha: 0.55 * pulse)
-        ..strokeWidth = 1.0 * vs;
-      const rays = 12;
-      for (var i = 0; i < rays; i++) {
-        final a = i * (pi * 2 / rays) + time * 0.2;
-        final inner = position + ui.Offset(cos(a), sin(a)) * coreR * 0.85;
-        final outer = position + ui.Offset(cos(a), sin(a)) * coreR * 1.7;
-        canvas.drawLine(inner, outer, stroke);
-      }
-      break;
-
-    case 'Dark':
-      // Inward spiral — black hole reads.
-      stroke
-        ..color = color.withValues(alpha: 0.88 * pulse)
-        ..strokeWidth = 1.6 * vs;
-      final spiral = ui.Path();
-      const spiralPts = 28;
-      for (var i = 0; i < spiralPts; i++) {
-        final t = i / (spiralPts - 1);
-        final a = t * pi * 4 - time * 0.6;
-        final r = coreR * 1.6 * (1 - t * 0.95);
-        final p = position + ui.Offset(cos(a), sin(a)) * r;
-        if (i == 0) {
-          spiral.moveTo(p.dx, p.dy);
-        } else {
-          spiral.lineTo(p.dx, p.dy);
-        }
-      }
-      canvas.drawPath(spiral, stroke);
-      fillPaint.color = const ui.Color(
-        0xFF000000,
-      ).withValues(alpha: 0.6 * pulse);
-      canvas.drawCircle(position, coreR * 0.45, fillPaint);
-      break;
-
-    case 'Spirit':
-      // Drifting wisps — three soft orbs orbiting.
-      for (var i = 0; i < 3; i++) {
-        final a = time * 0.55 + i * (pi * 2 / 3);
-        final p = position + ui.Offset(cos(a), sin(a)) * coreR * 1.0;
-        fillPaint.color = white.withValues(alpha: 0.65 * pulse);
-        canvas.drawCircle(p, coreR * 0.5, fillPaint);
-        fillPaint.color = color.withValues(alpha: 0.55 * pulse);
-        canvas.drawCircle(p, coreR * 0.32, fillPaint);
-      }
-      fillPaint.color = white.withValues(alpha: 0.75 * pulse);
-      canvas.drawCircle(position, coreR * 0.42, fillPaint);
-      break;
-
-    case 'Poison':
-    case 'Steam':
-    case 'Mud':
-      // Bubbling cloud — three offset puffs.
-      for (var i = 0; i < 3; i++) {
-        final a = i * (pi * 2 / 3) + sin(time * 1.4 + i) * 0.3;
-        final off = ui.Offset(cos(a), sin(a)) * coreR * 0.6;
-        fillPaint.color = color.withValues(alpha: 0.6 * pulse);
-        canvas.drawCircle(position + off, coreR * 0.85, fillPaint);
-      }
-      fillPaint.color = white.withValues(alpha: 0.5 * pulse);
-      canvas.drawCircle(position, coreR * 0.4, fillPaint);
-      break;
-
-    case 'Earth':
-      // Stone cluster — chunky polygon.
-      final rock = ui.Path();
-      const sides = 7;
-      for (var i = 0; i < sides; i++) {
-        final a = i * (pi * 2 / sides);
-        final r = coreR * (1.0 + 0.35 * sin(i * 1.3));
-        final p = position + ui.Offset(cos(a), sin(a)) * r;
-        if (i == 0) {
-          rock.moveTo(p.dx, p.dy);
-        } else {
-          rock.lineTo(p.dx, p.dy);
-        }
-      }
-      rock.close();
-      fillPaint.color = color.withValues(alpha: 0.85 * pulse);
-      canvas.drawPath(rock, fillPaint);
-      stroke
-        ..color = white.withValues(alpha: 0.4 * pulse)
-        ..strokeWidth = 1.2 * vs;
-      canvas.drawPath(rock, stroke);
-      break;
-
-    case 'Water':
-      // Concentric ripple rings.
-      stroke
-        ..color = color.withValues(alpha: 0.7 * pulse)
-        ..strokeWidth = 1.4 * vs;
-      for (var i = 0; i < 3; i++) {
-        canvas.drawCircle(position, coreR * (0.6 + i * 0.45), stroke);
-      }
-      fillPaint.color = white.withValues(alpha: 0.6 * pulse);
-      canvas.drawCircle(position, coreR * 0.4, fillPaint);
-      break;
-
-    case 'Blood':
-      // Pulsing irregular blob with a darker core.
-      final blobPath = ui.Path();
-      const lobes = 9;
-      for (var i = 0; i < lobes; i++) {
-        final a = i * (pi * 2 / lobes);
-        final r = coreR * (1.05 + 0.18 * sin(time * 2.4 + i * 1.2));
-        final p = position + ui.Offset(cos(a), sin(a)) * r;
-        if (i == 0) {
-          blobPath.moveTo(p.dx, p.dy);
-        } else {
-          blobPath.lineTo(p.dx, p.dy);
-        }
-      }
-      blobPath.close();
-      fillPaint.color = color.withValues(alpha: 0.78 * pulse);
-      canvas.drawPath(blobPath, fillPaint);
-      fillPaint.color = const ui.Color(
-        0xFF400000,
-      ).withValues(alpha: 0.55 * pulse);
-      canvas.drawCircle(position, coreR * 0.5, fillPaint);
-      break;
-
-    case 'Air':
-      // Spiraling streamers — three curving arcs.
-      stroke
-        ..color = color.withValues(alpha: 0.65 * pulse)
-        ..strokeWidth = 1.5 * vs;
-      for (var i = 0; i < 3; i++) {
-        final base = i * (pi * 2 / 3) + time * 0.4;
-        final path = ui.Path();
-        const segs = 14;
-        for (var j = 0; j < segs; j++) {
-          final t = j / (segs - 1);
-          final a = base + t * pi * 1.2;
-          final r = coreR * (0.4 + t * 1.2);
-          final p = position + ui.Offset(cos(a), sin(a)) * r;
-          if (j == 0) {
-            path.moveTo(p.dx, p.dy);
-          } else {
-            path.lineTo(p.dx, p.dy);
-          }
-        }
-        canvas.drawPath(path, stroke);
-      }
-      break;
-
-    case 'Dust':
-      // Scattered specks orbiting at varying radii.
-      for (var i = 0; i < 9; i++) {
-        final a = i * (pi * 2 / 9) + time * 0.35;
-        final r = coreR * (0.6 + (i % 3) * 0.45);
-        final p = position + ui.Offset(cos(a), sin(a)) * r;
-        fillPaint.color = color.withValues(alpha: 0.7 * pulse);
-        canvas.drawCircle(p, 1.5 * vs, fillPaint);
-      }
-      fillPaint.color = white.withValues(alpha: 0.45 * pulse);
-      canvas.drawCircle(position, coreR * 0.35, fillPaint);
-      break;
-
-    default:
-      // Fallback: original 8-point sigil for any element not specialized.
-      final points = List<ui.Offset>.generate(8, (i) {
-        final a = time * 0.22 + i * pi / 4;
-        final r = i.isEven ? coreR * 1.35 : coreR * 0.68;
-        return position + ui.Offset(cos(a), sin(a)) * r;
-      });
-      final sigil = ui.Path()..moveTo(points.first.dx, points.first.dy);
-      for (var i = 1; i < points.length; i++) {
-        sigil.lineTo(points[i].dx, points[i].dy);
-      }
-      sigil.close();
-      fillPaint.color = color.withValues(alpha: 0.78);
-      canvas.drawPath(sigil, fillPaint);
-      fillPaint.color = white.withValues(alpha: 0.72 * pulse);
-      canvas.drawCircle(position, coreR * 0.58, fillPaint);
-  }
 }
 
 bool drawMaskElementalProjectileVisual({
@@ -3511,27 +1130,11 @@ bool drawMaskElementalProjectileVisual({
       projectile.deathExplosionCount > 0;
   if (!hasMaskSignals) return false;
 
-  final pulse = 0.72 + 0.28 * sin(time * 4.3 + projectile.life * 1.7);
-  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
-  // Soft outer glow sized to the gameplay zone, not the small core.
-  final glowR = max(
-    24.0,
-    max(projectile.snareRadius, projectile.effectRadius),
-  ).clamp(24.0, 260.0).toDouble();
-  final softGlow = ui.Paint()
-    ..color = color.withValues(alpha: 0.10 * pulse)
-    ..maskFilter = null;
-  canvas.drawCircle(position, glowR * 1.05, softGlow);
-
-  // Modern game-style ground-zone trap visual (pool, crystal cluster,
-  // ice pillar, etc.) sized to the gameplay radius. Replaces the
-  // small abstract sigil that made every mask look the same.
+  // Its element's ground, sized to the gameplay radius.
   _drawMaskGroundZone(
     canvas: canvas,
     projectile: projectile,
     position: position,
-    color: color,
-    white: white,
     time: time,
   );
 
@@ -3554,19 +1157,21 @@ bool drawLetElementalProjectileVisual({
 
   // The stationary catch-all below claims "any parked thing with a snare, a
   // taunt or a trail", which was written when Let was the only family placing
-  // such things. It is not: Mystic parks orbitals carrying snare radii, and
-  // they were being drawn as Let fallout craters — the single-slot ultimate
-  // wearing another family's ground art, which is a large part of why Mystic
-  // read as the same undifferentiated area damage as everything else.
+  // such things. It is not. Mystic parks orbitals carrying snare radii, and
+  // Horn parks its impact zones with taunts and snares; both were drawn as
+  // Let fallout craters, in survival, open space and dungeons alike — Horn's
+  // Fire, Water, Steam, Dust and Dark zones wore flat legacy discs while the
+  // burning ground, whirlpool, geyser, cyclone and void horn_vfx.dart paints
+  // for them never drew.
   //
-  // Styles that belong to another family are never Let's to claim.
-  final claimedElsewhere =
-      projectile.visualStyle == ProjectileVisualStyle.mysticOrbital ||
-      projectile.visualStyle == ProjectileVisualStyle.kinOrbital;
+  // So the catch-all is Let's own: only a projectile carrying the Let family
+  // is claimed by those signals. Every other family's parked pieces go on
+  // down the claim order to their own painter (test/horn_zone_claim_test.dart
+  // drives the real render path of all three games to hold this).
   final isLetProjectile =
       projectile.visualStyle == ProjectileVisualStyle.meteor ||
       projectile.visualStyle == ProjectileVisualStyle.letShard ||
-      (!claimedElsewhere &&
+      (projectile.abilityFamily == 'let' &&
           projectile.stationary &&
           !projectile.decoy &&
           (projectile.trailInterval > 0 ||
@@ -3610,67 +1215,15 @@ bool drawLetElementalProjectileVisual({
     return true;
   }
 
-  _drawLetElementOverlay(canvas, projectile, position, color, element, time);
+  // A Let piece that is neither ground nor a falling meteor has no art of
+  // its own (none is made: Let's shards are its parked vines and zones).
   return false;
 }
 
-/// Per-element body and wake proportions for the Let meteors.
-///
-/// Without this every element was the same hexagon at the same size trailing
-/// the same wedge, and identity rested entirely on a small accent stuck to the
-/// front — which is what made the family read as one asset recolored 17 times.
-/// Earth is a slow heavy boulder with a stubby fat wake; Lightning is a small
-/// fast sliver with a long thin one; Steam has almost no body at all.
-///
-/// (bodySize, elongation, flatten, wakeLength, wakeWidth)
-const Map<String, (double, double, double, double, double)> _kLetPhysique = {
-  'Earth': (1.55, 1.04, 0.96, 0.70, 1.35),
-  'Mud': (1.34, 1.02, 1.00, 0.78, 1.34),
-  'Lava': (1.30, 1.14, 0.90, 0.86, 1.26),
-  'Steam': (1.22, 1.10, 0.96, 0.92, 1.50),
-  'Dark': (1.18, 1.08, 0.94, 1.04, 1.02),
-  'Water': (1.10, 1.58, 0.76, 1.20, 1.12),
-  'Plant': (1.12, 1.16, 0.90, 0.96, 1.06),
-  'Poison': (1.06, 1.26, 0.84, 1.00, 1.16),
-  'Dust': (1.06, 1.20, 0.86, 1.02, 1.22),
-  'Blood': (1.05, 1.30, 0.80, 1.00, 1.00),
-  'Fire': (1.00, 1.36, 0.78, 1.26, 1.10),
-  'Crystal': (1.00, 1.32, 0.68, 1.00, 0.90),
-  'Ice': (0.96, 1.50, 0.60, 1.12, 0.82),
-  'Light': (0.92, 1.46, 0.70, 1.30, 0.94),
-  'Air': (0.90, 1.72, 0.64, 1.32, 0.90),
-  'Spirit': (0.86, 1.52, 0.70, 1.16, 0.84),
-  'Lightning': (0.80, 1.92, 0.52, 1.38, 0.70),
-};
-
-/// How each element's wake moves, as (wave amplitude, wave frequency).
-///
-/// Without this every Let dragged an identically-shaped plume and the family
-/// separated on hue alone. Heavy wet elements billow slowly in big lazy
-/// curves; light fast ones chop in a tight ripple; Earth barely moves at all,
-/// because a boulder does not trail smoke so much as shove air.
-///
-/// (waveAmplitude, waveFrequency)
-const Map<String, (double, double)> _kLetPlumeFlow = {
-  'Earth': (0.30, 0.55),
-  'Crystal': (0.38, 0.75),
-  'Ice': (0.44, 0.80),
-  'Mud': (1.14, 0.50),
-  'Water': (1.18, 0.62),
-  'Steam': (1.26, 0.58),
-  'Blood': (0.98, 0.70),
-  'Lava': (1.02, 0.66),
-  'Poison': (1.08, 0.78),
-  'Plant': (0.90, 0.86),
-  'Fire': (0.94, 1.05),
-  'Dust': (1.06, 1.15),
-  'Dark': (0.82, 0.68),
-  'Spirit': (1.12, 0.92),
-  'Light': (0.64, 1.10),
-  'Air': (1.20, 1.35),
-  'Lightning': (0.72, 1.80),
-};
-
+/// A falling Let meteor. The art lives in let_vfx.dart ([drawLetMeteor]):
+/// a material stone sized from the projectile's contact radius, a plume of
+/// its light and a grain wake. [color] is unused — the material comes from
+/// the element.
 void _drawSkyfallMeteor(
   ui.Canvas canvas,
   Projectile projectile,
@@ -3679,650 +1232,13 @@ void _drawSkyfallMeteor(
   double time, {
   bool reduceAmbient = false,
 }) {
-  // A falling meteor is far away when it enters the frame and close when it
-  // lands, and distance is the one cue that makes a drop read as a drop. The
-  // rock swells through the descent while its wake stretches — approach and
-  // acceleration, from one number the runtime is already tracking.
-  final fall = projectile.skyfallDuration > 0
-      ? projectile.skyfallProgress
-      : 1.0;
-  final approach = 0.62 + 0.38 * fall;
-  final wakeStretch = 0.70 + 0.62 * fall;
-
-  final vs = projectile.visualScale.clamp(1.2, 4.8).toDouble() * approach;
-  final phys =
-      _kLetPhysique[projectile.element ?? ''] ?? (1.0, 1.24, 0.88, 1.0, 1.0);
-  final elong = phys.$2;
-  final flat = phys.$3;
-  // Trail trails the meteor's actual travel direction. Previous code
-  // baked in a fixed upper-right "sky" bias that ignored angle.
-  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
-  final dirLen = dir.distance;
-  final travelDir = dirLen > 0.01 ? dir / dirLen : const ui.Offset(1, 0);
-  final perp = ui.Offset(-travelDir.dy, travelDir.dx);
-  final descent = 62.0 * vs * phys.$4 * wakeStretch;
-  final trailStart = position - travelDir * descent;
-  final pulse = 0.78 + 0.22 * sin(time * 6.0 + projectile.life * 1.5);
-  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
-  final ember = ui.Color.lerp(color, const ui.Color(0xFF000000), 0.55)!;
-
-  // The wake. A flowing plume rather than a wedge — see [drawPlumeWake] for
-  // why the straight-sided version had to go. Each element meanders on its own
-  // amplitude and frequency so the family stops sharing one trail shape.
-  final flow = _kLetPlumeFlow[projectile.element ?? ''] ?? (1.0, 0.9);
-  drawPlumeWake(
+  drawLetMeteor(
     canvas: canvas,
-    head: position,
-    travelDir: travelDir,
-    length: descent,
-    headWidth: 10.0 * vs,
-    color: color,
+    projectile: projectile,
+    position: position,
     time: time,
-    alpha: 0.40 * pulse,
-    hotColor: white,
-    layers: reduceAmbient ? 1 : 3,
-    seed: projectile.life,
-    waveAmplitude: flow.$1,
-    waveFrequency: flow.$2,
+    reduceAmbient: reduceAmbient,
   );
-
-  // Heat bloom. Was a plain disc bigger than the rock itself, which pooled
-  // round the body and erased the silhouette; now it is stretched along travel
-  // and biased backwards, so the glow reads as wake rather than aura.
-  if (!reduceAmbient) {
-    drawDirectionalBloom(
-      canvas: canvas,
-      centre: position,
-      travelDir: travelDir,
-      length: 13.0 * vs * phys.$4,
-      width: 5.2 * vs * phys.$3,
-      color: color,
-      alpha: 0.15 * pulse,
-    );
-  }
-
-  // The rock. A tumbling irregular body instead of a flat disc — this is
-  // what gives every Let meteor a silhouette and a sense of mass. It spins
-  // slowly on its own axis and is lit hot on the leading edge.
-  // Spin fast enough to actually read between frames. The old body barely
-  // varied from a circle, so a slow spin on it was invisible.
-  final spin = time * 3.1 + projectile.life * 0.9;
-  final bodyR = 5.0 * vs * phys.$1;
-  final rock = buildTumblingShardPath(
-    centre: position,
-    radius: bodyR,
-    travelDir: travelDir,
-    spin: spin,
-    elongation: elong,
-    flatten: flat,
-  );
-  // One faint bleed, not two, and the body itself is translucent. Stacking
-  // near-opaque fills made the meteor look painted on; letting the background
-  // through keeps it reading as something lit from within.
-  canvas.drawPath(
-    buildTumblingShardPath(
-      centre: position,
-      radius: bodyR * 1.22,
-      travelDir: travelDir,
-      spin: spin,
-      elongation: elong,
-      flatten: flat,
-    ),
-    ui.Paint()..color = color.withValues(alpha: 0.13 * pulse),
-  );
-  canvas.drawPath(rock, ui.Paint()..color = color.withValues(alpha: 0.62));
-  // A thin dark edge for volume — the old heavy stroke read as ink outline.
-  canvas.drawPath(
-    rock,
-    ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 0.8 * vs
-      ..color = ember.withValues(alpha: 0.42),
-  );
-  // No white leading rim. A near-opaque bright stroke along the leading edge
-  // outlined every meteor like cel shading and was the single worst-looking
-  // thing on the family; only Lightning survived it, because its bolt drew
-  // over the top. The rock's own translucent fill against the wake already
-  // separates the leading face — it does not need an outline.
-  // White-hot core pip, pushed toward the leading edge so the mass reads
-  // as travelling rather than hovering.
-  canvas.drawCircle(
-    position + travelDir * bodyR * 0.22 + perp * sin(spin) * bodyR * 0.10,
-    1.7 * vs,
-    ui.Paint()
-      ..color = const ui.Color(0xFFFFF5DC).withValues(alpha: 0.95 * pulse),
-  );
-
-  // Elemental sparkle shed into the wake. Small hard points of light read as
-  // energy in a way that more translucent fill never does.
-  if (!reduceAmbient) {
-    drawSparkleGlints(
-      canvas: canvas,
-      centre: position,
-      travelDir: travelDir,
-      spread: descent * 0.62,
-      size: 1.9 * vs,
-      color: ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!,
-      time: time,
-      count: 6,
-      seed: projectile.life,
-      alpha: 0.85,
-    );
-  }
-
-  // Element-specific accents on the falling meteor so each one reads
-  // distinct mid-fall (lava drips, ice spikes, lightning crackle, etc).
-  final element = projectile.element ?? '';
-  switch (element) {
-    case 'Fire':
-      // A flame crown: tongues licking backwards off the rock. Fire is the
-      // clean burn — no crust, no drips (that is Lava's job).
-      // No licking tongues. Wagging bezier strokes trailing off the rock read
-      // as worms, not flame — fire is carried by embers and glints instead.
-      // Trailing ember sparks.
-      for (var i = 0; i < 3; i++) {
-        final t = (time * 1.4 + i * 0.33) % 1.0;
-        final p = position - travelDir * (descent * 0.2 + descent * 0.5 * t);
-        canvas.drawCircle(
-          p + perp * sin(t * 6) * 2.5,
-          1.8 * vs * (1 - t),
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFFFB050,
-            ).withValues(alpha: (1 - t) * 0.82),
-        );
-      }
-      drawSparkleGlints(
-        canvas: canvas,
-        centre: position,
-        travelDir: travelDir,
-        spread: descent * 0.5,
-        size: 2.2 * vs,
-        color: const ui.Color(0xFFFFC46A),
-        time: time,
-        count: 5,
-        seed: projectile.life + 4.0,
-        alpha: 0.8,
-      );
-      break;
-    case 'Lava':
-      // A molten crust: glowing fissures across the rock plus fat drips
-      // shedding off the back. Reads as heavy and wet where Fire reads dry.
-      final fissure = ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.0 * vs
-        ..strokeCap = ui.StrokeCap.round
-        ..color = ui.Color.lerp(
-          color,
-          const ui.Color(0xFFFFD08A),
-          0.55,
-        )!.withValues(alpha: 0.50 * pulse);
-      for (var i = 0; i < 3; i++) {
-        final a = spin * 0.6 + i * (pi * 2 / 3);
-        canvas.drawLine(
-          position + ui.Offset(cos(a), sin(a)) * bodyR * 0.25,
-          position + ui.Offset(cos(a + 0.55), sin(a + 0.55)) * bodyR * 0.88,
-          fissure,
-        );
-      }
-      // Heavy drips: bigger, slower and more spread out than Fire's sparks.
-      for (var i = 0; i < 3; i++) {
-        final t = (time * 0.85 + i * 0.34) % 1.0;
-        final p = position - travelDir * (descent * 0.15 + descent * 0.62 * t);
-        canvas.drawCircle(
-          p + perp * sin(time * 2.0 + i * 2.1) * 4.0 * vs * t,
-          2.6 * vs * (1 - t * 0.85),
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFFF8A2B,
-            ).withValues(alpha: (1 - t) * 0.82),
-        );
-      }
-      break;
-    case 'Ice':
-      // Comet Cluster — frost grows on the face meeting the air, and shears
-      // off behind. Six spikes on a wheel read as a snowflake sticker pinned
-      // to the rock, with no relationship to which way it was going.
-      // Frost as glinting crystal, not drawn spikes — three lines jutting off
-      // the nose read as a claw.
-      drawSparkleGlints(
-        canvas: canvas,
-        centre: position + travelDir * bodyR * 0.3,
-        travelDir: travelDir,
-        spread: descent * 0.42,
-        size: 2.6 * vs,
-        color: const ui.Color(0xFFCFEAFF),
-        time: time,
-        count: 6,
-        seed: projectile.life + 9.0,
-        alpha: 0.85,
-      );
-      for (var i = 0; i < 3; i++) {
-        final t = (time * 0.9 + i * 0.33) % 1.0;
-        canvas.drawCircle(
-          position -
-              travelDir * (bodyR + descent * 0.28 * t) +
-              perp * sin(time * 2.0 + i) * 3.0 * vs,
-          (1.6 + 2.6 * t) * vs,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFCFEAFF,
-            ).withValues(alpha: (1 - t) * 0.22),
-        );
-      }
-      break;
-    case 'Lightning':
-      // Orbital Strike. The Voltara bolt, brought onto the meteor: a live
-      // discharge running the full length of the descent trail, and static
-      // crackling off the head. Element yellow is pulled toward Voltara's
-      // electric blue for the halo so the storm reads the same everywhere
-      // while the core stays Lightning-yellow-white.
-      final boltGlow = ui.Color.lerp(color, kLightningBoltGlow, 0.55)!;
-      drawLightningBolt(
-        canvas,
-        trailStart,
-        position,
-        time: time,
-        width: 1.15 * vs,
-        jitter: 1.5 * vs,
-        segmentLength: 6.0 * vs,
-        core: kLightningBoltCore,
-        glow: boltGlow,
-        alpha: 0.62 + 0.38 * pulse,
-        // One branch, not two. At two the strays wandered clear of the
-        // plume and crossed open space as detached white polylines, which
-        // read as a drawn zigzag rather than as this meteor discharging.
-        branches: 1,
-        glowPasses: reduceAmbient ? 0 : 2,
-        seed: projectile.life * 3.0,
-      );
-      drawLightningCrackle(
-        canvas,
-        position,
-        8.5 * vs,
-        time: time,
-        count: 2,
-        width: 1.0 * vs,
-        glow: boltGlow,
-        glowPasses: reduceAmbient ? 0 : 1,
-        seed: projectile.life * 1.7,
-      );
-      break;
-    case 'Dark':
-      // Void Meteor — an event horizon, which is not a concentric ring. A full
-      // circle centred on the body read as a loading spinner; light bends
-      // round ONE side of a real one.
-      canvas.drawCircle(
-        position,
-        bodyR * 0.92,
-        ui.Paint()..color = const ui.Color(0xFF07020C).withValues(alpha: 0.92),
-      );
-      // No lensing arc. A crescent stroked round the body was still a drawn
-      // ring, just an incomplete one. A void is shown by what falls into it:
-      // motes spiralling inward and winking out at the horizon.
-      for (var i = 0; i < 7; i++) {
-        final t = (time * 0.85 + i * 0.143) % 1.0;
-        // t = 0 far out, t = 1 swallowed.
-        final a = i * (pi * 2 / 7) + t * 2.4 + spin * 0.3;
-        final rr = bodyR * (2.6 - 1.9 * t);
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * rr,
-          1.5 * vs * (1 - t * 0.8),
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFB06BE8,
-            ).withValues(alpha: (1 - t) * 0.7 * pulse),
-        );
-      }
-      break;
-    case 'Plant':
-      // Seed Bombardment — seeds clinging to the rock and shaking loose. The
-      // vine wrap was three lines through the centre, i.e. a spinning asterisk
-      // drawn over the body.
-      final seed = ui.Paint()
-        ..color = const ui.Color(0xFF3E8F38).withValues(alpha: 0.72);
-      for (var i = 0; i < 5; i++) {
-        final a = spin * 0.6 + i * (pi * 2 / 5);
-        final rr = bodyR * (0.45 + 0.32 * sin(i * 2.1));
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * rr,
-          1.5 * vs,
-          seed,
-        );
-      }
-      for (var i = 0; i < 4; i++) {
-        final t = (time * 1.1 + i * 0.25) % 1.0;
-        canvas.drawCircle(
-          position -
-              travelDir * (bodyR + descent * 0.45 * t) +
-              perp * sin(time * 2.2 + i * 1.6) * 4.0 * vs * t,
-          1.6 * vs * (1 - t * 0.7),
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFF7BC96F,
-            ).withValues(alpha: (1 - t) * 0.7),
-        );
-      }
-      break;
-    case 'Spirit':
-      // Soul Harvest — the execute, made visible.
-      //
-      // This was three flat circles on a slow orbit: the least-considered
-      // decoration in the family, and it said nothing about what the cast
-      // does. Spirit's whole identity is a chance to simply delete what it
-      // lands on, scaling with the caster.
-      //
-      // So: a pale halo that breathes, and wisps that stream INTO the rock
-      // rather than circling it — something being collected, not escorted.
-      // A breathing aura, filled and soft. Stroking it made a hoop, which is
-      // the drawn-ring motif every other Let had removed; a haunt has no
-      // outline.
-      final breath = 1.7 + 0.35 * sin(time * 2.4 + projectile.life);
-      for (var i = 3; i >= 1; i--) {
-        canvas.drawCircle(
-          position,
-          bodyR * breath * (0.5 + i * 0.24),
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFE6CCFF,
-            ).withValues(alpha: (0.09 - i * 0.018) * pulse),
-        );
-      }
-      for (var i = 0; i < 5; i++) {
-        // t = 0 far out, t = 1 absorbed. Inward, so the meteor reads as
-        // taking something rather than trailing it.
-        final t = (time * 1.1 + i * 0.2 + projectile.life) % 1.0;
-        final a = i * (pi * 2 / 5) + t * 1.8;
-        final rr = bodyR * (3.0 - 2.2 * t);
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * rr,
-          (1.7 - 0.9 * t) * vs,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFE6CCFF,
-            ).withValues(alpha: (1 - t * 0.7) * 0.62 * pulse),
-        );
-      }
-      break;
-    case 'Light':
-      // Celestial Rain — radiance, not a cone.
-      //
-      // Three nested wedges used to sit on the nose. However many layers they
-      // had and however soft the alpha, a triangle is a triangle: it read as a
-      // grey paper party hat taped to the front of the rock, and it was the
-      // worst-looking thing in the family.
-      //
-      // Light is shown by what it does to everything around it — a bloom that
-      // outreaches the body, and hard points of glint. No drawn geometry.
-      for (var i = 3; i >= 1; i--) {
-        canvas.drawCircle(
-          position,
-          bodyR * (1.5 + i * 0.75) * pulse,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFFFE9A8,
-            ).withValues(alpha: (0.10 - i * 0.022) * pulse),
-        );
-      }
-      drawSparkleGlints(
-        canvas: canvas,
-        centre: position,
-        travelDir: travelDir,
-        spread: descent * 0.45,
-        size: 2.8 * vs,
-        color: const ui.Color(0xFFFFF3C4),
-        time: time,
-        count: 7,
-        seed: projectile.life + 2.0,
-        alpha: 0.9,
-      );
-      break;
-    case 'Crystal':
-      // Starfall — light refracting, not plates bolted on.
-      //
-      // Three hard triangular facets used to jut out of the rock at fixed
-      // angles. They read as origami taped to a stone, and they were the same
-      // blade vocabulary Mane is built from — the last place the two families
-      // still shared a shape.
-      //
-      // A crystal in flight is known by how it splits light: a cold rim on the
-      // body and a scatter of prismatic glints, no drawn facets.
-      // A lit core rather than a rim. A stroked circle round the body is the
-      // same monocle Mud just lost — the glints carry "crystal", and the body
-      // itself reads faceted because it is already an irregular tumbling
-      // shard underneath.
-      canvas.drawPath(
-        buildTumblingShardPath(
-          centre: position,
-          radius: bodyR * 0.62,
-          travelDir: travelDir,
-          spin: spin * 1.4,
-          elongation: elong,
-          flatten: flat,
-        ),
-        ui.Paint()
-          ..color = ui.Color.lerp(
-            color,
-            const ui.Color(0xFFFFFFFF),
-            0.70,
-          )!.withValues(alpha: 0.72 * pulse),
-      );
-      for (var i = 0; i < 3; i++) {
-        drawSparkleGlints(
-          canvas: canvas,
-          centre: position,
-          travelDir: travelDir,
-          spread: descent * (0.22 + i * 0.14),
-          size: (2.6 - i * 0.5) * vs,
-          // Each pass tinted a little differently so the scatter splits color
-          // the way a prism does rather than repeating one white spark.
-          color: ui.Color.lerp(
-            const ui.Color(0xFFFFFFFF),
-            [
-              const ui.Color(0xFF9FFFE0),
-              const ui.Color(0xFFCFE6FF),
-              const ui.Color(0xFFFFE6F5),
-            ][i],
-            0.65,
-          )!,
-          time: time,
-          count: 4,
-          seed: projectile.life + 3.0 + i * 5.0,
-          alpha: 0.85,
-        );
-      }
-      break;
-    case 'Water':
-      // Tidal Meteor — a sheathing wave: two curved sheets of water peeled
-      // back off the leading face.
-      // Water sheds beads; it does not trail two drawn curves off its nose.
-      for (var i = 0; i < 6; i++) {
-        final t = (time * 1.15 + i * 0.17) % 1.0;
-        final side = i.isEven ? 1.0 : -1.0;
-        final pd =
-            position -
-            travelDir * (bodyR * 0.6 + descent * 0.5 * t) +
-            perp * side * (2.0 + 5.0 * t) * vs;
-        canvas.drawCircle(
-          pd,
-          (2.4 - 1.4 * t) * vs,
-          ui.Paint()..color = white.withValues(alpha: (1 - t) * 0.6 * pulse),
-        );
-      }
-      break;
-    case 'Steam':
-      // Geyser Strike — pressurised, about to burst.
-      //
-      // Grey puffs on a grey rock inside a grey plume: the row very nearly
-      // vanished. The impact leaves a geyser that stands for twelve seconds,
-      // so the meteor should read as something holding pressure on the way
-      // down rather than as something quietly steaming.
-      //
-      // Jets vent in bursts on staggered cycles — brief, bright, directional —
-      // instead of a steady drift of soft circles.
-      final vent = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.72)!;
-      for (var i = 0; i < 3; i++) {
-        final cycle = (time * 1.6 + i * 0.37 + projectile.life) % 1.0;
-        // Each jet is silent for most of its cycle, then blows.
-        if (cycle > 0.45) continue;
-        final t = cycle / 0.45;
-        final a = spin * 0.4 + i * (pi * 2 / 3);
-        final outDir = ui.Offset(cos(a), sin(a));
-        for (var j = 0; j < 3; j++) {
-          final reach = bodyR * (0.8 + j * 0.7) + descent * 0.12 * t;
-          canvas.drawCircle(
-            position + outDir * reach,
-            (2.2 + j * 1.1) * vs * (1 - t * 0.6),
-            ui.Paint()..color = vent.withValues(alpha: (1 - t) * 0.30),
-          );
-        }
-      }
-      // A hot core showing the pressure still inside it.
-      canvas.drawCircle(
-        position,
-        bodyR * 0.55 * (0.85 + 0.15 * sin(time * 7.0)),
-        ui.Paint()..color = vent.withValues(alpha: 0.55 * pulse),
-      );
-      break;
-    case 'Earth':
-      // Moon Drop — a genuine boulder: a heavy stone ring and a shed of
-      // tumbling debris chunks, so the family's heaviest cast looks heavy.
-      // A mantle of stone packed onto the face taking the impact — a full ring
-      // round the body was the same concentric-circle motif four other Lets
-      // already used.
-      // Mass is carried by the big body and the shed rubble; an arc round the
-      // front was just another drawn ring.
-      for (var i = 0; i < 6; i++) {
-        final t = (time * 0.7 + i * 0.25) % 1.0;
-        final a = spin * 0.5 + i * (pi / 2);
-        final p =
-            position -
-            travelDir * (bodyR + descent * 0.4 * t) +
-            ui.Offset(cos(a), sin(a)) * 5.0 * vs;
-        canvas.drawRect(
-          ui.Rect.fromCenter(
-            center: p,
-            width: 2.8 * vs * (1 - t * 0.6),
-            height: 2.2 * vs * (1 - t * 0.6),
-          ),
-          ui.Paint()..color = white.withValues(alpha: (1 - t) * 0.7),
-        );
-      }
-      break;
-    case 'Mud':
-      // Quagmire Meteor — a sodden clod flinging fat globs.
-      //
-      // The stroked circle round the body has gone. A drawn ring is the exact
-      // motif every other Let had already had removed for looking like a UI
-      // element, and on this one it read as a monocle.
-      //
-      // Mud's element color is nearly black, so the globs carry a lifted tone
-      // or the whole cast disappears against space.
-      final glob = ui.Color.lerp(color, const ui.Color(0xFFC79A6B), 0.55)!;
-      // Wet mass clinging to the rock, lumpy and off-centre rather than a
-      // concentric outline.
-      for (var i = 0; i < 4; i++) {
-        final a = spin * 0.5 + i * (pi * 2 / 4);
-        final wobble = 0.75 + 0.25 * sin(time * 2.2 + i * 1.9);
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * bodyR * 0.72 * wobble,
-          bodyR * 0.52 * wobble,
-          ui.Paint()..color = glob.withValues(alpha: 0.42 * pulse),
-        );
-      }
-      for (var i = 0; i < 4; i++) {
-        final t = (time * 0.95 + i * 0.27) % 1.0;
-        final p =
-            position -
-            travelDir * (bodyR + descent * 0.5 * t) +
-            perp * sin(time * 1.4 + i * 2.4) * 6.0 * vs * t;
-        canvas.drawCircle(
-          p,
-          2.6 * vs * (1 - t * 0.7),
-          ui.Paint()..color = glob.withValues(alpha: (1 - t) * 0.78),
-        );
-      }
-      break;
-    case 'Air':
-      // Atmospheric Bomb — a compression shell: sheared arcs stacked on the
-      // leading face, the shock the falling mass piles up ahead of itself.
-      // Stacked arcs on the nose read as drawn shockwave rings. Air is shown
-      // by what it carries: motes streaming past and swirling off.
-      for (var i = 0; i < 7; i++) {
-        final t = (time * 1.35 + i * 0.143) % 1.0;
-        final swirl = sin(time * 3.0 + i * 1.7) * 4.5 * vs * t;
-        final pa =
-            position -
-            travelDir * (bodyR * 0.4 + descent * 0.62 * t) +
-            perp * swirl;
-        canvas.drawCircle(
-          pa,
-          (1.7 - 0.9 * t) * vs,
-          ui.Paint()..color = white.withValues(alpha: (1 - t) * 0.5 * pulse),
-        );
-      }
-      break;
-    case 'Dust':
-      // Sandstorm Meteor — a grit veil: a wide swarm of specks smeared back
-      // along the trail rather than a tidy orbit.
-      for (var i = 0; i < 7; i++) {
-        final t = (time * 1.3 + i * 0.14) % 1.0;
-        final p =
-            position -
-            travelDir * (bodyR + descent * 0.62 * t) +
-            perp * sin(i * 2.3 + time * 2.2) * 7.5 * vs * t;
-        canvas.drawCircle(
-          p,
-          1.2 * vs * (1 - t * 0.5),
-          ui.Paint()..color = white.withValues(alpha: (1 - t) * 0.62),
-        );
-      }
-      break;
-    case 'Poison':
-      // Toxic Storm — a sickly bloom: unevenly sized bubbles clinging to the
-      // rock and shearing off, so it never reads like a plain purple ball.
-      for (var i = 0; i < 5; i++) {
-        final a = spin * 0.9 + i * (pi * 2 / 5);
-        final wobble = 0.7 + 0.3 * sin(time * 3.1 + i * 1.7);
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * bodyR * 1.25 * wobble,
-          (1.4 + 1.1 * wobble) * vs,
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFD98CFF,
-            ).withValues(alpha: 0.55 * pulse),
-        );
-      }
-      canvas.drawCircle(
-        position,
-        bodyR * 1.7,
-        ui.Paint()..color = color.withValues(alpha: 0.16 * pulse),
-      );
-      break;
-    case 'Blood':
-      // Transfusion Meteor — a wet clot: a thick crimson rim with strings of
-      // droplets peeling off, the only Let that heals its caster on cast.
-      // A meniscus of blood bulging on the leading face, pushed back by the
-      // airstream — not another ring centred on the rock.
-      // The droplet string carries this one; the meniscus arc was a drawn
-      // crescent floating off the front.
-      for (var i = 0; i < 6; i++) {
-        final t = (time * 1.05 + i * 0.26) % 1.0;
-        final p =
-            position -
-            travelDir * (bodyR + descent * 0.45 * t) +
-            perp * (i.isEven ? 1 : -1) * 3.0 * vs * t;
-        canvas.drawCircle(
-          p,
-          2.0 * vs * (1 - t * 0.75),
-          ui.Paint()
-            ..color = const ui.Color(
-              0xFFB3131E,
-            ).withValues(alpha: (1 - t) * 0.82),
-        );
-      }
-      break;
-  }
 }
 
 void drawProjectileRoleOverlay({
@@ -4334,143 +1250,33 @@ void drawProjectileRoleOverlay({
 }) {
   final element = projectile.element;
   if (element == null) return;
-
-  final vs = projectile.visualScale
-      .clamp(
-        0.75,
-        projectile.visualStyle == ProjectileVisualStyle.mysticOrbital
-            ? 3.5
-            : 2.8,
-      )
-      .toDouble();
-  final pulse = 0.76 + 0.24 * sin(time * 4.4 + projectile.life * 1.3);
-  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.45)!;
-
-  if (projectile.tauntRadius > 0) {
-    final tauntR = (projectile.tauntRadius * 0.14).clamp(16.0, 84.0) * vs;
-    // Removed the outline ring per design feedback; keep the dashed
-    // spoke marks since they still read as a beacon visual.
-    for (var i = 0; i < 8; i++) {
-      final a = time * 0.7 + i * pi * 2 / 8;
-      final inner = position + ui.Offset(cos(a), sin(a)) * (tauntR * 0.82);
-      final outer = position + ui.Offset(cos(a), sin(a)) * tauntR;
-      canvas.drawLine(
-        inner,
-        outer,
-        ui.Paint()
-          ..color = white.withValues(alpha: 0.42 * pulse)
-          ..strokeWidth = 1.0 * vs
-          ..strokeCap = ui.StrokeCap.round,
-      );
-    }
+  // A parked horn piece is drawn whole by horn_vfx.dart — the burning ground,
+  // whirlpool, geyser, cyclone or void is the taunt and the snare. Rotating
+  // spokes and guard arcs laid over it are the line art the zone replaced.
+  if (projectile.stationary &&
+      projectile.visualStyle == ProjectileVisualStyle.hornImpact) {
+    return;
   }
 
-  if (projectile.snareRadius > 0) {
-    final snareR = (projectile.snareRadius * 0.17).clamp(14.0, 74.0) * vs;
-    // Removed the snare-indicator outline ring per design feedback.
-
-    // Icemane's crystal and frost wake already communicate the cold field.
-    // The legacy rotating spokes obscure its material; retain other families.
-    if (element == 'Ice' && projectile.abilityFamily != 'mane') {
-      for (var i = 0; i < 6; i++) {
-        final a = i * pi / 3 + time * 0.12;
-        final inner = position + ui.Offset(cos(a), sin(a)) * (snareR * 0.44);
-        final outer = position + ui.Offset(cos(a), sin(a)) * snareR;
-        canvas.drawLine(
-          inner,
-          outer,
-          ui.Paint()
-            ..color = const ui.Color(0xFFE9FBFF).withValues(alpha: 0.5 * pulse)
-            ..strokeWidth = 1.0 * vs
-            ..strokeCap = ui.StrokeCap.round,
-        );
-      }
-    }
-  }
-
-  if (projectile.interceptCharges > 0) {
-    final guardR = (10.0 + projectile.interceptCharges * 1.8) * vs;
-    final sweep = pi * 0.45;
-    final arcPaint = ui.Paint()
-      ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.4 * vs
-      ..strokeCap = ui.StrokeCap.round
-      ..color = white.withValues(alpha: 0.52 * pulse);
-    for (var i = 0; i < 3; i++) {
-      final start = time * 0.7 + i * pi * 2 / 3;
-      canvas.drawArc(
-        ui.Rect.fromCircle(center: position, radius: guardR),
-        start,
-        sweep,
-        false,
-        arcPaint,
-      );
-    }
-  }
-
-  if (projectile.turretInterval > 0 && projectile.abilityFamily != 'mane') {
-    final turretR = (6.0 + projectile.radiusMultiplier * 2.2) * vs;
-    final path = ui.Path();
-    for (var i = 0; i < 4; i++) {
-      final a = time * 0.85 + i * pi / 2 + pi / 4;
-      final p = position + ui.Offset(cos(a), sin(a)) * turretR;
-      if (i == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(
-      path,
-      ui.Paint()
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.1 * vs
-        ..color = color.withValues(alpha: 0.34 * pulse),
-    );
-  }
-
-  final isHealingOrbit =
-      (projectile.visualStyle == ProjectileVisualStyle.kinOrbital ||
-          projectile.visualStyle == ProjectileVisualStyle.mysticOrbital) &&
-      (projectile.followShipOrbit ||
-          projectile.transferToShipOrbit ||
-          projectile.holdOrbit ||
-          projectile.turretInterval > 0) &&
-      (element == 'Light' ||
-          element == 'Water' ||
-          element == 'Plant' ||
-          element == 'Blood' ||
-          element == 'Steam');
-  if (isHealingOrbit) {
-    final healColor = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
-    final rise = (time * 18.0) % (10.0 * vs);
-    for (var i = 0; i < 3; i++) {
-      final x = (i - 1) * 3.5 * vs;
-      final y = -rise - i * 2.8 * vs;
-      canvas.drawCircle(
-        position + ui.Offset(x, y),
-        0.95 * vs,
-        ui.Paint()
-          ..color = healColor.withValues(alpha: 0.55 - i * 0.1)
-          ..maskFilter = null,
-      );
-    }
-    final crossPaint = ui.Paint()
-      ..color = healColor.withValues(alpha: 0.42 * pulse)
-      ..strokeWidth = 1.0 * vs
-      ..strokeCap = ui.StrokeCap.round;
-    canvas.drawLine(
-      position + ui.Offset(0, -3.0 * vs),
-      position + ui.Offset(0, 3.0 * vs),
-      crossPaint,
-    );
-    canvas.drawLine(
-      position + ui.Offset(-3.0 * vs, 0),
-      position + ui.Offset(3.0 * vs, 0),
-      crossPaint,
-    );
-  }
+  // The role reads as light, not as a diagram. A taunting piece pools a
+  // faint glow of its own material under itself — the beacon enemies turn
+  // toward. The rest was line art laid over the real art and is gone: snare
+  // spokes (the frost asterisk), the intercept guard arcs, the turret square
+  // and the heal cross. Each piece's own painter shows its cold, its shards
+  // and its orbit.
+  if (projectile.tauntRadius <= 0) return;
+  final vs = projectile.visualScale.clamp(0.75, 2.8).toDouble();
+  final tauntR = (projectile.tauntRadius * 0.14).clamp(16.0, 84.0) * vs;
+  final pulse = 0.82 + 0.18 * sin(time * 1.6 + projectile.life * 1.3);
+  final m = vfxMaterial(element);
+  final glowing = kVfxGlowingElements.contains(element);
+  vfxSpill(
+    canvas,
+    position,
+    tauntR,
+    ui.Color.lerp(m.light, color, glowing ? 0.3 : 0.15)!,
+    0.09 * pulse,
+  );
 }
 
 void _drawLetFallout(
@@ -4483,9 +1289,8 @@ void _drawLetFallout(
   bool reduceAmbient = false,
 }) {
   final vs = projectile.visualScale.clamp(0.7, 3.2).toDouble();
-  // Use the actual gameplay zone radius (effect/snare/taunt) so the
-  // visual matches the area the trap actually affects — ground-zone
-  // style instead of a tiny floating sigil.
+  // The gameplay zone radius (effect/snare/taunt), so it covers the area
+  // the piece actually affects: its element's ground, in material.
   final radius = max(
     18.0 * vs,
     [
@@ -4494,629 +1299,14 @@ void _drawLetFallout(
       projectile.tauntRadius * 0.55,
     ].fold<double>(0, (a, b) => max(a, b)),
   ).clamp(18.0, 220.0).toDouble();
-  final pulse = 0.76 + 0.24 * sin(time * 3.0 + projectile.life * 1.7);
-  final white = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.42)!;
-  // Soft outer glow at the zone size so it reads as a terrain effect.
-  final outerGlow = ui.Paint()
-    ..color = color.withValues(alpha: 0.10 * pulse)
-    ..maskFilter = null;
-  canvas.drawCircle(position, radius * 1.05, outerGlow);
-  final soft = ui.Paint()
-    ..color = color.withValues(alpha: 0.13 * pulse)
-    ..maskFilter = null;
-
-  // Delegate to richer per-element painters where we have one. The
-  // legacy small-art branches below are still used for elements that
-  // don't have a dedicated zone painter yet.
-  switch (element) {
-    case 'Poison':
-      _paintPoisonPool(canvas, position, radius, color, time, pulse, vs);
-      return;
-    case 'Lava':
-      _paintLavaPool(canvas, position, radius, color, time, pulse, vs);
-      return;
-    case 'Mud':
-      _paintMudPool(canvas, position, radius, color, time, pulse, vs);
-      return;
-    case 'Water':
-      _paintWaterPool(canvas, position, radius, color, time, pulse, vs);
-      return;
-    case 'Fire':
-      _paintFireZone(canvas, position, radius, color, white, time, pulse, vs);
-      return;
-    case 'Plant':
-      // Let's own vines are drawn by let_vfx.dart; this is the fallback for
-      // other parked Plant placements that reach this painter.
-      _paintPlantZone(
-        canvas,
-        position,
-        radius,
-        color,
-        time,
-        pulse,
-        vs,
-        style: PlantZoneStyle.vines,
-      );
-      return;
-    case 'Crystal':
-      _paintCrystalCluster(
-        canvas,
-        position,
-        radius,
-        color,
-        white,
-        time,
-        pulse,
-        vs,
-      );
-      return;
-    case 'Ice':
-      _paintIcePillar(canvas, position, radius, color, white, time, pulse, vs);
-      return;
-    case 'Lightning':
-      _paintLightningField(
-        canvas,
-        position,
-        radius,
-        color,
-        white,
-        time,
-        pulse,
-        vs,
-        reduceAmbient: reduceAmbient,
-      );
-      return;
-    case 'Steam':
-      _paintSteamGeyser(canvas, position, radius, color, time, pulse, vs);
-      return;
-    case 'Light':
-      _paintLightVoid(canvas, position, radius, color, white, time, pulse, vs);
-      return;
-    case 'Dark':
-      _paintDarkVoid(canvas, position, radius, color, time, pulse, vs);
-      return;
-    case 'Spirit':
-      _paintSpiritWisp(canvas, position, radius, color, white, time, pulse, vs);
-      return;
-    case 'Blood':
-      _paintBloodBlob(canvas, position, radius, color, time, pulse, vs);
-      return;
-    case 'Earth':
-      _paintEarthPool(canvas, position, radius, color, time, pulse, vs);
-      return;
-    case 'Air':
-      _paintAirGust(canvas, position, radius, color, white, time, pulse, vs);
-      return;
-    case 'Dust':
-      _paintDustField(canvas, position, radius, color, time, pulse, vs);
-      return;
-  }
-
-  // Fallback (shouldn't trigger — every element above is handled).
-  switch (element) {
-    case 'Fire':
-      _drawGlowPool(canvas, position, color, radius, pulse);
-      for (var i = 0; i < 5; i++) {
-        final a = time * 0.4 + i * pi * 2 / 5;
-        canvas.drawLine(
-          position + ui.Offset(cos(a), sin(a)) * radius * 0.25,
-          position + ui.Offset(cos(a), sin(a)) * radius * 1.05,
-          ui.Paint()
-            ..color = const ui.Color(0xFFFFD6A6).withValues(alpha: 0.28)
-            ..strokeWidth = 1.0 * vs
-            ..strokeCap = ui.StrokeCap.round,
-        );
-      }
-      break;
-    case 'Lava':
-      _drawGlowPool(canvas, position, color, radius * 1.25, pulse);
-      for (var i = 0; i < 4; i++) {
-        final a = time * 0.25 + i * pi / 2;
-        final start = position + ui.Offset(cos(a), sin(a)) * radius * 0.25;
-        final mid = position + ui.Offset(cos(a + 0.25), sin(a + 0.25)) * radius;
-        final path = ui.Path()
-          ..moveTo(start.dx, start.dy)
-          ..lineTo(mid.dx, mid.dy);
-        canvas.drawPath(
-          path,
-          ui.Paint()
-            ..color = const ui.Color(0xFFFFC266).withValues(alpha: 0.52)
-            ..strokeWidth = 1.8 * vs
-            ..strokeCap = ui.StrokeCap.round,
-        );
-      }
-      break;
-    case 'Water':
-      for (var i = 0; i < 3; i++) {
-        canvas.drawCircle(
-          position,
-          radius * (0.55 + i * 0.32) * pulse,
-          ui.Paint()
-            ..style = ui.PaintingStyle.stroke
-            ..strokeWidth = 1.1 * vs
-            ..color = color.withValues(alpha: 0.34 - i * 0.08),
-        );
-      }
-      break;
-    case 'Ice':
-      _drawFrostStar(canvas, position, color, radius, vs, time);
-      break;
-    case 'Steam':
-      for (var i = 0; i < 5; i++) {
-        final a = i * pi * 2 / 5 + time * 0.2;
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * radius * 0.35,
-          radius * (0.42 + i * 0.045),
-          soft,
-        );
-      }
-      break;
-    case 'Earth':
-      _drawCrackedPlate(canvas, position, color, radius, vs, time);
-      break;
-    case 'Mud':
-      canvas.drawCircle(
-        position,
-        radius * 1.2,
-        ui.Paint()
-          ..color = color.withValues(alpha: 0.26)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position,
-        radius * 0.55,
-        ui.Paint()..color = color.withValues(alpha: 0.36),
-      );
-      break;
-    case 'Dust':
-      _drawDustCloud(canvas, position, color, radius, vs, time);
-      break;
-    case 'Crystal':
-      _drawCrystalSigil(canvas, position, color, radius, vs, time);
-      break;
-    case 'Air':
-      _drawAirSwirl(canvas, position, color, radius, vs, time);
-      break;
-    case 'Plant':
-      _drawVinePatch(canvas, position, color, radius, vs, time);
-      break;
-    case 'Poison':
-      canvas.drawCircle(position, radius * 1.2, soft);
-      for (var i = 0; i < 6; i++) {
-        final a = time * 0.5 + i * pi * 2 / 6;
-        canvas.drawCircle(
-          position + ui.Offset(cos(a), sin(a)) * radius * (0.35 + i * 0.04),
-          1.4 * vs,
-          ui.Paint()
-            ..color = const ui.Color(0xFFD98CFF).withValues(alpha: 0.42),
-        );
-      }
-      break;
-    case 'Spirit':
-      _drawSpiritHalo(canvas, position, color, radius, vs, time);
-      break;
-    case 'Dark':
-      canvas.drawCircle(
-        position,
-        radius * 1.15,
-        ui.Paint()
-          ..color = const ui.Color(0xFF05020A).withValues(alpha: 0.72)
-          ..maskFilter = null,
-      );
-      canvas.drawCircle(
-        position,
-        radius * 0.82 * pulse,
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.4 * vs
-          ..color = color.withValues(alpha: 0.62),
-      );
-      for (var i = 0; i < 5; i++) {
-        final a = -time * 0.8 + i * pi * 2 / 5;
-        canvas.drawLine(
-          position + ui.Offset(cos(a), sin(a)) * radius * 0.95,
-          position + ui.Offset(cos(a + 0.35), sin(a + 0.35)) * radius * 0.35,
-          ui.Paint()
-            ..color = color.withValues(alpha: 0.28)
-            ..strokeWidth = 1.0 * vs
-            ..strokeCap = ui.StrokeCap.round,
-        );
-      }
-      break;
-    case 'Light':
-      _drawLightCrown(canvas, position, color, radius, vs, time);
-      break;
-    case 'Blood':
-      canvas.drawCircle(position, radius, soft);
-      canvas.drawCircle(
-        position,
-        radius * 0.66 * pulse,
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.8 * vs
-          ..color = color.withValues(alpha: 0.58),
-      );
-      canvas.drawCircle(
-        position,
-        radius * 0.28,
-        ui.Paint()..color = const ui.Color(0xFFFFB4B4).withValues(alpha: 0.48),
-      );
-      break;
-    default:
-      _drawGlowPool(canvas, position, color, radius, pulse);
-  }
-}
-
-void _drawLetElementOverlay(
-  ui.Canvas canvas,
-  Projectile projectile,
-  ui.Offset position,
-  ui.Color color,
-  String element,
-  double time,
-) {
-  if (projectile.visualStyle == ProjectileVisualStyle.meteor) return;
-  final vs = projectile.visualScale.clamp(0.65, 3.0).toDouble();
-  final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
-  final perp = ui.Offset(-dir.dy, dir.dx);
-  final pulse = 0.75 + 0.25 * sin(time * 4.0 + projectile.life);
-
-  switch (element) {
-    case 'Water':
-      for (var side in [-1.0, 1.0]) {
-        final path = ui.Path()
-          ..moveTo(
-            position.dx - dir.dx * 10 * vs + perp.dx * side * 3 * vs,
-            position.dy - dir.dy * 10 * vs + perp.dy * side * 3 * vs,
-          )
-          ..quadraticBezierTo(
-            position.dx - dir.dx * 1 * vs + perp.dx * side * 7 * vs,
-            position.dy - dir.dy * 1 * vs + perp.dy * side * 7 * vs,
-            position.dx + dir.dx * 10 * vs,
-            position.dy + dir.dy * 10 * vs,
-          );
-        canvas.drawPath(
-          path,
-          ui.Paint()
-            ..color = color.withValues(alpha: 0.34)
-            ..style = ui.PaintingStyle.stroke
-            ..strokeWidth = 1.4 * vs
-            ..strokeCap = ui.StrokeCap.round,
-        );
-      }
-      break;
-    case 'Lightning':
-      final bolt = ui.Path()
-        ..moveTo(position.dx - dir.dx * 13 * vs, position.dy - dir.dy * 13 * vs)
-        ..lineTo(
-          position.dx - dir.dx * 4 * vs + perp.dx * 3 * vs,
-          position.dy - dir.dy * 4 * vs + perp.dy * 3 * vs,
-        )
-        ..lineTo(
-          position.dx + dir.dx * 3 * vs - perp.dx * 3 * vs,
-          position.dy + dir.dy * 3 * vs - perp.dy * 3 * vs,
-        )
-        ..lineTo(
-          position.dx + dir.dx * 12 * vs,
-          position.dy + dir.dy * 12 * vs,
-        );
-      canvas.drawPath(
-        bolt,
-        ui.Paint()
-          ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.82)
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.4 * vs
-          ..strokeCap = ui.StrokeCap.round
-          ..maskFilter = null,
-      );
-      break;
-    case 'Dust':
-      for (var i = 0; i < 5; i++) {
-        final a = time * 1.7 + i * pi * 2 / 5;
-        canvas.drawCircle(
-          position - dir * (5.0 * vs) + ui.Offset(cos(a), sin(a)) * 4.5 * vs,
-          0.9 * vs,
-          ui.Paint()..color = color.withValues(alpha: 0.42),
-        );
-      }
-      break;
-    case 'Air':
-      _drawAirSwirl(canvas, position, color, 7.0 * vs, vs, time);
-      break;
-    case 'Plant':
-      _drawVinePatch(canvas, position, color, 6.0 * vs, vs, time);
-      break;
-    case 'Spirit':
-      _drawSpiritHalo(canvas, position, color, 7.0 * vs, vs, time);
-      break;
-    case 'Light':
-      _drawLightCrown(canvas, position, color, 6.0 * vs, vs, time);
-      break;
-    case 'Blood':
-      canvas.drawCircle(
-        position,
-        6.5 * vs * pulse,
-        ui.Paint()
-          ..color = color.withValues(alpha: 0.16)
-          ..maskFilter = null,
-      );
-      break;
-    case 'Crystal':
-      _drawCrystalSigil(canvas, position, color, 6.0 * vs, vs, time);
-      break;
-  }
-}
-
-void _drawGlowPool(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double pulse,
-) {
-  canvas.drawCircle(
-    position,
-    radius * 1.15 * pulse,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.18)
-      ..maskFilter = null,
+  drawVfxElementGround(
+    canvas: canvas,
+    element: element,
+    center: position,
+    radius: radius,
+    time: time,
+    seed: (identityHashCode(projectile) % 97) * 0.37,
   );
-  canvas.drawCircle(
-    position,
-    radius * 0.58,
-    ui.Paint()..color = color.withValues(alpha: 0.22),
-  );
-}
-
-void _drawFrostStar(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double vs,
-  double time,
-) {
-  canvas.drawCircle(
-    position,
-    radius,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.10)
-      ..maskFilter = null,
-  );
-  for (var i = 0; i < 6; i++) {
-    final a = time * 0.08 + i * pi / 3;
-    canvas.drawLine(
-      position - ui.Offset(cos(a), sin(a)) * radius * 0.55,
-      position + ui.Offset(cos(a), sin(a)) * radius,
-      ui.Paint()
-        ..color = const ui.Color(0xFFE9FBFF).withValues(alpha: 0.48)
-        ..strokeWidth = 0.9 * vs
-        ..strokeCap = ui.StrokeCap.round,
-    );
-  }
-}
-
-void _drawCrackedPlate(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double vs,
-  double time,
-) {
-  final plateFill = ui.Paint()..color = color.withValues(alpha: 0.16);
-  final crustStroke = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeWidth = 1.0 * vs
-    ..color = const ui.Color(0xFFE0C7A6).withValues(alpha: 0.44)
-    ..strokeCap = ui.StrokeCap.round;
-  final debrisPaint = ui.Paint()..color = color.withValues(alpha: 0.26);
-
-  final pulse = 0.90 + 0.10 * sin(time * 1.4);
-  final outer = ui.Path();
-  final points = 9;
-  for (var i = 0; i < points; i++) {
-    final a = (i / points) * pi * 2 + time * 0.03;
-    final jitter = (i.isEven ? 1.0 : 0.82) * pulse;
-    final p = position + ui.Offset(cos(a), sin(a)) * radius * jitter;
-    if (i == 0) {
-      outer.moveTo(p.dx, p.dy);
-    } else {
-      outer.lineTo(p.dx, p.dy);
-    }
-  }
-  outer.close();
-  canvas.drawPath(outer, plateFill);
-  canvas.drawPath(outer, crustStroke);
-
-  for (var i = 0; i < 7; i++) {
-    final a = time * 0.05 + i * pi * 2 / 7;
-    final mid = position + ui.Offset(cos(a), sin(a)) * radius * 0.18;
-    final tip = position + ui.Offset(cos(a + 0.16), sin(a + 0.16)) * radius;
-    final crack = ui.Path()
-      ..moveTo(
-        position.dx + cos(a) * radius * 0.05,
-        position.dy + sin(a) * radius * 0.05,
-      )
-      ..quadraticBezierTo(mid.dx, mid.dy, tip.dx, tip.dy);
-    canvas.drawPath(crack, crustStroke);
-  }
-
-  for (var i = 0; i < 6; i++) {
-    final a = time * 0.12 + i * pi * 2 / 6;
-    final p =
-        position + ui.Offset(cos(a), sin(a)) * radius * (0.34 + (i % 2) * 0.28);
-    canvas.drawCircle(p, (1.1 + (i % 3) * 0.45) * vs, debrisPaint);
-  }
-}
-
-void _drawDustCloud(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double vs,
-  double time,
-) {
-  canvas.drawCircle(
-    position,
-    radius,
-    ui.Paint()
-      ..color = color.withValues(alpha: 0.10)
-      ..maskFilter = null,
-  );
-  for (var i = 0; i < 9; i++) {
-    final a = time * 0.6 + i * pi * 2 / 9;
-    canvas.drawCircle(
-      position + ui.Offset(cos(a), sin(a)) * radius * (0.24 + (i % 3) * 0.18),
-      0.75 * vs,
-      ui.Paint()..color = color.withValues(alpha: 0.34),
-    );
-  }
-}
-
-void _drawCrystalSigil(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double vs,
-  double time,
-) {
-  for (var i = 0; i < 4; i++) {
-    final a = time * 0.28 + i * pi / 2;
-    final path = ui.Path()
-      ..moveTo(position.dx + cos(a) * radius, position.dy + sin(a) * radius)
-      ..lineTo(
-        position.dx + cos(a + pi * 0.18) * radius * 0.38,
-        position.dy + sin(a + pi * 0.18) * radius * 0.38,
-      )
-      ..lineTo(position.dx, position.dy)
-      ..close();
-    canvas.drawPath(path, ui.Paint()..color = color.withValues(alpha: 0.18));
-  }
-  canvas.drawCircle(
-    position,
-    1.8 * vs,
-    ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.55),
-  );
-}
-
-void _drawAirSwirl(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double vs,
-  double time,
-) {
-  for (var i = 0; i < 2; i++) {
-    final start = time * 1.4 + i * pi;
-    final path = ui.Path();
-    for (var j = 0; j < 12; j++) {
-      final t = j / 11;
-      final a = start + t * pi * 1.25;
-      final r = radius * (0.25 + t * 0.75);
-      final p = position + ui.Offset(cos(a), sin(a)) * r;
-      if (j == 0) {
-        path.moveTo(p.dx, p.dy);
-      } else {
-        path.lineTo(p.dx, p.dy);
-      }
-    }
-    canvas.drawPath(
-      path,
-      ui.Paint()
-        ..color = color.withValues(alpha: 0.30)
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.1 * vs
-        ..strokeCap = ui.StrokeCap.round,
-    );
-  }
-}
-
-void _drawVinePatch(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double vs,
-  double time,
-) {
-  for (var i = 0; i < 4; i++) {
-    final a = time * 0.16 + i * pi / 2;
-    final end = position + ui.Offset(cos(a), sin(a)) * radius;
-    final control =
-        position + ui.Offset(cos(a + 0.7), sin(a + 0.7)) * radius * 0.45;
-    final path = ui.Path()
-      ..moveTo(position.dx, position.dy)
-      ..quadraticBezierTo(control.dx, control.dy, end.dx, end.dy);
-    canvas.drawPath(
-      path,
-      ui.Paint()
-        ..color = color.withValues(alpha: 0.38)
-        ..style = ui.PaintingStyle.stroke
-        ..strokeWidth = 1.2 * vs
-        ..strokeCap = ui.StrokeCap.round,
-    );
-    canvas.drawCircle(
-      end,
-      1.1 * vs,
-      ui.Paint()..color = const ui.Color(0xFFB8F7A0).withValues(alpha: 0.62),
-    );
-  }
-}
-
-void _drawSpiritHalo(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double vs,
-  double time,
-) {
-  // Outline ring removed per design feedback. Layered translucent
-  // halo fills + bright core pip carry the spirit-wisp read.
-  final breathe = 0.85 + 0.15 * sin(time * 2.0);
-  for (var i = 3; i >= 1; i--) {
-    canvas.drawCircle(
-      position,
-      radius * (0.55 + i * 0.18) * breathe,
-      ui.Paint()
-        ..color = color.withValues(alpha: (0.04 + i * 0.03))
-        ..maskFilter = null,
-    );
-  }
-  canvas.drawCircle(
-    position,
-    2.2 * vs,
-    ui.Paint()..color = const ui.Color(0xFFE6E9FF).withValues(alpha: 0.55),
-  );
-}
-
-void _drawLightCrown(
-  ui.Canvas canvas,
-  ui.Offset position,
-  ui.Color color,
-  double radius,
-  double vs,
-  double time,
-) {
-  // Outline ring removed per design feedback. Soft halo fill +
-  // orbiting crown petals do the visual on their own.
-  canvas.drawCircle(
-    position,
-    radius * 0.95,
-    ui.Paint()..color = color.withValues(alpha: 0.10),
-  );
-  for (var i = 0; i < 6; i++) {
-    final a = time * 0.9 + i * pi / 3;
-    canvas.drawCircle(
-      position + ui.Offset(cos(a), sin(a)) * radius,
-      1.3 * vs,
-      ui.Paint()..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.78),
-    );
-  }
 }
 
 /// Sink for a single ambient zone-VFX particle. Each game adapts this to its
@@ -5599,52 +1789,6 @@ void drawLightningBolt(
   );
 }
 
-/// A short arc that crawls around [center] — the "static crackle" form of the
-/// shared bolt, used by lightning meteors and lightning fields so a discharge
-/// clinging to a body looks like the same storm as a bolt spanning a room.
-void drawLightningCrackle(
-  ui.Canvas canvas,
-  ui.Offset center,
-  double radius, {
-  required double time,
-  required int count,
-  double width = 1.6,
-  ui.Color core = kLightningBoltCore,
-  ui.Color glow = kLightningBoltGlow,
-  double alpha = 1.0,
-  int glowPasses = 2,
-  double seed = 0,
-  int branches = 0,
-}) {
-  for (var i = 0; i < count; i++) {
-    // Each arc flickers on its own beat; a bolt that is always on reads as
-    // wire, a bolt that blinks reads as electricity.
-    final beat = sin(time * 13.0 + i * 2.7 + seed);
-    if (beat < -0.35) continue;
-    final a1 = i * (pi * 2 / count) + sin(time * 3.1 + i) * 0.6 + seed;
-    // Short peripheral chords, not diameters — a discharge web that stays
-    // inside the body/zone instead of skewering it corner to corner.
-    final a2 = a1 + pi * (0.34 + 0.42 * _boltNoise(seed + i, 2.0).abs());
-    final r1 = radius * (0.70 + 0.30 * _boltNoise(seed + i, 5.0).abs());
-    final r2 = radius * (0.60 + 0.40 * _boltNoise(seed + i, 7.0).abs());
-    drawLightningBolt(
-      canvas,
-      center + ui.Offset(cos(a1), sin(a1)) * r1,
-      center + ui.Offset(cos(a2), sin(a2)) * r2,
-      time: time,
-      width: width,
-      jitter: radius * 0.22,
-      segmentLength: max(6.0, radius * 0.30),
-      core: core,
-      glow: glow,
-      alpha: alpha * (0.55 + 0.45 * beat.abs()),
-      glowPasses: glowPasses,
-      branches: branches,
-      seed: seed + i * 5.3,
-    );
-  }
-}
-
 /// One ambient ability particle (zone wisp, hit spark, burst fleck, …).
 /// Mirrors Cosmic Survival's `_VfxParticle` exactly — same fields, same 0.92
 /// drag, same `alpha` falloff — so it is the single canonical definition.
@@ -5652,6 +1796,9 @@ class AbilityVfxParticle {
   double x, y, vx, vy, size, life;
   final double maxLife;
   final ui.Color color;
+
+  /// The grain colours this particle is drawn in (ability_grains.dart).
+  final AbilityGrainTone tone;
   AbilityVfxParticle({
     required this.x,
     required this.y,
@@ -5660,14 +1807,19 @@ class AbilityVfxParticle {
     required this.size,
     required this.life,
     required this.color,
-  }) : maxLife = life;
+  }) : maxLife = life,
+       tone = abilityGrainTone(color);
   double get alpha => (life / maxLife * 2).clamp(0.0, 1.0);
   bool get dead => life <= 0;
+
+  /// Survival's step: drag per second, so a burst reaches the same distance
+  /// at 60 and 120 Hz (ability_grains.dart).
   void update(double dt) {
     x += vx * dt;
     y += vy * dt;
-    vx *= 0.92;
-    vy *= 0.92;
+    final drag = abilityParticleDragFactor(dt);
+    vx *= drag;
+    vy *= drag;
     life -= dt;
   }
 }
@@ -5676,10 +1828,18 @@ class AbilityVfxParticle {
 /// cosmic space, and dungeons draw them identically. Each game owns one
 /// instance, calls [update]/[render] in its loop, and routes its ability
 /// emitters here (via [add]) instead of into its own flavor-VFX pool. The
-/// render is byte-for-byte survival's: a single soft circle, no glow/blur, so
-/// it matches the source of truth.
+/// render is survival's: every particle a lit grain, all of them in one
+/// `drawRawAtlas` (ability_grains.dart), no glow/blur.
 class AbilityVfxPool {
   final List<AbilityVfxParticle> particles = [];
+
+  /// Drops every other spawn — the reduced-quality thinning, done where the
+  /// particle is born rather than by skipping odd indices at draw time
+  /// (which made particles blink as the list compacted).
+  bool thinSpawns = false;
+  int _spawned = 0;
+
+  static final AbilityGrainBatch _batch = AbilityGrainBatch();
 
   int get length => particles.length;
   bool get isEmpty => particles.isEmpty;
@@ -5693,6 +1853,8 @@ class AbilityVfxPool {
     double life,
     ui.Color color,
   ) {
+    if (particles.length >= kAbilityParticleCap) return;
+    if (thinSpawns && (_spawned++).isOdd) return;
     particles.add(
       AbilityVfxParticle(
         x: x,
@@ -5713,19 +1875,14 @@ class AbilityVfxPool {
     particles.removeWhere((p) => p.dead);
   }
 
-  /// Survival's exact particle render. [reduceAmbient] mirrors survival's
-  /// performance gate (skip every other particle).
-  void render(ui.Canvas canvas, {bool reduceAmbient = false}) {
-    for (var i = 0; i < particles.length; i++) {
-      final p = particles[i];
+  /// Survival's exact particle render: one grain batch, one draw.
+  void render(ui.Canvas canvas) {
+    final batch = _batch;
+    for (final p in particles) {
       if (p.dead) continue;
-      if (reduceAmbient && i.isOdd) continue;
-      canvas.drawCircle(
-        ui.Offset(p.x, p.y),
-        p.size * p.alpha,
-        ui.Paint()..color = p.color.withValues(alpha: p.alpha * 0.8),
-      );
+      batch.addParticle(p.x, p.y, p.size, p.life, p.maxLife, p.tone);
     }
+    batch.flush(canvas);
   }
 }
 
@@ -5774,34 +1931,31 @@ void drawMaskPlantWormyTendrils({
   final rootSeed =
       vine.position.dx.floor() * 7919 + vine.position.dy.floor() * 6113;
 
-  final tendril = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..strokeJoin = ui.StrokeJoin.round;
-  final tip = ui.Paint();
-
-  // Feed-flash root halo — brief expanding pulse around the root. Larger /
-  // brighter on tendril-unlock feeds (rawFlash > 1.0).
+  // Feed flash: the root's light swelling and settling — a soft pool, larger
+  // on a tendril-unlock feed (rawFlash > 1.0). (It was two hard flat discs.)
   if (flash > 0.01) {
     final isUnlock = rawFlash > 1.0;
-    final unlockBoost = isUnlock ? 1.6 : 1.0;
     final pulseR =
         (vine.snareRadius > 0 ? vine.snareRadius * 0.35 : 28.0) *
-        unlockBoost *
+        (isUnlock ? 1.6 : 1.0) *
         (1.0 + 0.8 * (1.0 - flash));
-    canvas.drawCircle(
+    vfxSpill(
+      canvas,
       vine.position,
       pulseR,
-      ui.Paint()..color = bright.withValues(alpha: 0.18 * flash),
-    );
-    canvas.drawCircle(
-      vine.position,
-      pulseR * 0.55,
-      ui.Paint()
-        ..color = bright.withValues(alpha: (isUnlock ? 0.45 : 0.32) * flash),
+      bright,
+      (isUnlock ? 0.42 : 0.3) * flash,
     );
   }
 
+  // Each tendril is a filled ribbon, thick at the root and tapering to its
+  // tip, writhing along its length; all of them share three paths (a faint
+  // wide body, the body, its lit spine) and the fangs one grain batch.
+  // (They were three stroked polylines each: wires.)
+  final halo = ui.Path(), body = ui.Path(), spine = ui.Path();
+  var anyAttacking = false;
+  final pts = <ui.Offset>[];
+  vfxGrainsDiscard();
   for (var ti = 0; ti < tendrilCount; ti++) {
     // Tendril identity: a stable angle around the root for idle pose, a stable
     // phase offset for the wave.
@@ -5826,6 +1980,7 @@ void drawMaskPlantWormyTendrils({
       endPoint = vine.position + ui.Offset(cos(a), sin(a)) * idleReach * pulse;
       attacking = false;
     }
+    anyAttacking = anyAttacking || attacking;
 
     final delta = endPoint - vine.position;
     final dist = delta.distance;
@@ -5835,7 +1990,7 @@ void drawMaskPlantWormyTendrils({
     // Wave amplitude: idle is gentler than attacking.
     final ampScale = attacking ? 1.0 : 0.60;
 
-    final path = ui.Path();
+    pts.clear();
     for (var s = 0; s <= segs; s++) {
       final tFrac = s / segs;
       final base = vine.position + delta * tFrac;
@@ -5847,39 +2002,23 @@ void drawMaskPlantWormyTendrils({
               0.65 +
           sin(tFrac * pi * 5.6 + t * (attacking ? 4.2 : 2.0) + phaseOffset) *
               0.35;
-      final pt = base + perp * (wave * amplitude * env * ampScale);
-      if (s == 0) {
-        path.moveTo(pt.dx, pt.dy);
-      } else {
-        path.lineTo(pt.dx, pt.dy);
-      }
+      pts.add(base + perp * (wave * amplitude * env * ampScale));
     }
-
-    // Alpha lifts during the feed flash so the whole plant briefly glows
-    // brighter on cast.
-    final outerAlpha = (attacking ? 0.22 : 0.14) + 0.18 * flash;
-    final mainAlpha = (attacking ? 0.90 : 0.70) + 0.10 * flash;
-    final highlightAlpha = (attacking ? 0.60 : 0.42) + 0.35 * flash;
-    tendril
-      ..strokeWidth = strokeWidth * 2.2
-      ..color = dark.withValues(alpha: outerAlpha.clamp(0.0, 1.0));
-    canvas.drawPath(path, tendril);
-    tendril
-      ..strokeWidth = strokeWidth
-      ..color = dark.withValues(alpha: mainAlpha.clamp(0.0, 1.0));
-    canvas.drawPath(path, tendril);
-    tendril
-      ..strokeWidth = max(0.9, strokeWidth * 0.45)
-      ..color = bright.withValues(alpha: highlightAlpha.clamp(0.0, 1.0));
-    canvas.drawPath(path, tendril);
-
-    if (attacking) {
-      // Single pulsing fang at the enemy end.
-      final bite = 0.55 + 0.45 * sin(t * 9.0 + phaseOffset);
-      tip.color = bright.withValues(alpha: 0.55 * bite);
-      canvas.drawCircle(endPoint, 1.4 + 1.2 * feedT, tip);
-    }
+    final w = strokeWidth * (attacking ? 2.2 : 1.8);
+    halo.addPath(vfxRibbon(pts, w * 2.2, w * 0.5), ui.Offset.zero);
+    body.addPath(vfxRibbon(pts, w, w * 0.18), ui.Offset.zero);
+    spine.addPath(vfxRibbon(pts, w * 0.36, w * 0.06), ui.Offset.zero);
+    if (attacking) vfxGrain(endPoint.dx, endPoint.dy);
   }
+  final outerAlpha = (anyAttacking ? 0.22 : 0.14) + 0.18 * flash;
+  final mainAlpha = (anyAttacking ? 0.92 : 0.75) + 0.08 * flash;
+  final highlightAlpha = (anyAttacking ? 0.55 : 0.4) + 0.35 * flash;
+  vfxFillPath(canvas, halo, dark, outerAlpha);
+  vfxFillPath(canvas, body, dark, mainAlpha);
+  vfxFillPath(canvas, spine, bright, highlightAlpha);
+  // The fangs where they bite, pulsing.
+  final bite = 0.55 + 0.45 * sin(t * 9.0 + rootSeed % 7);
+  vfxGrainsFlush(canvas, 2.6 + 2.0 * feedT, bright, 0.6 * bite);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -5897,11 +2036,6 @@ void drawMaskPlantWormyTendrils({
 // survival instance fields were — no per-frame Paint allocation added.
 // ─────────────────────────────────────────────────────────────────────────────
 
-final ui.Paint _genericCorePaint = ui.Paint();
-final ui.Paint _genericGlowPaint = ui.Paint();
-final ui.Paint _genericLinePaint = ui.Paint()
-  ..strokeCap = ui.StrokeCap.round
-  ..style = ui.PaintingStyle.stroke;
 
 void drawGenericProjectileVisual({
   required ui.Canvas canvas,
@@ -5917,246 +2051,69 @@ void drawGenericProjectileVisual({
 }) {
   switch (projectile.visualStyle) {
     case ProjectileVisualStyle.meteor:
-      final tailLen = 22.0 * projectile.visualScale;
-      final tailStart = ui.Offset(
-        position.dx - cos(projectile.angle) * tailLen,
-        position.dy - sin(projectile.angle) * tailLen,
-      );
-      canvas.drawLine(
-        tailStart,
-        position,
-        ui.Paint()
-          ..shader = ui.Gradient.linear(
-            tailStart,
-            position,
-            [
-              color.withValues(alpha: 0.02),
-              color.withValues(alpha: 0.35),
-              ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.35)!,
-            ],
-            const [0.0, 0.6, 1.0],
-          )
-          ..strokeWidth = 7.5 * projectile.visualScale
-          ..strokeCap = ui.StrokeCap.round,
-      );
-      canvas.drawCircle(
-        position,
-        6.0 * projectile.visualScale,
-        ui.Paint()..color = color.withValues(alpha: 0.92),
-      );
-      canvas.drawCircle(
-        ui.Offset(
-          position.dx - cos(projectile.angle) * (2.5 * projectile.visualScale),
-          position.dy - sin(projectile.angle) * (2.5 * projectile.visualScale),
-        ),
-        3.2 * projectile.visualScale,
-        ui.Paint()
-          ..color = ui.Color.lerp(color, const ui.Color(0xFF2B1A12), 0.55)!,
-      );
-      canvas.drawCircle(
-        ui.Offset(
-          position.dx +
-              cos(projectile.angle + 0.6) * (1.8 * projectile.visualScale),
-          position.dy +
-              sin(projectile.angle + 0.6) * (1.8 * projectile.visualScale),
-        ),
-        1.7 * projectile.visualScale,
-        ui.Paint()..color = const ui.Color(0xFFFFF2D6).withValues(alpha: 0.85),
+      // An unclaimed meteor (no element) is still a falling stone.
+      drawLetMeteor(
+        canvas: canvas,
+        projectile: projectile,
+        position: position,
+        time: time,
+        reduceAmbient: reduceAmbient,
       );
 
+    // The flat circle pairs that stood in for every unclaimed shot are gone:
+    // basic_vfx.dart paints each in its family's material, sized from the
+    // radius it hits with.
     case ProjectileVisualStyle.slash:
-      final len = 8.0 * projectile.visualScale;
-      _genericLinePaint
-        ..color = color.withValues(alpha: 0.9)
-        ..strokeWidth = 2.5;
-      canvas.drawLine(
-        ui.Offset(
-          position.dx - cos(projectile.angle) * len,
-          position.dy - sin(projectile.angle) * len,
-        ),
-        ui.Offset(
-          position.dx + cos(projectile.angle) * len,
-          position.dy + sin(projectile.angle) * len,
-        ),
-        _genericLinePaint,
-      );
-
     case ProjectileVisualStyle.dart:
-      _genericCorePaint.color = color.withValues(alpha: 0.9);
-      canvas.drawCircle(
-        position,
-        2 * projectile.visualScale,
-        _genericCorePaint,
-      );
-      _genericGlowPaint
-        ..color = color.withValues(alpha: 0.15)
-        ..maskFilter = null;
-      canvas.drawCircle(
-        position,
-        4 * projectile.visualScale,
-        _genericGlowPaint,
-      );
-
     case ProjectileVisualStyle.sigil:
     case ProjectileVisualStyle.hornImpact:
-      final pulse = 0.7 + 0.3 * sin(time * 4);
-      _genericGlowPaint
-        ..color = color.withValues(alpha: 0.4 * pulse)
-        ..maskFilter = null;
-      canvas.drawCircle(
-        position,
-        4 * projectile.visualScale,
-        _genericGlowPaint,
-      );
-      _genericCorePaint.color = const ui.Color(
-        0xFFFFFFFF,
-      ).withValues(alpha: 0.6 * pulse);
-      canvas.drawCircle(
-        position,
-        2 * projectile.visualScale,
-        _genericCorePaint,
+      drawMaterialProjectile(
+        canvas: canvas,
+        projectile: projectile,
+        position: position,
+        time: time,
       );
 
+    // Kin escorts and Mystic casts are claimed by their own painters in
+    // every mode before this; one that reaches here is a mote of its
+    // family's material or the Mystic comet (no orbiting dots, no white
+    // pip, no sigil glyph).
     case ProjectileVisualStyle.kinOrbital:
-      // Guardian-orb render: bright protective core + halo + two
-      // satellite motes orbiting around it. Reads as a guardian
-      // companion, not a generic colored circle.
-      final radius = (1.6 * projectile.visualScale).clamp(1.4, 5.8).toDouble();
-      final pulse = 0.78 + 0.22 * sin(time * 3.4 + projectile.life);
-      if (!reduceAmbient) {
-        _genericGlowPaint
-          ..color = color.withValues(alpha: 0.20 * pulse)
-          ..maskFilter = null;
-        canvas.drawCircle(position, radius * 2.6, _genericGlowPaint);
-        // Two satellite motes orbiting opposite sides
-        for (var i = 0; i < 2; i++) {
-          final sa = time * 2.4 + i * pi;
-          final sp = position + ui.Offset(cos(sa), sin(sa)) * radius * 1.9;
-          _genericCorePaint.color = color.withValues(alpha: 0.75 * pulse);
-          canvas.drawCircle(sp, radius * 0.42, _genericCorePaint);
-        }
-      }
-      _genericCorePaint.color = color.withValues(alpha: 0.92 * pulse);
-      canvas.drawCircle(position, radius, _genericCorePaint);
-      _genericCorePaint.color = const ui.Color(
-        0xFFFFFFFF,
-      ).withValues(alpha: 0.85 * pulse);
-      canvas.drawCircle(position, radius * 0.42, _genericCorePaint);
+      drawMaterialProjectile(
+        canvas: canvas,
+        projectile: projectile,
+        position: position,
+        time: time,
+      );
 
     case ProjectileVisualStyle.mysticOrbital:
-      // One clamp for both, so the figure always leads.
-      //
-      // The glow used to take the raw visualScale while the sigil was capped,
-      // and Mystic casts run up to 5.4 — so the halo drew at nearly twice the
-      // figure's size and fifteen of them merged into an orange wall. That
-      // wall was most of why the family looked like undifferentiated area
-      // damage.
-      final mysticScale = projectile.visualScale.clamp(0.7, 3.2).toDouble();
-      _genericGlowPaint
-        ..color = color.withValues(alpha: 0.12)
-        ..maskFilter = null;
-      canvas.drawCircle(position, 6 * mysticScale, _genericGlowPaint);
-      drawMysticSigil(
+      drawMysticComet(
         canvas: canvas,
+        projectile: projectile,
         position: position,
         color: color,
-        scale: mysticScale,
         time: time,
-        sides: mysticSigilSides(projectile.element),
-        seed: projectile.life,
+        reduceAmbient: reduceAmbient,
       );
 
     case ProjectileVisualStyle.letShard:
-      final dir = ui.Offset(cos(projectile.angle), sin(projectile.angle));
-      final perp = ui.Offset(-dir.dy, dir.dx);
-      final tailLen = 30.0 * projectile.visualScale;
-      final tail = position - dir * tailLen;
-
-      canvas.drawLine(
-        tail,
-        position,
-        ui.Paint()
-          ..shader = ui.Gradient.linear(
-            tail,
-            position,
-            [
-              color.withValues(alpha: 0.0),
-              color.withValues(alpha: 0.16),
-              ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.18)!,
-            ],
-            const [0.0, 0.58, 1.0],
-          )
-          ..strokeWidth = 5.4 * projectile.visualScale
-          ..strokeCap = ui.StrokeCap.round
-          ..maskFilter = null,
-      );
-
-      final shard = ui.Path()
-        ..moveTo(
-          position.dx + dir.dx * (8.5 * projectile.visualScale),
-          position.dy + dir.dy * (8.5 * projectile.visualScale),
-        )
-        ..lineTo(
-          position.dx + perp.dx * (4.2 * projectile.visualScale),
-          position.dy + perp.dy * (4.2 * projectile.visualScale),
-        )
-        ..lineTo(
-          position.dx - dir.dx * (6.0 * projectile.visualScale),
-          position.dy - dir.dy * (6.0 * projectile.visualScale),
-        )
-        ..lineTo(
-          position.dx - perp.dx * (4.2 * projectile.visualScale),
-          position.dy - perp.dy * (4.2 * projectile.visualScale),
-        )
-        ..close();
-
-      canvas.drawPath(
-        shard,
-        ui.Paint()
-          ..shader = ui.Gradient.linear(
-            tail,
-            position + dir * (10.0 * projectile.visualScale),
-            [
-              ui.Color.lerp(color, const ui.Color(0xFF1A1014), 0.42)!,
-              color,
-              ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!,
-            ],
-            const [0.0, 0.62, 1.0],
-          ),
-      );
-
-      canvas.drawPath(
-        shard,
-        ui.Paint()
-          ..color = ui.Color.lerp(
-            color,
-            const ui.Color(0xFFFFFFFF),
-            0.42,
-          )!.withValues(alpha: 0.8)
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.1 * projectile.visualScale,
-      );
-
-      canvas.drawCircle(
-        position - dir * (1.2 * projectile.visualScale),
-        2.4 * projectile.visualScale,
-        ui.Paint()..color = const ui.Color(0xFFFFF4DC).withValues(alpha: 0.85),
+      // A Let cluster fragment in flight: a small stone of the element,
+      // sized from its own contact radius. (Parked letShards are Let's
+      // ground zones and never reach here.)
+      drawLetMeteor(
+        canvas: canvas,
+        projectile: projectile,
+        position: position,
+        time: time,
+        reduceAmbient: true,
       );
 
     case ProjectileVisualStyle.standard:
-      _genericCorePaint.color = color.withValues(alpha: 0.8);
-      canvas.drawCircle(
-        position,
-        3 * projectile.visualScale,
-        _genericCorePaint,
-      );
-      _genericGlowPaint
-        ..color = color.withValues(alpha: 0.15)
-        ..maskFilter = null;
-      canvas.drawCircle(
-        position,
-        5 * projectile.visualScale,
-        _genericGlowPaint,
+      drawMaterialProjectile(
+        canvas: canvas,
+        projectile: projectile,
+        position: position,
+        time: time,
       );
   }
 }
@@ -6171,16 +2128,12 @@ void drawGenericProjectileVisual({
 // because a near-circle looks identical at every rotation.
 //
 // These replace the disc stack with forms that have a direction and a real
-// outline: a bloom stretched along travel, and a genuinely irregular body that
-// visibly spins. Same cost class as what they replace — plain fills and strokes,
-// no MaskFilter, no saveLayer, no per-frame Paint allocation.
+// outline: a genuinely irregular body that visibly spins, and a plume wake.
+// Same cost class as what they replace — plain fills, no MaskFilter, no
+// saveLayer, no per-frame Paint allocation.
 // ─────────────────────────────────────────────────────────────────────────────
 
 final ui.Paint _shapePaint = ui.Paint();
-final ui.Paint _shapeStrokePaint = ui.Paint()
-  ..style = ui.PaintingStyle.stroke
-  ..strokeCap = ui.StrokeCap.round
-  ..strokeJoin = ui.StrokeJoin.round;
 
 /// Irregular unit radii for a rock silhouette.
 ///
@@ -6229,83 +2182,6 @@ ui.Path buildTumblingShardPath({
   }
   path.close();
   return path;
-}
-
-/// The lit leading edge, traced along the body's own outline instead of stroked
-/// round a perfect circle — a circular rim arc was what re-rounded the meteor
-/// silhouette after all the work of making it irregular.
-void drawShardLeadingRim({
-  required ui.Canvas canvas,
-  required ui.Offset centre,
-  required double radius,
-  required ui.Offset travelDir,
-  required double spin,
-  required ui.Color color,
-  required double width,
-  double elongation = 1.24,
-  double flatten = 0.88,
-}) {
-  final perp = ui.Offset(-travelDir.dy, travelDir.dx);
-  final n = _kShardRadii.length;
-  final rim = ui.Path();
-  var started = false;
-  for (var i = 0; i <= n; i++) {
-    final idx = i % n;
-    final a = spin + idx * (pi * 2 / n);
-    final along = cos(a);
-    if (along <= 0.05) {
-      started = false;
-      continue;
-    }
-    final r = radius * _kShardRadii[idx];
-    final p =
-        centre +
-        travelDir * (along * r * elongation) +
-        perp * (sin(a) * r * flatten);
-    if (!started) {
-      rim.moveTo(p.dx, p.dy);
-      started = true;
-    } else {
-      rim.lineTo(p.dx, p.dy);
-    }
-  }
-  _shapeStrokePaint
-    ..color = color
-    ..strokeWidth = width;
-  canvas.drawPath(rim, _shapeStrokePaint);
-}
-
-/// A heat bloom with an axis: nested ovals stretched along [travelDir], so the
-/// glow says which way the thing is going instead of pooling round it.
-void drawDirectionalBloom({
-  required ui.Canvas canvas,
-  required ui.Offset centre,
-  required ui.Offset travelDir,
-  required double length,
-  required double width,
-  required ui.Color color,
-  double alpha = 0.22,
-  int layers = 3,
-  double trailBias = 0.35,
-}) {
-  final angle = atan2(travelDir.dy, travelDir.dx);
-  canvas.save();
-  canvas.translate(centre.dx, centre.dy);
-  canvas.rotate(angle);
-  for (var i = layers; i >= 1; i--) {
-    final f = i / layers;
-    _shapePaint.color = color.withValues(alpha: alpha * (1.0 - f * 0.55));
-    canvas.drawOval(
-      ui.Rect.fromLTRB(
-        -length * f * (1 + trailBias),
-        -width * f,
-        length * f * (1 - trailBias * 0.5),
-        width * f,
-      ),
-      _shapePaint,
-    );
-  }
-  canvas.restore();
 }
 
 /// A wake that flows.
@@ -6460,54 +2336,6 @@ void drawPlumeWake({
   }
 }
 
-/// Four-point star glints — the "sparkle" read.
-///
-/// Heavy translucent fills make a cast look painted; small bright points with
-/// hard centres make it look lit. Positions are hashed off [seed] so they are
-/// deterministic (no per-frame Random, no shimmer between frames), scattered
-/// around the head and biased backwards into the wake, each twinkling on its
-/// own phase so some vanish entirely at any given moment.
-void drawSparkleGlints({
-  required ui.Canvas canvas,
-  required ui.Offset centre,
-  required ui.Offset travelDir,
-  required double spread,
-  required double size,
-  required ui.Color color,
-  required double time,
-  int count = 4,
-  double seed = 0.0,
-  double alpha = 0.9,
-}) {
-  final perp = ui.Offset(-travelDir.dy, travelDir.dx);
-  for (var i = 0; i < count; i++) {
-    final h1 = sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453;
-    final h2 = sin((i + 1) * 39.3468 + seed * 11.135) * 24634.6345;
-    final u = h1 - h1.floorToDouble();
-    final v = h2 - h2.floorToDouble();
-    // Twinkle: below zero the glint is simply skipped this frame.
-    final tw = sin(time * (3.2 + u * 2.6) + i * 2.1 + seed);
-    if (tw <= 0.05) continue;
-    final along = -spread * (0.08 + u * 0.95);
-    // Lateral scatter is a fraction of how far back the glint is, so the
-    // sparkle fans out along the wake instead of drifting off into open space
-    // where it reads as an unrelated speck.
-    final across = (v - 0.5) * spread * 0.20 * (0.25 + u);
-    final c = centre + travelDir * along + perp * across;
-    final r = size * (0.5 + v * 0.7) * tw;
-    if (r < 0.25) continue;
-    final path = ui.Path()
-      ..moveTo(c.dx, c.dy - r)
-      ..quadraticBezierTo(c.dx + r * 0.17, c.dy - r * 0.17, c.dx + r, c.dy)
-      ..quadraticBezierTo(c.dx + r * 0.17, c.dy + r * 0.17, c.dx, c.dy + r)
-      ..quadraticBezierTo(c.dx - r * 0.17, c.dy + r * 0.17, c.dx - r, c.dy)
-      ..quadraticBezierTo(c.dx - r * 0.17, c.dy - r * 0.17, c.dx, c.dy - r)
-      ..close();
-    _shapePaint.color = color.withValues(alpha: alpha * tw);
-    canvas.drawPath(path, _shapePaint);
-  }
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // LET SKYFALL — the telegraph and the landing
 //
@@ -6521,128 +2349,6 @@ void drawSparkleGlints({
 // same class as the meteor's own wake, and only one meteor is usually falling.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// A blade: sharp at the nose, bellied forward, drawn out to a point at the
-/// tail. Curved sides, no straight edges anywhere.
-///
-/// The Mane core used to be [buildTumblingShardPath] squashed to a third of its
-/// width and spun on `time` — a long lumpy stick, rolling. That is the right
-/// treatment for a meteor, which genuinely tumbles, and exactly wrong for a
-/// shot whose whole identity is piercing: a blade that rolls in flight reads as
-/// a thrown chopstick, and a fan of them reads as a handful of them.
-///
-/// The belly sits forward of centre so the widest part of the shape is the part
-/// doing the cutting, and the tail runs long behind it. That asymmetry is what
-/// makes the silhouette point somewhere.
-ui.Path buildBladePath({
-  required ui.Offset centre,
-  required ui.Offset travelDir,
-  required double length,
-  required double width,
-  double bellyBias = 0.30,
-  double bank = 0.0,
-}) {
-  final len = travelDir.distance;
-  final dir = len > 0.01 ? travelDir / len : const ui.Offset(1, 0);
-  final perp = ui.Offset(-dir.dy, dir.dx);
-  final half = length * 0.5;
-  final nose = centre + dir * half;
-  final tail = centre - dir * half;
-  // Bank leans the blade off its travel axis a little, so a fan of them does
-  // not look like a set of identical parts stamped from one mould.
-  final lean = perp * (width * bank);
-  // Control points ride at the belly, forward of centre. A cubic rather than a
-  // quadratic so the nose can stay sharp while the tail still runs out long.
-  final c1Along = half * (1.0 - bellyBias * 0.6);
-  final c2Along = -half * bellyBias;
-
-  ui.Offset ctl(double along, double side) =>
-      centre + dir * along + perp * (width * side) + lean;
-
-  return ui.Path()
-    ..moveTo(nose.dx, nose.dy)
-    ..cubicTo(
-      ctl(c1Along, 1).dx,
-      ctl(c1Along, 1).dy,
-      ctl(c2Along, 1).dx,
-      ctl(c2Along, 1).dy,
-      tail.dx,
-      tail.dy,
-    )
-    ..cubicTo(
-      ctl(c2Along, -1).dx,
-      ctl(c2Along, -1).dy,
-      ctl(c1Along, -1).dx,
-      ctl(c1Along, -1).dy,
-      nose.dx,
-      nose.dy,
-    )
-    ..close();
-}
-
-/// The clump of energy wisps that rides behind a moving Mane blade.
-///
-/// This used to be real particles pushed into the shared ambient pool — two or
-/// three per projectile per frame. A Mane cast fans several projectiles at
-/// once, each living a second or more, so the emission rate outran the pool's
-/// drain rate and any cast at all pinned it at its ceiling for the whole
-/// flight. Everything else that wanted a particle and gated below that ceiling
-/// — hit sparks, kill bursts, zone wisps, meteor craters — silently got
-/// nothing for as long as a Mane was in the air.
-///
-/// Drawing the wisps instead fixes that at the root: the pool is untouched, so
-/// there is no budget to blow and nothing to starve. It also costs less than
-/// what it replaces (a handful of circles per blade, no allocation, no update
-/// step, no list churn), it is deterministic rather than random per frame, and
-/// because it lives in the projectile painter all three games get it — cosmic
-/// and the dungeon never had this trail at all.
-///
-/// Positions are hashed off [seed] and swept along a phase so the wisps appear
-/// to shed backwards and fade, the same read the particles gave.
-void drawManeTrailWisps({
-  required ui.Canvas canvas,
-  required ui.Offset position,
-  required ui.Offset travelDir,
-  required ui.Color color,
-  required double time,
-  required double scale,
-  double radiusMultiplier = 1.0,
-  double seed = 0.0,
-  int count = 7,
-}) {
-  final len = travelDir.distance;
-  final dir = len > 0.01 ? travelDir / len : const ui.Offset(1, 0);
-  final perp = ui.Offset(-dir.dy, dir.dx);
-  final whiteMix = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
-  // Same clump width the particle version used, so the trail reads at the
-  // size it always did.
-  final clumpR = (4.0 + scale * 4.0 + radiusMultiplier * 6.0).clamp(4.0, 28.0);
-
-  for (var i = 0; i < count; i++) {
-    // Deterministic scatter — no per-frame Random, so the clump does not
-    // shimmer between frames the way randomly respawned particles did.
-    final h1 = sin((i + 1) * 12.9898 + seed * 78.233) * 43758.5453;
-    final h2 = sin((i + 1) * 39.3468 + seed * 11.135) * 24634.6345;
-    final u = h1 - h1.floorToDouble();
-    final v = h2 - h2.floorToDouble();
-    // Each wisp runs its own shed cycle: born at the blade, drifting back and
-    // fading out, then recycling. Staggered so they do not pulse in unison.
-    final t = (time * (1.5 + u * 0.9) + u * 3.1 + seed) % 1.0;
-    final fade = 1.0 - t;
-    if (fade <= 0.05) continue;
-    final lateral = (v - 0.5) * 2.0;
-    final centre =
-        position -
-        dir * (clumpR * 1.2 * t * 2.2) +
-        perp * lateral * clumpR * (0.35 + t * 0.9);
-    final r = (1.3 + v * 1.4) * fade;
-    if (r < 0.2) continue;
-    _shapePaint.color = (i.isEven ? color : whiteMix).withValues(
-      alpha: fade * 0.62,
-    );
-    canvas.drawCircle(centre, r, _shapePaint);
-  }
-}
-
 /// How many ambient particles ONE Mane cast's trail may hold at a time.
 ///
 /// The pool the trail draws from tops out around 150 and is shared with every
@@ -6655,95 +2361,6 @@ void drawManeTrailWisps({
 /// This is the cap for the cast as a whole, deliberately not per projectile:
 /// what the trail costs must not depend on how wide the fan is.
 const int kManeTrailParticleBudget = 48;
-
-/// A Mystic orbital: a small turning sigil, not a bead.
-///
-/// This replaced two circles — a filled core and a soft glow, which was the
-/// entire painter for the family. Mystic is the single-slot pick, the longest
-/// cooldown in the game and the densest cast at four to twenty projectiles, so
-/// what the player saw for their one ultimate was a pile of identical soft
-/// circles. That is what makes the family read as generic area damage: not the
-/// mechanics (Pip chains single targets, Kin buffs and wards) but the fact
-/// that its showpiece had no shape.
-///
-/// Sigil geometry is a language nothing else in the roster uses — Let falls and
-/// craters, Mane cleaves, Pip darts, Kin grows ground cover — and it suits the
-/// game's alchemical dressing. Angular and constructed, so it reads as
-/// something deliberately invoked rather than something spilled.
-///
-/// [sides] varies the inner polygon per element, so a Fire cast and an Ice cast
-/// are different figures rather than the same circle in two colors.
-///
-/// Cost: two stroked paths, two short arcs and two small fills. A twenty-orb
-/// cast draws well under what the four concentric circles per Pip dart used to.
-void drawMysticSigil({
-  required ui.Canvas canvas,
-  required ui.Offset position,
-  required ui.Color color,
-  required double scale,
-  required double time,
-  required int sides,
-  double seed = 0.0,
-}) {
-  final r = 5.2 * scale;
-  final hot = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.55)!;
-  // The two rings turn against each other, which reads as mechanism rather
-  // than as a sprite being spun.
-  final outerSpin = time * 0.9 + seed;
-  final innerSpin = -time * 1.4 - seed * 0.7;
-
-  _shapeStrokePaint
-    ..color = color.withValues(alpha: 0.55)
-    ..strokeWidth = 0.9 * scale;
-  canvas.drawCircle(position, r, _shapeStrokePaint);
-
-  // Three ticks riding the outer ring — the "struck rune" read.
-  for (var i = 0; i < 3; i++) {
-    final a = outerSpin + i * (pi * 2 / 3);
-    final d = ui.Offset(cos(a), sin(a));
-    canvas.drawLine(
-      position + d * (r * 0.82),
-      position + d * (r * 1.28),
-      _shapeStrokePaint,
-    );
-  }
-
-  // Inner polygon, counter-turning. Sides carry the element apart.
-  final n = sides.clamp(3, 7);
-  final poly = ui.Path();
-  for (var i = 0; i < n; i++) {
-    final a = innerSpin + i * (pi * 2 / n);
-    final p = position + ui.Offset(cos(a), sin(a)) * (r * 0.62);
-    if (i == 0) {
-      poly.moveTo(p.dx, p.dy);
-    } else {
-      poly.lineTo(p.dx, p.dy);
-    }
-  }
-  poly.close();
-  _shapeStrokePaint
-    ..color = hot.withValues(alpha: 0.70)
-    ..strokeWidth = 0.85 * scale;
-  canvas.drawPath(poly, _shapeStrokePaint);
-
-  // Core: the lit centre the figure is drawn around.
-  _shapePaint.color = color.withValues(alpha: 0.32);
-  canvas.drawCircle(position, r * 0.90, _shapePaint);
-  _shapePaint.color = hot.withValues(alpha: 0.95);
-  canvas.drawCircle(position, r * 0.26, _shapePaint);
-}
-
-/// How many sides a Mystic sigil's inner figure has, per element — so the
-/// seventeen ultimates are seventeen different figures and not one shape
-/// recolored. Grouped by temperament rather than at random: the volatile
-/// elements get the tightest, sharpest figures.
-int mysticSigilSides(String? element) => switch (element) {
-  'Fire' || 'Lightning' || 'Spirit' => 3,
-  'Lava' || 'Poison' || 'Dark' => 4,
-  'Crystal' || 'Ice' || 'Light' => 6,
-  'Earth' || 'Mud' || 'Steam' => 5,
-  _ => 7,
-};
 
 /// One Let meteor landing, alive just long enough to show the crater open.
 ///
@@ -6799,16 +2416,11 @@ void pushLetSkyfallImpact(
   impacts.add(impact);
 }
 
-/// The ground mark under an incoming meteor.
-///
-/// [progress] runs 0 at the cast to 1 at the landing. The outer ring contracts
-/// onto the impact point over that span, which is the "incoming" read — a
-/// static ring says "something is here", a closing one says "something is
-/// arriving, and this is when".
-///
-/// Deliberately quiet. This is a mark the player reads at a glance in the
-/// middle of a fight, not a light show: a wide bright telegraph competes with
-/// the meteor it is announcing and washes out the arena underneath it.
+/// The ground under an incoming meteor. [progress] runs 0 at the cast to 1 at
+/// the landing; [radius] is the blast the landing opens, read off the falling
+/// projectile. The art lives in let_vfx.dart ([drawLetTelegraphShadow]): a
+/// shadow pool of the element's dark that deepens as the stone closes — no
+/// hoop, no ticks. [color] is the fallback when no [element] is passed.
 void drawLetSkyfallTelegraph({
   required ui.Canvas canvas,
   required ui.Offset centre,
@@ -6816,71 +2428,24 @@ void drawLetSkyfallTelegraph({
   required double radius,
   required double progress,
   required double time,
+  String? element,
   bool reduceAmbient = false,
 }) {
-  final t = progress.clamp(0.0, 1.0);
-  // Fades up quickly at the start so the cast registers immediately, then
-  // holds. A telegraph that eases in over the whole descent is invisible for
-  // exactly the window in which it is useful.
-  final presence = (t * 4.2).clamp(0.0, 1.0);
-  final hot = ui.Color.lerp(color, const ui.Color(0xFFFFFFFF), 0.45)!;
-
-  // A stain on the ground, no wider than the crater it predicts. One radial
-  // gradient rather than a stack of flat discs, so the edge dissolves instead
-  // of banding.
-  final stainR = radius * (1.20 - 0.22 * t);
-  _shapePaint
-    ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.radial(
-      centre,
-      stainR,
-      [
-        color.withValues(alpha: (0.16 + 0.14 * t) * presence),
-        color.withValues(alpha: (0.07 + 0.08 * t) * presence),
-        color.withValues(alpha: 0.0),
-      ],
-      const [0.0, 0.62, 1.0],
-    );
-  canvas.drawCircle(centre, stainR, _shapePaint);
-  _shapePaint.shader = null;
-
-  // The closing ring. Starts just wide of the crater and settles onto its rim
-  // — close enough that it always reads as belonging to this mark, rather
-  // than as a loose arc drawn somewhere near it.
-  final ringR = radius * (1.24 - 0.26 * t);
-  _shapeStrokePaint
-    ..color = hot.withValues(alpha: (0.18 + 0.38 * t) * presence)
-    ..strokeWidth = 1.0 + 1.2 * t;
-  canvas.drawCircle(centre, ringR, _shapeStrokePaint);
-
-  // Three short marks riding the ring, turning slowly. Enough to read as a
-  // struck sigil rather than a targeting reticle, and the rotation keeps the
-  // mark alive while the ring is still far out and barely moving.
-  if (!reduceAmbient) {
-    final spin = time * 0.9 + t * 1.6;
-    _shapeStrokePaint
-      ..color = hot.withValues(alpha: (0.26 + 0.38 * t) * presence)
-      ..strokeWidth = 1.3 + 0.9 * t;
-    for (var i = 0; i < 3; i++) {
-      final a = spin + i * (pi * 2 / 3);
-      final d = ui.Offset(cos(a), sin(a));
-      canvas.drawLine(
-        centre + d * (ringR - radius * 0.10),
-        centre + d * (ringR + radius * 0.10),
-        _shapeStrokePaint,
-      );
-    }
-  }
-
-  // The rock's own shadow, swelling as it drops. This is the part that sells
-  // height: the ring says where, the shadow says how close.
-  final shadowR = radius * (0.08 + 0.28 * t * t);
-  _shapePaint.color = const ui.Color(
-    0xFF000000,
-  ).withValues(alpha: 0.34 * presence * t);
-  canvas.drawCircle(centre, shadowR, _shapePaint);
-  _shapePaint.color = hot.withValues(alpha: 0.30 * presence * t * t);
-  canvas.drawCircle(centre, shadowR * 0.5, _shapePaint);
+  drawLetTelegraphShadow(
+    canvas: canvas,
+    centre: centre,
+    // A caller that only has the colour still gets the element's material.
+    element:
+        element ??
+        kElementColors.entries
+            .where((e) => e.value.toARGB32() == color.toARGB32())
+            .firstOrNull
+            ?.key,
+    radius: radius,
+    progress: progress,
+    time: time,
+    reduceAmbient: reduceAmbient,
+  );
 }
 
 /// The landing. [age] runs 0 at touchdown to 1 when the crater is gone.
@@ -7160,17 +2725,14 @@ void drawMysticGroveVine({
       _tapered(whip, 5.4 * grow, 0.75),
       ui.Paint()..color = bright.withValues(alpha: (0.28 + 0.55 * swing) * a),
     );
-    // The arc it just swept, trailing the tip.
+    // The air it just swept, trailing the tip: a soft crescent that is
+    // deepest where the tip is (it was a 2 px stroked arc).
     if (swing > 0.05) {
-      canvas.drawArc(
-        ui.Rect.fromCircle(center: head, radius: armLength),
-        aimAngle - 1.15,
-        2.30,
-        false,
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 2.0
-          ..color = bright.withValues(alpha: 0.20 * swing * a),
+      vfxFillPath(
+        canvas,
+        vfxCrescent(head, armLength, 7.0 * grow, aimAngle, 2.3),
+        bright,
+        0.16 * swing * a,
       );
     }
   } else {
@@ -7285,27 +2847,32 @@ void drawMysticLightningBolt({
     );
   }
 
-  final glow = ui.Paint()
-    ..style = ui.PaintingStyle.stroke
-    ..strokeCap = ui.StrokeCap.round
-    ..strokeJoin = ui.StrokeJoin.round;
-  final path = ui.Path()..moveTo(spine.first.dx, spine.first.dy);
-  for (final p in spine.skip(1)) {
-    path.lineTo(p.dx, p.dy);
-  }
-
-  glow
-    ..strokeWidth = (onBoss ? 15.0 : 10.0)
-    ..color = const ui.Color(0xFF7FB6FF).withValues(alpha: 0.22 * a);
-  canvas.drawPath(path, glow);
-  glow
-    ..strokeWidth = (onBoss ? 6.0 : 4.0)
-    ..color = const ui.Color(0xFFBFE0FF).withValues(alpha: 0.72 * a);
-  canvas.drawPath(path, glow);
-  glow
-    ..strokeWidth = (onBoss ? 2.4 : 1.6)
-    ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.95 * a);
-  canvas.drawPath(path, glow);
+  // Lightning's material in three filled ribbons through the bends (curved
+  // through the corners, swelling and pinching toward the strike): a glow,
+  // a lit body, a hot core. (It was three stroked polylines in raw blue
+  // with a pure white wire down the middle.)
+  final m = vfxMaterial('Lightning');
+  final hue = elementColor('Lightning');
+  final curve = vfxCurveSpine(spine, perSegment: 2);
+  final scale = onBoss ? 1.5 : 1.0;
+  vfxFillPath(
+    canvas,
+    vfxLensRibbon(curve, 13.0 * scale, taper: 0.04, taperEnd: 0.1),
+    ui.Color.lerp(m.light, hue, 0.3)!,
+    0.24 * a,
+  );
+  vfxFillPath(
+    canvas,
+    vfxLensRibbon(curve, 5.0 * scale, taper: 0.04, taperEnd: 0.14),
+    ui.Color.lerp(m.light, m.glint, 0.5)!,
+    0.75 * a,
+  );
+  vfxFillPath(
+    canvas,
+    vfxLensRibbon(curve, 2.2 * scale, taper: 0.04, taperEnd: 0.2),
+    vfxFlare(m),
+    0.9 * a,
+  );
 
   // Ground flash, spreading as it dies.
   paintMysticBoltImpact(
@@ -7399,7 +2966,9 @@ void drawMysticFlora({
   required double time,
   required ui.Color tint,
 }) {
-  // Fire, Poison, Ice and Spirit are drawn in mystic_world_vfx.dart.
+  // Fire, Poison, Ice and Spirit are drawn in mystic_world_vfx.dart; the
+  // flora worlds are those plus Plant, Mud and Dust (survival's
+  // _mysticFloraElements), so only those three reach the switch below.
   if (paintMysticFlora(
     canvas: canvas,
     at: at,
@@ -7501,106 +3070,6 @@ void drawMysticFlora({
           ..color = sap.withValues(alpha: 0.88 * bloom),
       );
 
-    case 'Fire':
-      // A cinder guttering on the ground.
-      final flick = 0.7 + 0.3 * sin(time * 6.0 + seed);
-      canvas.drawCircle(
-        at,
-        13.0 * grow * flick,
-        ui.Paint()
-          ..color = const ui.Color(0xFFFF6A1E).withValues(alpha: 0.16 * bloom),
-      );
-      final flame = ui.Path()
-        ..moveTo(at.dx - 6.0 * grow, at.dy)
-        ..quadraticBezierTo(
-          at.dx + sway * 10,
-          at.dy - 24.0 * grow * flick,
-          at.dx + 6.0 * grow,
-          at.dy,
-        )
-        ..close();
-      canvas.drawPath(
-        flame,
-        ui.Paint()
-          ..color = const ui.Color(0xFFFFB060).withValues(alpha: 0.80 * bloom),
-      );
-
-    case 'Poison':
-      // A blister swelling and going down.
-      final swell = 0.75 + 0.25 * sin(time * 2.2 + seed);
-      canvas.drawCircle(
-        at,
-        15.0 * grow * swell,
-        ui.Paint()..color = lift.withValues(alpha: 0.30 * bloom),
-      );
-      canvas.drawCircle(
-        at + ui.Offset(sway * 5, -3.0 * grow),
-        6.4 * grow * swell,
-        ui.Paint()..color = bright.withValues(alpha: 0.62 * bloom),
-      );
-
-    case 'Spirit':
-      // A grave-light: a pale ring standing over nothing.
-      canvas.drawCircle(
-        at,
-        16.0 * grow,
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.6
-          ..color = const ui.Color(0xFFDCE8FF).withValues(alpha: 0.34 * bloom),
-      );
-      canvas.drawCircle(
-        at + ui.Offset(sway * 7, -11.0 * grow),
-        4.0 * grow,
-        ui.Paint()
-          ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: 0.70 * bloom),
-      );
-
-    case 'Lightning':
-      // Static crawling on the floor between two points.
-      final arc = ui.Path()..moveTo(at.dx - 17.0 * grow, at.dy);
-      for (var i = 1; i <= 4; i++) {
-        final f = i / 4;
-        arc.lineTo(
-          at.dx + (-17.0 + 34.0 * f) * grow,
-          at.dy + sin(seed + i * 2.1 + time * 9) * 7.0 * grow,
-        );
-      }
-      canvas.drawPath(
-        arc,
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 2.0
-          ..color = const ui.Color(0xFFBFE0FF).withValues(alpha: 0.72 * bloom),
-      );
-
-    case 'Ice':
-      // Rime creeping across the floor: a cluster of flat shards, angular
-      // where everything else growing out here is round or soft.
-      final glint = 0.75 + 0.25 * sin(time * 2.4 + seed);
-      for (var i = 0; i < 5; i++) {
-        final ang = seed + i * 1.26 + sway * 0.4;
-        final len = (20.0 - i * 2.2) * grow;
-        final base = at + ui.Offset(cos(ang), sin(ang)) * (3.0 * grow);
-        final tip = base + ui.Offset(cos(ang), sin(ang)) * len;
-        final side = ui.Offset(-sin(ang), cos(ang)) * (4.0 * grow);
-        final shard = ui.Path()
-          ..moveTo(base.dx + side.dx, base.dy + side.dy)
-          ..lineTo(tip.dx, tip.dy)
-          ..lineTo(base.dx - side.dx, base.dy - side.dy)
-          ..close();
-        canvas.drawPath(
-          shard,
-          ui.Paint()..color = lift.withValues(alpha: 0.42 * bloom * glint),
-        );
-      }
-      canvas.drawCircle(
-        at,
-        5.0 * grow,
-        ui.Paint()
-          ..color = const ui.Color(0xFFEFFFFF).withValues(alpha: 0.60 * bloom),
-      );
-
     case 'Dust':
       // A dust devil: a low spiral of grit turning on the spot. Moving where
       // the other ground cover sits still, which is what a dry, windy floor
@@ -7660,25 +3129,6 @@ void drawMysticFlora({
           ..color = bright.withValues(alpha: 0.50 * bloom * (1.0 - burst)),
       );
 
-    case 'Earth':
-      // A stone pushed up out of the floor.
-      final stone = ui.Path()
-        ..moveTo(at.dx - 15.0 * grow, at.dy + 5.0 * grow)
-        ..lineTo(at.dx - 8.0 * grow, at.dy - 15.0 * grow)
-        ..lineTo(at.dx + 9.0 * grow, at.dy - 11.0 * grow)
-        ..lineTo(at.dx + 15.0 * grow, at.dy + 5.0 * grow)
-        ..close();
-      canvas.drawPath(
-        stone,
-        ui.Paint()..color = lift.withValues(alpha: 0.82 * bloom),
-      );
-      canvas.drawPath(
-        stone,
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.0
-          ..color = bright.withValues(alpha: 0.30 * bloom),
-      );
   }
 }
 

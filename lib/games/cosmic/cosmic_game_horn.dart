@@ -33,9 +33,6 @@ extension CosmicHornRuntime on CosmicGame {
     bool arc = false,
   }) => _abilityVfx.add(x, y, vx, vy, size, life, color);
 
-  void _hornBeam(Offset a, Offset b, Color color, double width, double life) =>
-      _spawnBeamFx(a, b, color, width: width, life: life);
-
   // ── what the runtime may do to the world ────────────────────────────────
 
   /// A hit from [caster] on [e]: through [_damageOpenEnemy], so a combat
@@ -100,7 +97,10 @@ extension CosmicHornRuntime on CosmicGame {
     final fireAngle = caster.angle;
     final element = caster.member.element;
     if (result.chargeTimer > 0) {
-      clampHornChargeBurst(result.projectiles);
+      clampHornChargeBurst(
+        result.projectiles,
+        reach: hornZoneReach(caster.member.statBeauty.toDouble()),
+      );
       caster.pendingChargeBurst = result.projectiles;
       caster.pendingChargeOrigin = caster.position;
       caster.pendingChargeAngle = fireAngle;
@@ -447,27 +447,15 @@ extension CosmicHornRuntime on CosmicGame {
       case 'Dark':
         _hornDarkVoidSuck(c, dt);
         if (_abilityVfx.length < 130) {
-          emitHornDarkVoidBrew(
-            c.position,
-            c.windUpTimer,
-            _rng,
-            _hornParticle,
-            _hornBeam,
-          );
+          emitHornDarkVoidBrew(c.position, c.windUpTimer, _rng, _hornParticle);
         }
       case 'Crystal':
-        if (_beamFx.length < 22) {
-          emitHornCrystalOrbit(c.position, c.windUpTimer, _hornBeam);
+        if (_abilityVfx.length < 130) {
+          emitHornCrystalGather(c.position, c.windUpTimer, _rng, _hornParticle);
         }
       case 'Spirit':
         if (_abilityVfx.length < 130) {
-          emitHornSpiritSwarm(
-            c.position,
-            c.windUpTimer,
-            _rng,
-            _hornParticle,
-            _hornBeam,
-          );
+          emitHornSpiritSwarm(c.position, c.windUpTimer, _rng, _hornParticle);
         }
     }
     if (c.windUpTimer > 0) return;
@@ -531,7 +519,6 @@ extension CosmicHornRuntime on CosmicGame {
         c.hornPostDashWindUpTimer,
         _rng,
         _hornParticle,
-        _hornBeam,
       );
     }
     if (c.hornPostDashWindUpTimer > 0) return;
@@ -842,7 +829,51 @@ extension CosmicHornRuntime on CosmicGame {
     double scale = 1,
   }) {
     if (_isHornCaster(comp) && comp.member.element == 'Poison') {
-      drawHornPoisonAura(canvas: canvas, radius: 140, time: _elapsed);
+      // The reach the aura's tick uses, not a fixed 140.
+      drawHornPoisonAura(
+        canvas: canvas,
+        radius:
+            HornRules.poisonAuraRadius *
+            hornPoisonAuraScale(comp.member.statIntelligence.toDouble()),
+        time: _elapsed,
+      );
+    }
+    // A wind-up worn on the body, as in survival.
+    if (comp.windUpTimer > 0 && comp.windUpElement == 'Crystal') {
+      drawHornWindUpOverlay(
+        canvas: canvas,
+        element: 'Crystal',
+        progress: 1 - comp.windUpTimer / HornRules.crystalWindUp,
+        time: _elapsed,
+      );
+    } else if (comp.hornPostDashWindUpTimer > 0 &&
+        comp.member.element == 'Lightning') {
+      drawHornWindUpOverlay(
+        canvas: canvas,
+        element: 'Lightning',
+        progress: 1 - comp.hornPostDashWindUpTimer / HornRules.postDashBrew,
+        time: _elapsed,
+      );
+    } else if (comp.windUpTimer > 0 && comp.windUpElement == 'Dark') {
+      // Dark's void gathering out to the reach _hornDarkVoidSuck drags.
+      drawHornWindUpOverlay(
+        canvas: canvas,
+        element: 'Dark',
+        progress: 1 - comp.windUpTimer / HornRules.darkWindUp,
+        time: _elapsed,
+        reach: hornDarkAuraRadius(comp.member.statBeauty.toDouble()),
+      );
+    }
+    // Pip Steam's cloud, as in survival.
+    if (comp.member.family.toLowerCase() == 'pip' &&
+        comp.member.element == 'Steam') {
+      drawPipSteamCloud(
+        canvas: canvas,
+        progress:
+            (comp.pipSteamWindowTimer / CosmicCompanion.pipSteamWindowDuration)
+                .clamp(0.0, 1.0),
+        time: _elapsed,
+      );
     }
     if (comp.hasShield) {
       drawAdvancedCompanionShield(canvas: canvas, time: _elapsed, scale: scale);

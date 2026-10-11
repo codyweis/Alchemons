@@ -7,9 +7,9 @@
 
 import 'dart:math';
 
+import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
-import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -216,7 +216,7 @@ void main() {
     expect(foe.manePoisonStacks, 3);
   });
 
-  test('Blood feeds the ship on every pierce', () async {
+  test('Blood feeds the ship on a pierce, up to the heal ceiling', () async {
     final a = await _arena('Blood');
     a.mane.specialCooldown = 1000;
     a.foe(const Offset(80, 0));
@@ -224,9 +224,15 @@ void main() {
     final shot = a.shot(Offset.zero);
     a.game.companionProjectiles.add(shot);
     a.step(60);
+    expect(a.game.shipHealth, greaterThan(40), reason: 'the pierce fed nothing');
+    // Survival's per-caster ceiling (HealCeiling): what the caster had banked
+    // plus a second of refill, at most perfect Beauty's 1.7x rate.
+    const rate =
+        CosmicGame.shipMaxHealth * HealCeiling.sharePerSecond * 1.7;
     expect(
       a.game.shipHealth,
-      greaterThanOrEqualTo(40 + ManeRuntime.bloodPierceHeal(shot)),
+      lessThanOrEqualTo(40 + rate * (HealCeiling.bucketSeconds + 1) + 0.01),
+      reason: 'Blood healed past the ceiling',
     );
   });
 

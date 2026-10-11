@@ -1,3 +1,4 @@
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/widgets/fx/keepsake_view.dart';
 import 'package:alchemons/widgets/wildlife_lure_glyph.dart';
@@ -35,6 +36,7 @@ import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/widgets/inventory_item_artwork.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/shelf_look.dart';
+import 'package:alchemons/widgets/nav_emblems.dart';
 import 'package:alchemons/widgets/wild_fusion_glyph.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -623,6 +625,18 @@ Widget _buildOfferPreview(
     );
   }
 
+  // A dock set is its Let in Home's archway.
+  if (DockSet.byOffer(offer.id) case final set?) {
+    return Center(
+      child: NavEmblem(
+        kind: NavEmblemKind.home,
+        dockSet: set,
+        size: size,
+        animate: animate,
+      ),
+    );
+  }
+
   // Potential Souls use their real molecular orb everywhere, including this
   // detail preview, rather than falling through to the placeholder icon.
   if (offer.id == ShopService.potentialSoulOfferId ||
@@ -958,6 +972,16 @@ Widget _buildOfferPreviewForDialog(
     return SizedBox.square(
       dimension: size,
       child: KeepsakeView(decor.id, animate: true),
+    );
+  }
+
+  // A dock set: the whole dock, as it would look worn.
+  if (DockSet.byOffer(offer.id) case final set?) {
+    return Center(
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        child: DockSetStrip(dockSet: set, height: size),
+      ),
     );
   }
 

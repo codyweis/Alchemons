@@ -9,6 +9,10 @@ import 'package:alchemons/services/campaign_journal_service.dart';
 // team the run takes, BASE COMMAND | START), the entrance that carries the
 // core into the run (components/survival_orb_entrance.dart), the HUD,
 // power-up selection and game over.
+//
+// A run is kept as each wave begins and when the player leaves it with SAVE &
+// EXIT (survival_suspended_run.dart). While one is kept the lobby offers
+// CONTINUE in place of START, with its team fixed; NEW RUN abandons it.
 
 import 'dart:async';
 import 'dart:convert';
@@ -58,7 +62,9 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/games/cosmic_survival/orb_art.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_lobby_stage.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_lobby_team.dart';
+import 'package:alchemons/games/cosmic_survival/components/survival_mastery_strip.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_orb_entrance.dart';
+import 'package:alchemons/games/cosmic_survival/survival_suspended_run.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
     show PanelReadout, PanelRow, PanelSectionHeader, panelLabel, panelPalette;
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
@@ -267,7 +273,7 @@ class CosmicSurvivalScreen extends StatefulWidget {
 }
 
 class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   _Phase _phase = _Phase.lobby;
   CosmicSurvivalGame? _game;
 
@@ -333,6 +339,39 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   String _finalTime = '00:00';
   bool _resolvingGameOver = false;
   bool _resolvingWave50Reward = false;
+
+  /// Set once this run's mastery points are banked, so however the run
+  /// ends its families are paid once.
+  bool _masteryBanked = false;
+
+  /// The run kept to come back to, as the lobby offers it (null when there
+  /// is none). Read on open, set by SAVE & EXIT, gone once a run ends or is
+  /// abandoned.
+  SuspendedSurvivalRun? _suspended;
+
+  /// False until the kept run, if any, has been read: START waits for it, so
+  /// a new run cannot be started over one that has not been seen yet.
+  bool _suspendedLoaded = false;
+
+  /// The kept run's party is no longer all in the collection, so it can only
+  /// be abandoned.
+  bool _suspendedBroken = false;
+
+  /// The live run's checkpoint: as it stood when the wave in progress began.
+  SuspendedSurvivalRun? _checkpoint;
+
+  /// True while the live run is one to keep; false once it has ended.
+  bool _keepRun = false;
+
+  /// The live run was continued from a kept one, so its party's stats are as
+  /// they were when that run started.
+  bool _runWasResumed = false;
+
+  /// Writes of the kept run, one after another, so a clear can never land
+  /// under a save that was queued before it.
+  Future<void> _runSaves = Future<void>.value();
+  bool _continuing = false;
+  bool _replaying = false;
   static const int _defaultPartySize = 5;
   static const int _testTeamSize = 17;
 
@@ -393,10 +432,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   void initState() {
     super.initState();
     _soundController = context.audio;
+    WidgetsBinding.instance.addObserver(this);
     _clockTicker.start();
     unawaited(_loadControlPreferences());
     unawaited(_loadShipSkin());
     unawaited(_loadTeam());
+    unawaited(_loadSuspended());
     CinematicQualityService.qualityNotifier.addListener(_handleQualityChanged);
     DebugSettingsService.enabledNotifier.addListener(_handleDebugToolsChanged);
     unawaited(_loadDebugTools());
@@ -433,6 +474,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _soundController?.stopSoundOwner(this);
     _hudTimer?.cancel();
     _bossAnnouncementTimer?.cancel();
@@ -711,7 +753,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   /// sets the team; START takes it in. The team's cases fly between the
   /// picker and the lobby (SurvivalTeamHero) both ways.
   Future<void> _pickTeam() async {
-    if (_entrance.active || _phase != _Phase.lobby) return;
+    // A kept run's team is that run's until it ends or is abandoned.
+    if (_entrance.active || _phase != _Phase.lobby || _suspended != null) {
+      return;
+    }
     final current = [for (final m in _team) m.instanceId];
     await Navigator.of(context).push<List<PartyMember>>(
       SurvivalTeamPickerRoute(
@@ -813,6 +858,171 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     return members;
   }
 
+  // ── Kept run ────────────────────────────────────────────
+
+  SuspendedRunStore get _runStore =>
+      SuspendedRunStore(context.read<AlchemonsDatabase>());
+
+  /// The debug squads are built from the catalog, not the collection.
+  static bool _isTestMember(String instanceId) =>
+      instanceId.startsWith('survival_test_');
+
+  /// The kept run, read on open. A save this build cannot read is dropped
+  /// quietly by the store.
+  Future<void> _loadSuspended() async {
+    SuspendedSurvivalRun? run;
+    List<CosmicPartyMember>? party;
+    try {
+      run = await _runStore.load();
+      party = run == null || !mounted ? null : await _partyForRun(run);
+    } catch (error) {
+      // START must not wait on a read that failed.
+      debugPrint('Survival: the saved run could not be read: $error');
+      run = null;
+    }
+    if (!mounted) return;
+    setState(() {
+      _suspended = run;
+      _suspendedBroken = run != null && party == null;
+      _suspendedLoaded = true;
+    });
+  }
+
+  /// [run]'s party, ready to play: its stats exactly as the run started with
+  /// them, drawn with each creature's sprite. Null when any of them is no
+  /// longer in the collection (released, fused, traded) — that run cannot go
+  /// on without it.
+  Future<List<CosmicPartyMember>?> _partyForRun(
+    SuspendedSurvivalRun run,
+  ) async {
+    final db = context.read<AlchemonsDatabase>();
+    final catalog = context.read<CreatureCatalog>();
+    final party = <CosmicPartyMember>[];
+    for (final member in run.party) {
+      final base = catalog.getCreatureById(member.baseId);
+      if (base == null) return null;
+      final inst = _isTestMember(member.instanceId)
+          ? null
+          : await db.creatureDao.getInstance(member.instanceId);
+      if (!_isTestMember(member.instanceId) && inst == null) return null;
+      party.add(
+        SuspendedSurvivalRun.withSprite(
+          member,
+          sheet: base.spriteData != null ? sheetFromCreature(base) : null,
+          visuals: visualsFromInstance(base, inst),
+        ),
+      );
+    }
+    return party.isEmpty ? null : party;
+  }
+
+  void _queueRunSave(SuspendedSurvivalRun run) {
+    final store = _runStore;
+    _runSaves = _runSaves.then((_) => store.save(run)).catchError((
+      Object error,
+    ) {
+      debugPrint('Survival: the run could not be saved: $error');
+    });
+  }
+
+  void _queueRunClear() {
+    final store = _runStore;
+    _runSaves = _runSaves.then((_) => store.clear()).catchError((Object error) {
+      debugPrint('Survival: the saved run could not be cleared: $error');
+    });
+  }
+
+  /// A wave has begun (or the run has): this is where a continued run will
+  /// pick up from.
+  void _handleWaveCheckpoint() {
+    final game = _game;
+    if (game == null || !mounted || !_keepRun || game.isGameOver) return;
+    final run = game.captureSuspendedRun();
+    _checkpoint = run;
+    _queueRunSave(run);
+  }
+
+  /// The run as left now: the wave's checkpoint, with no more health than
+  /// the run has at this moment.
+  SuspendedSurvivalRun _runAsLeft(CosmicSurvivalGame game) {
+    final atExit = game.captureSuspendedRun();
+    return _checkpoint?.leftAt(atExit) ?? atExit;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.paused) return;
+    // Sent to the background mid-run, from where the OS may close the app:
+    // keep the run as if it were left now, so closing it never heals.
+    final game = _game;
+    if (game == null ||
+        !_keepRun ||
+        _checkpoint == null ||
+        !game.isLoaded ||
+        game.isGameOver ||
+        !mounted) {
+      return;
+    }
+    _queueRunSave(_runAsLeft(game));
+  }
+
+  /// CONTINUE: the kept run, rebuilt and carried in by the core as START's
+  /// run is.
+  Future<void> _continueRun() async {
+    final run = _suspended;
+    if (run == null ||
+        _suspendedBroken ||
+        _continuing ||
+        _entrance.active ||
+        _phase != _Phase.lobby) {
+      return;
+    }
+    _continuing = true;
+    try {
+      final party = await _partyForRun(run);
+      if (!mounted || !identical(_suspended, run)) return;
+      if (party == null) {
+        setState(() => _suspendedBroken = true);
+        return;
+      }
+      _enterRun(party, resume: run);
+    } finally {
+      _continuing = false;
+    }
+  }
+
+  /// Asks before a new run takes the kept run's place: the kept run ends
+  /// there, with no rewards and no mastery. True once it is gone (or when
+  /// there was none).
+  Future<bool> _abandonSuspended() async {
+    final run = _suspended;
+    if (run == null) return true;
+    final abandon = await showBracketConfirm(
+      context,
+      palette: BracketPalette.dark,
+      accent: kLeaveDangerAccent,
+      title: 'NEW RUN',
+      message: 'Abandon the wave ${run.wave} run? Its mastery is lost.',
+      cancelLabel: 'KEEP',
+      confirmLabel: 'ABANDON',
+    );
+    if (!abandon || !mounted || !identical(_suspended, run)) return false;
+    setState(() {
+      _suspended = null;
+      _suspendedBroken = false;
+    });
+    _queueRunClear();
+    await _runSaves;
+    return mounted;
+  }
+
+  /// NEW RUN, beside CONTINUE: abandon the kept run, then as START.
+  Future<void> _newRun() async {
+    if (_entrance.active || _phase != _Phase.lobby) return;
+    if (!await _abandonSuspended()) return;
+    _start();
+  }
+
   List<_SurvivalTestSlotSpec> _buildFullElementTestTeam(String family) {
     final count = min(_testTeamSize, kCosmicAbilityElements.length);
     return List<_SurvivalTestSlotSpec>.generate(
@@ -873,6 +1083,14 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   }
 
   void _startTestTeam(List<_SurvivalTestSlotSpec> specs, String teamKey) {
+    if (!_suspendedLoaded) return;
+    // A test squad's run takes the kept run's place like any other.
+    if (_suspended != null) {
+      unawaited(() async {
+        if (await _abandonSuspended()) _startTestTeam(specs, teamKey);
+      }());
+      return;
+    }
     final party = _buildTestParty(specs, teamKey: teamKey);
     if (party == null || party.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -916,6 +1134,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
   /// START: the chosen team, or — with none chosen yet — the picker.
   void _start() {
+    if (!_suspendedLoaded) return;
+    if (_suspended != null) {
+      unawaited(_newRun());
+      return;
+    }
     if (_team.isEmpty) {
       unawaited(_pickTeam());
       return;
@@ -930,14 +1153,19 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   /// the run is attached, the arena fades in round it with the engine
   /// running; then the run takes the core over and is released — camera,
   /// wave announcement, music.
-  void _enterRun(List<CosmicPartyMember> party) {
+  ///
+  /// [resume]: the kept run to continue, in place of a new one.
+  void _enterRun(
+    List<CosmicPartyMember> party, {
+    SuspendedSurvivalRun? resume,
+  }) {
     if (_entrance.active || _phase != _Phase.lobby || party.isEmpty) return;
     _runLobbyClock(true);
     setState(() {
       _party = party;
       _entrance.begin(_lobbyClock.value);
     });
-    _startGame(party, carried: true);
+    _startGame(party, carried: true, resume: resume);
     final game = _game;
     if (game != null) _entrance.attach(game);
   }
@@ -999,7 +1227,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   /// [carried]: the run mounts under the lobby with its engine paused, its
   /// camera held on the core and its own core left undrawn, for the
   /// entrance; its opening beats wait for [_releaseHeldRun].
-  void _startGame(List<CosmicPartyMember> party, {bool carried = false}) {
+  ///
+  /// [resume]: a kept run to continue. It is built with that run's own
+  /// guardian upgrades, orb, ship and mastery paths, as they were when it
+  /// started, and picks up at the start of the wave it was left on.
+  void _startGame(
+    List<CosmicPartyMember> party, {
+    bool carried = false,
+    SuspendedSurvivalRun? resume,
+  }) {
     final upgradeSvc = context.read<SurvivalUpgradeService>();
     _mysticOverlayController.clear();
 
@@ -1007,15 +1243,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     // rest of the run, so switching a branch mid-run is impossible rather
     // than merely discouraged.
     final masterySvc = context.read<FamilyMasteryService>();
-    final masterySnapshot = masterySvc.snapshotForParty([
-      for (final member in party)
-        if (creatureFamilyFromStorage(member.family) case final family?)
-          FamilyMasteryPartyMemberRef(
-            slotIndex: member.slotIndex,
-            instanceId: member.instanceId,
-            family: family,
-          ),
-    ]);
+    final masterySnapshot =
+        resume?.mastery ??
+        masterySvc.snapshotForParty([
+          for (final member in party)
+            if (creatureFamilyFromStorage(member.family) case final family?)
+              FamilyMasteryPartyMemberRef(
+                slotIndex: member.slotIndex,
+                instanceId: member.instanceId,
+                family: family,
+              ),
+        ]);
 
     final game = CosmicSurvivalGame(
       party: party,
@@ -1027,10 +1265,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       onWaveCleared: _handleWaveCleared,
       onBossSpawn: _handleBossSpawn,
       onMysticSpecialCast: _mysticOverlayController.spawn,
-      upgradeState: upgradeSvc.state,
+      onWaveCheckpoint: _handleWaveCheckpoint,
+      upgradeState: resume?.upgradeState ?? upgradeSvc.state,
       masterySnapshot: masterySnapshot,
       visualQuality: _visualQuality,
-      shipSkin: _shipSkin,
+      shipSkin: resume != null ? resume.shipSkin : _shipSkin,
     );
     // Flame starts its loop on attach unless already paused.
     if (carried) {
@@ -1055,9 +1294,19 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       _finalScore = 0;
       _finalTime = '00:00';
       _resolvingGameOver = false;
+      _masteryBanked = false;
     });
 
-    game.startGame();
+    // Kept from its first frame on (the game calls back as each wave
+    // begins), until it ends.
+    _keepRun = true;
+    _runWasResumed = resume != null;
+    _checkpoint = resume;
+    if (resume != null) {
+      game.resumeRun(resume);
+    } else {
+      game.startGame();
+    }
     if (carried) game.holdCameraOnCore();
     // Set even when held, so the HUD timer below doesn't announce wave 1
     // during the entrance.
@@ -1257,12 +1506,20 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
   void _handleGameOver() {
     if (!mounted || _resolvingGameOver) return;
+    // The run has ended, and with it the kept copy: there is nothing to
+    // continue, and its rewards and mastery are paid below.
+    _keepRun = false;
+    _checkpoint = null;
+    _suspended = null;
+    _suspendedBroken = false;
+    _queueRunClear();
     context.audio?.stopSoundOwner(this);
     context.sound(SoundCue.combatDefeat, owner: this);
     _hudTimer?.cancel();
     _game?.gamePaused = true;
 
     final wave = _game?.spawner.currentWave ?? 0;
+    final wavesCleared = _game == null ? 0 : _wavesClearedBy(_game!);
     setState(() {
       _finalWave = wave;
       _finalKills = _game?.stats.kills ?? 0;
@@ -1271,10 +1528,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       _resolvingGameOver = true;
     });
 
-    unawaited(_completeGameOverSequence(wave));
+    unawaited(_completeGameOverSequence(wave, wavesCleared));
   }
 
-  Future<void> _completeGameOverSequence(int wave) async {
+  Future<void> _completeGameOverSequence(int wave, int wavesCleared) async {
     // The results wait for the core to have mostly come apart; the rewards
     // are rolled and banked while it does, and gather into the results there
     // (one screen — there is no separate reveal any more).
@@ -1283,7 +1540,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     );
     try {
       await _saveHighScore();
-      await _rollRewards(wave);
+      await _rollRewards(wave, wavesCleared: wavesCleared);
       await fall;
     } finally {
       if (mounted) {
@@ -1295,8 +1552,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     }
   }
 
-  Future<void> _rollRewards(int wave) async {
+  Future<void> _rollRewards(int wave, {required int wavesCleared}) async {
     final db = context.read<AlchemonsDatabase>();
+    final mastery = context.read<FamilyMasteryService>();
     final rng = Random();
     final popupEntries = <LootOpeningEntry>[];
     final registry = buildInventoryRegistry(db);
@@ -1404,8 +1662,88 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       );
     }
 
+    // Each family's mastery, shown by the first creature of it that was
+    // fielded, with what each of its creatures earned toward it.
+    for (final (family, points, members) in await _bankMastery(
+      mastery,
+      wavesCleared,
+    )) {
+      popupEntries.add(
+        familyMasteryRewardEntry(
+          family: family,
+          points: points,
+          imagePath: members.first.$1.imagePath,
+          creatures: [
+            for (final (member, earned) in members)
+              (member.displayName, earned),
+          ],
+        ),
+      );
+    }
+
     if (!mounted) return;
     _gameOverRewardEntries = List.from(popupEntries);
+  }
+
+  /// The waves [game] has fully cleared, for its mastery points.
+  int _wavesClearedBy(CosmicSurvivalGame game) => survivalWavesCleared(
+    currentWave: game.spawner.currentWave,
+    intermission: game.spawner.intermission,
+  );
+
+  /// Pays this run's mastery, once per run however the run ends. Each
+  /// creature in the party earns its own points — more for having gone out,
+  /// more again for its share of what the team did
+  /// ([familyMasteryCreatureAwards]) — and each family is paid what its
+  /// creatures earned between them. Returns, in party order, what each family
+  /// earned and each of its creatures' part in it.
+  Future<List<(CreatureFamily, int, List<(CosmicPartyMember, int)>)>>
+  _bankMastery(FamilyMasteryService mastery, int wavesCleared) async {
+    if (_masteryBanked) return const [];
+    _masteryBanked = true;
+    final game = _game;
+    final party = game?.party ?? _party ?? const <CosmicPartyMember>[];
+    final members = <CosmicPartyMember>[];
+    final creatures = <FamilyMasteryRunCreature>[];
+    for (final (slot, member) in party.indexed) {
+      final family = creatureFamilyFromStorage(member.family);
+      if (family == null) continue;
+      final s = game?.companionRunStats[slot];
+      // Out at some point: summoned, or with anything to its name.
+      final deployed =
+          (game?.deployedCompanionSlots.contains(slot) ?? false) ||
+          (s != null &&
+              (s.damageDealt > 0 ||
+                  s.kills > 0 ||
+                  s.healingDone > 0 ||
+                  s.damageTaken > 0));
+      members.add(member);
+      creatures.add(
+        FamilyMasteryRunCreature(
+          family: family,
+          deployed: deployed,
+          damageDealt: s?.damageDealt ?? 0,
+          kills: s?.kills ?? 0,
+          healingDone: s?.healingDone ?? 0,
+        ),
+      );
+    }
+    final awards = familyMasteryCreatureAwards(creatures, wavesCleared);
+    final earned = await mastery.awardRun(
+      familyMasteryFamilySums(creatures, awards),
+    );
+    return [
+      for (final MapEntry(key: family, value: points) in earned.entries)
+        (
+          family,
+          points,
+          [
+            for (var i = 0; i < creatures.length; i++)
+              if (creatures[i].family == family && awards[i] > 0)
+                (members[i], awards[i]),
+          ],
+        ),
+    ];
   }
 
   Future<void> _saveHighScore() async {
@@ -1439,15 +1777,31 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     await _loadHighScore();
   }
 
-  void _replay() {
+  Future<void> _replay() async {
+    if (_replaying) return;
+    var party = _party;
+    if (party != null &&
+        _runWasResumed &&
+        !party.any((m) => _isTestMember(m.instanceId))) {
+      // A continued run's party was frozen when that run started; a new run
+      // takes the creatures as they are now, and only if they are all here.
+      final ids = [for (final m in party) m.instanceId];
+      _replaying = true;
+      final fresh = await _buildParty(
+        ids,
+      ).whenComplete(() => _replaying = false);
+      if (!mounted) return;
+      party = fresh != null && fresh.length == ids.length ? fresh : null;
+    }
     _game = null;
     _mysticOverlayController.clear();
     _hudTimer?.cancel();
     _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
     _showPauseMenu = false;
-    if (_party != null) {
-      _startGame(_party!);
+    if (party != null) {
+      _party = party;
+      _startGame(party);
     } else {
       _newTeam();
     }
@@ -1534,76 +1888,61 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     });
   }
 
-  Future<bool> _confirmQuitRun() async {
-    final shouldQuit = await showDialog<bool>(
-      context: context,
-      builder: (_) => _SurvivalDialog(
-        accent: _C.accent,
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'QUIT RUN?',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: _C.textPrimary,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.6,
-                ),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                'Your current cosmic survival run will end and you will return to the previous screen.',
-                style: TextStyle(
-                  color: _C.textSecondary,
-                  fontSize: 12,
-                  height: 1.4,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  _PauseActionButton(
-                    label: 'STAY',
-                    icon: AppIcons.play_arrow_rounded,
-                    filled: false,
-                    onTap: context.soundTap(
-                      () => Navigator.of(context).pop(false),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  _PauseActionButton(
-                    label: 'QUIT',
-                    icon: AppIcons.exit_to_app_rounded,
-                    onTap: context.soundTap(
-                      () => Navigator.of(context).pop(true),
-                    ),
-                    fillColor: _C.danger,
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    return shouldQuit ?? false;
-  }
-
+  /// SAVE & EXIT: the run is kept, at the start of the wave in progress and
+  /// with no more health than it has now, and the player is back in the
+  /// lobby with CONTINUE. Nothing is paid out — no loot, no silver or gold,
+  /// no mastery — until the run ends.
   Future<void> _quitRunFromPause() async {
     final game = _game;
-    if (game == null) return;
-    if (await _confirmQuitRun()) {
-      if (!mounted) return;
-      _showPauseMenu = false;
-      game.gamePaused = false;
-      _exit();
+    if (game == null || game.isGameOver) return;
+    final wave = _checkpoint?.wave ?? game.spawner.currentWave;
+    final leave = await showBracketConfirm(
+      context,
+      palette: BracketPalette.dark,
+      accent: kLeaveQuietAccent,
+      title: 'SAVE & EXIT?',
+      message:
+          'The run is saved from the start of wave $wave. Continue it from '
+          'the survival lobby. Rewards and mastery are paid when the run '
+          'ends.',
+      cancelLabel: 'STAY',
+      confirmLabel: 'SAVE & EXIT',
+    );
+    if (!leave || !mounted || !identical(_game, game) || game.isGameOver) {
+      return;
     }
+    final saved = _runAsLeft(game);
+    _keepRun = false;
+    _queueRunSave(saved);
+    await _runSaves;
+    if (!mounted) return;
+    _returnToLobby(saved);
+  }
+
+  /// Out of the run and back to the lobby, with [saved] to continue.
+  void _returnToLobby(SuspendedSurvivalRun saved) {
+    _soundController?.stopSoundOwner(this);
+    _game = null;
+    _party = null;
+    _checkpoint = null;
+    _mysticOverlayController.clear();
+    _hudTimer?.cancel();
+    _bossAnnouncementTimer?.cancel();
+    _waveAnnouncementTimer?.cancel();
+    _runLobbyClock(true);
+    setState(() {
+      _phase = _Phase.lobby;
+      _suspended = saved;
+      _suspendedBroken = false;
+      _powerUpChoices = [];
+      _showPauseMenu = false;
+      _bossAnnouncement = null;
+      _bossAnnouncementSubtitle = null;
+      _waveAnnouncementTitle = null;
+      _waveAnnouncementSubtitle = null;
+      _pendingWaveAnnouncements.clear();
+      _resolvingGameOver = false;
+    });
   }
 
   Future<void> _handleBackPressed() async {
@@ -2012,8 +2351,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   Widget _buildLobby() {
     final entering = _entrance.active;
     // Read, not watched: the stage below watches the orb for itself, and
-    // the entrance overlay only exists once START has fixed it.
-    final orb = context.read<SurvivalUpgradeService>().state.equippedSkin;
+    // the entrance overlay only exists once START has fixed it. A kept run
+    // goes in with the orb and ship it started with.
+    final orb =
+        _game?.upgradeState.equippedSkin ??
+        _suspended?.equippedOrb ??
+        context.read<SurvivalUpgradeService>().state.equippedSkin;
+    final suspended = _suspended;
     final stage = survivalLobbyStageRect(
       MediaQuery.sizeOf(context),
       MediaQuery.paddingOf(context),
@@ -2049,11 +2393,33 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             SurvivalLobbyTeam(
-                              members: _team,
+                              members: suspended?.party ?? _team,
                               slots: _defaultPartySize,
                               loaded: _teamLoaded,
                               accent: _brass.amber,
                               onChoose: () => unawaited(_pickTeam()),
+                              locked: suspended != null,
+                              note: suspended == null
+                                  ? null
+                                  : _suspendedBroken
+                                  ? 'An Alchemon from the wave '
+                                        '${suspended.wave} run is no longer '
+                                        'in your collection, so that run '
+                                        'cannot continue.'
+                                  : 'This team is in the saved wave '
+                                        '${suspended.wave} run. Start a new '
+                                        'run to change it.',
+                            ),
+                            const SizedBox(height: 22),
+                            // What each family has toward its next node; a
+                            // tap opens that family's tree.
+                            SurvivalMasteryStrip(
+                              teamFamilies: {
+                                for (final m in suspended?.party ?? _team)
+                                  ?creatureFamilyFromStorage(m.family),
+                              },
+                              onOpen: (family) =>
+                                  unawaited(_openBaseCommand(family: family)),
                             ),
                             const SizedBox(height: 22),
                             _buildCommandHub(),
@@ -2098,7 +2464,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                   state: _entrance,
                   stage: stage,
                   orb: orb,
-                  shipSkin: _shipSkin,
+                  shipSkin: _game != null ? _game!.shipSkin : _lobbyShipSkin,
                 ),
               ),
             ),
@@ -2107,12 +2473,21 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     );
   }
 
+  /// The ship the lobby shows: a kept run's own, or the one picked in Base
+  /// Command (null is the standard hull either way).
+  String? get _lobbyShipSkin =>
+      _suspended != null ? _suspended!.shipSkin : _shipSkin;
+
   /// What there is to do, always in reach at the foot of the lobby: into
   /// Base Command, or into the run. START is lit once there is a team to
-  /// take; before that it opens the picker.
+  /// take; before that it opens the picker. With a run kept, CONTINUE is
+  /// the thing to do and NEW RUN (which abandons it) the quiet way round.
   Widget _buildLobbyDock() {
+    final suspended = _suspended;
+    if (suspended != null) return _buildSuspendedDock(suspended);
     final ready = _team.isNotEmpty;
     return Container(
+      key: const ValueKey('survival.dock'),
       color: _C.bg1,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: Row(
@@ -2141,6 +2516,61 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
               accent: _brass.amberBright,
               onTap: _start,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSuspendedDock(SuspendedSurvivalRun suspended) {
+    // A run whose party has gone can only be abandoned: NEW RUN is then the
+    // one thing to do, and lit.
+    final canContinue = !_suspendedBroken;
+    return Container(
+      key: const ValueKey('survival.dock'),
+      color: _C.bg1,
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (canContinue) ...[
+            BracketButton(
+              key: const ValueKey('survival.continue'),
+              label: 'CONTINUE · WAVE ${suspended.wave}',
+              height: 48,
+              palette: panelPalette,
+              accent: _brass.amberBright,
+              onTap: () => unawaited(_continueRun()),
+            ),
+            const SizedBox(height: 8),
+          ],
+          Row(
+            children: [
+              Expanded(
+                child: BracketButton(
+                  key: const ValueKey('survival.baseCommand'),
+                  label: 'BASE COMMAND',
+                  primary: false,
+                  height: canContinue ? 40 : 48,
+                  palette: panelPalette,
+                  accent: _brass.amber,
+                  onTap: () => _openBaseCommand(),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: BracketButton(
+                  key: const ValueKey('survival.newRun'),
+                  label: 'NEW RUN',
+                  primary: !canContinue,
+                  height: canContinue ? 40 : 48,
+                  palette: panelPalette,
+                  accent: canContinue ? _brass.amber : _brass.amberBright,
+                  onTap: () => unawaited(_newRun()),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -2193,14 +2623,16 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   Widget _buildLobbyStage({bool hidden = false}) {
     return Consumer<SurvivalUpgradeService>(
       builder: (context, svc, _) {
-        final orb = getOrbBaseDef(svc.state.equippedSkin);
+        final orb = getOrbBaseDef(
+          _suspended?.equippedOrb ?? svc.state.equippedSkin,
+        );
         final best = _highScore;
         return Stack(
           children: [
             Positioned.fill(
               child: SurvivalLobbyStage(
                 orb: orb.skin,
-                shipSkin: _shipSkin,
+                shipSkin: _lobbyShipSkin,
                 clock: _lobbyClock,
                 scene: _scene,
                 hidden: hidden,
@@ -2270,9 +2702,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   /// [family]'s tree — or, when none is given, the tree of the team's first
   /// Alchemon.
   Future<void> _openBaseCommand({CreatureFamily? family}) async {
+    final team = _suspended?.party ?? _team;
     final shown =
         family ??
-        (_team.isEmpty ? null : creatureFamilyFromStorage(_team.first.family));
+        (team.isEmpty ? null : creatureFamilyFromStorage(team.first.family));
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => CosmicSurvivalBaseCommandScreen(
@@ -2857,6 +3290,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
             orbColor: game.isLoaded
                 ? orbLook(game.orb.skin).hpColor(orbHp)
                 : _C.accent,
+            orbShield: game.isLoaded ? game.orbShieldFraction : 0,
           ),
         ),
       ),
@@ -3212,11 +3646,13 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                         children: [
                           Row(
                             children: [
+                              // Leaving keeps the run, so it is not red.
                               _PauseActionButton(
-                                label: 'QUIT',
+                                key: const ValueKey('survival.saveExit'),
+                                label: 'SAVE & EXIT',
                                 icon: AppIcons.exit_to_app_rounded,
                                 onTap: context.soundTap(_quitRunFromPause),
-                                fillColor: _C.danger,
+                                fillColor: _C.amber,
                                 filled: false,
                                 compact: true,
                               ),
@@ -3487,7 +3923,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       // menu's QUIT — no confirmation, the run is already over.
       onQuit: _exit,
       onNewTeam: _newTeam,
-      onReplay: _replay,
+      onReplay: () => unawaited(_replay()),
     );
   }
 
@@ -3587,6 +4023,7 @@ class _PauseActionButton extends StatelessWidget {
   final bool compact;
 
   const _PauseActionButton({
+    super.key,
     required this.label,
     required this.icon,
     required this.onTap,
@@ -3985,14 +4422,21 @@ class _PauseCompanionCard extends StatelessWidget {
     final live = companion;
 
     final slotIndex = member.slotIndex;
-    final effSpeed = member.statSpeed + powerUps.speedBonus(slotIndex);
+    final effSpeed =
+        member.statSpeed + powerUps.speedBonus(slotIndex, member.statSpeed);
     final benchedStats = live == null
         ? deriveAlchemonCombatStats(
             member: member,
-            strengthBonus: powerUps.strengthBonus(slotIndex),
-            intelligenceBonus: powerUps.intelligenceBonus(slotIndex),
-            beautyBonus: powerUps.beautyBonus(slotIndex),
-            speedBonus: powerUps.speedBonus(slotIndex),
+            strengthBonus: powerUps.strengthBonus(
+              slotIndex,
+              member.statStrength,
+            ),
+            intelligenceBonus: powerUps.intelligenceBonus(
+              slotIndex,
+              member.statIntelligence,
+            ),
+            beautyBonus: powerUps.beautyBonus(slotIndex, member.statBeauty),
+            speedBonus: powerUps.speedBonus(slotIndex, member.statSpeed),
           )
         : null;
 
@@ -4169,7 +4613,12 @@ List<(String, String)> _liveStateEntries(
   }
   // Mask+Spirit: collected wisp bank
   if (fam == 'mask' && el == 'Spirit') {
-    out.add(('Wisp bank', '${live.maskSpiritWispBank}/6'));
+    out.add((
+      'Wisp bank',
+      live.maskSpiritClearAt > 0
+          ? '${live.maskSpiritWispBank}/${live.maskSpiritClearAt}'
+          : '${live.maskSpiritWispBank}',
+    ));
   }
   // Kin+Steam boiler
   if (fam == 'kin' && el == 'Steam') {

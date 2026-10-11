@@ -89,6 +89,22 @@ void main() {
       }
       tester.takeException();
       await shoot(tester, key, 'run_2');
+      // The orb hurt and holding a boss wave's shield: brass cells after its
+      // health, a glass shell, and the HUD's orb gauge reading it.
+      final shielded =
+          tester
+                  .widget<GameWidget>(
+                    find.byWidgetPredicate((w) => w is GameWidget),
+                  )
+                  .game!
+              as CosmicSurvivalGame;
+      shielded.orb.currentHp = shielded.orb.maxHp * 0.62;
+      shielded.orb.shieldHp = (shielded.orb.maxHp * 0.06).round();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+      tester.takeException();
+      await shoot(tester, key, 'run_shield');
       final pause = find.byKey(const ValueKey('survival.pause'));
       if (pause.evaluate().isNotEmpty) {
         await tester.tap(pause);
@@ -97,7 +113,8 @@ void main() {
         }
         await shoot(tester, key, 'run_pause');
 
-        // A companion's card, then the quit question: the run's dialogs.
+        // A companion's card, then the save & exit question: the run's
+        // dialogs.
         final card = find.text('AIRLET');
         if (card.evaluate().isNotEmpty) {
           await tester.tap(card.first, warnIfMissed: false);
@@ -111,7 +128,7 @@ void main() {
             await tester.pump(const Duration(milliseconds: 33));
           }
         }
-        final quit = find.text('QUIT');
+        final quit = find.byKey(const ValueKey('survival.saveExit'));
         if (quit.evaluate().isNotEmpty) {
           await tester.tap(quit.first, warnIfMissed: false);
           for (var i = 0; i < 10; i++) {

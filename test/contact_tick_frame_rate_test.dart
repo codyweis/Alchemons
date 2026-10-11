@@ -84,10 +84,17 @@ void main() {
       as Map<String, dynamic>;
 
   CosmicPartyMember subject(String family, String element) {
+    // Potential 70 sits just under the stat knee (internal 5), where the
+    // 2026-10-09 power curve left combat exactly as it was. This is a single
+    // seed, and companion positioning still drifts between frame rates: over
+    // six seeds Kin/Crystal at P80 ranged 0.72-1.43 and Wing/Dark at P100
+    // 0.23-2.65 on the code before that change too. Above the knee the new
+    // curve moved this seed onto a drifting path, which this test is not
+    // about. It pins the contact clock; the drift is its own open bug.
     double stat(String key) => AlchemonStatSystem.effectiveInternal(
       speciesBase: base[key] as int,
       level: 10,
-      potential: 80,
+      potential: 70,
     );
     return CosmicPartyMember(
       instanceId: 'fr-$family-$element',

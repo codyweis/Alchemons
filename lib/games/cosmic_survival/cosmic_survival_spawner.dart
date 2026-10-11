@@ -853,7 +853,9 @@ class CosmicSurvivalSpawner {
 
   double _spawnInterval(int wave) {
     if (isBossWave) return CosmicSurvivalBalance.bossEscortInterval(wave);
-    final base = (0.85 - wave * 0.012).clamp(0.28, 0.85);
+    // Past wave 40 the spawn rate tightens at half pace, like health.
+    final base = (0.85 - CosmicSurvivalBalance.latePressure(wave) * 0.012)
+        .clamp(0.28, 0.85);
     final patternInterval = switch (currentPattern) {
       SurvivalWavePattern.wispHorde => max(0.12, base * 0.45),
       SurvivalWavePattern.hunterPack => max(0.16, base * 0.72),
@@ -1073,10 +1075,13 @@ class CosmicSurvivalSpawner {
       tier == EnemyTier.brute || tier == EnemyTier.colossus;
 
   /// Rolls an optional extra mechanic. Body-independent by design.
+  ///
+  /// The gates were 8/12/14. They open six waves later now so the opening
+  /// waves test what a team can kill, not which extra rule it has met yet.
   EnemyTrait? _traitForWave(int wave) {
-    if (wave >= 14 && _rng.nextDouble() < 0.10) return EnemyTrait.splitter;
-    if (wave >= 12 && _rng.nextDouble() < 0.10) return EnemyTrait.summoner;
-    if (wave >= 8 && _rng.nextDouble() < 0.12) return EnemyTrait.breaker;
+    if (wave >= 20 && _rng.nextDouble() < 0.10) return EnemyTrait.splitter;
+    if (wave >= 18 && _rng.nextDouble() < 0.10) return EnemyTrait.summoner;
+    if (wave >= 14 && _rng.nextDouble() < 0.12) return EnemyTrait.breaker;
     return null;
   }
 
@@ -1230,6 +1235,7 @@ class CosmicSurvivalSpawner {
 
     final baseHp =
         tierBaseHp(tier) *
+        CosmicSurvivalBalance.openingBodyHp(currentWave) *
         CosmicSurvivalBalance.enemyWaveHpScale(currentWave) *
         eliteMultiplier *
         (currentMutator == SurvivalWaveMutator.fortified ? 1.12 : 1.0) *
@@ -1300,10 +1306,10 @@ class CosmicSurvivalSpawner {
     };
     final variantDamageMult = traitDamage * conductDamage;
 
-    // Archetype shaping. Artillery is a fragile thing that has to be reached;
+    // Archetype shaping. Artillery is a sturdy thing parked in reach;
     // a broodmother is a wall that keeps producing until it is cut out.
     final archetypeHpMult = wantsArtillery
-        ? 0.85
+        ? CosmicSurvivalBalance.artilleryHp
         : wantsBrood
         ? 2.2
         : hordeBody
@@ -1472,7 +1478,9 @@ class CosmicSurvivalSpawner {
     }
 
     final roll = _rng.nextDouble();
-    if (wave >= 12 && tier.index >= EnemyTier.drone.index && roll < 0.14) {
+    // Shooters join ordinary waves from 20 (it was 12): early fire lands on
+    // the orb from out of reach, so it costs a weak and a strong team alike.
+    if (wave >= 20 && tier.index >= EnemyTier.drone.index && roll < 0.14) {
       return EnemyConduct.standoff;
     }
     if (wave >= 10 && roll < 0.28) return EnemyConduct.stalk;

@@ -21,8 +21,10 @@
 //
 // Its readings sit round it as rings of cells, like the ship console's
 // gauges: health in the core's own light (amber, then red, as it falls) and
-// the alchemy meter outside it. The gravity field the ship orbits in is a
-// few lanes of drifting dust. No hoops, no outline strokes, no blur.
+// the alchemy meter outside it. A held shield is pale brass glass: a run of
+// cells laid after the health, and a shell round the core. The gravity
+// field the ship orbits in is a few lanes of drifting dust. No hoops, no
+// outline strokes, no blur.
 //
 // Every core is built on the unit disc (radius 1 = the core's radius) and
 // drawn under canvas.scale, so its gradients are built once per skin.
@@ -958,6 +960,16 @@ class _CellRing {
 
   Path lit(int k) => _lit[k.clamp(0, cells)];
   Path cell(int i) => _sectors[i.clamp(0, cells - 1)];
+
+  /// [n] cells from [start] on, as one path (built when asked: only a held
+  /// shield needs it).
+  Path run(int start, int n) {
+    final p = Path();
+    for (var i = start; i < start + n && i < cells; i++) {
+      p.addPath(_sectors[max(0, i)], Offset.zero);
+    }
+    return p;
+  }
 }
 
 final _hpRing = _CellRing(60, 108, 114, gap: 0.03);
@@ -979,23 +991,68 @@ final ui.Shader _meterShader = ui.Gradient.sweep(
   3 * pi / 2,
 );
 
-final ui.Shader _shieldShader = ui.Gradient.radial(
+// The shield, in pale brass glass. On the health ring it is a run of
+// thicker, paler cells laid after the health (over its last cells when the
+// two together overrun the ring), with a wide faint band of its light under
+// them. Round the core it is a shell: a faint glass body, a narrow lit rim,
+// and the rim catching the light on its upper-left shoulder. Filled bands
+// only; no strokes, no blur.
+final _shieldCells = _CellRing(60, 105.5, 116.5, gap: 0.03);
+const Color _brassHalo = Color(0xFFCDB07A);
+
+final ui.Shader _shellBody = ui.Gradient.radial(
   Offset.zero,
   1,
   const [
-    Color(0x007FDBFF),
-    Color(0x007FDBFF),
-    Color(0x557FDBFF),
-    Color(0xCCB8ECFF),
-    Color(0x00B8ECFF),
+    Color(0x00CDB07A),
+    Color(0x00CDB07A),
+    Color(0x10CDB07A),
+    Color(0x2CD9C392),
+    Color(0x3AD9C392),
+    Color(0x00D9C392),
   ],
-  const [0.0, 0.8, 0.93, 0.975, 1.0],
+  const [0.0, 0.55, 0.78, 0.93, 0.972, 1.0],
 );
+
+final ui.Shader _shellRim = ui.Gradient.radial(
+  Offset.zero,
+  1,
+  const [
+    Color(0x00EDE4C8),
+    Color(0x00EDE4C8),
+    Color(0x8CEDE4C8),
+    Color(0x00EDE4C8),
+  ],
+  const [0.0, 0.946, 0.97, 0.993],
+);
+
+final ui.Shader _shellGlint = ui.Gradient.radial(
+  const Offset(-0.5, -0.62),
+  0.9,
+  const [Color(0xC8FFF6DC), Color(0x40FFF6DC), Color(0x00FFF6DC)],
+  const [0.0, 0.42, 1.0],
+);
+
+/// The shield's cells: brass deep in, lit at their outer edge.
+final ui.Shader _shieldCellShader = ui.Gradient.radial(
+  Offset.zero,
+  117,
+  const [Color(0xFFA8925F), Color(0xFFE6DBBB), Color(0xFFFFF8E6)],
+  const [0.89, 0.955, 1.0],
+);
+
+/// The shell's rim, as a band on the unit circle.
+final Path _shellBand = Path()
+  ..fillType = PathFillType.evenOdd
+  ..addOval(Rect.fromCircle(center: Offset.zero, radius: 1.0))
+  ..addOval(Rect.fromCircle(center: Offset.zero, radius: 0.86));
 
 /// The core's readings round it, at the origin in world units: health in
 /// a ring of cells just outside the core, the alchemy meter outside that,
-/// and — while it holds — the shield as a glass bubble. [time] makes a
-/// failing core's last cells pulse.
+/// and — while it holds — the shield, as brass cells on the health ring and
+/// a glass shell round the core. [shield] is what the shield holds as a
+/// share of the core's maximum health (0 for none). [time] makes a failing
+/// core's last cells pulse.
 void paintOrbReadings(
   Canvas c,
   OrbBaseSkin skin, {
@@ -1007,10 +1064,16 @@ void paintOrbReadings(
 }) {
   final l = orbLook(skin);
   if (shield > 0) {
+    // Never fainter than clearly there; a little brighter as it grows.
+    final a = 0.72 + 0.28 * (shield / 0.25).clamp(0.0, 1.0);
     c.save();
     c.scale(shieldRadius);
-    _shade(_shieldShader, (0.45 + shield).clamp(0.4, 1.0));
+    _shade(_shellBody, a);
     c.drawCircle(Offset.zero, 1, _fill);
+    _shade(_shellRim, a);
+    c.drawCircle(Offset.zero, 1, _fill);
+    _shade(_shellGlint, a);
+    c.drawPath(_shellBand, _fill);
     c.restore();
   }
 
@@ -1027,6 +1090,37 @@ void paintOrbReadings(
   if (part > 0.02 && whole < _hpRing.cells) {
     _cellPaint.color = l.hpColor(hp).withValues(alpha: 0.78 * part * pulse);
     c.drawPath(_hpRing.cell(whole), _cellPaint);
+  }
+  if (shield > 0) {
+    final cells = _shieldCells.cells;
+    final n = (shield * cells).round().clamp(1, cells);
+    // After the health, or over its last cells when the two overrun.
+    final start = min((hp * cells).round(), cells - n);
+    final a0 = -pi / 2 + start * 2 * pi / cells;
+    final sweep = n * 2 * pi / cells;
+    _cellPaint.color = _brassHalo.withValues(alpha: 0.2);
+    c.drawPath(
+      Path()
+        ..arcTo(
+          Rect.fromCircle(center: Offset.zero, radius: 121),
+          a0,
+          sweep,
+          true,
+        )
+        ..arcTo(
+          Rect.fromCircle(center: Offset.zero, radius: 101),
+          a0 + sweep,
+          -sweep,
+          false,
+        )
+        ..close(),
+      _cellPaint,
+    );
+    _cellPaint
+      ..shader = _shieldCellShader
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.86);
+    c.drawPath(_shieldCells.run(start, n), _cellPaint);
+    _cellPaint.shader = null;
   }
 
   _cellPaint

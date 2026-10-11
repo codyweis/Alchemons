@@ -3,9 +3,10 @@ part of 'cosmic_game.dart';
 /// Ability projectiles look the same in every mode. Survival's
 /// `_renderCompanionProjectile` is the reference: the same shared painters,
 /// tried in the same order. The order is part of the look, because several
-/// painters claim overlapping signals — Let's stationary catch-all takes any
-/// parked thing carrying a snare, so a Mask or Mane zone asked after it wears
-/// a Let crater.
+/// painters claim overlapping signals: Mask's ground painter takes any parked
+/// sigil carrying a snare or a taunt, whichever family laid it. (Let's
+/// stationary catch-all did the same until it was scoped to Let's own pieces;
+/// Horn's zones wore Let craters — test/horn_zone_claim_test.dart.)
 extension CosmicAbilityRender on CosmicGame {
   void _renderAbilityProjectile(Canvas canvas, Projectile cp) {
     final position = cp.position;
@@ -91,6 +92,8 @@ extension CosmicAbilityRender on CosmicGame {
         time: time,
       );
     }
+    // A taunting decoy pools its light under itself here, as in survival;
+    // the stroked hoop that used to ring it is gone.
     drawProjectileRoleOverlay(
       canvas: canvas,
       projectile: cp,
@@ -98,15 +101,5 @@ extension CosmicAbilityRender on CosmicGame {
       color: color,
       time: time,
     );
-    if (!claimed && cp.decoy) {
-      canvas.drawCircle(
-        position,
-        12 * cp.visualScale,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5
-          ..color = color.withValues(alpha: 0.2),
-      );
-    }
   }
 }

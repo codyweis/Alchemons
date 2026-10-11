@@ -292,25 +292,34 @@ void paintMysticDawnStar({
   // The limb lighting up as the charge fills — light gathered at the edge,
   // not a ring drawn round it.
   vfxSoftRing(canvas, at, r, r * (0.06 + 0.07 * t), gold, (0.3 + 0.5 * t) * a);
-  // Corona: tongues of light licking off the limb, longer as it charges.
-  for (var i = 0; i < 11; i++) {
-    final ang = i * pi * 2 / 11 + time * 0.03 + sin(i * 2.3) * 0.2;
+  // Corona: flares of light licking ALONG the limb at their own bearings,
+  // swelling as it charges, and grains of light lifting off it — no
+  // evenly spaced spikes (it was an eleven-point sunburst). Two fills and a
+  // grain batch.
+  final flares = ui.Path();
+  final hearts = ui.Path();
+  for (var i = 0; i < 4; i++) {
+    final ang = i * 1.7 + 0.4 + vfxGlide(i * 3.3, time, 0.25) * 1.4;
     final lick = 0.6 + 0.4 * sin(time * 1.3 + i * 1.7);
-    final len = r * (0.05 + 0.16 * t) * lick;
-    final base = at + vfxPolar(ang, r * 1.0);
-    vfxFillPath(
-      canvas,
-      vfxShard(base, len * 1.4, len * 0.16, ang),
-      gold,
-      (0.3 + 0.35 * t) * a,
+    final depth = r * (0.05 + 0.12 * t) * lick;
+    final sweep = 0.6 + 0.5 * vfxHash(i * 2.9);
+    flares.addPath(
+      vfxCrescent(at, r * 1.0 + depth, depth * 1.3, ang, sweep),
+      ui.Offset.zero,
     );
-    vfxFillPath(
-      canvas,
-      vfxShard(base, len, len * 0.06, ang),
-      ivory,
-      (0.25 + 0.45 * t) * a,
+    hearts.addPath(
+      vfxCrescent(at, r * 1.0 + depth * 0.5, depth * 0.5, ang, sweep * 0.7),
+      ui.Offset.zero,
     );
   }
+  vfxFillPath(canvas, flares, gold, (0.3 + 0.35 * t) * a);
+  vfxFillPath(canvas, hearts, ivory, (0.25 + 0.45 * t) * a);
+  for (var i = 0; i < 8; i++) {
+    final ph = (time * 0.25 + i * 0.618) % 1.0;
+    final g = at + vfxPolar(i * 2.399963 + 0.3, r * (1.02 + ph * (0.2 + 0.3 * t)));
+    vfxGrain(g.dx, g.dy);
+  }
+  vfxGrainsFlush(canvas, max(1.8, r * 0.03), ivory, (0.3 + 0.4 * t) * a);
   if (release > 0.01) {
     // Dawn breaking: a bloom of light rolling outward, and the body opening.
     vfxSoftRing(
@@ -438,13 +447,8 @@ void paintMysticStormCharge({
   }
   if (t > 0.82) {
     final snap = (t - 0.82) / 0.18;
-    vfxSpill(
-      canvas,
-      at,
-      6 + 14 * snap,
-      const ui.Color(0xFFFFFFFF),
-      0.85 * snap,
-    );
+    // The charge tightening to a point: Lightning's own glint, not white.
+    vfxSpill(canvas, at, 6 + 14 * snap, m.glint, 0.6 * snap);
   }
 }
 
@@ -466,7 +470,7 @@ void paintMysticBoltImpact({
     0.5 * a,
   );
   vfxSpill(canvas, strike, flash, m.light, 0.4 * a);
-  vfxSpill(canvas, strike, flash * 0.36, const ui.Color(0xFFFFFFFF), 0.75 * a);
+  vfxSpill(canvas, strike, flash * 0.36, m.glint, 0.55 * a);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -730,11 +734,12 @@ bool paintMysticFlora({
   required double seed,
   required double time,
 }) {
-  if (bloom <= 0.02)
+  if (bloom <= 0.02) {
     return element == 'Fire' ||
         element == 'Poison' ||
         element == 'Ice' ||
         element == 'Spirit';
+  }
   final grow = bloom * size;
   final m = vfxMaterial(element);
   switch (element) {

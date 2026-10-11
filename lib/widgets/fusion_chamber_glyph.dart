@@ -96,6 +96,5 @@ class _FusionChamberPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _FusionChamberPainter old) =>
-      old.clock != clock;
+  bool shouldRepaint(covariant _FusionChamberPainter old) => old.clock != clock;
 }

@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 /// Filled, tapered shapes for ability art — the material language the Mask
@@ -305,6 +306,29 @@ void vfxFillPath(ui.Canvas canvas, ui.Path path, ui.Color color, double alpha) {
   canvas.drawPath(path, _vfxFill);
 }
 
+// Gradients for the light fills below, cached: a frame of spills, rings and
+// beams used to build a new shader object per call. Each is built once per
+// colour and shape at unit size (spills and rings are drawn scaled), and the
+// strength rides on the paint's alpha, which scales a shader's output — the
+// same pixels as baking the strength into the stops.
+final Map<int, ui.Shader> _spillShaders = {};
+final Map<int, ui.Shader> _ringShaders = {};
+final Map<(int, int, int, int), ui.Shader> _crossShaders = {};
+
+ui.Shader _cachedShader<K>(
+  Map<K, ui.Shader> cache,
+  K key,
+  ui.Shader Function() build,
+) {
+  final hit = cache[key];
+  if (hit != null) return hit;
+  // Bounded: a charge that swells through many widths churns, never grows.
+  if (cache.length >= 192) cache.clear();
+  return cache[key] = build();
+}
+
+int _rgb(ui.Color c) => c.toARGB32() & 0xFFFFFF;
+
 /// Light pooled on the ground: soft centre, no edge.
 void vfxSpill(
   ui.Canvas canvas,
@@ -314,19 +338,23 @@ void vfxSpill(
   double strength,
 ) {
   if (strength <= 0.004 || r <= 0.5) return;
+  final rgb = _rgb(color);
   _vfxFill
-    ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.radial(
-      c,
-      r,
-      [
-        color.withValues(alpha: strength.clamp(0.0, 1.0)),
-        color.withValues(alpha: (strength * 0.4).clamp(0.0, 1.0)),
-        color.withValues(alpha: 0),
-      ],
-      const [0.0, 0.45, 1.0],
-    );
-  canvas.drawCircle(c, r, _vfxFill);
+    ..color = ui.Color.fromRGBO(255, 255, 255, strength.clamp(0.0, 1.0))
+    ..shader = _cachedShader(_spillShaders, rgb, () {
+      final k = ui.Color(0xFF000000 | rgb);
+      return ui.Gradient.radial(
+        ui.Offset.zero,
+        1,
+        [k, k.withValues(alpha: 0.4), k.withValues(alpha: 0)],
+        const [0.0, 0.45, 1.0],
+      );
+    });
+  canvas.save();
+  canvas.translate(c.dx, c.dy);
+  canvas.scale(r);
+  canvas.drawCircle(ui.Offset.zero, 1, _vfxFill);
+  canvas.restore();
   _vfxFill.shader = null;
 }
 
@@ -342,21 +370,32 @@ void vfxSoftRing(
 ) {
   if (strength <= 0.004 || r <= 1) return;
   final outer = r + band;
-  final inner = ((r - band) / outer).clamp(0.0, 1.0);
+  // The band's edges in 64ths of the outer radius: a cached gradient per
+  // step, finer than a pixel at any size a ring is drawn.
+  final inner = (((r - band) / outer).clamp(0.0, 1.0) * 64).round();
+  final peak = max(inner, ((r / outer) * 64).round());
+  final rgb = _rgb(color);
   _vfxFill
-    ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.radial(
-      c,
-      outer,
-      [
-        color.withValues(alpha: 0),
-        color.withValues(alpha: 0),
-        color.withValues(alpha: strength.clamp(0.0, 1.0)),
-        color.withValues(alpha: 0),
-      ],
-      [0.0, inner, r / outer, 1.0],
+    ..color = ui.Color.fromRGBO(255, 255, 255, strength.clamp(0.0, 1.0))
+    ..shader = _cachedShader(
+      _ringShaders,
+      (rgb << 14) | (inner << 7) | peak,
+      () {
+        final k = ui.Color(0xFF000000 | rgb);
+        final clear = k.withValues(alpha: 0);
+        return ui.Gradient.radial(
+          ui.Offset.zero,
+          1,
+          [clear, clear, k, clear],
+          [0.0, inner / 64, peak / 64, 1.0],
+        );
+      },
     );
-  canvas.drawCircle(c, outer, _vfxFill);
+  canvas.save();
+  canvas.translate(c.dx, c.dy);
+  canvas.scale(outer);
+  canvas.drawCircle(ui.Offset.zero, 1, _vfxFill);
+  canvas.restore();
   _vfxFill.shader = null;
 }
 
@@ -388,19 +427,27 @@ void vfxCrossLit(
   double alpha, {
   double plateau = 0.0,
 }) {
+  if (alpha <= 0.004 || half <= 0) return;
+  // Keyed on both colours, the plateau in 32nds and the half-height in
+  // quarter pixels: a beam's widths are its gameplay widths, so a live beam
+  // reuses the same two or three gradients every frame.
+  final pq = (plateau.clamp(0.0, 1.0) * 32).round();
+  final hq = max(1, (half * 4).round());
+  final edgeRgb = _rgb(edge), centreRgb = _rgb(centre);
   _vfxFill
-    ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.linear(
-      ui.Offset(0, -half),
-      ui.Offset(0, half),
-      [
-        edge.withValues(alpha: 0),
-        centre.withValues(alpha: alpha.clamp(0.0, 1.0)),
-        centre.withValues(alpha: alpha.clamp(0.0, 1.0)),
-        edge.withValues(alpha: 0),
-      ],
-      [0.0, 0.5 - plateau / 2, 0.5 + plateau / 2, 1.0],
-    );
+    ..color = ui.Color.fromRGBO(255, 255, 255, alpha.clamp(0.0, 1.0))
+    ..shader = _cachedShader(_crossShaders, (edgeRgb, centreRgb, pq, hq), () {
+      final h = hq / 4;
+      final p = pq / 32;
+      final e = ui.Color(edgeRgb);
+      final k = ui.Color(0xFF000000 | centreRgb);
+      return ui.Gradient.linear(
+        ui.Offset(0, -h),
+        ui.Offset(0, h),
+        [e.withValues(alpha: 0), k, k, e.withValues(alpha: 0)],
+        [0.0, 0.5 - p / 2, 0.5 + p / 2, 1.0],
+      );
+    });
   canvas.drawPath(path, _vfxFill);
   _vfxFill.shader = null;
 }
@@ -463,4 +510,311 @@ void vfxBolt(
     ..color = m.glint.withValues(alpha: 0.9 * alpha)
     ..strokeWidth = 1.3;
   canvas.drawPath(path, _vfxStroke);
+}
+
+// ── Grains ──────────────────────────────────────────────────────────────
+//
+// The game's alchemy is lit sand, so the sparkle and grit in ability art are
+// grains — round points painted as one batch, the same `drawRawPoints` idiom
+// the sand tray and the star fields use — never drawn star glints. A grain
+// that "flares" is one painted in a second, whiter batch.
+//
+// A painter collects positions with [vfxGrain] and paints them with
+// [vfxGrainsFlush]: one draw call per batch, no allocation per frame.
+
+const int _kGrainCap = 160;
+final Float32List _grainXY = Float32List(_kGrainCap * 2);
+int _grainCount = 0;
+final ui.Paint _grainPaint = ui.Paint()..strokeCap = ui.StrokeCap.round;
+
+/// Adds one grain to the pending batch (dropped past the cap).
+void vfxGrain(double x, double y) {
+  if (_grainCount >= _kGrainCap) return;
+  _grainXY[_grainCount * 2] = x;
+  _grainXY[_grainCount * 2 + 1] = y;
+  _grainCount++;
+}
+
+/// Forgets any grains collected but not painted.
+void vfxGrainsDiscard() => _grainCount = 0;
+
+/// Paints the pending grains as round points [size] across, then empties the
+/// batch.
+void vfxGrainsFlush(
+  ui.Canvas canvas,
+  double size,
+  ui.Color color,
+  double alpha,
+) {
+  final n = _grainCount;
+  _grainCount = 0;
+  if (n == 0 || alpha <= 0.004 || size <= 0.05) return;
+  _grainPaint
+    ..color = color.withValues(alpha: alpha.clamp(0.0, 1.0))
+    ..strokeWidth = size;
+  canvas.drawRawPoints(
+    ui.PointMode.points,
+    Float32List.sublistView(_grainXY, 0, n * 2),
+    _grainPaint,
+  );
+}
+
+/// The white a grain flares to: its material's glint pushed most of the way
+/// to white, so the flash still belongs to the element.
+ui.Color vfxFlare(VfxMaterial m) =>
+    ui.Color.lerp(m.glint, const ui.Color(0xFFFFFFFF), 0.6)!;
+
+// ── Ribbons in place of strokes ─────────────────────────────────────────
+//
+// A stroked path reads as a wire. These build one filled ribbon along the
+// same line, widest in the middle and tapering to points at both ends, so a
+// seam, vein, crest or arc reads as material and costs one fill. Ribbons
+// from [vfxLensRibbon] always wind the same way, so many of them can share
+// one path (one draw) without cancelling where they overlap.
+
+/// Adds to [into] (or a new path) a ribbon along [spine], [width] at its
+/// widest. It tapers to a point over [taper] of its length at the start and
+/// [taperEnd] (default [taper]) at the end; 0.5 and 0.5 make a full lens.
+/// Normals come from the neighbouring points, so corners bend, not notch.
+ui.Path vfxLensRibbon(
+  List<ui.Offset> spine,
+  double width, {
+  double taper = 0.5,
+  double? taperEnd,
+  ui.Path? into,
+}) {
+  final path = into ?? ui.Path();
+  final n = spine.length;
+  if (n < 2 || width <= 0) return path;
+  final a = taper.clamp(0.01, 1.0);
+  final b = (taperEnd ?? taper).clamp(0.01, 1.0);
+  final half = width / 2;
+  double h(int i) {
+    final f = i / (n - 1);
+    final e = min(1.0, min(f / a, (1 - f) / b));
+    return half * sin(e * pi / 2);
+  }
+
+  ui.Offset normal(int i) {
+    final d = spine[min(n - 1, i + 1)] - spine[max(0, i - 1)];
+    final len = d.distance;
+    return len < 1e-6 ? const ui.Offset(0, 1) : ui.Offset(-d.dy, d.dx) / len;
+  }
+
+  for (var i = 0; i < n; i++) {
+    final p = spine[i] + normal(i) * h(i);
+    i == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+  }
+  for (var i = n - 1; i >= 0; i--) {
+    final p = spine[i] - normal(i) * h(i);
+    path.lineTo(p.dx, p.dy);
+  }
+  return path..close();
+}
+
+/// Points along a polyline, each segment split into [perSegment] steps, so a
+/// lens ribbon through a few corners still swells and tapers smoothly.
+List<ui.Offset> vfxPolylineSpine(
+  List<ui.Offset> corners, {
+  int perSegment = 3,
+  List<ui.Offset>? into,
+}) {
+  final out = into ?? <ui.Offset>[];
+  if (corners.isEmpty) return out;
+  out.add(corners.first);
+  for (var s = 1; s < corners.length; s++) {
+    final p0 = corners[s - 1], p1 = corners[s];
+    for (var k = 1; k <= perSegment; k++) {
+      out.add(ui.Offset.lerp(p0, p1, k / perSegment)!);
+    }
+  }
+  return out;
+}
+
+/// [n] + 1 points along the quadratic curve from [a] through control [c] to
+/// [b] — the spine of what used to be a stroked `quadraticBezierTo`.
+List<ui.Offset> vfxQuadSpine(
+  ui.Offset a,
+  ui.Offset c,
+  ui.Offset b, {
+  int n = 8,
+  List<ui.Offset>? into,
+}) {
+  final out = into ?? <ui.Offset>[];
+  for (var k = 0; k <= n; k++) {
+    final t = k / n, u = 1 - t;
+    out.add(
+      ui.Offset(
+        u * u * a.dx + 2 * u * t * c.dx + t * t * b.dx,
+        u * u * a.dy + 2 * u * t * c.dy + t * t * b.dy,
+      ),
+    );
+  }
+  return out;
+}
+
+/// A lens ribbon along every contour of [path], sampled about every [step]
+/// units (at most [maxSamples] per contour), all in one path. For a path that
+/// is rebuilt each frame prefer building the spine directly; for one that
+/// never changes use [vfxRibbonAlongStaticPath].
+ui.Path vfxRibbonAlongPath(
+  ui.Path path,
+  double width, {
+  double taper = 0.5,
+  double step = 4,
+  int maxSamples = 40,
+  ui.Path? into,
+}) {
+  final out = into ?? ui.Path();
+  final pts = <ui.Offset>[];
+  for (final metric in path.computeMetrics()) {
+    final len = metric.length;
+    if (len < 1e-3) continue;
+    final count = (len / step).ceil().clamp(2, maxSamples);
+    pts.clear();
+    for (var k = 0; k <= count; k++) {
+      final tangent = metric.getTangentForOffset(len * k / count);
+      if (tangent != null) pts.add(tangent.position);
+    }
+    vfxLensRibbon(pts, width, taper: taper, into: out);
+  }
+  return out;
+}
+
+final Expando<Map<int, ui.Path>> _vfxStaticRibbons = Expando('vfxRibbon');
+
+/// [vfxRibbonAlongPath] for a path that never changes (a top-level `final`):
+/// flattened once per width and taper, then reused every frame.
+ui.Path vfxRibbonAlongStaticPath(
+  ui.Path path,
+  double width, {
+  double taper = 0.5,
+  double step = 1.5,
+}) {
+  final cache = _vfxStaticRibbons[path] ??= <int, ui.Path>{};
+  final key = (width * 1000).round() * 128 + (taper * 100).round();
+  return cache[key] ??= vfxRibbonAlongPath(
+    path,
+    width,
+    taper: taper,
+    step: step,
+    maxSamples: 96,
+  );
+}
+
+/// A crescent hugging an ellipse ([rx] x [ry]) round [c], centred on
+/// [angle] and [sweep] long, [thickness] deep at its middle, tapering to
+/// points — what an oval outline becomes: a lit rim, never a hoop.
+ui.Path vfxEllipseCrescent(
+  ui.Offset c,
+  double rx,
+  double ry,
+  double thickness,
+  double angle,
+  double sweep, {
+  ui.Path? into,
+}) {
+  const n = 12;
+  final path = into ?? ui.Path();
+  for (var k = 0; k <= n; k++) {
+    final th = angle - sweep / 2 + sweep * k / n;
+    final p = c + ui.Offset(cos(th) * rx, sin(th) * ry);
+    k == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+  }
+  for (var k = n; k >= 0; k--) {
+    final th = angle - sweep / 2 + sweep * k / n;
+    final w = thickness * sin(pi * k / n);
+    final p =
+        c + ui.Offset(cos(th) * max(0.0, rx - w), sin(th) * max(0.0, ry - w));
+    path.lineTo(p.dx, p.dy);
+  }
+  return path..close();
+}
+
+/// A hashed value in 0..1 that glides, eased, from one random pose to the
+/// next [rate] times a second. The smooth replacement for a value re-rolled
+/// on every tick of `(time * 16).floor()`: same restlessness, no snapping.
+double vfxGlide(double seed, double time, double rate) {
+  final x = time * rate;
+  final k = x.floorToDouble();
+  final f = x - k;
+  final e = f * f * (3 - 2 * f);
+  final a = vfxHash(seed + k * 7.13);
+  return a + (vfxHash(seed + (k + 1) * 7.13) - a) * e;
+}
+
+/// A smooth spine through the corners of a polyline: it starts and ends on
+/// the first and last corner and bends past the ones between (a quadratic
+/// B-spline through the segment midpoints), [perSegment] points per bend.
+/// What a zig-zag becomes when it should read as a writhing arc, not a wire.
+List<ui.Offset> vfxCurveSpine(
+  List<ui.Offset> corners, {
+  int perSegment = 4,
+  List<ui.Offset>? into,
+}) {
+  final out = into ?? <ui.Offset>[];
+  final n = corners.length;
+  if (n < 3) return vfxPolylineSpine(corners, perSegment: perSegment, into: out);
+  var from = corners.first;
+  out.add(from);
+  for (var i = 1; i < n - 1; i++) {
+    final ctrl = corners[i];
+    final to = i == n - 2 ? corners.last : (corners[i] + corners[i + 1]) / 2;
+    for (var k = 1; k <= perSegment; k++) {
+      final t = k / perSegment, u = 1 - t;
+      out.add(
+        ui.Offset(
+          u * u * from.dx + 2 * u * t * ctrl.dx + t * t * to.dx,
+          u * u * from.dy + 2 * u * t * ctrl.dy + t * t * to.dy,
+        ),
+      );
+    }
+    from = to;
+  }
+  return out;
+}
+
+/// Elements whose material is pale light, so their art takes more of their
+/// own hue (30% instead of 22%) to keep from going to pale wires. Lightning
+/// joined 2026-10-10: at 22% its beams read pale lavender, not electric.
+const Set<String> kVfxGlowingElements = {
+  'Air',
+  'Steam',
+  'Light',
+  'Spirit',
+  'Lightning',
+};
+
+/// A writhing arc from [from] to [to], added as two filled ribbons: a wide
+/// faint one to [glow] (fill it with the material's light) and a thin lit one
+/// to [core] (fill it with its glint). The kinks glide from one hashed pose
+/// to the next [rate] times a second instead of re-rolling a zig-zag, so the
+/// arc writhes rather than flickers, and it bows sideways by up to [amp] of
+/// its length. Several arcs can share the two paths: two fills for all.
+void vfxArcInto(
+  ui.Path glow,
+  ui.Path core,
+  ui.Offset from,
+  ui.Offset to,
+  double seed,
+  double time, {
+  double width = 1.8,
+  double amp = 0.16,
+  int segs = 5,
+  double rate = 2.4,
+}) {
+  final d = to - from;
+  final len = d.distance;
+  if (len < 2) return;
+  final n = ui.Offset(-d.dy, d.dx) / len;
+  final corners = <ui.Offset>[from];
+  for (var i = 1; i < segs; i++) {
+    final t = i / segs;
+    final off = (vfxGlide(seed + i * 3.7, time, rate) - 0.5) * 2;
+    corners.add(from + d * t + n * (off * amp * len * sin(t * pi)));
+  }
+  corners.add(to);
+  final spine = vfxCurveSpine(corners, perSegment: 3);
+  vfxLensRibbon(spine, width * 3.2, taper: 0.32, into: glow);
+  vfxLensRibbon(spine, width, taper: 0.32, into: core);
 }

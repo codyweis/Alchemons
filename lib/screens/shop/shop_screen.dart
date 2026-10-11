@@ -7,6 +7,7 @@
 // All logic, routing, purchase flows, and service calls unchanged.
 //
 
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/shop_scenes.dart';
 import 'package:alchemons/screens/shop/shop_scene_card.dart';
@@ -830,6 +831,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          _buildSectionHeader('DOCK'),
+          _buildDockSetsShelf(theme, allCurrencies),
           _buildSectionHeader('ALCHEMY EFFECTS'),
           _buildAlchemyEffectsGrid(theme, allCurrencies, inventoryByKey),
           _buildSectionHeader('COSTUMES'),
@@ -850,6 +853,71 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   }
 
   // ── GRIDS (logic unchanged, padding/spacing preserved) ─────────────────────
+
+  /// The faction's dock sets for sale (models/dock_sets.dart). Which owned
+  /// one the dock wears is chosen on the profile.
+  Widget _buildDockSetsShelf(
+    FactionTheme theme,
+    Map<String, int> allCurrencies,
+  ) {
+    return Consumer2<FactionService, ShopService>(
+      builder: (context, factions, shopService, _) {
+        final faction = factions.current;
+        if (faction == null) return const SizedBox.shrink();
+        final cards = [
+          for (final set in DockSet.ofFaction(faction))
+            if (!set.free)
+              () {
+                final offer = ShopService.allOffers.firstWhere(
+                  (o) => o.id == set.offerId,
+                );
+                final canPurchase = shopService.canPurchase(offer.id);
+                final effectiveCost = shopService.getEffectiveCost(offer);
+                final canAfford = effectiveCost.entries.every(
+                  (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+                );
+                return GestureDetector(
+                  onTap: context.soundAction(
+                    () => canPurchase
+                        ? _handlePurchase(
+                            context,
+                            offer,
+                            allCurrencies,
+                            canAfford,
+                          )
+                        : _showDetails(
+                            context,
+                            offer,
+                            allCurrencies,
+                            canAfford,
+                          ),
+                  ),
+                  child: GameShopCard(
+                    key: ValueKey('dock-${set.id}'),
+                    title: offer.name,
+                    offer: offer,
+                    theme: theme,
+                    costWidgets: [
+                      for (final e in effectiveCost.entries)
+                        CostChip(
+                          currencyType: e.key,
+                          amount: e.value,
+                          available: allCurrencies[e.key] ?? 0,
+                        ),
+                    ],
+                    enabled: canPurchase,
+                    canAfford: canAfford,
+                  ),
+                );
+              }(),
+        ];
+        return Padding(
+          padding: const EdgeInsets.all(12),
+          child: ShopShelf(kind: ShelfKind.featured, children: cards),
+        );
+      },
+    );
+  }
 
   /// The home decor of [tier]: a card each, how many owned of the most one
   /// realm can stand.
@@ -1764,6 +1832,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     // a specimen from there whenever the player likes.
     final isEffect = offer.id.startsWith('effects.');
     final isDecor = HomeDecor.byOffer(offer.id) != null;
+    final isDockSet = DockSet.byOffer(offer.id) != null;
     final scene = shopSceneByOffer(offer.id);
     // A realm opens with Alchemons already waiting in it.
     if (success && scene != null && !scene.homeOnly) {
@@ -1782,6 +1851,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
           ? '${offer.name} added to inventory'
           : isDecor
           ? '${offer.name} ready to place at home'
+          : isDockSet
+          ? '${offer.name} on the dock'
           : scene != null
           ? '${scene.title} unlocked'
           : '${offer.name} × $qty',

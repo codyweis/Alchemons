@@ -27,16 +27,63 @@ class CosmicSurvivalBalance {
   /// across the same slice of a front. That reads as a wall at wave 40 and as
   /// a picket line at wave 2, where a whole wave is one or two bands. Opening
   /// waves therefore arrive inside a narrow wedge you can stand in front of,
-  /// and the rim opens to its full width by wave 11 — clumping is a ramp, not
+  /// and the rim opens to its full width by wave 40 — clumping is a ramp, not
   /// a difficulty cut.
+  ///
+  /// It used to be full by wave 11. Fronts from every side at once are a
+  /// test of being in three places, which no amount of breeding passes: a
+  /// level-5 team fell on the same waves (12–13) as a level-1 team.
   static double hordeFrontOpenness(int wave) =>
-      (0.38 + (wave - 1) * 0.062).clamp(0.38, 1.0);
+      (0.38 + (wave - 1) * 0.62 / 39).clamp(0.38, 1.0);
 
-  /// Siege artillery per wave: walks in with the front, parks past companion
-  /// reach and shells the orb. Something with range (a Wing beam, a Let
-  /// skyfall) or a trip out to it has to answer these.
+  /// Siege artillery per wave: walks in with the front, parks at
+  /// [artilleryHoldRange] and shells the orb until something kills it.
   static int artilleryCountForWave(int wave) =>
       wave < 6 ? 0 : (2 + (wave - 6) ~/ 5).clamp(2, 14);
+
+  /// A shell's damage, as a share of the artillery body's own.
+  ///
+  /// Shells land from past every companion's reach, so they cost a weak and a
+  /// strong team the same. At 1.9 they were 50–85% of the orb's damage in
+  /// waves 6–12 of a real run, and the reason level barely mattered there.
+  static const double artilleryShellDamage = 1.14;
+
+  /// Where artillery parks and shells from, measured from the orb.
+  ///
+  /// It parked at 820 (kSiegeHoldRange), past every companion working the
+  /// orb, so only the pilot could answer it and it drained a level-10 orb as
+  /// fast as a level-1 one. At 520 it sits in the middle ring the Manes and
+  /// Masks patrol, with [artilleryHp] to make reaching it a test of what the
+  /// team can kill.
+  static const double artilleryHoldRange = 520;
+
+  /// Artillery health, as a share of its sentinel body's (was 0.85).
+  static const double artilleryHp = 2.55;
+
+  /// Opening bodies' health: double through wave 8, back to normal by wave
+  /// 11. The opening waves are where a fresh team should meet its limit, and
+  /// HP there is something only the team's damage answers.
+  static double openingBodyHp(int wave) =>
+      1.0 + ((11 - wave) / 3).clamp(0.0, 1.0);
+
+  /// A brute's siege beam, as a share of the brute's own damage, by wave.
+  ///
+  /// The beam is 900 long and crosses the whole line: it took more off a
+  /// level-10 team's companions in waves 16–20 than every body they touched.
+  /// It comes in at 0.57 and builds to its full 1.9 over waves 24–31, where
+  /// the stat walls are measured (docs/survival_stat_walls.md).
+  static double bruteBeamDamage(int wave) =>
+      1.9 * (0.3 + 0.7 * ((wave - 24) / 7).clamp(0.0, 1.0));
+
+  /// What a cleared wave gives back, as a share of the orb's and each
+  /// fielded companion's maximum health: nothing through wave 10, then 5%
+  /// more each wave to 60% from wave 22.
+  ///
+  /// A team that holds a wave keeps going; one that leaks more than this
+  /// each wave still runs out. Waves 1–10 stay without it, so a fresh team
+  /// is judged on what it can kill there.
+  static double waveRestShare(int wave) =>
+      0.6 * ((wave - 10) / 12).clamp(0.0, 1.0);
 
   /// Broodmothers per wave: tough, slow bodies that keep feeding the front
   /// until they are cut out of it.
@@ -116,14 +163,19 @@ class CosmicSurvivalBalance {
   static const int hordeActiveCeiling = 1000;
   static const int hordeLateActiveCeiling = 3000;
 
-  static int hordeActiveCeilingForWave(int wave) => wave <= 50
-      ? hordeActiveCeiling
-      : (hordeActiveCeiling +
-                (hordeLateActiveCeiling - hordeActiveCeiling) *
-                    (wave - 50) /
-                    50)
-            .round()
-            .clamp(hordeActiveCeiling, hordeLateActiveCeiling);
+  ///
+  /// The climb reads [latePressure], so it starts at wave 60 and reaches
+  /// 3,000 at wave 160. Wave 100 holds 1,800, under the 2,000 measured as
+  /// sustainable on the Fold.
+  static int hordeActiveCeilingForWave(int wave) {
+    final w = latePressure(wave);
+    return w <= 50
+        ? hordeActiveCeiling
+        : (hordeActiveCeiling +
+                  (hordeLateActiveCeiling - hordeActiveCeiling) * (w - 50) / 50)
+              .round()
+              .clamp(hordeActiveCeiling, hordeLateActiveCeiling);
+  }
 
   static int activeEnemyLimit(int wave, {required bool bossWave}) => bossWave
       ? 24
@@ -150,8 +202,22 @@ class CosmicSurvivalBalance {
     if (legacy >= 4.0) power += 0.16;
     if (legacy >= 4.5) power += 0.12;
     final overcap = AlchemonStatSystem.combatOvercapProgress(stat);
-    return power * (1.0 + overcap * 0.30);
+    return power * (1.0 + overcap * statPowerPastKnee);
   }
+
+  /// How much power a stat keeps buying past internal 5 — about Potential 70
+  /// on an average species, where the authored 1-5 curve ends.
+  ///
+  /// This was 0.30, and it made the top of the grind worth almost nothing:
+  /// P70 to P100 with full Enhancement doubled the stat on screen (504 to
+  /// 1056) but added about 35% damage, and moved the survival wall from
+  /// wave 37 to 47. At 1.17 the curve keeps the slope it had below the knee
+  /// (about +0.42 power per internal point) up to 9, then tapers on
+  /// [AlchemonStatSystem.combatOvercapProgress]'s log tail, so a perfect
+  /// creature is roughly 2.4x an average one and nothing runs away. Below the
+  /// knee nothing changes: everyday creatures, wilds and the arena band
+  /// (capped at 5) hit exactly as hard as before.
+  static const double statPowerPastKnee = 1.17;
 
   static double qualityScore(double stat) {
     final power = survivalStatPower(stat);
@@ -189,11 +255,33 @@ class CosmicSurvivalBalance {
   /// Flattened to about x4 at wave 50, with the post-wave-10 compounding
   /// halved. The danger is moved onto the damage curve instead, where it can
   /// actually be felt.
+  ///
+  /// Past [latePressureWave] it climbs at half pace — see [latePressure].
   static double enemyWaveHpScale(int wave) {
     if (wave <= 1) return 1.0;
-    final base = 1.0 + pow(wave - 1, 1.12).toDouble() * 0.032;
-    return base * (1.0 + max(0, wave - 10) * 0.004);
+    final w = latePressure(wave);
+    final base = 1.0 + pow(w - 1, 1.12).toDouble() * 0.032;
+    return base * (1.0 + max(0.0, w - 10) * 0.004);
   }
+
+  /// Where the run turns into the grinder's endgame.
+  ///
+  /// Until here the curves are what they always were, and a decent team
+  /// (about Potential 70) meets its wall around this wave. Beyond it, every
+  /// wave a team survives is paid for by its stats: breeding and Enhancement
+  /// are the only way further. Measured on the benchmark party
+  /// (docs/survival_stat_walls.md): with the wave curves at full pace past
+  /// here, P90 walled at wave 48 and a perfect team at 63. At half pace the
+  /// walls spread toward roughly P90 60, P100 70, perfect 80.
+  static const int latePressureWave = 40;
+  static const double latePressureRate = 0.5;
+
+  /// The wave number the pressure curves read: the real wave up to
+  /// [latePressureWave], then half a wave for every wave past it. Wave 80
+  /// presses like wave 60 used to.
+  static double latePressure(int wave) => wave <= latePressureWave
+      ? wave.toDouble()
+      : latePressureWave + (wave - latePressureWave) * latePressureRate;
 
   /// Enemy damage by wave.
   ///
@@ -206,13 +294,36 @@ class CosmicSurvivalBalance {
   /// the thing you lose the run by was never in the fight. More damage per
   /// body is the honest lever for that: it costs the player something when one
   /// gets through, without spawning more of them.
+  ///
+  /// Past [latePressureWave] it climbs at half pace, with health, so the two
+  /// keep rising together.
   static double enemyWaveDamageScale(int wave) {
     if (wave <= 1) return 1.0;
-    return 1.0 + pow(wave - 1, 1.22).toDouble() * 0.026;
+    return 1.0 + pow(latePressure(wave) - 1, 1.22).toDouble() * 0.026;
+  }
+
+  /// The share of each hit the orb actually takes, by wave.
+  ///
+  /// Every Horn and Kin shield used to be copied onto the orb as well (70%,
+  /// up to 45% of the orb), a second health bar that refilled on every cast.
+  /// A fresh level-1 team rode it from wave 9 to wave 12, and on the stat-wall
+  /// benchmark it was worth about 7 waves at P50 and 10 at P100 + E10. With
+  /// the copy gone the orb hardens as the run goes on instead: every point
+  /// lands through wave [orbHardeningWave], where a weak team falls, then a
+  /// falling share: 0.88 at wave 12, 0.59 at 20, 0.42 at 30, 0.32 at 40, 0.22
+  /// at 80 (it reads [latePressure]). That puts the level-10 walls back
+  /// within a wave or two of where they were (docs/survival_stat_walls.md)
+  /// and leaves the opening waves alone.
+  static const int orbHardeningWave = 10;
+  static const double orbHardeningRate = 0.07;
+
+  static double orbWaveDamageShare(int wave) {
+    final past = latePressure(wave) - orbHardeningWave;
+    return past <= 0 ? 1.0 : 1.0 / (1.0 + past * orbHardeningRate);
   }
 
   static double enemyWaveSpeedScale(int wave) {
     if (wave <= 1) return 1.0;
-    return 1.0 + pow(wave - 1, 0.85).toDouble() * 0.006;
+    return 1.0 + pow(latePressure(wave) - 1, 0.85).toDouble() * 0.006;
   }
 }

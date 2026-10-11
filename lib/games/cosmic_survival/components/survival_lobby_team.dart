@@ -29,10 +29,20 @@ class SurvivalLobbyTeam extends StatelessWidget {
     required this.loaded,
     required this.accent,
     required this.onChoose,
+    this.locked = false,
+    this.note,
   });
 
   final List<CosmicPartyMember> members;
   final int slots;
+
+  /// The team is a saved run's, and stays as that run left it: it cannot be
+  /// changed until the run ends or is abandoned.
+  final bool locked;
+
+  /// A plain line under the slots saying why the team is as it is, in place
+  /// of the empty team's prompt.
+  final String? note;
 
   /// False until the saved team has been read, so an empty row does not
   /// tell the player to choose a team they already have.
@@ -67,6 +77,7 @@ class SurvivalLobbyTeam extends StatelessWidget {
                 label: members.isEmpty ? 'CHOOSE TEAM' : 'CHANGE TEAM',
                 height: 30,
                 primary: false,
+                enabled: !locked,
                 palette: panelPalette,
                 accent: accent,
                 onTap: onChoose,
@@ -78,7 +89,7 @@ class SurvivalLobbyTeam extends StatelessWidget {
         GestureDetector(
           key: const ValueKey('survival.teamSlots'),
           behavior: HitTestBehavior.opaque,
-          onTap: context.soundAction(onChoose),
+          onTap: locked ? null : context.soundAction(onChoose),
           child: Row(
             children: [
               for (var i = 0; i < slots; i++) ...[
@@ -94,10 +105,12 @@ class SurvivalLobbyTeam extends StatelessWidget {
             ],
           ),
         ),
-        if (empty) ...[
+        if (note != null || empty) ...[
           const SizedBox(height: 10),
           Text(
-            'Choose up to ${_count(slots)} Alchemons to take into the run.',
+            note ??
+                'Choose up to ${_count(slots)} Alchemons to take into the run.',
+            key: note == null ? null : const ValueKey('survival.teamNote'),
             style: TextStyle(
               color: panelPalette.muted,
               fontSize: 12.5,

@@ -21,6 +21,9 @@ class HudInk {
   static const amber = Color(0xFFE4B356);
   static const danger = Color(0xFFFF6B5E);
 
+  /// A held shield: pale brass glass, the same as the shield on the orb.
+  static const shield = Color(0xFFEDE4C8);
+
   /// The ship's own color: the pale steel of its hull's lit edge.
   static const ship = Color(0xFF8FC9D6);
 }
@@ -114,7 +117,8 @@ class HudKey extends StatelessWidget {
 }
 
 /// A gauge: what it measures, a glass tube filled as far as [fraction],
-/// and the figure.
+/// and the figure. A [shield] (a share of the same whole) sits in the tube
+/// as pale brass glass after the fill and is written after the figure.
 class HudGauge extends StatelessWidget {
   const HudGauge({
     super.key,
@@ -122,6 +126,7 @@ class HudGauge extends StatelessWidget {
     required this.fraction,
     required this.color,
     this.figure,
+    this.shield = 0,
   });
 
   final String label;
@@ -131,9 +136,14 @@ class HudGauge extends StatelessWidget {
   /// Written after the tube; the percentage when left out.
   final String? figure;
 
+  /// What a held shield is worth, as a share of the whole; 0 for none.
+  final double shield;
+
   @override
   Widget build(BuildContext context) {
     final f = fraction.clamp(0.0, 1.0);
+    final s = shield.clamp(0.0, 1.0);
+    final shieldFigure = s > 0 ? max(1, (s * 100).round()) : 0;
     return Row(
       children: [
         SizedBox(
@@ -143,20 +153,31 @@ class HudGauge extends StatelessWidget {
         Expanded(
           child: SizedBox(
             height: 8,
-            child: CustomPaint(painter: HudTubePainter(f, color)),
+            child: CustomPaint(painter: HudTubePainter(f, color, shield: s)),
           ),
         ),
         const SizedBox(width: 6),
         SizedBox(
-          width: 30,
-          child: Text(
-            figure ?? '${(f * 100).round()}',
-            textAlign: TextAlign.right,
-            style: hudMono(
-              10,
-              f < 0.25 ? HudInk.danger : HudInk.ink,
-              spacing: 0.4,
+          width: 40,
+          child: Text.rich(
+            TextSpan(
+              text: figure ?? '${(f * 100).round()}',
+              style: hudMono(
+                10,
+                f < 0.25 ? HudInk.danger : HudInk.ink,
+                spacing: 0.4,
+              ),
+              children: [
+                if (shieldFigure > 0)
+                  TextSpan(
+                    text: '+$shieldFigure',
+                    style: hudMono(8.5, HudInk.shield, spacing: 0.2),
+                  ),
+              ],
             ),
+            textAlign: TextAlign.right,
+            maxLines: 1,
+            softWrap: false,
           ),
         ),
       ],
@@ -168,10 +189,14 @@ class HudGauge extends StatelessWidget {
 /// top, deep at the bottom, grains settled through it, and the glass's own
 /// highlight over all of it.
 class HudTubePainter extends CustomPainter {
-  HudTubePainter(this.fraction, this.color);
+  HudTubePainter(this.fraction, this.color, {this.shield = 0});
 
   final double fraction;
   final Color color;
+
+  /// A held shield, as a share of the tube: pale brass glass after the
+  /// fill, or over its end when the two overrun the tube.
+  final double shield;
 
   static final Paint _p = Paint();
   static final Paint _grain = Paint()
@@ -226,6 +251,25 @@ class HudTubePainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(w - 1.2, 0, 1.2, size.height), _p);
     }
 
+    if (shield > 0) {
+      final sw = max(3.0, size.width * shield.clamp(0.0, 1.0));
+      final x0 = min(w, size.width - sw);
+      final band = Rect.fromLTWH(x0, 0, sw, size.height);
+      _p.shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: const [HudInk.shield, Color(0xFFD6C595), Color(0xFF6E5D38)],
+        stops: const [0.0, 0.42, 1.0],
+      ).createShader(band);
+      canvas.drawRect(band, _p);
+      // A sliver of dark glass where it meets the fill, so the two read as
+      // two things.
+      _p
+        ..shader = null
+        ..color = const Color(0xFF08090E).withValues(alpha: 0.85);
+      canvas.drawRect(Rect.fromLTWH(x0, 0, 1.0, size.height), _p);
+    }
+
     _p.shader = const LinearGradient(
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter,
@@ -237,7 +281,7 @@ class HudTubePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(HudTubePainter old) =>
-      old.fraction != fraction || old.color != color;
+      old.fraction != fraction || old.color != color || old.shield != shield;
 }
 
 /// The run's top line: the wave and the clock, the console's keys, and the
@@ -252,6 +296,7 @@ class SurvivalTopHud extends StatelessWidget {
     required this.shipGhost,
     required this.orbFraction,
     required this.orbColor,
+    this.orbShield = 0,
   });
 
   final int wave;
@@ -261,6 +306,9 @@ class SurvivalTopHud extends StatelessWidget {
   final bool shipGhost;
   final double orbFraction;
   final Color orbColor;
+
+  /// The orb's shield as a share of its maximum health; 0 for none.
+  final double orbShield;
 
   @override
   Widget build(BuildContext context) {
@@ -306,7 +354,12 @@ class SurvivalTopHud extends StatelessWidget {
                   figure: shipGhost ? '—' : null,
                 ),
                 const SizedBox(height: 7),
-                HudGauge(label: 'ORB', fraction: orbFraction, color: orbColor),
+                HudGauge(
+                  label: 'ORB',
+                  fraction: orbFraction,
+                  color: orbColor,
+                  shield: orbShield,
+                ),
               ],
             ),
           ),

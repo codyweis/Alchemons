@@ -2,6 +2,7 @@
 import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:flutter/material.dart';
 
@@ -157,9 +158,10 @@ class FactionService extends ChangeNotifier {
     if (_cached != null && _cached!.isNotEmpty && current != null) {
       await ensureDefaultPerkState(current!);
     }
+    final dockChanged = await _loadDock();
 
     // Prevent redundant rebuilds
-    if (before != _cached) {
+    if (before != _cached || dockChanged) {
       notifyListeners();
     }
     return _cached;
@@ -167,13 +169,21 @@ class FactionService extends ChangeNotifier {
 
   Future<void> reloadFromStorage() async {
     _cached = null;
+    _dockLoaded = false;
     await loadId();
   }
 
   Future<void> setId(FactionId id) async {
+    final before = current;
     await db.settingsDao.setSetting(_kFactionKey, id.name);
     _cached = id.name;
     await ensureDefaultPerkState(id);
+    // Every faction joined leaves its own dock set behind, and a new
+    // faction's goes on the dock.
+    for (final f in {?before, id}) {
+      await _ownDockSet(DockSet.of(f));
+    }
+    if (before != id) await _setWornDockSet(DockSet.of(id));
     notifyListeners();
   }
 
@@ -187,6 +197,70 @@ class FactionService extends ChangeNotifier {
   }
 
   FactionInfo? get currentInfo => current == null ? null : catalog[current]!;
+
+  // ---------------------------------------------------------------------------
+  // The dock (models/dock_sets.dart)
+  // ---------------------------------------------------------------------------
+
+  static const String _kDockSetKey = 'dock_set_worn_v1';
+
+  bool _dockLoaded = false;
+  String? _wornDockSet;
+  final Set<String> _ownedDockSets = {};
+
+  /// The dock set worn: the one chosen while it is owned, otherwise the
+  /// faction's own.
+  DockSet get dockSet {
+    final chosen = DockSet.byId(_wornDockSet);
+    if (chosen != null && ownsDockSet(chosen)) return chosen;
+    return DockSet.of(current);
+  }
+
+  /// Whether [set] is the player's: the faction's own set, any set of a
+  /// faction they were in, any set they bought.
+  bool ownsDockSet(DockSet set) =>
+      set == DockSet.of(current) || _ownedDockSets.contains(set.id);
+
+  /// Puts [set] on the dock, if it is owned.
+  Future<void> wearDockSet(DockSet set) async {
+    if (!ownsDockSet(set) || set == dockSet) return;
+    await _setWornDockSet(set);
+    notifyListeners();
+  }
+
+  /// [set] bought in the shop: owned, and on the dock.
+  Future<void> grantDockSet(DockSet set) async {
+    await _ownDockSet(set);
+    await _setWornDockSet(set);
+    notifyListeners();
+  }
+
+  /// Reads which dock sets are owned and which is worn, once; true if that
+  /// changed anything.
+  Future<bool> _loadDock() async {
+    if (_dockLoaded) return false;
+    _dockLoaded = true;
+    final before = dockSet;
+    _wornDockSet = await db.settingsDao.getSetting(_kDockSetKey);
+    _ownedDockSets.clear();
+    for (final s in kDockSets) {
+      if (await db.settingsDao.getSetting(s.settingKey) == '1') {
+        _ownedDockSets.add(s.id);
+      }
+    }
+    return dockSet != before;
+  }
+
+  Future<void> _ownDockSet(DockSet set) async {
+    if (_ownedDockSets.contains(set.id)) return;
+    await db.settingsDao.setSetting(set.settingKey, '1');
+    _ownedDockSets.add(set.id);
+  }
+
+  Future<void> _setWornDockSet(DockSet set) async {
+    await db.settingsDao.setSetting(_kDockSetKey, set.id);
+    _wornDockSet = set.id;
+  }
 
   // ---------------------------------------------------------------------------
   // Perk unlock persistence

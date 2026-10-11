@@ -1,10 +1,13 @@
 @Tags(['preview'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
@@ -12,6 +15,7 @@ import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/avatar_widget.dart';
@@ -107,7 +111,19 @@ void main() {
       });
 
       final db = AlchemonsDatabase(NativeDatabase.memory());
+      late CreatureCatalog catalog;
       await tester.runAsync(() async {
+        final json =
+            jsonDecode(
+                  File(
+                    'assets/data/alchemons_creatures.json',
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        catalog = CreatureCatalog.fromList([
+          for (final c in json['creatures'] as List)
+            Creature.fromJson(c as Map<String, dynamic>),
+        ]);
         GoogleFonts.imFellEnglishTextTheme();
         GoogleFonts.imFellEnglish(fontStyle: FontStyle.italic);
         GoogleFonts.cinzel(fontWeight: FontWeight.w700);
@@ -115,7 +131,13 @@ void main() {
           GoogleFonts.getFont(name, fontWeight: FontWeight.w600);
         }
         await GoogleFonts.pendingFonts();
-        await FactionService(db).setId(faction);
+        // A player who came from another faction and bought one set there:
+        // three dock sets to choose between on the profile.
+        final factions = FactionService(db);
+        final before = FactionId.values[(faction.index + 1) % 4];
+        await factions.setId(before);
+        await factions.grantDockSet(DockSet.ofFaction(before)[1]);
+        await factions.setId(faction);
       });
 
       final dir = '$out/${faction.name}';
@@ -153,6 +175,7 @@ void main() {
             key: UniqueKey(),
             providers: [
               Provider<AlchemonsDatabase>.value(value: db),
+              Provider<CreatureCatalog>.value(value: catalog),
               ChangeNotifierProvider<AccountService>(
                 create: (_) => _FakeAccount(signedIn: signedIn),
               ),

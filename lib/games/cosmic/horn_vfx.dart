@@ -133,19 +133,26 @@ void _drawWakeDebris(
   final heading = atan2(dir.dy, dir.dx);
 
   if (element == 'Lightning') {
-    final step = (time * 18.0).floorToDouble();
+    // Two arcs trailing off the flanks: filled ribbons writhing between
+    // poses (they were stroked zig-zags re-rolled 18 times a second).
+    final glow = ui.Path();
+    final core = ui.Path();
     for (var b = 0; b < 2; b++) {
       final side = b == 0 ? 1.0 : -1.0;
-      vfxBolt(
-        canvas,
+      vfxArcInto(
+        glow,
+        core,
         perp * half * 0.5 * side,
         -dir * wakeLen * 0.8 + perp * half * 0.4 * side,
-        step + b * 7,
-        m,
-        0.9,
-        jag: 0.3,
+        b * 7.0 + 3.0,
+        time,
+        width: 1.6 * scale,
+        amp: 0.2,
+        rate: 3.0,
       );
     }
+    vfxFillPath(canvas, glow, m.light, 0.3);
+    vfxFillPath(canvas, core, vfxFlare(m), 0.85);
     return;
   }
 
@@ -160,7 +167,12 @@ void _drawWakeDebris(
               dir * wakeLen * 0.55 * t,
         );
       }
-      vfxFillPath(canvas, vfxRibbon(spine, 5.0 * scale, 0.5), m.glint, 0.30);
+      vfxFillPath(
+        canvas,
+        vfxRibbon(spine, 7.0 * scale, 2.0 * scale),
+        m.glint,
+        0.26,
+      );
     }
   }
 
@@ -403,39 +415,68 @@ void drawHornSlam({
     vfxSpill(canvas, c, r * 0.28, m.glint, 0.7 * flash * fade);
   }
 
-  // Shock: a soft ring the size of the hit, and a heavy crescent where the
-  // ram was pointing.
+  // Shock: ground thrown up in a front where the ram was pointing — billows
+  // of the element's material rolling out, with grains flaring along the
+  // leading edge. (It was a dust crescent under a thin bright crescent: a
+  // drawn arc that read as a hoop, and as a sickle at the top band.)
   final shockR = r * (0.3 + 0.72 * ease);
-  // Dust thrown up behind the front, then the front itself — thin, bright,
-  // tapering away to nothing at its ends so it never closes into a hoop.
-  vfxFillPath(
-    canvas,
-    vfxCrescent(c, shockR * 0.94, r * 0.2 * fade + 2, a0, 1.9),
-    m.mid,
-    0.26 * fade,
-  );
-  vfxFillPath(
-    canvas,
-    vfxCrescent(c, shockR, r * 0.07 * fade + 1.5, a0, 2.2),
-    m.glint,
-    0.6 * fade * fade,
-  );
+  final billows = ui.Path();
+  final puffs = reduceAmbient ? 4 : 6;
+  for (var i = 0; i < puffs; i++) {
+    final f = i / (puffs - 1) - 0.5;
+    final a = a0 + f * 1.8 + (vfxHash(seed + i * 1.3) - 0.5) * 0.2;
+    // Tallest in the middle of the front, thinning toward its ends.
+    final size = r * (0.13 + 0.05 * vfxHash(seed + i * 2.9)) *
+        (1 - f.abs() * 0.9) *
+        (0.6 + 0.6 * ease);
+    billows.addPath(
+      vfxBlob(
+        c + vfxPolar(a, shockR * (0.86 + 0.08 * vfxHash(seed + i * 4.1))),
+        size,
+        seed + i * 3,
+        n: 8,
+        wobble: 0.3,
+      ),
+      ui.Offset.zero,
+    );
+  }
+  vfxFillPath(canvas, billows, isDark ? m.ink : m.mid, 0.3 * fade);
+  final frontA = 0.85 * fade * fade;
+  if (frontA > 0.01) {
+    vfxGrainsDiscard();
+    final grains = reduceAmbient ? 9 : 16;
+    for (var i = 0; i < grains; i++) {
+      final f = i / (grains - 1) - 0.5;
+      // Fewer toward the ends, so the front frays out instead of stopping.
+      if (vfxHash(seed + i * 2.3) < f.abs() * 1.3) continue;
+      final a = a0 + f * 2.0 + (vfxHash(seed + i * 1.7) - 0.5) * 0.1;
+      final p = c + vfxPolar(a, shockR * (0.93 + 0.12 * vfxHash(seed + i)));
+      vfxGrain(p.dx, p.dy);
+    }
+    vfxGrainsFlush(canvas, max(1.6, r * 0.028), vfxFlare(m), frontA);
+  }
 
   if (element == 'Lightning') {
-    final step = (fx.age * 16).floorToDouble();
-    for (var i = 0; i < (reduceAmbient ? 2 : 4); i++) {
-      final a = a0 + (i / 3 - 0.5) * 1.8;
-      vfxBolt(
-        canvas,
+    // Arcs thrown forward with the slam at uneven bearings, writhing as
+    // they reach out — filled ribbons, two fills for all.
+    final glow = ui.Path();
+    final core = ui.Path();
+    for (var i = 0; i < (reduceAmbient ? 2 : 3); i++) {
+      final a = a0 + (vfxHash(seed + i * 2.3) - 0.5) * 1.9;
+      vfxArcInto(
+        glow,
+        core,
         c + vfxPolar(a, r * 0.1),
-        c + vfxPolar(a, r * (0.35 + 0.5 * ease)),
-        seed + step + i * 5,
-        m,
-        fade,
-        jag: 0.35,
-        segs: 4,
+        c + vfxPolar(a + 0.3, r * (0.35 + 0.5 * ease)),
+        seed + i * 5,
+        fx.age,
+        width: max(1.4, r * 0.025),
+        amp: 0.25,
+        rate: 3.0,
       );
     }
+    vfxFillPath(canvas, glow, m.light, 0.3 * fade);
+    vfxFillPath(canvas, core, vfxFlare(m), 0.85 * fade);
     return;
   }
 
@@ -587,7 +628,16 @@ bool drawHornZoneVisual({
   if (element == 'Crystal' &&
       projectile.orbitRadius > 0 &&
       projectile.holdOrbit) {
-    _drawCrystalWard(canvas, c, m, seed, time, vs);
+    _drawCrystalWard(
+      canvas,
+      c,
+      m,
+      seed,
+      time,
+      vs,
+      max(Projectile.radius * projectile.radiusMultiplier, 3.0),
+      projectile.interceptRadius,
+    );
     return true;
   }
   if (element == 'Spirit' && projectile.decoy && !projectile.stationary) {
@@ -628,8 +678,10 @@ double _seedFor(Projectile p) =>
     (p.orbitAngle * 7.1 + p.angle * 3.3 + p.position.dx * 0.011) % 97.0 +
     identityHashCode(p) % 89;
 
-/// A horn projectile in flight (Lava's homing flames and the like): a
-/// comet of its material, never an arrowhead.
+/// A horn projectile in flight — the family's auto-attack, Lava's homing
+/// flames and the like: an ember of its material shoving a small bow wave
+/// ahead of it (the same crescent a charging horn pushes), never an
+/// arrowhead. Sized from the contact radius, so it grows with the hit.
 void drawHornMote({
   required ui.Canvas canvas,
   required Projectile projectile,
@@ -637,11 +689,18 @@ void drawHornMote({
   required double time,
 }) {
   final m = vfxMaterial(projectile.element);
-  final vs = projectile.visualScale.clamp(0.75, 3.0).toDouble();
+  final r = max(1.6, Projectile.radius * projectile.radiusMultiplier);
   final a = projectile.angle;
-  vfxSpill(canvas, position, 14 * vs, m.light, 0.26);
-  vfxFillPath(canvas, vfxDrop(position, 4.2 * vs, a), m.mid, 0.9);
-  vfxFillPath(canvas, vfxDrop(position, 2.2 * vs, a), m.glint, 0.9);
+  vfxSpill(canvas, position, r * 2.6, m.light, 0.22);
+  vfxFillPath(canvas, vfxDrop(position, r, a), m.mid, 0.9);
+  vfxFillPath(canvas, vfxDrop(position, r * 0.5, a), m.glint, 0.9);
+  final surge = 1.0 + 0.05 * sin(time * 22.0 + a * 3);
+  vfxFillPath(
+    canvas,
+    vfxCrescent(position, r * 1.3 * surge, r * 0.34, a, 2.0),
+    m.glint,
+    0.45,
+  );
 }
 
 /// Char with fire still in it — Horn's lane, Pip's kill pools.
@@ -704,19 +763,28 @@ void _drawStormScar(
   vfxFillPath(canvas, vfxBlob(c, r * 0.45, seed, wobble: 0.28), m.ink, 0.5);
   vfxSpill(canvas, c, r * 1.2, m.light, 0.3 * pulse);
   vfxSpill(canvas, c, r * 0.3, m.glint, 0.5 * pulse);
-  final step = (time * 14).floorToDouble();
-  for (var i = 0; i < 4; i++) {
-    final a = seed + i * pi / 2 + vfxHash(step + i) * 0.8;
-    vfxBolt(
-      canvas,
+  // Three arcs crawling out over the scorched ground: filled ribbons whose
+  // reach and heading glide (no evenly spaced spokes, no zig-zag re-rolled
+  // fourteen times a second), two fills for all three.
+  final glow = ui.Path();
+  final core = ui.Path();
+  for (var i = 0; i < 3; i++) {
+    final a =
+        seed + i * 2.2 + (vfxGlide(seed + i * 5.3, time, 1.6) - 0.5) * 1.4;
+    final reach = r * (0.55 + 0.4 * vfxGlide(seed + i * 9.1, time, 2.0));
+    vfxArcInto(
+      glow,
+      core,
       c + vfxPolar(a, r * 0.12),
-      c + vfxPolar(a, r * (0.6 + 0.4 * vfxHash(step + i * 3))),
-      step * 3 + i,
-      m,
-      0.8,
-      segs: 4,
+      c + vfxPolar(a + 0.35, reach),
+      seed + i * 11.0,
+      time,
+      width: max(1.4, r * 0.022),
+      amp: 0.22,
     );
   }
+  vfxFillPath(canvas, glow, m.light, 0.22 * pulse);
+  vfxFillPath(canvas, core, m.glint, 0.8 * pulse);
 }
 
 void _drawWhirlpool(
@@ -888,12 +956,13 @@ void _drawCyclone(
       );
     }
   }
+  // Grit carried round in the wind: one batch of grains.
   for (var i = 0; i < 8; i++) {
     final a = time * (3.2 + vfxHash(seed + i)) + i * 0.785;
     final p = c + vfxPolar(a, r * (0.4 + 0.5 * vfxHash(seed + i * 2)));
-    _fill.color = m.glint.withValues(alpha: 0.5);
-    canvas.drawCircle(p, 1.2, _fill);
+    vfxGrain(p.dx, p.dy);
   }
+  vfxGrainsFlush(canvas, 2.4, m.glint, 0.5);
 }
 
 /// A hole in the ground things fall into — Horn's void, Pip's black hole.
@@ -933,6 +1002,225 @@ void drawVfxVoid(
   }
 }
 
+/// The ground of an element over a zone of [radius] — what any parked piece
+/// without a painter of its own lies on: the burning ground, storm scar,
+/// whirlpool, ice, geyser, cyclone or void Horn paints, and a pool, a bed of
+/// rubble, crystal or growth, or a pool of light for the rest. Material
+/// fills and cached light only; it replaced the old flat-disc zone painters
+/// and their white flash discs (2026-10-10). [flash] (0..1) swells it for a
+/// moment — a trap firing — as light of its own material. [garden] puts
+/// buds in a Plant bed (Kin's healing garden).
+void drawVfxElementGround({
+  required ui.Canvas canvas,
+  required String element,
+  required ui.Offset center,
+  required double radius,
+  required double time,
+  double seed = 0,
+  double flash = 0,
+  bool garden = false,
+}) {
+  final m = vfxMaterial(element);
+  final c = center;
+  final r = radius;
+  if (flash > 0.05) {
+    vfxSpill(canvas, c, r * (1.0 + 0.4 * (1 - flash)), m.light, 0.3 * flash);
+  }
+  switch (element) {
+    case 'Fire' || 'Lava':
+      drawVfxBurningGround(canvas, c, m, r * 0.9, seed, time);
+    case 'Lightning':
+      _drawStormScar(canvas, c, m, r * 0.8, seed, time);
+    case 'Water':
+      _drawWhirlpool(canvas, c, m, r * 0.8, seed, time);
+    case 'Ice':
+      _drawIceBlock(canvas, c, m, r * 0.42, seed, time);
+    case 'Steam':
+      _drawGeyser(canvas, c, m, r * 0.6, seed, time);
+    case 'Air' || 'Dust':
+      _drawCyclone(canvas, c, m, r * 0.7, seed, time);
+    case 'Dark':
+      drawVfxVoid(canvas, c, m, r * 0.6, seed, time);
+    case 'Earth':
+      _drawRubbleBed(canvas, c, m, r, seed, time);
+    case 'Crystal':
+      _drawCrystalBed(canvas, c, m, r, seed, time);
+    case 'Plant':
+      _drawGrowthBed(canvas, c, m, r, seed, time, buds: garden);
+    case 'Light' || 'Spirit':
+      _drawLightPool(canvas, c, m, r, seed, time);
+    default:
+      _drawPool(canvas, c, m, r, seed, time, bubbles: element == 'Poison');
+  }
+}
+
+/// Mud, Poison, Blood: a pool — dark body, a lit surface, a slow sheen.
+void _drawPool(
+  ui.Canvas canvas,
+  ui.Offset c,
+  VfxMaterial m,
+  double r,
+  double seed,
+  double time, {
+  bool bubbles = false,
+}) {
+  final breathe = 1 + 0.03 * sin(time * 1.1 + seed);
+  vfxSpill(canvas, c, r * 1.05, m.light, 0.12);
+  vfxFillPath(
+    canvas,
+    vfxBlob(c, r * 0.82 * breathe, seed, n: 16, wobble: 0.12),
+    m.ink,
+    0.72,
+  );
+  vfxFillPath(
+    canvas,
+    vfxBlob(c + ui.Offset(-r * 0.08, -r * 0.1), r * 0.55, seed + 3, wobble: 0.16),
+    m.mid,
+    0.22,
+  );
+  vfxSpill(canvas, c + ui.Offset(-r * 0.1, -r * 0.12), r * 0.5, m.light, 0.16);
+  for (var i = 0; i < 2; i++) {
+    final a = seed + i * 2.6 + sin(time * 0.4 + i) * 0.3;
+    vfxFillPath(
+      canvas,
+      vfxCrescent(c, r * (0.45 + 0.2 * i), max(1.5, r * 0.04), a, 0.7),
+      m.glint,
+      0.22,
+    );
+  }
+  if (bubbles) {
+    for (var i = 0; i < 6; i++) {
+      final ph = (time * 0.6 + vfxHash(seed + i * 3.1)) % 1.0;
+      final p =
+          c +
+          vfxPolar(vfxHash(seed + i) * pi * 2, r * 0.55 * vfxHash(seed + i * 2)) +
+          ui.Offset(0, -ph * r * 0.2);
+      vfxGrain(p.dx, p.dy);
+    }
+    vfxGrainsFlush(canvas, max(1.6, r * 0.05), m.glint, 0.5);
+  }
+}
+
+/// Earth: broken ground with stones heaved up in it.
+void _drawRubbleBed(
+  ui.Canvas canvas,
+  ui.Offset c,
+  VfxMaterial m,
+  double r,
+  double seed,
+  double time,
+) {
+  vfxSpill(canvas, c, r, m.light, 0.12);
+  vfxFillPath(canvas, vfxBlob(c, r * 0.78, seed, wobble: 0.22), m.ink, 0.5);
+  for (var i = 0; i < 5; i++) {
+    final p =
+        c + vfxPolar(seed + i * 2.399963, r * 0.62 * sqrt((i + 0.5) / 5));
+    vfxChunk(
+      canvas,
+      p,
+      r * (0.12 + 0.06 * vfxHash(seed + i)),
+      seed + i * 3.7,
+      m,
+      rot: seed + i,
+    );
+  }
+}
+
+/// Crystal: a bed of crystal growing out of the ground, points up.
+void _drawCrystalBed(
+  ui.Canvas canvas,
+  ui.Offset c,
+  VfxMaterial m,
+  double r,
+  double seed,
+  double time,
+) {
+  vfxSpill(canvas, c, r, m.light, 0.16);
+  vfxFillPath(canvas, vfxBlob(c, r * 0.6, seed, wobble: 0.2), m.ink, 0.42);
+  final body = ui.Path();
+  final face = ui.Path();
+  for (var i = 0; i < 7; i++) {
+    final p =
+        c + vfxPolar(seed + i * 2.399963, r * 0.55 * sqrt((i + 0.5) / 7));
+    final a = -pi / 2 + (vfxHash(seed + i * 1.9) - 0.5) * 1.1;
+    final len = r * (0.18 + 0.14 * vfxHash(seed + i * 4.1));
+    body.addPath(vfxShard(p, len, len * 0.3, a), ui.Offset.zero);
+    face.addPath(vfxShard(p, len * 0.85, len * 0.1, a), ui.Offset.zero);
+  }
+  vfxFillPath(canvas, body, m.mid, 0.85);
+  final catchLight = 0.5 + 0.5 * sin(time * 1.6 + seed);
+  vfxFillPath(canvas, face, m.glint, 0.3 + 0.35 * catchLight);
+}
+
+/// Plant: a bed of growth — dark soil, leaves lying across it, and (for a
+/// garden) buds of light in among them.
+void _drawGrowthBed(
+  ui.Canvas canvas,
+  ui.Offset c,
+  VfxMaterial m,
+  double r,
+  double seed,
+  double time, {
+  bool buds = false,
+}) {
+  vfxSpill(canvas, c, r, m.light, 0.14);
+  vfxFillPath(
+    canvas,
+    vfxBlob(c, r * 0.85, seed, n: 16, wobble: 0.14),
+    m.ink,
+    0.55,
+  );
+  final leaves = ui.Path();
+  final lit = ui.Path();
+  const n = 14;
+  for (var i = 0; i < n; i++) {
+    final p = c + vfxPolar(seed + i * 2.399963, r * 0.78 * sqrt((i + 0.5) / n));
+    final a = vfxHash(seed + i * 1.3) * pi * 2 + sin(time * 0.9 + i) * 0.12;
+    final len = r * (0.14 + 0.08 * vfxHash(seed + i * 2.9));
+    leaves.addPath(vfxLeaf(p, len, a), ui.Offset.zero);
+    if (i % 3 == 0) {
+      lit.addPath(vfxLeaf(p, len * 0.6, a), ui.Offset.zero);
+    }
+  }
+  vfxFillPath(canvas, leaves, m.mid, 0.82);
+  vfxFillPath(canvas, lit, m.glint, 0.4);
+  if (buds) {
+    for (var i = 0; i < 5; i++) {
+      final p =
+          c + vfxPolar(seed + i * 2.2 + 0.7, r * (0.25 + 0.4 * vfxHash(seed + i)));
+      vfxGrain(p.dx, p.dy);
+    }
+    vfxGrainsFlush(
+      canvas,
+      max(2.0, r * 0.05),
+      vfxFlare(vfxMaterial('Light')),
+      0.55 + 0.25 * sin(time * 2 + seed),
+    );
+  }
+}
+
+/// Light, Spirit: a pool of light lying on the ground, breathing.
+void _drawLightPool(
+  ui.Canvas canvas,
+  ui.Offset c,
+  VfxMaterial m,
+  double r,
+  double seed,
+  double time,
+) {
+  final breathe = 0.85 + 0.15 * sin(time * 1.4 + seed);
+  vfxSpill(canvas, c, r, m.light, 0.22 * breathe);
+  vfxSpill(canvas, c, r * 0.45, m.glint, 0.28 * breathe);
+  for (var i = 0; i < 2; i++) {
+    vfxFillPath(
+      canvas,
+      vfxCrescent(c, r * (0.6 + 0.18 * i), max(2.0, r * 0.06), seed + i * 2.8, 1.1),
+      m.glint,
+      0.16 * breathe,
+    );
+  }
+}
+
 void _drawCrystalWard(
   ui.Canvas canvas,
   ui.Offset c,
@@ -940,8 +1228,16 @@ void _drawCrystalWard(
   double seed,
   double time,
   double vs,
+  double hitR,
+  double interceptR,
 ) {
-  final r = 7.0 * (vs / 1.5).clamp(0.8, 1.4);
+  // About twice the contact radius, so the stone is the size of what it
+  // blocks with; the ward it keeps (the reach it catches shots in) pools as
+  // light round it, and the shards' pools merge into one shield.
+  final r = max(7.0 * (vs / 1.5).clamp(0.8, 1.4), hitR * 1.8);
+  if (interceptR > 0) {
+    vfxSpill(canvas, c, interceptR * 0.5, m.light, 0.07);
+  }
   vfxSpill(canvas, c, r * 2.6, m.light, 0.2);
   vfxChunk(
     canvas,
@@ -999,32 +1295,33 @@ void _drawBarrier(
   // Same footprint as the gameplay perimeter it reflects at.
   final domeR = max(60.0, projectile.radiusMultiplier * 20.0 + 70.0);
   final breathe = 0.88 + 0.12 * sin(time * 2.0 + projectile.life * 1.4);
-  _fill
-    ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.radial(
-      c,
-      domeR,
-      [
-        m.glint.withValues(alpha: 0.07 * breathe),
-        m.light.withValues(alpha: 0.015),
-        m.light.withValues(alpha: 0.05 * breathe),
-        m.glint.withValues(alpha: 0.30 * breathe),
-        m.glint.withValues(alpha: 0),
-      ],
-      const [0.0, 0.5, 0.88, 0.975, 1.0],
-    );
-  canvas.drawCircle(c, domeR, _fill);
-  _fill.shader = null;
-  // Sheen sliding slowly over the surface.
-  for (var i = 0; i < 3; i++) {
-    final a = time * 0.45 + i * pi * 2 / 3;
-    vfxFillPath(
-      canvas,
-      vfxCrescent(c, domeR * 0.97, 5.0, a, 0.9),
-      m.glint,
-      0.22,
-    );
-  }
+  // A bubble of lit glass: faint light inside, a broad soft swell of light
+  // toward the edge (no bright hairline rim), and the sheen sliding over its
+  // face. Cached gradients only.
+  vfxSpill(canvas, c, domeR, m.light, 0.11 * breathe);
+  // Lit from above-left: the near face of the glass catches it in a broad
+  // warm crescent, the far side in a faint one — a sphere, not a ring.
+  vfxFillPath(
+    canvas,
+    vfxCrescent(c, domeR, domeR * 0.16, -2.3, 2.6),
+    ui.Color.lerp(m.light, m.glint, 0.35)!,
+    0.24 * breathe,
+  );
+  vfxFillPath(
+    canvas,
+    vfxCrescent(c, domeR, domeR * 0.08, 0.85, 1.7),
+    m.light,
+    0.1 * breathe,
+  );
+  // One soft sheen drifting a little over the near face (it was three
+  // glint crescents turning round the rim: a rotating dashed ring).
+  vfxSpill(
+    canvas,
+    c + vfxPolar(-2.3 + sin(time * 0.5) * 0.45, domeR * 0.56),
+    domeR * 0.34,
+    m.glint,
+    0.12 * breathe,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -1042,33 +1339,60 @@ void drawHornPlantRootWrap({
 }) {
   final m = vfxMaterial('Plant');
   final a = strength.clamp(0.0, 1.0);
-  // Three vines climbing round the body from outside, thick at the root.
-  for (var v = 0; v < 3; v++) {
-    final start = seed + v * pi * 2 / 3 + sin(time * 0.8 + v) * 0.08;
+  if (a <= 0.01) return;
+  // Two vines up out of the ground, one each side, thick at the root and
+  // curling in over the top of the body: they hold it, they do not ring it.
+  // Thorns lie back along each vine (never sticking out like spokes) and a
+  // leaf opens on each. Four fills for the lot. (It was three vines wound
+  // all the way round with radial thorns: a dashed green hoop on every
+  // rooted enemy, eighteen fills each.)
+  final dark = ui.Path(), lit = ui.Path(), thorns = ui.Path(), leaves = ui.Path();
+  final j = vfxHash(seed * 1.7 + 0.3);
+  for (var v = 0; v < 2; v++) {
+    final side = v == 0 ? 1.0 : -1.0;
+    final sway = sin(time * 0.8 + v * 2.1 + seed) * 0.06;
+    final start = pi / 2 + side * (0.65 + 0.25 * j) + sway;
+    final sweep = side * (1.35 + 0.3 * vfxHash(seed + v * 3.1));
     final spine = <ui.Offset>[];
     for (var k = 0; k <= 9; k++) {
       final t = k / 9;
-      spine.add(vfxPolar(start + t * 2.2, r * (1.55 - 0.75 * t)));
+      // In over the body as it climbs, so the two cross it rather than
+      // bracketing it like a broken ring.
+      spine.add(vfxPolar(start + sweep * t, r * (1.25 - 1.0 * t * (2 - t))));
     }
-    vfxFillPath(canvas, vfxRibbon(spine, r * 0.5, r * 0.1), m.ink, 0.92 * a);
-    vfxFillPath(canvas, vfxRibbon(spine, r * 0.24, r * 0.05), m.mid, 0.9 * a);
-    // Thorns along the outer half.
-    for (var k = 2; k <= 6; k += 2) {
+    dark.addPath(vfxRibbon(spine, r * 0.44, r * 0.08), ui.Offset.zero);
+    lit.addPath(vfxRibbon(spine, r * 0.2, r * 0.04), ui.Offset.zero);
+    for (var k = 3; k <= 7; k += 2) {
       final p = spine[k];
-      final out = atan2(p.dy, p.dx);
-      vfxFillPath(canvas, vfxShard(p, r * 0.22, r * 0.05, out), m.ink, 0.9 * a);
+      final along = spine[k + 1] - spine[k - 1];
+      final out = p / max(1e-3, p.distance);
+      final dir = out * 0.55 - along / max(1e-3, along.distance) * 0.8;
+      thorns.addPath(
+        vfxShard(
+          p + out * r * 0.08,
+          r * 0.16,
+          r * 0.045,
+          atan2(dir.dy, dir.dx),
+        ),
+        ui.Offset.zero,
+      );
     }
-    vfxFillPath(
-      canvas,
-      vfxLeaf(spine[5], r * 0.45, start + 2.2 + pi / 2),
-      m.mid,
-      0.8 * a,
+    final lp = spine[5];
+    leaves.addPath(
+      vfxLeaf(lp, r * 0.42, atan2(lp.dy, lp.dx) + side * 0.7),
+      ui.Offset.zero,
     );
   }
+  vfxFillPath(canvas, dark, m.ink, 0.92 * a);
+  vfxFillPath(canvas, lit, m.mid, 0.9 * a);
+  vfxFillPath(canvas, thorns, m.ink, 0.9 * a);
+  vfxFillPath(canvas, leaves, m.mid, 0.85 * a);
 }
 
-/// Poison's always-on reach around the horn: a low haze thickening at the
-/// edge of what it poisons. Local coordinates.
+/// Poison's always-on reach around the horn: a miasma lying on the ground
+/// over all of it — a faint stain under the horn and banks of haze that
+/// swell and thin where they lie (they never circle the creature), thickest
+/// out toward the edge of what it poisons. Local coordinates.
 void drawHornPoisonAura({
   required ui.Canvas canvas,
   required double radius,
@@ -1077,11 +1401,31 @@ void drawHornPoisonAura({
 }) {
   final m = vfxMaterial('Poison');
   final r = radius * scale;
-  vfxSoftRing(canvas, ui.Offset.zero, r * 0.9, r * 0.14, m.light, 0.09);
-  for (var i = 0; i < 5; i++) {
-    final a = time * 0.18 + i * pi * 2 / 5;
-    final p = vfxPolar(a, r * (0.78 + 0.08 * sin(time * 0.7 + i)));
-    vfxSpill(canvas, p, r * 0.22, m.mid, 0.12);
+  vfxSpill(canvas, ui.Offset.zero, r, m.mid, 0.12);
+  const banks = 7;
+  for (var i = 0; i < banks; i++) {
+    final a = i * pi * 2 / banks + vfxHash(i * 3.7 + 1.3) * 0.8;
+    final d = r * (0.38 + 0.4 * vfxHash(i * 5.1 + 0.4));
+    final breathe = 0.5 + 0.5 * sin(time * 0.55 + i * 1.7);
+    final p =
+        vfxPolar(a, d) +
+        vfxPolar(a + pi / 2, r * 0.04 * sin(time * 0.3 + i * 2.3));
+    vfxSpill(
+      canvas,
+      p,
+      r * (0.3 + 0.05 * breathe),
+      m.mid,
+      0.12 + 0.08 * breathe,
+    );
+    if (i % 3 == 0) {
+      // A faint stain of the stuff itself under the haze.
+      vfxFillPath(
+        canvas,
+        vfxBlob(p, r * 0.16, i * 4.1, n: 14, wobble: 0.2),
+        m.ink,
+        0.18,
+      );
+    }
   }
 }
 
@@ -1164,24 +1508,193 @@ void drawHornTrailPatch({
 //
 // What a horn throws into the world while it winds up, rams, brews and
 // lingers — Cosmic Survival's own emitters, lifted as they were so every game
-// draws them the same. Each writes into sinks the caller supplies (its
-// particle pool, its beam list) and the caller keeps its own pool gates, so
-// an emitter never decides how busy a frame may get. The only lines are the
-// ones survival draws as lines: Crystal's shard dashes, Lightning's and
-// Dark's arcs, the Spirit ring marker and the Light barrier's arc.
+// draws them the same. Each writes into the particle pool the caller
+// supplies and the caller keeps its own pool gates, so an emitter never
+// decides how busy a frame may get. They throw grains only: the dashes,
+// chords and bars once laid into the beam list are gone (2026-10-10).
 // ─────────────────────────────────────────────────────────────────────────
 
-/// A short-lived beam segment, into the caller's beam list.
-typedef HornBeamEmit =
-    void Function(
-      ui.Offset start,
-      ui.Offset end,
-      ui.Color color,
-      double width,
-      double life,
-    );
-
 const ui.Color _white = ui.Color(0xFFFFFFFF);
+
+/// What a horn wears while it gathers itself, in its local coordinates
+/// (canvas at the body). [progress] runs 0 → 1 over the wind-up. Returns
+/// whether [element] has a wind-up look here; the grains the emitters throw
+/// go with it.
+///
+/// - Crystal: the bulwark condensing round the creature — stones of its
+///   material forming out of the gathered grains at their own bearings and
+///   distances, swelling and catching the light as it winds up, before they
+///   take up their orbit on the dash (it used to be six dashes orbiting).
+/// - Lightning: the storm brewing where it landed — a dark cloud swelling
+///   round the body, lit from inside, arcs crawling over it more often as
+///   it fills.
+bool drawHornWindUpOverlay({
+  required ui.Canvas canvas,
+  required String element,
+  required double progress,
+  required double time,
+  double scale = 1,
+  double reach = 0,
+  bool overBody = false,
+}) {
+  final t = progress.clamp(0.0, 1.0);
+  final m = vfxMaterial(element);
+  switch (element) {
+    case 'Dark':
+      // The void gathering on the horn through its five-second wind-up: the
+      // ground darkening out to the reach it drags from ([reach], the pull
+      // radius), grains drawn in off that rim on tightening curves, a black
+      // heart swelling under the horn with its bent light round it, and two
+      // accretion arms winding faster as it fills. (The wind-up was only a
+      // few near-black particles: nothing read for five seconds.) Drawn
+      // under the body, so the creature sits in the void's heart; a mode
+      // that paints wind-ups over the body passes [overBody] and gets the
+      // void without the black heart and the darkened middle.
+      final e = 1 - pow(1 - t, 3).toDouble();
+      final rim = reach > 0 ? reach : 120.0 * scale;
+      if (overBody) {
+        vfxSoftRing(
+          canvas,
+          ui.Offset.zero,
+          rim * 0.62,
+          rim * 0.4,
+          m.ink,
+          0.3 + 0.25 * t,
+        );
+      } else {
+        vfxSpill(canvas, ui.Offset.zero, rim, m.ink, 0.3 + 0.25 * t);
+      }
+      vfxSoftRing(
+        canvas,
+        ui.Offset.zero,
+        rim * 0.9,
+        rim * 0.12,
+        m.light,
+        0.04 + 0.07 * t,
+      );
+      final core = (12 + 13 * e) * scale;
+      vfxGrainsDiscard();
+      const grains = 26;
+      for (var i = 0; i < grains; i++) {
+        final ph = (time * (0.3 + 0.45 * t) + i / grains) % 1.0;
+        final u = ph * ph;
+        final ang = i * 2.399963 + u * (2.0 + 1.6 * t);
+        final p = vfxPolar(ang, rim * (1 - u) + core * 0.9 * u);
+        vfxGrain(p.dx, p.dy);
+      }
+      vfxGrainsFlush(
+        canvas,
+        2.6 * scale,
+        ui.Color.lerp(m.glint, m.light, 0.25)!,
+        0.55 + 0.35 * t,
+      );
+      vfxSpill(canvas, ui.Offset.zero, core * 2.8, m.light, 0.16 + 0.16 * t);
+      final arms = ui.Path();
+      final spin = time * (1.0 + 2.6 * t);
+      for (var i = 0; i < 2; i++) {
+        arms.addPath(
+          vfxSpiralArm(
+            ui.Offset.zero,
+            core * 2.5,
+            spin + i * pi,
+            2.4,
+            core * 0.34,
+            reach: 0.64,
+          ),
+          ui.Offset.zero,
+        );
+      }
+      vfxFillPath(canvas, arms, m.glint, 0.36 + 0.24 * t);
+      if (!overBody) {
+        vfxFillPath(
+          canvas,
+          vfxBlob(ui.Offset.zero, core, 3.7, n: 12, wobble: 0.08),
+          m.ink,
+          0.96,
+        );
+      }
+      vfxFillPath(
+        canvas,
+        vfxCrescent(ui.Offset.zero, core * 1.1, core * 0.24, -2.4, 2.1),
+        m.glint,
+        0.38 + 0.3 * t,
+      );
+      return true;
+    case 'Crystal':
+      final e = 1 - (1 - t) * (1 - t);
+      vfxSpill(canvas, ui.Offset.zero, (30 + 26 * e) * scale, m.light, 0.18 * e);
+      for (var i = 0; i < 6; i++) {
+        // Each stone forms a little after the last.
+        final g = ((e * 1.35) - i * 0.06).clamp(0.0, 1.0);
+        if (g <= 0) continue;
+        final a = i * pi * 2 / 6 + (vfxHash(i * 2.9 + 0.7) - 0.5) * 0.9;
+        final d = (24 + 14 * vfxHash(i * 6.1 + 2.3)) * scale;
+        final p = vfxPolar(a, d) +
+            ui.Offset(0, sin(time * 1.6 + i * 1.3) * 1.5 * scale);
+        final r = (6.5 + 4.5 * vfxHash(i * 4.3 + 1.1)) * g * scale;
+        vfxSpill(canvas, p, r * 2.6, m.light, 0.16 * g);
+        // Lit crystal, a step up Crystal's material: its dark body on the
+        // dark arena hid the bulwark entirely.
+        vfxChunk(
+          canvas,
+          p,
+          r,
+          i * 7.7,
+          VfxMaterial(m.mid, m.light, m.glint, m.light),
+          alpha: g,
+          rot: i * 1.1 + time * 0.3,
+          sides: 5,
+          faceAlpha: 0.75,
+        );
+      }
+      return true;
+    case 'Lightning':
+      final r = (26 + 34 * t) * scale;
+      final pulse = 0.8 + 0.2 * sin(time * 9);
+      vfxSpill(
+        canvas,
+        ui.Offset.zero,
+        r * 1.6,
+        m.light,
+        (0.14 + 0.16 * t) * pulse,
+      );
+      vfxFillPath(
+        canvas,
+        vfxBlob(ui.Offset.zero, r * 0.8, 7.3, wobble: 0.22),
+        m.ink,
+        0.45 + 0.2 * t,
+      );
+      vfxSpill(
+        canvas,
+        ui.Offset(-r * 0.12, -r * 0.14),
+        r * 0.6,
+        m.mid,
+        0.4 + 0.25 * t,
+      );
+      // Arcs crawling over the cloud: one at first, three when it is full.
+      final glow = ui.Path();
+      final core = ui.Path();
+      final arcs = 1 + (t > 0.35 ? 1 : 0) + (t > 0.7 ? 1 : 0);
+      for (var i = 0; i < arcs; i++) {
+        final a0 = i * 2.3 + (vfxGlide(i * 3.1, time, 1.1) - 0.5) * 2.4;
+        final a1 = a0 + 0.9 + vfxGlide(i * 5.7 + 0.4, time, 1.5) * 0.9;
+        vfxArcInto(
+          glow,
+          core,
+          vfxPolar(a0, r * (0.55 + 0.25 * vfxGlide(i * 2.2, time, 1.9))),
+          vfxPolar(a1, r * 0.8),
+          i * 9.0 + 2.0,
+          time,
+          width: 2.2 * scale,
+          amp: 0.28,
+        );
+      }
+      vfxFillPath(canvas, glow, m.light, 0.3 * pulse);
+      vfxFillPath(canvas, core, vfxFlare(m), (0.6 + 0.3 * t) * pulse);
+      return true;
+  }
+  return false;
+}
 
 /// The flash color of a Lightning discharge (and its hit spark).
 ui.Color get hornLightningFlashColor =>
@@ -1224,7 +1737,6 @@ void emitHornLightningStormBrew(
   double brewRemaining,
   Random rng,
   ZoneVfxEmit emit,
-  HornBeamEmit beam,
 ) {
   const total = 3.0;
   final elapsed = (total - brewRemaining).clamp(0.0, total);
@@ -1247,17 +1759,20 @@ void emitHornLightningStormBrew(
       i.isEven ? base : white,
     );
   }
+  // The crackle: a grain flaring white where the storm will break, more
+  // often as it fills (the storm's body is drawn on the horn,
+  // [drawHornWindUpOverlay]); no chord ruled across it.
   if (rng.nextDouble() < 0.30 + t * 0.45) {
-    final a1 = rng.nextDouble() * 2 * pi;
-    final a2 = a1 + (rng.nextDouble() - 0.5) * 2.6;
-    final r1 = orbR * (0.35 + rng.nextDouble() * 0.65);
-    final r2 = orbR * (0.35 + rng.nextDouble() * 0.65);
-    beam(
-      ui.Offset(center.dx + cos(a1) * r1, center.dy + sin(a1) * r1),
-      ui.Offset(center.dx + cos(a2) * r2, center.dy + sin(a2) * r2),
-      white.withValues(alpha: 0.70 + 0.25 * t),
-      1.4 + t * 1.4,
-      0.08,
+    final a = rng.nextDouble() * 2 * pi;
+    final r = orbR * (0.2 + rng.nextDouble() * 0.6);
+    emit(
+      center.dx + cos(a) * r,
+      center.dy + sin(a) * r,
+      cos(a) * 12,
+      sin(a) * 12,
+      2.0 + t * 1.6,
+      0.14 + rng.nextDouble() * 0.1,
+      white,
     );
   }
 }
@@ -1299,19 +1814,23 @@ void emitHornLightningChainBurst(
 /// the whole effect on its pool (140) and adds a [kHornLavaKillSparkColor]
 /// hit spark at [center].
 void emitHornLavaKillExplosion(ui.Offset center, Random rng, ZoneVfxEmit emit) {
+  // A molten bloom rather than a ring of rays: embers thrown at random
+  // headings and speeds from a little spread round the body, the slow ones
+  // lingering as the heap's glow, the quick ones as its spatter.
   const orange = kHornLavaKillSparkColor;
   const yellow = ui.Color(0xFFFFE08A);
   for (var i = 0; i < 12; i++) {
-    final a = i * pi / 6 + rng.nextDouble() * 0.4;
-    final spd = 140 + rng.nextDouble() * 80;
+    final a = rng.nextDouble() * 2 * pi;
+    final r = rng.nextDouble() * 6;
+    final spd = 30 + rng.nextDouble() * rng.nextDouble() * 170;
     emit(
-      center.dx,
-      center.dy,
+      center.dx + cos(a) * r,
+      center.dy + sin(a) * r,
       cos(a) * spd,
-      sin(a) * spd,
-      2.0 + rng.nextDouble() * 1.8,
-      0.35 + rng.nextDouble() * 0.25,
-      i.isEven ? orange : yellow,
+      sin(a) * spd - 12,
+      1.8 + rng.nextDouble() * 2.0,
+      0.35 + rng.nextDouble() * 0.4,
+      i % 3 == 0 ? yellow : orange,
     );
   }
 }
@@ -1323,7 +1842,6 @@ void emitHornDarkVoidBrew(
   double windUpRemaining,
   Random rng,
   ZoneVfxEmit emit,
-  HornBeamEmit beam,
 ) {
   const totalWindUp = 5.0;
   final elapsed = (totalWindUp - windUpRemaining).clamp(0.0, totalWindUp);
@@ -1346,45 +1864,51 @@ void emitHornDarkVoidBrew(
           : ui.Color.lerp(elementColor('Dark'), _white, 0.25)!,
     );
   }
+  // Now and then a grain of the void's rim catches the light as it is
+  // pulled in — where a lavender chord used to be ruled across it.
   if (rng.nextDouble() < 0.20 + t * 0.40) {
-    final a1 = rng.nextDouble() * 2 * pi;
-    final a2 = a1 + (rng.nextDouble() - 0.5) * 2.6;
-    final r1 = orbRadius * (0.30 + rng.nextDouble() * 0.70);
-    final r2 = orbRadius * (0.30 + rng.nextDouble() * 0.70);
-    beam(
-      ui.Offset(center.dx + cos(a1) * r1, center.dy + sin(a1) * r1),
-      ui.Offset(center.dx + cos(a2) * r2, center.dy + sin(a2) * r2),
-      const ui.Color(0xFFB89AFF).withValues(alpha: 0.55 + 0.25 * t),
-      1.2 + t * 1.0,
-      0.08,
+    final a = rng.nextDouble() * 2 * pi;
+    final r = orbRadius * (0.5 + rng.nextDouble() * 0.5);
+    emit(
+      center.dx + cos(a) * r,
+      center.dy + sin(a) * r,
+      -cos(a) * 40,
+      -sin(a) * 40,
+      1.8 + t * 1.0,
+      0.18 + rng.nextDouble() * 0.1,
+      ui.Color.lerp(elementColor('Dark'), _white, 0.45)!,
     );
   }
 }
 
-/// Crystal: six shards orbiting the horn through its wind-up, the bulwark
-/// it will carry. Caller gates on its beam list (22).
-void emitHornCrystalOrbit(
+/// Crystal: grains drawn in out of the air through the wind-up, settling
+/// onto the horn as the bulwark it will carry — the shards themselves grow
+/// on the creature ([drawHornWindUpOverlay]); nothing orbits. Caller gates
+/// on its pool (130).
+void emitHornCrystalGather(
   ui.Offset center,
   double windUpRemaining,
-  HornBeamEmit beam,
+  Random rng,
+  ZoneVfxEmit emit,
 ) {
   const totalWindUp = 1.2;
   final elapsed = (totalWindUp - windUpRemaining).clamp(0.0, totalWindUp);
   final t = elapsed / totalWindUp;
-  final orbitR = 28.0 + 24.0 * t;
-  final spinPhase = elapsed * 5.0;
-  final white = ui.Color.lerp(elementColor('Crystal'), _white, 0.55)!;
-  for (var i = 0; i < 6; i++) {
-    final a = spinPhase + i * pi * 2 / 6;
-    final shardCenter = center + ui.Offset(cos(a), sin(a)) * orbitR;
-    final tangent = ui.Offset(-sin(a), cos(a));
-    final half = 3.2 + 2.0 * t;
-    beam(
-      shardCenter - tangent * half,
-      shardCenter + tangent * half,
-      white.withValues(alpha: 0.55 + 0.30 * t),
-      2.4 + t * 1.4,
-      0.05,
+  final base = elementColor('Crystal');
+  final pale = ui.Color.lerp(base, _white, 0.55)!;
+  final spawn = 1 + (t > 0.5 ? 1 : 0);
+  for (var i = 0; i < spawn; i++) {
+    final a = rng.nextDouble() * 2 * pi;
+    final r = 46.0 + rng.nextDouble() * 22.0;
+    final spd = 70 + 50 * t;
+    emit(
+      center.dx + cos(a) * r,
+      center.dy + sin(a) * r,
+      -cos(a) * spd,
+      -sin(a) * spd,
+      1.2 + rng.nextDouble() * 1.2,
+      0.35 + rng.nextDouble() * 0.2,
+      i.isEven ? pale : base,
     );
   }
 }
@@ -1396,12 +1920,10 @@ void emitHornSpiritSwarm(
   double windUpRemaining,
   Random rng,
   ZoneVfxEmit emit,
-  HornBeamEmit beam,
 ) {
   const totalWindUp = 2.0;
   final elapsed = (totalWindUp - windUpRemaining).clamp(0.0, totalWindUp);
   final t = elapsed / totalWindUp;
-  final orbR = 14.0 + 12.0 * sin(elapsed * 4.0);
   for (var i = 0; i < 2; i++) {
     final a = rng.nextDouble() * 2 * pi;
     final startR = 40.0 + 18.0 * (1.0 - t);
@@ -1419,13 +1941,6 @@ void emitHornSpiritSwarm(
       )!.withValues(alpha: 0.7),
     );
   }
-  beam(
-    center + ui.Offset(orbR, 0),
-    center + ui.Offset(-orbR, 0),
-    elementColor('Spirit').withValues(alpha: 0.18 + 0.18 * t),
-    1.0 + t * 0.6,
-    0.05,
-  );
 }
 
 /// Air: two wisps blown from the still middle out to the rim, tracing the
@@ -1458,33 +1973,31 @@ void emitHornAirWind(
 
 /// The particles a Horn projectile trails each frame: Spirit's phantoms,
 /// Crystal's shards, Lightning's discharge, and the stationary Fire, Water,
-/// Dust, Ice, Steam, Dark and Light pieces. [beam] is null when the
-/// caller's beam list is full (survival: 22), which only the Light
-/// barrier's arc needs. Caller gates on its pool (130).
-void emitHornProjectileParticles(
-  Projectile p,
-  Random rng,
-  ZoneVfxEmit emit,
-  HornBeamEmit? beam,
-) {
+/// Dust, Ice, Steam, Dark and Light pieces. Every grain is its element's
+/// (a pale one is the material's light, never plain white). Caller gates on
+/// its pool (130).
+void emitHornProjectileParticles(Projectile p, Random rng, ZoneVfxEmit emit) {
   if (p.element == 'Spirit' && p.decoy) {
-    final ghost = ui.Color.lerp(elementColor('Spirit'), _white, 0.55)!;
-    for (var i = 0; i < 3; i++) {
+    // A phantom sheds a wisp every other frame or so — a trail, not a flood.
+    if (rng.nextDouble() < 0.55) {
+      final base = elementColor('Spirit');
+      final ghost = ui.Color.lerp(base, _white, 0.55)!;
       final a = rng.nextDouble() * 2 * pi;
-      final r = 6.0 + rng.nextDouble() * 16.0;
+      final r = 4.0 + rng.nextDouble() * 10.0;
       emit(
         p.position.dx + cos(a) * r,
         p.position.dy + sin(a) * r,
-        cos(a) * (8 + rng.nextDouble() * 24),
-        sin(a) * (8 + rng.nextDouble() * 24),
+        cos(a) * (6 + rng.nextDouble() * 16),
+        sin(a) * (6 + rng.nextDouble() * 16) - 8,
         1.4 + rng.nextDouble() * 1.4,
-        0.40 + rng.nextDouble() * 0.35,
-        i.isEven ? ghost : _white,
+        0.45 + rng.nextDouble() * 0.35,
+        rng.nextBool() ? ghost : base,
       );
     }
   } else if (p.element == 'Crystal' && p.orbitRadius > 0) {
-    final white = ui.Color.lerp(elementColor('Crystal'), _white, 0.55)!;
-    for (var i = 0; i < 2; i++) {
+    if (rng.nextDouble() < 0.6) {
+      final base = elementColor('Crystal');
+      final pale = ui.Color.lerp(base, _white, 0.55)!;
       final a = rng.nextDouble() * 2 * pi;
       final r = 4.0 + rng.nextDouble() * 12.0;
       emit(
@@ -1494,7 +2007,7 @@ void emitHornProjectileParticles(
         sin(a) * (12 + rng.nextDouble() * 30),
         1.1 + rng.nextDouble() * 1.2,
         0.30 + rng.nextDouble() * 0.25,
-        rng.nextBool() ? white : _white,
+        rng.nextBool() ? pale : base,
       );
     }
   } else if (p.element == 'Lightning' &&
@@ -1572,7 +2085,7 @@ void emitHornProjectileParticles(
   } else if (p.element == 'Ice' && p.stationary) {
     final iceR = max(20.0, p.radiusMultiplier * 16.0 + 8.0);
     final base = elementColor('Ice');
-    final white = ui.Color.lerp(base, _white, 0.55)!;
+    final pale = ui.Color.lerp(base, _white, 0.35)!;
     final a = rng.nextDouble() * 2 * pi;
     final r = iceR * (0.30 + rng.nextDouble() * 0.70);
     emit(
@@ -1582,7 +2095,7 @@ void emitHornProjectileParticles(
       sin(a) * (8 + rng.nextDouble() * 12) + 6,
       1.0 + rng.nextDouble() * 1.0,
       0.5 + rng.nextDouble() * 0.4,
-      rng.nextBool() ? white : _white,
+      rng.nextBool() ? pale : base,
     );
   } else if (p.element == 'Steam' && p.stationary) {
     final steamR = max(38.0, p.radiusMultiplier * 18.0 + 18.0);
@@ -1620,8 +2133,9 @@ void emitHornProjectileParticles(
     }
   } else if (p.element == 'Light' && p.stationary && p.reflectsProjectiles) {
     final domeR = max(60.0, p.radiusMultiplier * 20.0 + 70.0);
-    final white = ui.Color.lerp(elementColor('Light'), _white, 0.55)!;
-    for (var i = 0; i < 5; i++) {
+    final base = elementColor('Light');
+    final white = ui.Color.lerp(base, _white, 0.55)!;
+    for (var i = 0; i < 3; i++) {
       final a = rng.nextDouble() * 2 * pi;
       final spawnR = domeR * (0.88 + rng.nextDouble() * 0.20);
       emit(
@@ -1631,10 +2145,12 @@ void emitHornProjectileParticles(
         -sin(a) * (12 + rng.nextDouble() * 22),
         1.4 + rng.nextDouble() * 1.4,
         0.5 + rng.nextDouble() * 0.4,
-        i.isEven ? white : _white,
+        i.isEven ? white : base,
       );
     }
-    for (var i = 0; i < 2; i++) {
+    // One grain rising off the face of the glass now and then; the chords
+    // once ruled across the dome are gone.
+    if (rng.nextDouble() < 0.5) {
       final a = rng.nextDouble() * 2 * pi;
       final innerR = domeR * (0.15 + rng.nextDouble() * 0.30);
       emit(
@@ -1644,20 +2160,7 @@ void emitHornProjectileParticles(
         sin(a) * (20 + rng.nextDouble() * 18),
         1.6 + rng.nextDouble() * 1.2,
         0.3 + rng.nextDouble() * 0.2,
-        _white,
-      );
-    }
-    if (rng.nextDouble() < 0.45 && beam != null) {
-      final a1 = rng.nextDouble() * 2 * pi;
-      final a2 = a1 + pi + (rng.nextDouble() - 0.5) * 0.6;
-      final r1 = domeR * (0.70 + rng.nextDouble() * 0.25);
-      final r2 = domeR * (0.70 + rng.nextDouble() * 0.25);
-      beam(
-        ui.Offset(p.position.dx + cos(a1) * r1, p.position.dy + sin(a1) * r1),
-        ui.Offset(p.position.dx + cos(a2) * r2, p.position.dy + sin(a2) * r2),
-        white.withValues(alpha: 0.65),
-        1.5,
-        0.08,
+        white,
       );
     }
   }

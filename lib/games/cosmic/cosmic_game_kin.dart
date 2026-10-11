@@ -193,6 +193,15 @@ extension CosmicKin on CosmicGame {
     final member = comp?.member ?? g?.member;
     if (member != null && _isKinMember(member) && member.element == 'Spirit') {
       (comp ?? g!).kinSpiritWispKills++;
+      if (comp != null && comp.isAlive) {
+        final heal = KinSupport.spiritWispKillHeal(
+          KinSupport.findSpiritWisp(companionProjectiles, member.slotIndex),
+          comp.abilityAtk,
+        );
+        if (heal > 0) {
+          comp.currentHp = min(comp.maxHp, comp.currentHp + heal.round());
+        }
+      }
     }
   }
 
@@ -338,9 +347,12 @@ extension CosmicKin on CosmicGame {
         if (existing != null) {
           // Refresh its life so the wisp persists between casts.
           existing.life = max(existing.life, KinSupport.spiritWispLife);
+          existing.turretDamage = KinSupport.spiritWispShotDamage(c.abilityAtk);
         } else {
           c.kin.kinSpiritWispKills = 0;
-          companionProjectiles.add(KinSupport.spiritWisp(c.position, c.slot));
+          companionProjectiles.add(
+            KinSupport.spiritWisp(c.position, c.slot, power: c.abilityAtk),
+          );
         }
       case 'Earth':
         // Round what the cast protects, facing where it was cast.
@@ -511,7 +523,11 @@ extension CosmicKin on CosmicGame {
       final wisp = KinSupport.findSpiritWisp(companionProjectiles, slot);
       if (wisp != null) {
         final tierBefore = wisp.effectCount;
-        KinSupport.applySpiritWispTier(wisp, k.kinSpiritWispKills);
+        KinSupport.applySpiritWispTier(
+          wisp,
+          k.kinSpiritWispKills,
+          power: c.abilityAtk,
+        );
         if (wisp.effectCount > tierBefore) {
           onSound?.call(SoundCue.specialKinWispTier);
         }
@@ -542,6 +558,8 @@ extension CosmicKin on CosmicGame {
       iceColor: elementColor('Ice'),
     );
     _spawnHitSpark(origin, elementColor('Ice'));
+    // The release seen at its real reach.
+    pushLetFx(_letFx, LetFx.frostFront(position: origin, radius: radius));
   }
 
   /// The Blood pact's heal, split evenly over the living: the ship (while it
@@ -993,7 +1011,11 @@ extension CosmicKin on CosmicGame {
       );
     }
     if (member.element == 'Steam' && k.kinSteamBoilerTimer > 0) {
-      drawKinSteamBadge(canvas: canvas, stacks: k.kinSteamBoilerStacks);
+      drawKinSteamBadge(
+        canvas: canvas,
+        stacks: k.kinSteamBoilerStacks,
+        time: _elapsed,
+      );
     }
   }
 
@@ -1006,7 +1028,7 @@ extension CosmicKin on CosmicGame {
     canvas.save();
     canvas.translate(ship.pos.dx, ship.pos.dy);
     if (lava) drawKinLavaShipGlow(canvas: canvas, time: _elapsed);
-    if (tesla) drawKinTeslaShip(canvas: canvas, time: _elapsed, rng: _rng);
+    if (tesla) drawKinTeslaShip(canvas: canvas, time: _elapsed);
     canvas.restore();
   }
 

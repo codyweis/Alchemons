@@ -37,6 +37,7 @@ const double kSnackHeight = 140;
 void showGameSnack(
   BuildContext context,
   String message, {
+
   /// Notices no longer carry an icon; kept until the last caller drops it.
   @Deprecated('Notices no longer show an icon; drop the argument')
   IconData? icon,

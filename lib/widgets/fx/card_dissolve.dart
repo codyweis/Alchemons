@@ -195,11 +195,7 @@ class CardDissolveField {
         end = math.max(end, _rt[i] + _hang[i] + _life[i]);
         if (rng.nextDouble() < moteShare) {
           final tone = switch (color) {
-            RimColor.element => Color.lerp(
-              ramp[2],
-              ramp[3],
-              rng.nextDouble(),
-            )!,
+            RimColor.element => Color.lerp(ramp[2], ramp[3], rng.nextDouble())!,
             RimColor.gilded => Color.lerp(
               ShellMutationLook.gold,
               ShellMutationLook.paleGold,

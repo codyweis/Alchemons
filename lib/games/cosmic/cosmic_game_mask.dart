@@ -100,6 +100,7 @@ extension CosmicMaskRuntime on CosmicGame {
               trap,
               sourceSlotIndex: seed.sourceSlotIndex,
               bobPhase: _rng.nextDouble() * pi * 2,
+              castSize: placements.length,
             ),
           );
         }
@@ -369,7 +370,8 @@ extension CosmicMaskRuntime on CosmicGame {
   }
 
   /// A wisp reached the collector. It banks for its caster only while the
-  /// caster is still out; the sixth clears the field.
+  /// caster is still out; a few casts' worth clears the field
+  /// ([maskSpiritClearThreshold]).
   void _collectMaskSpiritWisp(MaskSpiritWisp wisp) {
     final slot = wisp.sourceSlotIndex;
     if (slot == null) return;
@@ -386,7 +388,7 @@ extension CosmicMaskRuntime on CosmicGame {
     if (casterAt == null) return;
     _spawnHitSpark(ship.pos, elementColor('Spirit'));
     final bank = (_maskSpiritBank[slot] ?? 0) + 1;
-    if (bank >= kMaskSpiritNukeThreshold) {
+    if (bank >= wisp.clearAt) {
       _maskSpiritBank[slot] = 0;
       _fireMaskSpiritNuke(casterAt);
     } else {

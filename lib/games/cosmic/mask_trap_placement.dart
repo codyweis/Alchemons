@@ -283,19 +283,22 @@ class MaskSpiritWisp {
     required this.damage,
     required this.bobPhase,
     required this.life,
+    this.clearAt = 1,
   });
 
-  /// One wisp for a Spirit placement.
+  /// One wisp for a Spirit placement that scattered [castSize] of them.
   factory MaskSpiritWisp.fromTrap(
     Projectile trap, {
     required int? sourceSlotIndex,
     required double bobPhase,
+    required int castSize,
   }) => MaskSpiritWisp(
     position: trap.position,
     sourceSlotIndex: sourceSlotIndex,
     damage: trap.effectPower,
     bobPhase: bobPhase,
     life: max(8.0, trap.life),
+    clearAt: maskSpiritClearThreshold(castSize),
   );
 
   Offset position;
@@ -303,14 +306,32 @@ class MaskSpiritWisp {
   final int? sourceSlotIndex;
   final double damage;
   final double bobPhase;
+
+  /// How many banked wisps set off the clear when this one is taken: its
+  /// cast's [maskSpiritClearThreshold].
+  final int clearAt;
   bool get dead => life <= 0;
 }
 
 /// Wisps a field holds at most.
 const int kMaskSpiritWispCap = 120;
 
-/// Wisps banked by one caster that set off its clear.
-const int kMaskSpiritNukeThreshold = 6;
+/// How many casts' worth of wisps one clear takes.
+///
+/// It was a flat six wisps, under the eight a single average cast scatters,
+/// so every cast cleared the field on its own and Spirit measured 5.5-7x the
+/// median special at every band, with nothing building. Banking across casts
+/// is the ability's ramp ("faster progressed": it grows inside a run) — the
+/// first cast of a deployment only fills the bank, and from then on a clear
+/// lands every cast and a half. Counting in casts rather than wisps keeps that
+/// rhythm the same for a weak caster's four wisps and a perfect one's
+/// fourteen (ability pass, final balance, 2026-10-10).
+const double kMaskSpiritCastsPerClear = 1.5;
+
+/// Wisps banked by one caster that set off its clear, for a cast that
+/// scattered [castSize] of them.
+int maskSpiritClearThreshold(int castSize) =>
+    max(2, (kMaskSpiritCastsPerClear * max(1, castSize)).round());
 
 const double kMaskSpiritCollectRadius = 56.0;
 const double kMaskSpiritMagnetRadius = 200.0;

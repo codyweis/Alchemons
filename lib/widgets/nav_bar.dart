@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -26,7 +26,7 @@ class BottomNav extends StatefulWidget {
     required this.current,
     required this.onSelect,
     this.theme,
-    this.faction,
+    required this.dockSet,
     this.isDisabled = false, // external lock still supported
   });
 
@@ -34,8 +34,8 @@ class BottomNav extends StatefulWidget {
   final ValueChanged<NavSection> onSelect;
   final FactionTheme? theme;
 
-  /// Whose Let the dock is drawn in.
-  final FactionId? faction;
+  /// The dock set worn: whose Let the dock is drawn in.
+  final DockSet dockSet;
   final bool isDisabled;
 
   @override
@@ -56,9 +56,8 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
   late final Animation<double> _expandAnimation;
   late final AnimationController _tutorialPulseController;
 
-  /// The faction whose dock sheets have been loaded, once they have.
-  FactionId? _precachedFor;
-  bool _precached = false;
+  /// The dock set whose sheets have been loaded, once they have.
+  DockSet? _precachedFor;
   int? _activePointer;
   Offset? _dragStart;
   bool _isSlidingAcrossNav = false;
@@ -147,7 +146,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     if (oldWidget.current != widget.current) {
       _expandController.forward(from: 0.0);
     }
-    if (oldWidget.faction != widget.faction) _precacheNavLets();
+    if (oldWidget.dockSet != widget.dockSet) _precacheNavLets();
   }
 
   @override
@@ -167,13 +166,12 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  /// Loads the faction's Let sheets (and bakes the Alchemized and Transmuted
+  /// Loads the dock set's Let sheets (and bakes the Alchemized and Transmuted
   /// ones) before the dock first draws them, so they do not pop in.
   void _precacheNavLets() {
-    if (_precached && _precachedFor == widget.faction) return;
-    _precached = true;
-    _precachedFor = widget.faction;
-    precacheNavLets(context.read<CreatureCatalog>(), widget.faction);
+    if (_precachedFor == widget.dockSet) return;
+    _precachedFor = widget.dockSet;
+    precacheNavLets(context.read<CreatureCatalog>(), widget.dockSet);
   }
 
   Future<void> _handleTap(
@@ -212,11 +210,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
 
         if (!mounted) return;
 
-        showGameSnack(
-          context,
-          message,
-          duration: const Duration(seconds: 2),
-        );
+        showGameSnack(context, message, duration: const Duration(seconds: 2));
       } catch (_) {}
       return;
     }
@@ -471,7 +465,7 @@ class _BottomNavState extends State<BottomNav> with TickerProviderStateMixin {
                         NavEmblem(
                           key: iconKey,
                           kind: icon,
-                          faction: widget.faction,
+                          dockSet: widget.dockSet,
                           size: iconSize,
                           // Only the open tab moves.
                           animate: isActive && !isDisabled,

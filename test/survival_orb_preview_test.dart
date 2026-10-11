@@ -14,8 +14,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Every survival orb skin as a run draws it: the real game frame at the
-// Fold's size (475 × 751), the orb at the start of a run with its HP ring,
-// alchemy ring and (on one) a shield.
+// Fold's size (475 × 751), the orb at the start of a run with its HP ring
+// and alchemy ring, and the Standard Orb's frame again holding a shield
+// (frame_default_shield.png).
 //
 //   ORB_OUT=/tmp/orbs flutter test test/survival_orb_preview_test.dart \
 //     --tags preview
@@ -61,15 +62,30 @@ void main() {
         game.enemies.clear();
       }
       game.orb.currentHp = game.orb.maxHp * 0.7;
-      final rec = ui.PictureRecorder();
-      final c = Canvas(rec);
-      c.drawRect(
-        const Rect.fromLTWH(0, 0, w * 2, h * 2),
-        Paint()..color = const Color(0xFF05060A),
-      );
-      c.scale(2);
-      game.render(c);
-      frames.add((def.name, rec.endRecording().toImageSync(950, 1502)));
+      ui.Image shot() {
+        final rec = ui.PictureRecorder();
+        final c = Canvas(rec);
+        c.drawRect(
+          const Rect.fromLTWH(0, 0, w * 2, h * 2),
+          Paint()..color = const Color(0xFF05060A),
+        );
+        c.scale(2);
+        game.render(c);
+        return rec.endRecording().toImageSync(950, 1502);
+      }
+
+      frames.add((def.name, shot()));
+      if (def.skin == OrbBaseSkin.defaultOrb) {
+        // The same frame holding a boss wave's shield (4% of the orb).
+        game.orb.shieldHp = (game.orb.maxHp * 0.04).round();
+        final shielded = await shot().toByteData(
+          format: ui.ImageByteFormat.png,
+        );
+        File(
+          '$out/frame_default_shield.png',
+        ).writeAsBytesSync(shielded!.buffer.asUint8List());
+        game.orb.shieldHp = 0;
+      }
     }
 
     // A contact sheet: each frame cropped round the middle of the screen.
@@ -165,7 +181,13 @@ void main() {
         def.skin,
         hpFrac: i == 5 ? 0.2 : 0.7,
         meterFrac: 0.4,
-        shield: i == 1 ? 0.5 : 0,
+        // A boss wave's shield on one core, a large one overrunning the
+        // health on another.
+        shield: i == 0
+            ? 0.06
+            : i == 1
+            ? 0.4
+            : 0,
         time: t,
       );
       c.restore();

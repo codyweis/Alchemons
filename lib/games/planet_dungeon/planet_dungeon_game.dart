@@ -18,6 +18,12 @@ import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
+import 'package:alchemons/games/cosmic/horn_runtime.dart'
+    show
+        HornRules,
+        clampHornChargeBurst,
+        hornDarkAuraRadius,
+        hornDarkCaptureRadius;
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic/planets/planet_art.dart'
     show BlackHoleArt, DiskPalette;
@@ -3108,6 +3114,8 @@ class PlanetDungeonGame extends FlameGame {
   @override
   Future<void> onLoad() async {
     await _fx.load();
+    // The ability particle grain (ability_grains.dart), built off the frame.
+    await AbilityGrainSprite.ensureLoaded();
     await _sky.load(element);
     starMask = initialStarMask & 0x7;
     for (var i = 0; i < 3; i++) {
@@ -5503,10 +5511,16 @@ class PlanetDungeonGame extends FlameGame {
         continue;
       }
       if (p.abilityGrowthTimer > 0) p.abilityGrowthTimer -= dt;
-      // Attached auras (mask dust shields) ride along with their ally.
+      // Attached auras (mask dust shields) ride along with their ally. A
+      // ward made to follow the ship (Kin Air's updraft, Kin Water's rain
+      // cloud) follows its caster down here — there is no ship, and looking
+      // for one faded the ward out in 0.4 s.
       if (p.attachedToSlot != -2 && p.stationary) {
+        final hostSlot = p.attachedToSlot == -1
+            ? p.sourceSlotIndex
+            : p.attachedToSlot;
         final hostIndex = combatCompanions.indexWhere(
-          (c) => c.slotIndex == p.attachedToSlot,
+          (c) => c.slotIndex == hostSlot,
         );
         if (hostIndex >= 0 &&
             hostIndex < creatures.length &&
@@ -7358,6 +7372,13 @@ class PlanetDungeonGame extends FlameGame {
     creature.angle = angle;
     comp.angle = angle;
     comp.specialCooldown = comp.effectiveSpecialCooldown;
+    // A caster keeps the pieces of its last two casts (survival's rule).
+    CasterPieces.onCast(
+      combatProjectiles,
+      slot: comp.slotIndex,
+      family: comp.member.family,
+      element: comp.member.element,
+    );
     if (comp.member.family.toLowerCase() == 'pip' &&
         comp.member.element == 'Poison') {
       for (final existing in combatProjectiles) {
@@ -7420,6 +7441,29 @@ class PlanetDungeonGame extends FlameGame {
       specialProjectiles = stream;
       comp.abilityKillStacks = next;
     }
+    // Mane+Light: the cast hangs the next ring of the ward, or feeds one once
+    // all are turning — survival's shared ManeLightWard, as many rings as
+    // Beauty holds up. Down here every cast used to throw a fresh ring with
+    // no ceiling.
+    if (comp.member.family.toLowerCase() == 'mane' &&
+        comp.member.element == 'Light' &&
+        specialProjectiles.isNotEmpty) {
+      final ward = ManeLightWard.cast(
+        rings: ManeLightWard.rings(combatProjectiles, comp.slotIndex),
+        ringCap: maneLightRingCount(
+          max(0.5, comp.member.statBeauty.toDouble()),
+          potential: comp.member.statBeautyPotential,
+        ),
+        growth: comp.abilityKillStacks,
+        casterPos: creature.position,
+        casterAngle: angle,
+        template: specialProjectiles.first,
+        slot: comp.slotIndex,
+      );
+      comp.abilityKillStacks = ward.growth;
+      final hung = ward.hung;
+      specialProjectiles = hung == null ? <Projectile>[] : [hung];
+    }
     // Mane+Lightning: fire 5–10 small sigil orbs toward scattered positions;
     // each blooms into a shock field on arrival (ported from survival,
     // scattered within the current room instead of the arena).
@@ -7427,7 +7471,9 @@ class PlanetDungeonGame extends FlameGame {
         comp.member.element == 'Lightning' &&
         specialProjectiles.isNotEmpty) {
       final base = specialProjectiles.first;
-      final orbCount = 5 + _combatRng.nextInt(6);
+      final orbCount = ManeRuntime.lightningOrbCount(
+        specialProjectiles.length,
+      );
       final scatterCenter = creature.position;
       final scatterRadius = min(
         420.0,
@@ -7486,12 +7532,10 @@ class PlanetDungeonGame extends FlameGame {
       // Real horn flow (identical to survival): wind-up lock → dash with
       // sweep damage → pending burst released at the impact point. Field
       // caps keep impacts from dropping oversized bowls in a small room.
-      for (final p in specialProjectiles) {
-        if (p.snareRadius > 100) p.snareRadius = 100;
-        if (p.tauntRadius > 180) p.tauntRadius = 180;
-        if (p.effectRadius > 110) p.effectRadius = 110;
-        if (p.stationary && p.life < 2.5) p.life = 2.5;
-      }
+      clampHornChargeBurst(
+        specialProjectiles,
+        reach: hornZoneReach(comp.member.statBeauty.toDouble()),
+      );
       comp.pendingChargeBurst = specialProjectiles;
       comp.pendingChargeOrigin = creature.position;
       comp.pendingChargeAngle = angle;
@@ -7836,23 +7880,29 @@ class PlanetDungeonGame extends FlameGame {
       if (comp.windUpTimer > 0) {
         comp.windUpTimer -= dt;
         if (comp.windUpElement == 'Dark') {
-          // Void-suck: drag enemies into the brew.
+          // Void-suck: drag enemies into the brew, out to the reach survival
+          // and open space drag from ([hornDarkAuraRadius], by Beauty).
+          final reach = hornDarkAuraRadius(comp.member.statBeauty.toDouble());
           for (final e in combatEnemies) {
             if (e.isDead || _isBossBody(e)) continue;
             final toCaster = creature.position - e.position;
             final d = toCaster.distance;
-            if (d > 1 && d < 200) {
+            if (d > 1 && d < reach) {
               e.position += toCaster / d * 95 * dt;
             }
           }
         }
         if (comp.windUpTimer <= 0) {
           if (comp.windUpElement == 'Dark') {
-            // Capture the gathered cluster; the dash delivers them.
+            // Capture the gathered cluster; the dash delivers them. The hold
+            // is the shared one ([hornDarkCaptureRadius], by Beauty).
+            final hold = hornDarkCaptureRadius(
+              comp.member.statBeauty.toDouble(),
+            );
             comp.hornDarkCaptured = [
               for (final e in combatEnemies)
                 if (!e.isDead &&
-                    (e.position - creature.position).distance < 200 &&
+                    (e.position - creature.position).distance < hold &&
                     !_isBossBody(e))
                   e,
             ];
@@ -8539,8 +8589,9 @@ class PlanetDungeonGame extends FlameGame {
 
     // Mane+Plant rooted explosion — root tags spread to the splashed.
     if (enemy.maneRootSlot != null && enemy.maneRootTimer > 0) {
-      const explodeRadius = 165.0;
-      final explodeDamage = (companion?.abilityAtk ?? 4) * 2.1;
+      const explodeRadius = ManeRuntime.plantRootExplodeRadius;
+      final explodeDamage =
+          (companion?.abilityAtk ?? 4) * ManeRuntime.plantRootExplodeShare;
       for (final other in combatEnemies) {
         if (other.isDead || identical(other, enemy)) continue;
         if ((other.position - enemy.position).distance > explodeRadius) {
@@ -9359,8 +9410,8 @@ class PlanetDungeonGame extends FlameGame {
           skyfallDuration: drop.duration,
           skyfallImpact: aim,
           skyfallDistance: drop.distance,
-          radiusMultiplier: max(3.5, source.radiusMultiplier * 2.0),
-          visualScale: max(3.5, source.visualScale * 2.0),
+          radiusMultiplier: CosmicAbilityRuntime.darkLetFollowupRadius(source),
+          visualScale: CosmicAbilityRuntime.darkLetFollowupVisualScale(source),
           visualStyle: ProjectileVisualStyle.meteor,
           homing: false,
           homingStrength: 2.4,
@@ -15306,15 +15357,27 @@ class PlanetDungeonGame extends FlameGame {
         continue;
       }
 
+      // The pieces survival lays for a live beam — the beam, Spirit's cable, a
+      // healing beam's core — in Wing's own art with its material, painted
+      // once. (This used to draw the element-less three-line laser.) There
+      // is no ship down here, so Spirit's cable has nowhere to run.
       final end = _wingBeamEnd(beam);
-      drawAdvancedAbilityBeam(
-        canvas: canvas,
-        start: beam.origin,
+      emitWingBeamSegments(
+        descriptor: descriptor,
+        origin: beam.origin,
         end: end,
-        color: color,
-        width: descriptor.width,
-        alpha: pulse * fade,
-        time: _time,
+        tetherTo: beam.origin,
+        segment: (start, segmentEnd, segmentColor, width, life, wingElement) =>
+            drawAdvancedAbilityBeam(
+              canvas: canvas,
+              start: start,
+              end: segmentEnd,
+              color: segmentColor,
+              wingElement: wingElement,
+              width: width,
+              alpha: fade,
+              time: _time,
+            ),
       );
     }
   }
@@ -15362,6 +15425,7 @@ class PlanetDungeonGame extends FlameGame {
         canvas: canvas,
         centre: p.skyfallImpact,
         color: elementColor(p.element ?? 'Fire'),
+        element: p.element,
         radius: letSkyfallBlastRadius(p),
         progress: p.skyfallProgress,
         time: _time,
@@ -15397,6 +15461,8 @@ class PlanetDungeonGame extends FlameGame {
         color: color,
         time: _time,
       );
+      // A taunting decoy pools its light under itself here, as in
+      // survival; the stroked hoop that used to ring it is gone.
       drawProjectileRoleOverlay(
         canvas: canvas,
         projectile: p,
@@ -15404,16 +15470,6 @@ class PlanetDungeonGame extends FlameGame {
         color: color,
         time: _time,
       );
-      if (p.decoy) {
-        canvas.drawCircle(
-          p.position,
-          12 * p.visualScale,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.5
-            ..color = color.withValues(alpha: 0.2),
-        );
-      }
     }
   }
 
@@ -15542,40 +15598,13 @@ class PlanetDungeonGame extends FlameGame {
     );
   }
 
+  /// A Mystic cast no ground painter claims: survival's material comet.
   void _drawSurvivalMysticOrbital(
     Canvas canvas,
     Projectile projectile,
     Color color,
   ) {
-    final dir = Offset(cos(projectile.angle), sin(projectile.angle));
-    final radius = (1.65 * projectile.visualScale).clamp(1.4, 6.1).toDouble();
-    final pulse = 0.78 + 0.22 * sin(_time * 4.0 + projectile.life);
-
-    canvas.drawCircle(
-      projectile.position,
-      radius * 2.6,
-      Paint()..color = color.withValues(alpha: 0.18 * pulse),
-    );
-    for (var i = 1; i <= 3; i++) {
-      final fade = 1.0 - i * 0.30;
-      final back = projectile.position - dir * (radius * 2.0 * i);
-      canvas.drawCircle(
-        back,
-        radius * (1.0 + i * 0.18) * 0.55,
-        Paint()..color = color.withValues(alpha: 0.32 * fade),
-      );
-    }
-    canvas.drawCircle(
-      projectile.position,
-      radius,
-      Paint()..color = color.withValues(alpha: 0.92 * pulse),
-    );
-    canvas.drawCircle(
-      projectile.position,
-      radius * 0.42,
-      Paint()..color = Colors.white.withValues(alpha: 0.85 * pulse),
-    );
-    drawProjectileRoleOverlay(
+    drawMysticComet(
       canvas: canvas,
       projectile: projectile,
       position: projectile.position,
@@ -15835,22 +15864,51 @@ class PlanetDungeonGame extends FlameGame {
             aimDirection: target == null ? null : target - c.position,
           );
           progress = -1;
+        } else if (castComp.windUpTimer > 0 &&
+                castComp.windUpElement == 'Crystal' ||
+            castComp.hornPostDashWindUpTimer > 0 &&
+                castComp.member.element == 'Lightning') {
+          // The wind-up survival shows on the body: Crystal's shards
+          // growing, Lightning's storm brewing (world units, undone from
+          // the readability boost).
+          final crystal = castComp.windUpTimer > 0;
+          drawHornWindUpOverlay(
+            canvas: canvas,
+            element: crystal ? 'Crystal' : 'Lightning',
+            progress: crystal
+                ? 1 - castComp.windUpTimer / HornRules.crystalWindUp
+                : 1 -
+                      castComp.hornPostDashWindUpTimer /
+                          HornRules.postDashBrew,
+            time: _time,
+            scale: 1 / boost,
+          );
+        } else if (castComp.windUpTimer > 0 &&
+            castComp.windUpElement == 'Dark') {
+          // Dark's void gathering out to the reach the wind-up drags from.
+          drawHornWindUpOverlay(
+            canvas: canvas,
+            element: 'Dark',
+            progress: 1 - castComp.windUpTimer / HornRules.darkWindUp,
+            time: _time,
+            scale: 1 / boost,
+            reach:
+                hornDarkAuraRadius(castComp.member.statBeauty.toDouble()) /
+                boost,
+            overBody: true,
+          );
         } else if (castComp.windUpTimer > 0 ||
             castComp.hornPostDashWindUpTimer > 0) {
           progress = 0.5 + 0.5 * sin(_time * 7).abs();
         }
         if (progress >= 0) {
-          canvas.drawCircle(
+          // A glow gathering in on the body, not a stroked hoop.
+          vfxSpill(
+            canvas,
             Offset.zero,
-            (26 - 12 * progress) * k,
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.6
-              ..color = Color.lerp(
-                ec,
-                Colors.white,
-                0.45,
-              )!.withValues(alpha: 0.35 + 0.45 * progress),
+            (30 - 12 * progress) * k,
+            vfxMaterial(castComp.member.element).light,
+            0.18 + 0.3 * progress,
           );
         }
       }
@@ -15863,7 +15921,18 @@ class PlanetDungeonGame extends FlameGame {
       if (i < combatCompanions.length &&
           combatCompanions[i].member.family.toLowerCase() == 'horn' &&
           combatCompanions[i].member.element == 'Poison') {
-        drawHornPoisonAura(canvas: canvas, radius: 140, time: _time);
+        // The reach the aura's tick uses here (140 x the dungeon's horn
+        // passive scale), not a fixed 140 — in world units, so undone from
+        // the body's readability boost.
+        final rating = AlchemonStatSystem.legacyGameplayRating(
+          combatCompanions[i].member.statIntelligence,
+        );
+        drawHornPoisonAura(
+          canvas: canvas,
+          radius:
+              140.0 * (1.0 + (rating - 4.0) * 0.10).clamp(0.85, 1.30) / boost,
+          time: _time,
+        );
       }
       if (shieldHp > 0) {
         drawAdvancedCompanionShield(canvas: canvas, time: _time);

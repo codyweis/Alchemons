@@ -1,0 +1,827 @@
+[
+ {
+  "family": "Horn",
+  "element": "Fire",
+  "band": "low",
+  "draws": 86,
+  "blurred": 0,
+  "stroked": 21,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 21,
+   "drawCircle": 31,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Horn",
+  "element": "Fire",
+  "band": "decent",
+  "draws": 85,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 30,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Horn",
+  "element": "Fire",
+  "band": "perfect",
+  "draws": 87,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Horn",
+  "element": "Ice",
+  "band": "low",
+  "draws": 86,
+  "blurred": 0,
+  "stroked": 21,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 21,
+   "drawCircle": 31,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Horn",
+  "element": "Ice",
+  "band": "decent",
+  "draws": 85,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 30,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Horn",
+  "element": "Ice",
+  "band": "perfect",
+  "draws": 87,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Wing",
+  "element": "Air",
+  "band": "low",
+  "draws": 86,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 29,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Wing",
+  "element": "Air",
+  "band": "decent",
+  "draws": 89,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Wing",
+  "element": "Air",
+  "band": "perfect",
+  "draws": 89,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Wing",
+  "element": "Lightning",
+  "band": "low",
+  "draws": 88,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Wing",
+  "element": "Lightning",
+  "band": "decent",
+  "draws": 89,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Wing",
+  "element": "Lightning",
+  "band": "perfect",
+  "draws": 88,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Let",
+  "element": "Earth",
+  "band": "low",
+  "draws": 101,
+  "blurred": 0,
+  "stroked": 21,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 31,
+   "drawPath": 38,
+   "drawOval": 3,
+   "drawRect": 8,
+   "drawImageRect": 1
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Let",
+  "element": "Earth",
+  "band": "decent",
+  "draws": 101,
+  "blurred": 0,
+  "stroked": 21,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 31,
+   "drawPath": 38,
+   "drawOval": 3,
+   "drawRect": 8,
+   "drawImageRect": 1
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Let",
+  "element": "Earth",
+  "band": "perfect",
+  "draws": 102,
+  "blurred": 0,
+  "stroked": 21,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 31,
+   "drawPath": 39,
+   "drawOval": 3,
+   "drawRect": 8,
+   "drawImageRect": 1
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Let",
+  "element": "Lava",
+  "band": "low",
+  "draws": 102,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 39,
+   "drawOval": 3,
+   "drawLine": 3,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Let",
+  "element": "Lava",
+  "band": "decent",
+  "draws": 101,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 38,
+   "drawOval": 3,
+   "drawLine": 3,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Let",
+  "element": "Lava",
+  "band": "perfect",
+  "draws": 103,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 34,
+   "drawPath": 40,
+   "drawOval": 3,
+   "drawLine": 3,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Pip",
+  "element": "Lightning",
+  "band": "low",
+  "draws": 94,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 40,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Pip",
+  "element": "Lightning",
+  "band": "decent",
+  "draws": 93,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 40,
+   "drawPath": 30,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Pip",
+  "element": "Lightning",
+  "band": "perfect",
+  "draws": 94,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 40,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Pip",
+  "element": "Plant",
+  "band": "low",
+  "draws": 95,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 40,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Pip",
+  "element": "Plant",
+  "band": "decent",
+  "draws": 94,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 40,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Pip",
+  "element": "Plant",
+  "band": "perfect",
+  "draws": 95,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 40,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Mane",
+  "element": "Fire",
+  "band": "low",
+  "draws": 91,
+  "blurred": 0,
+  "stroked": 22,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 30,
+   "drawPath": 38,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Mane",
+  "element": "Fire",
+  "band": "decent",
+  "draws": 89,
+  "blurred": 0,
+  "stroked": 22,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 30,
+   "drawPath": 36,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Mane",
+  "element": "Fire",
+  "band": "perfect",
+  "draws": 91,
+  "blurred": 0,
+  "stroked": 22,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 30,
+   "drawPath": 38,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Mane",
+  "element": "Dark",
+  "band": "low",
+  "draws": 90,
+  "blurred": 0,
+  "stroked": 22,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 30,
+   "drawPath": 37,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Mane",
+  "element": "Dark",
+  "band": "decent",
+  "draws": 90,
+  "blurred": 0,
+  "stroked": 22,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 30,
+   "drawPath": 37,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Mane",
+  "element": "Dark",
+  "band": "perfect",
+  "draws": 90,
+  "blurred": 0,
+  "stroked": 22,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 30,
+   "drawPath": 37,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 2
+ },
+ {
+  "family": "Mask",
+  "element": "Poison",
+  "band": "low",
+  "draws": 86,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Mask",
+  "element": "Poison",
+  "band": "decent",
+  "draws": 86,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Mask",
+  "element": "Poison",
+  "band": "perfect",
+  "draws": 85,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 30,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Mask",
+  "element": "Spirit",
+  "band": "low",
+  "draws": 87,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Mask",
+  "element": "Spirit",
+  "band": "decent",
+  "draws": 83,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 28,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Mask",
+  "element": "Spirit",
+  "band": "perfect",
+  "draws": 87,
+  "blurred": 0,
+  "stroked": 20,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 20,
+   "drawCircle": 32,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 1
+ },
+ {
+  "family": "Kin",
+  "element": "Water",
+  "band": "low",
+  "draws": 107,
+  "blurred": 0,
+  "stroked": 23,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 23,
+   "drawCircle": 39,
+   "drawPath": 40,
+   "drawImageRect": 1,
+   "drawRect": 4
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Kin",
+  "element": "Water",
+  "band": "decent",
+  "draws": 110,
+  "blurred": 0,
+  "stroked": 23,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 23,
+   "drawCircle": 36,
+   "drawPath": 46,
+   "drawImageRect": 1,
+   "drawRect": 4
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Kin",
+  "element": "Water",
+  "band": "perfect",
+  "draws": 112,
+  "blurred": 0,
+  "stroked": 23,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 23,
+   "drawCircle": 36,
+   "drawPath": 48,
+   "drawImageRect": 1,
+   "drawRect": 4
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Kin",
+  "element": "Light",
+  "band": "low",
+  "draws": 108,
+  "blurred": 0,
+  "stroked": 23,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 23,
+   "drawCircle": 39,
+   "drawPath": 41,
+   "drawImageRect": 1,
+   "drawRect": 4
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Kin",
+  "element": "Light",
+  "band": "decent",
+  "draws": 111,
+  "blurred": 0,
+  "stroked": 23,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 23,
+   "drawCircle": 36,
+   "drawPath": 47,
+   "drawImageRect": 1,
+   "drawRect": 4
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Kin",
+  "element": "Light",
+  "band": "perfect",
+  "draws": 112,
+  "blurred": 0,
+  "stroked": 23,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 23,
+   "drawCircle": 36,
+   "drawPath": 48,
+   "drawImageRect": 1,
+   "drawRect": 4
+  },
+  "basicProjectiles": 0
+ },
+ {
+  "family": "Mystic",
+  "element": "Spirit",
+  "band": "low",
+  "draws": 95,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 24,
+   "drawCircle": 36,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 3
+ },
+ {
+  "family": "Mystic",
+  "element": "Spirit",
+  "band": "decent",
+  "draws": 95,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 24,
+   "drawCircle": 36,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 3
+ },
+ {
+  "family": "Mystic",
+  "element": "Spirit",
+  "band": "perfect",
+  "draws": 94,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 24,
+   "drawCircle": 36,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 3
+ },
+ {
+  "family": "Mystic",
+  "element": "Crystal",
+  "band": "low",
+  "draws": 94,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 24,
+   "drawCircle": 36,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 3
+ },
+ {
+  "family": "Mystic",
+  "element": "Crystal",
+  "band": "decent",
+  "draws": 95,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 24,
+   "drawCircle": 36,
+   "drawPath": 32,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 3
+ },
+ {
+  "family": "Mystic",
+  "element": "Crystal",
+  "band": "perfect",
+  "draws": 94,
+  "blurred": 0,
+  "stroked": 24,
+  "saveLayers": 0,
+  "byKind": {
+   "drawRawPoints": 24,
+   "drawCircle": 36,
+   "drawPath": 31,
+   "drawImageRect": 1,
+   "drawRect": 2
+  },
+  "basicProjectiles": 3
+ }
+]

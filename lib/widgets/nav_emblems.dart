@@ -1,11 +1,12 @@
 // lib/widgets/nav_emblems.dart
 //
-// The dock's icons, in the player's faction: every tab is that faction's Let
-// — Firelet, Waterlet, Mudlet or Airlet — standing large on its pool of
-// light. The Let carries the icon; each tab changes as little as it can.
+// The dock's icons, in the dock set the player wears (models/dock_sets.dart):
+// every tab is that set's Let — one of its faction's — standing large on its
+// pool of light. The Let carries the icon; each tab changes as little as it
+// can.
 //
 //   inventory  a small coffer at its side, shut, its seam glowing
-//   creatures  two of the other Lets, dimmed, standing behind it
+//   creatures  its faction's other two Lets, dimmed, standing behind it
 //   home       in a warm, lit archway
 //   fusion     Alchemized: all grains
 //   shop       Transmuted: gold
@@ -18,7 +19,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
-import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -33,45 +34,21 @@ import 'package:provider/provider.dart';
 
 enum NavEmblemKind { inventory, creatures, home, fusion, shop }
 
-/// The faction's Let. No faction yet reads as Oceanic, as the home screen
-/// does.
-String navLetId(FactionId? faction) => switch (faction) {
-  FactionId.volcanic => 'LET01',
-  FactionId.oceanic || null => 'LET02',
-  FactionId.earthen => 'LET08',
-  FactionId.verdant => 'LET04',
-};
-
-/// The faction's element: the light its Let stands in.
-String navLetElement(FactionId? faction) => switch (faction) {
-  FactionId.volcanic => 'Fire',
-  FactionId.oceanic || null => 'Water',
-  FactionId.earthen => 'Mud',
-  FactionId.verdant => 'Air',
-};
-
-/// The two Lets behind [faction]'s on the Creatures tab: the first two other
-/// factions.
-List<FactionId> navLetCompanions(FactionId? faction) => [
-  for (final f in FactionId.values)
-    if (f != (faction ?? FactionId.oceanic)) f,
-].take(2).toList();
-
-/// The sheets [kind] draws: [faction]'s Let first (Alchemized for Fusion,
+/// The sheets [kind] draws: [set]'s Let first (Alchemized for Fusion,
 /// Transmuted for Shop), then any Lets behind it. Empty until the catalog has
 /// loaded.
 List<SpriteSheetDef> navLetSheets(
   CreatureCatalog catalog,
-  FactionId? faction,
+  DockSet set,
   NavEmblemKind kind,
 ) {
   if (!catalog.isLoaded) return const [];
-  SpriteSheetDef? plain(FactionId? f) {
-    final c = catalog.getCreatureById(navLetId(f));
+  SpriteSheetDef? plain(DockSet s) {
+    final c = catalog.getCreatureById(s.letId);
     return c?.spriteData == null ? null : sheetFromCreature(c!);
   }
 
-  final own = plain(faction);
+  final own = plain(set);
   if (own == null) return const [];
   return [
     switch (kind) {
@@ -86,7 +63,7 @@ List<SpriteSheetDef> navLetSheets(
       _ => own,
     },
     if (kind == NavEmblemKind.creatures)
-      for (final f in navLetCompanions(faction)) ?plain(f),
+      for (final s in set.companions) ?plain(s),
   ];
 }
 
@@ -103,15 +80,12 @@ Future<ui.Image> _loadNavSheet(String path) async {
   return _loaded[path] = await loadCreatureSheet(Flame.images, path);
 }
 
-/// Loads (and bakes) every sheet [faction]'s dock draws, so it does not draw
-/// its first frame empty.
-Future<void> precacheNavLets(
-  CreatureCatalog catalog,
-  FactionId? faction,
-) async {
+/// Loads (and bakes) every sheet [set]'s dock draws, so it does not draw its
+/// first frame empty.
+Future<void> precacheNavLets(CreatureCatalog catalog, DockSet set) async {
   final paths = {
     for (final kind in NavEmblemKind.values)
-      for (final sheet in navLetSheets(catalog, faction, kind)) sheet.path,
+      for (final sheet in navLetSheets(catalog, set, kind)) sheet.path,
   };
   for (final path in paths) {
     try {
@@ -133,13 +107,15 @@ class NavEmblem extends StatefulWidget {
   const NavEmblem({
     super.key,
     required this.kind,
-    required this.faction,
+    required this.dockSet,
     required this.size,
     this.animate = false,
   });
 
   final NavEmblemKind kind;
-  final FactionId? faction;
+
+  /// Whose Let it is drawn with.
+  final DockSet dockSet;
   final double size;
 
   /// Whether it moves — true only for the open tab.
@@ -178,7 +154,7 @@ class _NavEmblemState extends State<NavEmblem> with GlyphClockLease {
   void didUpdateWidget(covariant NavEmblem oldWidget) {
     super.didUpdateWidget(oldWidget);
     syncGlyphClock();
-    if (oldWidget.kind != widget.kind || oldWidget.faction != widget.faction) {
+    if (oldWidget.kind != widget.kind || oldWidget.dockSet != widget.dockSet) {
       _resolveSheets();
     }
   }
@@ -186,7 +162,7 @@ class _NavEmblemState extends State<NavEmblem> with GlyphClockLease {
   void _resolveSheets() {
     final sheets = navLetSheets(
       context.read<CreatureCatalog>(),
-      widget.faction,
+      widget.dockSet,
       widget.kind,
     );
     if (listEquals(
@@ -232,7 +208,7 @@ class _NavEmblemState extends State<NavEmblem> with GlyphClockLease {
         willChange: clock != null,
         painter: NavEmblemPainter(
           kind: widget.kind,
-          element: navLetElement(widget.faction),
+          element: widget.dockSet.element,
           let: lets.isEmpty ? null : lets.first,
           behind: lets.skip(1).toList(),
           clock: clock,
@@ -240,6 +216,38 @@ class _NavEmblemState extends State<NavEmblem> with GlyphClockLease {
       ),
     );
   }
+}
+
+/// [set]'s five tabs in the dock's order, Home open: how the dock looks
+/// wearing it (the shop's preview).
+class DockSetStrip extends StatelessWidget {
+  const DockSetStrip({
+    super.key,
+    required this.dockSet,
+    this.height = 80,
+    this.animate = true,
+  });
+
+  final DockSet dockSet;
+
+  /// The open tab's size; the closed ones are 55/80 of it, as on the dock.
+  final double height;
+  final bool animate;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      for (final kind in NavEmblemKind.values)
+        NavEmblem(
+          kind: kind,
+          dockSet: dockSet,
+          size: kind == NavEmblemKind.home ? height : height * 55 / 80,
+          animate: animate && kind == NavEmblemKind.home,
+        ),
+    ],
+  );
 }
 
 class NavEmblemPainter extends CustomPainter {

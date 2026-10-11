@@ -96,6 +96,13 @@ extension CosmicCombatActions on CosmicGame {
   /// a Kin support).
   void _castCompanionSpecial(CosmicCompanion comp, Offset targetPos) {
     comp.specialCooldown = comp.effectiveSpecialCooldown;
+    // A caster keeps the pieces of its last two casts (survival's rule).
+    CasterPieces.onCast(
+      companionProjectiles,
+      slot: comp.member.slotIndex,
+      family: comp.member.family,
+      element: comp.member.element,
+    );
     _soundOpenSpecial(comp.member.family, comp.member.element);
     _clearPipPoisonWeb(comp.member);
     // Generate family+element special ability

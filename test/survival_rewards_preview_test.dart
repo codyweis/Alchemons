@@ -7,7 +7,9 @@ import 'dart:ui' as ui;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic_survival/components/cosmic_survival_game_over_panel.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/screens/inventory_screen.dart'
     show InventoryImageHelper;
 import 'package:alchemons/utils/faction_util.dart';
@@ -136,7 +138,32 @@ void main() {
     final registry = buildInventoryRegistry(db);
 
     // A good run at wave 23: a box opened into two things, an orb, a soul,
-    // and the currency every run pays.
+    // the currency every run pays, and the mastery its families earned for
+    // the 22 waves cleared — two Horns (one carried), a Pip, and a Kin kept
+    // in reserve — each family's row with its creatures' parts under it.
+    const team = [
+      FamilyMasteryRunCreature(
+        family: CreatureFamily.horn,
+        deployed: true,
+        damageDealt: 48000,
+        kills: 610,
+      ),
+      FamilyMasteryRunCreature(
+        family: CreatureFamily.pip,
+        deployed: true,
+        damageDealt: 21000,
+        kills: 300,
+      ),
+      FamilyMasteryRunCreature(
+        family: CreatureFamily.horn,
+        deployed: true,
+        damageDealt: 9000,
+        kills: 90,
+      ),
+      FamilyMasteryRunCreature(family: CreatureFamily.kin, deployed: false),
+    ];
+    final awards = familyMasteryCreatureAwards(team, 22);
+    final sums = familyMasteryFamilySums(team, awards);
     final run = [
       item(registry, InvKeys.harvesterStdVolcanic),
       item(registry, InvKeys.portalKeyOceanic),
@@ -144,6 +171,24 @@ void main() {
       soul(registry),
       silver,
       gold,
+      familyMasteryRewardEntry(
+        family: CreatureFamily.horn,
+        points: sums[CreatureFamily.horn]!,
+        imagePath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
+        creatures: [('Poisonhorn', awards[0]), ('Mudhorn', awards[2])],
+      ),
+      familyMasteryRewardEntry(
+        family: CreatureFamily.pip,
+        points: sums[CreatureFamily.pip]!,
+        imagePath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
+        creatures: [('Lavapip', awards[1])],
+      ),
+      familyMasteryRewardEntry(
+        family: CreatureFamily.kin,
+        points: sums[CreatureFamily.kin]!,
+        imagePath: 'assets/images/creatures/legendary/KIN16_lightkin.png',
+        creatures: [('Lightkin', awards[3])],
+      ),
     ];
 
     debugDisableShadows = false;
@@ -224,6 +269,17 @@ void main() {
           every ? 'frame_${at.toString().padLeft(5, '0')}' : 'results_${at}ms',
         );
       }
+
+      // A family's row, opened: what each of its creatures earned toward it.
+      await tester.tap(find.text('HORN MASTERY'));
+      for (var i = 0; i < 12; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+      await tester.pump();
+      await shoot(tester, panel, 'results_mastery_detail');
 
       // Every reward survival can pay, at the two sizes it is drawn.
       final keys = {

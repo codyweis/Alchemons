@@ -64,6 +64,7 @@ extension CosmicMane on CosmicGame {
       case 'Lightning':
         final orbs = ManeRuntime.lightningOrbs(
           projectiles.first,
+          count: projectiles.length,
           casterPos: origin,
           angle: angle,
           // Round what the cast protects: the ship (the wild one itself on

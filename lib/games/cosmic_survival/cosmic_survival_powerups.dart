@@ -76,7 +76,7 @@ const kCompanionStatBoosts = [
   PowerUpDef(
     id: 'strength_up',
     name: 'Strength Surge',
-    description: "Raise one alchemon's Strength",
+    description: "Raise one alchemon's Strength by 10%",
     icon: '⚔️',
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
@@ -92,7 +92,7 @@ const kCompanionStatBoosts = [
   PowerUpDef(
     id: 'intelligence_up',
     name: 'Insight Surge',
-    description: "Raise one alchemon's Intelligence",
+    description: "Raise one alchemon's Intelligence by 10%",
     icon: '🧠',
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
@@ -104,7 +104,7 @@ const kCompanionStatBoosts = [
   PowerUpDef(
     id: 'beauty_up',
     name: 'Radiance Surge',
-    description: "Raise one alchemon's Beauty",
+    description: "Raise one alchemon's Beauty by 10%",
     icon: '🌸',
     category: PowerUpCategory.statBoost,
     scope: PowerUpScope.companion,
@@ -116,7 +116,7 @@ const kCompanionStatBoosts = [
   PowerUpDef(
     id: 'speed_up',
     name: 'Swiftness Surge',
-    description: "Raise one alchemon's Speed",
+    description: "Raise one alchemon's Speed by 10%",
     icon: '💨',
     category: PowerUpCategory.statBoost,
     rarity: PowerUpRarity.uncommon,
@@ -132,7 +132,7 @@ const kGlobalStatBoosts = [
   PowerUpDef(
     id: 'command_strength',
     name: 'War Banner',
-    description: 'Raise Strength for all alchemons',
+    description: 'Raise Strength for all alchemons by 5%',
     icon: '🚩',
     category: PowerUpCategory.statBoost,
     maxStacks: 3,
@@ -142,7 +142,7 @@ const kGlobalStatBoosts = [
   PowerUpDef(
     id: 'command_intelligence',
     name: 'Strategist Banner',
-    description: 'Raise Intelligence for all alchemons',
+    description: 'Raise Intelligence for all alchemons by 5%',
     icon: '🧱',
     category: PowerUpCategory.statBoost,
     maxStacks: 3,
@@ -152,7 +152,7 @@ const kGlobalStatBoosts = [
   PowerUpDef(
     id: 'command_beauty',
     name: 'Resplendent Banner',
-    description: 'Raise Beauty for all alchemons',
+    description: 'Raise Beauty for all alchemons by 5%',
     icon: '🎏',
     category: PowerUpCategory.statBoost,
     maxStacks: 3,
@@ -162,7 +162,7 @@ const kGlobalStatBoosts = [
   PowerUpDef(
     id: 'command_speed',
     name: 'Vanguard Banner',
-    description: 'Raise Speed for all alchemons',
+    description: 'Raise Speed for all alchemons by 5%',
     icon: '🏳️',
     category: PowerUpCategory.statBoost,
     rarity: PowerUpRarity.uncommon,
@@ -411,7 +411,8 @@ const kRarePerks = [
   PowerUpDef(
     id: 'elemental_fury',
     name: 'Elemental Fury',
-    description: 'Kills erupt for escalating elemental splash damage',
+    description:
+        "Kills splash nearby enemies for 25% / 40% / 55% of the killer's elemental attack",
     icon: '🌋',
     category: PowerUpCategory.rarePerk,
     rarity: PowerUpRarity.rare,
@@ -833,32 +834,43 @@ class PowerUpState {
     return true;
   }
 
-  // Stat-point bonuses added to a companion's raw stat. Each fold companion
-  // stacks (+0.20/level), team-wide banner stacks (+0.10/level) and keystone
-  // contributions into one effective-stat value used everywhere.
-  double strengthBonus(int slotIndex) =>
-      getCompanionStacks(slotIndex, 'strength_up') * 0.20 +
-      getGlobalStacks('command_strength') * 0.10 +
-      (hasWarpathDoctrine ? 0.35 : 0.0) +
-      (hasBastionHeart ? 0.10 : 0.0);
+  // Stat surges are a share of the companion's OWN stat, so a bred creature
+  // gets more out of the same pick than a fresh catch. They used to add flat
+  // points (+0.20 a stack): about 4% of an average stat and 2% of a perfect
+  // one, which is why three War Banners measured as +0% kills. Companion
+  // surges add 10% a stack, banners 5% to the whole team, and keystones their
+  // own share, all summed before they multiply. [base] is the companion's raw
+  // stat; the result is the points to add to it.
+  static const double companionSurgeShare = 0.10;
+  static const double bannerSurgeShare = 0.05;
 
-  double intelligenceBonus(int slotIndex) =>
-      getCompanionStacks(slotIndex, 'intelligence_up') * 0.20 +
-      getGlobalStacks('command_intelligence') * 0.10 +
-      (hasBastionHeart ? 0.18 : 0.0) +
-      (hasSpellbloomEngine ? 0.20 : 0.0);
+  double strengthBonus(int slotIndex, double base) =>
+      base *
+      (getCompanionStacks(slotIndex, 'strength_up') * companionSurgeShare +
+          getGlobalStacks('command_strength') * bannerSurgeShare +
+          (hasWarpathDoctrine ? 0.08 : 0.0) +
+          (hasBastionHeart ? 0.02 : 0.0));
 
-  double beautyBonus(int slotIndex) =>
-      getCompanionStacks(slotIndex, 'beauty_up') * 0.20 +
-      getGlobalStacks('command_beauty') * 0.10 +
-      (hasSpellbloomEngine ? 0.30 : 0.0) +
-      (hasBastionHeart ? 0.20 : 0.0);
+  double intelligenceBonus(int slotIndex, double base) =>
+      base *
+      (getCompanionStacks(slotIndex, 'intelligence_up') * companionSurgeShare +
+          getGlobalStacks('command_intelligence') * bannerSurgeShare +
+          (hasBastionHeart ? 0.04 : 0.0) +
+          (hasSpellbloomEngine ? 0.04 : 0.0));
 
-  double speedBonus(int slotIndex) =>
-      getCompanionStacks(slotIndex, 'speed_up') * 0.20 +
-      getGlobalStacks('command_speed') * 0.10 +
-      (hasChronoSurge ? 0.45 : 0.0) +
-      (hasSpellbloomEngine ? 0.15 : 0.0);
+  double beautyBonus(int slotIndex, double base) =>
+      base *
+      (getCompanionStacks(slotIndex, 'beauty_up') * companionSurgeShare +
+          getGlobalStacks('command_beauty') * bannerSurgeShare +
+          (hasSpellbloomEngine ? 0.07 : 0.0) +
+          (hasBastionHeart ? 0.04 : 0.0));
+
+  double speedBonus(int slotIndex, double base) =>
+      base *
+      (getCompanionStacks(slotIndex, 'speed_up') * companionSurgeShare +
+          getGlobalStacks('command_speed') * bannerSurgeShare +
+          (hasChronoSurge ? 0.10 : 0.0) +
+          (hasSpellbloomEngine ? 0.03 : 0.0));
 
   /// How far this slot's Mystic world has been deepened, 0-3.
   int mysticWorldLevel(int slotIndex, String element) =>

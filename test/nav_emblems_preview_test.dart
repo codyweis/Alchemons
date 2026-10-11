@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/widgets/daily_reliquary.dart';
@@ -16,10 +17,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// The dock's emblems: for each faction, the dock's strip once per open tab
+// The dock's emblems: for each dock set, the dock's strip once per open tab
 // (open 80, closed 55) at a phone's pixel ratio, then the same large. Then
 // home's daily reliquary for each division, and Earthen's (crystal)
-// unsealing. NAV_EMBLEMS_FACTIONS narrows the factions (e.g. 'oceanic').
+// unsealing. NAV_EMBLEMS_FACTIONS narrows the sets to those factions' (e.g.
+// 'oceanic').
 //
 //   NAV_EMBLEMS_OUT=/tmp/nav.png flutter test \
 //     test/nav_emblems_preview_test.dart --tags preview
@@ -39,8 +41,9 @@ void main() {
           .split(','))
         FactionId.values.byName(name.trim()),
     ];
-    // Every faction's sheets, resolved and baked the way the dock does.
-    final lets = <(FactionId, NavEmblemKind), List<NavLetSprite>>{};
+    final sets = [for (final f in factions) ...DockSet.ofFaction(f)];
+    // Every set's sheets, resolved and baked the way the dock does.
+    final lets = <(DockSet, NavEmblemKind), List<NavLetSprite>>{};
     await tester.runAsync(() async {
       final raw = await rootBundle.loadString(
         'assets/data/alchemons_creatures.json',
@@ -51,7 +54,7 @@ void main() {
           Creature.fromJson(j as Map<String, dynamic>),
       ]);
       final images = Images();
-      for (final f in factions) {
+      for (final f in sets) {
         for (final k in kinds) {
           lets[(f, k)] = [
             for (final sheet in navLetSheets(catalog, f, k))
@@ -61,11 +64,11 @@ void main() {
       }
     });
 
-    NavEmblemPainter painter(FactionId f, NavEmblemKind k, {double? time}) {
+    NavEmblemPainter painter(DockSet f, NavEmblemKind k, {double? time}) {
       final sprites = lets[(f, k)]!;
       return NavEmblemPainter(
         kind: k,
-        element: navLetElement(f),
+        element: f.element,
         let: sprites.first,
         behind: sprites.skip(1).toList(),
         time: time,
@@ -83,11 +86,11 @@ void main() {
     }
 
     // The dock, a phone wide: 60 high, 8 padding, five even slots; the open
-    // icon is 80, lifted 30. For each faction, one strip per open tab.
+    // icon is 80, lifted 30. For each set, one strip per open tab.
     {
       const width = 400.0, rowH = 60.0 + 64;
       final strips = [
-        for (final f in factions)
+        for (final f in sets)
           for (final open in kinds) (f, open),
       ];
       final height = rowH * strips.length + 16;
@@ -118,18 +121,18 @@ void main() {
       await save(rec, width, height, out);
     }
 
-    // Large: each faction's five, at rest and on a later idle frame.
+    // Large: each set's five, at rest and on a later idle frame.
     {
       const big = 160.0, gap = 12.0;
       const w = gap + (big + gap) * 5;
-      final h = gap + (big + gap) * factions.length * 2;
+      final h = gap + (big + gap) * sets.length * 2;
       final rec = ui.PictureRecorder();
       final canvas = Canvas(rec)..scale(dpr);
       canvas.drawRect(
         Rect.fromLTWH(0, 0, w, h),
         Paint()..color = const Color(0xFF1D1D21),
       );
-      for (var row = 0; row < factions.length; row++) {
+      for (var row = 0; row < sets.length; row++) {
         for (var i = 0; i < kinds.length; i++) {
           for (final (j, time) in [(0, null), (1, 2.6)]) {
             canvas.save();
@@ -137,7 +140,7 @@ void main() {
               gap + (big + gap) * i,
               gap + (big + gap) * (row * 2 + j),
             );
-            painter(factions[row], kinds[i], time: time)
+            painter(sets[row], kinds[i], time: time)
                 .paint(canvas, const Size.square(big));
             canvas.restore();
           }

@@ -1,0 +1,20 @@
+{
+  "m.lightning.beat": 2.2,
+  "m.lightning.splash": 120,
+  "m.earth.beat": 33,
+  "m.plant.lash": 2.1,
+  "m.plant.thorn": 1.7,
+  "m.air.travel": 0.22,
+  "m.fire.reignite": 0.65,
+  "m.spirit.strike": 0.45,
+  "m.spirit.captempo": 1,
+  "m.lava.cd": 4.0,
+  "m.poison.radius": 30,
+  "m.poison.rexp": 0,
+  "m.poison.texp": 1,
+  "mask.spirit.k": 1.5,
+  "kin.spirit.share": 0.5,
+  "kin.spirit.interval": 0.8,
+  "mane.lightning.max": 10,
+  "horn.pullfix": 1
+}

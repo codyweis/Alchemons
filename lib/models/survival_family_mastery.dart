@@ -1,9 +1,176 @@
 import 'dart:collection';
+import 'dart:math' as math;
 
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/family_combat_copy.dart';
 
-enum FamilyMasteryCurrency { silver, gold }
+/// What each tier of a path costs, in its own family's mastery points. A
+/// whole path is 550.
+const List<int> kFamilyMasteryTierCosts = [25, 75, 150, 300];
+
+/// Mastery points clearing [wave] is worth: one, and one more for every ten
+/// waves in, so a deep run pays more than a string of short ones.
+int familyMasteryPointsForWave(int wave) => wave < 1 ? 0 : 1 + wave ~/ 10;
+
+/// A run's base mastery: every cleared wave's worth, added up. 19 waves is
+/// 29, 39 is 99, 59 is 209 and 79 is 359. An average deployed creature earns
+/// its family about this much ([familyMasteryCreatureAwards]).
+int familyMasteryPointsForRun(int wavesCleared) {
+  var total = 0;
+  for (var wave = 1; wave <= wavesCleared; wave++) {
+    total += familyMasteryPointsForWave(wave);
+  }
+  return total;
+}
+
+/// The last wave a run fully cleared. The spawner's wave is the one being
+/// fought, so a run lost on wave 41 cleared 40 — unless it ended in the
+/// pause between waves, when the wave it shows has just been cleared.
+int survivalWavesCleared({
+  required int currentWave,
+  required bool intermission,
+}) {
+  final cleared = intermission ? currentWave : currentWave - 1;
+  return cleared < 0 ? 0 : cleared;
+}
+
+/// One creature's part in a finished run, for the mastery it earns its
+/// family ([familyMasteryCreatureAwards]).
+class FamilyMasteryRunCreature {
+  const FamilyMasteryRunCreature({
+    required this.family,
+    required this.deployed,
+    this.damageDealt = 0,
+    this.kills = 0,
+    this.healingDone = 0,
+  });
+
+  final CreatureFamily family;
+
+  /// Summoned at some point in the run, rather than in reserve throughout.
+  final bool deployed;
+  final double damageDealt;
+  final int kills;
+  final double healingDone;
+}
+
+/// Of a run's base ([familyMasteryPointsForRun]): what a creature earns for
+/// being deployed at all, or for sitting in reserve the whole run.
+const double kFamilyMasteryDeployedShare = 0.5;
+const double kFamilyMasteryReserveShare = 0.125;
+
+/// Of the base, times the number deployed, split by each creature's share
+/// of what the team did — so an average deployed creature earns about one
+/// base in all.
+const double kFamilyMasteryPerformanceShare = 0.5;
+
+/// No creature earns more than this many bases, however much it carried.
+const double kFamilyMasteryCreatureCap = 1.5;
+
+/// What each of [creatures] (the run's party, in party order) earns its
+/// family for a run that cleared [wavesCleared] waves.
+///
+/// With `base` the run's [familyMasteryPointsForRun]:
+/// - deployed: `0.5 × base` + `0.5 × base × N × c`, where N is how many were
+///   deployed and c the creature's share of the team: the mean, over damage
+///   dealt, kills and healing done (only the axes the team has any of), of
+///   its part of the team's total. Healing counts as its own axis, so a
+///   support is paid for supporting. If the team has none of any, the
+///   deployed share it evenly.
+/// - in reserve the whole run: `0.125 × base`.
+///
+/// Each is capped at `1.5 × base` and rounded to whole points; a deployed
+/// creature earns at least 1 once base is. Deterministic.
+List<int> familyMasteryCreatureAwards(
+  List<FamilyMasteryRunCreature> creatures,
+  int wavesCleared,
+) {
+  final base = familyMasteryPointsForRun(wavesCleared);
+  if (base <= 0) return List<int>.filled(creatures.length, 0);
+
+  final deployed = [
+    for (final c in creatures)
+      if (c.deployed) c,
+  ];
+  final axes = <double Function(FamilyMasteryRunCreature)>[
+    (c) => math.max(0, c.damageDealt),
+    (c) => math.max(0, c.kills).toDouble(),
+    (c) => math.max(0, c.healingDone),
+  ];
+  final totals = [
+    for (final axis in axes) deployed.fold<double>(0, (s, c) => s + axis(c)),
+  ];
+  final live = [
+    for (var i = 0; i < axes.length; i++)
+      if (totals[i] > 0) i,
+  ];
+
+  double share(FamilyMasteryRunCreature c) {
+    if (!c.deployed) return 0;
+    if (live.isEmpty) return 1 / deployed.length;
+    var sum = 0.0;
+    for (final i in live) {
+      sum += axes[i](c) / totals[i];
+    }
+    return sum / live.length;
+  }
+
+  final n = deployed.length;
+  return [
+    for (final c in creatures)
+      () {
+        final raw = c.deployed
+            ? base * kFamilyMasteryDeployedShare +
+                  base * kFamilyMasteryPerformanceShare * n * share(c)
+            : base * kFamilyMasteryReserveShare;
+        final capped = math.min(raw, base * kFamilyMasteryCreatureCap);
+        // A hair over, so a half that floating point lands just under
+        // still rounds up.
+        final points = (capped + 1e-9).round();
+        return c.deployed ? math.max(1, points) : points;
+      }(),
+  ];
+}
+
+/// [awards] (from [familyMasteryCreatureAwards]) added up by family, in the
+/// order [creatures] first fields each. A family that earned nothing is left
+/// out. Bringing more of a family earns that family more.
+Map<CreatureFamily, int> familyMasteryFamilySums(
+  List<FamilyMasteryRunCreature> creatures,
+  List<int> awards,
+) {
+  final sums = <CreatureFamily, int>{};
+  for (var i = 0; i < creatures.length && i < awards.length; i++) {
+    sums.update(
+      creatures[i].family,
+      (v) => v + awards[i],
+      ifAbsent: () => awards[i],
+    );
+  }
+  sums.removeWhere((_, points) => points <= 0);
+  return sums;
+}
+
+/// The node [family] is working toward: the first one not yet owned on its
+/// equipped path, then on any other path (the order the mastery screen
+/// opens on). Null when the whole tree is owned.
+FamilyMasteryNodeDef? familyMasteryNextNode(
+  CreatureFamily family, {
+  required Set<String> owned,
+  String? selectedPathId,
+}) {
+  final tree = FamilyMasteryCatalog.treeFor(family);
+  final ordered = [
+    ...tree.paths.where((path) => path.id == selectedPathId),
+    ...tree.paths.where((path) => path.id != selectedPathId),
+  ];
+  for (final path in ordered) {
+    for (final node in path.nodes) {
+      if (!owned.contains(node.id)) return node;
+    }
+  }
+  return null;
+}
 
 class FamilyMasteryNodeDef {
   const FamilyMasteryNodeDef({
@@ -12,7 +179,6 @@ class FamilyMasteryNodeDef {
     required this.description,
     required this.tier,
     required this.cost,
-    required this.currency,
     required this.effectId,
   });
 
@@ -20,8 +186,9 @@ class FamilyMasteryNodeDef {
   final String name;
   final String description;
   final int tier;
+
+  /// In this node's family's mastery points.
   final int cost;
-  final FamilyMasteryCurrency currency;
 
   /// Stable runtime key. Combat integration can change implementation without
   /// invalidating saved purchases.
@@ -122,10 +289,7 @@ FamilyMasteryNodeDef _node(
     name: name,
     description: description,
     tier: tier,
-    cost: tier == 4 ? 10 : const [1000, 5000, 10000][tier - 1],
-    currency: tier == 4
-        ? FamilyMasteryCurrency.gold
-        : FamilyMasteryCurrency.silver,
+    cost: kFamilyMasteryTierCosts[tier - 1],
     effectId: '$pathId.$slug',
   );
 }
@@ -643,12 +807,13 @@ class FamilyMasteryCatalog {
     return result;
   }
 
-  static List<String> validate() {
+  /// Problems with the catalog, or with [trees] when a test hands its own.
+  static List<String> validate([List<FamilyMasteryTreeDef>? trees]) {
     final errors = <String>[];
     final treeFamilies = <CreatureFamily>{};
     final pathIds = <String>{};
     final nodeIds = <String>{};
-    for (final tree in kFamilyMasteryTrees) {
+    for (final tree in trees ?? kFamilyMasteryTrees) {
       if (!treeFamilies.add(tree.family)) {
         errors.add('Duplicate family tree: ${tree.family.name}');
       }
@@ -680,13 +845,13 @@ class FamilyMasteryCatalog {
           if (node.isCapstone != shouldBeCapstone) {
             errors.add('${node.id} has invalid capstone state');
           }
-          if (shouldBeCapstone) {
-            if (node.currency != FamilyMasteryCurrency.gold ||
-                node.cost != 10) {
-              errors.add('${node.id} must cost 10 gold');
-            }
-          } else if (node.currency != FamilyMasteryCurrency.silver) {
-            errors.add('${node.id} must cost silver');
+          // Bought with the family's own mastery points, at the tier's
+          // price.
+          if (i < kFamilyMasteryTierCosts.length &&
+              node.cost != kFamilyMasteryTierCosts[i]) {
+            errors.add(
+              '${node.id} must cost ${kFamilyMasteryTierCosts[i]} mastery',
+            );
           }
         }
       }

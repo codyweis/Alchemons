@@ -22,12 +22,7 @@ part 'decor_art.dart';
 
 /// What a keepsake's living part is drawn with this frame.
 class KeepsakeTime {
-  KeepsakeTime({
-    this.t = 0,
-    this.night = 0,
-    this.stir = 0,
-    this.daylight = 1,
-  });
+  KeepsakeTime({this.t = 0, this.night = 0, this.stir = 0, this.daylight = 1});
 
   /// Seconds since it was stood there.
   double t;
@@ -207,11 +202,12 @@ Path _poly(List<Offset> pts) => polyPath(pts);
 /// The light off the key light's side of a solid: rim at the lit edge,
 /// fading into the face.
 ui.Shader _litAcross(StoneLight m, double x0, double x1, {double k = 0.6}) =>
-    ui.Gradient.linear(Offset(x0, 0), Offset(x1, 0), [
-      Color.lerp(m.face, m.rim, k * 0.32)!,
-      m.face,
-      m.ink,
-    ], const [0.0, 0.35, 1.0]);
+    ui.Gradient.linear(
+      Offset(x0, 0),
+      Offset(x1, 0),
+      [Color.lerp(m.face, m.rim, k * 0.32)!, m.face, m.ink],
+      const [0.0, 0.35, 1.0],
+    );
 
 /// A block of stone whose front is [r]: its top a lit bevel, its left
 /// flank catching the key light, its right going into shadow.
@@ -298,12 +294,7 @@ void _shaft(
   // The lit edge, a sliver tapering up the left.
   _shade(
     c,
-    _poly([
-      bl,
-      bl + Offset(w0 * 0.12, 0),
-      tl + Offset(w1 * 0.1, 0),
-      tl,
-    ]),
+    _poly([bl, bl + Offset(w0 * 0.12, 0), tl + Offset(w1 * 0.1, 0), tl]),
     ui.Gradient.linear(Offset(0, y0), Offset(0, y1), [
       _a(m.rim, 0.1),
       _a(m.rim, 0.45),
@@ -383,7 +374,9 @@ void _flame(
   for (var i = 0; i <= n; i++) {
     final f = i / n;
     final half =
-        w * 0.5 * math.pow(math.sin(math.pi * math.min(1, f * 1.35)), 0.8) *
+        w *
+        0.5 *
+        math.pow(math.sin(math.pi * math.min(1, f * 1.35)), 0.8) *
         math.pow(1 - f, 0.55);
     final sway =
         (math.sin(t * 6.1 + f * 4 + seed) * 0.22 +
@@ -398,11 +391,12 @@ void _flame(
   _shade(
     c,
     path,
-    ui.Gradient.linear(base, base - Offset(0, h), [
-      _a(core, alpha),
-      _a(body, 0.9 * alpha),
-      _a(body, 0),
-    ], const [0.0, 0.45, 1.0]),
+    ui.Gradient.linear(
+      base,
+      base - Offset(0, h),
+      [_a(core, alpha), _a(body, 0.9 * alpha), _a(body, 0)],
+      const [0.0, 0.45, 1.0],
+    ),
   );
   // The hot heart, low in it.
   final inner = <Offset>[];
@@ -432,8 +426,7 @@ class _Grains {
   final PointBatch _batch;
   void clear() => _batch.clear();
   void add(double x, double y) => _batch.add(x, y);
-  void draw(Canvas c, double size, Color color) =>
-      _batch.draw(c, size, color);
+  void draw(Canvas c, double size, Color color) => _batch.draw(c, size, color);
 }
 
 /// The champion's gold, as the crowned arenas have it.
@@ -547,8 +540,7 @@ class _EmberTorch extends KeepsakeArt {
     _embers.clear();
     for (var i = 0; i < 18; i++) {
       final life = (k.t * (0.3 + 0.2 * _hash(i, 3)) + _hash(i, 4)) % 1.0;
-      final x = (_hash(i, 5) - 0.5) * 18 +
-          math.sin(k.t * 2 + i) * 8 * life;
+      final x = (_hash(i, 5) - 0.5) * 18 + math.sin(k.t * 2 + i) * 8 * life;
       _embers.add(x, _cupY - 30 - life * 90);
     }
     _embers.draw(c, 1.8, _a(const Color(0xFFFFB45A), 0.75));
@@ -588,9 +580,8 @@ class _FourWinds extends KeepsakeArt {
     final turn = k.t * (0.7 + 1.8 * k.stir);
     // The vanes, back ones first: each a blade of glass seen edge-on as it
     // comes round.
-    final blades = [
-      for (var i = 0; i < 4; i++) turn + i * math.pi / 2,
-    ]..sort((a, b) => math.sin(a).compareTo(math.sin(b)));
+    final blades = [for (var i = 0; i < 4; i++) turn + i * math.pi / 2]
+      ..sort((a, b) => math.sin(a).compareTo(math.sin(b)));
     void blade(double a) {
       final reach = math.cos(a) * 42;
       final depth = math.sin(a);
@@ -607,11 +598,16 @@ class _FourWinds extends KeepsakeArt {
       _shade(
         c,
         path,
-        ui.Gradient.linear(Offset(0, _hubY), Offset(reach, _hubY), [
-          _a(m.hot, 0.55 + 0.25 * depth),
-          _a(m.essence, 0.55),
-          _a(Color.lerp(m.essence, m.ink, 0.5)!, 0.7),
-        ], const [0.0, 0.45, 1.0]),
+        ui.Gradient.linear(
+          Offset(0, _hubY),
+          Offset(reach, _hubY),
+          [
+            _a(m.hot, 0.55 + 0.25 * depth),
+            _a(m.essence, 0.55),
+            _a(Color.lerp(m.essence, m.ink, 0.5)!, 0.7),
+          ],
+          const [0.0, 0.45, 1.0],
+        ),
       );
     }
 
@@ -768,7 +764,13 @@ class _GiantsPalm extends KeepsakeArt {
   @override
   void under(Canvas c, KeepsakeTime k) {
     final pulse = 0.85 + 0.15 * math.sin(k.t * 1.1);
-    paintDisc(c, m.pool, const Offset(0, -120), 64, (0.5 + 0.6 * k.night) * pulse);
+    paintDisc(
+      c,
+      m.pool,
+      const Offset(0, -120),
+      64,
+      (0.5 + 0.6 * k.night) * pulse,
+    );
   }
 
   @override
@@ -891,8 +893,12 @@ class _HarmonyPipes extends KeepsakeArt {
     for (final (x, h, w) in _pipes) {
       _shaft(c, m, x, -16, -16 - h, w, w * 0.9);
       // The lip, and the mouth lit by what breathes through it.
-      _block(c, m, Rect.fromLTRB(x - w * 0.62, -20 - h, x + w * 0.62, -15 - h),
-          bevel: 1.2);
+      _block(
+        c,
+        m,
+        Rect.fromLTRB(x - w * 0.62, -20 - h, x + w * 0.62, -15 - h),
+        bevel: 1.2,
+      );
       _glass(
         c,
         m,
@@ -974,11 +980,16 @@ class _BlackGlass extends KeepsakeArt {
     _shade(
       c,
       Path()..addRect(const Rect.fromLTRB(-40, -160, 40, 0)),
-      ui.Gradient.linear(const Offset(-30, -150), const Offset(30, 0), [
-        const Color(0x40E8ECF5),
-        const Color(0x00000000),
-        const Color(0x10E8ECF5),
-      ], const [0.0, 0.5, 1.0]),
+      ui.Gradient.linear(
+        const Offset(-30, -150),
+        const Offset(30, 0),
+        [
+          const Color(0x40E8ECF5),
+          const Color(0x00000000),
+          const Color(0x10E8ECF5),
+        ],
+        const [0.0, 0.5, 1.0],
+      ),
     );
     c.restore();
   }
@@ -1002,11 +1013,16 @@ class _BlackGlass extends KeepsakeArt {
         _shade(
           c,
           path,
-          ui.Gradient.linear(a, b, [
-            _a(m.hot, 0.5 * glow),
-            _a(m.essence, 0.95 * glow),
-            _a(m.hot, 0.5 * glow),
-          ], const [0.0, 0.5, 1.0]),
+          ui.Gradient.linear(
+            a,
+            b,
+            [
+              _a(m.hot, 0.5 * glow),
+              _a(m.essence, 0.95 * glow),
+              _a(m.hot, 0.5 * glow),
+            ],
+            const [0.0, 0.5, 1.0],
+          ),
         );
         paintDisc(c, m.pool, a + d * 0.5, 12, 0.6 * glow);
       }
@@ -1123,8 +1139,7 @@ class _MudLotus extends KeepsakeArt {
 
   @override
   void body(Canvas c) {
-    final pool = Path()
-      ..addOval(const Rect.fromLTRB(-58, -14, 58, 4));
+    final pool = Path()..addOval(const Rect.fromLTRB(-58, -14, 58, 4));
     _solid(c, pool, _mud.ink);
     _shade(
       c,
@@ -1140,7 +1155,9 @@ class _MudLotus extends KeepsakeArt {
       (8.0, -9.0, 10.0),
     ]) {
       final pad = Path()
-        ..addOval(Rect.fromCenter(center: Offset(x, y), width: r * 2, height: r * 0.6));
+        ..addOval(
+          Rect.fromCenter(center: Offset(x, y), width: r * 2, height: r * 0.6),
+        );
       _solid(c, pad, _pad.ink);
       _shade(c, pad, _litAcross(_pad, x - r, x + r, k: 0.5));
     }
@@ -1168,7 +1185,12 @@ class _MudLotus extends KeepsakeArt {
         _leaf(c, m, heart, a, len, back ? 13 : 15, glow: back ? 0.9 : 1.3);
       }
     }
-    paintOrb(c, StoneLight(const Color(0xFFFFD27A)), heart + const Offset(0, -6), 5 * open);
+    paintOrb(
+      c,
+      StoneLight(const Color(0xFFFFD27A)),
+      heart + const Offset(0, -6),
+      5 * open,
+    );
     _pollen.clear();
     for (var i = 0; i < 16; i++) {
       final f = (k.t * 0.1 + _hash(i, 3)) % 1.0;
@@ -1221,11 +1243,12 @@ class _StarWalker extends KeepsakeArt {
       _shade(
         c,
         tube,
-        ui.Gradient.linear(Offset(0, -h), Offset(0, h), [
-          Color.lerp(m.face, m.rim, 0.55)!,
-          m.face,
-          m.ink,
-        ], const [0.0, 0.4, 1.0]),
+        ui.Gradient.linear(
+          Offset(0, -h),
+          Offset(0, h),
+          [Color.lerp(m.face, m.rim, 0.55)!, m.face, m.ink],
+          const [0.0, 0.4, 1.0],
+        ),
       );
       _block(c, _brass, Rect.fromLTRB(x1 - 2, -h - 1, x1 + 2, h + 1), bevel: 1);
     }
@@ -1395,8 +1418,11 @@ class _KnowThyself extends KeepsakeArt {
       final base = _eye + polar(40, a);
       final tip = _eye + polar(22 + 6 * math.sin(i * 1.9), a);
       final n = polar(5.5, a + math.pi / 2);
-      CutStone.gem(m, [base + n, tip, base - n], Offset.lerp(base, tip, 0.4)!)
-          .paint(c, a, glow: 1.2, reach: 18);
+      CutStone.gem(m, [
+        base + n,
+        tip,
+        base - n,
+      ], Offset.lerp(base, tip, 0.4)!).paint(c, a, glow: 1.2, reach: 18);
     }
     c.restore();
     // The eye: a disc of silver.
@@ -1421,13 +1447,7 @@ class _KnowThyself extends KeepsakeArt {
     );
     for (var i = 0; i < 5; i++) {
       final on = math.max(0.0, math.sin(k.t * 0.9 + i * 1.7));
-      paintDisc(
-        c,
-        m.spark,
-        _eye + polar(28, i * 1.26 + 0.4),
-        4,
-        on * on * 0.8,
-      );
+      paintDisc(c, m.spark, _eye + polar(28, i * 1.26 + 0.4), 4, on * on * 0.8);
     }
   }
 }
@@ -1467,7 +1487,11 @@ class _OppositeFlower extends KeepsakeArt {
     _solid(c, stem, _green.ink);
     _shade(c, stem, _litAcross(_green, -12, 4, k: 0.5));
     // Leaves on the stem — pointing up, as everything here does.
-    for (final (y, side) in const [(-60.0, -1.0), (-84.0, 1.0), (-104.0, -1.0)]) {
+    for (final (y, side) in const [
+      (-60.0, -1.0),
+      (-84.0, 1.0),
+      (-104.0, -1.0),
+    ]) {
       _leaf(c, _green, Offset(-6, y), -math.pi / 2 + side * 0.9, 24, 9);
     }
     // The dark petals.
@@ -1529,9 +1553,17 @@ class _LancetStone extends KeepsakeArt {
     _glass(c, m, window, const Offset(0, -70), 50);
     // The leading between the panes: dark stone bars, filled, not drawn.
     for (final y in const [-92.0, -64.0]) {
-      _solid(c, Path()..addRect(Rect.fromLTRB(-12, y - 1.2, 12, y + 1.2)), m.ink);
+      _solid(
+        c,
+        Path()..addRect(Rect.fromLTRB(-12, y - 1.2, 12, y + 1.2)),
+        m.ink,
+      );
     }
-    _solid(c, Path()..addRect(const Rect.fromLTRB(-1.2, -112, 1.2, -36)), m.ink);
+    _solid(
+      c,
+      Path()..addRect(const Rect.fromLTRB(-1.2, -112, 1.2, -36)),
+      m.ink,
+    );
   }
 
   @override
@@ -1589,13 +1621,18 @@ class _Portal extends KeepsakeArt {
       _shade(
         c,
         face,
-        ui.Gradient.linear(at(mid, 0), at(mid, 12), [
-          // The inner lip holds the light of what turns inside it; the
-          // outer face is obsidian, lit only where it faces the key light.
-          Color.lerp(m.ink, m.essence, 0.42)!,
-          m.face,
-          Color.lerp(m.face, m.rim, 0.06 + 0.3 * keyLit(polar(1, mid), 0))!,
-        ], const [0.0, 0.35, 1.0]),
+        ui.Gradient.linear(
+          at(mid, 0),
+          at(mid, 12),
+          [
+            // The inner lip holds the light of what turns inside it; the
+            // outer face is obsidian, lit only where it faces the key light.
+            Color.lerp(m.ink, m.essence, 0.42)!,
+            m.face,
+            Color.lerp(m.face, m.rim, 0.06 + 0.3 * keyLit(polar(1, mid), 0))!,
+          ],
+          const [0.0, 0.35, 1.0],
+        ),
       );
     }
     // The dark inside.
@@ -1643,8 +1680,18 @@ class _NightBook extends KeepsakeArt {
   @override
   Rect get box => const Rect.fromLTRB(-48, -128, 48, 4);
 
-  static const _pageL = [Offset(-40, -96), Offset(-2, -88), Offset(-2, -68), Offset(-40, -78)];
-  static const _pageR = [Offset(2, -88), Offset(40, -96), Offset(40, -78), Offset(2, -68)];
+  static const _pageL = [
+    Offset(-40, -96),
+    Offset(-2, -88),
+    Offset(-2, -68),
+    Offset(-40, -78),
+  ];
+  static const _pageR = [
+    Offset(2, -88),
+    Offset(40, -96),
+    Offset(40, -78),
+    Offset(2, -68),
+  ];
 
   @override
   void body(Canvas c) {
@@ -1789,12 +1836,17 @@ class _CrownMirror extends KeepsakeArt {
     _shade(
       c,
       glass,
-      ui.Gradient.linear(_c + const Offset(-25, -35), _c + const Offset(25, 35), [
-        Color.lerp(_silver.face, _silver.rim, 0.7)!,
-        _silver.face,
-        _silver.ink,
-        Color.lerp(_silver.face, _silver.rim, 0.4)!,
-      ], const [0.0, 0.3, 0.7, 1.0]),
+      ui.Gradient.linear(
+        _c + const Offset(-25, -35),
+        _c + const Offset(25, 35),
+        [
+          Color.lerp(_silver.face, _silver.rim, 0.7)!,
+          _silver.face,
+          _silver.ink,
+          Color.lerp(_silver.face, _silver.rim, 0.4)!,
+        ],
+        const [0.0, 0.3, 0.7, 1.0],
+      ),
     );
     _laurel(c, m, _c, 36, 8, reach: 2.5, leaf: 13);
     for (final (x, h, lean) in const [
@@ -1834,11 +1886,16 @@ class _CrownMirror extends KeepsakeArt {
         _c + Offset(x - 8, 40),
         _c + Offset(x - 18, 40),
       ]),
-      ui.Gradient.linear(_c + Offset(x - 12, 0), _c + Offset(x, 0), [
-        const Color(0x00FFFFFF),
-        _a(const Color(0xFFFFFFFF), 0.4 + 0.3 * k.stir),
-        const Color(0x00FFFFFF),
-      ], const [0.0, 0.5, 1.0]),
+      ui.Gradient.linear(
+        _c + Offset(x - 12, 0),
+        _c + Offset(x, 0),
+        [
+          const Color(0x00FFFFFF),
+          _a(const Color(0xFFFFFFFF), 0.4 + 0.3 * k.stir),
+          const Color(0x00FFFFFF),
+        ],
+        const [0.0, 0.5, 1.0],
+      ),
     );
     c.restore();
   }
@@ -1894,7 +1951,13 @@ class _VictoryArch extends KeepsakeArt {
     }
     _streak.draw(c, 1.5, _a(_run.grainHot, 0.55));
     for (final x in const [-38.0, 38.0]) {
-      paintDisc(c, _run.spark, Offset(x, -100), 5, 0.5 + 0.3 * math.sin(k.t * 3 + x));
+      paintDisc(
+        c,
+        _run.spark,
+        Offset(x, -100),
+        5,
+        0.5 + 0.3 * math.sin(k.t * 3 + x),
+      );
     }
   }
 }

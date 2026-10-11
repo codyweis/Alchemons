@@ -56,7 +56,8 @@ class _GrainTextState extends State<GrainText>
   }
 
   Future<void> _sample(double maxWidth, TextScaler scaler, double dpr) async {
-    final key = '${widget.text}|${widget.style.hashCode}|$maxWidth|'
+    final key =
+        '${widget.text}|${widget.style.hashCode}|$maxWidth|'
         '${scaler.hashCode}|${widget.textAlign}';
     if (key == _key) return;
     _key = key;
@@ -142,12 +143,12 @@ class _GrainTextState extends State<GrainText>
   }
 
   static List<Paint> _paints(Color base) => [
-        for (final a in const [1.0, 0.9, 0.76])
-          Paint()
-            ..color = base.withValues(alpha: base.a * a)
-            ..strokeWidth = 1.0
-            ..strokeCap = StrokeCap.round,
-      ];
+    for (final a in const [1.0, 0.9, 0.76])
+      Paint()
+        ..color = base.withValues(alpha: base.a * a)
+        ..strokeWidth = 1.0
+        ..strokeCap = StrokeCap.round,
+  ];
 
   static void _paintSettled(Canvas cv, List<List<double>> tones, Color base) {
     final paints = _paints(base);

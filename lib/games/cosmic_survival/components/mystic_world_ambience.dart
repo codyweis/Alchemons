@@ -23,6 +23,50 @@ const mysticAtmosphereColors = <String, Color>{
   'Blood': Color(0xFFAE5862),
 };
 
+// One paint for the whole ambience, and its gradients built once per colour
+// and drawn through a transform: nothing here allocates a Paint or a Gradient
+// per frame. A shader's strength rides on the paint's alpha.
+final Paint _ambPaint = Paint();
+final Map<int, Shader> _ambWashShaders = {};
+final Map<int, Shader> _ambHazeShaders = {};
+final Map<int, Shader> _ambFaceShaders = {};
+
+/// The edge wash in the 1000 x 650 frame, at full strength (scaled by the
+/// paint's alpha).
+Shader _ambWash(Color color) =>
+    _ambWashShaders[color.toARGB32()] ??= Gradient.radial(
+      const Offset(500, 325),
+      580,
+      [
+        color.withValues(alpha: 0),
+        color.withValues(alpha: 0.035 / 0.23),
+        color.withValues(alpha: 1),
+      ],
+      const [0.2, 0.58, 1],
+    );
+
+/// A unit soft spot: full colour at the centre, nothing at radius 1.
+Shader _ambHaze(Color color) => _ambHazeShaders[color.toARGB32()] ??=
+    Gradient.radial(Offset.zero, 1, [color, color.withValues(alpha: 0)]);
+
+/// A unit top-to-bottom fade for a formation face, y 0 → 1.
+Shader _ambFace(Color color, bool crystal) =>
+    _ambFaceShaders[color.toARGB32() * 2 + (crystal ? 1 : 0)] ??=
+        Gradient.linear(const Offset(0, 0), const Offset(0, 1), [
+          color.withValues(alpha: crystal ? 0.13 : 0.10),
+          color.withValues(alpha: 0.015),
+        ]);
+
+void _ambFill(Canvas canvas, Path path, Color color, double alpha) {
+  if (alpha <= 0.004) return;
+  canvas.drawPath(
+    path,
+    _ambPaint
+      ..shader = null
+      ..color = color.withValues(alpha: alpha.clamp(0.0, 1.0)),
+  );
+}
+
 /// Stateless and bounded: no particles, blurs or offscreen layers are allocated.
 /// Drawn behind the arena. Detail stays near the edges; the center stays clear.
 void drawMysticWorldAmbience({
@@ -47,18 +91,11 @@ void drawMysticWorldAmbience({
   const center = Offset(500, 325);
   canvas.drawRect(
     bounds,
-    Paint()
-      ..shader = Gradient.radial(
-        center,
-        580,
-        [
-          color.withValues(alpha: 0),
-          color.withValues(alpha: 0.035 * alpha),
-          color.withValues(alpha: 0.23 * alpha * breath),
-        ],
-        const [0.2, 0.58, 1],
-      ),
+    _ambPaint
+      ..shader = _ambWash(color)
+      ..color = Color.fromRGBO(255, 255, 255, 0.23 * alpha * breath),
   );
+  _ambPaint.shader = null;
   // Broad material formations grow in from the boundary, rather than floating
   // repeated elemental symbols around the player.
   if (const {
@@ -77,9 +114,6 @@ void drawMysticWorldAmbience({
     'Steam' || 'Dust' => reducedDetail ? 4 : 8,
     _ => reducedDetail ? 10 : 20,
   };
-  final pen = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round;
   double noise(int i) => (sin(i * 127.1 + seed * 17.7) * 43758.5453) % 1;
   Offset edge(int i) {
     final along = noise(i + 3);
@@ -92,31 +126,51 @@ void drawMysticWorldAmbience({
     };
   }
 
-  void stroke(Path path, double opacity, double width, {bool glow = false}) {
+  // A flick, streak or arc along [spine]: a filled lens ribbon about twice
+  // the old stroke width at its middle, tapering to points. [glow] lays a
+  // wide faint ribbon under it.
+  void stroke(
+    List<Offset> spine,
+    double opacity,
+    double width, {
+    bool glow = false,
+    double taper = 0.5,
+    double? taperEnd,
+  }) {
     if (glow && !reducedDetail) {
-      canvas.drawPath(
-        path,
-        pen
-          ..strokeWidth = width * 4 + 3
-          ..color = color.withValues(alpha: opacity * alpha * 0.12),
+      _ambFill(
+        canvas,
+        vfxLensRibbon(spine, width * 4 + 3, taper: taper, taperEnd: taperEnd),
+        color,
+        opacity * alpha * 0.12,
       );
     }
-    canvas.drawPath(
-      path,
-      pen
-        ..strokeWidth = width
-        ..color = color.withValues(alpha: opacity * alpha),
+    _ambFill(
+      canvas,
+      vfxLensRibbon(spine, width * 2, taper: taper, taperEnd: taperEnd),
+      color,
+      opacity * alpha,
     );
   }
 
+  // A filled oval, or — where an outline used to be — its rim as a lit
+  // crescent along the near side and a thinner one along the far side: a
+  // ripple or bubble edge, never a hoop.
   void oval(Offset p, double w, double h, double opacity, {bool fill = false}) {
-    canvas.drawOval(
-      Rect.fromCenter(center: p, width: w, height: h),
-      Paint()
-        ..style = fill ? PaintingStyle.fill : PaintingStyle.stroke
-        ..strokeWidth = 1
-        ..color = color.withValues(alpha: opacity * alpha),
-    );
+    if (fill) {
+      if (opacity * alpha <= 0.004) return;
+      canvas.drawOval(
+        Rect.fromCenter(center: p, width: w, height: h),
+        _ambPaint
+          ..shader = null
+          ..color = color.withValues(alpha: opacity * alpha),
+      );
+      return;
+    }
+    final near = min(2.2, max(0.8, h * 0.35));
+    final rim = vfxEllipseCrescent(p, w / 2, h / 2, near, pi / 2, 2.4);
+    vfxEllipseCrescent(p, w / 2, h / 2, near * 0.55, -pi / 2, 1.7, into: rim);
+    _ambFill(canvas, rim, color, opacity * alpha);
   }
 
   for (var i = 0; i < count; i++) {
@@ -142,15 +196,20 @@ void drawMysticWorldAmbience({
     switch (element) {
       case 'Fire':
         final ember = p.translate(sin(t + i) * 9, -phase * 60);
-        final path = Path()
-          ..moveTo(ember.dx, ember.dy + 13)
-          ..quadraticBezierTo(
-            ember.dx - 7,
-            ember.dy + 4,
-            ember.dx + sin(t * 2 + i) * 4,
-            ember.dy - 8,
-          );
-        stroke(path, 0.48 * (1 - phase), 1.4, glow: true);
+        // A flame lick rising off the ember: broad below, a point on top.
+        stroke(
+          vfxQuadSpine(
+            Offset(ember.dx, ember.dy + 13),
+            Offset(ember.dx - 7, ember.dy + 4),
+            Offset(ember.dx + sin(t * 2 + i) * 4, ember.dy - 8),
+            n: 6,
+          ),
+          0.48 * (1 - phase),
+          1.4,
+          glow: true,
+          taper: 0.3,
+          taperEnd: 0.7,
+        );
         oval(ember, 3, 4, 0.75 * (1 - phase), fill: true);
       case 'Lava':
         // A glowing seam in dark rock — filled and tapered, not a scribble.
@@ -176,12 +235,13 @@ void drawMysticWorldAmbience({
         );
       case 'Water':
         final drop = p.translate(phase * 25, phase * 80 - 40);
+        // A falling streak, heavier at its leading end.
         stroke(
-          Path()
-            ..moveTo(drop.dx, drop.dy)
-            ..lineTo(drop.dx + 9, drop.dy + 28),
+          vfxPolylineSpine([drop, drop.translate(9, 28)], perSegment: 5),
           0.30,
           1,
+          taper: 0.7,
+          taperEnd: 0.3,
         );
         if (i.isEven) {
           oval(
@@ -194,39 +254,49 @@ void drawMysticWorldAmbience({
       case 'Air':
         final x = p.dx + phase * 75 - 35;
         stroke(
-          Path()
-            ..moveTo(x - 95, p.dy + 12)
-            ..quadraticBezierTo(
-              x,
-              p.dy - 28 - sin(t + i) * 10,
-              x + 65,
-              p.dy - 12,
-            ),
+          vfxQuadSpine(
+            Offset(x - 95, p.dy + 12),
+            Offset(x, p.dy - 28 - sin(t + i) * 10),
+            Offset(x + 65, p.dy - 12),
+            n: 10,
+          ),
           0.24 * sin(phase * pi),
           1.1,
         );
         stroke(
-          Path()
-            ..moveTo(x - 40, p.dy + 20)
-            ..quadraticBezierTo(x + 20, p.dy - 1, x + 90, p.dy),
+          vfxQuadSpine(
+            Offset(x - 40, p.dy + 20),
+            Offset(x + 20, p.dy - 1),
+            Offset(x + 90, p.dy),
+            n: 10,
+          ),
           0.12,
           0.7,
         );
       case 'Lightning':
         final pulse = pow(max(0.0, sin(t * 0.9 + i * 2.3)), 12).toDouble();
-        final path = Path()
-          ..moveTo(p.dx - 30, p.dy - 30)
-          ..lineTo(p.dx - 6, p.dy - 8)
-          ..lineTo(p.dx - 16, p.dy - 2)
-          ..lineTo(p.dx + 17, p.dy + 17)
-          ..lineTo(p.dx + 11, p.dy + 25);
-        stroke(path, 0.06 + pulse * 0.52, 1.2, glow: true);
+        // A discharge writhing down through its corners, not a zig-zag glyph.
         stroke(
-          Path()
-            ..moveTo(p.dx - 6, p.dy - 8)
-            ..lineTo(p.dx + 18, p.dy - 15),
+          vfxCurveSpine([
+            Offset(p.dx - 30, p.dy - 30),
+            Offset(p.dx - 6, p.dy - 8),
+            Offset(p.dx - 16, p.dy - 2),
+            Offset(p.dx + 17, p.dy + 17),
+            Offset(p.dx + 11, p.dy + 25),
+          ]),
+          0.06 + pulse * 0.52,
+          1.2,
+          glow: true,
+        );
+        stroke(
+          vfxPolylineSpine([
+            Offset(p.dx - 6, p.dy - 8),
+            Offset(p.dx + 18, p.dy - 15),
+          ], perSegment: 4),
           pulse * 0.28,
           0.7,
+          taper: 0.2,
+          taperEnd: 0.8,
         );
       case 'Mud':
         oval(p, 70 + n * 30, 19, 0.08, fill: true);
@@ -332,30 +402,38 @@ void _drawEdgeFormations(
 ) {
   double noise(int i) => (sin(i * 127.1 + seed * 17.7) * 43758.5453) % 1;
   void haze(Offset at, double width, double height, double opacity) {
+    if (opacity * alpha <= 0.004) return;
     canvas.save();
     canvas.translate(at.dx, at.dy);
     canvas.scale(width, height);
     canvas.drawCircle(
       Offset.zero,
       1,
-      Paint()
-        ..shader = Gradient.radial(Offset.zero, 1, [
-          color.withValues(alpha: opacity * alpha),
-          color.withValues(alpha: 0),
-        ]),
+      _ambPaint
+        ..shader = _ambHaze(color)
+        ..color = Color.fromRGBO(255, 255, 255, (opacity * alpha).clamp(0, 1)),
     );
     canvas.restore();
+    _ambPaint.shader = null;
   }
 
-  void line(Path path, double opacity, double width) {
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = width
-        ..color = color.withValues(alpha: opacity * alpha),
-    );
+  // Veins, seams and corona fragments: lens ribbons gathered into one path
+  // per side and filled once, instead of a stroked hairline each.
+  final seams = Path();
+  final spine = <Offset>[];
+  void seam(List<Offset> corners, double width, {bool curve = false}) {
+    spine.clear();
+    if (curve) {
+      vfxQuadSpine(corners[0], corners[1], corners[2], n: 8, into: spine);
+    } else {
+      vfxPolylineSpine(corners, into: spine);
+    }
+    vfxLensRibbon(spine, width, taper: 0.4, into: seams);
+  }
+
+  void flushSeams(double opacity) {
+    _ambFill(canvas, seams, color, opacity * alpha);
+    seams.reset();
   }
 
   for (var side = 0; side < 4; side++) {
@@ -391,30 +469,31 @@ void _drawEdgeFormations(
             canvas.drawCircle(
               Offset((n - 0.5) * span * 2 + drift * 2, 20 + noise(j + 21) * 65),
               0.7 + n,
-              Paint()..color = color.withValues(alpha: alpha * 0.3),
+              _ambPaint
+                ..shader = null
+                ..color = color.withValues(alpha: alpha * 0.3),
             );
           }
         }
       case 'Light':
         haze(Offset(drift, -24), span * 1.8, 135, 0.18);
         // A partly buried corona: uneven fragments, no clock ticks or circles.
+        // Each fragment breathes by swelling, since they share one fill.
         for (var j = 0; j < (reduced ? 2 : 4); j++) {
           final x = -span + j * span * 0.55;
           final y = 26 + noise(j + side * 11) * 22;
-          line(
-            Path()
-              ..moveTo(x, y)
-              ..quadraticBezierTo(
-                x + 35,
-                y + 13,
-                x + 65 + noise(j + 80) * 35,
-                y - 5,
-              ),
-            0.10 + 0.07 * sin(time * 0.35 + j),
-            1.3,
+          seam(
+            [
+              Offset(x, y),
+              Offset(x + 35, y + 13),
+              Offset(x + 65 + noise(j + 80) * 35, y - 5),
+            ],
+            3.2 * (0.75 + 0.35 * sin(time * 0.35 + j)),
+            curve: true,
           );
           haze(Offset(x + 30, y), 65, 14, 0.10);
         }
+        flushSeams(0.15);
       case 'Ice':
         haze(const Offset(0, 0), span * 1.4, 95, 0.16);
         for (var j = 0; j < (reduced ? 5 : 9); j++) {
@@ -422,23 +501,18 @@ void _drawEdgeFormations(
           final reach = 35 + noise(j + 42) * 85;
           final bend = x + (noise(j + 66) - 0.5) * 55;
           final tip = Offset(bend + noise(j + 81) * 28 - 14, reach);
-          line(
-            Path()
-              ..moveTo(x, 0)
-              ..lineTo(bend, reach * 0.54)
-              ..lineTo(tip.dx, tip.dy),
-            0.13 + noise(j + 15) * 0.13,
-            0.8,
+          // Frost veins: brighter ones are simply broader.
+          seam(
+            [Offset(x, 0), Offset(bend, reach * 0.54), tip],
+            2.0 * (0.7 + noise(j + 15) * 0.8),
           );
-          line(
-            Path()
-              ..moveTo(bend, reach * 0.54)
-              ..lineTo(bend - 13 - noise(j + 31) * 20, reach * 0.73),
-            0.12,
-            0.6,
-          );
+          seam([
+            Offset(bend, reach * 0.54),
+            Offset(bend - 13 - noise(j + 31) * 20, reach * 0.73),
+          ], 1.4);
           haze(tip, 18, 10, 0.035);
         }
+        flushSeams(0.17);
       case 'Earth':
       case 'Crystal':
         final crystal = element == 'Crystal';
@@ -449,31 +523,40 @@ void _drawEdgeFormations(
           final w = 45 + n * 85;
           final h = 28 + noise(j + side * 13 + 40) * (crystal ? 88 : 52);
           final tip = Offset(x + w * (0.15 + n * 0.5), h);
+          // The face's light fades from y = -15 down to the tip. It is drawn
+          // in a frame where that span is 0 → 1, so one cached unit gradient
+          // serves every face.
+          final span01 = h + 15;
+          double ny(double y) => (y + 15) / span01;
           final face = Path()
-            ..moveTo(x - w * 0.3, -25)
-            ..lineTo(x + w, 3)
-            ..lineTo(tip.dx, tip.dy)
-            ..lineTo(x - w * 0.2, h * 0.57)
+            ..moveTo(x - w * 0.3, ny(-25))
+            ..lineTo(x + w, ny(3))
+            ..lineTo(tip.dx, ny(tip.dy))
+            ..lineTo(x - w * 0.2, ny(h * 0.57))
             ..close();
+          canvas.save();
+          canvas.translate(0, -15);
+          canvas.scale(1, span01);
           canvas.drawPath(
             face,
-            Paint()
-              ..shader = Gradient.linear(Offset(x, -15), Offset(x, h), [
-                color.withValues(alpha: alpha * (crystal ? 0.13 : 0.10)),
-                color.withValues(alpha: alpha * 0.015),
-              ]),
+            _ambPaint
+              ..shader = _ambFace(color, crystal)
+              ..color = Color.fromRGBO(255, 255, 255, alpha),
           );
+          canvas.restore();
+          _ambPaint.shader = null;
           // Only one exposed seam catches light; the rest sinks into shadow.
-          line(
-            Path()
-              ..moveTo(x + w, 3)
-              ..lineTo(tip.dx, tip.dy)
-              ..lineTo(tip.dx - w * 0.22, tip.dy - h * 0.12),
-            crystal ? 0.17 + 0.09 * sin(time * 0.4 + j + side) : 0.12,
-            0.8,
+          seam(
+            [
+              Offset(x + w, 3),
+              tip,
+              Offset(tip.dx - w * 0.22, tip.dy - h * 0.12),
+            ],
+            crystal ? 2.0 * (0.8 + 0.4 * sin(time * 0.4 + j + side)) : 1.8,
           );
           if (crystal) haze(tip, 25, 16, 0.045);
         }
+        flushSeams(crystal ? 0.19 : 0.13);
     }
     canvas.restore();
   }

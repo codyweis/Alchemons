@@ -22,6 +22,7 @@ import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart'
     show VolcanoField;
+import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/extraction_vile.dart';
@@ -31,6 +32,7 @@ import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
+import 'package:alchemons/screens/debug/ability_lab_screen.dart';
 import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
@@ -58,6 +60,7 @@ import 'package:alchemons/widgets/avatar_widget.dart';
 import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/nav_emblems.dart';
 import 'package:alchemons/widgets/campaign_rewards_button.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/reset_progress_dialog.dart';
@@ -377,6 +380,13 @@ class _ProfileScreenState extends State<ProfileScreen>
     await context.read<WildernessSpawnService>().debugSetAftermath(sceneId);
     if (!mounted) return;
     showGameSnack(context, message);
+  }
+
+  Future<void> _openAbilityLab() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const AbilityLabScreen()),
+    );
   }
 
   Future<void> _openDungeonDebug() async {
@@ -1133,6 +1143,25 @@ class _ProfileScreenState extends State<ProfileScreen>
                           ],
                         ),
 
+                      if (faction != null)
+                        _Section(
+                          label: 'DOCK',
+                          palette: palette,
+                          children: [
+                            _Row(
+                              title: 'ICONS',
+                              description:
+                                  "Which Let the dock's icons are drawn with. "
+                                  'More are sold in the shop.',
+                              palette: palette,
+                              below: _DockSetChoice(
+                                palette: palette,
+                                accent: accent,
+                              ),
+                            ),
+                          ],
+                        ),
+
                       _Section(
                         label: 'JOURNAL',
                         palette: palette,
@@ -1599,6 +1628,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       'Fusion puzzles in levels, chapter by chapter through the realms',
       'OPEN',
       _openAltars,
+    ),
+    _DebugAction(
+      'ABILITY LAB',
+      'Test every Alchemon\'s attacks and special in the practice arena, '
+          'at any stat band',
+      'OPEN',
+      _openAbilityLab,
     ),
     _DebugAction(
       'DUNGEON DEBUG',
@@ -2404,6 +2440,73 @@ class _FontChoice extends StatelessWidget {
               ),
             ),
           ),
+      ],
+    );
+  }
+}
+
+/// Every dock set owned, each its Let in Home's archway, the one on the dock
+/// lit from below.
+class _DockSetChoice extends StatelessWidget {
+  const _DockSetChoice({required this.palette, required this.accent});
+
+  final BracketPalette palette;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final factions = context.watch<FactionService>();
+    final worn = factions.dockSet;
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final set in kDockSets)
+          if (factions.ownsDockSet(set))
+            GestureDetector(
+              key: ValueKey('dock-set-${set.id}'),
+              behavior: HitTestBehavior.opaque,
+              onTap: context.soundAction(() {
+                if (set == worn) return;
+                HapticFeedback.selectionClick();
+                factions.wearDockSet(set);
+              }),
+              child: CustomPaint(
+                foregroundPainter: BracketFramePainter(
+                  color: set == worn ? accent : palette.line,
+                  strokeWidth: 1.2,
+                ),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 76,
+                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                  color: set == worn
+                      ? palette.accentWash(accent, darkAlpha: 0.18)
+                      : palette.bg0,
+                  child: Column(
+                    children: [
+                      NavEmblem(
+                        kind: NavEmblemKind.home,
+                        dockSet: set,
+                        size: 54,
+                      ),
+                      const SizedBox(height: 6),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          set.name.toUpperCase(),
+                          maxLines: 1,
+                          style: _mono(
+                            9.5,
+                            set == worn ? palette.ink : palette.muted,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
       ],
     );
   }

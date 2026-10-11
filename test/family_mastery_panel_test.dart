@@ -25,26 +25,16 @@ void main() {
     await db.close();
   });
 
-  Future<void> pumpPanel(
-    WidgetTester tester, {
-    int silver = 20000,
-    int gold = 20,
-  }) async {
+  /// The panel, with [manePoints] more Mane mastery banked first.
+  Future<void> pumpPanel(WidgetTester tester, {int manePoints = 1000}) async {
     tester.view.physicalSize = const Size(412 * 3, 915 * 3);
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
+    await mastery.addPoints({CreatureFamily.mane: manePoints});
     await tester.pumpWidget(
       ChangeNotifierProvider<FamilyMasteryService>.value(
         value: mastery,
-        child: MaterialApp(
-          home: Scaffold(
-            body: FamilyMasteryPanel(
-              silverBalance: silver,
-              goldBalance: gold,
-              onCurrencyChanged: () async {},
-            ),
-          ),
-        ),
+        child: const MaterialApp(home: Scaffold(body: FamilyMasteryPanel())),
       ),
     );
     await tester.pumpAndSettle();
@@ -63,6 +53,11 @@ void main() {
 
   String caption(WidgetTester tester) => tester
       .widget<Text>(find.byKey(const ValueKey('mastery-family-caption')))
+      .textSpan!
+      .toPlainText();
+
+  String balance(WidgetTester tester) => tester
+      .widget<Text>(find.byKey(const ValueKey('mastery-points-balance')))
       .textSpan!
       .toPlainText();
 
@@ -128,11 +123,30 @@ void main() {
     }
   });
 
+  testWidgets('shows the family\'s own mastery and prices in it', (
+    tester,
+  ) async {
+    await mastery.addPoints(const {CreatureFamily.pip: 40});
+    await pumpPanel(tester, manePoints: 120);
+
+    expect(balance(tester), 'MANE MASTERY 120');
+    // The dock's price, and the next node's on each of the three branches.
+    expect(find.text('25 MASTERY'), findsNWidgets(4));
+
+    await tester.tap(find.byKey(const ValueKey('mastery-family-pip')));
+    await tester.pumpAndSettle();
+    expect(balance(tester), 'PIP MASTERY 40');
+
+    await tester.tap(find.byKey(const ValueKey('mastery-family-horn')));
+    await tester.pumpAndSettle();
+    expect(balance(tester), 'HORN MASTERY 0');
+    expect(find.text('NEED'), findsOneWidget);
+  });
+
   testWidgets('upgrade needs a second tap to confirm, then buys the node', (
     tester,
   ) async {
-    await db.currencyDao.addSilver(5000);
-    await pumpPanel(tester, silver: 5000);
+    await pumpPanel(tester, manePoints: 100);
 
     const nodeId = 'mane.assault.honed_pair';
     final button = find.byKey(const ValueKey('unlock-$nodeId'));
@@ -148,6 +162,8 @@ void main() {
 
     expect(mastery.isNodePurchased(nodeId), isTrue);
     expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.assault');
+    expect(mastery.pointsFor(CreatureFamily.mane), 75);
+    expect(balance(tester), 'MANE MASTERY 75');
     // The dock advances to the next tier of the same branch.
     expect(find.text('CROSSCUT'), findsNWidgets(2));
     expect(
@@ -176,9 +192,16 @@ void main() {
   });
 
   testWidgets('unaffordable and locked nodes cannot be bought', (tester) async {
-    await pumpPanel(tester, silver: 10);
+    await pumpPanel(tester, manePoints: 10);
 
     expect(find.text('NEED'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('unlock-mane.assault.honed_pair')),
+        matching: find.text('25 MASTERY'),
+      ),
+      findsOneWidget,
+    );
     await tester.tap(
       find.byKey(const ValueKey('unlock-mane.assault.honed_pair')),
     );
@@ -195,7 +218,7 @@ void main() {
   });
 
   testWidgets('tapping a bought branch\'s heading equips it', (tester) async {
-    await db.currencyDao.addSilver(2000);
+    await mastery.addPoints(const {CreatureFamily.mane: 50});
     await mastery.purchaseNode(
       family: CreatureFamily.mane,
       nodeId: 'mane.assault.honed_pair',

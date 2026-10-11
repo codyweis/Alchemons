@@ -38,6 +38,153 @@ class LetZoneSpec {
       : meteor.effectPower * effectShare;
 }
 
+/// A per-caster ceiling on heals that grow with the bodies an ability
+/// touches: Mane Blood's heal on every pierce and the Wing leech beams.
+///
+/// Those heals scale with bodies touched times casts, so a well-bred caster
+/// in a dense wave out-healed everything the objective took — Mane Blood up
+/// to 8x of all incoming orb damage — and the run stopped being losable.
+/// Each caster now refills a small budget, a share of the objective's health
+/// per second that grows with Beauty, and banks at most [bucketSeconds] of
+/// it. The heal still answers damage as it happens and still grows with the
+/// creature; it just can't outrun a wave near the team's wall.
+class HealCeiling {
+  /// Share of the objective's max health a caster may restore per second at
+  /// average Beauty; [scaledAbilityValue] takes it to about 1.7x at perfect.
+  static const double sharePerSecond = 0.012;
+  static const double bucketSeconds = 2.0;
+
+  final Map<int, double> _budget = {};
+  final Map<int, double> _at = {};
+
+  /// How much of [amount] caster [slot] may heal now, spending it. [pool] is
+  /// the objective's max health, [now] the game clock in seconds.
+  double grant({
+    required int? slot,
+    required double amount,
+    required double pool,
+    required double beauty,
+    required double now,
+  }) {
+    if (amount <= 0) return 0;
+    if (slot == null) return amount;
+    final rate =
+        pool *
+        sharePerSecond *
+        scaledAbilityValue(beauty, atLow: 0.8, atAverage: 1.0, atPerfect: 1.7);
+    final cap = rate * bucketSeconds;
+    final last = _at[slot];
+    final budget = last == null
+        ? cap
+        : min(cap, (_budget[slot] ?? cap) + (now - last) * rate);
+    final granted = min(amount, budget);
+    _budget[slot] = budget - granted;
+    _at[slot] = now;
+    return granted;
+  }
+
+  void clear() {
+    _budget.clear();
+    _at.clear();
+  }
+}
+
+/// The persistent pieces a caster's specials leave on the field — zones,
+/// walls, clouds, pools, wards, traps, decoys, orbitals — and the one rule
+/// that keeps them from piling up with cadence (ability pass M7).
+///
+/// A piece lives its authored time, and a better-bred creature recasts up to
+/// three times as fast, so its pieces used to stack: Kin Earth's wall went
+/// from 14 live segments to 64, Pip Fire's pools ×7. Now a caster keeps the
+/// pieces of its last few casts ([windowFor]: two, three for a Kin): each
+/// recast, every piece it already had counts one more recast, and a piece
+/// that has seen its window of them fades out. A caster whose pieces die of
+/// age first never meets the rule (an average one rarely does), and a fast
+/// one holds about what its window of casts lays, whatever its cadence.
+///
+/// Every game calls [onCast] where its special fires (survival, open space,
+/// dungeons), so the rule is the same everywhere — including Mask traps when
+/// Mask casts faster.
+abstract final class CasterPieces {
+  /// How many casts' worth of pieces a caster keeps.
+  static const int castWindow = 2;
+
+  /// The Kin supports keep three: their pieces are authored to span about
+  /// three casts at an average stat (trap persistence ×3), and a window of
+  /// two cut an average Kin's heal at Potential 70 by a sixth.
+  static const int kinCastWindow = 3;
+
+  /// A retired piece fades over this long rather than popping out.
+  static const double retireFade = 0.35;
+
+  static final Expando<int> _recastsSeen = Expando('casterPieceRecasts');
+
+  /// Whether [p] holds a place on the field: stationary, orbiting or riding
+  /// someone, or a decoy. A shot still in flight is not a piece.
+  static bool holdsPlace(Projectile p) =>
+      p.stationary ||
+      p.holdOrbit ||
+      p.orbitCenter != null ||
+      p.followSourceCompanion ||
+      p.followShipOrbit ||
+      p.decoy;
+
+  /// A fixture a recast feeds or refreshes in place instead of laying anew:
+  /// the Mane Light ward's rings, the Mask Plant vine, a Mask Dust shield, a
+  /// Kin Spirit wisp. One cast never laid it, so no recast retires it. A
+  /// mastery's own pieces keep their own budgets too.
+  static bool isStandingFixture(Projectile p) {
+    if (p.masteryGenerated || p.masteryNoLifetime) return true;
+    return switch ((p.abilityFamily, p.element)) {
+      ('mane', 'Light') => p.holdOrbit,
+      ('mask', 'Plant') => p.stationary,
+      ('mask', 'Dust') => p.attachedToSlot != -2,
+      ('kin', 'Spirit') => p.followSourceCompanion,
+      _ => false,
+    };
+  }
+
+  /// How many casts' worth an ability keeps: [castWindow], [kinCastWindow]
+  /// for the Kin supports, 1 for Pip Poison (its web lasts until the next
+  /// cast, per the board), or null for Kin Dust, whose clouds piling up cast
+  /// after cast to their own cap (KinSupport.dustCloudCap) is the ability.
+  static int? windowFor(String family, String? element) =>
+      switch ((family, element)) {
+        ('kin', 'Dust') => null,
+        ('kin', _) => kinCastWindow,
+        ('pip', 'Poison') => 1,
+        _ => castWindow,
+      };
+
+  /// [slot] has just cast its [family]/[element] special (before the cast
+  /// lays anything). Its pieces in [pieces] each count one more recast; those
+  /// past their window fade out.
+  static void onCast(
+    Iterable<Projectile> pieces, {
+    required int? slot,
+    required String family,
+    required String? element,
+  }) {
+    if (slot == null) return;
+    final fam = family.toLowerCase();
+    final window = windowFor(fam, element);
+    if (window == null) return;
+    for (final p in pieces) {
+      if (p.sourceSlotIndex != slot ||
+          p.life <= 0 ||
+          p.abilityFamily != fam ||
+          p.element != element ||
+          !holdsPlace(p) ||
+          isStandingFixture(p)) {
+        continue;
+      }
+      final seen = (_recastsSeen[p] ?? 0) + 1;
+      _recastsSeen[p] = seen;
+      if (seen >= window) p.life = min(p.life, retireFade);
+    }
+  }
+}
+
 class CosmicAbilityRuntime {
   /// How fast a shove dies away: velocity scales by exp(-damping × dt).
   static const double knockbackDamping = 7.5;
@@ -151,10 +298,12 @@ class CosmicAbilityRuntime {
       damageShare: 0.16,
       visualScale: 1.7,
     ),
+    // Steam's vent vents for 9 s (it was 12, which read 3.4x the median
+    // special at P50; final balance, 2026-10-10).
     'Steam' => const LetZoneSpec(
       tick: AbilityEffectKind.geyser,
       radius: 115,
-      duration: 12.0,
+      duration: 9.0,
       damageShare: 0.12,
       visualScale: 1.6,
     ),
@@ -230,39 +379,54 @@ class CosmicAbilityRuntime {
     effectDuration: kLetVineLife,
   );
 
-  /// A zone from [spec], ready to be placed at [at].
+  /// A zone from [spec], ready to be placed at [at]. Its reach grows with the
+  /// caster's Intelligence past an average stat ([letZoneReach]); the
+  /// authored radius is the average creature's.
   static Projectile letZone(
     Projectile meteor,
     Offset at,
     String element,
     LetZoneSpec spec,
-  ) => Projectile(
-    position: at,
-    angle: 0,
-    element: element,
-    damage: 0,
-    life: spec.duration,
-    speedMultiplier: 0,
-    stationary: true,
-    piercing: true,
-    // Only survival's viewport cull reads this now (see [letVine]); sized so
-    // a zone whose centre is just off screen is still drawn.
-    radiusMultiplier: spec.radius / 7.0,
-    visualScale: spec.visualScale,
-    visualStyle: ProjectileVisualStyle.letShard,
-    sourceSlotIndex: meteor.sourceSlotIndex,
-    abilityFamily: 'let',
-    tickEffect: spec.tick,
-    effectPower: spec.power(meteor),
-    effectRadius: spec.radius,
-    effectDuration: spec.duration,
-  );
+  ) {
+    final reach = letZoneReach(meteor.letCasterIntelligence);
+    final radius = spec.radius * reach;
+    return Projectile(
+      position: at,
+      angle: 0,
+      element: element,
+      damage: 0,
+      life: spec.duration,
+      speedMultiplier: 0,
+      stationary: true,
+      piercing: true,
+      // Only survival's viewport cull reads this now (see [letVine]); sized so
+      // a zone whose centre is just off screen is still drawn.
+      radiusMultiplier: radius / 7.0,
+      visualScale: spec.visualScale * reach,
+      visualStyle: ProjectileVisualStyle.letShard,
+      sourceSlotIndex: meteor.sourceSlotIndex,
+      abilityFamily: 'let',
+      tickEffect: spec.tick,
+      effectPower: spec.power(meteor),
+      effectRadius: radius,
+      effectDuration: spec.duration,
+    );
+  }
 
   /// How far Air's knockback reaches, and Water's and Fire's second hits —
   /// the radii the aftermath beats are drawn to.
   static double letAirReach(Projectile p) => max(180.0, p.effectRadius);
   static double letWaterReach(Projectile p) => max(125.0, p.effectRadius);
-  static double letFireReach(Projectile p) => max(555.0, p.effectRadius * 3.0);
+  static double letFireReach(Projectile p) =>
+      p.effectRadius * kLetFireKillReach;
+
+  /// Fire's kill blast reaches this many times the meteor's own blast. It was
+  /// three times with a 555 px floor: most of the arena at every band, so a
+  /// kill re-blasted the whole wave and Let Fire measured 5-6.5x the median
+  /// special at every band. Trimming its damage barely moved that, because
+  /// the blast already killed what it reached (ability pass, final balance,
+  /// 2026-10-10).
+  static const double kLetFireKillReach = 2.0;
 
   /// How long Ice's freeze and Crystal's slow hold the body they struck.
   static const double kLetIceHold = 3.2;
@@ -303,12 +467,31 @@ class CosmicAbilityRuntime {
     return p.skyfallRemaining <= 0;
   }
 
-  static int darkLetFollowupCount(double casterIntelligence) {
-    return (2 + ((casterIntelligence - 0.5) / 4.5) * 3)
-        .round()
-        .clamp(2, 5)
-        .toInt();
-  }
+  /// How many follow-up meteors a Dark Let's kill calls down: two from a weak
+  /// caster, three from an average one, five from a perfect one, by
+  /// Intelligence on the anchored count curve. It was a straight line that
+  /// already read five at an average stat, so the volley never grew past P50
+  /// (ability pass, final balance, 2026-10-10).
+  static int darkLetFollowupCount(double casterIntelligence) =>
+      scaledAbilityCount(
+        casterIntelligence,
+        atLow: 2,
+        atAverage: 3,
+        atPerfect: 5,
+      );
+
+  /// A follow-up lands this much bigger than the meteor that called it down.
+  /// The board says twice as big; at twice, five of them covered the wave
+  /// around every kill and Dark measured up to 4.5x the median special.
+  static const double kDarkLetFollowupScale = 1.4;
+
+  /// A follow-up's hit radius, from the meteor that called it down.
+  static double darkLetFollowupRadius(Projectile source) =>
+      max(3.5, source.radiusMultiplier * kDarkLetFollowupScale);
+
+  /// A follow-up's drawn size: the same growth, so it looks as big as it hits.
+  static double darkLetFollowupVisualScale(Projectile source) =>
+      max(3.5, source.visualScale * kDarkLetFollowupScale);
 
   static double projectileEffectPower(
     Projectile projectile, {
@@ -457,6 +640,11 @@ class CosmicAbilityRuntime {
       angle: angle,
       element: orb.element,
       damage: orb.turretDamage,
+      // The shot is the caster's: credited to it, and filed as its special
+      // rather than as an anonymous auto attack (a Mask Steam geyser's shots
+      // were missing from its caster's damage, and fed a Blood world's tithe).
+      sourceSlotIndex: orb.sourceSlotIndex,
+      abilityFamily: orb.abilityFamily,
       life: orb.element == 'Lightning' ? 1.15 : 1.7,
       speedMultiplier: orb.turretSpeedMultiplier,
       radiusMultiplier: switch (orb.element) {
@@ -541,6 +729,15 @@ class CosmicAbilityRuntime {
 abstract final class WingBeamRules {
   /// Live beams a game holds; the oldest goes when a new one would pass it.
   static const int beamCap = 14;
+
+  /// A beam a Wing co-fires from an anchor (Earth's from the orb, Spirit's
+  /// from the ship) holds for this share of the wing's own beam. A second
+  /// full-length line doubled the cast, and Earth measured 2.7-3.7x the
+  /// median special (ability pass, final balance, 2026-10-10).
+  static const double coBeamLifeShare = 0.5;
+
+  /// How long a co-fired beam of [d] holds.
+  static double coBeamLife(WingBeamEffect d) => d.duration * coBeamLifeShare;
 
   /// How far from a line beam's segment a body is struck, before its own
   /// radius. Also the reach a boss is tested at.
