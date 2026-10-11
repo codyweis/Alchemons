@@ -431,6 +431,22 @@ enum SoundCue {
       'mushroom_ring' => homeSpores,
       'orrery' => homeOrrery,
       'giants_palm' || 'lancet_stone' || 'titan_anvil' => homeStone,
+      // The Athanor's decor, each by its material.
+      'ash_brazier' || 'ember_bowl' || 'ember_nest' => homeFlame,
+      'nightbloom_bed' || 'pomegranate_tree' || 'herb_rack' => homeReeds,
+      'inkcap_cluster' => homeSpores,
+      'moon_font' => homeWater,
+      'storm_coil' => homeSpark,
+      'alembic' || 'great_alembic' => homeSteam,
+      'music_box' => homeChimes,
+      'moonstone_cairn' || 'sundial' || 'gilded_throne' => homeStone,
+      'moth_lantern' ||
+      'salt_pillar' ||
+      'snow_globe' ||
+      'honey_lamp' ||
+      'glass_rose' ||
+      'retort_shelf' ||
+      'bell_jar' => homeGlass,
       'four_winds' ||
       'frozen_moon' ||
       'black_glass' ||

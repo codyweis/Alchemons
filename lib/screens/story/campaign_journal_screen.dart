@@ -4,6 +4,7 @@ import 'dart:async';
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/widgets/achievements/achievement_sphere.dart';
@@ -177,6 +178,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     setState(() => _claiming = true);
     var gold = 0;
     var silver = 0;
+    var tincture = 0;
     var paid = false;
     try {
       var fired = 0;
@@ -192,6 +194,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
           paid = true;
           gold += reward.gold;
           silver += reward.silver;
+          tincture += kAthanorAchievementTincture;
           if (!mounted) return true;
 
           HapticFeedback.mediumImpact();
@@ -221,10 +224,10 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
         }
       }
       if (!mounted) return paid;
-      if (gold + silver > 0) HapticFeedback.heavyImpact();
+      if (gold + silver + tincture > 0) HapticFeedback.heavyImpact();
       _notify(
-        gold + silver > 0
-            ? 'Collected $gold Gold and $silver Silver.'
+        gold + silver + tincture > 0
+            ? 'Collected $gold Gold, $silver Silver and $tincture Tincture.'
             : 'Rewards already collected.',
       );
     } catch (_) {

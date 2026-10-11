@@ -4,8 +4,10 @@ import 'dart:math' as math;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/services/creature_repository.dart';
 
@@ -158,6 +160,9 @@ class PurebloodSacrificeResult {
   final PurebloodChallenge? nextChallenge;
   final bool completedRite;
 
+  /// Tincture for the Athanor: on the rite's last stage, and every weekly.
+  final int tinctureEarned;
+
   const PurebloodSacrificeResult({
     required this.challenge,
     required this.instance,
@@ -166,6 +171,7 @@ class PurebloodSacrificeResult {
     required this.newStageIndex,
     required this.nextChallenge,
     required this.completedRite,
+    this.tinctureEarned = 0,
   });
 }
 
@@ -627,10 +633,16 @@ class PurebloodRiteService {
     var newStageIndex = currentStageIndex;
     final completionBonus = isFinalChallenge(active) ? completionBonusGold : 0;
     final totalGoldEarned = active.goldReward + completionBonus;
+    final tincture = isFinalChallenge(active)
+        ? kAthanorRiteCompletionTincture
+        : 0;
 
     await _db.transaction(() async {
       await _db.creatureDao.deleteInstances([instance.instanceId]);
       await _db.currencyDao.addGold(totalGoldEarned);
+      if (tincture > 0) {
+        await _db.inventoryDao.addItemQty(InvKeys.athanorTincture, tincture);
+      }
       newStageIndex = (currentStageIndex + 1).clamp(0, totalChallenges);
       await _db.settingsDao.setSetting(
         _stageIndexKey,
@@ -646,6 +658,7 @@ class PurebloodRiteService {
       newStageIndex: newStageIndex,
       nextChallenge: currentChallenge(stageIndex: newStageIndex),
       completedRite: newStageIndex >= totalChallenges,
+      tinctureEarned: tincture,
     );
   }
 
@@ -727,6 +740,10 @@ class PurebloodRiteService {
     await _db.transaction(() async {
       await _db.creatureDao.deleteInstances([instance.instanceId]);
       await _db.currencyDao.addGold(challenge.goldReward);
+      await _db.inventoryDao.addItemQty(
+        InvKeys.athanorTincture,
+        kAthanorRiteWeeklyTincture,
+      );
       await _db.settingsDao.setSetting(
         _weeklyCompletedWeekKey,
         currentWeekKey(),
@@ -750,6 +767,7 @@ class PurebloodRiteService {
       newStageIndex: totalChallenges,
       nextChallenge: null,
       completedRite: false,
+      tinctureEarned: kAthanorRiteWeeklyTincture,
     );
   }
 

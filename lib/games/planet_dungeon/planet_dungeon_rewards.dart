@@ -6,10 +6,12 @@
 //   Star 3 → the planet's Guardian Relic (first time only) plus the player's
 //            choice of: 25 gold, 10 random powerups, or
 //            10 Instant Fusion Extractors.
+//   Every star also gives 3 tincture for the Athanor.
 
 import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/inventory.dart';
 
 const List<String> kPowerupKeys = [
@@ -61,7 +63,8 @@ String guardianRelicName(String element) =>
     '$element Relic';
 
 /// Grant a star's reward and return human-readable reward lines for the popup.
-/// [choice] is required only for Star 3 (index 2).
+/// [choice] is required only for Star 3 (index 2). Called once per star, when
+/// it is first claimed (the claim is kept beside the star itself).
 Future<List<String>> grantStarReward({
   required AlchemonsDatabase db,
   required String element,
@@ -69,6 +72,29 @@ Future<List<String>> grantStarReward({
   Star3Choice? choice,
   Random? rng,
 }) async {
+  final lines = await _grantStar(db, element, starIndex, choice, rng);
+  if (lines.isEmpty) return lines;
+  await db.inventoryDao.addItemQty(
+    InvKeys.athanorTincture,
+    kAthanorStarTincture,
+  );
+  // Counted as paid, so first fire's back-pay leaves this star out.
+  final paid =
+      int.tryParse(
+        await db.settingsDao.getSetting(kAthanorPaidStarsKey) ?? '',
+      ) ??
+      0;
+  await db.settingsDao.setSetting(kAthanorPaidStarsKey, '${paid + 1}');
+  return [...lines, '+$kAthanorStarTincture Tincture'];
+}
+
+Future<List<String>> _grantStar(
+  AlchemonsDatabase db,
+  String element,
+  int starIndex,
+  Star3Choice? choice,
+  Random? rng,
+) async {
   final r = rng ?? Random();
   switch (starIndex) {
     case 0:

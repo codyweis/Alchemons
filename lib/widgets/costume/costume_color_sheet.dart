@@ -105,7 +105,8 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
   /// for a nose (small on a whole Pip) or sunglasses the face, close,
   /// inside the ring.
   Widget _preview(CreatureInstance worn) {
-    if (widget.costume == FamilyCostume.partyHat) {
+    if (widget.costume == FamilyCostume.partyHat ||
+        widget.costume == FamilyCostume.crown) {
       // Down a little: the hat rises above its head.
       return Transform.translate(
         offset: const Offset(0, 16),
@@ -116,7 +117,9 @@ class _CostumeColorSheetState extends State<CostumeColorSheet> {
         ),
       );
     }
-    final glasses = widget.costume == FamilyCostume.sunglasses;
+    final glasses =
+        widget.costume == FamilyCostume.sunglasses ||
+        widget.costume == FamilyCostume.monocle;
     final size = glasses ? 400.0 : 430.0;
     final fit = widget.costume.fitAt(widget.instance.baseId, 0);
     // The face just behind the nose, or round the glasses, in the middle.
@@ -394,6 +397,9 @@ void _disc(
   FamilyCostume.partyHat => _velvetDisc(canvas, c, r, color),
   FamilyCostume.nose => _glassDisc(canvas, c, r, color),
   FamilyCostume.sunglasses => _lensDisc(canvas, c, r, color),
+  // The crown's color is its garnets' (and the velvet under them).
+  FamilyCostume.crown => _glassDisc(canvas, c, r, color),
+  FamilyCostume.monocle => _lensDisc(canvas, c, r, color),
 };
 
 /// A disc of [color] shaded as the hat's velvet: lit up on the left, deep

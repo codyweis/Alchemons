@@ -12,6 +12,9 @@ import 'package:alchemons/games/wilderness/field_essence.dart';
 import 'package:alchemons/games/wilderness/harvest_field.dart';
 import 'package:alchemons/games/wilderness/particle_fusion_effect.dart';
 import 'package:alchemons/games/wilderness/wild_summon.dart';
+import 'package:alchemons/widgets/fx/cosmetics/cosmetic_atlas.dart';
+import 'package:alchemons/widgets/fx/cosmetics/home_ambience_art.dart';
+import 'package:alchemons/widgets/fx/cosmetics/trail_art.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
@@ -19,6 +22,7 @@ import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/games/wilderness/ship_landing.dart';
 import 'package:alchemons/models/rift_state.dart';
+import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
@@ -37,6 +41,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 part 'home_life.dart';
+part 'home_cosmetics.dart';
 
 //KEEP THIS FOR INFO
 
@@ -1577,6 +1582,15 @@ class SceneGame extends FlameGame with ScaleDetector {
   bool lively = false;
   late final _HomeLife _life = _HomeLife(this);
 
+  /// The trail (the Athanor's) a resident leaves where it walks, by its
+  /// instance id; null for none (see home_cosmetics.dart).
+  TrailStyle? Function(String instanceId)? trailOf;
+  late final _HomeTrails _trails = _HomeTrails(this);
+
+  /// The ambience (the Athanor's) laid over this field; null for none.
+  HomeAmbience? ambience;
+  late final _HomeAmbience _ambience = _HomeAmbience(this);
+
   /// Stands [thing] at [spawnId], its feet at the point — on whatever the
   /// field built there, as a creature would be — able to be taken hold of
   /// within [box] (see [_boxes]).
@@ -2247,7 +2261,11 @@ class SceneGame extends FlameGame with ScaleDetector {
       if (!_shakeOffset.isZero()) _shakeOffset.setValues(0, 0);
     }
 
-    if (showcase) _life.update(dt);
+    if (showcase) {
+      _life.update(dt);
+      _trails.update(dt);
+      _ambience.update(dt);
+    }
     final waiting = _pending;
     if (waiting != null) {
       _pendingT += dt;

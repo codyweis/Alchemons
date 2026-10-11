@@ -1,9 +1,13 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:alchemons/models/cosmetic_wear.dart';
+import 'package:alchemons/widgets/fx/fusion_style_kit.dart';
 import 'package:flutter/rendering.dart';
 
 import 'fusion_particles.dart';
+
+part 'fusion_style_burst.dart';
 
 /// The glyph a cultivation's sigil is drawn as (see [FusionBurstField]).
 enum FusionSigil {
@@ -102,14 +106,33 @@ List<(List<Offset>, double)> fusionSigilLines(
 ///  * after        it turns slowly, waiting
 /// A fifth of the grains are never gathered: embers that drift on out of the
 /// eruption and go out.
+///
+/// With a [style] (the Athanor's fusion styles, fusion_style_burst.dart) the
+/// same grains play the style's own climax at [burstAt] and settle into the
+/// same turning cultivation by [settledAt] — with no sigil.
 class FusionBurstField {
   FusionBurstField({
     required List<SpecimenGrains> grains,
     required this.radius,
     int maxGrains = 2600,
-  }) : assert(grains.length == 2) {
+    FusionStyle? style,
+    bool useWornStyle = true,
+  }) : assert(grains.length == 2),
+       style = style ?? (useWornStyle ? FusionStyle.worn.value : null) {
     _seed(grains, maxGrains);
+    if (this.style != null) _seedStyle();
   }
+
+  /// How this fusion plays (the Athanor's fusion styles); null for the
+  /// eruption and the sigil.
+  final FusionStyle? style;
+
+  /// The style's own light, for a host's glows (null: the plain white).
+  Color? get styleLight => style == null ? null : fusionStyleLight(style!);
+
+  /// How much light the style throws at its climax against the plain
+  /// eruption's (1).
+  double get styleFlare => style == null ? 1 : fusionStyleFlare(style!);
 
   /// The cultivation's radius.
   final double radius;
@@ -128,6 +151,12 @@ class FusionBurstField {
   late final Uint8List _side, _tone, _role;
   late final Float32List _phase, _dir, _dist, _knotR, _gather;
   late final Float32List _lat, _lon0, _omega, _shellR, _along;
+
+  // A style's own (fusion_style_burst.dart): where each grain sits in the
+  // style's knot (unit radius), and the material per specimen.
+  late final Float32List _kx, _ky;
+  late final Uint8List _facet;
+  late final List<List<Color>> _matTones;
   late final List<List<Color>> _palettes;
 
   // Roles.
@@ -266,7 +295,10 @@ class FusionBurstField {
   static const int _emberB = _sigilB + 1;
   static const int _glowB = _emberB + 2;
   static const int _glintB = _glowB + 2;
-  final GrainBatch _batch = GrainBatch(_glintB + 1);
+  // A style's material, six tones per specimen, and its glow.
+  static const int _matB = _glintB + 1;
+  static const int _matGlowB = _matB + 2 * kFusionStyleTones;
+  final GrainBatch _batch = GrainBatch(_matGlowB + 2);
 
   /// Paints the cinematic's particles at [u] seconds round [core]. [accent]
   /// and [sigil] are the reveal's (null until the outcome is known: the
@@ -286,6 +318,19 @@ class FusionBurstField {
     bool darkBackdrop = true,
   }) {
     if (u < 0) return;
+    if (style != null) {
+      _paintStyled(
+        canvas,
+        core,
+        u,
+        colors: colors,
+        accent: accent,
+        pure: pure,
+        clock: clock,
+        darkBackdrop: darkBackdrop,
+      );
+      return;
+    }
     _setSigil(sigil, element);
     final b = _batch..clear();
     final heat = _clamp01(u / burstAt);

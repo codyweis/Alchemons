@@ -83,6 +83,9 @@ class ShelfLayout extends StatelessWidget {
   }
 
   Widget _featured(BuildContext context) {
+    // Two offers: a wide one over a single tile left the shelf half empty
+    // (the dock sells two sets), so they stand side by side as equals.
+    if (children.length == 2) return _pair(context);
     final hero = heroIndex < 0 ? -1 : heroIndex.clamp(0, children.length - 1);
     final rest = [
       for (var i = 0; i < children.length; i++)
@@ -126,6 +129,31 @@ class ShelfLayout extends StatelessWidget {
           ),
         ],
       ],
+    );
+  }
+
+  /// Two shelf tiles sharing the width, their art grown to fill them.
+  Widget _pair(BuildContext context) {
+    final w = ((MediaQuery.sizeOf(context).width - 24 - spacing) / 2)
+        .floorToDouble();
+    final h = (w / aspectRatio * 0.86).floorToDouble();
+    final art = math.min(w * 0.56, h * 0.52).floorToDouble();
+    return SizedBox(
+      height: h,
+      child: Row(
+        children: [
+          for (var i = 0; i < 2; i++) ...[
+            if (i > 0) SizedBox(width: spacing),
+            Expanded(
+              child: ShelfSlotScope(
+                slot: ShelfSlot.shelf,
+                artSize: art,
+                child: children[i],
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

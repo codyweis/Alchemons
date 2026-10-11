@@ -6,6 +6,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/economy_balance.dart';
 import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/home_decor.dart';
@@ -40,6 +41,10 @@ class ShopOffer {
   final Color? imageColor;
   final Color? iconColor;
 
+  /// An Athanor piece: the offer only carries its name and art (for
+  /// InventoryItemArtwork) and is never listed or sold ([ShopService.sells]).
+  final bool athanorOnly;
+
   const ShopOffer({
     required this.id,
     required this.name,
@@ -53,6 +58,7 @@ class ShopOffer {
     this.assetName,
     this.imageColor,
     this.iconColor,
+    this.athanorOnly = false,
   });
 }
 
@@ -241,11 +247,49 @@ class ShopService extends ChangeNotifier {
     return _unlockedContestEffectOfferIds.contains(offerId);
   }
 
+  /// Whether the shop may list and sell [offer]. Athanor pieces never are
+  /// (docs/athanor_design.md): an offer marked [ShopOffer.athanorOnly], one
+  /// for an item only the Athanor gives ([InvKeys.athanorOnlyItems]), or
+  /// one for an item a piece in [batches] is granted as.
+  static bool sells(
+    ShopOffer offer, {
+    List<AthanorBatch> batches = kAthanorBatches,
+  }) {
+    if (offer.athanorOnly) return false;
+    final key = offer.inventoryKey;
+    if (key == null) return true;
+    if (InvKeys.athanorOnlyItems.contains(key)) return false;
+    final athanorKeys = identical(batches, kAthanorBatches)
+        ? _athanorKeys
+        : athanorInventoryKeys(batches);
+    return !athanorKeys.contains(key);
+  }
+
+  static final Set<String> _athanorKeys = athanorInventoryKeys(kAthanorBatches);
+
+  /// The shop's offers for [decor]: none for a piece only the Athanor
+  /// gives.
+  static List<ShopOffer> offersForDecor(Iterable<HomeDecor> decor) => [
+    for (final d in decor)
+      if (!d.athanorOnly)
+        ShopOffer(
+          id: d.offerId,
+          name: d.name,
+          description: d.line,
+          icon: AppIcons.home_rounded,
+          cost: d.cost,
+          reward: const {},
+          rewardType: 'boost',
+          limit: d.max == 1 ? PurchaseLimit.once : PurchaseLimit.unlimited,
+          inventoryKey: d.inventoryKey,
+        ),
+  ];
+
   /// The home decor of [tier], as the shop sells it.
   List<ShopOffer> getHomeDecorOffers(DecorTier tier) => [
     for (final d in HomeDecor.ofTier(tier))
-      allOffers.firstWhere((o) => o.id == d.offerId),
-  ];
+      if (!d.athanorOnly) allOffers.firstWhere((o) => o.id == d.offerId),
+  ].where(sells).toList();
 
   /// How many more of the decor [offerId] can be bought: one realm stands
   /// at most its cap, and owning more would buy nothing (see
@@ -261,6 +305,7 @@ class ShopService extends ChangeNotifier {
         .where((o) => o.id.startsWith('effects.'))
         .where((o) => FamilyCostume.ofOffer(o.id) == null)
         .where((o) => _isContestEffectOfferUnlocked(o.id))
+        .where(sells)
         .toList();
   }
 
@@ -268,7 +313,7 @@ class ShopService extends ChangeNotifier {
   List<ShopOffer> getCostumeOffers() => [
     for (final costume in FamilyCostume.values)
       allOffers.firstWhere((o) => o.id == costume.offerId),
-  ];
+  ].where(sells).toList();
 
   Future<String?> unlockContestEffectOffer(
     String offerId, {
@@ -402,9 +447,10 @@ class ShopService extends ChangeNotifier {
         rewardType: 'boost',
         limit: PurchaseLimit.once,
       ),
-    // ── Dock sets (models/dock_sets.dart): sold only in their faction ──
+    // ── Dock sets (models/dock_sets.dart): sold only in their faction;
+    // the Athanor's are never sold ──
     for (final s in kDockSets)
-      if (!s.free)
+      if (!s.free && !s.athanorOnly)
         ShopOffer(
           id: s.offerId,
           name: s.name,
@@ -416,18 +462,7 @@ class ShopService extends ChangeNotifier {
           limit: PurchaseLimit.once,
         ),
     // ── Home decor (models/home_decor.dart) ──
-    for (final d in HomeDecor.all)
-      ShopOffer(
-        id: d.offerId,
-        name: d.name,
-        description: d.line,
-        icon: AppIcons.home_rounded,
-        cost: d.cost,
-        reward: const {},
-        rewardType: 'boost',
-        limit: d.max == 1 ? PurchaseLimit.once : PurchaseLimit.unlimited,
-        inventoryKey: d.inventoryKey,
-      ),
+    ...offersForDecor(HomeDecor.all),
     // ── Cosmic Alchemy ──
     ShopOffer(
       id: 'cosmic.ship',
@@ -975,6 +1010,22 @@ class ShopService extends ChangeNotifier {
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.alchemySunglasses,
     ),
+    // The Athanor's costumes: never listed or sold, only their name and
+    // card art, so the costume shelf can name every costume.
+    for (final c in FamilyCostume.values)
+      if (c.athanorOnly)
+        ShopOffer(
+          id: c.offerId,
+          name: c.title,
+          description: 'From the Athanor.',
+          icon: AppIcons.auto_awesome_rounded,
+          cost: const {},
+          reward: const {},
+          rewardType: 'boost',
+          limit: PurchaseLimit.unlimited,
+          inventoryKey: c.itemKey,
+          athanorOnly: true,
+        ),
 
     // ── Portal Keys ──────────────────────────────────────────────────────────
     ShopOffer(
@@ -1291,6 +1342,7 @@ class ShopService extends ChangeNotifier {
   bool canPurchase(String offerId) {
     final offer = _resolveOfferById(offerId);
     if (offer == null) return false; // unknown offer -> not purchasable
+    if (!sells(offer)) return false;
     if (!_isContestEffectOfferUnlocked(offerId)) return false;
     // A dock set: sold while in its faction, until it is owned.
     if (DockSet.byOffer(offerId) case final set?) {

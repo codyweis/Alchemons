@@ -3,13 +3,15 @@ import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/raid_rewards.dart
 //
 // Raid victory loot escalates by level: one to three elemental cache rolls,
-// one to four power-up orbs, and increasing currency. Potential Souls are
-// exclusive to level 3. The caller advances the persisted raid afterward.
+// one to four power-up orbs, increasing currency and tincture. Potential
+// Souls are exclusive to level 3. The caller advances the persisted raid
+// afterward.
 
 import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/potential_soul.dart';
 import 'package:alchemons/screens/inventory_screen.dart'
@@ -79,6 +81,16 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
     await db.currencyDao.addGold(gold);
     entries.add(RaidRewardEntry(label: '+$gold Gold'));
   }
+
+  // Tincture for the Athanor. Its row draws the tincture glyph by its key.
+  final tincture = athanorRaidTincture(level);
+  await db.inventoryDao.addItemQty(InvKeys.athanorTincture, tincture);
+  entries.add(
+    RaidRewardEntry(
+      itemKey: InvKeys.athanorTincture,
+      label: '+$tincture Tincture',
+    ),
+  );
   return entries;
 }
 

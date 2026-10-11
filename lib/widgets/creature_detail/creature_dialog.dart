@@ -34,7 +34,10 @@ import 'package:alchemons/widgets/creature_detail/creature_background_pref.dart'
 import 'package:alchemons/widgets/creature_detail/creature_display_view.dart';
 import 'package:alchemons/widgets/creature_detail/specimen_readouts.dart';
 import 'package:alchemons/widgets/creature_detail/unknow_helper.dart';
+import 'package:alchemons/widgets/creature_detail/worn_looks_row.dart';
 import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
+    show caseElementLight;
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
@@ -1231,6 +1234,11 @@ class _OverviewTab extends StatelessWidget {
             _VitalsRow(instance: inst, creatureName: creature.name),
             const SizedBox(height: 10),
             WornStrip(instance: inst, creatureName: creature.name),
+            WornLooksRow(
+              instance: inst,
+              creatureName: creature.name,
+              light: caseElementLight(creature),
+            ),
             const SizedBox(height: 16),
             _Highlighted(
               sectionKey: attributesKey,

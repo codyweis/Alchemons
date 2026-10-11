@@ -43,13 +43,11 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/game_data_gate.dart';
 import 'package:alchemons/utils/specimen_picker_route.dart';
 import 'package:alchemons/widgets/avatar_widget.dart';
-import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 
 import 'package:alchemons/widgets/creature_showcase_widget.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
-import 'package:alchemons/widgets/daily_reliquary.dart';
 import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
@@ -66,8 +64,6 @@ import 'package:alchemons/widgets/fx/starter_vial_handoff.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/creatures_screen.dart';
@@ -82,6 +78,7 @@ import 'package:alchemons/services/starter_grant_service.dart';
 import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/screens/home_biome/home_biome_window.dart';
 import 'package:alchemons/widgets/alchemy_emblem.dart';
+import 'package:alchemons/widgets/athanor_emblem.dart';
 import 'package:alchemons/widgets/home_emblems.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
@@ -91,7 +88,6 @@ import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'breed/breed_screen.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 
@@ -897,6 +893,10 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _alchemyEmblem = GlobalKey();
   final ValueNotifier<bool> _alchemyLifted = ValueNotifier(false);
 
+  /// THE ATHANOR, in the bottom-centre slot the daily chest had.
+  final GlobalKey _athanorEmblem = GlobalKey();
+  final ValueNotifier<bool> _athanorLifted = ValueNotifier(false);
+
   Future<void> _refreshAlchemy() async {
     try {
       final u = await AlchemyUnlock.load(
@@ -1073,6 +1073,7 @@ class _HomeScreenState extends State<HomeScreen>
     _realmField?.dispose();
     _enhanceRevealController.dispose();
     _relicLifted.dispose();
+    _athanorLifted.dispose();
     _fieldLifted.dispose();
     _harvestLifted.dispose();
     _survivalLifted.dispose();
@@ -2603,9 +2604,10 @@ class _HomeScreenState extends State<HomeScreen>
                         ],
                       ),
 
-                      // Daily Treasure Chest — bottom center above nav bar.
-                      // 106 + 128 keeps its centre where the old 160 box
-                      // (on 90) had it, clear of the notices under it.
+                      // The Athanor — bottom centre above the nav bar, in the
+                      // daily chest's old box: 106 + 128 keeps its centre
+                      // where the old 160 box (on 90) had it, clear of the
+                      // notices under it.
                       Align(
                         alignment: Alignment.bottomCenter,
                         child: Padding(
@@ -2614,7 +2616,19 @@ class _HomeScreenState extends State<HomeScreen>
                             opacity: _isFieldTutorialActive ? 0.35 : 1.0,
                             child: IgnorePointer(
                               ignoring: _isFieldTutorialActive,
-                              child: _DailyTreasureChest(scale: hs),
+                              child: AthanorHomeSlot(
+                                scale: hs,
+                                emblemKey: _athanorEmblem,
+                                lifted: _athanorLifted,
+                                animate: _animationsEnabled,
+                                // Not while the field tutorial is teaching.
+                                teach: !_isFieldTutorialActive,
+                                onTap: () => openAthanor(
+                                  context,
+                                  from: _athanorEmblem,
+                                  lifted: _athanorLifted,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -3143,11 +3157,11 @@ class _HomeScreenState extends State<HomeScreen>
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Daily Treasure Chest
+// Layout scale
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Home is a fixed-composition screen: a hero, a side dock, a right-hand orb
-/// column and the daily chest, all anchored to the edges at hard-coded pixel
+/// column and the Athanor (the daily chest's slot), all anchored to the edges at hard-coded pixel
 /// sizes. On a short viewport they collide — the hero ends around 348px down,
 /// the chest occupies the bottom 250px, and the side dock runs down from 140.
 /// That is roughly 600px of committed height before anything flexes.
@@ -3172,411 +3186,3 @@ double homeScaleForTest(double availableHeight) =>
 
 @visibleForTesting
 const double homeMinScaleForTest = _kHomeMinScale;
-
-class _DailyTreasureChest extends StatefulWidget {
-  const _DailyTreasureChest({this.scale = 1.0});
-
-  /// Shrinks the chest on short screens so it does not run into the hero
-  /// above it. See [_homeScaleFor].
-  final double scale;
-
-  @override
-  State<_DailyTreasureChest> createState() => _DailyTreasureChestState();
-}
-
-/// Every timing in the daily-chest sequence is scaled by this. The original
-/// pacing was correct in shape but slow to sit through once a day, every day.
-const double _kTreasureSpeedUp = 0.70;
-
-Duration _treasureMs(int ms) =>
-    Duration(milliseconds: (ms * _kTreasureSpeedUp).round());
-
-class _DailyTreasureChestState extends State<_DailyTreasureChest>
-    with SingleTickerProviderStateMixin {
-  /// The unsealing, 0 → 1. The rewards land as it ends. Long enough for
-  /// it to flow: at 1.4s the element's motion was a rush.
-  late final AnimationController _openCtrl = AnimationController(
-    vsync: this,
-    duration: _treasureMs(3000),
-  );
-  bool _isClaimed = false;
-  bool _isPlaying = false;
-
-  static const _settingKey = 'daily_loot_key';
-
-  String get _todayKey =>
-      DateTime.now().toUtc().toIso8601String().split('T').first;
-
-  @override
-  void initState() {
-    super.initState();
-    _checkClaimed();
-  }
-
-  Future<void> _checkClaimed() async {
-    final db = context.read<AlchemonsDatabase>();
-    final saved = await db.settingsDao.getSetting(_settingKey);
-    if (!mounted) return;
-    setState(() {
-      _isClaimed = saved == _todayKey;
-    });
-  }
-
-  @override
-  void dispose() {
-    _openCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _onTap() async {
-    if (_isClaimed || _isPlaying) return;
-    // Tap: you touched it.
-    HapticFeedback.lightImpact();
-    setState(() => _isPlaying = true);
-
-    _openCtrl.forward(from: 0);
-
-    // The seal cracking is the moment worth feeling, so land a heavier beat
-    // there rather than only at the ends.
-    Future.delayed(_openCtrl.duration! * 0.4, () {
-      if (mounted) HapticFeedback.mediumImpact();
-    });
-
-    await Future.delayed(_openCtrl.duration!);
-
-    if (!mounted) return;
-
-    // Grant rewards
-    final rng = Random();
-    final db = context.read<AlchemonsDatabase>();
-    // Read before the awaits below — this context must not be used after them.
-    final catalog = context.read<CreatureCatalog>();
-    final silver = 150 + rng.nextInt(351); // 150–500
-    final int gold = rng.nextDouble() < 0.15 ? 1 : 0;
-    final bool givesVial = rng.nextDouble() < 0.25;
-
-    await db.currencyDao.addSilver(silver);
-    if (gold > 0) await db.currencyDao.addGold(gold);
-    // Held so the reward row can name the group the player actually got —
-    // it used to say "COMMON VIAL" in verdant green whatever came out.
-    ElementalGroup? vialGroup;
-    if (givesVial) {
-      try {
-        // Only groups that can actually yield a Common specimen. Arcane
-        // starts at Uncommon, so an arcane worn vial is a dead item that
-        // answers "No creatures available for this vial type" forever.
-        final groups = groupsWithSpecimensAt(
-          catalog.creatures,
-          VialRarity.common,
-        );
-        if (groups.isNotEmpty) {
-          final group = groups[rng.nextInt(groups.length)];
-          await db.inventoryDao.addVial('Daily Vial', group, VialRarity.common);
-          vialGroup = group;
-        }
-      } catch (_) {}
-    }
-
-    // Persist claim
-    await db.settingsDao.setSetting(_settingKey, _todayKey);
-    if (!mounted) return;
-    setState(() {
-      _isClaimed = true;
-      _isPlaying = false;
-    });
-
-    // Build loot rewards
-    final rewards = [
-      _TreasureReward(
-        coin: CoinKind.silver,
-        amount: '+$silver',
-        name: 'SILVER',
-        color: const Color(0xFFB0BEC5),
-      ),
-      if (gold > 0)
-        _TreasureReward(
-          coin: CoinKind.gold,
-          amount: '+$gold',
-          name: 'GOLD',
-          color: const Color(0xFFFFD700),
-        ),
-      if (vialGroup != null)
-        _TreasureReward(
-          // The game's own test-tube glyph. `science_rounded` is a conical
-          // flask, which is the alchemy-effect mark, not a vial.
-          icon: AppIcons.biotech_rounded,
-          amount: '×1',
-          name: '${vialGroup.displayName.toUpperCase()} VIAL',
-          color: vialGroup.skin.badge,
-        ),
-    ];
-
-    if (!mounted) return;
-    await _showTreasureLootDialog(context, rewards);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isClaimed) return const SizedBox.shrink();
-    final faction = context.watch<FactionService>().current;
-    return GestureDetector(
-      onTap: context.soundAction(_onTap),
-      behavior: HitTestBehavior.opaque,
-      child: DailyReliquary(
-        element: dailyCacheElementFor(faction),
-        size: 128 * widget.scale,
-        opening: _openCtrl,
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Treasure Loot Dialog — sleek animated reward reveal
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TreasureReward {
-  /// Only read when [coin] is null — a coin always draws its own SVG.
-  final IconData? icon;
-  final CoinKind? coin;
-  final String amount;
-  final String name;
-  final Color color;
-
-  const _TreasureReward({
-    this.icon,
-    this.coin,
-    required this.amount,
-    required this.name,
-    required this.color,
-  });
-}
-
-Future<void> _showTreasureLootDialog(
-  BuildContext context,
-  List<_TreasureReward> rewards,
-) async {
-  await showGeneralDialog(
-    context: context,
-    barrierDismissible: false,
-    barrierColor: Colors.black.withValues(alpha: 0.80),
-    transitionDuration: _treasureMs(350),
-    transitionBuilder: (ctx, anim, _, child) =>
-        FadeTransition(opacity: anim, child: child),
-    pageBuilder: (ctx, _, __) => _TreasureLootDialog(rewards: rewards),
-  );
-}
-
-class _TreasureLootDialog extends StatefulWidget {
-  final List<_TreasureReward> rewards;
-  const _TreasureLootDialog({required this.rewards});
-
-  @override
-  State<_TreasureLootDialog> createState() => _TreasureLootDialogState();
-}
-
-class _TreasureLootDialogState extends State<_TreasureLootDialog>
-    with TickerProviderStateMixin {
-  late final List<AnimationController> _rowCtrls;
-  late final List<Animation<double>> _rowFade;
-  late final List<Animation<Offset>> _rowSlide;
-  late final AnimationController _btnCtrl;
-  late final Animation<double> _btnFade;
-
-  @override
-  void initState() {
-    super.initState();
-
-    _rowCtrls = List.generate(
-      widget.rewards.length,
-      (_) => AnimationController(vsync: this, duration: _treasureMs(480)),
-    );
-    _rowFade = _rowCtrls
-        .map(
-          (c) => CurvedAnimation(
-            parent: c,
-            curve: Curves.easeOut,
-          ).drive(Tween(begin: 0.0, end: 1.0)),
-        )
-        .toList();
-    _rowSlide = _rowCtrls
-        .map(
-          (c) => CurvedAnimation(
-            parent: c,
-            curve: Curves.easeOutCubic,
-          ).drive(Tween(begin: const Offset(0, 0.25), end: Offset.zero)),
-        )
-        .toList();
-
-    _btnCtrl = AnimationController(vsync: this, duration: _treasureMs(380));
-    _btnFade = CurvedAnimation(
-      parent: _btnCtrl,
-      curve: Curves.easeIn,
-    ).drive(Tween(begin: 0.0, end: 1.0));
-
-    // Stagger rows then button. Each row gets its own tick as it lands — the
-    // count-up is the part that should feel like receiving something, and it
-    // was silent.
-    for (int i = 0; i < _rowCtrls.length; i++) {
-      Future.delayed(_treasureMs(300 + i * 240), () {
-        if (!mounted) return;
-        _rowCtrls[i].forward();
-        // Gold is the 15% drop — it should land harder than the silver that
-        // arrives every single day.
-        if (widget.rewards[i].coin == CoinKind.gold) {
-          HapticFeedback.heavyImpact();
-        } else {
-          HapticFeedback.selectionClick();
-        }
-      });
-    }
-    final btnDelay = 300 + widget.rewards.length * 240 + 180;
-    Future.delayed(_treasureMs(btnDelay), () {
-      if (mounted) _btnCtrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    for (final c in _rowCtrls) {
-      c.dispose();
-    }
-    _btnCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    const amber = Color(0xFFFFAA00);
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              const Text(
-                'DAILY REWARDS',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: amber,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 5.0,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(height: 1, color: amber.withValues(alpha: 0.25)),
-              const SizedBox(height: 36),
-
-              // Reward rows
-              ...List.generate(widget.rewards.length, (i) {
-                final r = widget.rewards[i];
-                return Padding(
-                  padding: const EdgeInsets.only(bottom: 28),
-                  child: FadeTransition(
-                    opacity: _rowFade[i],
-                    child: SlideTransition(
-                      position: _rowSlide[i],
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Container(
-                            width: 46,
-                            height: 46,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: r.color.withValues(alpha: 0.12),
-                              border: Border.all(
-                                color: r.color.withValues(alpha: 0.35),
-                                width: 1,
-                              ),
-                            ),
-                            child: r.coin != null
-                                ? CoinIcon(kind: r.coin!, size: 24)
-                                : Icon(r.icon, color: r.color, size: 22),
-                          ),
-                          const SizedBox(width: 18),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                r.amount,
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: r.color,
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.0,
-                                  height: 1.0,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                r.name,
-                                style: const TextStyle(
-                                  color: Color(0xFF7A7A8A),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 2.0,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-
-              const SizedBox(height: 8),
-
-              // Collect button
-              FadeTransition(
-                opacity: _btnFade,
-                child: GestureDetector(
-                  onTap: context.soundAction(() {
-                    HapticFeedback.lightImpact();
-                    Navigator.pop(context);
-                  }),
-                  child: Container(
-                    width: double.infinity,
-                    height: 50,
-                    decoration: BoxDecoration(
-                      color: amber.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: amber, width: 1.5),
-                      boxShadow: [
-                        BoxShadow(
-                          color: amber.withValues(alpha: 0.22),
-                          blurRadius: 20,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: const Center(
-                      child: Text(
-                        'COLLECT',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: Color(0xFFFFCC44),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 4.0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}

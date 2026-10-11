@@ -1430,7 +1430,7 @@ class MarketplaceGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<ShopService>(
       builder: (context, shopService, _) {
-        final offers = ShopService.allOffers;
+        final offers = ShopService.allOffers.where(ShopService.sells);
 
         // shop_widgets.dart
 

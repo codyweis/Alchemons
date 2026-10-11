@@ -572,6 +572,28 @@ class InvKeys {
   static const alchemyWillOWisps = 'alchemy.will_o_wisps';
   static const alchemyDustRing = 'alchemy.dust_ring';
 
+  // The Athanor's wearables: drawn from its batches, never sold
+  // (docs/athanor/pieces_wearables.md).
+  static const alchemyInkBloom = 'alchemy.ink_bloom';
+  static const alchemyPeacockTail = 'alchemy.peacock_tail';
+  static const alchemyQuicksilver = 'alchemy.quicksilver';
+  static const alchemyGoldLeaf = 'alchemy.gold_leaf';
+  static const alchemyCinnabar = 'alchemy.cinnabar';
+  static const alchemyRedKingCrown = 'alchemy.red_king_crown';
+  static const alchemyBrassMonocle = 'alchemy.brass_monocle';
+
+  /// Items only the Athanor gives: the shop never sells them
+  /// (ShopService.sells).
+  static const Set<String> athanorOnlyItems = {
+    alchemyInkBloom,
+    alchemyPeacockTail,
+    alchemyQuicksilver,
+    alchemyGoldLeaf,
+    alchemyCinnabar,
+    alchemyRedKingCrown,
+    alchemyBrassMonocle,
+  };
+
   /// The effect each alchemy item puts on a creature: the key it is saved
   /// as (see AlchemyEffectPaint.keys). A costume's is the key it is drawn
   /// on its own by, for its cards: it is worn beside an effect, not as one
@@ -580,6 +602,8 @@ class InvKeys {
     alchemyCelebration => FamilyCostume.hatPreview,
     alchemyNose => FamilyCostume.nosePreview,
     alchemySunglasses => FamilyCostume.sunglassesPreview,
+    alchemyRedKingCrown => FamilyCostume.crownPreview,
+    alchemyBrassMonocle => FamilyCostume.monoclePreview,
     alchemyGlow => 'alchemy_glow',
     alchemyElementalAura => 'elemental_aura',
     alchemyVolcanicAura => 'volcanic_aura',
@@ -594,6 +618,11 @@ class InvKeys {
     alchemyWavebreakerCrown => 'wavebreaker_crown',
     alchemyWillOWisps => 'will_o_wisps',
     alchemyDustRing => 'dust_ring',
+    alchemyInkBloom => 'ink_bloom',
+    alchemyPeacockTail => 'peacock_tail',
+    alchemyQuicksilver => 'quicksilver',
+    alchemyGoldLeaf => 'gold_leaf',
+    alchemyCinnabar => 'cinnabar',
     _ => null,
   };
 
@@ -616,6 +645,11 @@ class InvKeys {
       alchemyWavebreakerCrown,
       alchemyWillOWisps,
       alchemyDustRing,
+      alchemyInkBloom,
+      alchemyPeacockTail,
+      alchemyQuicksilver,
+      alchemyGoldLeaf,
+      alchemyCinnabar,
     ]) {
       if (alchemyEffectFor(key) == effect) return key;
     }
@@ -639,6 +673,11 @@ class InvKeys {
   // ── Cosmic Alchemy ──────────────────────────────────────────────────────
   static const cosmicShip = 'item.cosmic_ship';
   static const homePlanetSlots = 'item.home_planet_slots';
+
+  // ── The Athanor (models/athanor.dart) ───────────────────────────────────
+  /// Poured into the Athanor to draw a cosmetic. Earned in play only: it
+  /// must never get a ShopOffer.
+  static const athanorTincture = 'athanor.tincture';
 
   /// Returns the portal key InvKey for a given rift faction name (lowercase).
   static String portalKeyForFaction(String factionName) =>
@@ -865,6 +904,65 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
           "A tipped ring of orbiting dust in the colors of an Alchemon's element, like a ringed world's.",
       icon: AppIcons.scatter_plot_outlined,
     ),
+    // The Athanor's (docs/athanor/pieces_wearables.md): never sold.
+    InvKeys.alchemyInkBloom: InventoryItemDef(
+      key: InvKeys.alchemyInkBloom,
+      name: 'Ink Bloom',
+      description:
+          'Ink rises from the ground around one of your Alchemons and curls '
+          'up in slow plumes. From the Athanor.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyPeacockTail: InventoryItemDef(
+      key: InvKeys.alchemyPeacockTail,
+      name: "The Peacock's Tail",
+      description:
+          'One of your Alchemons stands in a pool of black that shows every '
+          'color, slowly marbling. From the Athanor.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyQuicksilver: InventoryItemDef(
+      key: InvKeys.alchemyQuicksilver,
+      name: 'Quicksilver',
+      description:
+          'One of your Alchemons stands in a pool of liquid silver, with '
+          'beads of it rolling around. From the Athanor.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyGoldLeaf: InventoryItemDef(
+      key: InvKeys.alchemyGoldLeaf,
+      name: 'Gold Leaf',
+      description:
+          'Flakes of gold leaf drift down around one of your Alchemons and '
+          'settle at its feet. From the Athanor.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyCinnabar: InventoryItemDef(
+      key: InvKeys.alchemyCinnabar,
+      name: 'Cinnabar',
+      description:
+          'Red smoke and grains of cinnabar rise from the ground around one '
+          'of your Alchemons. From the Athanor.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyRedKingCrown: InventoryItemDef(
+      key: InvKeys.alchemyRedKingCrown,
+      name: FamilyCostume.crown.title,
+      description:
+          'A crown of dark gold and garnets over a velvet cap. Fits '
+          '${FamilyCostume.fittedFamiliesText}. Worn in place of the party '
+          'hat. From the Athanor.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyBrassMonocle: InventoryItemDef(
+      key: InvKeys.alchemyBrassMonocle,
+      name: FamilyCostume.monocle.title,
+      description:
+          'A brass monocle on a chain of brass beads. Fits '
+          '${FamilyCostume.fittedFamiliesText}. Worn in place of the '
+          'sunglasses. From the Athanor.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
     InvKeys.staminaPotion: InventoryItemDef(
       key: InvKeys.staminaPotion,
       name: 'Stamina Elixir',
@@ -967,6 +1065,17 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       canUse: true,
     );
   }
+
+  registry[InvKeys.athanorTincture] = InventoryItemDef(
+    key: InvKeys.athanorTincture,
+    name: 'Tincture',
+    description:
+        'Poured into the Athanor on home to draw a cosmetic, 10 to a pour. '
+        'Earned in play.',
+    icon: AppIcons.water_drop_rounded,
+    canDispose: false,
+    canUse: false,
+  );
 
   // ── Cosmic Alchemy items ──
   registry[InvKeys.homePlanetSlots] = InventoryItemDef(

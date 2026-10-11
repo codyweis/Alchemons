@@ -84,7 +84,8 @@ void main() {
       final groups = groupsWithSpecimensAt(catalog, VialRarity.common);
       expect(groups, isNotEmpty);
       expect(groups, isNot(contains(ElementalGroup.arcane)));
-      // The daily chest rolls from this list, so it must stay non-empty.
+      // The Athanor's daily pour rolls from this list (as the daily chest
+      // did), so it must stay non-empty.
       expect(groups.length, 4);
     });
 

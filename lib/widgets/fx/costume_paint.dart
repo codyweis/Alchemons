@@ -11,7 +11,9 @@ import 'package:alchemons/models/celebration_costume.dart';
 import 'package:alchemons/widgets/fx/alchemical_clown_nose.dart';
 import 'package:alchemons/widgets/fx/alchemical_party_hat.dart';
 import 'package:alchemons/widgets/fx/alchemical_sunglasses.dart';
+import 'package:alchemons/widgets/fx/brass_monocle.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:alchemons/widgets/fx/red_king_crown.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -70,6 +72,27 @@ abstract final class CostumePaint {
             tint: color,
             view: GlassesView.of(worn.species),
           );
+        case FamilyCostume.crown:
+          RedKingCrown.paint(
+            canvas,
+            at,
+            size,
+            t,
+            opacity: opacity,
+            tilt: fit.tilt,
+            color: color,
+          );
+        case FamilyCostume.monocle:
+          BrassMonocle.paint(
+            canvas,
+            at,
+            size,
+            t,
+            opacity: opacity,
+            tilt: fit.tilt,
+            view: GlassesView.of(worn.species),
+            tint: color,
+          );
       }
     }
   }
@@ -114,6 +137,24 @@ abstract final class CostumePaint {
           t,
           opacity: opacity,
           tilt: -0.08,
+          tint: color ?? costume.defaultColor,
+        );
+      case FamilyCostume.crown:
+        RedKingCrown.paintPreview(
+          canvas,
+          center,
+          r,
+          t,
+          opacity: opacity,
+          color: color ?? costume.defaultColor,
+        );
+      case FamilyCostume.monocle:
+        BrassMonocle.paintPreview(
+          canvas,
+          center,
+          r,
+          t,
+          opacity: opacity,
           tint: color ?? costume.defaultColor,
         );
     }

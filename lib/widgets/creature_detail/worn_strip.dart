@@ -47,7 +47,7 @@ class WornStrip extends StatelessWidget {
     final db = context.read<AlchemonsDatabase>();
     final palette = BracketPalette.of(context);
     final accent = bracketReadableAccent(context.read<FactionTheme>());
-    final fitted = [
+    final fits = [
       for (final costume in FamilyCostume.values)
         if (costume.fits(instance.baseId)) costume,
     ];
@@ -66,6 +66,13 @@ class WornStrip extends StatelessWidget {
               e,
         ];
         final worn = WornCostumes.on(instance.baseId, instance.costumes);
+        // The Athanor's costumes are listed once there is one to wear: the
+        // shop's are always, so a player knows to buy one.
+        final fitted = [
+          for (final c in fits)
+            if (!c.athanorOnly || worn.wears(c) || (owned[c.itemKey] ?? 0) > 0)
+              c,
+        ];
         return SizedBox(
           height: height,
           child: Row(

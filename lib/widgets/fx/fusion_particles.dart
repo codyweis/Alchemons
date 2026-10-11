@@ -2,7 +2,11 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/models/cosmetic_wear.dart';
+import 'package:alchemons/widgets/fx/fusion_style_kit.dart';
 import 'package:flutter/rendering.dart';
+
+part 'fusion_style_merge.dart';
 
 // The fusion chamber's merge, in particles — the home title's recipe applied
 // to the two specimens. Each is read into grains that sit where its pixels
@@ -328,6 +332,11 @@ class FusionMergeHandoff {
 ///  * 1.90 – 2.15  the whole cloud, both of them, turning as one
 ///  * 2.15 – 2.60  it falls into the orb, the colors run together and it
 ///                 goes out in a bloom
+///
+/// With a [style] (the Athanor's fusion styles, fusion_style_merge.dart)
+/// everything up to the stand is the same — the crest, the pair standing as
+/// grains, the hold and the run back — and from there the pair go into the
+/// orb the style's own way instead of as the sphere.
 class FusionParticleField {
   factory FusionParticleField({
     required List<SpecimenGrains> specimens,
@@ -337,6 +346,8 @@ class FusionParticleField {
     required double coreRadius,
     required List<Color> colors,
     bool darkBackdrop = true,
+    FusionStyle? style,
+    bool useWornStyle = true,
   }) {
     assert(specimens.length == 2);
     assert(centres.length == 2 && scales.length == 2 && colors.length == 2);
@@ -349,6 +360,7 @@ class FusionParticleField {
       colors,
       darkBackdrop,
       specimens[0].length + specimens[1].length,
+      style ?? (useWornStyle ? FusionStyle.worn.value : null),
     ).._seed();
   }
 
@@ -361,6 +373,7 @@ class FusionParticleField {
     this._colors,
     this.darkBackdrop,
     this.length,
+    this.style,
   ) : _side = Uint8List(length),
       _tone = Uint8List(length),
       _relX = Float32List(length),
@@ -421,6 +434,10 @@ class FusionParticleField {
   /// The two specimens the field was made from.
   List<SpecimenGrains> get specimens => _specimens;
 
+  /// How the pair go into the orb once they stand as grains (the Athanor's
+  /// fusion styles); null for the sphere.
+  final FusionStyle? style;
+
   final Uint8List _side, _tone;
   final Float32List _relX, _relY, _phase, _near, _crestAt, _release;
   final Float32List _orbitR, _omega, _lon0, _lat, _bulge;
@@ -434,6 +451,15 @@ class FusionParticleField {
 
   /// What both colors run together into at the end.
   final Color _fused;
+
+  // A style's own (fusion_style_merge.dart), set only when there is one:
+  // when each grain turns to the style's material, where it sits in the
+  // style's form, how it is drawn this frame (0 its own color, 1–6 a tone
+  // of the material, 7 a glint), the material per specimen, and the
+  // distillation's drops (which drop a grain is in, when each condenses).
+  late final Float32List _matAt, _sa, _sb, _fx, _fy, _gx, _gy, _grpT;
+  late final Uint8List _look, _grp;
+  late final List<List<Color>> _matTones;
 
   // Per specimen: the crest's range, the way to the orb, the way the arcs
   // bow, and the grain's size.
@@ -525,6 +551,7 @@ class FusionParticleField {
         _bulge[i] = (up ? 1.0 : -0.5) * (6 + 16 * rng.nextDouble());
       }
     }
+    if (style != null) _seedStyle();
   }
 
   // ── the timeline ──────────────────────────────────────────────────────
@@ -607,6 +634,12 @@ class FusionParticleField {
           wob * math.sin(ph * 25.13 + clock * (3.9 + ph * 3)) +
           _dirY[s] * pull;
 
+      if (style != null && t >= _matAt[i]) {
+        _placeStyled(i, t, clock, rx, ry);
+        continue;
+      }
+      if (style != null) _look[i] = 0;
+
       final f = (t - _release[i]) / _flight;
       if (f <= 0) {
         _x[i] = rx;
@@ -660,7 +693,10 @@ class FusionParticleField {
   static const int _glowFront = _back + 2 * _backTones;
   static const int _glowBack = _glowFront + 2;
   static const int _glint = _glowBack + 2;
-  final GrainBatch _batch = GrainBatch(_glint + 1);
+  // A style's material, six tones per specimen, and its glow.
+  static const int _mat = _glint + 1;
+  static const int _matGlow = _mat + 2 * kFusionStyleTones;
+  final GrainBatch _batch = GrainBatch(_matGlow + 2);
 
   int _backTone(int s, int tone) =>
       (tone * _backTones) ~/ math.max(1, _specimens[s].tones.length);
@@ -671,35 +707,57 @@ class FusionParticleField {
     if (t <= 0 || t >= duration) return;
     final now = clock ?? t;
     _layout(t, now);
-    final c = _interval(t, _collapseStart, _collapseEnd);
-    // How far the two palettes have run together.
-    final fuse = c * c * 0.85;
+    if (style != null) {
+      _paintStyled(canvas, t, back: back, now: now);
+      return;
+    }
     final b = _batch..clear();
     for (var i = 0; i < length; i++) {
       final m = _mode[i];
       if (m == 0) continue;
       if ((_depth[i] < 0) != back) continue;
-      final s = _side[i];
-      final x = _x[i], y = _y[i];
-      if (back) {
-        b.add(_back + s * _backTones + _backTone(s, _tone[i]), x, y);
-        b.add(_glowBack + s, x, y);
-        continue;
-      }
-      b.add(_glowFront + s, x, y);
-      // Rare glints only, or the specimen bleaches: some of the grains the
-      // crest has just passed, a slow twinkle, and a little more often in
-      // flight.
-      final crest = t - _crestAt[i] < 0.02 && _phase[i] < 0.35;
-      final twinkle =
-          (now * 0.23 + _phase[i] * 7.3) % 1.0 < (m == 2 ? 0.025 : 0.009);
-      if (crest || twinkle) {
-        b.add(_glint, x, y);
-        continue;
-      }
-      b.add(s * _tones + _tone[i], x, y);
+      _addOwn(b, i, t, now, back: back);
     }
+    _drawOwn(canvas, t, back: back);
+    if (back) return;
+    _bloom(canvas, t, const Color(0xFFFFFFFF), _fused);
+  }
 
+  /// Grain [i] in its own color, as it stands.
+  void _addOwn(
+    GrainBatch b,
+    int i,
+    double t,
+    double now, {
+    required bool back,
+  }) {
+    final s = _side[i];
+    final x = _x[i], y = _y[i];
+    if (back) {
+      b.add(_back + s * _backTones + _backTone(s, _tone[i]), x, y);
+      b.add(_glowBack + s, x, y);
+      return;
+    }
+    b.add(_glowFront + s, x, y);
+    // Rare glints only, or the specimen bleaches: some of the grains the
+    // crest has just passed, a slow twinkle, and a little more often in
+    // flight.
+    final crest = t - _crestAt[i] < 0.02 && _phase[i] < 0.35;
+    final twinkle =
+        (now * 0.23 + _phase[i] * 7.3) % 1.0 < (_mode[i] == 2 ? 0.025 : 0.009);
+    if (crest || twinkle) {
+      b.add(_glint, x, y);
+      return;
+    }
+    b.add(s * _tones + _tone[i], x, y);
+  }
+
+  /// Draws the grains in their own colors (and the glints) gathered so far.
+  void _drawOwn(Canvas canvas, double t, {required bool back}) {
+    final b = _batch;
+    final c = _interval(t, _collapseStart, _collapseEnd);
+    // How far the two palettes have run together.
+    final fuse = c * c * 0.85;
     final shrink = 1 - 0.7 * c;
     final glowAlpha = darkBackdrop ? 0.06 : 0.035;
     for (var s = 0; s < 2; s++) {
@@ -745,33 +803,34 @@ class FusionParticleField {
       }
     }
     if (back) return;
-
     final d = (_grainD[0] + _grainD[1]) / 2 * shrink;
     const glint = Color(0xFFFFFBEA);
     b.draw(canvas, _glint, d * 2.6, glint.withValues(alpha: 0.22));
     b.draw(canvas, _glint, d * 1.4, glint.withValues(alpha: 0.95));
+  }
 
-    // Out in a bloom as the cloud falls into the core.
-    final k = _interval(t, _collapseEnd - 0.2, duration);
-    if (k > 0 && k < 1) {
-      final a = math.sin(math.pi * k);
-      final r = coreRadius * (0.35 + 0.75 * k);
-      canvas.drawCircle(
-        core,
-        r,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            core,
-            r,
-            [
-              const Color(0xFFFFFFFF).withValues(alpha: 0.55 * a),
-              _fused.withValues(alpha: 0.35 * a),
-              _fused.withValues(alpha: 0),
-            ],
-            const [0.0, 0.4, 1.0],
-          ),
-      );
-    }
+  /// Out in a bloom as the cloud falls into the core: [hot] at its heart
+  /// running out to [edge].
+  void _bloom(Canvas canvas, double t, Color hot, Color edge, [double k = 1]) {
+    final f = _interval(t, _collapseEnd - 0.2, duration);
+    if (f <= 0 || f >= 1) return;
+    final a = math.sin(math.pi * f) * k;
+    final r = coreRadius * (0.35 + 0.75 * f);
+    canvas.drawCircle(
+      core,
+      r,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          core,
+          r,
+          [
+            hot.withValues(alpha: 0.55 * a),
+            edge.withValues(alpha: 0.35 * a),
+            edge.withValues(alpha: 0),
+          ],
+          const [0.0, 0.4, 1.0],
+        ),
+    );
   }
 }
 

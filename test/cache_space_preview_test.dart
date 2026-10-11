@@ -31,8 +31,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// The home cache's unsealing, in seconds; keep in step with
-/// `_DailyTreasureChestState._openCtrl` in home_screen.dart.
+/// The home cache's unsealing, in seconds, as the daily chest played it
+/// (the chest has given way to the Athanor; DailyReliquary is kept).
 const double _homeOpenSeconds = 2.1;
 
 void main() {

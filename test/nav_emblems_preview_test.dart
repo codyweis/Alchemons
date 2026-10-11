@@ -21,7 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 // (open 80, closed 55) at a phone's pixel ratio, then the same large. Then
 // home's daily reliquary for each division, and Earthen's (crystal)
 // unsealing. NAV_EMBLEMS_FACTIONS narrows the sets to those factions' (e.g.
-// 'oceanic').
+// 'oceanic'; 'athanor' for the Athanor's five).
 //
 //   NAV_EMBLEMS_OUT=/tmp/nav.png flutter test \
 //     test/nav_emblems_preview_test.dart --tags preview
@@ -35,13 +35,19 @@ void main() {
     if (out == null) return;
     const dpr = 2.625;
     const kinds = NavEmblemKind.values;
-    final factions = [
+    // 'athanor' names the Athanor's five sets, which have no faction.
+    final names = [
       for (final name in (Platform.environment['NAV_EMBLEMS_FACTIONS'] ??
               'volcanic,oceanic,earthen,verdant')
           .split(','))
-        FactionId.values.byName(name.trim()),
+        name.trim(),
     ];
-    final sets = [for (final f in factions) ...DockSet.ofFaction(f)];
+    final sets = [
+      for (final name in names)
+        ...name == 'athanor'
+            ? DockSet.athanorSets
+            : DockSet.ofFaction(FactionId.values.byName(name)),
+    ];
     // Every set's sheets, resolved and baked the way the dock does.
     final lets = <(DockSet, NavEmblemKind), List<NavLetSprite>>{};
     await tester.runAsync(() async {

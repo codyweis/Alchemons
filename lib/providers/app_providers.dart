@@ -9,6 +9,8 @@ import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/account_service.dart';
+import 'package:alchemons/services/athanor_service.dart';
+import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
 import 'package:alchemons/services/device_identity_service.dart';
@@ -161,6 +163,27 @@ class AppProviders extends StatelessWidget {
           create: (ctx) => InventoryService(ctx.read<AlchemonsDatabase>()),
         ),
 
+        // The Athanor on home (docs/athanor_design.md). Below the catalog:
+        // the daily pour's vial reads it.
+        ChangeNotifierProvider<AthanorService>(
+          create: (ctx) => AthanorService(
+            ctx.read<AlchemonsDatabase>(),
+            catalog: ctx.read<CreatureCatalog>(),
+          )..load(),
+        ),
+
+        // What is worn of the Athanor's case styles, trails, fusion styles
+        // and home ambiences. Not lazy: the fusion style is read by the
+        // fusion's fields, made with no context, so it must be known before
+        // the first fusion.
+        ChangeNotifierProvider<CosmeticWearService>(
+          lazy: false,
+          create: (ctx) => CosmeticWearService(
+            ctx.read<AlchemonsDatabase>(),
+            refreshOn: ctx.read<AthanorService>(),
+          )..load(),
+        ),
+
         ChangeNotifierProvider(
           create: (ctx) => MobileStoreService(
             ctx.read<AlchemonsDatabase>(),
@@ -169,7 +192,10 @@ class AppProviders extends StatelessWidget {
           ),
         ),
 
+        // Not lazy: the journal reads hasSeen synchronously, so the seen-set
+        // should be loaded long before anyone asks.
         ChangeNotifierProvider<StoryManager>(
+          lazy: false,
           create: (ctx) {
             final db = ctx.read<AlchemonsDatabase>();
             final sm = StoryManager(db.settingsDao);

@@ -41,6 +41,19 @@ abstract interface class FieldThing {
 
   /// Stood in only to be tried: nobody visits it.
   bool get ghost;
+
+  /// A visitor carried through it as its own [grains] this frame (the
+  /// Great Alembic), [progress] 0 going in to 1 come out; [drop] from its
+  /// middle to its feet (layer units), and which way it faces going in and
+  /// coming out (1 as drawn). Unless it is called again it stops drawing
+  /// them a moment later.
+  void carry(
+    SpecimenGrains grains,
+    double progress, {
+    required double drop,
+    required double facingIn,
+    required double facingOut,
+  });
 }
 
 /// The two-portal keepsake's kind: what walks into one walks out of the
@@ -78,6 +91,10 @@ enum _Do {
 
   /// Stands at one side of it watching whoever performs there.
   watch,
+
+  /// Steps up to its mouth, comes apart into its own grains, is carried
+  /// through it and gathers again at the far end (the Great Alembic).
+  distil,
 }
 
 /// A keepsake's visit: what is done there, for how long, whether it is a
@@ -91,6 +108,7 @@ class _Visit {
     this.elements = const {},
     this.beat,
     this.bed = false,
+    this.court = false,
   });
 
   final _Do act;
@@ -102,13 +120,18 @@ class _Visit {
   /// asleep until morning.
   final bool bed;
 
+  /// Held court at (the throne): whoever is up on it sits still, turning
+  /// to each side, and those who come bow to it instead of watching.
+  final bool court;
+
   /// Whether it is done at one of the keepsake's seats (see
   /// [FieldThing.seats]), each taken by one visitor at a time.
   bool get seated =>
       act == _Do.climb ||
       act == _Do.shelter ||
       act == _Do.perform ||
-      act == _Do.watch;
+      act == _Do.watch ||
+      act == _Do.distil;
 
   /// The keepsake's beat for hopping, seconds per hop.
   final double? beat;
@@ -147,6 +170,19 @@ const _visits = <String, _Visit>{
   'stage': _Visit(_Do.perform, seconds: 9, beat: 0.7),
   'orrery': _Visit(_Do.climb, seconds: 13, elements: {'Crystal', 'Light'}),
   'reflecting_pool': _Visit(_Do.preen, seconds: 7, elements: {'Water', 'Dark'}),
+  // Drawn at the Athanor (HomeDecor.athanor). Its Curios are only to look at.
+  'ash_brazier': _Visit(_Do.warm, seconds: 9, night: true, elements: {'Dark', 'Poison'}),
+  'nightbloom_bed': _Visit(_Do.climb, seconds: 6, night: true, bed: true, elements: {'Dark', 'Poison', 'Spirit'}),
+  'moon_font': _Visit(_Do.bow, seconds: 7, elements: {'Water', 'Ice'}),
+  'snow_globe': _Visit(_Do.climb, seconds: 14, night: true, bed: true, elements: {'Ice', 'Water', 'Spirit'}),
+  'storm_coil': _Visit(_Do.hop, seconds: 6.3, beat: 0.9, elements: {'Lightning'}),
+  'gilded_throne': _Visit(_Do.perform, seconds: 12, court: true, elements: {'Light'}),
+  'ember_nest': _Visit(_Do.climb, seconds: 6, night: true, bed: true, elements: {'Fire', 'Lava'}),
+  'pomegranate_tree': _Visit(_Do.climb, seconds: 9, elements: {'Plant', 'Blood'}),
+  'alembic': _Visit(_Do.bow, seconds: 7, elements: {'Water', 'Steam', 'Fire'}),
+  'bell_jar': _Visit(_Do.climb, seconds: 10, elements: {'Crystal'}),
+  'music_box': _Visit(_Do.hop, seconds: 7.2, beat: 0.6),
+  'great_alembic': _Visit(_Do.distil, seconds: 11.6, elements: {'Water', 'Steam', 'Fire'}),
 };
 
 /// Decor that is only to look at, never visited.
@@ -159,6 +195,16 @@ const _stillDecor = {
   'planter',
   'sky_lanterns',
   'flyer_perch',
+  'moth_lantern',
+  'inkcap_cluster',
+  'moonstone_cairn',
+  'salt_pillar',
+  'sundial',
+  'honey_lamp',
+  'glass_rose',
+  'ember_bowl',
+  'herb_rack',
+  'retort_shelf',
 };
 
 _Visit? _visitOf(String kind) {
@@ -251,6 +297,11 @@ class _Call {
   int stage = 0;
   double time = 0;
   double stirAt = 0;
+
+  /// The visitor read into grains, for going through the Great Alembic
+  /// as them; read on the way there.
+  SpecimenGrains? grains;
+  bool reading = false;
 }
 
 /// A walk through the portals: from [from] to [to] and home again.
@@ -447,7 +498,7 @@ class _HomeLife {
       if (l.perchFor > 0) return false;
       l.perchFor = 6 + _rng.nextDouble() * 8;
       if (_rng.nextDouble() > 0.45) return false;
-      for (final kind in const ['flyer_perch', 'elder_tree']) {
+      for (final kind in const ['flyer_perch', 'elder_tree', 'pomegranate_tree']) {
         for (final t in _thingsOfKind(kind, sp.anchor)) {
           final taken = _livers.values.any((o) => o != l && o.perch == t);
           if (taken || game._loopDelta(t, sp.id).abs() > size * 3.2) continue;
@@ -691,7 +742,7 @@ class _HomeLife {
       // Someone is already performing: this one watches, from a side it
       // can reach.
       if (visit.act == _Do.perform && free > 0) {
-        visit = _Visit(_Do.watch, seconds: visit.seconds);
+        visit = _Visit(_Do.watch, seconds: visit.seconds, court: visit.court);
         free = _seatFor(l, thing, visit, where: (i, s) => i > 0 && reachable(i, s));
         if (free == null) return false;
       }
@@ -702,7 +753,9 @@ class _HomeLife {
     // rim): the nearer of its places that can be walked to.
     var stand = at;
     final seats = _seatsOf(thing);
-    if (visit.act == _Do.watch || visit.act == _Do.shelter) {
+    if (visit.act == _Do.watch ||
+        visit.act == _Do.shelter ||
+        visit.act == _Do.distil) {
       if (seat >= seats.length) return false;
       stand = d + seats[seat].dx;
       if (stand < range.$1 - 1 || stand > range.$2 + 1) return false;
@@ -756,7 +809,10 @@ class _HomeLife {
       for (final o in _livers.values)
         if (o != l && o.call?.thing == thing) o.call!.seat,
     };
-    for (var i = 0; i < seats.length; i++) {
+    // Through the Great Alembic one at a time, in at its mouth: its other
+    // seat is where they come out.
+    final n = visit.act == _Do.distil ? math.min(1, seats.length) : seats.length;
+    for (var i = 0; i < n; i++) {
       if (taken.contains(i)) continue;
       if (where != null && !where(i, seats[i])) continue;
       return i;
@@ -798,8 +854,15 @@ class _HomeLife {
 
     switch (call.stage) {
       case 0:
-        // Walking there.
+        // Walking there — and, for the Great Alembic, read into grains on
+        // the way, to go through it as them.
         comp.sprite?.animating = true;
+        if (call.visit.act == _Do.distil && !call.reading) {
+          call.reading = true;
+          comp.sprite
+              ?.readGrains(pixelRatio: 1.2, maxGrains: 900, tones: 12)
+              .then((g) => call.grains = g, onError: (Object _) {});
+        }
         _walk(l, comp, sp, dt, size);
         if ((l.target - l.dx).abs() < 0.5) {
           call
@@ -879,7 +942,12 @@ class _HomeLife {
               comp.sprite?.animating = true;
               if (comp.scale.y != 1) comp.scale.setValues(1, 1);
             }
-            if (v.act == _Do.perform && ease >= 1) {
+            if (v.act == _Do.perform && v.court && ease >= 1) {
+              // On the throne: still, turning slowly to one side of its
+              // court and then the other.
+              comp.face(((t / 3.4).floor()).isEven ? 1 : -1);
+              stir(4);
+            } else if (v.act == _Do.perform && ease >= 1) {
               // On the boards: hops in time, turning to its audience.
               final beat = v.beat ?? 0.7;
               final f = (t / beat) % 1.0;
@@ -909,12 +977,22 @@ class _HomeLife {
             }
             if (_wet) call.time = math.min(call.time, 1);
           case _Do.watch:
-            // At one side, watching whoever is on the stage.
+            // At one side, watching whoever is on the stage — or, before a
+            // throne, bowing to whoever holds court on it, slowly, again
+            // and again.
             comp.face(faceIt);
             final performing = _livers.values.any(
               (o) => o.call?.thing == call.thing && o.call?.visit.act == _Do.perform,
             );
             if (performing) call.time = math.min(call.time, v.seconds - 1);
+            if (v.court) {
+              final f = (game._fieldTime / 3.2 + l.seed * 0.17) % 1.0;
+              final dip = math.pow(math.sin(math.pi * f), 2).toDouble();
+              comp.angle = -faceIt * 0.2 * dip;
+            }
+          case _Do.distil:
+            _distil(l, comp, sp, call, d, dt);
+            return;
           case _Do.dash:
             // Through it and out the far side, then back, fast.
             final far = d - call.side * size * 0.9;
@@ -942,10 +1020,102 @@ class _HomeLife {
     }
   }
 
+  /// One step through the Great Alembic: up onto the step at its mouth,
+  /// coming apart into its grains as they pour in, carried through (the
+  /// keepsake draws them), and gathering into itself again at the far end,
+  /// where it steps off and goes home. If its grains could not be read, it
+  /// only stands at the mouth a moment and leaves.
+  void _distil(
+    _Liver l,
+    WildMonComponent comp,
+    SpawnPoint sp,
+    _Call call,
+    double d,
+    double dt,
+  ) {
+    final size = sp.size.x;
+    final seats = _seatsOf(call.thing);
+    final thing = switch (game._things[call.thing]) {
+      final FieldThing f => f,
+      _ => null,
+    };
+    final t = call.time;
+    if (seats.length < 2 || thing == null) {
+      call.stage = 2;
+      return;
+    }
+    final inlet = seats[0], outlet = seats[1];
+    const up = 0.6, run = 10.0;
+    // Up onto the step, facing in.
+    if (t < up || call.grains == null) {
+      final k = math.min(1.0, t / up);
+      final ease = k * k * (3 - 2 * k);
+      l
+        ..dx = d + inlet.dx
+        ..lift = inlet.dy * ease + math.sin(k * math.pi) * 10 * _u * (1 - ease);
+      l.dy = _groundShift(sp, l.dx);
+      comp.face(inlet.dx < 0 ? -1 : 1);
+      if (call.grains == null && t > up + 1.5) {
+        // Nothing to go through it as: down again.
+        l
+          ..lift = 0
+          ..target = l.dx;
+        call.stage = 2;
+      }
+      return;
+    }
+    final p = ((t - up) / run).clamp(0.0, 1.0);
+    final going = p < 0.5;
+    final at = going ? inlet : outlet;
+    // Its sprite thins as the grains let go of it, and fills again as they
+    // gather at the far end.
+    final o = going
+        ? 1 - _ease01(p / 0.16)
+        : _ease01((p - 0.86) / 0.11);
+    l
+      ..fade = o
+      ..dx = d + at.dx
+      ..lift = at.dy;
+    comp.sprite?.spriteOpacity = o;
+    l.dy = _groundShift(sp, l.dx);
+    // In at the mouth facing the still; out at the far end facing away.
+    final inFace = inlet.dx < 0 ? -1.0 : 1.0;
+    final outFace = outlet.dx > 0 ? -1.0 : 1.0;
+    comp.face(going ? inFace : outFace);
+    thing.carry(
+      call.grains!,
+      p,
+      drop: game._standDrop[sp.id] ?? size * 0.46,
+      facingIn: inFace,
+      facingOut: outFace,
+    );
+    if (call.time >= call.stirAt) {
+      call.stirAt = call.time + 1.2;
+      thing.stir(call.strength);
+    }
+    if (p >= 1 && t >= up + run + 0.3) {
+      l
+        ..fade = 1
+        ..lift = 0
+        ..target = l.dx;
+      comp.sprite?.spriteOpacity = 1;
+      call.stage = 2;
+    }
+  }
+
+  static double _ease01(double x) {
+    final k = x.clamp(0.0, 1.0);
+    return k * k * (3 - 2 * k);
+  }
+
   void _leave(_Liver l, WildMonComponent comp) {
     comp
       ..angle = 0
       ..submerged = false;
+    if (l.fade != 1) {
+      l.fade = 1;
+      comp.sprite?.spriteOpacity = 1;
+    }
     l
       ..call = null
       ..lift = 0

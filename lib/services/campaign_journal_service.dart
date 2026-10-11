@@ -1,6 +1,7 @@
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -1026,35 +1027,60 @@ class CampaignJournalService {
     await settings.setSetting(key, '1');
   }
 
+  /// How many achievements this save has claimed (for the Athanor's
+  /// first-fire back-pay).
+  static Future<int> claimedCount(AlchemonsDatabase db) async {
+    final settings = {
+      for (final r in await db.select(db.settings).get()) r.key: r.value,
+    };
+    return campaignAchievements
+        .where((a) => settings['campaign_claim_${a.id}'] == '1')
+        .length;
+  }
+
   /// [boosts] is required by any achievement whose reward is a timed boost —
   /// the service caches its expiry in memory for the cultivation maths, so
   /// writing the setting behind its back would award a boost that does not
   /// apply until the next launch.
-  Future<bool> claim(String id, {TimedBoostService? boosts}) =>
-      db.transaction(() async {
-        final matches = campaignAchievements.where((a) => a.id == id);
-        if (matches.isEmpty) return false;
-        final a = matches.first;
-        final snapshot = await load();
-        if (!snapshot.earned(a) || snapshot.claimed.contains(id)) return false;
-        await db.settingsDao.setSetting('campaign_claim_$id', '1');
-        if (a.gold > 0) await db.currencyDao.addGold(a.gold);
-        if (a.silver > 0) await db.currencyDao.addSilver(a.silver);
-        for (final entry in a.items.entries) {
-          await db.inventoryDao.addItemQty(entry.key, entry.value);
-        }
-        for (final entry in a.resources.entries) {
-          await db.currencyDao.addResource(entry.key, entry.value);
-        }
-        final boostDuration = a.halfCultivation;
-        if (boostDuration != null) {
-          assert(
-            boosts != null,
-            'Achievement "$id" rewards a timed boost but claim() was called '
-            'without a TimedBoostService, so the reward would be dropped.',
-          );
-          await boosts?.grantHalfCultivation(duration: boostDuration);
-        }
-        return true;
-      });
+  Future<bool> claim(
+    String id, {
+    TimedBoostService? boosts,
+  }) => db.transaction(() async {
+    final matches = campaignAchievements.where((a) => a.id == id);
+    if (matches.isEmpty) return false;
+    final a = matches.first;
+    final snapshot = await load();
+    if (!snapshot.earned(a) || snapshot.claimed.contains(id)) return false;
+    await db.settingsDao.setSetting('campaign_claim_$id', '1');
+    if (a.gold > 0) await db.currencyDao.addGold(a.gold);
+    if (a.silver > 0) await db.currencyDao.addSilver(a.silver);
+    // Every achievement also pays tincture for the Athanor, and is
+    // counted as paid so first fire's back-pay leaves it out.
+    await db.inventoryDao.addItemQty(
+      InvKeys.athanorTincture,
+      kAthanorAchievementTincture,
+    );
+    final paid =
+        int.tryParse(
+          await db.settingsDao.getSetting(kAthanorPaidAchievementsKey) ?? '',
+        ) ??
+        0;
+    await db.settingsDao.setSetting(kAthanorPaidAchievementsKey, '${paid + 1}');
+    for (final entry in a.items.entries) {
+      await db.inventoryDao.addItemQty(entry.key, entry.value);
+    }
+    for (final entry in a.resources.entries) {
+      await db.currencyDao.addResource(entry.key, entry.value);
+    }
+    final boostDuration = a.halfCultivation;
+    if (boostDuration != null) {
+      assert(
+        boosts != null,
+        'Achievement "$id" rewards a timed boost but claim() was called '
+        'without a TimedBoostService, so the reward would be dropped.',
+      );
+      await boosts?.grantHalfCultivation(duration: boostDuration);
+    }
+    return true;
+  });
 }

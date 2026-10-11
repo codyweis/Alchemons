@@ -27,6 +27,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/profile_titles.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/providers/audio_provider.dart';
@@ -59,11 +60,13 @@ import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/avatar_widget.dart';
 import 'package:alchemons/widgets/background/faction_realm.dart';
+import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/nav_emblems.dart';
 import 'package:alchemons/widgets/campaign_rewards_button.dart';
 import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/widgets/fusion_style_choice.dart';
 import 'package:alchemons/widgets/reset_progress_dialog.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
@@ -328,7 +331,9 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<_ProfileData> _fetch() async {
     final svc = context.read<FactionService>();
+    final db = context.read<AlchemonsDatabase>();
     final fid = svc.current;
+    final titles = await ProfileTitles.load(db);
     final prefs = await SharedPreferences.getInstance();
     final noteIds = deserialiseContestHintIds(
       prefs.getString('cosmic_trait_hint_notes_v1') ?? '',
@@ -337,9 +342,20 @@ class _ProfileScreenState extends State<ProfileScreen>
         .where((h) => noteIds.contains(h.id))
         .toList();
 
-    if (fid == null) return _ProfileData(null, 0, cosmicHints);
+    if (fid == null) return _ProfileData(null, 0, cosmicHints, titles);
     final discovered = await svc.discoveredCount();
-    return _ProfileData(fid, discovered, cosmicHints);
+    return _ProfileData(fid, discovered, cosmicHints, titles);
+  }
+
+  /// Wears [id] under the name, or nothing for null.
+  Future<void> _wearTitle(String? id) async {
+    final data = _data;
+    if (data == null) return;
+    final db = context.read<AlchemonsDatabase>();
+    if (!await ProfileTitles.wear(db, id)) return;
+    final titles = await ProfileTitles.load(db);
+    if (!mounted) return;
+    setState(() => _data = data.withTitles(titles));
   }
 
   Future<void> _replayStory() async {
@@ -1181,6 +1197,10 @@ class _ProfileScreenState extends State<ProfileScreen>
                 _DivisionHeader(
                   faction: faction,
                   discovered: data?.discoveredCount,
+                  title: switch (data?.titles.worn) {
+                    final id? => ProfileTitles.nameOf(id),
+                    null => null,
+                  },
                   field: _realmField!,
                   realmKey: _realmKey,
                   realmIn: _realmIn,
@@ -1220,7 +1240,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                               title: 'ICONS',
                               description:
                                   "Which Let the dock's icons are drawn with. "
-                                  'More are sold in the shop.',
+                                  'More are sold in the shop or drawn '
+                                  'from the Athanor.',
                               palette: palette,
                               below: _DockSetChoice(
                                 palette: palette,
@@ -1265,6 +1286,38 @@ class _ProfileScreenState extends State<ProfileScreen>
                         label: 'DISPLAY',
                         palette: palette,
                         children: [
+                          if (_titleChoices(data).isNotEmpty)
+                            _Row(
+                              title: 'TITLE',
+                              description:
+                                  'Worn under the name at the top of this '
+                                  'page. Titles come from the Athanor.',
+                              palette: palette,
+                              below: _TitleChoice(
+                                titles: _titleChoices(data),
+                                worn: data?.titles.worn,
+                                onChanged: _wearTitle,
+                                palette: palette,
+                                accent: accent,
+                              ),
+                            ),
+                          if (context
+                                  .watch<CosmeticWearService?>()
+                                  ?.ownedFusionStyles
+                                  .isNotEmpty ??
+                              false)
+                            _Row(
+                              title: 'FUSION',
+                              description:
+                                  'How every fusion plays, from the two '
+                                  'turning to grains to the cultivation. '
+                                  'Styles come from the Athanor.',
+                              palette: palette,
+                              below: FusionStyleChoice(
+                                palette: palette,
+                                accent: accent,
+                              ),
+                            ),
                           _Row(
                             title: 'FONT',
                             description: 'The typeface for names and text',
@@ -1514,6 +1567,12 @@ class _ProfileScreenState extends State<ProfileScreen>
       ),
     );
   }
+
+  /// The owned titles that still have words, by id, in the order owned.
+  List<(String, String)> _titleChoices(_ProfileData? data) => [
+    for (final id in data?.titles.owned ?? const <String>{})
+      if (ProfileTitles.nameOf(id) case final name?) (id, name),
+  ];
 
   Widget _accountRow(
     AccountService account,
@@ -1867,6 +1926,7 @@ class _DivisionHeader extends StatelessWidget {
   const _DivisionHeader({
     required this.faction,
     required this.discovered,
+    this.title,
     required this.field,
     required this.realmKey,
     required this.realmIn,
@@ -1877,6 +1937,9 @@ class _DivisionHeader extends StatelessWidget {
 
   final FactionId faction;
   final int? discovered;
+
+  /// The title worn, under the name; null for none.
+  final String? title;
   final FactionRealmField field;
   final GlobalKey realmKey;
   final Animation<double> realmIn;
@@ -1960,6 +2023,20 @@ class _DivisionHeader extends StatelessWidget {
                           weight: FontWeight.w700,
                         ).copyWith(letterSpacing: 4),
                       ),
+                      if (title case final title?) ...[
+                        const SizedBox(height: 10),
+                        Text(
+                          title,
+                          textAlign: TextAlign.center,
+                          style: GoogleFonts.cinzel(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                            color: palette.ink,
+                            letterSpacing: 1,
+                            shadows: shadow,
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -2482,6 +2559,53 @@ class _ChoiceCell extends StatelessWidget {
   }
 }
 
+/// The titles owned, each in its own words, and NONE; the one worn lit.
+class _TitleChoice extends StatelessWidget {
+  const _TitleChoice({
+    required this.titles,
+    required this.worn,
+    required this.onChanged,
+    required this.palette,
+    required this.accent,
+  });
+
+  /// By id, with its words.
+  final List<(String, String)> titles;
+  final String? worn;
+  final ValueChanged<String?> onChanged;
+  final BracketPalette palette;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget cell(String? id, String label) => _ChoiceCell(
+      selected: id == worn,
+      palette: palette,
+      accent: accent,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      fill: false,
+      onTap: () {
+        if (id == worn) return;
+        HapticFeedback.selectionClick();
+        onChanged(id);
+      },
+      child: Text(
+        label,
+        style: _mono(11, id == worn ? palette.ink : palette.muted),
+      ),
+    );
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        cell(null, 'NONE'),
+        for (final (id, name) in titles) cell(id, name.toUpperCase()),
+      ],
+    );
+  }
+}
+
 /// Every typeface, each written in itself.
 class _FontChoice extends StatelessWidget {
   const _FontChoice({required this.palette, required this.accent});
@@ -2525,11 +2649,27 @@ class _FontChoice extends StatelessWidget {
 
 /// Every dock set owned, each its Let in Home's archway, the one on the dock
 /// lit from below.
-class _DockSetChoice extends StatelessWidget {
+class _DockSetChoice extends StatefulWidget {
   const _DockSetChoice({required this.palette, required this.accent});
 
   final BracketPalette palette;
   final Color accent;
+
+  @override
+  State<_DockSetChoice> createState() => _DockSetChoiceState();
+}
+
+class _DockSetChoiceState extends State<_DockSetChoice> {
+  BracketPalette get palette => widget.palette;
+  Color get accent => widget.accent;
+
+  @override
+  void initState() {
+    super.initState();
+    // A set drawn from the Athanor is owned by its settings row; read them
+    // again, so it shows here (and can be worn) whatever the faction.
+    context.read<FactionService>().reloadDockSets();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2905,7 +3045,16 @@ class _ProfileData {
   final FactionId? faction;
   final int discoveredCount;
   final List<CosmicContestHintLore> cosmicHints;
-  const _ProfileData(this.faction, this.discoveredCount, this.cosmicHints);
+  final ProfileTitleState titles;
+  const _ProfileData(
+    this.faction,
+    this.discoveredCount,
+    this.cosmicHints,
+    this.titles,
+  );
+
+  _ProfileData withTitles(ProfileTitleState titles) =>
+      _ProfileData(faction, discoveredCount, cosmicHints, titles);
 }
 
 class _CredentialDialogResult {

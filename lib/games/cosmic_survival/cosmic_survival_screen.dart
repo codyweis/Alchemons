@@ -33,6 +33,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_base_command_screen.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_ship_loadout.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/potential_soul.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -1668,6 +1669,26 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
           name: 'Gold',
           label: '+$gold',
           color: _C.accent,
+        ),
+      );
+    }
+
+    // Tincture for the Athanor: one for every five waves cleared.
+    final tincture = athanorSurvivalTincture(wavesCleared);
+    if (tincture > 0) {
+      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, tincture);
+      final def = registry[InvKeys.athanorTincture];
+      popupEntries.add(
+        LootOpeningEntry(
+          icon: def?.icon ?? AppIcons.water_drop_rounded,
+          name: def?.name ?? 'Tincture',
+          label: '+$tincture',
+          color: const Color(0xFFE8743A),
+          visualBuilder: (size) => InventoryImageHelper.getVisualWidget(
+            key: InvKeys.athanorTincture,
+            icon: def?.icon,
+            size: size,
+          ),
         ),
       );
     }

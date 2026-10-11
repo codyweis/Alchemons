@@ -24,6 +24,7 @@ import 'package:alchemons/games/wilderness/field/home_sand_field.dart';
 import 'package:alchemons/games/wilderness/keepsake_component.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/models/home_sand.dart';
@@ -34,6 +35,7 @@ import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/screens/home_biome/home_sand_tray.dart';
+import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
@@ -397,6 +399,13 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       ..onResidentTap = _onTap
       ..onResidentPicked = _onPicked
       ..onResidentDropped = _onDropped;
+    // The Athanor's trails and this realm's ambience, if any are worn.
+    final wear = context.read<CosmeticWearService?>();
+    if (wear != null) {
+      game
+        ..trailOf = wear.trailOf
+        ..ambience = wear.ambienceIn(_layout.realm.name);
+    }
     setState(() {
       _game = game;
       _gameKey++;
@@ -613,6 +622,19 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     } else {
       game.fieldWeather = mood.weather;
     }
+  }
+
+  /// Lays [ambience] over this realm (the Athanor's), or none.
+  void _setAmbience(HomeAmbience? ambience) {
+    final wear = context.read<CosmeticWearService?>();
+    if (wear == null) return;
+    HapticFeedback.selectionClick();
+    _game?.ambience = ambience;
+    unawaited(
+      wear
+          .wearAmbience(_layout.realm.name, ambience)
+          .then((_) => mounted ? setState(() {}) : null),
+    );
   }
 
   void _setHour(double? hour) {
@@ -1170,14 +1192,15 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         // Already being tried: choose that one.
         _select(trying.first.spawnId);
         return;
-      } else if (_decor.ownedOf(kind) < decor.max) {
+      } else if (!decor.athanorOnly && _decor.ownedOf(kind) < decor.max) {
         // Not owned (or not enough): stood in faint, to be tried and
-        // bought where it stands.
+        // bought where it stands. (The Athanor's pieces are never sold, so
+        // never tried.)
         id = 'try:$kind#0';
       } else {
         // All of it is out: choose the one there.
-        final there = _layout.placed.where((p) => p.kind == kind).first;
-        _select(there.spawnId);
+        final there = _layout.placed.where((p) => p.kind == kind).firstOrNull;
+        if (there != null) _select(there.spawnId);
         return;
       }
     } else if (keepsake) {
@@ -1558,6 +1581,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   Widget _settingsRow(BuildContext context) {
     final mood = _layout.mood;
     final hour = _layout.hour;
+    final wear = context.watch<CosmeticWearService?>();
+    final owned = wear?.ownedAmbiences ?? const <HomeAmbience>[];
+    final worn = wear?.ambienceIn(_layout.realm.name);
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
@@ -1639,6 +1665,23 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                 onTap: () => _setHour(h),
               ),
               const SizedBox(width: 6),
+            ],
+          ],
+          // The ambiences owned (the Athanor's), and none.
+          if (owned.isNotEmpty) ...[
+            const SizedBox(width: 10),
+            _Chip(
+              label: 'NO AMBIENCE',
+              selected: worn == null,
+              onTap: () => _setAmbience(null),
+            ),
+            for (final a in owned) ...[
+              const SizedBox(width: 6),
+              _Chip(
+                label: a.title.toUpperCase(),
+                selected: a == worn,
+                onTap: () => _setAmbience(a),
+              ),
             ],
           ],
         ],
@@ -1831,17 +1874,20 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         for (final tier in DecorTier.values) ...[
           _TrayLabel(tier.label),
           const SizedBox(width: 6),
-          for (final d in HomeDecor.ofTier(tier)) ...[
-            _DecorTile(
-              decor: d,
-              owned: _decor.allowedOf(d.id),
-              placed: _layout.placed
-                  .where((p) => p.kind == d.id && !p.trial)
-                  .length,
-              onTap: () => _place(d.id, keepsake: true),
-            ),
-            const SizedBox(width: 6),
-          ],
+          // The Athanor's pieces only once one is drawn: they are never
+          // for sale here.
+          for (final d in HomeDecor.ofTier(tier))
+            if (!d.athanorOnly || _decor.ownedOf(d.id) > 0) ...[
+              _DecorTile(
+                decor: d,
+                owned: _decor.allowedOf(d.id),
+                placed: _layout.placed
+                    .where((p) => p.kind == d.id && !p.trial)
+                    .length,
+                onTap: () => _place(d.id, keepsake: true),
+              ),
+              const SizedBox(width: 6),
+            ],
           const SizedBox(width: 10),
         ],
       ],

@@ -778,7 +778,10 @@ class _ChamberPainter extends CustomPainter {
     final r = burst.radius;
     final burstT = u - FusionBurstField.burstAt;
 
-    // The heat of the knot, swelling until it goes.
+    // The heat of the knot, swelling until it goes — in a fusion style's
+    // own light (the Athanor's), as much as that style throws.
+    final hot = burst.styleLight ?? Colors.white;
+    final flare = burst.styleFlare;
     final heat = _interval(u, 0, FusionBurstField.burstAt);
     final heart = burstT < 0 ? 1.0 : 1 - _interval(burstT, 0, 0.18);
     if (heart > 0) {
@@ -786,9 +789,9 @@ class _ChamberPainter extends CustomPainter {
         canvas,
         core,
         r * (0.35 + 0.45 * heat),
-        Colors.white,
+        hot,
         mix,
-        (0.25 + 0.6 * heat) * heart,
+        (0.25 + 0.6 * heat) * heart * flare,
       );
     }
     // The eruption's light: wide, faint, and gone fast.
@@ -798,9 +801,9 @@ class _ChamberPainter extends CustomPainter {
         canvas,
         core,
         r * (0.8 + 2.6 * Curves.easeOut.transform(e)),
-        Colors.white,
+        hot,
         glow,
-        0.55 * (1 - e) * (1 - e),
+        0.55 * (1 - e) * (1 - e) * flare,
       );
     }
     // The cultivation's own light, coming up as it forms.

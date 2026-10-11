@@ -275,6 +275,8 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen> {
             lines: [
               'The altar accepts the offering.',
               '${species.name} is given to the pool.',
+              if (result.tinctureEarned > 0)
+                'Weekly reward: +${result.tinctureEarned} tincture.',
               'It will ask again when the week turns.',
             ],
           ),
@@ -304,6 +306,8 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen> {
             '${species.name} is given to the pool.',
             if (result.completionBonusGold > 0)
               'Completion reward: +${result.completionBonusGold} gold.',
+            if (result.tinctureEarned > 0)
+              'Completion reward: +${result.tinctureEarned} tincture.',
             if (result.completedRite)
               'The rite stands complete.'
             else if (next != null)

@@ -9,6 +9,9 @@
 //   · Wonders — centrepieces with behaviours of their own, used by several
 //     residents at once. 150 gold; one of each.
 //
+// Beside them, the decor drawn at the Athanor ([HomeDecor.athanor]): the
+// same three tiers, never sold, owned the same way.
+//
 // What is owned is an inventory count (`home.<id>`), so it travels with the
 // save, and it counts per realm: owning four lanterns, each realm can stand
 // four. A piece is placed, drawn and lived with exactly as a keepsake is
@@ -38,6 +41,7 @@ class HomeDecor {
     this.aloft = false,
     this.styles = const [],
     this.wide = 1,
+    this.athanorOnly = false,
   });
 
   /// Its kind in the layout and its art (keepsake_art.dart).
@@ -61,6 +65,10 @@ class HomeDecor {
 
   /// How much ground it takes against a creature's (a Wonder is wider).
   final double wide;
+
+  /// Drawn at the Athanor and found nowhere else: the shop never makes an
+  /// offer for it, so its [silver] and [gold] are left at 0.
+  final bool athanorOnly;
 
   /// The shop offer, and the inventory item that counts how many are owned.
   String get offerId => 'home.$id';
@@ -248,6 +256,195 @@ class HomeDecor {
       tier: DecorTier.wonder,
       gold: 150,
       wide: 1.6,
+    ),
+    ...athanor,
+  ];
+
+  /// Decor drawn at the Athanor (docs/crucible/cosmetics_concepts.md), by
+  /// batch: never sold. A Curio is drawn three at a time, so three can
+  /// stand in a realm; the rest are one of a kind.
+  static const athanor = <HomeDecor>[
+    // ── The Black Work ──
+    HomeDecor(
+      'moth_lantern',
+      'Moth Lantern',
+      'A dim violet lamp on a crooked post. Moths settle on it at night.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'inkcap_cluster',
+      'Inkcap Cluster',
+      'Tall ink-cap mushrooms that drip ink, most of all at night.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'ash_brazier',
+      'Ash Brazier',
+      'A low bowl of cold violet flame. Residents warm themselves at it and '
+          'sleep beside it at night.',
+      tier: DecorTier.living,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'nightbloom_bed',
+      'Nightbloom Bed',
+      'A bed of dark leaves ringed with black lilies that open at night. A '
+          'resident sleeps among them.',
+      tier: DecorTier.living,
+      wide: 1.3,
+      athanorOnly: true,
+    ),
+    // ── The White Work ──
+    HomeDecor(
+      'moonstone_cairn',
+      'Moonstone Cairn',
+      'Pale stones stacked by hand. They glow faintly at night.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'salt_pillar',
+      'Salt Pillar',
+      'A column of salt crystal that catches the light.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'moon_font',
+      'Moon Font',
+      'A silver basin that holds the moon at night. Residents come to drink.',
+      tier: DecorTier.living,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'snow_globe',
+      'Snow Globe',
+      'A great glass globe of snow. A resident sits inside it; tap it and the '
+          'snow swirls up.',
+      tier: DecorTier.wonder,
+      wide: 1.6,
+      athanorOnly: true,
+    ),
+    // ── The Yellow Work ──
+    HomeDecor(
+      'sundial',
+      'Sundial',
+      'A brass sundial. Its shadow follows the time of day.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'honey_lamp',
+      'Honey Lamp',
+      'A lamp of amber glass with pollen drifting inside.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'storm_coil',
+      'Storm Coil',
+      'A tall brass coil that throws sparks. Residents hop beside it, '
+          'Lightning ones most of all.',
+      tier: DecorTier.living,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'gilded_throne',
+      'The Gilded Throne',
+      'A throne of brass and gold leaf. One resident sits on it; the others '
+          'come to bow.',
+      tier: DecorTier.wonder,
+      wide: 1.7,
+      athanorOnly: true,
+    ),
+    // ── The Red Work ──
+    HomeDecor(
+      'glass_rose',
+      'Glass Rose',
+      'Red glass roses that open at dusk and close at dawn.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'ember_bowl',
+      'Ember Bowl',
+      'A low bowl of embers that slowly glow brighter and dimmer.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'ember_nest',
+      'Ember Nest',
+      'A nest of dark glass twigs with embers between them. A resident '
+          'sleeps in it at night.',
+      tier: DecorTier.living,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'pomegranate_tree',
+      'Pomegranate Tree',
+      'A small tree of dark glass with glowing fruit. Residents climb into '
+          'it; flyers rest at its top.',
+      tier: DecorTier.living,
+      wide: 1.3,
+      athanorOnly: true,
+    ),
+    // ── The Still-Room ──
+    HomeDecor(
+      'herb_rack',
+      'Herb Rack',
+      'Bundles of dried herbs hung from a frame.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'retort_shelf',
+      'Retort Shelf',
+      'A shelf of glass flasks, each lit its own color.',
+      tier: DecorTier.curio,
+      max: 3,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'alembic',
+      'Alembic',
+      'A glass still over a small flame. Residents come to look into it.',
+      tier: DecorTier.living,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'bell_jar',
+      'Bell Jar',
+      'A tall glass bell jar. A resident sits inside it.',
+      tier: DecorTier.living,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'music_box',
+      'Music Box',
+      'A brass music box. Residents hop to its tune.',
+      tier: DecorTier.living,
+      athanorOnly: true,
+    ),
+    HomeDecor(
+      'great_alembic',
+      'The Great Alembic',
+      'A tall glass still. A resident steps in, comes apart into grains, and '
+          'forms again at the far end.',
+      tier: DecorTier.wonder,
+      wide: 2,
+      athanorOnly: true,
     ),
   ];
 }

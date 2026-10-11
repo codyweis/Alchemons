@@ -88,6 +88,30 @@ class KeepsakeComponent extends PositionComponent
     game.onSound?.call(cue);
   }
 
+  /// When it was last given a passenger to carry (its own clock).
+  double _carriedAt = -1e9;
+
+  @override
+  void carry(
+    SpecimenGrains grains,
+    double progress, {
+    required double drop,
+    required double facingIn,
+    required double facingOut,
+  }) {
+    final k = scale.y, flip = scale.x < 0;
+    final had = art.passenger;
+    final p = had != null && identical(had.grains, grains)
+        ? had
+        : KeepsakePassenger(grains, scale: 1 / k);
+    art.passenger = p
+      ..progress = progress
+      ..rise = drop / k
+      ..mirrorIn = (facingIn < 0) != flip
+      ..mirrorOut = (facingOut < 0) != flip;
+    _carriedAt = _time.t;
+  }
+
   @override
   double? get seat {
     final s = art.seat;
@@ -116,7 +140,13 @@ class KeepsakeComponent extends PositionComponent
     final night = nightOf(game.fieldHour);
     _time
       ..night = night
-      ..daylight = 1 - night;
+      ..daylight = 1 - night
+      ..hour = game.fieldHour;
+    // A passenger no longer being carried (its visit ended or was cut
+    // short) is let go of.
+    if (art.passenger != null && _time.t - _carriedAt > 0.3) {
+      art.passenger = null;
+    }
   }
 
   /// How much of it the ground under it gives back (the Arcane's glass).

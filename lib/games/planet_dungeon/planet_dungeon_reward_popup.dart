@@ -14,6 +14,7 @@ import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/widgets/instant_extractor_glyph.dart';
+import 'package:alchemons/widgets/tincture_glyph.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'dart:math';
 
@@ -229,9 +230,10 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   }
 
   /// The actual item art the rest of the game uses: the metallic gold coin,
-  /// the branded glowing powerup orbs, and the extractor artwork.
+  /// the branded glowing powerup orbs, the extractor and tincture glyphs.
   Widget _rewardArt(String line, double size) {
     if (line.contains('Guardian Relic')) return _relicArt(size);
+    if (line.contains('Tincture')) return TinctureGlyph(size: size);
     if (line.contains('Gold')) return CoinIcon.gold(size: size);
     if (line.contains('Extractor')) {
       return InstantExtractorGlyph(size: size);

@@ -4,24 +4,29 @@
 // one is wanted (all_specimens_page.dart): standing in a dark glass case,
 // lit from behind in its element, with one engraved line beneath (element
 // mark, name, stamina). The case light is the extraction card's stage light, scaled down,
-// and it is static — the sprite is the only thing in a case that moves.
+// and it is static — the sprite is the only thing in a case that moves. A
+// specimen can wear a case style from the Athanor (CaseStylePainter, chosen
+// in its details), drawn in the plain light's place.
 
 import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/creature_dao.dart';
+import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart' show decodeGenetics;
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
+import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/cosmetics/case_style_art.dart';
 import 'package:alchemons/widgets/fx/element_orb.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:flutter/material.dart';
@@ -95,6 +100,10 @@ class SpecimenCase extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final light = caseElementLight(species);
+    // The case style it stands in (the Athanor's), if one is worn.
+    final style = context.select<CosmeticWearService?, CaseStyle?>(
+      (s) => s?.caseOf(instance.instanceId),
+    );
     final stamina = context.read<StaminaService>().computeState(instance);
     final frame = isSelected
         ? kCaseGilt
@@ -118,7 +127,9 @@ class SpecimenCase extends StatelessWidget {
               ),
               child: ClipRect(
                 child: CustomPaint(
-                  painter: CaseLightPainter(color: light),
+                  painter: style == null
+                      ? CaseLightPainter(color: light)
+                      : CaseStylePainter(style: style, color: light),
                   child: LayoutBuilder(
                     builder: (context, box) {
                       final size = math.min(box.maxWidth, box.maxHeight) * 0.78;

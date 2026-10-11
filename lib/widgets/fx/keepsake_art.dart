@@ -16,13 +16,22 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/obsidian_kit.dart';
+import 'package:alchemons/games/cosmic/vfx_shapes.dart';
+import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:flutter/painting.dart';
 
 part 'decor_art.dart';
+part 'athanor_decor_art.dart';
 
 /// What a keepsake's living part is drawn with this frame.
 class KeepsakeTime {
-  KeepsakeTime({this.t = 0, this.night = 0, this.stir = 0, this.daylight = 1});
+  KeepsakeTime({
+    this.t = 0,
+    this.night = 0,
+    this.stir = 0,
+    this.daylight = 1,
+    this.hour = 12,
+  });
 
   /// Seconds since it was stood there.
   double t;
@@ -36,6 +45,37 @@ class KeepsakeTime {
 
   /// How open the day is, 0 (night) to 1 (full day) — the lotus opens to it.
   double daylight;
+
+  /// The field's hour, 0 to 24 — the sundial's shadow follows it.
+  double hour;
+}
+
+/// A visitor taken through a keepsake as its own grains (the Great
+/// Alembic): it comes apart at the first of the keepsake's seats, is carried
+/// through, and gathers again at the second. Set on the art each frame
+/// while it is in there (see [KeepsakeArt.passenger]).
+class KeepsakePassenger {
+  KeepsakePassenger(this.grains, {required this.scale});
+
+  /// The visitor read into grains, round its middle (field units).
+  final SpecimenGrains grains;
+
+  /// The art's units for one of the grains' (1 over the keepsake's scale).
+  final double scale;
+
+  /// How far through: 0 whole where it went in, 1 whole where it came out.
+  double progress = 0;
+
+  /// From its feet up to its middle, in the art's units.
+  double rise = 70;
+
+  /// Whether it is drawn turned, as it went in and as it comes out.
+  bool mirrorIn = false, mirrorOut = false;
+
+  /// One batch of points per tone, kept between frames.
+  late final List<PointBatch> batches = [
+    for (var i = 0; i < grains.tones.length; i++) PointBatch(grains.length),
+  ];
 }
 
 /// One keepsake's look.
@@ -76,6 +116,10 @@ abstract class KeepsakeArt {
   /// Still water that gives back whatever stands at its edge: its extent,
   /// the surface along its middle; null for none.
   Rect? get mirror => null;
+
+  /// A visitor being carried through it as its own grains this frame, or
+  /// null (see [KeepsakePassenger]); only a piece made for it draws one.
+  KeepsakePassenger? passenger;
 
   /// The light it throws on the ground and the air round it, drawn under
   /// the body every frame.
@@ -150,7 +194,7 @@ abstract class KeepsakeArt {
   /// The art for a keepsake [id]; [copy] tells a pair apart (the portals,
   /// one of each color). Null for none such.
   static KeepsakeArt? of(String id, {int copy = 0, int style = 0}) =>
-      _decorArt(id, style) ?? _keepsakeArt(id, copy);
+      _decorArt(id, style) ?? _athanorDecorArt(id) ?? _keepsakeArt(id, copy);
 
   static KeepsakeArt? _keepsakeArt(String id, int copy) => switch (id) {
     'ember_torch' => _EmberTorch(),

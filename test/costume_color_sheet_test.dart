@@ -96,9 +96,9 @@ void main() {
       pickCostumeColor(
         ctx,
         instance: switch (costume) {
-          FamilyCostume.partyHat => wing,
+          FamilyCostume.partyHat || FamilyCostume.crown => wing,
           FamilyCostume.nose => pip,
-          FamilyCostume.sunglasses => horn,
+          FamilyCostume.sunglasses || FamilyCostume.monocle => horn,
         },
         costume: costume,
         confirmLabel: 'WEAR $noun',

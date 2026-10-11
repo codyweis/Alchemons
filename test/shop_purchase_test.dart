@@ -158,10 +158,30 @@ void main() {
       expect((await db.currencyDao.getAllCurrencies())['gold'], 150);
       expect(await db.inventoryDao.getItemQty(spring.inventoryKey), 1);
 
-      // Every Wonder costs the same, and every piece has a grant.
+      // Every Wonder on sale costs the same, and every piece on sale has a
+      // price. The Athanor's pieces are never sold: no price, no offer.
       for (final d in HomeDecor.all) {
+        if (d.athanorOnly) {
+          expect(d.cost, isEmpty, reason: d.id);
+          expect(
+            ShopService.allOffers.where((o) => o.id == d.offerId),
+            isEmpty,
+            reason: d.id,
+          );
+          expect(shop.canPurchase(d.offerId), isFalse, reason: d.id);
+          continue;
+        }
         if (d.tier == DecorTier.wonder) expect(d.gold, 150, reason: d.id);
         expect(d.cost, isNotEmpty, reason: d.id);
+      }
+      for (final tier in DecorTier.values) {
+        expect(
+          shop.getHomeDecorOffers(tier).where(
+            (o) => HomeDecor.byOffer(o.id)?.athanorOnly ?? false,
+          ),
+          isEmpty,
+          reason: tier.name,
+        );
       }
     },
   );

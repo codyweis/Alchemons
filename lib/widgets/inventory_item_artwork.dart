@@ -25,6 +25,7 @@ import 'package:alchemons/widgets/portal_key_glyph.dart';
 import 'package:alchemons/widgets/raid_beacon_glyph.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/stamina_elixir_glyph.dart';
+import 'package:alchemons/widgets/tincture_glyph.dart';
 import 'package:alchemons/widgets/wild_fusion_glyph.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -99,6 +100,11 @@ class InventoryItemArtwork extends StatelessWidget {
 
     if (inventoryKey == InvKeys.raidBeacon) {
       return RaidBeaconGlyph(size: size, animate: animate);
+    }
+
+    // Tincture has no offer to take art from: it is never sold.
+    if (inventoryKey == InvKeys.athanorTincture) {
+      return TinctureGlyph(size: size, animate: animate);
     }
 
     final riftKey = PortalKeyGlyph.biomeForInventoryKey(inventoryKey);

@@ -58,8 +58,10 @@ void main() {
   Future<String?> effect(String id) async =>
       (await db.creatureDao.getInstance(id))?.alchemyEffect;
   Future<int> owned(String item) => db.inventoryDao.getItemQty(item);
+  // The shop's: the Athanor's crown and monocle are never sold
+  // (athanor_wearables_test.dart).
   Future<void> buyAll() async {
-    for (final c in FamilyCostume.values) {
+    for (final c in FamilyCostume.sold) {
       await shop.purchase(c.offerId);
     }
   }
@@ -80,7 +82,7 @@ void main() {
   test('the shop keeps costumes apart from effects', () {
     final effects = shop.getAlchemyEffectOffers().map((o) => o.id);
     final offered = shop.getCostumeOffers().map((o) => o.id);
-    expect(offered, [for (final c in FamilyCostume.values) c.offerId]);
+    expect(offered, [for (final c in FamilyCostume.sold) c.offerId]);
     expect(effects.toSet().intersection(offered.toSet()), isEmpty);
   });
 
@@ -142,9 +144,10 @@ void main() {
 
   test('a costume goes on a species it fits, and never as an effect', () async {
     await buyAll();
-    // Every family fitted wears every costume.
+    // Every family fitted wears every costume (the shop's; the Athanor's
+    // take the place of two of them: athanor_wearables_test.dart).
     for (final id in ['wing', 'pip', 'horn', 'let']) {
-      for (final c in FamilyCostume.values) {
+      for (final c in FamilyCostume.sold) {
         await db.inventoryDao.addItemQty(c.itemKey, 1);
         expect(await wear(id, c), true, reason: '$id ${c.tag}');
       }
@@ -162,7 +165,7 @@ void main() {
       false,
     );
     expect(await effect('mane'), null);
-    for (final c in FamilyCostume.values) {
+    for (final c in FamilyCostume.sold) {
       expect(await owned(c.itemKey), 1);
     }
     expect(FamilyCostume.fittedFamiliesText, 'Wings, Pips, Horns and Lets');

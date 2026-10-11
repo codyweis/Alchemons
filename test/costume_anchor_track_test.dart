@@ -64,14 +64,21 @@ void main() {
       final patch =
           (costume == FamilyCostume.partyHat ? _hatPatchOverrides[id] : null) ??
           switch (costume) {
-            FamilyCostume.partyHat => (
+            // The crown and the monocle ride the hat's and the glasses'
+            // fits.
+            FamilyCostume.partyHat || FamilyCostume.crown => (
               fit.$3 * 0.09,
               fit.$3 * 0.4,
               fit.$3 * 0.48,
               fit.$3 * 0.33,
             ),
             FamilyCostume.nose => (0.06, 0.0, 0.08, 0.06),
-            FamilyCostume.sunglasses => (0.0, 0.0, fit.$3 * 0.95, fit.$3 * 0.5),
+            FamilyCostume.sunglasses || FamilyCostume.monocle => (
+              0.0,
+              0.0,
+              fit.$3 * 0.95,
+              fit.$3 * 0.5,
+            ),
           };
       final row = <String>[];
       for (final f in frames) {

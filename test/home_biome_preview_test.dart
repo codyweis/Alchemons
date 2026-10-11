@@ -548,6 +548,66 @@ void main() {
         );
       }
     }
+
+    if (wants('athanor')) {
+      // The Athanor's decor (HomeDecor.athanor) stood about the household,
+      // by day and by night.
+      const sets = <List<(String, double, bool)>>[
+        [
+          ('moth_lantern#0', 0.04, false),
+          ('inkcap_cluster#0', 0.075, false),
+          ('ash_brazier#0', 0.235, false),
+          ('moonstone_cairn#0', 0.10, true),
+          ('salt_pillar#0', 0.215, true),
+          ('nightbloom_bed#0', 0.32, false),
+        ],
+        [
+          ('sundial#0', 0.04, false),
+          ('honey_lamp#0', 0.075, false),
+          ('storm_coil#0', 0.235, false),
+          ('moon_font#0', 0.32, false),
+          ('glass_rose#0', 0.10, true),
+          ('ember_bowl#0', 0.215, true),
+        ],
+        [
+          ('snow_globe#0', 0.06, false),
+          ('gilded_throne#0', 0.235, false),
+          ('pomegranate_tree#0', 0.13, true),
+          ('ember_nest#0', 0.34, false),
+        ],
+        [
+          ('great_alembic#0', 0.07, false),
+          ('alembic#0', 0.245, false),
+          ('bell_jar#0', 0.33, false),
+          ('music_box#0', 0.17, true),
+          ('herb_rack#0', 0.10, true),
+          ('retort_shelf#0', 0.25, true),
+        ],
+      ];
+      const resting = [
+        HomeResident(instanceId: 'fire_horn', x: 0.02),
+        HomeResident(instanceId: 'plant_let', x: 0.105, flip: true),
+        HomeResident(instanceId: 'water_pip', x: 0.19),
+        HomeResident(instanceId: 'air_wing', x: 0.13, lift: 0.3),
+        HomeResident(instanceId: 'light_horn', x: 0.28),
+      ];
+      for (var i = 0; i < sets.length; i++) {
+        for (final hour in const [12.0, 22.5]) {
+          final layout = base
+              .copyWith(
+                realm: HomeRealm.valley,
+                hour: () => hour,
+                residents: resting,
+              )
+              .withPlaced([
+                ...HomeRealm.valley.defaultPieces,
+                for (final (id, x, back) in sets[i])
+                  HomePiece(id: id, kind: id.split('#').first, x: x, back: back),
+              ]);
+          await shoot('athanor_${i}_${hour.round()}', layout, seconds: 8);
+        }
+      }
+    }
     if (wants('spring')) {
       // Two residents bathing in the hot spring, by day in the Valley and
       // by night in the Arcane.

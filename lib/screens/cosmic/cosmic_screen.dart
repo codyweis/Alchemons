@@ -43,6 +43,7 @@ import 'package:alchemons/games/cosmic/planets/planet_art.dart'
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -2889,6 +2890,16 @@ class _CosmicScreenState extends State<CosmicScreen>
     await context.read<AlchemonsDatabase>().currencyDao.addGold(gold);
   }
 
+  /// Tincture for the Athanor, paid with a level's gold: once per level,
+  /// since a won level is never fought again.
+  Future<void> _grantContestTincture(int tincture) async {
+    if (tincture <= 0) return;
+    await context.read<AlchemonsDatabase>().inventoryDao.addItemQty(
+      InvKeys.athanorTincture,
+      tincture,
+    );
+  }
+
   void _onContestHintCollected(CosmicContestHintNote note) {
     if (_knownContestHintIds.contains(note.id)) return;
     _knownContestHintIds.add(note.id);
@@ -3815,6 +3826,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       _bankContestShards(level.rewardShards);
       final goldReward = cosmicContestGoldReward(level.level);
       await _grantContestGold(goldReward);
+      final tinctureReward = athanorContestTincture(level.level);
+      await _grantContestTincture(tinctureReward);
       String masteryUnlockText = '';
       if (nextCompleted >= levels.length) {
         // The arena crowns itself where the player stands.
@@ -3832,7 +3845,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         '(${playerScore.toStringAsFixed(2)} vs ${opponentScore.toStringAsFixed(2)}). '
         '+${level.rewardShards} shards '
         '${_homePlanet != null ? 'banked at home' : 'into the hold'}, '
-        '+$goldReward gold.'
+        '+$goldReward gold, +$tinctureReward tincture.'
         '$masteryUnlockText',
       );
       HapticFeedback.heavyImpact();

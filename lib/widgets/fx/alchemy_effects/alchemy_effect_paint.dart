@@ -28,10 +28,15 @@ import 'package:flutter/painting.dart';
 part 'alchemy_glow.dart';
 part 'beauty_radiance.dart';
 part 'blood_aura.dart';
+part 'cinnabar.dart';
 part 'dust_ring.dart';
 part 'elemental_aura.dart';
+part 'gold_leaf.dart';
+part 'ink_bloom.dart';
 part 'intelligence_halo.dart';
+part 'peacock_tail.dart';
 part 'prismatic_cascade.dart';
+part 'quicksilver.dart';
 part 'ritual_gold.dart';
 part 'speed_flux.dart';
 part 'strength_forge.dart';
@@ -57,12 +62,31 @@ abstract final class AlchemyEffectPaint {
   static const String willOWisps = 'will_o_wisps';
   static const String dustRing = 'dust_ring';
 
-  /// Every effect the shop sells. These strings are what owned effects are
-  /// saved as: never change one.
+  // The Athanor's: drawn from its batches, never sold
+  // (docs/athanor/pieces_wearables.md).
+  static const String inkBloom = 'ink_bloom';
+  static const String peacockTail = 'peacock_tail';
+  static const String quicksilver = 'quicksilver';
+  static const String goldLeaf = 'gold_leaf';
+  static const String cinnabar = 'cinnabar';
+
+  /// The effects only the Athanor gives.
+  static const Set<String> athanorKeys = {
+    inkBloom,
+    peacockTail,
+    quicksilver,
+    goldLeaf,
+    cinnabar,
+  };
+
+  /// Every effect there is: the shop's and the Athanor's. These strings are
+  /// what owned effects are saved as: never change one.
   static const Set<String> keys = {
     FamilyCostume.hatPreview,
     FamilyCostume.nosePreview,
     FamilyCostume.sunglassesPreview,
+    FamilyCostume.crownPreview,
+    FamilyCostume.monoclePreview,
     alchemyGlow,
     elementalAura,
     volcanicAura,
@@ -77,6 +101,11 @@ abstract final class AlchemyEffectPaint {
     intelligenceHalo,
     willOWisps,
     dustRing,
+    inkBloom,
+    peacockTail,
+    quicksilver,
+    goldLeaf,
+    cinnabar,
   };
 
   /// Whether [key] paints round a creature. A worn family costume does
@@ -93,7 +122,8 @@ abstract final class AlchemyEffectPaint {
       key == speedFlux ||
       key == intelligenceHalo ||
       key == willOWisps ||
-      key == dustRing;
+      key == dustRing ||
+      athanorKeys.contains(key);
 
   /// Paints [key] behind a creature centred on [center].
   ///
@@ -173,6 +203,16 @@ abstract final class AlchemyEffectPaint {
           dark,
           front,
         );
+      case inkBloom:
+        _InkBloom.paint(canvas, center, r, t, o, dark, front);
+      case peacockTail:
+        _PeacockTail.paint(canvas, center, r, t, o, dark, front);
+      case quicksilver:
+        _Quicksilver.paint(canvas, center, r, t, o, dark, front);
+      case goldLeaf:
+        _GoldLeaf.paint(canvas, center, r, t, o, dark, front);
+      case cinnabar:
+        _Cinnabar.paint(canvas, center, r, t, o, dark, front);
     }
   }
 }
@@ -337,11 +377,13 @@ int _hsv(double hue, double s, double v) {
 }
 
 /// Soft sprites in one drawRawAtlas call, each its own color, size and
-/// turn: glowing grains, and petals of light. Buffers are preallocated; the
-/// atlas image is drawn once, on first use.
+/// turn: glowing grains, petals of light, beads of liquid metal (drawn laid
+/// over, in white, so they keep their own shading), and puffs of smoke (soft
+/// all through, no bright heart, so many overlapping read as one body). Buffers are
+/// preallocated; the atlas image is drawn once, on first use.
 abstract final class _Atlas {
   static const double _cell = 64;
-  static const int dot = 0, petal = 1;
+  static const int dot = 0, petal = 1, bead = 2, puff = 3;
   static const int _cap = 360;
 
   static final Float32List _xf = Float32List(_cap * 4);
@@ -442,9 +484,139 @@ abstract final class _Atlas {
         ]),
     );
     canvas.restore();
+    // A bead of quicksilver: the sky on its lit cap, its dark body, the
+    // pool's light along its underside, and the faint light it lays on the
+    // ground under it. Its own colors, so it is added in white.
+    canvas.save();
+    canvas.translate(c * 2.5, c * 0.44);
+    canvas.save();
+    canvas.translate(0, c * 0.36);
+    canvas.scale(1, 0.22);
+    canvas.drawCircle(
+      Offset.zero,
+      c * 0.48,
+      Paint()
+        ..shader = ui.Gradient.radial(Offset.zero, c * 0.48, const [
+          Color(0x66C8D6E8),
+          Color(0x22C8D6E8),
+          Color(0x00C8D6E8),
+        ], const [0.0, 0.5, 1.0]),
+    );
+    canvas.restore();
+    const br = c * 0.34;
+    canvas.drawCircle(
+      Offset.zero,
+      br,
+      Paint()
+        ..isAntiAlias = true
+        ..shader = ui.Gradient.radial(
+          const Offset(-br * 0.32, -br * 0.38),
+          br * 1.45,
+          const [
+            Color(0xFFFFFFFF),
+            Color(0xFFC8D0DC),
+            Color(0xFF586070),
+            Color(0xFF1E2229),
+            Color(0xFF9AA6B6),
+          ],
+          const [0.0, 0.12, 0.42, 0.74, 1.0],
+        ),
+    );
+    canvas.restore();
+    canvas.drawCircle(
+      const Offset(c * 3.5, c / 2),
+      c / 2,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          const Offset(c * 3.5, c / 2),
+          c / 2,
+          [
+            white.withValues(alpha: 0.9),
+            white.withValues(alpha: 0.72),
+            white.withValues(alpha: 0.36),
+            white.withValues(alpha: 0.1),
+            white.withValues(alpha: 0),
+          ],
+          const [0.0, 0.3, 0.6, 0.82, 1.0],
+        ),
+    );
     final picture = rec.endRecording();
-    final image = picture.toImageSync((c * 2).toInt(), c.toInt());
+    final image = picture.toImageSync((c * 4).toInt(), c.toInt());
     picture.dispose();
     return image;
   }
 }
+
+/// Triangles with a color at every corner, gathered over a frame and drawn
+/// with one drawVertices: many small filled shapes (leaves, ribbons, a
+/// mesh) for the cost of one. Each user keeps its own, sized once.
+class _Tris {
+  _Tris(int cap) : _xy = Float32List(cap * 6), _col = Int32List(cap * 3);
+  final Float32List _xy;
+  final Int32List _col;
+  int _n = 0;
+
+  static final Paint _paint = Paint()..isAntiAlias = true;
+
+  void add(
+    double ax,
+    double ay,
+    double bx,
+    double by,
+    double cx,
+    double cy,
+    int ca,
+    int cb,
+    int cc,
+  ) {
+    if ((_n + 1) * 6 > _xy.length) return;
+    final i = _n * 6;
+    _xy[i] = ax;
+    _xy[i + 1] = ay;
+    _xy[i + 2] = bx;
+    _xy[i + 3] = by;
+    _xy[i + 4] = cx;
+    _xy[i + 5] = cy;
+    final j = _n * 3;
+    _col[j] = ca;
+    _col[j + 1] = cb;
+    _col[j + 2] = cc;
+    _n++;
+  }
+
+  /// A quad a-b-c-d as two triangles, each corner its own ARGB.
+  void quad(
+    double ax,
+    double ay,
+    double bx,
+    double by,
+    double cx,
+    double cy,
+    double dx,
+    double dy,
+    int ca,
+    int cb,
+    int cc,
+    int cd,
+  ) {
+    add(ax, ay, bx, by, cx, cy, ca, cb, cc);
+    add(ax, ay, cx, cy, dx, dy, ca, cc, cd);
+  }
+
+  /// Draws what was added, and empties it.
+  void draw(Canvas c) {
+    if (_n == 0) return;
+    final v = ui.Vertices.raw(
+      ui.VertexMode.triangles,
+      Float32List.sublistView(_xy, 0, _n * 6),
+      colors: Int32List.sublistView(_col, 0, _n * 3),
+    );
+    c.drawVertices(v, BlendMode.dst, _paint);
+    v.dispose();
+    _n = 0;
+  }
+}
+
+/// An ARGB int from 0xRRGGBB and an alpha.
+int _argb(int rgb, double alpha) =>
+    ((alpha.clamp(0.0, 1.0) * 255).round() << 24) | (rgb & 0xFFFFFF);

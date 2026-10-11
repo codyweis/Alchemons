@@ -96,6 +96,24 @@ Future<void> precacheNavLets(CreatureCatalog catalog, DockSet set) async {
   }
 }
 
+/// [set]'s Let as [kind] draws it, loaded (and baked) and kept like the
+/// dock's own: for a preview of the set away from the dock. Null when the
+/// catalog has not loaded or the sheet cannot be.
+Future<NavLetSprite?> loadNavLet(
+  CreatureCatalog catalog,
+  DockSet set, {
+  NavEmblemKind kind = NavEmblemKind.home,
+}) async {
+  final sheets = navLetSheets(catalog, set, kind);
+  if (sheets.isEmpty) return null;
+  try {
+    return NavLetSprite(sheets.first, await _loadNavSheet(sheets.first.path));
+  } catch (e) {
+    debugPrint('[NavEmblem] could not load ${sheets.first.path}: $e');
+    return null;
+  }
+}
+
 /// A sheet and its loaded image.
 class NavLetSprite {
   const NavLetSprite(this.sheet, this.image);
@@ -338,6 +356,25 @@ class NavEmblemPainter extends CustomPainter {
 
     if (kind == NavEmblemKind.home) _arch(canvas, q, r, breathe);
     _pool(canvas, q(0, 0.88), r, light);
+    // A Let of the dark (the Athanor's Darklet) would sink into the dock's
+    // ink: away from Home's lit archway it stands in a faint light of its
+    // own, so it reads as a shape against it.
+    if (kind != NavEmblemKind.home &&
+        EssenceElement.of(element) == EssenceElement.dark) {
+      final at = q(kind == NavEmblemKind.inventory ? -0.16 : 0, 0.1);
+      final glow = Color.lerp(light, const Color(0xFFB896FF), 0.55)!;
+      canvas.drawCircle(
+        at,
+        r * 0.82,
+        _p
+          ..shader = ui.Gradient.radial(at, r * 0.82, [
+            glow.withValues(alpha: 0.5),
+            glow.withValues(alpha: 0.17),
+            glow.withValues(alpha: 0),
+          ], const [0.0, 0.5, 1.0]),
+      );
+      _p.shader = null;
+    }
     switch (kind) {
       case NavEmblemKind.home:
       case NavEmblemKind.shop:

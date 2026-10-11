@@ -3,9 +3,10 @@ import 'package:flutter/painting.dart';
 
 part 'costume_fits.dart';
 
-/// The costumes: a hat, a nose, sunglasses. Bought in the shop, kept in the
-/// inventory, and worn all at once if wanted — beside an alchemy effect, not
-/// in its place. Each fits the species it has been fitted to (see
+/// The costumes: a hat, a nose, sunglasses — bought in the shop — and the
+/// Athanor's crown and monocle, found nowhere else. Kept in the inventory,
+/// and worn all at once if wanted — beside an alchemy effect, not in its
+/// place — except that two on the same spot cannot be ([exclusiveWith]). Each fits the species it has been fitted to (see
 /// costume_fits.dart) and is part of the sprite, not an effect round it:
 /// each sprite renderer paints it after the frame, in the frame's own space
 /// (see `CostumePaint.paintWorn`). Each carries its color, picked as it goes
@@ -86,6 +87,62 @@ enum FamilyCostume {
     ],
     ringSaturation: 0.78,
     ringValue: 0.55,
+  ),
+
+  /// The Crown of the Red King (the Athanor, the Red Work's capstone): dark
+  /// gold and garnets over a velvet cap. It sits where the party hat does,
+  /// on the hat's fits, so the two are never worn together.
+  crown(
+    tag: 'crown',
+    title: 'Crown of the Red King',
+    itemKey: InvKeys.alchemyRedKingCrown,
+    offerId: 'effects.red_king_crown',
+    previewKey: FamilyCostume.crownPreview,
+    noun: 'crown',
+    athanorOnly: true,
+    // The garnets' and the velvet's color.
+    defaultColor: Color(0xFF9A1C2E),
+    presets: [
+      Color(0xFF9A1C2E), // garnet
+      Color(0xFF8C2F5A), // rose
+      Color(0xFF9A4A1E), // ember
+      Color(0xFF5A2E8F), // amethyst
+      Color(0xFF26306E), // midnight
+      Color(0xFF1F5E8C), // sapphire
+      Color(0xFF1F6A6A), // teal
+      Color(0xFF1E6E4A), // emerald
+      Color(0xFF3A3640), // jet
+    ],
+    ringSaturation: 0.8,
+    ringValue: 0.58,
+  ),
+
+  /// The Brass Monocle (the Athanor, the Still-Room): a round lens in a
+  /// brass rim on a bead chain. It sits over an eye, on the sunglasses'
+  /// fits, so the two are never worn together.
+  monocle(
+    tag: 'monocle',
+    title: 'Brass Monocle',
+    itemKey: InvKeys.alchemyBrassMonocle,
+    offerId: 'effects.brass_monocle',
+    previewKey: FamilyCostume.monoclePreview,
+    noun: 'monocle',
+    athanorOnly: true,
+    // The lens's faint tint: clear, warm glass by default.
+    defaultColor: Color(0xFFCDB07A),
+    presets: [
+      Color(0xFFCDB07A), // clear
+      Color(0xFFD08A3A), // amber
+      Color(0xFFC83A4A), // ruby
+      Color(0xFFC8708A), // rose
+      Color(0xFF8A6AD0), // violet
+      Color(0xFF4A78D0), // sapphire
+      Color(0xFF3AA8A0), // teal
+      Color(0xFF4AA060), // emerald
+      Color(0xFF6A6470), // smoke
+    ],
+    ringSaturation: 0.55,
+    ringValue: 0.8,
   );
 
   const FamilyCostume({
@@ -99,6 +156,7 @@ enum FamilyCostume {
     required this.presets,
     required this.ringSaturation,
     required this.ringValue,
+    this.athanorOnly = false,
   });
 
   /// What it is saved as in a [WornCostumes]: never change one.
@@ -124,13 +182,44 @@ enum FamilyCostume {
   /// How strong and how light every color round the ring is.
   final double ringSaturation, ringValue;
 
+  /// Found only in the Athanor: the shop never sells it.
+  final bool athanorOnly;
+
   static const hatPreview = 'celebration';
   static const nosePreview = 'alchemical_nose';
   static const sunglassesPreview = 'alchemical_sunglasses';
+  static const crownPreview = 'red_king_crown';
+  static const monoclePreview = 'brass_monocle';
 
-  /// The order they are drawn in over a sprite: the glasses on the face,
-  /// the nose over their bridge, the hat over everything above.
-  static const paintOrder = [sunglasses, nose, partyHat];
+  /// The ones the shop sells.
+  static List<FamilyCostume> get sold => [
+    for (final c in values)
+      if (!c.athanorOnly) c,
+  ];
+
+  /// The costume that sits on the same spot, so wearing one takes the
+  /// other off: the crown and the party hat (the head), the monocle and
+  /// the sunglasses (the eyes). Null for one that shares its spot.
+  FamilyCostume? get exclusiveWith => switch (this) {
+    partyHat => crown,
+    crown => partyHat,
+    sunglasses => monocle,
+    monocle => sunglasses,
+    nose => null,
+  };
+
+  /// The costume whose fits this one rides: the crown sits on the hat's,
+  /// the monocle on the sunglasses', so neither needs fits of its own.
+  FamilyCostume get _fitted => switch (this) {
+    crown => partyHat,
+    monocle => sunglasses,
+    _ => this,
+  };
+
+  /// The order they are drawn in over a sprite: the glasses (or the
+  /// monocle) on the face, the nose over their bridge, the hat (or the
+  /// crown) over everything above.
+  static const paintOrder = [sunglasses, monocle, nose, partyHat, crown];
 
   /// Its color at [hue] in turns round the wheel (0..1): the same depth in
   /// every hue, so no pick reads as another material.
@@ -143,14 +232,14 @@ enum FamilyCostume {
 
   /// Frame-0 fits by species: see [_placements].
   Map<String, (double, double, double)> get placements =>
-      _placements[this] ?? const {};
+      _placements[_fitted] ?? const {};
 
   /// Per-frame fits by species: see [_frameFits].
   Map<String, List<(double, double, double)>> get frameFits =>
-      _frameFits[this] ?? const {};
+      _frameFits[_fitted] ?? const {};
 
   /// Frame-0 head tilts by species: see [_tilts].
-  Map<String, double> get tilts => _tilts[this] ?? const {};
+  Map<String, double> get tilts => _tilts[_fitted] ?? const {};
 
   /// Whether a creature of [baseId] can wear this one.
   bool fits(String baseId) => placements.containsKey(baseId);
@@ -234,10 +323,12 @@ class WornCostumes {
   Color colorOf(FamilyCostume costume) =>
       colors[costume] ?? costume.defaultColor;
 
-  /// The same with [costume] on in [color] (its own if null).
+  /// The same with [costume] on in [color] (its own if null), and the one
+  /// on its spot ([FamilyCostume.exclusiveWith]) off.
   WornCostumes wear(FamilyCostume costume, {Color? color}) => WornCostumes(
     species,
-    {...colors, costume: color ?? costume.defaultColor},
+    {...colors, costume: color ?? costume.defaultColor}
+      ..remove(costume.exclusiveWith),
   );
 
   /// The same with [costume] off.
@@ -262,8 +353,8 @@ class WornCostumes {
     return '$species:${parts.join(',')}';
   }
 
-  /// What [saved] says is worn — only costumes that fit its species, in
-  /// colors that read. Read every frame by the renderers, so kept.
+  /// What [saved] says is worn — only costumes that fit its species, one
+  /// to a spot, in colors that read. Read every frame by the renderers, so kept.
   static WornCostumes? parse(String? saved) {
     if (saved == null || saved.isEmpty) return null;
     final kept = _parsed[saved];
@@ -285,6 +376,8 @@ class WornCostumes {
         mark < 0 ? part : part.substring(0, mark),
       );
       if (costume == null || !costume.fits(species)) continue;
+      // Two on one spot: the first saved is the one worn.
+      if (colors.containsKey(costume.exclusiveWith)) continue;
       final rgb = mark < 0
           ? null
           : int.tryParse(part.substring(mark + 1), radix: 16);

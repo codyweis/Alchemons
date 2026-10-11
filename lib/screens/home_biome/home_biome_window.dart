@@ -17,6 +17,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/screens/home_biome/home_biome_screen.dart';
+import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/widgets.dart';
@@ -67,6 +68,13 @@ class _HomeBiomeWindowState extends State<HomeBiomeWindow> {
       // As down there: the residents stroll, sleep at night, take portals.
       ..lively = true
       ..panDrift = 16;
+    // The Athanor's trails and the realm's ambience, if any are worn.
+    final wear = context.read<CosmeticWearService?>();
+    if (wear != null) {
+      game
+        ..trailOf = wear.trailOf
+        ..ambience = wear.ambienceIn(layout.realm.name);
+    }
     // Loading needs the loop (components mount in its updates), so it runs
     // from the start unless home is already covered.
     if (!widget.active) game.pauseEngine();

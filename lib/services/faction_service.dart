@@ -217,7 +217,8 @@ class FactionService extends ChangeNotifier {
   }
 
   /// Whether [set] is the player's: the faction's own set, any set of a
-  /// faction they were in, any set they bought.
+  /// faction they were in, any set they bought or drew from the Athanor
+  /// (worn whatever the faction).
   bool ownsDockSet(DockSet set) =>
       set == DockSet.of(current) || _ownedDockSets.contains(set.id);
 
@@ -233,6 +234,20 @@ class FactionService extends ChangeNotifier {
     await _ownDockSet(set);
     await _setWornDockSet(set);
     notifyListeners();
+  }
+
+  /// Reads again which dock sets are owned: the Athanor grants one by its
+  /// settings row, inside its own pour, without this service.
+  Future<void> reloadDockSets() async {
+    final owned = {..._ownedDockSets};
+    final worn = dockSet;
+    _dockLoaded = false;
+    await _loadDock();
+    if (owned.length != _ownedDockSets.length ||
+        !owned.containsAll(_ownedDockSets) ||
+        worn != dockSet) {
+      notifyListeners();
+    }
   }
 
   /// Reads which dock sets are owned and which is worn, once; true if that

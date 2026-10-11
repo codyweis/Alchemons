@@ -46,9 +46,11 @@ Future<void> removeAlchemyEffect(
 });
 
 /// Puts [costume] on a creature in [color] (its own if null), using up
-/// one; it is worn beside its effect and any other costumes. If it already
-/// wears one, only the color changes, free. False if it does not fit the
-/// species, or none is owned.
+/// one; it is worn beside its effect and any other costumes, except the one
+/// on its spot ([FamilyCostume.exclusiveWith]: the crown and the party hat,
+/// the monocle and the sunglasses), which comes off and goes back into the
+/// inventory. If it already wears one, only the color changes, free. False
+/// if it does not fit the species, or none is owned.
 Future<bool> wearCostume(
   AlchemonsDatabase db, {
   required String instanceId,
@@ -61,6 +63,10 @@ Future<bool> wearCostume(
   if (!worn.wears(costume)) {
     if (await db.inventoryDao.getItemQty(costume.itemKey) < 1) return false;
     await db.inventoryDao.decrementItem(costume.itemKey, by: 1);
+  }
+  final rival = costume.exclusiveWith;
+  if (rival != null && worn.wears(rival)) {
+    await db.inventoryDao.addItemQty(rival.itemKey, 1);
   }
   await db.creatureDao.updateCostumes(
     instanceId: instanceId,
