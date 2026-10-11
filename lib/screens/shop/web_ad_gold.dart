@@ -76,8 +76,8 @@ class _WebAdGoldCardState extends State<WebAdGoldCard> {
         ? 'BACK TOMORROW'
         : 'WATCH AD';
     final note = !enabled
-        ? 'Ads are blocked or not loaded. Gold packs are in the iOS and '
-              'Android apps.'
+        ? 'No ads available right now (not set up yet, or blocked by the '
+              'browser). Gold packs are in the iOS and Android apps.'
         : left == null
         ? ''
         : '$left of ${WebAds.rewardsPerDay} left today.';

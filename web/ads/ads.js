@@ -7,7 +7,7 @@
   'use strict';
 
   const cfg = Object.assign(
-    { client: '', slots: {}, interstitialGapSec: 90, startAd: true },
+    { client: '', h5Games: false, slots: {}, interstitialGapSec: 90, startAd: true },
     window.ALCHEMONS_ADS || {},
   );
   cfg.slots = Object.assign({ railLeft: '', railRight: '', bottom: '' }, cfg.slots);
@@ -32,10 +32,12 @@
     s.onload = () => { script = 'ready'; };
     s.onerror = () => { script = 'blocked'; };
     document.head.appendChild(s);
-    adBreak({ preloadAdBreaks: 'on', sound: 'on' }); // adConfig
+    if (cfg.h5Games) adBreak({ preloadAdBreaks: 'on', sound: 'on' }); // adConfig
   }
 
   const usable = () => script === 'ready' || script === 'loading';
+  // adBreak (start, between-screens, rewarded) only once H5 Games Ads is on.
+  const breaks = () => !!cfg.h5Games && usable();
   let lastBreak = 0;
   let showing = false;
 
@@ -44,7 +46,7 @@
   /// blocked) gives up after [patienceMs].
   function runBreak(options, onStart, onEnd, patienceMs) {
     return new Promise((resolve) => {
-      if (!usable() || showing) return resolve({ played: false });
+      if (!breaks() || showing) return resolve({ played: false });
       let started = false;
       let ended = false;
       let settled = false;
@@ -132,7 +134,8 @@
   }
 
   window.alchemonsAds = {
-    get configured() { return !!cfg.client && usable(); },
+    // What the game asks before offering an ad of its own (breaks, rewards).
+    get configured() { return !!cfg.client && breaks(); },
     get showing() { return showing; },
     get startAd() { return !!cfg.startAd; },
     get hasBottom() { return preview || (!!cfg.client && !!cfg.slots.bottom); },

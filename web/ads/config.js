@@ -1,22 +1,28 @@
 // Ads for the browser build (alchemons.com/play). The iOS and Android apps
 // never show ads; this file only exists on the web.
 //
-// Leave `client` empty and the page runs with no ads at all. Once AdSense has
-// approved alchemons.com, paste the publisher id and the ad unit ids here and
-// redeploy — the game itself does not need rebuilding.
+// Leave `client` empty and the page runs with no ads at all. Ad unit ids and
+// the H5 switch below can change with a redeploy of the site alone — the game
+// itself does not need rebuilding.
 //
 // Preview the layout before approval: /play/?adpreview=1 (placeholder boxes).
 // Google's test ads once the id is in: /play/?adtest=1
 window.ALCHEMONS_ADS = {
-  // AdSense → Account → Settings → Publisher ID, e.g. 'ca-pub-1234567890123456'.
-  client: '',
+  // AdSense → Account → Settings → Publisher ID.
+  client: 'ca-pub-8875246042491117',
+
+  // H5 Games Ads (between-screens, start and rewarded ads) is a separate
+  // application to Google (developers.google.com/ad-placement/docs/signup).
+  // Leave false until it is approved: until then those ads never fill, and
+  // the game skips asking. Display units beside/under the game don't need it.
+  h5Games: false,
 
   // AdSense → Ads → By ad unit → Display ads. Each value is the unit's
   // data-ad-slot number. Any left empty is simply not shown.
   slots: {
-    railLeft: '',   // beside the game on wide screens (vertical unit)
-    railRight: '',  // the other side (may reuse railLeft's id)
-    bottom: '',     // under the game on phones (horizontal 320×50 unit)
+    railLeft: '8617703029',   // "Alchemons rail left" (vertical), wide screens
+    railRight: '5061687113',  // "Alchemons rail right" (vertical)
+    bottom: '4814275109',     // "Alchemons bottom" (horizontal), under the game on phones
   },
 
   // Between-screens ads (H5 Games Ads): at most one per this many seconds.
