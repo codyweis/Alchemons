@@ -1,144 +1,170 @@
+import {X509Certificate, verify as verifySignature} from "node:crypto";
+import {APPLE_ROOT_CA_G3_PEM} from "./appleRootCA";
 import {ANDROID_PACKAGE_NAME} from "./catalog";
-import {
-  FailureKind,
-  VerificationFailure,
-  VerifiedPurchase,
-} from "./types";
-
-const PRODUCTION_URL = "https://buy.itunes.apple.com/verifyReceipt";
-const SANDBOX_URL = "https://sandbox.itunes.apple.com/verifyReceipt";
+import {VerificationFailure, VerifiedPurchase} from "./types";
 
 /** iOS and Android share one application id. */
 const IOS_BUNDLE_ID = ANDROID_PACKAGE_NAME;
 
-/** Apple's "this is a sandbox receipt, ask the sandbox instead" status. */
-const STATUS_SANDBOX_RECEIPT = 21007;
+/**
+ * Marker extensions Apple puts on the certificates that sign App Store data.
+ * Checking them is what stops any other Apple-issued certificate (a
+ * developer's own, say) from signing a "transaction" that chains to the same
+ * root.
+ */
+const LEAF_MARKER_OID = "1.2.840.113635.100.6.11.1";
+const INTERMEDIATE_MARKER_OID = "1.2.840.113635.100.6.2.1";
 
-interface InAppEntry {
-  product_id?: string;
-  transaction_id?: string;
-  original_transaction_id?: string;
-  purchase_date_ms?: string;
+/** The fields of a StoreKit 2 JWSTransaction this function relies on. */
+interface SignedTransactionPayload {
+  transactionId?: string;
+  originalTransactionId?: string;
+  bundleId?: string;
+  productId?: string;
+  purchaseDate?: number;
+  signedDate?: number;
+  revocationDate?: number;
+  environment?: string;
 }
 
-interface VerifyReceiptResponse {
-  status?: number;
-  receipt?: {
-    bundle_id?: string;
-    in_app?: InAppEntry[];
-  };
+/** DER encoding of an object identifier, tag and length included. */
+function oidDer(oid: string): Buffer {
+  const arcs = oid.split(".").map(Number);
+  const body: number[] = [arcs[0] * 40 + arcs[1]];
+  for (const arc of arcs.slice(2)) {
+    const digits = [arc & 0x7f];
+    let rest = Math.floor(arc / 128);
+    while (rest > 0) {
+      digits.unshift((rest & 0x7f) | 0x80);
+      rest = Math.floor(rest / 128);
+    }
+    body.push(...digits);
+  }
+  return Buffer.from([0x06, body.length, ...body]);
+}
+
+function hasExtension(cert: X509Certificate, oid: string): boolean {
+  return cert.raw.includes(oidDer(oid));
+}
+
+function validAt(cert: X509Certificate, atMs: number): boolean {
+  return Date.parse(cert.validFrom) <= atMs && atMs <= Date.parse(cert.validTo);
 }
 
 /**
- * Maps an Apple status code to how the client should treat it.
- *
- * The distinction that matters: a status caused by *our* misconfiguration must
- * never come back as `invalid`, because the client drops an invalid purchase
- * from its queue and the player silently loses gold they paid for. A wrong or
- * unset shared secret (21004) is the obvious way to get this wrong.
+ * A check of Apple's signature failed. Reported as `internal`, not `invalid`:
+ * the client keeps an internal failure queued and retries, so a mistake here
+ * can never make a player lose gold they paid for. A forged transaction just
+ * retries forever and is never credited.
  */
-function failureKindForStatus(status: number | undefined): FailureKind {
-  switch (status) {
-    case 21000: // We sent malformed JSON.
-    case 21004: // Shared secret does not match the one on file.
-      return "internal";
-    case 21005: // Receipt server is temporarily unavailable.
-    case 21009: // Internal data access error.
-      return "retryable";
-    default:
-      // 21002 malformed receipt, 21003 not authenticated, 21008 production
-      // receipt sent to sandbox, 21010 account not found, and anything new.
-      return "invalid";
-  }
-}
-
-async function postReceipt(
-  url: string,
-  receiptData: string,
-  sharedSecret: string
-): Promise<VerifyReceiptResponse> {
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify({
-        "receipt-data": receiptData,
-        "password": sharedSecret,
-        "exclude-old-transactions": false,
-      }),
-    });
-  } catch (error) {
-    throw new VerificationFailure(
-      "retryable",
-      `Could not reach the App Store: ${error}`
-    );
-  }
-
-  if (!response.ok) {
-    throw new VerificationFailure(
-      "retryable",
-      `App Store verifyReceipt returned ${response.status}.`
-    );
-  }
-  return (await response.json()) as VerifyReceiptResponse;
+function untrusted(message: string): VerificationFailure {
+  return new VerificationFailure("internal", message);
 }
 
 /**
- * Verifies a StoreKit receipt and confirms it contains [transactionId] for
- * [productId].
+ * Verifies a StoreKit 2 signed transaction (JWS) and confirms it is a real
+ * App Store purchase of [productId] for this app.
  *
- * The client tells us which transaction it is claiming; we only accept it if
- * Apple's copy of the receipt actually contains that transaction. That keeps
- * the ledger key bound to something the store confirmed rather than to
- * whatever the client typed.
+ * With StoreKit 2, which the in_app_purchase plugin uses on every device the
+ * app supports (iOS 15+), the purchase's `serverVerificationData` is this JWS,
+ * not a legacy app receipt, so Apple's old verifyReceipt endpoint cannot read
+ * it. The JWS carries its own certificate chain; it is trusted only if that
+ * chain ends at Apple Root CA - G3, each certificate carries Apple's App Store
+ * marker, and the signature over the payload checks out.
+ *
+ * [roots] is for tests; production always uses Apple's root.
  */
-export async function verifyAppStorePurchase(args: {
+export function verifyAppStoreTransaction(args: {
   productId: string;
-  transactionId: string;
-  receiptData: string;
-  sharedSecret: string;
-}): Promise<VerifiedPurchase> {
-  let body = await postReceipt(
-    PRODUCTION_URL,
-    args.receiptData,
-    args.sharedSecret
+  transactionId: string | null;
+  signedTransaction: string;
+  roots?: string[];
+}): VerifiedPurchase {
+  const parts = args.signedTransaction.split(".");
+  if (parts.length !== 3) {
+    throw untrusted("The App Store transaction is not a signed JWS.");
+  }
+  const [headerPart, payloadPart, signaturePart] = parts;
+
+  let header: {alg?: string; x5c?: string[]};
+  let payload: SignedTransactionPayload;
+  try {
+    header = JSON.parse(Buffer.from(headerPart, "base64url").toString("utf8"));
+    payload = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8"));
+  } catch (_) {
+    throw untrusted("The App Store transaction could not be decoded.");
+  }
+
+  if (header.alg !== "ES256" || !Array.isArray(header.x5c) || header.x5c.length !== 3) {
+    throw untrusted("The App Store transaction has an unexpected signature header.");
+  }
+
+  let leaf: X509Certificate;
+  let intermediate: X509Certificate;
+  let presentedRoot: X509Certificate;
+  try {
+    [leaf, intermediate, presentedRoot] = header.x5c.map(
+      (der) => new X509Certificate(Buffer.from(der, "base64"))
+    );
+  } catch (_) {
+    throw untrusted("The App Store transaction's certificates could not be read.");
+  }
+
+  const trusted = (args.roots ?? [APPLE_ROOT_CA_G3_PEM]).map(
+    (pem) => new X509Certificate(pem)
   );
-  if (body.status === STATUS_SANDBOX_RECEIPT) {
-    body = await postReceipt(SANDBOX_URL, args.receiptData, args.sharedSecret);
+  const root = trusted.find((candidate) => candidate.fingerprint256 === presentedRoot.fingerprint256);
+  if (!root) {
+    throw untrusted("The App Store transaction does not chain to Apple's root.");
   }
 
-  if (body.status !== 0) {
-    throw new VerificationFailure(
-      failureKindForStatus(body.status),
-      `App Store rejected this receipt (status ${body.status ?? "unknown"}).`
-    );
+  // Certificates are checked as of when Apple signed the transaction, so an
+  // old purchase still verifies after its signing certificate has expired.
+  const at = typeof payload.signedDate === "number" ? payload.signedDate : Date.now();
+  const chainOk =
+    intermediate.checkIssued(root) && intermediate.verify(root.publicKey) &&
+    leaf.checkIssued(intermediate) && leaf.verify(intermediate.publicKey) &&
+    validAt(intermediate, at) && validAt(leaf, at) &&
+    hasExtension(intermediate, INTERMEDIATE_MARKER_OID) &&
+    hasExtension(leaf, LEAF_MARKER_OID);
+  if (!chainOk) {
+    throw untrusted("The App Store transaction's certificate chain is not Apple's.");
   }
 
-  if (body.receipt?.bundle_id !== IOS_BUNDLE_ID) {
-    throw new VerificationFailure(
-      "invalid",
-      "This receipt belongs to a different app."
-    );
-  }
-
-  const entry = (body.receipt?.in_app ?? []).find(
-    (candidate) =>
-      candidate.product_id === args.productId &&
-      candidate.transaction_id === args.transactionId
+  const signatureOk = verifySignature(
+    "sha256",
+    Buffer.from(`${headerPart}.${payloadPart}`),
+    {key: leaf.publicKey, dsaEncoding: "ieee-p1363"},
+    Buffer.from(signaturePart, "base64url")
   );
-  if (!entry?.transaction_id) {
-    throw new VerificationFailure(
-      "invalid",
-      "This receipt does not contain the claimed transaction."
-    );
+  if (!signatureOk) {
+    throw untrusted("The App Store transaction's signature does not match.");
+  }
+
+  // From here the payload is Apple's word; a mismatch is a definite no.
+  if (payload.bundleId !== IOS_BUNDLE_ID) {
+    throw new VerificationFailure("invalid", "This transaction belongs to a different app.");
+  }
+  if (payload.productId !== args.productId) {
+    throw new VerificationFailure("invalid", "This transaction is for a different product.");
+  }
+  const transactionId = payload.transactionId?.trim();
+  if (!transactionId) {
+    throw new VerificationFailure("invalid", "This transaction has no transaction id.");
+  }
+  if (args.transactionId && args.transactionId !== transactionId) {
+    throw new VerificationFailure("invalid", "This transaction does not match the claimed purchase.");
+  }
+  if (payload.revocationDate) {
+    throw new VerificationFailure("invalid", "This purchase was refunded or revoked.");
   }
 
   return {
     platform: "ios",
-    transactionId: entry.transaction_id,
+    transactionId,
     productId: args.productId,
-    purchasedAtMs: Number(entry.purchase_date_ms ?? "0") || null,
+    purchasedAtMs: typeof payload.purchaseDate === "number" ? payload.purchaseDate : null,
     purchaseType: null,
+    environment: payload.environment ?? null,
   };
 }

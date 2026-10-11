@@ -1,19 +1,16 @@
 import {initializeApp} from "firebase-admin/app";
 import {FieldValue, getFirestore} from "firebase-admin/firestore";
-import {defineSecret} from "firebase-functions/params";
 import {HttpsError, onCall} from "firebase-functions/v2/https";
 import {logger} from "firebase-functions";
 
 import {goldPackFor} from "./catalog";
-import {verifyAppStorePurchase} from "./appStoreVerifier";
+import {verifyAppStoreTransaction} from "./appStoreVerifier";
 import {verifyPlayPurchase} from "./playVerifier";
 import {VerificationFailure, VerifiedPurchase} from "./types";
 
 initializeApp();
 
 export {previewProgressReset, beginProgressReset, finishProgressReset} from "./resetProgress";
-
-const appStoreSharedSecret = defineSecret("APP_STORE_SHARED_SECRET");
 
 interface RedeemRequest {
   platform?: unknown;
@@ -57,7 +54,7 @@ function toHttpsError(error: unknown): HttpsError {
  * product; it never names a price.
  */
 export const redeemPurchase = onCall(
-  {secrets: [appStoreSharedSecret], region: "us-central1"},
+  {region: "us-central1"},
   async (request) => {
     const uid = request.auth?.uid;
     if (!uid) {
@@ -85,18 +82,13 @@ export const redeemPurchase = onCall(
           purchaseToken: verificationData,
         });
       } else if (platform === "ios") {
-        const secret = appStoreSharedSecret.value();
-        if (!secret) {
-          throw new VerificationFailure(
-            "internal",
-            "APP_STORE_SHARED_SECRET is not configured."
-          );
-        }
-        verified = await verifyAppStorePurchase({
+        // StoreKit 2: verificationData is the signed transaction (JWS).
+        verified = verifyAppStoreTransaction({
           productId,
-          transactionId: requireString(data.transactionId, "transactionId"),
-          receiptData: verificationData,
-          sharedSecret: secret,
+          transactionId:
+            typeof data.transactionId === "string" && data.transactionId.trim() ?
+              data.transactionId.trim() : null,
+          signedTransaction: verificationData,
         });
       } else {
         throw new HttpsError(
@@ -147,6 +139,7 @@ export const redeemPurchase = onCall(
         transactionId: verified.transactionId,
         goldAmount: pack.goldAmount,
         purchaseType: verified.purchaseType,
+        environment: verified.environment ?? null,
         purchasedAtMs: verified.purchasedAtMs,
         redeemedAt: FieldValue.serverTimestamp(),
       });

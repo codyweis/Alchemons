@@ -6,9 +6,9 @@ ever checked that a purchase had happened. That made three things free for an
 attacker — a patched billing library, replaying one receipt onto many accounts,
 and handing a backup containing purchased gold to a friend.
 
-This is phase 0 of the fix: **the server decides whether a purchase is real and
-what it is worth.** Phase 1 (reconciling purchased gold on restore) builds on the
-ledger this phase creates.
+**The server decides whether a purchase is real and what it is worth**, and a
+game can only ever be backed up, restored or bought into by the account that
+owns it (see *Save ownership* below). Deployed to `alchemons-auth` on 2026-10-10.
 
 ## How it works
 
@@ -95,17 +95,22 @@ to manage.
 Permission changes can take a few hours to propagate. Until they do, redeems
 fail as `unavailable` and stay queued, which is the correct behaviour.
 
-### 3. App Store (only if shipping iOS)
+### 3. App Store
 
-App Store Connect → your app → **App-Specific Shared Secret**, then:
+Nothing to configure. `in_app_purchase_storekit` 0.4+ uses StoreKit 2 on every
+device the app supports (iOS 15+), so a purchase's `serverVerificationData` is
+the signed transaction (a JWS), not a legacy app receipt — Apple's old
+`verifyReceipt` endpoint cannot read it. `functions/src/appStoreVerifier.ts`
+verifies the JWS itself: its certificate chain must end at Apple Root CA - G3
+(`functions/src/appleRootCA.ts`), carry Apple's App Store marker extensions, and
+sign the payload; then the bundle id, product and transaction must match. No
+shared secret or API key is involved. Sandbox transactions (TestFlight, App
+Review) are accepted and recorded with `environment: "Sandbox"` in the ledger.
 
-```bash
-firebase functions:secrets:set APP_STORE_SHARED_SECRET
-```
-
-Verification uses the legacy `verifyReceipt` endpoint with the standard
-production-then-sandbox fallback, which matches the StoreKit 1 receipts that
-`in_app_purchase` 3.2.0 produces.
+A failure to prove a transaction is Apple's is answered `internal` (retry),
+never `failed-precondition` (drop): a verifier mistake can only delay a
+purchase, never lose one. Tests: `cd functions && npm run build && node --test
+test/app_store_verifier.test.cjs`.
 
 ### 4. Deploy
 
@@ -125,9 +130,24 @@ shop advertised, so change both together.
 - **A patched client can still call `addGold` directly.** Earned gold is not
   defended and cannot be while the game is offline-first. There is no PvP and no
   shared leaderboard, so a cheater only affects their own save.
-- **A shared backup still carries purchased gold** until phase 1 reconciles the
-  outstanding counter against the account's entitlement on restore. The counter
-  is already being tracked and exported, so the data is there when that lands.
+- **A scripted attacker can still clone their own save.** The save payload is
+  client data the server cannot read inside Firestore rules; someone writing to
+  Firestore by hand could re-label a save for another of their accounts. That
+  is the same trust level as editing gold locally. The app itself no longer
+  allows it (below).
+
+## Save ownership
+
+The game on a device belongs to one account (`account.save_owner` in its
+settings). `SaveGenerationService.claimFor` ties a guest game to the first
+account that claims it and refuses every other account. It guards making a
+device active (`AccountSessionService.claimCurrentDevice`), backing up
+(`SaveTransferService.exportSaveCode`), buying gold, and delivering queued
+purchases. Before this, signing out and into a second account — or creating one
+— let it claim the device and back up the first account's game, purchased gold
+included, as its own, once per account. A restore still replaces the game with
+the restoring account's own backup, and starting a new game leaves a guest game
+any account can take. `test/save_ownership_test.dart` covers it.
 - **App Check is not enabled.** It would stop a script calling `redeemPurchase`
   from outside the app, though such a script still needs a genuine unredeemed
   receipt to get anything.

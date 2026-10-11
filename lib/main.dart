@@ -523,7 +523,6 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
 
     setState(() => _busy = true);
     try {
-      await session.rotateCurrentDeviceId();
       final saveCode = await cloudSave.downloadSaveCode(account.user!.uid);
       await saveTransfer.importSaveCode(
         saveCode,
@@ -531,6 +530,7 @@ class _AccountMovedGateState extends State<_AccountMovedGate> {
       );
       if (!mounted) return;
       await reloadStateAfterSaveRestore(context);
+      await session.rotateCurrentDeviceId();
       await session.claimCurrentDevice(force: true);
       await session.refresh();
       if (!mounted) return;

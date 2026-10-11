@@ -99,12 +99,12 @@ Future<bool> _attemptRestore(BuildContext context) async {
       );
     }
 
-    await session.rotateCurrentDeviceId();
     final saveCode = await cloudSave.downloadSaveCode(uid);
     await SaveTransferService(db).importSaveCode(saveCode, ownerAccountId: uid);
 
     if (!context.mounted) return false;
     await reloadStateAfterSaveRestore(context);
+    await session.rotateCurrentDeviceId();
     await session.claimCurrentDevice(force: true);
     await session.refresh();
 

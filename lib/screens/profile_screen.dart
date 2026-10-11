@@ -49,6 +49,7 @@ import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/services/progress_reset_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
+import 'package:alchemons/services/save_generation_service.dart';
 import 'package:alchemons/services/save_restore_reload_service.dart';
 import 'package:alchemons/services/save_transfer_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
@@ -180,6 +181,23 @@ class _ProfileScreenState extends State<ProfileScreen>
   bool _saveTransferBusy = false;
   int _cosmicHintPage = 0;
 
+  /// The account this device's game belongs to (null: a guest game).
+  String? _saveOwner;
+
+  /// Signed in, but the game on this device is another account's: it can't
+  /// be made active, backed up or bought into from this account.
+  bool _ownedElsewhere(AccountService account) =>
+      _saveOwner != null &&
+      account.user != null &&
+      account.user!.uid != _saveOwner;
+
+  Future<void> _loadSaveOwner() async {
+    final owner = await SaveGenerationService.owner(
+      context.read<AlchemonsDatabase>(),
+    );
+    if (mounted) setState(() => _saveOwner = owner);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -190,6 +208,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     _loadNotificationPrefs();
     _loadCinematicQuality();
     _loadDebugTools();
+    _loadSaveOwner();
     DebugSettingsService.allowedNotifier.addListener(_onDebugToolsAllowed);
   }
 
@@ -501,6 +520,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _reloadProfileState() async {
     if (!mounted) return;
+    await _loadSaveOwner();
     await _loadProfileData();
     await _loadNotificationPrefs();
     await _loadCinematicQuality();
@@ -582,6 +602,18 @@ class _ProfileScreenState extends State<ProfileScreen>
   // ───────────────────────────── account ──────────────────────────────────
 
   Future<void> _createAccount() async {
+    await _loadSaveOwner();
+    if (!mounted) return;
+    if (_saveOwner != null) {
+      // A new account can't take over a game another account owns.
+      _showTransferSnack(
+        'The game on this device belongs to another account. Sign into that '
+        'account to keep playing it, or reset progress to start a new game, '
+        'then create your new account.',
+        isError: true,
+      );
+      return;
+    }
     final result = await _showCredentialDialog(
       title: 'CREATE ACCOUNT',
       submitLabel: 'CREATE',
@@ -603,6 +635,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         displayName: result.displayName,
       );
       await sessionService.claimCurrentDevice(force: true);
+      await _loadSaveOwner();
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showTransferSnack('Account created. Save transfer is now unlocked.');
     } on AccountException catch (error) {
@@ -630,8 +663,13 @@ class _ProfileScreenState extends State<ProfileScreen>
       final deviceId = await context
           .read<DeviceIdentityService>()
           .getDeviceId();
+      await _loadSaveOwner();
+      // Another account's game is reset locally only: the server reset belongs
+      // to the account that owns the game. The fresh game is a guest game this
+      // account can then make its own.
+      final serverUid = _ownedElsewhere(account) ? null : uid;
       await store.pauseForReset();
-      final preview = uid == null ? null : await reset.preview(deviceId);
+      final preview = serverUid == null ? null : await reset.preview(deviceId);
       if (!mounted) return;
       final choice = await showDialog<String>(
         context: context,
@@ -648,7 +686,11 @@ class _ProfileScreenState extends State<ProfileScreen>
           throw StateError('Your account changed. Review the reset again.');
         }
         await store.pauseForReset();
-        await reset.request(uid: uid, deviceId: deviceId, preview: preview);
+        await reset.request(
+          uid: serverUid,
+          deviceId: deviceId,
+          preview: preview,
+        );
       }
     } catch (error) {
       if (mounted) {
@@ -680,9 +722,15 @@ class _ProfileScreenState extends State<ProfileScreen>
         password: result.password,
       );
       await sessionService.refresh();
+      await _loadSaveOwner();
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showTransferSnack(
-        'Signed in. Your local save stays active on this device until you choose restore or switch the account here.',
+        _ownedElsewhere(accountService)
+            ? 'Signed in. The game on this device belongs to another account: '
+                  'restore this account\'s backup to play it here, or reset '
+                  'progress to start a new game for this account.'
+            : 'Signed in. Your local save stays active on this device until '
+                  'you choose restore or switch the account here.',
       );
     } on AccountException catch (error) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
@@ -793,6 +841,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   Future<void> _signOutAccount(AccountService account) async {
     try {
       await account.signOut();
+      await _loadSaveOwner();
       _showTransferSnack('Signed out.');
     } on AccountException catch (error) {
       _showTransferSnack(error.message, isError: true);
@@ -891,7 +940,6 @@ class _ProfileScreenState extends State<ProfileScreen>
     try {
       final db = context.read<AlchemonsDatabase>();
       final cloudSave = context.read<AccountCloudSaveService>();
-      await session.rotateCurrentDeviceId();
       final transferCode = await cloudSave.downloadSaveCode(account.user!.uid);
       final transfer = SaveTransferService(db);
       await transfer.importSaveCode(
@@ -900,6 +948,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
       if (!mounted) return;
       await reloadStateAfterSaveRestore(context);
+      // A fresh device identity only once the backup is in: rotating first
+      // left a failed download with this device silently deactivated.
+      await session.rotateCurrentDeviceId();
       await session.claimCurrentDevice(force: true);
       await session.refresh();
       await _reloadProfileState();
@@ -941,11 +992,19 @@ class _ProfileScreenState extends State<ProfileScreen>
       message: 'Marking this device as the only active device for the account.',
     );
 
+    final db = context.read<AlchemonsDatabase>();
+    final uid = context.read<AccountService>().user?.uid;
     try {
+      // Refused before the device identity changes, not after.
+      if (uid != null) await SaveGenerationService.claimFor(db, uid);
       await session.rotateCurrentDeviceId();
       await session.claimCurrentDevice(force: true);
+      await _loadSaveOwner();
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showTransferSnack('This device is now active for the account.');
+    } on SaveOwnershipException catch (error) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      _showTransferSnack(error.message, isError: true);
     } on AccountSessionException catch (error) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showTransferSnack(error.message, isError: true);
@@ -1512,6 +1571,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
 
     final activeHere = session.state.activeOnThisDevice;
+    final ownedElsewhere = _ownedElsewhere(account);
     return _Row(
       title: 'TRANSFER ACCOUNT',
       palette: palette,
@@ -1524,6 +1584,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             label: 'THIS DEVICE',
             value: activeHere
                 ? 'Active · playing the account save'
+                : ownedElsewhere
+                ? 'Not active · this game belongs to another account'
                 : 'Not active · playing its local save',
             palette: palette,
           ),
@@ -1534,7 +1596,7 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               // Each as wide as its word: a wrap would stretch them.
               for (final button in [
-                if (!activeHere)
+                if (!activeHere && !ownedElsewhere)
                   BracketButton(
                     label: 'USE THIS DEVICE',
                     height: 36,
@@ -1591,6 +1653,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       title: 'CLOUD SAVE',
       description: !account.isSignedIn
           ? 'Sign in to back up or restore a save.'
+          : _ownedElsewhere(account)
+          ? 'The game on this device belongs to a different account. Restore '
+                'this account\'s backup to play it here, or reset progress to '
+                'start a new game for this account.'
           : !session.state.activeOnThisDevice
           ? 'This account is active on another device. You can keep playing '
                 'the local save here, restore the account backup onto this '

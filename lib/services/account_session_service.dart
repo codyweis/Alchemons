@@ -144,6 +144,9 @@ class AccountSessionService extends ChangeNotifier {
     try {
       final generation = await SaveGenerationService.local(_db);
       await SaveGenerationService.validate(uid, generation);
+      // Only this account's own game (or a guest game) can make the device
+      // active for it: see SaveGenerationService.claimFor.
+      await SaveGenerationService.claimFor(_db, uid);
       await _firestore.runTransaction((transaction) async {
         final ref = _doc(uid);
         final snapshot = await transaction.get(ref);
@@ -170,6 +173,8 @@ class AccountSessionService extends ChangeNotifier {
           ),
         );
       });
+    } on SaveOwnershipException catch (error) {
+      throw AccountSessionException(error.message);
     } on FirebaseException catch (error) {
       throw AccountSessionException(_friendlyFirestoreError(error));
     }

@@ -28,4 +28,6 @@ export interface VerifiedPurchase {
   readonly purchasedAtMs: number | null;
   /** Play-only marker for tester / promo / rewarded orders. */
   readonly purchaseType: number | null;
+  /** App Store only: "Production", or "Sandbox" for TestFlight and App Review. */
+  readonly environment?: string | null;
 }

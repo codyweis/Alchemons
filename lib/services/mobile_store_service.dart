@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/purchase_verification_service.dart';
+import 'package:alchemons/services/save_generation_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -105,33 +106,35 @@ class MobileStoreService extends ChangeNotifier {
   StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
   late final VoidCallback _accountListener;
 
+  // Display copy only: functions/src/catalog.ts decides what each product
+  // grants. Change both together.
   static const List<GoldPackDefinition> _catalog = [
     GoldPackDefinition(
       productId: 'alchemons_gold_cache',
       title: 'Gold Cache',
       subtitle: 'Quick refill for portal keys and summons.',
-      goldAmount: 25,
+      goldAmount: 50,
       badge: 'STARTER',
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_stash',
       title: 'Gold Stash',
       subtitle: 'Balanced pack for regular premium play.',
-      goldAmount: 75,
+      goldAmount: 150,
       badge: 'POPULAR',
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_vault',
       title: 'Gold Vault',
       subtitle: 'Big injection for cosmetics and unlocks.',
-      goldAmount: 200,
+      goldAmount: 500,
       badge: 'VALUE',
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_celestial',
       title: 'Celestial',
       subtitle: 'Heavy stockpile for long-form progression.',
-      goldAmount: 500,
+      goldAmount: 1000,
       badge: 'PREMIUM',
     ),
   ];
@@ -246,6 +249,16 @@ class MobileStoreService extends ChangeNotifier {
       _lastError =
           'Sign in to your Alchemons account before buying gold, so the '
           'purchase can be restored on your other devices.';
+      notifyListeners();
+      return false;
+    }
+
+    // Gold lands in the game on this device, and the receipt is credited to
+    // the signed-in account: they must be the same account.
+    try {
+      await SaveGenerationService.claimFor(_db, _accountService.user!.uid);
+    } on SaveOwnershipException catch (error) {
+      _lastError = error.message;
       notifyListeners();
       return false;
     }
@@ -380,6 +393,14 @@ class MobileStoreService extends ChangeNotifier {
     }
     if (requiresSignIn) {
       // Keep everything queued; it redeems as soon as an account is present.
+      notifyListeners();
+      return;
+    }
+    final owner = await SaveGenerationService.owner(_db);
+    if (owner != null && owner != _accountService.user?.uid) {
+      // This device is playing another account's game. Redeeming now would
+      // credit the receipt to the signed-in account but drop the gold into
+      // that other game, so it waits for the owner to sign back in.
       notifyListeners();
       return;
     }

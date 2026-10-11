@@ -104,11 +104,12 @@ class CurrencyDao extends DatabaseAccessor<AlchemonsDatabase>
 
   // ---- Purchased gold ----------------------------------------------------
   //
-  // Gold that arrived from a verified in-app purchase and has not been spent
-  // yet. It is tracked apart from the balance so a restored save can be
-  // reconciled against the account's server entitlement: a backup handed to
-  // somebody else arrives with no matching entitlement of their own, and the
-  // purchased portion does not survive the restore.
+  // Gold that arrived from verified in-app purchases (a running total; spending
+  // does not lower it). Bookkeeping only: what stops purchased gold being
+  // copied onto other accounts is that a game can only ever be backed up,
+  // restored or bought into by the account that owns it
+  // (SaveGenerationService.claimFor), and a reset restores the server's own
+  // purchase total.
 
   static const String purchasedGoldOutstandingKey =
       'wallet_gold_purchased_outstanding';

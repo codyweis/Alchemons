@@ -43,6 +43,12 @@ class SaveTransferService {
   });
 
   Future<String> exportSaveCode({required String ownerAccountId}) async {
+    // A backup can only ever be of this account's own game.
+    try {
+      await SaveGenerationService.claimFor(db, ownerAccountId);
+    } on SaveOwnershipException catch (error) {
+      throw SaveTransferException(error.message);
+    }
     await db.settingsDao.reconcileCosmicSurvivalPortalDiscovery();
 
     final prefs = await SharedPreferences.getInstance();

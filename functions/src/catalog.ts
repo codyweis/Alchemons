@@ -11,10 +11,10 @@ export interface GoldPack {
 }
 
 const PACKS: readonly GoldPack[] = [
-  {productId: "alchemons_gold_cache", goldAmount: 25},
-  {productId: "alchemons_gold_stash", goldAmount: 75},
-  {productId: "alchemons_gold_vault", goldAmount: 200},
-  {productId: "alchemons_gold_celestial", goldAmount: 500},
+  {productId: "alchemons_gold_cache", goldAmount: 50},
+  {productId: "alchemons_gold_stash", goldAmount: 150},
+  {productId: "alchemons_gold_vault", goldAmount: 500},
+  {productId: "alchemons_gold_celestial", goldAmount: 1000},
 ];
 
 const BY_ID = new Map(PACKS.map((pack) => [pack.productId, pack]));

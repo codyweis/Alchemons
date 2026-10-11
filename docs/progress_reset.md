@@ -65,9 +65,8 @@ purchase ledger/entitlement documents as part of resetting progress, and never
 lower an account's generation to roll back a deployment. Old app versions should
 be updated before using account services after their account has been reset.
 
-Deployment was attempted on 2026-09-09 but stopped during preparation because
-`APP_STORE_SHARED_SECRET` is missing. Even selecting only the reset functions
-causes the CLI to resolve that codebase's secret parameters. No functions or
-updated rules were released by those attempts. Configure the real secret via
-`firebase functions:secrets:set APP_STORE_SHARED_SECRET --project alchemons-auth`
-before deploying; never paste the secret into source control or chat.
+Deployed with `redeemPurchase` on 2026-10-10. The earlier attempt (2026-09-09)
+stopped because `APP_STORE_SHARED_SECRET` was missing; App Store verification no
+longer uses a secret (see purchase_verification.md), so a plain
+`firebase deploy --only functions,firestore:rules --project alchemons-auth`
+works. The Firestore emulator tests need Java, which this Mac does not have.
