@@ -260,6 +260,121 @@ void main() {
       }
     }
 
+    // Ink, as motion: sixteen frames 1/30 s apart round the meeting, then
+    // round the bloom; and how smoothly every grain moves frame to frame
+    // (its second difference: a jitter shows as a spike).
+    for (final motion in FusionStyle.values) {
+      if (only != null && !only!.contains(motion.id)) continue;
+      for (final (name, ida, idb) in pairs) {
+        final sa = await _still(ida, box * 2), sb = await _still(idb, box * 2);
+        final ga = await _grains(sa, box),
+            gb = (await _grains(sb, box)).mirrored();
+        final ca = _light(ida), cb = _light(idb);
+        const centres = [
+          Offset(cw * 0.22, ch * 0.56),
+          Offset(cw * 0.78, ch * 0.56),
+        ];
+        const core = Offset(cw / 2, ch * 0.5);
+        FusionParticleField merge(FusionStyle? st) => FusionParticleField(
+          specimens: [ga, gb],
+          centres: centres,
+          scales: const [1, 1],
+          core: core,
+          coreRadius: 44,
+          colors: [ca, cb],
+          style: st,
+          useWornStyle: false,
+        );
+        final field = merge(motion);
+        final burst = FusionBurstField(
+          grains: [ga, gb],
+          radius: 62,
+          style: motion,
+          useWornStyle: false,
+        );
+        const across = 8, fw = 340.0, fh = 250.0;
+        final frames = [
+          for (var k = 0; k < 16; k++) (true, 1.45 + k / 30),
+          for (var k = 0; k < 16; k++) (false, 0.55 + k / 30),
+        ];
+        final size = Size(fw * across, fh * 4 + 28);
+        final rec = ui.PictureRecorder();
+        final c = Canvas(rec);
+        c.drawRect(
+          Offset.zero & size,
+          Paint()..color = const Color(0xFF040406),
+        );
+        _text(
+          c,
+          '${motion.title}, in motion  ·  16 frames 1/30 s apart at the meeting, then at the bloom',
+          const Offset(10, 7),
+          size: 13,
+        );
+        for (var k = 0; k < frames.length; k++) {
+          final (isMerge, t) = frames[k];
+          final at = Offset((k % across) * fw, 28 + (k ~/ across) * fh);
+          c.save();
+          c.translate(at.dx, at.dy);
+          c.clipRect(const Rect.fromLTWH(1, 1, fw - 2, fh - 2));
+          c.drawRect(
+            const Rect.fromLTWH(0, 0, fw, fh),
+            Paint()..color = const Color(0xFF0B0A10),
+          );
+          if (isMerge) {
+            field.paint(c, t, back: true, clock: t);
+            field.paint(c, t, back: false, clock: t);
+          } else {
+            final mix = Color.lerp(ca, cb, 0.5)!;
+            final formed = ((t - 0.7) / 1.3).clamp(0.0, 1.0);
+            _pool(c, core, 62 * 1.7, mix, 0.3 * formed);
+            burst.paint(c, core, t, colors: [ca, cb], clock: t);
+          }
+          c.restore();
+          _text(
+            c,
+            isMerge
+                ? 'merge ${t.toStringAsFixed(3)}'
+                : 'cinematic ${t.toStringAsFixed(3)}',
+            at + const Offset(8, 6),
+            size: 10,
+            color: const Color(0xFF8E8C88),
+          );
+        }
+        final pic = rec.endRecording();
+        final img = await pic.toImage(size.width.round(), size.height.round());
+        final png = await img.toByteData(format: ui.ImageByteFormat.png);
+        File(
+          '$out/${name}_${motion.id}_motion.png',
+        ).writeAsBytesSync(png!.buffer.asUint8List());
+        img.dispose();
+        pic.dispose();
+
+        // Smoothness: the largest and the 99th-percentile second difference
+        // of every grain's place, 1/30 s apart, across the merge.
+        for (final st in [if (motion == FusionStyle.ink) null, motion]) {
+          final f = merge(st);
+          final acc = <double>[];
+          const h = 1 / 30;
+          for (var t = 0.7; t < 2.1; t += 0.1) {
+            for (var i = 0; i < f.length; i += 5) {
+              final a = f.debugGrain(i, t - h),
+                  b = f.debugGrain(i, t),
+                  cc = f.debugGrain(i, t + h);
+              if (a == null || b == null || cc == null) continue;
+              acc.add((a - b * 2 + cc).distance);
+            }
+          }
+          acc.sort();
+          // ignore: avoid_print
+          print(
+            '$name ${st?.id ?? 'plain'} merge: second difference p99 '
+            '${acc[(acc.length * 0.99).floor()].toStringAsFixed(2)} px, '
+            'max ${acc.last.toStringAsFixed(2)} px',
+          );
+        }
+      }
+    }
+
     // What a frame costs (recording only), merge then cinematic, against
     // the plain fusion.
     final sa = await _still('HOR01', box * 2),
@@ -322,5 +437,5 @@ void main() {
         'cinematic ${b.toStringAsFixed(0)} µs a frame',
       );
     }
-  });
+  }, timeout: const Timeout(Duration(minutes: 10)));
 }

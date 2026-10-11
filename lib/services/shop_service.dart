@@ -1017,7 +1017,7 @@ class ShopService extends ChangeNotifier {
         ShopOffer(
           id: c.offerId,
           name: c.title,
-          description: 'From the Athanor.',
+          description: 'From the Furnace.',
           icon: AppIcons.auto_awesome_rounded,
           cost: const {},
           reward: const {},

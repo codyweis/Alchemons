@@ -89,12 +89,12 @@ enum FamilyCostume {
     ringValue: 0.55,
   ),
 
-  /// The Crown of the Red King (the Athanor, the Red Work's capstone): dark
+  /// The Garnet Crown (the Athanor, the Red Work's capstone): dark
   /// gold and garnets over a velvet cap. It sits where the party hat does,
   /// on the hat's fits, so the two are never worn together.
   crown(
     tag: 'crown',
-    title: 'Crown of the Red King',
+    title: 'Garnet Crown',
     itemKey: InvKeys.alchemyRedKingCrown,
     offerId: 'effects.red_king_crown',
     previewKey: FamilyCostume.crownPreview,

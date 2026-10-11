@@ -137,8 +137,11 @@ void main() {
       expect(await db.inventoryDao.getItemQty('alchemy.test_aura'), 0);
     });
 
-    test('a tincture pour spends exactly 10', () async {
-      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 25);
+    test('a tincture pour spends exactly its price', () async {
+      await db.inventoryDao.addItemQty(
+        InvKeys.athanorTincture,
+        kAthanorTincturePerPour + 15,
+      );
       await db.currencyDao.addGold(60);
       final athanor = service(country: 'US');
       await athanor.load();
@@ -165,7 +168,10 @@ void main() {
     });
 
     test('two pours at once with tincture for one: exactly one', () async {
-      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 10);
+      await db.inventoryDao.addItemQty(
+        InvKeys.athanorTincture,
+        kAthanorTincturePerPour,
+      );
       final athanor = service(country: 'US');
       await athanor.load();
 
@@ -192,7 +198,10 @@ void main() {
   group('a batch', () {
     test('is done in as many pours as it has pieces; the capstone comes with '
         'the last and only then', () async {
-      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 100);
+      await db.inventoryDao.addItemQty(
+        InvKeys.athanorTincture,
+        kAthanorTincturePerPour * _batch.pieces.length + 30,
+      );
       final athanor = service(country: 'US');
       await athanor.load();
 
@@ -218,11 +227,14 @@ void main() {
       final before = await tincture();
       expect(await athanor.pour('test', AthanorPayment.tincture), isNull);
       expect(await tincture(), before);
-      expect(before, 100 - 10 * _batch.pieces.length);
+      expect(before, 30);
     });
 
     test('grants each kind through its own system', () async {
-      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 100);
+      await db.inventoryDao.addItemQty(
+        InvKeys.athanorTincture,
+        kAthanorTincturePerPour * _batch.pieces.length,
+      );
       final athanor = service(country: 'US');
       await athanor.load();
       for (var i = 0; i < _batch.pieces.length; i++) {
@@ -240,7 +252,10 @@ void main() {
     });
 
     test('state survives a fresh service (a relaunch)', () async {
-      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 20);
+      await db.inventoryDao.addItemQty(
+        InvKeys.athanorTincture,
+        2 * kAthanorTincturePerPour,
+      );
       final first = service(country: 'US');
       await first.load();
       final a = await first.pour('test', AthanorPayment.tincture);
@@ -248,7 +263,7 @@ void main() {
       final second = service(country: 'US');
       await second.load();
       expect(second.drawnIn('test'), {a!.piece.id});
-      expect(second.tincture, 10);
+      expect(second.tincture, kAthanorTincturePerPour);
       final b = await second.pour('test', AthanorPayment.tincture);
       expect(b!.piece.id, isNot(a.piece.id));
     });
@@ -332,7 +347,10 @@ void main() {
     });
 
     test('a paid pour leaves the daily alone and pays no extras', () async {
-      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 10);
+      await db.inventoryDao.addItemQty(
+        InvKeys.athanorTincture,
+        kAthanorTincturePerPour,
+      );
       final athanor = service(country: 'US');
       await athanor.load();
       final result = await athanor.pour('test', AthanorPayment.tincture);
@@ -345,7 +363,10 @@ void main() {
   group('Belgium', () {
     for (final code in ['BE', 'BEL', 'be', ' bel ']) {
       test('"$code" turns gold pours off, and only gold pours', () async {
-        await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 10);
+        await db.inventoryDao.addItemQty(
+          InvKeys.athanorTincture,
+          kAthanorTincturePerPour,
+        );
         await db.currencyDao.addGold(500);
         final athanor = service(country: code);
         await athanor.load();
@@ -491,7 +512,7 @@ void main() {
       expect(await tincture(), kAthanorFirstFireTincture);
     });
 
-    test('pays back 3 for each achievement and star claimed before', () async {
+    test('pays back for each achievement and star claimed before', () async {
       await claimAchievements(3);
       // Volcanic's three stars claimed; oceanic's two earned, one claimed.
       SharedPreferences.setMockInitialValues({
@@ -499,22 +520,27 @@ void main() {
       });
       final athanor = service(country: 'US');
       await athanor.load();
-      const n = 3 + 4;
-      expect(await athanor.takeFirstFire(), 30 + 3 * n);
-      expect(await tincture(), 30 + 3 * n);
+      const owed = 3 * kAthanorAchievementTincture + 4 * kAthanorStarTincture;
+      expect(await athanor.takeFirstFire(), 30 + owed);
+      expect(await tincture(), 30 + owed);
       expect(await athanor.takeFirstFire(), 0);
-      expect(await tincture(), 30 + 3 * n);
+      expect(await tincture(), 30 + owed);
     });
 
     test('back-pay stops at 90', () async {
       final n = campaignAchievements.length;
-      expect(n, greaterThan(30), reason: 'enough to reach the cap');
       await claimAchievements(n);
+      // Five planets' stars all claimed: fifteen.
+      SharedPreferences.setMockInitialValues({
+        'cosmic_planet_stars': 'Fire=7.7,Water=7.7,Earth=7.7,Air=7.7,Ice=7.7',
+      });
+      final owed = n * kAthanorAchievementTincture + 15 * kAthanorStarTincture;
+      expect(owed, greaterThan(kAthanorFirstFireBackPayCap));
       final athanor = service(country: 'US');
       await athanor.load();
       expect(
         await athanor.takeFirstFire(),
-        30 + min(kAthanorFirstFireBackPayCap, 3 * n),
+        30 + min(kAthanorFirstFireBackPayCap, owed),
       );
       expect(await tincture(), 30 + kAthanorFirstFireBackPayCap);
     });
@@ -547,7 +573,10 @@ void main() {
       );
       final athanor = service(country: 'US');
       await athanor.load();
-      expect(await athanor.takeFirstFire(), 30 + 3 * 2);
+      expect(
+        await athanor.takeFirstFire(),
+        30 + 2 * kAthanorAchievementTincture,
+      );
     });
 
     test('taken twice at once is still given once', () async {
@@ -564,7 +593,10 @@ void main() {
 
   test('a saved row it cannot read loads as a fresh state', () async {
     await db.settingsDao.setSetting(AthanorState.key, '{not json');
-    await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 10);
+    await db.inventoryDao.addItemQty(
+      InvKeys.athanorTincture,
+      kAthanorTincturePerPour,
+    );
     final athanor = service(country: 'US');
     await athanor.load();
     expect(athanor.loaded, isTrue);

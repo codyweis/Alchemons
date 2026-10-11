@@ -142,7 +142,7 @@ void main() {
       expect(throne, hasLength(3));
       expect(throne[1].dx, lessThan(0));
       expect(throne[2].dx, greaterThan(0));
-      // The Great Alembic: in at one end, out at the other.
+      // Great Still: in at one end, out at the other.
       final still = seats('great_alembic');
       expect(still, hasLength(2));
       expect(still[0].dx, lessThan(0));
@@ -389,7 +389,7 @@ void main() {
   });
 
   testWidgets(
-    'it goes through the Great Alembic as grains and out the far end',
+    'it goes through the Great Still as grains and out the far end',
     (tester) async {
       final game = await mount(tester, one('great_alembic', 130));
       expect(game.debugVisit('HOME_a', 'PIECE_great_alembic#0'), isTrue);

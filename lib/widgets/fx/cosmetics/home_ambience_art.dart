@@ -4,13 +4,13 @@
 // field at its own hour. It never announces itself — no message, no label
 // on the field — it is only there to be seen.
 //
-//   Peat Mist         night: low violet mist drifting along the ground,
+//   Night Mist         night: low violet mist drifting along the ground,
 //                     parted where the residents stand and walk
-//   Moonlit Snowfall  clear nights: fine snow falling slowly, fading as it
+//   Snowfall  clear nights: fine snow falling slowly, fading as it
 //                     lands
-//   Sun Motes         daylight: warm dust drifting and turning in the light,
+//   Dust Motes         daylight: warm dust drifting and turning in the light,
 //                     with short trails; no rays
-//   Ember Fall        dusk: embers drifting up off the ground, cooling from
+//   Rising Embers        dusk: embers drifting up off the ground, cooling from
 //                     gold to red and dying out as they climb
 //
 // Stateless: every grain is a function of the field's clock, laid in tiles
@@ -124,7 +124,7 @@ class _Tile {
 bool _offView(AmbienceView v, double x, double margin) =>
     x < v.left - margin || x > v.right + margin;
 
-// ── Peat Mist ───────────────────────────────────────────────────────────────
+// ── Night Mist ───────────────────────────────────────────────────────────────
 
 const Color _mistDeep = Color(0xFF6E5A9C);
 const Color _mistPale = Color(0xFFB2A2D8);
@@ -176,7 +176,7 @@ void _mist(
   }
 }
 
-// ── Moonlit Snowfall ────────────────────────────────────────────────────────
+// ── Snowfall ────────────────────────────────────────────────────────
 
 const Color _snowWhite = Color(0xFFEAF2FF);
 
@@ -232,7 +232,7 @@ void _snow(
   }
 }
 
-// ── Sun Motes ───────────────────────────────────────────────────────────────
+// ── Dust Motes ───────────────────────────────────────────────────────────────
 
 const Color _moteWarm = Color(0xFFFFE2A0);
 const Color _moteHot = Color(0xFFFFEFC0);
@@ -303,7 +303,7 @@ void _motes(
   }
 }
 
-// ── Ember Fall ──────────────────────────────────────────────────────────────
+// ── Rising Embers ──────────────────────────────────────────────────────────────
 
 const Color _emberHot = Color(0xFFFFC266);
 const Color _emberRed = Color(0xFFE0452A);

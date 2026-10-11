@@ -457,9 +457,21 @@ class FusionParticleField {
   // style's form, how it is drawn this frame (0 its own color, 1–6 a tone
   // of the material, 7 a glint), the material per specimen, and the
   // distillation's drops (which drop a grain is in, when each condenses).
-  late final Float32List _matAt, _sa, _sb, _fx, _fy, _gx, _gy, _grpT;
+  late final Float32List _matAt, _sa, _sb, _fx, _fy, _gx, _gy, _ex, _ey, _grpT;
+  late final Float32List _hx, _hy;
   late final Uint8List _look, _grp;
   late final List<List<Color>> _matTones;
+
+  // Ink's water, and each specimen's reach along its way to the orb (the
+  // far edge, then the near).
+  InkFlow? _flow;
+  final Float64List _inkAlong = Float64List(6);
+
+  // What every styled grain shares this frame (ink's caps and stems, the
+  // fires' slide, the drops' ripples), worked out once per frame.
+  final Float64List _inkFrame = Float64List(16);
+  final Float64List _ripple = Float64List(64);
+  double _inkFrameT = double.nan;
 
   // Per specimen: the crest's range, the way to the orb, the way the arcs
   // bow, and the grain's size.
@@ -599,6 +611,7 @@ class FusionParticleField {
     _laidClock = clock;
     _laidShiftA = shift[0];
     _laidShiftB = shift[1];
+    _inkFrameT = double.nan;
     final c = _interval(t, _collapseStart, _collapseEnd);
     final shrink = 1 - 0.94 * c * c * c;
     final spin = _spin(t);

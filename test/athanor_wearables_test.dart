@@ -43,7 +43,7 @@ const _pieces = [
   ),
   AthanorPiece(
     id: 'black.ink_bloom',
-    name: 'Ink Bloom',
+    name: 'Ink Plume',
     description: 'An alchemy effect.',
     kind: AthanorPieceKind.alchemyEffect,
     rarity: AthanorRarity.rare,
@@ -59,7 +59,7 @@ const _pieces = [
   ),
   AthanorPiece(
     id: 'black.peacock_tail',
-    name: "The Peacock's Tail",
+    name: "Oil Slick",
     description: 'An alchemy effect.',
     kind: AthanorPieceKind.alchemyEffect,
     rarity: AthanorRarity.epic,
@@ -123,7 +123,7 @@ const _pieces = [
   ),
   AthanorPiece(
     id: 'red.cinnabar',
-    name: 'Cinnabar',
+    name: 'Red Smoke',
     description: 'An alchemy effect.',
     kind: AthanorPieceKind.alchemyEffect,
     rarity: AthanorRarity.rare,
@@ -139,7 +139,7 @@ const _pieces = [
   ),
   AthanorPiece(
     id: 'red.red_king_crown',
-    name: 'Crown of the Red King',
+    name: 'Garnet Crown',
     description: 'A costume.',
     kind: AthanorPieceKind.costume,
     rarity: AthanorRarity.epic,
@@ -214,7 +214,11 @@ void main() {
     );
     await shop.reloadFromStorage();
     await db.settingsDao.setSetting('wallet_gold', '1000');
-    for (final e in {'wing': 'WNG04', 'horn': 'HOR03', 'let': 'LET02'}.entries) {
+    for (final e in {
+      'wing': 'WNG04',
+      'horn': 'HOR03',
+      'let': 'LET02',
+    }.entries) {
       await db.creatureDao.insertInstance(instanceId: e.key, baseId: e.value);
     }
   });
@@ -422,20 +426,14 @@ void main() {
   group('dock sets', () {
     test('five, with no faction, each its own Let', () {
       final sets = DockSet.athanorSets;
-      expect([for (final s in sets) s.id], [
-        'darklet',
-        'spiritlet',
-        'lightlet',
-        'bloodlet',
-        'crystalet',
-      ]);
-      expect([for (final s in sets) s.letId], [
-        'LET15',
-        'LET14',
-        'LET16',
-        'LET17',
-        'LET11',
-      ]);
+      expect(
+        [for (final s in sets) s.id],
+        ['darklet', 'spiritlet', 'lightlet', 'bloodlet', 'crystalet'],
+      );
+      expect(
+        [for (final s in sets) s.letId],
+        ['LET15', 'LET14', 'LET16', 'LET17', 'LET11'],
+      );
       for (final s in sets) {
         expect(s.faction, isNull);
         expect(s.athanorOnly, isTrue);

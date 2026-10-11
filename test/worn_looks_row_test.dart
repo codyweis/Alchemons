@@ -101,12 +101,12 @@ void main() {
     await tester.pumpAndSettle();
     // The plain case and the one owned; nothing else.
     expect(find.byKey(const ValueKey('look-Plain')), findsOneWidget);
-    expect(find.byKey(const ValueKey('look-Gilt Case')), findsOneWidget);
+    expect(find.byKey(const ValueKey('look-Gold Case')), findsOneWidget);
     for (final s in CaseStyle.values.where((s) => s != CaseStyle.gilt)) {
       expect(find.byKey(ValueKey('look-${s.title}')), findsNothing);
     }
     await tester.runAsync(() async {
-      await tester.tap(find.byKey(const ValueKey('look-Gilt Case')));
+      await tester.tap(find.byKey(const ValueKey('look-Gold Case')));
       await Future<void>.delayed(const Duration(milliseconds: 50));
     });
     await tester.pumpAndSettle();
@@ -116,7 +116,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(wear.caseOf('a'), CaseStyle.gilt);
     expect(wear.caseOf('b'), isNull);
-    expect(find.text('Gilt Case'), findsOneWidget);
+    expect(find.text('Gold Case'), findsOneWidget);
     expect(find.text('Plain'), findsOneWidget);
 
     // It survives a reload.

@@ -1,6 +1,7 @@
 // lib/constants/inventory_items.dart
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/athanor.dart' show kAthanorTincturePerPour;
 import 'dart:math';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/models/celebration_costume.dart';
@@ -907,18 +908,18 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
     // The Athanor's (docs/athanor/pieces_wearables.md): never sold.
     InvKeys.alchemyInkBloom: InventoryItemDef(
       key: InvKeys.alchemyInkBloom,
-      name: 'Ink Bloom',
+      name: 'Ink Plume',
       description:
           'Ink rises from the ground around one of your Alchemons and curls '
-          'up in slow plumes. From the Athanor.',
+          'up in slow plumes. From the Furnace.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyPeacockTail: InventoryItemDef(
       key: InvKeys.alchemyPeacockTail,
-      name: "The Peacock's Tail",
+      name: "Oil Slick",
       description:
           'One of your Alchemons stands in a pool of black that shows every '
-          'color, slowly marbling. From the Athanor.',
+          'color, slowly marbling. From the Furnace.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyQuicksilver: InventoryItemDef(
@@ -926,7 +927,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Quicksilver',
       description:
           'One of your Alchemons stands in a pool of liquid silver, with '
-          'beads of it rolling around. From the Athanor.',
+          'beads of it rolling around. From the Furnace.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyGoldLeaf: InventoryItemDef(
@@ -934,15 +935,15 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: 'Gold Leaf',
       description:
           'Flakes of gold leaf drift down around one of your Alchemons and '
-          'settle at its feet. From the Athanor.',
+          'settle at its feet. From the Furnace.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyCinnabar: InventoryItemDef(
       key: InvKeys.alchemyCinnabar,
-      name: 'Cinnabar',
+      name: 'Red Smoke',
       description:
           'Red smoke and grains of cinnabar rise from the ground around one '
-          'of your Alchemons. From the Athanor.',
+          'of your Alchemons. From the Furnace.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyRedKingCrown: InventoryItemDef(
@@ -951,7 +952,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'A crown of dark gold and garnets over a velvet cap. Fits '
           '${FamilyCostume.fittedFamiliesText}. Worn in place of the party '
-          'hat. From the Athanor.',
+          'hat. From the Furnace.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyBrassMonocle: InventoryItemDef(
@@ -960,7 +961,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'A brass monocle on a chain of brass beads. Fits '
           '${FamilyCostume.fittedFamiliesText}. Worn in place of the '
-          'sunglasses. From the Athanor.',
+          'sunglasses. From the Furnace.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.staminaPotion: InventoryItemDef(
@@ -1070,7 +1071,8 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
     key: InvKeys.athanorTincture,
     name: 'Tincture',
     description:
-        'Poured into the Athanor on home to draw a cosmetic, 10 to a pour. '
+        'Poured into the Furnace on home to draw a cosmetic, '
+        '$kAthanorTincturePerPour to a pour. '
         'Earned in play.',
     icon: AppIcons.water_drop_rounded,
     canDispose: false,

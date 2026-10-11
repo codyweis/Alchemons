@@ -123,12 +123,18 @@ void paintAthanorEmblem(
     // Its shadow side comes in as the passage's dark does.
     shadow: s.ground,
   );
+  // On home, a bright edge so it reads over the lit realm; it is gone by the
+  // time the furnace has grown into the screen's.
+  paintAthanorOutline(canvas, g, s.time, 1 - _smooth(0, 0.45, k));
 }
 
 double _smooth(double e0, double e1, double x) {
   final t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
   return t * t * (3 - 2 * t);
 }
+
+/// How much of home's slot the furnace fills.
+const double _kHomeFurnaceShare = 0.8;
 
 /// Seconds for one breath of the teaching pulse: slow, so it reads as the
 /// furnace drawing air rather than a blinking button.
@@ -175,14 +181,14 @@ class AthanorPassageScene extends PassageScene {
   final Listenable? listenable;
 
   @override
-  Duration get inward => const Duration(milliseconds: 1050);
+  Duration get inward => const Duration(milliseconds: 620);
   @override
-  Duration get outward => const Duration(milliseconds: 950);
+  Duration get outward => const Duration(milliseconds: 600);
 
   /// The hand-off is a cut; the landing only paces the screen's chrome
   /// coming up (it starts at half of it).
   @override
-  Duration get landing => const Duration(milliseconds: 300);
+  Duration get landing => const Duration(milliseconds: 220);
 
   /// Built once the furnace has arrived and stands at rest, so the screen's
   /// first build and paint stall nothing that moves.
@@ -319,7 +325,7 @@ class _AthanorEmblemState extends State<AthanorEmblem>
     final lifted = widget.lifted;
     return Semantics(
       button: true,
-      label: ready ? 'The Athanor, free pour ready' : 'The Athanor',
+      label: ready ? 'The Furnace, free pour ready' : 'The Furnace',
       child: RepaintBoundary(
         child: lifted == null
             ? paint(false)
@@ -441,11 +447,20 @@ class AthanorHomeSlot extends StatelessWidget {
       child: SizedBox(
         width: side,
         height: side,
-        child: AthanorEmblem(
-          key: emblemKey,
-          animate: animate,
-          teach: teach,
-          lifted: lifted,
+        // The furnace a little smaller than its slot, standing on its floor;
+        // the whole slot still takes the tap.
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: SizedBox(
+            width: side * _kHomeFurnaceShare,
+            height: side * _kHomeFurnaceShare,
+            child: AthanorEmblem(
+              key: emblemKey,
+              animate: animate,
+              teach: teach,
+              lifted: lifted,
+            ),
+          ),
         ),
       ),
     );

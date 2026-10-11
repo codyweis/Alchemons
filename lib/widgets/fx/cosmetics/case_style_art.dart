@@ -8,7 +8,7 @@
 //
 // From the concept prototypes (docs/crucible/concepts/cases.png),
 // with the two looks the renders found wanting redone as material: the
-// Gilt Case is one sheet of gold leaf (the leaves no longer read as cracked
+// Gold Case is one sheet of gold leaf (the leaves no longer read as cracked
 // stone), and the Frost Case's corners are frost grown on glass — a milky
 // haze thickening into the corner with feathered crystal at its edge —
 // rather than scattered specks (which read as scratches and cobwebs).

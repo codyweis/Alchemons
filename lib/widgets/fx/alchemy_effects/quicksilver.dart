@@ -122,14 +122,17 @@ abstract final class _Quicksilver {
       c.clipPath(pond);
       // Light sliding over it, and the near edge's bright meniscus.
       for (var i = 0; i < streaks; i++) {
+        // Sliding across and fading at either end, so it never pops in.
         final f = _frac(t / (9 + i * 5) + i * 0.43);
+        final fade = math.sin(math.pi * f);
         c.drawOval(
           Rect.fromCenter(
             center: Offset(-1.4 + f * 2.8, -0.5 + i * 0.62),
             width: 0.8 - i * 0.3,
             height: 0.09,
           ),
-          _flat..color = Color.fromRGBO(255, 255, 255, (0.7 - i * 0.3) * o),
+          _flat
+            ..color = Color.fromRGBO(255, 255, 255, (0.7 - i * 0.3) * fade * o),
         );
       }
       if (meniscus) {
@@ -192,7 +195,9 @@ abstract final class _Quicksilver {
           final g = (u - 0.62) / 0.13;
           lift = 1 - g * g;
         }
-        final br = r * 0.045 * _smooth(0.0, 0.12, u);
+        // Swelling as it lifts, and taken back into the pool as it lands.
+        final br =
+            r * 0.045 * _smooth(0.0, 0.12, u) * (1 - _smooth(0.7, 0.75, u));
         _bead(bx, by - lift * r * 0.55, br, o);
       }
       if (!front && u > 0.75 && u < 0.98) {

@@ -14,6 +14,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/games/shared/creature_looks.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
@@ -15726,9 +15727,13 @@ class PlanetDungeonGame extends FlameGame {
         final ticker = c.ticker;
         if (ticker != null) {
           final sprite = ticker.getSprite();
+          final looks = c.member.spriteVisuals;
           final paint = Paint()
             ..filterQuality = ui.FilterQuality.high
             ..color = Colors.white.withValues(alpha: 0.32);
+          if (looks != null) {
+            paint.colorFilter = creatureGeneticsFilter(looks, _time);
+          }
           canvas.save();
           canvas.scale(c.spriteScale, c.spriteScale);
           sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
@@ -15951,7 +15956,17 @@ class PlanetDungeonGame extends FlameGame {
       final ticker = c.ticker;
       if (ticker != null) {
         final sprite = ticker.getSprite();
+        // The creature as it looks everywhere else: its genetics colours,
+        // its alchemy effect round it and its costumes on it.
+        final looks = c.member.spriteVisuals;
+        final auraR = wornAuraRadius(
+          c.spriteScale * max(sprite.srcSize.x, sprite.srcSize.y),
+        );
+        paintWornAura(canvas, looks, auraR, _time);
         final paint = Paint()..filterQuality = ui.FilterQuality.high;
+        if (looks != null) {
+          paint.colorFilter = creatureGeneticsFilter(looks, _time);
+        }
         final facingRight = cos(c.angle) > 0;
         canvas.save();
         canvas.scale(
@@ -15959,7 +15974,9 @@ class PlanetDungeonGame extends FlameGame {
           c.spriteScale,
         );
         sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+        paintWornCostumes(canvas, looks, sprite, ticker.currentIndex, _time);
         canvas.restore();
+        paintWornAura(canvas, looks, auraR, _time, front: true);
       } else {
         canvas.drawCircle(
           Offset.zero,

@@ -1241,7 +1241,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                               description:
                                   "Which Let the dock's icons are drawn with. "
                                   'More are sold in the shop or drawn '
-                                  'from the Athanor.',
+                                  'from the Furnace.',
                               palette: palette,
                               below: _DockSetChoice(
                                 palette: palette,
@@ -1291,7 +1291,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                               title: 'TITLE',
                               description:
                                   'Worn under the name at the top of this '
-                                  'page. Titles come from the Athanor.',
+                                  'page. Titles come from the Furnace.',
                               palette: palette,
                               below: _TitleChoice(
                                 titles: _titleChoices(data),
@@ -1311,7 +1311,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                               description:
                                   'How every fusion plays, from the two '
                                   'turning to grains to the cultivation. '
-                                  'Styles come from the Athanor.',
+                                  'Styles come from the Furnace.',
                               palette: palette,
                               below: FusionStyleChoice(
                                 palette: palette,

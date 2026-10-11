@@ -120,7 +120,10 @@ void main() {
 
   testWidgets('no gold pour where gold pours are off', (tester) async {
     await open(tester, country: 'BE', gold: 500);
-    expect(find.bySemanticsLabel('POUR · 10 TINCTURE'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('POUR · $kAthanorTincturePerPour TINCTURE'),
+      findsOneWidget,
+    );
     expect(find.bySemanticsLabel('POUR · 50 GOLD'), findsNothing);
   });
 
@@ -183,7 +186,9 @@ void main() {
     }
 
     expect(find.text('4 OF 4 LEFT'), findsOneWidget);
-    await tester.tap(find.bySemanticsLabel('POUR · 10 TINCTURE'));
+    await tester.tap(
+      find.bySemanticsLabel('POUR · $kAthanorTincturePerPour TINCTURE'),
+    );
     // The pour's transaction is done within a few frames.
     for (var i = 0; i < 40 && svc.drawnIn(_batch.id).isEmpty; i++) {
       await frames(1);
@@ -207,7 +212,7 @@ void main() {
     expect(reveal()?.atRest, isTrue);
     expect(beats, greaterThan(5));
     expect(tile(drawn, AthanorPieceLook.lit), findsNothing);
-    expect(find.text('30'), findsOneWidget);
+    expect(find.text('${40 - kAthanorTincturePerPour}'), findsOneWidget);
 
     await tester.tap(find.text('CONTINUE'));
     await frames(40);

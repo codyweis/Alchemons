@@ -7,12 +7,12 @@ The furnace on home where a pour draws a cosmetic. It replaces the Daily Treasur
 - **What a pour draws.** A pour draws one cosmetic from a **batch**, a themed set of 8–10 pieces. Pieces are drawn **without replacement**: every pour gives a piece the player does not own yet, so a batch of N is finished in at most N pours. The player picks which batch to pour into.
 - **Rarity.** Pieces are weighted common ×10, rare ×5, epic ×2, so rarer pieces tend to come later. The **capstone** comes with a batch's last piece and from nowhere else.
 - **Paying for a pour.**
-  - **Tincture**: 10 per pour (`kAthanorTincturePerPour`). Tincture is earned in play only and is never sold.
+  - **Tincture**: 25 per pour (`kAthanorTincturePerPour`; 10 until 2026-10-11, when the one-time sources alone covered most of the content). Tincture is earned in play only and is never sold.
   - **Gold**: 50 per pour (`kAthanorGoldPerPour`). Gold can be bought, so this is a paid random draw. Gold pours are off where the storefront country is Belgium (`BE` / `BEL`). Tincture pours stay on there.
   - **Daily pour**: one free pour a day, on the UTC day, keyed like the chest. It also gives what the chest gave: 150–500 silver, a 15% chance of 1 gold, and a 25% chance of a common vial. When no batch has a piece left (or there are no batches), the day's chest rewards are taken without a draw (`takeDailyExtras`); either way spends the day.
 - **Odds.** Before every pour the player can see the odds for the **next** pour: each piece left and its chance. `athanorNextPourOdds` is both the sheet and the draw (`lib/models/athanor.dart`).
 - **Cosmetic only.** Nothing in a batch changes power, odds or the economy. Survival orb skins change orb HP and passives, so they never go in. Athanor pieces are never sold in the shop.
-- **First fire.** The first time a player opens the Athanor they get 30 tincture, which is three pours, plus back-pay: 3 for every achievement and every dungeon star claimed before the Athanor existed, capped at 90 (`kAthanorFirstFireBackPayCap`). Claims that already paid tincture are counted (`athanor_paid_achievements_v1`, `athanor_paid_stars_v1`) and left out. Stars earned but not yet claimed pay when they are claimed. This is the launch gift for existing saves.
+- **First fire.** The first time a player opens the Athanor they get 30 tincture (a pour and a bit), plus back-pay: 1 for every achievement and 3 for every dungeon star claimed before the Athanor existed, capped at 90 (`kAthanorFirstFireBackPayCap`). Claims that already paid tincture are counted (`athanor_paid_achievements_v1`, `athanor_paid_stars_v1`) and left out. Stars earned but not yet claimed pay when they are claimed. This is the launch gift for existing saves.
 
 ## Earning tincture
 
@@ -21,11 +21,11 @@ The furnace on home where a pour draws a cosmetic. It replaces the Daily Treasur
 | Survival, run end (death) | waves cleared ÷ 5 (floor) | w10 → 2, w30 → 6, w50 → 10. Quitting pays nothing, like the rest of the run's rewards. Gets its own results row. |
 | Raid victory | L1 3, L2 5, L3 8 | In `grantRaidRewards`, plus a reward line |
 | Dungeon star, first time | 3 per star | 51 stars in all, in `grantStarReward`, plus a reward line |
-| Achievement claim | 3 each | In `CampaignJournalService.claim`, inside its transaction, plus the toast |
+| Achievement claim | 1 each (3 until 2026-10-11; achievements already pay gold and silver) | In `CampaignJournalService.claim`, inside its transaction, plus the toast |
 | Pureblood rite | completion +5, weekly +3 | In the rite's own transactions |
 | Space contest win | 2 × level | One-time per level |
 
-An active player makes about one pour a day from play, plus the daily pour. One-time sources (achievements, stars, first fire) let an existing save clear a batch or two at launch.
+Owning everything takes 50 pours (1,250 tincture). The one-time sources (first fire, achievements, stars, contests) come to about 300 tincture, a dozen pours, so play and the daily pour carry the rest. Play earns about 0.7 of a pour a day for an engaged player (a couple of survival runs and a raid, about 17 tincture), and the daily pour is a whole one, so the daily is the main source: an engaged player finishes in about three to four weeks, and the daily alone takes 50 days. A gold pour (50 gold) is the shortcut.
 
 Tincture is the inventory item `InvKeys.athanorTincture` (`'athanor.tincture'`). Its balance is `inventoryDao.getItemQty`, and grants are `addItemQty` inside the caller's existing transaction. Because it is an inventory row, it travels with save transfer and works with achievement `items` and loot pools.
 
@@ -108,7 +108,7 @@ Athanor-only decor and effects get a flag in their catalogs so `ShopService` nev
 
 ## Where it lives (as built, 2026-10-11)
 
-- **Batches**: `lib/models/athanor_batches.dart`, five batches named in English only. Each has 5 common, 3 rare and 2 epic pieces plus a capstone, 55 pieces in all. The piece lists behind them are `docs/athanor/pieces_{wearables,decor,systems}.md`, and the catalog and its reasoning are `docs/crucible/cosmetics_concepts.md`. `test/athanor_batches_test.dart` checks that every piece resolves in its own system and that the shop sells none of them.
+- **Batches**: `lib/models/athanor_batches.dart`, five batches named in English only. Each has 4 common, 3 rare and 3 epic pieces plus a capstone, 55 pieces in all. The fusion style is one of the epics. The piece lists behind them are `docs/athanor/pieces_{wearables,decor,systems}.md`, and the catalog and its reasoning are `docs/crucible/cosmetics_concepts.md`. `test/athanor_batches_test.dart` checks that every piece resolves in its own system and that the shop sells none of them.
 - **Kinds and where they're granted**
   - Alchemy effects: `lib/widgets/fx/alchemy_effects/{ink_bloom,quicksilver,gold_leaf,cinnabar,peacock_tail}.dart`.
   - Costumes: `red_king_crown.dart` and `brass_monocle.dart`. Each is exclusive with the party hat or the sunglasses respectively.

@@ -275,7 +275,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'inkcap_cluster',
-      'Inkcap Cluster',
+      'Ink Mushrooms',
       'Tall ink-cap mushrooms that drip ink, most of all at night.',
       tier: DecorTier.curio,
       max: 3,
@@ -291,7 +291,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'nightbloom_bed',
-      'Nightbloom Bed',
+      'Lily Bed',
       'A bed of dark leaves ringed with black lilies that open at night. A '
           'resident sleeps among them.',
       tier: DecorTier.living,
@@ -301,7 +301,7 @@ class HomeDecor {
     // ── The White Work ──
     HomeDecor(
       'moonstone_cairn',
-      'Moonstone Cairn',
+      'Stone Stack',
       'Pale stones stacked by hand. They glow faintly at night.',
       tier: DecorTier.curio,
       max: 3,
@@ -317,7 +317,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'moon_font',
-      'Moon Font',
+      'Moon Basin',
       'A silver basin that holds the moon at night. Residents come to drink.',
       tier: DecorTier.living,
       athanorOnly: true,
@@ -342,7 +342,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'honey_lamp',
-      'Honey Lamp',
+      'Amber Lamp',
       'A lamp of amber glass with pollen drifting inside.',
       tier: DecorTier.curio,
       max: 3,
@@ -350,7 +350,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'storm_coil',
-      'Storm Coil',
+      'Spark Coil',
       'A tall brass coil that throws sparks. Residents hop beside it, '
           'Lightning ones most of all.',
       tier: DecorTier.living,
@@ -358,7 +358,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'gilded_throne',
-      'The Gilded Throne',
+      'Gold Throne',
       'A throne of brass and gold leaf. One resident sits on it; the others '
           'come to bow.',
       tier: DecorTier.wonder,
@@ -410,7 +410,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'retort_shelf',
-      'Retort Shelf',
+      'Flask Shelf',
       'A shelf of glass flasks, each lit its own color.',
       tier: DecorTier.curio,
       max: 3,
@@ -418,7 +418,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'alembic',
-      'Alembic',
+      'Glass Still',
       'A glass still over a small flame. Residents come to look into it.',
       tier: DecorTier.living,
       athanorOnly: true,
@@ -439,7 +439,7 @@ class HomeDecor {
     ),
     HomeDecor(
       'great_alembic',
-      'The Great Alembic',
+      'Great Still',
       'A tall glass still. A resident steps in, comes apart into grains, and '
           'forms again at the far end.',
       tier: DecorTier.wonder,

@@ -32,7 +32,7 @@ enum CaseStyle {
   frost('frost', 'Frost Case'),
 
   /// The Yellow Work: a back of gold leaf, lamp-lit from above.
-  gilt('gilt', 'Gilt Case'),
+  gilt('gilt', 'Gold Case'),
 
   /// The Red Work: deep garnet glass, lit from below.
   garnet('garnet', 'Garnet Case'),
@@ -55,10 +55,10 @@ enum CaseStyle {
 /// A trail a creature leaves where it walks at home.
 enum TrailStyle {
   /// The White Work: frost blooms where each foot comes down, then melts.
-  hoarfrost('hoarfrost_steps', 'Hoarfrost Steps'),
+  hoarfrost('hoarfrost_steps', 'Frost Steps'),
 
   /// The Yellow Work: gold dust lifts at each step and settles in glints.
-  gilt('gilt_steps', 'Gilt Steps');
+  gilt('gilt_steps', 'Gold Steps');
 
   const TrailStyle(this.id, this.title);
   final String id;
@@ -87,7 +87,7 @@ enum FusionStyle {
 
   /// The Yellow Work: both turn to gold leaf, swirl in a double helix and
   /// fold together, and a burnish sweeps across.
-  gilt('gilt', 'Gilt Fusion'),
+  gilt('gilt', 'Gold Fusion'),
 
   /// The Red Work: both heat into embers, rise as two flames that twist
   /// together, and burn down to one core that cools.
@@ -95,7 +95,7 @@ enum FusionStyle {
 
   /// The Still-Room: both rise as vapour, condense, and drip into one pool
   /// that forms the result.
-  distillation('distillation', 'Distilled Fusion');
+  distillation('distillation', 'Steam Fusion');
 
   const FusionStyle(this.id, this.title);
   final String id;
@@ -118,16 +118,16 @@ enum FusionStyle {
 /// announces itself: it is only seen.
 enum HomeAmbience {
   /// The Black Work: low violet mist at night, parted where residents walk.
-  peatMist('peat_mist', 'Peat Mist'),
+  peatMist('peat_mist', 'Night Mist'),
 
   /// The White Work: fine snow on clear nights.
-  moonlitSnowfall('moonlit_snowfall', 'Moonlit Snowfall'),
+  moonlitSnowfall('moonlit_snowfall', 'Snowfall'),
 
   /// The Yellow Work: warm dust drifting in the daylight.
-  sunMotes('sun_motes', 'Sun Motes'),
+  sunMotes('sun_motes', 'Dust Motes'),
 
   /// The Red Work: embers drifting up from the ground at dusk.
-  emberFall('ember_fall', 'Ember Fall');
+  emberFall('ember_fall', 'Rising Embers');
 
   const HomeAmbience(this.id, this.title);
   final String id;

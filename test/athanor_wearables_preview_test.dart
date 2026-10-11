@@ -8,10 +8,11 @@ library;
 //     test/athanor_wearables_preview_test.dart --tags preview
 //
 // writes into that directory
-//   auras.png     Ink Bloom, the Peacock's Tail, Quicksilver, Gold Leaf and
-//                 Cinnabar: four moments each at the details size, then the
-//                 party HUD's 48 px
-//   costumes.png  the Crown of the Red King and the Brass Monocle worn
+//   aura_<key>.png  each of Ink Plume, the Peacock's Tail, Quicksilver,
+//                 Gold Leaf and Cinnabar on three or four species (dark,
+//                 pale, its own colors) at four moments and at the party
+//                 HUD's 48 px, then 16 frames at 1/30 s
+//   costumes.png  the Garnet Crown and the Brass Monocle worn
 //                 (CostumePaint.paintWorn) on a Wing, a Pip, a Horn and a
 //                 Let, frames 0–2, a close look, and in another color
 //   pieces.png    every piece as the Athanor's tiles draw it
@@ -164,14 +165,14 @@ const _pieces = [
   ('The Black Work', 'Inkmaker', AthanorPieceKind.title, 'inkmaker'),
   (
     'The Black Work',
-    'Ink Bloom',
+    'Ink Plume',
     AthanorPieceKind.alchemyEffect,
     InvKeys.alchemyInkBloom,
   ),
   ('The Black Work', 'Darklet Dock', AthanorPieceKind.dockSet, 'darklet'),
   (
     'The Black Work',
-    "The Peacock's Tail",
+    "Oil Slick",
     AthanorPieceKind.alchemyEffect,
     InvKeys.alchemyPeacockTail,
   ),
@@ -194,14 +195,14 @@ const _pieces = [
   ('The Red Work', 'Ember Keeper', AthanorPieceKind.title, 'ember_keeper'),
   (
     'The Red Work',
-    'Cinnabar',
+    'Red Smoke',
     AthanorPieceKind.alchemyEffect,
     InvKeys.alchemyCinnabar,
   ),
   ('The Red Work', 'Bloodlet Dock', AthanorPieceKind.dockSet, 'bloodlet'),
   (
     'The Red Work',
-    'Crown of the Red King',
+    'Garnet Crown',
     AthanorPieceKind.costume,
     InvKeys.alchemyRedKingCrown,
   ),
@@ -228,93 +229,181 @@ void main() {
 
   test('auras', () async {
     if (out == null) return;
+    // Each on a dark creature, a pale one and one of its own colors, at
+    // four moments and at the party HUD's 48 px; then 16 frames in a row
+    // at 1/30 s, to see that it moves smoothly.
     const auras = [
-      (AlchemyEffectPaint.inkBloom, 'INK BLOOM', 'The Black Work', 'PIP15'),
+      (
+        AlchemyEffectPaint.inkBloom,
+        'INK PLUME',
+        'The Black Work',
+        ['PIP15', 'WNG15', 'HOR09', 'PIP01'],
+      ),
       (
         AlchemyEffectPaint.peacockTail,
-        "THE PEACOCK'S TAIL",
+        'OIL SLICK',
         'The Black Work · capstone',
-        'PIP13',
+        ['PIP13', 'WNG15', 'LET09'],
       ),
       (
         AlchemyEffectPaint.quicksilver,
         'QUICKSILVER',
         'The White Work',
-        'HOR09',
+        ['HOR09', 'WNG01', 'PIP15'],
       ),
-      (AlchemyEffectPaint.goldLeaf, 'GOLD LEAF', 'The Yellow Work', 'MAN16'),
-      (AlchemyEffectPaint.cinnabar, 'CINNABAR', 'The Red Work', 'HOR17'),
+      (
+        AlchemyEffectPaint.goldLeaf,
+        'GOLD LEAF',
+        'The Yellow Work',
+        ['MAN16', 'HOR03', 'PIP15'],
+      ),
+      (
+        AlchemyEffectPaint.cinnabar,
+        'RED SMOKE',
+        'The Red Work',
+        ['HOR17', 'PIP02', 'WNG15'],
+      ),
     ];
-    const cell = 260.0, side = 200.0, label = 34.0;
+    const cell = 240.0, side = 184.0, label = 30.0;
     const times = [1.3, 3.7, 6.1, 8.9];
-    const cols = 5;
-    final size = Size(cell * cols, (cell + label) * auras.length);
-    final rec = ui.PictureRecorder();
-    final c = Canvas(rec);
-    c.drawRect(Offset.zero & size, Paint()..color = _bg);
-    for (var row = 0; row < auras.length; row++) {
-      final (key, name, batch, species) = auras[row];
-      final sprite = await _still(species, side);
-      final small = await _still(species, 56);
-      final y0 = row * (cell + label);
-      _text(c, name, Offset(12, y0 + 8), size: 14, bold: true);
+    const strip = 150.0, stripSide = 112.0;
+    for (final (key, name, batch, species) in auras) {
+      final rows = species.length;
+      final height = 40 + rows * (cell + label) + 30 + 2 * strip + 10;
+      final size = Size(cell * 5, height);
+      final rec = ui.PictureRecorder();
+      final c = Canvas(rec);
+      c.drawRect(Offset.zero & size, Paint()..color = _bg);
+      _text(c, '$name  ·  $batch', const Offset(12, 10), size: 14, bold: true);
+      for (var row = 0; row < rows; row++) {
+        final id = species[row];
+        final element = (_row(id)['types'] as List).first as String;
+        final sprite = await _still(id, side);
+        final small = await _still(id, 56);
+        final y0 = 40 + row * (cell + label);
+        _text(
+          c,
+          '${_row(id)['name']} ($element)',
+          Offset(12, y0 + 6),
+          size: 11,
+          color: _muted,
+        );
+        for (var i = 0; i < times.length; i++) {
+          final at = Offset(i * cell + cell / 2, y0 + label + cell / 2);
+          AlchemyEffectPaint.paint(
+            c,
+            key,
+            at,
+            side / 2,
+            times[i],
+            element: element,
+          );
+          _drawImage(
+            c,
+            sprite,
+            Rect.fromCenter(center: at, width: side, height: side),
+          );
+          AlchemyEffectPaint.paint(
+            c,
+            key,
+            at,
+            side / 2,
+            times[i],
+            element: element,
+            front: true,
+          );
+          _text(
+            c,
+            't ${times[i]}s',
+            Offset(i * cell + 8, y0 + label + cell - 18),
+            size: 10,
+            color: _muted,
+          );
+        }
+        for (var k = 0; k < 4; k++) {
+          final at = Offset(
+            4 * cell + 60 + (k % 2) * 120,
+            y0 + label + 60 + (k ~/ 2) * 120,
+          );
+          AlchemyEffectPaint.paint(c, key, at, 24, times[k], element: element);
+          _drawImage(
+            c,
+            small,
+            Rect.fromCenter(center: at, width: 48, height: 48),
+          );
+          AlchemyEffectPaint.paint(
+            c,
+            key,
+            at,
+            24,
+            times[k],
+            element: element,
+            front: true,
+          );
+        }
+      }
+      // The motion strip: 16 frames, 1/30 s apart, on the first species.
+      final id = species.first;
+      final element = (_row(id)['types'] as List).first as String;
+      final sprite = await _still(id, stripSide);
+      final y0 = 40 + rows * (cell + label);
       _text(
         c,
-        '$batch  ·  on ${_row(species)['name']}',
-        Offset(260, y0 + 10),
-        size: 12,
+        'MOTION · 16 frames at 1/30 s from t 4.0 s',
+        Offset(12, y0 + 8),
+        size: 11,
         color: _muted,
       );
-      for (var i = 0; i < times.length; i++) {
-        final at = Offset(i * cell + cell / 2, y0 + label + cell / 2);
-        AlchemyEffectPaint.paint(c, key, at, side / 2, times[i]);
+      for (var f = 0; f < 16; f++) {
+        final t = 4.0 + f / 30;
+        final at = Offset(
+          (f % 8) * strip + strip / 2,
+          y0 + 30 + (f ~/ 8) * strip + strip / 2,
+        );
+        AlchemyEffectPaint.paint(
+          c,
+          key,
+          at,
+          stripSide / 2,
+          t,
+          element: element,
+        );
         _drawImage(
           c,
           sprite,
-          Rect.fromCenter(center: at, width: side, height: side),
+          Rect.fromCenter(center: at, width: stripSide, height: stripSide),
         );
-        AlchemyEffectPaint.paint(c, key, at, side / 2, times[i], front: true);
-        _text(
+        AlchemyEffectPaint.paint(
           c,
-          't ${times[i]}s',
-          Offset(i * cell + 8, y0 + label + cell - 20),
-          size: 10,
-          color: _muted,
+          key,
+          at,
+          stripSide / 2,
+          t,
+          element: element,
+          front: true,
         );
       }
-      for (var k = 0; k < 4; k++) {
-        final at = Offset(
-          4 * cell + 65 + (k % 2) * 130,
-          y0 + label + 65 + (k ~/ 2) * 130,
-        );
-        AlchemyEffectPaint.paint(c, key, at, 24, times[k]);
-        _drawImage(
-          c,
-          small,
-          Rect.fromCenter(center: at, width: 48, height: 48),
-        );
-        AlchemyEffectPaint.paint(c, key, at, 24, times[k], front: true);
-      }
-      _text(
-        c,
-        'HUD 48 px',
-        Offset(4 * cell + 8, y0 + label + cell - 20),
-        size: 10,
-        color: _muted,
-      );
+      await _save(rec, size, '$out/aura_$key.png');
       _cost(name, (cv, t) {
-        AlchemyEffectPaint.paint(cv, key, const Offset(100, 100), 55, t);
         AlchemyEffectPaint.paint(
           cv,
           key,
           const Offset(100, 100),
           55,
           t,
+          element: 'Fire',
+        );
+        AlchemyEffectPaint.paint(
+          cv,
+          key,
+          const Offset(100, 100),
+          55,
+          t,
+          element: 'Fire',
           front: true,
         );
       });
     }
-    await _save(rec, size, '$out/auras.png');
   });
 
   test('costumes', () async {
@@ -328,7 +417,7 @@ void main() {
     c.drawRect(Offset.zero & size, Paint()..color = _bg);
     _text(
       c,
-      "CROWN OF THE RED KING  ·  on the party hat's fits",
+      "GARNET CROWN  ·  on the party hat's fits",
       const Offset(12, 10),
       size: 13,
       bold: true,
@@ -345,8 +434,13 @@ void main() {
       final (sheet, frames, sheetRows, sheetCols) = await _sheet(id);
       final fw = sheet.width / sheetCols, fh = sheet.height / sheetRows;
       final y0 = 40 + i * (cell + label);
-      _text(c, '${_row(id)['name']}', Offset(12, y0 + 4), size: 12,
-          color: _muted);
+      _text(
+        c,
+        '${_row(id)['name']}',
+        Offset(12, y0 + 4),
+        size: 12,
+        color: _muted,
+      );
       for (final costume in [FamilyCostume.crown, FamilyCostume.monocle]) {
         final x0 = costume == FamilyCostume.crown ? 0.0 : cell * cols;
         for (var f = 0; f < cols; f++) {
@@ -443,7 +537,11 @@ void main() {
     const tile = 132.0, gap = 14.0, label = 40.0, across = 4;
     final batches = {for (final p in _pieces) p.$1}.toList();
     final rows = [
-      for (final b in batches) [for (final p in _pieces) if (p.$1 == b) p],
+      for (final b in batches)
+        [
+          for (final p in _pieces)
+            if (p.$1 == b) p,
+        ],
     ];
     final size = Size(
       gap + (tile + gap) * across + 150,
@@ -454,11 +552,21 @@ void main() {
     c.drawRect(Offset.zero & size, Paint()..color = _bg);
     for (var r = 0; r < rows.length; r++) {
       final y0 = gap + r * (tile + label + gap);
-      _text(c, rows[r].first.$1.toUpperCase(), Offset(gap, y0 + tile / 2 - 8),
-          size: 12, bold: true);
+      _text(
+        c,
+        rows[r].first.$1.toUpperCase(),
+        Offset(gap, y0 + tile / 2 - 8),
+        size: 12,
+        bold: true,
+      );
       for (var i = 0; i < rows[r].length; i++) {
         final (_, name, kind, ref) = rows[r][i];
-        final rect = Rect.fromLTWH(150 + gap + i * (tile + gap), y0, tile, tile);
+        final rect = Rect.fromLTWH(
+          150 + gap + i * (tile + gap),
+          y0,
+          tile,
+          tile,
+        );
         c.drawRect(rect, Paint()..color = const Color(0xFF131316));
         final piece = AthanorPiece(
           id: ref,
@@ -490,8 +598,13 @@ void main() {
             titleStyle: const TextStyle(fontFamily: 'Roboto'),
           );
         }
-        _text(c, name, Offset(rect.left, rect.bottom + 6), size: 10.5,
-            color: _muted);
+        _text(
+          c,
+          name,
+          Offset(rect.left, rect.bottom + 6),
+          size: 10.5,
+          color: _muted,
+        );
       }
     }
     await tester.runAsync(() => _save(rec, size, '$out/pieces.png'));

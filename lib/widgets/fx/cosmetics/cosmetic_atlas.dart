@@ -10,7 +10,7 @@
 //   bead     a firmer round grain, for grains that must read as grains
 //   pool     a flat soft ellipse, 3.2 : 1 — light or mist lying on ground
 //   frond0…5 a spray of frost fronds lying on the ground, lopsided, six
-//            seeds (Hoarfrost Steps)
+//            seeds (Frost Steps)
 //   plume    a soft teardrop, round end down — a puff of mist, an ember's
 //            glow with its tail
 

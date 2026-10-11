@@ -1,6 +1,6 @@
 // lib/widgets/fx/red_king_crown.dart
 //
-// The Crown of the Red King (the Athanor, the Red Work's capstone): a
+// The Garnet Crown (the Athanor, the Red Work's capstone): a
 // crown of dark gold set with garnets round a cap of garnet velvet. It is
 // worn on the party hat's fits (FamilyCostume.crown), so where a hat sits
 // on any fitted species, the crown sits; it is drawn at 0.8 of the hat.

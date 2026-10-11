@@ -266,6 +266,95 @@ void _pool(Canvas canvas, Offset at, double rx, double ry, List<Color> colors) {
 int _grainsFor(double s) =>
     (_Body.n * math.pow(s / 240, 2)).round().clamp(1000, _Body.n);
 
+// ── the outline (home) ───────────────────────────────────────────────────
+//
+// On home the furnace stands over a lit realm and read as a dark smudge, so
+// it carries a bright edge: a bead of lit grains just outside its silhouette,
+// up one side, over the dome, round the flue and down the other. Grains a
+// few pixels apart, not a stroke, so it stays in the game's material.
+
+/// Points just outside the silhouette, in the furnace's units from the middle
+/// of its floor (y up is negative), [_kOutlineStep] apart along it.
+final Float32List _outlineUnit = () {
+  const out = 0.022;
+  final right = <Offset>[
+    for (var i = 0; i <= 700; i++)
+      () {
+        final up = 0.01 + (_ventUp - 0.01) * i / 700;
+        return Offset(_halfWidth(up) + out, -up);
+      }(),
+  ];
+  final top = right.last;
+  final walk = <Offset>[
+    ...right,
+    // Over the flue's lip.
+    for (var i = 1; i < 24; i++)
+      Offset(top.dx - 2 * top.dx * i / 24, top.dy - out * 0.6),
+    for (final p in right.reversed) Offset(-p.dx, p.dy),
+  ];
+  final pts = <double>[walk.first.dx, walk.first.dy];
+  var since = 0.0;
+  for (var i = 1; i < walk.length; i++) {
+    since += (walk[i] - walk[i - 1]).distance;
+    if (since < _kOutlineStep) continue;
+    since = 0;
+    pts
+      ..add(walk[i].dx)
+      ..add(walk[i].dy);
+  }
+  return Float32List.fromList(pts);
+}();
+
+const double _kOutlineStep = 0.034;
+const int _kOutlineBeats = 3;
+final List<Float32List> _outlineBuf = [
+  for (var b = 0; b < _kOutlineBeats; b++)
+    Float32List(_outlineUnit.length ~/ _kOutlineBeats + 2),
+];
+final Paint _outlinePaint = Paint()
+  ..strokeCap = StrokeCap.round
+  ..style = PaintingStyle.stroke;
+
+/// The bright edge round the furnace at [g], at [strength] 0..1. Each third
+/// of its grains brightens and dims on its own slow beat, so the edge is
+/// lit, not drawn.
+void paintAthanorOutline(
+  Canvas canvas,
+  AthanorFurnaceGeo g,
+  double time,
+  double strength,
+) {
+  if (strength <= 0.01 || g.s <= 2) return;
+  final s = g.s, bx = g.base.dx, by = g.base.dy;
+  final core = (s * 0.02).clamp(1.3, 2.6);
+  final n = _outlineUnit.length ~/ 2;
+  for (var b = 0; b < _kOutlineBeats; b++) {
+    final buf = _outlineBuf[b];
+    var k = 0;
+    for (var i = b; i < n; i += _kOutlineBeats) {
+      buf[k++] = bx + _outlineUnit[i * 2] * s;
+      buf[k++] = by + _outlineUnit[i * 2 + 1] * s;
+    }
+    final pts = Float32List.sublistView(buf, 0, k);
+    final a =
+        strength * (0.72 + 0.28 * math.sin(time * 1.3 + b * 2.09).toDouble());
+    canvas.drawRawPoints(
+      ui.PointMode.points,
+      pts,
+      _outlinePaint
+        ..strokeWidth = core * 3.1
+        ..color = AthanorTone.brassGlow.withValues(alpha: 0.2 * a),
+    );
+    canvas.drawRawPoints(
+      ui.PointMode.points,
+      pts,
+      _outlinePaint
+        ..strokeWidth = core
+        ..color = AthanorTone.brassGlow.withValues(alpha: 0.92 * a),
+    );
+  }
+}
+
 /// Paints the furnace at [g] at [time] seconds.
 ///
 /// [back] is the furnace itself (its light, shadow, stone, mouth and fire);

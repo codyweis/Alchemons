@@ -118,8 +118,10 @@ class AthanorBatch {
   final AthanorPiece capstone;
 }
 
-/// What one pour costs.
-const int kAthanorTincturePerPour = 10;
+/// What one pour costs: 25 tincture, or 50 gold (author, 2026-10-11). At 10
+/// tincture the one-time sources alone covered most of the five batches,
+/// and a gold pour had no use.
+const int kAthanorTincturePerPour = 25;
 const int kAthanorGoldPerPour = 50;
 
 /// How many of a Curio (small home decor) one draw gives.
@@ -181,8 +183,9 @@ int athanorRaidTincture(int raidLevel) => switch (raidLevel.clamp(1, 3)) {
 /// Each dungeon star, the first time it is claimed.
 const int kAthanorStarTincture = 3;
 
-/// Each achievement claimed.
-const int kAthanorAchievementTincture = 3;
+/// Each achievement claimed: one, since achievements already pay gold and
+/// silver (author, 2026-10-11).
+const int kAthanorAchievementTincture = 1;
 
 /// The pureblood rite: finishing its last stage, and each weekly rite.
 const int kAthanorRiteCompletionTincture = 5;

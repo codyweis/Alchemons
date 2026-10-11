@@ -214,7 +214,7 @@ void main() {
     // and that is all.
     await tester.tap(find.text('Arrange'));
     await settle(6);
-    final chip = find.text('MOONLIT SNOWFALL');
+    final chip = find.text('SNOWFALL');
     await tester.ensureVisible(chip);
     await settle(2);
     await tester.tap(chip);

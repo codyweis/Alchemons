@@ -1,6 +1,6 @@
 // THE ATHANOR'S BATCHES — the five sets a pour draws from (2026-10-10).
 //
-// Each batch is ten drawn pieces (five common, three rare, two epic) and a
+// Each batch is ten drawn pieces (four common, three rare, three epic) and a
 // capstone that comes with the last of them. The catalog behind them, and
 // why each piece is what it is, is docs/crucible/cosmetics_concepts.md; the
 // pieces' systems are listed in docs/athanor/pieces_*.md. Names on screen are
@@ -41,7 +41,7 @@ const List<AthanorBatch> kAthanorBatches = [
         description:
             'Fusing runs the two together like ink in water, into a dark spiral that blooms.',
         kind: AthanorPieceKind.fusionStyle,
-        rarity: AthanorRarity.common,
+        rarity: AthanorRarity.epic,
         grantRef: 'ink',
       ),
       AthanorPiece(
@@ -55,7 +55,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'black.inkcap_cluster',
-        name: 'Inkcap Cluster',
+        name: 'Ink Mushrooms',
         description:
             'Tall ink-cap mushrooms that drip ink, most of all at night.',
         kind: AthanorPieceKind.homeDecor,
@@ -64,7 +64,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'black.ink_bloom',
-        name: 'Ink Bloom',
+        name: 'Ink Plume',
         description:
             'Ink rises from the ground around an Alchemon and curls up in slow plumes.',
         kind: AthanorPieceKind.alchemyEffect,
@@ -91,7 +91,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'black.nightbloom_bed',
-        name: 'Nightbloom Bed',
+        name: 'Lily Bed',
         description:
             'A bed of dark leaves ringed with black lilies that open at night. A resident sleeps among them.',
         kind: AthanorPieceKind.homeDecor,
@@ -100,7 +100,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'black.peat_mist',
-        name: 'Peat Mist',
+        name: 'Night Mist',
         description:
             'Low violet mist drifts along the ground of a home realm at night.',
         kind: AthanorPieceKind.ambience,
@@ -110,7 +110,7 @@ const List<AthanorBatch> kAthanorBatches = [
     ],
     capstone: AthanorPiece(
       id: 'black.peacock_tail',
-      name: 'The Peacock\'s Tail',
+      name: 'Oil Slick',
       description:
           'An Alchemon stands in a pool of black that shows every color, slowly marbling.',
       kind: AthanorPieceKind.alchemyEffect,
@@ -146,12 +146,12 @@ const List<AthanorBatch> kAthanorBatches = [
         description:
             'Fusing turns the two to frost, grows them into one crystal, and lets it fall away as snow.',
         kind: AthanorPieceKind.fusionStyle,
-        rarity: AthanorRarity.common,
+        rarity: AthanorRarity.epic,
         grantRef: 'frost',
       ),
       AthanorPiece(
         id: 'white.moonstone_cairn',
-        name: 'Moonstone Cairn',
+        name: 'Stone Stack',
         description: 'Pale stones stacked by hand. They glow faintly at night.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.common,
@@ -176,7 +176,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'white.moon_font',
-        name: 'Moon Font',
+        name: 'Moon Basin',
         description:
             'A silver basin that holds the moon at night. Residents come to drink.',
         kind: AthanorPieceKind.homeDecor,
@@ -194,7 +194,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'white.hoarfrost_steps',
-        name: 'Hoarfrost Steps',
+        name: 'Frost Steps',
         description:
             'Frost blooms on the ground where it walks at home, then melts.',
         kind: AthanorPieceKind.trail,
@@ -203,7 +203,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'white.moonlit_snowfall',
-        name: 'Moonlit Snowfall',
+        name: 'Snowfall',
         description: 'Fine snow falls on clear nights in a home realm.',
         kind: AthanorPieceKind.ambience,
         rarity: AthanorRarity.epic,
@@ -235,7 +235,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'yellow.gilt_case',
-        name: 'Gilt Case',
+        name: 'Gold Case',
         description:
             'A specimen case backed with gold leaf, lit by a lamp above.',
         kind: AthanorPieceKind.caseStyle,
@@ -244,11 +244,11 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'yellow.gilt_fusion',
-        name: 'Gilt Fusion',
+        name: 'Gold Fusion',
         description:
             'Fusing turns the two to gold leaf that swirls in a double helix and folds into one.',
         kind: AthanorPieceKind.fusionStyle,
-        rarity: AthanorRarity.common,
+        rarity: AthanorRarity.epic,
         grantRef: 'gilt',
       ),
       AthanorPiece(
@@ -261,7 +261,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'yellow.honey_lamp',
-        name: 'Honey Lamp',
+        name: 'Amber Lamp',
         description: 'A lamp of amber glass with pollen drifting inside.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.common,
@@ -278,7 +278,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'yellow.storm_coil',
-        name: 'Storm Coil',
+        name: 'Spark Coil',
         description:
             'A tall brass coil that throws sparks. Residents hop beside it, Lightning ones most of all.',
         kind: AthanorPieceKind.homeDecor,
@@ -296,7 +296,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'yellow.gilt_steps',
-        name: 'Gilt Steps',
+        name: 'Gold Steps',
         description:
             'Gold dust lifts where it walks at home and settles in small glints.',
         kind: AthanorPieceKind.trail,
@@ -305,7 +305,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'yellow.sun_motes',
-        name: 'Sun Motes',
+        name: 'Dust Motes',
         description: 'Warm dust drifts in the daylight in a home realm.',
         kind: AthanorPieceKind.ambience,
         rarity: AthanorRarity.epic,
@@ -314,7 +314,7 @@ const List<AthanorBatch> kAthanorBatches = [
     ],
     capstone: AthanorPiece(
       id: 'yellow.gilded_throne',
-      name: 'The Gilded Throne',
+      name: 'Gold Throne',
       description:
           'A throne of brass and gold leaf. One resident sits on it; the others come to bow.',
       kind: AthanorPieceKind.homeDecor,
@@ -349,7 +349,7 @@ const List<AthanorBatch> kAthanorBatches = [
         description:
             'Fusing heats the two into embers that rise as two flames and burn down to one core.',
         kind: AthanorPieceKind.fusionStyle,
-        rarity: AthanorRarity.common,
+        rarity: AthanorRarity.epic,
         grantRef: 'ember',
       ),
       AthanorPiece(
@@ -371,7 +371,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'red.cinnabar',
-        name: 'Cinnabar',
+        name: 'Red Smoke',
         description:
             'Red smoke and grains of cinnabar rise from the ground around an Alchemon.',
         kind: AthanorPieceKind.alchemyEffect,
@@ -407,7 +407,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'red.ember_fall',
-        name: 'Ember Fall',
+        name: 'Rising Embers',
         description: 'Embers drift up from the ground at dusk in a home realm.',
         kind: AthanorPieceKind.ambience,
         rarity: AthanorRarity.epic,
@@ -416,7 +416,7 @@ const List<AthanorBatch> kAthanorBatches = [
     ],
     capstone: AthanorPiece(
       id: 'red.red_king_crown',
-      name: 'Crown of the Red King',
+      name: 'Garnet Crown',
       description:
           'A crown of dark gold and garnets over a velvet cap. Worn in place of the party hat.',
       kind: AthanorPieceKind.costume,
@@ -448,11 +448,11 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'still.distilled_fusion',
-        name: 'Distilled Fusion',
+        name: 'Steam Fusion',
         description:
             'Fusing lifts the two as vapour that condenses and drips into one pool.',
         kind: AthanorPieceKind.fusionStyle,
-        rarity: AthanorRarity.common,
+        rarity: AthanorRarity.epic,
         grantRef: 'distillation',
       ),
       AthanorPiece(
@@ -465,7 +465,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'still.retort_shelf',
-        name: 'Retort Shelf',
+        name: 'Flask Shelf',
         description: 'A shelf of glass flasks, each lit its own color.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.common,
@@ -473,7 +473,7 @@ const List<AthanorBatch> kAthanorBatches = [
       ),
       AthanorPiece(
         id: 'still.alembic',
-        name: 'Alembic',
+        name: 'Glass Still',
         description:
             'A glass still over a small flame. Residents come to look into it.',
         kind: AthanorPieceKind.homeDecor,
@@ -517,7 +517,7 @@ const List<AthanorBatch> kAthanorBatches = [
     ],
     capstone: AthanorPiece(
       id: 'still.great_alembic',
-      name: 'The Great Alembic',
+      name: 'Great Still',
       description:
           'A tall glass still. A resident steps in, comes apart into grains, and forms again at the far end.',
       kind: AthanorPieceKind.homeDecor,

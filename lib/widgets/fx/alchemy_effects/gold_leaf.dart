@@ -69,24 +69,40 @@ abstract final class _GoldLeaf {
       final side = _h(i, 5) < 0.5 ? -1.0 : 1.0;
       final x0 = cx + side * r * (0.42 + 0.5 * _h(i, 10));
       final size = r * (0.05 + 0.03 * _h(i, 4));
-      double x, y, spin, flip, flatten, alpha;
+      // Its fall at fraction f of the way down, at time tt: drifting down
+      // and side to side, as leaf does, never straight, tumbling as it
+      // goes.
+      final swayRate = 0.55 + 0.3 * _h(i, 7), flipRate = 1.3 + 1.2 * _h(i, 9);
+      double swayAt(double tt) => math.sin(tt * swayRate + i * 2.1);
+      double xAt(double f, double tt) =>
+          x0 + swayAt(tt) * r * 0.16 * (0.4 + f) + r * 0.06 * math.sin(i + f * 3);
+      double x, y, spin, flip, flatten, alpha, settle;
       if (u < fallEnd) {
         final f = u / fallEnd;
-        // Drifting down and side to side, as leaf does, never straight.
-        y = y0 + (yGround - y0) * f;
-        final sway = math.sin(t * (0.55 + 0.3 * _h(i, 7)) + i * 2.1);
-        x = x0 + sway * r * 0.16 * (0.4 + f) + r * 0.06 * math.sin(i + f * 3);
-        spin = 0.5 * sway + i;
-        flip = t * (1.3 + 1.2 * _h(i, 9)) + i * 1.7;
+        // Easing onto the ground over the last of its fall.
+        final down = f < 0.9 ? f : 0.9 + 0.1 * _smooth(0.0, 1.0, (f - 0.9) / 0.1);
+        y = y0 + (yGround - y0) * down;
+        x = xAt(f, t);
+        spin = 0.5 * swayAt(t) + i;
+        flip = t * flipRate + i * 1.7;
         flatten = 1;
         alpha = _smooth(0.0, 0.1, f);
+        settle = 0;
       } else {
+        // Lying where it landed, settling flat face up: everything carries
+        // on from the moment it touched down, so nothing jumps.
         final f = (u - fallEnd) / (1 - fallEnd);
+        final landed = t - (u - fallEnd) * period;
         y = yGround;
-        x = x0 + r * 0.06 * math.sin(i + 3.0);
-        spin = i * 1.3;
-        flip = 0.3 + 0.6 * _h(i, 9);
-        flatten = 0.32;
+        x = xAt(1, landed);
+        spin = 0.5 * swayAt(landed) + i;
+        final flipLand = landed * flipRate + i * 1.7;
+        final rest = 0.3 + 0.6 * _h(i, 9);
+        var turn = (rest - flipLand) % (math.pi * 2);
+        if (turn > math.pi) turn -= math.pi * 2;
+        settle = _smooth(0.0, 0.16, f);
+        flip = flipLand + turn * settle;
+        flatten = 1 - 0.68 * settle;
         alpha = 1 - _smooth(0.5, 1.0, f);
       }
       if (alpha <= 0.01) continue;
@@ -96,9 +112,11 @@ abstract final class _GoldLeaf {
           (0.5 + 0.5 * math.cos(flip + off - 0.7)).clamp(0.0, 1.0);
       final litA = litAt(0.35), litB = litAt(-0.35);
       var flash = math.pow(math.max(litA, litB), 14).toDouble();
-      if (u >= fallEnd) {
+      if (settle > 0) {
+        // Lying still, it glints now and then as the light moves.
         final g = math.sin(t * 0.8 + i * 2.7);
-        flash = g > 0.9 ? (g - 0.9) / 0.1 : 0.0;
+        final glint = _smooth(0.86, 1.0, g);
+        flash += (glint - flash) * settle;
       }
       int col(double lit, double edge) {
         final base = _mix(_shadow, _face, 0.4 + 0.6 * lit + edge);

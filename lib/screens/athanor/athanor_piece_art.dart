@@ -22,7 +22,6 @@ import 'package:alchemons/widgets/fx/cosmetics/cosmetic_previews.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
-import 'package:alchemons/widgets/fx/grain_glass.dart';
 import 'package:alchemons/widgets/fx/keepsake_art.dart';
 import 'package:alchemons/widgets/nav_emblems.dart';
 import 'package:flutter/foundation.dart';
@@ -186,7 +185,8 @@ enum AthanorPieceLook {
   /// Still to come: a dim ghost of itself.
   ghost,
 
-  /// A capstone not yet given: shut in dark glass.
+  /// A capstone not yet given: itself, sunk to a dark brass shape, so the
+  /// goal shows without being given away in its colours.
   sealed,
 }
 
@@ -256,17 +256,29 @@ class _AthanorPieceArtState extends State<AthanorPieceArt>
     final Widget art = CustomPaint(
       size: Size.infinite,
       willChange: glyphClock != null,
-      painter: widget.look == AthanorPieceLook.sealed
-          ? _SealedPainter(clock: glyphClock)
-          : _PiecePainter(
-              widget.piece,
-              style,
-              clock: glyphClock,
-              letReady: _dockLets.containsKey(widget.piece.grantRef),
-            ),
+      painter: _PiecePainter(
+        widget.piece,
+        style,
+        clock: glyphClock,
+        letReady: _dockLets.containsKey(widget.piece.grantRef),
+      ),
     );
-    if (widget.look != AthanorPieceLook.ghost) {
+    if (widget.look == AthanorPieceLook.lit) {
       return RepaintBoundary(child: art);
+    }
+    if (widget.look == AthanorPieceLook.sealed) {
+      // Its own shape in dark brass: light kept as brass, colour taken out.
+      return RepaintBoundary(
+        child: ColorFiltered(
+          colorFilter: const ColorFilter.matrix([
+            0.26, 0.5, 0.1, 0, 10, //
+            0.2, 0.4, 0.08, 0, 7,
+            0.11, 0.22, 0.05, 0, 3,
+            0, 0, 0, 1, 0,
+          ]),
+          child: art,
+        ),
+      );
     }
     // A ghost: its own shape, without its color, faint.
     return RepaintBoundary(
@@ -312,33 +324,6 @@ class _PiecePainter extends CustomPainter {
       old.clock != clock ||
       old.style != style ||
       old.letReady != letReady;
-}
-
-/// A capstone not yet given: a bead of dark glass, its grains at rest.
-class _SealedPainter extends CustomPainter {
-  _SealedPainter({this.clock}) : super(repaint: clock);
-
-  final ValueListenable<double>? clock;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final r = size.shortestSide * 0.3;
-    GrainGlass.sphere(
-      canvas,
-      size.center(Offset.zero),
-      r,
-      clock?.value ?? 1.4,
-      a: AthanorTone.brassDeep,
-      spin: 0.12,
-      density: 0.55,
-      glow: 0.5,
-      fade: 0.85,
-      salt: 9,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_SealedPainter old) => old.clock != clock;
 }
 
 final Map<String, SpecimenGrains> _grainCache = {};

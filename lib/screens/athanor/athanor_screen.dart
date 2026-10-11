@@ -14,6 +14,7 @@ import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/elemental_group.dart';
+import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/athanor/athanor_field.dart';
 import 'package:alchemons/screens/athanor/athanor_furnace.dart';
@@ -418,7 +419,7 @@ class _AthanorScreenState extends State<AthanorScreen>
           const SizedBox(width: 14),
           Expanded(
             child: Text(
-              'THE ATHANOR',
+              'THE FURNACE',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: athanorMono(11.5, AthanorTone.parchmentDim, spacing: 2.8),
@@ -816,7 +817,7 @@ class _FirstFire extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  "The Athanor's first fire: +$amount tincture",
+                  "The Furnace's first fire: +$amount tincture",
                   style: athanorBody(context, color: AthanorTone.parchment),
                 ),
               ),
@@ -973,6 +974,7 @@ class _PieceGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final drawn = svc.drawnIn(batch.id);
     final capOwned = svc.owns(batch.capstone.id);
+    final chance = {for (final (p, c) in svc.odds(batch.id)) p.id: c};
     final tiles = [
       for (final p in batch.pieces) (p, drawn.contains(p.id), false),
       (batch.capstone, capOwned, true),
@@ -989,7 +991,12 @@ class _PieceGrid extends StatelessWidget {
             for (final (piece, owned, cap) in tiles)
               SizedBox.square(
                 dimension: side,
-                child: _Tile(piece: piece, owned: owned, capstone: cap),
+                child: _Tile(
+                  piece: piece,
+                  owned: owned,
+                  capstone: cap,
+                  chance: chance[piece.id],
+                ),
               ),
           ],
         );
@@ -1003,10 +1010,15 @@ class _Tile extends StatelessWidget {
     required this.piece,
     required this.owned,
     required this.capstone,
+    this.chance,
   });
 
   final AthanorPiece piece;
   final bool owned, capstone;
+
+  /// Its chance on the next pour, from the same odds the draw rolls; null
+  /// once drawn, and for the capstone.
+  final double? chance;
 
   @override
   Widget build(BuildContext context) {
@@ -1020,7 +1032,13 @@ class _Tile extends StatelessWidget {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(
-        () => _showPiece(context, piece, owned: owned, capstone: capstone),
+        () => _showPiece(
+          context,
+          piece,
+          owned: owned,
+          capstone: capstone,
+          chance: chance,
+        ),
       ),
       child: CustomPaint(
         foregroundPainter: BracketFramePainter(
@@ -1070,6 +1088,7 @@ Future<void> _showPiece(
   AthanorPiece piece, {
   required bool owned,
   required bool capstone,
+  double? chance,
 }) => showDialog<void>(
   context: context,
   barrierColor: Colors.black.withValues(alpha: 0.7),
@@ -1082,52 +1101,92 @@ Future<void> _showPiece(
         ? 'Owned.'
         : capstone
         ? 'Comes with the last piece of the batch.'
+        : chance != null
+        ? 'Not drawn yet. ${(chance * 100).toStringAsFixed(1)}% on the next pour.'
         : 'Not drawn yet.';
     return Dialog(
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Container(
-        color: p.bg1,
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              height: 150,
-              child: AthanorPieceArt(
-                piece: piece,
-                look: owned || !capstone
-                    ? AthanorPieceLook.lit
-                    : AthanorPieceLook.sealed,
-                animate: owned,
+      child: CustomPaint(
+        // The bare frame: lit from below in the piece's rarity.
+        foregroundPainter: BracketFramePainter(
+          color: ink.withValues(alpha: 0.8),
+        ),
+        child: Container(
+          color: p.bg1,
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                height: 150,
+                child: AthanorPieceArt(
+                  piece: piece,
+                  look: owned || !capstone
+                      ? AthanorPieceLook.lit
+                      : AthanorPieceLook.sealed,
+                  animate: true,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              capstone
-                  ? 'CAPSTONE  ·  ${athanorKindLabel(piece.kind)}'
-                  : '${piece.rarity.label}  ·  ${athanorKindLabel(piece.kind)}',
-              style: athanorMono(10, ink, spacing: 2),
-            ),
-            const SizedBox(height: 6),
-            Text(piece.name, style: athanorName(ctx, 22)),
-            const SizedBox(height: 8),
-            Text(piece.description, style: athanorBody(ctx)),
-            const SizedBox(height: 6),
-            Text(status, style: athanorBody(ctx, color: AthanorTone.parchment)),
-            const SizedBox(height: 16),
-            BracketButton(
-              label: 'CLOSE',
-              primary: false,
-              height: 40,
-              palette: p,
-              accent: AthanorTone.brass,
-              onTap: () => Navigator.of(ctx).pop(),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                capstone
+                    ? 'CAPSTONE  ·  ${athanorKindLabel(piece.kind)}'
+                    : '${piece.rarity.label}  ·  ${athanorKindLabel(piece.kind)}',
+                style: athanorMono(10, ink, spacing: 2),
+              ),
+              const SizedBox(height: 6),
+              Text(piece.name, style: athanorName(ctx, 22)),
+              const SizedBox(height: 8),
+              Text(piece.description, style: athanorBody(ctx)),
+              const SizedBox(height: 6),
+              Text(
+                athanorWhereItGoes(piece),
+                style: athanorBody(ctx, color: AthanorTone.muted),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                status,
+                style: athanorBody(ctx, color: AthanorTone.parchment),
+              ),
+              const SizedBox(height: 16),
+              BracketButton(
+                label: 'CLOSE',
+                primary: false,
+                height: 40,
+                palette: p,
+                accent: AthanorTone.brass,
+                onTap: () => Navigator.of(ctx).pop(),
+              ),
+            ],
+          ),
         ),
       ),
     );
   },
 );
+
+/// Where a piece goes once it is the player's, in plain words.
+String athanorWhereItGoes(AthanorPiece piece) {
+  switch (piece.kind) {
+    case AthanorPieceKind.alchemyEffect:
+    case AthanorPieceKind.costume:
+    case AthanorPieceKind.caseStyle:
+    case AthanorPieceKind.trail:
+      return 'An Alchemon wears it: choose it on its details in Creatures.';
+    case AthanorPieceKind.homeDecor:
+      final curio = HomeDecor.byId(piece.grantRef)?.tier == DecorTier.curio;
+      return curio
+          ? 'Comes three at a time. Placed at home: Arrange, then Keepsakes.'
+          : 'Placed at home: Arrange, then Keepsakes.';
+    case AthanorPieceKind.title:
+      return 'Shown on your profile: Profile, then Display, then Title.';
+    case AthanorPieceKind.dockSet:
+      return 'Worn by the dock: Profile, then Dock.';
+    case AthanorPieceKind.ambience:
+      return 'Laid over a home realm: chosen in Arrange.';
+    case AthanorPieceKind.fusionStyle:
+      return 'Plays at every fusion: Profile, then Display, then Fusion.';
+  }
+}

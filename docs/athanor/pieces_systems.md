@@ -9,21 +9,21 @@ follow `pieces_wearables.md`: `black`, `white`, `yellow`, `red`, `still`.
 | Batch | Piece id | Name | Kind | Rarity | grantRef | Description |
 |---|---|---|---|---|---|---|
 | The Black Work | `black.obsidian_case` | Obsidian Case | `caseStyle` | common | `obsidian` | A specimen case of black glass with a faint oil-slick sheen across it. |
-| The Black Work | `black.ink_fusion` | Ink Fusion | `fusionStyle` | common | `ink` | Fusing runs the two together like ink in water, into a dark spiral that blooms. |
-| The Black Work | `black.peat_mist` | Peat Mist | `ambience` | epic | `peat_mist` | Low violet mist drifts along the ground of a home realm at night. |
+| The Black Work | `black.ink_fusion` | Ink Fusion | `fusionStyle` | epic | `ink` | Fusing runs the two together like ink in water, into a dark spiral that blooms. |
+| The Black Work | `black.peat_mist` | Night Mist | `ambience` | epic | `peat_mist` | Low violet mist drifts along the ground of a home realm at night. |
 | The White Work | `white.frost_case` | Frost Case | `caseStyle` | common | `frost` | A specimen case with frost grown in from its corners and cold light above. |
-| The White Work | `white.frost_fusion` | Frost Fusion | `fusionStyle` | common | `frost` | Fusing turns the two to frost, grows them into one crystal, and lets it fall away as snow. |
-| The White Work | `white.hoarfrost_steps` | Hoarfrost Steps | `trail` | epic | `hoarfrost_steps` | Frost blooms on the ground where it walks at home, then melts. |
-| The White Work | `white.moonlit_snowfall` | Moonlit Snowfall | `ambience` | epic | `moonlit_snowfall` | Fine snow falls on clear nights in a home realm. |
-| The Yellow Work | `yellow.gilt_case` | Gilt Case | `caseStyle` | common | `gilt` | A specimen case backed with gold leaf, lit by a lamp above. |
-| The Yellow Work | `yellow.gilt_fusion` | Gilt Fusion | `fusionStyle` | common | `gilt` | Fusing turns the two to gold leaf that swirls in a double helix and folds into one. |
-| The Yellow Work | `yellow.gilt_steps` | Gilt Steps | `trail` | epic | `gilt_steps` | Gold dust lifts where it walks at home and settles in small glints. |
-| The Yellow Work | `yellow.sun_motes` | Sun Motes | `ambience` | epic | `sun_motes` | Warm dust drifts in the daylight in a home realm. |
+| The White Work | `white.frost_fusion` | Frost Fusion | `fusionStyle` | epic | `frost` | Fusing turns the two to frost, grows them into one crystal, and lets it fall away as snow. |
+| The White Work | `white.hoarfrost_steps` | Frost Steps | `trail` | epic | `hoarfrost_steps` | Frost blooms on the ground where it walks at home, then melts. |
+| The White Work | `white.moonlit_snowfall` | Snowfall | `ambience` | epic | `moonlit_snowfall` | Fine snow falls on clear nights in a home realm. |
+| The Yellow Work | `yellow.gilt_case` | Gold Case | `caseStyle` | common | `gilt` | A specimen case backed with gold leaf, lit by a lamp above. |
+| The Yellow Work | `yellow.gilt_fusion` | Gold Fusion | `fusionStyle` | epic | `gilt` | Fusing turns the two to gold leaf that swirls in a double helix and folds into one. |
+| The Yellow Work | `yellow.gilt_steps` | Gold Steps | `trail` | epic | `gilt_steps` | Gold dust lifts where it walks at home and settles in small glints. |
+| The Yellow Work | `yellow.sun_motes` | Dust Motes | `ambience` | epic | `sun_motes` | Warm dust drifts in the daylight in a home realm. |
 | The Red Work | `red.garnet_case` | Garnet Case | `caseStyle` | common | `garnet` | A specimen case of deep garnet glass, lit from below. |
-| The Red Work | `red.ember_fusion` | Ember Fusion | `fusionStyle` | common | `ember` | Fusing heats the two into embers that rise as two flames and burn down to one core. |
-| The Red Work | `red.ember_fall` | Ember Fall | `ambience` | epic | `ember_fall` | Embers drift up from the ground at dusk in a home realm. |
+| The Red Work | `red.ember_fusion` | Ember Fusion | `fusionStyle` | epic | `ember` | Fusing heats the two into embers that rise as two flames and burn down to one core. |
+| The Red Work | `red.ember_fall` | Rising Embers | `ambience` | epic | `ember_fall` | Embers drift up from the ground at dusk in a home realm. |
 | The Still-Room | `still.brass_case` | Brass Case | `caseStyle` | common | `brass` | A specimen case with a brass instrument plate behind it and a lamp above. |
-| The Still-Room | `still.distilled_fusion` | Distilled Fusion | `fusionStyle` | common | `distillation` | Fusing lifts the two as vapour that condenses and drips into one pool. |
+| The Still-Room | `still.distilled_fusion` | Steam Fusion | `fusionStyle` | epic | `distillation` | Fusing lifts the two as vapour that condenses and drips into one pool. |
 
 16 pieces: 5 case styles and 5 fusion styles (common, one per batch), 2
 trails and 4 ambiences (epic). The grantRefs are the ids of `CaseStyle`,
@@ -46,8 +46,8 @@ trails and 4 ambiences (epic). The grantRefs are the ids of `CaseStyle`,
 - `CosmeticWearService` (provided in `app_providers.dart`, not lazy, reloads
   when the Athanor notifies and in `reloadStateAfterSaveRestore`) refuses to
   wear anything not owned.
-- Hours: Peat Mist 18:00–07:00 (eased), Moonlit Snowfall 19:30–06:00 and only
-  with no weather, Sun Motes 07:00–19:00, Ember Fall 16:30–22:00. The pinned
+- Hours: Night Mist 18:00–07:00 (eased), Snowfall 19:30–06:00 and only
+  with no weather, Dust Motes 07:00–19:00, Rising Embers 16:30–22:00. The pinned
   hours DAWN/DAY/SUNSET/NIGHT each show at least one.
 - Ambiences never announce themselves: no snack, no label on the field
   (tested).
@@ -97,12 +97,14 @@ the cinematic still settles into the same turning cultivation by
 
 | Style | The merge | The cinematic |
 |---|---|---|
-| Ink | each dissolves where it stands and runs into the orb along curling streams: two uneven arms of one dark spiral | the spiral blooms open, colors coming back from the inside out as it rounds into the cultivation; a few wisps curl away |
-| Frost | each locks to a lattice (faceted grains), then grows into the orb along it as two crystals leaning into each other, shaded facet by facet | the outside falls away as snow; what was inside thaws into the cultivation |
-| Gilt | each turns to flashing gold leaf and lifts into a double helix (a strand of each, faintly its own color), which folds flat | the leaves fold onto the sphere; a burnish sweeps across and leaves the colors behind it |
-| Ember | each heats and rises as a flame; the roots draw together under the orb and the flames wind round each other, then burn down | one white-hot core swells into the cultivation as it cools, white to red to its colors; embers rise off it |
-| Distillation | each thins to vapour that rises into a cloud, condenses into drops, and drips into one pool | the pool draws itself up, the middle first, into the round cultivation; the last drops fall in |
+| Ink | soaked through by a front from the orb's side, each is let go like a drop into still water: a rolling mushroom cap (two lobes winding up their own sheet) pushes toward the orb with tendrils trailing back; the caps meet, spread and marble in a slow shear; all of it carried by a curling divergence-free flow (`InkFlow`, a lattice laid once a frame) — dark where thick, its own color where thin, a haze/body/fine layering against a faint light in the water | one dark marbled bloom (the two inks in regions bounded by slow waves) opens into lopsided billows with rolling edges, gathers into the cultivation as ink, and its colors come back as each grain arrives |
+| Frost | feathered frost grows across each body from the side facing the other — a fan of rays, each a spine with branchlets at uneven angles, grains accreting as the growth reaches them, fresh grains bright, a slow glitter band over the crust; the two ferns reach for each other and lock into one mass | the mass, two fans meeting, turns a little; its tips sublime first into fine snow drifting on a slow flow, which settles into the cultivation |
+| Gilt | each is cut into thin leaves of gold (two-toned: bright face, old-gold back, a flash as each turns full to the light) that lift off nearest-first, tumbling and spinning, onto a slow vortex with depth — a leaf-storm of both | the storm opens, the leaves are laid flat on the sphere (lit as it is lit), and a burnish sweeps across and leaves its colors behind |
+| Ember | each catches from the side facing the other; every grain a parcel of flame rising on its own buoyancy through a quick curling flow, cooling white → yellow → orange → red → ash, sparks spiralling; the later it caught the more it leans into the other, so the two fires merge into one blaze that falls into a reheating coal | a white-hot coal with a red edge flickers; tongues flare off it and rise (swaying, not drifting), cooling to ash; the coal swells into the cultivation as it cools; nothing lingers |
+| Distillation | each thins to steam rising on a slow flow; it beads into drops under the glass, one specimen's water to a drop; each swells, necks and lets go, falls, and its landing rings out across the pool | the last drops fall and ring the pool; the pool draws itself up, middle first, into the cultivation |
 
 Strips (twelve moments, two pairs, beside the plain fusion):
-`docs/athanor/content/fusion/<pair>_<style>.png`, from
+`docs/athanor/content/fusion/<pair>_<style>.png`, plus
+`<pair>_<style>_motion.png` (16 frames 1/30 s apart at the meeting, then
+at the bloom), from
 `FUSION_STYLES_OUT=docs/athanor/content/fusion flutter test -j 1 test/fusion_styles_preview_test.dart --tags preview`.

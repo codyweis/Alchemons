@@ -6,10 +6,10 @@
 // laid over the ground, one of light added to it — so every trail in a
 // field is two draws, however many creatures wear one.
 //
-//   Hoarfrost Steps  frost blooms where each foot comes down: a lopsided
+//   Frost Steps  frost blooms where each foot comes down: a lopsided
 //                    spray of fronds that grows out in half a second,
 //                    holds, and melts back to a wet glint and nothing
-//   Gilt Steps       gold dust kicked up at each step, falling back and
+//   Gold Steps       gold dust kicked up at each step, falling back and
 //                    lying in small glints that twinkle and fade
 //
 // From the Hoarfrost prototype (docs/crucible/concepts/trail.png),
@@ -100,7 +100,7 @@ class TrailPrints {
     }
   }
 
-  // ── Hoarfrost Steps ─────────────────────────────────────────────────────
+  // ── Frost Steps ─────────────────────────────────────────────────────
 
   static const Color _ice = Color(0xFFE6F4FF);
   static const Color _cold = Color(0xFF8FC4FF);
@@ -170,7 +170,7 @@ class TrailPrints {
     }
   }
 
-  // ── Gilt Steps ──────────────────────────────────────────────────────────
+  // ── Gold Steps ──────────────────────────────────────────────────────────
 
   static const Color _gold = Color(0xFFE2B85A);
   static const Color _goldDeep = Color(0xFFB08436);

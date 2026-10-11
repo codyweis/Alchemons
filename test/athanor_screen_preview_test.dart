@@ -513,7 +513,9 @@ void main() {
     final eight = {...nine}..remove('ember.rift');
     svc = await save(batches: const [_ember], drawn: eight, tincture: 30);
     await show(const AthanorScreen(), svc);
-    await tester.tap(find.bySemanticsLabel('POUR · 10 TINCTURE'));
+    await tester.tap(
+      find.bySemanticsLabel('POUR · $kAthanorTincturePerPour TINCTURE'),
+    );
     await runTo(AthanorBeats.settled + 0.3, '18_capstone_piece');
     await runTo(6.9, '19_capstone_gather');
     await runTo(AthanorBeats.rest2 + 0.6, '20_capstone_rest');
@@ -558,6 +560,25 @@ void main() {
         await shoot('real_odds_${batch.id}');
         await tester.tap(find.text('CLOSE'));
         await settle(10);
+      }
+      // A piece's popup: one drawn, one not, the fusion style, the capstone.
+      final tiles = find.byWidgetPredicate(
+        (w) => w.runtimeType.toString() == '_Tile',
+      );
+      final fusion = batch.pieces.indexWhere(
+        (p) => p.kind == AthanorPieceKind.fusionStyle,
+      );
+      for (final (tile, name) in [
+        (0, 'drawn'),
+        (i + 2, 'left'),
+        (fusion, 'fusion'),
+        (batch.pieces.length, 'capstone'),
+      ]) {
+        await tester.tap(tiles.at(tile));
+        await settle(12);
+        await shoot('real_popup_${batch.id}_$name');
+        await tester.tap(find.text('CLOSE').last);
+        await settle(8);
       }
     }
   });

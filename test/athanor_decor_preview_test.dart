@@ -395,7 +395,7 @@ void main() {
     c.drawRect(Offset.zero & size, Paint()..color = _bg);
     _text(
       c,
-      'THE GREAT ALEMBIC  ·  a resident carried through as its grains, '
+      'GREAT STILL  ·  a resident carried through as its grains, '
       'with ${_rows[who]!['name']}',
       const Offset(12, 9),
       size: 14,
@@ -449,7 +449,7 @@ void main() {
     final w2 = (box.width + 260) * _px;
     final size2 = Size(w2 * 2, cellH + 34);
     c2.drawRect(Offset.zero & size2, Paint()..color = _bg);
-    _text(c2, 'THE GREAT ALEMBIC', const Offset(12, 9), size: 14, bold: true);
+    _text(c2, 'GREAT STILL', const Offset(12, 9), size: 14, bold: true);
     _text(
       c2,
       'The Still-Room · Wonder (capstone)',

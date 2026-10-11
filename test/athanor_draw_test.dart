@@ -145,13 +145,15 @@ void main() {
       expect(athanorContestTincture(5), 10);
     });
 
-    test('first fire is 30 plus 3 per unpaid claim, back-pay capped at 90', () {
+    test('first fire is 30 plus back-pay per unpaid claim, capped at 90', () {
       int fire(int a, int s) =>
           athanorFirstFireTincture(unpaidAchievements: a, unpaidStars: s);
+      const a = kAthanorAchievementTincture, s = kAthanorStarTincture;
       expect(fire(0, 0), 30);
-      expect(fire(4, 3), 30 + 21);
-      expect(fire(30, 0), 120);
+      expect(fire(4, 3), 30 + 4 * a + 3 * s);
+      expect(fire(30, 0), 30 + 30 * a);
       expect(fire(25, 26), 120);
+      expect(fire(200, 0), 120);
       expect(fire(-2, -5), 30);
     });
   });

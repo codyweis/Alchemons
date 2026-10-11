@@ -204,7 +204,7 @@ abstract final class AlchemyEffectPaint {
           front,
         );
       case inkBloom:
-        _InkBloom.paint(canvas, center, r, t, o, dark, front);
+        _InkBloom.paint(canvas, center, r, t, o, dark, front, element);
       case peacockTail:
         _PeacockTail.paint(canvas, center, r, t, o, dark, front);
       case quicksilver:
@@ -384,7 +384,7 @@ int _hsv(double hue, double s, double v) {
 abstract final class _Atlas {
   static const double _cell = 64;
   static const int dot = 0, petal = 1, bead = 2, puff = 3;
-  static const int _cap = 360;
+  static const int _cap = 768;
 
   static final Float32List _xf = Float32List(_cap * 4);
   static final Float32List _rects = Float32List(_cap * 4);
@@ -620,3 +620,231 @@ class _Tris {
 /// An ARGB int from 0xRRGGBB and an alpha.
 int _argb(int rgb, double alpha) =>
     ((alpha.clamp(0.0, 1.0) * 255).round() << 24) | (rgb & 0xFFFFFF);
+
+/// The air or water an effect's grains move in: the curl of a few octaves
+/// of slow travelling waves, so it is divergence-free (grains crowd and thin
+/// along curling filaments, never bunching to a point) and smooth in space
+/// and time. Laid on a small lattice once per clock time ([prepare]) and
+/// sampled bilinearly ([sample]), in an effect's unit space: the creature's
+/// half box is 1, its middle the origin, up is −y. After `InkFlow`
+/// (fusion_style_kit.dart), sized for an aura and kept here so the effects
+/// stand on their own.
+///
+/// A grain is never stepped from frame to frame: [trace] walks it from
+/// where it was born, for its age, along the flow as it is now. So its
+/// place is a smooth function of the clock, the same for every host, and a
+/// test can scrub it.
+class _Flow {
+  _Flow(
+    this.waves, {
+    this.scale = 0.5,
+    this.x0 = -2.2,
+    this.x1 = 2.2,
+    this.y0 = -2.6,
+    this.y1 = 1.4,
+    this.n = 18,
+  }) : _vx = Float64List((n + 1) * (n + 1)),
+       _vy = Float64List((n + 1) * (n + 1)),
+       _ca = Float64List((n + 1) * waves.length),
+       _sa = Float64List((n + 1) * waves.length),
+       _cb = Float64List((n + 1) * waves.length),
+       _sb = Float64List((n + 1) * waves.length);
+
+  /// Per wave: kx, ky (per [scale]), angular speed, phase, amplitude.
+  final List<(double, double, double, double, double)> waves;
+
+  /// The flow's largest curl, in unit space.
+  final double scale;
+  final double x0, x1, y0, y1;
+  final int n;
+
+  final Float64List _vx, _vy, _ca, _sa, _cb, _sb;
+  double _at = double.nan;
+
+  /// The velocity [sample] found, about 1 at the flow's strongest.
+  double vx = 0, vy = 0;
+
+  /// Lays the flow at [t] seconds; once per [t].
+  void prepare(double t) {
+    if (t == _at) return;
+    _at = t;
+    final w = waves.length;
+    for (var c = 0; c <= n; c++) {
+      final x = (x0 + (x1 - x0) * c / n) / scale;
+      for (var k = 0; k < w; k++) {
+        final a = waves[k].$1 * x;
+        _ca[c * w + k] = math.cos(a);
+        _sa[c * w + k] = math.sin(a);
+      }
+    }
+    for (var r = 0; r <= n; r++) {
+      final y = (y0 + (y1 - y0) * r / n) / scale;
+      for (var k = 0; k < w; k++) {
+        final (_, ky, om, ph, _) = waves[k];
+        final b = ky * y + om * t + ph;
+        _cb[r * w + k] = math.cos(b);
+        _sb[r * w + k] = math.sin(b);
+      }
+    }
+    for (var r = 0; r <= n; r++) {
+      for (var c = 0; c <= n; c++) {
+        var vx = 0.0, vy = 0.0;
+        for (var k = 0; k < w; k++) {
+          final (kx, ky, _, _, amp) = waves[k];
+          final cosArg =
+              _ca[c * w + k] * _cb[r * w + k] - _sa[c * w + k] * _sb[r * w + k];
+          // The curl of amp·sin(arg): (∂ψ/∂y, −∂ψ/∂x).
+          vx += amp * ky * cosArg;
+          vy -= amp * kx * cosArg;
+        }
+        _vx[r * (n + 1) + c] = vx;
+        _vy[r * (n + 1) + c] = vy;
+      }
+    }
+  }
+
+  /// The velocity at ([x], [y]) into [vx], [vy]; still outside the lattice,
+  /// stilling toward its edge so nothing jumps crossing it.
+  void sample(double x, double y) {
+    final fx = (x - x0) / (x1 - x0) * n, fy = (y - y0) / (y1 - y0) * n;
+    if (fx < 0 || fy < 0 || fx >= n || fy >= n) {
+      vx = 0;
+      vy = 0;
+      return;
+    }
+    final c = fx.floor(), r = fy.floor();
+    final u = fx - c, v = fy - r;
+    final i = r * (n + 1) + c, j = i + n + 1;
+    final a = (1 - u) * (1 - v), b = u * (1 - v), cc = (1 - u) * v, d = u * v;
+    final mx = math.min(fx, n - fx), my = math.min(fy, n - fy);
+    final edge = n * 0.12;
+    final fade =
+        (mx >= edge ? 1.0 : _smooth(0, edge, mx)) *
+        (my >= edge ? 1.0 : _smooth(0, edge, my));
+    vx = (_vx[i] * a + _vx[i + 1] * b + _vx[j] * cc + _vx[j + 1] * d) * fade;
+    vy = (_vy[i] * a + _vy[i + 1] * b + _vy[j] * cc + _vy[j + 1] * d) * fade;
+  }
+
+  /// The path [_px], [_py] (point 0 the birth, point [steps] now) of a grain
+  /// born at ([x], [y]) [age] seconds ago, carried by the flow at [speed]
+  /// plus a steady [lift] up (buoyancy: a uniform drift, so still
+  /// divergence-free) and [drift] across. The flow is slow beside its
+  /// steps, so plain steps follow it closely.
+  static final Float64List _px = Float64List(24), _py = Float64List(24);
+
+  ///
+  /// With [calm] > 0 the flow takes hold only as the grain rises: still air
+  /// carries it straight up at first (smoke's laminar thread), and the
+  /// currents have it fully once it has risen [calm].
+  void trace(
+    double x,
+    double y,
+    double age,
+    int steps, {
+    double speed = 0.3,
+    double lift = 0,
+    double drift = 0,
+    double calm = 0,
+  }) {
+    final dt = age / steps;
+    var px = x, py = y;
+    _px[0] = px;
+    _py[0] = py;
+    for (var k = 1; k <= steps; k++) {
+      sample(px, py);
+      final hold = calm <= 0 ? 1.0 : _smooth(0, calm, y - py);
+      px += (vx * speed * hold + drift * hold) * dt;
+      py += (vy * speed * hold - lift) * dt;
+      _px[k] = px;
+      _py[k] = py;
+    }
+  }
+}
+
+/// A wisp of smoke or ink: the path it takes from its source, traced along
+/// a [_Flow] as the flow is now (a streamline, which is where a steady
+/// source's smoke lies while the flow changes slowly), so the wisp leans
+/// and sways as the flow does. Its material rides along it by age, so it
+/// is continuous: [at] reads the point a fraction of the way up, with its
+/// direction's normal.
+class _Spine {
+  final Float64List _x = Float64List(25), _y = Float64List(25);
+  int _n = 0;
+
+  /// The point [at] found, and the unit normal to the left of the way up.
+  double x = 0, y = 0, nx = 0, ny = 0;
+
+  /// The path from ([x0], [y0]) for [age] seconds in [steps] steps.
+  void trace(
+    _Flow flow,
+    double x0,
+    double y0,
+    double age,
+    int steps, {
+    double speed = 0.2,
+    double lift = 0.3,
+    double drift = 0,
+    double calm = 0,
+  }) {
+    flow.trace(
+      x0,
+      y0,
+      age,
+      steps,
+      speed: speed,
+      lift: lift,
+      drift: drift,
+      calm: calm,
+    );
+    _n = steps;
+    for (var k = 0; k <= steps; k++) {
+      _x[k] = _Flow._px[k];
+      _y[k] = _Flow._py[k];
+    }
+  }
+
+  /// Rolls the path over from fraction [from] on, by up to [angle] radians
+  /// at its end, about the point at [from]: a head curling over.
+  void roll(double from, double angle) {
+    final k0 = (from * _n).floor().clamp(0, _n);
+    final ox = _x[k0], oy = _y[k0];
+    for (var k = k0 + 1; k <= _n; k++) {
+      final f = (k - k0) / (_n - k0);
+      final a = angle * math.pow(f, 1.5);
+      final dx = _x[k] - ox, dy = _y[k] - oy;
+      final ca = math.cos(a), sa = math.sin(a);
+      _x[k] = ox + dx * ca - dy * sa;
+      _y[k] = oy + dx * sa + dy * ca;
+    }
+  }
+
+  /// The point a fraction [s] of the way along, into [x], [y], [nx], [ny].
+  void at(double s) {
+    final f = s.clamp(0.0, 1.0) * _n;
+    final k = math.min(f.floor(), _n - 1);
+    final u = f - k;
+    x = _x[k] + (_x[k + 1] - _x[k]) * u;
+    y = _y[k] + (_y[k + 1] - _y[k]) * u;
+    var tx = _x[k + 1] - _x[k], ty = _y[k + 1] - _y[k];
+    final l = math.sqrt(tx * tx + ty * ty);
+    if (l < 1e-9) {
+      tx = 0;
+      ty = -1;
+    } else {
+      tx /= l;
+      ty /= l;
+    }
+    nx = ty;
+    ny = -tx;
+  }
+
+  /// How long it is, in unit space.
+  double get length {
+    var sum = 0.0;
+    for (var k = 0; k < _n; k++) {
+      final dx = _x[k + 1] - _x[k], dy = _y[k + 1] - _y[k];
+      sum += math.sqrt(dx * dx + dy * dy);
+    }
+    return sum;
+  }
+}

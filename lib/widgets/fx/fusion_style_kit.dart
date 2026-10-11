@@ -12,6 +12,7 @@
 // vapour grain by grain.
 
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:flutter/painting.dart';
@@ -52,16 +53,16 @@ List<Color> fusionStyleTones(FusionStyle style, List<Color> palette) {
   final h = mid.hue, s = mid.saturation;
   switch (style) {
     case FusionStyle.ink:
-      // Ink of its own color: deep and saturated, running to violet-black
-      // in the darkest, and a lit edge where it catches the light.
+      // Ink: near black where it is thick, its own color only where it
+      // thins, and light at the edges that catch it.
       final inkS = math.max(0.6, s);
       return [
-        _hsl(h + (265 - h) * 0.4, 0.45, 0.05),
-        _hsl(h + (265 - h) * 0.25, inkS, 0.09),
-        _hsl(h, inkS, 0.14),
-        _hsl(h, inkS, 0.2),
-        _hsl(h, inkS * 0.95, 0.29),
-        _hsl(h, inkS * 0.8, 0.55),
+        _hsl(h + (265 - h) * 0.4, 0.35, 0.03),
+        _hsl(h + (265 - h) * 0.2, inkS * 0.8, 0.06),
+        _hsl(h, inkS, 0.1),
+        _hsl(h, inkS, 0.16),
+        _hsl(h, inkS * 0.9, 0.27),
+        _hsl(h, inkS * 0.5, 0.48),
       ];
     case FusionStyle.frost:
       // Ice with a breath of its own color in it, shadow to lit: the facet
@@ -75,38 +76,43 @@ List<Color> fusionStyleTones(FusionStyle style, List<Color> palette) {
         const Color(0xFFFFFFFF),
       ];
     case FusionStyle.gilt:
-      // Gold leaf, old to bright, warmed toward its own color.
+      // Gold leaf: its back an old warm gold, its face bright metal, a
+      // breath of its own color in it so the two can be told apart.
       const gold = [
-        Color(0xFF6E4A16),
-        Color(0xFF9A6E28),
-        Color(0xFFC99A44),
-        Color(0xFFE8C468),
-        Color(0xFFF8E2A0),
-        Color(0xFFFFF6DA),
+        Color(0xFF6A4410),
+        Color(0xFF94621C),
+        Color(0xFFB98530),
+        Color(0xFFE2B04C),
+        Color(0xFFF6D57E),
+        Color(0xFFFFF0C0),
       ];
-      // Enough of its own color that the two strands of the helix can be
-      // told apart.
       final tint = _hsl(h, math.max(0.5, s), 0.55);
-      return [for (final g in gold) Color.lerp(g, tint, 0.2)!];
+      return [for (final g in gold) Color.lerp(g, tint, 0.1)!];
     case FusionStyle.ember:
       // Heat, cold to white.
       return const [
-        Color(0xFF4A0A08),
-        Color(0xFF8E1A0C),
-        Color(0xFFD2441A),
-        Color(0xFFF4822C),
-        Color(0xFFFFC060),
-        Color(0xFFFFF0C8),
+        Color(0xFF221814),
+        Color(0xFF7A160A),
+        Color(0xFFC63A18),
+        Color(0xFFF27A28),
+        Color(0xFFFFC462),
+        Color(0xFFFFF3D4),
       ];
     case FusionStyle.distillation:
-      // Vapour (the three palest) and glassy drops of its own color.
+      // Vapour (the three palest), and water: clear, with a breath of its
+      // own color, a darker rim, and the light it catches.
+      final water = Color.lerp(
+        _hsl(h, 0.35, 0.55),
+        const Color(0xFF9FC4DA),
+        0.7,
+      )!;
       return [
         Color.lerp(_hsl(h, 0.2, 0.5), const Color(0xFF8FA6B8), 0.6)!,
         Color.lerp(_hsl(h, 0.2, 0.7), const Color(0xFFC8D8E4), 0.6)!,
         const Color(0xFFE6EEF4),
-        _hsl(h, math.max(0.45, s), 0.42),
-        _hsl(h, math.max(0.4, s), 0.62),
-        Color.lerp(_hsl(h, 0.4, 0.85), const Color(0xFFFFFFFF), 0.5)!,
+        Color.lerp(water, const Color(0xFF0E1A26), 0.55)!,
+        water,
+        const Color(0xFFF4FAFF),
       ];
   }
 }
@@ -180,4 +186,151 @@ Offset fsLattice(double x, double y, double pitch) {
     0.04 + (u * sl + v * cl) * scale,
     facet,
   );
+}
+
+/// The water ink moves in: the curl of a few octaves of slow travelling
+/// waves, so it is divergence-free (grains crowd and thin along curling
+/// filaments, never bunching to a point) and smooth in space and time —
+/// a grain's place is a smooth function of the clock, with nothing random
+/// from frame to frame. Laid on a lattice once a frame ([prepare]) and
+/// sampled bilinearly ([sample]), in coordinates local to its middle.
+class InkFlow {
+  InkFlow({
+    required this.halfWidth,
+    required this.halfHeight,
+    required this.scale,
+    this.nx = 32,
+    this.ny = 22,
+  }) : _vx = Float32List((nx + 1) * (ny + 1)),
+       _vy = Float32List((nx + 1) * (ny + 1)),
+       _ca = Float32List((nx + 1) * _waves.length),
+       _sa = Float32List((nx + 1) * _waves.length),
+       _cb = Float32List((ny + 1) * _waves.length),
+       _sb = Float32List((ny + 1) * _waves.length);
+
+  /// How far the lattice reaches either side of its middle.
+  final double halfWidth, halfHeight;
+
+  /// The flow's largest curl, in the host's units.
+  final double scale;
+  final int nx, ny;
+
+  final Float32List _vx, _vy, _ca, _sa, _cb, _sb;
+  double _at = double.nan;
+
+  /// The velocity [sample] found: about 1 across the flow's middle.
+  double vx = 0, vy = 0;
+
+  // kx, ky (per [scale]), angular speed, phase, amplitude: three octaves,
+  // two directions each, the finer ones weaker and quicker.
+  static const List<(double, double, double, double, double)> _waves = [
+    (0.92, 0.6, 0.31, 0.4, 0.88),
+    (-0.52, 1.0, -0.24, 2.1, 0.86),
+    (2.05, -0.9, 0.47, 1.3, 0.25),
+    (0.74, 2.16, -0.41, 4.4, 0.24),
+    (-3.8, 2.3, 0.73, 0.9, 0.07),
+    (2.5, 3.9, -0.66, 3.2, 0.065),
+  ];
+
+  /// Lays the flow at [t] seconds on the lattice; once per [t].
+  void prepare(double t) {
+    if (t == _at) return;
+    _at = t;
+    final w = _waves.length;
+    // cos(a + b) from the columns' and the rows' parts.
+    for (var c = 0; c <= nx; c++) {
+      final x = (-halfWidth + 2 * halfWidth * c / nx) / scale;
+      for (var k = 0; k < w; k++) {
+        final a = _waves[k].$1 * x;
+        _ca[c * w + k] = math.cos(a);
+        _sa[c * w + k] = math.sin(a);
+      }
+    }
+    for (var r = 0; r <= ny; r++) {
+      final y = (-halfHeight + 2 * halfHeight * r / ny) / scale;
+      for (var k = 0; k < w; k++) {
+        final (_, ky, om, ph, _) = _waves[k];
+        final b = ky * y + om * t + ph;
+        _cb[r * w + k] = math.cos(b);
+        _sb[r * w + k] = math.sin(b);
+      }
+    }
+    for (var r = 0; r <= ny; r++) {
+      for (var c = 0; c <= nx; c++) {
+        var vx = 0.0, vy = 0.0;
+        for (var k = 0; k < w; k++) {
+          final (kx, ky, _, _, amp) = _waves[k];
+          final cosArg =
+              _ca[c * w + k] * _cb[r * w + k] - _sa[c * w + k] * _sb[r * w + k];
+          // The curl of amp·sin(arg): (∂ψ/∂y, −∂ψ/∂x).
+          vx += amp * ky * cosArg;
+          vy -= amp * kx * cosArg;
+        }
+        _vx[r * (nx + 1) + c] = vx;
+        _vy[r * (nx + 1) + c] = vy;
+      }
+    }
+  }
+
+  /// The velocity at ([x], [y]) from the middle into [vx], [vy]; still
+  /// water outside the lattice.
+  void sample(double x, double y) {
+    final fx = (x + halfWidth) / (2 * halfWidth) * nx;
+    final fy = (y + halfHeight) / (2 * halfHeight) * ny;
+    if (fx < 0 || fy < 0 || fx >= nx || fy >= ny) {
+      vx = 0;
+      vy = 0;
+      return;
+    }
+    final c = fx.floor(), r = fy.floor();
+    final u = fx - c, v = fy - r;
+    final i = r * (nx + 1) + c;
+    final j = i + nx + 1;
+    final a = (1 - u) * (1 - v), b = u * (1 - v), cc = (1 - u) * v, d = u * v;
+    // Stilling toward the lattice's edge, so nothing jumps crossing it.
+    final mx = math.min(fx, nx - fx), my = math.min(fy, ny - fy);
+    final bx = nx * 0.14, by = ny * 0.14;
+    final fade =
+        (mx >= bx ? 1.0 : fsSmooth(0, bx, mx)) *
+        (my >= by ? 1.0 : fsSmooth(0, by, my));
+    vx = (_vx[i] * a + _vx[i + 1] * b + _vx[j] * cc + _vx[j + 1] * d) * fade;
+    vy = (_vy[i] * a + _vy[i + 1] * b + _vy[j] * cc + _vy[j + 1] * d) * fade;
+  }
+}
+
+/// How each style's tones are drawn: for tone [k] (0–5), the haze, the
+/// body and the fine pass, each (size against a grain, alpha, how far
+/// toward black); a zero alpha skips the pass.
+List<(double, double, double)> fusionStyleLayers(
+  FusionStyle st,
+  int k,
+) => switch (st) {
+  FusionStyle.ink => const [],
+  // Frost: cold light round fine bright crystal.
+  FusionStyle.frost => const [(3.0, 0.05, 0), (1.5, 0.26, 0), (0.8, 0.95, 0)],
+  // Gold leaf: dense metal, a little warm light off it.
+  FusionStyle.gilt => const [(2.6, 0.05, 0), (1.25, 0.16, 0.1), (0.9, 0.95, 0)],
+  // Fire: the hot tones glow wide; ash is fine dark soot.
+  FusionStyle.ember =>
+    k == 0
+        ? const [(0, 0, 0), (1.2, 0.18, 0.4), (0.7, 0.45, 0.2)]
+        : const [(4.6, 0.09, 0), (2.0, 0.28, 0), (0.9, 0.95, 0)],
+  // Steam is soft and wide; water is a body with a bright skin.
+  FusionStyle.distillation => switch (k) {
+    <= 2 => const [(5.0, 0.05, 0), (2.4, 0.08, 0), (0.7, 0.35, 0)],
+    3 => const [(2.0, 0.06, 0), (1.3, 0.3, 0.1), (0.8, 0.45, 0)],
+    4 => const [(2.6, 0.06, 0), (1.6, 0.3, 0), (0.8, 0.18, 0)],
+    _ => const [(2.4, 0.12, 0), (1.0, 0.5, 0), (0.8, 1.0, 0)],
+  },
+};
+
+/// A water drop's grain at ([ox], [oy]) in its bead (unit disc): clear
+/// glass (4), a darker rim where it bends the light (3), and the catch of
+/// light up on the left and again, softer, low on the right (5).
+int fsDropTone(double ox, double oy) {
+  final lit = ox * -0.55 + oy * -0.835;
+  final rr = ox * ox + oy * oy;
+  if (lit > 0.62 && rr > 0.3 && rr < 0.8) return 5;
+  if (lit < -0.7 && rr > 0.45 && rr < 0.7) return 5;
+  return rr > 0.72 ? 3 : 4;
 }

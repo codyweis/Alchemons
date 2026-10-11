@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// system can grant and show: a grantRef that names nothing would be a pour
 /// that gives the player nothing.
 void main() {
-  test('five batches of five common, three rare, two epic and a capstone', () {
+  test('five batches of four common, three rare, three epic and a capstone', () {
     expect(kAthanorBatches.map((b) => b.name), [
       'The Black Work',
       'The White Work',
@@ -22,9 +22,17 @@ void main() {
     for (final batch in kAthanorBatches) {
       int count(AthanorRarity r) =>
           batch.pieces.where((p) => p.rarity == r).length;
-      expect(count(AthanorRarity.common), 5, reason: batch.id);
+      expect(count(AthanorRarity.common), 4, reason: batch.id);
       expect(count(AthanorRarity.rare), 3, reason: batch.id);
-      expect(count(AthanorRarity.epic), 2, reason: batch.id);
+      // The fusion style is one of the three epics (author, 2026-10-11).
+      expect(count(AthanorRarity.epic), 3, reason: batch.id);
+      expect(
+        batch.pieces
+            .where((p) => p.kind == AthanorPieceKind.fusionStyle)
+            .map((p) => p.rarity),
+        [AthanorRarity.epic],
+        reason: batch.id,
+      );
     }
   });
 

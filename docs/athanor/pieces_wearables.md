@@ -9,9 +9,9 @@ shop. Batch ids are suggested as `black`, `white`, `yellow`, `red`, `still`
 | Batch | Piece id | Name | Kind | Rarity | grantRef | Description |
 |---|---|---|---|---|---|---|
 | The Black Work | `black.inkmaker` | Inkmaker | `title` | common | `inkmaker` | A title for your profile: Inkmaker. |
-| The Black Work | `black.ink_bloom` | Ink Bloom | `alchemyEffect` | rare | `alchemy.ink_bloom` | An alchemy effect: ink rises from the ground around an Alchemon and curls up in slow plumes. |
+| The Black Work | `black.ink_bloom` | Ink Plume | `alchemyEffect` | rare | `alchemy.ink_bloom` | An alchemy effect: ink rises from the ground around an Alchemon and curls up in slow plumes. |
 | The Black Work | `black.darklet_dock` | Darklet Dock | `dockSet` | rare | `darklet` | The dock's icons, drawn with the Darklet, whatever your division. |
-| The Black Work | `black.peacock_tail` | The Peacock's Tail | `alchemyEffect` | **capstone** | `alchemy.peacock_tail` | An alchemy effect: an Alchemon stands in a pool of black that shows every color, slowly marbling. |
+| The Black Work | `black.peacock_tail` | Oil Slick | `alchemyEffect` | **capstone** | `alchemy.peacock_tail` | An alchemy effect: an Alchemon stands in a pool of black that shows every color, slowly marbling. |
 | The White Work | `white.silversmith` | Silversmith | `title` | common | `silversmith` | A title for your profile: Silversmith. |
 | The White Work | `white.quicksilver` | Quicksilver | `alchemyEffect` | rare | `alchemy.quicksilver` | An alchemy effect: an Alchemon stands in a pool of liquid silver, with beads of it rolling around. |
 | The White Work | `white.spiritlet_dock` | Spiritlet Dock | `dockSet` | rare | `spiritlet` | The dock's icons, drawn with the Spiritlet, whatever your division. |
@@ -21,7 +21,7 @@ shop. Batch ids are suggested as `black`, `white`, `yellow`, `red`, `still`
 | The Red Work | `red.ember_keeper` | Ember Keeper | `title` | common | `ember_keeper` | A title for your profile: Ember Keeper. |
 | The Red Work | `red.cinnabar` | Cinnabar | `alchemyEffect` | rare | `alchemy.cinnabar` | An alchemy effect: red smoke and grains of cinnabar rise from the ground around an Alchemon. |
 | The Red Work | `red.bloodlet_dock` | Bloodlet Dock | `dockSet` | rare | `bloodlet` | The dock's icons, drawn with the Bloodlet, whatever your division. |
-| The Red Work | `red.red_king_crown` | Crown of the Red King | `costume` | **capstone** | `alchemy.red_king_crown` | A costume: a crown of dark gold and garnets over a velvet cap. Worn in place of the party hat. |
+| The Red Work | `red.red_king_crown` | Garnet Crown | `costume` | **capstone** | `alchemy.red_king_crown` | A costume: a crown of dark gold and garnets over a velvet cap. Worn in place of the party hat. |
 | The Still-Room | `still.distiller` | Distiller | `title` | common | `distiller` | A title for your profile: Distiller. |
 | The Still-Room | `still.crystalet_dock` | Crystalet Dock | `dockSet` | rare | `crystalet` | The dock's icons, drawn with the Crystalet, whatever your division. |
 | The Still-Room | `still.brass_monocle` | Brass Monocle | `costume` | epic | `alchemy.brass_monocle` | A costume: a brass monocle on a chain of brass beads. Worn in place of the sunglasses. |
@@ -36,10 +36,10 @@ snippet below gives them `epic`, which nothing reads. The other capstones
 The catalog's titles were the stage names in Latin. They are English now,
 one plain word or two that fit what each batch is made of:
 
-- **The Black Work → Inkmaker** (Ink Sigil, Inkcap Cluster, Ink Bloom).
+- **The Black Work → Inkmaker** (Ink Sigil, Ink Mushrooms, Ink Plume).
 - **The White Work → Silversmith** (Silver Sigil, Quicksilver).
-- **The Yellow Work → Gilder** (Gilt Case, Gilt Sigil, Gold Leaf, Gilt Steps, the Gilded Throne).
-- **The Red Work → Ember Keeper** (Ember Bowl, Ember Nest, Ember Fall).
+- **The Yellow Work → Gilder** (Gold Case, Gilt Sigil, Gold Leaf, Gold Steps, the Gilded Throne).
+- **The Red Work → Ember Keeper** (Ember Bowl, Ember Nest, Rising Embers).
 - **The Still-Room → Distiller** (the catalog's own).
 
 "Black Worker", "White Worker", "Yellow Worker" and "Red Worker" were
@@ -80,10 +80,10 @@ player's name, so they must not.
 ```dart
 // The Black Work
 AthanorPiece(id: 'black.inkmaker', name: 'Inkmaker', description: 'A title for your profile: Inkmaker.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'inkmaker'),
-AthanorPiece(id: 'black.ink_bloom', name: 'Ink Bloom', description: 'An alchemy effect: ink rises from the ground around an Alchemon and curls up in slow plumes.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.rare, grantRef: InvKeys.alchemyInkBloom),
+AthanorPiece(id: 'black.ink_bloom', name: 'Ink Plume', description: 'An alchemy effect: ink rises from the ground around an Alchemon and curls up in slow plumes.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.rare, grantRef: InvKeys.alchemyInkBloom),
 AthanorPiece(id: 'black.darklet_dock', name: 'Darklet Dock', description: "The dock's icons, drawn with the Darklet, whatever your division.", kind: AthanorPieceKind.dockSet, rarity: AthanorRarity.rare, grantRef: 'darklet'),
 // capstone:
-AthanorPiece(id: 'black.peacock_tail', name: "The Peacock's Tail", description: 'An alchemy effect: an Alchemon stands in a pool of black that shows every color, slowly marbling.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.epic, grantRef: InvKeys.alchemyPeacockTail),
+AthanorPiece(id: 'black.peacock_tail', name: "Oil Slick", description: 'An alchemy effect: an Alchemon stands in a pool of black that shows every color, slowly marbling.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.epic, grantRef: InvKeys.alchemyPeacockTail),
 
 // The White Work
 AthanorPiece(id: 'white.silversmith', name: 'Silversmith', description: 'A title for your profile: Silversmith.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'silversmith'),
@@ -100,7 +100,7 @@ AthanorPiece(id: 'red.ember_keeper', name: 'Ember Keeper', description: 'A title
 AthanorPiece(id: 'red.cinnabar', name: 'Cinnabar', description: 'An alchemy effect: red smoke and grains of cinnabar rise from the ground around an Alchemon.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.rare, grantRef: InvKeys.alchemyCinnabar),
 AthanorPiece(id: 'red.bloodlet_dock', name: 'Bloodlet Dock', description: "The dock's icons, drawn with the Bloodlet, whatever your division.", kind: AthanorPieceKind.dockSet, rarity: AthanorRarity.rare, grantRef: 'bloodlet'),
 // capstone:
-AthanorPiece(id: 'red.red_king_crown', name: 'Crown of the Red King', description: 'A costume: a crown of dark gold and garnets over a velvet cap. Worn in place of the party hat.', kind: AthanorPieceKind.costume, rarity: AthanorRarity.epic, grantRef: InvKeys.alchemyRedKingCrown),
+AthanorPiece(id: 'red.red_king_crown', name: 'Garnet Crown', description: 'A costume: a crown of dark gold and garnets over a velvet cap. Worn in place of the party hat.', kind: AthanorPieceKind.costume, rarity: AthanorRarity.epic, grantRef: InvKeys.alchemyRedKingCrown),
 
 // The Still-Room
 AthanorPiece(id: 'still.distiller', name: 'Distiller', description: 'A title for your profile: Distiller.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'distiller'),
@@ -112,8 +112,10 @@ AthanorPiece(id: 'still.brass_monocle', name: 'Brass Monocle', description: 'A c
 
 In `docs/athanor/content/wearables/`:
 
-- `auras.png`: the five auras at four moments at details size, then at the
-  party HUD's 48 px.
+- `aura_ink_bloom.png`, `aura_peacock_tail.png`, `aura_quicksilver.png`,
+  `aura_gold_leaf.png`, `aura_cinnabar.png`: each aura on three or four
+  species (dark, pale, its own colors) at four moments and at the party
+  HUD's 48 px, then 16 frames at 1/30 s.
 - `costumes.png`: the crown and the monocle worn on a Wing, a Pip, a Horn
   and a Let, frames 0–2, a close look, and in another color.
 - `pieces.png`: every piece as the Athanor's tiles draw it.
@@ -127,7 +129,15 @@ NAV_EMBLEMS_FACTIONS=athanor NAV_EMBLEMS_OUT=docs/athanor/content/wearables/dock
   flutter test -j 1 test/nav_emblems_preview_test.dart --tags preview
 ```
 
-Cost per frame (desktop JIT, recording only): Quicksilver 16 µs, Ink Bloom
-48, Cinnabar 48, Gold Leaf 50, the Peacock's Tail 59 (both layers); the
-crown 19 and the monocle 11 worn; a costume or dock tile 5–14. No blur, no
-layer, at most 16 draws an effect layer (test/athanor_wearables_test.dart).
+Cost per frame (desktop JIT, recording only, both layers): Quicksilver 12
+µs, Gold Leaf 16, Ink Plume 54, Cinnabar 57, the Peacock's Tail 75; the
+crown 18 and the monocle 12 worn; a costume or dock tile 6–19. No blur, no
+layer, at most 16 draws an effect layer (test/athanor_wearables_test.dart,
+test/alchemy_effects_census_test.dart).
+
+Ink Plume, Cinnabar and the Peacock's Tail move on a divergence-free curl
+flow (`_Flow` in alchemy_effect_paint.dart, after `InkFlow`). Ink and smoke
+lie along its streamlines from their sources (`_Spine`) and ride up them by
+age, as soft overlapping puffs, so each plume or wisp is continuous; the
+pool's film is marbled by it. Everything is a smooth function of the clock,
+with nothing random from frame to frame.

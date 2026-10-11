@@ -5,6 +5,7 @@
 // the orb; it is grains only (no blur), a draw per color; and a styled
 // cinematic draws no sigil.
 
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui';
 
@@ -164,6 +165,40 @@ void main() {
         }
       });
     });
+  }
+
+  // Smooth, not jittery: a grain's second difference shrinks with the
+  // square of the step (motion that is a smooth function of time); a jump
+  // or a flicker would not shrink at all. Checked across the merge.
+  for (final style in [null, ...FusionStyle.values]) {
+    test(
+      '${style?.title ?? 'the plain fusion'}: every grain moves smoothly',
+      () {
+        final f = _merge(style);
+        double worst(double h) {
+          var m = 0.0;
+          for (var t = 0.66; t < 2.45; t += 0.053) {
+            for (var i = 0; i < f.length; i += 9) {
+              final a = f.debugGrain(i, t - h), b = f.debugGrain(i, t);
+              final c = f.debugGrain(i, t + h);
+              if (a == null || b == null || c == null) continue;
+              m = math.max(m, (a - b * 2 + c).distance);
+            }
+          }
+          return m;
+        }
+
+        final coarse = worst(1 / 30), fine = worst(1 / 240);
+        // Eight times finer a step: 64 times less for smooth motion, 8 times
+        // less where the flow's lattice bends a path; a jump or a flicker
+        // would not shrink at all.
+        expect(
+          fine,
+          lessThan(coarse / 5 + 0.25),
+          reason: 'coarse $coarse, fine $fine',
+        );
+      },
+    );
   }
 
   test('the plain cinematic still draws its sigil', () {

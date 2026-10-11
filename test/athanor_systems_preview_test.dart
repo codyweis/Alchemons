@@ -10,7 +10,7 @@ library;
 //   cases.png        the five case styles beside the plain case, on six
 //                    species, at Creatures-tab size (×2)
 //   cases_close.png  each case large, for judging its material
-//   trails.png       Hoarfrost Steps and Gilt Steps behind walking
+//   trails.png       Frost Steps and Gold Steps behind walking
 //                    Alchemons, four moments each
 //   ambience_*.png   each ambience over home realms, by day and by night
 //   previews.png     every piece's tile as the Athanor draws it

@@ -21,6 +21,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic/mane_alchemical_vfx.dart'
     show maneLavaPoolCrowd;
+import 'package:alchemons/games/shared/creature_looks.dart';
 import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
@@ -21166,6 +21167,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Sprite rendering (same as cosmic game)
     if (ticker != null) {
       final sprite = ticker.getSprite();
+      // What it wears, as open space and the home field show it: its alchemy
+      // effect round it (behind, then its near side over the sprite) and
+      // its costumes on the sprite.
+      final auraR = wornAuraRadius(
+        spriteScale * max(sprite.srcSize.x, sprite.srcSize.y),
+      );
+      paintWornAura(canvas, visuals, auraR, stats.timeElapsed);
       final paint = Paint()..filterQuality = ui.FilterQuality.high;
 
       // Hit flash
@@ -21197,7 +21205,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         canvas.scale(spriteScale, spriteScale);
       }
       sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+      paintWornCostumes(
+        canvas,
+        visuals,
+        sprite,
+        ticker.currentIndex,
+        stats.timeElapsed,
+      );
       canvas.restore();
+      paintWornAura(canvas, visuals, auraR, stats.timeElapsed, front: true);
     } else {
       // Fallback: circle (no sprite sheet)
       final flashColor = comp.hitFlash > 0

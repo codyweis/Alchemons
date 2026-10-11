@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:alchemons/widgets/fx/fusion_style_kit.dart';
@@ -154,7 +155,14 @@ class FusionBurstField {
 
   // A style's own (fusion_style_burst.dart): where each grain sits in the
   // style's knot (unit radius), and the material per specimen.
-  late final Float32List _kx, _ky;
+  late final Float32List _kx, _ky, _kz, _kw, _kv;
+
+  // What every styled grain shares this frame (the pool's ripples).
+  final Float64List _bRipple = Float64List(48);
+  double _bFrameU = double.nan;
+
+  /// Ink's water (the ink style only).
+  InkFlow? _flow;
   late final Uint8List _facet;
   late final List<List<Color>> _matTones;
   late final List<List<Color>> _palettes;
