@@ -223,7 +223,19 @@ abstract final class AbilityGrainSprite {
 
   /// Builds the sprite off the frame. Safe to call from every game's
   /// `onLoad` without awaiting it: the batch draws circles until it lands.
-  static Future<void> ensureLoaded() => _loading ??= _build();
+  /// Never completes with an error: a failed build is forgotten, so the next
+  /// call tries again, and whoever awaited it carries on with the circles.
+  /// (A kept failure made every later `await` — a dungeon's load — throw
+  /// until restart.)
+  static Future<void> ensureLoaded() => _loading ??= _buildOrForget();
+
+  static Future<void> _buildOrForget() async {
+    try {
+      await _build();
+    } catch (_) {
+      _loading = null;
+    }
+  }
 
   static Future<void> _build() async {
     const c = cell;

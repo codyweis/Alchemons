@@ -1,38 +1,69 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// The Firebase Auth UIDs whose release builds may use the developer tools.
+/// Debug and profile builds always may; a release build (the App Store, Play
+/// and web builds every player runs) only when signed in to one of these.
+const Set<String> kDeveloperAccountUids = {};
+
 /// Developer tools toggle — persisted, so it works in release builds on a real
 /// device (unlike `kDebugMode`, which is compile-time and off in a release
 /// install). Debug affordances gate on `DebugSettingsService.enabledNotifier`
-/// alone: the switch is the whole answer, in every build type.
+/// alone, which is the switch AND [toolsAllowed]: in a release build the
+/// switch answers only to a developer's account, so a player who finds it
+/// (or turned it on before 0.9.2) gets nothing from it — no free shop, no
+/// unlocked masteries, no forced mutations.
 ///
 /// Mirrors [CinematicQualityService]'s shape: a static cache plus a notifier so
 /// widgets can rebuild the moment it flips, without threading a service down.
 class DebugSettingsService {
   static const String _key = 'debug.developer_tools_enabled';
-  static bool? _cached;
+  static bool _stored = false;
   static bool _hydrated = false;
+
+  /// The switch as it takes effect: on, and allowed on this install.
   static final ValueNotifier<bool> enabledNotifier = ValueNotifier<bool>(false);
 
-  Future<bool> isEnabled() async {
-    if (_cached != null) return _cached!;
-    if (_hydrated) return enabledNotifier.value;
+  /// Whether this install may use the developer tools at all: every debug or
+  /// profile build, and a release build signed in to a developer's account.
+  static final ValueNotifier<bool> allowedNotifier = ValueNotifier<bool>(
+    !kReleaseMode,
+  );
+  static bool get toolsAllowed => allowedNotifier.value;
 
-    final prefs = await SharedPreferences.getInstance();
-    _cached = prefs.getBool(_key) ?? false;
-    _hydrated = true;
-    if (enabledNotifier.value != _cached) {
-      enabledNotifier.value = _cached!;
+  /// Whether this is a release build; tests stand in for one with it.
+  @visibleForTesting
+  static bool releaseBuild = kReleaseMode;
+
+  /// Called by [AccountService] whenever the signed-in account changes.
+  static void setAccount(String? uid) {
+    allowedNotifier.value =
+        !releaseBuild || (uid != null && kDeveloperAccountUids.contains(uid));
+    _publish();
+  }
+
+  static void _publish() {
+    final on = _stored && allowedNotifier.value;
+    if (enabledNotifier.value != on) enabledNotifier.value = on;
+  }
+
+  Future<bool> isEnabled() async {
+    if (!_hydrated) {
+      final prefs = await SharedPreferences.getInstance();
+      // A setEnabled that landed during the read wins.
+      if (!_hydrated) {
+        _stored = prefs.getBool(_key) ?? false;
+        _hydrated = true;
+      }
+      _publish();
     }
-    return _cached!;
+    return enabledNotifier.value;
   }
 
   Future<void> setEnabled(bool enabled) async {
-    _cached = enabled;
+    _stored = enabled;
     _hydrated = true;
-    if (enabledNotifier.value != enabled) {
-      enabledNotifier.value = enabled;
-    }
+    _publish();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_key, enabled);
   }

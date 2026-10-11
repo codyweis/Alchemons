@@ -678,9 +678,9 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Ice' =>
           'Beam contact builds frost on the target — held on long enough, the enemy snaps into a hard freeze.',
         'Steam' =>
-          'Executes the first enemy touched, then creates 5–10 lingering steam clouds that damage enemies over time.',
+          'Executes the first enemy touched, then creates 5–13 lingering steam clouds (more with Beauty) that damage enemies over time.',
         'Earth' =>
-          'Standard piercing beam — the orb also fires a mirror beam alongside the wing, doubling the coverage.',
+          'Standard piercing beam — the orb also fires a mirror beam alongside the wing for half as long.',
         'Mud' => 'Slows every enemy the beam touches for 60 seconds.',
         'Dust' =>
           'Beam contact surrounds the enemy with disorienting dust — shooter-enemies start firing at each other instead of the ship.',
@@ -689,7 +689,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Crystal' =>
           'Converts part of the beam damage into healing for the orb.',
         'Plant' =>
-          'Enemies killed by the beam turn into flower pickups. Fly the ship near a flower to collect it; each one stacks +4% beam damage (cap +200%).',
+          'Enemies killed by the beam turn into flower pickups. Fly the ship near a flower to collect it; each one stacks about +4% beam damage, more with Beauty (up to 50 flowers).',
         'Poison' =>
           'Fires a poison-ring beam around the map perimeter instead of a straight line, contaminating the outer ring.',
         'Spirit' =>
@@ -749,7 +749,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Steam' =>
           'If the meteor kills an enemy, creates a long-lasting geyser that pushes enemies upward.',
         'Dark' =>
-          'If the meteor kills an enemy, immediately launches up to 5 follow-up meteors (twice as big) at surrounding enemies.',
+          'If the meteor kills an enemy, immediately launches 2–5 follow-up meteors (more with Intelligence), each bigger than the original, at surrounding enemies.',
         'Ice' => 'On collision, freezes the struck enemy for a short window.',
         'Mud' =>
           'If the meteor kills an enemy, creates a mud pool that stuns enemies caught inside.',
@@ -822,7 +822,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Lava' => (
           'Molten Cleave • Burning residue',
-          'Drops lava at each enemy hit, damaging anything that steps into it over time.',
+          'Drops lava at the first four enemies each shot hits, damaging anything that steps into it over time.',
           AppIcons.local_fire_department,
         ),
         'Poison' => (
@@ -832,7 +832,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Blood' => (
           'Bloodedge Rush • Orb lifesteal',
-          'Every enemy pierced restores HP back to the orb.',
+          'Every enemy pierced restores HP back to the orb, up to a limit each second.',
           AppIcons.bloodtype,
         ),
         'Earth' => (
@@ -842,7 +842,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Light' => (
           'Radiant Ward • Orbiting rings',
-          'Casts hang light in orbit instead of throwing it. The first three set an outer, middle and inner ring turning around you; every cast after that feeds one of them in that order, up to ten times, until each is half again the size of an Earth catapult.',
+          'Casts hang light in orbit instead of throwing it. The first casts set two to four rings turning around you, more with Beauty; every cast after that feeds one of them, outermost first, up to ten times in all, growing it toward half again the size of an Earth catapult.',
           AppIcons.wb_sunny,
         ),
         'Spirit' => (
@@ -857,7 +857,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Fire' => (
           'Fireball Rush • Dense fire spread',
-          'Throws 3–8 fast fireballs in a forward wave.',
+          'Throws 4–6 fast fireballs in a forward wave, more with Beauty.',
           AppIcons.whatshot,
         ),
         'Lightning' => (
@@ -887,7 +887,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Plant' => (
           'Vine Lariat • Feeding growth',
-          'Throws a thin vine that roots enemies and grows wider and stronger with every hit. Defeated rooted enemies burst, damaging nearby targets.',
+          'Throws a thin vine that roots enemies and grows wider and stronger with each hit, up to a cap. Defeated rooted enemies burst, damaging nearby targets.',
           AppIcons.local_florist,
         ),
         'Water' => (
@@ -922,9 +922,9 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Earth' =>
           'Creates earth pools that heal the ship and alchemons standing inside.',
         'Light' =>
-          'Plants a light void. Persists until an enemy touches it — that enemy is instantly killed.',
+          'Plants a light void that holds for a while, longer with Intelligence. The first enemy to touch it is instantly killed.',
         'Spirit' =>
-          'Scatters spirit wisps for the ship to collect. Every 6 collected wipe all non-boss enemies on the field.',
+          'Scatters spirit wisps for the ship to collect. Collecting about one and a half casts\' worth wipes all non-boss enemies on the field.',
         'Crystal' =>
           'Throws large crystals. On contact each shatters into 3 smaller crystals that deal damage.',
         'Fire' =>
@@ -969,7 +969,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Lava' =>
           'Coats the team in reactive molten plate. Incoming hits splash burning lava back at nearby enemies.',
         'Ice' =>
-          'Charges briefly, then releases an all-direction frost burst that slows enemies by 90%. Range scales with Beauty — at max stats it can sweep the entire field.',
+          'Charges briefly, then releases an all-direction frost burst that slows enemies by 90%. Range scales with Beauty — at max stats it covers a wide area around the kin.',
         'Steam' =>
           'Engages the boiler. Damage taken by the team converts into stacking companion attack speed (up to 10 stacks). Stress becomes tempo.',
         'Lightning' =>
@@ -979,7 +979,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Mud' =>
           'Slings mud onto the ship. The ship gains a temporary enchant that drops slowing mud patches behind it as it moves.',
         'Spirit' =>
-          'Releases a wisp that orbits the kin. Enemies killed by the spirit kin\'s auto-attacks tier the wisp up — it gains taunting, then an auto-attack, then at max tier heals its caster from the damage it deals.',
+          'Releases a wisp that orbits the kin. Enemies killed by the spirit kin tier the wisp up — it gains taunting, then an attack of its own, then at max tier each kill heals the kin.',
         'Dark' =>
           'Cloaks every companion in void — enemies cannot target them and retarget to the ship or orb instead.',
         'Blood' =>
@@ -1010,8 +1010,9 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Lightning' => (
           'The Storm • Intelligence scales the bolt',
-          'The sky turns over. Every ten seconds a bolt falls on someone at '
-              'random; one that lands on a boss stuns it for a second. Holds '
+          'The sky turns over. Every two seconds or so a bolt falls on someone '
+              'at random, faster with a stronger SPECIAL; one that lands on a '
+              'boss stuns it for a second. Holds '
               'while this Mystic is alive and deployed.',
           ['WORLD', 'STRIKE', 'BOSS STUN'],
         ),
@@ -1039,9 +1040,10 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Earth' => (
           'The Quaking • Strength scales the shock',
-          'The ground will not hold still. Every fifteen seconds a quake runs '
-              'the whole arena, hurting every enemy and knocking them off '
-              'their feet. Holds while this Mystic is alive and deployed.',
+          'The ground will not hold still. About every half minute a quake '
+              'runs the whole arena, hurting every enemy and knocking them off '
+              'their feet; a stronger SPECIAL brings it sooner. Holds while '
+              'this Mystic is alive and deployed.',
           ['WORLD', 'ARENA-WIDE', 'STUN'],
         ),
         'Mud' => (

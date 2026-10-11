@@ -2,6 +2,7 @@ import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
@@ -124,6 +125,36 @@ void main() {
     });
   });
 
+  group('Kin recasts in open space', () {
+    // Open space casts through KinSupport.activateTimers, which kept the
+    // old restart after survival's fix.
+    test('a recast mid-charge leaves Kin Ice charging', () {
+      final k = _Kin();
+      KinSupport.activateTimers(k, 'Ice', intelligence: 12);
+      final total = k.kinIceChargeTotal;
+      k.kinIceChargeTimer = total * 0.4;
+      KinSupport.activateTimers(k, 'Ice', intelligence: 12);
+      expect(k.kinIceChargeTimer, closeTo(total * 0.4, 1e-9));
+      k.kinIceChargeTimer = 0;
+      KinSupport.activateTimers(k, 'Ice', intelligence: 12);
+      expect(k.kinIceChargeTimer, closeTo(total, 1e-9));
+    });
+
+    test('a recast while the boiler is lit keeps Kin Steam\'s stacks', () {
+      final k = _Kin();
+      KinSupport.activateTimers(k, 'Steam', intelligence: 4.25);
+      k
+        ..kinSteamBoilerStacks = 6
+        ..kinSteamBoilerTimer = 1;
+      KinSupport.activateTimers(k, 'Steam', intelligence: 4.25);
+      expect(k.kinSteamBoilerStacks, 6);
+      expect(k.kinSteamBoilerTimer, KinSupport.steamBoilerDuration(4.25));
+      k.kinSteamBoilerTimer = 0;
+      KinSupport.activateTimers(k, 'Steam', intelligence: 4.25);
+      expect(k.kinSteamBoilerStacks, 0);
+    });
+  });
+
   group('Mane pool crowding', () {
     Projectile shot({bool stationary = false}) => Projectile(
       position: Offset.zero,
@@ -233,3 +264,5 @@ void main() {
     });
   });
 }
+
+class _Kin with KinSupportFields {}

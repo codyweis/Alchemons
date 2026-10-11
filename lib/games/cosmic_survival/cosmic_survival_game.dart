@@ -1549,17 +1549,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   void _grantIntermissionReward(int wave, {required bool bossWave}) {
-    if (wave <= 0 || wave == _lastIntermissionRewardWave || ship.isDead) {
-      return;
-    }
+    if (wave <= 0 || wave == _lastIntermissionRewardWave) return;
     _lastIntermissionRewardWave = wave;
     final grant = _intermissionAlchemyGrantForWave(wave, bossWave: bossWave);
-    if (grant > 0) {
+    if (grant > 0 && !ship.isDead) {
       _grantAlchemy(grant * _alchemyMeterGainMultiplier);
     }
     // Past wave 10 a cleared wave gives back a growing share of the orb's
     // and the fielded team's health (CosmicSurvivalBalance.waveRestShare).
-    // A boss wave gives back at least 7% and a 4% shield on top.
+    // A boss wave gives back at least 7% and a 4% shield on top. The rest
+    // comes whether or not the ship is down: it used to sit behind the
+    // ship's gate, so a ship lost late in a wave cost the orb its rest too.
     final rest = CosmicSurvivalBalance.waveRestShare(wave);
     final orbRecovery = bossWave
         ? max(rest * orb.maxHp, max(10.0, orb.maxHp * 0.07))
@@ -2407,7 +2407,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _coreFallT += dt;
       return;
     }
-    if (_checkpointDue) {
+    // Not while a draft is open or about to open (the meter is full and the
+    // bar is still filling): a checkpoint taken there kept the full meter
+    // without the pick, so SAVE & EXIT and CONTINUE rolled the draft again
+    // for free. It waits for the pick and keeps it.
+    if (_checkpointDue &&
+        !showingPowerUpSelection &&
+        alchemicalMeter < alchemicalMeterMax) {
       _checkpointDue = false;
       onWaveCheckpoint?.call();
     }

@@ -9,6 +9,7 @@
 //    up (ManeLightWard).
 
 import 'dart:io';
+import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/horn_runtime.dart';
@@ -141,5 +142,93 @@ void main() {
     ).readAsStringSync();
     expect(src, contains('hornDarkAuraRadius('));
     expect(src, contains('hornDarkCaptureRadius('));
+  });
+
+  CosmicSurvivalEnemy wall(Offset at) => CosmicSurvivalEnemy(
+    position: at,
+    hp: 1e9,
+    maxHp: 1e9,
+    speed: 0,
+    damage: 0,
+    radius: 14,
+    tier: EnemyTier.drone,
+    element: 'Fire',
+    conduct: EnemyConduct.charge,
+    target: CosmicEnemyTarget.orb,
+  );
+
+  test('a Kin Ice recast mid-charge leaves the charge running', () {
+    final g = _game(_member(element: 'Ice', family: 'kin', stat: 12));
+    final comp = g.combatCompanions.first;
+    comp.specialCooldown = 0;
+    expect(g.activateCombatAbility(), isTrue);
+    final total = comp.kinIceChargeTotal;
+    expect(total, greaterThan(0));
+    for (var i = 0; i < 60; i++) {
+      g.update(1 / 60);
+    }
+    final before = comp.kinIceChargeTimer;
+    expect(before, greaterThan(0));
+    comp.specialCooldown = 0;
+    g.activateCombatAbility();
+    expect(
+      comp.kinIceChargeTimer,
+      lessThanOrEqualTo(before),
+      reason: 'the recast restarted the charge',
+    );
+  });
+
+  test('a Kin Steam recast while the boiler is lit keeps the stacks', () {
+    final g = _game(_member(element: 'Steam', family: 'kin'));
+    final comp = g.combatCompanions.first;
+    comp.specialCooldown = 0;
+    expect(g.activateCombatAbility(), isTrue);
+    expect(comp.kinSteamBoilerTimer, greaterThan(0));
+    comp.kinSteamBoilerStacks = 6;
+    comp.specialCooldown = 0;
+    g.activateCombatAbility();
+    expect(comp.kinSteamBoilerStacks, 6);
+  });
+
+  test('a Mane Lava blob never drops another blob', () {
+    // Survival and open space only let the shot drop blobs, for its first
+    // few bodies; the dungeon let every blob drop one onto what it burned.
+    final g = _game(_member(element: 'Lava', family: 'mane'));
+    final at = g.creatures.first.position;
+    g.combatEnemies.add(wall(at + const Offset(140, 0)));
+    g.combatCompanions.first.specialCooldown = 0;
+    expect(g.activateCombatAbility(), isTrue);
+    bool isShot(Projectile p) =>
+        p.abilityFamily == 'mane' && p.element == 'Lava' && !p.stationary;
+    bool isBlob(Projectile p) =>
+        p.abilityFamily == 'mane' && p.element == 'Lava' && p.stationary;
+    final shots = g.combatProjectiles.where(isShot).length;
+    expect(shots, greaterThan(0));
+    var most = 0;
+    for (var i = 0; i < 150; i++) {
+      g.update(1 / 60);
+      most = max(most, g.combatProjectiles.where(isBlob).length);
+    }
+    expect(most, greaterThan(0), reason: 'the shot never dropped a blob');
+    expect(most, lessThanOrEqualTo(shots * ManeRuntime.lavaBlobsPerShot));
+  });
+
+  test('Mane Light rings circle the Mane where it is, not its cast point', () {
+    final g = _game(_member(element: 'Light', family: 'mane'));
+    g.combatCompanions.first.specialCooldown = 0;
+    expect(g.activateCombatAbility(), isTrue);
+    g.update(1 / 60);
+    expect(ManeLightWard.rings(g.combatProjectiles, 0), isNotEmpty);
+    final creature = g.creatures.first;
+    creature.position += const Offset(160, 0);
+    creature.lastSafe = creature.position;
+    g.update(1 / 60);
+    for (final ring in ManeLightWard.rings(g.combatProjectiles, 0)) {
+      expect(
+        (ring.orbitCenter! - creature.position).distance,
+        lessThan(24),
+        reason: 'the ring stayed where it was cast',
+      );
+    }
   });
 }

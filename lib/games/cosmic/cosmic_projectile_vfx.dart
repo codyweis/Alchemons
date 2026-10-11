@@ -52,7 +52,13 @@ bool drawMysticOrbitalProjectileVisual({
       projectile.stationary) {
     return false;
   }
-  _paintMysticComet(canvas, projectile, position, color, time);
+  drawMysticComet(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    color: color,
+    time: time,
+  );
   return true;
 }
 
@@ -81,12 +87,12 @@ bool drawMysticOrbitalFixtureVisual({
   )) {
     return true;
   }
-  _paintMysticComet(
-    canvas,
-    projectile,
-    position,
-    color,
-    time,
+  drawMysticComet(
+    canvas: canvas,
+    projectile: projectile,
+    position: position,
+    color: color,
+    time: time,
     reduceAmbient: reduceAmbient,
   );
   return true;
@@ -142,22 +148,6 @@ void drawMysticComet({
     time: time,
   );
 }
-
-void _paintMysticComet(
-  ui.Canvas canvas,
-  Projectile projectile,
-  ui.Offset position,
-  ui.Color color,
-  double time, {
-  bool reduceAmbient = false,
-}) => drawMysticComet(
-  canvas: canvas,
-  projectile: projectile,
-  position: position,
-  color: color,
-  time: time,
-  reduceAmbient: reduceAmbient,
-);
 
 /// A beam in the game's beam list: Wing's elemental beams (wing_vfx.dart),
 /// and the element-less pieces other abilities route through the list — a
@@ -222,25 +212,6 @@ void drawAdvancedAbilityBeam({
   vfxFillPath(canvas, vfxLens(len, max(1.0, w * 0.42), w, w), core, 0.8 * a);
   canvas.restore();
 }
-
-/// Wing's elemental beam, shared by every game mode (art in wing_vfx.dart).
-void drawWingElementBeam({
-  required ui.Canvas canvas,
-  required ui.Offset start,
-  required ui.Offset end,
-  required String element,
-  required double width,
-  required double alpha,
-  required double time,
-}) => drawWingBeam(
-  canvas: canvas,
-  start: start,
-  end: end,
-  element: element,
-  width: width,
-  alpha: alpha,
-  time: time,
-);
 
 /// Canonical Wing beam charge telegraph (art in wing_vfx.dart).
 void drawAdvancedWingBeamCharge({

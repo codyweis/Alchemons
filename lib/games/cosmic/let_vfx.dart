@@ -103,6 +103,10 @@ void _stone(
 // Before the landing: the shadow on the ground and the stone in the air
 // ─────────────────────────────────────────────────────────────────────────
 
+/// The telegraph pool's gradient per ink colour, at unit size and full
+/// strength.
+final Map<int, ui.Shader> _telegraphShaders = {};
+
 /// The ground under an incoming meteor. [progress] runs 0 at the cast to 1 at
 /// the landing. [radius] is the blast the landing opens — callers pass
 /// `letSkyfallBlastRadius` (or a Deadfall rock's crater) read off the falling
@@ -134,23 +138,29 @@ void drawLetTelegraphShadow({
   final close = t * t;
 
   // The pool: the element's dark over the whole blast. A little wide and soft
-  // while the stone is high, settling onto the blast as it lands.
+  // while the stone is high, settling onto the blast as it lands. One unit
+  // gradient per ink, drawn scaled, its strength on the paint's alpha (it
+  // was a new shader per falling stone per frame).
   final poolR = radius * (1.06 - 0.06 * t);
-  final dark = m.ink;
+  final dark = m.ink.toARGB32() & 0xFFFFFF;
   final a = (0.34 + 0.42 * close) * presence;
   _fill
-    ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.radial(
-      c,
-      poolR,
+    ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: _c01(a))
+    ..shader = _telegraphShaders[dark] ??= ui.Gradient.radial(
+      ui.Offset.zero,
+      1,
       [
-        dark.withValues(alpha: _c01(a)),
-        dark.withValues(alpha: _c01(a * 0.82)),
-        dark.withValues(alpha: 0),
+        ui.Color(0xFF000000 | dark),
+        ui.Color(0xFF000000 | dark).withValues(alpha: 0.82),
+        ui.Color(dark),
       ],
       const [0.0, 0.72, 1.0],
     );
-  canvas.drawCircle(c, poolR, _fill);
+  canvas.save();
+  canvas.translate(c.dx, c.dy);
+  canvas.scale(poolR);
+  canvas.drawCircle(ui.Offset.zero, 1, _fill);
+  canvas.restore();
   _fill.shader = null;
 
   // Where the blast ends: a wide soft band of the element's light, brighter

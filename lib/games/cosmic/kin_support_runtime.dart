@@ -77,14 +77,23 @@ abstract final class KinSupport {
       case 'Lava':
         k.kinLavaPlateTimer = lavaPlateDuration(intelligence);
       case 'Ice':
+        // A recast while a charge is still running leaves it running: a
+        // well-bred Kin comes back before the charge ends, so restarting it
+        // meant the frost never released.
+        if (k.kinIceChargeTimer > 0) break;
         final chargeTime = iceChargeDuration(intelligence);
         k.kinIceChargeTimer = chargeTime;
         k.kinIceChargeTotal = chargeTime;
       case 'Steam':
+        // A recast while the boiler is lit only refreshes the window;
+        // emptying the stacks on every cast meant no pressure ever built.
+        final boilerLit = k.kinSteamBoilerTimer > 0;
         k.kinSteamBoilerTimer = steamBoilerDuration(intelligence);
-        k.kinSteamBoilerStacks = 0;
-        k.kinSteamStackCarry = 0;
-        k.kinSteamStackDecayTimer = steamDecayInterval;
+        if (!boilerLit) {
+          k.kinSteamBoilerStacks = 0;
+          k.kinSteamStackCarry = 0;
+          k.kinSteamStackDecayTimer = steamDecayInterval;
+        }
       case 'Lightning':
         k.kinLightningChargeTimer = lightningChargeDuration(intelligence);
       case 'Mud':

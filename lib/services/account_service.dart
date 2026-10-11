@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 
+import 'debug_settings_service.dart';
+
 class AccountException implements Exception {
   final String message;
 
@@ -43,11 +45,13 @@ class AccountService extends ChangeNotifier {
 
       _auth = FirebaseAuth.instance;
       _user = _auth!.currentUser;
+      DebugSettingsService.setAccount(_user?.uid);
       _configured = true;
       _configurationError = null;
 
       _authSub = _auth!.authStateChanges().listen((user) {
         _user = user;
+        DebugSettingsService.setAccount(user?.uid);
         notifyListeners();
       });
     } catch (error, stack) {

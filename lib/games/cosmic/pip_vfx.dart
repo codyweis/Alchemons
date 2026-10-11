@@ -16,7 +16,11 @@ import 'vfx_shapes.dart';
 /// and what streams off it, drawn as filled pieces, never as glyphs.
 ///
 /// Budget per dart: a gradient trail, a stretched bloom, the head, and at most
-/// five material pieces plus the bounce notches.
+/// five material pieces plus the bounce notches. A basic fires three at a
+/// time, all the time, so nothing a dart draws is built per frame: the trail
+/// and the heads are unit paths cached once (drawn scaled by the dart's
+/// size), and the trail's gradient is cached per element at unit length with
+/// its pulse on the paint's alpha.
 
 final ui.Paint _paint = ui.Paint();
 
@@ -72,6 +76,42 @@ void drawPipSteamCloud({
   vfxGrainsFlush(canvas, 2.0, m.glint, 0.3 + 0.35 * p);
 }
 
+/// A unit-length trail (it runs from the head at the origin back to x = -1)
+/// [w] wide at the head.
+ui.Path _unitTrail(double w) => ui.Path()
+  ..moveTo(0, -w / 2)
+  ..quadraticBezierTo(-w * 1.5, -w / 2, -1, 0)
+  ..quadraticBezierTo(-w * 1.5, w / 2, 0, w / 2)
+  ..close();
+
+/// The trails' width over their length: basic, basic heavy, special,
+/// special heavy (the dart's size scales both alike).
+final List<ui.Path> _trailPaths = [
+  _unitTrail(2.6 / 15.0),
+  _unitTrail(2.6 * 1.3 / 15.0),
+  _unitTrail(5.0 / 52.0),
+  _unitTrail(5.0 * 1.3 / 52.0),
+];
+
+final Map<String, ui.Shader> _trailShaders = {};
+
+/// The trail's light along a unit length, at full strength, per element.
+ui.Shader _trailShader(String element, VfxMaterial m, ui.Color tint) {
+  final hit = _trailShaders[element];
+  if (hit != null) return hit;
+  if (_trailShaders.length >= 32) _trailShaders.clear();
+  return _trailShaders[element] = ui.Gradient.linear(
+    ui.Offset.zero,
+    const ui.Offset(-1, 0),
+    [
+      ui.Color.lerp(tint, m.glint, 0.35)!.withValues(alpha: 0.7),
+      tint.withValues(alpha: 0.3),
+      tint.withValues(alpha: 0),
+    ],
+    const [0.0, 0.35, 1.0],
+  );
+}
+
 /// One pip dart at [position]. [special] darts get the long trail and the
 /// bounce notches; basics share the silhouette but stay light.
 void drawPipDart({
@@ -112,28 +152,19 @@ void drawPipDart({
     canvas.restore();
   }
 
-  // The trail: a tapered streak of the dart's own light.
+  // The trail: a tapered streak of the dart's own light, trailLen long. Its
+  // width is a fixed share of its length per kind of dart, so it is one of
+  // four unit streaks drawn scaled; the pulse rides on the paint's alpha.
   final trailLen = (special ? 52.0 : 15.0) * vs;
-  final trailW = (special ? 5.0 : 2.6) * vs * (head == _Head.heavy ? 1.3 : 1);
-  final trail = ui.Path()
-    ..moveTo(0, -trailW / 2)
-    ..quadraticBezierTo(-trailW * 1.5, -trailW / 2, -trailLen, 0)
-    ..quadraticBezierTo(-trailW * 1.5, trailW / 2, 0, trailW / 2)
-    ..close();
+  final heavy = head == _Head.heavy;
+  canvas.save();
+  canvas.scale(trailLen);
   _paint
-    ..color = const ui.Color(0xFFFFFFFF)
-    ..shader = ui.Gradient.linear(
-      ui.Offset.zero,
-      ui.Offset(-trailLen, 0),
-      [
-        ui.Color.lerp(tint, m.glint, 0.35)!.withValues(alpha: 0.7 * pulse),
-        tint.withValues(alpha: 0.3 * pulse),
-        tint.withValues(alpha: 0),
-      ],
-      const [0.0, 0.35, 1.0],
-    );
-  canvas.drawPath(trail, _paint);
+    ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: pulse)
+    ..shader = _trailShader(element, m, tint);
+  canvas.drawPath(_trailPaths[(special ? 2 : 0) + (heavy ? 1 : 0)], _paint);
   _paint.shader = null;
+  canvas.restore();
 
   if (special) {
     _drawTrailMaterial(
@@ -166,130 +197,164 @@ void drawPipDart({
     }
   }
 
-  _drawHead(canvas, head, element, m, tint, vs, time);
+  // The head is drawn from unit paths, so the canvas carries the size.
+  canvas.scale(vs);
+  _drawHead(canvas, head, element, m, tint, time);
   canvas.restore();
 }
 
+// The heads at unit size (vs = 1), built once: [_drawHead] draws them with
+// the canvas already scaled by the dart's size.
+
+// Swept barb: point, out to the barbs, back to a notched tail.
+const double _barbLen = 10.0, _barbW = 3.8;
+final ui.Path _barbBody = ui.Path()
+  ..moveTo(_barbLen * 0.62, 0)
+  ..lineTo(-_barbLen * 0.18, -_barbW)
+  ..lineTo(-_barbLen * 0.48, -_barbW * 0.3)
+  ..lineTo(-_barbLen * 0.3, 0)
+  ..lineTo(-_barbLen * 0.48, _barbW * 0.3)
+  ..lineTo(-_barbLen * 0.18, _barbW)
+  ..close();
+final ui.Path _barbLit = ui.Path()
+  ..moveTo(_barbLen * 0.62, 0)
+  ..lineTo(-_barbLen * 0.18, -_barbW)
+  ..lineTo(-_barbLen * 0.1, -_barbW * 0.25)
+  ..close();
+final ui.Path _barbShade = ui.Path()
+  ..moveTo(_barbLen * 0.62, 0)
+  ..lineTo(-_barbLen * 0.18, _barbW)
+  ..lineTo(-_barbLen * 0.3, 0)
+  ..close();
+
+// A knapped head — broad, faceted, heavy.
+const double _heavyLen = 10.5, _heavyW = 5.0;
+const List<ui.Offset> _heavyPts = [
+  ui.Offset(_heavyLen * 0.6, 0),
+  ui.Offset(_heavyLen * 0.05, -_heavyW),
+  ui.Offset(-_heavyLen * 0.45, -_heavyW * 0.55),
+  ui.Offset(-_heavyLen * 0.4, _heavyW * 0.5),
+  ui.Offset(_heavyLen * 0.05, _heavyW),
+];
+final ui.Path _heavyBody = ui.Path()..addPolygon(_heavyPts, true);
+final ui.Path _heavyFace = ui.Path()
+  ..addPolygon([
+    _heavyPts[0],
+    _heavyPts[1],
+    _heavyPts[2],
+    ui.Offset.zero,
+  ], true);
+final ui.Path _heavyEdge = ui.Path()
+  ..addPolygon([
+    _heavyPts[0],
+    _heavyPts[1],
+    const ui.Offset(_heavyLen * 0.15, -_heavyW * 0.45),
+  ], true);
+// Lava's seam: a filled sliver of molten light that swells in the middle
+// and pinches out at both ends, not a stroked line.
+final ui.Path _heavySeam = vfxLensRibbon(
+  vfxPolylineSpine(const [
+    ui.Offset(_heavyLen * 0.5, 0),
+    ui.Offset(-_heavyLen * 0.1, _heavyW * 0.2),
+    ui.Offset(-_heavyLen * 0.35, -_heavyW * 0.1),
+  ]),
+  1.5,
+  taper: 0.4,
+);
+
+// Long and slim.
+const double _needleLen = 13.0, _needleW = 2.4;
+final ui.Path _needleBody = ui.Path()
+  ..moveTo(_needleLen * 0.62, 0)
+  ..quadraticBezierTo(0, -_needleW, -_needleLen * 0.38, -_needleW * 0.5)
+  ..lineTo(-_needleLen * 0.3, 0)
+  ..lineTo(-_needleLen * 0.38, _needleW * 0.5)
+  ..quadraticBezierTo(0, _needleW, _needleLen * 0.62, 0)
+  ..close();
+final ui.Path _needleLit = ui.Path()
+  ..moveTo(_needleLen * 0.62, 0)
+  ..quadraticBezierTo(0, -_needleW, -_needleLen * 0.3, -_needleW * 0.4)
+  ..quadraticBezierTo(0, -_needleW * 0.2, _needleLen * 0.62, 0)
+  ..close();
+
+// A cut prism: two tones meeting on the axis.
+const double _prismLen = 11.0, _prismW = 4.0;
+final ui.Path _prismTop = ui.Path()
+  ..addPolygon(const [
+    ui.Offset(_prismLen * 0.62, 0),
+    ui.Offset(-_prismLen * 0.05, -_prismW),
+    ui.Offset(-_prismLen * 0.45, 0),
+  ], true);
+final ui.Path _prismBottom = ui.Path()
+  ..addPolygon(const [
+    ui.Offset(_prismLen * 0.62, 0),
+    ui.Offset(-_prismLen * 0.05, _prismW),
+    ui.Offset(-_prismLen * 0.45, 0),
+  ], true);
+
+/// The head, in unit coordinates (the caller has scaled the canvas).
 void _drawHead(
   ui.Canvas canvas,
   _Head head,
   String element,
   VfxMaterial m,
   ui.Color tint,
-  double vs,
   double time,
 ) {
   switch (head) {
     case _Head.barb:
-      // Swept barb: point, out to the barbs, back to a notched tail.
-      final len = 10.0 * vs, w = 3.8 * vs;
-      final body = ui.Path()
-        ..moveTo(len * 0.62, 0)
-        ..lineTo(-len * 0.18, -w)
-        ..lineTo(-len * 0.48, -w * 0.3)
-        ..lineTo(-len * 0.3, 0)
-        ..lineTo(-len * 0.48, w * 0.3)
-        ..lineTo(-len * 0.18, w)
-        ..close();
-      vfxFillPath(canvas, body, tint, 0.95);
+      vfxFillPath(canvas, _barbBody, tint, 0.95);
       // Lit upper flank, shadowed lower one — a solid, not a sticker.
-      final lit = ui.Path()
-        ..moveTo(len * 0.62, 0)
-        ..lineTo(-len * 0.18, -w)
-        ..lineTo(-len * 0.1, -w * 0.25)
-        ..close();
-      vfxFillPath(canvas, lit, m.glint, 0.75);
-      final shade = ui.Path()
-        ..moveTo(len * 0.62, 0)
-        ..lineTo(-len * 0.18, w)
-        ..lineTo(-len * 0.3, 0)
-        ..close();
-      vfxFillPath(canvas, shade, m.ink, 0.35);
+      vfxFillPath(canvas, _barbLit, m.glint, 0.75);
+      vfxFillPath(canvas, _barbShade, m.ink, 0.35);
     case _Head.heavy:
-      // A knapped head — broad, faceted, heavy. Lava's glows in its seams.
-      final len = 10.5 * vs, w = 5.0 * vs;
-      final pts = [
-        ui.Offset(len * 0.6, 0),
-        ui.Offset(len * 0.05, -w),
-        ui.Offset(-len * 0.45, -w * 0.55),
-        ui.Offset(-len * 0.4, w * 0.5),
-        ui.Offset(len * 0.05, w),
-      ];
-      final body = ui.Path()..addPolygon(pts, true);
+      // Lava's glows in its seams.
       final molten = element == 'Lava';
       vfxFillPath(
         canvas,
-        body,
+        _heavyBody,
         molten ? m.ink : ui.Color.lerp(m.ink, tint, 0.35)!,
         0.97,
       );
-      final face = ui.Path()
-        ..addPolygon([pts[0], pts[1], pts[2], ui.Offset.zero], true);
-      vfxFillPath(canvas, face, molten ? m.mid : tint, 0.85);
-      final edge = ui.Path()
-        ..addPolygon([pts[0], pts[1], ui.Offset(len * 0.15, -w * 0.45)], true);
-      vfxFillPath(canvas, edge, m.glint, molten ? 0.9 : 0.5);
+      vfxFillPath(canvas, _heavyFace, molten ? m.mid : tint, 0.85);
+      vfxFillPath(canvas, _heavyEdge, m.glint, molten ? 0.9 : 0.5);
       if (molten) {
-        // The fire in its seam: a filled sliver of molten light that swells
-        // in the middle and pinches out at both ends, not a stroked line.
         final glow = 0.6 + 0.4 * sin(time * 5);
-        final seam = vfxLensRibbon(
-          vfxPolylineSpine([
-            ui.Offset(len * 0.5, 0),
-            ui.Offset(-len * 0.1, w * 0.2),
-            ui.Offset(-len * 0.35, -w * 0.1),
-          ]),
-          1.5 * vs,
-          taper: 0.4,
-        );
-        vfxFillPath(canvas, seam, m.glint, 0.85 * glow);
+        vfxFillPath(canvas, _heavySeam, m.glint, 0.85 * glow);
       }
     case _Head.needle:
-      // Long and slim. Blood's swells into a bead behind the point.
-      final len = 13.0 * vs, w = 2.4 * vs;
-      final body = ui.Path()
-        ..moveTo(len * 0.62, 0)
-        ..quadraticBezierTo(0, -w, -len * 0.38, -w * 0.5)
-        ..lineTo(-len * 0.3, 0)
-        ..lineTo(-len * 0.38, w * 0.5)
-        ..quadraticBezierTo(0, w, len * 0.62, 0)
-        ..close();
-      vfxFillPath(canvas, body, tint, 0.95);
-      final lit = ui.Path()
-        ..moveTo(len * 0.62, 0)
-        ..quadraticBezierTo(0, -w, -len * 0.3, -w * 0.4)
-        ..quadraticBezierTo(0, -w * 0.2, len * 0.62, 0)
-        ..close();
-      vfxFillPath(canvas, lit, m.glint, 0.8);
+      // Blood's swells into a bead behind the point.
+      vfxFillPath(canvas, _needleBody, tint, 0.95);
+      vfxFillPath(canvas, _needleLit, m.glint, 0.8);
       if (element == 'Blood') {
-        vfxFillPath(
+        vfxFillDrop(
           canvas,
-          vfxDrop(ui.Offset(-len * 0.1, 0), w * 1.2, 0),
+          const ui.Offset(-_needleLen * 0.1, 0),
+          _needleW * 1.2,
+          0,
           m.mid,
           0.95,
         );
-        _dot(canvas, ui.Offset(-len * 0.02, -w * 0.4), w * 0.35, m.glint, 0.7);
+        _dot(
+          canvas,
+          const ui.Offset(-_needleLen * 0.02, -_needleW * 0.4),
+          _needleW * 0.35,
+          m.glint,
+          0.7,
+        );
       }
     case _Head.prism:
-      // A cut prism: two tones meeting on the axis, light on one face only.
-      final len = 11.0 * vs, w = 4.0 * vs;
-      final top = ui.Path()
-        ..addPolygon([
-          ui.Offset(len * 0.62, 0),
-          ui.Offset(-len * 0.05, -w),
-          ui.Offset(-len * 0.45, 0),
-        ], true);
-      final bottom = ui.Path()
-        ..addPolygon([
-          ui.Offset(len * 0.62, 0),
-          ui.Offset(-len * 0.05, w),
-          ui.Offset(-len * 0.45, 0),
-        ], true);
+      // Light on one face only.
       final catchLight = 0.6 + 0.4 * sin(time * 4);
-      vfxFillPath(canvas, bottom, element == 'Light' ? tint : m.ink, 0.95);
       vfxFillPath(
         canvas,
-        top,
+        _prismBottom,
+        element == 'Light' ? tint : m.ink,
+        0.95,
+      );
+      vfxFillPath(
+        canvas,
+        _prismTop,
         ui.Color.lerp(tint, m.glint, 0.5 * catchLight)!,
         0.95,
       );
@@ -357,28 +422,21 @@ void _drawTrailMaterial(
     final s = vs * (0.8 + 0.5 * f);
     switch (element) {
       case 'Fire':
-        vfxFillPath(canvas, vfxDrop(p, 1.8 * s, pi), m.mid, 0.8 * f);
-        vfxFillPath(canvas, vfxDrop(p, 0.9 * s, pi), m.glint, 0.9 * f);
+        vfxFillDrop(canvas, p, 1.8 * s, pi, m.mid, 0.8 * f);
+        vfxFillDrop(canvas, p, 0.9 * s, pi, m.glint, 0.9 * f);
       case 'Lava':
-        vfxFillPath(
-          canvas,
-          vfxDrop(p, 1.7 * s, pi + side * 0.5),
-          m.glint,
-          0.85 * f,
-        );
+        vfxFillDrop(canvas, p, 1.7 * s, pi + side * 0.5, m.glint, 0.85 * f);
       case 'Blood' || 'Poison':
-        vfxFillPath(canvas, vfxDrop(p, 1.6 * s, pi), m.mid, 0.9 * f);
+        vfxFillDrop(canvas, p, 1.6 * s, pi, m.mid, 0.9 * f);
       case 'Water':
-        vfxFillPath(
-          canvas,
-          vfxDrop(p, 1.5 * s, pi + side * 0.3),
-          m.glint,
-          0.65 * f,
-        );
+        vfxFillDrop(canvas, p, 1.5 * s, pi + side * 0.3, m.glint, 0.65 * f);
       case 'Ice':
-        vfxFillPath(
+        vfxFillShard(
           canvas,
-          vfxShard(p, 3.2 * s, 0.8 * s, side * pi / 2 + pi * 0.2 * side),
+          p,
+          3.2 * s,
+          0.8 * s,
+          side * pi / 2 + pi * 0.2 * side,
           m.glint,
           0.75 * f,
         );
@@ -392,12 +450,7 @@ void _drawTrailMaterial(
           ], true);
         vfxFillPath(canvas, gem, m.glint, 0.7 * f);
       case 'Earth':
-        vfxFillPath(
-          canvas,
-          vfxBlob(p, 1.7 * s, i.toDouble(), n: 5, wobble: 0.3),
-          m.ink,
-          0.95 * f,
-        );
+        vfxFillBlob(canvas, p, 1.7 * s, i, m.ink, 0.95 * f, n: 5, wobble: 0.3);
         _dot(
           canvas,
           p + ui.Offset(-0.4 * s, -0.5 * s),
@@ -406,25 +459,26 @@ void _drawTrailMaterial(
           0.5 * f,
         );
       case 'Mud':
-        vfxFillPath(
-          canvas,
-          vfxBlob(p, 1.9 * s, i.toDouble(), n: 6, wobble: 0.3),
-          m.mid,
-          0.9 * f,
-        );
+        vfxFillBlob(canvas, p, 1.9 * s, i, m.mid, 0.9 * f, n: 6, wobble: 0.3);
       case 'Dust':
-        vfxFillPath(
+        vfxFillBlob(
           canvas,
-          vfxBlob(p, 1.1 * s, i.toDouble(), n: 5, wobble: 0.3),
+          p,
+          1.1 * s,
+          i,
           m.glint,
           0.75 * f,
+          n: 5,
+          wobble: 0.3,
         );
       case 'Steam' || 'Spirit':
         vfxSpill(canvas, p, (2.5 + 5 * t) * vs, m.glint, 0.4 * f);
       case 'Plant':
-        vfxFillPath(
+        vfxFillLeaf(
           canvas,
-          vfxLeaf(p, 3.6 * s, pi + side * 0.8 + time * 3),
+          p,
+          3.6 * s,
+          pi + side * 0.8 + time * 3,
           m.mid,
           0.9 * f,
         );

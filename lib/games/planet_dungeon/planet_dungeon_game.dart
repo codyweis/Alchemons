@@ -18,6 +18,7 @@ import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
+import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/horn_runtime.dart'
     show
         HornRules,
@@ -5549,6 +5550,19 @@ class PlanetDungeonGame extends FlameGame {
         }
       }
 
+      // A piece that follows its caster (a Mane Light ring, Horn Crystal's
+      // shards) orbits the live creature, as in survival and space, not the
+      // spot it was cast from.
+      if (p.followSourceCompanion && p.orbitCenter != null) {
+        final srcIndex = combatCompanions.indexWhere(
+          (c) => c.slotIndex == p.sourceSlotIndex,
+        );
+        if (srcIndex >= 0 &&
+            srcIndex < creatures.length &&
+            creatures[srcIndex].alive) {
+          p.orbitCenter = creatures[srcIndex].position;
+        }
+      }
       if (p.orbitCenter != null && (p.holdOrbit || p.orbitTime > 0)) {
         if (!p.holdOrbit) p.orbitTime -= dt;
         p.orbitAngle += p.orbitSpeed * dt;
@@ -6404,39 +6418,44 @@ class PlanetDungeonGame extends FlameGame {
   ) {
     final intel = comp.member.statIntelligence;
     final beauty = comp.member.statBeauty;
+    // The cast windows are survival's and space's (KinSupport), on the same
+    // stat curve, with the same recast rules for Ice and Steam.
     switch (comp.member.element) {
       case 'Lava':
-        comp.kinLavaPlateTimer =
-            9.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.40);
+        comp.kinLavaPlateTimer = KinSupport.lavaPlateDuration(intel);
         break;
       case 'Ice':
-        final duration =
-            4.0 * _effStatScale(intel, perPoint: -0.06, min: 0.70, max: 1.15);
+        // A recast while a charge is still running leaves it running, or a
+        // well-bred Kin restarts it before the frost ever releases.
+        if (comp.kinIceChargeTimer > 0) break;
+        final duration = KinSupport.iceChargeDuration(intel);
         comp.kinIceChargeTimer = duration;
         comp.kinIceChargeTotal = duration;
         break;
       case 'Steam':
-        comp.kinSteamBoilerTimer =
-            10.0 * _effStatScale(intel, perPoint: 0.12, min: 0.80, max: 1.60);
-        comp.kinSteamBoilerStacks = 0;
-        comp.kinSteamStackCarry = 0;
-        comp.kinSteamStackDecayTimer = 2.0;
+        // A recast while the boiler is lit only refreshes the window, so the
+        // stacks can build.
+        final boilerLit = comp.kinSteamBoilerTimer > 0;
+        comp.kinSteamBoilerTimer = KinSupport.steamBoilerDuration(intel);
+        if (!boilerLit) {
+          comp.kinSteamBoilerStacks = 0;
+          comp.kinSteamStackCarry = 0;
+          comp.kinSteamStackDecayTimer = KinSupport.steamDecayInterval;
+        }
         break;
       case 'Lightning':
-        comp.kinLightningChargeTimer =
-            10.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.40);
+        comp.kinLightningChargeTimer = KinSupport.lightningChargeDuration(
+          intel,
+        );
         break;
       case 'Dark':
-        comp.kinDarkCloakTimer =
-            7.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.50);
+        comp.kinDarkCloakTimer = KinSupport.darkVeilDuration(intel);
         break;
       case 'Blood':
-        comp.kinBloodPactTimer =
-            9.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.50);
+        comp.kinBloodPactTimer = KinSupport.bloodPactDuration(intel);
         break;
       case 'Mud':
-        comp.kinMudShipEnchantTimer =
-            5.0 * _effStatScale(intel, perPoint: 0.10, min: 0.85, max: 1.40);
+        comp.kinMudShipEnchantTimer = KinSupport.mudEnchantDuration(intel);
         comp.kinSteamStackDecayTimer = 0;
         break;
       case 'Dust':
@@ -7402,6 +7421,7 @@ class PlanetDungeonGame extends FlameGame {
       casterBeauty: comp.member.statBeauty,
       casterIntelligence: comp.member.statIntelligence,
       casterStrength: comp.member.statStrength,
+      casterBeautyPotential: comp.member.statBeautyPotential,
       targetPos: targetPoint,
     );
     for (final projectile in result.projectiles) {
@@ -8280,27 +8300,13 @@ class PlanetDungeonGame extends FlameGame {
           _spawnHitSpark(enemy.position, elementColor('Light'));
           break;
         case 'Lava':
-          // Drop a lava blob (DoT zone) at the pierce point.
+          // Drop a lava blob (DoT zone) at the pierce point — survival's and
+          // space's: only the shot drops one, for its first few bodies. A
+          // blob is itself a piercing Mane Lava piece, so blobs dropping
+          // blobs chained until the pool trim evicted everyone's pieces.
+          if (!ManeRuntime.dropsLavaBlob(projectile)) break;
           combatProjectiles.add(
-            Projectile(
-              position: enemy.position,
-              angle: 0,
-              element: 'Lava',
-              damage: 0,
-              life: 3.6,
-              speedMultiplier: 0,
-              stationary: true,
-              piercing: true,
-              radiusMultiplier: 1.4,
-              visualScale: 1.3,
-              visualStyle: ProjectileVisualStyle.sigil,
-              sourceSlotIndex: projectile.sourceSlotIndex,
-              abilityFamily: 'mane',
-              tickEffect: AbilityEffectKind.burn,
-              effectPower: projectile.damage * 0.18,
-              effectRadius: 50,
-              effectDuration: 3.6,
-            ),
+            ManeRuntime.lavaBlob(projectile, enemy.position),
           );
           break;
         case 'Blood':
@@ -8591,7 +8597,7 @@ class PlanetDungeonGame extends FlameGame {
     if (enemy.maneRootSlot != null && enemy.maneRootTimer > 0) {
       const explodeRadius = ManeRuntime.plantRootExplodeRadius;
       final explodeDamage =
-          (companion?.abilityAtk ?? 4) * ManeRuntime.plantRootExplodeShare;
+          (companion?.elemAtk ?? 4) * ManeRuntime.plantRootExplodeShare;
       for (final other in combatEnemies) {
         if (other.isDead || identical(other, enemy)) continue;
         if ((other.position - enemy.position).distance > explodeRadius) {

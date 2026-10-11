@@ -954,9 +954,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state != AppLifecycleState.paused) return;
+    if (state == AppLifecycleState.resumed) return;
     // Sent to the background mid-run, from where the OS may close the app:
     // keep the run as if it were left now, so closing it never heals.
+    // From `inactive` on: iOS's app switcher can close the app without it
+    // ever reaching `paused`.
     final game = _game;
     if (game == null ||
         !_keepRun ||
@@ -1542,8 +1544,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       Duration(milliseconds: (kCoreFallSeconds * 1000 * 0.62).round()),
     );
     try {
-      await _saveHighScore();
       await _rollRewards(wave, wavesCleared: wavesCleared);
+      await _saveHighScore();
       await fall;
     } finally {
       if (mounted) {
@@ -1561,6 +1563,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     final rng = Random();
     final popupEntries = <LootOpeningEntry>[];
     final registry = buildInventoryRegistry(db);
+
+    // Mastery is what a run is ground for, so it is banked before anything
+    // else is written: a failed loot or coin write must not cost it, and the
+    // kept run is already gone.
+    final banked = await _bankMastery(mastery, wavesCleared);
 
     final rolledReward = LootBoxConfig.rollSurvivalLootBoxReward(wave, rng);
     if (rolledReward != null) {
@@ -1667,10 +1674,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
     // Each family's mastery, shown by the first creature of it that was
     // fielded, with what each of its creatures earned toward it.
-    for (final (family, points, members) in await _bankMastery(
-      mastery,
-      wavesCleared,
-    )) {
+    for (final (family, points, members) in banked) {
       popupEntries.add(
         familyMasteryRewardEntry(
           family: family,
@@ -1960,6 +1964,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       _exit();
       return;
     }
+    // A draft is answered first, as the pause button already requires.
+    // Closing a pause menu opened over it also unpaused the game behind it.
+    if (_powerUpChoices.isNotEmpty) return;
     if (!_showPauseMenu) {
       setState(() {
         _showPauseMenu = true;

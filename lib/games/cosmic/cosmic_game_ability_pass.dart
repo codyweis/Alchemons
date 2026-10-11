@@ -133,10 +133,11 @@ extension CosmicAbilityPass on CosmicGame {
             final objectiveHeal =
                 power *
                 (objectiveOnly ? 1.0 : CosmicAbilityRuntime.leechObjectiveShare);
-            // Mane Blood heals with every body its shot crosses: survival's
-            // per-caster ceiling.
+            // Wing leech beams and Mane Blood's shot heal with every body
+            // they cross: survival's per-caster ceiling.
             _healOpenObjective(
-              projectile.abilityFamily == 'mane'
+              projectile.abilityFamily == 'wing' ||
+                      projectile.abilityFamily == 'mane'
                   ? _healCeiling.grant(
                       slot: projectile.sourceSlotIndex,
                       amount: objectiveHeal,

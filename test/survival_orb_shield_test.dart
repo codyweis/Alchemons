@@ -117,6 +117,35 @@ void main() {
     expect(game.orbShieldFraction, closeTo(grant / game.orb.maxHp, 1e-9));
   });
 
+  test('a cleared wave gives back its rest with the ship down', () async {
+    // The rest used to sit behind the ship's gate: a ship lost late in a
+    // wave cost the orb and the team their rest as well.
+    final game = await start(member('Pip', 'Fire'));
+    while (game.spawner.currentWave < 23) {
+      game.spawner.resumeAfterIntermission();
+    }
+    expect(game.spawner.isBossWave, isFalse);
+    expect(CosmicSurvivalBalance.waveRestShare(23), closeTo(0.6, 1e-9));
+    game.orb.currentHp = game.orb.maxHp * 0.2;
+    game.ship
+      ..currentHp = 0
+      ..isDead = true;
+    game.spawner.intermission = true;
+    for (var i = 0; i < 6 && game.spawner.currentWave == 23; i++) {
+      for (final e in game.enemies) {
+        e.isDead = true;
+      }
+      if (game.showingPowerUpSelection) {
+        game.alchemicalMeter = 0;
+        game.dismissPowerUpSelection();
+      }
+      game.update(1 / 30);
+    }
+    expect(game.spawner.currentWave, 24);
+    expect(game.ship.isDead, isTrue);
+    expect(game.orb.currentHp, greaterThan(game.orb.maxHp * 0.75));
+  });
+
   test('the orb takes every point through the opening waves', () {
     for (var wave = 1; wave <= CosmicSurvivalBalance.orbHardeningWave; wave++) {
       expect(CosmicSurvivalBalance.orbWaveDamageShare(wave), 1.0);

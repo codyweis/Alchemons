@@ -1047,6 +1047,36 @@ final Path _shellBand = Path()
   ..addOval(Rect.fromCircle(center: Offset.zero, radius: 1.0))
   ..addOval(Rect.fromCircle(center: Offset.zero, radius: 0.86));
 
+/// A held shield's halo band and brass cells, [n] cells from [start] on.
+/// Kept by (start, n), so they are built when the shield or the health it
+/// follows moves a cell, not every frame it holds (a few entries: one live
+/// shield, plus a preview's).
+final Map<(int, int), (Path, Path)> _shieldRuns = {};
+
+(Path, Path) _shieldPaths(int start, int n) {
+  final hit = _shieldRuns[(start, n)];
+  if (hit != null) return hit;
+  if (_shieldRuns.length >= 16) _shieldRuns.clear();
+  final cells = _shieldCells.cells;
+  final a0 = -pi / 2 + start * 2 * pi / cells;
+  final sweep = n * 2 * pi / cells;
+  final halo = Path()
+    ..arcTo(
+      Rect.fromCircle(center: Offset.zero, radius: 121),
+      a0,
+      sweep,
+      true,
+    )
+    ..arcTo(
+      Rect.fromCircle(center: Offset.zero, radius: 101),
+      a0 + sweep,
+      -sweep,
+      false,
+    )
+    ..close();
+  return _shieldRuns[(start, n)] = (halo, _shieldCells.run(start, n));
+}
+
 /// The core's readings round it, at the origin in world units: health in
 /// a ring of cells just outside the core, the alchemy meter outside that,
 /// and — while it holds — the shield, as brass cells on the health ring and
@@ -1096,30 +1126,13 @@ void paintOrbReadings(
     final n = (shield * cells).round().clamp(1, cells);
     // After the health, or over its last cells when the two overrun.
     final start = min((hp * cells).round(), cells - n);
-    final a0 = -pi / 2 + start * 2 * pi / cells;
-    final sweep = n * 2 * pi / cells;
+    final (halo, run) = _shieldPaths(start, n);
     _cellPaint.color = _brassHalo.withValues(alpha: 0.2);
-    c.drawPath(
-      Path()
-        ..arcTo(
-          Rect.fromCircle(center: Offset.zero, radius: 121),
-          a0,
-          sweep,
-          true,
-        )
-        ..arcTo(
-          Rect.fromCircle(center: Offset.zero, radius: 101),
-          a0 + sweep,
-          -sweep,
-          false,
-        )
-        ..close(),
-      _cellPaint,
-    );
+    c.drawPath(halo, _cellPaint);
     _cellPaint
       ..shader = _shieldCellShader
       ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.86);
-    c.drawPath(_shieldCells.run(start, n), _cellPaint);
+    c.drawPath(run, _cellPaint);
     _cellPaint.shader = null;
   }
 

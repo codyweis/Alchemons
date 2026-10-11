@@ -239,12 +239,21 @@ class SuspendedSurvivalRun {
   /// wave is played again and earns them again.
   SuspendedSurvivalRun leftAt(SuspendedSurvivalRun atExit, {int? savedAtMs}) {
     final exitSlots = {for (final s in atExit.slots) s.slot: s};
+    // A creature revived mid-wave fell mid-wave. The replay drops the revive
+    // pick and gives its meter back, so it stays down, as at the moment it
+    // fell; otherwise leaving undid the death and refunded the revive.
+    int revives(SuspendedSurvivalRun run, int slot) => run.picks
+        .where((p) => p.id == 'revive_half' && p.targetSlot == slot)
+        .length;
     final mergedSlots = [
       for (final s in slots)
         (() {
           final later = exitSlots[s.slot];
           if (later == null) return s;
-          final dead = s.dead || later.dead;
+          final dead =
+              s.dead ||
+              later.dead ||
+              revives(atExit, s.slot) > revives(this, s.slot);
           return SuspendedSlotHealth(
             slot: s.slot,
             hp: dead ? 0.0 : min(s.hp, later.hp),

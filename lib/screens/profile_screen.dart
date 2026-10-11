@@ -190,6 +190,14 @@ class _ProfileScreenState extends State<ProfileScreen>
     _loadNotificationPrefs();
     _loadCinematicQuality();
     _loadDebugTools();
+    DebugSettingsService.allowedNotifier.addListener(_onDebugToolsAllowed);
+  }
+
+  /// Signing in or out of a developer's account shows or hides the
+  /// DEVELOPER section, and the switch takes effect with it.
+  void _onDebugToolsAllowed() {
+    if (!mounted) return;
+    setState(() => _debugToolsEnabled = DebugSettingsService.toolsVisible);
   }
 
   @override
@@ -273,6 +281,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     _scroll.dispose();
     _realmField?.dispose();
     _cosmicHintsController.dispose();
+    DebugSettingsService.allowedNotifier.removeListener(_onDebugToolsAllowed);
     super.dispose();
   }
 
@@ -1348,74 +1357,77 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ],
                       ),
 
-                      _Section(
-                        label: 'DEVELOPER',
-                        palette: palette,
-                        children: [
-                          BracketToggleRow(
-                            title: 'DEBUG TOOLS',
-                            description:
-                                'Testing shortcuts in the cosmos: unseal a '
-                                'gate, and descend with a planet\'s ideal trio',
-                            value: _debugToolsEnabled,
-                            enabled: _debugToolsLoaded,
-                            onChanged: _setDebugTools,
-                            palette: palette,
-                            accent: accent,
-                          ),
-                          // Gated on the switch above rather than on
-                          // DebugSettingsService.toolsVisible: these rows sit
-                          // directly under the control that governs them, so
-                          // appearing in a debug build with the switch OFF
-                          // would read as the switch being broken.
-                          if (_debugToolsEnabled) ...[
+                      // Every debug or profile build; in a release build only
+                      // a developer's account (DebugSettingsService).
+                      if (DebugSettingsService.toolsAllowed)
+                        _Section(
+                          label: 'DEVELOPER',
+                          palette: palette,
+                          children: [
                             BracketToggleRow(
-                              title: 'FREE SHOP',
+                              title: 'DEBUG TOOLS',
                               description:
-                                  'Every shop purchase costs nothing while the '
-                                  'debug tools are on',
-                              value: _freeShop,
+                                  'Testing shortcuts in the cosmos: unseal a '
+                                  'gate, and descend with a planet\'s ideal trio',
+                              value: _debugToolsEnabled,
                               enabled: _debugToolsLoaded,
-                              onChanged: _setFreeShop,
+                              onChanged: _setDebugTools,
                               palette: palette,
                               accent: accent,
                             ),
-                            // Re-reads the setting when a fusion spends it, so
-                            // the row goes back to OFF on its own.
-                            ValueListenableBuilder<String?>(
-                              valueListenable: DebugSettingsService
-                                  .forcedWildMutationNotifier,
-                              builder: (context, forced, _) => _Row(
-                                title: 'WILD MUTATION',
+                            // Gated on the switch above rather than on
+                            // DebugSettingsService.toolsVisible: these rows sit
+                            // directly under the control that governs them, so
+                            // appearing in a debug build with the switch OFF
+                            // would read as the switch being broken.
+                            if (_debugToolsEnabled) ...[
+                              BracketToggleRow(
+                                title: 'FREE SHOP',
                                 description:
-                                    'The next successful wilderness fusion '
-                                    'comes out mutated, then this turns off',
+                                    'Every shop purchase costs nothing while the '
+                                    'debug tools are on',
+                                value: _freeShop,
+                                enabled: _debugToolsLoaded,
+                                onChanged: _setFreeShop,
                                 palette: palette,
-                                trailing: _WildMutationSelector(
+                                accent: accent,
+                              ),
+                              // Re-reads the setting when a fusion spends it, so
+                              // the row goes back to OFF on its own.
+                              ValueListenableBuilder<String?>(
+                                valueListenable: DebugSettingsService
+                                    .forcedWildMutationNotifier,
+                                builder: (context, forced, _) => _Row(
+                                  title: 'WILD MUTATION',
+                                  description:
+                                      'The next successful wilderness fusion '
+                                      'comes out mutated, then this turns off',
                                   palette: palette,
-                                  accent: accent,
-                                  value: forced,
-                                  enabled: _debugToolsLoaded,
-                                  onChanged: _setForcedMutation,
+                                  trailing: _WildMutationSelector(
+                                    palette: palette,
+                                    accent: accent,
+                                    value: forced,
+                                    enabled: _debugToolsLoaded,
+                                    onChanged: _setForcedMutation,
+                                  ),
                                 ),
                               ),
-                            ),
-                            for (final tool in _debugActions())
-                              _Row(
-                                title: tool.title,
-                                description: tool.description,
-                                palette: palette,
-                                trailing: _QuietButton(
-                                  label: tool.action,
-                                  height: 34,
+                              for (final tool in _debugActions())
+                                _Row(
+                                  title: tool.title,
+                                  description: tool.description,
                                   palette: palette,
-                                  accent: accent,
-                                  onTap: tool.onTap,
+                                  trailing: _QuietButton(
+                                    label: tool.action,
+                                    height: 34,
+                                    palette: palette,
+                                    accent: accent,
+                                    onTap: tool.onTap,
+                                  ),
                                 ),
-                              ),
+                            ],
                           ],
-                        ],
-                      ),
+                        ),
                     ],
                   ),
                 ),

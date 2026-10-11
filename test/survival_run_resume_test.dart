@@ -479,6 +479,61 @@ void main() {
     expect(back.spawner.currentWave, 5);
   });
 
+  test('a draft due as a wave begins holds its checkpoint until the pick', () async {
+    // A checkpoint taken with the draft open, or about to open, kept the full
+    // meter without the pick: SAVE & EXIT and CONTINUE rolled it again.
+    final (game, checkpoints) = await startedRun();
+    game.update(1 / 30);
+    expect(checkpoints.map((c) => c.wave), [1]);
+    game.spawner.intermission = true;
+    for (var i = 0; i < 6 && game.spawner.currentWave == 1; i++) {
+      game.update(1 / 30);
+    }
+    expect(game.spawner.currentWave, 2);
+    // The wave's checkpoint is due on the next frame, with the meter full
+    // and its bar still filling: the draft opens a few frames later.
+    game.alchemicalMeter = game.alchemicalMeterMax;
+    for (var i = 0; i < 120 && !game.showingPowerUpSelection; i++) {
+      game.update(1 / 30);
+    }
+    expect(game.showingPowerUpSelection, isTrue);
+    expect(
+      checkpoints.map((c) => c.wave),
+      [1],
+      reason: 'a checkpoint kept the full meter without the pick',
+    );
+    pick(game, 'pack_leader');
+    game.update(1 / 30);
+    expect(checkpoints.map((c) => c.wave), [1, 2]);
+    expect(checkpoints.last.meter, lessThan(game.alchemicalMeterMax));
+    expect(checkpoints.last.picks.map((p) => p.id), contains('pack_leader'));
+  });
+
+  test('a revive taken mid-wave is not kept by leaving', () async {
+    final (game, checkpoints) = await startedRun();
+    game.update(1 / 30);
+    game.summonCompanion(0);
+    game.summonCompanion(1);
+    clearWave(game);
+    final checkpoint = checkpoints.last;
+    downCompanion(game, 1);
+    pick(game, 'revive_half', slot: 1);
+    expect(game.isCompanionDefeated(1), isFalse);
+
+    // The replay drops the revive and gives its meter back, so the creature
+    // stays down, as it was when it fell.
+    final left = checkpoint.leftAt(game.captureSuspendedRun());
+    expect(left.picks.where((p) => p.id == 'revive_half'), isEmpty);
+    expect(left.slots[1].dead, isTrue);
+    expect(left.activeSlots, isNot(contains(1)));
+
+    // A revive the checkpoint holds stands.
+    clearWave(game);
+    final held = checkpoints.last;
+    expect(held.picks.where((p) => p.id == 'revive_half'), isNotEmpty);
+    expect(held.leftAt(game.captureSuspendedRun()).slots[1].dead, isFalse);
+  });
+
   test('leaving mid-wave never heals', () async {
     final (game, checkpoints) = await startedRun();
     game.update(1 / 30);

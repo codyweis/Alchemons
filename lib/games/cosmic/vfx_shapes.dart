@@ -293,10 +293,6 @@ VfxMaterial vfxMaterial(String? element) => switch (element) {
 };
 
 final ui.Paint _vfxFill = ui.Paint();
-final ui.Paint _vfxStroke = ui.Paint()
-  ..style = ui.PaintingStyle.stroke
-  ..strokeCap = ui.StrokeCap.round
-  ..strokeJoin = ui.StrokeJoin.round;
 
 void vfxFillPath(ui.Canvas canvas, ui.Path path, ui.Color color, double alpha) {
   if (alpha <= 0.004) return;
@@ -306,13 +302,109 @@ void vfxFillPath(ui.Canvas canvas, ui.Path path, ui.Color color, double alpha) {
   canvas.drawPath(path, _vfxFill);
 }
 
+// ── Unit shapes ─────────────────────────────────────────────────────────
+//
+// The drop, leaf and shard above at unit size along +x, built once, for
+// painters that draw hundreds a frame (every basic shot): the canvas is
+// moved onto each one instead of a new Path being built for it. A moved,
+// turned and scaled polygon or quadratic is the same outline, so these fill
+// the same pixels as `vfxFillPath(canvas, vfxDrop(c, r, a), ...)`.
+
+final ui.Path _unitDrop = vfxDrop(ui.Offset.zero, 1, 0);
+final ui.Path _unitLeaf = vfxLeaf(ui.Offset.zero, 1, 0);
+final ui.Path _unitShard = vfxShard(ui.Offset.zero, 1, 1, 0);
+final Map<(int, int, int), ui.Path> _unitBlobs = {};
+
+void _fillUnit(
+  ui.Canvas canvas,
+  ui.Path unit,
+  ui.Offset c,
+  double a,
+  double sx,
+  double sy,
+  ui.Color color,
+  double alpha,
+) {
+  if (alpha <= 0.004) return;
+  canvas.save();
+  canvas.translate(c.dx, c.dy);
+  if (a != 0) canvas.rotate(a);
+  canvas.scale(sx, sy);
+  vfxFillPath(canvas, unit, color, alpha);
+  canvas.restore();
+}
+
+/// Fills [vfxDrop] `(c, r, a)` from the cached unit drop.
+void vfxFillDrop(
+  ui.Canvas canvas,
+  ui.Offset c,
+  double r,
+  double a,
+  ui.Color color,
+  double alpha,
+) => _fillUnit(canvas, _unitDrop, c, a, r, r, color, alpha);
+
+/// Fills [vfxLeaf] `(c, len, a)` from the cached unit leaf.
+void vfxFillLeaf(
+  ui.Canvas canvas,
+  ui.Offset c,
+  double len,
+  double a,
+  ui.Color color,
+  double alpha,
+) => _fillUnit(canvas, _unitLeaf, c, a, len, len, color, alpha);
+
+/// Fills [vfxShard] `(c, len, width, a)` from the cached unit shard: its
+/// length and width are the two axes of one scale, so any proportion shares
+/// the one path.
+void vfxFillShard(
+  ui.Canvas canvas,
+  ui.Offset c,
+  double len,
+  double width,
+  double a,
+  ui.Color color,
+  double alpha,
+) => _fillUnit(canvas, _unitShard, c, a, len, width, color, alpha);
+
+/// Fills [vfxBlob] `(c, r, seed, n: n, wobble: wobble)` from a cached unit
+/// blob. [seed] is a whole number — callers take it modulo something small —
+/// so the cache holds a few dozen outlines, never one per frame.
+void vfxFillBlob(
+  ui.Canvas canvas,
+  ui.Offset c,
+  double r,
+  int seed,
+  ui.Color color,
+  double alpha, {
+  int n = 12,
+  double wobble = 0.16,
+}) {
+  if (alpha <= 0.004) return;
+  final key = (seed, n, (wobble * 1000).round());
+  var unit = _unitBlobs[key];
+  if (unit == null) {
+    if (_unitBlobs.length >= 256) _unitBlobs.clear();
+    unit = _unitBlobs[key] = vfxBlob(
+      ui.Offset.zero,
+      1,
+      seed.toDouble(),
+      n: n,
+      wobble: wobble,
+    );
+  }
+  _fillUnit(canvas, unit, c, 0, r, r, color, alpha);
+}
+
 // Gradients for the light fills below, cached: a frame of spills, rings and
 // beams used to build a new shader object per call. Each is built once per
 // colour and shape at unit size (spills and rings are drawn scaled), and the
 // strength rides on the paint's alpha, which scales a shader's output — the
 // same pixels as baking the strength into the stops.
 final Map<int, ui.Shader> _spillShaders = {};
-final Map<int, ui.Shader> _ringShaders = {};
+// Record keys, not packed ints: a colour shifted 14 bits overflows the 32
+// bits a web int holds, and colours collided there.
+final Map<(int, int, int), ui.Shader> _ringShaders = {};
 final Map<(int, int, int, int), ui.Shader> _crossShaders = {};
 
 ui.Shader _cachedShader<K>(
@@ -377,20 +469,16 @@ void vfxSoftRing(
   final rgb = _rgb(color);
   _vfxFill
     ..color = ui.Color.fromRGBO(255, 255, 255, strength.clamp(0.0, 1.0))
-    ..shader = _cachedShader(
-      _ringShaders,
-      (rgb << 14) | (inner << 7) | peak,
-      () {
-        final k = ui.Color(0xFF000000 | rgb);
-        final clear = k.withValues(alpha: 0);
-        return ui.Gradient.radial(
-          ui.Offset.zero,
-          1,
-          [clear, clear, k, clear],
-          [0.0, inner / 64, peak / 64, 1.0],
-        );
-      },
-    );
+    ..shader = _cachedShader(_ringShaders, (rgb, inner, peak), () {
+      final k = ui.Color(0xFF000000 | rgb);
+      final clear = k.withValues(alpha: 0);
+      return ui.Gradient.radial(
+        ui.Offset.zero,
+        1,
+        [clear, clear, k, clear],
+        [0.0, inner / 64, peak / 64, 1.0],
+      );
+    });
   canvas.save();
   canvas.translate(c.dx, c.dy);
   canvas.scale(outer);
@@ -477,39 +565,6 @@ void vfxChunk(
   final glint = ui.Path()
     ..addPolygon([pts[0], pts[1], c + (pts[1] - c) * 0.55], true);
   vfxFillPath(canvas, glint, m.glint, 0.30 * alpha);
-}
-
-/// A lightning bolt as a lit core over a faint glow — the one place a line is
-/// the right material.
-void vfxBolt(
-  ui.Canvas canvas,
-  ui.Offset from,
-  ui.Offset to,
-  double seed,
-  VfxMaterial m,
-  double alpha, {
-  double jag = 0.22,
-  int segs = 5,
-}) {
-  final d = to - from;
-  final len = d.distance;
-  if (len < 1) return;
-  final n = ui.Offset(-d.dy, d.dx) / len;
-  final path = ui.Path()..moveTo(from.dx, from.dy);
-  for (var k = 1; k <= segs; k++) {
-    final f = k / segs;
-    final off = k == segs ? 0.0 : (vfxHash(seed + k * 3.1) - 0.5) * len * jag;
-    final p = from + d * f + n * off;
-    path.lineTo(p.dx, p.dy);
-  }
-  _vfxStroke
-    ..color = m.mid.withValues(alpha: 0.22 * alpha)
-    ..strokeWidth = 4.2;
-  canvas.drawPath(path, _vfxStroke);
-  _vfxStroke
-    ..color = m.glint.withValues(alpha: 0.9 * alpha)
-    ..strokeWidth = 1.3;
-  canvas.drawPath(path, _vfxStroke);
 }
 
 // ── Grains ──────────────────────────────────────────────────────────────
