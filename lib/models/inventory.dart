@@ -847,7 +847,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.alchemyRitualGold,
       name: 'Golden Rite',
       description:
-          'A luminous ritual circle of gold and ash, unlocked by completing the Pureblood Rite.',
+          'A gold ritual circle behind one of your Alchemons. Earned by cultivating an Alchemized or Transmuted Alchemon, or bought in the shop after the Pureblood Rite.',
       icon: AppIcons.auto_fix_high_rounded,
     ),
     InvKeys.alchemyBeautyRadiance: InventoryItemDef(

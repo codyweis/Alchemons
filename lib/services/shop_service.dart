@@ -896,8 +896,7 @@ class ShopService extends ChangeNotifier {
     ShopOffer(
       id: ritualGoldEffectOfferId,
       name: 'Golden Rite',
-      description:
-          'Pureblood Rite completion effect. Projects a gold ritual chamber behind your Alchemon.',
+      description: 'A gold ritual circle behind your Alchemon.',
       icon: AppIcons.auto_fix_high_rounded,
       iconColor: const Color(0xFFE5B74E),
       cost: const {'gold': 5},
