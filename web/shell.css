@@ -121,6 +121,49 @@ body.wide #column {
   font-size: 12px;
   line-height: 1.6;
 }
+.gate-apps {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.gate-apps-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--brass-hi);
+}
+.gate-apps-row { display: flex; gap: 10px; }
+.gate-store {
+  min-width: 128px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(205, 176, 122, 0.45);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-decoration: none;
+  text-align: center;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+a.gate-store[href]:hover { border-color: var(--brass-glow); color: var(--brass-glow); }
+.gate-store.soon {
+  border-color: #33333a;
+  color: var(--muted);
+  cursor: default;
+}
+.gate-store.soon::after {
+  content: ' · soon';
+  color: var(--faint);
+}
+.gate-apps-note {
+  max-width: 300px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--faint);
+}
 .gate-links {
   display: flex;
   gap: 18px;
@@ -142,7 +185,8 @@ body.wide #column {
   align-items: center;
   gap: 18px; /* clear of the unit's 10px ink mat */
 }
-body.wide .rail-ad.on { display: flex; }
+body.wide .rail-ad.on { display: flex; visibility: hidden; }
+body.wide .rail-ad.on.filled { visibility: visible; }
 
 .ad-label {
   font-size: 9px;
@@ -170,7 +214,10 @@ body.wide .rail-ad.on { display: flex; }
   background: var(--ink);
   padding-bottom: env(safe-area-inset-bottom);
 }
-#bottom-ad.on { display: flex; }
+/* Laid out off-screen-height until filled, so AdSense can size the unit
+   without the game giving up the strip for an empty slot. */
+#bottom-ad.on { display: flex; visibility: hidden; height: 60px; }
+#bottom-ad.on.filled { visibility: visible; height: var(--bottom); }
 
 .ad-placeholder {
   display: flex;

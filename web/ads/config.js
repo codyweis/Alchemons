@@ -5,7 +5,7 @@
 // the H5 switch below can change with a redeploy of the site alone — the game
 // itself does not need rebuilding.
 //
-// Preview the layout before approval: /play/?adpreview=1 (placeholder boxes).
+// Preview the layout: /play/?adpreview=1 (placeholder boxes, no real ads).
 // Google's test ads once the id is in: /play/?adtest=1
 window.ALCHEMONS_ADS = {
   // AdSense → Account → Settings → Publisher ID.

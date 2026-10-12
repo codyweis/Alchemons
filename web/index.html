@@ -28,6 +28,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="shell.css">
+  <!-- The site's store links (alchemons-web/js/stores.js); absolute, so it
+       resolves past the /play/ base. Missing locally: the game still runs. -->
+  <script src="/js/stores.js"></script>
 </head>
 <body>
   <canvas id="sand" aria-hidden="true"></canvas>
@@ -40,7 +43,15 @@
     <div id="gate">
       <img class="gate-logo" src="brand/logo.webp" alt="Alchemons" width="884" height="219">
       <button id="play" type="button" disabled>Loading</button>
-      <p class="gate-note">Free to play in your browser. Your save stays in this browser; sign in from your profile in the game to back it up and carry it to the app.</p>
+      <p class="gate-note">Free to play in your browser. Your save stays in this browser; sign in from your profile in the game to back it up.</p>
+      <div class="gate-apps">
+        <span class="gate-apps-title">Plays best in the app</span>
+        <div class="gate-apps-row">
+          <a class="gate-store" data-store="ios" rel="noopener" target="_blank">iPhone &amp; iPad</a>
+          <a class="gate-store" data-store="android" rel="noopener" target="_blank">Android</a>
+        </div>
+        <span class="gate-apps-note" id="gate-apps-note"></span>
+      </div>
       <nav class="gate-links" aria-label="Site">
         <a href="/">Alchemons.com</a>
         <a href="/privacy/">Privacy</a>

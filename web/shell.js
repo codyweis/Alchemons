@@ -15,12 +15,21 @@
   const gate = document.getElementById('gate');
   const ads = window.alchemonsAds;
 
+  // `filled`: Google has put an ad in the unit. Until then (and if it never
+  // does) the slot is invisible and the sand shows through.
   const rails = {
-    railLeft: { el: document.getElementById('ad-left'), size: '' },
-    railRight: { el: document.getElementById('ad-right'), size: '' },
+    railLeft: { el: document.getElementById('ad-left'), size: '', filled: false },
+    railRight: { el: document.getElementById('ad-right'), size: '', filled: false },
   };
-  const bottom = { el: document.getElementById('bottom-ad'), size: '' };
+  const bottom = { el: document.getElementById('bottom-ad'), size: '', filled: false };
+  const onFill = (slot) => (filled) => {
+    if (slot.filled === filled) return;
+    slot.filled = filled;
+    cancelAnimationFrame(pending);
+    pending = requestAnimationFrame(layout);
+  };
 
+  let pending = 0;
   let sand = null;
   try {
     if (window.StarSand) sand = window.StarSand.start(sandCanvas, {});
@@ -67,11 +76,16 @@
         const size = w + 'x' + h;
         if (rail.size !== size) {
           // Only when the unit itself changes: ads are not refreshed.
-          rail.size = ads.mountDisplay(rail.el.querySelector('.ad-box'), key, w, h) ? size : 'none';
+          rail.filled = false;
+          rail.size = ads.mountDisplay(rail.el.querySelector('.ad-box'), key, w, h, onFill(rail))
+            ? size : 'none';
         }
         const on = rail.size !== 'none';
+        // Laid out (AdSense won't fill a unit with no size) but unseen until
+        // filled; the sand only steers round an ad that is really there.
         rail.el.classList.toggle('on', on);
-        if (!on) continue;
+        rail.el.classList.toggle('filled', on && rail.filled);
+        if (!on || !rail.filled) continue;
         const left = side === 0 ? Math.round((railW - w) / 2) : Math.round(x + colW + (railW - w) / 2);
         const top = Math.round((H - h) / 2) - 8;
         rail.el.style.left = left + 'px';
@@ -83,11 +97,15 @@
       let reserve = 0;
       if (ads && ads.hasBottom && W >= 320 && H >= 560) {
         if (bottom.size !== '320x50') {
-          bottom.size = ads.mountDisplay(bottom.el, 'bottom', 320, 50) ? '320x50' : 'none';
+          bottom.filled = false;
+          bottom.size = ads.mountDisplay(bottom.el, 'bottom', 320, 50, onFill(bottom))
+            ? '320x50' : 'none';
         }
-        if (bottom.size !== 'none') reserve = 60;
+        // The game gives up the strip only once there is an ad to put in it.
+        if (bottom.size !== 'none' && bottom.filled) reserve = 60;
       }
-      bottom.el.classList.toggle('on', reserve > 0);
+      bottom.el.classList.toggle('on', bottom.size !== 'none' && bottom.size !== '');
+      bottom.el.classList.toggle('filled', reserve > 0);
       root.style.setProperty('--col-x', '0px');
       root.style.setProperty('--col-w', W + 'px');
       root.style.setProperty('--bottom', reserve + 'px');
@@ -107,12 +125,33 @@
     }
   }
 
-  let pending = 0;
   window.addEventListener('resize', () => {
     cancelAnimationFrame(pending);
     pending = requestAnimationFrame(layout);
   });
   layout();
+
+  // ── Store links ────────────────────────────────────────────────────────
+
+  // From the site's js/stores.js. A store without a link yet stays as plain
+  // text marked "soon", so the start screen still says the apps exist.
+  (function storeLinks() {
+    const stores = window.ALCHEMONS_STORES || {};
+    let live = 0;
+    for (const a of document.querySelectorAll('.gate-store')) {
+      const url = stores[a.dataset.store];
+      if (url) {
+        a.href = url;
+        live++;
+      } else {
+        a.removeAttribute('href');
+        a.classList.add('soon');
+      }
+    }
+    document.getElementById('gate-apps-note').textContent = live
+      ? 'Same account on both: back up here, restore in the app.'
+      : 'Coming soon. Your account will carry this game over.';
+  })();
 
   // ── Start gate ─────────────────────────────────────────────────────────
 

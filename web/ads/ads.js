@@ -106,17 +106,20 @@
   // ── Display units ───────────────────────────────────────────────────────
 
   /// Fills [box] with a display unit of [w]×[h] (or a placeholder in preview
-  /// mode). Returns false when there is nothing to show there.
-  function mountDisplay(box, slotKey, w, h) {
+  /// mode). Returns false when there is nothing to show there. [onFill] hears
+  /// whether Google filled the unit (true) or left it empty (false); a
+  /// placeholder counts as filled at once.
+  function mountDisplay(box, slotKey, w, h, onFill) {
     box.replaceChildren();
     const slot = cfg.slots[slotKey] || (slotKey === 'railRight' ? cfg.slots.railLeft : '');
-    if (preview && !(cfg.client && slot)) {
+    if (preview) {
       const ph = document.createElement('div');
       ph.className = 'ad-placeholder';
       ph.style.width = w + 'px';
       ph.style.height = h + 'px';
       ph.textContent = w + ' × ' + h;
       box.appendChild(ph);
+      if (onFill) onFill(true);
       return true;
     }
     if (!cfg.client || !slot || script === 'blocked') return false;
@@ -129,6 +132,14 @@
     ins.setAttribute('data-ad-slot', slot);
     if (test) ins.setAttribute('data-adtest', 'on');
     box.appendChild(ins);
+    // AdSense marks the unit data-ad-status="filled" or "unfilled" once it
+    // has decided.
+    if (onFill) {
+      new MutationObserver(() => {
+        const status = ins.getAttribute('data-ad-status');
+        if (status) onFill(status === 'filled');
+      }).observe(ins, {attributes: true, attributeFilter: ['data-ad-status']});
+    }
     try { window.adsbygoogle.push({}); } catch (_) {}
     return true;
   }
