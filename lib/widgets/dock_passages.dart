@@ -217,10 +217,11 @@ class FieldPassage extends PassageScene {
   @override
   Listenable? get listenable => target;
 
-  /// The map starts building while the hills are still growing, so it is
-  /// ready by the time they have.
+  /// The map is built at the tap, under the icon still in the dock: laying
+  /// out its grains is a heavy frame, and built mid-grow it caught the
+  /// hills there.
   @override
-  double get buildAt => 0.45;
+  bool get buildFirst => true;
 
   /// The map comes up under its dust once most of it has come down.
   @override

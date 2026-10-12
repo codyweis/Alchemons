@@ -142,6 +142,9 @@ class _MapScreenState extends State<MapScreen>
   /// rim pulses, as for anything else waiting there. Null when it is
   /// nowhere (not yet arrived, or claimed).
   String? _shipScene;
+
+  /// The three above have been read, and the map is put in.
+  bool _mapRead = false;
   late final AnimationController _mapController;
   late final Animation<double> _mapScale;
   late final Animation<double> _mapOpacity;
@@ -169,17 +172,21 @@ class _MapScreenState extends State<MapScreen>
     // Start the animation after the first frame so it feels like
     // the map is animating in instead of just appearing.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      // Check if arcane portal is unlocked
+      // Whether the Arcane is open, today's four realms and where the ship
+      // is, all read before the map is put in: laying it out is its whole
+      // first frame, and it is paid once, for today, while still unseen.
       final db = context.read<AlchemonsDatabase>();
-      final v = await db.settingsDao.getSetting('arcane_portal_unlocked');
-      if (mounted && v == '1') setState(() => _arcaneUnlocked = true);
-      // And today's four realms, read before the map is shown so it is
-      // laid out for them while still unseen.
+      final arcane =
+          await db.settingsDao.getSetting('arcane_portal_unlocked') == '1';
       final slots = await WildRotation.today(db.settingsDao);
-      if (mounted && slots.join(',') != _wildSlots.join(',')) {
-        setState(() => _wildSlots = slots);
-      }
-      await _refreshShipScene();
+      final ship = await _readShipScene(db);
+      if (!mounted) return;
+      setState(() {
+        _arcaneUnlocked = arcane;
+        _wildSlots = slots;
+        _shipScene = ship;
+        _mapRead = true;
+      });
       if (widget.revealReady != null) {
         await _reportCircles();
         return;
@@ -383,20 +390,22 @@ class _MapScreenState extends State<MapScreen>
                         ),
                       );
                     },
-                    child: _WildMap(
-                      theme: theme,
-                      arcaneUnlocked: _arcaneUnlocked,
-                      slots: _wildSlots,
-                      tide: _tide,
-                      shipScene: _shipScene,
-                      landing: _mapLanding,
-                      onSelectRegion: (biomeId, scene) {
-                        _handleRegionTap(context, biomeId, scene);
-                      },
-                      onPeekRegion: (biomeId) {
-                        _handlePeekRegion(biomeId);
-                      },
-                    ),
+                    child: !_mapRead
+                        ? const SizedBox.expand()
+                        : _WildMap(
+                            theme: theme,
+                            arcaneUnlocked: _arcaneUnlocked,
+                            slots: _wildSlots,
+                            tide: _tide,
+                            shipScene: _shipScene,
+                            landing: _mapLanding,
+                            onSelectRegion: (biomeId, scene) {
+                              _handleRegionTap(context, biomeId, scene);
+                            },
+                            onPeekRegion: (biomeId) {
+                              _handlePeekRegion(biomeId);
+                            },
+                          ),
                   ),
                 ),
               ],
