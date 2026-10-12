@@ -123,6 +123,57 @@ class AltarCellPainter extends CustomPainter {
       old.clock != clock;
 }
 
+/// A set for two's circle: a ring with the two words of the board it opens
+/// on next hanging over it side by side, each over a pool of its player's
+/// light (PLAYER 1 brass, PLAYER 2 silver); locked, a faint ring alone.
+class AltarDuelCellPainter extends CustomPainter {
+  AltarDuelCellPainter({required this.open, this.orbs, required this.salt});
+  final bool open;
+  final List<ElementOrb>? orbs;
+  final int salt;
+
+  static final RiteGrainBatch _batch = RiteGrainBatch();
+  static const List<Color> _players = [kAltarBrass, Color(0xFFCBD2DA)];
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final time = salt * 1.37;
+    final ring = Offset(cx, AltarCellPainter.ringY);
+    paintFloorShade(canvas, ring + const Offset(0, -6), 34, 20, open ? .5 : .3);
+    paintSeatRing(
+      _batch,
+      ring,
+      time,
+      glow: open ? .5 : 0,
+      fade: open ? 1 : .32,
+      salt: salt,
+      rx: 22,
+      ry: 7,
+      grains: 48,
+    );
+    _batch.paint(canvas);
+    final os = orbs;
+    if (os == null) return;
+    for (var i = 0; i < os.length; i++) {
+      final at = Offset(cx + (i == 0 ? -12 : 12), AltarCellPainter.orbY);
+      paintFloorPool(
+        canvas,
+        ring + Offset(i == 0 ? -10 : 10, 0),
+        11,
+        4,
+        _players[i],
+        .3,
+      );
+      os[i].paint(canvas, at, time + i);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant AltarDuelCellPainter old) =>
+      old.open != open || old.orbs != orbs || old.salt != salt;
+}
+
 /// How tall a level's cell stands.
 const double kAltarCellHeight = 92;
 

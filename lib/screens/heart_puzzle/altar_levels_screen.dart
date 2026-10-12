@@ -14,7 +14,15 @@
 // small, as the profile's does, while the title scrolls away. With every
 // star won, the first time the page is shown the orb comes down and pays
 // its 500 gold (alchemy_mastery.dart).
+//
+// Over the chapters, TWO PLAYERS (2026-10-11): a set of boards for two on
+// one phone in each of the three ways there are to play them — elements,
+// the split, species. A set opens with the chapter that teaches it. Each
+// shows the two words of the board it opens on next. Shown only while the
+// developer tools are on, until the author has played it (2026-10-11).
 
+import 'package:alchemons/games/heart_puzzle/alchemy_duel_boards.dart';
+import 'package:alchemons/games/heart_puzzle/alchemy_duel_match.dart';
 import 'package:alchemons/games/heart_puzzle/heart_puzzle_levels.dart';
 import 'package:alchemons/games/planet_dungeon/blood_rite_fx.dart';
 import 'package:alchemons/games/heart_puzzle/heart_puzzle_progress.dart';
@@ -65,6 +73,16 @@ class _AltarLevelsScreenState extends State<AltarLevelsScreen>
 
   /// Developer tools on: every level is open.
   bool unlockAll = false;
+
+  /// The board each set for two opens on next.
+  Map<String, int> _duelNext = {};
+
+  Future<void> _loadDuelNext() async {
+    final next = {
+      for (final s in kDuelSets) s.name: await DuelProgress.nextOf(s),
+    };
+    if (mounted) setState(() => _duelNext = next);
+  }
 
   /// Bumped whenever the player takes hold of the page, so a glide down to
   /// the next level that was waiting gives way to them.
@@ -128,7 +146,7 @@ class _AltarLevelsScreenState extends State<AltarLevelsScreen>
 
   /// Where level [n]'s cell begins down the page, unscrolled.
   double _levelTop(int n) {
-    var y = _head;
+    var y = _head + (unlockAll ? _duelHeight : 0);
     for (final c in kAltarChapters) {
       if (n > c.last) {
         y += _chapterHeight(c);
@@ -237,6 +255,7 @@ class _AltarLevelsScreenState extends State<AltarLevelsScreen>
     alchemyTitleWord().then((_) {
       if (mounted) setState(() {});
     });
+    _loadDuelNext();
     () async {
       final p = await AltarProgress.load();
       final debug = await DebugSettingsService().isEnabled();
@@ -271,6 +290,158 @@ class _AltarLevelsScreenState extends State<AltarLevelsScreen>
     }
   }
 
+  // ── two players ──────────────────────────────────────────
+
+  static const double _duelHeight = _rowsTop + kAltarCellHeight + _bottomPad;
+
+  /// The chapter that teaches [s]: its set opens with it.
+  static AltarChapter _teacherOf(DuelSetInfo s) => kAltarChapters.firstWhere(
+    (c) => c.name == s.name,
+    orElse: () => kAltarChapters.first,
+  );
+
+  bool _duelOpen(AltarProgress p, DuelSetInfo s) =>
+      _isOpen(p, _teacherOf(s).first);
+
+  Future<void> _openDuel(DuelSetInfo s) async {
+    final n = await DuelProgress.nextOf(s);
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => AltarPlayScreen.duel(duel: DuelMatch(number: n)),
+      ),
+    );
+    if (mounted) await _loadDuelNext();
+  }
+
+  Widget _duelBand(
+    ForgeTokens t,
+    TextStyle mono,
+    AltarProgress p,
+    double width,
+  ) {
+    final cell = math.min(112.0, (width - 32) / kDuelSets.length);
+    return SizedBox(
+      height: _duelHeight,
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: AltarRealmStill(
+              asset: altarRealmStill(
+                kAltarChapters.firstWhere((c) => c.name == 'Stacks'),
+              ),
+              dim: .56,
+            ),
+          ),
+          Positioned(
+            top: _nameTop,
+            left: 0,
+            right: 0,
+            child: Column(
+              children: [
+                Text(
+                  'TWO PLAYERS',
+                  style: mono.copyWith(letterSpacing: 3, color: t.textPrimary),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  'ONE PHONE · TAKE TURNS',
+                  style: mono.copyWith(
+                    fontSize: 9.5,
+                    color: t.textSecondary.withValues(alpha: .8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (var i = 0; i < kDuelSets.length; i++)
+            Positioned(
+              left:
+                  width / 2 +
+                  (i - (kDuelSets.length - 1) / 2) * cell -
+                  cell / 2,
+              top: _rowsTop,
+              width: cell,
+              height: kAltarCellHeight,
+              child: _duelCell(t, kDuelSets[i], p, i),
+            ),
+        ],
+      ),
+    );
+  }
+
+  final Map<String, ElementOrb> _duelOrbs = {};
+  ElementOrb _duelOrb(String el) => _duelOrbs.putIfAbsent(
+    el,
+    () => ElementOrb(EssenceElement.of(el), radius: 9),
+  );
+
+  Widget _duelCell(ForgeTokens t, DuelSetInfo s, AltarProgress p, int salt) {
+    final open = _duelOpen(p, s);
+    final n = _duelNext[s.name] ?? s.first;
+    final b = kDuelBoards[n - 1];
+    final name = switch (s.name) {
+      'Elements' => 'ELEMENTS',
+      _ => s.name.toUpperCase(),
+    };
+    return Semantics(
+      button: open,
+      label: 'Two players, $name${open ? '' : ', locked'}',
+      excludeSemantics: true,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: open ? () => _openDuel(s) : null,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: AltarDuelCellPainter(
+                  open: open,
+                  orbs: open ? [_duelOrb(b.goal), _duelOrb(b.rival)] : null,
+                  salt: 60 + salt,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 54,
+              child: Column(
+                children: [
+                  Text(
+                    name,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 10.5,
+                      letterSpacing: 1.2,
+                      color: open
+                          ? t.textPrimary
+                          : t.textMuted.withValues(alpha: .45),
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    open
+                        ? 'BOARD ${n - s.first + 1} OF ${s.last - s.first + 1}'
+                        : 'AFTER LEVEL ${_teacherOf(s).first}',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 8.5,
+                      letterSpacing: 1,
+                      color: t.textMuted.withValues(alpha: open ? .9 : .45),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ForgeTokens(context.watch<FactionTheme>());
@@ -299,6 +470,7 @@ class _AltarLevelsScreenState extends State<AltarLevelsScreen>
                 controller: _scroll,
                 padding: EdgeInsets.fromLTRB(0, head, 0, 32 + pad.bottom),
                 children: [
+                  if (unlockAll) _duelBand(t, mono, p, width),
                   for (final c in kAltarChapters)
                     _chapter(t, mono, c, p, width, _nextLevel(p)),
                 ],
