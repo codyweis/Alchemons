@@ -50,6 +50,7 @@ import 'package:alchemons/systems/effects/default_effects.dart';
 
 // >>> add these imports for scenes & pools
 import 'package:alchemons/services/wilderness_spawn_service.dart';
+import 'package:alchemons/services/game_controller_service.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/sky/sky_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
@@ -93,6 +94,9 @@ void main() async {
   registerDefaultEffects();
 
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+
+  // Game controllers and the keyboard, for the action modes.
+  GameControllerService.instance.start();
 
   runApp(
     ProgressResetHost(
@@ -154,6 +158,8 @@ class AlchemonsApp extends StatelessWidget {
               routeObserver,
               ambienceRouteObserver,
               navigationSoundObserver,
+              // A controller's B is the back button outside play.
+              GameControllerService.instance.navigatorObserver,
             ],
             // Notifications sit at the top, everywhere, including the
             // fifty-odd raw snackbars that never went through showGameSnack.

@@ -5,6 +5,7 @@ import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/controller_hints.dart';
 
 /// The ship's settings in space: control toggles, developer jumps when the
 /// tools are on, and the way out. A plain panel in the kit, toggles lit in
@@ -26,6 +27,7 @@ class CosmicSettingsOverlay extends StatelessWidget {
     required this.onToggleBoostToggle,
     required this.onReplayPrologue,
     required this.onKinPortal,
+    this.padBindings = const [],
   });
 
   final bool joystickEnabled;
@@ -46,6 +48,10 @@ class CosmicSettingsOverlay extends StatelessWidget {
 
   /// Developer tool: jump into the Nexus pocket and its four Kin portals.
   final VoidCallback onKinPortal;
+
+  /// The flight's controller layout, shown while a pad or the keys are in
+  /// use.
+  final List<PadBinding> padBindings;
 
   static const _palette = BracketPalette.dark;
   static const _brass = Color(0xFFB89656);
@@ -148,6 +154,11 @@ class CosmicSettingsOverlay extends StatelessWidget {
                       'Tap once to lock boost on or off',
                       boostToggleEnabled,
                       onToggleBoostToggle,
+                    ),
+                    ControllerLegend(
+                      bindings: padBindings,
+                      muted: _palette.muted,
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 10, 14, 14),

@@ -22,6 +22,8 @@ import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_reward_popup.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_verbs.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
+import 'package:alchemons/services/game_controller_service.dart';
+import 'package:alchemons/widgets/controller_hints.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/screens/story/beauty_mask_reveal.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -131,6 +133,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   Timer? _toastTimer;
   bool _showFullMap = false;
 
+  /// Controller input while this screen is up (see [_onPadPressed]).
+  PlayInputClaim? _pad;
+
+  /// The right stick, panning a survey while it is held over.
+  Offset _padAim = Offset.zero;
+  Timer? _padPanTimer;
+
   // Guardian-intro banner (§5.6): the mystic's arrival gets real chrome, but
   // combat is already starting — so it never blocks input and dismisses
   // itself. Same fade discipline as the toast: keep the text while fading.
@@ -214,6 +223,13 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     super.initState();
     _soundController = context.audio;
     context.sound(SoundCue.cosmicPlanetEnter, owner: this);
+    _pad = GameControllerService.instance.claim(
+      context,
+      onMove: _onPadMove,
+      onAim: _onPadAim,
+      onPressed: _onPadPressed,
+      onReleased: _onPadReleased,
+    );
     _showBeautyMask = widget.revealBeautyMask;
     _flyCtrl = AnimationController(vsync: this, duration: _kStarFlightDuration)
       ..addStatusListener((s) {
@@ -749,6 +765,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
   void _prepareExit() {
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
+    _pad?.release();
+    _padPanTimer?.cancel();
     _hudTimer?.cancel();
     _hudTimer = null;
     _toastTimer?.cancel();
@@ -815,6 +833,8 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // Belt and braces: _prepareExit drops it on the normal pop, but a screen
     // torn down another way must not leave a listener on the static notifier.
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
+    _pad?.release();
+    _padPanTimer?.cancel();
     _introTicker.dispose();
     _introTime.dispose();
     _hudTimer?.cancel();
@@ -1200,16 +1220,22 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 
             // The joystick, bigger than the tray is tall: it sits in the
             // tray's corner and is allowed to rise a little above it.
-            Positioned(
-              left: 8,
-              bottom: MediaQuery.of(context).padding.bottom + 2,
-              child: VirtualJoystick(
-                sizeMultiplier: _kStickDiameter / 104,
-                onDirectionChanged: (dir) {
-                  game.joystickDirection = dir ?? Offset.zero;
-                  _stickHaptic(dir);
-                },
-              ),
+            // Not while a controller or the keys are steering.
+            ValueListenableBuilder<PlayInputMode>(
+              valueListenable: GameControllerService.instance.mode,
+              builder: (context, mode, _) => mode != PlayInputMode.touch
+                  ? const SizedBox.shrink()
+                  : Positioned(
+                      left: 8,
+                      bottom: MediaQuery.of(context).padding.bottom + 2,
+                      child: VirtualJoystick(
+                        sizeMultiplier: _kStickDiameter / 104,
+                        onDirectionChanged: (dir) {
+                          game.joystickDirection = dir ?? Offset.zero;
+                          _stickHaptic(dir);
+                        },
+                      ),
+                    ),
             ),
 
             // A carried echo's DROP chip rides just above the tray.
@@ -1568,9 +1594,23 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 valueListenable: _tick,
                 builder: (_, __, ___) => GestureDetector(
                   onTap: () {},
-                  child: DungeonFullMap(
-                    game: game,
-                    onClose: () => setState(() => _showFullMap = false),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      DungeonFullMap(
+                        game: game,
+                        onClose: () => setState(() => _showFullMap = false),
+                      ),
+                      // Start opens this map, so the controls live here.
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 360),
+                        child: const ControllerLegend(
+                          bindings: _padBindings,
+                          aim: 'LOOK (SURVEY)',
+                          padding: EdgeInsets.fromLTRB(16, 14, 16, 0),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -1886,6 +1926,164 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   }
 
   /// The tick under the thumb on every control press (off with the setting).
+  // ── Controller ─────────────────────────────────────────
+
+  /// The dungeon controls card, under the full map.
+  static const List<PadBinding> _padBindings = [
+    ([GamepadButton.a], 'UTILITY'),
+    ([GamepadButton.x], 'ATTACK'),
+    ([GamepadButton.b], 'SPECIAL'),
+    ([GamepadButton.y], 'CAST II'),
+    ([GamepadButton.leftBumper, GamepadButton.rightBumper], 'SWAP'),
+    ([GamepadButton.leftTrigger], 'SURVEY (HOLD)'),
+    ([GamepadButton.rightTrigger], 'DROP / STOP'),
+    ([GamepadButton.rightStick], 'REGROUP'),
+    ([GamepadButton.back], 'HINT'),
+    ([GamepadButton.start], 'MAP'),
+  ];
+
+  /// The game when a run can take the controller: loaded and thawed, with
+  /// nothing over it (the descent, a reward, the raid's spoils, the map).
+  PlanetDungeonGame? get _padGame {
+    final game = _game;
+    if (!_ready || game == null || _dungeonFrozen || _showIntro) return null;
+    if (_showBeautyMask || _rewardStars != null || _showRaidReward) {
+      return null;
+    }
+    if (_showFullMap || _tutorialStep != null) return null;
+    return game;
+  }
+
+  void _onPadMove(Offset v) {
+    final game = _game;
+    if (game == null) return;
+    game.joystickDirection = _padGame == null ? Offset.zero : v;
+  }
+
+  void _onPadAim(Offset v) {
+    _padAim = v;
+    if (v == Offset.zero) {
+      _padPanTimer?.cancel();
+      _padPanTimer = null;
+      return;
+    }
+    // Only a survey has anything to look at; the stick pans it like a drag
+    // the other way (push right, see further right).
+    _padPanTimer ??= Timer.periodic(const Duration(milliseconds: 16), (_) {
+      final game = _padGame;
+      if (game == null || !game.surveying) return;
+      game.panSurvey(_padAim * -12);
+    });
+  }
+
+  void _onPadPressed(GamepadButton b) {
+    // The walkthrough and the map take any of the usual buttons.
+    if (_tutorialStep != null) {
+      if (b == GamepadButton.a || b == GamepadButton.start) {
+        _advanceTutorial();
+      }
+      return;
+    }
+    if (_showFullMap) {
+      if (b == GamepadButton.start ||
+          b == GamepadButton.b ||
+          b == GamepadButton.a) {
+        context.soundAction(() => setState(() => _showFullMap = false))?.call();
+      }
+      return;
+    }
+    final game = _padGame;
+    if (game == null) return;
+    // The same rules the pad's own tiles follow (_actionCluster).
+    final offers = game.roomOffersAction;
+    final enabled = game.canAct && offers;
+    final fighting = offers && !game.isRaidDeathPlaying;
+    switch (b) {
+      case GamepadButton.a:
+        if (game.sunCastMode) {
+          if (!enabled) return;
+          context.soundTap(() {
+            _tapHaptic();
+            game.activateSunCast(0);
+          })();
+        } else if (game.utilityAvailable) {
+          if (!enabled) return;
+          context.soundTap(() {
+            _tapHaptic();
+            game.activateAbility();
+          })();
+        } else if (fighting) {
+          // A bare arena has no utility: A is the wide ATTACK on top.
+          context.soundAction(() {
+            _tapHaptic();
+            game.activateAutoAttack();
+          })?.call();
+        }
+      case GamepadButton.y:
+        if (!game.sunCastMode || !enabled) return;
+        context.soundTap(() {
+          _tapHaptic();
+          game.activateSunCast(1);
+        })();
+      case GamepadButton.x:
+        if (!fighting) return;
+        context.soundAction(() {
+          _tapHaptic();
+          game.activateAutoAttack();
+        })?.call();
+      case GamepadButton.b:
+        if (!fighting) return;
+        context.soundAction(() {
+          _tapHaptic();
+          game.activateCombatAbility();
+        })?.call();
+      case GamepadButton.leftBumper:
+      case GamepadButton.rightBumper:
+        final n = game.creatures.length;
+        final step = b == GamepadButton.rightBumper ? 1 : -1;
+        for (var k = 1; k < n; k++) {
+          final i = (game.activeIndex + step * k) % n;
+          if (game.creatures[i].alive) {
+            _tapHaptic();
+            game.setActive(i);
+            return;
+          }
+        }
+      case GamepadButton.leftTrigger:
+        if (!game.surveying) {
+          HapticFeedback.selectionClick();
+          game.toggleSurvey();
+        }
+      case GamepadButton.rightTrigger:
+        if (game.carriedCloudType != null) {
+          game.dropCarriedCloud();
+        } else if (game.followingPour && game.followInterruptible) {
+          game.cancelPourWatch();
+        }
+      case GamepadButton.rightStick:
+        if (game.riteResetShown) {
+          HapticFeedback.mediumImpact();
+          game.resetRiteRoom();
+        } else {
+          game.regroup();
+        }
+      case GamepadButton.back:
+        HapticFeedback.selectionClick();
+        game.askForRoomHint();
+      case GamepadButton.start:
+        context.soundAction(() => setState(() => _showFullMap = true))?.call();
+      default:
+        break;
+    }
+  }
+
+  void _onPadReleased(GamepadButton b) {
+    // Survey is held on the trigger: letting go closes back in.
+    if (b == GamepadButton.leftTrigger && (_game?.surveying ?? false)) {
+      _game!.endSurvey();
+    }
+  }
+
   void _tapHaptic() {
     final audio = context.audio;
     if (audio != null && !audio.hapticsEnabled) return;
@@ -2011,6 +2209,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         color: tint,
         spent: !enabled,
         semantics: 'Cast portal end ${end == 0 ? 'one' : 'two'}',
+        pad: end == 0 ? GamepadButton.a : GamepadButton.y,
         onTap: enabled
             ? context.soundTap(() {
                 _tapHaptic();
@@ -2033,6 +2232,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       // Glide drains and refills; every other verb is always full.
       charge: enabled && glide ? game.flightFraction : null,
       semantics: 'Use $element ability',
+      pad: GamepadButton.a,
       onTap: enabled
           ? context.soundTap(() {
               _tapHaptic();
@@ -2063,6 +2263,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         charge: cooling ? 1 - cd : null,
         denied: game.autoDeniedPulse,
         semantics: 'Attack',
+        pad: GamepadButton.x,
         onTap: offers
             ? context.soundAction(() {
                 _tapHaptic();
@@ -2093,6 +2294,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         semantics: absent
             ? 'No special here'
             : (passive ? 'Passive' : 'Special'),
+        pad: GamepadButton.b,
         onTap: offers
             ? context.soundAction(() {
                 _tapHaptic();
@@ -2212,8 +2414,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     required Widget child,
     double? charge,
     double denied = 0,
+    GamepadButton? pad,
   }) {
     final refuse = denied.clamp(0.0, 1.0);
+    final mode = GameControllerService.instance.mode.value;
     final edge = Color.lerp(
       color.withValues(alpha: spent ? 0.35 : 0.85),
       _C.ember,
@@ -2247,6 +2451,27 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             child: Stack(
               children: [
                 Center(child: child),
+                // The button that works this tile, on a controller.
+                if (pad != null && mode != PlayInputMode.touch)
+                  Positioned(
+                    left: 4,
+                    top: 3,
+                    child: Text(
+                      padButtonLabel(
+                        pad,
+                        keyboard: mode == PlayInputMode.keyboard,
+                      ),
+                      style: TextStyle(
+                        fontFamily: 'monospace',
+                        color: kPadChosenColor.withValues(
+                          alpha: spent ? 0.4 : 0.85,
+                        ),
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.6,
+                      ),
+                    ),
+                  ),
                 if (charge != null)
                   Positioned(
                     left: 0,

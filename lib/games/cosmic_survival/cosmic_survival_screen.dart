@@ -51,6 +51,7 @@ import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
+import 'package:alchemons/services/game_controller_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart'
@@ -58,6 +59,7 @@ import 'package:alchemons/utils/faction_util.dart'
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:alchemons/widgets/animations/loot_open_popup.dart';
+import 'package:alchemons/widgets/controller_hints.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
@@ -314,6 +316,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   bool _showJoystick = true;
   bool _largeJoystick = true;
 
+  /// Controller input while this screen is up (see [_onPadPressed]).
+  PlayInputClaim? _pad;
+
+  /// The party slot LB / RB have chosen, for B to summon or recall.
+  int _padSlot = 0;
+
   /// The forged cosmic hull picked in Base Command; null is the standard one.
   String? _shipSkin;
   SurvivalVisualQuality _visualQuality = SurvivalVisualQuality.performance;
@@ -436,6 +444,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     super.initState();
     _soundController = context.audio;
     WidgetsBinding.instance.addObserver(this);
+    _pad = GameControllerService.instance.claim(
+      context,
+      onMove: (v) => _game?.setJoystickInput(v),
+      onPressed: _onPadPressed,
+    );
     _clockTicker.start();
     unawaited(_loadControlPreferences());
     unawaited(_loadShipSkin());
@@ -480,6 +493,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     // Browser build only: leaving is a natural pause for an ad.
     WebAds.breakAfter('survival');
     WidgetsBinding.instance.removeObserver(this);
+    _pad?.release();
     _soundController?.stopSoundOwner(this);
     _hudTimer?.cancel();
     _bossAnnouncementTimer?.cancel();
@@ -2903,7 +2917,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
               if (!game.isLoaded ||
                   !_showJoystick ||
                   game.autopilot ||
-                  game.isGameOver) {
+                  game.isGameOver ||
+                  // A controller or the keys are steering.
+                  GameControllerService.instance.mode.value !=
+                      PlayInputMode.touch) {
                 return const SizedBox.shrink();
               }
               // Held through the entrance, then easing in with the HUD.
@@ -3757,6 +3774,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                               ),
                             ],
                           ),
+                          const ControllerLegend(
+                            bindings: _padBindings,
+                            muted: HudInk.muted,
+                            padding: EdgeInsets.only(top: 12),
+                          ),
                         ],
                       ),
                     ),
@@ -3914,33 +3936,104 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     CosmicPartyMember member,
     int slotIndex,
   ) {
-    return SurvivalPartySlot(
-      member: member,
-      state: SurvivalPartySlotState.fromGame(game, slotIndex),
-      feedCount:
-          member.family.toLowerCase() == 'mask' && member.element == 'Plant'
-          ? game.maskPlantFeedCount(slotIndex)
-          : null,
-      onTap: () {
-        // Recheck at tap time: the companion can fall between UI refreshes.
-        final state = SurvivalPartySlotState.fromGame(game, slotIndex);
-        if (state.dead) return;
-        HapticFeedback.lightImpact();
-        if (state.active) {
-          game.returnCompanion(slotIndex);
-        } else {
-          if (game.activeCompanions.length >= game.maxActiveCompanions) {
-            final recall = game.activeCompanions.keys.firstWhere(
-              (s) => s != game.tetheredCompanionSlot,
-              orElse: () => game.activeCompanions.keys.first,
-            );
-            game.returnCompanion(recall);
-          }
-          game.summonCompanion(slotIndex);
-        }
-        setState(() {});
-      },
+    return PadChosen(
+      chosen: slotIndex == _padSlot,
+      child: SurvivalPartySlot(
+        member: member,
+        state: SurvivalPartySlotState.fromGame(game, slotIndex),
+        feedCount:
+            member.family.toLowerCase() == 'mask' && member.element == 'Plant'
+            ? game.maskPlantFeedCount(slotIndex)
+            : null,
+        onTap: () => _toggleCompanion(game, slotIndex),
+      ),
     );
+  }
+
+  /// Summons the companion in [slotIndex], or recalls it if it is out. A
+  /// full field gives up its untethered companion to make room.
+  void _toggleCompanion(CosmicSurvivalGame game, int slotIndex) {
+    // Recheck at tap time: the companion can fall between UI refreshes.
+    final state = SurvivalPartySlotState.fromGame(game, slotIndex);
+    if (state.dead) return;
+    HapticFeedback.lightImpact();
+    if (state.active) {
+      game.returnCompanion(slotIndex);
+    } else {
+      if (game.activeCompanions.length >= game.maxActiveCompanions) {
+        final recall = game.activeCompanions.keys.firstWhere(
+          (s) => s != game.tetheredCompanionSlot,
+          orElse: () => game.activeCompanions.keys.first,
+        );
+        game.returnCompanion(recall);
+      }
+      game.summonCompanion(slotIndex);
+    }
+    setState(() {});
+  }
+
+  // ── Controller ─────────────────────────────────────────
+
+  /// The survival controls card, in the pause menu.
+  static const List<PadBinding> _padBindings = [
+    ([GamepadButton.a], 'NOVA'),
+    ([GamepadButton.leftBumper, GamepadButton.rightBumper], 'CHOOSE ALLY'),
+    ([GamepadButton.b], 'SUMMON / RECALL'),
+    ([GamepadButton.x], 'FOLLOW / FREE'),
+    ([GamepadButton.y], 'FAST FORWARD'),
+    ([GamepadButton.back], 'CAMERA'),
+    ([GamepadButton.start], 'PAUSE'),
+  ];
+
+  /// A button during a run. The lobby and results are touch; the draft
+  /// takes its own input (PowerUpSelectionOverlay).
+  void _onPadPressed(GamepadButton b) {
+    final game = _game;
+    if (_phase != _Phase.playing ||
+        game == null ||
+        !game.isLoaded ||
+        _entrance.active ||
+        game.isGameOver ||
+        _powerUpChoices.isNotEmpty) {
+      return;
+    }
+    if (_showPauseMenu) {
+      if (b == GamepadButton.start || b == GamepadButton.b) {
+        context.soundTap(_closePauseMenu)();
+      }
+      return;
+    }
+    switch (b) {
+      case GamepadButton.start:
+        context.soundTap(_togglePauseMenu)();
+      case GamepadButton.back:
+        _toggleAutopilot();
+      case GamepadButton.a:
+        if (game.detonationUnlocked && game.detonationReadyNotifier.value) {
+          context.soundAction(game.triggerDetonation)?.call();
+        }
+      case GamepadButton.y:
+        context.soundTap(_toggleFastForward)();
+      case GamepadButton.x:
+        HapticFeedback.selectionClick();
+        game.companionTethered
+            ? game.clearCompanionTether()
+            : game.tetherClosestCompanionToShip();
+        setState(() {});
+      case GamepadButton.leftBumper:
+      case GamepadButton.rightBumper:
+        final count = _party?.length ?? 0;
+        if (count == 0) return;
+        final step = b == GamepadButton.rightBumper ? 1 : -1;
+        HapticFeedback.selectionClick();
+        setState(() => _padSlot = (_padSlot + step) % count);
+      case GamepadButton.b:
+        final count = _party?.length ?? 0;
+        if (count == 0) return;
+        _toggleCompanion(game, _padSlot.clamp(0, count - 1));
+      default:
+        break;
+    }
   }
 
   // ── Game Over Phase ────────────────────────────────────

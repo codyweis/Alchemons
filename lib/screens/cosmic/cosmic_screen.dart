@@ -92,6 +92,8 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/cosmic_ship_emblem.dart';
 import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/services/web_ads.dart';
+import 'package:alchemons/services/game_controller_service.dart';
+import 'package:alchemons/widgets/controller_hints.dart';
 import 'widgets/planet_descent_passage.dart';
 import 'widgets/chart_zoom.dart';
 import 'widgets/space_action_glyphs.dart';
@@ -286,6 +288,17 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _showCustomizationMenu = false;
   bool _showShipMenu = false;
   bool _showSettingsMenu = false;
+
+  /// Controller input while this screen is up (see [_onPadPressed]).
+  PlayInputClaim? _pad;
+
+  /// The party slot LB / RB have chosen, for B to summon or recall.
+  int _padSlot = 0;
+
+  /// What A does: the one prompt on screen (a rift's ENTER, a station, the
+  /// gate's UNSEAL or DESCEND...), worked out in build beside the prompts'
+  /// own conditions. Null when no prompt is up.
+  VoidCallback? _padPrimary;
   bool _showSandboxPanel = false;
   bool _sandboxMode = false;
   bool _showHomeMenu = false;
@@ -516,6 +529,13 @@ class _CosmicScreenState extends State<CosmicScreen>
   @override
   void initState() {
     super.initState();
+    _pad = GameControllerService.instance.claim(
+      context,
+      onMove: _onPadMove,
+      onPressed: _onPadPressed,
+      onReleased: _onPadReleased,
+    );
+    GameControllerService.instance.mode.addListener(_onPadModeChanged);
 
     // Hydrate the developer-tools switch so the debug affordances below can
     // read it synchronously during build (it also lights them in a release
@@ -5463,6 +5483,41 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
+  /// Party slot [i]: who is in it, whether they are out, whether they are
+  /// spent.
+  ({CosmicPartyMember? member, bool active, bool dead}) _partySlotState(int i) {
+    final member = i < _partyMembers.length ? _partyMembers[i] : null;
+    final active = _activeCompanionSlots.contains(i);
+    final hpFrac = active
+        ? (_game?.activeCompanions[i]?.hpPercent ??
+              (_companionHpFraction[i] ?? 1.0))
+        : (_companionHpFraction[i] ?? 1.0);
+    return (
+      member: member,
+      active: active,
+      dead: member != null && hpFrac <= 0,
+    );
+  }
+
+  /// What a tap on party slot [i] does: summon or recall, the party for an
+  /// empty slot (or a spent one at home), a word for a spent one away.
+  VoidCallback? _partySlotTap(int i) {
+    final (:member, :active, :dead) = _partySlotState(i);
+    if (member == null || dead) {
+      return member == null
+          // An empty slot used to answer taps with nothing at all, which
+          // reads as a broken button rather than an offer.
+          ? _openPartyPickerFromSlotButton
+          : _isNearHome
+          ? _openPartyPickerFromSlotButton
+          : () =>
+                _showQuote('This Alchemon is exhausted! Return home to heal.');
+    }
+    return active
+        ? () => _handleReturnCompanion(i)
+        : () => _handleSummonCompanion(i);
+  }
+
   Widget _buildPartySlotButton(int i) {
     final member = i < _partyMembers.length ? _partyMembers[i] : null;
     final isActive = _activeCompanionSlots.contains(i);
@@ -5481,23 +5536,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     final isDisabled = member == null || isDead;
 
     return GestureDetector(
-      onTap: context.soundAction(
-        isDisabled
-            ? (member == null
-                  // An empty slot used to answer taps with nothing at all,
-                  // which reads as a broken button rather than an offer.
-                  ? _openPartyPickerFromSlotButton
-                  : isDead && _isNearHome
-                  ? _openPartyPickerFromSlotButton
-                  : isDead
-                  ? () => _showQuote(
-                      'This Alchemon is exhausted! Return home to heal.',
-                    )
-                  : null)
-            : isActive
-            ? () => _handleReturnCompanion(i)
-            : () => _handleSummonCompanion(i),
-      ),
+      onTap: context.soundAction(_partySlotTap(i)),
       onLongPress: () => _handlePartySlotLongPress(i),
       child: _maybePulse(
         member == null,
@@ -7654,6 +7693,8 @@ class _CosmicScreenState extends State<CosmicScreen>
   void dispose() {
     // Browser build only: leaving is a natural pause for an ad.
     WebAds.breakAfter('space');
+    _pad?.release();
+    GameControllerService.instance.mode.removeListener(_onPadModeChanged);
     _homeTourTimer?.cancel();
     ambienceRouteObserver.unsubscribe(this);
     DebugSettingsService.enabledNotifier.removeListener(_onDebugToolsChanged);
@@ -7772,6 +7813,198 @@ class _CosmicScreenState extends State<CosmicScreen>
         _runPostMapSurvivalGuidancePrompt();
       }
     });
+  }
+
+  // ── Controller ─────────────────────────────────────────
+
+  /// The flight controls card, in the settings panel.
+  static const List<PadBinding> _padBindings = [
+    ([GamepadButton.a], 'ENTER / USE'),
+    ([GamepadButton.x], 'TURRET'),
+    ([GamepadButton.y], 'MISSILES'),
+    ([GamepadButton.rightTrigger], 'BOOST'),
+    ([GamepadButton.leftTrigger], 'PRECISION (HOLD)'),
+    ([GamepadButton.leftBumper, GamepadButton.rightBumper], 'CHOOSE ALLY'),
+    ([GamepadButton.b], 'SUMMON / RECALL'),
+    ([GamepadButton.leftStick], 'FOLLOW / FREE'),
+    ([GamepadButton.rightStick], 'ZOOM'),
+    ([GamepadButton.back], 'STAR CHART'),
+    ([GamepadButton.start], 'SETTINGS'),
+  ];
+
+  void _onPadModeChanged() {
+    // The touch joystick comes and goes with it.
+    if (mounted) setState(() {});
+  }
+
+  void _onPadMove(Offset v) {
+    // Centred is null, not zero: a zero still holds the ship and blocks a
+    // touch drag (CosmicGame.update).
+    _game?.joystickDirection = v == Offset.zero ? null : v;
+  }
+
+  /// A prompt's action, in the same order the prompts give way to each
+  /// other in build (they share one spot, so one shows at a time).
+  VoidCallback? _padPrimaryFor({
+    required bool showCosmicHud,
+    required bool recipeHudVisible,
+    required bool hudCanAct,
+    required bool atUnsealedDungeonGate,
+    required bool descendReady,
+    required bool raidHere,
+  }) {
+    final game = _game;
+    if (game == null || !showCosmicHud || _anyOverlayOpen) return null;
+    if (game.inNexusPocket) {
+      return _nearPocketPortalElement != null ? _handlePocketPortalTap : null;
+    }
+    if (_showMiniMap || _showElementsCaptured) return null;
+    if (_isNearRift && game.nearestRift != null) return _handleRiftTap;
+    if (_isNearBloodRing) return _handleBloodRingTap;
+    if (_isNearNexus && !game.elementalNexus.harvesterAwarded) {
+      return _handleNexusTap;
+    }
+    final station = _nearMarketPOI;
+    if (station != null && _nearPlanet == null && !_isNearHome) {
+      final tracking = switch (stationKindFor(station.type)) {
+        StationKind.starDustScanner => game.starDustScannerTarget != null,
+        StationKind.planetScanner => game.planetScannerTarget != null,
+        _ => false,
+      };
+      return tracking ? null : _openMarketShop;
+    }
+    if (_nearContestArena != null && station == null) {
+      return _handleContestArenaTap;
+    }
+    // The cache yields to every landmark that can share its spot.
+    if (_nearCache != null &&
+        !_cacheUnsealing &&
+        _cacheReward == null &&
+        station == null &&
+        _nearContestArena == null &&
+        !_isNearNexus) {
+      return _handleCacheTap;
+    }
+    if (recipeHudVisible && hudCanAct) return _triggerScreenShakeAndSummon;
+    final planet = _nearPlanet;
+    if (atUnsealedDungeonGate && planet != null) {
+      if (_descentPlacardMinimized) {
+        return () => setState(() => _descentPlacardMinimized = false);
+      }
+      if (raidHere) return () => unawaited(_enterRaid(planet));
+      if (descendReady) return () => unawaited(_enterDungeon(planet));
+    }
+    return null;
+  }
+
+  /// A panel, the chart or a popup is over the flight.
+  bool get _padMenuOpen =>
+      _anyOverlayOpen ||
+      _showMiniMap ||
+      _miniMapCtrl.isAnimating ||
+      _showElementsCaptured ||
+      _showBloodRitualOverlay ||
+      _runningBloodEnding;
+
+  void _onPadPressed(GamepadButton b) {
+    final game = _game;
+    if (game == null) return;
+    final showCosmicHud =
+        !widget.memoryTutorial && !_wildTearActive && !_showBloodRitualOverlay;
+
+    // Over a panel, the chart or a popup, B and Start close it the way the
+    // back button does, and Select also closes the chart it opened.
+    if (_padMenuOpen) {
+      if (b == GamepadButton.b ||
+          b == GamepadButton.start ||
+          (b == GamepadButton.back && _showMiniMap) ||
+          (b == GamepadButton.a && _showElementsCaptured)) {
+        _dismissVisibleOverlayOrPopup();
+      }
+      return;
+    }
+
+    switch (b) {
+      case GamepadButton.a:
+        final primary = _padPrimary;
+        if (primary != null) context.soundTap(primary)();
+      case GamepadButton.x:
+        if (_autoFireGun) {
+          context.soundAction(() => _setGunFiring(!_isShooting))?.call();
+        } else {
+          _setGunFiring(true);
+        }
+      case GamepadButton.y:
+        if (!showCosmicHud || !_customizationState.hasMissiles) return;
+        if (_autoFireMissiles) {
+          context
+              .soundAction(() => _setMissilesFiring(!_isShootingMissiles))
+              ?.call();
+        } else {
+          _setMissilesFiring(true);
+        }
+      case GamepadButton.rightTrigger:
+        if (!showCosmicHud || !_customizationState.hasBooster) return;
+        _boostToggleMode ? _toggleBoosting() : _startBoosting();
+      case GamepadButton.leftTrigger:
+        if (!showCosmicHud || _slowMode) return;
+        setState(() => _slowMode = true);
+        game.slowMode = true;
+        HapticFeedback.selectionClick();
+      case GamepadButton.leftBumper:
+      case GamepadButton.rightBumper:
+        if (_awaitingShipMenuTap) return;
+        final count = min(_cosmicPartySlotsUnlocked, 3);
+        if (count <= 0) return;
+        final step = b == GamepadButton.rightBumper ? 1 : -1;
+        HapticFeedback.selectionClick();
+        setState(() => _padSlot = (_padSlot + step) % count);
+      case GamepadButton.b:
+        if (_awaitingShipMenuTap) return;
+        final count = min(_cosmicPartySlotsUnlocked, 3);
+        if (count <= 0) return;
+        final slot = _padSlot.clamp(0, count - 1);
+        // An empty slot opens the party, which is a menu: touch.
+        if (_partySlotState(slot).member == null) return;
+        context.soundAction(_partySlotTap(slot))?.call();
+      case GamepadButton.leftStick:
+        if (_awaitingShipMenuTap || _activeCompanionSlots.isEmpty) return;
+        if (!showCosmicHud && !widget.memoryTutorial) return;
+        setState(() => _companionTethered = !_companionTethered);
+        game.companionTethered = _companionTethered;
+        _onMemoryTetherToggled();
+        HapticFeedback.selectionClick();
+      case GamepadButton.rightStick:
+        if (showCosmicHud) game.cycleZoomLevel();
+      case GamepadButton.back:
+        if (showCosmicHud && !_awaitingShipMenuTap) _toggleMiniMap();
+      case GamepadButton.start:
+        if (!showCosmicHud) return;
+        _homeBuildTutorialLock
+            ? _showQuote('Build your home base first.')
+            : context.soundTap(
+                () => setState(() => _showSettingsMenu = true),
+              )();
+      default:
+        break;
+    }
+  }
+
+  void _onPadReleased(GamepadButton b) {
+    switch (b) {
+      case GamepadButton.x:
+        if (!_autoFireGun) _setGunFiring(false);
+      case GamepadButton.y:
+        if (!_autoFireMissiles) _setMissilesFiring(false);
+      case GamepadButton.rightTrigger:
+        if (!_boostToggleMode && _isBoosting) _stopBoosting();
+      case GamepadButton.leftTrigger:
+        if (!_slowMode) return;
+        setState(() => _slowMode = false);
+        _game?.slowMode = false;
+      default:
+        break;
+    }
   }
 
   bool _dismissVisibleOverlayOrPopup() {
@@ -7977,6 +8210,15 @@ class _CosmicScreenState extends State<CosmicScreen>
         _survivalSignalArrowCtrl.stop();
       }
     }
+
+    _padPrimary = _padPrimaryFor(
+      showCosmicHud: showCosmicHud,
+      recipeHudVisible: recipeHudVisible,
+      hudCanAct: hudCanAct,
+      atUnsealedDungeonGate: atUnsealedDungeonGate,
+      descendReady: descendReady,
+      raidHere: raidHere,
+    );
 
     return PopScope(
       canPop: false,
@@ -8199,7 +8441,12 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Virtual joystick (bottom-left) ──
-              if (showJoystickControl && !_showMiniMap && !_anyOverlayOpen)
+              if (showJoystickControl &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen &&
+                  // Not while a controller or the keys are steering.
+                  GameControllerService.instance.mode.value ==
+                      PlayInputMode.touch)
                 Positioned(
                   bottom: 20,
                   left: 12,
@@ -9466,10 +9713,16 @@ class _CosmicScreenState extends State<CosmicScreen>
                             if (i == 0)
                               KeyedSubtree(
                                 key: _coachSlotKey,
-                                child: _buildPartySlotButton(i),
+                                child: PadChosen(
+                                  chosen: i == _padSlot,
+                                  child: _buildPartySlotButton(i),
+                                ),
                               )
                             else
-                              _buildPartySlotButton(i),
+                              PadChosen(
+                                chosen: i == _padSlot,
+                                child: _buildPartySlotButton(i),
+                              ),
                             if (i < _cosmicPartySlotsUnlocked - 1)
                               const SizedBox(height: 8),
                           ],
@@ -9580,6 +9833,7 @@ class _CosmicScreenState extends State<CosmicScreen>
               // ── Settings overlay ──
               if (showCosmicHud && _showSettingsMenu)
                 CosmicSettingsOverlay(
+                  padBindings: _padBindings,
                   joystickEnabled: _showJoystick,
                   largeJoystickEnabled: _largeJoystick,
                   autoFireGunEnabled: _autoFireGun,

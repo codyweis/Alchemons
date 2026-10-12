@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  gamepads_linux
   sqlite3_flutter_libs
 )
 

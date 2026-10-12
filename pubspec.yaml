@@ -33,6 +33,7 @@ dependencies:
   flutter_svg: ^2.0.10+1
   phosphoricons_flutter: ^1.0.0
   package_info_plus: ^10.2.2
+  gamepads: ^0.1.12
 
 dev_dependencies:
   flutter_launcher_icons: ^0.14.4

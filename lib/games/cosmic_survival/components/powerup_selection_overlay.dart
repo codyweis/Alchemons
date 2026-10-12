@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
+import 'package:alchemons/services/game_controller_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -96,9 +97,32 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
   late final Animation<double> _panelSlide;
   late final Animation<double> _cardStagger;
 
+  /// A controller chooses with the stick or d-pad and takes with A.
+  PlayInputClaim? _pad;
+  int _padChoice = 0;
+  bool _padStickHeld = false;
+
   @override
   void initState() {
     super.initState();
+    // A stick already pushed when the cards come up was steering the ship:
+    // it has to come back to centre before it chooses anything.
+    _padStickHeld = GameControllerService.instance.move.distance >= 0.3;
+    _pad = GameControllerService.instance.claim(
+      context,
+      onMove: _onPadMove,
+      onPressed: (b) {
+        // Not until the cards are down: A was the nova a moment ago, and a
+        // press meant for it must not take a card unread.
+        if (b != GamepadButton.a || !_entryController.isCompleted) return;
+        if (widget.choices.isEmpty) return;
+        context
+            .soundAction(
+              () => _pick(_padChoice.clamp(0, widget.choices.length - 1)),
+            )
+            ?.call();
+      },
+    );
     _entryController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 520),
@@ -134,8 +158,35 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
     });
   }
 
+  void _onPadMove(Offset v) {
+    if (v.distance < 0.3) {
+      _padStickHeld = false;
+      return;
+    }
+    if (_padStickHeld || v.dy.abs() < 0.5 || widget.choices.isEmpty) return;
+    _padStickHeld = true;
+    final next = (_padChoice + (v.dy > 0 ? 1 : -1)).clamp(
+      0,
+      widget.choices.length - 1,
+    );
+    if (next != _padChoice) HapticFeedback.selectionClick();
+    // Rebuilt either way: the first push is also what dims the others.
+    setState(() => _padChoice = next);
+  }
+
+  void _pick(int i) {
+    final choice = widget.choices[i];
+    HapticFeedback.mediumImpact();
+    widget.onSelect(
+      choice.def,
+      targetSlot: choice.targetSlot,
+      targetName: choice.targetName,
+    );
+  }
+
   @override
   void dispose() {
+    _pad?.release();
     _entryController.dispose();
     super.dispose();
   }
@@ -241,22 +292,16 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
     final cardT = ((_cardStagger.value - start) / (span > 0 ? span : 0.55))
         .clamp(0.0, 1.0);
     final eased = Curves.easeOutCubic.transform(cardT);
+    // On a controller the cards it isn't on fade back, the way a frame
+    // says "not this one".
+    final padMode =
+        GameControllerService.instance.mode.value != PlayInputMode.touch;
+    final passed = padMode && i != _padChoice ? 0.42 : 1.0;
     return Opacity(
-      opacity: eased,
+      opacity: eased * passed,
       child: Transform.translate(
         offset: Offset(0, (1 - eased) * 18),
-        child: _PowerUpCard(
-          choice: widget.choices[i],
-          onTap: () {
-            final choice = widget.choices[i];
-            HapticFeedback.mediumImpact();
-            widget.onSelect(
-              choice.def,
-              targetSlot: choice.targetSlot,
-              targetName: choice.targetName,
-            );
-          },
-        ),
+        child: _PowerUpCard(choice: widget.choices[i], onTap: () => _pick(i)),
       ),
     );
   }
