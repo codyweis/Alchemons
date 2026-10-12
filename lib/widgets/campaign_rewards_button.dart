@@ -20,6 +20,10 @@ import 'package:provider/provider.dart';
 
 /// Event-driven notifications: database changes, route return, and app resume.
 /// No polling, background service, or system notification permission required.
+/// The bar's height ([CampaignRewardsStyle.bar]): its 42 sphere in 4 of
+/// padding above and below. Home stands the Furnace on it.
+const double kCampaignRewardsBarHeight = 50;
+
 /// How the campaign entry point presents itself.
 enum CampaignRewardsStyle {
   /// A badged icon, for a crowded toolbar.

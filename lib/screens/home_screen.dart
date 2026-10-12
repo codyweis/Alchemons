@@ -2639,14 +2639,20 @@ class _HomeScreenState extends State<HomeScreen>
                         ],
                       ),
 
-                      // The Athanor — bottom centre above the nav bar, in the
-                      // daily chest's old box: 106 + 128 keeps its centre
-                      // where the old 160 box (on 90) had it, clear of the
-                      // notices under it.
+                      // The Furnace — bottom centre, standing just over the
+                      // achievements bar, which sits 8 above the bottom inset
+                      // (author, 2026-10-11: it covered the bar on a phone
+                      // with a tall inset).
                       Align(
                         alignment: Alignment.bottomCenter,
                         child: Padding(
-                          padding: EdgeInsets.only(bottom: 106 * hs),
+                          padding: EdgeInsets.only(
+                            bottom:
+                                MediaQuery.paddingOf(context).bottom +
+                                8 +
+                                kCampaignRewardsBarHeight +
+                                _kHomeFurnaceOverBar,
+                          ),
                           child: Opacity(
                             opacity: _isFieldTutorialActive ? 0.35 : 1.0,
                             child: IgnorePointer(
@@ -3205,6 +3211,10 @@ class _HomeScreenState extends State<HomeScreen>
 /// multiplied by one factor derived from the available height. Screens at or
 /// above the height the layout was composed for are untouched (k == 1).
 const double _kHomeDesignHeight = 780.0;
+
+/// How far over the achievements bar the Furnace's box stands; the furnace
+/// rests a few pixels inside its box, so the gap that shows is larger.
+const double _kHomeFurnaceOverBar = 4;
 
 /// Floor chosen so text and touch targets stay usable — below this the screen
 /// is too short for this composition and shrinking further would not help.

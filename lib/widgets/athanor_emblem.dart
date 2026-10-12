@@ -133,8 +133,10 @@ double _smooth(double e0, double e1, double x) {
   return t * t * (3 - 2 * t);
 }
 
-/// How much of home's slot the furnace fills.
-const double _kHomeFurnaceShare = 0.8;
+/// The furnace's side on home, before home's scale (author, 2026-10-11: "a
+/// bit smaller"; it was 102). The slot is the furnace's own box, so the tap
+/// takes nothing round it.
+const double kAthanorHomeSide = 78;
 
 /// Seconds for one breath of the teaching pulse: slow, so it reads as the
 /// furnace drawing air rather than a blinking button.
@@ -440,27 +442,18 @@ class AthanorHomeSlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final side = 128 * scale;
+    final side = kAthanorHomeSide * scale;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: SizedBox(
         width: side,
         height: side,
-        // The furnace a little smaller than its slot, standing on its floor;
-        // the whole slot still takes the tap.
-        child: Align(
-          alignment: Alignment.bottomCenter,
-          child: SizedBox(
-            width: side * _kHomeFurnaceShare,
-            height: side * _kHomeFurnaceShare,
-            child: AthanorEmblem(
-              key: emblemKey,
-              animate: animate,
-              teach: teach,
-              lifted: lifted,
-            ),
-          ),
+        child: AthanorEmblem(
+          key: emblemKey,
+          animate: animate,
+          teach: teach,
+          lifted: lifted,
         ),
       ),
     );

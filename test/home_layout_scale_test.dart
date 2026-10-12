@@ -1,5 +1,5 @@
 // The home screen is a fixed composition: header, a 260px hero, a side dock
-// and the daily chest, every one of them anchored to an edge at a hard-coded
+// and the Furnace (the daily chest's old place), every one of them anchored to an edge at a hard-coded
 // pixel size. Nothing flexes, so on a short viewport they run into each other.
 //
 // _homeScaleFor is the single factor every one of those dimensions is
@@ -7,13 +7,20 @@
 // than just making things smaller.
 
 import 'package:alchemons/screens/home_screen.dart';
+import 'package:alchemons/widgets/athanor_emblem.dart';
+import 'package:alchemons/widgets/campaign_rewards_button.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Mirrors the composition in build(): header, gap, hero.
 double topBlock(double k) => 68 + (20 * k) + (260 * k);
 
-/// The chest occupies from its bottom padding up through its own height.
-double bottomBlock(double k) => (106 * k) + (128 * k);
+/// A phone's bottom inset under the nav (a Galaxy Fold's is 59).
+const double bottomInset = 60;
+
+/// The Furnace stands on the achievements bar (8 over the inset, then the
+/// bar, then 4), and takes its own scaled side.
+double bottomBlock(double k) =>
+    bottomInset + 8 + kCampaignRewardsBarHeight + 4 + kAthanorHomeSide * k;
 
 void main() {
   group('the scale factor', () {
@@ -46,16 +53,17 @@ void main() {
     });
   });
 
-  group('the hero and the chest stop colliding', () {
-    test('unscaled, the composition commits 582px before anything flexes', () {
-      // 68 header + 20 gap + 260 hero = 348 from the top, and 106 + 128 for
-      // the chest from the bottom. A 585dp viewport is left with 3px between
-      // them — touching — and anything shorter overlaps outright.
+  group('the hero and the Furnace stop colliding', () {
+    test('unscaled, the composition commits 548px before anything flexes', () {
+      // 68 header + 20 gap + 260 hero = 348 from the top, and 60 + 8 + 50 +
+      // 4 + 78 for the Furnace on the achievements bar from the bottom. A
+      // 550dp viewport is left with 2px between them — touching — and
+      // anything shorter overlaps outright.
       const unscaled = 1.0;
       final committed = topBlock(unscaled) + bottomBlock(unscaled);
-      expect(committed, closeTo(582, 0.5));
-      expect(585 - committed, lessThan(5), reason: 'effectively touching');
-      expect(570 - committed, lessThan(0), reason: 'overlapping outright');
+      expect(committed, closeTo(548, 0.5));
+      expect(550 - committed, lessThan(5), reason: 'effectively touching');
+      expect(540 - committed, lessThan(0), reason: 'overlapping outright');
     });
 
     test('scaling keeps daylight between them on short screens', () {
@@ -65,7 +73,7 @@ void main() {
         expect(
           gap,
           greaterThan(0),
-          reason: 'at ${h}dp the hero and chest overlap by ${-gap}px',
+          reason: 'at ${h}dp the hero and Furnace overlap by ${-gap}px',
         );
       }
     });
@@ -79,9 +87,9 @@ void main() {
     });
   });
 
-  test('the side dock starts above the chest on a short screen', () {
-    // Dock top is 140 * k from the safe area; the chest top is
-    // height - (106 + 128) * k. They must not cross.
+  test('the side dock starts above the Furnace on a short screen', () {
+    // Dock top is 140 * k from the safe area; the Furnace's top is
+    // height - bottomBlock(k). They must not cross.
     for (final h in [560.0, 640.0, 780.0]) {
       final k = homeScaleForTest(h);
       expect(140 * k, lessThan(h - bottomBlock(k)), reason: '${h}dp');
