@@ -8,14 +8,16 @@ import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/models/profile_titles.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/utils/featured_instance.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('FriendCode', () {
     test('random codes are eight unambiguous characters', () {
       for (var i = 0; i < 200; i++) {
@@ -320,6 +322,189 @@ void main() {
       await friends.publishIfChanged(force: true);
       final again = await fs.collection('players').doc('aaaa').get();
       expect(FriendCard.fromJson('aaaa', again.data()).title, isNull);
+    });
+  });
+
+  // Author, 2026-10-11: "when adding friends and accepting, will they
+  // automatically show?" — the sender's side did not until reopened.
+  test('a sent request shows as answered without reopening', () async {
+    final db = AlchemonsDatabase(NativeDatabase.memory());
+    addTearDown(db.close);
+    SharedPreferences.setMockInitialValues({'friends.code.aaaa': 'HX4N7QRT'});
+    final fs = FakeFirebaseFirestore();
+    await fs.collection('friend_codes').doc('BCDE2345').set({'uid': 'bbbb'});
+    await fs.collection('players').doc('bbbb').set({'name': 'Wren'});
+    await fs.collection('friend_codes').doc('CDEF3456').set({'uid': 'cccc'});
+
+    final friends = FriendService(
+      account: _Account(_User('aaaa', 'Cody')),
+      db: db,
+      firestore: fs,
+    );
+    addTearDown(friends.dispose);
+    await friends.refresh();
+    expect(await friends.sendRequest('BCDE-2345'), 'Request sent.');
+    expect(await friends.sendRequest('CDEF-3456'), 'Request sent.');
+    expect(friends.outgoing.map((r) => r.to), ['bbbb', 'cccc']);
+
+    // Wren accepts on their own device; Cody's lists are not re-read.
+    final since = {'since': FieldValue.serverTimestamp()};
+    await (fs.batch()
+          ..set(
+            fs
+                .collection('players')
+                .doc('bbbb')
+                .collection('friends')
+                .doc('aaaa'),
+            since,
+          )
+          ..set(
+            fs
+                .collection('players')
+                .doc('aaaa')
+                .collection('friends')
+                .doc('bbbb'),
+            since,
+          )
+          ..delete(fs.collection('friend_requests').doc('aaaa_bbbb')))
+        .commit();
+    await pumpEventQueue();
+    expect(friends.friends.map((f) => f.name), ['Wren']);
+    expect(friends.outgoing.map((r) => r.to), ['cccc']);
+
+    // The other declines.
+    await fs.collection('friend_requests').doc('aaaa_cccc').delete();
+    await pumpEventQueue();
+    expect(friends.outgoing, isEmpty);
+
+    // Wren removes Cody.
+    await fs
+        .collection('players')
+        .doc('aaaa')
+        .collection('friends')
+        .doc('bbbb')
+        .delete();
+    await pumpEventQueue();
+    expect(friends.friends, isEmpty);
+  });
+
+  // Author, 2026-10-11: "just a green dot by their name, and a seen 2 hours
+  // ago etc."
+  group('presence', () {
+    test('seen, in the biggest whole unit', () {
+      final now = DateTime(2026, 10, 11, 12);
+      String at(Duration d) => seenAgo(now.subtract(d), now);
+      expect(at(const Duration(seconds: 20)), 'Seen just now');
+      expect(at(const Duration(minutes: 1)), 'Seen 1 minute ago');
+      expect(at(const Duration(minutes: 59)), 'Seen 59 minutes ago');
+      expect(at(const Duration(hours: 2, minutes: 40)), 'Seen 2 hours ago');
+      expect(at(const Duration(days: 1)), 'Seen 1 day ago');
+      expect(at(const Duration(days: 13)), 'Seen 13 days ago');
+      expect(at(const Duration(days: 20)), 'Seen 2 weeks ago');
+      expect(at(const Duration(days: 90)), 'Seen over a month ago');
+    });
+
+    test('the game says it is here, and away when it goes behind', () async {
+      final db = AlchemonsDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      SharedPreferences.setMockInitialValues({'friends.code.aaaa': 'HX4N7QRT'});
+      final fs = FakeFirebaseFirestore();
+      final friends = FriendService(
+        account: _Account(_User('aaaa', 'Cody')),
+        db: db,
+        firestore: fs,
+      );
+      addTearDown(friends.dispose);
+      await friends.refresh();
+      await pumpEventQueue();
+      final here = await fs.collection('presence').doc('aaaa').get();
+      expect(here.data()?['away'], isFalse);
+      expect(here.data()?['at'], isA<Timestamp>());
+
+      friends.didChangeAppLifecycleState(AppLifecycleState.paused);
+      await pumpEventQueue();
+      final away = await fs.collection('presence').doc('aaaa').get();
+      expect(away.data()?['away'], isTrue);
+
+      friends.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await pumpEventQueue();
+      final back = await fs.collection('presence').doc('aaaa').get();
+      expect(back.data()?['away'], isFalse);
+    });
+
+    test('a player without a code says nothing', () async {
+      final db = AlchemonsDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      SharedPreferences.setMockInitialValues({});
+      final fs = FakeFirebaseFirestore();
+      final friends = FriendService(
+        account: _Account(_User('aaaa', 'Cody')),
+        db: db,
+        firestore: fs,
+      );
+      addTearDown(friends.dispose);
+      await pumpEventQueue();
+      friends.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await pumpEventQueue();
+      final doc = await fs.collection('presence').doc('aaaa').get();
+      expect(doc.exists, isFalse);
+    });
+
+    test('friends show online, then when they were seen', () async {
+      final db = AlchemonsDatabase(NativeDatabase.memory());
+      addTearDown(db.close);
+      SharedPreferences.setMockInitialValues({'friends.code.aaaa': 'HX4N7QRT'});
+      final fs = FakeFirebaseFirestore();
+      final since = {'since': Timestamp.now()};
+      for (final (me, them) in [('aaaa', 'bbbb'), ('aaaa', 'cccc')]) {
+        await fs
+            .collection('players')
+            .doc(me)
+            .collection('friends')
+            .doc(them)
+            .set(since);
+      }
+      await fs.collection('players').doc('bbbb').set({'name': 'Wren'});
+      await fs.collection('players').doc('cccc').set({'name': 'Ash'});
+      final bbbb = fs.collection('presence').doc('bbbb');
+      await bbbb.set({'at': Timestamp.now(), 'away': false});
+      await fs.collection('presence').doc('cccc').set({
+        'at': Timestamp.fromDate(
+          DateTime.now().subtract(const Duration(hours: 2, minutes: 5)),
+        ),
+        'away': false,
+      });
+
+      final friends = FriendService(
+        account: _Account(_User('aaaa', 'Cody')),
+        db: db,
+        firestore: fs,
+      );
+      addTearDown(friends.dispose);
+      await friends.refresh();
+      // Nothing read until FRIENDS shows.
+      expect(friends.isOnline('bbbb'), isFalse);
+      expect(friends.seenLabel('bbbb'), isNull);
+
+      friends.watchPresence();
+      await pumpEventQueue();
+      expect(friends.isOnline('bbbb'), isTrue);
+      expect(friends.seenLabel('bbbb'), isNull);
+      // Said nothing for two hours: gone, and when.
+      expect(friends.isOnline('cccc'), isFalse);
+      expect(friends.seenLabel('cccc'), 'Seen 2 hours ago');
+
+      // Wren's game goes behind.
+      await bbbb.set({'at': Timestamp.now(), 'away': true});
+      await pumpEventQueue();
+      expect(friends.isOnline('bbbb'), isFalse);
+      expect(friends.seenLabel('bbbb'), 'Seen just now');
+
+      // FRIENDS closes: no more listening, and nothing new is taken in.
+      friends.unwatchPresence();
+      await bbbb.set({'at': Timestamp.now(), 'away': false});
+      await pumpEventQueue();
+      expect(friends.isOnline('bbbb'), isFalse);
     });
   });
 }

@@ -15,6 +15,11 @@
 // player who has never opened FRIENDS, nor from a game that belongs to
 // another account (SaveGenerationService).
 //
+// While such a player has the game open, it says so every few minutes in
+// presence/{uid}, and once more (away) when it goes to the background:
+// friends see a green dot by their name while it is fresh, and "Seen 2 hours
+// ago" after. Friends' presence is only read while FRIENDS is showing.
+//
 // Firestore:
 //   friend_codes/{CODE}            {uid, createdAt}
 //   players/{uid}                  {name, faction, code, planet, title?,
@@ -25,6 +30,7 @@
 //   friend_requests/{from}_{to}    {from, to, fromName, fromFaction, toCode,
 //                                   createdAt}
 //   reports/{auto}                 {from, about, reason, createdAt}
+//   presence/{uid}                 {at, away}
 
 import 'dart:async';
 import 'dart:convert';
@@ -39,7 +45,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/save_generation_service.dart';
 import 'package:alchemons/utils/featured_instance.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FriendException implements Exception {
@@ -140,7 +146,20 @@ String publishHash(String s) {
   return h.toRadixString(16);
 }
 
-class FriendService extends ChangeNotifier {
+/// "Seen 2 hours ago": how long before [now] a friend was last in the game,
+/// in the biggest whole unit.
+String seenAgo(DateTime at, DateTime now) {
+  final d = now.difference(at);
+  String ago(int n, String unit) => 'Seen $n $unit${n == 1 ? '' : 's'} ago';
+  if (d.inMinutes < 1) return 'Seen just now';
+  if (d.inHours < 1) return ago(d.inMinutes, 'minute');
+  if (d.inDays < 1) return ago(d.inHours, 'hour');
+  if (d.inDays < 14) return ago(d.inDays, 'day');
+  if (d.inDays < 60) return ago(d.inDays ~/ 7, 'week');
+  return 'Seen over a month ago';
+}
+
+class FriendService extends ChangeNotifier with WidgetsBindingObserver {
   FriendService({
     required this.account,
     required this.db,
@@ -148,6 +167,9 @@ class FriendService extends ChangeNotifier {
     this.factions,
     FirebaseFirestore? firestore,
   }) : _firestore = firestore {
+    WidgetsBinding.instance.addObserver(this);
+    final state = WidgetsBinding.instance.lifecycleState;
+    _foreground = state == null || state == AppLifecycleState.resumed;
     account.addListener(_onAccount);
     _onAccount();
     // A new title or featured Alchemon goes out to friends a moment later
@@ -178,7 +200,25 @@ class FriendService extends ChangeNotifier {
   String? _error;
   Timer? _publishTimer;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _incomingSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _friendsSub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _outgoingSub;
+
+  /// Counts friends-list changes, so a slow read of new friends' cards
+  /// gives way to a later change.
+  int _friendsSeq = 0;
   final List<StreamSubscription<String?>> _settingSubs = [];
+
+  /// The game is on screen: only then does it say this player is here.
+  bool _foreground = true;
+  Timer? _beatTimer;
+  bool _beating = false;
+
+  /// Friends' presence as last read, while FRIENDS is showing.
+  final Map<String, ({DateTime at, bool away})> _seen = {};
+  final Map<String, StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>>
+  _seenSubs = {};
+  int _presenceWatchers = 0;
+  Timer? _presenceTick;
   bool _publishing = false;
   bool _disposed = false;
 
@@ -220,6 +260,8 @@ class FriendService extends ChangeNotifier {
       _fs.collection('friend_requests');
   DocumentReference<Map<String, dynamic>> _codeDoc(String code) =>
       _fs.collection('friend_codes').doc(code);
+  DocumentReference<Map<String, dynamic>> _presence(String uid) =>
+      _fs.collection('presence').doc(uid);
 
   // ── The account ─────────────────────────────────────────────────────────
 
@@ -234,8 +276,10 @@ class FriendService extends ChangeNotifier {
     _loaded = false;
     _error = null;
     _publishTimer?.cancel();
-    _incomingSub?.cancel();
-    _incomingSub = null;
+    _stopListening();
+    _stopBeating();
+    _seen.clear();
+    _syncPresence();
     if (uid != null) {
       unawaited(_listenIfKnown(uid));
       // Once the game has settled after starting: anything changed while
@@ -323,6 +367,7 @@ class FriendService extends ChangeNotifier {
       if (kept == null || _uid != uid || _disposed) return;
       _code ??= kept;
       _listenIncoming(uid);
+      _startBeating();
     } catch (e) {
       debugPrint('FriendService: not listening for requests: $e');
     }
@@ -352,6 +397,86 @@ class FriendService extends ChangeNotifier {
         );
   }
 
+  /// Once the lists have been read, keeps [friends] and [outgoing] live too:
+  /// a request this player sent shows as accepted or declined, and a friend
+  /// who removes them goes, without reopening the profile. Started only
+  /// then, so a player who never opens FRIENDS costs no reads.
+  void _listenLists(String uid) {
+    if (_uid != uid || _disposed) return;
+    _friendsSub ??= _friendsOf(uid).snapshots().listen(
+      (snap) {
+        final ids = {for (final d in snap.docs) d.id};
+        unawaited(
+          _onFriendIds(uid, ids).catchError((Object e) {
+            debugPrint('FriendService: friends not updated: $e');
+          }),
+        );
+      },
+      onError: (Object e) {
+        debugPrint('FriendService: friends listener stopped: $e');
+        _friendsSub = null;
+      },
+    );
+    _outgoingSub ??= _requests
+        .where('from', isEqualTo: uid)
+        .snapshots()
+        .listen(
+          (snap) {
+            if (_uid != uid || _disposed) return;
+            final friendIds = {for (final f in _friends) f.uid};
+            _outgoing = [
+              for (final d in snap.docs)
+                if (FriendRequest.fromDoc(d.data()) case final r?)
+                  if (!friendIds.contains(r.to)) r,
+            ];
+            notifyListeners();
+          },
+          onError: (Object e) {
+            debugPrint('FriendService: sent-request listener stopped: $e');
+            _outgoingSub = null;
+          },
+        );
+  }
+
+  /// The friends list as Firestore now has it: anyone new is read in,
+  /// anyone gone is dropped, and requests a friendship answered go.
+  Future<void> _onFriendIds(String uid, Set<String> ids) async {
+    if (_uid != uid || _disposed) return;
+    final seq = ++_friendsSeq;
+    final known = {for (final f in _friends) f.uid};
+    final added = ids.difference(known);
+    if (added.isEmpty && known.length == ids.length) return;
+    final cards = await Future.wait(added.map(_card));
+    if (seq != _friendsSeq || _uid != uid || _disposed) return;
+    // Read afresh: a refresh may have finished during the wait.
+    final kept = [
+      for (final f in _friends)
+        if (ids.contains(f.uid)) f,
+    ];
+    final keptIds = {for (final f in kept) f.uid};
+    _friends = [
+      ...kept,
+      for (final c in cards)
+        if (c != null && !keptIds.contains(c.uid)) c,
+    ]..sort(_byName);
+    final friendIds = {for (final f in _friends) f.uid};
+    _incoming = [..._incoming.where((r) => !friendIds.contains(r.from))];
+    _outgoing = [..._outgoing.where((r) => !friendIds.contains(r.to))];
+    _syncPresence();
+    notifyListeners();
+  }
+
+  void _stopListening() {
+    _incomingSub?.cancel();
+    _friendsSub?.cancel();
+    _outgoingSub?.cancel();
+    _incomingSub = _friendsSub = _outgoingSub = null;
+    _friendsSeq++;
+  }
+
+  static int _byName(FriendCard a, FriendCard b) =>
+      a.name.toLowerCase().compareTo(b.name.toLowerCase());
+
   // ── Reading ─────────────────────────────────────────────────────────────
 
   /// Reads the code, friends and requests, making a code if this is the
@@ -364,6 +489,7 @@ class FriendService extends ChangeNotifier {
     try {
       await _ensureCode();
       _listenIncoming(_me);
+      _startBeating();
       final me = _me;
       final results = await Future.wait([
         _friendsOf(me).get(),
@@ -372,8 +498,7 @@ class FriendService extends ChangeNotifier {
       ]).timeout(_wait);
       final ids = [for (final d in results[0].docs) d.id];
       final cards = await Future.wait(ids.map(_card));
-      _friends = [...cards.whereType<FriendCard>()]
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      _friends = [...cards.whereType<FriendCard>()]..sort(_byName);
       final friendIds = {for (final f in _friends) f.uid};
       _incoming = [
         for (final d in results[1].docs)
@@ -386,6 +511,9 @@ class FriendService extends ChangeNotifier {
             if (!friendIds.contains(r.to)) r,
       ];
       _loaded = true;
+      // After the read, so the first snapshots match it and change nothing.
+      _listenLists(me);
+      _syncPresence();
       unawaited(publishIfChanged());
     } on FriendException catch (e) {
       _error = e.message;
@@ -529,6 +657,7 @@ class FriendService extends ChangeNotifier {
               .commit(),
     );
     _friends = [..._friends.where((f) => f.uid != uid)];
+    _syncPresence();
     notifyListeners();
   }
 
@@ -550,6 +679,7 @@ class FriendService extends ChangeNotifier {
     _friends = [..._friends.where((f) => f.uid != uid)];
     _incoming = [..._incoming.where((r) => r.from != uid)];
     _outgoing = [..._outgoing.where((r) => r.to != uid)];
+    _syncPresence();
     notifyListeners();
   }
 
@@ -564,6 +694,132 @@ class FriendService extends ChangeNotifier {
         'createdAt': FieldValue.serverTimestamp(),
       }),
     );
+  }
+
+  // ── Presence ────────────────────────────────────────────────────────────
+
+  /// How often a game on screen says its player is here.
+  static const Duration _beat = Duration(minutes: 3);
+
+  /// How long after the last time it said so a friend still counts as here:
+  /// a game closed without a word (killed, out of battery) goes out then.
+  static const Duration onlineFor = Duration(minutes: 7);
+
+  /// [uid] is in the game now, as far as is known.
+  bool isOnline(String uid) {
+    final s = _seen[uid];
+    return s != null && !s.away && DateTime.now().difference(s.at) < onlineFor;
+  }
+
+  /// "Seen 2 hours ago" for a friend not in the game now; null while they
+  /// are, or when their game has never said.
+  String? seenLabel(String uid) {
+    final s = _seen[uid];
+    if (s == null || isOnline(uid)) return null;
+    return seenAgo(s.at, DateTime.now());
+  }
+
+  /// FRIENDS is showing: friends' presence stays live until as many
+  /// [unwatchPresence] calls.
+  void watchPresence() {
+    _presenceWatchers++;
+    _syncPresence();
+  }
+
+  void unwatchPresence() {
+    if (_presenceWatchers == 0) return;
+    _presenceWatchers--;
+    _syncPresence();
+  }
+
+  /// One listener per friend while watched, none otherwise.
+  void _syncPresence() {
+    if (_disposed) return;
+    final uid = _uid;
+    final want = _presenceWatchers > 0 && uid != null
+        ? {for (final f in _friends) f.uid}
+        : const <String>{};
+    for (final id in [..._seenSubs.keys]) {
+      if (!want.contains(id)) unawaited(_seenSubs.remove(id)!.cancel());
+    }
+    for (final id in want) {
+      _seenSubs[id] ??= _presence(id).snapshots().listen(
+        (snap) {
+          if (_uid != uid || _disposed) return;
+          final at = snap.data()?['at'];
+          if (at is Timestamp) {
+            _seen[id] = (at: at.toDate(), away: snap.data()?['away'] == true);
+          } else {
+            _seen.remove(id);
+          }
+          notifyListeners();
+        },
+        onError: (Object e) {
+          debugPrint('FriendService: presence of $id not read: $e');
+          _seenSubs.remove(id);
+        },
+      );
+    }
+    // A dot goes out, and "Seen" moves on, with nothing new said.
+    if (want.isEmpty) {
+      _presenceTick?.cancel();
+      _presenceTick = null;
+    } else {
+      _presenceTick ??= Timer.periodic(const Duration(minutes: 1), (_) {
+        if (!_disposed) notifyListeners();
+      });
+    }
+  }
+
+  /// Says this player is here now, and every few minutes while the game is
+  /// on screen: for a player with a code, so the rest write nothing.
+  void _startBeating() {
+    if (_beatTimer != null || !_foreground || !available || _code == null) {
+      return;
+    }
+    unawaited(_say(away: false));
+    _beatTimer = Timer.periodic(_beat, (_) => unawaited(_say(away: false)));
+  }
+
+  void _stopBeating() {
+    _beatTimer?.cancel();
+    _beatTimer = null;
+  }
+
+  Future<void> _say({required bool away}) async {
+    final me = account.user?.uid;
+    if (me == null || _code == null || !available) return;
+    // Offline, the last one is still waiting: no pile of them behind it.
+    if (_beating && !away) return;
+    _beating = true;
+    try {
+      await _presence(
+        me,
+      ).set({'at': FieldValue.serverTimestamp(), 'away': away}).timeout(_wait);
+    } catch (e) {
+      debugPrint('FriendService: presence not said: $e');
+    } finally {
+      _beating = false;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    switch (state) {
+      case AppLifecycleState.resumed:
+        _foreground = true;
+        _startBeating();
+      case AppLifecycleState.paused:
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.detached:
+        if (!_foreground) return;
+        _foreground = false;
+        _stopBeating();
+        unawaited(_say(away: true));
+      case AppLifecycleState.inactive:
+        // A pulled-down shade or a call coming in: still here.
+        break;
+    }
   }
 
   // ── Publishing ──────────────────────────────────────────────────────────
@@ -652,6 +908,9 @@ class FriendService extends ChangeNotifier {
   /// still write.
   Future<void> forget() async {
     final me = _me;
+    // Nothing says they are here again while they go.
+    _stopBeating();
+    _code = null;
     final refs = <DocumentReference<Map<String, dynamic>>>[];
     final friends = await _friendsOf(me).get();
     for (final d in friends.docs) {
@@ -670,6 +929,7 @@ class FriendService extends ChangeNotifier {
     if (code is String && code.isNotEmpty) refs.add(_codeDoc(code));
     refs
       ..add(_home(me))
+      ..add(_presence(me))
       ..add(_player(me));
     for (var i = 0; i < refs.length; i += 400) {
       final batch = _fs.batch();
@@ -710,7 +970,13 @@ class FriendService extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _incomingSub?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    _stopListening();
+    _stopBeating();
+    for (final s in _seenSubs.values) {
+      s.cancel();
+    }
+    _presenceTick?.cancel();
     for (final s in _settingSubs) {
       s.cancel();
     }

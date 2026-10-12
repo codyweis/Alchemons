@@ -13,7 +13,8 @@
 // their page shows a dim grey planet, still, and no portal.
 //
 // Under their name, the title they wear; under the planet, the Alchemon
-// their home features, as it looks on their home.
+// their home features, as it looks on their home. By their name, a green dot
+// while they are in the game; under their division, when they were last seen.
 //
 // TRADE under the planet opens the trade table with them (trade_screen.dart),
 // with a dot while it waits on the player.
@@ -57,6 +58,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 const String kFriendPortalDrawnKey = 'friends.portal_drawn';
 
 const _palette = BracketPalette.dark;
+
+/// The dot by a friend's name while they are in the game.
+const Color kFriendOnlineColor = Color(0xFF5FCB7A);
 
 TextStyle _mono(double size, Color color, {double spacing = 1.4}) => TextStyle(
   fontFamily: 'monospace',
@@ -378,6 +382,9 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
     final friend = widget.friend;
     final accent = factionThemeFor(_faction).accent;
     final home = _home;
+    final (online, seen) = context.select<FriendService?, (bool, String?)>(
+      (s) => (s?.isOnline(friend.uid) ?? false, s?.seenLabel(friend.uid)),
+    );
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
@@ -404,20 +411,39 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                       Expanded(
                         child: Column(
                           children: [
-                            Text(
-                              friend.name,
-                              textAlign: TextAlign.center,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.cinzel(
-                                fontSize: 24,
-                                fontWeight: FontWeight.w700,
-                                color: accent,
-                                letterSpacing: 1.1,
-                                shadows: const [
-                                  Shadow(color: Colors.black, blurRadius: 10),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                if (online) ...[
+                                  const HomeNoticeDot(
+                                    color: kFriendOnlineColor,
+                                    size: 10,
+                                  ),
+                                  const SizedBox(width: 8),
                                 ],
-                              ),
+                                Flexible(
+                                  child: Text(
+                                    friend.name,
+                                    textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: GoogleFonts.cinzel(
+                                      fontSize: 24,
+                                      fontWeight: FontWeight.w700,
+                                      color: accent,
+                                      letterSpacing: 1.1,
+                                      shadows: const [
+                                        Shadow(
+                                          color: Colors.black,
+                                          blurRadius: 10,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                // Balances the dot, so the name stays centred.
+                                if (online) const SizedBox(width: 18),
+                              ],
                             ),
                             if (friend.title case final title?) ...[
                               const SizedBox(height: 2),
@@ -447,6 +473,17 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                                 _palette.muted,
                               ).copyWith(letterSpacing: 3),
                             ),
+                            if (seen != null) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                seen,
+                                style: bracketText(
+                                  context,
+                                  11.5,
+                                  _palette.muted,
+                                ),
+                              ),
+                            ],
                           ],
                         ),
                       ),

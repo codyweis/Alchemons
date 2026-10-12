@@ -227,10 +227,7 @@ void main() {
       name: 'Rowan',
       faction: 'oceanic',
       title: 'The Collector',
-      featured: ResidentLook(
-        baseId: 'LET02',
-        effect: 'alchemy_glow',
-      ),
+      featured: ResidentLook(baseId: 'LET02', effect: 'alchemy_glow'),
       planet: PlanetLook(
         color: 'Crystal',
         size: 3,
@@ -314,6 +311,8 @@ void main() {
             toCode: 'QK7MX2PB',
           ),
         ],
+        online: const {'u0', 'u3'},
+        seen: const {'u1': 'Seen 2 hours ago', 'u2': 'Seen 5 minutes ago'},
       );
       final theme = FactionTheme.scorchForge();
       final palette = BracketPalette.fromTheme(theme);
@@ -388,7 +387,16 @@ void main() {
       await tester.pumpWidget(
         app(
           FriendPlanetScreen(friend: friend, loadHome: () async => home),
-          friends: _FakeFriends(),
+          friends: _FakeFriends(seen: {friend.uid: 'Seen 2 hours ago'}),
+        ),
+      );
+      await settle(30);
+      await shoot('page_0_seen');
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        app(
+          FriendPlanetScreen(friend: friend, loadHome: () async => home),
+          friends: _FakeFriends(online: {friend.uid}),
         ),
       );
       await settle(30);
@@ -504,7 +512,16 @@ class _FakeFriends extends ChangeNotifier implements FriendService {
     this.friends = const [],
     this.incoming = const [],
     this.outgoing = const [],
+    this.online = const {},
+    this.seen = const {},
   });
+
+  final Set<String> online;
+  final Map<String, String> seen;
+  @override
+  bool isOnline(String uid) => online.contains(uid);
+  @override
+  String? seenLabel(String uid) => online.contains(uid) ? null : seen[uid];
 
   @override
   final List<FriendCard> friends;

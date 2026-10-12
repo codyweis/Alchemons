@@ -285,6 +285,17 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
+    // When the player was last in the game (away: gone to the background),
+    // for the dot by their name on friends' lists.
+    match /presence/{uid} {
+      allow read: if isOwner(uid) || isFriendOf(uid);
+      allow create, update: if isOwner(uid) &&
+          request.resource.data.keys().hasOnly(['at', 'away']) &&
+          request.resource.data.at == request.time &&
+          request.resource.data.away is bool;
+      allow delete: if isOwner(uid);
+    }
+
     // {from}_{to}. Read by either side; deleted by either (declined,
     // withdrawn, or accepted).
     match /friend_requests/{requestId} {

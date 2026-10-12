@@ -61,7 +61,22 @@ class _FriendsPanelState extends State<FriendsPanel> {
   /// The account the lists were last asked for, so signing in reads them.
   String? _askedFor;
 
+  /// Watched for friends' dots while this shows.
+  FriendService? _presence;
+
   BracketPalette get _p => widget.palette;
+
+  @override
+  void initState() {
+    super.initState();
+    _presence = context.read<FriendService?>()?..watchPresence();
+  }
+
+  @override
+  void dispose() {
+    _presence?.unwatchPresence();
+    super.dispose();
+  }
 
   void _maybeRefresh(FriendService friends, AccountService account) {
     final uid = friends.available ? account.user?.uid : null;
@@ -203,6 +218,8 @@ class _FriendsPanelState extends State<FriendsPanel> {
             ? null
             : _PlanetGrid(
                 friends: friends.friends,
+                isOnline: friends.isOnline,
+                seenLabel: friends.seenLabel,
                 palette: _p,
                 onTap: (f) =>
                     Navigator.of(context).push(FriendPlanetScreen.route(f)),
@@ -285,20 +302,29 @@ class _FriendsPanelState extends State<FriendsPanel> {
   );
 }
 
-/// Friends' planets, three across, each still, with its owner's name.
+/// Friends' planets, three across, each still, with its owner's name: a
+/// green dot by it while they are in the game, and when they were last
+/// seen under it after.
 class _PlanetGrid extends StatelessWidget {
   const _PlanetGrid({
     required this.friends,
+    required this.isOnline,
+    required this.seenLabel,
     required this.palette,
     required this.onTap,
   });
 
   final List<FriendCard> friends;
+  final bool Function(String uid) isOnline;
+  final String? Function(String uid) seenLabel;
   final BracketPalette palette;
   final ValueChanged<FriendCard> onTap;
 
   @override
   Widget build(BuildContext context) {
+    // Every tile keeps the line when any has one, so they stay one height.
+    final seen = {for (final f in friends) f.uid: seenLabel(f.uid)};
+    final anySeen = seen.values.any((s) => s != null);
     return LayoutBuilder(
       builder: (context, box) {
         const gap = 10.0;
@@ -344,6 +370,13 @@ class _PlanetGrid extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
+                          if (isOnline(f.uid)) ...[
+                            const HomeNoticeDot(
+                              color: kFriendOnlineColor,
+                              size: 8,
+                            ),
+                            const SizedBox(width: 5),
+                          ],
                           Flexible(
                             child: Text(
                               f.name,
@@ -365,6 +398,16 @@ class _PlanetGrid extends StatelessWidget {
                           ],
                         ],
                       ),
+                      if (anySeen) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          seen[f.uid] ?? '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: _prose(context, palette.muted, size: 10),
+                        ),
+                      ],
                     ],
                   ),
                 ),
