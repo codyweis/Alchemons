@@ -13,9 +13,12 @@
   --faint: #5a5852;
   --font: 'Montserrat', system-ui, -apple-system, sans-serif;
 
-  /* Set by shell.js. */
+  /* Set by shell.js. --col-b is the gap under the column, --bottom the
+     strip kept for the phone ad. */
   --col-x: 0px;
+  --col-y: 0px;
   --col-w: 100vw;
+  --col-b: 0px;
   --bottom: 0px;
 }
 
@@ -43,8 +46,8 @@ html, body {
 
 #column {
   position: fixed;
-  top: 0;
-  bottom: var(--bottom);
+  top: var(--col-y);
+  bottom: var(--col-b);
   left: var(--col-x);
   width: var(--col-w);
   z-index: 2;
@@ -187,6 +190,9 @@ a.gate-store[href]:hover { border-color: var(--brass-glow); color: var(--brass-g
 }
 body.wide .rail-ad.on { display: flex; visibility: hidden; }
 body.wide .rail-ad.on.filled { visibility: visible; }
+/* No room beside the column laid on its side: out of sight until it stands
+   up again (kept mounted, so the ad is not reloaded). */
+body.wide .rail-ad.on.filled.tucked { visibility: hidden; }
 
 .ad-label {
   font-size: 9px;

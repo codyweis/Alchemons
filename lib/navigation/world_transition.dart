@@ -5,7 +5,8 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_portal.dart';
 import 'package:alchemons/widgets/fx/sand_passage.dart';
-import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, ValueListenable, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/scheduler.dart' show SchedulerBinding, Ticker;
@@ -921,6 +922,12 @@ class _GlyphPortalOverlayState extends State<_GlyphPortalOverlay>
     with SingleTickerProviderStateMixin {
   static const Color _void = Color(0xFF050507);
 
+  /// Whether going wide turns the screen in the player's hand. In a browser
+  /// off Android it doesn't: the page lays the game's box on its side
+  /// instead (web/shell.js), so the portal must not be counter-turned.
+  static final bool _screenTurns =
+      !kIsWeb || defaultTargetPlatform == TargetPlatform.android;
+
   /// The old screen dips to black in this long (through-black only).
   static const double _blackoutSeconds = 0.25;
 
@@ -1038,7 +1045,11 @@ class _GlyphPortalOverlayState extends State<_GlyphPortalOverlay>
     final portrait = size.height >= size.width;
     _startedPortrait ??= portrait;
     _portraitNow = portrait;
-    final turns = widget.counterTurns != 0 && _startedPortrait! && !portrait
+    final turns =
+        widget.counterTurns != 0 &&
+            _screenTurns &&
+            _startedPortrait! &&
+            !portrait
         ? widget.counterTurns
         : 0;
     return IgnorePointer(

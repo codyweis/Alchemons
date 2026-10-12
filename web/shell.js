@@ -7,6 +7,17 @@
   const MIN_RAIL = 200;   // px either side before the column is worth it
   const AD_GAP = 22;      // keeps the sand (and stray clicks) off an ad
   const LABEL = 30;       // the "Advertisement" label above a unit, and its gap
+  const MIN_WIDE_H = 480; // shorter is a phone held sideways: no column
+  const TURNED_ASPECT = 2.16;    // the column on its side: a phone's landscape
+  const MIN_TURNED_ASPECT = 1.8; // narrower than this, the rail ads give way
+  const TURNED_SIDE = 24;        // least margin either side of it
+
+  // Android's browser can turn the real screen (in fullscreen), so the game
+  // there fills the screen and turns it as the app does. Elsewhere the
+  // column turns instead. See Turning, below.
+  const ANDROID = /Android/i.test(navigator.userAgent);
+  // The game has asked for landscape.
+  let turnedWide = false;
 
   const body = document.body;
   const root = document.documentElement;
@@ -50,22 +61,45 @@
     const H = window.innerHeight;
     // A phone held upright: ~0.47 of the height, within reason.
     const colW = Math.round(Math.min(520, Math.max(360, H * 0.47)));
-    const wide = W > H && W >= colW + 2 * MIN_RAIL;
+    // Never on Android, whose screen turns with the game (see Turning), nor
+    // on a phone held sideways: too short for rails.
+    const wide = !ANDROID && W > H && H >= MIN_WIDE_H && W >= colW + 2 * MIN_RAIL;
     body.classList.toggle('wide', wide);
 
     const obstacles = [];
     let column;
 
     if (wide) {
-      const x = Math.round((W - colW) / 2);
-      root.style.setProperty('--col-x', x + 'px');
-      root.style.setProperty('--col-w', colW + 'px');
+      const tallX = Math.round((W - colW) / 2);
+      // The rail unit is picked for the column standing up, and kept while
+      // it lies on its side: a turn never reloads an ad.
+      const unit = ads && ads.hasRails ? railUnit(tallX, H) : null;
+      let box = { x: tallX, y: 0, w: colW, h: H };
+      let railsFit = true;
+      if (turnedWide) {
+        // The same phone on its side, as wide as a phone held sideways, and
+        // narrower if that is what keeps the rail ads beside it.
+        const h = colW;
+        const ad = unit && (rails.railLeft.filled || rails.railRight.filled);
+        let w = Math.min(Math.round(h * TURNED_ASPECT), W - 2 * (ad ? unit[0] + 2 * AD_GAP : TURNED_SIDE));
+        if (w < h * MIN_TURNED_ASPECT) {
+          w = Math.min(Math.round(h * TURNED_ASPECT), W - 2 * TURNED_SIDE);
+          railsFit = false;
+        }
+        box = { x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h };
+      }
+      root.style.setProperty('--col-x', box.x + 'px');
+      root.style.setProperty('--col-y', box.y + 'px');
+      root.style.setProperty('--col-w', box.w + 'px');
+      root.style.setProperty('--col-b', H - box.y - box.h + 'px');
       root.style.setProperty('--bottom', '0px');
-      column = { x, y: 0, w: colW, h: H };
+      // The sand lies round the column standing up; laid on its side, the
+      // column is a box the grains glide aside from, and back when it stands.
+      column = { x: tallX, y: 0, w: colW, h: H };
+      if (turnedWide) obstacles.push(box);
       bottom.el.classList.remove('on');
 
-      const railW = x;
-      const unit = ads && ads.hasRails ? railUnit(railW, H) : null;
+      const railW = box.x;
       for (const [key, side] of [['railLeft', 0], ['railRight', 1]]) {
         const rail = rails[key];
         if (!unit) {
@@ -85,8 +119,9 @@
         // filled; the sand only steers round an ad that is really there.
         rail.el.classList.toggle('on', on);
         rail.el.classList.toggle('filled', on && rail.filled);
-        if (!on || !rail.filled) continue;
-        const left = side === 0 ? Math.round((railW - w) / 2) : Math.round(x + colW + (railW - w) / 2);
+        rail.el.classList.toggle('tucked', !railsFit);
+        if (!on || !rail.filled || !railsFit) continue;
+        const left = side === 0 ? Math.round((railW - w) / 2) : Math.round(box.x + box.w + (railW - w) / 2);
         const top = Math.round((H - h) / 2) - 8;
         rail.el.style.left = left + 'px';
         rail.el.style.top = top - LABEL + 'px';
@@ -107,7 +142,9 @@
       bottom.el.classList.toggle('on', bottom.size !== 'none' && bottom.size !== '');
       bottom.el.classList.toggle('filled', reserve > 0);
       root.style.setProperty('--col-x', '0px');
+      root.style.setProperty('--col-y', '0px');
       root.style.setProperty('--col-w', W + 'px');
+      root.style.setProperty('--col-b', reserve + 'px');
       root.style.setProperty('--bottom', reserve + 'px');
       column = { x: 0, y: 0, w: W, h: H };
     }
@@ -130,6 +167,87 @@
     pending = requestAnimationFrame(layout);
   });
   layout();
+
+  // ── Turning ────────────────────────────────────────────────────────────
+
+  // The game turns the screen as the app does, through
+  // SystemChrome.setPreferredOrientations, which Flutter's web engine hands
+  // to screen.orientation.lock (the first orientation asked for). A desktop
+  // browser has no screen to turn and refuses; there the column lies on its
+  // side instead, on the black frame the game turns on. Android's browser
+  // turns the real screen, but only in fullscreen: PLAY asks for it.
+  const orientation = screen.orientation;
+  let nativeLock = null;
+  let lockType = 'portrait-primary';
+  let broaden = 0;
+
+  function goFullscreen() {
+    const el = document.documentElement;
+    if (document.fullscreenElement || !el.requestFullscreen) return;
+    el.requestFullscreen({ navigationUI: 'hide' }).catch(() => {});
+  }
+
+  // Locks the screen the way the game last asked (fullscreen only).
+  function applyLock() {
+    clearTimeout(broaden);
+    if (!nativeLock || !document.fullscreenElement) return;
+    const type = lockType;
+    nativeLock(type).then(() => {
+      // Turned exactly as asked, so the portal's counter-turn holds; then
+      // either way round, as the app allows once it has arrived.
+      if (!type.startsWith('landscape')) return;
+      broaden = setTimeout(() => {
+        if (lockType === type && document.fullscreenElement) {
+          nativeLock('landscape').catch(() => {});
+        }
+      }, 2000);
+    }, () => {});
+  }
+
+  if (orientation && typeof orientation.lock === 'function') {
+    nativeLock = orientation.lock.bind(orientation);
+    const nativeUnlock = orientation.unlock ? orientation.unlock.bind(orientation) : () => {};
+    orientation.lock = function (type) {
+      type = String(type);
+      const wide = type.startsWith('landscape');
+      if (!ANDROID) {
+        if (wide !== turnedWide) {
+          turnedWide = wide;
+          cancelAnimationFrame(pending);
+          layout();
+        }
+        return Promise.resolve();
+      }
+      turnedWide = wide;
+      lockType = type;
+      if (document.fullscreenElement) {
+        applyLock();
+      } else if (wide && navigator.userActivation && navigator.userActivation.isActive) {
+        // Left fullscreen since PLAY: the tap that led here may bring it
+        // back (and fullscreenchange locks).
+        goFullscreen();
+      }
+      return Promise.resolve();
+    };
+    orientation.unlock = function () {
+      // Desktop: the column keeps its shape.
+      if (ANDROID) {
+        clearTimeout(broaden);
+        try { nativeUnlock(); } catch (_) {}
+      }
+    };
+  }
+
+  if (ANDROID) {
+    document.addEventListener('fullscreenchange', applyLock);
+    // A landscape scene showing upright (fullscreen was left): the next tap
+    // goes back to fullscreen, and the screen turns.
+    window.addEventListener('pointerup', () => {
+      if (turnedWide && !document.fullscreenElement && window.innerHeight > window.innerWidth) {
+        goFullscreen();
+      }
+    }, true);
+  }
 
   // ── Store links ────────────────────────────────────────────────────────
 
@@ -168,6 +286,8 @@
   play.addEventListener('click', async () => {
     if (!engineReady || pressed) return;
     pressed = true;
+    // Before anything is awaited: fullscreen needs this click.
+    if (ANDROID) goFullscreen();
     refreshButton();
     // Ask the browser to keep the save (IndexedDB/OPFS) rather than evict it
     // under storage pressure.

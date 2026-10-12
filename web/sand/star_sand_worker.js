@@ -614,7 +614,8 @@
     var bufs = this.pixBufs || (this.pixBufs = []);
     var need = w * h * 4;
     var buf = bufs[ri];
-    if (!buf || buf.byteLength < need) buf = bufs[ri] = new ArrayBuffer(Math.ceil(need * 1.2));
+    // Whole pixels: the rail's 32-bit view of it throws otherwise.
+    if (!buf || buf.byteLength < need) buf = bufs[ri] = new ArrayBuffer(Math.ceil((need * 1.2) / 4) * 4);
     try {
       return new ImageData(new Uint8ClampedArray(buf, 0, need), w, h);
     } catch (e) {
