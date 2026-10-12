@@ -17,7 +17,8 @@
 //
 // Firestore:
 //   friend_codes/{CODE}            {uid, createdAt}
-//   players/{uid}                  {name, faction, code, planet, updatedAt}
+//   players/{uid}                  {name, faction, code, planet, title?,
+//                                   featured?, updatedAt}
 //   players/{uid}/friends/{uid}    {since}       — one each side
 //   players/{uid}/blocked/{uid}    {at}
 //   homes/{uid}                    {v, home, updatedAt}
@@ -31,10 +32,12 @@ import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/friend_home.dart';
+import 'package:alchemons/models/profile_titles.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/save_generation_service.dart';
+import 'package:alchemons/utils/featured_instance.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -147,6 +150,13 @@ class FriendService extends ChangeNotifier {
   }) : _firestore = firestore {
     account.addListener(_onAccount);
     _onAccount();
+    // A new title or featured Alchemon goes out to friends a moment later
+    // (publishIfChanged writes only what changed).
+    for (final key in [kFeaturedInstanceSettingKey, ProfileTitles.settingKey]) {
+      _settingSubs.add(
+        db.settingsDao.watchSetting(key).skip(1).listen((_) => publishSoon()),
+      );
+    }
   }
 
   final AccountService account;
@@ -168,6 +178,7 @@ class FriendService extends ChangeNotifier {
   String? _error;
   Timer? _publishTimer;
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _incomingSub;
+  final List<StreamSubscription<String?>> _settingSubs = [];
   bool _publishing = false;
   bool _disposed = false;
 
@@ -590,11 +601,21 @@ class FriendService extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final planet = PlanetLook.read(prefs);
+      final worn = (await ProfileTitles.load(db)).worn;
+      final title = worn == null ? null : ProfileTitles.nameOf(worn);
+      final featured = await loadFeaturedInstance(db);
       final player = <String, dynamic>{
         'name': _name,
         'faction': factions?.current?.name,
         'code': code,
         'planet': planet?.toJson(),
+        if (title != null && title.length <= FriendCard.maxTitleLength)
+          'title': title,
+        if (featured != null)
+          'featured': ResidentLook.of(
+            featured,
+            trail: wear?.trailOf(featured.instanceId)?.id,
+          ).toJson(),
       };
       final home = (await FriendHome.capture(
         db,
@@ -690,6 +711,9 @@ class FriendService extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _incomingSub?.cancel();
+    for (final s in _settingSubs) {
+      s.cancel();
+    }
     _publishTimer?.cancel();
     account.removeListener(_onAccount);
     super.dispose();

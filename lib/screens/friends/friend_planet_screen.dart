@@ -12,6 +12,9 @@
 // A friend who has not built their home planet yet has nothing to look into:
 // their page shows a dim grey planet, still, and no portal.
 //
+// Under their name, the title they wear; under the planet, the Alchemon
+// their home features, as it looks on their home.
+//
 // TRADE under the planet opens the trade table with them (trade_screen.dart),
 // with a dot while it waits on the player.
 //
@@ -28,6 +31,7 @@ import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/screens/friends/friend_home_screen.dart';
 import 'package:alchemons/screens/friends/trade_screen.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/trade_service.dart';
@@ -37,6 +41,7 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/home_planet_view.dart';
 import 'package:alchemons/widgets/home_portal.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart'
@@ -414,6 +419,24 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                                 ],
                               ),
                             ),
+                            if (friend.title case final title?) ...[
+                              const SizedBox(height: 2),
+                              Text(
+                                title,
+                                textAlign: TextAlign.center,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: GoogleFonts.cinzel(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w600,
+                                  color: _palette.ink,
+                                  letterSpacing: 1,
+                                  shadows: const [
+                                    Shadow(color: Colors.black, blurRadius: 10),
+                                  ],
+                                ),
+                              ),
+                            ],
                             const SizedBox(height: 2),
                             Text(
                               (FactionService.catalog[_faction]?.name ??
@@ -484,6 +507,8 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
                   child: Column(
                     children: [
+                      if (friend.featured case final look?)
+                        _FeaturedAlchemon(look: look),
                       if (friend.planet case final planet?) ...[
                         Text(
                           _planetLine(planet),
@@ -573,6 +598,45 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
 }
 
 /// TRADE: the table with them, dotted while it waits on the player.
+/// The Alchemon a friend's home features, as it looks there, over its
+/// species' name. Nothing for a species this game does not know.
+class _FeaturedAlchemon extends StatelessWidget {
+  const _FeaturedAlchemon({required this.look});
+
+  final ResidentLook look;
+
+  @override
+  Widget build(BuildContext context) {
+    final creature = context.read<CreatureCatalog>().getCreatureById(
+      look.baseId,
+    );
+    if (creature == null || creature.spriteData == null) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IgnorePointer(
+            child: InstanceSprite(
+              creature: creature,
+              instance: look.instance('friend.featured'),
+              size: 76,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            creature.name.toUpperCase(),
+            textAlign: TextAlign.center,
+            style: _mono(10, _palette.muted, spacing: 2.4),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _TradeButton extends StatelessWidget {
   const _TradeButton({required this.friend, required this.accent});
 

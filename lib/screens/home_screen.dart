@@ -79,6 +79,7 @@ import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/screens/home_biome/home_biome_window.dart';
 import 'package:alchemons/widgets/alchemy_emblem.dart';
 import 'package:alchemons/widgets/athanor_emblem.dart';
+import 'package:alchemons/utils/featured_instance.dart';
 import 'package:alchemons/widgets/home_emblems.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
@@ -2070,47 +2071,8 @@ class _HomeScreenState extends State<HomeScreen>
   // FEATURED HERO HELPERS
   // ============================================================
 
-  Future<CreatureInstance?> _loadFeaturedInstanceOrAuto() async {
-    final db = context.read<AlchemonsDatabase>();
-
-    // Attempt to load saved featured instance
-    final savedId = await db.settingsDao.getFeaturedInstanceId();
-    if (savedId != null && savedId.isNotEmpty) {
-      final chosen = await db.creatureDao.getInstance(savedId);
-      if (chosen != null) {
-        return chosen;
-      }
-    }
-
-    // Auto-pick fallback
-    final all = await db.creatureDao.listAllInstances();
-    if (all.isEmpty) return null;
-
-    // prefer prismatic
-    final prismatics = all.where((ci) => ci.isPrismaticSkin == true).toList();
-    if (prismatics.isNotEmpty) {
-      return prismatics.first;
-    }
-
-    // else best "rarity" via stat potential heuristic
-    all.sort((a, b) {
-      final aScore =
-          (a.statSpeedPotential +
-                  a.statIntelligencePotential +
-                  a.statStrengthPotential +
-                  a.statBeautyPotential)
-              .toDouble();
-      final bScore =
-          (b.statSpeedPotential +
-                  b.statIntelligencePotential +
-                  b.statStrengthPotential +
-                  b.statBeautyPotential)
-              .toDouble();
-      return bScore.compareTo(aScore);
-    });
-
-    return all.first;
-  }
+  Future<CreatureInstance?> _loadFeaturedInstanceOrAuto() =>
+      loadFeaturedInstance(context.read<AlchemonsDatabase>());
 
   /// Pre-loads the featured creature's sprite sheet into Flame's image cache
   /// so that [CreatureSprite] can display it synchronously (no loading flash).

@@ -146,6 +146,8 @@ void main() {
     final db = AlchemonsDatabase(NativeDatabase.memory());
     await tester.runAsync(() async {
       GoogleFonts.cinzel(fontWeight: FontWeight.w700);
+      // A friend's title.
+      GoogleFonts.cinzel(fontWeight: FontWeight.w600);
       await GoogleFonts.pendingFonts();
     });
 
@@ -224,6 +226,11 @@ void main() {
       uid: 'f1',
       name: 'Rowan',
       faction: 'oceanic',
+      title: 'The Collector',
+      featured: ResidentLook(
+        baseId: 'LET02',
+        effect: 'alchemy_glow',
+      ),
       planet: PlanetLook(
         color: 'Crystal',
         size: 3,

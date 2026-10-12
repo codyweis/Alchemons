@@ -5,6 +5,12 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/models/profile_titles.dart';
+import 'package:alchemons/services/account_service.dart';
+import 'package:alchemons/utils/featured_instance.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -245,4 +251,99 @@ void main() {
     expect(full.faction, 'oceanic');
     expect(full.planet!.size, 4);
   });
+
+  test('FriendCard reads a title and a featured look, and drops bad ones', () {
+    final card = FriendCard.fromJson('u3', {
+      'name': 'Rowan',
+      'title': '  Red Fuser ',
+      'featured': {'b': 'LET02', 'p': true},
+    });
+    expect(card.title, 'Red Fuser');
+    expect(card.featured!.baseId, 'LET02');
+    expect(card.featured!.prismatic, isTrue);
+    final bad = FriendCard.fromJson('u4', {
+      'name': 'Rowan',
+      'title': 'x' * 41,
+      'featured': {'p': true},
+    });
+    expect(bad.title, isNull);
+    expect(bad.featured, isNull);
+  });
+
+  group('featured', () {
+    late AlchemonsDatabase db;
+    setUp(() => db = AlchemonsDatabase(NativeDatabase.memory()));
+    tearDown(() => db.close());
+
+    test(
+      'the chosen one, else a prismatic one, else the most Potential',
+      () async {
+        expect(await loadFeaturedInstance(db), isNull);
+        await db.creatureDao.insertInstance(instanceId: 'a', baseId: 'LET02');
+        await db.creatureDao.insertInstance(
+          instanceId: 'b',
+          baseId: 'HOR02',
+          isPrismaticSkin: true,
+        );
+        expect((await loadFeaturedInstance(db))!.instanceId, 'b');
+        await db.settingsDao.setFeaturedInstanceId('a');
+        expect((await loadFeaturedInstance(db))!.instanceId, 'a');
+      },
+    );
+
+    // Author, 2026-10-11: "When viewing a friends planet we should probably
+    // show their title too right? And maybe their featured Mon as well."
+    test('is published with the title worn, for friends to read', () async {
+      SharedPreferences.setMockInitialValues({'friends.code.aaaa': 'HX4N7QRT'});
+      final fs = FakeFirebaseFirestore();
+      await db.creatureDao.insertInstance(instanceId: 'a', baseId: 'LET02');
+      await db.settingsDao.setFeaturedInstanceId('a');
+      const made = MadeTitle(TitleColour.red, TitleWord.fuser);
+      expect(await ProfileTitles.wear(db, made.id), isTrue);
+
+      final friends = FriendService(
+        account: _Account(_User('aaaa', 'Cody')),
+        db: db,
+        firestore: fs,
+      );
+      addTearDown(friends.dispose);
+      await friends.refresh();
+      await friends.publishIfChanged(force: true);
+
+      final doc = await fs.collection('players').doc('aaaa').get();
+      final card = FriendCard.fromJson('aaaa', doc.data());
+      expect(card.title, 'Red Fuser');
+      expect(card.featured!.baseId, 'LET02');
+
+      // Taken off: published without one.
+      await ProfileTitles.wear(db, null);
+      await friends.publishIfChanged(force: true);
+      final again = await fs.collection('players').doc('aaaa').get();
+      expect(FriendCard.fromJson('aaaa', again.data()).title, isNull);
+    });
+  });
+}
+
+class _User implements User {
+  _User(this.uid, this.displayName);
+  @override
+  final String uid;
+  @override
+  final String? displayName;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _Account extends ChangeNotifier implements AccountService {
+  _Account(this.user);
+  @override
+  final User? user;
+  @override
+  bool get initialized => true;
+  @override
+  bool get isConfigured => true;
+  @override
+  bool get isSignedIn => true;
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }

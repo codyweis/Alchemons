@@ -323,14 +323,20 @@ class FriendHome {
   }
 }
 
-/// A friend as their friends see them: a name, a division and a planet.
+/// A friend as their friends see them: a name, a division, the title they
+/// wear, their featured Alchemon and a planet.
 class FriendCard {
   const FriendCard({
     required this.uid,
     required this.name,
     this.faction,
+    this.title,
+    this.featured,
     this.planet,
   });
+
+  /// The most a title's words can run, as published and as read.
+  static const int maxTitleLength = 40;
 
   final String uid;
   final String name;
@@ -338,17 +344,32 @@ class FriendCard {
   /// Their division (FactionId name), whose realm their page is drawn in.
   final String? faction;
 
+  /// The words of the title they wear (ProfileTitles.nameOf); null for none.
+  final String? title;
+
+  /// How the Alchemon their home features looks; null before they have one,
+  /// or from a game that published none.
+  final ResidentLook? featured;
+
   /// Null until they have built a home planet.
   final PlanetLook? planet;
 
   static FriendCard fromJson(String uid, Map<String, dynamic>? json) {
     final name = json?['name'];
+    final title = json?['title'];
     return FriendCard(
       uid: uid,
       name: name is String && name.trim().isNotEmpty
           ? name.trim()
           : 'Alchemist',
       faction: json?['faction'] is String ? json!['faction'] as String : null,
+      title:
+          title is String &&
+              title.trim().isNotEmpty &&
+              title.trim().length <= maxTitleLength
+          ? title.trim()
+          : null,
+      featured: ResidentLook.fromJson(json?['featured']),
       planet: json?['planet'] is Map
           ? PlanetLook.fromJson(json!['planet'])
           : null,

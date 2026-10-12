@@ -235,13 +235,20 @@ service cloud.firestore {
     match /players/{uid} {
       allow read: if isOwner(uid) || isFriendOf(uid);
       allow create, update: if isOwner(uid) &&
-          request.resource.data.keys().hasOnly(['name', 'faction', 'code', 'planet', 'updatedAt']) &&
+          request.resource.data.keys().hasOnly(['name', 'faction', 'code', 'planet', 'title', 'featured', 'updatedAt']) &&
           request.resource.data.name is string &&
           request.resource.data.name.size() > 0 &&
           request.resource.data.name.size() <= 40 &&
           isOptionalString(request.resource.data.faction) &&
           isFriendCode(request.resource.data.code) &&
           (request.resource.data.planet == null || request.resource.data.planet is map) &&
+          // The title worn and the featured Alchemon's looks: optional, so
+          // a build from before them still writes (read with get()).
+          isOptionalString(request.resource.data.get('title', null)) &&
+          (request.resource.data.get('title', null) == null ||
+           request.resource.data.title.size() <= 40) &&
+          (request.resource.data.get('featured', null) == null ||
+           request.resource.data.featured is map) &&
           request.resource.data.updatedAt == request.time;
       allow delete: if isOwner(uid);
 
