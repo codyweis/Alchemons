@@ -367,6 +367,7 @@ void main() {
       Set<String> drawn = const {},
       bool dailyTaken = false,
       bool firstFire = true,
+      bool introSeen = true,
       int tincture = 0,
       int gold = 0,
     }) async {
@@ -381,6 +382,9 @@ void main() {
           firstFire: firstFire,
         );
         await db.settingsDao.setSetting(AthanorState.key, state.encode());
+        if (introSeen) {
+          await db.settingsDao.setSetting(kAthanorIntroSeenKey, '1');
+        }
         if (tincture > 0) {
           await db.inventoryDao.addItemQty(InvKeys.athanorTincture, tincture);
         }
@@ -421,7 +425,7 @@ void main() {
     }
 
     // ── home ──
-    var svc = await save(firstFire: false);
+    var svc = await save(firstFire: false, introSeen: false);
     await show(const _Home(), svc);
     await shoot('01_home_ready');
 
@@ -438,6 +442,14 @@ void main() {
       await shoot(name);
     }
     await settle(30);
+    // The first open explains how it works, three pages.
+    var page = 1;
+    for (final button in ['NEXT', 'NEXT', 'CONTINUE']) {
+      await shoot('03_intro_$page');
+      await tester.tap(find.text(button).last);
+      await settle(12);
+      page++;
+    }
     await shoot('03_screen_landed_first_fire');
 
     svc = await save(dailyTaken: true);
@@ -458,12 +470,17 @@ void main() {
     await settle(14);
     await shoot('07_odds');
     await tester.tap(find.text('CLOSE'));
-    await settle(10);
+    await settle(24);
 
-    await tester.tap(find.bySemanticsLabel('POUR · 50 GOLD'));
-    await settle(10);
-    await shoot('08_gold_confirm');
-    await tester.tap(find.text('CANCEL'));
+    // A gold pour held halfway: the button fills as it is held.
+    final gold = await tester.startGesture(
+      tester.getCenter(find.bySemanticsLabel('POUR · 50 GOLD')),
+    );
+    for (var i = 0; i < 6; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await shoot('08_gold_hold');
+    await gold.up();
     await settle(8);
 
     final nine = {for (final p in _ember.pieces) p.id};
@@ -513,9 +530,16 @@ void main() {
     final eight = {...nine}..remove('ember.rift');
     svc = await save(batches: const [_ember], drawn: eight, tincture: 30);
     await show(const AthanorScreen(), svc);
-    await tester.tap(
-      find.bySemanticsLabel('POUR · $kAthanorTincturePerPour TINCTURE'),
+    // A paid pour is held until it fills.
+    final pour = await tester.startGesture(
+      tester.getCenter(
+        find.bySemanticsLabel('POUR · $kAthanorTincturePerPour SPARKS'),
+      ),
     );
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await pour.up();
     await runTo(AthanorBeats.settled + 0.3, '18_capstone_piece');
     await runTo(6.9, '19_capstone_gather');
     await runTo(AthanorBeats.rest2 + 0.6, '20_capstone_rest');
@@ -540,6 +564,7 @@ void main() {
           firstFire: true,
         );
         await db.settingsDao.setSetting(AthanorState.key, state.encode());
+        await db.settingsDao.setSetting(kAthanorIntroSeenKey, '1');
         await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 40);
         await db.currencyDao.addGold(300);
         // One batch at a time, so the strip opens on it.
@@ -561,17 +586,22 @@ void main() {
         await tester.tap(find.text('CLOSE'));
         await settle(10);
       }
-      // A piece's popup: one drawn, one not, the fusion style, the capstone.
+      // A piece's popup: one drawn, one not, the fusion style, Enhance Orbs
+      // (not drawn, then drawn), the capstone.
       final tiles = find.byWidgetPredicate(
         (w) => w.runtimeType.toString() == '_Tile',
       );
       final fusion = batch.pieces.indexWhere(
         (p) => p.kind == AthanorPieceKind.fusionStyle,
       );
+      final orbs = batch.pieces.indexWhere(
+        (p) => p.kind == AthanorPieceKind.enhanceOrbs,
+      );
       for (final (tile, name) in [
         (0, 'drawn'),
         (i + 2, 'left'),
         (fusion, 'fusion'),
+        if (i < 2) (orbs, 'orbs'),
         (batch.pieces.length, 'capstone'),
       ]) {
         await tester.tap(tiles.at(tile));

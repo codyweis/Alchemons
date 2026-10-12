@@ -4,7 +4,8 @@ import 'package:flutter/painting.dart';
 part 'costume_fits.dart';
 
 /// The costumes: a hat, a nose, sunglasses — bought in the shop — and the
-/// Athanor's crown and monocle, found nowhere else. Kept in the inventory,
+/// Athanor's crown and monocle, found first in the Furnace and sold in the
+/// shop once it has given them. Kept in the inventory,
 /// and worn all at once if wanted — beside an alchemy effect, not in its
 /// place — except that two on the same spot cannot be ([exclusiveWith]). Each fits the species it has been fitted to (see
 /// costume_fits.dart) and is part of the sprite, not an effect round it:

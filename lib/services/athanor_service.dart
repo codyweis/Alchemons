@@ -68,10 +68,15 @@ class AthanorPourResult {
     required this.piece,
     this.capstone,
     this.daily,
+    this.items = const {},
   });
 
   final AthanorBatch batch;
   final AthanorPiece piece;
+
+  /// What [piece] gave as items, by inventory key: an Enhance Orbs piece's
+  /// orbs and soul. Empty for every other piece.
+  final Map<String, int> items;
 
   /// Given with this pour: the batch is done.
   final AthanorPiece? capstone;
@@ -109,8 +114,13 @@ Future<String?> athanorDefaultStorefrontCountry() async {
 }
 
 /// Grants [piece] through its kind's system. Runs inside the caller's
-/// transaction.
-Future<void> grantAthanorPiece(AlchemonsDatabase db, AthanorPiece piece) async {
+/// transaction. Returns what an Enhance Orbs piece gave (rolled on
+/// [random]), by inventory key; empty for every other piece.
+Future<Map<String, int>> grantAthanorPiece(
+  AlchemonsDatabase db,
+  AthanorPiece piece, {
+  Random? random,
+}) async {
   switch (piece.kind) {
     case AthanorPieceKind.alchemyEffect:
       await db.inventoryDao.addItemQty(piece.grantRef, 1);
@@ -138,7 +148,14 @@ Future<void> grantAthanorPiece(AlchemonsDatabase db, AthanorPiece piece) async {
     case AthanorPieceKind.fusionStyle:
     case AthanorPieceKind.ambience:
       await OwnedCosmetics.grant(db, piece.kind, piece.grantRef);
+    case AthanorPieceKind.enhanceOrbs:
+      final items = athanorRollEnhanceOrbs(random ?? Random());
+      for (final e in items.entries) {
+        await db.inventoryDao.addItemQty(e.key, e.value);
+      }
+      return items;
   }
+  return const {};
 }
 
 class AthanorService extends ChangeNotifier {
@@ -184,6 +201,7 @@ class AthanorService extends ChangeNotifier {
     _state = AthanorState.decode(
       await _db.settingsDao.getSetting(AthanorState.key),
     );
+    _introSeen = await _db.settingsDao.getSetting(kAthanorIntroSeenKey) == '1';
     await _readBalances();
     if (!_countryKnown) {
       _goldAllowed = !athanorIsBelgium(await country);
@@ -211,6 +229,18 @@ class AthanorService extends ChangeNotifier {
   /// Whether the player has opened the Athanor (its first fire is given on
   /// the first visit). Until then the home emblem pulses to be found.
   bool get opened => _state.firstFire;
+
+  bool _introSeen = false;
+
+  /// Whether the player has read how the Furnace works (shown once, on the
+  /// first open; the sparks balance shows it again).
+  bool get introSeen => _introSeen;
+
+  Future<void> markIntroSeen() async {
+    if (_introSeen) return;
+    _introSeen = true;
+    await _db.settingsDao.setSetting(kAthanorIntroSeenKey, '1');
+  }
 
   List<AthanorBatch> get batches => _batches;
 
@@ -314,7 +344,7 @@ class AthanorService extends ChangeNotifier {
             await _db.currencyDao.addGold(-kAthanorGoldPerPour);
         }
 
-        await grantAthanorPiece(_db, piece);
+        final items = await grantAthanorPiece(_db, piece, random: _random);
         var next = state.withDrawn(batch.id, piece.id);
 
         AthanorPiece? capstone;
@@ -340,6 +370,7 @@ class AthanorService extends ChangeNotifier {
           piece: piece,
           capstone: capstone,
           daily: extras,
+          items: items,
         );
       });
     } catch (e, st) {

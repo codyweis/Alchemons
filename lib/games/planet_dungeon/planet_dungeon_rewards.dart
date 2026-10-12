@@ -85,7 +85,7 @@ Future<List<String>> grantStarReward({
       ) ??
       0;
   await db.settingsDao.setSetting(kAthanorPaidStarsKey, '${paid + 1}');
-  return [...lines, '+$kAthanorStarTincture Tincture'];
+  return [...lines, '+$kAthanorStarTincture Sparks'];
 }
 
 Future<List<String>> _grantStar(

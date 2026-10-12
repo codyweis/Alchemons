@@ -3845,7 +3845,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         '(${playerScore.toStringAsFixed(2)} vs ${opponentScore.toStringAsFixed(2)}). '
         '+${level.rewardShards} shards '
         '${_homePlanet != null ? 'banked at home' : 'into the hold'}, '
-        '+$goldReward gold, +$tinctureReward tincture.'
+        '+$goldReward gold, +${athanorSparks(tinctureReward)}.'
         '$masteryUnlockText',
       );
       HapticFeedback.heavyImpact();

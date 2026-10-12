@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/providers/theme_provider.dart';
@@ -91,6 +92,11 @@ void main() {
       ]);
       // A Volcanic player: the shop sells Volcanic's two dock sets.
       await db.settingsDao.setSetting('player_faction_v1', 'volcanic');
+      // The Red Work finished in the Furnace: the shop sells its crown.
+      await db.settingsDao.setSetting(
+        AthanorState.key,
+        const AthanorState(capstones: {'red'}).encode(),
+      );
       await db.currencyDao.addGold(184);
       await db.currencyDao.addSilver(12450);
       var n = 0;

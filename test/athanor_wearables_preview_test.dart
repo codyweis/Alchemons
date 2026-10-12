@@ -162,7 +162,7 @@ void _cost(String label, void Function(Canvas c, double t) frame) {
 
 /// The pieces, as docs/athanor/pieces_wearables.md lists them.
 const _pieces = [
-  ('The Black Work', 'Inkmaker', AthanorPieceKind.title, 'inkmaker'),
+  ('The Black Work', 'Dark Fuser', AthanorPieceKind.title, 'inkmaker'),
   (
     'The Black Work',
     'Ink Plume',
@@ -176,7 +176,7 @@ const _pieces = [
     AthanorPieceKind.alchemyEffect,
     InvKeys.alchemyPeacockTail,
   ),
-  ('The White Work', 'Silversmith', AthanorPieceKind.title, 'silversmith'),
+  ('The White Work', 'Light Fuser', AthanorPieceKind.title, 'silversmith'),
   (
     'The White Work',
     'Quicksilver',
@@ -184,7 +184,7 @@ const _pieces = [
     InvKeys.alchemyQuicksilver,
   ),
   ('The White Work', 'Spiritlet Dock', AthanorPieceKind.dockSet, 'spiritlet'),
-  ('The Yellow Work', 'Gilder', AthanorPieceKind.title, 'gilder'),
+  ('The Yellow Work', 'The Collector', AthanorPieceKind.title, 'gilder'),
   (
     'The Yellow Work',
     'Gold Leaf',
@@ -192,7 +192,7 @@ const _pieces = [
     InvKeys.alchemyGoldLeaf,
   ),
   ('The Yellow Work', 'Lightlet Dock', AthanorPieceKind.dockSet, 'lightlet'),
-  ('The Red Work', 'Ember Keeper', AthanorPieceKind.title, 'ember_keeper'),
+  ('The Red Work', 'The Unknown', AthanorPieceKind.title, 'ember_keeper'),
   (
     'The Red Work',
     'Red Smoke',
@@ -206,7 +206,7 @@ const _pieces = [
     AthanorPieceKind.costume,
     InvKeys.alchemyRedKingCrown,
   ),
-  ('The Still-Room', 'Distiller', AthanorPieceKind.title, 'distiller'),
+  ('The Still-Room', 'The Alchemist', AthanorPieceKind.title, 'distiller'),
   ('The Still-Room', 'Crystalet Dock', AthanorPieceKind.dockSet, 'crystalet'),
   (
     'The Still-Room',

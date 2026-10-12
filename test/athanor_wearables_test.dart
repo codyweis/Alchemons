@@ -35,7 +35,7 @@ import 'package:flutter_test/flutter_test.dart';
 const _pieces = [
   AthanorPiece(
     id: 'black.inkmaker',
-    name: 'Inkmaker',
+    name: 'Dark Fuser',
     description: 'A title for your profile.',
     kind: AthanorPieceKind.title,
     rarity: AthanorRarity.common,
@@ -67,7 +67,7 @@ const _pieces = [
   ),
   AthanorPiece(
     id: 'white.silversmith',
-    name: 'Silversmith',
+    name: 'Light Fuser',
     description: 'A title for your profile.',
     kind: AthanorPieceKind.title,
     rarity: AthanorRarity.common,
@@ -91,7 +91,7 @@ const _pieces = [
   ),
   AthanorPiece(
     id: 'yellow.gilder',
-    name: 'Gilder',
+    name: 'The Collector',
     description: 'A title for your profile.',
     kind: AthanorPieceKind.title,
     rarity: AthanorRarity.common,
@@ -115,7 +115,7 @@ const _pieces = [
   ),
   AthanorPiece(
     id: 'red.ember_keeper',
-    name: 'Ember Keeper',
+    name: 'The Unknown',
     description: 'A title for your profile.',
     kind: AthanorPieceKind.title,
     rarity: AthanorRarity.common,
@@ -147,7 +147,7 @@ const _pieces = [
   ),
   AthanorPiece(
     id: 'still.distiller',
-    name: 'Distiller',
+    name: 'The Alchemist',
     description: 'A title for your profile.',
     kind: AthanorPieceKind.title,
     rarity: AthanorRarity.common,
@@ -514,6 +514,45 @@ void main() {
     });
   });
 
+  // Author, 2026-10-11: "When unlocking the crown, I think we allow it to be
+  // purchased in the shop, and also grant 1 for free when it's unlocked."
+  group('a Furnace costume, once the Furnace gives it', () {
+    test('comes free, then the shop sells more', () async {
+      const crown = FamilyCostume.crown;
+      final red = kAthanorBatches.firstWhere((b) => b.id == 'red');
+      expect(red.capstone.grantRef, crown.itemKey);
+      expect(ShopService.furnaceCostumeOffers(AthanorState.empty), isEmpty);
+      expect(
+        shop.getCostumeOffers().map((o) => o.id),
+        isNot(contains(crown.offerId)),
+      );
+
+      // The Red Work finished: the crown given with its last piece.
+      await db.transaction(() => grantAthanorPiece(db, red.capstone));
+      await db.settingsDao.setSetting(
+        AthanorState.key,
+        const AthanorState(capstones: {'red'}).encode(),
+      );
+      expect(await owned(crown.itemKey), 1);
+      await shop.refreshInventory();
+      final listed = shop.getCostumeOffers().map((o) => o.id);
+      expect(listed, contains(crown.offerId));
+      expect(listed, isNot(contains(FamilyCostume.monocle.offerId)));
+      expect(shop.canPurchase(crown.offerId), isTrue);
+      expect(await shop.purchase(crown.offerId), isTrue);
+      expect(await owned(crown.itemKey), 2);
+    });
+
+    test('the monocle, once drawn', () {
+      expect(
+        ShopService.furnaceCostumeOffers(
+          AthanorState.empty.withDrawn('still', 'still.brass_monocle'),
+        ),
+        {FamilyCostume.monocle.offerId},
+      );
+    });
+  });
+
   testWidgets('every piece has a look in the Athanor, with or without its '
       'Let loaded', (tester) async {
     for (final look in AthanorPieceLook.values) {
@@ -558,7 +597,7 @@ void main() {
       pieces: _pieces.sublist(0, _pieces.length - 1),
       capstone: _pieces.last,
     );
-    expect(ProfileTitles.nameOf('gilder', batches: [batch]), 'Gilder');
+    expect(ProfileTitles.nameOf('gilder', batches: [batch]), 'The Collector');
     await factions.loadId();
     for (final s in DockSet.athanorSets) {
       expect(await db.settingsDao.getSetting(s.settingKey), '1');

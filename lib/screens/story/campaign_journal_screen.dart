@@ -228,7 +228,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
       if (gold + silver + tincture > 0) HapticFeedback.heavyImpact();
       _notify(
         gold + silver + tincture > 0
-            ? 'Collected $gold Gold, $silver Silver and $tincture Tincture.'
+            ? 'Collected $gold Gold, $silver Silver and ${athanorSparks(tincture, title: true)}.'
             : 'Rewards already collected.',
       );
     } catch (_) {

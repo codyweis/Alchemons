@@ -10,6 +10,7 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/celebration_costume.dart';
 import 'package:alchemons/models/dock_sets.dart';
@@ -23,7 +24,10 @@ import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:alchemons/widgets/fx/keepsake_art.dart';
+import 'package:alchemons/widgets/fx/power_orb.dart';
+import 'package:alchemons/widgets/fx/soul_wisp.dart';
 import 'package:alchemons/widgets/nav_emblems.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -148,7 +152,7 @@ void paintAthanorPiece(
       paintCosmeticPreview(canvas, piece.kind, piece.grantRef, rect, t);
     // A title is its words.
     case AthanorPieceKind.title:
-      // Smaller for a long word ("Silversmith"), so none breaks in two.
+      // Smaller for a long word ("Collector"), so none breaks in two.
       final maxWidth = rect.width * 0.94;
       var size = rect.height * 0.2;
       for (final word in piece.name.split(' ')) {
@@ -174,6 +178,30 @@ void paintAthanorPiece(
       )..layout(maxWidth: maxWidth);
       tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
       tp.dispose();
+    // Enhance Orbs: a Potential Soul over the four stats' orbs, as the
+    // shop and the inventory draw each.
+    case AthanorPieceKind.enhanceOrbs:
+      final side = rect.shortestSide;
+      SoulWispPaint.paint(
+        canvas,
+        rect.center.translate(0, -side * 0.1),
+        side * 0.62,
+        PotentialSoulSphere.canonical,
+        t,
+      );
+      const types = AlchemicalPowerupType.values;
+      for (var i = 0; i < types.length; i++) {
+        // A shallow arc under the soul, the outer two higher.
+        final x = (i - (types.length - 1) / 2) * side * 0.2;
+        final y = side * (0.3 - 0.06 * ((i - 1.5).abs() - 0.5));
+        PowerOrbPaint.paint(
+          canvas,
+          rect.center.translate(x, y),
+          side * 0.085,
+          types[i],
+          t + i * 0.7,
+        );
+      }
   }
 }
 

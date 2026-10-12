@@ -1685,7 +1685,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       popupEntries.add(
         LootOpeningEntry(
           icon: def?.icon ?? AppIcons.water_drop_rounded,
-          name: def?.name ?? 'Tincture',
+          name: def?.name ?? 'Sparks',
           label: '+$tincture',
           color: const Color(0xFFE8743A),
           visualBuilder: (size) => InventoryImageHelper.getVisualWidget(

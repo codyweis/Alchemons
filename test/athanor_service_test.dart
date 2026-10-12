@@ -591,6 +591,48 @@ void main() {
     });
   });
 
+  test('Enhance Orbs gives its orbs and soul, and says what they were', () async {
+    const orbs = AthanorPiece(
+      id: 'orbs.enhance_orbs',
+      name: 'Enhance Orbs',
+      description: '1 to 5 Enhance orbs and a Potential Soul.',
+      kind: AthanorPieceKind.enhanceOrbs,
+      rarity: AthanorRarity.common,
+      grantRef: 'enhance_orbs',
+    );
+    final athanor = AthanorService(
+      db,
+      batches: const [
+        AthanorBatch(
+          id: 'orbs',
+          name: 'Orbs',
+          description: 'A test batch.',
+          pieces: [orbs],
+          capstone: _capstone,
+        ),
+      ],
+      random: Random(5),
+      storefrontCountry: () async => 'US',
+      clock: () => now,
+    );
+    await db.inventoryDao.addItemQty(
+      InvKeys.athanorTincture,
+      kAthanorTincturePerPour,
+    );
+    await athanor.load();
+    final result = await athanor.pour('orbs', AthanorPayment.tincture);
+    expect(result?.piece.id, orbs.id);
+    final items = result!.items;
+    expect(items[InvKeys.potentialSoul], 1);
+    expect(
+      items.values.fold(0, (a, b) => a + b) - 1,
+      inInclusiveRange(kAthanorEnhanceOrbsMin, kAthanorEnhanceOrbsMax),
+    );
+    for (final e in items.entries) {
+      expect(await db.inventoryDao.getItemQty(e.key), e.value, reason: e.key);
+    }
+  });
+
   test('a saved row it cannot read loads as a fresh state', () async {
     await db.settingsDao.setSetting(AthanorState.key, '{not json');
     await db.inventoryDao.addItemQty(

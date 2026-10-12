@@ -18,6 +18,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
@@ -276,7 +277,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen> {
               'The altar accepts the offering.',
               '${species.name} is given to the pool.',
               if (result.tinctureEarned > 0)
-                'Weekly reward: +${result.tinctureEarned} tincture.',
+                'Weekly reward: +${athanorSparks(result.tinctureEarned)}.',
               'It will ask again when the week turns.',
             ],
           ),
@@ -307,7 +308,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen> {
             if (result.completionBonusGold > 0)
               'Completion reward: +${result.completionBonusGold} gold.',
             if (result.tinctureEarned > 0)
-              'Completion reward: +${result.tinctureEarned} tincture.',
+              'Completion reward: +${athanorSparks(result.tinctureEarned)}.',
             if (result.completedRite)
               'The rite stands complete.'
             else if (next != null)

@@ -42,7 +42,9 @@ class ShopOffer {
   final Color? iconColor;
 
   /// An Athanor piece: the offer only carries its name and art (for
-  /// InventoryItemArtwork) and is never listed or sold ([ShopService.sells]).
+  /// InventoryItemArtwork) and is never listed or sold ([ShopService.sells]),
+  /// except a Furnace costume once the Furnace has given it
+  /// ([ShopService.furnaceCostumeOffers]).
   final bool athanorOnly;
 
   const ShopOffer({
@@ -103,6 +105,10 @@ class ShopService extends ChangeNotifier {
   final Map<String, DateTime> _lastPurchaseTime = {}; // offerId -> last time
   final Set<String> _unlockedContestEffectOfferIds = <String>{};
 
+  /// The Furnace's costumes the Furnace has given, by offer id: sold here
+  /// from then on ([furnaceCostumeOffers]).
+  final Set<String> _furnaceCostumes = <String>{};
+
   // Auto-unlock for Elemental Essence Creator after enough breeding.
   static const int kAutoUnlockBredThreshold = 10;
   bool _elementalCreatorAutoUnlocked = false;
@@ -113,10 +119,37 @@ class ShopService extends ChangeNotifier {
     DebugSettingsService.freeShopNotifier.addListener(notifyListeners);
     _hydrateDebugPrices();
     _loadPurchaseHistory();
-    _loadInventoryCache();
+    refreshInventory();
     _loadContestEffectUnlocks();
     _loadElementalCreatorAutoUnlock();
   }
+
+  /// The offer ids of the Furnace's costumes [state] has given. One crown or
+  /// monocle is worn by one Alchemon, so once the Furnace has given one
+  /// (that one free) the shop sells more (author, 2026-10-11).
+  static Set<String> furnaceCostumeOffers(
+    AthanorState state, {
+    List<AthanorBatch> batches = kAthanorBatches,
+  }) => {
+    for (final batch in batches)
+      for (final piece in [...batch.pieces, batch.capstone])
+        if (piece.kind == AthanorPieceKind.costume && state.gave(batch, piece))
+          if (FamilyCostume.ofItem(piece.grantRef) case final costume?)
+            costume.offerId,
+  };
+
+  Future<void> _loadFurnaceCostumes() async {
+    final given = furnaceCostumeOffers(
+      AthanorState.decode(await _db.settingsDao.getSetting(AthanorState.key)),
+    );
+    _furnaceCostumes
+      ..clear()
+      ..addAll(given);
+  }
+
+  /// [sells], and a Furnace costume the Furnace has given.
+  bool _sellsHere(ShopOffer offer) =>
+      sells(offer) || _furnaceCostumes.contains(offer.id);
 
   /// Reads the persisted debug switches, so a FREE SHOP left on is honoured
   /// before the profile screen has ever been opened.
@@ -309,11 +342,12 @@ class ShopService extends ChangeNotifier {
         .toList();
   }
 
-  /// The costumes, one card each.
+  /// The costumes, one card each; a Furnace costume once the Furnace has
+  /// given it.
   List<ShopOffer> getCostumeOffers() => [
     for (final costume in FamilyCostume.values)
       allOffers.firstWhere((o) => o.id == costume.offerId),
-  ].where(sells).toList();
+  ].where(_sellsHere).toList();
 
   Future<String?> unlockContestEffectOffer(
     String offerId, {
@@ -1010,16 +1044,23 @@ class ShopService extends ChangeNotifier {
       limit: PurchaseLimit.unlimited,
       inventoryKey: InvKeys.alchemySunglasses,
     ),
-    // The Athanor's costumes: never listed or sold, only their name and
-    // card art, so the costume shelf can name every costume.
+    // The Furnace's costumes: listed and sold once the Furnace has given
+    // one (furnaceCostumeOffers); until then only their name and card art,
+    // so the costume shelf can name every costume.
     for (final c in FamilyCostume.values)
       if (c.athanorOnly)
         ShopOffer(
           id: c.offerId,
           name: c.title,
-          description: 'From the Furnace.',
+          description:
+              '${switch (c) {
+                FamilyCostume.crown => 'A crown of dark gold and garnets',
+                FamilyCostume.monocle => 'A brass monocle on a bead chain',
+                _ => 'A ${c.noun}',
+              }}. Fits ${FamilyCostume.fittedFamiliesText}.',
           icon: AppIcons.auto_awesome_rounded,
-          cost: const {},
+          iconColor: const Color(0xFFFFD58B),
+          cost: const {'gold': 25},
           reward: const {},
           rewardType: 'boost',
           limit: PurchaseLimit.unlimited,
@@ -1310,7 +1351,7 @@ class ShopService extends ChangeNotifier {
 
   Future<void> reloadFromStorage() async {
     await _loadPurchaseHistory();
-    await _loadInventoryCache();
+    await refreshInventory();
     await _loadContestEffectUnlocks();
   }
 
@@ -1342,7 +1383,7 @@ class ShopService extends ChangeNotifier {
   bool canPurchase(String offerId) {
     final offer = _resolveOfferById(offerId);
     if (offer == null) return false; // unknown offer -> not purchasable
-    if (!sells(offer)) return false;
+    if (!_sellsHere(offer)) return false;
     if (!_isContestEffectOfferUnlocked(offerId)) return false;
     // A dock set: sold while in its faction, until it is owned.
     if (DockSet.byOffer(offerId) case final set?) {
@@ -1842,7 +1883,12 @@ class ShopService extends ChangeNotifier {
 
   /// Re-reads every held count. The cache only follows the shop's own
   /// sales and grants; items spent or given elsewhere move the table alone.
-  Future<void> refreshInventory() => _loadInventoryCache();
+  /// Also re-reads which Furnace costumes are sold, as the Furnace gives
+  /// them outside the shop.
+  Future<void> refreshInventory() async {
+    await _loadFurnaceCostumes();
+    await _loadInventoryCache();
+  }
 
   Future<void> refreshInventoryForOffer(String offerId) async {
     final offer = _resolveOfferById(offerId);

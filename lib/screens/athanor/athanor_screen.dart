@@ -12,9 +12,11 @@
 import 'dart:async';
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/home_decor.dart';
+import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/athanor/athanor_field.dart';
 import 'package:alchemons/screens/athanor/athanor_furnace.dart';
@@ -29,6 +31,9 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:alchemons/widgets/inventory_item_artwork.dart';
+import 'package:alchemons/widgets/potential_soul_sphere.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/tincture_glyph.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -111,6 +116,7 @@ class _AthanorScreenState extends State<AthanorScreen>
   void _onRevealed() {
     if (mounted && widget.revealed!.value && !_shown) {
       setState(() => _shown = true);
+      _maybeIntro();
     }
   }
 
@@ -139,7 +145,52 @@ class _AthanorScreenState extends State<AthanorScreen>
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _painted = true);
     _field.restFire(svc.dailyPourReady);
+    _maybeIntro();
   }
+
+  bool _introAsked = false;
+
+  /// The first time the Furnace is opened, once it is in view: how it
+  /// works, in three short pages.
+  Future<void> _maybeIntro() async {
+    if (_introAsked || !_loaded || !_shown || _reveal != null) return;
+    final svc = context.read<AthanorService>();
+    if (svc.introSeen) return;
+    _introAsked = true;
+    await WidgetsBinding.instance.endOfFrame;
+    if (!mounted) return;
+    await _howItWorks();
+    await svc.markIntroSeen();
+  }
+
+  /// How the Furnace works: shown on the first open, and again whenever the
+  /// sparks balance is tapped.
+  Future<void> _howItWorks() => showStoryDialog(
+    context,
+    beats: const [
+      StoryBeat(
+        title: 'THE FURNACE',
+        message:
+            'Pour into a batch to draw a piece: auras, costumes, things for '
+            'your home, Enhance orbs and more. Every pour gives a piece you '
+            "don't have yet, and a batch's last piece brings its capstone.",
+      ),
+      StoryBeat(
+        title: 'SPARKS',
+        message:
+            'Earn sparks from survival runs, raids, dungeon stars, '
+            'achievements, the Pureblood Rite and Space contests. A pour '
+            'costs $kAthanorTincturePerPour sparks or $kAthanorGoldPerPour '
+            'gold. Press and hold POUR to pour.',
+      ),
+      StoryBeat(
+        title: 'EVERY DAY',
+        message:
+            "One pour a day is free. ODDS shows each piece's chance on the "
+            'next pour. Tap your sparks any time to read this again.',
+      ),
+    ],
+  );
 
   /// The free pour comes back at the UTC day's turn, screen open or not.
   void _scheduleMidnight() {
@@ -198,21 +249,8 @@ class _AthanorScreenState extends State<AthanorScreen>
       HapticFeedback.selectionClick();
       return;
     }
-    if (payment == AthanorPayment.gold) {
-      final ok = await showBracketConfirm(
-        context,
-        palette: AthanorTone.palette,
-        accent: AthanorTone.gold,
-        title: 'POUR GOLD',
-        message:
-            'Pour $kAthanorGoldPerPour gold into ${batch.name}. It gives one '
-            "piece you don't own yet.",
-        amounts: const [(CoinKind.gold, kAthanorGoldPerPour)],
-        amountsLabel: 'YOU PAY',
-        confirmLabel: 'POUR',
-      );
-      if (!ok || !mounted || _reveal != null) return;
-    }
+    // A paid pour is held, not tapped (_PourButton): the hold is the
+    // confirmation, so gold no longer asks a second time.
     final titleStyle =
         Theme.of(context).textTheme.bodyMedium ?? const TextStyle();
     final reveal = AthanorReveal(
@@ -245,6 +283,7 @@ class _AthanorScreenState extends State<AthanorScreen>
     if (!identical(r, _reveal)) return;
     final svc = context.read<AthanorService>();
     final extras = r.failed ? null : r.result?.daily;
+    final items = r.failed ? const <String, int>{} : r.result?.items ?? {};
     setState(() {
       _reveal = null;
       // Shown now: the piece lit, one fewer left. The free pour's rewards
@@ -260,41 +299,72 @@ class _AthanorScreenState extends State<AthanorScreen>
         ScaffoldMessenger.maybeOf(
           context,
         )?.showSnackBar(const SnackBar(content: Text('Nothing was poured.')));
-      } else if (extras != null) {
-        await _showDailyExtras(extras);
+      } else if (extras != null || items.isNotEmpty) {
+        await _showPourGifts(items, extras);
         if (mounted) setState(() => _held = null);
       }
     });
   }
 
-  Future<void> _showDailyExtras(AthanorDailyExtras x) async {
-    final vial = x.vialGroup;
+  Future<void> _showDailyExtras(AthanorDailyExtras x) =>
+      _showPourGifts(const {}, x);
+
+  /// What a pour gave beside its piece, in one list: an Enhance Orbs
+  /// piece's [items], then the free daily's chest rewards [x].
+  Future<void> _showPourGifts(
+    Map<String, int> items,
+    AthanorDailyExtras? x,
+  ) async {
+    final vial = x?.vialGroup;
     await showLootOpeningDialog(
       context: context,
-      title: 'DAILY POUR',
+      title: x != null ? 'DAILY POUR' : 'ENHANCE ORBS',
       entries: [
-        LootOpeningEntry(
-          icon: AppIcons.monetization_on_rounded,
-          coin: CoinKind.silver,
-          label: '+${x.silver}',
-          name: 'SILVER',
-          color: const Color(0xFFB0BEC5),
-        ),
-        if (x.gold > 0)
+        for (final e in items.entries)
+          if (alchemicalPowerupTypeFromInventoryKey(e.key) case final orb?)
+            LootOpeningEntry(
+              icon: AppIcons.auto_awesome_rounded,
+              label: '×${e.value}',
+              name: orb.name.toUpperCase(),
+              color: orb.color,
+              visualBuilder: (size) =>
+                  InventoryItemArtwork(inventoryKey: e.key, size: size),
+            ),
+        if (items[InvKeys.potentialSoul] case final souls?)
+          LootOpeningEntry(
+            icon: AppIcons.diamond_rounded,
+            label: '×$souls',
+            name: 'POTENTIAL SOUL',
+            color: PotentialSoulSphere.canonical,
+            visualBuilder: (size) => InventoryItemArtwork(
+              inventoryKey: InvKeys.potentialSoul,
+              size: size,
+            ),
+          ),
+        if (x != null) ...[
           LootOpeningEntry(
             icon: AppIcons.monetization_on_rounded,
-            coin: CoinKind.gold,
-            label: '+${x.gold}',
-            name: 'GOLD',
-            color: const Color(0xFFFFD700),
+            coin: CoinKind.silver,
+            label: '+${x.silver}',
+            name: 'SILVER',
+            color: const Color(0xFFB0BEC5),
           ),
-        if (vial != null)
-          LootOpeningEntry(
-            icon: AppIcons.biotech_rounded,
-            label: '×1',
-            name: '${vial.displayName.toUpperCase()} VIAL',
-            color: vial.skin.badge,
-          ),
+          if (x.gold > 0)
+            LootOpeningEntry(
+              icon: AppIcons.monetization_on_rounded,
+              coin: CoinKind.gold,
+              label: '+${x.gold}',
+              name: 'GOLD',
+              color: const Color(0xFFFFD700),
+            ),
+          if (vial != null)
+            LootOpeningEntry(
+              icon: AppIcons.biotech_rounded,
+              label: '×1',
+              name: '${vial.displayName.toUpperCase()} VIAL',
+              color: vial.skin.badge,
+            ),
+        ],
       ],
     );
   }
@@ -425,21 +495,31 @@ class _AthanorScreenState extends State<AthanorScreen>
               style: athanorMono(11.5, AthanorTone.parchmentDim, spacing: 2.8),
             ),
           ),
-          Row(
-            key: _tinctureKey,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const TinctureGlyph(size: 22, animate: false),
-              const SizedBox(width: 3),
-              Text(
-                formatCoins(svc.tincture),
-                style: athanorMono(
-                  14,
-                  AthanorTone.tinctureBright,
-                  spacing: 0.4,
-                ),
+          // The sparks balance opens how the Furnace works.
+          Semantics(
+            button: true,
+            label: '${formatCoins(svc.tincture)} sparks. How the Furnace works',
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: context.soundAction(_howItWorks),
+              child: Row(
+                key: _tinctureKey,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const TinctureGlyph(size: 22, animate: false),
+                  const SizedBox(width: 3),
+                  Text(
+                    formatCoins(svc.tincture),
+                    style: athanorMono(
+                      14,
+                      AthanorTone.tinctureBright,
+                      spacing: 0.4,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
           const SizedBox(width: 14),
           KeyedSubtree(
@@ -583,7 +663,7 @@ class _AthanorScreenState extends State<AthanorScreen>
           children: [
             Expanded(
               child: _PourButton(
-                cost: '$kAthanorTincturePerPour TINCTURE',
+                cost: '$kAthanorTincturePerPour SPARKS',
                 icon: const TinctureGlyph(size: 16, animate: false),
                 accent: AthanorTone.tincture,
                 // The pour to make is lit: the free one, else the first
@@ -722,7 +802,10 @@ class _Chrome extends StatelessWidget {
 }
 
 /// A paid pour: POUR, and what it costs under it.
-class _PourButton extends StatelessWidget {
+/// A paid pour: pressed and held until it fills, so sparks or gold are
+/// never spent by a stray tap. Let go early and it drains back with nothing
+/// spent. A screen reader pours with a single activation.
+class _PourButton extends StatefulWidget {
   const _PourButton({
     required this.cost,
     required this.icon,
@@ -736,53 +819,131 @@ class _PourButton extends StatelessWidget {
   final Widget icon;
   final Color accent;
   final bool lit, enabled;
+
+  /// Called once the hold completes.
   final VoidCallback onTap;
+
+  @override
+  State<_PourButton> createState() => _PourButtonState();
+}
+
+/// How long a pour is held.
+const Duration _kPourHold = Duration(milliseconds: 850);
+
+class _PourButtonState extends State<_PourButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _hold = AnimationController(
+    vsync: this,
+    duration: _kPourHold,
+    reverseDuration: const Duration(milliseconds: 260),
+  )..addStatusListener(_held);
+
+  void _held(AnimationStatus status) {
+    if (status != AnimationStatus.completed) return;
+    HapticFeedback.mediumImpact();
+    widget.onTap();
+    _hold.value = 0;
+  }
+
+  void _down() {
+    if (!widget.enabled) return;
+    HapticFeedback.selectionClick();
+    _hold.forward();
+  }
+
+  void _release() {
+    if (_hold.isAnimating && _hold.status == AnimationStatus.forward) {
+      _hold.reverse();
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _PourButton old) {
+    super.didUpdateWidget(old);
+    if (!widget.enabled && _hold.value > 0) _hold.value = 0;
+  }
+
+  @override
+  void dispose() {
+    _hold.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final p = AthanorTone.palette;
+    final accent = widget.accent;
     return Semantics(
       button: true,
-      enabled: enabled,
-      label: 'POUR · $cost',
+      enabled: widget.enabled,
+      label: 'POUR · ${widget.cost}',
+      onTap: widget.enabled ? widget.onTap : null,
       excludeSemantics: true,
       child: Opacity(
-        opacity: enabled ? 1 : 0.42,
+        opacity: widget.enabled ? 1 : 0.42,
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: context.soundAction(enabled ? onTap : null),
+          onTapDown: (_) => _down(),
+          onTapUp: (_) => _release(),
+          onTapCancel: _release,
           child: CustomPaint(
             foregroundPainter: BracketFramePainter(
-              color: lit ? accent : p.line,
+              color: widget.lit ? accent : p.line,
               strokeWidth: 1.3,
             ),
-            child: Container(
-              height: 50,
-              color: lit
-                  ? p.accentWash(accent, darkAlpha: 0.16)
-                  : p.surfaceMutedFill(),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text('POUR', style: athanorMono(13, p.ink, spacing: 1.6)),
-                  const SizedBox(height: 3),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
+            child: AnimatedBuilder(
+              animation: _hold,
+              builder: (context, _) {
+                final k = Curves.easeIn.transform(_hold.value);
+                return Container(
+                  height: 50,
+                  color: widget.lit
+                      ? p.accentWash(accent, darkAlpha: 0.16)
+                      : p.surfaceMutedFill(),
+                  child: Stack(
                     children: [
-                      icon,
-                      const SizedBox(width: 5),
-                      Text(
-                        cost,
-                        style: athanorMono(
-                          10,
-                          Color.lerp(accent, p.ink, 0.35)!,
-                          spacing: 1.4,
+                      // The hold fills the button from the left in its own
+                      // colour.
+                      if (k > 0)
+                        FractionallySizedBox(
+                          widthFactor: k,
+                          heightFactor: 1,
+                          alignment: Alignment.centerLeft,
+                          child: ColoredBox(
+                            color: accent.withValues(alpha: 0.30),
+                          ),
+                        ),
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              k > 0 ? 'POURING' : 'HOLD TO POUR',
+                              style: athanorMono(12, p.ink, spacing: 1.6),
+                            ),
+                            const SizedBox(height: 3),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                widget.icon,
+                                const SizedBox(width: 5),
+                                Text(
+                                  widget.cost,
+                                  style: athanorMono(
+                                    10,
+                                    Color.lerp(accent, p.ink, 0.35)!,
+                                    spacing: 1.4,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           ),
         ),
@@ -817,7 +978,7 @@ class _FirstFire extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  "The Furnace's first fire: +$amount tincture",
+                  "The Furnace's first fire: +${athanorSparks(amount)}",
                   style: athanorBody(context, color: AthanorTone.parchment),
                 ),
               ),
@@ -1188,5 +1349,8 @@ String athanorWhereItGoes(AthanorPiece piece) {
       return 'Laid over a home realm: chosen in Arrange.';
     case AthanorPieceKind.fusionStyle:
       return 'Plays at every fusion: Profile, then Display, then Fusion.';
+    case AthanorPieceKind.enhanceOrbs:
+      return 'Into your inventory: the orbs for Enhance, the soul for Stat '
+          'Infusion.';
   }
 }

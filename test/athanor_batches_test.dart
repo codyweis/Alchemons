@@ -1,3 +1,6 @@
+import 'dart:math';
+
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/celebration_costume.dart';
 import 'package:alchemons/models/cosmetic_wear.dart';
@@ -11,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// system can grant and show: a grantRef that names nothing would be a pour
 /// that gives the player nothing.
 void main() {
-  test('five batches of four common, three rare, three epic and a capstone', () {
+  test('five batches of five common, three rare, three epic and a capstone', () {
     expect(kAthanorBatches.map((b) => b.name), [
       'The Black Work',
       'The White Work',
@@ -22,7 +25,15 @@ void main() {
     for (final batch in kAthanorBatches) {
       int count(AthanorRarity r) =>
           batch.pieces.where((p) => p.rarity == r).length;
-      expect(count(AthanorRarity.common), 4, reason: batch.id);
+      expect(count(AthanorRarity.common), 5, reason: batch.id);
+      // One common is Enhance Orbs (author, 2026-10-11).
+      expect(
+        batch.pieces
+            .where((p) => p.kind == AthanorPieceKind.enhanceOrbs)
+            .map((p) => p.rarity),
+        [AthanorRarity.common],
+        reason: batch.id,
+      );
       expect(count(AthanorRarity.rare), 3, reason: batch.id);
       // The fusion style is one of the three epics (author, 2026-10-11).
       expect(count(AthanorRarity.epic), 3, reason: batch.id);
@@ -46,7 +57,7 @@ void main() {
         expect(piece.description.trim(), isNotEmpty);
       }
     }
-    expect(ids, hasLength(55));
+    expect(ids, hasLength(60));
   });
 
   test('every piece resolves in the system that grants it', () {
@@ -78,9 +89,29 @@ void main() {
             expect(FusionStyle.values.map((s) => s.id), contains(ref));
           case AthanorPieceKind.ambience:
             expect(HomeAmbience.values.map((s) => s.id), contains(ref));
+          case AthanorPieceKind.enhanceOrbs:
+            // Rolled at the draw, not named.
+            break;
         }
       }
     }
+  });
+
+  test('Enhance Orbs: 1 to 5 orbs of any stat, and one Potential Soul', () {
+    final orbKeys = {
+      for (final t in AlchemicalPowerupType.values) t.inventoryKey,
+    };
+    final totals = <int>{};
+    for (var seed = 0; seed < 200; seed++) {
+      final items = athanorRollEnhanceOrbs(Random(seed));
+      expect(items[InvKeys.potentialSoul], 1);
+      final orbs = Map.of(items)..remove(InvKeys.potentialSoul);
+      expect(orbKeys, containsAll(orbs.keys));
+      final total = orbs.values.fold(0, (a, b) => a + b);
+      expect(total, inInclusiveRange(1, 5));
+      totals.add(total);
+    }
+    expect(totals, {1, 2, 3, 4, 5});
   });
 
   test('the shop sells none of it', () {
@@ -93,6 +124,11 @@ void main() {
         isNot(contains(offer.inventoryKey)),
         reason: '${offer.id} sells an Athanor piece',
       );
+    }
+    // Enhance Orbs' items stay on sale: the shop sells them outright.
+    expect(granted, isNot(contains(InvKeys.potentialSoul)));
+    for (final t in AlchemicalPowerupType.values) {
+      expect(granted, isNot(contains(t.inventoryKey)));
     }
   });
 }

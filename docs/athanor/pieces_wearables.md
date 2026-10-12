@@ -8,21 +8,21 @@ shop. Batch ids are suggested as `black`, `white`, `yellow`, `red`, `still`
 
 | Batch | Piece id | Name | Kind | Rarity | grantRef | Description |
 |---|---|---|---|---|---|---|
-| The Black Work | `black.inkmaker` | Inkmaker | `title` | common | `inkmaker` | A title for your profile: Inkmaker. |
+| The Black Work | `black.inkmaker` | Dark Fuser | `title` | common | `inkmaker` | A title for your profile: Dark Fuser. |
 | The Black Work | `black.ink_bloom` | Ink Plume | `alchemyEffect` | rare | `alchemy.ink_bloom` | An alchemy effect: ink rises from the ground around an Alchemon and curls up in slow plumes. |
 | The Black Work | `black.darklet_dock` | Darklet Dock | `dockSet` | rare | `darklet` | The dock's icons, drawn with the Darklet, whatever your division. |
 | The Black Work | `black.peacock_tail` | Oil Slick | `alchemyEffect` | **capstone** | `alchemy.peacock_tail` | An alchemy effect: an Alchemon stands in a pool of black that shows every color, slowly marbling. |
-| The White Work | `white.silversmith` | Silversmith | `title` | common | `silversmith` | A title for your profile: Silversmith. |
+| The White Work | `white.silversmith` | Light Fuser | `title` | common | `silversmith` | A title for your profile: Light Fuser. |
 | The White Work | `white.quicksilver` | Quicksilver | `alchemyEffect` | rare | `alchemy.quicksilver` | An alchemy effect: an Alchemon stands in a pool of liquid silver, with beads of it rolling around. |
 | The White Work | `white.spiritlet_dock` | Spiritlet Dock | `dockSet` | rare | `spiritlet` | The dock's icons, drawn with the Spiritlet, whatever your division. |
-| The Yellow Work | `yellow.gilder` | Gilder | `title` | common | `gilder` | A title for your profile: Gilder. |
+| The Yellow Work | `yellow.gilder` | The Collector | `title` | common | `gilder` | A title for your profile: The Collector. |
 | The Yellow Work | `yellow.gold_leaf` | Gold Leaf | `alchemyEffect` | rare | `alchemy.gold_leaf` | An alchemy effect: flakes of gold leaf drift down around an Alchemon and settle at its feet. |
 | The Yellow Work | `yellow.lightlet_dock` | Lightlet Dock | `dockSet` | rare | `lightlet` | The dock's icons, drawn with the Lightlet, whatever your division. |
-| The Red Work | `red.ember_keeper` | Ember Keeper | `title` | common | `ember_keeper` | A title for your profile: Ember Keeper. |
+| The Red Work | `red.ember_keeper` | The Unknown | `title` | common | `ember_keeper` | A title for your profile: The Unknown. |
 | The Red Work | `red.cinnabar` | Cinnabar | `alchemyEffect` | rare | `alchemy.cinnabar` | An alchemy effect: red smoke and grains of cinnabar rise from the ground around an Alchemon. |
 | The Red Work | `red.bloodlet_dock` | Bloodlet Dock | `dockSet` | rare | `bloodlet` | The dock's icons, drawn with the Bloodlet, whatever your division. |
 | The Red Work | `red.red_king_crown` | Garnet Crown | `costume` | **capstone** | `alchemy.red_king_crown` | A costume: a crown of dark gold and garnets over a velvet cap. Worn in place of the party hat. |
-| The Still-Room | `still.distiller` | Distiller | `title` | common | `distiller` | A title for your profile: Distiller. |
+| The Still-Room | `still.distiller` | The Alchemist | `title` | common | `distiller` | A title for your profile: The Alchemist. |
 | The Still-Room | `still.crystalet_dock` | Crystalet Dock | `dockSet` | rare | `crystalet` | The dock's icons, drawn with the Crystalet, whatever your division. |
 | The Still-Room | `still.brass_monocle` | Brass Monocle | `costume` | epic | `alchemy.brass_monocle` | A costume: a brass monocle on a chain of brass beads. Worn in place of the sunglasses. |
 
@@ -33,19 +33,22 @@ snippet below gives them `epic`, which nothing reads. The other capstones
 
 ## Titles: the words chosen
 
-The catalog's titles were the stage names in Latin. They are English now,
-one plain word or two that fit what each batch is made of:
+The catalog's titles were the stage names in Latin, then plain trade words
+(Inkmaker, Silversmith, Gilder, Ember Keeper, Distiller). The author picked
+the names now in place (2026-10-11), each a name for the player:
 
-- **The Black Work → Inkmaker** (Ink Sigil, Ink Mushrooms, Ink Plume).
-- **The White Work → Silversmith** (Silver Sigil, Quicksilver).
-- **The Yellow Work → Gilder** (Gold Case, Gilt Sigil, Gold Leaf, Gold Steps, the Gilded Throne).
-- **The Red Work → Ember Keeper** (Ember Bowl, Ember Nest, Rising Embers).
-- **The Still-Room → Distiller** (the catalog's own).
+- **The Black Work → Dark Fuser** (a fuser of the Dark element).
+- **The White Work → Light Fuser** (a fuser of the Light element).
+- **The Yellow Work → The Collector** (the gold batch: the case, the steps, the throne).
+- **The Red Work → The Unknown**.
+- **The Still-Room → The Alchemist** (the workshop's own).
 
-"Black Worker", "White Worker", "Yellow Worker" and "Red Worker" were
-passed over on purpose: a color word before a word for a person reads as
-race ("Yellow" worst) or politics ("Red Worker"). Titles are worn under the
-player's name, so they must not.
+The piece ids and grantRefs keep the first words (`black.inkmaker` /
+`inkmaker` and so on): they are save keys, so a title already owned shows
+its new name. "Black Worker", "White Worker", "Yellow Worker" and
+"Red Worker" were passed over on purpose: a color word before a word for a
+person reads as race ("Yellow" worst) or politics ("Red Worker"). Titles are
+worn under the player's name, so they must not.
 
 ## Where each lives
 
@@ -79,31 +82,31 @@ player's name, so they must not.
 
 ```dart
 // The Black Work
-AthanorPiece(id: 'black.inkmaker', name: 'Inkmaker', description: 'A title for your profile: Inkmaker.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'inkmaker'),
+AthanorPiece(id: 'black.inkmaker', name: 'Dark Fuser', description: 'A title for your profile: Dark Fuser.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'inkmaker'),
 AthanorPiece(id: 'black.ink_bloom', name: 'Ink Plume', description: 'An alchemy effect: ink rises from the ground around an Alchemon and curls up in slow plumes.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.rare, grantRef: InvKeys.alchemyInkBloom),
 AthanorPiece(id: 'black.darklet_dock', name: 'Darklet Dock', description: "The dock's icons, drawn with the Darklet, whatever your division.", kind: AthanorPieceKind.dockSet, rarity: AthanorRarity.rare, grantRef: 'darklet'),
 // capstone:
 AthanorPiece(id: 'black.peacock_tail', name: "Oil Slick", description: 'An alchemy effect: an Alchemon stands in a pool of black that shows every color, slowly marbling.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.epic, grantRef: InvKeys.alchemyPeacockTail),
 
 // The White Work
-AthanorPiece(id: 'white.silversmith', name: 'Silversmith', description: 'A title for your profile: Silversmith.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'silversmith'),
+AthanorPiece(id: 'white.silversmith', name: 'Light Fuser', description: 'A title for your profile: Light Fuser.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'silversmith'),
 AthanorPiece(id: 'white.quicksilver', name: 'Quicksilver', description: 'An alchemy effect: an Alchemon stands in a pool of liquid silver, with beads of it rolling around.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.rare, grantRef: InvKeys.alchemyQuicksilver),
 AthanorPiece(id: 'white.spiritlet_dock', name: 'Spiritlet Dock', description: "The dock's icons, drawn with the Spiritlet, whatever your division.", kind: AthanorPieceKind.dockSet, rarity: AthanorRarity.rare, grantRef: 'spiritlet'),
 
 // The Yellow Work
-AthanorPiece(id: 'yellow.gilder', name: 'Gilder', description: 'A title for your profile: Gilder.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'gilder'),
+AthanorPiece(id: 'yellow.gilder', name: 'The Collector', description: 'A title for your profile: The Collector.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'gilder'),
 AthanorPiece(id: 'yellow.gold_leaf', name: 'Gold Leaf', description: 'An alchemy effect: flakes of gold leaf drift down around an Alchemon and settle at its feet.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.rare, grantRef: InvKeys.alchemyGoldLeaf),
 AthanorPiece(id: 'yellow.lightlet_dock', name: 'Lightlet Dock', description: "The dock's icons, drawn with the Lightlet, whatever your division.", kind: AthanorPieceKind.dockSet, rarity: AthanorRarity.rare, grantRef: 'lightlet'),
 
 // The Red Work
-AthanorPiece(id: 'red.ember_keeper', name: 'Ember Keeper', description: 'A title for your profile: Ember Keeper.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'ember_keeper'),
+AthanorPiece(id: 'red.ember_keeper', name: 'The Unknown', description: 'A title for your profile: The Unknown.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'ember_keeper'),
 AthanorPiece(id: 'red.cinnabar', name: 'Cinnabar', description: 'An alchemy effect: red smoke and grains of cinnabar rise from the ground around an Alchemon.', kind: AthanorPieceKind.alchemyEffect, rarity: AthanorRarity.rare, grantRef: InvKeys.alchemyCinnabar),
 AthanorPiece(id: 'red.bloodlet_dock', name: 'Bloodlet Dock', description: "The dock's icons, drawn with the Bloodlet, whatever your division.", kind: AthanorPieceKind.dockSet, rarity: AthanorRarity.rare, grantRef: 'bloodlet'),
 // capstone:
 AthanorPiece(id: 'red.red_king_crown', name: 'Garnet Crown', description: 'A costume: a crown of dark gold and garnets over a velvet cap. Worn in place of the party hat.', kind: AthanorPieceKind.costume, rarity: AthanorRarity.epic, grantRef: InvKeys.alchemyRedKingCrown),
 
 // The Still-Room
-AthanorPiece(id: 'still.distiller', name: 'Distiller', description: 'A title for your profile: Distiller.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'distiller'),
+AthanorPiece(id: 'still.distiller', name: 'The Alchemist', description: 'A title for your profile: The Alchemist.', kind: AthanorPieceKind.title, rarity: AthanorRarity.common, grantRef: 'distiller'),
 AthanorPiece(id: 'still.crystalet_dock', name: 'Crystalet Dock', description: "The dock's icons, drawn with the Crystalet, whatever your division.", kind: AthanorPieceKind.dockSet, rarity: AthanorRarity.rare, grantRef: 'crystalet'),
 AthanorPiece(id: 'still.brass_monocle', name: 'Brass Monocle', description: 'A costume: a brass monocle on a chain of brass beads. Worn in place of the sunglasses.', kind: AthanorPieceKind.costume, rarity: AthanorRarity.epic, grantRef: InvKeys.alchemyBrassMonocle),
 ```

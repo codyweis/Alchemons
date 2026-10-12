@@ -584,7 +584,8 @@ class InvKeys {
   static const alchemyBrassMonocle = 'alchemy.brass_monocle';
 
   /// Items only the Athanor gives: the shop never sells them
-  /// (ShopService.sells).
+  /// (ShopService.sells), except the two costumes once the Furnace has given
+  /// them (ShopService.furnaceCostumeOffers).
   static const Set<String> athanorOnlyItems = {
     alchemyInkBloom,
     alchemyPeacockTail,
@@ -952,7 +953,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'A crown of dark gold and garnets over a velvet cap. Fits '
           '${FamilyCostume.fittedFamiliesText}. Worn in place of the party '
-          'hat. From the Furnace.',
+          'hat. From the Furnace; once it is drawn, the shop sells more.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyBrassMonocle: InventoryItemDef(
@@ -961,7 +962,8 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'A brass monocle on a chain of brass beads. Fits '
           '${FamilyCostume.fittedFamiliesText}. Worn in place of the '
-          'sunglasses. From the Furnace.',
+          'sunglasses. From the Furnace; once it is drawn, the shop sells '
+          'more.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.staminaPotion: InventoryItemDef(
@@ -1069,9 +1071,9 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
 
   registry[InvKeys.athanorTincture] = InventoryItemDef(
     key: InvKeys.athanorTincture,
-    name: 'Tincture',
+    name: 'Sparks',
     description:
-        'Poured into the Furnace on home to draw a cosmetic, '
+        'Poured into the Furnace on home to draw a piece, '
         '$kAthanorTincturePerPour to a pour. '
         'Earned in play.',
     icon: AppIcons.water_drop_rounded,

@@ -7,11 +7,15 @@
 //
 // The draw is weighted by rarity. [athanorNextPourOdds] is both what the odds
 // sheet shows and what [athanorDraw] rolls on, so the two cannot disagree.
-// Everything in a batch is cosmetic: nothing here changes power, odds or the
-// economy, because a gold pour is a paid draw.
+// Everything in a batch is cosmetic but one common square each, Enhance
+// Orbs (author, 2026-10-11): 1–5 Enhance orbs and a Potential Soul, things
+// the shop sells outright, so a batch gives five souls at most in all.
 
 import 'dart:convert';
 import 'dart:math';
+
+import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/inventory.dart';
 
 // The batches on offer live in their own file.
 export 'athanor_batches.dart' show kAthanorBatches;
@@ -62,6 +66,31 @@ enum AthanorPieceKind {
 
   /// An ambience laid over a home realm.
   ambience,
+
+  /// Enhance supplies: [athanorRollEnhanceOrbs] at the draw, into the
+  /// inventory. [AthanorPiece.grantRef] is unused.
+  enhanceOrbs,
+}
+
+/// How many Enhance orbs an Enhance Orbs piece gives, at least and at most.
+const int kAthanorEnhanceOrbsMin = 1;
+const int kAthanorEnhanceOrbsMax = 5;
+
+/// What an Enhance Orbs piece gives, by inventory key, rolled at the draw:
+/// [kAthanorEnhanceOrbsMin]–[kAthanorEnhanceOrbsMax] Enhance orbs, each of a
+/// stat at random, and one Potential Soul.
+Map<String, int> athanorRollEnhanceOrbs(Random rng) {
+  final items = <String, int>{};
+  final orbs =
+      kAthanorEnhanceOrbsMin +
+      rng.nextInt(kAthanorEnhanceOrbsMax - kAthanorEnhanceOrbsMin + 1);
+  const types = AlchemicalPowerupType.values;
+  for (var i = 0; i < orbs; i++) {
+    final key = types[rng.nextInt(types.length)].inventoryKey;
+    items.update(key, (n) => n + 1, ifAbsent: () => 1);
+  }
+  items[InvKeys.potentialSoul] = 1;
+  return items;
 }
 
 extension AthanorPieceKindOwnership on AthanorPieceKind {
@@ -124,6 +153,12 @@ class AthanorBatch {
 const int kAthanorTincturePerPour = 25;
 const int kAthanorGoldPerPour = 50;
 
+/// [n] of the Furnace's reagent as a player reads it: "1 spark", "25 sparks".
+/// (In code it is still tincture; on screen it is sparks.)
+String athanorSparks(int n, {bool title = false}) => n == 1
+    ? (title ? '1 Spark' : '1 spark')
+    : (title ? '$n Sparks' : '$n sparks');
+
 /// How many of a Curio (small home decor) one draw gives.
 const int kAthanorCurioCopies = 3;
 
@@ -134,7 +169,6 @@ const int kAthanorFirstFireTincture = 30;
 /// The most first fire pays back for achievements and dungeon stars claimed
 /// before the Athanor existed.
 const int kAthanorFirstFireBackPayCap = 90;
-
 
 /// The chance of each piece still left in [batch] on the next pour, given
 /// the ids already [drawn]. In the batch's order; sums to 1 while anything
@@ -198,6 +232,9 @@ int athanorContestTincture(int level) => 2 * (level < 1 ? 1 : level);
 /// paid their tincture, so first fire pays back only the ones claimed
 /// before the Athanor existed.
 const String kAthanorPaidAchievementsKey = 'athanor_paid_achievements_v1';
+
+/// The settings row that says the Furnace's how-it-works has been read.
+const String kAthanorIntroSeenKey = 'athanor_intro_seen_v1';
 const String kAthanorPaidStarsKey = 'athanor_paid_stars_v1';
 
 /// What first fire gives: [kAthanorFirstFireTincture], plus what the
@@ -265,6 +302,13 @@ class AthanorState {
   final bool firstFire;
 
   Set<String> drawnIn(String batchId) => drawn[batchId] ?? const {};
+
+  /// Whether [piece] of [batch] has been given: drawn, or for the capstone,
+  /// given with the batch's last piece.
+  bool gave(AthanorBatch batch, AthanorPiece piece) =>
+      piece.id == batch.capstone.id
+      ? capstones.contains(batch.id)
+      : drawnIn(batch.id).contains(piece.id);
 
   factory AthanorState.decode(String? raw) {
     if (raw == null || raw.isEmpty) return empty;

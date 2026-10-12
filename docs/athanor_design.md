@@ -1,17 +1,21 @@
 # The Athanor
 
+> **Names on screen (2026-10-11):** the feature is **The Furnace** and its reagent is **Sparks** ("1 spark", "25 sparks"). The code still calls them Athanor and tincture. A paid pour (sparks or gold) is **pressed and held** until the button fills (0.85 s); a tap or an early let-go spends nothing, and the hold replaces the gold confirmation. The free daily pour is still a tap.
+
+
 The furnace on home where a pour draws a cosmetic. It replaces the Daily Treasure Chest. Decided with the author on 2026-10-10.
 
 ## Rules
 
-- **What a pour draws.** A pour draws one cosmetic from a **batch**, a themed set of 8–10 pieces. Pieces are drawn **without replacement**: every pour gives a piece the player does not own yet, so a batch of N is finished in at most N pours. The player picks which batch to pour into.
+- **What a pour draws.** A pour draws one piece from a **batch**, a themed set of 11 pieces (5 common, 3 rare, 3 epic). Pieces are drawn **without replacement**: every pour gives a piece the player does not own yet, so a batch of N is finished in at most N pours. The player picks which batch to pour into.
 - **Rarity.** Pieces are weighted common ×10, rare ×5, epic ×2, so rarer pieces tend to come later. The **capstone** comes with a batch's last piece and from nowhere else.
 - **Paying for a pour.**
   - **Tincture**: 25 per pour (`kAthanorTincturePerPour`; 10 until 2026-10-11, when the one-time sources alone covered most of the content). Tincture is earned in play only and is never sold.
   - **Gold**: 50 per pour (`kAthanorGoldPerPour`). Gold can be bought, so this is a paid random draw. Gold pours are off where the storefront country is Belgium (`BE` / `BEL`). Tincture pours stay on there.
   - **Daily pour**: one free pour a day, on the UTC day, keyed like the chest. It also gives what the chest gave: 150–500 silver, a 15% chance of 1 gold, and a 25% chance of a common vial. When no batch has a piece left (or there are no batches), the day's chest rewards are taken without a draw (`takeDailyExtras`); either way spends the day.
 - **Odds.** Before every pour the player can see the odds for the **next** pour: each piece left and its chance. `athanorNextPourOdds` is both the sheet and the draw (`lib/models/athanor.dart`).
-- **Cosmetic only.** Nothing in a batch changes power, odds or the economy. Survival orb skins change orb HP and passives, so they never go in. Athanor pieces are never sold in the shop.
+- **Cosmetic, but for Enhance Orbs.** Nothing in a batch changes power, odds or the economy, except one common square per batch (author, 2026-10-11): **Enhance Orbs**, 1–5 Enhance orbs of random stats (`kAthanorEnhanceOrbsMin`–`Max`) and one Potential Soul, rolled at the draw (`athanorRollEnhanceOrbs`) and listed after the reveal. The shop sells all of these outright (orbs 10 gold, a soul 150), so the Furnace adds five souls at most in all. Survival orb skins change orb HP and passives, so they never go in. Athanor pieces are never sold in the shop, except the two costumes once drawn (below).
+- **Costumes, once drawn.** A crown or monocle is worn by one Alchemon. Once the Furnace has given one (that one is free), the shop sells more at 25 gold (`ShopService.furnaceCostumeOffers`, author 2026-10-11).
 - **First fire.** The first time a player opens the Athanor they get 30 tincture (a pour and a bit), plus back-pay: 1 for every achievement and 3 for every dungeon star claimed before the Athanor existed, capped at 90 (`kAthanorFirstFireBackPayCap`). Claims that already paid tincture are counted (`athanor_paid_achievements_v1`, `athanor_paid_stars_v1`) and left out. Stars earned but not yet claimed pay when they are claimed. This is the launch gift for existing saves.
 
 ## Earning tincture

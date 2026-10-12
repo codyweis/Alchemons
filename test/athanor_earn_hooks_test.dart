@@ -44,7 +44,7 @@ void main() {
       expect(await tincture(), expected);
       final line = entries.where((e) => e.itemKey == InvKeys.athanorTincture);
       expect(line, hasLength(1));
-      expect(line.single.label, '+${athanorRaidTincture(level)} Tincture');
+      expect(line.single.label, '+${athanorRaidTincture(level)} Sparks');
     }
     expect(expected, 3 + 5 + 8);
   });
@@ -55,7 +55,7 @@ void main() {
       element: 'volcanic',
       starIndex: 0,
     );
-    expect(star1, ['+10 Gold', '+3 Tincture']);
+    expect(star1, ['+10 Gold', '+3 Sparks']);
     expect(await tincture(), 3);
 
     final star2 = await grantStarReward(
@@ -64,7 +64,7 @@ void main() {
       starIndex: 1,
       rng: Random(1),
     );
-    expect(star2.last, '+3 Tincture');
+    expect(star2.last, '+3 Sparks');
     expect(await tincture(), 6);
 
     final star3 = await grantStarReward(
@@ -73,7 +73,7 @@ void main() {
       starIndex: 2,
       choice: Star3Choice.gold,
     );
-    expect(star3.last, '+3 Tincture');
+    expect(star3.last, '+3 Sparks');
     expect(star3, contains('+25 Gold'));
     expect(await tincture(), 9);
 

@@ -53,6 +53,7 @@ void main() {
     String country = 'US',
     int gold = 0,
     bool dailyTaken = false,
+    bool introSeen = true,
   }) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(390 * 3, 844 * 3);
@@ -71,6 +72,9 @@ void main() {
       final have = await db.currencyDao.getGoldBalance();
       await db.currencyDao.addGold(gold - have);
       await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 40);
+      if (introSeen) {
+        await db.settingsDao.setSetting(kAthanorIntroSeenKey, '1');
+      }
       svc = AthanorService(
         db,
         batches: batches ?? [_batch],
@@ -118,27 +122,55 @@ void main() {
     expect(find.text('Comes with the last piece.'), findsOneWidget);
   });
 
+  testWidgets('the first open explains how it works, once; the sparks '
+      'balance explains it again', (tester) async {
+    final svc = await open(tester, introSeen: false);
+    await settle(tester);
+    expect(find.text('THE FURNACE'), findsWidgets);
+    expect(find.textContaining('Every pour gives a piece'), findsOneWidget);
+    // Through its three pages: NEXT, NEXT, CONTINUE.
+    for (final button in ['NEXT', 'NEXT', 'CONTINUE']) {
+      await tester.tap(find.text(button).last);
+      await settle(tester);
+    }
+    expect(find.textContaining('Every pour gives a piece'), findsNothing);
+    expect(svc.introSeen, isTrue);
+
+    await tester.tap(find.bySemanticsLabel(RegExp('How the Furnace works')));
+    await settle(tester);
+    expect(find.textContaining('Every pour gives a piece'), findsOneWidget);
+  });
+
   testWidgets('no gold pour where gold pours are off', (tester) async {
     await open(tester, country: 'BE', gold: 500);
     expect(
-      find.bySemanticsLabel('POUR · $kAthanorTincturePerPour TINCTURE'),
+      find.bySemanticsLabel('POUR · $kAthanorTincturePerPour SPARKS'),
       findsOneWidget,
     );
     expect(find.bySemanticsLabel('POUR · 50 GOLD'), findsNothing);
   });
 
-  testWidgets('a gold pour asks first, and cancelling spends nothing', (
-    tester,
-  ) async {
+  testWidgets('a paid pour is held: a tap or an early let-go spends '
+      'nothing, a full hold pours', (tester) async {
     final svc = await open(tester, gold: 500, dailyTaken: true);
     expect(find.text('FREE POUR'), findsNothing);
-    await tester.tap(find.bySemanticsLabel('POUR · 50 GOLD'));
+    final gold = find.bySemanticsLabel('POUR · 50 GOLD');
+
+    await tester.tap(gold);
     await settle(tester);
-    expect(find.text('POUR GOLD'), findsOneWidget);
-    await tester.tap(find.text('CANCEL'));
+    final early = await tester.startGesture(tester.getCenter(gold));
+    await tester.pump(const Duration(milliseconds: 400));
+    await early.up();
     await settle(tester);
     expect(svc.gold, 500);
     expect(svc.drawnIn(_batch.id), isEmpty);
+
+    await holdPour(tester, gold);
+    for (var i = 0; i < 40 && svc.drawnIn(_batch.id).isEmpty; i++) {
+      await settle(tester);
+    }
+    expect(svc.drawnIn(_batch.id), hasLength(1));
+    expect(svc.gold, 500 - kAthanorGoldPerPour);
   });
 
   testWidgets('the free daily: a pour, or a collect with nothing to pour for', (
@@ -186,8 +218,9 @@ void main() {
     }
 
     expect(find.text('4 OF 4 LEFT'), findsOneWidget);
-    await tester.tap(
-      find.bySemanticsLabel('POUR · $kAthanorTincturePerPour TINCTURE'),
+    await holdPour(
+      tester,
+      find.bySemanticsLabel('POUR · $kAthanorTincturePerPour SPARKS'),
     );
     // The pour's transaction is done within a few frames.
     for (var i = 0; i < 40 && svc.drawnIn(_batch.id).isEmpty; i++) {
@@ -225,6 +258,15 @@ void main() {
 
 /// The furnace never stops burning: frames, with real time let through for
 /// the database.
+/// Presses [button] and holds it until the pour goes (it fills in 0.85 s).
+Future<void> holdPour(WidgetTester tester, Finder button) async {
+  final g = await tester.startGesture(tester.getCenter(button));
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
+  await g.up();
+}
+
 Future<void> settle(WidgetTester tester) async {
   for (var i = 0; i < 10; i++) {
     await tester.pump(const Duration(milliseconds: 50));

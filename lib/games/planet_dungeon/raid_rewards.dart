@@ -88,7 +88,7 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
   entries.add(
     RaidRewardEntry(
       itemKey: InvKeys.athanorTincture,
-      label: '+$tincture Tincture',
+      label: '+$tincture Sparks',
     ),
   );
   return entries;

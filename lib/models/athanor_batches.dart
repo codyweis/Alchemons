@@ -20,11 +20,19 @@ const List<AthanorBatch> kAthanorBatches = [
     pieces: [
       AthanorPiece(
         id: 'black.inkmaker',
-        name: 'Inkmaker',
+        name: 'Dark Fuser',
         description: 'A title, shown on your profile.',
         kind: AthanorPieceKind.title,
         rarity: AthanorRarity.common,
         grantRef: 'inkmaker',
+      ),
+      AthanorPiece(
+        id: 'black.enhance_orbs',
+        name: 'Enhance Orbs',
+        description: '1 to 5 Enhance orbs and a Potential Soul.',
+        kind: AthanorPieceKind.enhanceOrbs,
+        rarity: AthanorRarity.common,
+        grantRef: 'enhance_orbs',
       ),
       AthanorPiece(
         id: 'black.obsidian_case',
@@ -125,11 +133,19 @@ const List<AthanorBatch> kAthanorBatches = [
     pieces: [
       AthanorPiece(
         id: 'white.silversmith',
-        name: 'Silversmith',
+        name: 'Light Fuser',
         description: 'A title, shown on your profile.',
         kind: AthanorPieceKind.title,
         rarity: AthanorRarity.common,
         grantRef: 'silversmith',
+      ),
+      AthanorPiece(
+        id: 'white.enhance_orbs',
+        name: 'Enhance Orbs',
+        description: '1 to 5 Enhance orbs and a Potential Soul.',
+        kind: AthanorPieceKind.enhanceOrbs,
+        rarity: AthanorRarity.common,
+        grantRef: 'enhance_orbs',
       ),
       AthanorPiece(
         id: 'white.frost_case',
@@ -227,11 +243,19 @@ const List<AthanorBatch> kAthanorBatches = [
     pieces: [
       AthanorPiece(
         id: 'yellow.gilder',
-        name: 'Gilder',
+        name: 'The Collector',
         description: 'A title, shown on your profile.',
         kind: AthanorPieceKind.title,
         rarity: AthanorRarity.common,
         grantRef: 'gilder',
+      ),
+      AthanorPiece(
+        id: 'yellow.enhance_orbs',
+        name: 'Enhance Orbs',
+        description: '1 to 5 Enhance orbs and a Potential Soul.',
+        kind: AthanorPieceKind.enhanceOrbs,
+        rarity: AthanorRarity.common,
+        grantRef: 'enhance_orbs',
       ),
       AthanorPiece(
         id: 'yellow.gilt_case',
@@ -329,11 +353,19 @@ const List<AthanorBatch> kAthanorBatches = [
     pieces: [
       AthanorPiece(
         id: 'red.ember_keeper',
-        name: 'Ember Keeper',
+        name: 'The Unknown',
         description: 'A title, shown on your profile.',
         kind: AthanorPieceKind.title,
         rarity: AthanorRarity.common,
         grantRef: 'ember_keeper',
+      ),
+      AthanorPiece(
+        id: 'red.enhance_orbs',
+        name: 'Enhance Orbs',
+        description: '1 to 5 Enhance orbs and a Potential Soul.',
+        kind: AthanorPieceKind.enhanceOrbs,
+        rarity: AthanorRarity.common,
+        grantRef: 'enhance_orbs',
       ),
       AthanorPiece(
         id: 'red.garnet_case',
@@ -431,11 +463,19 @@ const List<AthanorBatch> kAthanorBatches = [
     pieces: [
       AthanorPiece(
         id: 'still.distiller',
-        name: 'Distiller',
+        name: 'The Alchemist',
         description: 'A title, shown on your profile.',
         kind: AthanorPieceKind.title,
         rarity: AthanorRarity.common,
         grantRef: 'distiller',
+      ),
+      AthanorPiece(
+        id: 'still.enhance_orbs',
+        name: 'Enhance Orbs',
+        description: '1 to 5 Enhance orbs and a Potential Soul.',
+        kind: AthanorPieceKind.enhanceOrbs,
+        rarity: AthanorRarity.common,
+        grantRef: 'enhance_orbs',
       ),
       AthanorPiece(
         id: 'still.brass_case',

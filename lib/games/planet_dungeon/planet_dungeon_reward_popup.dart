@@ -233,7 +233,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   /// the branded glowing powerup orbs, the extractor and tincture glyphs.
   Widget _rewardArt(String line, double size) {
     if (line.contains('Guardian Relic')) return _relicArt(size);
-    if (line.contains('Tincture')) return TinctureGlyph(size: size);
+    if (line.contains('Sparks')) return TinctureGlyph(size: size);
     if (line.contains('Gold')) return CoinIcon.gold(size: size);
     if (line.contains('Extractor')) {
       return InstantExtractorGlyph(size: size);

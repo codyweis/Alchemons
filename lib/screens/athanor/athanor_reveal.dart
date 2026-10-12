@@ -76,6 +76,7 @@ String athanorKindLabel(AthanorPieceKind kind) => switch (kind) {
   AthanorPieceKind.trail => 'TRAIL',
   AthanorPieceKind.fusionStyle => 'FUSION STYLE',
   AthanorPieceKind.ambience => 'HOME AMBIENCE',
+  AthanorPieceKind.enhanceOrbs => 'SUPPLIES',
 };
 
 /// One pour from the tap to CONTINUE.
