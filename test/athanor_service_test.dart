@@ -3,9 +3,9 @@
 //
 // These run the service against an in-memory database: a pour that cannot
 // be paid changes nothing, tincture and gold are spent exactly, the capstone
-// comes with the last piece, the daily pour is once per UTC day and pays the
-// old chest's rewards (with or without a draw), gold pours alone are off in
-// Belgium, the first fire is given once with its back-pay, and each kind of
+// comes with the last piece, no pour is free, the daily collect is once per
+// UTC day and pays a few sparks and the old chest's rewards, gold pours alone
+// are off in Belgium, the first fire is given once with its back-pay, and each kind of
 // piece lands in its own system.
 
 import 'dart:math';
@@ -64,7 +64,7 @@ const _batch = AthanorBatch(
 );
 
 /// A Random that plays back [doubles] and [ints], then falls back to a seeded
-/// one, so a test can choose what the daily chest rolls.
+/// one, so a test can choose what the daily collect rolls.
 class _ScriptedRandom implements Random {
   _ScriptedRandom({List<double> doubles = const [], List<int> ints = const []})
     : _doubles = [...doubles],
@@ -269,60 +269,69 @@ void main() {
     });
   });
 
-  group('the daily pour', () {
-    test('is once per UTC day and pays the chest', () async {
+  group('the daily collect', () {
+    Future<int> tincture() =>
+        db.inventoryDao.getItemQty(InvKeys.athanorTincture);
+
+    test('is once per UTC day and pays sparks and the chest', () async {
       final athanor = service(country: 'US');
       await athanor.load();
-      expect(athanor.dailyPourReady, isTrue);
-      expect(athanor.canPour('test', AthanorPayment.daily), isTrue);
+      expect(athanor.dailyReady, isTrue);
 
-      final result = await athanor.pour('test', AthanorPayment.daily);
-      expect(result, isNotNull);
-      final extras = result!.daily!;
-      expect(extras.silver, inInclusiveRange(150, 500));
-      expect(extras.gold, anyOf(0, 1));
-      expect(await silver(), extras.silver);
-      expect(await gold(), extras.gold);
-      expect(athanor.dailyPourReady, isFalse);
+      final daily = await athanor.collectDaily();
+      expect(daily, isNotNull);
+      expect(
+        daily!.sparks,
+        inInclusiveRange(kAthanorDailySparksMin, kAthanorDailySparksMax),
+      );
+      expect(daily.silver, inInclusiveRange(150, 500));
+      expect(daily.gold, anyOf(0, 1));
+      expect(await tincture(), daily.sparks);
+      expect(athanor.tincture, daily.sparks);
+      expect(await silver(), daily.silver);
+      expect(await gold(), daily.gold);
+      expect(athanor.drawnIn('test'), isEmpty);
+      expect(athanor.dailyReady, isFalse);
 
       // Again the same day: refused, nothing paid.
-      expect(await athanor.pour('test', AthanorPayment.daily), isNull);
-      expect(await silver(), extras.silver);
-      expect(athanor.drawnIn('test'), hasLength(1));
+      expect(await athanor.collectDaily(), isNull);
+      expect(await tincture(), daily.sparks);
+      expect(await silver(), daily.silver);
 
       // Late the same UTC day still counts as today.
       now = DateTime.utc(2026, 10, 10, 23, 59);
-      expect(athanor.dailyPourReady, isFalse);
+      expect(athanor.dailyReady, isFalse);
 
       // The next UTC day it is back, without a reload.
       now = DateTime.utc(2026, 10, 11, 0, 1);
-      expect(athanor.dailyPourReady, isTrue);
-      expect(await athanor.pour('test', AthanorPayment.daily), isNotNull);
-      expect(athanor.drawnIn('test'), hasLength(2));
+      expect(athanor.dailyReady, isTrue);
+      expect(await athanor.collectDaily(), isNotNull);
     });
 
     test('ignores the old chest key: everyone starts with one', () async {
       await db.settingsDao.setSetting('daily_loot_key', athanorDayKey(now));
       final athanor = service(country: 'US');
       await athanor.load();
-      expect(athanor.dailyPourReady, isTrue);
+      expect(athanor.dailyReady, isTrue);
     });
 
     test('pays its gold and its common vial when they roll', () async {
       final catalog = CreatureCatalog();
       await catalog.load();
-      // Draw, then silver 0 → 150, gold 0.1 < 0.15, vial 0.1 < 0.25, group 0.
+      // Sparks 0 → the least, silver 0 → 150, gold 0.1 < 0.15, vial 0.1 <
+      // 0.25, group 0.
       final athanor = service(
         country: 'US',
         catalog: catalog,
-        random: _ScriptedRandom(doubles: [0.0, 0.1, 0.1], ints: [0, 0]),
+        random: _ScriptedRandom(doubles: [0.1, 0.1], ints: [0, 0, 0]),
       );
       await athanor.load();
-      final extras = (await athanor.pour('test', AthanorPayment.daily))!.daily!;
-      expect(extras.silver, 150);
-      expect(extras.gold, 1);
-      expect(extras.vialGroupName, isNotNull);
-      final group = extras.vialGroup!;
+      final daily = (await athanor.collectDaily())!;
+      expect(daily.sparks, kAthanorDailySparksMin);
+      expect(daily.silver, 150);
+      expect(daily.gold, 1);
+      expect(daily.vialGroupName, isNotNull);
+      final group = daily.vialGroup!;
       expect(group, isNot(ElementalGroup.arcane));
       final vialKey = 'vial.${group.name}.common.Daily Vial';
       expect(await db.inventoryDao.getItemQty(vialKey), 1);
@@ -336,27 +345,63 @@ void main() {
       final athanor = service(
         country: 'US',
         catalog: catalog,
-        random: _ScriptedRandom(doubles: [0.0, 0.9, 0.9], ints: [350]),
+        random: _ScriptedRandom(doubles: [0.9, 0.9], ints: [99, 350]),
       );
       await athanor.load();
-      final extras = (await athanor.pour('test', AthanorPayment.daily))!.daily!;
-      expect(extras.silver, 500);
-      expect(extras.gold, 0);
-      expect(extras.vialGroupName, isNull);
+      final daily = (await athanor.collectDaily())!;
+      expect(daily.sparks, kAthanorDailySparksMax);
+      expect(daily.silver, 500);
+      expect(daily.gold, 0);
+      expect(daily.vialGroupName, isNull);
       expect(await gold(), 0);
     });
 
-    test('a paid pour leaves the daily alone and pays no extras', () async {
+    test('no pour is free', () async {
+      final athanor = service(country: 'US');
+      await athanor.load();
+      expect(athanor.dailyReady, isTrue);
+      for (final payment in AthanorPayment.values) {
+        expect(athanor.canPour('test', payment), isFalse, reason: '$payment');
+        expect(await athanor.pour('test', payment), isNull);
+      }
+      expect(athanor.drawnIn('test'), isEmpty);
+    });
+
+    test('a pour leaves the daily alone', () async {
       await db.inventoryDao.addItemQty(
         InvKeys.athanorTincture,
         kAthanorTincturePerPour,
       );
       final athanor = service(country: 'US');
       await athanor.load();
-      final result = await athanor.pour('test', AthanorPayment.tincture);
-      expect(result!.daily, isNull);
+      expect(await athanor.pour('test', AthanorPayment.tincture), isNotNull);
       expect(await silver(), 0);
-      expect(athanor.dailyPourReady, isTrue);
+      expect(athanor.dailyReady, isTrue);
+    });
+
+    test('works with every batch done, or none at all', () async {
+      final athanor = AthanorService(
+        db,
+        batches: const [],
+        storefrontCountry: () async => 'US',
+        clock: () => now,
+      );
+      await athanor.load();
+      expect(athanor.anyPiecesLeft, isFalse);
+      expect(athanor.dailyReady, isTrue);
+      expect(await athanor.collectDaily(), isNotNull);
+      expect(athanor.dailyReady, isFalse);
+    });
+
+    test('anyPiecesLeft follows the batches', () async {
+      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 100);
+      final athanor = service(country: 'US');
+      await athanor.load();
+      for (var i = 0; i < _batch.pieces.length; i++) {
+        expect(athanor.anyPiecesLeft, isTrue);
+        await athanor.pour('test', AthanorPayment.tincture);
+      }
+      expect(athanor.anyPiecesLeft, isFalse);
     });
   });
 
@@ -377,9 +422,7 @@ void main() {
         expect(await gold(), 500);
 
         expect(athanor.canPour('test', AthanorPayment.tincture), isTrue);
-        expect(athanor.canPour('test', AthanorPayment.daily), isTrue);
         expect(await athanor.pour('test', AthanorPayment.tincture), isNotNull);
-        expect(await athanor.pour('test', AthanorPayment.daily), isNotNull);
       });
     }
 
@@ -419,69 +462,6 @@ void main() {
       await athanor.load();
       expect(asked, 1);
       expect(athanor.goldPoursAvailable, isFalse);
-    });
-  });
-
-  group('the daily without a draw', () {
-    test('pays the chest once per UTC day and draws nothing', () async {
-      final athanor = service(country: 'US');
-      await athanor.load();
-      final extras = await athanor.takeDailyExtras();
-      expect(extras, isNotNull);
-      expect(extras!.silver, inInclusiveRange(150, 500));
-      expect(await silver(), extras.silver);
-      expect(athanor.drawnIn('test'), isEmpty);
-      expect(athanor.dailyPourReady, isFalse);
-
-      expect(await athanor.takeDailyExtras(), isNull);
-      expect(await silver(), extras.silver);
-
-      now = DateTime.utc(2026, 10, 11, 0, 1);
-      expect(athanor.dailyPourReady, isTrue);
-      expect(await athanor.takeDailyExtras(), isNotNull);
-    });
-
-    test('shares the day with a daily pour: a pour first spends it', () async {
-      final athanor = service(country: 'US');
-      await athanor.load();
-      expect(await athanor.pour('test', AthanorPayment.daily), isNotNull);
-      final paid = await silver();
-      expect(await athanor.takeDailyExtras(), isNull);
-      expect(await silver(), paid);
-    });
-
-    test('shares the day with a daily pour: extras first spend it', () async {
-      final athanor = service(country: 'US');
-      await athanor.load();
-      expect(await athanor.takeDailyExtras(), isNotNull);
-      expect(athanor.canPour('test', AthanorPayment.daily), isFalse);
-      expect(await athanor.pour('test', AthanorPayment.daily), isNull);
-      expect(athanor.drawnIn('test'), isEmpty);
-    });
-
-    test('works with no batches at all', () async {
-      final athanor = AthanorService(
-        db,
-        batches: const [],
-        storefrontCountry: () async => 'US',
-        clock: () => now,
-      );
-      await athanor.load();
-      expect(athanor.anyPiecesLeft, isFalse);
-      expect(athanor.dailyPourReady, isTrue);
-      expect(await athanor.takeDailyExtras(), isNotNull);
-      expect(athanor.dailyPourReady, isFalse);
-    });
-
-    test('anyPiecesLeft follows the batches', () async {
-      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, 100);
-      final athanor = service(country: 'US');
-      await athanor.load();
-      for (var i = 0; i < _batch.pieces.length; i++) {
-        expect(athanor.anyPiecesLeft, isTrue);
-        await athanor.pour('test', AthanorPayment.tincture);
-      }
-      expect(athanor.anyPiecesLeft, isFalse);
     });
   });
 
@@ -591,47 +571,50 @@ void main() {
     });
   });
 
-  test('Enhance Orbs gives its orbs and soul, and says what they were', () async {
-    const orbs = AthanorPiece(
-      id: 'orbs.enhance_orbs',
-      name: 'Enhance Orbs',
-      description: '1 to 5 Enhance orbs and a Potential Soul.',
-      kind: AthanorPieceKind.enhanceOrbs,
-      rarity: AthanorRarity.common,
-      grantRef: 'enhance_orbs',
-    );
-    final athanor = AthanorService(
-      db,
-      batches: const [
-        AthanorBatch(
-          id: 'orbs',
-          name: 'Orbs',
-          description: 'A test batch.',
-          pieces: [orbs],
-          capstone: _capstone,
-        ),
-      ],
-      random: Random(5),
-      storefrontCountry: () async => 'US',
-      clock: () => now,
-    );
-    await db.inventoryDao.addItemQty(
-      InvKeys.athanorTincture,
-      kAthanorTincturePerPour,
-    );
-    await athanor.load();
-    final result = await athanor.pour('orbs', AthanorPayment.tincture);
-    expect(result?.piece.id, orbs.id);
-    final items = result!.items;
-    expect(items[InvKeys.potentialSoul], 1);
-    expect(
-      items.values.fold(0, (a, b) => a + b) - 1,
-      inInclusiveRange(kAthanorEnhanceOrbsMin, kAthanorEnhanceOrbsMax),
-    );
-    for (final e in items.entries) {
-      expect(await db.inventoryDao.getItemQty(e.key), e.value, reason: e.key);
-    }
-  });
+  test(
+    'Enhance Orbs gives its orbs and soul, and says what they were',
+    () async {
+      const orbs = AthanorPiece(
+        id: 'orbs.enhance_orbs',
+        name: 'Enhance Orbs',
+        description: '1 to 5 Enhance orbs and a Potential Soul.',
+        kind: AthanorPieceKind.enhanceOrbs,
+        rarity: AthanorRarity.common,
+        grantRef: 'enhance_orbs',
+      );
+      final athanor = AthanorService(
+        db,
+        batches: const [
+          AthanorBatch(
+            id: 'orbs',
+            name: 'Orbs',
+            description: 'A test batch.',
+            pieces: [orbs],
+            capstone: _capstone,
+          ),
+        ],
+        random: Random(5),
+        storefrontCountry: () async => 'US',
+        clock: () => now,
+      );
+      await db.inventoryDao.addItemQty(
+        InvKeys.athanorTincture,
+        kAthanorTincturePerPour,
+      );
+      await athanor.load();
+      final result = await athanor.pour('orbs', AthanorPayment.tincture);
+      expect(result?.piece.id, orbs.id);
+      final items = result!.items;
+      expect(items[InvKeys.potentialSoul], 1);
+      expect(
+        items.values.fold(0, (a, b) => a + b) - 1,
+        inInclusiveRange(kAthanorEnhanceOrbsMin, kAthanorEnhanceOrbsMax),
+      );
+      for (final e in items.entries) {
+        expect(await db.inventoryDao.getItemQty(e.key), e.value, reason: e.key);
+      }
+    },
+  );
 
   test('a saved row it cannot read loads as a fresh state', () async {
     await db.settingsDao.setSetting(AthanorState.key, '{not json');
@@ -643,7 +626,7 @@ void main() {
     await athanor.load();
     expect(athanor.loaded, isTrue);
     expect(athanor.drawnIn('test'), isEmpty);
-    expect(athanor.dailyPourReady, isTrue);
+    expect(athanor.dailyReady, isTrue);
     expect(await athanor.pour('test', AthanorPayment.tincture), isNotNull);
     expect(AthanorState.decode(await stateRow()).drawnIn('test'), hasLength(1));
   });

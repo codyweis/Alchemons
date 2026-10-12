@@ -6,8 +6,8 @@
 // A pour is one database transaction: the payment is checked again and
 // spent, the piece drawn on exactly the odds [AthanorService.nextPourOdds]
 // shows, granted through its kind's own system, and recorded. A pour that
-// is not allowed changes nothing. The free daily pour replaces the home
-// chest and still pays what the chest paid.
+// is not allowed changes nothing. Every pour is paid; the daily collect
+// replaces the home chest, paying what the chest paid and a few sparks.
 //
 // Gold pours are a paid random draw, so they are off where the storefront
 // country is Belgium. Tincture pours stay on there.
@@ -32,15 +32,20 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-enum AthanorPayment { daily, tincture, gold }
+enum AthanorPayment { tincture, gold }
 
-/// What the daily pour pays beside its piece: the old home chest's rewards.
-class AthanorDailyExtras {
-  const AthanorDailyExtras({
+/// What the daily collect pays: a few sparks and the old home chest's
+/// rewards.
+class AthanorDaily {
+  const AthanorDaily({
+    required this.sparks,
     required this.silver,
     required this.gold,
     this.vialGroupName,
   });
+
+  /// Tincture, [kAthanorDailySparksMin]–[kAthanorDailySparksMax].
+  final int sparks;
 
   final int silver;
 
@@ -67,7 +72,6 @@ class AthanorPourResult {
     required this.batch,
     required this.piece,
     this.capstone,
-    this.daily,
     this.items = const {},
   });
 
@@ -80,9 +84,6 @@ class AthanorPourResult {
 
   /// Given with this pour: the batch is done.
   final AthanorPiece? capstone;
-
-  /// The daily pour's chest rewards; null for a paid pour.
-  final AthanorDailyExtras? daily;
 }
 
 /// Whether [country] (alpha-2 or alpha-3, any case) is Belgium.
@@ -178,7 +179,7 @@ class AthanorService extends ChangeNotifier {
   final Random _random;
   final Future<String?> Function() _storefrontCountry;
 
-  /// For the daily pour's vial: only groups that can yield a common
+  /// For the daily collect's vial: only groups that can yield a common
   /// specimen give one. Without it no vial is given.
   final CreatureCatalog? _catalog;
   final DateTime Function() _clock;
@@ -266,10 +267,9 @@ class AthanorService extends ChangeNotifier {
   int get tincture => _tincture;
   int get gold => _gold;
 
-  /// Today's (UTC) free pour not yet taken. Read live, so a screen kept
+  /// Today's (UTC) daily collect not yet taken. Read live, so a screen kept
   /// open past midnight sees the new day.
-  bool get dailyPourReady =>
-      _loaded && _state.dailyKey != athanorDayKey(_clock());
+  bool get dailyReady => _loaded && _state.dailyKey != athanorDayKey(_clock());
 
   /// False where the storefront is Belgian, and until the country is known.
   bool get goldPoursAvailable => _countryKnown && _goldAllowed;
@@ -279,7 +279,6 @@ class AthanorService extends ChangeNotifier {
     final batch = batchById(batchId);
     if (batch == null || isComplete(batchId)) return false;
     return switch (payment) {
-      AthanorPayment.daily => dailyPourReady,
       AthanorPayment.tincture => _tincture >= kAthanorTincturePerPour,
       AthanorPayment.gold => goldPoursAvailable && _gold >= kAthanorGoldPerPour,
     };
@@ -294,8 +293,8 @@ class AthanorService extends ChangeNotifier {
   }
 
   /// One pour into [batchId]. Null, with nothing changed, when it is not
-  /// allowed: an unknown or finished batch, a daily already taken today,
-  /// too little tincture or gold, or a gold pour where they are off.
+  /// allowed: an unknown or finished batch, too little tincture or gold, or
+  /// a gold pour where they are off.
   Future<AthanorPourResult?> pour(
     String batchId,
     AthanorPayment payment,
@@ -314,10 +313,7 @@ class AthanorService extends ChangeNotifier {
         final state = AthanorState.decode(
           await _db.settingsDao.getSetting(AthanorState.key),
         );
-        final today = athanorDayKey(_clock());
         switch (payment) {
-          case AthanorPayment.daily:
-            if (state.dailyKey == today) return;
           case AthanorPayment.tincture:
             final have = await _db.inventoryDao.getItemQty(
               InvKeys.athanorTincture,
@@ -333,8 +329,6 @@ class AthanorService extends ChangeNotifier {
         if (piece == null) return;
 
         switch (payment) {
-          case AthanorPayment.daily:
-            break;
           case AthanorPayment.tincture:
             await _db.inventoryDao.addItemQty(
               InvKeys.athanorTincture,
@@ -357,19 +351,12 @@ class AthanorService extends ChangeNotifier {
           next = next.copyWith(capstones: {...next.capstones, batch.id});
         }
 
-        AthanorDailyExtras? extras;
-        if (payment == AthanorPayment.daily) {
-          extras = await _grantDailyExtras();
-          next = next.copyWith(dailyKey: today);
-        }
-
         await _db.settingsDao.setSetting(AthanorState.key, next.encode());
         committed = next;
         result = AthanorPourResult(
           batch: batch,
           piece: piece,
           capstone: capstone,
-          daily: extras,
           items: items,
         );
       });
@@ -386,13 +373,18 @@ class AthanorService extends ChangeNotifier {
     return result;
   }
 
-  /// The home chest's rewards, rolled as it rolled them: 150–500 silver, a
-  /// 15% chance of 1 gold and a 25% chance of a common vial.
-  Future<AthanorDailyExtras> _grantDailyExtras() async {
+  /// The daily collect: [kAthanorDailySparksMin]–[kAthanorDailySparksMax]
+  /// sparks, and the home chest's rewards rolled as it rolled them: 150–500
+  /// silver, a 15% chance of 1 gold and a 25% chance of a common vial.
+  Future<AthanorDaily> _grantDaily() async {
+    final sparks =
+        kAthanorDailySparksMin +
+        _random.nextInt(kAthanorDailySparksMax - kAthanorDailySparksMin + 1);
     final silver = 150 + _random.nextInt(351);
     final gold = _random.nextDouble() < 0.15 ? 1 : 0;
     final givesVial = _random.nextDouble() < 0.25;
 
+    await _db.inventoryDao.addItemQty(InvKeys.athanorTincture, sparks);
     await _db.currencyDao.addSilver(silver);
     if (gold > 0) await _db.currencyDao.addGold(gold);
     String? vialGroupName;
@@ -410,20 +402,20 @@ class AthanorService extends ChangeNotifier {
         vialGroupName = group.name;
       }
     }
-    return AthanorDailyExtras(
+    return AthanorDaily(
+      sparks: sparks,
       silver: silver,
       gold: gold,
       vialGroupName: vialGroupName,
     );
   }
 
-  /// The day's chest rewards without a draw, for when there is nothing
-  /// left to pour into (every batch done, or none yet). It spends the same
-  /// day as a daily pour: taking either takes the day. Null, with nothing
-  /// changed, when today's daily is already taken.
-  Future<AthanorDailyExtras?> takeDailyExtras() async {
+  /// Today's (UTC) collect: a few sparks and the chest's rewards, in one
+  /// transaction with the day key. Null, with nothing changed, when today's
+  /// is already taken.
+  Future<AthanorDaily?> collectDaily() async {
     if (!_loaded) await load();
-    AthanorDailyExtras? extras;
+    AthanorDaily? daily;
     AthanorState? committed;
     try {
       await _db.transaction(() async {
@@ -432,24 +424,23 @@ class AthanorService extends ChangeNotifier {
         );
         final today = athanorDayKey(_clock());
         if (state.dailyKey == today) return;
-        extras = await _grantDailyExtras();
+        daily = await _grantDaily();
         final next = state.copyWith(dailyKey: today);
         await _db.settingsDao.setSetting(AthanorState.key, next.encode());
         committed = next;
       });
     } catch (e, st) {
-      debugPrint('Athanor daily extras failed: $e\n$st');
+      debugPrint('Athanor daily collect failed: $e\n$st');
       return null;
     }
     if (committed == null) return null;
     _state = committed!;
     await _readBalances();
     notifyListeners();
-    return extras;
+    return daily;
   }
 
-  /// Whether any batch still has a piece to draw. When none has, the daily
-  /// is taken with [takeDailyExtras] instead of a pour.
+  /// Whether any batch still has a piece to draw.
   bool get anyPiecesLeft => _batches.any((b) => !isComplete(b.id));
 
   /// First fire, the first time the Athanor is opened:

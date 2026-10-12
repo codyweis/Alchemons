@@ -92,8 +92,8 @@ class AthanorBurn {
     this.glow = AthanorTone.ember,
   });
 
-  /// The fire in the mouth: 0.3 banked low, 1 lit (a free pour waiting),
-  /// up to 1.6 roaring while a pour is worked.
+  /// The fire in the mouth: 0.3 banked low, 1 lit (the daily collect
+  /// waiting), up to 1.6 roaring while a pour is worked.
   final double fire;
 
   /// The furnace worked hot, 0..1: the stone warms from inside, the crown

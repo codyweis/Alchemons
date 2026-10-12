@@ -1,7 +1,7 @@
 // lib/widgets/athanor_emblem.dart
 //
 // THE ATHANOR on home: the furnace in little, in the bottom-centre slot the
-// daily chest had. Its mouth glows while the day's free pour is waiting and
+// daily chest had. Its mouth glows while the day's collect is waiting and
 // is banked low once it is taken; it reads the day again whenever the app
 // comes back and at the UTC day's turn, so it is never stale after
 // midnight.
@@ -116,7 +116,7 @@ void paintAthanorEmblem(
     g,
     s.time,
     AthanorBurn(
-      // Banked until there is a free pour; while it teaches, the fire
+      // Banked until the day's collect is back; while it teaches, the fire
       // breathes with it.
       fire: ready ? 1 : 0.3 + (0.25 + 0.45 * pulse) * teachK,
     ),
@@ -166,7 +166,7 @@ final Paint _teachPool = Paint()
   );
 
 /// The way in through the emblem. [ready] is read as it plays, so coming
-/// back after the free pour the furnace is banked as the screen left it.
+/// back after the daily collect the furnace is banked as the screen left it.
 class AthanorPassageScene extends PassageScene {
   const AthanorPassageScene({
     required this.ready,
@@ -219,8 +219,8 @@ class AthanorPassageScene extends PassageScene {
   );
 }
 
-/// The emblem on home, filling its box. Reads the free pour from the
-/// [AthanorService] above it (banked when there is none).
+/// The emblem on home, filling its box. Reads the daily collect from the
+/// [AthanorService] above it (banked once it is taken).
 class AthanorEmblem extends StatefulWidget {
   const AthanorEmblem({
     super.key,
@@ -277,7 +277,7 @@ class _AthanorEmblemState extends State<AthanorEmblem>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed || !mounted) return;
-    // Away overnight: the free pour may be back, and the timer may have
+    // Away overnight: the daily collect may be back, and the timer may have
     // slept through its moment.
     setState(() {});
     _scheduleMidnight();
@@ -310,7 +310,7 @@ class _AthanorEmblemState extends State<AthanorEmblem>
   @override
   Widget build(BuildContext context) {
     final svc = context.watch<AthanorService?>();
-    final ready = svc?.dailyPourReady ?? false;
+    final ready = svc?.dailyReady ?? false;
     final teach = widget.teach && svc != null && svc.loaded && !svc.opened;
     Widget paint(bool away) => CustomPaint(
       size: Size.infinite,
@@ -327,7 +327,7 @@ class _AthanorEmblemState extends State<AthanorEmblem>
     final lifted = widget.lifted;
     return Semantics(
       button: true,
-      label: ready ? 'The Furnace, free pour ready' : 'The Furnace',
+      label: ready ? 'The Furnace, daily ready' : 'The Furnace',
       child: RepaintBoundary(
         child: lifted == null
             ? paint(false)
@@ -407,7 +407,7 @@ Future<void> openAthanor(
   return EmblemPassage.pushScene<void>(
     context,
     scene: AthanorPassageScene(
-      ready: () => svc.dailyPourReady,
+      ready: () => svc.dailyReady,
       teach: svc.loaded && !svc.opened,
       listenable: svc,
     ),

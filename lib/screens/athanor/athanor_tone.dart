@@ -95,7 +95,7 @@ TextStyle athanorBody(BuildContext context, {Color? color, double size = 13}) =>
 /// 0.1234 → "12.3%".
 String athanorPercent(double chance) => '${(chance * 100).toStringAsFixed(1)}%';
 
-/// How long until the next UTC day, when the free pour comes back.
+/// How long until the next UTC day, when the daily collect comes back.
 Duration athanorUntilNextDay(DateTime now) {
   final u = now.toUtc();
   final next = DateTime.utc(u.year, u.month, u.day + 1);

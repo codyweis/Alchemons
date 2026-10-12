@@ -82,12 +82,12 @@ class _AthanorScreenState extends State<AthanorScreen>
   /// plainly.
   int _firstFire = 0;
 
-  /// The free daily is being collected with nothing to pour into.
+  /// The day's collect is being taken.
   bool _collecting = false;
 
-  /// What the header and panel show while a pour plays (and the free
-  /// daily's rewards are shown): the Athanor as it stood at the tap. Null
-  /// shows it as it is.
+  /// What the header and panel show while a pour plays (and while what it,
+  /// or the daily collect, gave is shown): the Athanor as it stood at the
+  /// tap. Null shows it as it is.
   _Shown? _held;
 
   final GlobalKey _tinctureKey = GlobalKey();
@@ -100,7 +100,7 @@ class _AthanorScreenState extends State<AthanorScreen>
     // As the passage left it: the same clock, the same fire.
     _field = AthanorField(
       time: GlyphClock.instance.seconds.value,
-      lit: svc.dailyPourReady,
+      lit: svc.dailyReady,
     );
     _clock.value = _field.time;
     _revealWhenReady = RevealWhenReady(
@@ -144,7 +144,7 @@ class _AthanorScreenState extends State<AthanorScreen>
       _batchId ??= _firstBatch(svc);
     });
     WidgetsBinding.instance.addPostFrameCallback((_) => _painted = true);
-    _field.restFire(svc.dailyPourReady);
+    _field.restFire(svc.dailyReady);
     _maybeIntro();
   }
 
@@ -186,20 +186,23 @@ class _AthanorScreenState extends State<AthanorScreen>
       StoryBeat(
         title: 'EVERY DAY',
         message:
-            "One pour a day is free. ODDS shows each piece's chance on the "
-            'next pour. Tap your sparks any time to read this again.',
+            'Collect $kAthanorDailySparksMin to $kAthanorDailySparksMax '
+            "sparks here once a day, with some silver. ODDS shows each piece's "
+            'chance on the next pour. Tap your sparks any time to read this '
+            'again.',
       ),
     ],
   );
 
-  /// The free pour comes back at the UTC day's turn, screen open or not.
+  /// The daily collect comes back at the UTC day's turn, screen open or
+  /// not.
   void _scheduleMidnight() {
     _midnight?.cancel();
     _midnight = Timer(athanorUntilNextDay(DateTime.now()), () {
       if (!mounted) return;
       final svc = context.read<AthanorService>();
       setState(() {});
-      if (_reveal == null) _field.restFire(svc.dailyPourReady);
+      if (_reveal == null) _field.restFire(svc.dailyReady);
       _scheduleMidnight();
     });
   }
@@ -228,14 +231,13 @@ class _AthanorScreenState extends State<AthanorScreen>
     final key = switch (payment) {
       AthanorPayment.tincture => _tinctureKey,
       AthanorPayment.gold => _goldKey,
-      AthanorPayment.daily => null,
     };
-    final box = key?.currentContext?.findRenderObject();
+    final box = key.currentContext?.findRenderObject();
     final me = context.findRenderObject();
     if (box is RenderBox && me is RenderBox && box.hasSize) {
       return box.localToGlobal(box.size.center(Offset.zero), ancestor: me);
     }
-    // The free pour comes down out of the dark over the furnace.
+    // No balance on screen to pour from: out of the dark over the furnace.
     return Offset(layout.size.width / 2, layout.fieldTop - 12);
   }
 
@@ -282,15 +284,13 @@ class _AthanorScreenState extends State<AthanorScreen>
   void _endReveal(AthanorReveal r) {
     if (!identical(r, _reveal)) return;
     final svc = context.read<AthanorService>();
-    final extras = r.failed ? null : r.result?.daily;
     final items = r.failed ? const <String, int>{} : r.result?.items ?? {};
     setState(() {
       _reveal = null;
-      // Shown now: the piece lit, one fewer left. The free pour's rewards
-      // still hold the balances until they have been shown.
-      if (extras == null) _held = null;
+      // Shown now: the piece lit, one fewer left.
+      _held = null;
     });
-    _field.restFire(svc.dailyPourReady);
+    _field.restFire(svc.dailyReady);
     // After the frame: never from inside the ticker's callback.
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       r.dispose();
@@ -299,72 +299,81 @@ class _AthanorScreenState extends State<AthanorScreen>
         ScaffoldMessenger.maybeOf(
           context,
         )?.showSnackBar(const SnackBar(content: Text('Nothing was poured.')));
-      } else if (extras != null || items.isNotEmpty) {
-        await _showPourGifts(items, extras);
-        if (mounted) setState(() => _held = null);
+      } else if (items.isNotEmpty) {
+        await _showEnhanceOrbs(items);
       }
     });
   }
 
-  Future<void> _showDailyExtras(AthanorDailyExtras x) =>
-      _showPourGifts(const {}, x);
-
-  /// What a pour gave beside its piece, in one list: an Enhance Orbs
-  /// piece's [items], then the free daily's chest rewards [x].
-  Future<void> _showPourGifts(
-    Map<String, int> items,
-    AthanorDailyExtras? x,
-  ) async {
-    final vial = x?.vialGroup;
-    await showLootOpeningDialog(
-      context: context,
-      title: x != null ? 'DAILY POUR' : 'ENHANCE ORBS',
-      entries: [
-        for (final e in items.entries)
-          if (alchemicalPowerupTypeFromInventoryKey(e.key) case final orb?)
+  /// What an Enhance Orbs piece gave: its orbs, then its soul.
+  Future<void> _showEnhanceOrbs(Map<String, int> items) =>
+      showLootOpeningDialog(
+        context: context,
+        title: 'ENHANCE ORBS',
+        entries: [
+          for (final e in items.entries)
+            if (alchemicalPowerupTypeFromInventoryKey(e.key) case final orb?)
+              LootOpeningEntry(
+                icon: AppIcons.auto_awesome_rounded,
+                label: '×${e.value}',
+                name: orb.name.toUpperCase(),
+                color: orb.color,
+                visualBuilder: (size) =>
+                    InventoryItemArtwork(inventoryKey: e.key, size: size),
+              ),
+          if (items[InvKeys.potentialSoul] case final souls?)
             LootOpeningEntry(
-              icon: AppIcons.auto_awesome_rounded,
-              label: '×${e.value}',
-              name: orb.name.toUpperCase(),
-              color: orb.color,
-              visualBuilder: (size) =>
-                  InventoryItemArtwork(inventoryKey: e.key, size: size),
-            ),
-        if (items[InvKeys.potentialSoul] case final souls?)
-          LootOpeningEntry(
-            icon: AppIcons.diamond_rounded,
-            label: '×$souls',
-            name: 'POTENTIAL SOUL',
-            color: PotentialSoulSphere.canonical,
-            visualBuilder: (size) => InventoryItemArtwork(
-              inventoryKey: InvKeys.potentialSoul,
-              size: size,
-            ),
-          ),
-        if (x != null) ...[
-          LootOpeningEntry(
-            icon: AppIcons.monetization_on_rounded,
-            coin: CoinKind.silver,
-            label: '+${x.silver}',
-            name: 'SILVER',
-            color: const Color(0xFFB0BEC5),
-          ),
-          if (x.gold > 0)
-            LootOpeningEntry(
-              icon: AppIcons.monetization_on_rounded,
-              coin: CoinKind.gold,
-              label: '+${x.gold}',
-              name: 'GOLD',
-              color: const Color(0xFFFFD700),
-            ),
-          if (vial != null)
-            LootOpeningEntry(
-              icon: AppIcons.biotech_rounded,
-              label: '×1',
-              name: '${vial.displayName.toUpperCase()} VIAL',
-              color: vial.skin.badge,
+              icon: AppIcons.diamond_rounded,
+              label: '×$souls',
+              name: 'POTENTIAL SOUL',
+              color: PotentialSoulSphere.canonical,
+              visualBuilder: (size) => InventoryItemArtwork(
+                inventoryKey: InvKeys.potentialSoul,
+                size: size,
+              ),
             ),
         ],
+      );
+
+  /// What the daily collect gave: its sparks, then the chest's rewards.
+  Future<void> _showDaily(AthanorDaily x) {
+    final vial = x.vialGroup;
+    return showLootOpeningDialog(
+      context: context,
+      title: 'DAILY',
+      entries: [
+        LootOpeningEntry(
+          icon: AppIcons.auto_awesome_rounded,
+          label: '+${x.sparks}',
+          name: 'SPARKS',
+          color: AthanorTone.tinctureBright,
+          visualBuilder: (size) => InventoryItemArtwork(
+            inventoryKey: InvKeys.athanorTincture,
+            size: size,
+          ),
+        ),
+        LootOpeningEntry(
+          icon: AppIcons.monetization_on_rounded,
+          coin: CoinKind.silver,
+          label: '+${x.silver}',
+          name: 'SILVER',
+          color: const Color(0xFFB0BEC5),
+        ),
+        if (x.gold > 0)
+          LootOpeningEntry(
+            icon: AppIcons.monetization_on_rounded,
+            coin: CoinKind.gold,
+            label: '+${x.gold}',
+            name: 'GOLD',
+            color: const Color(0xFFFFD700),
+          ),
+        if (vial != null)
+          LootOpeningEntry(
+            icon: AppIcons.biotech_rounded,
+            label: '×1',
+            name: '${vial.displayName.toUpperCase()} VIAL',
+            color: vial.skin.badge,
+          ),
       ],
     );
   }
@@ -555,7 +564,7 @@ class _AthanorScreenState extends State<AthanorScreen>
                 title: 'No batches yet',
                 line: 'Batches of pieces to pour for will appear here.',
               ),
-              if (shown.dailyPourReady) _collectButton(svc),
+              if (shown.dailyReady) _collectButton(svc),
             ] else ...[
               if (batches.length > 1) ...[
                 _BatchStrip(
@@ -587,8 +596,7 @@ class _AthanorScreenState extends State<AthanorScreen>
     );
   }
 
-  /// The free daily, when there is no piece left to pour for: it pays what
-  /// the home chest paid, without a draw.
+  /// The day's collect: a few sparks and what the home chest paid.
   Widget _collectButton(AthanorService svc) => BracketButton(
     label: 'COLLECT DAILY',
     palette: AthanorTone.palette,
@@ -606,23 +614,28 @@ class _AthanorScreenState extends State<AthanorScreen>
       // The balances say nothing of what came until it has been shown.
       _held = _Shown.of(svc);
     });
-    final extras = await svc.takeDailyExtras();
+    final daily = await svc.collectDaily();
     if (!mounted) return;
     setState(() => _collecting = false);
-    _field.restFire(svc.dailyPourReady);
-    if (extras != null) {
+    _field.restFire(svc.dailyReady);
+    if (daily != null) {
       context.sound(SoundCue.rewardCollect);
-      await _showDailyExtras(extras);
+      await _showDaily(daily);
     }
     if (mounted) setState(() => _held = null);
   }
 
   Widget _actions(AthanorService svc, _Shown shown, AthanorBatch batch) {
+    // The day's collect stands over whatever the batch offers.
+    final collect = [
+      if (shown.dailyReady) ...[_collectButton(svc), const SizedBox(height: 8)],
+    ];
     if (shown.isComplete(batch.id)) {
       final open = shown.anyPiecesLeft;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          ...collect,
           SizedBox(
             height: 40,
             child: Center(
@@ -635,30 +648,15 @@ class _AthanorScreenState extends State<AthanorScreen>
               ),
             ),
           ),
-          // With nothing left anywhere the free daily still pays.
-          if (!open && shown.dailyPourReady) ...[
-            const SizedBox(height: 6),
-            _collectButton(svc),
-          ],
         ],
       );
     }
-    final daily = shown.dailyPourReady;
     final tincture = shown.canPour(batch.id, AthanorPayment.tincture);
     final gold = shown.canPour(batch.id, AthanorPayment.gold);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (daily) ...[
-          BracketButton(
-            label: 'FREE POUR',
-            palette: AthanorTone.palette,
-            accent: AthanorTone.brass,
-            height: 46,
-            onTap: () => _pour(AthanorPayment.daily),
-          ),
-          const SizedBox(height: 8),
-        ],
+        ...collect,
         Row(
           children: [
             Expanded(
@@ -666,9 +664,8 @@ class _AthanorScreenState extends State<AthanorScreen>
                 cost: '$kAthanorTincturePerPour SPARKS',
                 icon: const TinctureGlyph(size: 16, animate: false),
                 accent: AthanorTone.tincture,
-                // The pour to make is lit: the free one, else the first
-                // that can be paid for.
-                lit: !daily && tincture,
+                // The pour to make is lit: the first that can be paid for.
+                lit: tincture,
                 enabled: tincture,
                 onTap: () => _pour(AthanorPayment.tincture),
               ),
@@ -680,7 +677,7 @@ class _AthanorScreenState extends State<AthanorScreen>
                   cost: '$kAthanorGoldPerPour GOLD',
                   icon: const CoinIcon(kind: CoinKind.gold, size: 13),
                   accent: AthanorTone.gold,
-                  lit: !daily && !tincture && gold,
+                  lit: !tincture && gold,
                   enabled: gold,
                   onTap: () => _pour(AthanorPayment.gold),
                 ),
@@ -694,8 +691,8 @@ class _AthanorScreenState extends State<AthanorScreen>
 }
 
 /// What the header and panel show of the Athanor. Read fresh on every
-/// build, except while a pour (or the free daily's collect) plays: then it
-/// is held as it stood at the tap, with only what was paid taken off, so
+/// build, except while a pour (or the daily collect) plays: then it is
+/// held as it stood at the tap, with only what was paid taken off, so
 /// nothing on the screen — a piece lit, what is left, the capstone, a
 /// batch's count, a balance, the odds — tells the draw before the reveal
 /// does.
@@ -704,7 +701,7 @@ class _Shown {
     : batches = svc.batches,
       tincture = svc.tincture - spentTincture,
       gold = svc.gold - spentGold,
-      dailyPourReady = svc.dailyPourReady,
+      dailyReady = svc.dailyReady,
       goldPoursAvailable = svc.goldPoursAvailable,
       anyPiecesLeft = svc.anyPiecesLeft,
       _drawn = {for (final b in svc.batches) b.id: Set.of(svc.drawnIn(b.id))},
@@ -726,7 +723,7 @@ class _Shown {
 
   final List<AthanorBatch> batches;
   final int tincture, gold;
-  final bool dailyPourReady, goldPoursAvailable, anyPiecesLeft;
+  final bool dailyReady, goldPoursAvailable, anyPiecesLeft;
   final Map<String, Set<String>> _drawn;
   final Set<String> _complete, _owned;
   final Set<(String, AthanorPayment)> _canPour;

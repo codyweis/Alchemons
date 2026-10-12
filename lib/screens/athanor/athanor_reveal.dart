@@ -245,16 +245,7 @@ class AthanorReveal extends ChangeNotifier {
     }
     if (_crossed(was, now, AthanorBeats.pour)) {
       f
-        ..pour(
-          layout,
-          from: source,
-          color: color,
-          over: 0.95,
-          // The free pour comes down out of the dark, a wide fall that
-          // narrows into the flue; a paid one leaves its balance.
-          width: payment == AthanorPayment.daily ? 90 : 14,
-          count: payment == AthanorPayment.daily ? 190 : 140,
-        )
+        ..pour(layout, from: source, color: color, over: 0.95)
         // The crown takes the color as the pour reaches it.
         ..tintTo(1, gold: payment == AthanorPayment.gold, seconds: 1.4)
         ..heatTo(0.3, seconds: 1.2);

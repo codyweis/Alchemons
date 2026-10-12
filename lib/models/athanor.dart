@@ -159,6 +159,12 @@ String athanorSparks(int n, {bool title = false}) => n == 1
     ? (title ? '1 Spark' : '1 spark')
     : (title ? '$n Sparks' : '$n sparks');
 
+/// The Furnace's daily collect: 1–5 sparks, beside the old home chest's
+/// silver, gold chance and vial chance. It replaced the free daily pour
+/// (author, 2026-10-12): every pour is paid now.
+const int kAthanorDailySparksMin = 1;
+const int kAthanorDailySparksMax = 5;
+
 /// How many of a Curio (small home decor) one draw gives.
 const int kAthanorCurioCopies = 3;
 
@@ -250,8 +256,8 @@ int athanorFirstFireTincture({
   return kAthanorFirstFireTincture + min(kAthanorFirstFireBackPayCap, owed);
 }
 
-/// The UTC day a daily pour belongs to, e.g. '2026-10-10' (the same key the
-/// home chest used).
+/// The UTC day a daily collect belongs to, e.g. '2026-10-10' (the same key
+/// the home chest used).
 String athanorDayKey(DateTime time) =>
     time.toUtc().toIso8601String().split('T').first;
 
@@ -295,7 +301,8 @@ class AthanorState {
   /// The batches whose capstone has been given.
   final Set<String> capstones;
 
-  /// The UTC day ([athanorDayKey]) of the last daily pour.
+  /// The UTC day ([athanorDayKey]) of the last daily collect (or, before
+  /// 2026-10-12, daily pour).
   final String? dailyKey;
 
   /// Whether the first-fire tincture has been given.

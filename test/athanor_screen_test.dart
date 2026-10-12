@@ -1,8 +1,8 @@
 // The Athanor screen's rules that matter outside the look: the odds sheet
 // shows exactly what the service rolls on, gold pours are absent where they
-// are off, a gold pour asks before it spends, and the free daily is a pour
-// while there is something to pour for and a plain collect when there is
-// not.
+// are off, a paid pour is held before it spends, and no pour is free: the
+// daily is a collect of a few sparks, whether or not there is anything left
+// to pour for.
 
 import 'dart:math';
 
@@ -153,7 +153,7 @@ void main() {
   testWidgets('a paid pour is held: a tap or an early let-go spends '
       'nothing, a full hold pours', (tester) async {
     final svc = await open(tester, gold: 500, dailyTaken: true);
-    expect(find.text('FREE POUR'), findsNothing);
+    expect(find.text('COLLECT DAILY'), findsNothing);
     final gold = find.bySemanticsLabel('POUR · 50 GOLD');
 
     await tester.tap(gold);
@@ -173,17 +173,33 @@ void main() {
     expect(svc.gold, 500 - kAthanorGoldPerPour);
   });
 
-  testWidgets('the free daily: a pour, or a collect with nothing to pour for', (
-    tester,
-  ) async {
-    await open(tester);
-    expect(find.text('FREE POUR'), findsOneWidget);
+  testWidgets('no free pour: the daily is a collect of a few sparks, with '
+      'or without anything to pour for', (tester) async {
+    final svc = await open(tester);
+    expect(find.text('FREE POUR'), findsNothing);
+    final before = svc.tincture;
+    await tester.tap(find.text('COLLECT DAILY'));
+    for (var i = 0; i < 40 && svc.dailyReady; i++) {
+      await settle(tester);
+    }
+    await settle(tester);
+    expect(svc.dailyReady, isFalse);
+    expect(
+      svc.tincture - before,
+      inInclusiveRange(kAthanorDailySparksMin, kAthanorDailySparksMax),
+    );
+    expect(svc.drawnIn(_batch.id), isEmpty);
+    // What it gave is shown over the panel, which keeps the day as it was
+    // until COLLECT.
+    expect(find.text('DAILY'), findsOneWidget);
+    await tester.tap(find.text('COLLECT'));
+    await settle(tester);
+    await settle(tester);
     expect(find.text('COLLECT DAILY'), findsNothing);
 
     await open(tester, batches: const []);
     expect(find.text('No batches yet'), findsOneWidget);
     expect(find.text('COLLECT DAILY'), findsOneWidget);
-    expect(find.text('FREE POUR'), findsNothing);
   });
 
   testWidgets('a pour shows nothing of its draw until CONTINUE', (

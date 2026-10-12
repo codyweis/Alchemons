@@ -1,6 +1,8 @@
 # The Athanor
 
-> **Names on screen (2026-10-11):** the feature is **The Furnace** and its reagent is **Sparks** ("1 spark", "25 sparks"). The code still calls them Athanor and tincture. A paid pour (sparks or gold) is **pressed and held** until the button fills (0.85 s); a tap or an early let-go spends nothing, and the hold replaces the gold confirmation. The free daily pour is still a tap.
+> **Names on screen (2026-10-11):** the feature is **The Furnace** and its reagent is **Sparks** ("1 spark", "25 sparks"). The code still calls them Athanor and tincture. A paid pour (sparks or gold) is **pressed and held** until the button fills (0.85 s); a tap or an early let-go spends nothing, and the hold replaces the gold confirmation.
+>
+> **No free pour (2026-10-12):** the free daily pour is gone; every pour is paid. In its place is a **daily collect**: 1–5 sparks plus the old chest's rewards, once per UTC day.
 
 
 The furnace on home where a pour draws a cosmetic. It replaces the Daily Treasure Chest. Decided with the author on 2026-10-10.
@@ -12,7 +14,7 @@ The furnace on home where a pour draws a cosmetic. It replaces the Daily Treasur
 - **Paying for a pour.**
   - **Tincture**: 25 per pour (`kAthanorTincturePerPour`; 10 until 2026-10-11, when the one-time sources alone covered most of the content). Tincture is earned in play only and is never sold.
   - **Gold**: 50 per pour (`kAthanorGoldPerPour`). Gold can be bought, so this is a paid random draw. Gold pours are off where the storefront country is Belgium (`BE` / `BEL`). Tincture pours stay on there.
-  - **Daily pour**: one free pour a day, on the UTC day, keyed like the chest. It also gives what the chest gave: 150–500 silver, a 15% chance of 1 gold, and a 25% chance of a common vial. When no batch has a piece left (or there are no batches), the day's chest rewards are taken without a draw (`takeDailyExtras`); either way spends the day.
+- **Daily collect** (author, 2026-10-12; until then a free daily pour). Once per UTC day, keyed like the chest, the player collects 1–5 tincture (`kAthanorDailySparksMin`–`Max`) plus what the chest gave: 150–500 silver, a 15% chance of 1 gold, and a 25% chance of a common vial (`collectDaily`). It draws nothing, and no pour is free.
 - **Odds.** Before every pour the player can see the odds for the **next** pour: each piece left and its chance. `athanorNextPourOdds` is both the sheet and the draw (`lib/models/athanor.dart`).
 - **Cosmetic, but for Enhance Orbs.** Nothing in a batch changes power, odds or the economy, except one common square per batch (author, 2026-10-11): **Enhance Orbs**, 1–5 Enhance orbs of random stats (`kAthanorEnhanceOrbsMin`–`Max`) and one Potential Soul, rolled at the draw (`athanorRollEnhanceOrbs`) and listed after the reveal. The shop sells all of these outright (orbs 10 gold, a soul 150), so the Furnace adds five souls at most in all. Survival orb skins change orb HP and passives, so they never go in. Athanor pieces are never sold in the shop, except the two costumes once drawn (below).
 - **Costumes, once drawn.** A crown or monocle is worn by one Alchemon. Once the Furnace has given one (that one is free), the shop sells more at 25 gold (`ShopService.furnaceCostumeOffers`, author 2026-10-11).
@@ -28,8 +30,9 @@ The furnace on home where a pour draws a cosmetic. It replaces the Daily Treasur
 | Achievement claim | 1 each (3 until 2026-10-11; achievements already pay gold and silver) | In `CampaignJournalService.claim`, inside its transaction, plus the toast |
 | Pureblood rite | completion +5, weekly +3 | In the rite's own transactions |
 | Space contest win | 2 × level | One-time per level |
+| Daily collect | 1–5 | Once per UTC day, with the chest's rewards |
 
-Owning everything takes 50 pours (1,250 tincture). The one-time sources (first fire, achievements, stars, contests) come to about 300 tincture, a dozen pours, so play and the daily pour carry the rest. Play earns about 0.7 of a pour a day for an engaged player (a couple of survival runs and a raid, about 17 tincture), and the daily pour is a whole one, so the daily is the main source: an engaged player finishes in about three to four weeks, and the daily alone takes 50 days. A gold pour (50 gold) is the shortcut.
+Owning everything takes 55 pours (1,375 tincture). The one-time sources (first fire, achievements, stars, contests) come to about 300 tincture, a dozen pours, so play carries the rest. An engaged player earns about 17 tincture a day in play (a couple of survival runs and a raid) and 3 on average from the daily collect, about 0.8 of a pour a day, so they finish in about seven to eight weeks. The daily collect alone is about a pour every eight days. A gold pour (50 gold) is the shortcut. (With the free daily pour, until 2026-10-12, an engaged player finished in three to four weeks and the daily was the main source.)
 
 Tincture is the inventory item `InvKeys.athanorTincture` (`'athanor.tincture'`). Its balance is `inventoryDao.getItemQty`, and grants are `addItemQty` inside the caller's existing transaction. Because it is an inventory row, it travels with save transfer and works with achievement `items` and loot pools.
 
@@ -38,9 +41,10 @@ Tincture is the inventory item `InvKeys.athanorTincture` (`'athanor.tincture'`).
 `lib/services/athanor_service.dart`, a `ChangeNotifier` provided in `lib/providers/app_providers.dart` and reloaded in `reloadStateAfterSaveRestore`.
 
 ```dart
-enum AthanorPayment { daily, tincture, gold }
+enum AthanorPayment { tincture, gold }
 
-class AthanorDailyExtras {
+class AthanorDaily {
+  final int sparks;                   // tincture, 1–5
   final int silver; final int gold;
   final String? vialGroupName;        // ElementalGroup.name; null: no vial
   ElementalGroup? get vialGroup;
@@ -50,7 +54,7 @@ class AthanorPourResult {
   final AthanorBatch batch;
   final AthanorPiece piece;
   final AthanorPiece? capstone;       // given with this pour: the batch is done
-  final AthanorDailyExtras? daily;    // the daily pour's chest rewards
+  final Map<String, int> items;       // an Enhance Orbs piece's orbs and soul
 }
 
 class AthanorService extends ChangeNotifier {
@@ -65,19 +69,19 @@ class AthanorService extends ChangeNotifier {
   bool isComplete(String batchId);
   int get tincture;                             // cached balance, refreshed by load()/pour()
   int get gold;
-  bool get dailyPourReady;                      // today's (UTC) free pour not yet taken; read live
-  bool get anyPiecesLeft;                       // false: take the daily with takeDailyExtras
+  bool get dailyReady;                          // today's (UTC) collect not yet taken; read live
+  bool get anyPiecesLeft;
   bool get goldPoursAvailable;                  // false in Belgium
   bool canPour(String batchId, AthanorPayment payment);
   List<(AthanorPiece, double)> nextPourOdds(String batchId);
   Future<AthanorPourResult?> pour(String batchId, AthanorPayment payment); // null if not allowed
-  Future<AthanorDailyExtras?> takeDailyExtras(); // the daily's chest rewards, no draw; null if not ready
+  Future<AthanorDaily?> collectDaily();         // sparks + the chest's rewards; null if not ready
   Future<int> takeFirstFire();                  // 30 + back-pay (≤ 90) once; the amount given, 0 after
   bool ownsPiece(String pieceId);
 }
 ```
 
-`pour` runs in **one transaction**: re-check the payment, spend it, draw, grant the piece (and the capstone), record the draw and, for a daily pour, the day key and the extras. A pour that is not allowed changes nothing. `takeDailyExtras` is one transaction too: the extras and the day key, no draw.
+`pour` runs in **one transaction**: re-check the payment, spend it, draw, grant the piece (and the capstone), record the draw. A pour that is not allowed changes nothing. `collectDaily` is one transaction too: the sparks, the chest's rewards and the day key.
 
 State lives in one settings row, `athanor_v1` (JSON):
 
@@ -99,9 +103,9 @@ Athanor-only decor and effects get a flag in their catalogs so `ShopService` nev
 
 ## Home and screen
 
-- **Entry point.** An `AthanorEmblem` sits in the chest's bottom-centre slot (`home_screen.dart` ≈2606, the same size budget, 106·hs + 128·hs). It follows the `AlchemyEmblem` pattern, with its own `PassageScene` through `EmblemPassage.pushScene`. When the daily pour is ready, the furnace mouth glows. The emblem re-checks the UTC day on resume, which fixes the chest's stale-after-midnight bug.
+- **Entry point.** An `AthanorEmblem` sits in the chest's bottom-centre slot (`home_screen.dart` ≈2606, the same size budget, 106·hs + 128·hs). It follows the `AlchemyEmblem` pattern, with its own `PassageScene` through `EmblemPassage.pushScene`. When the daily collect is ready, the furnace mouth glows. The emblem re-checks the UTC day on resume, which fixes the chest's stale-after-midnight bug.
 - **The screen.** A full-bleed field with the furnace and vessel in grains on black. It has a header with the tincture and gold balances, a strip to pick a batch, and the batch's pieces. Owned pieces are lit; pieces still left are dim ghosts. A counter reads "N of M left" and the capstone is shown sealed.
-- **Buttons.** POUR · 10 TINCTURE, POUR · 50 GOLD (absent where gold pours are off), FREE POUR when the daily is ready, and ODDS.
+- **Buttons.** HOLD TO POUR · 25 SPARKS, HOLD TO POUR · 50 GOLD (absent where gold pours are off), COLLECT DAILY above them when the day's collect is ready, and ODDS.
 - **The reveal.** Grains pour into the vessel and swirl. They settle into the piece (`GrainAssembly` gather onto a `SpecimenGrains.capture` of its preview), then its name forms in `GrainText`. All motion is eased and flowing, never a burst. The capstone gets a second settle after the piece.
 - **Odds sheet.** Every piece left with its chance, grouped by rarity, plus the line "Every pour gives a piece you don't own yet." The capstone is shown as "Comes with the last piece."
 

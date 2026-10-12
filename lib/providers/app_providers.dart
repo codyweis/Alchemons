@@ -166,7 +166,7 @@ class AppProviders extends StatelessWidget {
         ),
 
         // The Athanor on home (docs/athanor_design.md). Below the catalog:
-        // the daily pour's vial reads it.
+        // the daily collect's vial reads it.
         ChangeNotifierProvider<AthanorService>(
           create: (ctx) => AthanorService(
             ctx.read<AlchemonsDatabase>(),

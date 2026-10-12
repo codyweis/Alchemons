@@ -28,8 +28,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // The Athanor on a phone, with the app's own fonts (fetched from Google, so
-// run with network): home's bottom slot with the furnace (free pour waiting,
-// and taken), the way in, the screen with a nine-piece batch at 0, 4 and 9
+// run with network): home's bottom slot with the furnace (daily collect
+// waiting, and taken), the way in, the screen with a nine-piece batch at 0, 4 and 9
 // drawn, the odds, the gold confirm, the empty and finished states, and a
 // pour's reveal at its beats (a piece, then a last piece with its capstone).
 // The furnace sheet and the passage painted at its moments come first.
@@ -229,7 +229,7 @@ void main() {
     await savePicture(tester, rec.endRecording(), sheet, '00_furnace_sheet');
 
     // The home emblem teaching before its first opening, through one breath
-    // (trough, rising, peak, falling), banked and with a free pour.
+    // (trough, rising, peak, falling), banked and with the daily waiting.
     {
       const box = Size(160, 160);
       final teach = ui.PictureRecorder();
@@ -461,6 +461,17 @@ void main() {
     await show(const AthanorScreen(), svc);
     await shoot('05_screen_0');
 
+    // The day's collect: a few sparks and the chest's rewards.
+    await tester.tap(find.text('COLLECT DAILY'));
+    for (var i = 0; i < 20; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 20)),
+      );
+    }
+    await settle(30);
+    await shoot('05b_daily_collect');
+
     const four = {'ember.lantern', 'ember.glow', 'ember.geode', 'ember.keeper'};
     svc = await save(drawn: four, dailyTaken: true, tincture: 6, gold: 300);
     await show(const AthanorScreen(), svc);
@@ -515,9 +526,17 @@ void main() {
       await shoot(name);
     }
 
-    svc = await save(drawn: four, tincture: 30, gold: 300);
+    svc = await save(drawn: four, dailyTaken: true, tincture: 30, gold: 300);
     await show(const AthanorScreen(), svc);
-    await tester.tap(find.text('FREE POUR'));
+    final first = await tester.startGesture(
+      tester.getCenter(
+        find.bySemanticsLabel('POUR · $kAthanorTincturePerPour SPARKS'),
+      ),
+    );
+    for (var i = 0; i < 12; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    await first.up();
     await runTo(0.9, '12_reveal_pour');
     await runTo(1.9, '13_reveal_roar');
     await runTo(3.3, '14_reveal_rise');
@@ -525,7 +544,7 @@ void main() {
     await runTo(AthanorBeats.rest + 0.6, '16_reveal_rest');
     await tester.tap(find.text('CONTINUE'));
     await settle(40);
-    await shoot('17_daily_extras');
+    await shoot('17_after_pour');
 
     final eight = {...nine}..remove('ember.rift');
     svc = await save(batches: const [_ember], drawn: eight, tincture: 30);
