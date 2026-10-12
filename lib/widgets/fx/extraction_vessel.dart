@@ -1470,6 +1470,12 @@ void paintFlaskEmblem(
     // it is as dense in the icon as on the bench.
     final area = g.segmentArea(depth);
     final n = (area / (dot * dot * 1.45)).round().clamp(60, 1600);
+    // Their room, a grain in from the surface and the glass; a liquid
+    // thinner than that (a flask all but empty) lays them in one line
+    // through its middle.
+    final yTop = surface + dot * 0.6, yBottom = bottom - dot * 0.5;
+    final yMid = (yTop + yBottom) / 2;
+    final yLo = math.min(yTop, yMid), yHi = math.max(yBottom, yMid);
     for (var i = 0; i < n; i++) {
       // Each grain swirls on its own flat loop inside the liquid: across the
       // bulb at its depth and a little up and down, so the whole turns
@@ -1477,10 +1483,7 @@ void paintFlaskEmblem(
       final u = math.pow(_h(i, 52), 0.8).toDouble();
       final y0 = surface + depth * (0.04 + 0.94 * u);
       final ph = _h(i, 50) * math.pi * 2 + time * (0.25 + 0.35 * _h(i, 51));
-      final y = (y0 + math.cos(ph) * depth * 0.05).clamp(
-        surface + dot * 0.6,
-        bottom - dot * 0.5,
-      );
+      final y = (y0 + math.cos(ph) * depth * 0.05).clamp(yLo, yHi);
       final reach = 0.35 + 0.65 * math.sqrt(_h(i, 54));
       final x =
           c.dx + math.max(0.0, g.chord(y) - dot * 0.6) * reach * math.sin(ph);
