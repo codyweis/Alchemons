@@ -154,12 +154,25 @@ class BracketButton extends StatelessWidget {
   /// After the label: a count, say.
   final Widget? trailing;
 
+  /// The button's fill: [accent]'s wash for the thing to do, a quiet one for
+  /// the rest.
+  static Color fillOf(
+    BracketPalette palette,
+    Color accent, {
+    bool primary = true,
+  }) => primary
+      ? palette.accentWash(accent, darkAlpha: 0.2, lightAlpha: 0.12)
+      : palette.surfaceMutedFill();
+
+  /// How faded a button that cannot be pressed is.
+  static const double disabledOpacity = 0.45;
+
   @override
   Widget build(BuildContext context) {
     final frame = primary ? accent : palette.line;
     final ink = primary ? palette.ink : palette.muted;
     return Opacity(
-      opacity: enabled ? 1 : 0.45,
+      opacity: enabled ? 1 : disabledOpacity,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: context.soundAction(enabled ? onTap : null),
@@ -173,9 +186,7 @@ class BracketButton extends StatelessWidget {
             height: height,
             alignment: Alignment.center,
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            color: primary
-                ? palette.accentWash(accent, darkAlpha: 0.2, lightAlpha: 0.12)
-                : palette.surfaceMutedFill(),
+            color: fillOf(palette, accent, primary: primary),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [

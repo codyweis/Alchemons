@@ -86,6 +86,7 @@ import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/widgets/home_portal.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
+import 'package:alchemons/widgets/nav_slab.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'breed/breed_screen.dart';
@@ -212,6 +213,14 @@ class _MainShellState extends State<MainShell> {
 
     if (withHaptic) HapticFeedback.selectionClick();
 
+    // Home's achievements bar and Fusion's action row stand in one place
+    // above the dock; between those two tabs the slab is handed over rather
+    // than cut with the rest of the screen.
+    NavSlabHandoff.instance.tabSwitch(
+      from: _slabSiteOf(_currentSection),
+      to: wantsCultivations ? null : _slabSiteOf(section),
+    );
+
     // Unfocus the creatures search field when leaving that tab
     if (_currentSection == NavSection.creatures) {
       _creaturesKey.currentState?.unfocusSearch();
@@ -256,6 +265,12 @@ class _MainShellState extends State<MainShell> {
       _creaturesKey.currentState?.maybeShowCreaturesTutorial();
     }
   }
+
+  static NavSlabSite? _slabSiteOf(NavSection section) => switch (section) {
+    NavSection.home => NavSlabSite.home,
+    NavSection.breed => NavSlabSite.fusion,
+    _ => null,
+  };
 
   int get _navIndex {
     switch (_currentSection) {
@@ -2368,6 +2383,7 @@ class _HomeScreenState extends State<HomeScreen>
                                       style: CampaignRewardsStyle.bar,
                                       docked: _achievementsDocked,
                                       enabled: !_isFieldTutorialActive,
+                                      navSlab: true,
                                     ),
                                   ),
                                 ),
@@ -2615,21 +2631,33 @@ class _HomeScreenState extends State<HomeScreen>
                                 kCampaignRewardsBarHeight +
                                 _kHomeFurnaceOverBar,
                           ),
-                          child: Opacity(
-                            opacity: _isFieldTutorialActive ? 0.35 : 1.0,
-                            child: IgnorePointer(
-                              ignoring: _isFieldTutorialActive,
-                              child: AthanorHomeSlot(
-                                scale: hs,
-                                emblemKey: _athanorEmblem,
-                                lifted: _athanorLifted,
-                                animate: _animationsEnabled,
-                                // Not while the field tutorial is teaching.
-                                teach: !_isFieldTutorialActive,
-                                onTap: () => openAthanor(
-                                  context,
-                                  from: _athanorEmblem,
+                          // It stands on the bar, so it rides the slab down
+                          // when Fusion's row is handed over to it.
+                          child: ValueListenableBuilder<Offset>(
+                            valueListenable: NavSlabHandoff.instance.shiftOf(
+                              NavSlabSite.home,
+                            ),
+                            builder: (context, shift, child) =>
+                                Transform.translate(
+                                  offset: shift,
+                                  child: child,
+                                ),
+                            child: Opacity(
+                              opacity: _isFieldTutorialActive ? 0.35 : 1.0,
+                              child: IgnorePointer(
+                                ignoring: _isFieldTutorialActive,
+                                child: AthanorHomeSlot(
+                                  scale: hs,
+                                  emblemKey: _athanorEmblem,
                                   lifted: _athanorLifted,
+                                  animate: _animationsEnabled,
+                                  // Not while the field tutorial is teaching.
+                                  teach: !_isFieldTutorialActive,
+                                  onTap: () => openAthanor(
+                                    context,
+                                    from: _athanorEmblem,
+                                    lifted: _athanorLifted,
+                                  ),
                                 ),
                               ),
                             ),

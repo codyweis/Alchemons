@@ -39,11 +39,27 @@ class BracketFramePainter extends CustomPainter {
     0xFF3A3A48, // the survival HUD's line (HudInk.line)
   };
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (_plain.contains(color.toARGB32() | 0xFF000000)) return;
+  /// How strongly a frame in [color] is lit, 0..1: nothing for one of the
+  /// palettes' greys or a color faded below 0.55.
+  static double litOf(Color color) {
+    if (_plain.contains(color.toARGB32() | 0xFF000000)) return 0;
     final t = ((color.a - 0.55) / 0.25).clamp(0.0, 1.0);
-    final lit = color.a * t * t * (3 - 2 * t);
+    return color.a * t * t * (3 - 2 * t);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) =>
+      paintLit(canvas, size, color, litOf(color), strokeWidth);
+
+  /// The sill and the glow off it, in [color]'s tone at strength [lit] — for
+  /// a frame part way between two looks (nav_slab.dart).
+  static void paintLit(
+    Canvas canvas,
+    Size size,
+    Color color,
+    double lit,
+    double strokeWidth,
+  ) {
     if (lit < 0.01) return;
 
     final w = size.width, h = size.height;

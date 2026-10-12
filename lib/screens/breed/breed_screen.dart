@@ -244,6 +244,7 @@ class _BreedScreenState extends State<BreedScreen> {
                                   child: BreedingTab(
                                     discoveredCreatures: entries,
                                     onBreedingComplete: _noop,
+                                    shown: !isCultivations,
                                   ),
                                 ),
                               ),

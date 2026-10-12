@@ -6,6 +6,7 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/achievements/achievement_sphere.dart';
+import 'package:alchemons/widgets/nav_slab.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -43,6 +44,7 @@ class CampaignRewardsButton extends StatefulWidget {
     this.enabled = true,
     this.style = CampaignRewardsStyle.icon,
     this.docked = false,
+    this.navSlab = false,
   });
   final Color? color;
   final bool enabled;
@@ -51,6 +53,10 @@ class CampaignRewardsButton extends StatefulWidget {
   /// Bar style only: shrink to a small tab (trophy and badge) so the bar can
   /// be parked against a screen edge. State is kept, so the count stays live.
   final bool docked;
+
+  /// Bar style only: this is home's bar, which the Fusion side's action row
+  /// is handed over from and to when not [docked] (nav_slab.dart).
+  final bool navSlab;
   @override
   State<CampaignRewardsButton> createState() => _CampaignRewardsButtonState();
 }
@@ -276,23 +282,25 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
       ),
     );
 
+    final frame = hasReady
+        ? fc.rewardGold.withValues(alpha: 0.8)
+        : palette.line;
+    final fill = hasReady
+        ? Color.alphaBlend(
+            palette.accentWash(fc.rewardGold, darkAlpha: 0.08),
+            palette.chromeFill(),
+          )
+        : palette.chromeFill();
     Widget slab({required Widget child, required EdgeInsets padding}) =>
         CustomPaint(
           foregroundPainter: BracketFramePainter(
-            color: hasReady
-                ? fc.rewardGold.withValues(alpha: 0.8)
-                : palette.line,
+            color: frame,
             strokeWidth: 1.2,
           ),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 260),
             padding: padding,
-            color: hasReady
-                ? Color.alphaBlend(
-                    palette.accentWash(fc.rewardGold, darkAlpha: 0.08),
-                    palette.chromeFill(),
-                  )
-                : palette.chromeFill(),
+            color: fill,
             child: child,
           ),
         );
@@ -336,7 +344,7 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
         // not fit beside the sphere, and the sphere already says what this
         // is — so the narrow form keeps the number and drops the prose.
         final roomy = c.maxWidth >= 235;
-        return Semantics(
+        final bar = Semantics(
           button: true,
           label: label,
           child: GestureDetector(
@@ -433,6 +441,16 @@ class _CampaignRewardsButtonState extends State<CampaignRewardsButton>
               ),
             ),
           ),
+        );
+        if (!widget.navSlab) return bar;
+        return NavSlab(
+          site: NavSlabSite.home,
+          look: NavSlabLook(
+            fill: fill,
+            lit: hasReady ? frame : null,
+            opacity: widget.enabled ? 1 : 0.4,
+          ),
+          child: bar,
         );
       },
     );

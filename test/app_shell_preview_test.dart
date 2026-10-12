@@ -156,7 +156,11 @@ void main() {
         return handler?.call(message);
       };
       addTearDown(() => messenger.allMessagesHandler = null);
-      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      // APP_SHELL_SIZE=700x880 for the open Fold, say.
+      final size = Platform.environment['APP_SHELL_SIZE']?.split('x');
+      tester.view.physicalSize = size == null
+          ? const Size(390 * 3, 844 * 3)
+          : Size(double.parse(size[0]) * 3, double.parse(size[1]) * 3);
       tester.view.devicePixelRatio = 3;
       tester.view.padding = const FakeViewPadding(top: 44 * 3, bottom: 30 * 3);
       addTearDown(tester.view.reset);
@@ -272,6 +276,44 @@ void main() {
         await tester.dragFrom(const Offset(195, 600), Offset(0, -by));
         await settle(16);
         await shoot(name);
+      }
+
+      Future<void> closeShell() async {
+        await tester.pumpWidget(const SizedBox());
+        // Long one-shot delays (tutorial checks, toasts) left by the screens.
+        await tester.pump(const Duration(minutes: 5));
+        for (var i = 0; i < 6; i++) {
+          await tester.pump(const Duration(seconds: 1));
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 20)),
+          );
+        }
+        await tester.runAsync(db.close);
+      }
+
+      // The slab handed between home's achievements bar and Fusion's action
+      // row (nav_slab.dart), frame by frame each way. APP_SHELL_SLAB=1 shoots
+      // only this.
+      if (Platform.environment['APP_SHELL_SLAB'] != null) {
+        Future<void> flight(NavSection s, String name) async {
+          SectionRouter.instance.onSwitchSection?.call(s);
+          await tester.pump();
+          await shoot('${name}_0');
+          await tester.pump();
+          for (var i = 1; i <= 8; i++) {
+            await tester.pump(const Duration(milliseconds: 48));
+            await shoot('${name}_$i');
+          }
+          await settle(10);
+          await shoot('${name}_9_settled');
+        }
+
+        await go(NavSection.breed, 'slab_00_breed');
+        await tapText('FUSION', 'slab_01_fusion', frames: 30);
+        await flight(NavSection.home, 'slab_b_fusion_to_home');
+        await flight(NavSection.breed, 'slab_a_home_to_fusion');
+        await closeShell();
+        return;
       }
 
       // The currency with the notice out of its way, folded and opened.
@@ -416,16 +458,7 @@ void main() {
       nav.currentState!.pop();
       await settle(20);
 
-      await tester.pumpWidget(const SizedBox());
-      // Long one-shot delays (tutorial checks, toasts) left by the screens.
-      await tester.pump(const Duration(minutes: 5));
-      for (var i = 0; i < 6; i++) {
-        await tester.pump(const Duration(seconds: 1));
-        await tester.runAsync(
-          () => Future<void>.delayed(const Duration(milliseconds: 20)),
-        );
-      }
-      await tester.runAsync(db.close);
+      await closeShell();
     });
   }
 }

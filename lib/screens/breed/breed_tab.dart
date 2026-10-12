@@ -45,6 +45,7 @@ import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
 import 'package:alchemons/widgets/fx/cultivation_sphere.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:alchemons/widgets/nav_slab.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -73,10 +74,14 @@ class BreedingTab extends StatefulWidget {
     super.key,
     required this.discoveredCreatures,
     required this.onBreedingComplete,
+    this.shown = true,
     this.debugParent1,
     this.debugParent2,
     this.debugLastPair,
   });
+
+  /// Whether this side is the one up: the breed screen keeps both built.
+  final bool shown;
 
   /// Specimens already in the chambers when the tab opens, with no reveal:
   /// for measuring the chamber at rest.
@@ -424,7 +429,12 @@ class _BreedingTabState extends State<BreedingTab>
             const SizedBox(height: 8),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildActions(palette, gold, ready.block == null),
+              child: _buildActions(
+                palette,
+                gold,
+                ready.block == null,
+                standing: widget.shown && !compact,
+              ),
             ),
             // Clear of the dock's raised FUSION icon, which otherwise sat on
             // the middle of the button.
@@ -451,57 +461,94 @@ class _BreedingTabState extends State<BreedingTab>
 
   /// One button that does the next thing, and SAME PAIR beside it when
   /// there is a pair to repeat.
-  Widget _buildActions(BracketPalette palette, Color gold, bool clear) {
+  ///
+  /// The row is the slab home's achievements bar is handed over to and from
+  /// (nav_slab.dart) while [standing] in view.
+  Widget _buildActions(
+    BracketPalette palette,
+    Color gold,
+    bool clear, {
+    required bool standing,
+  }) {
+    Widget slab(Widget row, {bool enabled = true, NavSlabSplit? split}) =>
+        NavSlab(
+          site: NavSlabSite.fusion,
+          available: standing,
+          look: NavSlabLook(
+            fill: BracketButton.fillOf(palette, gold),
+            lit: gold,
+            sillWidth: 1.3,
+            opacity: enabled ? 1 : BracketButton.disabledOpacity,
+            split: split,
+          ),
+          child: row,
+        );
     final p1 = selectedParent1, p2 = selectedParent2;
     if (p1 != null && p2 != null) {
-      return BracketButton(
-        label: 'FUSE',
-        height: 48,
-        palette: palette,
-        accent: gold,
-        enabled: clear && !_isBreeding,
-        onTap: _onBreedTap,
+      final enabled = clear && !_isBreeding;
+      return slab(
+        enabled: enabled,
+        BracketButton(
+          label: 'FUSE',
+          height: 48,
+          palette: palette,
+          accent: gold,
+          enabled: enabled,
+          onTap: _onBreedTap,
+        ),
       );
     }
     if (p1 != null || p2 != null) {
-      return BracketButton(
-        label: 'CHOOSE ONE MORE',
-        height: 48,
-        palette: palette,
-        accent: gold,
+      return slab(
         enabled: !_isBreeding,
-        onTap: () => _showBreedingPicker(targetSlot: p1 == null ? 1 : 2),
+        BracketButton(
+          label: 'CHOOSE ONE MORE',
+          height: 48,
+          palette: palette,
+          accent: gold,
+          enabled: !_isBreeding,
+          onTap: () => _showBreedingPicker(targetSlot: p1 == null ? 1 : 2),
+        ),
       );
     }
     final repeat =
         _lastParent1InstanceId != null && _lastParent2InstanceId != null;
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: BracketButton(
-            label: 'CHOOSE TWO',
-            height: 48,
-            palette: palette,
-            accent: gold,
-            onTap: () => _showBreedingPicker(),
-          ),
-        ),
-        if (repeat) ...[
-          const SizedBox(width: 10),
+    return slab(
+      split: repeat
+          ? NavSlabSplit(
+              share: 3 / 5,
+              gap: 10,
+              fill: BracketButton.fillOf(palette, gold, primary: false),
+            )
+          : null,
+      Row(
+        children: [
           Expanded(
-            flex: 2,
+            flex: 3,
             child: BracketButton(
-              label: 'SAME PAIR',
-              primary: false,
+              label: 'CHOOSE TWO',
               height: 48,
               palette: palette,
               accent: gold,
-              onTap: _onRepeatBreed,
+              onTap: () => _showBreedingPicker(),
             ),
           ),
+          if (repeat) ...[
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: BracketButton(
+                label: 'SAME PAIR',
+                primary: false,
+                height: 48,
+                palette: palette,
+                accent: gold,
+                onTap: _onRepeatBreed,
+              ),
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 
@@ -916,10 +963,7 @@ class _BreedingTabState extends State<BreedingTab>
     final inst2 = await db.creatureDao.getInstance(_lastParent2InstanceId!);
 
     if (inst1 == null || inst2 == null) {
-      _showToast(
-        'That pair is no longer here',
-        color: Colors.orange,
-      );
+      _showToast('That pair is no longer here', color: Colors.orange);
       setState(() {
         _lastParent1InstanceId = null;
         _lastParent2InstanceId = null;
@@ -992,10 +1036,7 @@ class _BreedingTabState extends State<BreedingTab>
       final placementFailure = await breedingService
           .getEggPlacementFailureMessage();
       if (placementFailure != null) {
-        _showToast(
-          placementFailure,
-          color: Colors.orange,
-        );
+        _showToast(placementFailure, color: Colors.orange);
         return;
       }
 
@@ -1308,10 +1349,7 @@ class _BreedingTabState extends State<BreedingTab>
 
       widget.onBreedingComplete();
     } catch (e) {
-      _showToast(
-        'Fusion failed: $e',
-        color: Colors.red,
-      );
+      _showToast('Fusion failed: $e', color: Colors.red);
     }
   }
 
@@ -1495,10 +1533,7 @@ class _BreedingTabState extends State<BreedingTab>
     final elapsed = now - last;
     final remMs = perBar.inMilliseconds - (elapsed % perBar.inMilliseconds);
     final mins = (remMs / 60000).ceil();
-    _showToast(
-      'Resting, next stamina in ~${mins}m',
-      color: Colors.orange,
-    );
+    _showToast('Resting, next stamina in ~${mins}m', color: Colors.orange);
     return false;
   }
 
