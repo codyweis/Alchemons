@@ -144,7 +144,13 @@ class AccountService extends ChangeNotifier {
     }
   }
 
-  Future<void> deleteAccount({required String currentPassword}) async {
+  /// Deletes the account. [beforeDelete] runs once the password has been
+  /// checked and while the account can still write: what it published
+  /// (friends) is taken down then.
+  Future<void> deleteAccount({
+    required String currentPassword,
+    Future<void> Function()? beforeDelete,
+  }) async {
     final user = _requireSignedInUserWithEmail();
     try {
       await user.reauthenticateWithCredential(
@@ -153,6 +159,7 @@ class AccountService extends ChangeNotifier {
           password: currentPassword,
         ),
       );
+      await beforeDelete?.call();
       await user.delete();
       _user = null;
       notifyListeners();

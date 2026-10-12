@@ -14,8 +14,11 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
+import 'package:alchemons/widgets/notification_banner_system.dart'
+    show HomeNoticeDot;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -34,6 +37,10 @@ class AvatarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final faction = context.watch<FactionService>().current;
+    // A friend request waiting to be answered (Profile → FRIENDS).
+    final request = context.select<FriendService?, bool>(
+      (f) => f?.hasRequests ?? false,
+    );
     final group = faction == null
         ? ElementalGroup.arcane
         : ElementalGroup.values.byName(faction.name);
@@ -62,6 +69,13 @@ class AvatarButton extends StatelessWidget {
                 ),
               ),
             ),
+            if (request)
+              // On the orb's shoulder, as the dock's dots sit on theirs.
+              const Positioned(
+                left: _size * 0.78 - 6,
+                top: _size * 0.2 - 6,
+                child: HomeNoticeDot(color: Color(0xFFE4C16A), size: 12),
+              ),
           ],
         ),
       ),

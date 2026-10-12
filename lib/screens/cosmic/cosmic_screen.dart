@@ -234,7 +234,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Home planet state
   HomePlanet? _homePlanet;
-  static const _homePlanetPrefsKey = 'cosmic_home_planet_v1';
+  static const _homePlanetPrefsKey = kCosmicHomePlanetPrefsKey;
 
   /// Whether each weapon aims itself, which is what its HUD button does.
   ///

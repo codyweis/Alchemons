@@ -196,5 +196,122 @@ service cloud.firestore {
           request.resource.data.createdAt == request.time &&
           (resource == null || resource.data.email == request.resource.data.email);
     }
+
+    // ── Friends (lib/services/friend_service.dart) ──────────────────────────
+    //
+    // A player's planet (players/{uid}) and home (homes/{uid}) are read only
+    // by themselves and their friends. Friendship is two documents, one in
+    // each player's friends, written together when one accepts the other's
+    // request; either side can delete both. A request can't be sent to
+    // someone who blocked the sender or is already their friend.
+
+    function isFriendOf(uid) {
+      return isSignedIn() &&
+          exists(/databases/$(database)/documents/players/$(uid)/friends/$(request.auth.uid));
+    }
+
+    function isFriendCode(code) {
+      return code is string && code.matches('^[ABCDEFGHJKMNPQRSTUVWXYZ2-9]{8}$');
+    }
+
+    function requestExists(from, to) {
+      return exists(/databases/$(database)/documents/friend_requests/$(from + '_' + to));
+    }
+
+    // Code → owner. Anyone signed in can look one code up; no one can list
+    // them. A code is only ever created (a taken one refuses), never moved.
+    match /friend_codes/{code} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isSignedIn() &&
+          isFriendCode(code) &&
+          request.resource.data.keys().hasOnly(['uid', 'createdAt']) &&
+          request.resource.data.uid == request.auth.uid &&
+          request.resource.data.createdAt == request.time;
+      allow update: if false;
+      allow delete: if isSignedIn() && resource.data.uid == request.auth.uid;
+    }
+
+    match /players/{uid} {
+      allow read: if isOwner(uid) || isFriendOf(uid);
+      allow create, update: if isOwner(uid) &&
+          request.resource.data.keys().hasOnly(['name', 'faction', 'code', 'planet', 'updatedAt']) &&
+          request.resource.data.name is string &&
+          request.resource.data.name.size() > 0 &&
+          request.resource.data.name.size() <= 40 &&
+          isOptionalString(request.resource.data.faction) &&
+          isFriendCode(request.resource.data.code) &&
+          (request.resource.data.planet == null || request.resource.data.planet is map) &&
+          request.resource.data.updatedAt == request.time;
+      allow delete: if isOwner(uid);
+
+      match /friends/{other} {
+        allow read: if isOwner(uid);
+        // Accepting writes both sides: the one accepting may write into
+        // their own list and into the asker's, while the request stands.
+        allow create, update: if isSignedIn() &&
+            uid != other &&
+            request.resource.data.keys().hasOnly(['since']) &&
+            request.resource.data.since == request.time &&
+            ((request.auth.uid == uid && requestExists(other, uid)) ||
+             (request.auth.uid == other && requestExists(uid, other)));
+        allow delete: if isSignedIn() &&
+            (request.auth.uid == uid || request.auth.uid == other);
+      }
+
+      match /blocked/{other} {
+        allow read, delete: if isOwner(uid);
+        allow create, update: if isOwner(uid) &&
+            request.resource.data.keys().hasOnly(['at']) &&
+            request.resource.data.at == request.time;
+      }
+    }
+
+    match /homes/{uid} {
+      allow read: if isOwner(uid) || isFriendOf(uid);
+      allow create, update: if isOwner(uid) &&
+          request.resource.data.keys().hasOnly(['v', 'home', 'updatedAt']) &&
+          request.resource.data.v is int &&
+          request.resource.data.home is string &&
+          request.resource.data.home.size() <= 300000 &&
+          request.resource.data.updatedAt == request.time;
+      allow delete: if isOwner(uid);
+    }
+
+    // {from}_{to}. Read by either side; deleted by either (declined,
+    // withdrawn, or accepted).
+    match /friend_requests/{requestId} {
+      allow read: if isSignedIn() &&
+          (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+      allow create: if isSignedIn() &&
+          request.resource.data.keys().hasOnly(['from', 'to', 'fromName', 'fromFaction', 'toCode', 'createdAt']) &&
+          request.resource.data.from == request.auth.uid &&
+          isNonEmptyString(request.resource.data.to) &&
+          request.resource.data.to != request.auth.uid &&
+          requestId == request.auth.uid + '_' + request.resource.data.to &&
+          request.resource.data.fromName is string &&
+          request.resource.data.fromName.size() > 0 &&
+          request.resource.data.fromName.size() <= 40 &&
+          isOptionalString(request.resource.data.fromFaction) &&
+          (request.resource.data.toCode == null || isFriendCode(request.resource.data.toCode)) &&
+          request.resource.data.createdAt == request.time &&
+          !exists(/databases/$(database)/documents/players/$(request.resource.data.to)/blocked/$(request.auth.uid)) &&
+          !exists(/databases/$(database)/documents/players/$(request.resource.data.to)/friends/$(request.auth.uid));
+      allow update: if false;
+      allow delete: if isSignedIn() &&
+          (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
+    }
+
+    // Reports about a player, kept for review in the console. Write-only.
+    match /reports/{reportId} {
+      allow create: if isSignedIn() &&
+          request.resource.data.keys().hasOnly(['from', 'about', 'reason', 'createdAt']) &&
+          request.resource.data.from == request.auth.uid &&
+          isNonEmptyString(request.resource.data.about) &&
+          request.resource.data.about != request.auth.uid &&
+          request.resource.data.reason in ['name', 'home', 'other'] &&
+          request.resource.data.createdAt == request.time;
+      allow read, update, delete: if false;
+    }
   }
 }

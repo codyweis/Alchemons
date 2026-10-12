@@ -42,6 +42,7 @@ part 'earth_planet.dart';
 part 'ember_corona.dart';
 part 'fire_planet.dart';
 part 'home_effects_art.dart';
+part 'home_planet_paint.dart';
 part 'ice_planet.dart';
 part 'lava_planet.dart';
 part 'light_planet.dart';

@@ -37,6 +37,7 @@ import 'package:alchemons/screens/debug/ability_lab_screen.dart';
 import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
+import 'package:alchemons/screens/friends/friends_panel.dart';
 import 'package:alchemons/screens/story/story_intro_screen.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_service.dart';
@@ -45,6 +46,7 @@ import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/device_identity_service.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
@@ -845,7 +847,18 @@ class _ProfileScreenState extends State<ProfileScreen>
       message: 'Removing your account credentials.',
     );
     try {
-      await account.deleteAccount(currentPassword: result.currentPassword);
+      final friends = context.read<FriendService>();
+      await account.deleteAccount(
+        currentPassword: result.currentPassword,
+        // Their planet and home come down, and they leave every friend's
+        // list; a failure there must not keep the account from going.
+        beforeDelete: () => friends
+            .forget()
+            .timeout(const Duration(seconds: 20))
+            .catchError((Object e) {
+              debugPrint('Friends cleanup before account deletion failed: $e');
+            }),
+      );
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showTransferSnack('Account deleted.');
     } on AccountException catch (error) {
@@ -1230,6 +1243,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                               ),
                           ],
                         ),
+
+                      _Section(
+                        label: 'FRIENDS',
+                        palette: palette,
+                        children: [
+                          FriendsPanel(
+                            palette: palette,
+                            accent: accent,
+                            onSignIn: _signInAccount,
+                          ),
+                        ],
+                      ),
 
                       if (faction != null)
                         _Section(

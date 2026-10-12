@@ -9,6 +9,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/home_biome/home_biome_screen.dart';
+import 'package:alchemons/services/friend_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -81,4 +82,6 @@ Future<void> descendToHomeBiome(
     );
   }
   if (fromSpace) await settings.setSetting(HomePortalKeys.unlocked, '1');
+  // Friends see it as it was left.
+  if (context.mounted) context.read<FriendService?>()?.publishSoon();
 }

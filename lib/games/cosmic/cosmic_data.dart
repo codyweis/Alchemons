@@ -3087,6 +3087,9 @@ const List<HomeRecipe> kHomeRecipes = [
 /// Where the cosmic save keeps [HomeCustomizationState] (shared preferences).
 const String kCosmicCustomizationPrefsKey = 'cosmic_home_customization_v1';
 
+/// Where the cosmic save keeps the [HomePlanet] (shared preferences).
+const String kCosmicHomePlanetPrefsKey = 'cosmic_home_planet_v1';
+
 class HomeCustomizationState {
   final Set<String> unlockedIds;
   final Set<String> activeIds;

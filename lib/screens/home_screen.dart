@@ -872,10 +872,17 @@ class _HomeScreenState extends State<HomeScreen>
   async.StreamSubscription<List<IncubatorSlot>>? _slotsSubscription;
   async.StreamSubscription<Set<String>>? _rosterSubscription;
   async.StreamSubscription<List<BiomeFarm>>? _biomesSubscription;
+  async.StreamSubscription<String?>? _featuredSettingSubscription;
 
   // FEATURED HERO STATE
   PresentationData? _featuredData;
   String? _featuredInstanceId;
+
+  /// The saved featured choice as home last knew it. Anything else that
+  /// turns up there was written from outside home — a restored save — and
+  /// the hero is read again.
+  String? _featuredSettingSeen;
+  bool _featuredSettingRead = false;
 
   /// Set when a new featured specimen is chosen: it gathers out of its
   /// element. Not on the home screen's own loads.
@@ -1081,6 +1088,7 @@ class _HomeScreenState extends State<HomeScreen>
     _slotsSubscription?.cancel();
     _rosterSubscription?.cancel();
     _biomesSubscription?.cancel();
+    _featuredSettingSubscription?.cancel();
 
     // Remove wilderness spawn listener.
     //
@@ -1548,11 +1556,35 @@ class _HomeScreenState extends State<HomeScreen>
       species,
     ) {
       if (!mounted) return;
-      // Only fills a gap. Picking a different favourite is the profile's
-      // job, and re-running this on every roster change would fight it.
-      if (_featuredInstanceId != null || species.isEmpty) return;
-      async.unawaited(_refreshFeatured());
+      final shown = _featuredInstanceId;
+      if (shown == null) {
+        // Fills a gap; it never swaps out a hero that is still there.
+        if (species.isNotEmpty) async.unawaited(_refreshFeatured());
+        return;
+      }
+      // The one on show has gone — released, or not in a restored save.
+      async.unawaited(
+        db.creatureDao.getInstance(shown).then((inst) {
+          if (inst == null && mounted && _featuredInstanceId == shown) {
+            return _refreshFeatured();
+          }
+        }),
+      );
     });
+
+    // The saved choice changed under home: a restored save brings its own.
+    _featuredSettingSubscription = db.settingsDao
+        .watchSetting('featured_instance_id')
+        .map((v) => v ?? '')
+        .distinct()
+        .listen((value) {
+          if (!mounted) return;
+          final first = !_featuredSettingRead;
+          _featuredSettingRead = true;
+          if (value == _featuredSettingSeen) return;
+          _featuredSettingSeen = value;
+          if (!first) async.unawaited(_refreshFeatured());
+        });
 
     // Harvests: react to biome changes
     _biomesSubscription = db.biomeDao.watchBiomes().listen(
@@ -2171,6 +2203,9 @@ class _HomeScreenState extends State<HomeScreen>
     );
     if (pickedInstance == null) return;
 
+    // Home's own choice: known before it is written, so the watch on the
+    // setting does not read it a second time.
+    _featuredSettingSeen = pickedInstance.instanceId;
     await db.settingsDao.setFeaturedInstanceId(pickedInstance.instanceId);
 
     await _prewarmFeaturedSprite(pickedInstance, repo);

@@ -20,6 +20,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
+import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
@@ -222,6 +223,17 @@ class AppProviders extends StatelessWidget {
 
         ChangeNotifierProvider<FactionService>(
           create: (ctx) => FactionService(ctx.read<AlchemonsDatabase>()),
+        ),
+        // Friends, for players who sign in. Not lazy: a home changed while
+        // signed out goes out to friends a little after the game starts.
+        ChangeNotifierProvider<FriendService>(
+          lazy: false,
+          create: (ctx) => FriendService(
+            account: ctx.read<AccountService>(),
+            db: ctx.read<AlchemonsDatabase>(),
+            wear: ctx.read<CosmeticWearService>(),
+            factions: ctx.read<FactionService>(),
+          ),
         ),
         ChangeNotifierProvider(
           create: (context) => WildernessSpawnService(
