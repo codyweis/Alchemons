@@ -21,6 +21,7 @@ import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
@@ -233,6 +234,18 @@ class AppProviders extends StatelessWidget {
             db: ctx.read<AlchemonsDatabase>(),
             wear: ctx.read<CosmeticWearService>(),
             factions: ctx.read<FactionService>(),
+          ),
+        ),
+        // Trading with friends. Not lazy: a trade a friend finishes while
+        // this player is elsewhere is collected into their save at once.
+        ChangeNotifierProvider<TradeService>(
+          lazy: false,
+          create: (ctx) => TradeService(
+            account: ctx.read<AccountService>(),
+            db: ctx.read<AlchemonsDatabase>(),
+            catalog: ctx.read<CreatureCatalog>(),
+            friends: ctx.read<FriendService>(),
+            wear: ctx.read<CosmeticWearService>(),
           ),
         ),
         ChangeNotifierProvider(

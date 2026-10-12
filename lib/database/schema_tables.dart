@@ -119,6 +119,10 @@ class CreatureInstances extends Table {
   /// this individual alone: breeding never passes it on.
   TextColumn get mutation => text().nullable()();
 
+  /// Who has owned it, if it has been traded: a `TradeProvenance`, saved.
+  /// Travels with it; breeding never passes it on.
+  TextColumn get provenance => text().nullable()();
+
   // STAT COLUMNS
   RealColumn get statSpeed => real().withDefault(const Constant(3.0))();
   RealColumn get statIntelligence => real().withDefault(const Constant(3.0))();

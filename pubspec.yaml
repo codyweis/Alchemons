@@ -44,6 +44,7 @@ dev_dependencies:
   # Used by the schema-migration test to build a pre-upgrade database file.
   sqlite3: ^2.4.0
   json_serializable: ^6.10.0
+  fake_cloud_firestore: ^3.1.0
 
 flutter_launcher_icons:
   android: true

@@ -302,6 +302,151 @@ service cloud.firestore {
           (resource.data.from == request.auth.uid || resource.data.to == request.auth.uid);
     }
 
+    // ── Trades (lib/services/trade_service.dart, lib/models/trade.dart) ────
+    //
+    // Two friends share one table, trades/{a}_{b} (the uids in order). Each
+    // writes only their own side: the Alchemon they put up (aOffer / bOffer)
+    // and their confirmation (aReady / bReady). Changing what is up clears
+    // both confirmations. The one confirming second marks it done in the same
+    // write, while the other's confirmation stands and nothing up changes;
+    // done can't be undone. Each side then marks that their game collected it
+    // (aClaimed / bClaimed); once both have, either may clear the table for
+    // the next trade. Putting up, confirming and finishing need the two to be
+    // friends; taking back and collecting do not.
+
+    function tradeSide(d) {
+      return request.auth.uid == d.a ? 'a' : 'b';
+    }
+
+    function tradeOther(s) {
+      return s == 'a' ? 'b' : 'a';
+    }
+
+    function tradePartner(d) {
+      return request.auth.uid == d.a ? d.b : d.a;
+    }
+
+    function areFriends(other) {
+      return exists(/databases/$(database)/documents/players/$(request.auth.uid)/friends/$(other)) &&
+          exists(/databases/$(database)/documents/players/$(other)/friends/$(request.auth.uid));
+    }
+
+    function isTradeOffer(o) {
+      return o == null || (o is map &&
+          o.keys().hasOnly(['id', 'card']) &&
+          isNonEmptyString(o.id) && o.id.size() <= 80 &&
+          o.card is string && o.card.size() <= 120000);
+    }
+
+    function isTradeShape(tradeId, d) {
+      return d.keys().hasOnly(['a', 'b', 'parties', 'aName', 'bName', 'aOffer', 'bOffer',
+            'aReady', 'bReady', 'status', 'aClaimed', 'bClaimed', 'lastBy',
+            'updatedAt', 'doneAt']) &&
+          d.keys().hasAll(['a', 'b', 'parties', 'aName', 'bName', 'aOffer', 'bOffer',
+            'aReady', 'bReady', 'status', 'aClaimed', 'bClaimed', 'lastBy',
+            'updatedAt', 'doneAt']) &&
+          isNonEmptyString(d.a) && isNonEmptyString(d.b) && d.a < d.b &&
+          tradeId == d.a + '_' + d.b &&
+          d.parties == [d.a, d.b] &&
+          request.auth.uid in d.parties &&
+          d.aName is string && d.aName.size() <= 40 &&
+          d.bName is string && d.bName.size() <= 40 &&
+          isTradeOffer(d.aOffer) && isTradeOffer(d.bOffer) &&
+          d.aReady is bool && d.bReady is bool &&
+          d.aClaimed is bool && d.bClaimed is bool &&
+          d.status in ['open', 'done'] &&
+          d.lastBy == request.auth.uid &&
+          d.updatedAt == request.time &&
+          (d.status == 'done' || (!d.aClaimed && !d.bClaimed && d.doneAt == null)) &&
+          (!d.aReady || (d.aOffer != null && d.bOffer != null)) &&
+          (!d.bReady || (d.aOffer != null && d.bOffer != null));
+    }
+
+    // A fresh table, or one cleared after a trade both sides collected: only
+    // the writer's side may hold anything, and nothing is confirmed.
+    function isFreshTable(d) {
+      let s = tradeSide(d);
+      return d.status == 'open' && !d.aReady && !d.bReady &&
+          d[tradeOther(s) + 'Offer'] == null &&
+          (d[s + 'Offer'] == null || areFriends(tradePartner(d)));
+    }
+
+    // Open to open: the writer's own side changes.
+    function isTradeTurn(d, r) {
+      let s = tradeSide(r);
+      let o = tradeOther(s);
+      let changed = d[s + 'Offer'] != r[s + 'Offer'];
+      let readying = d[s + 'Ready'] == true && r[s + 'Ready'] == false;
+      return r.status == 'open' && d.status == 'open' &&
+          d.diff(r).affectedKeys().hasOnly([s + 'Name', s + 'Offer', s + 'Ready',
+            o + 'Ready', 'lastBy', 'updatedAt']) &&
+          (changed ? (!d.aReady && !d.bReady) : d[o + 'Ready'] == r[o + 'Ready']) &&
+          (!readying || areFriends(tradePartner(r))) &&
+          (!changed || d[s + 'Offer'] == null || areFriends(tradePartner(r)));
+    }
+
+    // Open to done: the second confirmation, nothing else changing.
+    function isTradeDone(d, r) {
+      let s = tradeSide(r);
+      let o = tradeOther(s);
+      return r.status == 'open' && d.status == 'done' &&
+          r[o + 'Ready'] == true &&
+          d.aReady == true && d.bReady == true &&
+          d.aOffer != null && d.bOffer != null &&
+          d.diff(r).affectedKeys().hasOnly(['status', s + 'Ready', s + 'Name',
+            'doneAt', 'lastBy', 'updatedAt']) &&
+          d.doneAt == request.time &&
+          areFriends(tradePartner(r));
+    }
+
+    // Done: the writer's game has collected it.
+    function isTradeClaim(d, r) {
+      let s = tradeSide(r);
+      return r.status == 'done' && d.status == 'done' &&
+          d.diff(r).affectedKeys().hasOnly([s + 'Claimed', 'lastBy', 'updatedAt']) &&
+          d[s + 'Claimed'] == true;
+    }
+
+    match /trades/{tradeId} {
+      // A table not made yet reads as missing to either of its two.
+      allow get: if isSignedIn() &&
+          (resource == null
+            ? tradeId.split('_').hasAny([request.auth.uid])
+            : request.auth.uid in resource.data.parties);
+      allow list: if isSignedIn() && request.auth.uid in resource.data.parties;
+      allow create: if isSignedIn() &&
+          isTradeShape(tradeId, request.resource.data) &&
+          isFreshTable(request.resource.data);
+      allow update: if isSignedIn() &&
+          request.auth.uid in resource.data.parties &&
+          isTradeShape(tradeId, request.resource.data) &&
+          (isTradeTurn(request.resource.data, resource.data) ||
+           isTradeDone(request.resource.data, resource.data) ||
+           isTradeClaim(request.resource.data, resource.data) ||
+           (resource.data.status == 'done' && resource.data.aClaimed &&
+            resource.data.bClaimed && isFreshTable(request.resource.data)));
+      allow delete: if isSignedIn() &&
+          request.auth.uid in resource.data.parties &&
+          (resource.data.status == 'open' ||
+           (resource.data.aClaimed && resource.data.bClaimed));
+    }
+
+    // A player's trades this week, and the Alchemons they have traded away
+    // (id → when), which a restored save is not allowed to bring back.
+    match /traders/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid) &&
+          request.resource.data.keys().hasOnly(['week', 'used', 'gone', 'updatedAt']) &&
+          request.resource.data.week is string &&
+          request.resource.data.week.size() <= 12 &&
+          request.resource.data.used is int &&
+          request.resource.data.used >= 0 &&
+          request.resource.data.used <= 1000 &&
+          request.resource.data.gone is map &&
+          request.resource.data.gone.size() <= 5000 &&
+          request.resource.data.updatedAt == request.time;
+    }
+
     // Reports about a player, kept for review in the console. Write-only.
     match /reports/{reportId} {
       allow create: if isSignedIn() &&

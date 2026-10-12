@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/athanor.dart';
+import 'package:alchemons/models/profile_titles.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/widgets/achievements/achievement_sphere.dart';
@@ -180,6 +181,7 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
     var gold = 0;
     var silver = 0;
     var tincture = 0;
+    final titles = <String>[];
     var paid = false;
     try {
       var fired = 0;
@@ -196,6 +198,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
           gold += reward.gold;
           silver += reward.silver;
           tincture += kAthanorAchievementTincture;
+          if (ProfileTitles.forAchievement(reward.id) case (_, final words)) {
+            titles.add(words);
+          }
           if (!mounted) return true;
 
           HapticFeedback.mediumImpact();
@@ -229,6 +234,11 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
       _notify(
         gold + silver + tincture > 0
             ? 'Collected $gold Gold, $silver Silver and ${athanorSparks(tincture, title: true)}.'
+                  '${switch (titles) {
+                    [] => '',
+                    [final one] => ' New title: $one.',
+                    _ => ' New titles: ${titles.join(', ')}.',
+                  }}'
             : 'Rewards already collected.',
       );
     } catch (_) {
@@ -309,6 +319,18 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
               entry.value,
               res.color,
             ),
+        // A profile title (Profile → COSMETICS).
+        if (ProfileTitles.forAchievement(a.id) case (_, final words))
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text('TITLE', style: _mono(size * 0.72, palette.muted)),
+              const SizedBox(width: 6),
+              Text(words, style: bracketText(context, size, palette.ink)),
+            ],
+          ),
       ],
     );
   }

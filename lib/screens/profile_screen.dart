@@ -3,9 +3,10 @@
 // The profile: who you are, then how the game is set up.
 //
 //   Your division, as the realm you chose it by — its living grains across
-//   the top, the starter orb, the name, its creed and perks — and then the
-//   journal, display, sound, notifications, your account and save, a fresh
-//   start, and the developer switches.
+//   the top, the starter orb, the name, the title worn and its creed — then
+//   the cosmetics worn for the whole game (title, dock, fusion), its perks,
+//   friends, the journal, display, sound, notifications, your account and
+//   save, a fresh start, and the developer switches.
 //
 // It is dark glass and ink like the rest of the game (bracket_frame.dart):
 // the sections are plain panels, nothing outlined, and the thing to do is
@@ -47,6 +48,7 @@ import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/device_identity_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:alchemons/services/notification_preferences_service.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
@@ -67,6 +69,7 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/nav_emblems.dart';
 import 'package:alchemons/widgets/campaign_rewards_button.dart';
+import 'package:alchemons/widgets/choice_strip.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/fusion_style_choice.dart';
 import 'package:alchemons/widgets/reset_progress_dialog.dart';
@@ -323,7 +326,12 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   Future<void> _loadProfileData() async {
     final data = await _fetch();
-    if (mounted) setState(() => _data = data);
+    if (mounted) {
+      setState(() {
+        _data = data;
+        _lastMadeTitle ??= data.titles.wornMade;
+      });
+    }
   }
 
   BracketPalette get _palette =>
@@ -357,7 +365,32 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (!await ProfileTitles.wear(db, id)) return;
     final titles = await ProfileTitles.load(db);
     if (!mounted) return;
-    setState(() => _data = data.withTitles(titles));
+    setState(() {
+      _data = data.withTitles(titles);
+      _lastMadeTitle = titles.wornMade ?? _lastMadeTitle;
+    });
+  }
+
+  /// The colour and word last worn together, so choosing an earned title
+  /// and then a colour comes back to the same word.
+  MadeTitle? _lastMadeTitle;
+
+  /// The title popup; wears what it comes back with (no title, too), and
+  /// nothing changes if it is closed.
+  Future<void> _chooseTitle(List<(String, String)> earned) async {
+    final data = _data;
+    if (data == null) return;
+    final picked = await showDialog<({String? id})>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (_) => _TitleDialog(
+        earned: earned,
+        worn: data.titles.worn,
+        lastMade: _lastMadeTitle,
+      ),
+    );
+    if (picked == null || picked.id == data.titles.worn) return;
+    await _wearTitle(picked.id);
   }
 
   Future<void> _replayStory() async {
@@ -848,16 +881,27 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
     try {
       final friends = context.read<FriendService>();
+      final trades = context.read<TradeService>();
       await account.deleteAccount(
         currentPassword: result.currentPassword,
-        // Their planet and home come down, and they leave every friend's
-        // list; a failure there must not keep the account from going.
-        beforeDelete: () => friends
-            .forget()
-            .timeout(const Duration(seconds: 20))
-            .catchError((Object e) {
-              debugPrint('Friends cleanup before account deletion failed: $e');
-            }),
+        // What they have up on trade tables comes back, their planet and
+        // home come down, and they leave every friend's list; a failure
+        // there must not keep the account from going.
+        beforeDelete: () async {
+          await trades.forget().timeout(const Duration(seconds: 20)).catchError(
+            (Object e) {
+              debugPrint('Trades cleanup before account deletion failed: $e');
+            },
+          );
+          await friends
+              .forget()
+              .timeout(const Duration(seconds: 20))
+              .catchError((Object e) {
+                debugPrint(
+                  'Friends cleanup before account deletion failed: $e',
+                );
+              });
+        },
       );
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showTransferSnack('Account deleted.');
@@ -1228,6 +1272,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      _cosmeticsSection(faction, data, palette, accent),
+
                       if (faction != null)
                         _Section(
                           label: 'DIVISION PERKS',
@@ -1255,26 +1301,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                           ),
                         ],
                       ),
-
-                      if (faction != null)
-                        _Section(
-                          label: 'DOCK',
-                          palette: palette,
-                          children: [
-                            _Row(
-                              title: 'ICONS',
-                              description:
-                                  "Which Let the dock's icons are drawn with. "
-                                  'More are sold in the shop or drawn '
-                                  'from the Furnace.',
-                              palette: palette,
-                              below: _DockSetChoice(
-                                palette: palette,
-                                accent: accent,
-                              ),
-                            ),
-                          ],
-                        ),
 
                       _Section(
                         label: 'JOURNAL',
@@ -1311,38 +1337,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                         label: 'DISPLAY',
                         palette: palette,
                         children: [
-                          if (_titleChoices(data).isNotEmpty)
-                            _Row(
-                              title: 'TITLE',
-                              description:
-                                  'Worn under the name at the top of this '
-                                  'page. Titles come from the Furnace.',
-                              palette: palette,
-                              below: _TitleChoice(
-                                titles: _titleChoices(data),
-                                worn: data?.titles.worn,
-                                onChanged: _wearTitle,
-                                palette: palette,
-                                accent: accent,
-                              ),
-                            ),
-                          if (context
-                                  .watch<CosmeticWearService?>()
-                                  ?.ownedFusionStyles
-                                  .isNotEmpty ??
-                              false)
-                            _Row(
-                              title: 'FUSION',
-                              description:
-                                  'How every fusion plays, from the two '
-                                  'turning to grains to the cultivation. '
-                                  'Styles come from the Furnace.',
-                              palette: palette,
-                              below: FusionStyleChoice(
-                                palette: palette,
-                                accent: accent,
-                              ),
-                            ),
                           _Row(
                             title: 'FONT',
                             description: 'The typeface for names and text',
@@ -1593,11 +1587,81 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  /// The owned titles that still have words, by id, in the order owned.
+  /// The earned titles (achievements' and the Athanor's) this save can
+  /// wear, by id with their words, in the catalogue's order.
   List<(String, String)> _titleChoices(_ProfileData? data) => [
-    for (final id in data?.titles.owned ?? const <String>{})
-      if (ProfileTitles.nameOf(id) case final name?) (id, name),
+    if (data != null)
+      for (final id in ProfileTitles.earnable())
+        if (data.titles.owned.contains(id) || data.titles.earned.contains(id))
+          if (ProfileTitles.nameOf(id) case final name?) (id, name),
   ];
+
+  /// Everything worn for the whole game, first under the header: the title,
+  /// the dock and the fusion. Each row shows even with nothing owned yet,
+  /// so the player learns where these are chosen and where they come from.
+  Widget _cosmeticsSection(
+    FactionId? faction,
+    _ProfileData? data,
+    BracketPalette palette,
+    Color accent,
+  ) {
+    final titles = _titleChoices(data);
+    final hasFusionStyles =
+        context.watch<CosmeticWearService?>()?.ownedFusionStyles.isNotEmpty ??
+        false;
+    const strip = EdgeInsets.symmetric(horizontal: _kRowInset);
+    return _Section(
+      label: 'COSMETICS',
+      palette: palette,
+      children: [
+        _Row(
+          title: 'TITLE',
+          description: switch (data?.titles.worn) {
+            final id? => ProfileTitles.nameOf(id) ?? '',
+            null => 'None. Make one from a color and a word.',
+          },
+          palette: palette,
+          trailing: _QuietButton(
+            label: 'CHANGE',
+            height: 34,
+            enabled: data != null,
+            palette: palette,
+            accent: accent,
+            onTap: () => _chooseTitle(titles),
+          ),
+        ),
+        if (faction != null)
+          _Row(
+            title: 'DOCK',
+            description:
+                "The Let the dock's icons are drawn with. More are sold in "
+                'the shop or come from the Furnace.',
+            palette: palette,
+            bleed: true,
+            below: _DockSetChoice(
+              palette: palette,
+              accent: accent,
+              padding: strip,
+            ),
+          ),
+        _Row(
+          title: 'FUSION',
+          description: hasFusionStyles
+              ? 'How every fusion plays. Styles come from the Furnace.'
+              : 'None yet. Fusion styles come from the Furnace.',
+          palette: palette,
+          bleed: true,
+          below: hasFusionStyles
+              ? FusionStyleChoice(
+                  palette: palette,
+                  accent: accent,
+                  padding: strip,
+                )
+              : null,
+        ),
+      ],
+    );
+  }
 
   Widget _accountRow(
     AccountService account,
@@ -2415,6 +2479,7 @@ class _Row extends StatelessWidget {
     this.description,
     this.trailing,
     this.below,
+    this.bleed = false,
   });
 
   final String title;
@@ -2423,36 +2488,48 @@ class _Row extends StatelessWidget {
   final Widget? trailing;
   final Widget? below;
 
+  /// [below] runs to the panel's edges (a strip that scrolls sideways and
+  /// keeps the row's margin as its own padding, [_kRowInset]).
+  final bool bleed;
+
   @override
   Widget build(BuildContext context) {
+    const inset = EdgeInsets.symmetric(horizontal: _kRowInset);
+    final head = Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: _mono(11.5, palette.ink)),
+              if (description != null) ...[
+                const SizedBox(height: 4),
+                Text(description!, style: _prose(context, palette.muted)),
+              ],
+            ],
+          ),
+        ),
+        if (trailing != null) ...[const SizedBox(width: 12), trailing!],
+      ],
+    );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+      padding: const EdgeInsets.symmetric(vertical: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: _mono(11.5, palette.ink)),
-                    if (description != null) ...[
-                      const SizedBox(height: 4),
-                      Text(description!, style: _prose(context, palette.muted)),
-                    ],
-                  ],
-                ),
-              ),
-              if (trailing != null) ...[const SizedBox(width: 12), trailing!],
-            ],
-          ),
-          if (below != null) ...[const SizedBox(height: 12), below!],
+          Padding(padding: inset, child: head),
+          if (below != null) ...[
+            const SizedBox(height: 12),
+            if (bleed) below! else Padding(padding: inset, child: below!),
+          ],
         ],
       ),
     );
   }
 }
+
+/// A row's margin either side.
+const double _kRowInset = 14;
 
 /// The other kind of button, sunk into its panel as a darker well: the
 /// kit's quiet fill alone is the panel's own color.
@@ -2584,48 +2661,224 @@ class _ChoiceCell extends StatelessWidget {
   }
 }
 
-/// The titles owned, each in its own words, and NONE; the one worn lit.
-class _TitleChoice extends StatelessWidget {
-  const _TitleChoice({
-    required this.titles,
+/// The title popup: the title as it will read, then a color and a word
+/// side by side (every one open from the start), then the titles earned.
+/// Nothing is worn until WEAR; NO TITLE clears the choice. Choosing a color
+/// keeps the word last chosen with one (and the other way round), so one
+/// tap changes one half. Pops `(id: ...)`, or nothing when closed.
+class _TitleDialog extends StatefulWidget {
+  const _TitleDialog({
+    required this.earned,
     required this.worn,
-    required this.onChanged,
-    required this.palette,
-    required this.accent,
+    required this.lastMade,
   });
 
-  /// By id, with its words.
-  final List<(String, String)> titles;
+  /// The earned titles that can be worn, by id, with their words.
+  final List<(String, String)> earned;
   final String? worn;
-  final ValueChanged<String?> onChanged;
-  final BracketPalette palette;
-  final Color accent;
+
+  /// The colour and word last worn together, if any.
+  final MadeTitle? lastMade;
+
+  @override
+  State<_TitleDialog> createState() => _TitleDialogState();
+}
+
+class _TitleDialogState extends State<_TitleDialog> {
+  late String? _pick = widget.worn;
+  late MadeTitle _base =
+      MadeTitle.fromId(widget.worn) ??
+      widget.lastMade ??
+      const MadeTitle(TitleColour.red, TitleWord.alchemy);
+
+  /// How each color is drawn: readable on the dialog's black.
+  static const Map<TitleColour, Color> _ink = {
+    TitleColour.red: Color(0xFFE0675A),
+    TitleColour.blue: Color(0xFF5E9BE0),
+    TitleColour.green: Color(0xFF6DB86F),
+    TitleColour.brown: Color(0xFFB4865C),
+    TitleColour.yellow: Color(0xFFE3C453),
+  };
+
+  void _choose(String? id) {
+    if (id == _pick) return;
+    HapticFeedback.selectionClick();
+    setState(() {
+      _pick = id;
+      _base = MadeTitle.fromId(id) ?? _base;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
-    Widget cell(String? id, String label) => _ChoiceCell(
-      selected: id == worn,
+    final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
+    final accent = bracketReadableAccent(theme);
+    final made = MadeTitle.fromId(_pick);
+    final words = switch (_pick) {
+      final id? => ProfileTitles.nameOf(id),
+      null => null,
+    };
+
+    Widget chip({
+      required bool selected,
+      required String label,
+      required VoidCallback onTap,
+      Color? color,
+      bool fill = false,
+    }) => _ChoiceCell(
+      selected: selected,
       palette: palette,
-      accent: accent,
+      accent: color ?? accent,
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      fill: false,
-      onTap: () {
-        if (id == worn) return;
-        HapticFeedback.selectionClick();
-        onChanged(id);
-      },
+      fill: fill,
+      onTap: onTap,
       child: Text(
         label,
-        style: _mono(11, id == worn ? palette.ink : palette.muted),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: _mono(
+          11,
+          color == null
+              ? (selected ? palette.ink : palette.muted)
+              : color.withValues(alpha: selected ? 1 : 0.72),
+        ),
       ),
     );
 
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    Widget label(String text) => Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Text(
+        text,
+        style: _mono(9.5, palette.muted).copyWith(letterSpacing: 2),
+      ),
+    );
+
+    /// One half of a made title, top to bottom.
+    Widget half(String text, List<Widget> cells) => Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        cell(null, 'NONE'),
-        for (final (id, name) in titles) cell(id, name.toUpperCase()),
+        label(text),
+        for (var i = 0; i < cells.length; i++) ...[
+          if (i > 0) const SizedBox(height: 6),
+          cells[i],
+        ],
+      ],
+    );
+
+    return _DialogShell(
+      title: 'TITLE',
+      children: [
+        // The title as it will read under the division's name.
+        Container(
+          height: 64,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          color: palette.bg0,
+          child: Text(
+            words ?? 'No title',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: words == null
+                ? _prose(
+                    context,
+                    palette.muted,
+                    size: 15,
+                  ).copyWith(fontStyle: FontStyle.italic)
+                : GoogleFonts.cinzel(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w600,
+                    color: palette.ink,
+                    letterSpacing: 1,
+                  ),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Flexible(
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // A color from one column and a word from the other.
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: half('COLOR', [
+                        for (final c in TitleColour.values)
+                          chip(
+                            selected: made?.colour == c,
+                            label: c.word.toUpperCase(),
+                            color: _ink[c],
+                            fill: true,
+                            onTap: () => _choose(MadeTitle(c, _base.word).id),
+                          ),
+                      ]),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: half('WORD', [
+                        for (final w in TitleWord.values)
+                          chip(
+                            selected: made?.word == w,
+                            label: w.word.toUpperCase(),
+                            fill: true,
+                            onTap: () => _choose(MadeTitle(_base.colour, w).id),
+                          ),
+                      ]),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                label('EARNED'),
+                if (widget.earned.isEmpty)
+                  Text(
+                    'None yet. Collect a family achievement or draw one '
+                    'from the Furnace.',
+                    style: _prose(context, palette.muted),
+                  )
+                else
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final (id, name) in widget.earned)
+                        chip(
+                          selected: id == _pick,
+                          label: name.toUpperCase(),
+                          onTap: () => _choose(id),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
+        Row(
+          children: [
+            Expanded(
+              child: _QuietButton(
+                label: 'NO TITLE',
+                height: 42,
+                enabled: _pick != null,
+                palette: palette,
+                accent: accent,
+                onTap: () => _choose(null),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: BracketButton(
+                label: 'WEAR',
+                height: 42,
+                palette: palette,
+                accent: accent,
+                onTap: () => Navigator.of(context).pop((id: _pick)),
+              ),
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -2673,12 +2926,17 @@ class _FontChoice extends StatelessWidget {
 }
 
 /// Every dock set owned, each its Let in Home's archway, the one on the dock
-/// lit from below.
+/// lit from below; a strip that scrolls sideways.
 class _DockSetChoice extends StatefulWidget {
-  const _DockSetChoice({required this.palette, required this.accent});
+  const _DockSetChoice({
+    required this.palette,
+    required this.accent,
+    this.padding = EdgeInsets.zero,
+  });
 
   final BracketPalette palette;
   final Color accent;
+  final EdgeInsets padding;
 
   @override
   State<_DockSetChoice> createState() => _DockSetChoiceState();
@@ -2700,56 +2958,55 @@ class _DockSetChoiceState extends State<_DockSetChoice> {
   Widget build(BuildContext context) {
     final factions = context.watch<FactionService>();
     final worn = factions.dockSet;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    final owned = [
+      for (final set in kDockSets)
+        if (factions.ownsDockSet(set)) set,
+    ];
+    return ChoiceStrip(
+      selected: owned.indexOf(worn),
+      padding: widget.padding,
       children: [
-        for (final set in kDockSets)
-          if (factions.ownsDockSet(set))
-            GestureDetector(
-              key: ValueKey('dock-set-${set.id}'),
-              behavior: HitTestBehavior.opaque,
-              onTap: context.soundAction(() {
-                if (set == worn) return;
-                HapticFeedback.selectionClick();
-                factions.wearDockSet(set);
-              }),
-              child: CustomPaint(
-                foregroundPainter: BracketFramePainter(
-                  color: set == worn ? accent : palette.line,
-                  strokeWidth: 1.2,
-                ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  width: 76,
-                  padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
-                  color: set == worn
-                      ? palette.accentWash(accent, darkAlpha: 0.18)
-                      : palette.bg0,
-                  child: Column(
-                    children: [
-                      NavEmblem(
-                        kind: NavEmblemKind.home,
-                        dockSet: set,
-                        size: 54,
-                      ),
-                      const SizedBox(height: 6),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          set.name.toUpperCase(),
-                          maxLines: 1,
-                          style: _mono(
-                            9.5,
-                            set == worn ? palette.ink : palette.muted,
-                          ),
+        for (final set in owned)
+          GestureDetector(
+            key: ValueKey('dock-set-${set.id}'),
+            behavior: HitTestBehavior.opaque,
+            onTap: context.soundAction(() {
+              if (set == worn) return;
+              HapticFeedback.selectionClick();
+              factions.wearDockSet(set);
+            }),
+            child: CustomPaint(
+              foregroundPainter: BracketFramePainter(
+                color: set == worn ? accent : palette.line,
+                strokeWidth: 1.2,
+              ),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 76,
+                padding: const EdgeInsets.fromLTRB(4, 8, 4, 8),
+                color: set == worn
+                    ? palette.accentWash(accent, darkAlpha: 0.18)
+                    : palette.bg0,
+                child: Column(
+                  children: [
+                    NavEmblem(kind: NavEmblemKind.home, dockSet: set, size: 54),
+                    const SizedBox(height: 6),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        set.name.toUpperCase(),
+                        maxLines: 1,
+                        style: _mono(
+                          9.5,
+                          set == worn ? palette.ink : palette.muted,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
+          ),
       ],
     );
   }

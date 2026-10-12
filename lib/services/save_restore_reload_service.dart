@@ -4,6 +4,7 @@ import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
+import 'package:alchemons/services/trade_service.dart';
 import 'package:flutter/widgets.dart';
 import 'package:provider/provider.dart';
 
@@ -14,6 +15,7 @@ Future<void> reloadStateAfterSaveRestore(BuildContext context) async {
   final survivalUpgradeService = context.read<SurvivalUpgradeService>();
   final athanorService = context.read<AthanorService>();
   final cosmeticWear = context.read<CosmeticWearService>();
+  final trades = context.read<TradeService?>();
 
   await factionService.reloadFromStorage();
   await shopService.reloadFromStorage();
@@ -21,4 +23,6 @@ Future<void> reloadStateAfterSaveRestore(BuildContext context) async {
   await survivalUpgradeService.load();
   await athanorService.load();
   await cosmeticWear.load();
+  // Nothing traded away comes back with an older save.
+  await trades?.afterRestore();
 }

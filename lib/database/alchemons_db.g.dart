@@ -1720,6 +1720,17 @@ class $CreatureInstancesTable extends CreatureInstances
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _provenanceMeta = const VerificationMeta(
+    'provenance',
+  );
+  @override
+  late final GeneratedColumn<String> provenance = GeneratedColumn<String>(
+    'provenance',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _statSpeedMeta = const VerificationMeta(
     'statSpeed',
   );
@@ -1980,6 +1991,7 @@ class $CreatureInstancesTable extends CreatureInstances
     alchemyEffect,
     costumes,
     mutation,
+    provenance,
     statSpeed,
     statIntelligence,
     statStrength,
@@ -2156,6 +2168,12 @@ class $CreatureInstancesTable extends CreatureInstances
       context.handle(
         _mutationMeta,
         mutation.isAcceptableOrUnknown(data['mutation']!, _mutationMeta),
+      );
+    }
+    if (data.containsKey('provenance')) {
+      context.handle(
+        _provenanceMeta,
+        provenance.isAcceptableOrUnknown(data['provenance']!, _provenanceMeta),
       );
     }
     if (data.containsKey('stat_speed')) {
@@ -2415,6 +2433,10 @@ class $CreatureInstancesTable extends CreatureInstances
         DriftSqlType.string,
         data['${effectivePrefix}mutation'],
       ),
+      provenance: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}provenance'],
+      ),
       statSpeed: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}stat_speed'],
@@ -2531,6 +2553,10 @@ class CreatureInstance extends DataClass
   /// A wild-fusion mutation ('alchemized', 'transmuted'), or null. Belongs to
   /// this individual alone: breeding never passes it on.
   final String? mutation;
+
+  /// Who has owned it, if it has been traded: a `TradeProvenance`, saved.
+  /// Travels with it; breeding never passes it on.
+  final String? provenance;
   final double statSpeed;
   final double statIntelligence;
   final double statStrength;
@@ -2576,6 +2602,7 @@ class CreatureInstance extends DataClass
     this.alchemyEffect,
     this.costumes,
     this.mutation,
+    this.provenance,
     required this.statSpeed,
     required this.statIntelligence,
     required this.statStrength,
@@ -2639,6 +2666,9 @@ class CreatureInstance extends DataClass
     }
     if (!nullToAbsent || mutation != null) {
       map['mutation'] = Variable<String>(mutation);
+    }
+    if (!nullToAbsent || provenance != null) {
+      map['provenance'] = Variable<String>(provenance);
     }
     map['stat_speed'] = Variable<double>(statSpeed);
     map['stat_intelligence'] = Variable<double>(statIntelligence);
@@ -2717,6 +2747,9 @@ class CreatureInstance extends DataClass
       mutation: mutation == null && nullToAbsent
           ? const Value.absent()
           : Value(mutation),
+      provenance: provenance == null && nullToAbsent
+          ? const Value.absent()
+          : Value(provenance),
       statSpeed: Value(statSpeed),
       statIntelligence: Value(statIntelligence),
       statStrength: Value(statStrength),
@@ -2778,6 +2811,7 @@ class CreatureInstance extends DataClass
       alchemyEffect: serializer.fromJson<String?>(json['alchemyEffect']),
       costumes: serializer.fromJson<String?>(json['costumes']),
       mutation: serializer.fromJson<String?>(json['mutation']),
+      provenance: serializer.fromJson<String?>(json['provenance']),
       statSpeed: serializer.fromJson<double>(json['statSpeed']),
       statIntelligence: serializer.fromJson<double>(json['statIntelligence']),
       statStrength: serializer.fromJson<double>(json['statStrength']),
@@ -2848,6 +2882,7 @@ class CreatureInstance extends DataClass
       'alchemyEffect': serializer.toJson<String?>(alchemyEffect),
       'costumes': serializer.toJson<String?>(costumes),
       'mutation': serializer.toJson<String?>(mutation),
+      'provenance': serializer.toJson<String?>(provenance),
       'statSpeed': serializer.toJson<double>(statSpeed),
       'statIntelligence': serializer.toJson<double>(statIntelligence),
       'statStrength': serializer.toJson<double>(statStrength),
@@ -2898,6 +2933,7 @@ class CreatureInstance extends DataClass
     Value<String?> alchemyEffect = const Value.absent(),
     Value<String?> costumes = const Value.absent(),
     Value<String?> mutation = const Value.absent(),
+    Value<String?> provenance = const Value.absent(),
     double? statSpeed,
     double? statIntelligence,
     double? statStrength,
@@ -2945,6 +2981,7 @@ class CreatureInstance extends DataClass
         : this.alchemyEffect,
     costumes: costumes.present ? costumes.value : this.costumes,
     mutation: mutation.present ? mutation.value : this.mutation,
+    provenance: provenance.present ? provenance.value : this.provenance,
     statSpeed: statSpeed ?? this.statSpeed,
     statIntelligence: statIntelligence ?? this.statIntelligence,
     statStrength: statStrength ?? this.statStrength,
@@ -3021,6 +3058,9 @@ class CreatureInstance extends DataClass
           : this.alchemyEffect,
       costumes: data.costumes.present ? data.costumes.value : this.costumes,
       mutation: data.mutation.present ? data.mutation.value : this.mutation,
+      provenance: data.provenance.present
+          ? data.provenance.value
+          : this.provenance,
       statSpeed: data.statSpeed.present ? data.statSpeed.value : this.statSpeed,
       statIntelligence: data.statIntelligence.present
           ? data.statIntelligence.value
@@ -3103,6 +3143,7 @@ class CreatureInstance extends DataClass
           ..write('alchemyEffect: $alchemyEffect, ')
           ..write('costumes: $costumes, ')
           ..write('mutation: $mutation, ')
+          ..write('provenance: $provenance, ')
           ..write('statSpeed: $statSpeed, ')
           ..write('statIntelligence: $statIntelligence, ')
           ..write('statStrength: $statStrength, ')
@@ -3149,6 +3190,7 @@ class CreatureInstance extends DataClass
     alchemyEffect,
     costumes,
     mutation,
+    provenance,
     statSpeed,
     statIntelligence,
     statStrength,
@@ -3194,6 +3236,7 @@ class CreatureInstance extends DataClass
           other.alchemyEffect == this.alchemyEffect &&
           other.costumes == this.costumes &&
           other.mutation == this.mutation &&
+          other.provenance == this.provenance &&
           other.statSpeed == this.statSpeed &&
           other.statIntelligence == this.statIntelligence &&
           other.statStrength == this.statStrength &&
@@ -3238,6 +3281,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
   final Value<String?> alchemyEffect;
   final Value<String?> costumes;
   final Value<String?> mutation;
+  final Value<String?> provenance;
   final Value<double> statSpeed;
   final Value<double> statIntelligence;
   final Value<double> statStrength;
@@ -3280,6 +3324,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.alchemyEffect = const Value.absent(),
     this.costumes = const Value.absent(),
     this.mutation = const Value.absent(),
+    this.provenance = const Value.absent(),
     this.statSpeed = const Value.absent(),
     this.statIntelligence = const Value.absent(),
     this.statStrength = const Value.absent(),
@@ -3323,6 +3368,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     this.alchemyEffect = const Value.absent(),
     this.costumes = const Value.absent(),
     this.mutation = const Value.absent(),
+    this.provenance = const Value.absent(),
     this.statSpeed = const Value.absent(),
     this.statIntelligence = const Value.absent(),
     this.statStrength = const Value.absent(),
@@ -3367,6 +3413,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Expression<String>? alchemyEffect,
     Expression<String>? costumes,
     Expression<String>? mutation,
+    Expression<String>? provenance,
     Expression<double>? statSpeed,
     Expression<double>? statIntelligence,
     Expression<double>? statStrength,
@@ -3411,6 +3458,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       if (alchemyEffect != null) 'alchemy_effect': alchemyEffect,
       if (costumes != null) 'costumes': costumes,
       if (mutation != null) 'mutation': mutation,
+      if (provenance != null) 'provenance': provenance,
       if (statSpeed != null) 'stat_speed': statSpeed,
       if (statIntelligence != null) 'stat_intelligence': statIntelligence,
       if (statStrength != null) 'stat_strength': statStrength,
@@ -3466,6 +3514,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     Value<String?>? alchemyEffect,
     Value<String?>? costumes,
     Value<String?>? mutation,
+    Value<String?>? provenance,
     Value<double>? statSpeed,
     Value<double>? statIntelligence,
     Value<double>? statStrength,
@@ -3510,6 +3559,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
       alchemyEffect: alchemyEffect ?? this.alchemyEffect,
       costumes: costumes ?? this.costumes,
       mutation: mutation ?? this.mutation,
+      provenance: provenance ?? this.provenance,
       statSpeed: statSpeed ?? this.statSpeed,
       statIntelligence: statIntelligence ?? this.statIntelligence,
       statStrength: statStrength ?? this.statStrength,
@@ -3603,6 +3653,9 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
     }
     if (mutation.present) {
       map['mutation'] = Variable<String>(mutation.value);
+    }
+    if (provenance.present) {
+      map['provenance'] = Variable<String>(provenance.value);
     }
     if (statSpeed.present) {
       map['stat_speed'] = Variable<double>(statSpeed.value);
@@ -3705,6 +3758,7 @@ class CreatureInstancesCompanion extends UpdateCompanion<CreatureInstance> {
           ..write('alchemyEffect: $alchemyEffect, ')
           ..write('costumes: $costumes, ')
           ..write('mutation: $mutation, ')
+          ..write('provenance: $provenance, ')
           ..write('statSpeed: $statSpeed, ')
           ..write('statIntelligence: $statIntelligence, ')
           ..write('statStrength: $statStrength, ')
@@ -10806,6 +10860,7 @@ typedef $$CreatureInstancesTableCreateCompanionBuilder =
       Value<String?> alchemyEffect,
       Value<String?> costumes,
       Value<String?> mutation,
+      Value<String?> provenance,
       Value<double> statSpeed,
       Value<double> statIntelligence,
       Value<double> statStrength,
@@ -10850,6 +10905,7 @@ typedef $$CreatureInstancesTableUpdateCompanionBuilder =
       Value<String?> alchemyEffect,
       Value<String?> costumes,
       Value<String?> mutation,
+      Value<String?> provenance,
       Value<double> statSpeed,
       Value<double> statIntelligence,
       Value<double> statStrength,
@@ -10979,6 +11035,11 @@ class $$CreatureInstancesTableFilterComposer
 
   ColumnFilters<String> get mutation => $composableBuilder(
     column: $table.mutation,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get provenance => $composableBuilder(
+    column: $table.provenance,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -11192,6 +11253,11 @@ class $$CreatureInstancesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get provenance => $composableBuilder(
+    column: $table.provenance,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get statSpeed => $composableBuilder(
     column: $table.statSpeed,
     builder: (column) => ColumnOrderings(column),
@@ -11382,6 +11448,11 @@ class $$CreatureInstancesTableAnnotationComposer
   GeneratedColumn<String> get mutation =>
       $composableBuilder(column: $table.mutation, builder: (column) => column);
 
+  GeneratedColumn<String> get provenance => $composableBuilder(
+    column: $table.provenance,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<double> get statSpeed =>
       $composableBuilder(column: $table.statSpeed, builder: (column) => column);
 
@@ -11539,6 +11610,7 @@ class $$CreatureInstancesTableTableManager
                 Value<String?> alchemyEffect = const Value.absent(),
                 Value<String?> costumes = const Value.absent(),
                 Value<String?> mutation = const Value.absent(),
+                Value<String?> provenance = const Value.absent(),
                 Value<double> statSpeed = const Value.absent(),
                 Value<double> statIntelligence = const Value.absent(),
                 Value<double> statStrength = const Value.absent(),
@@ -11581,6 +11653,7 @@ class $$CreatureInstancesTableTableManager
                 alchemyEffect: alchemyEffect,
                 costumes: costumes,
                 mutation: mutation,
+                provenance: provenance,
                 statSpeed: statSpeed,
                 statIntelligence: statIntelligence,
                 statStrength: statStrength,
@@ -11625,6 +11698,7 @@ class $$CreatureInstancesTableTableManager
                 Value<String?> alchemyEffect = const Value.absent(),
                 Value<String?> costumes = const Value.absent(),
                 Value<String?> mutation = const Value.absent(),
+                Value<String?> provenance = const Value.absent(),
                 Value<double> statSpeed = const Value.absent(),
                 Value<double> statIntelligence = const Value.absent(),
                 Value<double> statStrength = const Value.absent(),
@@ -11667,6 +11741,7 @@ class $$CreatureInstancesTableTableManager
                 alchemyEffect: alchemyEffect,
                 costumes: costumes,
                 mutation: mutation,
+                provenance: provenance,
                 statSpeed: statSpeed,
                 statIntelligence: statIntelligence,
                 statStrength: statStrength,

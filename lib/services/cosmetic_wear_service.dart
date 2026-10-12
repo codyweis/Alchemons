@@ -26,6 +26,7 @@ class CosmeticWearService extends ChangeNotifier {
   final Listenable? _refreshOn;
 
   Map<AthanorPieceKind, Set<String>> _owned = const {};
+  CarriedWear _carried = CarriedWear.none;
   CosmeticWear _saved = CosmeticWear.empty;
   CosmeticWear _worn = CosmeticWear.empty;
   bool _loaded = false;
@@ -45,10 +46,12 @@ class CosmeticWearService extends ChangeNotifier {
       fusion: await s.getSetting(CosmeticWear.fusionKey),
       ambience: await s.getSetting(CosmeticWear.ambienceKey),
     );
+    final carried = CarriedWear.decode(await s.getSetting(CarriedWear.key));
     if (_disposed) return;
     _owned = owned;
+    _carried = carried;
     _saved = saved;
-    _worn = saved.owned(owned);
+    _worn = saved.owned(owned, carried: carried);
     _loaded = true;
     FusionStyle.worn.value = _worn.fusion;
     notifyListeners();
@@ -90,6 +93,7 @@ class CosmeticWearService extends ChangeNotifier {
   Future<bool> wearCase(String instanceId, CaseStyle? style) => _wear(
     AthanorPieceKind.caseStyle,
     style?.id,
+    carriedBy: (c) => style != null && c.caseOf(instanceId) == style,
     (w) => CosmeticWear(
       cases: _put(w.cases, instanceId, style),
       trails: w.trails,
@@ -104,6 +108,7 @@ class CosmeticWearService extends ChangeNotifier {
   Future<bool> wearTrail(String instanceId, TrailStyle? trail) => _wear(
     AthanorPieceKind.trail,
     trail?.id,
+    carriedBy: (c) => trail != null && c.trailOf(instanceId) == trail,
     (w) => CosmeticWear(
       cases: w.cases,
       trails: _put(w.trails, instanceId, trail),
@@ -158,14 +163,20 @@ class CosmeticWearService extends ChangeNotifier {
     String? id,
     CosmeticWear Function(CosmeticWear) change,
     String key,
-    String Function(CosmeticWear) encode,
-  ) async {
+    String Function(CosmeticWear) encode, {
+    bool Function(CarriedWear)? carriedBy,
+  }) async {
     final ok = await db.transaction(() async {
       final s = db.settingsDao;
       final owned = OwnedCosmetics.decode(
         await s.getSetting(OwnedCosmetics.key),
       );
-      if (id != null && !(owned[kind]?.contains(id) ?? false)) return false;
+      final carried = CarriedWear.decode(await s.getSetting(CarriedWear.key));
+      if (id != null &&
+          !(owned[kind]?.contains(id) ?? false) &&
+          !(carriedBy?.call(carried) ?? false)) {
+        return false;
+      }
       final saved = CosmeticWear.decode(
         cases: await s.getSetting(CosmeticWear.caseKey),
         trails: await s.getSetting(CosmeticWear.trailKey),
@@ -175,11 +186,12 @@ class CosmeticWearService extends ChangeNotifier {
       final next = change(saved);
       await s.setSetting(key, encode(next));
       _owned = owned;
+      _carried = carried;
       _saved = next;
       return true;
     });
     if (!ok || _disposed) return ok;
-    _worn = _saved.owned(_owned);
+    _worn = _saved.owned(_owned, carried: _carried);
     FusionStyle.worn.value = _worn.fusion;
     notifyListeners();
     return true;

@@ -12,6 +12,9 @@
 // A friend who has not built their home planet yet has nothing to look into:
 // their page shows a dim grey planet, still, and no portal.
 //
+// TRADE under the planet opens the trade table with them (trade_screen.dart),
+// with a dot while it waits on the player.
+//
 // The ⋮ holds what is needed to stop being friends: remove, block, report.
 
 import 'dart:async';
@@ -24,8 +27,10 @@ import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/screens/friends/friend_home_screen.dart';
+import 'package:alchemons/screens/friends/trade_screen.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -34,6 +39,8 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/home_planet_view.dart';
 import 'package:alchemons/widgets/home_portal.dart';
+import 'package:alchemons/widgets/notification_banner_system.dart'
+    show HomeNoticeDot;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -278,7 +285,12 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
       confirmLabel: 'REMOVE',
     );
     if (!ok || !mounted) return;
-    await _act(() => context.read<FriendService>().remove(widget.friend.uid));
+    final friends = context.read<FriendService>();
+    final trades = context.read<TradeService>();
+    await _act(() async {
+      await trades.leave(widget.friend.uid);
+      await friends.remove(widget.friend.uid);
+    });
   }
 
   Future<void> _block({bool asked = false}) async {
@@ -295,7 +307,12 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
       );
       if (!ok || !mounted) return;
     }
-    await _act(() => context.read<FriendService>().block(widget.friend.uid));
+    final friends = context.read<FriendService>();
+    final trades = context.read<TradeService>();
+    await _act(() async {
+      await trades.leave(widget.friend.uid);
+      await friends.block(widget.friend.uid);
+    });
   }
 
   Future<void> _report() async {
@@ -475,6 +492,8 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                         ),
                         const SizedBox(height: 10),
                       ],
+                      _TradeButton(friend: friend, accent: accent),
+                      const SizedBox(height: 12),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
                         child: Text(
@@ -550,6 +569,39 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
     final color = premiumHomeColor(planet.color)?.label ?? planet.color;
     return '${planet.sizeName.toUpperCase()} CLASS'
         '${color == null ? '' : '  ·  ${color.toUpperCase()}'}';
+  }
+}
+
+/// TRADE: the table with them, dotted while it waits on the player.
+class _TradeButton extends StatelessWidget {
+  const _TradeButton({required this.friend, required this.accent});
+
+  final FriendCard friend;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final waiting = context.select<TradeService?, bool>(
+      (t) => t?.attentionWith(friend.uid) ?? false,
+    );
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        BracketButton(
+          label: 'TRADE',
+          height: 42,
+          palette: _palette,
+          accent: accent,
+          onTap: () => Navigator.of(context).push(TradeScreen.route(friend)),
+        ),
+        if (waiting)
+          const Positioned(
+            right: -4,
+            top: -4,
+            child: HomeNoticeDot(color: Color(0xFFE4C16A), size: 12),
+          ),
+      ],
+    );
   }
 }
 

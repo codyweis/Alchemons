@@ -16,10 +16,13 @@ import 'package:alchemons/screens/friends/friend_planet_screen.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/home_planet_view.dart';
+import 'package:alchemons/widgets/notification_banner_system.dart'
+    show HomeNoticeDot;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -338,12 +341,29 @@ class _PlanetGrid extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        f.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        textAlign: TextAlign.center,
-                        style: _mono(10.5, palette.ink, spacing: 0.8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              f.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              textAlign: TextAlign.center,
+                              style: _mono(10.5, palette.ink, spacing: 0.8),
+                            ),
+                          ),
+                          // Their trade table waits on this player.
+                          if (context.select<TradeService?, bool>(
+                            (t) => t?.attentionWith(f.uid) ?? false,
+                          )) ...[
+                            const SizedBox(width: 5),
+                            const HomeNoticeDot(
+                              color: Color(0xFFE4C16A),
+                              size: 8,
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),

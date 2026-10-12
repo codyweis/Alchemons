@@ -6,15 +6,21 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/models/athanor.dart';
+import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/faction.dart';
+import 'package:alchemons/models/owned_cosmetics.dart';
+import 'package:alchemons/models/profile_titles.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
+import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -32,7 +38,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 // The profile on a phone, with the app's own fonts (fetched from Google, so
 // run with network): the division header over its realm, each section down
 // the page, signed out and signed in, the developer tools open, and a
-// sign-in dialog.
+// sign-in dialog. Volcanic and verdant own titles and fusion styles
+// (1b_cosmetics); the other two show those rows with nothing owned.
 //
 //   PROFILE_OUT=/tmp/profile flutter test \
 //     test/profile_screen_preview_test.dart --tags preview
@@ -138,6 +145,29 @@ void main() {
         await factions.setId(before);
         await factions.grantDockSet(DockSet.ofFaction(before)[1]);
         await factions.setId(faction);
+        // Every other division has titles and fusion styles to choose
+        // between; the rest show the COSMETICS rows with nothing owned.
+        if (faction.index.isEven) {
+          await ProfileTitles.grant(db, 'inkmaker');
+          await ProfileTitles.grant(db, 'gilder');
+          for (final id in ['fuse_let_5', 'fuse_horn_5']) {
+            await db.settingsDao.setSetting(
+              CampaignJournalService.claimKey(id),
+              '1',
+            );
+          }
+          await ProfileTitles.wear(
+            db,
+            const MadeTitle(TitleColour.red, TitleWord.fuser).id,
+          );
+          for (final f in [FusionStyle.ink, FusionStyle.frost]) {
+            await OwnedCosmetics.grant(db, AthanorPieceKind.fusionStyle, f.id);
+          }
+          await db.settingsDao.setSetting(
+            CosmeticWear.fusionKey,
+            FusionStyle.frost.id,
+          );
+        }
       });
 
       final dir = '$out/${faction.name}';
@@ -169,6 +199,15 @@ void main() {
         await shoot(name);
       }
 
+      /// Taps CHANGE with it clear of the fixed top bar.
+      Future<void> openTitlePopup() async {
+        await tester.ensureVisible(find.text('CHANGE'));
+        await tester.dragFrom(const Offset(195, 400), const Offset(0, 250));
+        await settle(6);
+        await tester.tap(find.text('CHANGE'));
+        await settle(8);
+      }
+
       Future<void> show({required bool signedIn, bool fromHome = false}) async {
         await tester.pumpWidget(
           MultiProvider(
@@ -193,6 +232,9 @@ void main() {
               ),
               ChangeNotifierProvider<FactionService>(
                 create: (_) => FactionService(db)..loadId(),
+              ),
+              ChangeNotifierProvider<CosmeticWearService>(
+                create: (_) => CosmeticWearService(db)..load(),
               ),
               ProxyProvider<FactionService, FactionTheme>(
                 update: (_, svc, _) =>
@@ -236,12 +278,24 @@ void main() {
 
       await show(signedIn: false);
       await shoot('1_top');
+      await scrollShot('1b_cosmetics', by: 420);
+
+      // The title popup, and a color chosen in it (not worn until WEAR).
+      await openTitlePopup();
+      await shoot('1c_title_popup');
+      await tester.tap(find.text('BLUE'));
+      await settle(4);
+      await shoot('1d_title_popup_blue');
+      Navigator.of(tester.element(find.text('WEAR'))).pop();
+      await settle(6);
       await scrollShot('2_journal_display');
       await scrollShot('3_sound_notifications');
       await scrollShot('4_account');
       await scrollShot('5_bottom', by: 1500);
 
       // The developer tools, switched on.
+      await tester.ensureVisible(find.text('DEBUG TOOLS'));
+      await settle(4);
       await tester.tap(find.text('DEBUG TOOLS'));
       await settle(10);
       await scrollShot('6_debug_open', by: 300);
@@ -278,6 +332,12 @@ void main() {
       addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
       await show(signedIn: true);
       await shoot('9_large_text');
+      await openTitlePopup();
+      await shoot('9c_title_popup_large_text');
+      Navigator.of(tester.element(find.text('WEAR'))).pop();
+      await settle(6);
+      await tester.dragFrom(const Offset(195, 300), const Offset(0, 2000));
+      await settle(4);
       for (var i = 0; i < 6; i++) {
         await tester.dragFrom(const Offset(195, 600), const Offset(0, -600));
         await settle(4);

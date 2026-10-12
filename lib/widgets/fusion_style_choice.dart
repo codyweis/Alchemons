@@ -2,12 +2,14 @@
 //
 // The fusion styles owned (the Athanor's), each a small still of two
 // fusing in that style, and the plain fusion; the one worn lit from below.
-// One style for the whole game: the profile's DISPLAY section holds this.
+// One style for the whole game: the profile's COSMETICS section holds this,
+// as a strip that scrolls sideways.
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/choice_strip.dart';
 import 'package:alchemons/widgets/fx/cosmetics/cosmetic_previews.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,21 +20,26 @@ class FusionStyleChoice extends StatelessWidget {
     super.key,
     required this.palette,
     required this.accent,
+    this.padding = EdgeInsets.zero,
   });
 
   final BracketPalette palette;
   final Color accent;
+
+  /// Around the strip, inside its scroll: the tiles run out to its edges.
+  final EdgeInsets padding;
 
   @override
   Widget build(BuildContext context) {
     final wear = context.watch<CosmeticWearService?>();
     if (wear == null) return const SizedBox.shrink();
     final worn = wear.fusionStyle;
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    final styles = <FusionStyle?>[null, ...wear.ownedFusionStyles];
+    return ChoiceStrip(
+      selected: styles.indexOf(worn),
+      padding: padding,
       children: [
-        for (final f in <FusionStyle?>[null, ...wear.ownedFusionStyles])
+        for (final f in styles)
           GestureDetector(
             key: ValueKey('fusion-style-${f?.id ?? 'plain'}'),
             behavior: HitTestBehavior.opaque,

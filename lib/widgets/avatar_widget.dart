@@ -15,6 +15,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart'
@@ -37,10 +38,11 @@ class AvatarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final faction = context.watch<FactionService>().current;
-    // A friend request waiting to be answered (Profile → FRIENDS).
-    final request = context.select<FriendService?, bool>(
-      (f) => f?.hasRequests ?? false,
-    );
+    // A friend request waiting to be answered, or a trade table waiting on
+    // this player (Profile → FRIENDS).
+    final request =
+        context.select<FriendService?, bool>((f) => f?.hasRequests ?? false) ||
+        context.select<TradeService?, bool>((t) => t?.hasAttention ?? false);
     final group = faction == null
         ? ElementalGroup.arcane
         : ElementalGroup.values.byName(faction.name);

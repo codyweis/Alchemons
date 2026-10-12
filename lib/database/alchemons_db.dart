@@ -72,7 +72,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 43;
+  int get schemaVersion => 44;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -332,6 +332,16 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
             await m.addColumn(creatureInstances, creatureInstances.costumes);
           }
           await moveCostumesOutOfEffects();
+        }
+      }
+      if (from < 44) {
+        // As above: only where the table is there and the column is not.
+        final columns = await customSelect(
+          "PRAGMA table_info('creature_instances')",
+        ).get();
+        if (columns.isNotEmpty &&
+            !columns.any((c) => c.read<String>('name') == 'provenance')) {
+          await m.addColumn(creatureInstances, creatureInstances.provenance);
         }
       }
     },

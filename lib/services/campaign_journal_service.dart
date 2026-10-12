@@ -780,6 +780,10 @@ class CampaignJournalService {
   static const _seenKey = 'campaign_journal_seen_v1';
   static Future<Set<String>>? _catalogIds;
 
+  /// The settings row that says achievement [id] has been collected ('1').
+  /// Profile titles read it too (ProfileTitles), so it is named once.
+  static String claimKey(String id) => 'campaign_claim_$id';
+
   static Set<String> _decodeSet(String? raw) {
     try {
       return (jsonDecode(raw ?? '[]') as List).whereType<String>().toSet();
@@ -986,7 +990,7 @@ class CampaignJournalService {
     if (metrics['ending'] == 1) seen.add('ending');
     return CampaignSnapshot(metrics, seen, {
       for (final a in campaignAchievements)
-        if (flag('campaign_claim_${a.id}')) a.id,
+        if (flag(claimKey(a.id))) a.id,
     });
   }
 
@@ -1034,7 +1038,7 @@ class CampaignJournalService {
       for (final r in await db.select(db.settings).get()) r.key: r.value,
     };
     return campaignAchievements
-        .where((a) => settings['campaign_claim_${a.id}'] == '1')
+        .where((a) => settings[claimKey(a.id)] == '1')
         .length;
   }
 
@@ -1051,7 +1055,7 @@ class CampaignJournalService {
     final a = matches.first;
     final snapshot = await load();
     if (!snapshot.earned(a) || snapshot.claimed.contains(id)) return false;
-    await db.settingsDao.setSetting('campaign_claim_$id', '1');
+    await db.settingsDao.setSetting(claimKey(id), '1');
     if (a.gold > 0) await db.currencyDao.addGold(a.gold);
     if (a.silver > 0) await db.currencyDao.addSilver(a.silver);
     // Every achievement also pays tincture for the Athanor, and is

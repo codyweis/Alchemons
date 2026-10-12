@@ -14,6 +14,10 @@
 //   fusion_style_v1     "frost"
 //   ambience_worn_v1    {"<realm name>": "peat_mist"}
 //
+// An Alchemon received in a trade keeps the case and trail it came in
+// even where they are not owned: `carried_wear_v1` ([CarriedWear]) lets
+// that one Alchemon, and no other, wear them.
+//
 // Decoding never throws: anything unreadable or unknown is left out. A worn
 // id that is not owned is never shown ([CosmeticWear.owned] filters), so a
 // restored save that lost an item simply shows the plain look.
@@ -218,8 +222,12 @@ class CosmeticWear {
     ambience: decodeMap(ambience, HomeAmbience.byId),
   );
 
-  /// Only what [owned] (by kind, as `OwnedCosmetics.decode` gives it) holds.
-  CosmeticWear owned(Map<AthanorPieceKind, Set<String>> owned) {
+  /// Only what [owned] (by kind, as `OwnedCosmetics.decode` gives it) holds,
+  /// and what each Alchemon [carried] in with it.
+  CosmeticWear owned(
+    Map<AthanorPieceKind, Set<String>> owned, {
+    CarriedWear carried = CarriedWear.none,
+  }) {
     final c = owned[AthanorPieceKind.caseStyle] ?? const {};
     final t = owned[AthanorPieceKind.trail] ?? const {};
     final f = owned[AthanorPieceKind.fusionStyle] ?? const {};
@@ -227,11 +235,13 @@ class CosmeticWear {
     return CosmeticWear(
       cases: {
         for (final e in cases.entries)
-          if (c.contains(e.value.id)) e.key: e.value,
+          if (c.contains(e.value.id) || carried.caseOf(e.key) == e.value)
+            e.key: e.value,
       },
       trails: {
         for (final e in trails.entries)
-          if (t.contains(e.value.id)) e.key: e.value,
+          if (t.contains(e.value.id) || carried.trailOf(e.key) == e.value)
+            e.key: e.value,
       },
       fusion: fusion != null && f.contains(fusion!.id) ? fusion : null,
       ambience: {
@@ -239,5 +249,65 @@ class CosmeticWear {
           if (a.contains(e.value.id)) e.key: e.value,
       },
     );
+  }
+}
+
+/// The case and trail each traded Alchemon came in, by instance id: worn by
+/// that one even where they are not owned. Saved as `carried_wear_v1`,
+/// `{"<instanceId>": {"case": "gilt", "trail": "ember_steps"}}`.
+@immutable
+class CarriedWear {
+  const CarriedWear(this.byInstance);
+
+  static const String key = 'carried_wear_v1';
+  static const CarriedWear none = CarriedWear({});
+
+  final Map<String, (CaseStyle?, TrailStyle?)> byInstance;
+
+  CaseStyle? caseOf(String instanceId) => byInstance[instanceId]?.$1;
+  TrailStyle? trailOf(String instanceId) => byInstance[instanceId]?.$2;
+
+  /// The same with [instanceId] carrying [caseStyle] and [trail] (neither:
+  /// nothing).
+  CarriedWear withInstance(
+    String instanceId,
+    CaseStyle? caseStyle,
+    TrailStyle? trail,
+  ) {
+    final next = {...byInstance}..remove(instanceId);
+    if (caseStyle != null || trail != null) {
+      next[instanceId] = (caseStyle, trail);
+    }
+    return CarriedWear(next);
+  }
+
+  String encode() {
+    final keys = byInstance.keys.toList()..sort();
+    return jsonEncode({
+      for (final k in keys)
+        k: {
+          if (byInstance[k]!.$1 case final c?) 'case': c.id,
+          if (byInstance[k]!.$2 case final t?) 'trail': t.id,
+        },
+    });
+  }
+
+  static CarriedWear decode(String? raw) {
+    if (raw == null || raw.isEmpty) return none;
+    try {
+      final json = jsonDecode(raw);
+      if (json is! Map) return none;
+      final out = <String, (CaseStyle?, TrailStyle?)>{};
+      for (final e in json.entries) {
+        final v = e.value;
+        if (e.key is! String || v is! Map) continue;
+        final c = CaseStyle.byId(v['case']);
+        final t = TrailStyle.byId(v['trail']);
+        if (c != null || t != null) out[e.key as String] = (c, t);
+      }
+      return CarriedWear(out);
+    } catch (_) {
+      return none;
+    }
   }
 }

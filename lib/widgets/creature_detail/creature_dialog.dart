@@ -21,6 +21,7 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/purity_stat_bonus.dart';
+import 'package:alchemons/models/trade.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/color_util.dart';
@@ -39,6 +40,7 @@ import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
     show caseElementLight;
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/trade/trade_origin.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
@@ -1512,19 +1514,27 @@ class _AboutBlock extends StatelessWidget {
           ],
           if (inst != null) ...[
             const SizedBox(height: 10),
-            Text(
+            for (final line in [
               [
                 _formatSource(inst.source),
                 _formatDate(inst.createdAtUtcMs),
               ].join('  ·  '),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: palette.muted,
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.8,
+              // Who it came from, if it was traded.
+              ...tradeOriginLines(TradeProvenance.decode(inst.provenance)),
+            ])
+              Padding(
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  line,
+                  style: TextStyle(
+                    fontFamily: 'monospace',
+                    color: palette.muted,
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.8,
+                  ),
+                ),
               ),
-            ),
           ],
         ],
       ),
@@ -2207,6 +2217,12 @@ class _Highlighted extends StatelessWidget {
 
 /// Where a specimen came from, in words. The one labeller for the dialog:
 /// a second, founders-only one used to call every fusion a "Discovery".
+/// Where an Alchemon came from, in words.
+String creatureSourceLabel(String source) => _formatSource(source);
+
+/// A creation date, as the details show it.
+String creatureDateLabel(int utcMs) => _formatDate(utcMs);
+
 String _formatSource(String source) {
   switch (source) {
     case 'wild_capture':
