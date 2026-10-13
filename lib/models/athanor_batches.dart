@@ -83,7 +83,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'black.ash_brazier',
         name: 'Ash Brazier',
         description:
-            'A low bowl of cold violet flame. Residents warm themselves at it and sleep beside it at night.',
+            'A low bowl of cold violet flame. Alchemons warm themselves at it and sleep beside it at night.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.rare,
         grantRef: 'ash_brazier',
@@ -101,7 +101,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'black.nightbloom_bed',
         name: 'Lily Bed',
         description:
-            'A bed of dark leaves ringed with black lilies that open at night. A resident sleeps among them.',
+            'A bed of dark leaves ringed with black lilies that open at night. An Alchemon sleeps among them.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.epic,
         grantRef: 'nightbloom_bed',
@@ -194,7 +194,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'white.moon_font',
         name: 'Moon Basin',
         description:
-            'A silver basin that holds the moon at night. Residents come to drink.',
+            'A silver basin that holds the moon at night. Alchemons come to drink.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.rare,
         grantRef: 'moon_font',
@@ -230,7 +230,7 @@ const List<AthanorBatch> kAthanorBatches = [
       id: 'white.snow_globe',
       name: 'Snow Globe',
       description:
-          'A great glass globe of snow. A resident sits inside it; tap it and the snow swirls up.',
+          'A great glass globe of snow. An Alchemon sits inside it; tap it and the snow swirls up.',
       kind: AthanorPieceKind.homeDecor,
       rarity: AthanorRarity.epic,
       grantRef: 'snow_globe',
@@ -304,7 +304,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'yellow.storm_coil',
         name: 'Spark Coil',
         description:
-            'A tall brass coil that throws sparks. Residents hop beside it, Lightning ones most of all.',
+            'A tall brass coil that throws sparks. Alchemons hop beside it, Lightning ones most of all.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.rare,
         grantRef: 'storm_coil',
@@ -340,7 +340,7 @@ const List<AthanorBatch> kAthanorBatches = [
       id: 'yellow.gilded_throne',
       name: 'Gold Throne',
       description:
-          'A throne of brass and gold leaf. One resident sits on it; the others come to bow.',
+          'A throne of brass and gold leaf. One Alchemon sits on it; the others come to bow.',
       kind: AthanorPieceKind.homeDecor,
       rarity: AthanorRarity.epic,
       grantRef: 'gilded_throne',
@@ -414,7 +414,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'red.ember_nest',
         name: 'Ember Nest',
         description:
-            'A nest of dark glass twigs with embers between them. A resident sleeps in it at night.',
+            'A nest of dark glass twigs with embers between them. An Alchemon sleeps in it at night.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.rare,
         grantRef: 'ember_nest',
@@ -432,7 +432,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'red.pomegranate_tree',
         name: 'Pomegranate Tree',
         description:
-            'A small tree of dark glass with glowing fruit. Residents climb into it; flyers rest at its top.',
+            'A small tree of dark glass with glowing fruit. Alchemons climb into it; flyers rest at its top.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.epic,
         grantRef: 'pomegranate_tree',
@@ -515,7 +515,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'still.alembic',
         name: 'Glass Still',
         description:
-            'A glass still over a small flame. Residents come to look into it.',
+            'A glass still over a small flame. Alchemons come to look into it.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.rare,
         grantRef: 'alembic',
@@ -523,7 +523,7 @@ const List<AthanorBatch> kAthanorBatches = [
       AthanorPiece(
         id: 'still.bell_jar',
         name: 'Bell Jar',
-        description: 'A tall glass bell jar. A resident sits inside it.',
+        description: 'A tall glass bell jar. An Alchemon sits inside it.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.rare,
         grantRef: 'bell_jar',
@@ -549,7 +549,7 @@ const List<AthanorBatch> kAthanorBatches = [
       AthanorPiece(
         id: 'still.music_box',
         name: 'Music Box',
-        description: 'A brass music box. Residents hop to its tune.',
+        description: 'A brass music box. Alchemons hop to its tune.',
         kind: AthanorPieceKind.homeDecor,
         rarity: AthanorRarity.epic,
         grantRef: 'music_box',
@@ -559,7 +559,7 @@ const List<AthanorBatch> kAthanorBatches = [
       id: 'still.great_alembic',
       name: 'Great Still',
       description:
-          'A tall glass still. A resident steps in, comes apart into grains, and forms again at the far end.',
+          'A tall glass still. An Alchemon steps in, comes apart into grains, and forms again at the far end.',
       kind: AthanorPieceKind.homeDecor,
       rarity: AthanorRarity.epic,
       grantRef: 'great_alembic',

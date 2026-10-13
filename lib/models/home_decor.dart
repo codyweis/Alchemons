@@ -4,10 +4,10 @@
 // that are earned. Three tiers, simple to advanced:
 //
 //   · Curios — small lit pieces, mostly still. Silver; several of each.
-//   · Living Pieces — things that move, which the residents use. Gold; a
+//   · Living Pieces — things that move, which the Alchemons use. Gold; a
 //     few of each.
 //   · Wonders — centrepieces with behaviours of their own, used by several
-//     residents at once. 150 gold; one of each.
+//     Alchemons at once. 150 gold; one of each.
 //
 // Beside them, the decor drawn at the Athanor ([HomeDecor.athanor]): the
 // same three tiers, never sold, owned the same way.
@@ -48,7 +48,7 @@ class HomeDecor {
   final String id;
   final String name;
 
-  /// One plain line: what it is, and what the residents do with it.
+  /// One plain line: what it is, and what the Alchemons do with it.
   final String line;
   final DecorTier tier;
   final int silver, gold;
@@ -161,7 +161,7 @@ class HomeDecor {
     HomeDecor(
       'wind_chimes',
       'Wind Chimes',
-      'Glass rods that swing in the wind, or when a resident brushes them.',
+      'Glass rods that swing in the wind, or when an Alchemon brushes them.',
       tier: DecorTier.living,
       gold: 8,
       max: 3,
@@ -169,7 +169,7 @@ class HomeDecor {
     HomeDecor(
       'fountain',
       'Grain Fountain',
-      'Water that rises in grains. The residents come to drink.',
+      'Water that rises in grains. The Alchemons come to drink.',
       tier: DecorTier.living,
       gold: 15,
       max: 2,
@@ -177,7 +177,7 @@ class HomeDecor {
     HomeDecor(
       'rest_nest',
       'Rest Nest',
-      'At night a resident who can reach it sleeps in it.',
+      'At night an Alchemon who can reach it sleeps in it.',
       tier: DecorTier.living,
       gold: 10,
       max: 4,
@@ -193,7 +193,7 @@ class HomeDecor {
     HomeDecor(
       'swing',
       'Swing',
-      'A seat between two posts. A resident climbs on and swings.',
+      'A seat between two posts. An Alchemon climbs on and swings.',
       tier: DecorTier.living,
       gold: 20,
       max: 2,
@@ -201,7 +201,7 @@ class HomeDecor {
     HomeDecor(
       'canopy',
       'Shelter Canopy',
-      'In rain, snow or storm, the residents who can reach it shelter under it.',
+      'In rain, snow or storm, the Alchemons who can reach it shelter under it.',
       tier: DecorTier.living,
       gold: 25,
       max: 2,
@@ -210,7 +210,7 @@ class HomeDecor {
     HomeDecor(
       'mushroom_ring',
       'Glow Mushroom Ring',
-      'Mushrooms whose caps light when a resident hops across them.',
+      'Mushrooms whose caps light when an Alchemon hops across them.',
       tier: DecorTier.living,
       gold: 10,
       max: 3,
@@ -219,7 +219,7 @@ class HomeDecor {
     HomeDecor(
       'hot_spring',
       'Hot Spring',
-      'A steaming pool. Up to three residents bathe in it at once.',
+      'A steaming pool. Up to three Alchemons bathe in it at once.',
       tier: DecorTier.wonder,
       gold: 150,
       wide: 1.7,
@@ -227,7 +227,7 @@ class HomeDecor {
     HomeDecor(
       'elder_tree',
       'Elder Grain Tree',
-      'A great tree of grains. The residents climb into it, sleep in it, '
+      'A great tree of grains. The Alchemons climb into it, sleep in it, '
           'and flyers roost there.',
       tier: DecorTier.wonder,
       gold: 150,
@@ -236,7 +236,7 @@ class HomeDecor {
     HomeDecor(
       'stage',
       'The Stage',
-      'One resident performs on it; the others gather to watch.',
+      'One Alchemon performs on it; the others gather to watch.',
       tier: DecorTier.wonder,
       gold: 150,
       wide: 1.7,
@@ -244,7 +244,7 @@ class HomeDecor {
     HomeDecor(
       'orrery',
       'Grand Orrery',
-      'A turning ring of glass and gold that a resident rides round.',
+      'A turning ring of glass and gold that an Alchemon rides round.',
       tier: DecorTier.wonder,
       gold: 150,
       wide: 1.7,
@@ -252,7 +252,7 @@ class HomeDecor {
     HomeDecor(
       'reflecting_pool',
       'Reflecting Pool',
-      'Still water. A resident who looks in sees itself.',
+      'Still water. An Alchemon who looks in sees itself.',
       tier: DecorTier.wonder,
       gold: 150,
       wide: 1.6,
@@ -284,7 +284,7 @@ class HomeDecor {
     HomeDecor(
       'ash_brazier',
       'Ash Brazier',
-      'A low bowl of cold violet flame. Residents warm themselves at it and '
+      'A low bowl of cold violet flame. Alchemons warm themselves at it and '
           'sleep beside it at night.',
       tier: DecorTier.living,
       athanorOnly: true,
@@ -292,8 +292,8 @@ class HomeDecor {
     HomeDecor(
       'nightbloom_bed',
       'Lily Bed',
-      'A bed of dark leaves ringed with black lilies that open at night. A '
-          'resident sleeps among them.',
+      'A bed of dark leaves ringed with black lilies that open at night. An '
+          'Alchemon sleeps among them.',
       tier: DecorTier.living,
       wide: 1.3,
       athanorOnly: true,
@@ -318,14 +318,14 @@ class HomeDecor {
     HomeDecor(
       'moon_font',
       'Moon Basin',
-      'A silver basin that holds the moon at night. Residents come to drink.',
+      'A silver basin that holds the moon at night. Alchemons come to drink.',
       tier: DecorTier.living,
       athanorOnly: true,
     ),
     HomeDecor(
       'snow_globe',
       'Snow Globe',
-      'A great glass globe of snow. A resident sits inside it; tap it and the '
+      'A great glass globe of snow. An Alchemon sits inside it; tap it and the '
           'snow swirls up.',
       tier: DecorTier.wonder,
       wide: 1.6,
@@ -351,7 +351,7 @@ class HomeDecor {
     HomeDecor(
       'storm_coil',
       'Spark Coil',
-      'A tall brass coil that throws sparks. Residents hop beside it, '
+      'A tall brass coil that throws sparks. Alchemons hop beside it, '
           'Lightning ones most of all.',
       tier: DecorTier.living,
       athanorOnly: true,
@@ -359,7 +359,7 @@ class HomeDecor {
     HomeDecor(
       'gilded_throne',
       'Gold Throne',
-      'A throne of brass and gold leaf. One resident sits on it; the others '
+      'A throne of brass and gold leaf. One Alchemon sits on it; the others '
           'come to bow.',
       tier: DecorTier.wonder,
       wide: 1.7,
@@ -385,7 +385,7 @@ class HomeDecor {
     HomeDecor(
       'ember_nest',
       'Ember Nest',
-      'A nest of dark glass twigs with embers between them. A resident '
+      'A nest of dark glass twigs with embers between them. An Alchemon '
           'sleeps in it at night.',
       tier: DecorTier.living,
       athanorOnly: true,
@@ -393,7 +393,7 @@ class HomeDecor {
     HomeDecor(
       'pomegranate_tree',
       'Pomegranate Tree',
-      'A small tree of dark glass with glowing fruit. Residents climb into '
+      'A small tree of dark glass with glowing fruit. Alchemons climb into '
           'it; flyers rest at its top.',
       tier: DecorTier.living,
       wide: 1.3,
@@ -419,28 +419,28 @@ class HomeDecor {
     HomeDecor(
       'alembic',
       'Glass Still',
-      'A glass still over a small flame. Residents come to look into it.',
+      'A glass still over a small flame. Alchemons come to look into it.',
       tier: DecorTier.living,
       athanorOnly: true,
     ),
     HomeDecor(
       'bell_jar',
       'Bell Jar',
-      'A tall glass bell jar. A resident sits inside it.',
+      'A tall glass bell jar. An Alchemon sits inside it.',
       tier: DecorTier.living,
       athanorOnly: true,
     ),
     HomeDecor(
       'music_box',
       'Music Box',
-      'A brass music box. Residents hop to its tune.',
+      'A brass music box. Alchemons hop to its tune.',
       tier: DecorTier.living,
       athanorOnly: true,
     ),
     HomeDecor(
       'great_alembic',
       'Great Still',
-      'A tall glass still. A resident steps in, comes apart into grains, and '
+      'A tall glass still. An Alchemon steps in, comes apart into grains, and '
           'forms again at the far end.',
       tier: DecorTier.wonder,
       wide: 2,
