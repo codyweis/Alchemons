@@ -25,6 +25,8 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart' show premiumHomeColor;
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/friend_home.dart';
@@ -32,9 +34,13 @@ import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/screens/friends/friend_home_screen.dart';
 import 'package:alchemons/screens/friends/trade_screen.dart';
+import 'package:alchemons/screens/stadium/race_lobby_screen.dart';
+import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/services/race_room_service.dart';
 import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -45,6 +51,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/home_planet_view.dart';
 import 'package:alchemons/widgets/home_portal.dart';
+import 'package:alchemons/widgets/stadium_trophy.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart'
     show HomeNoticeDot;
 import 'package:flutter/material.dart';
@@ -554,7 +561,14 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                         ),
                         const SizedBox(height: 10),
                       ],
-                      _TradeButton(friend: friend, accent: accent),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _TradeButton(friend: friend, accent: accent),
+                          ),
+                          _RaceButton(friend: friend, accent: accent),
+                        ],
+                      ),
                       const SizedBox(height: 12),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
@@ -669,6 +683,91 @@ class _FeaturedAlchemon extends StatelessWidget {
             style: _mono(10, _palette.muted, spacing: 2.4),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// RACE: a race with this friend, while they are in the game — for a
+/// player who has found the Trials. Opens a lobby with them asked in, on
+/// the course this player is racing for.
+class _RaceButton extends StatefulWidget {
+  const _RaceButton({required this.friend, required this.accent});
+
+  final FriendCard friend;
+  final Color accent;
+
+  @override
+  State<_RaceButton> createState() => _RaceButtonState();
+}
+
+class _RaceButtonState extends State<_RaceButton> {
+  bool _found = false, _opening = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_read());
+  }
+
+  Future<void> _read() async {
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      final found =
+          await db.settingsDao.getSetting(
+                CampaignJournalService.stadiumFoundKey,
+              ) ==
+              '1' ||
+          await DebugSettingsService().isEnabled();
+      if (mounted && found) setState(() => _found = true);
+    } catch (_) {}
+  }
+
+  Future<void> _race() async {
+    if (_opening) return;
+    _opening = true;
+    HapticFeedback.selectionClick();
+    final prefs = await SharedPreferences.getInstance();
+    final progress = RaceProgress.deserialise(
+      prefs.getString(RaceProgress.prefsKey),
+    );
+    final cup = TrophyLook.currentCup(progress);
+    final race = progress
+        .wonIn(kRaceCups[cup])
+        .clamp(0, kRaceCups[cup].courses.length - 1);
+    if (mounted) {
+      await RaceLobbyScreen.host(
+        context,
+        cup: cup,
+        race: race,
+        invite: [widget.friend],
+      );
+    }
+    _opening = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rooms = context.watch<RaceRoomService?>();
+    if (!_found || rooms == null || !rooms.available) {
+      return const SizedBox.shrink();
+    }
+    final online = context.select<FriendService?, bool>(
+      (f) => f?.isOnline(widget.friend.uid) ?? false,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(left: 10),
+      child: SizedBox(
+        width: 130,
+        child: BracketButton(
+          label: online ? 'RACE' : 'RACE · AWAY',
+          height: 42,
+          palette: _palette,
+          accent: widget.accent,
+          primary: false,
+          enabled: online,
+          onTap: _race,
+        ),
       ),
     );
   }

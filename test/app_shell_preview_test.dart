@@ -164,7 +164,12 @@ void main() {
       tester.view.devicePixelRatio = 3;
       tester.view.padding = const FakeViewPadding(top: 44 * 3, bottom: 30 * 3);
       addTearDown(tester.view.reset);
-      SharedPreferences.setMockInitialValues({});
+      // APP_SHELL_STADIUM=1: the stadium found, a Copper race won, so
+      // home shows its cup.
+      final stadium = Platform.environment['APP_SHELL_STADIUM'] == '1';
+      SharedPreferences.setMockInitialValues({
+        if (stadium) 'stadium_race_progress_v1': '{"copper":1}',
+      });
 
       final db = AlchemonsDatabase(NativeDatabase.memory());
       late CreatureCatalog catalog;
@@ -485,6 +490,9 @@ Future<void> _seed(AlchemonsDatabase db, FactionId faction) async {
     await s.setSetting(task.claimedKey, '1');
   }
   await FactionService(db).setId(faction);
+  if (Platform.environment['APP_SHELL_STADIUM'] == '1') {
+    await s.setSetting('campaign_stadium_found_v1', '1');
+  }
 
   await db.currencyDao.addGold(42);
   await db.currencyDao.addSilver(12850);

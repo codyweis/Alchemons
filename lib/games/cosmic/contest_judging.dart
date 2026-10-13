@@ -62,6 +62,27 @@ class ContestEntrant {
   /// How many kinds of element, faction and family run in its line, and how
   /// many generations deep it goes.
   final int elementKinds, factionKinds, familyKinds, generations;
+
+  /// The same entrant judged on another trait's stat (and, in a race,
+  /// as the [element] a fusion has made it).
+  ContestEntrant withRating(double rating, {String? element}) => ContestEntrant(
+    name: name,
+    element: element ?? this.element,
+    family: family,
+    statRating: rating,
+    scale: scale,
+    prismatic: prismatic,
+    effect: effect,
+    variant: variant,
+    tinted: tinted,
+    pureElement: pureElement,
+    pureFamily: pureFamily,
+    speciesPure: speciesPure,
+    elementKinds: elementKinds,
+    factionKinds: factionKinds,
+    familyKinds: familyKinds,
+    generations: generations,
+  );
 }
 
 /// One thing the judges counted, and by how much (positive helps).
@@ -378,8 +399,11 @@ ContestVerdict judgeEntrant(
   int level,
   ContestEntrant e, {
   String? rivalElement,
+  ContestCondition? condition,
 }) {
-  final c = contestCondition(trait, level);
+  // [condition] judges under one of the stadium's own (a pond, a gap) in
+  // place of the trait's ladder.
+  final c = condition ?? contestCondition(trait, level);
   final element = _cap(e.element);
   final family = e.family.toLowerCase().trim();
   final factors = <ContestFactor>[];

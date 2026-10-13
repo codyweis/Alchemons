@@ -291,6 +291,48 @@ enum SoundCue {
   /// The result card coming apart into its sand on CONTINUE, scored to the
   /// edge climbing it (card_dissolve.dart).
   extractionDissolve('assets/audio/sounds/sfx_extraction_dissolve.wav'),
+
+  // ── The stadium race (tool/sounds/stadium.py). The stands' bed is an
+  // ambience loop, not a cue: amb_race_crowd_loop.wav, for AmbienceCue. ──
+
+  /// The crowd lifting and falling back over 2.6 s (peak ~0.9-1.4 s): a lead
+  /// change, or the player's racer under the show ring's spotlights.
+  raceCrowdSwell('assets/audio/sounds/sfx_race_crowd_swell.wav'),
+
+  /// One numeral of the 3-2-1 count, played on each numeral: grains gather
+  /// into it (0-0.35 s, seated at 0.35), hold, and drift apart 0.75-1.0 s.
+  /// The takes are interchangeable -- no pitch climbs through the count.
+  raceCountTick('assets/audio/sounds/sfx_race_count_tick.wav'),
+
+  /// The count reaching 0: a struck stone-and-glass accent on the frame,
+  /// the start curtain's grains lifting, the stands lifting behind (1.8 s).
+  raceGun('assets/audio/sounds/sfx_race_gun.wav'),
+
+  /// A boost, played on the tap: the 0.6 s wind-up (grains drawn in on a
+  /// breath) and the 1.2 s surge pouring off behind, to the left.
+  raceBoost('assets/audio/sounds/sfx_race_boost.wav'),
+
+  /// Stone grains crumbling under a climbing racer's feet (0.8 s, the give
+  /// on the frame and a trickle after).
+  raceWallCrumble('assets/audio/sounds/sfx_race_wall_crumble.wav'),
+
+  /// A fusion station: the racer comes apart into its element's grains.
+  raceFuseIn('assets/audio/sounds/sfx_race_fuse_in.wav'),
+
+  /// ...and swirls home, whole at 0.74 s with a small glass closing.
+  raceFuseOut('assets/audio/sounds/sfx_race_fuse_out.wav'),
+
+  /// The winner through the line's brass curtain on the frame, and the
+  /// stadium erupting (full by 0.4 s) and settling by 3.0 s.
+  raceFinish('assets/audio/sounds/sfx_race_finish.wav'),
+
+  /// A photo finish: the crowd slowing and muffling into a held breath
+  /// (1.4 s). It ends open, for [raceFinish] to follow.
+  racePhotoHush('assets/audio/sounds/sfx_race_photo_hush.wav'),
+
+  /// The podium (3.4 s): plinths of grain, the winner bursting into its
+  /// grains at 0.3 s and whole again at 2.9 s, over warm applause.
+  racePodium('assets/audio/sounds/sfx_race_podium.wav'),
   elementFire('assets/audio/sounds/sfx_element_fire.wav'),
   elementWater('assets/audio/sounds/sfx_element_water.wav'),
   elementAir('assets/audio/sounds/sfx_element_air.wav'),
@@ -572,6 +614,11 @@ enum SoundCue {
         SoundCue.specialWing,
         SoundCue.specialWingLong,
         SoundCue.specialWingLongest,
+        // The race: lead changes, the count, boosts and climbs repeat.
+        SoundCue.raceCrowdSwell,
+        SoundCue.raceCountTick,
+        SoundCue.raceBoost,
+        SoundCue.raceWallCrumble,
       }.contains(this) ||
       isFamilyBasic ||
       isElement;
@@ -611,7 +658,12 @@ enum SoundCue {
     SoundCue.extractionRareReveal ||
     // A Mystic opens its world once per deployment.
     SoundCue.specialMystic ||
-    SoundCue.specialMysticRise => 2,
+    SoundCue.specialMysticRise ||
+    // A race's milestones, once each: never lost to a busy track.
+    SoundCue.raceGun ||
+    SoundCue.racePhotoHush ||
+    SoundCue.raceFinish ||
+    SoundCue.racePodium => 2,
     SoundCue.combatProjectile ||
     SoundCue.shipBolt ||
     SoundCue.combatHitLight ||
@@ -675,6 +727,11 @@ enum SoundCue {
     SoundCue.specialLetImpactAiry ||
     SoundCue.specialLetImpactBarrage => 60,
     SoundCue.specialLetImpactMinor => 110,
+    // Leads can trade back and forth; a 2.6 s lift restarted on every swap
+    // is a crowd that never falls back.
+    SoundCue.raceCrowdSwell => 1500,
+    // Several racers can be on a wall at once; 0.8 s each.
+    SoundCue.raceWallCrumble => 300,
     _ => 250,
   };
   double get gain => switch (this) {
@@ -734,6 +791,10 @@ enum SoundCue {
     SoundCue.specialMaskSpringWater => .5,
     SoundCue.specialManeOrbLand => .7,
     SoundCue.specialManeQuake => .6,
+    // The crowd lifting sits under the racers it is cheering.
+    SoundCue.raceCrowdSwell => .8,
+    // Texture under a climb, not an event: under the boosts and fusions.
+    SoundCue.raceWallCrumble => .7,
     _ => 1.0,
   };
 }

@@ -207,11 +207,31 @@ class _MiniCirclePainter extends CustomPainter {
       final isShop = kind != null && !isScanner;
       final p = toMini(poi.position);
       final isSurvivalPortal = poi.type == POIType.survivalPortal;
+      final isStadium = poi.type == POIType.stadium;
       final scannerNearby = isScanner && (p - center).distance <= viewR * 0.9;
-      if (!poi.discovered && !isShop && !scannerNearby && !isSurvivalPortal) {
+      if (!poi.discovered &&
+          !isShop &&
+          !scannerNearby &&
+          !isSurvivalPortal &&
+          !isStadium) {
         continue;
       }
       if (!inView(p)) continue;
+      if (isStadium) {
+        // Off the radar until its story beat; while that beat is on, a
+        // bright throb when it is in range and nothing at all pointing to
+        // it when it is not — it is found by looking.
+        if (game.stadiumFound) {
+          light(p, const Color(0xFFCDB07A), 2.6);
+        } else if (game.stadiumBeacon) {
+          final m = stoneLightFor(const Color(0xFFE2C98F));
+          final pulse =
+              0.5 + 0.5 * sin(DateTime.now().millisecondsSinceEpoch / 160);
+          paintDisc(canvas, m.leak, p, 7 + pulse * 6, 0.95);
+          paintDisc(canvas, m.spark, p, 3 + pulse * 1.6, 1);
+        }
+        continue;
+      }
       // A station is the color it is lit in space.
       final c =
           kind?.accent ??
@@ -219,9 +239,10 @@ class _MiniCirclePainter extends CustomPainter {
             POIType.nebula => elementColor(poi.element),
             POIType.derelict => const Color(0xFF8FA3B0),
             POIType.warpAnomaly => const Color(0xFFB388FF),
+            POIType.stadium => const Color(0xFFCDB07A),
             _ => const Color(0xFF8B5CF6),
           };
-      light(p, c, isScanner || isShop ? 2.6 : 2.0);
+      light(p, c, isScanner || isShop || isStadium ? 2.6 : 2.0);
     }
 
     // Sealed elemental caches — the radar picks them up whenever they are in

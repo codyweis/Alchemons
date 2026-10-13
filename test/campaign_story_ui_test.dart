@@ -138,6 +138,10 @@ void main() {
         await db.settingsDao.setSetting('first_extraction_done', '1');
         await db.settingsDao.setSetting('cosmic_ship_unlocked', '1');
         await db.settingsDao.setSetting(
+          CampaignJournalService.stadiumFoundKey,
+          '1',
+        );
+        await db.settingsDao.setSetting(
           CampaignJournalService.revelationKey,
           '1',
         );
@@ -192,7 +196,7 @@ void main() {
       await settle();
       expect(find.text('Achievements'), findsOneWidget);
       expect(find.text('What remained'), findsOneWidget);
-      expect(find.text('4 READY'), findsOneWidget);
+      expect(find.text('6 READY'), findsOneWidget);
       await capture(tester, key, 'achievements_home');
       await tester.tap(find.text('STORY SO FAR'));
       await settle();

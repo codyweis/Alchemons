@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_portal.dart';
+import 'package:alchemons/navigation/turning_passage.dart';
 import 'package:alchemons/widgets/fx/sand_passage.dart';
 import 'package:flutter/foundation.dart'
     show TargetPlatform, ValueListenable, defaultTargetPlatform, kIsWeb;
@@ -683,6 +684,164 @@ class VoidPortal {
     );
     overlay.insert(entry);
     return routeResult.future;
+  }
+
+  /// Push [page] through [scene] (a [TurningScene]): it lifts off [from]
+  /// into the middle as the screen sinks, goes out while the phone is turned
+  /// to [orientation] and [page] pushed, comes back once the window has
+  /// turned, and — once [ready] (or a safety timeout) — settles where [to]
+  /// says on the page as the page comes up round it. [to] is asked each
+  /// frame of the settle; the page reports it once laid out.
+  ///
+  /// [onLanded] runs on the frame the passage leaves the page alone.
+  /// [returnOrientation] is restored when the page is popped; a page left
+  /// through [leaveThroughTurn] is turned back before it goes. Completes
+  /// with the route's result when the page is popped.
+  static Future<T?> pushThroughTurn<T>(
+    BuildContext context, {
+    required Widget page,
+    required TurningScene scene,
+    required Rect? from,
+    required Rect? Function() to,
+    ValueListenable<bool>? ready,
+    VoidCallback? onLanded,
+    List<DeviceOrientation>? orientation,
+    List<DeviceOrientation>? returnOrientation,
+  }) {
+    final navigator = Navigator.of(context);
+    final turnTo = orientation == null || orientation.isEmpty
+        ? null
+        : orientation.first;
+    final wideTo =
+        turnTo == DeviceOrientation.landscapeLeft ||
+        turnTo == DeviceOrientation.landscapeRight;
+    final needsTurn = turnTo != null && wideTo != _windowWide();
+    final turned = ValueNotifier<bool>(!needsTurn);
+    final picture = GlobalKey();
+    final routeResult = Completer<T?>();
+
+    // Everything that costs a hitch happens here, while the scene is out.
+    Future<void> swap() async {
+      if (turnTo != null) {
+        await _setSeamlessRotation(true);
+        await SystemChrome.setPreferredOrientations([turnTo]);
+      }
+      navigator
+          .push<T>(
+            PageRouteBuilder(
+              transitionDuration: Duration.zero,
+              reverseTransitionDuration: Duration.zero,
+              pageBuilder: (_, __, ___) => _passagePage(
+                page: page,
+                picture: picture,
+                turned: needsTurn ? turned : null,
+                returnOrientation: returnOrientation,
+                back: null,
+              ),
+            ),
+          )
+          .then((result) async {
+            if (returnOrientation != null) {
+              await SystemChrome.setPreferredOrientations(returnOrientation);
+            }
+            routeResult.complete(result);
+          }, onError: routeResult.completeError);
+      if (needsTurn) await _awaitWindow(wide: wideTo);
+      turned.value = true;
+      for (var i = 0; i < 3; i++) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+    }
+
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => TurningPassageOverlay(
+        scene: scene,
+        from: from,
+        to: to,
+        swap: swap,
+        turns: needsTurn,
+        ready: ready,
+        onComplete: () {
+          entry.remove();
+          onLanded?.call();
+          if (orientation != null && orientation.length > 1) {
+            unawaited(SystemChrome.setPreferredOrientations(orientation));
+          }
+          if (turnTo != null) unawaited(_setSeamlessRotation(false));
+        },
+      ),
+    );
+    navigator.overlay!.insert(entry);
+    return routeResult.future;
+  }
+
+  /// Leave a page entered through [pushThroughTurn] (or any passage) the
+  /// way it came: [scene] lifts off [from] on the page as the page sinks,
+  /// goes out while the phone is turned back and the page popped (with
+  /// [result]), and settles where [to] says on the screen behind, asked
+  /// once that screen has been laid out again.
+  ///
+  /// [onSwapped] runs as the page is popped (the screen behind can set
+  /// itself up for the settle there); [onLanded] on the frame the passage
+  /// leaves it alone. Completes then.
+  static Future<void> leaveThroughTurn<T>(
+    BuildContext context, {
+    required TurningScene scene,
+    required Rect? from,
+    required Rect? Function() to,
+    VoidCallback? onSwapped,
+    VoidCallback? onLanded,
+    T? result,
+  }) {
+    final navigator = Navigator.of(context);
+    final scope = _PassageScope.maybeOf(context);
+    final wide = MediaQuery.sizeOf(context).aspectRatio > 1;
+    final turned = scope?.turned;
+    final returnTo = scope?.returnOrientation;
+    final turnBack =
+        wide && turned != null && returnTo != null && returnTo.isNotEmpty;
+
+    Future<void> swap() async {
+      if (turnBack) {
+        // Held wide while the window turns under it: it is about to go.
+        turned.value = false;
+        await _setSeamlessRotation(true);
+        await SystemChrome.setPreferredOrientations([returnTo.first]);
+        await _awaitWindow(wide: false);
+      }
+      onSwapped?.call();
+      if (navigator.mounted) navigator.pop<T>(result);
+      // A few frames for the screen behind to lay itself out.
+      for (var i = 0; i < 3; i++) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+      if (turnBack) {
+        if (returnTo.length > 1) {
+          unawaited(SystemChrome.setPreferredOrientations(returnTo));
+        }
+        unawaited(_setSeamlessRotation(false));
+      }
+    }
+
+    final done = Completer<void>();
+    late OverlayEntry entry;
+    entry = OverlayEntry(
+      builder: (_) => TurningPassageOverlay(
+        scene: scene,
+        from: from,
+        to: to,
+        swap: swap,
+        turns: turnBack,
+        onComplete: () {
+          entry.remove();
+          onLanded?.call();
+          if (!done.isCompleted) done.complete();
+        },
+      ),
+    );
+    navigator.overlay!.insert(entry);
+    return done.future;
   }
 
   /// Push a page and force Landscape orientation seamlessly

@@ -313,6 +313,30 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     }
 
     for (final poi in widget.game.spacePOIs) {
+      if (poi.type == POIType.stadium) {
+        // Flown to like any destination once found; while it is still the
+        // beacon to find, the chart only says it is there.
+        final found = widget.game.stadiumFound;
+        if (!found && !widget.game.stadiumBeacon) continue;
+        final d = (poi.position - tapPos).distance;
+        if (d < 920) {
+          tryUpdate(
+            _MiniMapTravelPromptData(
+              title: found ? 'TRAVEL TO THE TRIALS' : 'UNKNOWN SIGNAL',
+              subtitle: found
+                  ? 'Races of six Alchemons'
+                  : 'Signal origin unknown',
+              accent: _poiColor(poi.type),
+              actionLabel: found ? 'TRAVEL' : null,
+              onConfirm: found
+                  ? () => _runAfterBuild(() => widget.onTeleport(poi.position))
+                  : null,
+            ),
+            d,
+          );
+        }
+        continue;
+      }
       if (!poi.discovered && poi.type != POIType.survivalPortal) continue;
       if (poi.type == POIType.survivalPortal) {
         final d = (poi.position - tapPos).distance;
@@ -510,6 +534,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     POIType.derelict => 'DERELICT',
     POIType.warpAnomaly => 'ANOMALY',
     POIType.survivalPortal => 'SURVIVAL PORTAL',
+    POIType.stadium => 'TRIALS',
     _ => 'DESTINATION',
   };
 
@@ -527,6 +552,7 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
     POIType.planetScanner => const Color(0xFF90CAF9),
     POIType.goldConversion => const Color(0xFFFFD740),
     POIType.survivalPortal => const Color(0xFF8B5CF6),
+    POIType.stadium => const Color(0xFFCDB07A),
     _ => const Color(0xFF90CAF9),
   };
 
@@ -2330,7 +2356,8 @@ class _ChartPinsPainter extends CustomPainter {
       final kind = stationKindFor(poi.type);
       final isShop = kind != null && kind != StationKind.planetScanner;
       final isPortal = poi.type == POIType.survivalPortal;
-      if (!poi.discovered && !isShop && !isPortal) continue;
+      final isStadium = poi.type == POIType.stadium;
+      if (!poi.discovered && !isShop && !isPortal && !isStadium) continue;
       final p = at(poi.position);
       if (!view.contains(p)) continue;
       final spent = poi.interacted ? 0.45 : 1.0;
@@ -2394,6 +2421,15 @@ class _ChartPinsPainter extends CustomPainter {
               5.5 * k,
               size: 7,
             );
+          }
+        case POIType.stadium:
+          // Charted once found. While it is the beacon the story sends the
+          // player after, the breathing signal marks it instead.
+          if (!game.stadiumFound) break;
+          const brass = Color(0xFFCDB07A);
+          paintChartGlyph(canvas, ChartGlyph.contest, p, brass, r: 5.4 * k);
+          if (stationLabels) {
+            _label(canvas, 'TRIALS', brass.withValues(alpha: 0.9), p, 6.5 * k);
           }
         case POIType.survivalPortal:
           if (poi.discovered) {

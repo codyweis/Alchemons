@@ -79,6 +79,11 @@ import 'package:alchemons/widgets/background/faction_realm.dart';
 import 'package:alchemons/screens/home_biome/home_biome_window.dart';
 import 'package:alchemons/widgets/alchemy_emblem.dart';
 import 'package:alchemons/widgets/athanor_emblem.dart';
+import 'package:alchemons/widgets/stadium_trophy.dart';
+import 'package:alchemons/screens/stadium/stadium_passage.dart';
+import 'package:alchemons/games/stadium/race_cups.dart';
+import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/utils/featured_instance.dart';
 import 'package:alchemons/widgets/home_emblems.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
@@ -920,6 +925,53 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _athanorEmblem = GlobalKey();
   final ValueNotifier<bool> _athanorLifted = ValueNotifier(false);
 
+  /// THE STADIUM's cup, under the hero once the stadium has been found
+  /// (null until then): the cup racing for now, lit as far as it is won.
+  TrophyLook? _stadiumLook;
+  int _stadiumCup = 0;
+  final GlobalKey _stadiumEmblem = GlobalKey();
+  final ValueNotifier<bool> _stadiumLifted = ValueNotifier(false);
+
+  Future<void> _refreshStadium() async {
+    try {
+      final db = context.read<AlchemonsDatabase>();
+      final found =
+          await db.settingsDao.getSetting(
+                CampaignJournalService.stadiumFoundKey,
+              ) ==
+              '1' ||
+          await DebugSettingsService().isEnabled();
+      final prefs = await SharedPreferences.getInstance();
+      final progress = RaceProgress.deserialise(
+        prefs.getString(RaceProgress.prefsKey),
+      );
+      final cup = TrophyLook.currentCup(progress);
+      final look = found ? TrophyLook.ofCup(cup, progress) : null;
+      if (!mounted || (look == _stadiumLook && cup == _stadiumCup)) return;
+      setState(() {
+        _stadiumLook = look;
+        _stadiumCup = cup;
+      });
+    } catch (_) {}
+  }
+
+  Future<void> _openStadium() async {
+    final look = _stadiumLook;
+    if (look == null || _stadiumLifted.value) return;
+    HapticFeedback.heavyImpact();
+    await openStadiumFromHome(
+      context,
+      from: _stadiumEmblem,
+      lifted: _stadiumLifted,
+      look: look,
+      cup: _stadiumCup,
+      // The cup coming back is the one racing for now, maybe another.
+      onReturn: (back) {
+        if (mounted) setState(() => _stadiumLook = back);
+      },
+    );
+  }
+
   Future<void> _refreshAlchemy() async {
     try {
       final u = await AlchemyUnlock.load(
@@ -1081,6 +1133,8 @@ class _HomeScreenState extends State<HomeScreen>
       async.unawaited(_maybePlayEnhanceCelebration());
       async.unawaited(_syncHomePortal());
       async.unawaited(_refreshAlchemy());
+      // Found in space, or raced for: the cup may have changed.
+      async.unawaited(_refreshStadium());
       // Survival opens in space, behind a route home stays mounted under;
       // read only at start-up, its button waited for the next launch.
       async.unawaited(_refreshSurvivalUnlocked());
@@ -1097,6 +1151,7 @@ class _HomeScreenState extends State<HomeScreen>
     _enhanceRevealController.dispose();
     _relicLifted.dispose();
     _athanorLifted.dispose();
+    _stadiumLifted.dispose();
     _fieldLifted.dispose();
     _harvestLifted.dispose();
     _survivalLifted.dispose();
@@ -1438,6 +1493,7 @@ class _HomeScreenState extends State<HomeScreen>
       await _refreshHasAnyRelic();
       await _refreshSurvivalUnlocked();
       await _refreshAlchemy();
+      await _refreshStadium();
 
       // Load featured hero
       await _refreshFeatured(notify: false);
@@ -2332,10 +2388,9 @@ class _HomeScreenState extends State<HomeScreen>
                               ),
                             ],
 
-                            // Renders nothing today; it used to be wrapped in an
-                            // Expanded, which would now compete with the hero's
-                            // Flexible for the same remaining space.
-                            _buildHomeContent(theme, hs),
+                            // ALCHEMY, in the middle under the hero (back here
+                            // 2026-10-12, swapped with the stadium's cup).
+                            _buildAlchemy(theme, size: 84 * hs),
                           ],
                         ),
                       ),
@@ -2684,9 +2739,53 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  /// Under the hero: ALCHEMY, open or locked (the author, 2026-10-08: "in
-  /// the middle, under the portal/showcase area").
-  Widget _buildHomeContent(FactionTheme theme, double hs) {
+  /// THE STADIUM's cup in the header's top-right corner (the author,
+  /// 2026-10-12: first under the hero, then "swap alchemy and trophy, and
+  /// make trophy way smaller"). Tap: the cup carries the player into the
+  /// stadium. Nothing until the stadium has been found.
+  Widget _buildStadiumCorner(FactionTheme theme) {
+    final look = _stadiumLook;
+    if (look == null) return const SizedBox.shrink();
+    return Opacity(
+      opacity: _isFieldTutorialActive ? 0.4 : 1.0,
+      child: IgnorePointer(
+        ignoring: _isFieldTutorialActive,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _openStadium,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TickerMode(
+                enabled: _animationsEnabled,
+                child: StadiumTrophyEmblem(
+                  key: _stadiumEmblem,
+                  height: _kHomeTrophyHeight,
+                  look: look,
+                  animate: _animationsEnabled,
+                  lifted: _stadiumLifted,
+                ),
+              ),
+              Text(
+                'TRIALS',
+                style: TextStyle(
+                  color: theme.text,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// ALCHEMY, open or locked, under the hero (the author, 2026-10-08: "in
+  /// the middle, under the portal/showcase area"; in the header's corner for
+  /// part of 2026-10-12, then swapped back with the stadium's cup).
+  Widget _buildAlchemy(FactionTheme theme, {required double size}) {
     final u = _alchemy;
     if (u.total == 0 && !u.debug) return const SizedBox.shrink();
     final label = TextStyle(
@@ -2707,7 +2806,7 @@ class _HomeScreenState extends State<HomeScreen>
             children: [
               AlchemyEmblem(
                 key: _alchemyEmblem,
-                size: 84 * hs,
+                size: size,
                 open: u.open,
                 progress: u.progress,
                 animate: _animationsEnabled,
@@ -3125,46 +3224,59 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
+  /// Profile on the left, the purse in the middle and ALCHEMY on the right
+  /// (the author, 2026-10-12), with the title under them. The purse lays gold
+  /// beside silver (the author, 2026-10-12: "side by side … unless it doesn't
+  /// fit"), and stacks them again when the middle cannot hold the line.
   Widget _buildHeader(FactionTheme theme) {
     return Column(
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // 🔹 Disable + dim Profile button during Field Tutorial
-            if (_isFieldTutorialActive)
-              Opacity(
-                opacity: 0.35,
-                child: IgnorePointer(
-                  ignoring: true,
-                  child: AvatarButton(
-                    theme: theme,
-                    onTap: () {}, // disabled during tutorial
+        LayoutBuilder(
+          builder: (context, constraints) => Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // The two sides share what the purse leaves, so it stays centred
+              // whatever stands either side of it.
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topLeft,
+                  // 🔹 Disable + dim Profile button during Field Tutorial
+                  child: _isFieldTutorialActive
+                      ? Opacity(
+                          opacity: 0.35,
+                          child: IgnorePointer(
+                            ignoring: true,
+                            child: AvatarButton(
+                              theme: theme,
+                              onTap: () {}, // disabled during tutorial
+                            ),
+                          ),
+                        )
+                      : AvatarButton(
+                          theme: theme,
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            Navigator.push(context, ProfileScreen.route());
+                          },
+                        ),
+                ),
+              ),
+              // No wider than leaves the profile its full width either side;
+              // past that the purse folds back to gold over silver.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: max(
+                    0,
+                    constraints.maxWidth - 2 * AvatarButton.size,
                   ),
                 ),
-              )
-            else
-              AvatarButton(
-                theme: theme,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  Navigator.push(context, ProfileScreen.route());
-                },
-              ),
-
-            // What the profile leaves. The purse lays gold beside silver
-            // (the author, 2026-10-12: "side by side … unless it doesn't
-            // fit"), and stacks them again when this cannot hold the line.
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerRight,
                 child: Padding(
-                  padding: const EdgeInsets.only(right: 12),
+                  padding: const EdgeInsets.only(top: 12),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Absent unless a boost is running, so it costs the
-                      // header nothing the rest of the time.
+                      // Absent unless a boost is running, so it costs the header
+                      // nothing the rest of the time.
                       if (!_isFieldTutorialActive)
                         const Padding(
                           padding: EdgeInsets.only(right: 8),
@@ -3185,18 +3297,24 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
               ),
-            ),
-          ],
+              Expanded(
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.only(right: 6, top: 2),
+                    child: _buildStadiumCorner(theme),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        Column(
-          children: [
-            // The title in particles: it fills in letter by letter at
-            // launch; drag through it, tap it, hold it to recolor it.
-            ParticleTitle(
-              darkBackdrop: theme.brightness == Brightness.dark,
-              active: _animationsEnabled,
-            ),
-          ],
+        // The title in particles: it fills in letter by letter at launch;
+        // drag through it, tap it, hold it to recolor it.
+        ParticleTitle(
+          darkBackdrop: theme.brightness == Brightness.dark,
+          active: _animationsEnabled,
+          scale: _kHomeTitleScale,
         ),
       ],
     );
@@ -3217,6 +3335,14 @@ class _HomeScreenState extends State<HomeScreen>
 /// multiplied by one factor derived from the available height. Screens at or
 /// above the height the layout was composed for are untouched (k == 1).
 const double _kHomeDesignHeight = 780.0;
+
+/// The particle title, smaller than the logo's own 300×60 (the author,
+/// 2026-10-12: "make our home alchemons title smaller").
+const double _kHomeTitleScale = 0.75;
+
+/// THE STADIUM's cup in the header's top-right corner: its own height (its
+/// box is a little wider, for the handles, and taller, for its light).
+const double _kHomeTrophyHeight = 40;
 
 /// How far over the achievements bar the Furnace's box stands; the furnace
 /// rests a few pixels inside its box, so the gap that shows is larger.

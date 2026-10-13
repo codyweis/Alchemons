@@ -47,6 +47,16 @@ const campaignEntries = [
     'You follow the ship beyond the world that soothed you. Something there remembers your work.',
   ),
   JournalEntry(
+    'signal',
+    'The signal',
+    'You follow a signal to a door in the dark. You tell yourself it is only a test of strength.',
+  ),
+  JournalEntry(
+    'stadium',
+    'Lights in the dark',
+    'A crowd of lights cheers for what you made. You let them. It is easier than asking what they cheer for.',
+  ),
+  JournalEntry(
     'revelation',
     'Beauty obstructs reality',
     'You did not make the valley to hide the world from danger. You made it to hide your work from yourself.',
@@ -173,6 +183,24 @@ final campaignAchievements = <CampaignAchievement>[
     1,
     1,
     200,
+  ),
+  CampaignAchievement(
+    'survival_signal',
+    'The signal',
+    'Follow the beacon to the Survival Portal.',
+    'survivalSignal',
+    1,
+    1,
+    250,
+  ),
+  CampaignAchievement(
+    'stadium_found',
+    'Lights in the dark',
+    'Find the flashing beacon in cosmic space.',
+    'stadium',
+    1,
+    1,
+    300,
   ),
   CampaignAchievement(
     'revelation',
@@ -692,6 +720,8 @@ final campaignAchievements = <CampaignAchievement>[
 const campaignMissionIds = [
   'first_extraction',
   'ship',
+  'survival_signal',
+  'stadium_found',
   'revelation',
   'guardian_1',
   'mystic_1',
@@ -717,6 +747,11 @@ const campaignMissionInstructions = {
   // used to send them back to the Valley for it.
   'ship':
       'Finish the wilderness fusion and harvest, then keep exploring the wild realms. Something is falling toward them, and it will find you there.',
+  'survival_signal':
+      'In cosmic space, build your home, then open your map and follow the beacon to the Survival Portal.',
+  // No arrow for this one, on purpose: the map is the only guide.
+  'stadium_found':
+      'Another beacon is flashing somewhere in cosmic space. Find it on your map. Nothing will point the way.',
   'revelation':
       'In cosmic space, complete a planet’s elemental gate offering. Assemble its required descent party and enter.',
   'guardian_1':
@@ -776,6 +811,12 @@ class CampaignJournalService {
   CampaignJournalService(this.db);
   final AlchemonsDatabase db;
   static const revelationKey = 'campaign_revelation_seen_v1';
+
+  /// Set when the ship first comes alongside the stadium.
+  static const stadiumFoundKey = 'campaign_stadium_found_v1';
+
+  /// Set once the stadium's beacon has been announced.
+  static const stadiumToldKey = 'campaign_stadium_told_v1';
   static const endingKey = 'campaign_blood_rebirth_v1';
   static const _seenKey = 'campaign_journal_seen_v1';
   static Future<Set<String>>? _catalogIds;
@@ -808,6 +849,7 @@ class CampaignJournalService {
   static const _settingGlobs = ['campaign_*', 'altar_summoned_*', 'enc.*'];
   static const _settingKeys = [
     'first_extraction_done',
+    'cosmic_survival_portal_discovered',
     'cosmic_ship_unlocked',
     'cosmic_survival_best_wave',
     'cosmic_memory_tutorial_completed_v1',
@@ -968,6 +1010,17 @@ class CampaignJournalService {
           .where((e) => stars.starsEarned(e) >= 3)
           .length,
       'homePlanet': (prefs.getString(_homePlanetPref) ?? '').isEmpty ? 0 : 1,
+      // Reaching the signal is what unlocks the portal; a save that has
+      // played Survival found it before the row existed.
+      'survivalSignal':
+          flag('cosmic_survival_portal_discovered') ||
+              reached > 0 ||
+              (int.tryParse(settings['campaign_survival_cleared_v1'] ?? '') ??
+                      0) >
+                  0
+          ? 1
+          : 0,
+      'stadium': flag(stadiumFoundKey) ? 1 : 0,
       'altars': altarStars.where((s) => s > 0).length,
       'altarStars': altarStars.fold(0, (a, b) => a + min(3, b)),
       'formulas': formulas.found,
@@ -983,6 +1036,8 @@ class CampaignJournalService {
     if (metrics['extraction'] == 1) seen.addAll(['awakening', 'extraction']);
     if (flag('cosmic_memory_tutorial_completed_v1')) seen.add('memory');
     if (metrics['ship'] == 1) seen.add('ship');
+    if (metrics['survivalSignal'] == 1) seen.add('signal');
+    if (metrics['stadium'] == 1) seen.add('stadium');
     if (metrics['revelation'] == 1) seen.add('revelation');
     if (metrics['guardians']! > 0) seen.add('guardian');
     if (metrics['mystics']! > 0) seen.add('mystic');

@@ -22,6 +22,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/trade_service.dart';
+import 'package:alchemons/services/race_room_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
@@ -246,6 +247,15 @@ class AppProviders extends StatelessWidget {
             catalog: ctx.read<CreatureCatalog>(),
             friends: ctx.read<FriendService>(),
             wear: ctx.read<CosmeticWearService>(),
+          ),
+        ),
+        // Racing friends live. Not lazy: an invitation to race shows
+        // wherever the player is.
+        ChangeNotifierProvider<RaceRoomService>(
+          lazy: false,
+          create: (ctx) => RaceRoomService(
+            account: ctx.read<AccountService>(),
+            friends: ctx.read<FriendService>(),
           ),
         ),
         ChangeNotifierProvider(

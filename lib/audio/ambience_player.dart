@@ -11,6 +11,9 @@ enum AmbienceCue {
   dungeonArcane('amb_dungeon_arcane_loop'),
   lab('amb_lab_loop'),
 
+  /// The stadium's stands through a race.
+  raceCrowd('amb_race_crowd_loop'),
+
   /// Not a place — the booster, held. Rendered through the ambience path
   /// because it has to loop seamlessly: a one-shot restarting is a pulse,
   /// and holding boost should be one continuous note.

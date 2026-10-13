@@ -47,8 +47,12 @@ void showGameSnack(
   Color? accent,
   SnackBarAction? action,
   Duration duration = const Duration(seconds: 3),
+
+  /// Where it shows, for a caller outside any screen (the navigator's own
+  /// overlay); the root overlay over [context] otherwise.
+  OverlayState? overlay,
 }) {
-  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  overlay ??= Overlay.maybeOf(context, rootOverlay: true);
   if (overlay == null) return;
   final fc = FC.of(context);
   final tint = accent ?? fc.amber;

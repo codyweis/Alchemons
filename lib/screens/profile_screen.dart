@@ -31,7 +31,9 @@ import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/profile_titles.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/wild_fusion.dart';
+import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart';
+import 'package:alchemons/screens/stadium/stadium_screen.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/screens/debug/ability_lab_screen.dart';
@@ -474,6 +476,22 @@ class _ProfileScreenState extends State<ProfileScreen>
       context,
       MaterialPageRoute(builder: (_) => const DungeonDebugScreen()),
     );
+  }
+
+  /// The stadium, turned on its side as it is from space; home's music
+  /// again after.
+  Future<void> _openStadium() async {
+    HapticFeedback.mediumImpact();
+    final party = await stadiumPartyFromSave(context);
+    if (!mounted) return;
+    await VoidPortal.pushThroughGlyphs<void>(
+      context,
+      page: StadiumScreen(party: party),
+      title: 'The Trials',
+      element: 'Light',
+    );
+    if (!mounted) return;
+    unawaited(context.read<AudioController>().playHomeMusic());
   }
 
   Future<void> _openAltars() async {
@@ -1849,6 +1867,12 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   List<_DebugAction> _debugActions() => [
+    _DebugAction(
+      'TRIALS',
+      'Open the Trials with your space party, without flying there',
+      'OPEN',
+      _openStadium,
+    ),
     _DebugAction(
       'ALCHEMY',
       'Fusion puzzles in levels, chapter by chapter through the realms',

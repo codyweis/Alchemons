@@ -4,6 +4,10 @@ import 'package:flutter/material.dart';
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
+/// The app's navigator, for what arrives from outside any screen (an
+/// invitation to race) to show itself and open where it leads.
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
+
 void showAppSnack(
   String message, {
   bool isError = false,

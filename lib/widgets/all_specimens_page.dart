@@ -39,6 +39,9 @@ class AllSpecimensPage extends StatefulWidget {
   final Widget? Function(CreatureInstance inst, Creature species)?
   cardBadgeBuilder;
 
+  /// Wraps each case (see [AllCreatureInstances.caseWrapper]).
+  final Widget Function(CreatureInstance inst, Widget kase)? caseWrapper;
+
   const AllSpecimensPage({
     super.key,
     required this.theme,
@@ -53,6 +56,7 @@ class AllSpecimensPage extends StatefulWidget {
     this.closeReturnsSelection = false,
     this.instancePrefsScopeKey,
     this.cardBadgeBuilder,
+    this.caseWrapper,
   });
 
   @override
@@ -165,6 +169,7 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
                   },
                   onConfirmSelection: widget.onConfirmSelection,
                   cardBadgeBuilder: widget.cardBadgeBuilder,
+                  caseWrapper: widget.caseWrapper,
                   onTap: widget.popOnSelect
                       ? (inst) async {
                           final navigator = Navigator.of(context);

@@ -27,6 +27,7 @@ enum MusicCue {
   portal,
   endCredits,
   cosmicExploration,
+  stadium,
 }
 
 class AudioController extends ChangeNotifier with WidgetsBindingObserver {
@@ -86,6 +87,15 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
     MusicCue.cosmicExploration: [
       'assets/audio/music/spaceexploration1.mp3',
       'assets/audio/music/spaceexploration2.flac',
+    ],
+    // The stadium's own song, in whichever format it is dropped in as;
+    // the survival arena's until then.
+    MusicCue.stadium: [
+      'assets/audio/music/stadium.ogg',
+      'assets/audio/music/stadium.flac',
+      'assets/audio/music/stadium.mp3',
+      'assets/audio/music/stadium.m4a',
+      'assets/audio/music/survival.mp3',
     ],
   };
 
@@ -314,6 +324,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> playPlanetMusic() => playMusic(MusicCue.planet);
   Future<void> playPortalMusic() => playMusic(MusicCue.portal);
   Future<void> playEndCreditsMusic() => playMusic(MusicCue.endCredits);
+  Future<void> playStadiumMusic() => playMusic(MusicCue.stadium);
   Future<void> playCosmicExplorationMusic({bool cycle = true}) async {
     if (cycle) {
       await playMusic(MusicCue.cosmicExploration);

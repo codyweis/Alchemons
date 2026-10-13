@@ -465,6 +465,119 @@ service cloud.firestore {
           request.resource.data.updatedAt == request.time;
     }
 
+    // Races with friends (race_room_service.dart). The host makes a room,
+    // asks friends into it (only friends), picks the course, starts and
+    // closes it; everyone asked writes only their own seat (between races)
+    // and their own boost taps (during one).
+    function isRaceRoomShape(d) {
+      return d.keys().hasOnly(['host', 'invited', 'names', 'cup', 'race',
+              'state', 'run', 'seats', 'taps', 'field', 'startAt',
+              'createdAt', 'updatedAt']) &&
+          d.host is string &&
+          d.invited is list && d.invited.size() >= 1 &&
+          d.invited.size() <= 6 && d.invited[0] == d.host &&
+          d.names is map && d.names.size() <= 6 &&
+          d.cup is int && d.cup >= 0 && d.cup <= 2 &&
+          d.race is int && d.race >= 0 && d.race <= 2 &&
+          d.state in ['lobby', 'racing'] &&
+          d.run is int && d.run >= 0 &&
+          d.seats is map && d.seats.size() <= 6 &&
+          d.taps is map && d.taps.size() <= 6 &&
+          d.field is list && d.field.size() <= 6 &&
+          (d.startAt == null || d.startAt is int) &&
+          d.updatedAt == request.time;
+    }
+
+    function isRaceSeat(s) {
+      return s is map &&
+          s.keys().hasOnly(['player', 'id', 'entrant', 'ratings', 'boosts',
+              'look', 'at']) &&
+          s.player is string && s.player.size() <= 40 &&
+          s.id is string && s.id.size() <= 80 &&
+          s.entrant is map && s.entrant.size() <= 20 &&
+          s.ratings is map && s.ratings.size() == 4 &&
+          s.boosts is int && s.boosts >= 0 && s.boosts <= 6 &&
+          s.look is map && s.look.size() <= 12 &&
+          s.at == request.time;
+    }
+
+    // Each of [list] after the host is one of the asker's friends.
+    function raceFriendAt(list, i) {
+      return list.size() <= i ||
+          exists(/databases/$(database)/documents/players/$(list[i])/friends/$(request.auth.uid));
+    }
+
+    function asksOnlyFriends(list) {
+      return raceFriendAt(list, 1) && raceFriendAt(list, 2) &&
+          raceFriendAt(list, 3) && raceFriendAt(list, 4) &&
+          raceFriendAt(list, 5);
+    }
+
+    // Only the writer's own entry in [after] (a map) differs from [before].
+    function onlyMine(after, before) {
+      return after.diff(before).affectedKeys().hasOnly([request.auth.uid]);
+    }
+
+    // The writer's seat: written between races only, and whole.
+    function mySeatOk(d, r) {
+      let me = request.auth.uid;
+      return !d.seats.diff(r.seats).affectedKeys().hasAny([me]) ||
+          (r.state == 'lobby' && (!(me in d.seats) || isRaceSeat(d.seats[me])));
+    }
+
+    // The writer's taps: during a race, for that race.
+    function myTapsOk(d, r) {
+      let me = request.auth.uid;
+      return !d.taps.diff(r.taps).affectedKeys().hasAny([me]) ||
+          (r.state == 'racing' && me in d.taps &&
+           d.taps[me] is map && d.taps[me].keys().hasOnly(['run', 't']) &&
+           d.taps[me].run == r.run &&
+           d.taps[me].t is list && d.taps[me].t.size() <= 12);
+    }
+
+    match /race_rooms/{roomId} {
+      // A room gone reads as missing to anyone (it says nothing).
+      allow get: if isSignedIn() &&
+          (resource == null || request.auth.uid in resource.data.invited);
+      allow list: if isSignedIn() && request.auth.uid in resource.data.invited;
+      allow create: if isSignedIn() &&
+          isRaceRoomShape(request.resource.data) &&
+          request.resource.data.host == request.auth.uid &&
+          request.resource.data.state == 'lobby' &&
+          request.resource.data.run == 0 &&
+          request.resource.data.seats.size() == 0 &&
+          request.resource.data.taps.size() == 0 &&
+          request.resource.data.createdAt == request.time &&
+          asksOnlyFriends(request.resource.data.invited);
+      allow update: if isSignedIn() &&
+          request.auth.uid in resource.data.invited &&
+          isRaceRoomShape(request.resource.data) &&
+          request.resource.data.host == resource.data.host &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          (
+            // Anyone in it: their own seat and taps.
+            (request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['seats', 'taps', 'updatedAt']) &&
+             onlyMine(request.resource.data.seats, resource.data.seats) &&
+             onlyMine(request.resource.data.taps, resource.data.taps) &&
+             mySeatOk(request.resource.data, resource.data) &&
+             myTapsOk(request.resource.data, resource.data)) ||
+            // The host: who is asked, the course, starting and ending a
+            // race (which clears the taps).
+            (request.auth.uid == resource.data.host &&
+             request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['invited', 'names', 'cup', 'race', 'state', 'run',
+                    'field', 'startAt', 'taps', 'updatedAt']) &&
+             (!request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['taps']) ||
+              request.resource.data.taps.size() == 0) &&
+             (!request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['invited']) ||
+              asksOnlyFriends(request.resource.data.invited)))
+          );
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.host;
+    }
+
     // Reports about a player, kept for review in the console. Write-only.
     match /reports/{reportId} {
       allow create: if isSignedIn() &&

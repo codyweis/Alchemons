@@ -425,6 +425,17 @@ class EssenceField {
   /// [revealStart] instead of coming out of a sprite that was never shown.
   bool reveal = false;
 
+  /// Set when this field hands over to another — a racer fusing into a new
+  /// form (the stadium's fusion stations): from here its grains fade out
+  /// over 0.3 s while the other's [reveal] gathers into the new form, and
+  /// they never go home. Null plays the whole way, as always.
+  double? leaveAt;
+
+  double _leaveOut(double t) {
+    final l = leaveAt;
+    return l == null ? 1.0 : 1 - _smooth(l, l + 0.3, t);
+  }
+
   /// The sprite under the grains: gone while they are loose, back as they
   /// land, so the change between the two never shows.
   static double spriteOpacity(double t) =>
@@ -1316,6 +1327,8 @@ class EssenceField {
   /// were read from) at time [t] seconds.
   void paint(Canvas canvas, Offset at, double t, {bool dark = true}) {
     if (t <= 0 || t >= duration || length == 0) return;
+    final leaving = _leaveOut(t);
+    if (leaving <= 0.002) return;
     final b = _batch..clear();
     final g = grains;
     final look = _look;
@@ -1336,6 +1349,8 @@ class EssenceField {
       if (t < rel || t >= ret + tm.outDur) {
         // At home, its own color: still the sprite, or the sprite again.
         final landed = t >= ret + tm.outDur;
+        // Handing over: the form it left is not the one that comes back.
+        if (landed && leaveAt != null) continue;
         if (landed && t < ret + tm.outDur + 0.05 && _p1[i] < 0.05) {
           b.add(_glintB, ox + hx, oy + hy);
         } else {
@@ -1391,7 +1406,8 @@ class EssenceField {
     }
 
     final d = math.max(1.2, g.step * 1.22);
-    final fade = (1 - _smooth(duration - 0.16, duration, t)) * _revealIn(t);
+    final fade =
+        (1 - _smooth(duration - 0.16, duration, t)) * _revealIn(t) * leaving;
     Color f(Color c, [double k = 1]) =>
         c.withValues(alpha: (c.a * k * fade).clamp(0.0, 1.0));
     final ea = look.alpha;
@@ -1429,7 +1445,12 @@ class EssenceField {
 
   void _paintPool(Canvas canvas, Offset c, double t, bool dark) {
     final look = _look;
-    var a = _presence(t) * look.poolAlpha * (dark ? 1 : 0.6) * _revealIn(t);
+    var a =
+        _presence(t) *
+        look.poolAlpha *
+        (dark ? 1 : 0.6) *
+        _revealIn(t) *
+        _leaveOut(t);
     if (element == EssenceElement.lightning) {
       // The strike's flash, then flickers.
       final flash = 1 - _smooth(0.0, 0.25, t);

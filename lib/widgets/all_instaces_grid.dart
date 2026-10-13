@@ -69,6 +69,10 @@ class AllCreatureInstances extends StatefulWidget {
   final Widget? Function(CreatureInstance inst, Creature species)?
   cardBadgeBuilder;
 
+  /// Wraps each display case ([caseCards]), as a Hero say, so a screen can
+  /// fly the picked one out to where it goes.
+  final Widget Function(CreatureInstance inst, Widget kase)? caseWrapper;
+
   /// Specimens as lit display cases, three across, with a one-line sort row
   /// — the Creatures tab's look, and the slide-up picker's
   /// (AllSpecimensPage). Off, the grid keeps its detail cards, for the
@@ -105,6 +109,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.initialDetailMode = InstanceDetailMode.genetics,
     this.allowEnhancementMode = false,
     this.cardBadgeBuilder,
+    this.caseWrapper,
     this.caseCards = false,
     this.speciesIdFilter,
     this.bottomInset = 0,
@@ -1207,7 +1212,8 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                         }
 
                         if (widget.caseCards) {
-                          return SpecimenCase(
+                          final wrap = widget.caseWrapper;
+                          final kase = SpecimenCase(
                             key: ValueKey(inst.instanceId),
                             species: creature,
                             instance: inst,
@@ -1230,6 +1236,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                             onLongPress: () =>
                                 _longPress(inst, creature, instances),
                           );
+                          return wrap == null ? kase : wrap(inst, kase);
                         }
 
                         return RepaintBoundary(

@@ -798,12 +798,14 @@ class _Batch {
 // ── the widget ──────────────────────────────────────────────────────────────
 
 /// The home screen's title, in particles. Lays out in the same 300×60 box
-/// the logo image did; grains thrown about may stray outside it.
+/// the logo image did, times [scale]; grains thrown about may stray outside
+/// it.
 class ParticleTitle extends StatefulWidget {
   const ParticleTitle({
     super.key,
     required this.darkBackdrop,
     this.active = true,
+    this.scale = 1,
   });
 
   /// Whether it sits on a dark screen (it glows there, and reads the gold
@@ -812,6 +814,10 @@ class ParticleTitle extends StatefulWidget {
 
   /// Whether it is on screen and should move at all.
   final bool active;
+
+  /// The whole title, grains and touch alike, drawn this much smaller or
+  /// larger than [TitleSamples.box].
+  final double scale;
 
   @override
   State<ParticleTitle> createState() => _ParticleTitleState();
@@ -927,22 +933,26 @@ class _ParticleTitleState extends State<ParticleTitle>
 
   // ── touch ─────────────────────────────────────────────────────────────
 
+  /// [local] in the field's own (unscaled) box.
+  Offset _inBox(Offset local) => local / widget.scale;
+
   void _onTap(TapUpDetails d) {
     HapticFeedback.lightImpact();
-    _field?.tap(d.localPosition.dx, d.localPosition.dy, _now);
+    final at = _inBox(d.localPosition);
+    _field?.tap(at.dx, at.dy, _now);
   }
 
   void _onPanStart(DragStartDetails d) {
-    _field?.pointer = d.localPosition;
+    _field?.pointer = _inBox(d.localPosition);
     _field?.pointerVel = Offset.zero;
   }
 
   void _onPanUpdate(DragUpdateDetails d) {
     final f = _field;
     if (f == null) return;
-    f.pointer = d.localPosition;
+    f.pointer = _inBox(d.localPosition);
     // Smoothed, in px per second.
-    f.pointerVel = f.pointerVel * 0.6 + d.delta * 60 * 0.4;
+    f.pointerVel = f.pointerVel * 0.6 + _inBox(d.delta) * 60 * 0.4;
   }
 
   void _onPanEnd([Object? _]) {
@@ -952,7 +962,7 @@ class _ParticleTitleState extends State<ParticleTitle>
 
   void _onLongPress(LongPressStartDetails d) {
     HapticFeedback.selectionClick();
-    _openPicker(d.localPosition);
+    _openPicker(_inBox(d.localPosition));
   }
 
   // ── the color picker ─────────────────────────────────────────────────
@@ -1013,13 +1023,14 @@ class _ParticleTitleState extends State<ParticleTitle>
         onLongPressStart: _onLongPress,
         child: RepaintBoundary(
           child: CustomPaint(
-            size: TitleSamples.box,
+            size: TitleSamples.box * widget.scale,
             painter: field == null
                 ? null
                 : _TitlePainter(
                     field,
                     () => _now,
                     widget.darkBackdrop,
+                    widget.scale,
                     repaint: _frame,
                   ),
           ),
@@ -1030,19 +1041,22 @@ class _ParticleTitleState extends State<ParticleTitle>
 }
 
 class _TitlePainter extends CustomPainter {
-  _TitlePainter(this.field, this.now, this.dark, {super.repaint});
+  _TitlePainter(this.field, this.now, this.dark, this.scale, {super.repaint});
 
   final TitleParticleField field;
   final double Function() now;
   final bool dark;
+  final double scale;
 
   @override
-  void paint(Canvas canvas, Size size) =>
-      field.paint(canvas, Offset.zero, now(), darkBackdrop: dark);
+  void paint(Canvas canvas, Size size) {
+    if (scale != 1) canvas.scale(scale);
+    field.paint(canvas, Offset.zero, now(), darkBackdrop: dark);
+  }
 
   @override
   bool shouldRepaint(_TitlePainter old) =>
-      old.field != field || old.dark != dark;
+      old.field != field || old.dark != dark || old.scale != scale;
 }
 
 /// The row of colors a long press brings up.

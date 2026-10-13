@@ -44,6 +44,7 @@ import 'poi_art.dart';
 import 'asteroid_art.dart';
 import 'landmark_art.dart';
 import 'obsidian_kit.dart' show paintDisc, stoneLightFor;
+import 'package:alchemons/games/stadium/stadium_space_art.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
@@ -323,6 +324,13 @@ class CosmicGame extends FlameGame with PanDetector {
   final ElementMeter meter = ElementMeter();
   CosmicPlanet? nearPlanet;
   SpacePOI? nearMarket;
+
+  /// The stadium's story beat: [stadiumBeacon] while it is the chapter to
+  /// find (it pulses on the maps, with nothing pointing the way), and
+  /// [stadiumFound] once the ship has come alongside. Until either, it is
+  /// an unknown signal off the maps. Set by the cosmic screen.
+  bool stadiumBeacon = false;
+  bool stadiumFound = false;
   int? _starDustScannerTargetIndex;
   int? _scannerCompletedDustIndex;
   int? _planetScannerTargetIndex;
@@ -2659,7 +2667,8 @@ class CosmicGame extends FlameGame with PanDetector {
           poi.type != POIType.stardustScanner &&
           poi.type != POIType.planetScanner &&
           poi.type != POIType.goldConversion &&
-          poi.type != POIType.survivalPortal) {
+          poi.type != POIType.survivalPortal &&
+          poi.type != POIType.stadium) {
         continue;
       }
       var mdx = poi.position.dx - ship.pos.dx;
@@ -4744,6 +4753,7 @@ class CosmicGame extends FlameGame with PanDetector {
             travelTo(newPos);
             break;
           case POIType.survivalPortal:
+          case POIType.stadium:
             // Handled via nearMarket proximity HUD, not one-shot.
             break;
         }
@@ -5352,6 +5362,28 @@ class CosmicGame extends FlameGame with PanDetector {
           portalTp.paint(
             canvas,
             Offset(pp.dx - portalTp.width / 2, pp.dy + 130),
+          );
+          break;
+
+        case POIType.stadium:
+          final gap = (ship.pos - pp).distance;
+          paintStadium(
+            canvas,
+            at: pp,
+            t: poi.life,
+            near: (1 - (gap - 120) / 260).clamp(0.0, 1.0),
+            beacon: stadiumBeacon && !stadiumFound,
+          );
+          final stadiumTp = _worldLabel(
+            stadiumFound ? 'THE TRIALS' : 'UNKNOWN SIGNAL',
+            color: const Color(0xFFCDB07A).withValues(alpha: 0.75),
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+            letterSpacing: 1.6,
+          );
+          stadiumTp.paint(
+            canvas,
+            Offset(pp.dx - stadiumTp.width / 2, pp.dy + 100),
           );
           break;
       }

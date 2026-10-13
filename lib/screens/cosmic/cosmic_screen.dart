@@ -2,6 +2,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/audio/scene_ambience.dart';
 // Organized refactor of cosmic_screen.dart
 
+import 'package:alchemons/screens/stadium/stadium_screen.dart';
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'dart:convert';
 import 'dart:math';
@@ -30,6 +31,7 @@ import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/station_art.dart';
 import 'package:alchemons/games/cosmic/contest_art.dart';
+import 'package:alchemons/games/cosmic/contest_entrant.dart';
 import 'package:alchemons/games/cosmic/contest_judging.dart';
 import 'package:alchemons/widgets/bracket_controls.dart'
     show BracketButton, CoinAmount;
@@ -446,6 +448,22 @@ class _CosmicScreenState extends State<CosmicScreen>
       (_awaitingSurvivalMapTap ||
           _survivalMapTapped ||
           _survivalGuidanceActive);
+
+  SpacePOI? get _stadiumPoi {
+    for (final poi in _game?.spacePOIs ?? const <SpacePOI>[]) {
+      if (poi.type == POIType.stadium) return poi;
+    }
+    return null;
+  }
+
+  /// Where the stadium's beacon throbs on the star chart, while finding it
+  /// is the story's chapter. Nothing points to it on the radar or at the
+  /// screen's edge: the chart is the only guide.
+  Offset? get _stadiumBeaconPos {
+    final game = _game;
+    if (game == null || !game.stadiumBeacon || game.stadiumFound) return null;
+    return _stadiumPoi?.position;
+  }
 
   SpacePOI? get _survivalPortalPoi {
     final game = _game;
@@ -2931,68 +2949,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
   }
 
-  int _lineageDiversityCount(String? raw) {
-    if (raw == null || raw.trim().isEmpty) return 0;
-    try {
-      final dec = jsonDecode(raw);
-      if (dec is! Map<String, dynamic>) return 0;
-      return dec.entries
-          .where((e) => e.key.trim().isNotEmpty)
-          .where((e) => (e.value is num ? (e.value as num).toDouble() : 0) > 0)
-          .length;
-    } catch (_) {
-      return 0;
-    }
-  }
-
-  Map<String, int> _decodeLineageCounts(String? raw) {
-    if (raw == null || raw.trim().isEmpty) return const {};
-    try {
-      final dec = jsonDecode(raw);
-      if (dec is! Map<String, dynamic>) return const {};
-      final out = <String, int>{};
-      dec.forEach((k, v) {
-        var key = k.toString().trim();
-        if (key.startsWith('CreatureFamily.')) {
-          key = key.split('.').last;
-        }
-        final n = v is num ? v.toInt() : int.tryParse('$v') ?? 0;
-        if (key.isNotEmpty && n > 0) out[key] = n;
-      });
-      return out;
-    } catch (_) {
-      return const {};
-    }
-  }
-
-  String? _singleLineageKey(String? raw) {
-    final parsed = _decodeLineageCounts(raw);
-    if (parsed.length != 1) return null;
-    return parsed.keys.first;
-  }
-
-  bool _isSpeciesPureFromParentage(String? parentageJson, String baseId) {
-    if (parentageJson == null || parentageJson.trim().isEmpty) return true;
-    try {
-      final dec = jsonDecode(parentageJson);
-      if (dec is! Map<String, dynamic>) return false;
-      String? readBaseId(dynamic node) {
-        if (node is! Map) return null;
-        final raw = node['baseId'];
-        if (raw is! String || raw.trim().isEmpty) return null;
-        return raw.trim();
-      }
-
-      final a = readBaseId(dec['parentA']);
-      final b = readBaseId(dec['parentB']);
-      final ids = <String>[if (a != null) a, if (b != null) b];
-      if (ids.isEmpty) return false;
-      return ids.every((id) => id == baseId);
-    } catch (_) {
-      return false;
-    }
-  }
-
   /// Asks which of the party in [slots] competes at [trait]'s [level]. It
   /// names the level's condition and each one's stat, not how they would
   /// fare: that is for the player to judge.
@@ -3138,42 +3094,9 @@ class _CosmicScreenState extends State<CosmicScreen>
     CosmicContestTrait trait,
     CosmicPartyMember member,
   ) async {
-    final stat = switch (trait) {
-      CosmicContestTrait.beauty => member.statBeauty,
-      CosmicContestTrait.speed => member.statSpeed,
-      CosmicContestTrait.strength => member.statStrength,
-      CosmicContestTrait.intelligence => member.statIntelligence,
-    };
-    final visuals = member.spriteVisuals;
     final db = context.read<AlchemonsDatabase>();
     final inst = await db.creatureDao.getInstance(member.instanceId);
-    final variantKey = (inst?.variantFaction ?? '').trim().toLowerCase();
-    return ContestEntrant(
-      name: member.displayName,
-      element: member.element,
-      family: member.family,
-      statRating: AlchemonStatSystem.legacyGameplayRating(stat),
-      scale: visuals?.scale ?? 1.0,
-      prismatic: visuals?.isPrismatic == true,
-      effect: visuals?.alchemyEffect,
-      variant:
-          (member.visualVariant ?? '').trim().isNotEmpty ||
-          (variantKey.isNotEmpty && variantKey != 'bloodborn'),
-      tinted: visuals?.tint != null,
-      pureElement: inst == null
-          ? null
-          : _singleLineageKey(inst.elementLineageJson),
-      pureFamily: inst == null
-          ? null
-          : _singleLineageKey(inst.familyLineageJson),
-      speciesPure:
-          inst != null &&
-          _isSpeciesPureFromParentage(inst.parentageJson, member.baseId),
-      elementKinds: _lineageDiversityCount(inst?.elementLineageJson),
-      factionKinds: _lineageDiversityCount(inst?.factionLineageJson),
-      familyKinds: _lineageDiversityCount(inst?.familyLineageJson),
-      generations: inst?.generationDepth ?? 0,
-    );
+    return contestEntrantFor(member, inst, trait);
   }
 
   SpriteVisuals _applyContestThemeVisuals(
@@ -4411,6 +4334,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           poi?.type == POIType.survivalPortal) {
         unawaited(_completeSurvivalSignalTutorial());
       }
+      if (poi?.type == POIType.stadium) unawaited(_onStadiumReached());
     });
   }
 
@@ -4456,6 +4380,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (_nearMarketPOI == null || _game == null) return;
     if (_nearMarketPOI!.type == POIType.survivalPortal) {
       _enterSurvivalPortal();
+      return;
+    }
+    if (_nearMarketPOI!.type == POIType.stadium) {
+      unawaited(_enterStadium());
       return;
     }
     if (_nearMarketPOI!.type == POIType.stardustScanner) {
@@ -4526,15 +4454,42 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (_game == null) return;
     HapticFeedback.mediumImpact();
     if (_survivalGuidanceActive && !_survivalIntroCompleted) {
-      unawaited(_completeSurvivalSignalTutorial());
+      unawaited(_completeSurvivalSignalTutorial(announce: false));
     }
     // Persist portal discovery
     final db = context.read<AlchemonsDatabase>();
     db.settingsDao.setCosmicSurvivalPortalDiscovered();
-    // Navigate to cosmic survival screen
-    Navigator.of(
+    // Navigate to cosmic survival screen; back in space, the stadium's
+    // beacon (if this was the first time) is announced.
+    unawaited(
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const CosmicSurvivalScreen()))
+          .then((_) {
+            if (mounted) unawaited(_syncStadiumBeacon());
+          }),
+    );
+  }
+
+  /// The stadium turns the phone on its side; the party's living members
+  /// can race.
+  Future<void> _enterStadium() async {
+    if (_game == null) return;
+    HapticFeedback.mediumImpact();
+    final party = [
+      for (var i = 0; i < _partyMembers.length; i++)
+        if (_partyMembers[i] != null && (_companionHpFraction[i] ?? 1.0) > 0)
+          _partyMembers[i]!,
+    ];
+    await VoidPortal.pushThroughGlyphs<void>(
       context,
-    ).push(MaterialPageRoute(builder: (_) => const CosmicSurvivalScreen()));
+      page: StadiumScreen(party: party),
+      title: 'The Trials',
+      element: 'Light',
+    );
+    if (!mounted) return;
+    unawaited(
+      context.read<AudioController>().playCosmicExplorationMusic(cycle: false),
+    );
   }
 
   void _activatePlanetScanner() {
@@ -4627,7 +4582,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  Future<void> _completeSurvivalSignalTutorial() async {
+  Future<void> _completeSurvivalSignalTutorial({bool announce = true}) async {
     if (_survivalIntroCompleted || !mounted) return;
     setState(() {
       _awaitingSurvivalMapTap = false;
@@ -4644,7 +4599,110 @@ class _CosmicScreenState extends State<CosmicScreen>
     await _markSurvivalIntroComplete();
     await _markCosmicIntroComplete();
     if (!mounted) return;
-    _showQuote('Signal source confirmed: Survival Portal unlocked.');
+    await CampaignJournalService(
+      context.read<AlchemonsDatabase>(),
+    ).record('signal');
+    if (!mounted) return;
+    if (!announce) {
+      _showQuote('Signal source confirmed: Survival Portal unlocked.');
+      return;
+    }
+    final entry = campaignEntries.firstWhere((e) => e.id == 'signal');
+    await _syncStadiumBeacon(
+      first: StoryBeat(
+        title: 'Survival Portal Unlocked',
+        message:
+            'The signal came from the Survival Portal. Enter it when '
+            'you are ready.',
+        voice: entry.text,
+      ),
+    );
+  }
+
+  /// The page that sends the player after the stadium's beacon.
+  static const _stadiumBeat = StoryBeat(
+    title: 'Another Signal',
+    message:
+        'Something else is flashing out here. Find it on your map. Nothing '
+        'will point the way this time.',
+  );
+
+  /// The stadium's chapter: once the portal's signal is found and until the
+  /// stadium is, its beacon throbs on the chart. Said once, in a dialog
+  /// ([first] goes before it), the first time the beacon comes on — which
+  /// for a save already past the portal is its next visit to space.
+  Future<void> _syncStadiumBeacon({StoryBeat? first}) async {
+    final game = _game;
+    if (game == null || !mounted || widget.memoryTutorial) return;
+    final db = context.read<AlchemonsDatabase>();
+    final found =
+        await db.settingsDao.getSetting(
+          CampaignJournalService.stadiumFoundKey,
+        ) ==
+        '1';
+    final portal =
+        _survivalIntroCompleted ||
+        await db.settingsDao.isCosmicSurvivalPortalDiscovered();
+    if (!mounted) return;
+    game
+      ..stadiumFound = found
+      ..stadiumBeacon = portal && !found;
+    if (!game.stadiumBeacon) {
+      if (first != null) {
+        await showStoryDialog(context, beats: [first]);
+      }
+      return;
+    }
+    final told =
+        await db.settingsDao.getSetting(
+          CampaignJournalService.stadiumToldKey,
+        ) ==
+        '1';
+    if (told && first == null) return;
+    if (!mounted) return;
+    await showStoryDialog(
+      context,
+      beats: [?first, _stadiumBeat],
+      primaryLabel: 'FIND IT',
+    );
+    await db.settingsDao.setSetting(CampaignJournalService.stadiumToldKey, '1');
+    if (mounted) setState(() {});
+  }
+
+  /// The ship has come alongside the stadium: it is charted from now on, and
+  /// if finding it was the chapter, the chapter is done.
+  Future<void> _onStadiumReached() async {
+    final game = _game;
+    if (game == null || game.stadiumFound) return;
+    final wasBeacon = game.stadiumBeacon;
+    game
+      ..stadiumFound = true
+      ..stadiumBeacon = false;
+    final db = context.read<AlchemonsDatabase>();
+    await db.settingsDao.setSetting(
+      CampaignJournalService.stadiumFoundKey,
+      '1',
+    );
+    await CampaignJournalService(db).record('stadium');
+    if (!mounted) return;
+    setState(() {});
+    if (!wasBeacon) {
+      _showQuote('The Trials. Races of six Alchemons.');
+      return;
+    }
+    final entry = campaignEntries.firstWhere((e) => e.id == 'stadium');
+    await showStoryDialog(
+      context,
+      beats: [
+        StoryBeat(
+          title: 'The Trials',
+          message:
+              'Six Alchemons race here, and every stat counts. Fly in '
+              'and enter when you are ready.',
+          voice: entry.text,
+        ),
+      ],
+    );
   }
 
   /// First-ever arrival in cosmic space plays the prologue, then hands over to
@@ -4653,6 +4711,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     await _maybeRunCosmicPrologue();
     if (!mounted) return;
     await _maybeRunCosmicIntro();
+    if (!mounted) return;
+    await _syncStadiumBeacon();
   }
 
   /// THE FIRST CROSSING — the one-time cinematic where the player finds a
@@ -8363,6 +8423,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   builder: (_) {
                     final mType = _nearMarketPOI!.type;
                     final kind = stationKindFor(mType);
+                    final stadium = mType == POIType.stadium;
                     final tracking = switch (kind) {
                       StationKind.starDustScanner =>
                         _game?.starDustScannerTarget != null,
@@ -8411,6 +8472,10 @@ class _CosmicScreenState extends State<CosmicScreen>
                                     'planet.',
                                 'SCAN',
                               ),
+                      null when stadium => (
+                        'Race your party against five rivals.',
+                        'ENTER',
+                      ),
                       null => (
                         'The arena where waves of enemies come for you.',
                         'ENTER PORTAL',
@@ -8425,10 +8490,16 @@ class _CosmicScreenState extends State<CosmicScreen>
                       right: 16,
                       child: Center(
                         child: StationPrompt(
-                          title: kind?.title ?? 'SURVIVAL PORTAL',
+                          title:
+                              kind?.title ??
+                              (stadium ? 'THE TRIALS' : 'SURVIVAL PORTAL'),
                           line: line,
                           action: action,
-                          accent: kind?.accent ?? const Color(0xFF8B5CF6),
+                          accent:
+                              kind?.accent ??
+                              (stadium
+                                  ? const Color(0xFFCDB07A)
+                                  : const Color(0xFF8B5CF6)),
                           enabled: !tracking,
                           trailing: scanner && !tracking
                               ? ShardAmount(scanCost, size: 10.5)
@@ -8754,8 +8825,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 _planetStarState.starsEarned(el),
                             ].fold(0, (a, b) => a + b),
                             dungeonStarMax: kPlanetDungeonLayouts.length * 3,
-                            tutorialTargetPos: tutorialTargetPos,
-                            tutorialTargetColor: const Color(0xFF8B5CF6),
+                            tutorialTargetPos:
+                                tutorialTargetPos ?? _stadiumBeaconPos,
+                            tutorialTargetColor: tutorialTargetPos != null
+                                ? const Color(0xFF8B5CF6)
+                                : const Color(0xFFE2C98F),
                             tutorialTargetLabel: 'SIGNAL',
                             debugShowAllContestArenasOnMap:
                                 _contestDebugShowAllOnMap,

@@ -12073,6 +12073,9 @@ enum POIType {
   planetScanner,
   goldConversion,
   survivalPortal,
+
+  /// The race stadium, a fixed landmark near the middle of space.
+  stadium,
 }
 
 /// A discoverable point of interest in the cosmos.
@@ -12255,6 +12258,32 @@ class SpacePOI {
           type: POIType.survivalPortal,
           element: 'Spirit',
           radius: 50,
+        ),
+      );
+    }
+
+    // The stadium — fixed, a short flight from the middle, clear of the
+    // planets. Appended last so older saves keep their POI indices.
+    {
+      final cx = worldSize.width / 2;
+      final cy = worldSize.height / 2;
+      final base = (seed * 0.618033) % (pi * 2) + 2.4;
+      var at = Offset(cx + cos(base) * 3600, cy + sin(base) * 3600);
+      for (var k = 0; k < 24; k++) {
+        final a = base + k * 0.37;
+        final d = 3600.0 + (k ~/ 6) * 900;
+        final p = Offset(cx + cos(a) * d, cy + sin(a) * d);
+        if (planets.every((pl) => (pl.position - p).distance > 1900)) {
+          at = p;
+          break;
+        }
+      }
+      pois.add(
+        SpacePOI(
+          position: at,
+          type: POIType.stadium,
+          element: 'Light',
+          radius: 110,
         ),
       );
     }

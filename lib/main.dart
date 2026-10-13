@@ -31,6 +31,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/save_transfer_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
+import 'package:alchemons/screens/stadium/race_invites.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -151,6 +152,7 @@ class AlchemonsApp extends StatelessWidget {
             title: 'Alchemons',
             debugShowCheckedModeBanner: false,
             scaffoldMessengerKey: rootScaffoldMessengerKey,
+            navigatorKey: rootNavigatorKey,
             themeMode: themeNotifier.themeMode,
             theme: lightThemeData,
             darkTheme: darkThemeData,
@@ -190,7 +192,8 @@ class AlchemonsApp extends StatelessWidget {
                     ),
                   ),
                 ),
-                child: child ?? const SizedBox.shrink(),
+                // Friends asking to race, wherever the player is.
+                child: RaceInvites(child: child ?? const SizedBox.shrink()),
               );
             },
             // >>> wrap HomeScreen so we can bootstrap spawns once

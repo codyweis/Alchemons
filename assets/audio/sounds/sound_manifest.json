@@ -3081,5 +3081,146 @@
     "rms_db": -31.48,
     "sha256": "d3a4554232dc7b5c84b14d5baac34c0ed9e7a6976f9ba9b2054ec0ab27630e04",
     "source": "tool/sounds/extraction.py"
+  },
+  {
+    "name": "amb_race_crowd_loop",
+    "description": "The stands during a race, far: a crowd murmuring like a tide, scattered hands clapping, never on a beat",
+    "path": "assets/audio/sounds/amb_race_crowd_loop.wav",
+    "duration": 12.0,
+    "loop": true,
+    "peak_db": -18.26,
+    "rms_db": -35.62,
+    "sha256": "4c3db64a0672634e2ad224cf6413f72e06e6c339d522d6b8b5fb03805436af7f",
+    "source": "tool/sounds/stadium.py"
+  },
+  {
+    "name": "sfx_race_crowd_swell",
+    "description": "The crowd lifting: talk opening and brightening, hands thickening into applause, falling back",
+    "path": "assets/audio/sounds/sfx_race_crowd_swell.wav",
+    "duration": 2.6,
+    "loop": false,
+    "peak_db": -14.69,
+    "rms_db": -30.97,
+    "sha256": "fbb5a23d2f764c7b51612eea6b4d54324de2717ab974393e5373fe37a59778c4",
+    "source": "tool/sounds/stadium.py",
+    "variations": [
+      "assets/audio/sounds/sfx_race_crowd_swell_01.wav",
+      "assets/audio/sounds/sfx_race_crowd_swell_02.wav",
+      "assets/audio/sounds/sfx_race_crowd_swell_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_race_count_tick",
+    "description": "A numeral of the count: fine brass grains drawn in and seated with a small glass, held, drifting apart",
+    "path": "assets/audio/sounds/sfx_race_count_tick.wav",
+    "duration": 1.0,
+    "loop": false,
+    "peak_db": -8.17,
+    "rms_db": -31.39,
+    "sha256": "a9ff92ab9e6ac7c4a4ca0ddf966794c9c312931835f508c450a39bfeabbb0e10",
+    "source": "tool/sounds/stadium.py",
+    "variations": [
+      "assets/audio/sounds/sfx_race_count_tick_01.wav",
+      "assets/audio/sounds/sfx_race_count_tick_02.wav",
+      "assets/audio/sounds/sfx_race_count_tick_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_race_gun",
+    "description": "Off: a struck stone-and-glass accent, the start line's curtain of grains lifting, the stands lifting behind",
+    "path": "assets/audio/sounds/sfx_race_gun.wav",
+    "duration": 1.8,
+    "loop": false,
+    "peak_db": -9.97,
+    "rms_db": -28.93,
+    "sha256": "0d9333a231f67ce14b723da4d26d4ff66037fa5cc418501c1cc4b4691a68bd5d",
+    "source": "tool/sounds/stadium.py"
+  },
+  {
+    "name": "sfx_race_boost",
+    "description": "A boost: grains drawn in on a breath for 0.6 s, then a current of grains and air pouring off behind",
+    "path": "assets/audio/sounds/sfx_race_boost.wav",
+    "duration": 1.8,
+    "loop": false,
+    "peak_db": -10.24,
+    "rms_db": -29.89,
+    "sha256": "7929bbb78fcc1fed1402771833a40ca29098bfab523780f39e623ffdfa37f196",
+    "source": "tool/sounds/stadium.py",
+    "variations": [
+      "assets/audio/sounds/sfx_race_boost_01.wav",
+      "assets/audio/sounds/sfx_race_boost_02.wav",
+      "assets/audio/sounds/sfx_race_boost_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_race_wall_crumble",
+    "description": "A foothold giving: small stones letting go, pieces falling down the wall, grit trickling after",
+    "path": "assets/audio/sounds/sfx_race_wall_crumble.wav",
+    "duration": 0.8,
+    "loop": false,
+    "peak_db": -10.04,
+    "rms_db": -32.93,
+    "sha256": "49fc97016cc80d854bd94f4c31def7897ce83a8c09e278c0449599c535e84c58",
+    "source": "tool/sounds/stadium.py",
+    "variations": [
+      "assets/audio/sounds/sfx_race_wall_crumble_01.wav",
+      "assets/audio/sounds/sfx_race_wall_crumble_02.wav",
+      "assets/audio/sounds/sfx_race_wall_crumble_03.wav"
+    ]
+  },
+  {
+    "name": "sfx_race_fuse_in",
+    "description": "At a fusion station: the racer let go into a cloud of its element's grains, a glass shimmering under it",
+    "path": "assets/audio/sounds/sfx_race_fuse_in.wav",
+    "duration": 1.1,
+    "loop": false,
+    "peak_db": -13.05,
+    "rms_db": -30.66,
+    "sha256": "c7e5fc501704acef4143f1952454a6765f6568a247db69afffe99604334859e5",
+    "source": "tool/sounds/stadium.py"
+  },
+  {
+    "name": "sfx_race_fuse_out",
+    "description": "Fused: the grains swirl home, coarser as they land, whole at 0.74 s with a small glass closing",
+    "path": "assets/audio/sounds/sfx_race_fuse_out.wav",
+    "duration": 1.1,
+    "loop": false,
+    "peak_db": -11.91,
+    "rms_db": -31.17,
+    "sha256": "042ce7727d6e04f4d9460df581f116355d4a13259c87c2bd2c1b1fcbfa90ad15",
+    "source": "tool/sounds/stadium.py"
+  },
+  {
+    "name": "sfx_race_finish",
+    "description": "Through the line's curtain of brass grains, and the stadium erupting into full applause and settling",
+    "path": "assets/audio/sounds/sfx_race_finish.wav",
+    "duration": 3.0,
+    "loop": false,
+    "peak_db": -11.02,
+    "rms_db": -27.47,
+    "sha256": "e15a8e07ff224103639dfccafa8e02512a3da6d27eadd25e997610115e5e3ad1",
+    "source": "tool/sounds/stadium.py"
+  },
+  {
+    "name": "sfx_race_photo_hush",
+    "description": "A photo finish: the crowd slowing, sinking and muffling to a held breath, ending open",
+    "path": "assets/audio/sounds/sfx_race_photo_hush.wav",
+    "duration": 1.4,
+    "loop": false,
+    "peak_db": -15.51,
+    "rms_db": -31.78,
+    "sha256": "6f0fa709c41911a993bddc0f4ec84bab734cd5a59d97474639774c8d36c9817d",
+    "source": "tool/sounds/stadium.py"
+  },
+  {
+    "name": "sfx_race_podium",
+    "description": "The podium: plinths of grain, the winner bursting into its grains and back by 2.9 s over warm applause",
+    "path": "assets/audio/sounds/sfx_race_podium.wav",
+    "duration": 3.4,
+    "loop": false,
+    "peak_db": -11.02,
+    "rms_db": -28.37,
+    "sha256": "9c7a41c4e47a8dae3a2f927c94b1ee447b2fa2552b47c7320c1b8e9535cc76c5",
+    "source": "tool/sounds/stadium.py"
   }
 ]
