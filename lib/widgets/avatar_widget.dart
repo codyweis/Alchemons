@@ -33,7 +33,8 @@ class AvatarButton extends StatelessWidget {
   final FactionTheme theme;
   final VoidCallback onTap;
 
-  static const double _size = 80;
+  /// Its width and height; home's header keeps this much clear either side.
+  static const double size = 80;
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +51,7 @@ class AvatarButton extends StatelessWidget {
       onTap: context.soundAction(onTap),
       behavior: HitTestBehavior.opaque,
       child: SizedBox.square(
-        dimension: _size,
+        dimension: size,
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -67,15 +68,15 @@ class AvatarButton extends StatelessWidget {
                     rarity: VialRarity.uncommon,
                     quantity: 1,
                   ),
-                  size: _size * 0.92,
+                  size: size * 0.92,
                 ),
               ),
             ),
             if (request)
               // On the orb's shoulder, as the dock's dots sit on theirs.
               const Positioned(
-                left: _size * 0.78 - 6,
-                top: _size * 0.2 - 6,
+                left: size * 0.78 - 6,
+                top: size * 0.2 - 6,
                 child: HomeNoticeDot(color: Color(0xFFE4C16A), size: 12),
               ),
           ],

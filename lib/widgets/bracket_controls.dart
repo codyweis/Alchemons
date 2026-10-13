@@ -85,6 +85,7 @@ class CoinPurse extends StatelessWidget {
     required this.silver,
     required this.palette,
     this.fill,
+    this.sideBySide = false,
   });
 
   final int gold;
@@ -94,8 +95,22 @@ class CoinPurse extends StatelessWidget {
   /// Behind the figures; the palette's surface when left out.
   final Color? fill;
 
+  /// Gold beside silver rather than over it, dropping back to over it when
+  /// the width it is given will not hold the two in a line.
+  final bool sideBySide;
+
   @override
   Widget build(BuildContext context) {
+    final goldAmount = CoinAmount(
+      kind: CoinKind.gold,
+      amount: gold,
+      color: coinColor(CoinKind.gold, palette),
+    );
+    final silverAmount = CoinAmount(
+      kind: CoinKind.silver,
+      amount: silver,
+      color: coinColor(CoinKind.silver, palette),
+    );
     return CustomPaint(
       painter: BracketFramePainter(
         color: palette.line.withValues(alpha: 0.9),
@@ -104,23 +119,19 @@ class CoinPurse extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         color: fill ?? palette.surfaceFill(),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            CoinAmount(
-              kind: CoinKind.gold,
-              amount: gold,
-              color: coinColor(CoinKind.gold, palette),
-            ),
-            const SizedBox(height: 3),
-            CoinAmount(
-              kind: CoinKind.silver,
-              amount: silver,
-              color: coinColor(CoinKind.silver, palette),
-            ),
-          ],
-        ),
+        child: sideBySide
+            ? Wrap(
+                alignment: WrapAlignment.end,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 12,
+                runSpacing: 3,
+                children: [goldAmount, silverAmount],
+              )
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [goldAmount, const SizedBox(height: 3), silverAmount],
+              ),
       ),
     );
   }

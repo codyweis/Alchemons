@@ -3152,21 +3152,37 @@ class _HomeScreenState extends State<HomeScreen>
                 },
               ),
 
-            const Spacer(),
-            // Absent unless a boost is running, so it costs the header
-            // nothing the rest of the time.
-            if (!_isFieldTutorialActive)
-              const Padding(
-                padding: EdgeInsets.only(right: 8),
-                child: HalfCultivationChip(),
-              ),
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: Opacity(
-                opacity: _isFieldTutorialActive ? 0.35 : 1.0,
-                child: IgnorePointer(
-                  ignoring: _isFieldTutorialActive,
-                  child: const CurrencyDisplayWidget(),
+            // What the profile leaves. The purse lays gold beside silver
+            // (the author, 2026-10-12: "side by side … unless it doesn't
+            // fit"), and stacks them again when this cannot hold the line.
+            Expanded(
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Absent unless a boost is running, so it costs the
+                      // header nothing the rest of the time.
+                      if (!_isFieldTutorialActive)
+                        const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: HalfCultivationChip(),
+                        ),
+                      Flexible(
+                        child: Opacity(
+                          opacity: _isFieldTutorialActive ? 0.35 : 1.0,
+                          child: IgnorePointer(
+                            ignoring: _isFieldTutorialActive,
+                            child: const CurrencyDisplayWidget(
+                              sideBySide: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

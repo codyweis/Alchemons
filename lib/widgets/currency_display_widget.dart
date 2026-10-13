@@ -12,7 +12,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class CurrencyDisplayWidget extends StatefulWidget {
-  const CurrencyDisplayWidget({super.key, this.fill, this.palette});
+  const CurrencyDisplayWidget({
+    super.key,
+    this.fill,
+    this.palette,
+    this.sideBySide = false,
+  });
 
   /// Behind the figures; the palette's surface when left out.
   final Color? fill;
@@ -20,6 +25,9 @@ class CurrencyDisplayWidget extends StatefulWidget {
   /// The theme's palette when left out; a HUD that is dark whatever the
   /// theme passes its own.
   final BracketPalette? palette;
+
+  /// See [CoinPurse.sideBySide].
+  final bool sideBySide;
 
   @override
   State<CurrencyDisplayWidget> createState() => _CurrencyDisplayWidgetState();
@@ -44,6 +52,7 @@ class _CurrencyDisplayWidgetState extends State<CurrencyDisplayWidget> {
           silver: c['silver'] ?? 0,
           palette: palette,
           fill: widget.fill,
+          sideBySide: widget.sideBySide,
         );
       },
     );
