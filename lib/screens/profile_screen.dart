@@ -625,7 +625,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   ) {
     if (cosmicHints.isEmpty) {
       return Text(
-        'None found.',
+        'None found yet. They drift in open space.',
         style: _prose(context, palette.muted),
       );
     }
@@ -1238,18 +1238,15 @@ class _ProfileScreenState extends State<ProfileScreen>
                           const CampaignRewardsButton(
                             style: CampaignRewardsStyle.tile,
                           ),
-                          // Notes found at the space contests before they
-                          // were retired; none turn up any more.
-                          if ((data?.cosmicHints ?? const []).isNotEmpty)
-                            _Row(
-                              title: 'COSMIC NOTES',
-                              palette: palette,
-                              below: _buildCosmicHints(
-                                palette,
-                                accent,
-                                data?.cosmicHints ?? const [],
-                              ),
+                          _Row(
+                            title: 'COSMIC NOTES',
+                            palette: palette,
+                            below: _buildCosmicHints(
+                              palette,
+                              accent,
+                              data?.cosmicHints ?? const [],
                             ),
+                          ),
                           _Row(
                             title: 'REPLAY INTRO',
                             description: 'Watch the opening story again',

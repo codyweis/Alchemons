@@ -14,6 +14,7 @@ import 'package:flutter/foundation.dart' show ValueListenable, kDebugMode;
 import 'package:alchemons/navigation/home_descent.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_rewards.dart';
@@ -173,6 +174,10 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   // Star dust state
   Set<int> _collectedDust = {};
+
+  /// The lore notes this save has taken (the profile lists them).
+  Set<String> _loreNotesTaken = {};
+  static const _loreNotesPrefsKey = 'cosmic_trait_hint_notes_v1';
   static const _dustPrefsKey = 'cosmic_star_dust_v1';
 
   // Rift portal state
@@ -700,6 +705,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       _elementStorage = ElementStorage.deserialise(storageRaw);
     }
 
+    _loreNotesTaken = deserialiseContestHintIds(
+      prefs.getString(_loreNotesPrefsKey) ?? '',
+    );
+
     // Load collected star dust
     final dustRaw = prefs.getString(_dustPrefsKey);
     if (!widget.memoryTutorial && dustRaw != null) {
@@ -842,6 +851,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       onPOIDiscovered: _onPOIDiscovered,
       onNearHome: _onNearHome,
       onNearMarket: _onNearMarket,
+      onLoreNoteCollected: _onLoreNoteCollected,
       onCompanionAutoReturned: _onCompanionAutoReturned,
       onCompanionDied: _onCompanionDied,
       initialCustomizations: _customizationState.activeIds,
@@ -963,6 +973,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         if (_collectedDust.isNotEmpty) {
           game.restoreStarDust(_collectedDust);
         }
+        game.restoreCollectedLoreNotes(_loreNotesTaken);
         // Restore home planet
         if (_homePlanet != null) {
           game.restoreHomePlanet(_homePlanet!);
@@ -975,6 +986,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         if (_collectedDust.isNotEmpty) {
           game.restoreStarDust(_collectedDust);
         }
+        game.restoreCollectedLoreNotes(_loreNotesTaken);
         if (_homePlanet != null) {
           game.restoreHomePlanet(_homePlanet!);
         }
@@ -2005,6 +2017,20 @@ class _CosmicScreenState extends State<CosmicScreen>
         return;
       }
     }
+  }
+
+  /// A lore note flown through: kept, and its words shown.
+  void _onLoreNoteCollected(CosmicLoreNote note) {
+    if (!_loreNotesTaken.add(note.id)) return;
+    unawaited(() async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _loreNotesPrefsKey,
+        serialiseContestHintIds(_loreNotesTaken),
+      );
+    }());
+    _showQuote(note.text, holdFor: const Duration(seconds: 4));
+    HapticFeedback.selectionClick();
   }
 
   void _showQuote(

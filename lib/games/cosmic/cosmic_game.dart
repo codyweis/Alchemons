@@ -30,6 +30,7 @@ import 'package:flame/sprite.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show rootBundle;
 
+import 'cosmic_contests.dart';
 import 'cosmic_data.dart';
 import 'cosmic_cache_data.dart';
 import 'cosmic_cache_vfx.dart';
@@ -217,6 +218,7 @@ class CosmicGame extends FlameGame with PanDetector {
     this.onWhirlComplete,
     this.onPOIDiscovered,
     this.onNearMarket,
+    this.onLoreNoteCollected,
     this.onCompanionAutoReturned,
     this.onCompanionDied,
     this.onNearNexus,
@@ -299,6 +301,9 @@ class CosmicGame extends FlameGame with PanDetector {
   final void Function(GalaxyWhirl whirl)? onWhirlComplete;
   final void Function(SpacePOI poi)? onPOIDiscovered;
   final void Function(SpacePOI? poi)? onNearMarket;
+
+  /// The ship has flown through a lore note (it is taken; its words show).
+  final void Function(CosmicLoreNote note)? onLoreNoteCollected;
   final void Function(CosmicPartyMember member)? onCompanionAutoReturned;
   final void Function(CosmicPartyMember member)? onCompanionDied;
 
@@ -352,6 +357,9 @@ class CosmicGame extends FlameGame with PanDetector {
   // We use a Set of grid-cell keys for discovered cells.
   static const double fogCellSize = 120.0;
   final Set<int> revealedCells = {};
+
+  // Lore notes adrift in open space.
+  late final List<CosmicLoreNote> loreNotes = world_.loreNotes;
 
   // Star dust collectibles
   late List<StarDust> starDusts;
@@ -4280,6 +4288,22 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
+    // ── lore notes: taken as the ship flies through ──
+    for (final note in loreNotes) {
+      if (note.collected) continue;
+      var hdx = note.position.dx - ship.pos.dx;
+      var hdy = note.position.dy - ship.pos.dy;
+      if (hdx > ww / 2) hdx -= ww;
+      if (hdx < -ww / 2) hdx += ww;
+      if (hdy > wh / 2) hdy -= wh;
+      if (hdy < -wh / 2) hdy += wh;
+      if (hdx * hdx + hdy * hdy <
+          CosmicLoreNote.interactRadius * CosmicLoreNote.interactRadius) {
+        note.collected = true;
+        onLoreNoteCollected?.call(note);
+      }
+    }
+
     // ── galaxy whirl update ──
     for (final whirl in galaxyWhirls) {
       whirl.rotation += dt * 0.8;
@@ -5351,6 +5375,14 @@ class CosmicGame extends FlameGame with PanDetector {
           );
         }
       }
+    }
+
+    // ── lore notes adrift ──
+    for (final note in loreNotes) {
+      if (note.collected) continue;
+      final np = note.position;
+      if (isOutsideViewport(np, cx, cy, screenW, screenH)) continue;
+      paintLoreNote(canvas, at: np, t: _elapsed, seed: note.id.length);
     }
 
     // ── home planet ──

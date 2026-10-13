@@ -3276,6 +3276,14 @@ extension CosmicGameWorldSystems on CosmicGame {
   }
 
   /// Restore collected star dust from persisted set.
+  /// Marks the lore notes this save has already taken.
+  void restoreCollectedLoreNotes(Set<String> ids) {
+    if (ids.isEmpty) return;
+    for (final note in loreNotes) {
+      if (ids.contains(note.id)) note.collected = true;
+    }
+  }
+
   void restoreStarDust(Set<int> collected) {
     for (final dust in starDusts) {
       if (collected.contains(dust.index)) {

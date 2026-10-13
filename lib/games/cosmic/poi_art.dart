@@ -448,6 +448,50 @@ void paintBossLair(
   c.restore();
 }
 
+// ── lore note ───────────────────────────────────────────────────────────────
+
+final StoneLight _noteLight = StoneLight(const Color(0xFFE9C77A));
+final BakedArt _noteShard = BakedArt(const Rect.fromLTRB(-8, -12, 8, 12), (c) {
+  CutStone.gem(_noteLight, const [
+    Offset(0, -11),
+    Offset(6, -2),
+    Offset(3, 10),
+    Offset(-4, 8),
+    Offset(-6, -3),
+  ], const Offset(0, -2)).paint(c, 0, glow: 1.4, reach: 12);
+});
+final PointBatch _noteMotes = PointBatch(8);
+
+/// A lore note adrift at [at]: a small lit shard, turning a little, with a
+/// few motes rising off it, more to one side, and going out.
+void paintLoreNote(
+  Canvas c, {
+  required Offset at,
+  required double t,
+  int seed = 0,
+}) {
+  final bob = Offset(0, sin(t * 1.3 + seed) * 3);
+  final p = at + bob;
+  paintDisc(c, _noteLight.pool, p, 40, 1.6);
+  c.save();
+  c.translate(p.dx, p.dy);
+  c.rotate(sin(t * 0.7 + seed) * 0.3);
+  c.scale(1.6);
+  _noteShard.draw(c);
+  c.restore();
+  paintDisc(c, _noteLight.spark, p + const Offset(-1, -2), 2.2);
+  _noteMotes.clear();
+  for (var i = 0; i < 6; i++) {
+    final life = (t * 0.22 + i / 6 + seed * 0.13) % 1.0;
+    if (life > 0.85) continue;
+    _noteMotes.add(
+      p.dx + 4 + sin(i * 2.3 + seed) * 9 + sin(life * 5 + i) * 3,
+      p.dy + 4 - life * 30,
+    );
+  }
+  _noteMotes.draw(c, 1.4, _noteLight.grainHot.withValues(alpha: 0.6));
+}
+
 // ── Loot ────────────────────────────────────────────────────────────────────
 //
 // What a fight leaves behind: glass orbs of light (health, element), each

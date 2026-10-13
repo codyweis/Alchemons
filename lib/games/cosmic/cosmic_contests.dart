@@ -11,6 +11,7 @@
 //                           the profile still shows to whoever found them
 
 import 'dart:convert';
+import 'dart:math';
 import 'dart:ui';
 
 enum CosmicContestTrait { beauty, speed, strength, intelligence }
@@ -146,7 +147,7 @@ const List<CosmicContestHintLore> kCosmicContestHintLore = [
   CosmicContestHintLore(
     id: 'beauty_prismatic',
     text:
-        'An engraved plate: "A prismatic coat counts for a great deal on the beauty floor."',
+        'An engraved plate: "A prismatic coat counts for a great deal wherever looks are judged."',
   ),
   CosmicContestHintLore(
     id: 'beauty_variant',
@@ -155,7 +156,8 @@ const List<CosmicContestHintLore> kCosmicContestHintLore = [
   ),
   CosmicContestHintLore(
     id: 'beauty_pure_element',
-    text: 'A velvet ribbon: "One beauty round is judged on pure lines alone."',
+    text:
+        'A velvet ribbon: "At a show of purebreds, pure lines are judged above all."',
   ),
   CosmicContestHintLore(
     id: 'beauty_species_pure',
@@ -175,17 +177,17 @@ const List<CosmicContestHintLore> kCosmicContestHintLore = [
   CosmicContestHintLore(
     id: 'strength_size',
     text:
-        'A field memo: "Big frames carry mass into the shove. In the heavyweight round, size counts most."',
+        'A field memo: "Big frames carry mass. On a tall wall, size counts most."',
   ),
   CosmicContestHintLore(
     id: 'speed_family',
     text:
-        'A smudged journal: "On the switchback, kin, pips and lets take the turns. Wings overshoot them."',
+        'A smudged journal: "On the turns, kin, pips and lets take the corners. Wings overshoot them."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_lineage',
     text:
-        'A cipher strip: "Many kinds of blood in a line make a sharper mind. Memory rounds count it twice."',
+        'A cipher strip: "Many kinds of blood in a line make a sharper mind."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_elements_1',
@@ -195,7 +197,7 @@ const List<CosmicContestHintLore> kCosmicContestHintLore = [
   CosmicContestHintLore(
     id: 'beauty_bad_elements',
     text:
-        'A critic\'s card: "In the contrast rounds, wear different colors from the rival."',
+        'A critic\'s card: "On a night with no moon, what shines by its own light shows best: light, fire and lightning."',
   ),
   CosmicContestHintLore(
     id: 'speed_bad_elements',
@@ -214,7 +216,7 @@ const List<CosmicContestHintLore> kCosmicContestHintLore = [
   CosmicContestHintLore(
     id: 'strength_pure_line',
     text:
-        'A quarry note: "The molten ring suits fire and lava. Ice and plants wilt in the heat."',
+        'A quarry note: "A hot wall suits fire and lava. Ice and plants wilt in the heat."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_family',
@@ -227,12 +229,13 @@ const List<CosmicContestHintLore> kCosmicContestHintLore = [
   ),
   CosmicContestHintLore(
     id: 'intelligence_nature_neuroadaptive',
-    text: 'A neural sketch: "Pattern rounds favour crystal and masks."',
+    text:
+        'A neural sketch: "In the harder tests of wits, crystal and masks see the pattern first."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_species_pure',
     text:
-        'A sealed thesis: "In the leverage bout technique beats bulk. Kin, masks and pips find the angle."',
+        'A sealed thesis: "On a sheer wall, technique beats bulk. Kin, masks and pips find the holds."',
   ),
   CosmicContestHintLore(
     id: 'cross_trait_purity',
@@ -242,24 +245,78 @@ const List<CosmicContestHintLore> kCosmicContestHintLore = [
   CosmicContestHintLore(
     id: 'speed_storm',
     text:
-        'A singed flag: "In the storm lane, lightning and air ride the weather, and wings with them."',
+        'A singed flag: "In a storm, lightning and air ride the weather, and wings with them."',
   ),
   CosmicContestHintLore(
     id: 'intelligence_insight',
     text:
-        'A torn page: "In the insight round, what a creature is made of counts nearly double."',
+        'A torn page: "In the hardest tests of wits, what a creature is made of counts nearly double."',
   ),
   CosmicContestHintLore(
     id: 'contest_finals',
     text:
-        'A gilt programme: "In every final, everything that counts counts for more."',
+        'A gilt programme: "On the grandest courses, everything that counts counts for more."',
   ),
   CosmicContestHintLore(
     id: 'contest_no_luck',
     text:
-        'A judge\'s rule card: "There is no luck in these contests. Lose, and try another of your party."',
+        'A judge\'s rule card: "There is no luck in the Trials. Lose, and try another of your Alchemons."',
   ),
 ];
+
+/// A note adrift in open space: one of [kCosmicContestHintLore], where it
+/// lies, and whether the ship has taken it. Flown through, it is kept (its
+/// words shown, and listed on the profile's COSMIC NOTES).
+class CosmicLoreNote {
+  CosmicLoreNote({
+    required this.id,
+    required this.text,
+    required this.position,
+    this.collected = false,
+  });
+
+  final String id;
+  final String text;
+  final Offset position;
+  bool collected;
+
+  /// How near the ship takes it.
+  static const double interactRadius = 90.0;
+}
+
+/// Scatters the notes through open space, clear of [obstacles] and of each
+/// other — each where it always lay for a given world (the same seed mix,
+/// margins and spacing as before the contests were retired).
+List<CosmicLoreNote> generateCosmicLoreNotes({
+  required int seed,
+  required Size worldSize,
+  required List<Offset> obstacles,
+}) {
+  final rng = Random(seed ^ 0xCC7712);
+  const margin = 1800.0;
+  const minObstacleDist = 1500.0;
+  const minNoteDist = 1200.0;
+  final out = <CosmicLoreNote>[];
+  for (final lore in kCosmicContestHintLore) {
+    Offset pos;
+    var tries = 0;
+    do {
+      pos = Offset(
+        margin + rng.nextDouble() * (worldSize.width - margin * 2),
+        margin + rng.nextDouble() * (worldSize.height - margin * 2),
+      );
+      tries++;
+    } while (tries < 500 &&
+        (obstacles.any((o) => (o - pos).distance < minObstacleDist) ||
+            out.any((h) => (h.position - pos).distance < minNoteDist)));
+    out.add(CosmicLoreNote(id: lore.id, text: lore.text, position: pos));
+  }
+  return out;
+}
+
+/// The note ids a save remembers, in their comma-separated form.
+String serialiseContestHintIds(Set<String> ids) =>
+    (ids.toList()..sort()).join(',');
 
 /// The note ids a save remembers, from their comma-separated form.
 Set<String> deserialiseContestHintIds(String raw) {

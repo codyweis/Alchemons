@@ -5,6 +5,7 @@
 
 import 'dart:math';
 import 'dart:ui';
+import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
@@ -1040,6 +1041,7 @@ class CosmicWorld {
     required this.retiredArenaPosition,
     required this.bloodRing,
     required this.retiredContestArenaPositions,
+    this.loreNotes = const [],
   });
 
   final List<CosmicPlanet> planets;
@@ -1061,6 +1063,9 @@ class CosmicWorld {
   /// them. Like [retiredArenaPosition], nothing is drawn here, but the caches
   /// are still laid out round these spots, so they stay where they were.
   final List<Offset> retiredContestArenaPositions;
+
+  /// The lore notes adrift in open space.
+  final List<CosmicLoreNote> loreNotes;
 
   /// Generate a standard cosmos: one planet per element scattered across a
   /// huge field. Deliberately large so it takes ~10 minutes to traverse.
@@ -1234,22 +1239,26 @@ class CosmicWorld {
     }
     final bloodRing = BloodRing(position: bloodPos);
 
+    final landmarks = <Offset>[
+      ...allPositions,
+      ...rifts.map((r) => r.position),
+      prisPos,
+      nexusPos,
+      ringPos,
+      bloodPos,
+    ];
     final retiredContestArenaPositions = _retiredContestArenaPositions(
       seed: rng.nextInt(1 << 30),
       worldSize: const Size(worldW, worldH),
-      obstacles: [
-        ...allPositions,
-        ...rifts.map((r) => r.position),
-        prisPos,
-        nexusPos,
-        ringPos,
-        bloodPos,
-      ],
+      obstacles: landmarks,
     );
-    // The contests' lore notes drew a seed of their own here. They are gone
-    // too; the seed is still drawn, so anything placed after this starts
-    // from the same point in the sequence as it always has.
-    rng.nextInt(1 << 30);
+    // The lore notes, scattered through open space where they always lay
+    // (their own seed, clear of the landmarks and the old arenas' spots).
+    final loreNotes = generateCosmicLoreNotes(
+      seed: rng.nextInt(1 << 30),
+      worldSize: const Size(worldW, worldH),
+      obstacles: [...landmarks, ...retiredContestArenaPositions],
+    );
 
     return CosmicWorld(
       planets: planets,
@@ -1261,6 +1270,7 @@ class CosmicWorld {
       retiredArenaPosition: ringPos,
       bloodRing: bloodRing,
       retiredContestArenaPositions: retiredContestArenaPositions,
+      loreNotes: loreNotes,
     );
   }
 
