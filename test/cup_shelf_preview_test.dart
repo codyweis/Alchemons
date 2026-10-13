@@ -63,7 +63,7 @@ void main() {
               builder: (context, set) {
                 setOuter = set;
                 return CupShelf(
-                  progress: progress,
+                  cups: ShelfCup.races(progress),
                   selected: selected,
                   onSelect: (i) => set(() => selected = i),
                 );

@@ -28,14 +28,7 @@ import 'package:alchemons/screens/cosmic/gold_conversion_sheet.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
-import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/station_art.dart';
-import 'package:alchemons/games/cosmic/contest_art.dart';
-import 'package:alchemons/games/cosmic/contest_entrant.dart';
-import 'package:alchemons/games/cosmic/contest_judging.dart';
-import 'package:alchemons/widgets/bracket_controls.dart'
-    show BracketButton, CoinAmount;
-import 'package:alchemons/widgets/coin_icon.dart' show CoinKind;
 import 'package:alchemons/screens/cosmic/widgets/cosmic_settings_overlay.dart';
 import 'package:alchemons/screens/cosmic/widgets/station_panel_kit.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
@@ -45,10 +38,8 @@ import 'package:alchemons/games/cosmic/planets/planet_art.dart'
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart';
-import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
-import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/breeding_config.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -56,7 +47,6 @@ import 'package:alchemons/services/blood_rebirth_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
-import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/screens/scenes/rift_threshold.dart';
@@ -88,7 +78,6 @@ import 'models/map_marker.dart';
 import 'widgets/widgets.dart';
 import 'widgets/coach_mark.dart';
 import 'widgets/mini_map_circle.dart';
-import 'widgets/contest_arena_overlays.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/cosmic_ship_emblem.dart';
@@ -96,6 +85,7 @@ import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/services/game_controller_service.dart';
 import 'package:alchemons/widgets/controller_hints.dart';
+import 'package:alchemons/games/stadium/trials_records.dart';
 import 'widgets/planet_descent_passage.dart';
 import 'widgets/chart_zoom.dart';
 import 'widgets/space_action_glyphs.dart';
@@ -207,26 +197,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// The portal tear is playing in space; the HUD steps out of the shot.
   bool _wildTearActive = false;
   static const _retiredBattleRingPrefsKey = 'cosmic_battle_ring_v1';
-
-  // Trait contest state
-  CosmicContestArena? _nearContestArena;
-  CosmicContestProgress _contestProgress = CosmicContestProgress.fresh();
-  Set<String> _knownContestHintIds = {};
-  Map<int, int> _beautyContestRotationByLevel = {};
-  static const _contestProgressPrefsKey = 'cosmic_trait_contests_v1';
-  static const _contestHintsPrefsKey = 'cosmic_trait_hint_notes_v1';
-  static const _beautyContestRotationPrefsKey =
-      'cosmic_beauty_contest_rotation_v1';
-  static const bool _contestDebugShowAllOnMap = false;
-  static const bool _contestDebugAllowMapTeleport = false;
-  static const Map<CosmicContestTrait, String>
-  _contestMasteryEffectOfferByTrait = {
-    CosmicContestTrait.beauty: ShopService.beautyContestEffectOfferId,
-    CosmicContestTrait.speed: ShopService.speedContestEffectOfferId,
-    CosmicContestTrait.strength: ShopService.strengthContestEffectOfferId,
-    CosmicContestTrait.intelligence:
-        ShopService.intelligenceContestEffectOfferId,
-  };
 
   // Blood Ring state
   bool _isNearBloodRing = false;
@@ -367,13 +337,12 @@ class _CosmicScreenState extends State<CosmicScreen>
       _cacheUnsealing ||
       // Preview hides the HUD so the planet is actually visible; the END
       // PREVIEW button opts itself back in.
-      _previewingHome ||
-      (_game?.beautyContestCinematicActive ?? false);
+      _previewingHome;
 
   /// Panels that cover the world. Space holds still under them, as it does
   /// under the full map: nothing should fly, fight or drain while the player
-  /// is reading a console. Home preview and the beauty cinematic are absent on
-  /// purpose — they exist to show the live world.
+  /// is reading a console. Home preview is absent on purpose — it exists to
+  /// show the live world.
   bool get _worldCoveredByPanel =>
       _showCustomizationMenu ||
       _showShipMenu ||
@@ -393,13 +362,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _heldPausedWhileCovered = false;
 
   /// What holds the world still: a covering panel, or a route pushed over
-  /// this one — except a contest's, whose overlay is see-through and plays
-  /// over the cinematic running in the game underneath.
+  /// this one — except the Blood Ring's ritual, which plays in the world.
   bool get _worldHeld =>
-      _worldCoveredByPanel ||
-      (_routeCovered &&
-          !(_game?.beautyContestCinematicActive ?? false) &&
-          !_showBloodRitualOverlay);
+      _worldCoveredByPanel || (_routeCovered && !_showBloodRitualOverlay);
 
   void _syncCoveredPause() {
     final game = _game;
@@ -741,36 +706,11 @@ class _CosmicScreenState extends State<CosmicScreen>
       _collectedDust = StarDust.deserialiseCollected(dustRaw);
     }
 
-    // Load trait contest progression + discovered hint notes
-    final contestRaw = prefs.getString(_contestProgressPrefsKey);
-    if (contestRaw != null && contestRaw.isNotEmpty) {
-      _contestProgress = CosmicContestProgress.deserialise(contestRaw);
-    }
-    final contestHintRaw = prefs.getString(_contestHintsPrefsKey);
-    if (contestHintRaw != null && contestHintRaw.isNotEmpty) {
-      _knownContestHintIds = deserialiseContestHintIds(contestHintRaw);
-    }
-    final beautyRotationRaw = prefs.getString(_beautyContestRotationPrefsKey);
-    if (beautyRotationRaw != null && beautyRotationRaw.isNotEmpty) {
-      try {
-        final decoded = jsonDecode(beautyRotationRaw);
-        if (decoded is Map<String, dynamic>) {
-          _beautyContestRotationByLevel = {
-            for (final entry in decoded.entries)
-              if (int.tryParse(entry.key) case final level?)
-                level: (entry.value is num ? (entry.value as num).toInt() : 0),
-          }..removeWhere((k, _) => k < 1 || k > 5);
-        }
-      } catch (_) {
-        _beautyContestRotationByLevel = {};
-      }
-    }
-    await _syncContestMasteryShopUnlocks();
-
     // Load home planet
     final homeRaw = prefs.getString(_homePlanetPrefsKey);
     if (!widget.memoryTutorial && homeRaw != null) {
       _homePlanet = HomePlanet.deserialise(homeRaw);
+      await _bankTrialsShards();
     }
 
     _homeTourDone =
@@ -893,8 +833,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       onNearRift: _onNearRift,
       onNearNexus: _onNearNexus,
       onNearBloodRing: _onNearBloodRing,
-      onNearContestArena: _onNearContestArena,
-      onContestHintCollected: _onContestHintCollected,
       onHomePlanetBuilt: _onHomePlanetBuilt,
 
       onBossSpawned: _onBossSpawned,
@@ -1025,12 +963,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         if (_collectedDust.isNotEmpty) {
           game.restoreStarDust(_collectedDust);
         }
-        if (_knownContestHintIds.isNotEmpty) {
-          game.restoreCollectedContestHints(_knownContestHintIds);
-        }
-        game.restoreMasteredContests(
-          CosmicContestTrait.values.where(_contestProgress.isMastered),
-        );
         // Restore home planet
         if (_homePlanet != null) {
           game.restoreHomePlanet(_homePlanet!);
@@ -1043,12 +975,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         if (_collectedDust.isNotEmpty) {
           game.restoreStarDust(_collectedDust);
         }
-        if (_knownContestHintIds.isNotEmpty) {
-          game.restoreCollectedContestHints(_knownContestHintIds);
-        }
-        game.restoreMasteredContests(
-          CosmicContestTrait.values.where(_contestProgress.isMastered),
-        );
         if (_homePlanet != null) {
           game.restoreHomePlanet(_homePlanet!);
         }
@@ -1422,11 +1348,10 @@ class _CosmicScreenState extends State<CosmicScreen>
       for (final whirl in whirls) {
         minDist = min(minDist, (whirl.position - point).distance - 240.0);
       }
-      for (final arena in _world.contestArenas) {
-        minDist = min(
-          minDist,
-          (arena.position - point).distance - CosmicContestArena.visualRadius,
-        );
+      // The retired contest arenas' spots, at the size they were drawn
+      // (a radius of 364), so the sandbox stays where it always was.
+      for (final spot in _world.retiredContestArenaPositions) {
+        minDist = min(minDist, (spot - point).distance - 364.0);
       }
 
       minDist = min(
@@ -2828,983 +2753,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     await prefs.setString(_bloodRingPrefsKey, _game!.bloodRing.serialise());
   }
 
-  // ── Trait Contest handlers ──
-
-  void _onNearContestArena(CosmicContestArena? arena) {
-    if (!mounted) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (_nearContestArena != arena) {
-        setState(() => _nearContestArena = arena);
-      }
-    });
-  }
-
-  Future<void> _saveContestProgress() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _contestProgressPrefsKey,
-      _contestProgress.serialise(),
-    );
-  }
-
-  Future<void> _saveContestHints() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      _contestHintsPrefsKey,
-      serialiseContestHintIds(_knownContestHintIds),
-    );
-  }
-
-  Future<void> _saveBeautyContestRotation() async {
-    final prefs = await SharedPreferences.getInstance();
-    final encoded = <String, int>{
-      for (final e in _beautyContestRotationByLevel.entries)
-        '${e.key}': e.value,
-    };
-    await prefs.setString(_beautyContestRotationPrefsKey, jsonEncode(encoded));
-  }
-
-  CosmicContestOpponent _beautyOpponentForLevel(int level) {
-    final pool = beautyContestOpponentsForLevel(level);
-    if (pool.isEmpty) {
-      final fallbackLevels = kCosmicContestLevels[CosmicContestTrait.beauty]!;
-      return fallbackLevels[(level - 1).clamp(0, fallbackLevels.length - 1)]
-          .opponent;
-    }
-    final idx = _beautyContestRotationByLevel[level] ?? 0;
-    return pool[idx % pool.length];
-  }
-
-  void _rotateBeautyOpponentAfterLoss(int level) {
-    final pool = beautyContestOpponentsForLevel(level);
-    if (pool.length <= 1) return;
-    final current = _beautyContestRotationByLevel[level] ?? 0;
-    _beautyContestRotationByLevel[level] = (current + 1) % pool.length;
-    _saveBeautyContestRotation();
-  }
-
-  String _contestOpponentDisplay(CosmicContestOpponent opponent) {
-    if (opponent.visualTheme == CosmicContestVisualTheme.standard) {
-      return opponent.name;
-    }
-    return '${opponent.name} (${opponent.visualTheme.label})';
-  }
-
-  Future<void> _syncContestMasteryShopUnlocks() async {
-    final shop = context.read<ShopService>();
-    for (final trait in CosmicContestTrait.values) {
-      if (!_contestProgress.isMastered(trait)) continue;
-      final offerId = _contestMasteryEffectOfferByTrait[trait];
-      if (offerId == null) continue;
-      await shop.unlockContestEffectOffer(offerId, freeQty: 1);
-    }
-  }
-
-  Future<String?> _unlockContestMasteryEffect(CosmicContestTrait trait) async {
-    final offerId = _contestMasteryEffectOfferByTrait[trait];
-    if (offerId == null) return null;
-    final shop = context.read<ShopService>();
-    return shop.unlockContestEffectOffer(offerId, freeQty: 1);
-  }
-
-  /// Contest shards go straight into the home bank. Before there is a home
-  /// they fall back to the hold.
-  void _bankContestShards(int shards) {
-    if (shards <= 0) return;
-    final home = _homePlanet;
-    if (home == null) {
-      _game?.shipWallet.addShards(shards);
-      return;
-    }
-    home.astralBank += shards;
-    _saveHomePlanet();
-  }
-
-  /// Contest gold lands in the persistent wallet, not the ship's shard purse,
-  /// so it survives leaving open space.
-  Future<void> _grantContestGold(int gold) async {
-    if (gold <= 0) return;
-    await context.read<AlchemonsDatabase>().currencyDao.addGold(gold);
-  }
-
-  /// Tincture for the Athanor, paid with a level's gold: once per level,
-  /// since a won level is never fought again.
-  Future<void> _grantContestTincture(int tincture) async {
-    if (tincture <= 0) return;
-    await context.read<AlchemonsDatabase>().inventoryDao.addItemQty(
-      InvKeys.athanorTincture,
-      tincture,
-    );
-  }
-
-  void _onContestHintCollected(CosmicContestHintNote note) {
-    if (_knownContestHintIds.contains(note.id)) return;
-    _knownContestHintIds.add(note.id);
-    _saveContestHints();
-    _showQuote(note.text);
-    HapticFeedback.selectionClick();
-    if (mounted && _showPinnedMiniMap) {
-      setState(() {});
-    }
-  }
-
-  /// Asks which of the party in [slots] competes at [trait]'s [level]. It
-  /// names the level's condition and each one's stat, not how they would
-  /// fare: that is for the player to judge.
-  Future<int?> _pickContestEntrant(
-    CosmicContestTrait trait,
-    int level,
-    List<int> slots,
-  ) {
-    final condition = contestCondition(trait, level);
-    final accent = trait.light;
-    return showDialog<int>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.6),
-      builder: (ctx) => Dialog(
-        backgroundColor: Colors.transparent,
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-        child: CustomPaint(
-          foregroundPainter: BracketFramePainter(
-            color: accent.withValues(alpha: 0.9),
-            bracketSize: 12,
-            strokeWidth: 1.3,
-          ),
-          child: Container(
-            color: CosmicScreenStyles.bg1,
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'WHO COMPETES?',
-                  style: panelLabel(13, panelPalette.ink, spacing: 2.4),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${trait.arenaLabel}, level $level. ${condition.title[0]}'
-                  '${condition.title.substring(1).toLowerCase()}: '
-                  '${condition.line}',
-                  style: TextStyle(
-                    color: CosmicScreenStyles.textSecondary,
-                    fontSize: 12.5,
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                for (final i in slots) ...[
-                  _contestEntrantRow(ctx, trait, i, accent),
-                  const SizedBox(height: 6),
-                ],
-                const SizedBox(height: 4),
-                BracketButton(
-                  label: 'NOT NOW',
-                  onTap: () => Navigator.of(ctx).pop(),
-                  palette: panelPalette,
-                  accent: accent,
-                  primary: false,
-                  height: 38,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _contestEntrantRow(
-    BuildContext ctx,
-    CosmicContestTrait trait,
-    int slot,
-    Color accent,
-  ) {
-    final m = _partyMembers[slot]!;
-    final stat = switch (trait) {
-      CosmicContestTrait.beauty => m.statBeauty,
-      CosmicContestTrait.speed => m.statSpeed,
-      CosmicContestTrait.strength => m.statStrength,
-      CosmicContestTrait.intelligence => m.statIntelligence,
-    };
-    return GestureDetector(
-      key: ValueKey('contest.entrant.$slot'),
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        HapticFeedback.selectionClick();
-        Navigator.of(ctx).pop(slot);
-      },
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-        decoration: BoxDecoration(
-          color: panelPalette.bg0,
-          border: Border.all(color: panelPalette.lineSoft),
-        ),
-        child: Row(
-          children: [
-            SizedBox(
-              width: 40,
-              height: 40,
-              child: m.imagePath == null
-                  ? Icon(AppIcons.pets_rounded, color: panelPalette.muted)
-                  : Image.asset(
-                      m.imagePath!,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, _, _) => Icon(
-                        AppIcons.pets_rounded,
-                        color: panelPalette.muted,
-                      ),
-                    ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    m.displayName.toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: panelLabel(11.5, panelPalette.ink, spacing: 1),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '${m.element.toUpperCase()} · ${m.family.toUpperCase()} '
-                    '· LV ${m.level}',
-                    style: panelLabel(9.5, panelPalette.muted, spacing: 0.8),
-                  ),
-                ],
-              ),
-            ),
-            Text(
-              '${trait.label.toUpperCase()} '
-              '${AlchemonStatSystem.displayRating(stat)}',
-              style: panelLabel(10.5, accent, spacing: 0.8),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// What the judges can see of [member] for [trait]: its stat, what it is,
-  /// how it looks, and its line (contest_judging.dart judges it).
-  Future<ContestEntrant> _contestEntrant(
-    CosmicContestTrait trait,
-    CosmicPartyMember member,
-  ) async {
-    final db = context.read<AlchemonsDatabase>();
-    final inst = await db.creatureDao.getInstance(member.instanceId);
-    return contestEntrantFor(member, inst, trait);
-  }
-
-  SpriteVisuals _applyContestThemeVisuals(
-    SpriteVisuals base,
-    CosmicContestVisualTheme theme,
-  ) {
-    return switch (theme) {
-      CosmicContestVisualTheme.standard => base,
-      CosmicContestVisualTheme.radiant => SpriteVisuals(
-        scale: base.scale,
-        saturation: base.saturation,
-        brightness: base.brightness,
-        hueShiftDeg: base.hueShiftDeg,
-        isPrismatic: base.isPrismatic,
-        tint: base.tint ?? const Color(0xFFFFF59D).withValues(alpha: 0.22),
-        isAlbino: base.isAlbino,
-        alchemyEffect: base.alchemyEffect ?? 'alchemy_glow',
-        variantFaction: base.variantFaction,
-        elementType: base.elementType,
-        prismaticHueDeg: base.prismaticHueDeg,
-        costumes: base.costumes,
-      ),
-      CosmicContestVisualTheme.thermal => SpriteVisuals(
-        scale: base.scale,
-        saturation: base.saturation,
-        brightness: base.brightness,
-        hueShiftDeg: base.hueShiftDeg,
-        isPrismatic: base.isPrismatic,
-        tint: base.tint ?? const Color(0xFFFF8A65).withValues(alpha: 0.30),
-        isAlbino: base.isAlbino,
-        alchemyEffect: 'elemental_aura',
-        variantFaction: base.variantFaction ?? 'Pyro',
-        elementType: base.elementType,
-        prismaticHueDeg: base.prismaticHueDeg,
-        costumes: base.costumes,
-      ),
-      CosmicContestVisualTheme.cryogenic => SpriteVisuals(
-        scale: base.scale,
-        saturation: base.saturation,
-        brightness: base.brightness,
-        hueShiftDeg: base.hueShiftDeg,
-        isPrismatic: base.isPrismatic,
-        tint: base.tint ?? const Color(0xFF81D4FA).withValues(alpha: 0.28),
-        isAlbino: base.isAlbino,
-        alchemyEffect: 'alchemy_glow',
-        variantFaction: base.variantFaction ?? 'Aqua',
-        elementType: base.elementType,
-        prismaticHueDeg: base.prismaticHueDeg,
-        costumes: base.costumes,
-      ),
-      CosmicContestVisualTheme.prismatic => SpriteVisuals(
-        scale: base.scale,
-        saturation: base.saturation,
-        brightness: base.brightness,
-        hueShiftDeg: base.hueShiftDeg,
-        isPrismatic: true,
-        tint: base.tint,
-        isAlbino: false,
-        alchemyEffect: 'prismatic_cascade',
-        variantFaction: base.variantFaction,
-        elementType: base.elementType,
-        prismaticHueDeg: base.prismaticHueDeg,
-        costumes: base.costumes,
-      ),
-    };
-  }
-
-  Future<bool> _canLoadSpriteSheet(SpriteSheetDef? sheet) async {
-    if (sheet == null) return false;
-    try {
-      await rootBundle.load(sheet.path);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<CosmicPartyMember?> _buildBeautyContestOpponentMember(
-    CosmicContestOpponent opponent,
-    int level,
-  ) async {
-    final targetElement = opponent.element.toLowerCase().trim();
-    final targetFamily = opponent.family.toLowerCase().trim();
-    final rng = Random(
-      _worldSeed ^ level ^ opponent.name.hashCode ^ DateTime.now().millisecond,
-    );
-    final db = context.read<AlchemonsDatabase>();
-    final catalog = context.read<CreatureCatalog>();
-    if (!catalog.isLoaded || catalog.creatures.isEmpty) return null;
-    final ownedInstances = await db.creatureDao.getAllInstances();
-    if (!mounted) return null;
-    if (ownedInstances.isEmpty) return null;
-
-    final ownedCandidates = <(CreatureInstance, dynamic)>[];
-    for (final inst in ownedInstances) {
-      final base = catalog.getCreatureById(inst.baseId);
-      if (base == null) continue;
-      ownedCandidates.add((inst, base));
-    }
-    if (ownedCandidates.isEmpty) return null;
-    final spriteReadyCandidates = ownedCandidates
-        .where((entry) => entry.$2.spriteData != null)
-        .toList();
-    final candidateSource = spriteReadyCandidates.isNotEmpty
-        ? spriteReadyCandidates
-        : ownedCandidates;
-
-    final exactMatches = candidateSource.where((entry) {
-      final base = entry.$2;
-      final elem = base.types.isNotEmpty
-          ? base.types.first.toLowerCase().trim()
-          : '';
-      final fam = (base.mutationFamily ?? '').toLowerCase().trim();
-      return elem == targetElement && fam == targetFamily;
-    }).toList();
-    final elementMatches = candidateSource.where((entry) {
-      final base = entry.$2;
-      final elem = base.types.isNotEmpty
-          ? base.types.first.toLowerCase().trim()
-          : '';
-      return elem == targetElement;
-    }).toList();
-    final pool = exactMatches.isNotEmpty
-        ? exactMatches
-        : (elementMatches.isNotEmpty ? elementMatches : candidateSource);
-    final shuffledPool = [...pool]..shuffle(rng);
-    (CreatureInstance, dynamic)? picked;
-    for (final candidate in shuffledPool) {
-      final base = candidate.$2;
-      final candidateSheet = base.spriteData != null
-          ? sheetFromCreature(base)
-          : null;
-      if (await _canLoadSpriteSheet(candidateSheet)) {
-        picked = candidate;
-        break;
-      }
-    }
-    picked ??= shuffledPool.first;
-    final inst = picked.$1;
-    final base = picked.$2;
-    final typeName = (base.types.isNotEmpty)
-        ? base.types.first
-        : opponent.element;
-    final family = base.mutationFamily ?? opponent.family;
-    final sheet = base.spriteData != null ? sheetFromCreature(base) : null;
-    // Use base visuals for contest opponents to keep rendering stable
-    // (matches battle ring's opponent visual pipeline).
-    var visuals = visualsFromInstance(base, null);
-    final hasCustomLook =
-        visuals.isPrismatic ||
-        visuals.tint != null ||
-        (visuals.alchemyEffect != null && visuals.alchemyEffect!.isNotEmpty);
-    if (!hasCustomLook) {
-      visuals = _applyContestThemeVisuals(visuals, opponent.visualTheme);
-    }
-
-    final beauty =
-        ((inst.statBeauty.toDouble() * 0.72) +
-                (opponent.targetScore * 0.28) +
-                (rng.nextDouble() * 0.16 - 0.08))
-            .clamp(1.0, AlchemonStatSystem.authoredStatReference)
-            .toDouble();
-    double blendSecondary(double source) =>
-        ((source * 0.72) +
-                (opponent.targetScore * 0.22) +
-                (rng.nextDouble() * 0.20 - 0.10))
-            .clamp(1.0, AlchemonStatSystem.authoredStatReference)
-            .toDouble();
-
-    return CosmicPartyMember(
-      instanceId:
-          'beauty_contest_${inst.instanceId}_${DateTime.now().millisecondsSinceEpoch}',
-      baseId: inst.baseId,
-      // The rival goes by the name it was written with; the body is one of
-      // your own specimens' kind.
-      displayName: opponent.name,
-      imagePath: base.image != null ? 'assets/images/${base.image}' : null,
-      element: typeName,
-      family: family,
-      level: (level + 4).clamp(5, 10),
-      statSpeed: blendSecondary(inst.statSpeed.toDouble()),
-      statIntelligence: blendSecondary(inst.statIntelligence.toDouble()),
-      statStrength: blendSecondary(inst.statStrength.toDouble()),
-      statBeauty: beauty,
-      slotIndex: -1,
-      staminaBars: 999,
-      staminaMax: 999,
-      spriteSheet: sheet,
-      spriteVisuals: visuals,
-      visualVariant: null,
-      spawnPosition: null,
-    );
-  }
-
-  Future<CosmicPartyMember?> _playBeautyContestPresentation({
-    required CosmicPartyMember player,
-    required CosmicContestOpponent opponent,
-    required int level,
-    required double playerScore,
-    required double opponentScore,
-    ContestStakes? stakes,
-    ContestJudging? judging,
-  }) async {
-    final game = _game;
-    if (game == null || !mounted) return null;
-    final opponentMember = await _buildBeautyContestOpponentMember(
-      opponent,
-      level,
-    );
-    if (!mounted) return null;
-    if (opponentMember == null) {
-      _showQuote('No owned creatures available for beauty contest opponents.');
-      return null;
-    }
-    final arenaCenter = _nearContestArena?.position ?? game.ship.pos;
-    game.beginBeautyContestCinematic(
-      opponentMember: opponentMember,
-      arenaCenter: arenaCenter,
-      playerWon: playerScore >= opponentScore,
-    );
-    final introDelay = Duration(
-      milliseconds: (game.beautyContestIntroDuration * 1000).round(),
-    );
-
-    try {
-      if (introDelay > Duration.zero) {
-        await Future<void>.delayed(introDelay);
-        if (!mounted) {
-          game.endBeautyContestCinematic();
-          return opponentMember;
-        }
-      }
-      await showGeneralDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierLabel: 'Beauty Contest',
-        barrierColor: Colors.transparent,
-        transitionDuration: const Duration(milliseconds: 260),
-        pageBuilder: (context, _, __) => CosmicBeautyContestArenaOverlay(
-          player: player,
-          opponentMember: opponentMember,
-          playerScore: playerScore,
-          opponentScore: opponentScore,
-          stakes: stakes,
-          judging: judging,
-        ),
-        transitionBuilder: (context, animation, _, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(
-            opacity: curved,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
-              child: child,
-            ),
-          );
-        },
-      );
-    } finally {
-      if (mounted) {
-        game.endBeautyContestCinematic();
-      }
-    }
-    return opponentMember;
-  }
-
-  Future<String?> _playSpeedContestPresentation({
-    required CosmicPartyMember player,
-    required CosmicContestOpponent opponent,
-    required int level,
-    required double playerScore,
-    required double opponentScore,
-    ContestStakes? stakes,
-    ContestJudging? judging,
-  }) async {
-    final game = _game;
-    if (game == null || !mounted) return null;
-    final opponentMember = await _buildBeautyContestOpponentMember(
-      opponent,
-      level,
-    );
-    if (!mounted) return null;
-    if (opponentMember == null) {
-      _showQuote('No owned creatures available for speed contest opponents.');
-      return null;
-    }
-    final arenaCenter = _nearContestArena?.position ?? game.ship.pos;
-    game.beginSpeedContestCinematic(
-      opponentMember: opponentMember,
-      arenaCenter: arenaCenter,
-      playerWon: playerScore >= opponentScore,
-      playerScore: playerScore,
-      opponentScore: opponentScore,
-    );
-    final introDelay = Duration(
-      milliseconds: (game.speedContestIntroDuration * 1000).round(),
-    );
-
-    try {
-      if (introDelay > Duration.zero) {
-        await Future<void>.delayed(introDelay);
-        if (!mounted) {
-          game.endBeautyContestCinematic();
-          return opponentMember.displayName;
-        }
-      }
-      await showGeneralDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierLabel: 'Speed Contest',
-        barrierColor: Colors.transparent,
-        transitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (context, _, __) => CosmicSpeedContestArenaOverlay(
-          player: player,
-          opponentMember: opponentMember,
-          playerScore: playerScore,
-          opponentScore: opponentScore,
-          stakes: stakes,
-          judging: judging,
-        ),
-        transitionBuilder: (context, animation, _, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(
-            opacity: curved,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.985, end: 1.0).animate(curved),
-              child: child,
-            ),
-          );
-        },
-      );
-    } finally {
-      if (mounted) {
-        game.endBeautyContestCinematic();
-      }
-    }
-    return opponentMember.displayName;
-  }
-
-  Future<String?> _playStrengthContestPresentation({
-    required CosmicPartyMember player,
-    required CosmicContestOpponent opponent,
-    required int level,
-    required double playerScore,
-    required double opponentScore,
-    ContestStakes? stakes,
-    ContestJudging? judging,
-  }) async {
-    final game = _game;
-    if (game == null || !mounted) return null;
-    final opponentMember = await _buildBeautyContestOpponentMember(
-      opponent,
-      level,
-    );
-    if (!mounted) return null;
-    if (opponentMember == null) {
-      _showQuote(
-        'No owned creatures available for strength contest opponents.',
-      );
-      return null;
-    }
-    final arenaCenter = _nearContestArena?.position ?? game.ship.pos;
-    game.beginStrengthContestCinematic(
-      opponentMember: opponentMember,
-      arenaCenter: arenaCenter,
-      playerWon: playerScore >= opponentScore,
-      playerScore: playerScore,
-      opponentScore: opponentScore,
-    );
-    final introDelay = Duration(
-      milliseconds: (game.strengthContestIntroDuration * 1000).round(),
-    );
-
-    try {
-      if (introDelay > Duration.zero) {
-        await Future<void>.delayed(introDelay);
-        if (!mounted) {
-          game.endBeautyContestCinematic();
-          return opponentMember.displayName;
-        }
-      }
-      await showGeneralDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierLabel: 'Strength Contest',
-        barrierColor: Colors.transparent,
-        transitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (context, _, __) => CosmicStrengthContestArenaOverlay(
-          player: player,
-          opponentMember: opponentMember,
-          playerScore: playerScore,
-          opponentScore: opponentScore,
-          stakes: stakes,
-          judging: judging,
-        ),
-        transitionBuilder: (context, animation, _, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(
-            opacity: curved,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.985, end: 1.0).animate(curved),
-              child: child,
-            ),
-          );
-        },
-      );
-    } finally {
-      if (mounted) {
-        game.endBeautyContestCinematic();
-      }
-    }
-    return opponentMember.displayName;
-  }
-
-  Future<String?> _playIntelligenceContestPresentation({
-    required CosmicPartyMember player,
-    required CosmicContestOpponent opponent,
-    required int level,
-    required double playerScore,
-    required double opponentScore,
-    ContestStakes? stakes,
-    ContestJudging? judging,
-  }) async {
-    final game = _game;
-    if (game == null || !mounted) return null;
-    final opponentMember = await _buildBeautyContestOpponentMember(
-      opponent,
-      level,
-    );
-    if (!mounted) return null;
-    if (opponentMember == null) {
-      _showQuote(
-        'No owned creatures available for intelligence contest opponents.',
-      );
-      return null;
-    }
-    final arenaCenter = _nearContestArena?.position ?? game.ship.pos;
-    game.beginIntelligenceContestCinematic(
-      opponentMember: opponentMember,
-      arenaCenter: arenaCenter,
-      playerWon: playerScore >= opponentScore,
-      playerScore: playerScore,
-      opponentScore: opponentScore,
-    );
-    final introDelay = Duration(
-      milliseconds: (game.intelligenceContestIntroDuration * 1000).round(),
-    );
-
-    try {
-      if (introDelay > Duration.zero) {
-        await Future<void>.delayed(introDelay);
-        if (!mounted) {
-          game.endBeautyContestCinematic();
-          return opponentMember.displayName;
-        }
-      }
-      await showGeneralDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        barrierLabel: 'Intelligence Contest',
-        barrierColor: Colors.transparent,
-        transitionDuration: const Duration(milliseconds: 220),
-        pageBuilder: (context, _, __) => CosmicIntelligenceContestArenaOverlay(
-          player: player,
-          opponentMember: opponentMember,
-          playerScore: playerScore,
-          opponentScore: opponentScore,
-          stakes: stakes,
-          judging: judging,
-        ),
-        transitionBuilder: (context, animation, _, child) {
-          final curved = CurvedAnimation(
-            parent: animation,
-            curve: Curves.easeOutCubic,
-          );
-          return FadeTransition(
-            opacity: curved,
-            child: ScaleTransition(
-              scale: Tween<double>(begin: 0.985, end: 1.0).animate(curved),
-              child: child,
-            ),
-          );
-        },
-      );
-    } finally {
-      if (mounted) {
-        game.endBeautyContestCinematic();
-      }
-    }
-    return opponentMember.displayName;
-  }
-
-  /// A contest is being set up or played; a second tap must not start one.
-  bool _contestRunning = false;
-
-  Future<void> _handleContestArenaTap() async {
-    if (_contestRunning) return;
-    _contestRunning = true;
-    try {
-      await _runContest();
-    } finally {
-      _contestRunning = false;
-    }
-  }
-
-  Future<void> _runContest() async {
-    if (_homeBuildTutorialLock) {
-      _showQuote('Build your home base first.');
-      return;
-    }
-    if (_game == null || _nearContestArena == null) return;
-    if (_game!.wildDuelActive) {
-      _showQuote('Finish the fight first.');
-      return;
-    }
-    final trait = _nearContestArena!.trait;
-    final completed = _contestProgress.completedLevels(trait);
-    final levels = kCosmicContestLevels[trait]!;
-    if (completed >= levels.length) {
-      _showQuote('${trait.label} contest fully mastered.');
-      HapticFeedback.selectionClick();
-      return;
-    }
-
-    // Who competes: one of the party, chosen here when there is a choice.
-    final fit = [
-      for (var i = 0; i < _partyMembers.length; i++)
-        if (_partyMembers[i] != null && (_companionHpFraction[i] ?? 1.0) > 0) i,
-    ];
-    if (fit.isEmpty) {
-      _showQuote('No one in your party is fit to compete.');
-      return;
-    }
-    final slot = fit.length == 1
-        ? fit.first
-        : await _pickContestEntrant(trait, levels[completed].level, fit);
-    if (slot == null || !mounted || _game == null) return;
-    // Only the entrant stands in the arena.
-    for (final other in [..._activeCompanionSlots]) {
-      if (other != slot) _handleReturnCompanion(other);
-    }
-    if (!_activeCompanionSlots.contains(slot)) {
-      await _handleSummonCompanionAsync(slot);
-      if (!mounted || !_activeCompanionSlots.contains(slot)) return;
-    }
-    final member = _partyMembers[slot]!;
-
-    final level = levels[completed];
-    final levelOpponent = trait == CosmicContestTrait.beauty
-        ? _beautyOpponentForLevel(level.level)
-        : level.opponent;
-    // Judged by rules, not dice (contest_judging.dart): the same entrant
-    // against the same level always scores the same.
-    final entrant = await _contestEntrant(trait, member);
-    if (!mounted) return;
-    final playerVerdict = judgeEntrant(
-      trait,
-      level.level,
-      entrant,
-      rivalElement: levelOpponent.element,
-    );
-    final rivalVerdict = judgeRival(trait, level.level, levelOpponent);
-    final playerScore = playerVerdict.score;
-    final opponentScore = rivalVerdict.score;
-    final traitStat = switch (trait) {
-      CosmicContestTrait.beauty => member.statBeauty,
-      CosmicContestTrait.speed => member.statSpeed,
-      CosmicContestTrait.strength => member.statStrength,
-      CosmicContestTrait.intelligence => member.statIntelligence,
-    };
-    final judging = ContestJudging(
-      condition: contestCondition(trait, level.level),
-      player: playerVerdict,
-      rival: rivalVerdict,
-      playerStat:
-          '${trait.label.toUpperCase()} '
-          '${AlchemonStatSystem.displayRating(traitStat)}',
-      rivalStat: 'LEVEL ${level.level} RIVAL',
-    );
-    final won = playerScore >= opponentScore;
-    var opponentLabel = _contestOpponentDisplay(levelOpponent);
-    final masteryOffer = completed + 1 >= levels.length
-        ? _contestMasteryEffectOfferByTrait[trait]
-        : null;
-    final stakes = ContestStakes(
-      level: level.level,
-      levels: levels.length,
-      shards: level.rewardShards,
-      gold: cosmicContestGoldReward(level.level),
-      unlock: masteryOffer
-          ?.split('.')
-          .last
-          .split('_')
-          .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
-          .join(' '),
-    );
-
-    if (trait == CosmicContestTrait.beauty) {
-      final presentedOpponent = await _playBeautyContestPresentation(
-        player: member,
-        opponent: levelOpponent,
-        level: level.level,
-        playerScore: playerScore,
-        opponentScore: opponentScore,
-        stakes: stakes,
-        judging: judging,
-      );
-      if (!mounted) return;
-      if (presentedOpponent == null) return;
-      opponentLabel = presentedOpponent.displayName;
-    }
-    if (trait == CosmicContestTrait.speed) {
-      final presentedSpeedOpponent = await _playSpeedContestPresentation(
-        player: member,
-        opponent: levelOpponent,
-        level: level.level,
-        playerScore: playerScore,
-        opponentScore: opponentScore,
-        stakes: stakes,
-        judging: judging,
-      );
-      if (!mounted) return;
-      if (presentedSpeedOpponent == null) return;
-      opponentLabel = presentedSpeedOpponent;
-    }
-    if (trait == CosmicContestTrait.strength) {
-      final presentedStrengthOpponent = await _playStrengthContestPresentation(
-        player: member,
-        opponent: levelOpponent,
-        level: level.level,
-        playerScore: playerScore,
-        opponentScore: opponentScore,
-        stakes: stakes,
-        judging: judging,
-      );
-      if (!mounted) return;
-      if (presentedStrengthOpponent == null) return;
-      opponentLabel = presentedStrengthOpponent;
-    }
-    if (trait == CosmicContestTrait.intelligence) {
-      final presentedIntelligenceOpponent =
-          await _playIntelligenceContestPresentation(
-            player: member,
-            opponent: levelOpponent,
-            level: level.level,
-            playerScore: playerScore,
-            opponentScore: opponentScore,
-            stakes: stakes,
-            judging: judging,
-          );
-      if (!mounted) return;
-      if (presentedIntelligenceOpponent == null) return;
-      opponentLabel = presentedIntelligenceOpponent;
-    }
-
-    if (won) {
-      final nextCompleted = completed + 1;
-      _contestProgress = _contestProgress.withCompleted(trait, nextCompleted);
-      await _saveContestProgress();
-      // Banked at home, not carried: a level-4 or -5 prize is more than the
-      // hold's 50, and the hold drops whatever it has no room for.
-      _bankContestShards(level.rewardShards);
-      final goldReward = cosmicContestGoldReward(level.level);
-      await _grantContestGold(goldReward);
-      final tinctureReward = athanorContestTincture(level.level);
-      await _grantContestTincture(tinctureReward);
-      String masteryUnlockText = '';
-      if (nextCompleted >= levels.length) {
-        // The arena crowns itself where the player stands.
-        _game!.unveilContestMastery(trait);
-        final unlockedEffectName = await _unlockContestMasteryEffect(trait);
-        if (unlockedEffectName != null && unlockedEffectName.isNotEmpty) {
-          masteryUnlockText =
-              ' $unlockedEffectName unlocked in shop and +1 granted.';
-        }
-        // A mastered arena also leaves a keepsake for the home biome.
-        masteryUnlockText += ' A keepsake waits at home.';
-      }
-      _showQuote(
-        '${trait.label} Lv${level.level}: ${member.displayName} defeated $opponentLabel '
-        '(${playerScore.toStringAsFixed(2)} vs ${opponentScore.toStringAsFixed(2)}). '
-        '+${level.rewardShards} shards '
-        '${_homePlanet != null ? 'banked at home' : 'into the hold'}, '
-        '+$goldReward gold, +${athanorSparks(tinctureReward)}.'
-        '$masteryUnlockText',
-      );
-      HapticFeedback.heavyImpact();
-    } else {
-      if (trait == CosmicContestTrait.beauty) {
-        _rotateBeautyOpponentAfterLoss(level.level);
-      }
-      _showQuote(
-        '${trait.label} Lv${level.level}: $opponentLabel wins '
-        '(${playerScore.toStringAsFixed(2)} vs ${opponentScore.toStringAsFixed(2)}).',
-      );
-      HapticFeedback.mediumImpact();
-    }
-    if (mounted) setState(() {});
-  }
-
   bool _isMysticBloodCompanion(CosmicPartyMember member) {
     final isBlood = member.element.trim().toLowerCase() == 'blood';
     final isMystic = member.family.trim().toLowerCase() == 'mystic';
@@ -4487,6 +3435,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       element: 'Light',
     );
     if (!mounted) return;
+    await _bankTrialsShards();
+    if (!mounted) return;
     unawaited(
       context.read<AudioController>().playCosmicExplorationMusic(cycle: false),
     );
@@ -4518,6 +3468,19 @@ class _CosmicScreenState extends State<CosmicScreen>
       _markersPrefsKey,
       MapMarker.serialiseList(_mapMarkers),
     );
+  }
+
+  /// Shards the Trials' first wins left for the home bank (the Trials
+  /// can't reach it while space holds the home planet): into the bank. They
+  /// wait until there is a home.
+  Future<void> _bankTrialsShards() async {
+    final home = _homePlanet;
+    if (home == null) return;
+    final shards = await takePendingTrialsShards();
+    if (shards <= 0) return;
+    home.astralBank += shards;
+    await _saveHomePlanet();
+    if (mounted) setState(() {});
   }
 
   Future<void> _saveHomePlanet() async {
@@ -7933,15 +6896,11 @@ class _CosmicScreenState extends State<CosmicScreen>
       };
       return tracking ? null : _openMarketShop;
     }
-    if (_nearContestArena != null && station == null) {
-      return _handleContestArenaTap;
-    }
     // The cache yields to every landmark that can share its spot.
     if (_nearCache != null &&
         !_cacheUnsealing &&
         _cacheReward == null &&
         station == null &&
-        _nearContestArena == null &&
         !_isNearNexus) {
       return _handleCacheTap;
     }
@@ -8069,9 +7028,6 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   bool _dismissVisibleOverlayOrPopup() {
     if (_showBloodRitualOverlay || _runningBloodEnding) {
-      return true;
-    }
-    if (_game?.beautyContestCinematicActive ?? false) {
       return true;
     }
     if (_showSettingsMenu) {
@@ -8831,10 +7787,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 ? const Color(0xFF8B5CF6)
                                 : const Color(0xFFE2C98F),
                             tutorialTargetLabel: 'SIGNAL',
-                            debugShowAllContestArenasOnMap:
-                                _contestDebugShowAllOnMap,
-                            debugEnableContestArenaTeleport:
-                                _contestDebugAllowMapTeleport,
                             onTeleport: (pos) {
                               final meterPct = _game!.meter.fillPct;
                               if (meterPct > _teleportCapacity) {
@@ -9208,64 +8160,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                   ),
                 ),
 
-              // ── Trait Contest button ──
-              if (showCosmicHud &&
-                  _game != null &&
-                  _nearContestArena != null &&
-                  _nearMarketPOI == null &&
-                  !_isNearBloodRing &&
-                  !_showMiniMap &&
-                  !_anyOverlayOpen)
-                Builder(
-                  builder: (_) {
-                    final trait = _nearContestArena!.trait;
-                    final levels = kCosmicContestLevels[trait]!;
-                    final done = _contestProgress.completedLevels(trait);
-                    final mastered = _contestProgress.isMastered(trait);
-                    final next = mastered ? null : levels[done];
-                    return Positioned(
-                      bottom: 100,
-                      left: 16,
-                      right: 16,
-                      child: Center(
-                        child: StationPrompt(
-                          title: trait.arenaLabel.toUpperCase(),
-                          line: next == null
-                              ? 'Mastered: all ${levels.length} levels won.'
-                              : () {
-                                  final c = contestCondition(trait, next.level);
-                                  return 'Level ${next.level} of '
-                                      '${levels.length}, '
-                                      '${c.title.toLowerCase()}. ${c.line}';
-                                }(),
-                          action: mastered ? 'MASTERED' : 'COMPETE',
-                          accent: trait.light,
-                          enabled: !mastered && !_contestRunning,
-                          reward: next == null
-                              ? null
-                              : Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    ShardAmount(next.rewardShards, size: 10.5),
-                                    const SizedBox(width: 8),
-                                    CoinAmount(
-                                      kind: CoinKind.gold,
-                                      amount: cosmicContestGoldReward(
-                                        next.level,
-                                      ),
-                                      size: 10.5,
-                                    ),
-                                  ],
-                                ),
-                          onTap: context.soundTap(_handleContestArenaTap),
-                        ),
-                      ),
-                    );
-                  },
-                ),
-
               // ── Sealed elemental cache prompt ──
-              // Seven prompts share the bottom:100 slot. The cache is the
+              // Six prompts share the bottom:100 slot. The cache is the
               // newest arrival, so it yields to every landmark that can also
               // be standing here.
               if (showCosmicHud &&
@@ -9274,7 +8170,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                   !_cacheUnsealing &&
                   _cacheReward == null &&
                   _nearMarketPOI == null &&
-                  _nearContestArena == null &&
                   !_isNearRift &&
                   !_isNearNexus &&
                   !_isNearBloodRing &&

@@ -1,12 +1,13 @@
 // lib/widgets/stadium_trophy.dart
 //
-// THE STADIUM's cup in grains (the author, 2026-10-12: "a trophy on the
+// THE TRIALS' cup in grains (the author, 2026-10-12: "a trophy on the
 // home screen ... where the alchemy orb used to live in the middle"). A
-// loving cup — bowl, two handles, a knopped stem, a stepped foot — in the
-// metal of the cup the player is racing for: copper, then silver, then
-// gold. Light gathers in its bowl as that cup's races are won and brims
-// over, in motes, once all three are. A glint runs over the metal now and
-// then.
+// loving cup — a glass bowl in metal fittings, two handles, a knopped stem,
+// a stepped foot — in the metal (or the stone) of the cup: copper, silver,
+// gold; ruby, sapphire, emerald. The bowl holds the cup's light, standing
+// in it to the share of its races won ("more alchemical": a vessel of
+// glowing liquid, bubbling); full, it brims over in motes. A glint runs
+// over it now and then.
 //
 // The same cup stands on the stadium's shelf (screens/stadium/cup_shelf.dart)
 // and carries the player there (stadium_passage.dart): its grains loosen,
@@ -18,13 +19,15 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// What a cup is made of.
-enum TrophyMetal { copper, silver, gold, ash }
+/// What a cup is made of: the race cups' metals, the gem cups' stones
+/// (gem_cups.dart), or ash while it is shut.
+enum TrophyMetal { copper, silver, gold, ruby, sapphire, emerald, ash }
 
 /// A cup as it shows: its metal, and how much light is in its bowl.
 @immutable
@@ -50,6 +53,23 @@ class TrophyLook {
     return TrophyLook(
       metalOf(index),
       fill: progress.wonIn(cup) / cup.courses.length,
+    );
+  }
+
+  /// The stone [kGemCups]' cup [index] is cut from.
+  static TrophyMetal gemOf(int index) => switch (index) {
+    0 => TrophyMetal.ruby,
+    1 => TrophyMetal.sapphire,
+    _ => TrophyMetal.emerald,
+  };
+
+  /// Gem cup [index] as [progress] leaves it: ash until it is open.
+  static TrophyLook ofGem(int index, RaceProgress progress) {
+    final cup = kGemCups[index];
+    if (!progress.gemOpen(index)) return const TrophyLook(TrophyMetal.ash);
+    return TrophyLook(
+      gemOf(index),
+      fill: progress.wonInGem(cup) / cup.bouts.length,
     );
   }
 
@@ -131,6 +151,27 @@ const Map<TrophyMetal, _Metal> _kMetals = {
     Color(0xFFFBF1D4),
     Color(0xFFF2E3BC),
   ),
+  TrophyMetal.ruby: _Metal(
+    Color(0xFF3A0812),
+    Color(0xFF9E1F35),
+    Color(0xFFE35A6E),
+    Color(0xFFFFD3DA),
+    Color(0xFFFF8FA0),
+  ),
+  TrophyMetal.sapphire: _Metal(
+    Color(0xFF0A1636),
+    Color(0xFF2A4FAE),
+    Color(0xFF6A97EE),
+    Color(0xFFDCE8FF),
+    Color(0xFF9EC2FF),
+  ),
+  TrophyMetal.emerald: _Metal(
+    Color(0xFF052719),
+    Color(0xFF1C8556),
+    Color(0xFF5BD199),
+    Color(0xFFD6FFE9),
+    Color(0xFF9AF0C4),
+  ),
   TrophyMetal.ash: _Metal(
     Color(0xFF1E1D1C),
     Color(0xFF494744),
@@ -204,13 +245,18 @@ class _Grain {
     this.v,
     this.h, {
     this.slot = 0,
+    this.handle = false,
   });
+
+  /// One of the handles' (always metal, whatever the bowl is).
+  final bool handle;
 
   /// Its place in a ring: grains in fours a quarter turn apart, so the ring
   /// looks the same turned (see [TrophyRing]).
   final int slot;
 
-  _Grain withSlot(int slot) => _Grain(x, y, tone, sweep, v, h, slot: slot);
+  _Grain withSlot(int slot) =>
+      _Grain(x, y, tone, sweep, v, h, slot: slot, handle: handle);
 
   /// Where, in cup heights from the cup's centre (y down).
   final double x, y;
@@ -300,7 +346,17 @@ final List<_Grain> _body = () {
         // its outer edge rim-lit on the right.
         final face = side < 0 ? (layer > 0 ? .95 : .55) : (layer > 0 ? .5 : .3);
         final tone = face * (side < 0 ? 1.0 : .8) + (side > 0 ? .22 * t : 0);
-        out.add(_Grain(x, q.dy, tone, x + .55 * q.dy, .08 + .3 * t, _h(i, 3)));
+        out.add(
+          _Grain(
+            x,
+            q.dy,
+            tone,
+            x + .55 * q.dy,
+            .08 + .3 * t,
+            _h(i, 3),
+            handle: true,
+          ),
+        );
       }
     }
   }
@@ -405,6 +461,22 @@ class _Buckets {
 }
 
 final _Buckets _buckets = _Buckets();
+
+/// Clear glass, dark to its lit edges; and smoked, for a shut cup.
+const _Metal _kGlass = _Metal(
+  Color(0xFF1C2630),
+  Color(0xFF5C7286),
+  Color(0xFFB8CCDC),
+  Color(0xFFFFFFFF),
+  Color(0xFFDDE8F2),
+);
+const _Metal _kSmokedGlass = _Metal(
+  Color(0xFF121416),
+  Color(0xFF2A2E33),
+  Color(0xFF4A5056),
+  Color(0xFF6E747A),
+  Color(0xFF4A5056),
+);
 final Paint _glowPaint = Paint();
 
 void _glow(Canvas canvas, Offset c, double r, Color color, double alpha) {
@@ -528,17 +600,73 @@ void paintStadiumTrophy(
   int levelOf(double tone) =>
       (tone * (_kTones - 1)).round().clamp(0, _kTones - 1);
 
-  // The inside of the bowl: the light, or the dark of it.
-  for (final g in _mouth) {
-    final level = fill > 0
-        ? (5 + (3 * fill * (.6 + .4 * math.sin(time * 2.2 + g.h * 30))).round())
-              .clamp(0, _kTones - 1)
-        : (g.y < -.5 ? 1 : 0);
-    place(g, level);
+  // The bowl is glass in metal fittings (the author, 2026-10-12: "more
+  // alchemical"): the light it holds stands in it to the share of the
+  // cup's races won. Full to the brim, its surface is the mouth.
+  if (fill >= .999) {
+    for (final g in _mouth) {
+      final level = fill > 0
+          ? (5 +
+                    (3 * fill * (.6 + .4 * math.sin(time * 2.2 + g.h * 30)))
+                        .round())
+                .clamp(0, _kTones - 1)
+          : (g.y < -.5 ? 1 : 0);
+      place(g, level);
+    }
+    b.flush(canvas, m, width, alpha * lit * (fill > 0 ? .55 + .45 * fill : .5));
   }
-  b.flush(canvas, m, width, alpha * lit * (fill > 0 ? .55 + .45 * fill : .5));
+
+  // The light it holds, rocking a little and bubbling; then the glass
+  // over it, clear but at its edges.
+  bool inBowl(_Grain g) => !g.handle && g.v < .44;
+  {
+    final level = .44 - .4 * fill;
+    final liquid = _Metal(m.base, m.hi, m.light, m.glint, m.light);
+    for (final g in _body) {
+      if (!inBowl(g)) continue;
+      final surface = level + .012 * math.sin(time * 1.8 + g.x * 14);
+      if (fill <= 0 || g.v < surface) continue;
+      final depth = (g.v - surface) / math.max(.02, .44 - surface);
+      final shimmer = .5 + .5 * math.sin(time * 2.4 + g.h * 40);
+      final top = g.v - surface < .03;
+      final tone = top ? 1.0 : (.85 - .45 * depth + .12 * shimmer);
+      place(g, (tone * (_kTones - 1)).round().clamp(0, _kTones - 1));
+    }
+    // Bubbles rising through it.
+    if (fill > 0 && !still) {
+      for (var i = 0; i < 10; i++) {
+        final life = (time * (.25 + .2 * _h(i, 91)) + _h(i, 92)) % 1.0;
+        final v = .43 - life * (.43 - level);
+        final half = _halfWidth(v) * .8;
+        final x = (_h(i, 93) - .5) * 2 * half + math.sin(life * 9 + i) * .01;
+        final p = at + Offset(x * height, (v - .5) * height);
+        b.pts[_kTones - 1].add(p.dx, p.dy);
+      }
+    }
+    b.flush(canvas, liquid, width, alpha * lit * (.75 + .25 * fill));
+    // The glass: its edges catching the light, a few grains of it across
+    // the front, smoked dark while the cup is shut.
+    for (final g in _body) {
+      if (!inBowl(g)) continue;
+      final edge = (g.x.abs() / math.max(.02, _halfWidth(g.v))).clamp(0.0, 1.0);
+      if (edge < .8 && g.h > .14) continue;
+      var tone = edge > .8 ? .55 + .45 * g.tone : .35;
+      if (glintOn) {
+        final d = g.sweep - glintAt;
+        tone += .9 * math.exp(-d * d / .004);
+      }
+      place(g, levelOf(tone));
+    }
+    b.flush(
+      canvas,
+      ash ? _kSmokedGlass : _kGlass,
+      width * .85,
+      alpha * lit * (ash ? .6 : .75),
+    );
+  }
 
   for (final g in _body) {
+    if (inBowl(g)) continue;
     var tone = g.tone;
     if (glintOn) {
       final d = g.sweep - glintAt;

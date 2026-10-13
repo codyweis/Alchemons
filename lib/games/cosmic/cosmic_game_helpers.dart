@@ -1,7 +1,5 @@
 part of 'cosmic_game.dart';
 
-enum _ContestCinematicMode { beauty, speed, strength, intelligence }
-
 double _cosmicEffectRadius({
   required double spriteScale,
   required double baseSpriteSize,

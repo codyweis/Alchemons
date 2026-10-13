@@ -471,7 +471,8 @@ class RaceStage extends ChangeNotifier {
   }
 
   /// The camera frames the pack — closer when it runs together, wider as it
-  /// strings out — and always keeps the player in. It closes on the line
+  /// strings out (never so wide the six turn small) — and always keeps the
+  /// player in. It closes on the line
   /// for a photo finish.
   void _camera(double dt) {
     final k0 = (viewport.height / 360).clamp(0.6, 1.6);
@@ -490,7 +491,11 @@ class RaceStage extends ChangeNotifier {
         final mid = (lo + hi) / 2;
         target = mid * 0.55 + me * 0.45 + 40;
         final span = max(hi - lo, (me - target).abs() * 2) + 240;
-        targetZoom = (viewport.width / (k0 * span)).clamp(1.0, 1.35);
+        targetZoom = (viewport.width / (k0 * span)).clamp(1.12, 1.4);
+        // Close enough that the six read; when that can't hold the whole
+        // pack, the player stays in.
+        final half = viewport.width / (k0 * targetZoom) / 2 - 70;
+        if (half > 0) target = target.clamp(me - half, me + half);
         if (photoAt != null && finishedAtClock.every((f) => f == null)) {
           target = layout.finishX - 40;
           targetZoom = 1.6;

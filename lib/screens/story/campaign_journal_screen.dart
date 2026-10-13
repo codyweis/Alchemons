@@ -898,8 +898,8 @@ class _StoryPanel extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               mission == null
-                  ? 'The collection remains. Exploration, Survival, contests, '
-                        'and rites are yours to continue.'
+                  ? 'The collection remains. Exploration, Survival, the '
+                        'Trials, and rites are yours to continue.'
                   : campaignMissionInstructions[mission.id]!,
               style: bracketText(
                 context,

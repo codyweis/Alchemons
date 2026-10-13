@@ -6,6 +6,7 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/economy_balance.dart';
 import 'package:alchemons/models/dock_sets.dart';
@@ -19,6 +20,7 @@ import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/models/shop_scenes.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -269,7 +271,39 @@ class ShopService extends ChangeNotifier {
         _unlockedContestEffectOfferIds.add(entry.key);
       }
     }
+    await _keepMasteredContestEffects();
     notifyListeners();
+  }
+
+  /// A stat's effect stays unlocked for a save that mastered its space
+  /// contest before contests were retired (the Trials' cups give them now):
+  /// space used to unlock it on each visit, so a save that never went back
+  /// after mastering would otherwise go without. One given free, as space
+  /// gave it; nothing more for one already unlocked.
+  Future<void> _keepMasteredContestEffects() async {
+    String raw;
+    try {
+      raw =
+          (await SharedPreferences.getInstance()).getString(
+            CosmicContestProgress.prefsKey,
+          ) ??
+          '';
+    } catch (_) {
+      return;
+    }
+    if (raw.isEmpty) return;
+    final progress = CosmicContestProgress.deserialise(raw);
+    for (final (trait, offer) in const [
+      (CosmicContestTrait.speed, speedContestEffectOfferId),
+      (CosmicContestTrait.strength, strengthContestEffectOfferId),
+      (CosmicContestTrait.beauty, beautyContestEffectOfferId),
+      (CosmicContestTrait.intelligence, intelligenceContestEffectOfferId),
+    ]) {
+      if (progress.isMastered(trait) &&
+          !_unlockedContestEffectOfferIds.contains(offer)) {
+        await unlockContestEffectOffer(offer, freeQty: 1);
+      }
+    }
   }
 
   bool _isContestEffectOfferUnlocked(String offerId) {
@@ -935,7 +969,7 @@ class ShopService extends ChangeNotifier {
       id: beautyContestEffectOfferId,
       name: 'Beauty Radiance',
       description:
-          'Contest mastery effect. Unlocked by clearing Beauty Lv5. Bathes your Alchemon in a stage-lit radiance.',
+          'Unlocked by winning the Sapphire Cup in the Trials. Bathes your Alchemon in a stage-lit radiance.',
       icon: AppIcons.auto_awesome_rounded,
       cost: const {'gold': 40},
       reward: const {},
@@ -947,7 +981,7 @@ class ShopService extends ChangeNotifier {
       id: speedContestEffectOfferId,
       name: 'Speed Flux',
       description:
-          'Contest mastery effect. Unlocked by clearing Speed Lv5. Surrounds your Alchemon with kinetic velocity trails.',
+          'Unlocked by winning the Gold Cup in the Trials. Surrounds your Alchemon with a flux of motion.',
       icon: AppIcons.bolt_rounded,
       cost: const {'gold': 40},
       reward: const {},
@@ -959,7 +993,7 @@ class ShopService extends ChangeNotifier {
       id: strengthContestEffectOfferId,
       name: 'Strength Forge',
       description:
-          'Contest mastery effect. Unlocked by clearing Strength Lv5. Projects a forged pressure aura of raw power.',
+          'Unlocked by winning the Ruby Cup in the Trials. Projects a forged aura of force.',
       icon: AppIcons.fitness_center_rounded,
       cost: const {'gold': 40},
       reward: const {},
@@ -971,7 +1005,7 @@ class ShopService extends ChangeNotifier {
       id: intelligenceContestEffectOfferId,
       name: 'Intelligence Halo',
       description:
-          'Contest mastery effect. Unlocked by clearing Intelligence Lv5. Wraps your Alchemon in a cerebral halo.',
+          'Unlocked by winning the Emerald Cup in the Trials. Wraps your Alchemon in a halo of focused light.',
       icon: AppIcons.psychology_rounded,
       cost: const {'gold': 40},
       reward: const {},

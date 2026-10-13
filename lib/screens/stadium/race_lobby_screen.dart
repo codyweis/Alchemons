@@ -18,6 +18,7 @@ import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/stadium/race_painter.dart';
 import 'package:alchemons/games/stadium/race_room.dart';
 import 'package:alchemons/games/stadium/race_scenes.dart';
+import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/friends/friend_planet_screen.dart'
@@ -339,7 +340,7 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
         bodies: bodies,
         forms: forms,
         // A race with friends is for the race: nothing is paid.
-        onFinished: (_) async => 0,
+        onFinished: (_) async => const TrialsPayout(),
         live: RaceLink(
           gunAtMs: _rooms.localMs(startAt),
           taps: _taps,

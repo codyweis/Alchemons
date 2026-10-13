@@ -3,9 +3,6 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
-import 'package:alchemons/games/cosmic/contest_art.dart'
-    show kContestChampionGold;
-import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:alchemons/games/cosmic/station_art.dart';
 import 'package:alchemons/games/cosmic/obsidian_kit.dart';
@@ -46,8 +43,6 @@ class MiniMapOverlay extends StatefulWidget {
     this.tutorialTargetPos,
     this.tutorialTargetColor,
     this.tutorialTargetLabel,
-    this.debugShowAllContestArenasOnMap = false,
-    this.debugEnableContestArenaTeleport = false,
     this.reveal,
   });
 
@@ -77,8 +72,6 @@ class MiniMapOverlay extends StatefulWidget {
   final Offset? tutorialTargetPos;
   final Color? tutorialTargetColor;
   final String? tutorialTargetLabel;
-  final bool debugShowAllContestArenasOnMap;
-  final bool debugEnableContestArenaTeleport;
 
   @override
   State<MiniMapOverlay> createState() => MiniMapOverlayState();
@@ -393,31 +386,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
       }
     }
 
-    for (final arena in widget.world.contestArenas) {
-      if (!widget.debugShowAllContestArenasOnMap && !arena.discovered) {
-        continue;
-      }
-      final d = (arena.position - tapPos).distance;
-      if (d < 1080) {
-        tryUpdate(
-          _MiniMapTravelPromptData(
-            title: widget.debugEnableContestArenaTeleport
-                ? 'TRAVEL TO ${arena.trait.arenaLabel.toUpperCase()}'
-                : arena.trait.arenaLabel.toUpperCase(),
-            subtitle: 'Contest arena',
-            accent: arena.trait.color,
-            actionLabel: widget.debugEnableContestArenaTeleport
-                ? 'TRAVEL'
-                : null,
-            onConfirm: widget.debugEnableContestArenaTeleport
-                ? () => _runAfterBuild(() => widget.onTeleport(arena.position))
-                : null,
-          ),
-          d,
-        );
-      }
-    }
-
     for (final whirl in widget.game.galaxyWhirls) {
       if (whirl.state == WhirlState.completed) continue;
       final d = (whirl.position - tapPos).distance;
@@ -707,8 +675,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                       onTapUp: _handleTapUp,
                       onLongPress: _handleLongPress,
                       onViewportReady: _primeMapTransform,
-                      showAllContestArenas:
-                          widget.debugShowAllContestArenasOnMap,
                       tutorialTargetPos: widget.tutorialTargetPos,
                       tutorialTargetColor: widget.tutorialTargetColor,
                       tutorialTargetLabel: widget.tutorialTargetLabel,
@@ -772,8 +738,6 @@ class MiniMapOverlayState extends State<MiniMapOverlay> {
                           _Legend(
                             markerMode: _markerMode,
                             eraseMode: _eraseMode,
-                            showContestTip:
-                                widget.debugEnableContestArenaTeleport,
                           ),
                         ],
                       ),
@@ -1660,7 +1624,6 @@ class _MapView extends StatefulWidget {
     required this.onTapUp,
     required this.onLongPress,
     required this.onViewportReady,
-    required this.showAllContestArenas,
     this.tutorialTargetPos,
     this.tutorialTargetColor,
     this.tutorialTargetLabel,
@@ -1679,7 +1642,6 @@ class _MapView extends StatefulWidget {
     required double scale,
   })
   onViewportReady;
-  final bool showAllContestArenas;
   final Offset? tutorialTargetPos;
   final Color? tutorialTargetColor;
   final String? tutorialTargetLabel;
@@ -1831,7 +1793,6 @@ class _MapViewState extends State<_MapView> {
                             transform: widget.transformCtrl,
                             pulse: _pulseTick,
                             markers: widget.markers,
-                            showAllContestArenas: widget.showAllContestArenas,
                             tutorialTargetPos: widget.tutorialTargetPos,
                             tutorialTargetColor: widget.tutorialTargetColor,
                             tutorialTargetLabel: widget.tutorialTargetLabel,
@@ -1933,14 +1894,9 @@ class _ChartFramePainter extends CustomPainter {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _Legend extends StatelessWidget {
-  const _Legend({
-    required this.markerMode,
-    required this.eraseMode,
-    required this.showContestTip,
-  });
+  const _Legend({required this.markerMode, required this.eraseMode});
   final bool markerMode;
   final bool eraseMode;
-  final bool showContestTip;
 
   @override
   Widget build(BuildContext context) {
@@ -1948,8 +1904,6 @@ class _Legend extends StatelessWidget {
         ? 'TAP A MARKER TO REMOVE IT'
         : markerMode
         ? 'TAP TO PLACE  ·  LONG-PRESS A MARKER TO REMOVE'
-        : showContestTip
-        ? 'TAP A PLACE TO TRAVEL  ·  PINCH TO ZOOM'
         : 'TAP A PLACE TO TRAVEL  ·  PINCH TO ZOOM  ·  DRAG TO PAN';
 
     // No top rule: the legend floats over the chart on its own scrim, and a
@@ -2209,7 +2163,6 @@ class _ChartPinsPainter extends CustomPainter {
     required this.transform,
     required ValueListenable<int> pulse,
     required this.markers,
-    required this.showAllContestArenas,
     this.tutorialTargetPos,
     this.tutorialTargetColor,
     this.tutorialTargetLabel,
@@ -2222,7 +2175,6 @@ class _ChartPinsPainter extends CustomPainter {
   final TransformationController transform;
   final ValueListenable<int> _pulse;
   final List<MapMarker> markers;
-  final bool showAllContestArenas;
   final Offset? tutorialTargetPos;
   final Color? tutorialTargetColor;
   final String? tutorialTargetLabel;
@@ -2321,28 +2273,6 @@ class _ChartPinsPainter extends CustomPainter {
           elementInk(whirl.element).withValues(alpha: 0.8),
           p,
           6 * k,
-          size: 7,
-        );
-      }
-    }
-
-    // Contest arenas.
-    for (final arena in world.contestArenas) {
-      if (!showAllContestArenas && !arena.discovered) continue;
-      final p = at(arena.position);
-      if (!view.contains(p)) continue;
-      // A mastered arena burns in the champion's gold.
-      final col = arena.masteredAt != null
-          ? kContestChampionGold
-          : arena.trait.color;
-      paintChartGlyph(canvas, ChartGlyph.contest, p, col, r: 5 * k);
-      if (minorLabels) {
-        _label(
-          canvas,
-          '${arena.trait.label.toUpperCase()} CONTEST',
-          col.withValues(alpha: 0.8),
-          p,
-          5 * k,
           size: 7,
         );
       }

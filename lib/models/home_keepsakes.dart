@@ -6,30 +6,35 @@
 //
 //   · a Lost Maxim found in a planet's dungeon — one per planet, its look
 //     taken from the piece the maxim already leaves in its room;
-//   · a contest arena mastered in open space (all five levels won);
+//   · a cup won in the Trials (all three of its races or bouts) — the cup
+//     itself, and with the Gold Cup and the gem cups a stat's piece (what
+//     the retired space contests gave; a contest mastered before then
+//     still counts);
 //   · a species bred a hundred times — its effigy, in its own grains.
 //
 // Nothing here is stored: what is owned is read from where the game already
-// keeps it (the planets' discovered ids, the contest progress, the breeding
-// statistics), so a keepsake can never be owned without the deed, and a
-// restored save brings its keepsakes with it.
+// keeps it (the planets' discovered ids, the contest progress, the Trials'
+// progress, the breeding statistics), so a keepsake can never be owned
+// without the deed, and a restored save brings its keepsakes with it.
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart';
+import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/models/home_biome.dart' show homeDebugOn;
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Where the planets' discovered ids are kept (the dungeon screen's key).
 const String kPlanetStarsPrefsKey = 'cosmic_planet_stars';
 
-/// Where the contest progress is kept (the cosmic screen's key).
-const String kContestProgressPrefsKey = 'cosmic_trait_contests_v1';
+/// Where the retired space contests' progress is kept.
+const String kContestProgressPrefsKey = CosmicContestProgress.prefsKey;
 
 /// How many of a species must have been bred for its effigy.
 const int kEffigyBredCount = 100;
 
-enum KeepsakeSource { maxim, contest, effigy }
+enum KeepsakeSource { maxim, contest, cup, effigy }
 
 class Keepsake {
   const Keepsake(
@@ -42,6 +47,7 @@ class Keepsake {
     this.trait,
     this.copies = 1,
     this.speciesId,
+    this.cupId,
   });
 
   /// What a piece of it is called in the layout (`ember_torch`), and for an
@@ -65,6 +71,9 @@ class Keepsake {
 
   /// The species, for an effigy.
   final String? speciesId;
+
+  /// The cup's id (a race cup's or a gem cup's), for a cup's.
+  final String? cupId;
 
   bool get isEffigy => source == KeepsakeSource.effigy;
 
@@ -232,30 +241,76 @@ class Keepsake {
     Keepsake(
       'crown_mirror',
       'Crown Mirror',
-      'Every level of the Beauty Contest won.',
+      'Given with the Sapphire Cup, in the Trials.',
       source: KeepsakeSource.contest,
       trait: CosmicContestTrait.beauty,
+      cupId: 'sapphire',
     ),
     Keepsake(
       'victory_arch',
       'Circuit Arch',
-      'Every level of the Speed Contest won.',
+      'Given with the Gold Cup, in the Trials.',
       source: KeepsakeSource.contest,
       trait: CosmicContestTrait.speed,
+      cupId: 'gold',
     ),
     Keepsake(
       'titan_anvil',
       'Titan\'s Anvil',
-      'Every level of the Strength Contest won.',
+      'Given with the Ruby Cup, in the Trials.',
       source: KeepsakeSource.contest,
       trait: CosmicContestTrait.strength,
+      cupId: 'ruby',
     ),
     Keepsake(
       'prism_orrery',
       'Prism Orrery',
-      'Every level of the Intelligence Contest won.',
+      'Given with the Emerald Cup, in the Trials.',
       source: KeepsakeSource.contest,
       trait: CosmicContestTrait.intelligence,
+      cupId: 'emerald',
+    ),
+    Keepsake(
+      'copper_cup',
+      'Copper Cup',
+      'All three races of the Copper Cup won, in the Trials.',
+      source: KeepsakeSource.cup,
+      cupId: 'copper',
+    ),
+    Keepsake(
+      'silver_cup',
+      'Silver Cup',
+      'All three races of the Silver Cup won, in the Trials.',
+      source: KeepsakeSource.cup,
+      cupId: 'silver',
+    ),
+    Keepsake(
+      'gold_cup',
+      'Gold Cup',
+      'All three races of the Gold Cup won, in the Trials.',
+      source: KeepsakeSource.cup,
+      cupId: 'gold',
+    ),
+    Keepsake(
+      'ruby_cup',
+      'Ruby Cup',
+      'All three bouts of the Ruby Cup won, in the Trials.',
+      source: KeepsakeSource.cup,
+      cupId: 'ruby',
+    ),
+    Keepsake(
+      'sapphire_cup',
+      'Sapphire Cup',
+      'All three bouts of the Sapphire Cup won, in the Trials.',
+      source: KeepsakeSource.cup,
+      cupId: 'sapphire',
+    ),
+    Keepsake(
+      'emerald_cup',
+      'Emerald Cup',
+      'All three flights of the Emerald Cup won, in the Trials.',
+      source: KeepsakeSource.cup,
+      cupId: 'emerald',
     ),
   ];
 }
@@ -275,11 +330,13 @@ class KeepsakeLedger {
   Keepsake? byId(String id) => owned.where((k) => k.id == id).firstOrNull;
 
   /// What is owned, from the discovered ids ([starsRaw]), the contest
-  /// progress ([contestsRaw]) and how many of each species have been bred
-  /// ([bred], species id → count; names from [speciesName]).
+  /// progress ([contestsRaw]), the Trials' ([racesRaw]) and how many of
+  /// each species have been bred ([bred], species id → count; names from
+  /// [speciesName]).
   static KeepsakeLedger from({
     required String starsRaw,
     required String contestsRaw,
+    String racesRaw = '',
     required Map<String, int> bred,
     required String Function(String speciesId) speciesName,
   }) {
@@ -287,12 +344,18 @@ class KeepsakeLedger {
     final contests = contestsRaw.isEmpty
         ? CosmicContestProgress.fresh()
         : CosmicContestProgress.deserialise(contestsRaw);
+    final races = RaceProgress.deserialise(racesRaw);
     final owned = <Keepsake>[
       for (final k in Keepsake.all)
         if (switch (k.source) {
           KeepsakeSource.maxim =>
             stars.discoveredCloudsFor(k.element!).contains(k.eggId),
-          KeepsakeSource.contest => contests.isMastered(k.trait!),
+          // A stat's keepsake: its cup won in the Trials, or (from before
+          // the space contests were retired) its contest mastered.
+          KeepsakeSource.contest =>
+            contests.isMastered(k.trait!) ||
+                (k.cupId != null && trialsCupDone(races, k.cupId!)),
+          KeepsakeSource.cup => trialsCupDone(races, k.cupId!),
           KeepsakeSource.effigy => false,
         })
           k,
@@ -309,11 +372,12 @@ class KeepsakeLedger {
     AlchemonsDatabase db,
     String Function(String speciesId) speciesName,
   ) async {
-    var stars = '', contests = '';
+    var stars = '', contests = '', races = '';
     try {
       final prefs = await SharedPreferences.getInstance();
       stars = prefs.getString(kPlanetStarsPrefsKey) ?? '';
       contests = prefs.getString(kContestProgressPrefsKey) ?? '';
+      races = prefs.getString(RaceProgress.prefsKey) ?? '';
     } catch (_) {
       // No preferences to read (a test harness): nothing earned there.
     }
@@ -333,6 +397,7 @@ class KeepsakeLedger {
       return from(
         starsRaw: stars,
         contestsRaw: contests,
+        racesRaw: races,
         bred: {for (final s in stats) s.speciesId: s.totalBred},
         speciesName: speciesName,
       );
@@ -342,6 +407,7 @@ class KeepsakeLedger {
       return from(
         starsRaw: '',
         contestsRaw: '',
+        racesRaw: races,
         bred: {for (final s in stats) s.speciesId: s.totalBred},
         speciesName: speciesName,
       );

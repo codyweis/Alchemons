@@ -8,8 +8,6 @@
 // the judges counted, and what the win paid.
 
 import 'dart:async';
-import 'dart:math';
-import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/stadium/race_bodies.dart';
@@ -17,19 +15,19 @@ import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/audio/ambience_player.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/providers/audio_provider.dart';
-import 'package:alchemons/games/cosmic/obsidian_kit.dart';
 import 'package:alchemons/games/stadium/race_painter.dart';
 import 'package:alchemons/navigation/turning_passage.dart';
 import 'package:alchemons/navigation/world_transition.dart';
+import 'package:alchemons/screens/stadium/stamina_vial.dart';
 import 'package:alchemons/games/stadium/race_rules.dart';
 import 'package:alchemons/games/stadium/race_scenes.dart';
 import 'package:alchemons/games/stadium/race_stage.dart';
+import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/services/game_controller_service.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
-import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -93,9 +91,10 @@ class RaceScreen extends StatefulWidget {
   /// popping the screen; [RaceSeries] runs the next race or leaves.
   final ValueChanged<RaceOutcome>? onDone;
 
-  /// Called once, as the results come up, with the player's place (1–6).
-  /// Pays what the race pays and returns the gold given.
-  final Future<int> Function(int place) onFinished;
+  /// Called once, as the results come up, with the player's place (1–6)
+  /// and time. Pays what the race pays, keeps its record, and says what it
+  /// paid.
+  final Future<TrialsPayout> Function(TrialsFinish finish) onFinished;
 
   @override
   State<RaceScreen> createState() => _RaceScreenState();
@@ -107,7 +106,7 @@ class _RaceScreenState extends State<RaceScreen>
   late final Ticker _ticker;
   Duration _last = Duration.zero;
   bool _reported = false;
-  int? _gold;
+  TrialsPayout? _paid;
 
   RaceCourse get _course => widget.cup.courses[widget.race];
 
@@ -199,9 +198,10 @@ class _RaceScreenState extends State<RaceScreen>
     if (_stage.phase.index >= RaceStagePhase.podium.index && !_reported) {
       _reported = true;
       final place = _stage.standings.indexOf(_stage.player) + 1;
+      final time = _stage.sim.states[_stage.player].finishTime;
       unawaited(
-        widget.onFinished(place).then((gold) {
-          if (mounted) setState(() => _gold = gold);
+        widget.onFinished(TrialsFinish(place, time)).then((paid) {
+          if (mounted) setState(() => _paid = paid);
         }),
       );
     }
@@ -439,12 +439,21 @@ class _RaceScreenState extends State<RaceScreen>
                 _speedToggle(context),
                 const SizedBox(width: 12),
               ],
-              _BoostVial(
-                stage: s,
-                total: widget.racers[s.player].boosts,
-                color: elementColor(widget.racers[s.player].entrant.element),
-                onTap: _boost,
-              ),
+              () {
+                final me = s.sim.states[s.player];
+                return StaminaVial(
+                  total: widget.racers[s.player].boosts,
+                  left: me.boostsLeft,
+                  pour: me.phase == RacerPhase.windup
+                      ? (s.sim.tick - me.phaseFrom) / kRaceBoostWindupTicks
+                      : null,
+                  clock: s.clock,
+                  lit: s.canBoost ? 1.0 : (me.busy ? 0.75 : 0.35),
+                  color: elementColor(widget.racers[s.player].entrant.element),
+                  label: 'BOOST',
+                  onTap: _boost,
+                );
+              }(),
             ],
           ),
         ),
@@ -610,12 +619,29 @@ class _RaceScreenState extends State<RaceScreen>
                                 ),
                               ),
                             ),
-                            if ((_gold ?? 0) > 0)
+                            if (_paid?.record ?? false)
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  bottom: 7,
+                                  right: 10,
+                                ),
+                                child: Text(
+                                  'NEW RECORD',
+                                  style: bracketText(
+                                    context,
+                                    10.5,
+                                    _brassHot,
+                                    weight: FontWeight.w800,
+                                    letterSpacing: 1.8,
+                                  ),
+                                ),
+                              ),
+                            if ((_paid?.gold ?? 0) > 0)
                               Padding(
                                 padding: const EdgeInsets.only(bottom: 6),
                                 child: CoinAmount(
                                   kind: CoinKind.gold,
-                                  amount: _gold!,
+                                  amount: _paid!.gold,
                                   size: 16,
                                 ),
                               ),
@@ -832,153 +858,6 @@ class _RaceScreenState extends State<RaceScreen>
   String _time(double s) => '${s.toStringAsFixed(2)}s';
 }
 
-/// The boost: a glass vial of the racer's stamina, one chamber of its
-/// colour's grains for each bar. A tap pours the top chamber out as the
-/// racer gathers itself; spent chambers stand empty.
-class _BoostVial extends StatelessWidget {
-  const _BoostVial({
-    required this.stage,
-    required this.total,
-    required this.color,
-    required this.onTap,
-  });
-
-  final RaceStage stage;
-  final int total;
-  final Color color;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final me = stage.sim.states[stage.player];
-    final lit = stage.canBoost ? 1.0 : (me.busy ? 0.75 : 0.35);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTapDown: (_) => onTap(),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 4, 6, 0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            CustomPaint(
-              size: Size(40, 25.0 * total + 10),
-              painter: _VialPainter(stage, total, color),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'BOOST',
-              style: bracketText(
-                context,
-                10,
-                _ink.withValues(alpha: lit),
-                weight: FontWeight.w800,
-                letterSpacing: 1.6,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _VialPainter extends CustomPainter {
-  _VialPainter(this.stage, this.total, this.color);
-
-  final RaceStage stage;
-  final int total;
-  final Color color;
-
-  static final GrainBatch _batch = GrainBatch(4);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final me = stage.sim.states[stage.player];
-    final t = stage.clock;
-    final w = size.width, h = size.height;
-    final body = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, w, h),
-      Radius.circular(w / 2),
-    );
-    // Dark glass, lit down its left side.
-    canvas.drawRRect(
-      body,
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset.zero,
-          Offset(w, 0),
-          [
-            const Color(0xFF2A2A30),
-            const Color(0xFF111114),
-            const Color(0xFF17171B),
-          ],
-          const [0, 0.55, 1],
-        ),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(w * 0.16, h * 0.1, w * 0.09, h * 0.8),
-        Radius.circular(w * 0.05),
-      ),
-      Paint()..color = Colors.white.withValues(alpha: 0.08),
-    );
-    // Chambers, bottom up; the top full one pours while a boost winds up.
-    final chamber = (h - 10) / total;
-    final windup = me.phase == RacerPhase.windup
-        ? ((stage.sim.tick - me.phaseFrom) / kRaceBoostWindupTicks).clamp(
-            0.0,
-            1.0,
-          )
-        : 0.0;
-    final b = _batch..clear();
-    for (var c = 0; c < total; c++) {
-      final full = c < me.boostsLeft;
-      final pouring = me.phase == RacerPhase.windup && c == me.boostsLeft;
-      final top = h - 5 - (c + 1) * chamber;
-      final centre = Offset(w / 2, top + chamber / 2);
-      if (full || pouring) {
-        final glow = pouring ? 1 - windup : 1.0;
-        canvas.drawCircle(
-          centre,
-          chamber * 0.55,
-          Paint()
-            ..shader = ui.Gradient.radial(centre, chamber * 0.55, [
-              color.withValues(alpha: 0.35 * glow),
-              color.withValues(alpha: 0),
-            ]),
-        );
-        for (var i = 0; i < 26; i++) {
-          final h1 = hash01(i, 40 + c), h2 = hash01(i, 41 + c);
-          final a = h1 * pi * 2 + t * (0.8 + h2) * (i.isEven ? 1 : -1);
-          final r = (2 + h2 * (w * 0.3));
-          var x = centre.dx + cos(a) * r;
-          var y = centre.dy + sin(a) * r * (chamber / w) * 0.7;
-          if (pouring) {
-            // Up and out of the neck.
-            final q = (windup * 1.4 - h2 * 0.4).clamp(0.0, 1.0);
-            x += (w / 2 - x) * q;
-            y += (-8 - y) * q * q;
-          }
-          b.add(h2 < 0.3 ? 1 : 0, x, y);
-        }
-      }
-    }
-    b.draw(canvas, 0, 2.1, color.withValues(alpha: 0.9));
-    b.draw(canvas, 1, 2.6, Color.lerp(color, Colors.white, 0.45)!);
-    // The bands between chambers.
-    for (var c = 1; c < total; c++) {
-      final y = h - 5 - c * chamber;
-      canvas.drawRect(
-        Rect.fromLTWH(w * 0.12, y - 0.8, w * 0.76, 1.6),
-        Paint()..color = Colors.black.withValues(alpha: 0.6),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_VialPainter old) => true;
-}
-
 /// The course as a strip: each leg its own shade, the six as grains on it,
 /// the player's lit.
 class _StripPainter extends CustomPainter {
@@ -1047,7 +926,7 @@ class RaceSeries extends StatefulWidget {
   final List<Racer> racers;
   final List<RaceBody> bodies;
   final List<Map<String, RaceBody>>? forms;
-  final Future<int> Function(int place) onFinished;
+  final Future<TrialsPayout> Function(TrialsFinish finish) onFinished;
 
   /// A race with friends: run once, and back to the lobby after.
   final RaceLink? live;

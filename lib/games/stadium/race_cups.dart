@@ -438,29 +438,38 @@ List<Racer> raceField(RaceCup cup, int race, Racer player, {int lane = 2}) {
 
 /// Races won per cup, kept in prefs as JSON.
 class RaceProgress {
-  const RaceProgress([this.won = const {}]);
+  const RaceProgress([this.won = const {}, this.allOpen = false]);
 
   static const prefsKey = 'stadium_race_progress_v1';
 
   /// Cup id → how many of its races have been won, in order.
   final Map<String, int> won;
 
+  /// Every cup, race and bout open whatever has been won (the developer
+  /// tools; the author, 2026-10-12). Never saved; nothing counts as won by
+  /// it, so titles, keepsakes and rewards still take the wins.
+  final bool allOpen;
+
+  /// The same wins, with everything open.
+  RaceProgress opened() => RaceProgress(won, true);
+
   int wonIn(RaceCup cup) => (won[cup.id] ?? 0).clamp(0, cup.courses.length);
 
   bool cupDone(RaceCup cup) => wonIn(cup) >= cup.courses.length;
 
   /// A cup is open once the one before it is done.
-  bool cupOpen(int index) => index == 0 || cupDone(kRaceCups[index - 1]);
+  bool cupOpen(int index) =>
+      allOpen || index == 0 || cupDone(kRaceCups[index - 1]);
 
   /// A race is open once the one before it in its cup is won.
-  bool raceOpen(RaceCup cup, int race) => race <= wonIn(cup);
+  bool raceOpen(RaceCup cup, int race) => allOpen || race <= wonIn(cup);
 
   /// After winning [cup]'s [race]: the progress, and whether it was the
   /// first win of that race (the one that pays gold).
   (RaceProgress, bool) afterWin(RaceCup cup, int race) {
     final first = race == wonIn(cup);
     if (!first) return (this, false);
-    return (RaceProgress({...won, cup.id: race + 1}), true);
+    return (RaceProgress({...won, cup.id: race + 1}, allOpen), true);
   }
 
   String serialise() => jsonEncode(won);

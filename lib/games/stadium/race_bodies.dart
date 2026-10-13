@@ -175,6 +175,9 @@ class RaceBody {
   /// Its grains, read facing right at world size, centred on the sprite.
   SpecimenGrains? grains;
 
+  /// The frame [grains] was read from, for a finer read later.
+  Sprite? _first;
+
   SpriteVisuals? get looks => member.spriteVisuals;
 
   /// Loads its sheet and reads its grains. Leaves [ticker] null when it has
@@ -201,20 +204,37 @@ class RaceBody {
     final frame = max(sheet.frameSize.x, sheet.frameSize.y);
     spriteScale = box / frame * (looks?.scale ?? 1.0);
     height = sheet.frameSize.y * spriteScale;
-    grains = await _readGrains(anim.frames.first.sprite);
+    _first = anim.frames.first.sprite;
+    grains = await _readGrains(_first!);
   }
 
-  /// The first frame drawn as it runs (facing right, in its colours) and
-  /// read into grains.
-  Future<SpecimenGrains?> _readGrains(Sprite sprite) async {
-    const ratio = 3.0;
-    final w = (sprite.srcSize.x * spriteScale * ratio).ceil();
-    final h = (sprite.srcSize.y * spriteScale * ratio).ceil();
+  /// Its first frame read again, [zoom] times its world size (the night
+  /// sky hangs it large), into at most [maxGrains]. Null before [load], or
+  /// with no sheet.
+  Future<SpecimenGrains?> readFiner({
+    double zoom = 4,
+    int maxGrains = 2200,
+  }) async {
+    final sprite = _first;
+    if (sprite == null) return null;
+    return _readGrains(sprite, zoom: zoom, ratio: 2, maxGrains: maxGrains);
+  }
+
+  /// The first frame drawn as it runs (facing right, in its colours, [zoom]
+  /// times its world size) and read into grains.
+  Future<SpecimenGrains?> _readGrains(
+    Sprite sprite, {
+    double zoom = 1,
+    double ratio = 3.0,
+    int maxGrains = 900,
+  }) async {
+    final w = (sprite.srcSize.x * spriteScale * zoom * ratio).ceil();
+    final h = (sprite.srcSize.y * spriteScale * zoom * ratio).ceil();
     if (w <= 0 || h <= 0) return null;
     final rec = ui.PictureRecorder();
     final c = ui.Canvas(rec);
     c.translate(w / 2, h / 2);
-    c.scale(-spriteScale * ratio, spriteScale * ratio);
+    c.scale(-spriteScale * zoom * ratio, spriteScale * zoom * ratio);
     final paint = ui.Paint()..filterQuality = ui.FilterQuality.medium;
     final v = looks;
     if (v != null) paint.colorFilter = creatureGeneticsFilter(v, 0);
@@ -230,7 +250,7 @@ class RaceBody {
         w,
         h,
         pixelRatio: ratio,
-        maxGrains: 900,
+        maxGrains: maxGrains,
         tones: 16,
       );
     } finally {

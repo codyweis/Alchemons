@@ -2127,8 +2127,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     if (owned.isEmpty) {
       return _note(
         context,
-        'No keepsakes yet. Lost maxims, mastered contests and a hundred of a '
-        'species bred each earn one.',
+        'No keepsakes yet. Lost maxims, cups won in the Trials and a hundred '
+        'of a species bred each earn one.',
       );
     }
     return Column(

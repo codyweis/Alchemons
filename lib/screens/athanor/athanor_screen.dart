@@ -179,7 +179,7 @@ class _AthanorScreenState extends State<AthanorScreen>
         title: 'SPARKS',
         message:
             'Earn sparks from survival runs, raids, dungeon stars, '
-            'achievements, the Pureblood Rite and Space contests. A pour '
+            'achievements, the Pureblood Rite and the Trials. A pour '
             'costs $kAthanorTincturePerPour sparks or $kAthanorGoldPerPour '
             'gold. Press and hold POUR to pour.',
       ),

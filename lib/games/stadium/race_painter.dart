@@ -38,6 +38,8 @@ import 'package:alchemons/games/stadium/race_rules.dart';
 import 'package:alchemons/games/stadium/race_scenes.dart';
 import 'package:alchemons/games/stadium/race_stage.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
+import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart'
+    show trialsBeamImage;
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
@@ -95,9 +97,11 @@ Future<Map<int, SpecimenGrains>> loadRaceNumerals({
 /// The count's numerals as grains, filled by [loadRaceNumerals].
 final Map<int, SpecimenGrains> raceNumeralGrains = {};
 
-/// The stands: rows of grains that thin and shrink toward the back, broken
-/// into clusters so they read as people, not as a ruled line. They brighten
-/// round each x in [leaders], everywhere by [cheer], and bob when [lively];
+/// The stands: terraces of people, each a head over a dimmer body, in rows
+/// that shrink toward the back, with walkways between the terraces and
+/// stairs cut down through them; lit in pools under the three lamps and
+/// dim between. They brighten round each x in [leaders], everywhere by
+/// [cheer], and bob when [lively] (a flash or two goes off when they roar);
 /// [hush] dims them for a photo finish. [camX] scrolls them (slower than
 /// the track: they are further away). Shared by the race and the stadium's
 /// own screen.
@@ -128,56 +132,167 @@ void paintStadiumStands(
         ],
       ),
   );
+  // Light on the stands under the lamps.
+  for (var j = -1; j <= 1; j++) {
+    final at = Offset(w * (0.5 + j * 0.34), (standTop + standBottom) / 2);
+    c.save();
+    c.translate(at.dx, at.dy);
+    c.scale(1, 0.45);
+    final r = w * 0.2;
+    c.drawCircle(
+      Offset.zero,
+      r,
+      Paint()
+        ..shader = ui.Gradient.radial(Offset.zero, r, [
+          const Color(0xFFCDB07A).withValues(alpha: 0.05 * opacity),
+          const Color(0x00CDB07A),
+        ]),
+    );
+    c.restore();
+  }
   final b = _standsBatch..clear();
-  const rows = 13;
-  for (var row = 0; row < rows; row++) {
-    final back = 1 - row / (rows - 1);
-    final step = (4.0 + 1.6 * (1 - back)) * k0;
-    final par = 0.42 + 0.18 * (1 - back);
-    final base = camX * k0 * par;
-    final y0 =
-        standTop +
-        (standBottom - standTop) * (0.12 + 0.82 * (row / (rows - 1)));
-    final from = (base / step).floor() - 2;
-    final to = ((base + w) / step).ceil() + 2;
-    for (var xi = from; xi <= to; xi++) {
-      final hx = hash01(xi, row * 5 + 1), hy = hash01(xi, row * 5 + 2);
-      final seats =
-          0.5 + 0.5 * sin(xi * 0.21 + row * 1.7) * cos(xi * 0.053 + row);
-      if (hash01(xi, row * 5 + 3) > 0.35 + seats * 0.6) continue;
-      final x = xi * step - base + (hx - 0.5) * step * 0.8;
-      var lit = cheer;
-      for (final lx in leaders) {
-        final d = (x - lx) / (260 * k0);
-        lit += exp(-d * d) * 0.3;
+  const tiers = 4, perTier = 3;
+  for (var tier = 0; tier < tiers; tier++) {
+    for (var r = 0; r < perTier; r++) {
+      final row = tier * perTier + r;
+      const rows = tiers * perTier;
+      final back = 1 - row / (rows - 1);
+      final step = (4.2 + 2.0 * (1 - back)) * k0;
+      final par = 0.42 + 0.18 * (1 - back);
+      final base = camX * k0 * par;
+      // Rows sit in their terrace; a walkway between terraces.
+      final v = (tier + r / perTier * 0.78) / tiers;
+      final y0 = standTop + (standBottom - standTop) * (0.1 + 0.86 * v);
+      final from = (base / step).floor() - 2;
+      final to = ((base + w) / step).ceil() + 2;
+      for (var xi = from; xi <= to; xi++) {
+        // Stairs down through every terrace at the same places.
+        final seat = ((xi * step) / k0 / par) % 150;
+        if (seat < 9) continue;
+        final hx = hash01(xi, row * 5 + 1), hy = hash01(xi, row * 5 + 2);
+        final seats =
+            0.5 + 0.5 * sin(xi * 0.21 + row * 1.7) * cos(xi * 0.053 + row);
+        if (hash01(xi, row * 5 + 3) > 0.45 + seats * 0.5) continue;
+        final x = xi * step - base + (hx - 0.5) * step * 0.6;
+        var lit = 0.0;
+        for (var j = -1; j <= 1; j++) {
+          final d = (x - w * (0.5 + j * 0.34)) / (w * 0.14);
+          lit += exp(-d * d) * 0.55;
+        }
+        lit += cheer;
+        for (final lx in leaders) {
+          final d = (x - lx) / (260 * k0);
+          lit += exp(-d * d) * 0.3;
+        }
+        lit = min(1.0, lit) * hush;
+        final bob = lively
+            ? sin(t * (5 + hx * 4) + hy * 6).abs() * 2.4 * k0 * lit
+            : sin(t * 0.8 + hx * 9) * 0.5 * k0;
+        final y = y0 + (hy - 0.5) * 2 * k0 - bob;
+        final level = (lit * 2.2 + hx * 0.8 + (1 - back) * 0.4).floor().clamp(
+          0,
+          2,
+        );
+        final tone = (hy * 6).floor().clamp(0, 5);
+        b.add(tone * 3 + level, x, y);
+        // The body under the head, dimmer.
+        b.add(
+          18 + level,
+          x + (hx - 0.5) * 0.6 * k0,
+          y + 2.2 * k0 * (0.7 + 0.5 * (1 - back)),
+        );
+        // A flash or two as they roar.
+        if (lively && cheer > 0.4 && hash01(xi, row * 5 + 4) < 0.03) {
+          final f = sin(t * (3 + hx * 4) + xi * 3.1 + row * 1.3);
+          if (f > 0.985) b.add(21, x, y);
+        }
       }
-      lit = min(1.0, lit) * hush;
-      final bob = lively
-          ? sin(t * (5 + hx * 4) + hy * 6).abs() * 2.4 * k0 * lit
-          : sin(t * 0.8 + hx * 9) * 0.5 * k0;
-      final y = y0 + (hy - 0.5) * 3 * k0 - bob;
-      final tone = (hy * 3).floor();
-      final level = (lit * 2.6 + hx * 1.1 + (1 - back) * 0.6).floor().clamp(
-        0,
-        3,
-      );
-      b.add(tone * 4 + level, x, y);
     }
   }
-  const tones = [Color(0xFFB8A27A), Color(0xFF9FA6B2), Color(0xFF9C8FB0)];
-  for (var tone = 0; tone < 3; tone++) {
-    for (var level = 0; level < 4; level++) {
+  const tones = [
+    Color(0xFFB8A27A),
+    Color(0xFF9FA6B2),
+    Color(0xFF9C8FB0),
+    Color(0xFFA88A78),
+    Color(0xFF8FA898),
+    Color(0xFFC4B8A0),
+  ];
+  for (var tone = 0; tone < tones.length; tone++) {
+    for (var level = 0; level < 3; level++) {
       b.draw(
         c,
-        tone * 4 + level,
-        (1.3 + level * 0.35) * k0,
-        tones[tone].withValues(alpha: (0.12 + level * 0.18) * opacity),
+        tone * 3 + level,
+        (1.3 + level * 0.3) * k0,
+        tones[tone].withValues(alpha: (0.16 + level * 0.26) * opacity),
       );
     }
   }
+  for (var level = 0; level < 3; level++) {
+    b.draw(
+      c,
+      18 + level,
+      (1.9 + level * 0.3) * k0,
+      const Color(
+        0xFF5A5450,
+      ).withValues(alpha: (0.12 + level * 0.14) * opacity),
+    );
+  }
+  b.draw(c, 21, 2.6 * k0, Colors.white.withValues(alpha: 0.9 * opacity));
 }
 
-final GrainBatch _standsBatch = GrainBatch(12);
+final GrainBatch _standsBatch = GrainBatch(22);
+
+/// A streak of light from [head] back to [tail]: soft-edged (three layers,
+/// each narrower and brighter), widest at its head, gone at its tail. What
+/// a surge leaves behind in the Trials, whatever the event.
+void paintLightStreak(
+  Canvas c,
+  Offset head,
+  Offset tail,
+  double width,
+  Color col,
+  double alpha,
+) {
+  final d = head - tail;
+  final len = d.distance;
+  if (len < 4 || alpha <= 0.01) return;
+  final n = Offset(-d.dy / len, d.dx / len);
+  final hot = Color.lerp(col, Colors.white, 0.5)!;
+  for (final (f, a, light) in [
+    (1.0, 0.1, col),
+    (0.6, 0.16, col),
+    (0.3, 0.32, hot),
+  ]) {
+    final w0 = width * f, w1 = width * f * 0.15;
+    // The head rounded: a short cap ahead of it.
+    final cap = head + Offset(d.dx / len, d.dy / len) * w0 * 0.6;
+    final path = Path()
+      ..moveTo(head.dx + n.dx * w0, head.dy + n.dy * w0)
+      ..quadraticBezierTo(
+        cap.dx,
+        cap.dy,
+        head.dx - n.dx * w0,
+        head.dy - n.dy * w0,
+      )
+      ..lineTo(tail.dx - n.dx * w1, tail.dy - n.dy * w1)
+      ..lineTo(tail.dx + n.dx * w1, tail.dy + n.dy * w1)
+      ..close();
+    c.drawPath(
+      path,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          head,
+          tail,
+          [
+            light.withValues(alpha: (a * alpha).clamp(0.0, 1.0)),
+            light.withValues(alpha: (a * alpha * 0.4).clamp(0.0, 1.0)),
+            light.withValues(alpha: 0),
+          ],
+          const [0.0, 0.5, 1.0],
+        ),
+    );
+  }
+}
 
 /// The view: where the track sits on screen and how big a world pixel is.
 class _Geo {
@@ -411,11 +526,9 @@ class RacePainter extends CustomPainter {
     // Water, ice and mud come on over the first and last stretch of their
     // leg, not as a box.
     final edge = _smooth(min(f, 1 - f) / 0.12);
-    // Only water takes a colour of its own, faintly; ice and mud are told
-    // by what lies on them.
+    // Water is drawn as its own pool over this (see [_pond]); only the
+    // earth's face under it takes its colour, faintly.
     if (kind == RaceLegKind.pond) {
-      top = Color.lerp(top, const Color(0xFF0A1820), edge * 0.7)!;
-      low = Color.lerp(low, const Color(0xFF0E2029), edge * 0.7)!;
       faceTop = Color.lerp(faceTop, const Color(0xFF0B1A22), edge * 0.7)!;
     }
     return ((top, low), (faceTop, Colors.black));
@@ -432,8 +545,20 @@ class RacePainter extends CustomPainter {
     final floats = look?.floats ?? false;
     final band = <double>[], bandC = <int>[];
     final face = <double>[], faceC = <int>[];
+    final fringe = <double>[], fringeC = <int>[];
     final paint = Paint();
     void flush() {
+      if (fringe.length >= 8) {
+        c.drawVertices(
+          ui.Vertices.raw(
+            ui.VertexMode.triangleStrip,
+            Float32List.fromList(fringe),
+            colors: Int32List.fromList(fringeC),
+          ),
+          BlendMode.dst,
+          paint,
+        );
+      }
       if (band.length >= 8) {
         c.drawVertices(
           ui.Vertices.raw(
@@ -460,6 +585,8 @@ class RacePainter extends CustomPainter {
       bandC.clear();
       face.clear();
       faceC.clear();
+      fringe.clear();
+      fringeC.clear();
     }
 
     for (var sx = -step; sx <= g.w + step; sx += step) {
@@ -474,14 +601,49 @@ class RacePainter extends CustomPainter {
       final st = look == null ? 1.0 : layout.stadiumAt(x);
       final ((top, low), (fTop, fLow)) = _material(kind, at?.$2 ?? 0, st, look);
       final yTop = g.top - pad + dy, yBot = g.bottom + pad + dy;
-      band.addAll([sx, yTop, sx, yBot]);
+      // The far edge isn't a ruled line: the floor comes up out of the
+      // dark over a few pixels.
+      final feather = 7 * g.k;
+      fringe.addAll([sx, yTop - feather, sx, yTop + feather]);
+      fringeC.addAll([top.withValues(alpha: 0).toARGB32(), top.toARGB32()]);
+      band.addAll([sx, yTop + feather, sx, yBot]);
       bandC.addAll([top.toARGB32(), low.toARGB32()]);
       if (!floats || st > 0.5) {
         face.addAll([sx, yBot, sx, max(yBot, g.h + 2)]);
         faceC.addAll([fTop.toARGB32(), fLow.toARGB32()]);
+      } else {
+        // Floating: a slab with an underside that thins into the dark.
+        face.addAll([sx, yBot, sx, yBot + 26 * g.k]);
+        faceC.addAll([fTop.toARGB32(), fTop.withValues(alpha: 0).toARGB32()]);
       }
     }
     flush();
+
+    // The stadium's three lamps light the floor in pools.
+    final stadiumHere = look == null ? 1.0 : layout.stadiumAt(g.camX);
+    if (stadiumHere > 0.02) {
+      for (var j = -1; j <= 1; j++) {
+        final at = Offset(g.w * (0.5 + j * 0.34), (g.top + g.bottom) / 2);
+        c.save();
+        c.translate(at.dx, at.dy + g.dy(g.camX));
+        c.scale(1, 0.42);
+        final r = g.w * 0.22;
+        c.drawCircle(
+          Offset.zero,
+          r,
+          Paint()
+            ..shader = ui.Gradient.radial(Offset.zero, r, [
+              _brass.withValues(alpha: 0.07 * stadiumHere),
+              _brass.withValues(alpha: 0),
+            ]),
+        );
+        c.restore();
+      }
+    }
+
+    for (var j = 0; j < stage.course.legs.length; j++) {
+      if (stage.course.legs[j].kind == RaceLegKind.pond) _pond(c, g, j, t);
+    }
 
     // Down into a gap: the dark, a little mist, and its walls, at the lips'
     // own places.
@@ -494,10 +656,21 @@ class RacePainter extends CustomPainter {
       final yTop = g.top - pad + g.dy(lipA);
       final yFront = g.bottom + pad + g.dy(lipA);
       // The far wall going down from the track's far edge, lit at its top
-      // and falling away into the dark; under the near edge, nothing.
+      // and falling away into the dark; under the near edge, nothing. Its
+      // top is broken, not ruled.
       final wall = Rect.fromLTRB(a, yTop, z, g.h);
-      c.drawRect(
-        wall,
+      final wallPath = Path()..moveTo(a, g.h);
+      for (var x = a; x <= z; x += 5) {
+        final bite =
+            (sin(x * 0.09 + j) * 0.5 + 0.5) * 4 * g.k +
+            hash01((x / 5).round(), 526 + j) * 3 * g.k;
+        wallPath.lineTo(x, yTop + bite);
+      }
+      wallPath
+        ..lineTo(z, g.h)
+        ..close();
+      c.drawPath(
+        wallPath,
         Paint()
           ..shader = ui.Gradient.linear(
             wall.topCenter,
@@ -511,15 +684,22 @@ class RacePainter extends CustomPainter {
           ),
       );
       final b = _batch..clear();
-      // Strata on the far wall.
-      for (var row = 0; row < 18; row++) {
-        final y = yTop + row * 4.2 * g.k;
-        if (y > yFront + 30 * g.k) break;
-        final fade = 1 - (y - yTop) / (yFront + 30 * g.k - yTop);
-        for (var i = 0; i < 26; i++) {
+      // Strata on the far wall: uneven bands, broken, dimming as they go
+      // down.
+      for (var row = 0; row < 16; row++) {
+        final y0 = yTop + (row + hash01(row, 525 + j) * 0.6) * 5 * g.k;
+        if (y0 > yFront + 30 * g.k) break;
+        final fade = 1 - (y0 - yTop) / (yFront + 30 * g.k - yTop);
+        final n = ((z - a) / (3.2 * g.k)).round();
+        for (var i = 0; i < n; i++) {
           final h1 = hash01(j * 1000 + row * 41 + i, 523);
-          if (h1 > fade * 0.55) continue;
-          b.add(row < 2 ? 2 : 1, a + (i + h1) / 26 * (z - a), y + h1 * 2 * g.k);
+          final broken = sin(i * 0.31 + row * 1.7 + j) * 0.5 + 0.5;
+          if (h1 > fade * 0.6 * broken) continue;
+          b.add(
+            row < 2 ? 2 : 1,
+            a + (i + h1) / n * (z - a),
+            y0 + sin(i * 0.4 + row) * 1.5 * g.k + h1 * 2 * g.k,
+          );
         }
       }
       // Mist rising out of it.
@@ -531,17 +711,50 @@ class RacePainter extends CustomPainter {
           wall.bottom - life * (wall.bottom - yFront) * 0.9,
         );
       }
-      // The lips: ragged rock, down both sides.
+      // The lips: ragged rock going down either side, a dark mass with the
+      // light catching its broken edge.
+      final rock = Color.lerp(
+        look?.face ?? _faceStadium,
+        look?.rim ?? _dust,
+        0.1,
+      )!;
       for (final (edge, side) in [(a, 1.0), (z, -1.0)]) {
-        var row = 0;
-        for (var y = yTop; y < g.h; y += 3.2 * g.k) {
+        final path = Path()..moveTo(edge - side * 2, yTop - 2);
+        final rows = ((g.h - yTop) / (5 * g.k)).ceil() + 1;
+        final xs = <double>[];
+        for (var row = 0; row <= rows; row++) {
+          final y = yTop + row * 5 * g.k;
           final h1 = hash01(j * 977 + (side > 0 ? 0 : 131) + row, 522);
-          final h2 = hash01(j * 977 + (side > 0 ? 0 : 131) + row, 524);
-          final out = (sin(row * 0.7 + j) * 0.5 + 0.5) * 6 * g.k;
-          final x = edge + side * (out + h1 * 3 * g.k);
-          b.add(h1 < 0.3 ? 2 : 1, x, y);
-          if (h2 < 0.4) b.add(1, x - side * 3 * g.k, y + 1.5 * g.k);
-          row++;
+          // Ledges jutting out and falling back, more near the top.
+          final out =
+              ((sin(row * 0.33 + j * 1.7) * 0.5 + 0.5) * 12 +
+                  (sin(row * 1.1 + j) * 0.5 + 0.5) * 5 +
+                  h1 * 4) *
+              g.k *
+              (1 - 0.55 * (row / rows));
+          final x = edge + side * out;
+          xs.add(x);
+          path.lineTo(x, y);
+        }
+        path
+          ..lineTo(edge - side * 2, g.h + 4)
+          ..close();
+        c.drawPath(path, Paint()..color = rock);
+        for (var row = 0; row < xs.length; row++) {
+          final y = yTop + row * 5 * g.k;
+          final light = pow(1 - row / xs.length, 3).toDouble();
+          for (var k2 = 0; k2 < 3; k2++) {
+            final h2 = hash01(
+              j * 977 + row * 3 + k2 + (side > 0 ? 0 : 57),
+              524,
+            );
+            if (h2 > light * 0.9) continue;
+            b.add(
+              h2 < 0.25 ? 2 : 1,
+              xs[row] - side * h2 * 7 * g.k,
+              y + (k2 - 1) * 2.2 * g.k,
+            );
+          }
         }
       }
       b.draw(c, 0, 1.2 * g.k, (look?.airTone ?? _dust).withValues(alpha: 0.12));
@@ -627,8 +840,15 @@ class RacePainter extends CustomPainter {
         continue;
       }
       final y = g.bottom + pad + g.dy(x);
-      final h1 = hash01(xi, 510);
-      b.add(h1 < 0.25 ? 12 : 11, g.sx(x), y + (h1 - 0.5) * 1.5);
+      final h1 = hash01(xi, 510), h2 = hash01(xi, 511);
+      // Caught here and there, not all along: a worn edge, not a rule.
+      final worn = 0.5 + 0.5 * sin(x * 0.021) * sin(x * 0.0071 + 1.3);
+      if (h2 > 0.3 + 0.6 * worn) continue;
+      b.add(
+        h1 < 0.25 ? 12 : 11,
+        g.sx(x) + (h2 - 0.5) * 2 * g.k,
+        y + (h1 - 0.3) * 3 * g.k,
+      );
     }
     if (!floats) {
       const fc = 26.0;
@@ -669,179 +889,353 @@ class RacePainter extends CustomPainter {
     );
   }
 
-  /// Lane dots, the start, the finish, and each leg's markers.
-  void _lines(Canvas c, _Geo g, double t) {
+  /// A pond: dark water lying in the floor with a shore that wanders —
+  /// pinched in at either end, never a box — and wet grains along it.
+  void _pond(Canvas c, _Geo g, int j, double t) {
+    final x0 = stage.layout.starts[j], w = stage.layout.widths[j];
+    final xa = x0 + w * kRacePondBank * 0.55,
+        xb = x0 + w * (1 - kRacePondBank * 0.55);
+    if (xb < g.viewL || xa > g.viewR) return;
+    final pad = 8 * g.k;
+    final half = (g.bottom - g.top) / 2 + pad;
+    double shore(double x, int side) {
+      // Rounded at either end, like a pond, not pinched to a point.
+      final u = (min(x - xa, xb - x) / 120).clamp(0.0, 1.0);
+      final e = sqrt(u * (2 - u));
+      final wobble =
+          (sin(x * 0.045 + side * 2.1 + j) * 3 +
+              sin(x * 0.11 + side) * 1.5 +
+              5) *
+          g.k;
+      return side < 0
+          ? g.top - pad + wobble + (1 - e) * half * 0.92
+          : g.bottom + pad - wobble * 0.6 - (1 - e) * half * 0.92;
+    }
+
+    final path = Path();
+    final from = max(xa, g.viewL - 20), to = min(xb, g.viewR + 20);
+    final pts = <Offset>[];
+    for (var x = from; x <= to; x += 6) {
+      pts.add(Offset(g.sx(x), shore(x, -1) + g.dy(x)));
+    }
+    final back = <Offset>[];
+    for (var x = to; x >= from; x -= 6) {
+      back.add(Offset(g.sx(x), shore(x, 1) + g.dy(x)));
+    }
+    if (pts.length < 2) return;
+    path.moveTo(pts.first.dx, pts.first.dy);
+    for (final p in pts.skip(1)) {
+      path.lineTo(p.dx, p.dy);
+    }
+    for (final p in back) {
+      path.lineTo(p.dx, p.dy);
+    }
+    path.close();
+    final mid = (g.top + g.bottom) / 2 + g.dy((from + to) / 2);
+    c.drawPath(
+      path,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(0, mid - half),
+          Offset(0, mid + half),
+          const [Color(0xFF08141B), Color(0xFF0C1E28), Color(0xFF0A1820)],
+          const [0.0, 0.6, 1.0],
+        ),
+    );
+    // Wet grains along the shore, thicker in places.
     final b = _batch..clear();
-    final layout = stage.layout;
-    const dot = 16.0;
-    final from = (g.viewL / dot).floor(), to = (g.viewR / dot).ceil();
-    for (var xi = from; xi <= to; xi++) {
-      final x = xi * dot;
-      if (!layout.solidAt(x)) continue;
-      final at = layout.legAtX(x);
-      final kind = at == null ? null : stage.course.legs[at.$1].kind;
-      // No lane lines on water or mud, faint on ice.
-      if (kind == RaceLegKind.pond || kind == RaceLegKind.mud) continue;
-      final dy = g.dy(x);
-      for (var l = 0; l <= 6; l++) {
-        final y = g.top + (l + 0.1) * g.gap + dy;
-        b.add(l == 0 || l == 6 ? 1 : 0, g.sx(x), y);
+    for (final edge in [pts, back]) {
+      for (var i = 0; i < edge.length; i++) {
+        final h1 = hash01(i * 3 + (identical(edge, pts) ? 0 : 1), 540 + j);
+        final thick = sin(i * 0.23 + j) * 0.5 + 0.5;
+        if (h1 > 0.35 + 0.5 * thick) continue;
+        final p = edge[i];
+        b.add(
+          h1 < 0.15 ? 1 : 0,
+          p.dx + (h1 - 0.5) * 4 * g.k,
+          p.dy + (h1 - 0.5) * 3 * g.k,
+        );
       }
     }
-    b.draw(c, 0, 1.1 * g.k, _ink.withValues(alpha: 0.1));
-    b.draw(c, 1, 1.5 * g.k, _brass.withValues(alpha: 0.26));
-    b.clear();
+    b.draw(c, 0, 1.4 * g.k, const Color(0xFF5A7A86).withValues(alpha: 0.45));
+    b.draw(c, 1, 1.7 * g.k, const Color(0xFFBFE6F2).withValues(alpha: 0.55));
+  }
 
-    // The start and the finish: columns of grains across the lanes. The
-    // start's rises as a curtain at the gun; the finish's always does.
+  /// The start and the finish, and each leg's markers. No lane lines: the
+  /// six keep their lanes by themselves.
+  void _lines(Canvas c, _Geo g, double t) {
+    final b = _batch..clear();
+    // The start and the finish: a band of light lying across the lanes,
+    // soft at its sides, a few glints in it. The start's lifts away as a
+    // curtain of grains at the gun; the finish's always rises a little.
     final gun =
         stage.running || stage.phase.index > RaceStagePhase.running.index
         ? stage.raceClock
         : -1.0;
-    void column(double x, int bucket, {double rise = 0}) {
+    void band(
+      double x,
+      Color col,
+      double strength,
+      int glint, {
+      double rise = 0,
+    }) {
       if (x < g.viewL || x > g.viewR) return;
       final sx = g.sx(x);
       final dy = g.dy(x);
-      for (var row = 0.0; row < g.bottom - g.top; row += 3 * g.k) {
-        for (var col = 0; col < 2; col++) {
-          b.add(bucket, sx + col * 3.2 * g.k, g.top + 0.1 * g.gap + row + dy);
+      final top = g.top + 0.1 * g.gap + dy, bottom = g.bottom + dy;
+      final half = 9 * g.k;
+      if (strength > 0.01) {
+        c.drawRect(
+          Rect.fromLTRB(sx - half, top, sx + half, bottom),
+          Paint()
+            ..shader = ui.Gradient.linear(
+              Offset(sx - half, 0),
+              Offset(sx + half, 0),
+              [
+                col.withValues(alpha: 0),
+                col.withValues(alpha: 0.2 * strength),
+                col.withValues(alpha: 0.32 * strength),
+                col.withValues(alpha: 0.2 * strength),
+                col.withValues(alpha: 0),
+              ],
+              const [0.0, 0.32, 0.5, 0.68, 1.0],
+            ),
+        );
+        for (var i = 0; i < 14; i++) {
+          final tw = sin(t * (1.1 + hash01(i, 23)) + i * 2.3);
+          if (tw < 0.8) continue;
+          b.add(
+            glint,
+            sx + (hash01(i, 24) - 0.5) * half,
+            top + hash01(i, 25) * (bottom - top),
+          );
         }
       }
       if (rise <= 0) return;
       for (var i = 0; i < 90; i++) {
         final life = (t * 0.22 + hash01(i, 21)) % 1.0;
-        final y = g.bottom - life * (g.bottom - g.h * 0.36) * rise;
+        final y = bottom - life * (bottom - g.h * 0.36) * rise;
         final x =
             sx + (hash01(i, 22) - 0.5) * 10 * g.k + sin(life * 5 + i) * 2 * g.k;
-        b.add(life < 0.5 ? bucket + 1 : 9, x, y);
+        b.add(life < 0.5 ? glint : 9, x, y);
       }
     }
 
     final startRise = gun < 0 ? 0.0 : max(0.0, 1 - gun / 1.8);
-    column(0, 2, rise: startRise);
-    column(stage.layout.finishX, 4, rise: 1);
+    band(0, _ink, gun < 0 ? 1 : startRise, 2, rise: startRise);
+    band(stage.layout.finishX, _brassHot, 1, 4, rise: 1);
     for (var j = 0; j < stage.course.legs.length; j++) {
       final leg = stage.course.legs[j];
       final x0 = stage.layout.starts[j], w = stage.layout.widths[j];
-      // Switchback pylons: short posts, lane by lane, alternating.
+      // Switchback stones: low cairns, lane by lane, alternating.
       if (leg.kind == RaceLegKind.sprint && leg.level == 4) {
         for (var p = 0; p * 110 < w; p++) {
           final x = x0 + 55 + p * 110;
           if (x < g.viewL || x > g.viewR) continue;
           final dy = g.dy(x);
           for (var lane = p % 2; lane < 6; lane += 2) {
-            for (var s = 0; s < 5; s++) {
-              b.add(6, g.sx(x), g.laneY(lane) - (s * 3 + 2) * g.k + dy);
-            }
+            _cairn(
+              c,
+              Offset(g.sx(x), g.laneY(lane) + dy),
+              g.k * g.depth(lane),
+              p * 7 + lane,
+            );
           }
         }
       }
-      // A grand leg: the floor's edges lit, a slow wave running along them.
+      // A grand leg: the floor's two edges glow, breathing.
       if (leg.level == 5 &&
           (leg.kind == RaceLegKind.sprint || leg.kind == RaceLegKind.crowd)) {
-        final x1 = x0 + w;
-        for (
-          var x = max(x0, (g.viewL / 9).floor() * 9.0);
-          x < min(x1, g.viewR);
-          x += 9
-        ) {
-          final glow = 0.5 + 0.5 * sin(t * 4 - x * 0.03);
-          final dy = g.dy(x);
-          b.add(glow > 0.6 ? 8 : 7, g.sx(x), g.top - 4 * g.k + dy);
-          b.add(glow > 0.6 ? 8 : 7, g.sx(x), g.bottom + 5 * g.k + dy);
-        }
+        _edgeGlow(c, g, max(x0, g.viewL), min(x0 + w, g.viewR), t);
       }
     }
-    b.draw(c, 2, 1.6 * g.k, _ink.withValues(alpha: 0.4));
-    b.draw(c, 3, 1.5 * g.k, _ink.withValues(alpha: 0.35));
-    b.draw(c, 4, 1.8 * g.k, _brassHot.withValues(alpha: 0.7));
-    b.draw(c, 5, 1.5 * g.k, _brassHot.withValues(alpha: 0.45));
+    b.draw(c, 2, 1.6 * g.k, _ink.withValues(alpha: 0.55));
+    b.draw(c, 4, 1.8 * g.k, _brassHot.withValues(alpha: 0.8));
     b.draw(c, 9, 1.2 * g.k, _brassHot.withValues(alpha: 0.2));
-    b.draw(c, 6, 1.9 * g.k, _brass.withValues(alpha: 0.6));
-    b.draw(c, 7, 1.6 * g.k, _brass.withValues(alpha: 0.35));
-    b.draw(c, 8, 2.0 * g.k, _brassHot.withValues(alpha: 0.7));
+  }
+
+  /// A low cairn of stones on the track: a dark heap, lit along its top.
+  void _cairn(Canvas c, Offset foot, double k, int seed) {
+    final w = 9 * k, h = 7 * k;
+    final path = Path()..moveTo(foot.dx - w, foot.dy);
+    for (var q = 0; q <= 8; q++) {
+      final a = pi + q / 8 * pi;
+      final rr = 0.85 + 0.25 * hash01(q, 560 + seed);
+      path.lineTo(foot.dx + cos(a) * w * rr, foot.dy + sin(a) * h * rr);
+    }
+    path.close();
+    c.drawPath(path, Paint()..color = const Color(0xFF16151A));
+    final b = _batch..clear();
+    for (var i = 0; i < 6; i++) {
+      final a = pi + (0.2 + 0.45 * hash01(i, 562 + seed)) * pi;
+      final rr = 0.8 + 0.2 * hash01(i, 563 + seed);
+      b.add(
+        hash01(i, 564) < 0.4 ? 1 : 0,
+        foot.dx + cos(a) * w * rr,
+        foot.dy + sin(a) * h * rr,
+      );
+    }
+    b.draw(c, 0, 1.4 * k, const Color(0xFF6A6258).withValues(alpha: 0.8));
+    b.draw(c, 1, 1.7 * k, _brass.withValues(alpha: 0.7));
+  }
+
+  /// The floor's two edges glowing softly from [x0] to [x1] (track x),
+  /// following the ground, breathing.
+  void _edgeGlow(Canvas c, _Geo g, double x0, double x1, double t) {
+    if (x1 <= x0) return;
+    final a = 0.55 + 0.45 * sin(t * 1.8);
+    final pad = 8 * g.k;
+    for (final (edge, up) in [(g.top - pad, false), (g.bottom + pad, true)]) {
+      final pts = <double>[], cols = <int>[];
+      for (var x = x0; x <= x1 + 6; x += 6) {
+        final xx = min(x, x1);
+        final sx = g.sx(xx), y = edge + g.dy(xx);
+        // Soft at the leg's two ends.
+        final end = _smooth(min(xx - x0, x1 - xx) / 60);
+        final glow = _brassHot.withValues(alpha: 0.22 * a * end);
+        final none = _brassHot.withValues(alpha: 0);
+        pts.addAll([sx, y + (up ? -10 : 10) * g.k, sx, y]);
+        cols.addAll([none.toARGB32(), glow.toARGB32()]);
+      }
+      if (pts.length < 8) continue;
+      c.drawVertices(
+        ui.Vertices.raw(
+          ui.VertexMode.triangleStrip,
+          Float32List.fromList(pts),
+          colors: Int32List.fromList(cols),
+        ),
+        BlendMode.dst,
+        Paint(),
+      );
+    }
   }
 
   /// The brass rail along the near side of the track: closer than the
-  /// lanes, so it passes faster than they do.
+  /// lanes, so it passes faster than they do. A bar of polished brass with
+  /// the light along its top, on dark posts.
   void _rail(Canvas c, _Geo g, double opacity) {
     if (opacity <= 0.01) return;
     const par = 1.35;
-    final b = _batch..clear();
     final y = g.bottom + 10 * g.k + g.dy(stage.camX);
     if (y > g.h + 4) return;
     final camR = stage.camX * par;
     final viewL = camR - g.w * 0.5 / g.k, viewR = camR + g.w * 0.5 / g.k;
     double sx(double x) => g.w * 0.5 + (x - camR) * g.k;
+    final post = Paint();
     for (var x = (viewL / 70).floor() * 70.0; x < viewR + 70; x += 70) {
-      for (var s = 0; s < 5; s++) {
-        b.add(1, sx(x), y + s * 3 * g.k);
-      }
+      final r = Rect.fromLTWH(sx(x) - 1.6 * g.k, y, 3.2 * g.k, 16 * g.k);
+      post.shader = ui.Gradient.linear(r.centerLeft, r.centerRight, [
+        _brass.withValues(alpha: 0.22 * opacity),
+        const Color(0xFF16151A).withValues(alpha: 0.85 * opacity),
+      ]);
+      c.drawRect(r, post);
     }
-    for (var x = (viewL / 8).floor() * 8.0; x < viewR + 8; x += 8) {
-      b.add(0, sx(x), y + 1.5 * g.k);
-    }
-    b.draw(c, 0, 1.3 * g.k, _brass.withValues(alpha: 0.3 * opacity));
-    b.draw(c, 1, 2.0 * g.k, _brass.withValues(alpha: 0.55 * opacity));
+    final bar = Rect.fromLTRB(0, y - 1.5 * g.k, g.w, y + 2.5 * g.k);
+    c.drawRect(
+      bar,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          bar.topCenter,
+          bar.bottomCenter,
+          [
+            _brassHot.withValues(alpha: 0.55 * opacity),
+            _brass.withValues(alpha: 0.28 * opacity),
+            const Color(0xFF1A1712).withValues(alpha: 0.9 * opacity),
+          ],
+          const [0.0, 0.35, 1.0],
+        ),
+    );
   }
 
   // ── set pieces ────────────────────────────────────────────────────────────
 
-  /// The fusion stations' elements, every lane: a loose knot of the
-  /// element's grains over a pool of its light. A racer draws its knot in
-  /// as it fuses; after, only the pool is left.
+  /// The fusion stations: one pool of the element's light lying across the
+  /// track, and over it, lane by lane but never in a row, a wisp of the
+  /// element's grains rising and going out. A racer draws its wisp in as it
+  /// fuses; after, only the pool is left, dimmer.
   void _stations(Canvas c, _Geo g, double t) {
     for (var j = 0; j < stage.course.legs.length; j++) {
       final leg = stage.course.legs[j];
       if (leg.kind != RaceLegKind.fuse) continue;
       final x0 = stage.layout.starts[j], w = stage.layout.widths[j];
       if (x0 + w < g.viewL || x0 > g.viewR) continue;
+      final col = elementColor(leg.element!);
+      final mid = x0 + w / 2;
+      final spent = [
+        for (var lane = 0; lane < stage.racers.length; lane++)
+          stage.distance[lane] >= stage.course.legStarts[j] + leg.length,
+      ];
+      final left = spent.where((s) => !s).length / spent.length;
+      final centre = Offset(g.sx(mid), (g.top + g.bottom) / 2 + g.dy(mid));
+      c.save();
+      c.translate(centre.dx, centre.dy);
+      c.scale(0.42, 1);
+      final r = (g.bottom - g.top) * 0.62;
+      c.drawCircle(
+        Offset.zero,
+        r,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            Offset.zero,
+            r,
+            [
+              col.withValues(alpha: 0.1 + 0.16 * left),
+              col.withValues(alpha: 0.04 + 0.05 * left),
+              col.withValues(alpha: 0),
+            ],
+            const [0.0, 0.55, 1.0],
+          ),
+      );
+      c.restore();
       for (var lane = 0; lane < stage.racers.length; lane++) {
-        _station(c, g, lane, j, leg, t);
+        if (!spent[lane]) _station(c, g, lane, j, leg, t, col);
       }
     }
   }
 
-  void _station(Canvas c, _Geo g, int lane, int j, RaceLeg leg, double t) {
+  void _station(
+    Canvas c,
+    _Geo g,
+    int lane,
+    int j,
+    RaceLeg leg,
+    double t,
+    Color col,
+  ) {
     final dep = g.depth(lane);
-    final col = elementColor(leg.element!);
     final mid = stage.layout.starts[j] + stage.layout.widths[j] / 2;
-    final cx = g.sx(mid);
+    // Each lane's wisp a little off the others', so they never line up.
+    final off = (hash01(lane, 44 + j) - 0.5) * 34;
+    final cx = g.sx(mid + off);
     final dy = g.dy(mid);
-    final cy = g.laneY(lane) - 18 * g.k * dep + dy;
+    final foot = g.laneY(lane) + dy;
     final d = stage.distance[lane];
-    final legEnd = stage.course.legStarts[j] + leg.length;
     final fusing = stage.layout.fusionAt(d);
-    final spent = d >= legEnd || (fusing != null && fusing > 0.3);
+    if (fusing != null && fusing > 0.3) return;
     final pull = fusing == null ? 0.0 : _smooth(fusing / 0.3);
-    final ground = Offset(cx, g.laneY(lane) + 2 * g.k + dy);
-    c.drawOval(
-      Rect.fromCenter(center: ground, width: 52 * g.k * dep, height: 13 * g.k),
-      Paint()
-        ..shader = ui.Gradient.radial(ground, 26 * g.k * dep, [
-          col.withValues(alpha: spent ? 0.12 : 0.32),
-          col.withValues(alpha: 0),
-        ]),
-    );
-    if (spent) return;
     final b = _batch..clear();
     final rx = g.sx(stage.layout.xAt(d));
-    final ry = g.laneY(lane) - 14 * g.k * dep + dy;
-    for (var i = 0; i < 80; i++) {
-      final h1 = hash01(i, 40 + j), h2 = hash01(i, 41 + j);
-      final a = h1 * pi * 2 + t * (0.5 + h2 * 0.9) * (i.isEven ? 1 : -1);
-      final r = (4 + h2 * 10) * g.k * dep;
-      var x = cx + cos(a) * r + sin(t * 0.7 + h1 * 5) * 2 * g.k;
-      var y = cy + sin(a) * r * 0.75 + h2 * 3 * g.k;
+    final ry = foot - 14 * g.k * dep;
+    final tall = (24 + 12 * hash01(lane, 46 + j)) * g.k * dep;
+    for (var i = 0; i < 46; i++) {
+      final h1 = hash01(i, 40 + j + lane * 7), h2 = hash01(i, 41 + j);
+      // Up out of the pool and out, each at its own pace, swaying.
+      final life = (t * (0.35 + 0.25 * h2) + h1) % 1.0;
+      var x =
+          cx +
+          (h1 - 0.5) * 9 * g.k * dep * (1 - life * 0.4) +
+          sin(t * 1.3 + life * 5 + h1 * 9) * 3 * g.k * dep * life;
+      var y = foot - life * tall;
       x += (rx - x) * pull;
       y += (ry - y) * pull;
-      b.add(h2 < 0.25 ? 1 : 0, x, y);
+      b.add(life < 0.25 ? 1 : (life < 0.7 ? 0 : 2), x, y);
     }
-    b.draw(c, 0, 1.9 * g.k * dep, col.withValues(alpha: 0.75 * (1 - pull)));
+    b.draw(c, 2, 1.5 * g.k * dep, col.withValues(alpha: 0.35 * (1 - pull)));
+    b.draw(c, 0, 1.8 * g.k * dep, col.withValues(alpha: 0.75 * (1 - pull)));
     b.draw(
       c,
       1,
-      2.3 * g.k * dep,
+      2.2 * g.k * dep,
       Color.lerp(col, Colors.white, 0.45)!.withValues(alpha: 0.9 * (1 - pull)),
     );
   }
@@ -1186,46 +1580,21 @@ class RacePainter extends CustomPainter {
     double squash = 1,
     double lean = 0.03,
     bool faceRight = true,
-  }) {
-    final ticker = body.ticker;
-    if (ticker == null) {
-      c.drawCircle(
-        centre,
-        9 * scale,
-        Paint()
-          ..color = elementColor(
-            body.member.element,
-          ).withValues(alpha: 0.85 * alpha),
-      );
-      return;
-    }
-    final sprite = ticker.getSprite();
-    final looks = body.looks;
-    final auraR = wornAuraRadius(body.height);
-    c.save();
-    c.translate(centre.dx, centre.dy);
-    c.scale(scale);
-    paintWornAura(c, looks, auraR, t, opacity: alpha);
-    c.rotate(faceRight ? lean : -lean);
-    c.scale(
-      faceRight ? -body.spriteScale : body.spriteScale,
-      body.spriteScale * squash,
-    );
-    final paint = Paint()
-      ..filterQuality = ui.FilterQuality.medium
-      ..color = Colors.white.withValues(alpha: alpha);
-    if (looks != null) paint.colorFilter = creatureGeneticsFilter(looks, t);
-    sprite.render(c, anchor: Anchor.center, overridePaint: paint);
-    paintWornCostumes(c, looks, sprite, ticker.currentIndex, t, opacity: alpha);
-    c.restore();
-    c.save();
-    c.translate(centre.dx, centre.dy);
-    c.scale(scale);
-    paintWornAura(c, looks, auraR, t, front: true, opacity: alpha);
-    c.restore();
-  }
+  }) => paintRaceBody(
+    c,
+    body,
+    centre,
+    scale,
+    t,
+    alpha: alpha,
+    squash: squash,
+    lean: lean,
+    faceRight: faceRight,
+  );
 
-  /// A boost winding up: grains of its colour drawn in round it.
+  /// Gathering for a boost: its own grains drawn in to it from behind,
+  /// more from below than above, each at its own moment, and its light
+  /// swelling — no ring closing in.
   void _gather(
     Canvas c,
     Offset at,
@@ -1234,26 +1603,48 @@ class RacePainter extends CustomPainter {
     double scale,
     int lane,
   ) {
+    final swell = _smooth(p);
+    final r = 24 * scale * (0.7 + 0.5 * swell);
+    c.drawCircle(
+      at,
+      r,
+      Paint()
+        ..shader = ui.Gradient.radial(at, r, [
+          col.withValues(alpha: 0.3 * swell),
+          col.withValues(alpha: 0),
+        ]),
+    );
     final b = _batch..clear();
-    for (var i = 0; i < 48; i++) {
+    for (var i = 0; i < 34; i++) {
       final h1 = hash01(i, 60 + lane), h2 = hash01(i, 61 + lane);
-      final q = (p * 1.3 - h2 * 0.3).clamp(0.0, 1.0);
-      final a = h1 * pi * 2 + q * 3.2;
-      final r = (32 - 26 * _easeOut(q)) * scale;
-      b.add(h2 < 0.3 ? 1 : 0, at.dx + cos(a) * r, at.dy + sin(a) * r * 0.8);
+      final a = pi + (h1 - 0.35) * 1.8;
+      final from = (16 + 28 * h2) * scale;
+      for (var k = 0; k < 2; k++) {
+        final q = (p * 1.4 - h2 * 0.4 - k * 0.07).clamp(0.0, 1.0);
+        if (q <= 0 || q >= 1) continue;
+        final rr = from * (1 - _easeOut(q));
+        final curl = (1 - q) * 0.7 * (h1 - 0.5);
+        b.add(
+          k == 0 ? (h2 < 0.35 ? 1 : 0) : 2,
+          at.dx + cos(a + curl) * rr,
+          at.dy + sin(a + curl) * rr * 0.8,
+        );
+      }
     }
-    final fade = _smooth(p / 0.25);
-    b.draw(c, 0, 1.8 * scale, col.withValues(alpha: 0.6 * fade));
+    final fade = _smooth(p / 0.2);
+    b.draw(c, 2, 1.3 * scale, col.withValues(alpha: 0.3 * fade));
+    b.draw(c, 0, 1.7 * scale, col.withValues(alpha: 0.7 * fade));
     b.draw(
       c,
       1,
-      2.2 * scale,
-      Color.lerp(col, Colors.white, 0.5)!.withValues(alpha: 0.8 * fade),
+      2.1 * scale,
+      Color.lerp(col, Colors.white, 0.5)!.withValues(alpha: 0.9 * fade),
     );
   }
 
-  /// A surge: a current of grains streaming off behind it, thinning out —
-  /// each grain drawn with two earlier points of its path, fainter.
+  /// A surge: a streak of its light stretched out behind it — bright at
+  /// its back, thinning to nothing — with a few of its grains loosening
+  /// off the streak and going out.
   void _trail(
     Canvas c,
     Offset at,
@@ -1266,70 +1657,76 @@ class RacePainter extends CustomPainter {
   ) {
     final env = _smooth(p / 0.15) * (1 - _smooth((p - 0.7) / 0.3));
     if (env <= 0) return;
-    c.drawOval(
-      Rect.fromCenter(
-        center: at.translate(-14 * scale, 0),
-        width: 70 * scale,
-        height: h * scale * 0.9,
-      ),
-      Paint()
-        ..shader = ui.Gradient.radial(at, 40 * scale, [
-          col.withValues(alpha: 0.18 * env),
-          col.withValues(alpha: 0),
-        ]),
-    );
+    final hot = Color.lerp(col, Colors.white, 0.5)!;
+    final len = (40 + 60 * env) * scale;
+    final head = at.translate(-4 * scale, 0);
+    final w0 = h * scale * 0.2;
+    paintLightStreak(c, head, head.translate(-len, 2 * scale), w0, col, env);
     final b = _batch..clear();
-    for (var i = 0; i < 110; i++) {
+    for (var i = 0; i < 30; i++) {
       final h1 = hash01(i, 70 + lane), h2 = hash01(i, 71 + lane);
-      final life = (t * (1.4 + h2 * 0.8) + h1) % 1.0;
-      for (var k = 0; k < 3; k++) {
-        final l = life - k * 0.035;
-        if (l < 0) break;
-        final x = at.dx - (6 + l * 72) * scale;
-        final y =
-            at.dy +
-            (h2 - 0.5) * h * scale * 0.75 * (1 - l * 0.5) +
-            sin(l * 7 + h1 * 9) * 3.5 * scale * l;
-        b.add(k == 0 ? (l < 0.3 ? 1 : 0) : 2, x, y);
-      }
+      final life = (t * (0.9 + h2 * 0.6) + h1) % 1.0;
+      final x = head.dx - life * len * 1.15;
+      final spread = (0.3 + life) * w0 * 1.3;
+      final y = head.dy + (h2 - 0.5) * spread + sin(life * 6 + h1 * 9) * scale;
+      b.add(life < 0.35 ? 1 : 0, x, y);
     }
-    b.draw(c, 2, 1.3 * scale, col.withValues(alpha: 0.22 * env));
-    b.draw(c, 0, 1.7 * scale, col.withValues(alpha: 0.55 * env));
-    b.draw(
-      c,
-      1,
-      2.1 * scale,
-      Color.lerp(col, Colors.white, 0.4)!.withValues(alpha: 0.8 * env),
-    );
+    b.draw(c, 0, 1.4 * scale, col.withValues(alpha: 0.4 * env));
+    b.draw(c, 1, 1.8 * scale, hot.withValues(alpha: 0.75 * env));
   }
 
   // ── light and weather ─────────────────────────────────────────────────────
 
-  void _cone(Canvas c, _Geo g, Offset at, double a, double halfW) {
-    final src = Offset(at.dx - 40 * g.k0, g.h * 0.12);
-    final path = Path()
-      ..moveTo(src.dx - 4 * g.k0, src.dy)
-      ..lineTo(src.dx + 4 * g.k0, src.dy)
-      ..lineTo(at.dx + halfW * g.k, at.dy + 4 * g.k)
-      ..lineTo(at.dx - halfW * g.k, at.dy + 4 * g.k)
-      ..close();
-    c.drawPath(
-      path,
+  /// A spotlight on a plinth: the Trials' feathered beam (the cup
+  /// rewards' own, no edge to it) from high over the stands, gold, silver
+  /// or copper by place, and light pooled where it lands.
+  void _beam(Canvas c, _Geo g, Offset at, double a, double halfW, int place) {
+    if (a <= 0.01) return;
+    final col = switch (place) {
+      0 => const Color(0xFFE8C66E),
+      1 => const Color(0xFFB9C8E0),
+      _ => const Color(0xFFE8935A),
+    };
+    final img = trialsBeamImage();
+    final src = Rect.fromLTWH(
+      0,
+      0,
+      img.width.toDouble(),
+      img.height.toDouble(),
+    );
+    final top = g.h * 0.06;
+    for (final (wide, alpha) in [(1.0, 0.42), (0.5, 0.25)]) {
+      c.drawImageRect(
+        img,
+        src,
+        Rect.fromLTRB(
+          at.dx - halfW * g.k * wide,
+          top,
+          at.dx + halfW * g.k * wide,
+          at.dy + 2 * g.k,
+        ),
+        Paint()
+          ..filterQuality = FilterQuality.low
+          ..colorFilter = ColorFilter.mode(
+            col.withValues(alpha: (alpha * a).clamp(0.0, 1.0)),
+            BlendMode.modulate,
+          ),
+      );
+    }
+    c.save();
+    c.translate(at.dx, at.dy + 2 * g.k);
+    c.scale(1, 0.26);
+    final r = halfW * 1.3 * g.k;
+    c.drawCircle(
+      Offset.zero,
+      r,
       Paint()
-        ..shader = ui.Gradient.linear(src, at, [
-          _brassHot.withValues(alpha: 0),
-          _brassHot.withValues(alpha: 0.11 * a),
+        ..shader = ui.Gradient.radial(Offset.zero, r, [
+          col.withValues(alpha: 0.35 * a),
+          col.withValues(alpha: 0),
         ]),
     );
-    final pool = at.translate(0, 2 * g.k);
-    c.drawOval(
-      Rect.fromCenter(center: pool, width: halfW * 2.4 * g.k, height: 12 * g.k),
-      Paint()
-        ..shader = ui.Gradient.radial(pool, halfW * 1.2 * g.k, [
-          _brassHot.withValues(alpha: 0.25 * a),
-          _brassHot.withValues(alpha: 0),
-        ]),
-    );
+    c.restore();
   }
 
   /// Rain over a wet lane, and the storm's lightning over the stands.
@@ -1464,35 +1861,14 @@ class RacePainter extends CustomPainter {
 
   /// The count: brass grains gather into each numeral, hold, and drift
   /// apart upward.
-  void _count(Canvas c, _Geo g) {
-    final left = stage.countdownLeft;
-    if (left <= 0) return;
-    final n = left.ceil();
-    final grains = stage.numerals[n];
-    if (grains == null) return;
-    final p = 1 - (left - (n - 1));
-    final gather = _easeOut(_smooth(p / 0.38));
-    final part = _smooth((p - 0.72) / 0.28);
-    final at = Offset(g.w / 2, g.h * 0.58);
-    final s = 0.85 * g.k0;
-    final b = _batch..clear();
-    for (var i = 0; i < grains.length; i++) {
-      final h1 = hash01(i, 800 + n), h2 = hash01(i, 801 + n);
-      final a = h1 * pi * 2;
-      final r = (90 + h2 * 130) * g.k0;
-      final hx = at.dx + grains.hx[i] * s, hy = at.dy + grains.hy[i] * s;
-      var x = at.dx + cos(a) * r + (hx - at.dx - cos(a) * r) * gather;
-      var y =
-          at.dy + sin(a) * r * 0.6 + (hy - at.dy - sin(a) * r * 0.6) * gather;
-      x += sin(stage.clock * 3 + i) * 0.6 * g.k0 * (1 - part);
-      x += (h1 - 0.5) * 30 * part * g.k0;
-      y -= part * (20 + h2 * 40) * g.k0;
-      b.add(h2 < 0.2 ? 1 : 0, x, y);
-    }
-    final alpha = _smooth(p / 0.15) * (1 - part);
-    b.draw(c, 0, 2.2 * g.k0, _brass.withValues(alpha: 0.75 * alpha));
-    b.draw(c, 1, 2.6 * g.k0, _brassHot.withValues(alpha: 0.95 * alpha));
-  }
+  void _count(Canvas c, _Geo g) => paintGrainCount(
+    c,
+    stage.numerals,
+    stage.countdownLeft,
+    Offset(g.w / 2, g.h * 0.58),
+    g.k0,
+    stage.clock,
+  );
 
   /// The podium: three plinths of stone grains rise centre stage under
   /// spotlights; the first three stand on them; the winner comes apart into
@@ -1500,9 +1876,19 @@ class RacePainter extends CustomPainter {
   void _podium(Canvas c, _Geo g, double t) {
     final rise = _easeOut(stage.podiumT);
     final order = stage.standings;
+    final dark = Rect.fromLTRB(0, g.h * 0.26, g.w, g.h);
     c.drawRect(
-      Rect.fromLTRB(0, g.h * 0.34, g.w, g.h),
-      Paint()..color = Colors.black.withValues(alpha: 0.9 * rise),
+      dark,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          dark.topCenter,
+          dark.bottomCenter,
+          [
+            Colors.black.withValues(alpha: 0),
+            Colors.black.withValues(alpha: 0.9 * rise),
+          ],
+          const [0.0, 0.14],
+        ),
     );
     // Once the results come up, it stands aside for them, a little smaller.
     final aside = Curves.easeInOutCubic.transform(stage.resultsT);
@@ -1535,12 +1921,13 @@ class RacePainter extends CustomPainter {
       final hh = heights[place] * k * rise;
       _plinth(c, Offset(x, floor), 80 * k, hh, place, t);
       final top = floor - hh;
-      _cone(
+      _beam(
         c,
         g,
         Offset(x, top),
-        rise * (place == 0 ? 1.0 : 0.6),
-        place == 0 ? 34 : 26,
+        rise * (place == 0 ? 1.0 : 0.7),
+        (place == 0 ? 46 : 36) * k / g.k,
+        place,
       );
       // It stands as it finished — whatever its fusions made it — then
       // comes apart into that element and gathers back as itself (the
@@ -1629,57 +2016,81 @@ class RacePainter extends CustomPainter {
     b.draw(c, 1, 2.0 * k, _brassHot.withValues(alpha: 0.6 * rise));
   }
 
-  /// One plinth: a block of stone grains with a lit brass crest, the
-  /// winner's warmest.
+  /// One plinth: a block of dark stone — its top catching the light, its
+  /// face in shadow, grains of stone in both — with the light along its
+  /// front edge in the place's metal, the winner's warmest.
   void _plinth(Canvas c, Offset foot, double w, double h, int place, double t) {
     if (h <= 1) return;
-    final b = _batch..clear();
-    final step = 3.4 * (w / 80);
-    final depth = 16 * (w / 80);
-    for (var x = -w / 2; x <= w / 2; x += step) {
-      final hx = hash01((x * 10).round(), 950 + place);
-      // The top, receding.
-      for (var v = 0.0; v <= depth; v += step) {
-        final hv = hash01((x * 10).round() * 7 + (v * 10).round(), 952 + place);
-        b.add(
-          v > depth - step * 1.2 ? 3 : 2,
-          foot.dx + x + (hv - 0.5) * step * 0.9,
-          foot.dy - h - depth + v + (hx - 0.5) * step * 0.6,
-        );
-      }
-      // The face.
-      for (var y = 0.0; y < h; y += step * 0.9) {
-        final hy = hash01((x * 10).round() * 31 + (y * 10).round(), 951);
-        final hz = hash01((y * 10).round() * 13 + (x * 10).round(), 953);
-        b.add(
-          hy < 0.18 ? 1 : 0,
-          foot.dx + x + (hy - 0.5) * step * 0.9,
-          foot.dy - h + y + (hz - 0.5) * step * 0.7,
-        );
-      }
-    }
+    final u = w / 80;
+    final depth = 14 * u;
     final crest = place == 0
         ? _brassHot
         : (place == 1 ? const Color(0xFFC8CCD2) : const Color(0xFFC08A5A));
-    b.draw(
-      c,
-      0,
-      2.3 * (w / 80),
-      const Color(0xFF3E3A35).withValues(alpha: 0.85),
+    final l = foot.dx - w / 2, r = foot.dx + w / 2;
+    final front = Rect.fromLTRB(l, foot.dy - h, r, foot.dy);
+    // The top, receding a little to one side.
+    final topFace = Path()
+      ..moveTo(l, front.top)
+      ..lineTo(l + 6 * u, front.top - depth)
+      ..lineTo(r + 6 * u, front.top - depth)
+      ..lineTo(r, front.top)
+      ..close();
+    c.drawPath(
+      topFace,
+      Paint()
+        ..shader = ui.Gradient.linear(
+          Offset(0, front.top - depth),
+          Offset(0, front.top),
+          [
+            const Color(0xFF2A2724),
+            Color.lerp(const Color(0xFF3A3530), crest, 0.18)!,
+          ],
+        ),
     );
-    b.draw(
-      c,
-      1,
-      2.3 * (w / 80),
-      const Color(0xFF6A6258).withValues(alpha: 0.85),
+    // The side, in deeper shadow.
+    final side = Path()
+      ..moveTo(r, front.top)
+      ..lineTo(r + 6 * u, front.top - depth)
+      ..lineTo(r + 6 * u, foot.dy - depth)
+      ..lineTo(r, foot.dy)
+      ..close();
+    c.drawPath(side, Paint()..color = const Color(0xFF0E0D0C));
+    c.drawRect(
+      front,
+      Paint()
+        ..shader = ui.Gradient.linear(front.topCenter, front.bottomCenter, [
+          const Color(0xFF221F1C),
+          const Color(0xFF121110),
+        ]),
     );
-    b.draw(
-      c,
-      2,
-      2.4 * (w / 80),
-      Color.lerp(const Color(0xFF3E3A35), crest, 0.45)!.withValues(alpha: 0.85),
+    // The light along the front edge.
+    final edge = Rect.fromLTRB(l, front.top - 1.2 * u, r, front.top + 2.4 * u);
+    c.drawRect(
+      edge,
+      Paint()
+        ..shader = ui.Gradient.linear(edge.topCenter, edge.bottomCenter, [
+          crest.withValues(alpha: 0.85),
+          crest.withValues(alpha: 0),
+        ]),
     );
-    b.draw(c, 3, 2.6 * (w / 80), crest.withValues(alpha: 0.95));
+    // Grains of stone.
+    final b = _batch..clear();
+    final n = (w * h / (26 * u * u)).round();
+    for (var i = 0; i < n; i++) {
+      final hx = hash01(i, 950 + place), hy = hash01(i, 951 + place);
+      b.add(
+        hy < 0.15 ? 1 : 0,
+        l + hx * w,
+        front.top + 3 * u + hy * (h - 3 * u),
+      );
+    }
+    for (var i = 0; i < 40; i++) {
+      final hx = hash01(i, 952 + place), hy = hash01(i, 953 + place);
+      b.add(2, l + hx * w + hy * 6 * u, front.top - hy * depth);
+    }
+    b.draw(c, 0, 1.6 * u, const Color(0xFF3E3A35).withValues(alpha: 0.7));
+    b.draw(c, 1, 1.8 * u, const Color(0xFF6A6258).withValues(alpha: 0.7));
+    b.draw(c, 2, 1.8 * u, Color.lerp(const Color(0xFF6A6258), crest, 0.4)!);
   }
 
   // ── small things ──────────────────────────────────────────────────────────
@@ -1742,3 +2153,110 @@ class RacePainter extends CustomPainter {
 
 /// What a racer's feet throw up.
 enum _Spray { dust, wet, ice, mud }
+
+/// [body] drawn at [centre], [scale] times its world size, in its looks,
+/// worn aura and costumes: what the race draws each racer with, and the
+/// Trials' other events too.
+void paintRaceBody(
+  Canvas c,
+  RaceBody body,
+  Offset centre,
+  double scale,
+  double t, {
+  double alpha = 1,
+  double squash = 1,
+  double lean = 0.03,
+  bool faceRight = true,
+}) {
+  final ticker = body.ticker;
+  if (ticker == null) {
+    c.drawCircle(
+      centre,
+      9 * scale,
+      Paint()
+        ..color = elementColor(
+          body.member.element,
+        ).withValues(alpha: 0.85 * alpha),
+    );
+    return;
+  }
+  final sprite = ticker.getSprite();
+  final looks = body.looks;
+  final auraR = wornAuraRadius(body.height);
+  c.save();
+  c.translate(centre.dx, centre.dy);
+  c.scale(scale);
+  paintWornAura(c, looks, auraR, t, opacity: alpha);
+  c.rotate(faceRight ? lean : -lean);
+  c.scale(
+    faceRight ? -body.spriteScale : body.spriteScale,
+    body.spriteScale * squash,
+  );
+  final paint = Paint()
+    ..filterQuality = ui.FilterQuality.medium
+    ..color = Colors.white.withValues(alpha: alpha);
+  if (looks != null) paint.colorFilter = creatureGeneticsFilter(looks, t);
+  sprite.render(c, anchor: Anchor.center, overridePaint: paint);
+  paintWornCostumes(c, looks, sprite, ticker.currentIndex, t, opacity: alpha);
+  c.restore();
+  c.save();
+  c.translate(centre.dx, centre.dy);
+  c.scale(scale);
+  paintWornAura(c, looks, auraR, t, front: true, opacity: alpha);
+  c.restore();
+}
+
+/// The count (3, 2, 1) in grains: each numeral gathers out of a scatter at
+/// [at], holds, and lifts away as the next comes; [left] is the seconds to
+/// the gun, [k0] the scene's scale.
+void paintGrainCount(
+  Canvas c,
+  Map<int, SpecimenGrains> numerals,
+  double left,
+  Offset at,
+  double k0,
+  double clock,
+) {
+  if (left <= 0) return;
+  final n = left.ceil();
+  final grains = numerals[n];
+  if (grains == null) return;
+  double smooth(double x) {
+    final t = x.clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
+  final p = 1 - (left - (n - 1));
+  final g0 = smooth(p / 0.38);
+  final gather = 1 - (1 - g0) * (1 - g0) * (1 - g0);
+  final part = smooth((p - 0.72) / 0.28);
+  final s = 0.85 * k0;
+  final b = _countBatch..clear();
+  for (var i = 0; i < grains.length; i++) {
+    final h1 = hash01(i, 800 + n), h2 = hash01(i, 801 + n);
+    final a = h1 * pi * 2;
+    final r = (90 + h2 * 130) * k0;
+    final hx = at.dx + grains.hx[i] * s, hy = at.dy + grains.hy[i] * s;
+    var x = at.dx + cos(a) * r + (hx - at.dx - cos(a) * r) * gather;
+    var y = at.dy + sin(a) * r * 0.6 + (hy - at.dy - sin(a) * r * 0.6) * gather;
+    x += sin(clock * 3 + i) * 0.6 * k0 * (1 - part);
+    x += (h1 - 0.5) * 30 * part * k0;
+    y -= part * (20 + h2 * 40) * k0;
+    b.add(h2 < 0.2 ? 1 : 0, x, y);
+  }
+  final alpha = smooth(p / 0.15) * (1 - part);
+  b.draw(
+    c,
+    0,
+    2.2 * k0,
+    const Color(0xFFCDB07A).withValues(alpha: 0.75 * alpha),
+  );
+  b.draw(
+    c,
+    1,
+    2.6 * k0,
+    const Color(0xFFE2C98F).withValues(alpha: 0.95 * alpha),
+  );
+}
+
+final GrainBatch _countBatch = GrainBatch(2);

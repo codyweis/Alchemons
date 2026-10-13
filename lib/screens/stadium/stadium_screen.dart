@@ -19,6 +19,8 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/stadium/cup_rewards.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_bodies.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/stadium/race_painter.dart';
@@ -28,13 +30,23 @@ import 'package:alchemons/games/stadium/race_scenes.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/stadium/course_map.dart';
+import 'package:alchemons/screens/stadium/cup_won_dialog.dart';
+import 'package:alchemons/games/stadium/flight_rules.dart';
+import 'package:alchemons/games/stadium/flight_stage.dart';
+import 'package:alchemons/games/stadium/island_stage.dart';
+import 'package:alchemons/games/stadium/sky_rules.dart';
+import 'package:alchemons/games/stadium/sky_stage.dart';
+import 'package:alchemons/games/stadium/trials_records.dart';
+import 'package:alchemons/screens/stadium/bout_screen.dart';
 import 'package:alchemons/screens/stadium/cup_shelf.dart';
 import 'package:alchemons/screens/stadium/race_lobby_screen.dart';
 import 'package:alchemons/screens/stadium/race_screen.dart';
 import 'package:alchemons/screens/stadium/racer_gate.dart';
+import 'package:alchemons/screens/stadium/route_planner.dart';
 import 'package:alchemons/screens/stadium/stadium_passage.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/race_room_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
@@ -43,6 +55,9 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/stadium_trophy.dart';
+import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/services/shop_service.dart';
 import 'package:flame/flame.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -146,9 +161,11 @@ Future<(RaceProgress, CosmicPartyMember?)> loadTrialsStart(
 }) async {
   final db = context.read<AlchemonsDatabase?>();
   final prefs = await SharedPreferences.getInstance();
-  final progress = RaceProgress.deserialise(
+  var progress = RaceProgress.deserialise(
     prefs.getString(RaceProgress.prefsKey),
   );
+  // The developer tools open every cup, race and bout.
+  if (await DebugSettingsService().isEnabled()) progress = progress.opened();
   final saved = prefs.getString(kStadiumRacerKey);
   CosmicPartyMember? racer;
   try {
@@ -202,9 +219,17 @@ class _StadiumScreenState extends State<StadiumScreen>
   final ValueNotifier<double> _clock = ValueNotifier(0);
   late final Ticker _ticker;
   RaceProgress _progress = const RaceProgress();
+
+  /// The player's bests at every race and bout.
+  TrialsRecords _records = const TrialsRecords();
   bool _loaded = false;
   int _cup = 0, _race = 0;
   bool _starting = false, _leaving = false;
+
+  /// Showing the gem cups (Ruby, Sapphire, Emerald) rather than the races;
+  /// the gem cup and bout chosen there.
+  bool _gems = false;
+  int _gem = 0, _bout = 0;
 
   /// Whether a change of cup or race comes up gently: only once the
   /// player has chosen one (the screen opens straight on its own).
@@ -221,6 +246,14 @@ class _StadiumScreenState extends State<StadiumScreen>
   RaceCourse get _course => _cupDef.courses[_race];
   bool get _raceOpen =>
       _progress.cupOpen(_cup) && _progress.raceOpen(_cupDef, _race);
+
+  GemCup get _gemDef => kGemCups[_gem];
+  bool get _boutOpen =>
+      _progress.gemOpen(_gem) && _progress.boutOpen(_gemDef, _bout);
+
+  int _firstOpenBout(int gem) => _progress
+      .wonInGem(kGemCups[gem])
+      .clamp(0, kGemCups[gem].bouts.length - 1);
 
   @override
   void initState() {
@@ -242,20 +275,64 @@ class _StadiumScreenState extends State<StadiumScreen>
   Future<void> _load() async {
     final (p, racer) =
         await (widget.preload ?? loadTrialsStart(context, party: widget.party));
+    final records = await TrialsRecords.load();
+    if (!mounted) return;
+    // A cup won before cups gave anything gives it now.
+    final db = context.read<AlchemonsDatabase?>();
+    if (db != null) _toAnnounce.addAll(await giveCupRewards(db, p));
+    if (!mounted) return;
+    // The stat effects the cups give now (the space contests' once).
+    final shop = context.read<ShopService?>();
+    if (shop != null) await unlockCupStatEffects(shop, p);
     if (!mounted) return;
     setState(() {
       _progress = p;
+      _records = records;
       _racer = racer;
       _loaded = true;
       // Open on the cup racing for now (the one home's trophy shows), at
       // its first race not yet won.
       _cup = TrophyLook.currentCup(p);
       _race = _firstOpenRace(_cup);
+      // The gem cup being fought for: the last open one not yet done.
+      _gem = 0;
+      for (var g = 0; g < kGemCups.length; g++) {
+        if (p.gemOpen(g)) _gem = g;
+      }
+      _bout = _firstOpenBout(_gem);
     });
     // Laid out with it: the way in may settle onto the shelf now.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       widget.passage?.ready.value = true;
     });
+    if (_toAnnounce.isNotEmpty) unawaited(_announceOnceSettled());
+  }
+
+  /// Cups won and not yet shown off.
+  final List<CupReward> _toAnnounce = [];
+
+  /// Shows the cups won, once the way in has landed on the shelf.
+  Future<void> _announceOnceSettled() async {
+    final held = widget.passage?.held;
+    if (held != null && held.value) {
+      final landed = Completer<void>();
+      void on() {
+        if (!held.value && !landed.isCompleted) landed.complete();
+      }
+
+      held.addListener(on);
+      await landed.future.timeout(const Duration(seconds: 6), onTimeout: () {});
+      held.removeListener(on);
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 350));
+    await _announce();
+  }
+
+  Future<void> _announce() async {
+    if (!mounted || _toAnnounce.isEmpty) return;
+    final rewards = [..._toAnnounce];
+    _toAnnounce.clear();
+    await showCupsWon(context, rewards, racer: _racer);
   }
 
   /// The usual slide-up picker; the one picked flies to the line.
@@ -298,6 +375,12 @@ class _StadiumScreenState extends State<StadiumScreen>
     _leaving = true;
     HapticFeedback.selectionClick();
     if (passage != null) {
+      // Home's cup is one of the races': back to their shelf to leave.
+      if (_gems) {
+        setState(() => _gems = false);
+        await Future<void>.delayed(const Duration(milliseconds: 380));
+        if (!mounted) return;
+      }
       final cup = TrophyLook.currentCup(_progress);
       await passage.leave(
         context,
@@ -340,7 +423,7 @@ class _StadiumScreenState extends State<StadiumScreen>
         racers: racers,
         bodies: bodies,
         forms: forms,
-        onFinished: (place) => _pay(cup, race, place),
+        onFinished: (finish) => _pay(cup, race, finish),
       ),
       scene: const RaceLightsScene(),
       from: null,
@@ -355,7 +438,9 @@ class _StadiumScreenState extends State<StadiumScreen>
       ],
     );
     // A win opened the next race, or finished the cup and lit the next one
-    // on the shelf: be on it.
+    // on the shelf: be on it — after showing off the cup, if it was won.
+    if (!mounted) return;
+    await _announce();
     if (!mounted || !frontier || _progress.wonIn(cup) <= race) return;
     setState(() {
       if (_progress.cupDone(cup) && cupIndex + 1 < kRaceCups.length) {
@@ -365,17 +450,84 @@ class _StadiumScreenState extends State<StadiumScreen>
     });
   }
 
-  /// A win opens the next race; the first win of each race pays its gold.
-  Future<int> _pay(RaceCup cup, int race, int place) async {
-    if (place != 1) return 0;
+  /// A race's end: any finish can set the course's record; a win opens
+  /// the next race, and the first win of each pays its gold, shards and
+  /// tincture.
+  Future<TrialsPayout> _pay(RaceCup cup, int race, TrialsFinish finish) async {
+    final record = await _keepRecord(cup.courses[race].id, finish.mark);
+    if (finish.place != 1) return TrialsPayout(record: record);
     final (next, first) = _progress.afterWin(cup, race);
-    if (!first) return 0;
+    if (!first || !mounted) return TrialsPayout(record: record);
     final gold = cup.gold[race];
-    await context.read<AlchemonsDatabase>().currencyDao.addGold(gold);
-    if (!mounted) return gold;
+    final db = context.read<AlchemonsDatabase>();
+    await db.currencyDao.addGold(gold);
+    await _payFirstWin(db, cup.id, race);
+    if (!mounted) return TrialsPayout(gold: gold, record: record);
     setState(() => _progress = next);
     await _save();
-    return gold;
+    // The cup's last race: what the cup gives, shown back on the shelf.
+    _toAnnounce.addAll(await giveCupRewards(db, next));
+    if (mounted) {
+      final shop = context.read<ShopService?>();
+      if (shop != null) await unlockCupStatEffects(shop, next);
+    }
+    _publish();
+    return TrialsPayout(gold: gold, record: record);
+  }
+
+  /// What a first win pays besides its gold: shards for the home bank
+  /// (space banks them; see [addPendingTrialsShards]) and tincture for the
+  /// Athanor — what the space contests used to pay.
+  Future<void> _payFirstWin(AlchemonsDatabase db, String cupId, int i) async {
+    final shards = kTrialsFirstWinShards[cupId];
+    if (shards != null && i < shards.length) {
+      await addPendingTrialsShards(shards[i]);
+    }
+    final tincture = kTrialsFirstWinTincture[cupId] ?? 0;
+    if (tincture > 0) {
+      await db.inventoryDao.addItemQty(InvKeys.athanorTincture, tincture);
+    }
+  }
+
+  /// Keeps [mark] as the record at [id] if it beats the one kept, set by
+  /// the racer that ran it; whether it did.
+  Future<bool> _keepRecord(String id, double? mark) async {
+    final event = trialsEvent(id);
+    final me = _racer;
+    if (event == null || mark == null || me == null) return false;
+    final value = event.mark == TrialsMark.time
+        ? (mark * 1000).round()
+        : mark.round();
+    if (value <= 0 || !_records.beats(id, value)) return false;
+    final next = _records.withRecord(
+      id,
+      TrialsRecord(
+        value: value,
+        by: me.displayName,
+        baseId: me.baseId,
+        at: DateTime.now().millisecondsSinceEpoch,
+      ),
+    );
+    await next.save();
+    if (mounted) setState(() => _records = next);
+    _publish();
+    return true;
+  }
+
+  /// Friends see the cups and records (on their planet pages).
+  void _publish() {
+    if (!mounted) return;
+    context.read<FriendService?>()?.publishSoon();
+  }
+
+  /// The record kept at [id] as a short line (BEST 37.86s), or null.
+  String? _best(String id) {
+    final r = _records.best[id];
+    final e = trialsEvent(id);
+    if (r == null || e == null) return null;
+    return e.mark == TrialsMark.stars
+        ? 'BEST ${e.show(r.value)} STARS'
+        : 'BEST ${e.show(r.value)}';
   }
 
   @override
@@ -406,18 +558,33 @@ class _StadiumScreenState extends State<StadiumScreen>
                     _header(context),
                     SizedBox(
                       height: trialsShelfHeight(size),
-                      child: _loaded
-                          ? CupShelf(
-                              progress: _progress,
-                              selected: _cup,
-                              passage: widget.passage,
-                              onSelect: (c) => setState(() {
-                                _chosen = true;
-                                _cup = c;
-                                _race = _firstOpenRace(c);
-                              }),
-                            )
-                          : const SizedBox.shrink(),
+                      child: !_loaded
+                          ? const SizedBox.shrink()
+                          : AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 360),
+                              child: _gems
+                                  ? CupShelf(
+                                      key: const ValueKey('gems'),
+                                      cups: ShelfCup.gems(_progress),
+                                      selected: _gem,
+                                      onSelect: (g) => setState(() {
+                                        _chosen = true;
+                                        _gem = g;
+                                        _bout = _firstOpenBout(g);
+                                      }),
+                                    )
+                                  : CupShelf(
+                                      key: const ValueKey('races'),
+                                      cups: ShelfCup.races(_progress),
+                                      selected: _cup,
+                                      passage: widget.passage,
+                                      onSelect: (c) => setState(() {
+                                        _chosen = true;
+                                        _cup = c;
+                                        _race = _firstOpenRace(c);
+                                      }),
+                                    ),
+                            ),
                     ),
                     const SizedBox(height: 4),
                     SizedBox(
@@ -425,23 +592,32 @@ class _StadiumScreenState extends State<StadiumScreen>
                       // Another cup's races come up as the light reaches
                       // it on the shelf.
                       child: _changing(
-                        _cup,
+                        _gems ? 'gem$_gem' : 'race$_cup',
                         Row(
                           children: [
                             for (
                               var r = 0;
-                              r < _cupDef.courses.length;
+                              r <
+                                  (_gems
+                                      ? _gemDef.bouts.length
+                                      : _cupDef.courses.length);
                               r++
                             ) ...[
                               if (r > 0) const SizedBox(width: 6),
-                              Expanded(child: _raceTile(context, r)),
+                              Expanded(
+                                child: _gems
+                                    ? _boutTile(context, r)
+                                    : _raceTile(context, r),
+                              ),
                             ],
                           ],
                         ),
                       ),
                     ),
                     const SizedBox(height: 14),
-                    Expanded(child: _detail(context)),
+                    Expanded(
+                      child: _gems ? _gemDetail(context) : _detail(context),
+                    ),
                   ],
                 ),
               ),
@@ -480,9 +656,376 @@ class _StadiumScreenState extends State<StadiumScreen>
               ),
             ),
           ),
+          const Spacer(),
+          if (_loaded) _ladderSwitch(context),
         ],
       ),
     );
+  }
+
+  /// RACES · GEMS: which cups the shelf shows.
+  Widget _ladderSwitch(BuildContext context) {
+    Widget side(String label, bool gems) {
+      final on = _gems == gems;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          if (on || _starting) return;
+          HapticFeedback.selectionClick();
+          setState(() {
+            _chosen = true;
+            _gems = gems;
+          });
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: bracketText(
+                  context,
+                  11,
+                  on ? _brassHot : _muted,
+                  weight: FontWeight.w800,
+                  letterSpacing: 1.8,
+                ),
+              ),
+              const SizedBox(height: 4),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
+                width: on ? 18 : 0,
+                height: 2,
+                color: _brass,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [side('RACES', false), side('GEMS', true)],
+    );
+  }
+
+  /// One of the gem cup's bouts: its name, and WON, its first-win gold, or
+  /// LOCKED.
+  Widget _boutTile(BuildContext context, int r) {
+    final cup = _gemDef;
+    final open = _progress.gemOpen(_gem) && _progress.boutOpen(cup, r);
+    final won = r < _progress.wonInGem(cup);
+    final selected = r == _bout;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        if (selected) return;
+        HapticFeedback.selectionClick();
+        setState(() {
+          _chosen = true;
+          _bout = r;
+        });
+      },
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: selected
+              ? (open ? _brass : _muted)
+              : BracketPalette.dark.lineSoft,
+          strokeWidth: 1.2,
+        ),
+        child: Container(
+          color: selected ? _bg1 : _bg1.withValues(alpha: .45),
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  cup.bouts[r].name.toUpperCase(),
+                  maxLines: 1,
+                  style: bracketText(
+                    context,
+                    11,
+                    !open
+                        ? _muted.withValues(alpha: .5)
+                        : (selected ? _brassHot : _ink),
+                    weight: FontWeight.w800,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 3),
+              if (won)
+                Text(
+                  'WON',
+                  style: bracketText(
+                    context,
+                    9,
+                    _brass,
+                    weight: FontWeight.w800,
+                    letterSpacing: 1.4,
+                  ),
+                )
+              else if (open)
+                CoinAmount(kind: CoinKind.gold, amount: cup.gold[r], size: 10)
+              else
+                Text(
+                  'LOCKED',
+                  style: bracketText(
+                    context,
+                    9,
+                    _muted.withValues(alpha: .5),
+                    weight: FontWeight.w700,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The chosen bout: its name and pay, the event and what it asks, the
+  /// two rivals at the line, and START.
+  Widget _gemDetail(BuildContext context) {
+    final cup = _gemDef;
+    final bout = cup.bouts[_bout];
+    final open = _boutOpen;
+    final won = _bout < _progress.wonInGem(cup);
+    final shut = !_progress.gemOpen(_gem);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _changing(
+          'gem$_gem/$_bout',
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        bout.name.toUpperCase(),
+                        style: bracketText(
+                          context,
+                          19,
+                          open ? _brassHot : _muted,
+                          weight: FontWeight.w800,
+                          letterSpacing: 2.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 2),
+                    child: won
+                        ? Text(
+                            _best(bout.id) ?? 'WON',
+                            style: bracketText(
+                              context,
+                              11,
+                              _brass,
+                              weight: FontWeight.w800,
+                              letterSpacing: 1.6,
+                            ),
+                          )
+                        : CoinAmount(
+                            kind: CoinKind.gold,
+                            amount: cup.gold[_bout],
+                            size: 12,
+                          ),
+                  ),
+                ],
+              ),
+              Text(
+                '${cup.name.toUpperCase()} · BOUT ${_bout + 1} OF '
+                '${cup.bouts.length} · ${cup.event.title}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: bracketText(
+                  context,
+                  9.5,
+                  _muted,
+                  weight: FontWeight.w700,
+                  letterSpacing: 1.4,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                shut
+                    ? (_gem == 0
+                          ? 'Win the Silver Cup to open the gem cups.'
+                          : 'Win the ${kGemCups[_gem - 1].name} to open it.')
+                    : cup.event.line,
+                style: bracketText(context, 12.5, _ink.withValues(alpha: .8)),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Expanded(
+          child: RacerGate(
+            racer: _racer,
+            rivals: cup.rivalsOf(_bout),
+            onChoose: _chooseRacer,
+            flying: _flying,
+            landings: _landings,
+          ),
+        ),
+        const SizedBox(height: 8),
+        BracketButton(
+          label: !open ? 'LOCKED' : (_starting ? 'STEPPING OUT…' : 'START'),
+          palette: BracketPalette.dark,
+          accent: _brass,
+          height: 42,
+          enabled: open && !_starting && _racer != null,
+          onTap: _startGem,
+        ),
+      ],
+    );
+  }
+
+  /// A gem cup's bout: the three set down on the island or under the night
+  /// sky, or flown up the space course on the route the player plans.
+  Future<void> _startGem() async {
+    final member = _racer;
+    if (_starting || member == null || !_boutOpen) return;
+    final cup = _gemDef;
+    setState(() => _starting = true);
+    HapticFeedback.mediumImpact();
+    final db = context.read<AlchemonsDatabase>();
+    final catalog = context.read<CreatureCatalog>();
+    final inst = await db.creatureDao.getInstance(member.instanceId);
+    final gemIndex = _gem, bout = _bout;
+    final frontier = bout == _progress.wonInGem(cup);
+    final form = bout < cup.rivalForm.length ? cup.rivalForm[bout] : 1.0;
+    final rivals = cup.rivalsOf(bout);
+    final fighters = [
+      racerFromMember(member, inst),
+      for (final r in rivals) gemRivalRacer(r, form),
+    ];
+    final bodies = [
+      RaceBody(member),
+      for (final r in rivals) rivalBody(catalog, r),
+    ];
+    for (final b in bodies) {
+      if (b.ticker == null) await b.load(Flame.images);
+    }
+    // The night sky hangs each one's figure, read finely off its sprite.
+    final figures = cup.event == GemEvent.sky
+        ? await loadSkyFigures(bodies)
+        : null;
+    if (!mounted) return;
+    // The space course: the player plans a way through first; the rivals
+    // fly the ways that suit them.
+    List<List<int>>? routes;
+    if (cup.event == GemEvent.flight) {
+      final course = flightCourseOf(cup.bouts[bout]);
+      final mine = await planFlightRoute(
+        context,
+        title: cup.bouts[bout].name,
+        subtitle:
+            '${cup.name.toUpperCase()} · BOUT ${bout + 1} OF '
+            '${cup.bouts.length} · PLAN YOUR ROUTE',
+        course: course,
+        racer: fighters.first,
+      );
+      if (!mounted) return;
+      if (mine == null) {
+        setState(() => _starting = false);
+        return;
+      }
+      routes = [
+        mine,
+        for (final r in fighters.skip(1)) bestFlightRoute(r, course),
+      ];
+    }
+    setState(() => _starting = false);
+    await Navigator.of(context).push<RaceOutcome>(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 420),
+        reverseTransitionDuration: const Duration(milliseconds: 320),
+        pageBuilder: (_, _, _) => BoutSeries(
+          cup: cup,
+          bout: bout,
+          fighters: fighters,
+          bodies: bodies,
+          stage: () => switch (cup.event) {
+            GemEvent.flight => FlightStage(
+              course: flightCourseOf(cup.bouts[bout]),
+              fighters: fighters,
+              bodies: bodies,
+              player: 0,
+              choices: routes!,
+            ),
+            GemEvent.sky => SkyStage(
+              bout: skyBoutOf(cup.bouts[bout]),
+              figures: figures,
+              fighters: fighters,
+              bodies: bodies,
+              player: 0,
+            ),
+            _ => IslandStage(
+              bout: islandBoutOf(cup.bouts[bout]),
+              fighters: fighters,
+              bodies: bodies,
+              player: 0,
+            ),
+          },
+          onFinished: (finish) => _payGem(cup, bout, finish),
+        ),
+        transitionsBuilder: (_, a, _, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
+          child: child,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _announce();
+    if (!mounted || !frontier || _progress.wonInGem(cup) <= bout) return;
+    setState(() {
+      if (_progress.gemDone(cup) && gemIndex + 1 < kGemCups.length) {
+        _gem = gemIndex + 1;
+      }
+      _bout = _firstOpenBout(_gem);
+    });
+  }
+
+  /// A gem bout's end: any can set its record; a win opens the next, and
+  /// its first win pays its gold, shards and tincture.
+  Future<TrialsPayout> _payGem(
+    GemCup cup,
+    int bout,
+    TrialsFinish finish,
+  ) async {
+    final record = await _keepRecord(cup.bouts[bout].id, finish.mark);
+    if (finish.place != 1) return TrialsPayout(record: record);
+    final (next, first) = _progress.afterGemWin(cup, bout);
+    if (!first || !mounted) return TrialsPayout(record: record);
+    final gold = cup.gold[bout];
+    final db = context.read<AlchemonsDatabase>();
+    await db.currencyDao.addGold(gold);
+    await _payFirstWin(db, cup.id, bout);
+    if (!mounted) return TrialsPayout(gold: gold, record: record);
+    setState(() => _progress = next);
+    await _save();
+    // The cup's last bout: what the cup gives, shown back on the shelf.
+    _toAnnounce.addAll(await giveCupRewards(db, next));
+    if (mounted) {
+      final shop = context.read<ShopService?>();
+      if (shop != null) await unlockCupStatEffects(shop, next);
+    }
+    _publish();
+    return TrialsPayout(gold: gold, record: record);
   }
 
   /// One of the chosen cup's races: its name, and WON, its first-win
@@ -630,7 +1173,7 @@ class _StadiumScreenState extends State<StadiumScreen>
                     padding: const EdgeInsets.only(bottom: 2),
                     child: won
                         ? Text(
-                            'WON',
+                            _best(course.id) ?? 'WON',
                             style: bracketText(
                               context,
                               11,

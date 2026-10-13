@@ -1,7 +1,7 @@
 // lib/games/cosmic/obsidian_kit.dart
 //
-// The material the stations and the contest arenas of open space are cut
-// from — the ship's material (ship_art.dart) for things that stand still:
+// The material the stations and landmarks of open space are cut from —
+// the ship's material (ship_art.dart) for things that stand still:
 // obsidian whose color comes only from the light inside it, glass that holds
 // that light, and grains for anything that moves.
 //

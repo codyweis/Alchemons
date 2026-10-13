@@ -44,6 +44,8 @@ import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/save_generation_service.dart';
 import 'package:alchemons/utils/featured_instance.dart';
+import 'package:alchemons/games/stadium/race_cups.dart';
+import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -187,8 +189,17 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
   final FactionService? factions;
   FirebaseFirestore? _firestore;
 
-  /// How many friends one player can have.
-  static const int maxFriends = 100;
+  /// How many friends one player can have. A request sent and still
+  /// waiting holds a place, so answers can't carry anyone past it.
+  static const int maxFriends = 50;
+
+  bool get _full => _friends.length + _outgoing.length >= maxFriends;
+
+  FriendException get _fullError => FriendException(
+    _friends.length >= maxFriends
+        ? 'Your friends list is full.'
+        : 'Your friends list is full. Take back a request you sent to make room.',
+  );
 
   String? _uid;
   String? _code;
@@ -586,9 +597,7 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
       if (_outgoing.any((r) => r.to == them)) {
         throw const FriendException('Your request is already waiting.');
       }
-      if (_friends.length >= maxFriends) {
-        throw const FriendException('Your friends list is full.');
-      }
+      if (_full) throw _fullError;
       try {
         await _requests
             .doc('${me}_$them')
@@ -621,9 +630,7 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
   Future<void> accept(FriendRequest r) async {
     final me = _me;
     if (r.to != me) return;
-    if (_friends.length >= maxFriends) {
-      throw const FriendException('Your friends list is full.');
-    }
+    if (_full) throw _fullError;
     await _run(() async {
       final since = {'since': FieldValue.serverTimestamp()};
       await (_fs.batch()
@@ -860,6 +867,21 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
       final worn = (await ProfileTitles.load(db)).worn;
       final title = worn == null ? null : ProfileTitles.nameOf(worn);
       final featured = await loadFeaturedInstance(db);
+      // The Trials: cups won and records, for a friend's page to set
+      // against their own.
+      final races = RaceProgress.deserialise(
+        prefs.getString(RaceProgress.prefsKey),
+      );
+      final records = TrialsRecords.deserialise(
+        prefs.getString(TrialsRecords.prefsKey),
+      );
+      final trials = TrialsCard(
+        won: {
+          for (final e in races.won.entries)
+            if (e.value > 0) e.key: e.value,
+        },
+        best: records.published,
+      );
       final player = <String, dynamic>{
         'name': _name,
         'faction': factions?.current?.name,
@@ -872,6 +894,7 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
             featured,
             trail: wear?.trailOf(featured.instanceId)?.id,
           ).toJson(),
+        if (!trials.isEmpty) 'trials': trials.toJson(),
       };
       final home = (await FriendHome.capture(
         db,

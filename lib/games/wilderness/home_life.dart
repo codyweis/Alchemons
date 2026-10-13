@@ -158,6 +158,12 @@ const _visits = <String, _Visit>{
   'victory_arch': _Visit(_Do.dash, seconds: 5, elements: {'Lightning', 'Air'}),
   'titan_anvil': _Visit(_Do.climb, seconds: 5, elements: {'Fire', 'Earth'}),
   'prism_orrery': _Visit(_Do.look, seconds: 7, elements: {'Crystal', 'Light'}),
+  'copper_cup': _Visit(_Do.preen, seconds: 6),
+  'silver_cup': _Visit(_Do.preen, seconds: 6),
+  'gold_cup': _Visit(_Do.preen, seconds: 7),
+  'ruby_cup': _Visit(_Do.preen, seconds: 6),
+  'sapphire_cup': _Visit(_Do.preen, seconds: 6),
+  'emerald_cup': _Visit(_Do.preen, seconds: 7),
   // Bought decor (models/home_decor.dart). The Curios are only to look at.
   'wind_chimes': _Visit(_Do.look, seconds: 5, elements: {'Air', 'Steam'}),
   'fountain': _Visit(_Do.bow, seconds: 6, elements: {'Water', 'Ice'}),

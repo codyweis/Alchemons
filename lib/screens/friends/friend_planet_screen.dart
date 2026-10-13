@@ -33,6 +33,7 @@ import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/screens/friends/friend_home_screen.dart';
+import 'package:alchemons/screens/friends/friend_trials.dart';
 import 'package:alchemons/screens/friends/trade_screen.dart';
 import 'package:alchemons/screens/stadium/race_lobby_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -561,6 +562,7 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                         ),
                         const SizedBox(height: 10),
                       ],
+                      FriendTrialsRow(friend: friend),
                       Row(
                         children: [
                           Expanded(

@@ -80,7 +80,6 @@ void main() {
           t: a ? 2.2 : 4,
         ),
       ),
-      ('lore note', (c, a) => paintLoreNote(c, at: Offset.zero, t: a ? 2 : 0)),
     ];
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);

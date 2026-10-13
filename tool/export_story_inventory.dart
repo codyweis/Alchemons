@@ -312,7 +312,7 @@ String _buildStoryInventoryMarkdown() {
       title: 'Cosmic Contest Hint Lore',
       source: 'lib/games/cosmic/cosmic_contests.dart',
       reachability:
-          'Reachable as collectible hint notes in cosmic contest arenas. Not main story, but definitely authored quote/lore content.',
+          'No longer collectible: the space contests are retired. Notes already found still show under COSMIC NOTES on the profile. Not main story, but authored quote/lore content.',
       items: [
         'A torn note: "Lightning, water, and ice are whispered to outrun all."',
         'A racer\'s chalk mark: "Wing bloodlines catch speed early."',

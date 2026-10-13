@@ -83,5 +83,33 @@ void main() {
         );
       }
     });
+    // Every cup, at a third, two thirds and full.
+    await save('04_cups', const Size(1080, 560), (c) {
+      const metals = [
+        TrophyMetal.copper,
+        TrophyMetal.silver,
+        TrophyMetal.gold,
+        TrophyMetal.ruby,
+        TrophyMetal.sapphire,
+        TrophyMetal.emerald,
+      ];
+      for (var i = 0; i < metals.length; i++) {
+        final x = 90 + i * 180.0;
+        paintStadiumTrophy(
+          c,
+          Offset(x, 170),
+          150,
+          TrophyLook(metals[i], fill: const [1 / 3, 2 / 3, 1.0][i % 3]),
+          2.3 + i,
+        );
+        paintStadiumTrophy(
+          c,
+          Offset(x, 440),
+          90,
+          TrophyLook(metals[i], fill: const [1.0, 1 / 3, 2 / 3][i % 3]),
+          4.1 + i,
+        );
+      }
+    });
   });
 }

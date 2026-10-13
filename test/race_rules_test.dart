@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:alchemons/games/cosmic/contest_judging.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/stadium/race_rules.dart';
 import 'package:alchemons/models/creature.dart';
@@ -428,5 +429,29 @@ void main() {
         print('$line  best: $best');
       }
     }
+  });
+
+  test('the developer tools open every cup, race and bout, winning none', () {
+    final shut = RaceProgress.deserialise('{"copper":1}');
+    expect(shut.cupOpen(2), isFalse);
+    expect(shut.gemOpen(0), isFalse);
+    final open = shut.opened();
+    expect(
+      [for (var i = 0; i < kRaceCups.length; i++) open.cupOpen(i)],
+      [true, true, true],
+    );
+    expect(open.raceOpen(kRaceCups[2], 2), isTrue);
+    expect(
+      [for (var i = 0; i < kGemCups.length; i++) open.gemOpen(i)],
+      [true, true, true],
+    );
+    expect(open.boutOpen(kGemCups[2], 2), isTrue);
+    // Nothing is won by it, nor saved.
+    expect(open.cupDone(kRaceCups[0]), isFalse);
+    expect(open.serialise(), shut.serialise());
+    // A win keeps everything open.
+    final (next, first) = open.afterWin(kRaceCups[0], 1);
+    expect(first, isTrue);
+    expect(next.allOpen, isTrue);
   });
 }

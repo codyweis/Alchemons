@@ -10,6 +10,8 @@
 //   Athanor      drawn from the Furnace: a piece of kind title grants its
 //                grantRef as the title id, and the piece's name is the
 //                title's words, so there is one list of them, not two
+//   cup          given by winning a cup in the Trials ("Copper Cup
+//                Winner"): [kCupTitles]
 //
 // What is kept is one settings row, `profile_titles_v1` (JSON), so it
 // travels with the save:
@@ -17,14 +19,18 @@
 //     {"owned": ["<titleId>"], "worn": "<titleId>" | null}
 //
 // "owned" holds the Athanor's only. An achievement's title is read off the
-// achievement's collected flag rather than written down, so a save that
-// collected one before titles existed has it, and nothing can disagree.
+// achievement's collected flag, and a cup's off the Trials' progress,
+// rather than written down, so a save that earned one before titles
+// existed has it, and nothing can disagree.
 
 import 'dart:convert';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart';
+import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// The first word of a made title.
 enum TitleColour {
@@ -94,6 +100,18 @@ const kAchievementTitles = <String, (String, String)>{
   'family.wing': ('fuse_wing_5', 'Winger'),
   'family.kin': ('fuse_kin_5', 'The Kin'),
   'family.mane': ('fuse_mane_5', 'Mane Main'),
+};
+
+/// Titles given by winning a cup in the Trials (the author, 2026-10-12: a
+/// title for each cup, the races' and the gems'), by title id: the cup's id
+/// and the title's words.
+const kCupTitles = <String, (String, String)>{
+  'trials.copper': ('copper', 'Copper Cup Winner'),
+  'trials.silver': ('silver', 'Silver Cup Winner'),
+  'trials.gold': ('gold', 'Gold Cup Champion'),
+  'trials.ruby': ('ruby', 'Ruby Cup Winner'),
+  'trials.sapphire': ('sapphire', 'Sapphire Cup Winner'),
+  'trials.emerald': ('emerald', 'Emerald Cup Champion'),
 };
 
 class ProfileTitleState {
@@ -166,7 +184,8 @@ abstract final class ProfileTitles {
         earned: await _earned(db),
       );
 
-  /// The achievements' titles whose achievement has been collected.
+  /// The achievements' titles whose achievement has been collected, and
+  /// the cups' whose cup has been won.
   static Future<Set<String>> _earned(AlchemonsDatabase db) async => {
     for (final e in kAchievementTitles.entries)
       if (await db.settingsDao.getSetting(
@@ -174,7 +193,23 @@ abstract final class ProfileTitles {
           ) ==
           '1')
         e.key,
+    ...await _cupsWon(),
   };
+
+  static Future<Set<String>> _cupsWon() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final races = RaceProgress.deserialise(
+        prefs.getString(RaceProgress.prefsKey),
+      );
+      return {
+        for (final e in kCupTitles.entries)
+          if (trialsCupDone(races, e.value.$1)) e.key,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
 
   /// Adds [id] to the owned titles. Safe inside the caller's transaction (a
   /// pour grants through here); owning it already changes nothing.
@@ -211,11 +246,12 @@ abstract final class ProfileTitles {
   }
 
   /// Every title a player can earn, in the order the profile lists them:
-  /// the achievements', then the Athanor's in batch order.
+  /// the achievements', the cups', then the Athanor's in batch order.
   static List<String> earnable({
     List<AthanorBatch> batches = kAthanorBatches,
   }) => [
     ...kAchievementTitles.keys,
+    ...kCupTitles.keys,
     for (final batch in batches)
       for (final piece in [...batch.pieces, batch.capstone])
         if (piece.kind == AthanorPieceKind.title) piece.grantRef,
@@ -231,6 +267,7 @@ abstract final class ProfileTitles {
   }) {
     if (MadeTitle.fromId(id) case final made?) return made.words;
     if (kAchievementTitles[id] case (_, final words)) return words;
+    if (kCupTitles[id] case (_, final words)) return words;
     for (final batch in batches) {
       for (final piece in [...batch.pieces, batch.capstone]) {
         if (piece.kind == AthanorPieceKind.title && piece.grantRef == id) {

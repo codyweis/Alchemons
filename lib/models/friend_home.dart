@@ -323,8 +323,48 @@ class FriendHome {
   }
 }
 
+/// What a player has done in the Trials, as their friends see it: races
+/// and bouts won in each cup (cup id → count), and their records (event id
+/// → milliseconds, or stars for the night sky; trials_records.dart).
+class TrialsCard {
+  const TrialsCard({this.won = const {}, this.best = const {}});
+
+  /// The most of each a card carries, as published and as read.
+  static const int maxCups = 16, maxRecords = 48;
+
+  final Map<String, int> won;
+  final Map<String, int> best;
+
+  bool get isEmpty => won.isEmpty && best.isEmpty;
+
+  Map<String, dynamic> toJson() => {'won': won, 'best': best};
+
+  static Map<String, int> _counts(Object? j, int most, int ceiling) {
+    if (j is! Map) return const {};
+    final out = <String, int>{};
+    for (final e in j.entries) {
+      if (out.length >= most) break;
+      final v = e.value;
+      if (e.key is String && v is num && v >= 0 && v <= ceiling) {
+        out[e.key as String] = v.round();
+      }
+    }
+    return out;
+  }
+
+  /// Null for nothing, or anything malformed.
+  static TrialsCard? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final card = TrialsCard(
+      won: _counts(j['won'], maxCups, 99),
+      best: _counts(j['best'], maxRecords, 100000000),
+    );
+    return card.isEmpty ? null : card;
+  }
+}
+
 /// A friend as their friends see them: a name, a division, the title they
-/// wear, their featured Alchemon and a planet.
+/// wear, their featured Alchemon, a planet, and the Trials.
 class FriendCard {
   const FriendCard({
     required this.uid,
@@ -333,6 +373,7 @@ class FriendCard {
     this.title,
     this.featured,
     this.planet,
+    this.trials,
   });
 
   /// The most a title's words can run, as published and as read.
@@ -354,6 +395,10 @@ class FriendCard {
   /// Null until they have built a home planet.
   final PlanetLook? planet;
 
+  /// Their cups and records; null before they have raced (or from a game
+  /// that published none).
+  final TrialsCard? trials;
+
   static FriendCard fromJson(String uid, Map<String, dynamic>? json) {
     final name = json?['name'];
     final title = json?['title'];
@@ -373,6 +418,7 @@ class FriendCard {
       planet: json?['planet'] is Map
           ? PlanetLook.fromJson(json!['planet'])
           : null,
+      trials: TrialsCard.fromJson(json?['trials']),
     );
   }
 }

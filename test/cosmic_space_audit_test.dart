@@ -522,12 +522,6 @@ void main() {
       }
       game.bloodRitualProgress = null;
 
-      if (world.contestArenas.isNotEmpty) {
-        flyTo(world.contestArenas.first.position, off: const Offset(-200, 0));
-        settle(1);
-        await shoot('35_contest_arena');
-      }
-
       flyTo(world.prismaticField.position);
       settle(1);
       await shoot('36_prismatic_field');

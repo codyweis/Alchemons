@@ -13,7 +13,6 @@
 //   survival gate  standing stones round a turning violet deep
 //   boss lair      a sealed dark heart in a crown of shards, with a faint
 //                  ring of grains where whatever sleeps there will wake
-//   lore note      a small lit shard with a few motes about it
 //
 // Stone is painted once and laid down turned; what moves is grains.
 
@@ -447,45 +446,6 @@ void paintBossLair(
   }
   _embers.draw(c, 1.6, m.grainHot.withValues(alpha: 0.7));
   c.restore();
-}
-
-// ── lore note ───────────────────────────────────────────────────────────────
-
-final StoneLight _noteLight = StoneLight(const Color(0xFFE9C77A));
-final BakedArt _noteShard = BakedArt(const Rect.fromLTRB(-8, -12, 8, 12), (c) {
-  CutStone.gem(_noteLight, const [
-    Offset(0, -11),
-    Offset(6, -2),
-    Offset(3, 10),
-    Offset(-4, 8),
-    Offset(-6, -3),
-  ], const Offset(0, -2)).paint(c, 0, glow: 1.4, reach: 12);
-});
-final PointBatch _noteMotes = PointBatch(8);
-
-/// A drifting note at [at]: a small lit shard, a few motes round it.
-void paintLoreNote(
-  Canvas c, {
-  required Offset at,
-  required double t,
-  int seed = 0,
-}) {
-  final bob = Offset(0, sin(t * 1.3 + seed) * 3);
-  final p = at + bob;
-  paintDisc(c, _noteLight.pool, p, 40, 1.6);
-  c.save();
-  c.translate(p.dx, p.dy);
-  c.rotate(sin(t * 0.7 + seed) * 0.3);
-  c.scale(1.6);
-  _noteShard.draw(c);
-  c.restore();
-  paintDisc(c, _noteLight.spark, p + const Offset(-1, -2), 2.2);
-  _noteMotes.clear();
-  for (var i = 0; i < 6; i++) {
-    final a = t * 0.9 + i * pi / 3 + seed;
-    _noteMotes.add(p.dx + cos(a) * 22, p.dy + sin(a) * 14);
-  }
-  _noteMotes.draw(c, 1.4, _noteLight.grainHot.withValues(alpha: 0.7));
 }
 
 // ── Loot ────────────────────────────────────────────────────────────────────

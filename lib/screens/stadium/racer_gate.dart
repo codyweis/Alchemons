@@ -398,11 +398,19 @@ class _GateGeo {
     backFloor = tall
         ? math.max(front * .5, frontFloor - front * 1.9)
         : math.max(front * .46, frontFloor - front * 1.4);
-    lineX = w * (tall ? .5 : .4);
+    // Three in a bout (the gem cups) stand further apart than six in a
+    // race, so the two behind don't stand on the front one's head.
+    final few = lanes <= 3;
+    lineX = w * (tall ? (few ? .6 : .5) : .4);
     final keepIn = (lineX - front * .46 * .92 - 8) / math.max(1, lanes - 1);
     step = math.max(
       0.0,
-      math.min(tall ? front * .42 : math.min(w * .065, front * .5), keepIn),
+      math.min(
+        tall
+            ? front * (few ? .78 : .42)
+            : math.min(w * (few ? .12 : .065), front * .5),
+        keepIn,
+      ),
     );
   }
 
@@ -455,16 +463,6 @@ class _Plate extends StatelessWidget {
         ),
       ],
     );
-    final label = Text(
-      m == null ? 'NO RACER' : 'READY TO RACE',
-      style: bracketText(
-        context,
-        9.5,
-        _muted,
-        weight: FontWeight.w700,
-        letterSpacing: 1.6,
-      ),
-    );
     final change = Text(
       m == null ? 'CHOOSE' : 'CHANGE',
       style: bracketText(
@@ -482,9 +480,7 @@ class _Plate extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.end,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          label,
           if (m != null) ...[
-            const SizedBox(height: 2),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [

@@ -94,9 +94,6 @@ void main() {
           (poi.position.dx / CosmicGame.fogCellSize).floor();
       if (game.revealedCells.contains(cell)) poi.discovered = true;
     }
-    for (final a in world.contestArenas) {
-      a.discovered = true;
-    }
     world.elementalNexus.discovered = true;
     game.prismaticField.discovered = true;
     for (final c in game.elementalCacheField.caches.take(5)) {

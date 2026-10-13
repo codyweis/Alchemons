@@ -258,12 +258,19 @@ void paintSceneBackdrop(
 }) {
   if (amount <= 0.01) return;
   final w = size.width;
-  // The sky.
-  _fill.shader = ui.Gradient.linear(Offset.zero, Offset(0, horizon), [
-    look.skyTop.withValues(alpha: amount),
-    look.skyLow.withValues(alpha: amount),
-  ]);
-  c.drawRect(Rect.fromLTRB(0, 0, w, horizon + 2), _fill);
+  // The sky, fading out below the horizon rather than ending on a line.
+  final under = horizon + 40 * k;
+  _fill.shader = ui.Gradient.linear(
+    Offset.zero,
+    Offset(0, under),
+    [
+      look.skyTop.withValues(alpha: amount),
+      look.skyLow.withValues(alpha: amount),
+      look.skyLow.withValues(alpha: 0),
+    ],
+    [0, horizon / under, 1],
+  );
+  c.drawRect(Rect.fromLTRB(0, 0, w, under), _fill);
   _fill.shader = null;
   final glow = look.glow;
   if (glow != null) {
@@ -404,20 +411,31 @@ void _range(
   _fill.shader = null;
 
   final b = _batch..clear();
-  // The rim, lit; and grains scattered in the mass, thinning into it. Laid
-  // on the range's own ground (world x), so they hold still as it passes.
+  // The rim: light catching the ridge where it faces up, in a band just
+  // under its edge, broken where the ridge turns away — never an even
+  // line. And grains scattered in the mass, thinning into it. Laid on the
+  // range's own ground (world x), so they hold still as it passes.
   double screenOf(double wx) => (wx - camX * par) * k + w / 2;
-  final rimStep = 2.6 / k, fillStep = 7 / k;
+  final rimStep = 2.2 / k, fillStep = 7 / k;
   final left = camX * par - w / 2 / k;
   for (var xi = (left / rimStep).floor(); ; xi++) {
-    final sx = screenOf(xi * rimStep);
+    final wx = xi * rimStep;
+    final sx = screenOf(wx);
     if (sx > w) break;
-    final h = hash01(xi, 450 + seed);
-    if (h < 0.75) {
+    // Where the ridge faces the light (rising to the left), it is lit;
+    // where it falls away, hardly.
+    final slope = edge(sx - 2) - edge(sx + 2);
+    final face = hanging ? 0.5 : (0.5 + slope * 0.12).clamp(0.0, 1.0);
+    final broken = 0.5 + 0.5 * sin(wx * 0.013 + seed * 2.3) * sin(wx * 0.037);
+    final lit = face * (0.35 + 0.65 * broken);
+    for (var g = 0; g < 2; g++) {
+      final h = hash01(xi * 2 + g, 450 + seed);
+      if (h > lit) continue;
+      final down = pow(hash01(xi * 2 + g, 451 + seed), 2) * 5;
       b.add(
-        h < 0.2 ? 1 : 0,
+        down < 0.6 && h < lit * 0.4 ? 1 : 0,
         sx + (h - 0.5) * 1.5,
-        edge(sx) + (hanging ? -1 : 1),
+        edge(sx) + (hanging ? -1 : 1) * (0.8 + down),
       );
     }
   }
@@ -443,8 +461,8 @@ void _range(
   b.draw(
     c,
     0,
-    1.5,
-    look.rim.withValues(alpha: (seed == 1 ? 0.35 : 0.55) * amount),
+    1.3,
+    look.rim.withValues(alpha: (seed == 1 ? 0.28 : 0.45) * amount),
   );
   b.draw(
     c,

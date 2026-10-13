@@ -583,6 +583,25 @@ class InvKeys {
   static const alchemyRedKingCrown = 'alchemy.red_king_crown';
   static const alchemyBrassMonocle = 'alchemy.brass_monocle';
 
+  // The Trials' spotlights: one for each cup won, never sold.
+  static const alchemyCopperSpotlight = 'alchemy.copper_spotlight';
+  static const alchemySilverSpotlight = 'alchemy.silver_spotlight';
+  static const alchemyGoldSpotlight = 'alchemy.gold_spotlight';
+  static const alchemyRubySpotlight = 'alchemy.ruby_spotlight';
+  static const alchemySapphireSpotlight = 'alchemy.sapphire_spotlight';
+  static const alchemyEmeraldSpotlight = 'alchemy.emerald_spotlight';
+
+  /// The Trials' spotlights in cup order: Copper, Silver, Gold; Ruby,
+  /// Sapphire, Emerald.
+  static const List<String> trialsSpotlights = [
+    alchemyCopperSpotlight,
+    alchemySilverSpotlight,
+    alchemyGoldSpotlight,
+    alchemyRubySpotlight,
+    alchemySapphireSpotlight,
+    alchemyEmeraldSpotlight,
+  ];
+
   /// Items only the Athanor gives: the shop never sells them
   /// (ShopService.sells), except the two costumes once the Furnace has given
   /// them (ShopService.furnaceCostumeOffers).
@@ -625,6 +644,12 @@ class InvKeys {
     alchemyQuicksilver => 'quicksilver',
     alchemyGoldLeaf => 'gold_leaf',
     alchemyCinnabar => 'cinnabar',
+    alchemyCopperSpotlight => 'copper_spotlight',
+    alchemySilverSpotlight => 'silver_spotlight',
+    alchemyGoldSpotlight => 'gold_spotlight',
+    alchemyRubySpotlight => 'ruby_spotlight',
+    alchemySapphireSpotlight => 'sapphire_spotlight',
+    alchemyEmeraldSpotlight => 'emerald_spotlight',
     _ => null,
   };
 
@@ -652,6 +677,7 @@ class InvKeys {
       alchemyQuicksilver,
       alchemyGoldLeaf,
       alchemyCinnabar,
+      ...trialsSpotlights,
     ]) {
       if (alchemyEffectFor(key) == effect) return key;
     }
@@ -854,28 +880,28 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.alchemyBeautyRadiance,
       name: 'Beauty Radiance',
       description:
-          'Contest reward effect: a stage-lit radiance that amplifies charm and presence.',
+          'A stage-lit radiance. Given with the Sapphire Cup in the Trials, then sold in the shop.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemySpeedFlux: InventoryItemDef(
       key: InvKeys.alchemySpeedFlux,
       name: 'Speed Flux',
       description:
-          'Contest reward effect: a kinetic flux aura that conveys relentless acceleration.',
+          'A flux of motion round your Alchemon. Given with the Gold Cup in the Trials, then sold in the shop.',
       icon: AppIcons.bolt_rounded,
     ),
     InvKeys.alchemyStrengthForge: InventoryItemDef(
       key: InvKeys.alchemyStrengthForge,
       name: 'Strength Forge',
       description:
-          'Contest reward effect: a forged pressure aura projecting raw force and impact.',
+          'A forged aura of force. Given with the Ruby Cup in the Trials, then sold in the shop.',
       icon: AppIcons.fitness_center_rounded,
     ),
     InvKeys.alchemyIntelligenceHalo: InventoryItemDef(
       key: InvKeys.alchemyIntelligenceHalo,
       name: 'Intelligence Halo',
       description:
-          'Contest reward effect: a cerebral halo of void-lit focus and adaptive thought.',
+          'A halo of focused light. Given with the Emerald Cup in the Trials, then sold in the shop.',
       icon: AppIcons.psychology_rounded,
     ),
     InvKeys.alchemyBloodAura: InventoryItemDef(
@@ -937,6 +963,57 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       description:
           'Flakes of gold leaf drift down around one of your Alchemons and '
           'settle at its feet. From the Furnace.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyCopperSpotlight: InventoryItemDef(
+      key: InvKeys.alchemyCopperSpotlight,
+      name: 'Copper Spotlight',
+      description:
+          'One of your Alchemons stands in a beam of copper light, with motes '
+          'of it drifting up. For winning the Copper Cup in the Trials.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemySilverSpotlight: InventoryItemDef(
+      key: InvKeys.alchemySilverSpotlight,
+      name: 'Silver Spotlight',
+      description:
+          'One of your Alchemons stands in a beam of silver light, with motes '
+          'of it drifting up. For winning the Silver Cup in the Trials.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyGoldSpotlight: InventoryItemDef(
+      key: InvKeys.alchemyGoldSpotlight,
+      name: 'Gold Spotlight',
+      description:
+          'One of your Alchemons stands in a beam of gold light, a glint '
+          'sliding down it and motes drifting up. For winning the Gold Cup '
+          'in the Trials.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyRubySpotlight: InventoryItemDef(
+      key: InvKeys.alchemyRubySpotlight,
+      name: 'Ruby Spotlight',
+      description:
+          'One of your Alchemons stands in a beam of ruby light, with motes '
+          'of it drifting up. For winning the Ruby Cup in the Trials.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemySapphireSpotlight: InventoryItemDef(
+      key: InvKeys.alchemySapphireSpotlight,
+      name: 'Sapphire Spotlight',
+      description:
+          'One of your Alchemons stands in a beam of sapphire light, with '
+          'motes of it drifting up. For winning the Sapphire Cup in the '
+          'Trials.',
+      icon: AppIcons.auto_awesome_rounded,
+    ),
+    InvKeys.alchemyEmeraldSpotlight: InventoryItemDef(
+      key: InvKeys.alchemyEmeraldSpotlight,
+      name: 'Emerald Spotlight',
+      description:
+          'One of your Alchemons stands in a beam of emerald light, a glint '
+          'sliding down it and motes drifting up. For winning the Emerald '
+          'Cup in the Trials.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyCinnabar: InventoryItemDef(

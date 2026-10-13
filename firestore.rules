@@ -235,7 +235,7 @@ service cloud.firestore {
     match /players/{uid} {
       allow read: if isOwner(uid) || isFriendOf(uid);
       allow create, update: if isOwner(uid) &&
-          request.resource.data.keys().hasOnly(['name', 'faction', 'code', 'planet', 'title', 'featured', 'updatedAt']) &&
+          request.resource.data.keys().hasOnly(['name', 'faction', 'code', 'planet', 'title', 'featured', 'trials', 'updatedAt']) &&
           request.resource.data.name is string &&
           request.resource.data.name.size() > 0 &&
           request.resource.data.name.size() <= 40 &&
@@ -249,6 +249,14 @@ service cloud.firestore {
            request.resource.data.title.size() <= 40) &&
           (request.resource.data.get('featured', null) == null ||
            request.resource.data.featured is map) &&
+          // The Trials: cups won and records (friend_home.dart TrialsCard).
+          (request.resource.data.get('trials', null) == null ||
+           (request.resource.data.trials is map &&
+            request.resource.data.trials.keys().hasOnly(['won', 'best']) &&
+            request.resource.data.trials.get('won', {}) is map &&
+            request.resource.data.trials.get('won', {}).size() <= 16 &&
+            request.resource.data.trials.get('best', {}) is map &&
+            request.resource.data.trials.get('best', {}).size() <= 48)) &&
           request.resource.data.updatedAt == request.time;
       allow delete: if isOwner(uid);
 

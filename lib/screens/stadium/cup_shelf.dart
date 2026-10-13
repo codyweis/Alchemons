@@ -14,14 +14,15 @@
 // has landed, and says where each cup stands.
 
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/screens/stadium/stadium_passage.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:alchemons/widgets/stadium_trophy.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -87,16 +88,70 @@ const double kCupShelfLabels = 34;
 /// Grains in the light passing between cups.
 const int _kPour = 150;
 
+/// One cup as the shelf shows it: its look, its name, how many races (or
+/// bouts) it has and how many are won, and whether it is open.
+@immutable
+class ShelfCup {
+  const ShelfCup({
+    required this.look,
+    required this.name,
+    required this.of,
+    required this.won,
+    required this.open,
+  });
+
+  final TrophyLook look;
+  final String name;
+  final int of, won;
+  final bool open;
+
+  /// The race cups, Copper to Gold.
+  static List<ShelfCup> races(RaceProgress p) => [
+    for (var i = 0; i < kRaceCups.length; i++)
+      ShelfCup(
+        look: TrophyLook.ofCup(i, p),
+        name: kRaceCups[i].name,
+        of: kRaceCups[i].courses.length,
+        won: p.wonIn(kRaceCups[i]),
+        open: p.cupOpen(i),
+      ),
+  ];
+
+  /// The gem cups, Ruby to Emerald.
+  static List<ShelfCup> gems(RaceProgress p) => [
+    for (var i = 0; i < kGemCups.length; i++)
+      ShelfCup(
+        look: TrophyLook.ofGem(i, p),
+        name: kGemCups[i].name,
+        of: kGemCups[i].bouts.length,
+        won: p.wonInGem(kGemCups[i]),
+        open: p.gemOpen(i),
+      ),
+  ];
+
+  @override
+  bool operator ==(Object other) =>
+      other is ShelfCup &&
+      other.look == look &&
+      other.name == name &&
+      other.of == of &&
+      other.won == won &&
+      other.open == open;
+
+  @override
+  int get hashCode => Object.hash(look, name, of, won, open);
+}
+
 class CupShelf extends StatefulWidget {
   const CupShelf({
     super.key,
-    required this.progress,
+    required this.cups,
     required this.selected,
     required this.onSelect,
     this.passage,
   });
 
-  final RaceProgress progress;
+  final List<ShelfCup> cups;
   final int selected;
   final ValueChanged<int> onSelect;
 
@@ -156,7 +211,7 @@ class _CupShelfState extends State<CupShelf>
   bool _visible = true;
 
   List<double> _focusOf(int selected) => [
-    for (var i = 0; i < kRaceCups.length; i++) i == selected ? 1.0 : 0.0,
+    for (var i = 0; i < widget.cups.length; i++) i == selected ? 1.0 : 0.0,
   ];
 
   /// How chosen each cup is [k] of the way from [_from] to [target].
@@ -250,7 +305,7 @@ class _CupShelfState extends State<CupShelf>
           child: CustomPaint(
             size: box.biggest,
             painter: _ShelfPainter(
-              progress: widget.progress,
+              cups: widget.cups,
               selected: widget.selected,
               moment: _moment,
               heldCup: () =>
@@ -272,7 +327,7 @@ class _CupShelfState extends State<CupShelf>
 
 class _ShelfPainter extends CustomPainter {
   _ShelfPainter({
-    required this.progress,
+    required this.cups,
     required this.selected,
     required this.moment,
     required this.heldCup,
@@ -281,7 +336,7 @@ class _ShelfPainter extends CustomPainter {
     required Listenable repaint,
   }) : super(repaint: repaint);
 
-  final RaceProgress progress;
+  final List<ShelfCup> cups;
   final int selected;
   final _Moment Function() moment;
   final int? Function() heldCup;
@@ -408,7 +463,7 @@ class _ShelfPainter extends CustomPainter {
         Offset(0, i == m.to ? -rise * geo.heights[i] * .07 : 0);
     for (var i = 0; i < geo.boxes.length; i++) {
       if (held == i) continue;
-      final look = TrophyLook.ofCup(i, progress);
+      final look = cups[i].look;
       final open = look.metal != TrophyMetal.ash;
       final arriving = m.moving && i == m.to;
       if (arriving) {
@@ -449,16 +504,16 @@ class _ShelfPainter extends CustomPainter {
         from: cupCentre(m.from) + Offset(0, -geo.heights[m.from] * .46),
         to: cupCentre(m.to) + Offset(0, -geo.heights[m.to] * .46),
         v: m.v,
-        fromLook: TrophyLook.ofCup(m.from, progress),
-        toLook: TrophyLook.ofCup(m.to, progress),
+        fromLook: cups[m.from].look,
+        toLook: cups[m.to].look,
         width: trophyGrainWidth(geo.heights[m.to]),
       );
     }
 
     // Names and beads.
     for (var i = 0; i < geo.boxes.length; i++) {
-      final cup = kRaceCups[i];
-      final open = progress.cupOpen(i);
+      final cup = cups[i];
+      final open = cup.open;
       final cx = geo.boxes[i].center.dx;
       final name = cup.name.split(' ').first.toUpperCase();
       final colour = !open
@@ -466,8 +521,8 @@ class _ShelfPainter extends CustomPainter {
           : Color.lerp(_ink.withValues(alpha: .7), _brassHot, f[i])!;
       final tp = _label(name, colour, 10);
       tp.paint(canvas, Offset(cx - tp.width / 2, floor + 13));
-      final won = progress.wonIn(cup);
-      for (var r = 0; r < cup.courses.length; r++) {
+      final won = cup.won;
+      for (var r = 0; r < cup.of; r++) {
         final x = cx + (r - 1) * 9.0;
         final at = Offset(x, floor + 29);
         final lit = r < won;
@@ -573,7 +628,7 @@ class _ShelfPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ShelfPainter old) =>
-      old.progress != progress ||
+      !listEquals(old.cups, cups) ||
       old.selected != selected ||
       old.textStyle != textStyle;
 }

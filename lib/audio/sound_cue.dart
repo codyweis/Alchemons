@@ -480,7 +480,13 @@ enum SoundCue {
       'moon_font' => homeWater,
       'storm_coil' => homeSpark,
       'alembic' || 'great_alembic' => homeSteam,
-      'music_box' => homeChimes,
+      'music_box' ||
+      'copper_cup' ||
+      'silver_cup' ||
+      'gold_cup' ||
+      'ruby_cup' ||
+      'sapphire_cup' ||
+      'emerald_cup' => homeChimes,
       'moonstone_cairn' || 'sundial' || 'gilded_throne' => homeStone,
       'moth_lantern' ||
       'salt_pillar' ||

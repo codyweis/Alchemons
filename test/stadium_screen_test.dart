@@ -1,6 +1,7 @@
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/stadium/race_bodies.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
+import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/screens/stadium/cup_shelf.dart';
 import 'package:alchemons/screens/stadium/race_screen.dart';
 import 'package:alchemons/screens/stadium/stadium_screen.dart';
@@ -50,6 +51,7 @@ void main() {
             ),
         ];
         int? paidFor;
+        double? timed;
         RaceOutcome? outcome;
         await tester.pumpWidget(
           MaterialApp(
@@ -63,9 +65,12 @@ void main() {
                         race: 0,
                         racers: racers,
                         bodies: bodies,
-                        onFinished: (place) async {
-                          paidFor = place;
-                          return place == 1 ? 1 : 0;
+                        onFinished: (finish) async {
+                          paidFor = finish.place;
+                          timed = finish.mark;
+                          return TrialsPayout(
+                            gold: finish.place == 1 ? 1 : 0,
+                          );
                         },
                       ),
                     ),
@@ -95,6 +100,8 @@ void main() {
         }
         await run(90);
         expect(paidFor, isNotNull);
+        // The race reports its time for the record.
+        expect(timed, greaterThan(0));
         // The podium, then the results.
         for (var f = 0; f < 60; f++) {
           await tester.pump(const Duration(milliseconds: 100));

@@ -8,7 +8,6 @@ import 'dart:math';
 import 'package:alchemons/audio/sound_cue.dart';
 import 'dart:ui' as ui;
 
-import 'cosmic_contests.dart';
 import 'cosmic_ability_runtime.dart';
 import 'mask_trap_placement.dart';
 import 'cosmic_projectile_vfx.dart';
@@ -39,7 +38,6 @@ import 'planets/planet_art.dart';
 import 'gravity_ring_art.dart';
 import 'ship_art.dart';
 import 'station_art.dart';
-import 'contest_art.dart';
 import 'poi_art.dart';
 import 'asteroid_art.dart';
 import 'landmark_art.dart';
@@ -61,7 +59,7 @@ import 'package:alchemons/widgets/fx/fusion_particles.dart'
 
 part 'cosmic_game_helpers.dart';
 part 'cosmic_game_components.dart';
-part 'cosmic_game_companions_contests.dart';
+part 'cosmic_game_companions.dart';
 part 'cosmic_game_world_systems.dart';
 part 'cosmic_game_home_visuals.dart';
 part 'cosmic_game_caches.dart';
@@ -223,8 +221,6 @@ class CosmicGame extends FlameGame with PanDetector {
     this.onCompanionDied,
     this.onNearNexus,
     this.onNearBloodRing,
-    this.onNearContestArena,
-    this.onContestHintCollected,
     Set<String>? initialCustomizations,
     Map<String, String>? initialOptions,
     String? initialAmmoId,
@@ -305,8 +301,6 @@ class CosmicGame extends FlameGame with PanDetector {
   final void Function(SpacePOI? poi)? onNearMarket;
   final void Function(CosmicPartyMember member)? onCompanionAutoReturned;
   final void Function(CosmicPartyMember member)? onCompanionDied;
-  final void Function(CosmicContestArena? arena)? onNearContestArena;
-  final void Function(CosmicContestHintNote note)? onContestHintCollected;
 
   /// Fires when the ship parks at (or leaves) a sealed elemental cache.
   void Function(ElementalCache? cache)? onNearCache;
@@ -384,14 +378,8 @@ class CosmicGame extends FlameGame with PanDetector {
   bool get isNearBloodRing => _isNearBloodRing;
   void Function(bool isNear)? onNearBloodRing;
 
-  // Trait contest arenas + hint notes
-  late List<CosmicContestArena> contestArenas = world_.contestArenas;
-  late List<CosmicContestHintNote> contestHintNotes = world_.contestHintNotes;
-  CosmicContestArena? nearContestArena;
-
-  // The one Alchemon fighting the player in-world: a wild one in a duel, or
-  // a contest rival during a contest cinematic. Contests only stage it; the
-  // duel update runs only while [wildDuelActive].
+  // The one Alchemon fighting the player in-world: a wild one in a duel.
+  // The duel update runs only while [wildDuelActive].
   CosmicCompanion? duelOpponent;
   final List<Projectile> duelOpponentProjectiles = CappedProjectileList();
 
@@ -478,58 +466,6 @@ class CosmicGame extends FlameGame with PanDetector {
   double _duelOpponentFallbackScale = 1.0;
   int _duelOpponentFallbackLoadToken = 0;
   int _duelOpponentSpriteLoadToken = 0;
-  double _duelOpponentSpriteRetryTimer = 0.0;
-  int _duelOpponentSpriteLoadsInFlight = 0;
-
-  // Beauty contest in-arena cinematic (non-combat showcase)
-  bool _beautyContestCinematicActive = false;
-  Offset _beautyContestCenter = Offset.zero;
-  double _beautyContestTimer = 0;
-  bool _beautyContestCompAbilityA = false;
-  bool _beautyContestOppAbilityA = false;
-  bool _beautyContestCompAbilityB = false;
-  bool _beautyContestOppAbilityB = false;
-  double _beautyContestCompHopTimer = 0;
-  double _beautyContestOppHopTimer = 0;
-  static const double _beautyContestHopDuration = 0.82;
-  static const double _beautyContestHopHeight = 24.0;
-  static const double _beautyContestOrbitSpeed = 0.82;
-  static const double _beautyContestCompAbilityATime = 3.0;
-  static const double _beautyContestOppAbilityATime = 6.8;
-  static const double _beautyContestCompAbilityBTime = 10.6;
-  static const double _beautyContestOppAbilityBTime = 14.4;
-  static const double _beautyContestIntroDuration = 0.95;
-  static const double _beautyContestFinalPoseTime = 16.5;
-  static const double _beautyContestFinalPoseBlendDuration = 0.9;
-  bool _beautyContestPlayerWon = true;
-  double _beautyContestCompVisualScale = 1.0;
-  double _beautyContestOppVisualScale = 1.0;
-  bool _beautyContestIntroActive = false;
-  double _beautyContestIntroTimer = 0;
-  Offset _beautyContestShipIntroStart = Offset.zero;
-  Offset _beautyContestCompIntroStart = Offset.zero;
-  Offset _beautyContestOppIntroStart = Offset.zero;
-  _ContestCinematicMode _contestCinematicMode = _ContestCinematicMode.beauty;
-  double _speedContestRaceDuration = 11.0;
-  double _speedContestCompRate = 1.0;
-  double _speedContestOppRate = 1.0;
-  double _speedContestCompProgress = pi * 0.5;
-  double _speedContestOppProgress = pi * 0.5 - 0.18;
-  double _strengthContestDuration = 11.0;
-  double _strengthContestCompForce = 1.0;
-  double _strengthContestOppForce = 1.0;
-  double _strengthContestShift = 0.0;
-  double _intelligenceContestDuration = 11.0;
-  double _intelligenceContestCompFocus = 1.0;
-  double _intelligenceContestOppFocus = 1.0;
-  double _intelligenceContestBias = 0.0;
-  double _intelligenceContestOrbit = 0.0;
-  Offset _intelligenceContestOrbPos = Offset.zero;
-  bool get beautyContestCinematicActive => _beautyContestCinematicActive;
-  double get beautyContestIntroDuration => _beautyContestIntroDuration;
-  double get speedContestIntroDuration => _beautyContestIntroDuration;
-  double get strengthContestIntroDuration => _beautyContestIntroDuration;
-  double get intelligenceContestIntroDuration => _beautyContestIntroDuration;
 
   // Nexus pocket dimension
   bool inNexusPocket = false;
@@ -655,8 +591,6 @@ class CosmicGame extends FlameGame with PanDetector {
   /// beams). Kept for compatibility with those single-target systems.
   CosmicCompanion? get activeCompanion =>
       activeCompanions.isNotEmpty ? activeCompanions.values.first : null;
-  int? get _primaryCompanionSlot =>
-      activeCompanions.isEmpty ? null : activeCompanions.keys.first;
   List<Projectile> companionProjectiles = CappedProjectileList();
 
   // Let meteor craters. Shared struct + shared painter, so open space draws
@@ -790,11 +724,6 @@ class CosmicGame extends FlameGame with PanDetector {
   /// the edge — roughly three screens out.
   static const double _enemyCullDist = 3600.0;
   static const double _enemyCullDistSq = _enemyCullDist * _enemyCullDist;
-
-  /// The ring round a contest that is kept clear of enemies while it plays.
-  static const double _contestClearDist = _enemyCullDist;
-  static const double _contestClearDistSq =
-      _contestClearDist * _contestClearDist;
   static const double _enemySpawnInterval = 1.0; // seconds between checks
   static const double _meterPickupMultiplier = 3.0;
 
@@ -848,7 +777,7 @@ class CosmicGame extends FlameGame with PanDetector {
           world_.bloodRing.position,
           world_.prismaticField.position,
           ...world_.riftPortals.map((r) => r.position),
-          ...world_.contestArenas.map((a) => a.position),
+          ...world_.retiredContestArenaPositions,
         ],
       );
   ElementalCache? _nearestCache;
@@ -923,11 +852,6 @@ class CosmicGame extends FlameGame with PanDetector {
   /// while a portal tear plays.
   double get cameraZoom {
     var z = _currentZoom * _camZoomMul * _travelZoom;
-    if (_contestPullBack > 0) {
-      // A contest frames the whole arena, whatever the player's zoom.
-      final frame = size.x / (CosmicContestArena.visualRadius * 2 * 1.06);
-      z += (min(z, frame) - z) * Curves.easeInOut.transform(_contestPullBack);
-    }
     if (_bloodFrame > 0) {
       // The ritual frames the whole crown and the light round it.
       final frame = size.x / (BloodRing.visualRadius * 2 * 1.5);
@@ -935,9 +859,6 @@ class CosmicGame extends FlameGame with PanDetector {
     }
     return z;
   }
-
-  /// 0 normally, easing to 1 while a contest plays (see update).
-  double _contestPullBack = 0;
 
   /// The Blood Ring's ritual, 0..1, while it plays (the screen drives it);
   /// null otherwise. The ritual happens to the ring in the world: the camera
@@ -1251,9 +1172,9 @@ class CosmicGame extends FlameGame with PanDetector {
   /// [kCompanionSpeciesScale] as is; space draws wings and horns half again
   /// as large, and mystics as large as wings, so the big families read as
   /// big against the dark.
-  /// Every Alchemon in space — summoned, garrisoned, wild, fighting or a
-  /// contest rival — is fitted to this box before its family and size
-  /// genetics scale it, so the same creature is the same size everywhere.
+  /// Every Alchemon in space — summoned, garrisoned, wild or fighting — is
+  /// fitted to this box before its family and size genetics scale it, so
+  /// the same creature is the same size everywhere.
   static const double spriteBox = 74.88;
 
   /// The family scale space draws [family] at (see [_companionSpeciesScale]).
@@ -2361,14 +2282,6 @@ class CosmicGame extends FlameGame with PanDetector {
       }
     }
 
-    // The camera eases back while a contest plays, so the whole arena is in
-    // view, and forward again after.
-    final contestTarget = _beautyContestCinematicActive ? 1.0 : 0.0;
-    _contestPullBack += (contestTarget - _contestPullBack) * min(1.0, dt * 2.6);
-    if ((_contestPullBack - contestTarget).abs() < 0.002) {
-      _contestPullBack = contestTarget;
-    }
-
     final ritual = _bloodRitual;
     _bloodFlow += dt * (1 + 5 * pow(ritual ?? 0, 2));
     final armed = activeCompanions.values.any(
@@ -2384,11 +2297,6 @@ class CosmicGame extends FlameGame with PanDetector {
       _camPan =
           (bloodRing.position - ship.pos) *
           Curves.easeInOut.transform(_bloodFrame);
-      return;
-    }
-
-    if (_beautyContestCinematicActive) {
-      _updateBeautyContestCinematic(dt);
       return;
     }
 
@@ -3904,9 +3812,8 @@ class CosmicGame extends FlameGame with PanDetector {
 
     _updateWildAlchemons(dt);
 
-    // ── enemy spawning (random, scattered) — paused mid-duel and while a
-    // contest plays ──
-    if (!wildDuelActive && !sandboxMode && !_beautyContestCinematicActive) {
+    // ── enemy spawning (random, scattered) — paused mid-duel ──
+    if (!wildDuelActive && !sandboxMode) {
       _enemySpawnTimer += dt;
       if (_enemySpawnTimer >= _enemySpawnInterval &&
           enemies.length < _maxEnemies) {
@@ -3937,14 +3844,6 @@ class CosmicGame extends FlameGame with PanDetector {
         enemies.removeAt(i);
         continue;
       }
-      // A contest's surroundings stay clear (_clearContestHostiles).
-      if (_beautyContestCinematicActive &&
-          _wrappedDistanceSq(e.position, _beautyContestCenter) <
-              _contestClearDistSq) {
-        enemies.removeAt(i);
-        continue;
-      }
-
       // Distance cull.
       //
       // Enemies were ONLY ever removed when killed, so the population climbed
@@ -4004,7 +3903,7 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── periodic swarm cluster spawns ──
-    if (!sandboxMode && !_beautyContestCinematicActive) {
+    if (!sandboxMode) {
       _swarmSpawnTimer += dt;
       if (_swarmSpawnTimer >= _swarmSpawnInterval &&
           enemies.length < _maxEnemies) {
@@ -4020,7 +3919,7 @@ class CosmicGame extends FlameGame with PanDetector {
     _updateBossLairs(dt);
 
     // ── random boss spawn (in addition to lairs) ──
-    if (!sandboxMode && !_beautyContestCinematicActive) {
+    if (!sandboxMode) {
       _bossSpawnTimer += dt;
       if (_bossSpawnTimer >= _bossSpawnInterval) {
         _bossSpawnTimer = 0;
@@ -4378,53 +4277,6 @@ class CosmicGame extends FlameGame with PanDetector {
       }
       if (!ring.discovered && bd < BloodRing.interactRadius + 300) {
         ring.discovered = true;
-      }
-    }
-
-    // ── trait contest arena proximity ──
-    {
-      CosmicContestArena? closest;
-      double closestDist = double.infinity;
-      for (final arena in contestArenas) {
-        var adx = arena.position.dx - ship.pos.dx;
-        var ady = arena.position.dy - ship.pos.dy;
-        if (adx > ww / 2) adx -= ww;
-        if (adx < -ww / 2) adx += ww;
-        if (ady > wh / 2) ady -= wh;
-        if (ady < -wh / 2) ady += wh;
-        final ad = sqrt(adx * adx + ady * ady);
-
-        if (!arena.discovered && ad < CosmicContestArena.interactRadius + 320) {
-          arena.discovered = true;
-        }
-
-        final threshold = nearContestArena == arena
-            ? CosmicContestArena.exitRadius
-            : CosmicContestArena.interactRadius;
-        if (ad < threshold && ad < closestDist) {
-          closestDist = ad;
-          closest = arena;
-        }
-      }
-      if (closest != nearContestArena) {
-        nearContestArena = closest;
-        onNearContestArena?.call(closest);
-      }
-    }
-
-    // ── collectible contest hint notes ──
-    for (final note in contestHintNotes) {
-      if (note.collected) continue;
-      var hdx = note.position.dx - ship.pos.dx;
-      var hdy = note.position.dy - ship.pos.dy;
-      if (hdx > ww / 2) hdx -= ww;
-      if (hdx < -ww / 2) hdx += ww;
-      if (hdy > wh / 2) hdy -= wh;
-      if (hdy < -wh / 2) hdy += wh;
-      final hd = sqrt(hdx * hdx + hdy * hdy);
-      if (hd < CosmicContestHintNote.interactRadius) {
-        note.collected = true;
-        onContestHintCollected?.call(note);
       }
     }
 
@@ -5371,7 +5223,7 @@ class CosmicGame extends FlameGame with PanDetector {
             canvas,
             at: pp,
             t: poi.life,
-            near: (1 - (gap - 120) / 260).clamp(0.0, 1.0),
+            near: (1 - (gap - 320) / 520).clamp(0.0, 1.0),
             beacon: stadiumBeacon && !stadiumFound,
           );
           final stadiumTp = _worldLabel(
@@ -5383,7 +5235,7 @@ class CosmicGame extends FlameGame with PanDetector {
           );
           stadiumTp.paint(
             canvas,
-            Offset(pp.dx - stadiumTp.width / 2, pp.dy + 100),
+            Offset(pp.dx - stadiumTp.width / 2, pp.dy + kStadiumLabelDrop),
           );
           break;
       }
@@ -5499,71 +5351,6 @@ class CosmicGame extends FlameGame with PanDetector {
           );
         }
       }
-    }
-
-    // ── trait contest arenas ──
-    // The arena is the contest's stage: in one, it rises to it and draws the
-    // point being fought over (contest_art.dart).
-    for (final arena in contestArenas) {
-      final ap = arena.position;
-      if (isOutsideViewport(
-        ap,
-        cx,
-        cy,
-        screenW,
-        screenH,
-        // A mastered arena's beacon climbs well above its rim.
-        margin: 1 + CosmicContestArena.visualRadius * 1.7 / screenW,
-      )) {
-        continue;
-      }
-      final staging =
-          _beautyContestCinematicActive &&
-          (ap - _beautyContestCenter).distance < 1;
-      final masteredAt = arena.masteredAt;
-      paintContestArena(
-        canvas,
-        arena.trait,
-        at: ap,
-        t: _elapsed,
-        active: staging ? _contestStageLight : 0,
-        focus: staging ? _contestFocus() : null,
-        // Held back while a contest is staged in it: it is the stage then.
-        mastery: masteredAt == null || staging ? null : _elapsed - masteredAt,
-      );
-
-      if (!staging &&
-          (nearContestArena == arena || (ap - ship.pos).distance < 520)) {
-        final mastered = arena.masteredAt != null;
-        final col = mastered ? kContestChampionGold : arena.trait.color;
-        final labelPainter = _worldLabel(
-          mastered
-              ? '${arena.trait.arenaLabel.toUpperCase()} · MASTERED'
-              : arena.trait.arenaLabel.toUpperCase(),
-          color: col.withValues(alpha: 0.86),
-          fontSize: 10,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.8,
-        );
-        labelPainter.paint(
-          canvas,
-          Offset(
-            ap.dx - labelPainter.width / 2,
-            ap.dy + CosmicContestArena.visualRadius + 14,
-          ),
-        );
-      }
-    }
-
-    // ── floating trait hint notes ──
-    for (final note in contestHintNotes) {
-      if (note.collected) continue;
-      final np = note.position;
-      if ((np.dx - cx - screenW / 2).abs() > screenW * 1.2 ||
-          (np.dy - cy - screenH / 2).abs() > screenH * 1.2) {
-        continue;
-      }
-      paintLoreNote(canvas, at: np, t: _elapsed, seed: note.id.length);
     }
 
     // ── home planet ──
@@ -6112,8 +5899,7 @@ class CosmicGame extends FlameGame with PanDetector {
               ((summonT - 0.18) / 0.55).clamp(0.0, 1.0),
             )
           : 1.0;
-      final summonScale =
-          (0.25 + 0.75 * emerge) * _beautyContestCompVisualScale;
+      final summonScale = 0.25 + 0.75 * emerge;
       final retreatScale = comp.returning && assembly == null
           ? Curves.easeInBack.transform(retreatT)
           : 1.0;
@@ -6286,7 +6072,6 @@ class CosmicGame extends FlameGame with PanDetector {
             Offset.zero,
             summonT,
             mirror: facingRight,
-            scale: _beautyContestCompVisualScale,
           );
         } else if (assembly != null && comp.returning) {
           assembly.paintScatter(
@@ -6295,7 +6080,6 @@ class CosmicGame extends FlameGame with PanDetector {
             1 - retreatT,
             to: ship.pos - compPos,
             mirror: facingRight,
-            scale: _beautyContestCompVisualScale,
           );
         }
       } else {
@@ -6312,9 +6096,8 @@ class CosmicGame extends FlameGame with PanDetector {
         );
       }
 
-      // Health bar above companion (only show after summon animation,
-      // but hidden during contest cinematics).
-      if (!isSummoning && !_beautyContestCinematicActive) {
+      // Health bar above companion (only show after summon animation).
+      if (!isSummoning) {
         final hpW = 30.0;
         final hpH = 3.0;
         final hpX = -hpW / 2;
@@ -6342,9 +6125,7 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // Invincibility flash overlay
-      if (comp.invincibleTimer > 0 &&
-          !isSummoning &&
-          !_beautyContestCinematicActive) {
+      if (comp.invincibleTimer > 0 && !isSummoning) {
         final flash = sin(_elapsed * 20) > 0 ? 0.4 : 0.0;
         canvas.drawCircle(
           Offset.zero,
@@ -6356,7 +6137,7 @@ class CosmicGame extends FlameGame with PanDetector {
       canvas.restore();
     }
 
-    // ── duel opponent (a fought wild Alchemon, or a contest rival) ──
+    // ── duel opponent (a fought wild Alchemon) ──
     if (duelOpponent != null && duelOpponent!.isAlive) {
       final opp = duelOpponent!;
       final oppPos = opp.position;
@@ -6367,9 +6148,9 @@ class CosmicGame extends FlameGame with PanDetector {
       final summonT = isSummoning
           ? (opp.life / summonDur).clamp(0.0, 1.0)
           : 1.0;
-      final summonScale =
-          (isSummoning ? Curves.elasticOut.transform(summonT) : 1.0) *
-          _beautyContestOppVisualScale;
+      final summonScale = isSummoning
+          ? Curves.elasticOut.transform(summonT)
+          : 1.0;
 
       canvas.save();
       canvas.translate(oppPos.dx, oppPos.dy);
@@ -6399,17 +6180,15 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
 
-      // Red-tinted aura glow (enemy) — not on a contest rival.
-      if (!_beautyContestCinematicActive) {
-        final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
-        paintSoftCircle(
-          canvas,
-          Offset.zero,
-          28 * summonScale,
-          const Color(0xFFFF4040).withValues(alpha: auraPulse * 0.25),
-          14,
-        );
-      }
+      // Red-tinted aura glow (enemy).
+      final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
+      paintSoftCircle(
+        canvas,
+        Offset.zero,
+        28 * summonScale,
+        const Color(0xFFFF4040).withValues(alpha: auraPulse * 0.25),
+        14,
+      );
 
       // What it wears of its own abilities, as a companion does.
       _renderKinOverlay(
@@ -6526,8 +6305,8 @@ class CosmicGame extends FlameGame with PanDetector {
         );
       }
 
-      // HP bar (red-tinted for opponent), hidden during contest cinematics.
-      if (!isSummoning && !_beautyContestCinematicActive) {
+      // HP bar (red-tinted for opponent).
+      if (!isSummoning) {
         final hpW = 30.0;
         final hpH = 3.0;
         final hpX = -hpW / 2;
@@ -6550,9 +6329,7 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // Invincibility flash
-      if (opp.invincibleTimer > 0 &&
-          !isSummoning &&
-          !_beautyContestCinematicActive) {
+      if (opp.invincibleTimer > 0 && !isSummoning) {
         final flash = sin(_elapsed * 20) > 0 ? 0.4 : 0.0;
         canvas.drawCircle(
           Offset.zero,
@@ -6569,13 +6346,9 @@ class CosmicGame extends FlameGame with PanDetector {
     _renderTravelVeil(canvas, Rect.fromLTWH(cx, cy, screenW, screenH));
 
     // ── ship ──
-    // Once a contest has begun the ship is parked at the arena's heart, where
-    // it would sit on the stage; it is left out until the contest ends.
-    final shipOffStage =
-        _beautyContestCinematicActive && !_beautyContestIntroActive;
     if (hideShip) {
       // Carried in grains by a passage (see [hideShip]).
-    } else if (!_shipDead && !shipOffStage) {
+    } else if (!_shipDead) {
       // A Lava plate's glow, a tesla channel's current (cosmic_game_kin.dart).
       _renderKinShipOverlay(canvas);
       // Invincibility flash

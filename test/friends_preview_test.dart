@@ -10,6 +10,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/friend_home.dart';
+import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/screens/friends/friend_home_screen.dart';
 import 'package:alchemons/screens/friends/friend_planet_screen.dart';
@@ -233,6 +234,20 @@ void main() {
         size: 3,
         wearing: {'planetary_rings'},
       ),
+      trials: TrialsCard(
+        won: {'copper': 3, 'silver': 3, 'gold': 1, 'ruby': 2},
+        best: {
+          'open': 37860,
+          'rain': 41020,
+          'ember': 44310,
+          'storm': 46100,
+          'hill': 49870,
+          'night': 45520,
+          'long': 61230,
+          'sand_island': 18400,
+          'ice_island': 26900,
+        },
+      ),
     );
 
     if (wants('planets')) {
@@ -380,6 +395,36 @@ void main() {
       );
       await settle(6);
       await shoot('avatar');
+    }
+
+    // FRIENDS_ONLY=records: their Trials row, and the records sheet set
+    // against the player's own.
+    if (wants('records')) {
+      portrait();
+      await tester.runAsync(() async {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString(
+          TrialsRecords.prefsKey,
+          const TrialsRecords({
+            'open': TrialsRecord(value: 38100, by: 'Firemane'),
+            'rain': TrialsRecord(value: 40550, by: 'Firemane'),
+            'storm': TrialsRecord(value: 47200, by: 'Airwing'),
+            'clear_night': TrialsRecord(value: 88, by: 'Icekin'),
+          }).serialise(),
+        );
+      });
+      await tester.pumpWidget(
+        app(
+          FriendPlanetScreen(friend: friend, loadHome: () async => home),
+          friends: _FakeFriends(online: {friend.uid}),
+        ),
+      );
+      await settle(30);
+      await shoot('records_0_row');
+      await tester.tap(find.text('RECORDS'));
+      await settle(30);
+      await shoot('records_1_sheet');
+      await tester.pumpWidget(const SizedBox());
     }
 
     if (wants('page')) {

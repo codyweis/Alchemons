@@ -8,6 +8,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart';
 import 'package:alchemons/games/stadium/race_bodies.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
+import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/screens/stadium/race_screen.dart';
 import 'package:alchemons/screens/stadium/stadium_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -159,7 +160,8 @@ void main() {
             race: 0,
             racers: racers,
             bodies: bodies,
-            onFinished: (place) async => place == 1 ? 1 : 0,
+            onFinished: (finish) async =>
+                TrialsPayout(gold: finish.place == 1 ? 1 : 0),
           ),
         ),
       ),

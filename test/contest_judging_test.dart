@@ -82,6 +82,139 @@ const _archetypes = <ContestEntrant>[
   ),
 ];
 
+/// A rival for each level of each trait to judge against: the ladder the
+/// space contests used before the Trials replaced them.
+const _rivals = <CosmicContestTrait, List<CosmicContestOpponent>>{
+  CosmicContestTrait.beauty: [
+    CosmicContestOpponent(
+      name: 'Glimmerlet',
+      element: 'Light',
+      family: 'let',
+      targetScore: 3.15,
+    ),
+    CosmicContestOpponent(
+      name: 'Quartzmane',
+      element: 'Crystal',
+      family: 'mane',
+      targetScore: 3.55,
+    ),
+    CosmicContestOpponent(
+      name: 'Aurawing',
+      element: 'Spirit',
+      family: 'wing',
+      targetScore: 3.95,
+    ),
+    CosmicContestOpponent(
+      name: 'Prismask',
+      element: 'Light',
+      family: 'mask',
+      targetScore: 4.35,
+    ),
+    CosmicContestOpponent(
+      name: 'Solacrown',
+      element: 'Crystal',
+      family: 'horn',
+      targetScore: 4.75,
+    ),
+  ],
+  CosmicContestTrait.speed: [
+    CosmicContestOpponent(
+      name: 'Sparklet',
+      element: 'Lightning',
+      family: 'let',
+      targetScore: 3.2,
+    ),
+    CosmicContestOpponent(
+      name: 'Riptidepip',
+      element: 'Water',
+      family: 'pip',
+      targetScore: 3.6,
+    ),
+    CosmicContestOpponent(
+      name: 'Frostwing',
+      element: 'Ice',
+      family: 'wing',
+      targetScore: 4.0,
+    ),
+    CosmicContestOpponent(
+      name: 'Skykin',
+      element: 'Air',
+      family: 'kin',
+      targetScore: 4.4,
+    ),
+    CosmicContestOpponent(
+      name: 'Voltacrown',
+      element: 'Lightning',
+      family: 'horn',
+      targetScore: 4.85,
+    ),
+  ],
+  CosmicContestTrait.strength: [
+    CosmicContestOpponent(
+      name: 'Basaltlet',
+      element: 'Earth',
+      family: 'let',
+      targetScore: 3.25,
+    ),
+    CosmicContestOpponent(
+      name: 'Magmamane',
+      element: 'Lava',
+      family: 'mane',
+      targetScore: 3.7,
+    ),
+    CosmicContestOpponent(
+      name: 'Ironhorn',
+      element: 'Earth',
+      family: 'horn',
+      targetScore: 4.1,
+    ),
+    CosmicContestOpponent(
+      name: 'Siegekin',
+      element: 'Blood',
+      family: 'kin',
+      targetScore: 4.5,
+    ),
+    CosmicContestOpponent(
+      name: 'Titanforge',
+      element: 'Lava',
+      family: 'mask',
+      targetScore: 4.95,
+    ),
+  ],
+  CosmicContestTrait.intelligence: [
+    CosmicContestOpponent(
+      name: 'Glyphlet',
+      element: 'Spirit',
+      family: 'let',
+      targetScore: 3.1,
+    ),
+    CosmicContestOpponent(
+      name: 'Cipherpip',
+      element: 'Crystal',
+      family: 'pip',
+      targetScore: 3.55,
+    ),
+    CosmicContestOpponent(
+      name: 'Aethermask',
+      element: 'Spirit',
+      family: 'mask',
+      targetScore: 4.0,
+    ),
+    CosmicContestOpponent(
+      name: 'Lumenkin',
+      element: 'Light',
+      family: 'kin',
+      targetScore: 4.45,
+    ),
+    CosmicContestOpponent(
+      name: 'Mindcrown',
+      element: 'Dark',
+      family: 'wing',
+      targetScore: 4.9,
+    ),
+  ],
+};
+
 ContestEntrant _withStat(ContestEntrant e, double rating) => ContestEntrant(
   name: e.name,
   element: e.element,
@@ -143,7 +276,7 @@ void main() {
     for (final trait in CosmicContestTrait.values) {
       final leaders = <String>{};
       for (var level = 1; level <= 5; level++) {
-        final rival = kCosmicContestLevels[trait]![level - 1].opponent;
+        final rival = _rivals[trait]![level - 1];
         final ranked = [
           for (final e in _archetypes)
             (

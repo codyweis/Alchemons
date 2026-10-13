@@ -430,7 +430,6 @@ extension CosmicGameWorldSystems on CosmicGame {
       clearSteeringInput();
       nearPlanet = null;
       nearMarket = null;
-      nearContestArena = null;
       _nearestRift = null;
       _wasNearRift = false;
       _wasNearNexus = false;
@@ -442,7 +441,6 @@ extension CosmicGameWorldSystems on CosmicGame {
       onNearRift?.call(false);
       onNearNexus?.call(false);
       onNearBloodRing?.call(false);
-      onNearContestArena?.call(null);
     } else {
       sandboxMode = false;
       clearSandboxHostiles();
@@ -3237,10 +3235,6 @@ extension CosmicGameWorldSystems on CosmicGame {
         .where((e) => e.$2.discovered)
         .map((e) => e.$1)
         .toSet(),
-    discoveredContestArenaIndices: world_.contestArenas.indexed
-        .where((e) => e.$2.discovered)
-        .map((e) => e.$1)
-        .toSet(),
     revealedCells: Set<int>.from(revealedCells),
     shipX: ship.pos.dx,
     shipY: ship.pos.dy,
@@ -3258,11 +3252,6 @@ extension CosmicGameWorldSystems on CosmicGame {
     for (final idx in state.discoveredPoiIndices) {
       if (idx < spacePOIs.length) {
         spacePOIs[idx].discovered = true;
-      }
-    }
-    for (final idx in state.discoveredContestArenaIndices) {
-      if (idx < world_.contestArenas.length) {
-        world_.contestArenas[idx].discovered = true;
       }
     }
     // Restore ALL revealed cells directly
@@ -3295,16 +3284,6 @@ extension CosmicGameWorldSystems on CosmicGame {
     }
     collectedDustCount = collected.length;
     syncStarDustScannerAvailability();
-  }
-
-  /// Restore already-collected contest hint notes from persisted IDs.
-  void restoreCollectedContestHints(Set<String> collectedIds) {
-    if (collectedIds.isEmpty) return;
-    for (final note in contestHintNotes) {
-      if (collectedIds.contains(note.id)) {
-        note.collected = true;
-      }
-    }
   }
 
   bool get hasRemainingStarDust => collectedDustCount < starDusts.length;

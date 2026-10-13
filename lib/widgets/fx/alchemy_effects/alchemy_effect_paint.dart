@@ -39,6 +39,7 @@ part 'prismatic_cascade.dart';
 part 'quicksilver.dart';
 part 'ritual_gold.dart';
 part 'speed_flux.dart';
+part 'spotlight.dart';
 part 'strength_forge.dart';
 part 'void_rift.dart';
 part 'volcanic_aura.dart';
@@ -69,6 +70,25 @@ abstract final class AlchemyEffectPaint {
   static const String quicksilver = 'quicksilver';
   static const String goldLeaf = 'gold_leaf';
   static const String cinnabar = 'cinnabar';
+
+  // The Trials': one for each cup won, never sold.
+  static const String copperSpotlight = 'copper_spotlight';
+  static const String silverSpotlight = 'silver_spotlight';
+  static const String goldSpotlight = 'gold_spotlight';
+  static const String rubySpotlight = 'ruby_spotlight';
+  static const String sapphireSpotlight = 'sapphire_spotlight';
+  static const String emeraldSpotlight = 'emerald_spotlight';
+
+  /// The effects only the Trials give, in cup order: the races', then the
+  /// gems'.
+  static const List<String> trialsKeys = [
+    copperSpotlight,
+    silverSpotlight,
+    goldSpotlight,
+    rubySpotlight,
+    sapphireSpotlight,
+    emeraldSpotlight,
+  ];
 
   /// The effects only the Athanor gives.
   static const Set<String> athanorKeys = {
@@ -106,6 +126,12 @@ abstract final class AlchemyEffectPaint {
     quicksilver,
     goldLeaf,
     cinnabar,
+    copperSpotlight,
+    silverSpotlight,
+    goldSpotlight,
+    rubySpotlight,
+    sapphireSpotlight,
+    emeraldSpotlight,
   };
 
   /// Whether [key] paints round a creature. A worn family costume does
@@ -123,7 +149,8 @@ abstract final class AlchemyEffectPaint {
       key == intelligenceHalo ||
       key == willOWisps ||
       key == dustRing ||
-      athanorKeys.contains(key);
+      athanorKeys.contains(key) ||
+      trialsKeys.contains(key);
 
   /// Paints [key] behind a creature centred on [center].
   ///
@@ -213,6 +240,22 @@ abstract final class AlchemyEffectPaint {
         _GoldLeaf.paint(canvas, center, r, t, o, dark, front);
       case cinnabar:
         _Cinnabar.paint(canvas, center, r, t, o, dark, front);
+      case copperSpotlight ||
+          silverSpotlight ||
+          goldSpotlight ||
+          rubySpotlight ||
+          sapphireSpotlight ||
+          emeraldSpotlight:
+        _Spotlight.paint(
+          canvas,
+          center,
+          r,
+          t,
+          o,
+          dark,
+          front,
+          trialsKeys.indexOf(key),
+        );
     }
   }
 }
@@ -496,11 +539,12 @@ abstract final class _Atlas {
       Offset.zero,
       c * 0.48,
       Paint()
-        ..shader = ui.Gradient.radial(Offset.zero, c * 0.48, const [
-          Color(0x66C8D6E8),
-          Color(0x22C8D6E8),
-          Color(0x00C8D6E8),
-        ], const [0.0, 0.5, 1.0]),
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          c * 0.48,
+          const [Color(0x66C8D6E8), Color(0x22C8D6E8), Color(0x00C8D6E8)],
+          const [0.0, 0.5, 1.0],
+        ),
     );
     canvas.restore();
     const br = c * 0.34;

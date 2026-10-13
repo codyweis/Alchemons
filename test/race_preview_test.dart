@@ -300,17 +300,19 @@ void main() {
       }
     }
 
-    // The stadium as it hangs in space, far and near.
+    // The stadium as it hangs in space: far, near, and as the story's
+    // beacon.
     await tester.runAsync(() async {
       final rec = ui.PictureRecorder();
-      final c = Canvas(rec)..scale(2);
+      final c = Canvas(rec);
       c.drawRect(
-        const Rect.fromLTWH(0, 0, 900, 300),
+        const Rect.fromLTWH(0, 0, 3000, 1100),
         Paint()..color = const Color(0xFF050507),
       );
-      paintStadium(c, at: const Offset(220, 150), t: 3.2);
-      paintStadium(c, at: const Offset(660, 150), t: 3.2, near: 1);
-      final img = rec.endRecording().toImageSync(1800, 600);
+      paintStadium(c, at: const Offset(500, 380), t: 3.2);
+      paintStadium(c, at: const Offset(1500, 380), t: 3.2, near: 1);
+      paintStadium(c, at: const Offset(2500, 380), t: 3.2, beacon: true);
+      final img = rec.endRecording().toImageSync(3000, 1100);
       final png = await img.toByteData(format: ui.ImageByteFormat.png);
       File('$out/13_space.png').writeAsBytesSync(png!.buffer.asUint8List());
     });

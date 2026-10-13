@@ -13,6 +13,8 @@ import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/heart_puzzle/heart_puzzle_levels.dart';
 import 'package:alchemons/games/heart_puzzle/heart_puzzle_progress.dart';
 import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart';
+import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -672,7 +674,7 @@ final campaignAchievements = <CampaignAchievement>[
   CampaignAchievement(
     'speed_win',
     'Ahead of the wind',
-    'Win a Speed contest round.',
+    'Win a race in the Trials.',
     'speed',
     1,
     2,
@@ -681,7 +683,7 @@ final campaignAchievements = <CampaignAchievement>[
   CampaignAchievement(
     'beauty_win',
     'The judges approve',
-    'Win a Beauty contest round.',
+    'Win a night sky bout in the Trials.',
     'beauty',
     1,
     2,
@@ -690,7 +692,7 @@ final campaignAchievements = <CampaignAchievement>[
   CampaignAchievement(
     'strength_win',
     'An answer in force',
-    'Win a Strength contest round.',
+    'Win an island bout in the Trials.',
     'strength',
     1,
     2,
@@ -699,7 +701,7 @@ final campaignAchievements = <CampaignAchievement>[
   CampaignAchievement(
     'intelligence_win',
     'A pattern understood',
-    'Win an Intelligence contest round.',
+    'Win a space course in the Trials.',
     'intelligence',
     1,
     2,
@@ -708,7 +710,7 @@ final campaignAchievements = <CampaignAchievement>[
   CampaignAchievement(
     'contest_master',
     'The judges have no more to ask',
-    'Win every round of one kind of contest.',
+    'Win all six cups in the Trials.',
     'contestsMastered',
     1,
     3,
@@ -803,7 +805,7 @@ class CampaignSnapshot {
       !earned(a) && campaignMissionIds.contains(a.id);
 
   String get objective => currentMission == null
-      ? 'The ritual is complete. The collection remains. Survival, contests, rites, constellations, and exploration are yours to continue.'
+      ? 'The ritual is complete. The collection remains. Survival, the Trials, rites, constellations, and exploration are yours to continue.'
       : campaignMissionInstructions[currentMission!.id]!;
 }
 
@@ -837,6 +839,7 @@ class CampaignJournalService {
   // cannot drift away from what [load] actually looks at.
   static const _starsPref = 'cosmic_planet_stars';
   static const _contestsPref = 'cosmic_trait_contests_v1';
+  static const _racesPref = RaceProgress.prefsKey;
   static const _ringPref = 'cosmic_blood_ring_v1';
   static const _fogPref = 'cosmic_fog_state_v2';
   static const _altarsPref = 'altars.stars.v1';
@@ -900,12 +903,24 @@ class CampaignJournalService {
       // String the preferences instance hands back.
       prefs.getString(_starsPref),
       prefs.getString(_contestsPref),
+      prefs.getString(_racesPref),
       prefs.getString(_ringPref),
       prefs.getString(_fogPref),
       prefs.getString(_altarsPref),
       prefs.getString(_homePlanetPref),
     ];
   }
+
+  /// The Trials' wins that count for a stat's achievement.
+  static int _trialsWins(RaceProgress races, CosmicContestTrait t) =>
+      switch (t) {
+        CosmicContestTrait.speed => [
+          for (final c in kRaceCups) races.wonIn(c),
+        ].fold(0, (a, b) => a + b),
+        CosmicContestTrait.strength => races.wonInGem(kGemCups[0]),
+        CosmicContestTrait.beauty => races.wonInGem(kGemCups[1]),
+        CosmicContestTrait.intelligence => races.wonInGem(kGemCups[2]),
+      };
 
   Future<void> record(String id) => db.transaction(() async {
     if (!campaignEntries.any((e) => e.id == id)) return;
@@ -925,6 +940,7 @@ class CampaignJournalService {
     final contests = CosmicContestProgress.deserialise(
       prefs.getString(_contestsPref) ?? '',
     );
+    final races = RaceProgress.deserialise(prefs.getString(_racesPref));
     final ids = await (_catalogIds ??= rootBundle
         .loadString('assets/data/alchemons_creatures.json')
         .then((raw) {
@@ -1001,11 +1017,21 @@ class CampaignJournalService {
       'rites':
           (int.tryParse(settings['pureblood_rite_stage_index_v2'] ?? '') ?? 0) +
           (int.tryParse(settings['campaign_weekly_rites_v1'] ?? '') ?? 0),
+      // The stats' achievements count the Trials now (the space contests
+      // that counted once are retired; what they counted still does): a
+      // race for Speed, an island for Strength, the night sky for Beauty,
+      // the space course for Intelligence, and all six cups for the last.
       for (final t in CosmicContestTrait.values)
-        t.name: contests.completedLevels(t),
-      'contestsMastered': CosmicContestTrait.values
-          .where(contests.isMastered)
-          .length,
+        t.name: max(contests.completedLevels(t), _trialsWins(races, t)),
+      'contestsMastered': max(
+        CosmicContestTrait.values.where(contests.isMastered).length,
+        [
+              for (final c in kRaceCups) races.cupDone(c),
+              for (final c in kGemCups) races.gemDone(c),
+            ].every((d) => d)
+            ? 1
+            : 0,
+      ),
       'planetsCleared': kCosmicPlanetEntry.keys
           .where((e) => stars.starsEarned(e) >= 3)
           .length,

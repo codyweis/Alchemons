@@ -12,7 +12,6 @@ import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/systems/effects/has_effects.dart';
-import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/shared/enemy_facing.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 
@@ -1040,8 +1039,7 @@ class CosmicWorld {
     required this.elementalNexus,
     required this.retiredArenaPosition,
     required this.bloodRing,
-    required this.contestArenas,
-    required this.contestHintNotes,
+    required this.retiredContestArenaPositions,
   });
 
   final List<CosmicPlanet> planets;
@@ -1054,11 +1052,15 @@ class CosmicWorld {
   /// Where the retired Battle Ring stood. Nothing is drawn here any more, but
   /// the spot is still generated and still counts as a landmark: the world is
   /// rebuilt from a saved seed on every load, and dropping it would shift the
-  /// Blood Ring, the contest arenas and every cache in existing saves.
+  /// Blood Ring, the old contest arenas' spots and every cache in existing
+  /// saves.
   final Offset retiredArenaPosition;
   final BloodRing bloodRing;
-  final List<CosmicContestArena> contestArenas;
-  final List<CosmicContestHintNote> contestHintNotes;
+
+  /// Where the four trait contest arenas stood before the Trials replaced
+  /// them. Like [retiredArenaPosition], nothing is drawn here, but the caches
+  /// are still laid out round these spots, so they stay where they were.
+  final List<Offset> retiredContestArenaPositions;
 
   /// Generate a standard cosmos: one planet per element scattered across a
   /// huge field. Deliberately large so it takes ~10 minutes to traverse.
@@ -1232,24 +1234,22 @@ class CosmicWorld {
     }
     final bloodRing = BloodRing(position: bloodPos);
 
-    final contestObstacles = <Offset>[
-      ...allPositions,
-      ...rifts.map((r) => r.position),
-      prisPos,
-      nexusPos,
-      ringPos,
-      bloodPos,
-    ];
-    final contestArenas = generateCosmicContestArenas(
+    final retiredContestArenaPositions = _retiredContestArenaPositions(
       seed: rng.nextInt(1 << 30),
       worldSize: const Size(worldW, worldH),
-      obstacles: contestObstacles,
+      obstacles: [
+        ...allPositions,
+        ...rifts.map((r) => r.position),
+        prisPos,
+        nexusPos,
+        ringPos,
+        bloodPos,
+      ],
     );
-    final contestHintNotes = generateCosmicContestHintNotes(
-      seed: rng.nextInt(1 << 30),
-      worldSize: const Size(worldW, worldH),
-      obstacles: [...contestObstacles, ...contestArenas.map((a) => a.position)],
-    );
+    // The contests' lore notes drew a seed of their own here. They are gone
+    // too; the seed is still drawn, so anything placed after this starts
+    // from the same point in the sequence as it always has.
+    rng.nextInt(1 << 30);
 
     return CosmicWorld(
       planets: planets,
@@ -1260,13 +1260,43 @@ class CosmicWorld {
       elementalNexus: elementalNexus,
       retiredArenaPosition: ringPos,
       bloodRing: bloodRing,
-      contestArenas: contestArenas,
-      contestHintNotes: contestHintNotes,
+      retiredContestArenaPositions: retiredContestArenaPositions,
     );
   }
 
   int get discoveredCount => planets.where((p) => p.discovered).length;
   int get totalCount => planets.length;
+}
+
+/// The spots of the four retired trait contest arenas, placed exactly as the
+/// arenas were (the same seed mix, margins and spacing), so the landmarks
+/// the caches keep clear of never move.
+List<Offset> _retiredContestArenaPositions({
+  required int seed,
+  required Size worldSize,
+  required List<Offset> obstacles,
+}) {
+  final rng = Random(seed ^ 0xCC7711);
+  const margin = 2200.0;
+  const minObstacleDist = 2400.0;
+  const minArenaDist = 4800.0;
+
+  final out = <Offset>[];
+  for (var i = 0; i < 4; i++) {
+    Offset pos;
+    int tries = 0;
+    do {
+      pos = Offset(
+        margin + rng.nextDouble() * (worldSize.width - margin * 2),
+        margin + rng.nextDouble() * (worldSize.height - margin * 2),
+      );
+      tries++;
+    } while (tries < 600 &&
+        (obstacles.any((o) => (o - pos).distance < minObstacleDist) ||
+            out.any((a) => (a - pos).distance < minArenaDist)));
+    out.add(pos);
+  }
+  return out;
 }
 
 // ─────────────────────────────────────────────────────────
@@ -1412,7 +1442,6 @@ class CosmicFogState {
   final int worldSeed;
   final Set<int> discoveredIndices;
   final Set<int> discoveredPoiIndices;
-  final Set<int> discoveredContestArenaIndices;
   final Set<int> revealedCells;
   final double shipX;
   final double shipY;
@@ -1426,7 +1455,6 @@ class CosmicFogState {
     required this.worldSeed,
     required this.discoveredIndices,
     this.discoveredPoiIndices = const {},
-    this.discoveredContestArenaIndices = const {},
     this.revealedCells = const {},
     this.shipX = -1,
     this.shipY = -1,
@@ -1436,11 +1464,12 @@ class CosmicFogState {
 
   /// Format:
   /// seed|planetIndices|shipX,shipY|revealedCells|poiIndices|contestArenaIndices|dustTarget,planetTarget
+  ///
+  /// The contest arenas are retired: their field is still written, empty,
+  /// so the fields after it keep their places, and is skipped on load.
   String serialise() {
     final pIndices = (discoveredIndices.toList()..sort()).join(',');
     final poiIndices = (discoveredPoiIndices.toList()..sort()).join(',');
-    final contestIndices = (discoveredContestArenaIndices.toList()..sort())
-        .join(',');
     final ship = '${shipX.toStringAsFixed(1)},${shipY.toStringAsFixed(1)}';
     // Encode revealedCells as sorted, delta-encoded ints for compactness
     final sorted = revealedCells.toList()..sort();
@@ -1452,7 +1481,7 @@ class CosmicFogState {
       prev = sorted[i];
     }
     final scans = '${starDustScanTarget ?? ''},${planetScanTarget ?? ''}';
-    return '$worldSeed|$pIndices|$ship|$buf|$poiIndices|$contestIndices|$scans';
+    return '$worldSeed|$pIndices|$ship|$buf|$poiIndices||$scans';
   }
 
   factory CosmicFogState.deserialise(String raw) {
@@ -1483,16 +1512,12 @@ class CosmicFogState {
     final poiIndices = parts.length > 4 && parts[4].isNotEmpty
         ? parts[4].split(',').map(int.parse).toSet()
         : <int>{};
-    final contestIndices = parts.length > 5 && parts[5].isNotEmpty
-        ? parts[5].split(',').map(int.parse).toSet()
-        : <int>{};
     final scans = parts.length > 6 ? parts[6].split(',') : const <String>[];
 
     return CosmicFogState(
       worldSeed: seed,
       discoveredIndices: pIndices,
       discoveredPoiIndices: poiIndices,
-      discoveredContestArenaIndices: contestIndices,
       revealedCells: cells,
       shipX: sx,
       shipY: sy,
@@ -12283,7 +12308,9 @@ class SpacePOI {
           position: at,
           type: POIType.stadium,
           element: 'Light',
-          radius: 110,
+          // The arena's size (stadium_space_art.dart): close enough to
+          // enter once the ship is over its stands.
+          radius: 260,
         ),
       );
     }

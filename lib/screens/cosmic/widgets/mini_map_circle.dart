@@ -3,9 +3,6 @@ import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 
-import 'package:alchemons/games/cosmic/contest_art.dart'
-    show kContestChampionGold;
-import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/obsidian_kit.dart';
@@ -255,18 +252,6 @@ class _MiniCirclePainter extends CustomPainter {
       final pulse = 0.55 + 0.45 * sin(cache.life * 2.2);
       paintDisc(canvas, m.leak, p, 5 + 2 * pulse, 0.5 + 0.4 * pulse);
       paintOrb(canvas, m, p, 2.0);
-    }
-
-    for (final arena in world.contestArenas) {
-      if (!arena.discovered) continue;
-      final p = toMini(arena.position);
-      if (!inView(p)) continue;
-      // A mastered arena burns in the champion's gold.
-      light(
-        p,
-        arena.masteredAt != null ? kContestChampionGold : arena.trait.color,
-        2.4,
-      );
     }
 
     for (final whirl in game.galaxyWhirls) {

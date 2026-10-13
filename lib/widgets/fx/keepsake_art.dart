@@ -18,6 +18,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/obsidian_kit.dart';
 import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
+import 'package:alchemons/widgets/stadium_trophy.dart';
 import 'package:flutter/painting.dart';
 
 part 'decor_art.dart';
@@ -218,6 +219,12 @@ abstract class KeepsakeArt {
     'victory_arch' => _VictoryArch(),
     'titan_anvil' => _TitanAnvil(),
     'prism_orrery' => _PrismOrrery(),
+    'copper_cup' => _TrialsCup(TrophyMetal.copper),
+    'silver_cup' => _TrialsCup(TrophyMetal.silver),
+    'gold_cup' => _TrialsCup(TrophyMetal.gold),
+    'ruby_cup' => _TrialsCup(TrophyMetal.ruby),
+    'sapphire_cup' => _TrialsCup(TrophyMetal.sapphire),
+    'emerald_cup' => _TrialsCup(TrophyMetal.emerald),
     _ when id.startsWith('effigy:') => EffigyPlinth(),
     _ => null,
   };
@@ -2180,5 +2187,59 @@ void paintEffigyGrains(
   }
   for (var b = 0; b < batches.length && b < tones.length; b++) {
     batches[b].draw(c, size, tones[b]);
+  }
+}
+
+/// A cup won in the Trials, on a stepped plinth: the cup from the Trials'
+/// shelf in its own grains, brimming with light, motes of it lifting off
+/// the bowl — more of them by night.
+class _TrialsCup extends KeepsakeArt {
+  _TrialsCup(this.metal) : super(trophyLight(metal));
+
+  final TrophyMetal metal;
+
+  /// The cup's own height, and the plinth's.
+  static const double _h = 60, _base = 16;
+  static const Offset _at = Offset(0, -_base - _h * 0.5);
+  static const Offset _mouth = Offset(0, -_base - _h);
+
+  static final Paint _mote = Paint()..isAntiAlias = true;
+
+  @override
+  Rect get box => const Rect.fromLTRB(-40, -_base - _h * 1.7, 40, 4);
+
+  @override
+  void body(Canvas c) {
+    _plinth(c, m, 50, _base);
+    paintStadiumTrophy(c, _at, _h, TrophyLook(metal, fill: 1), 0, still: true);
+  }
+
+  @override
+  void under(Canvas c, KeepsakeTime k) {
+    paintDisc(c, m.pool, _mouth, 44, 0.25 + 0.4 * k.night);
+  }
+
+  @override
+  void live(Canvas c, KeepsakeTime k) {
+    final light = trophyLight(metal);
+    final n = 7 + (7 * k.night).round();
+    for (var i = 0; i < n; i++) {
+      final h1 = _hash01(i, 3), h2 = _hash01(i, 4);
+      final life = ((k.t * (0.2 + 0.12 * h1)) + h2) % 1.0;
+      final x =
+          (h1 - 0.5) * 30 * (1 - 0.4 * life) + math.sin(life * 4.2 + i) * 2.4;
+      final y = _mouth.dy - life * 40;
+      final fade = math.sin(math.pi * life) * (0.55 + 0.3 * k.night);
+      _mote.color = _a(
+        life < 0.5 ? const Color(0xFFFFFFFF) : light,
+        fade * (0.7 + 0.3 * k.stir.clamp(0.0, 1.0)),
+      );
+      c.drawCircle(Offset(x, y), 1.1 + 0.5 * h2, _mote);
+    }
+  }
+
+  static double _hash01(int i, int salt) {
+    final x = math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
+    return x - x.floorToDouble();
   }
 }
