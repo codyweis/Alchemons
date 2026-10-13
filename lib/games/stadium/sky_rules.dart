@@ -117,7 +117,8 @@ class SkyCast {
 
 /// A whole night, worked out at once.
 class SkyContest {
-  SkyContest(this.bout, this.fighters) : assert(fighters.length >= 2) {
+  SkyContest(this.bout, this.fighters, {this.last = 0})
+    : assert(fighters.length >= 2) {
     for (var r = 0; r < kSkyRounds.length; r++) {
       for (final i in castOrder) {
         final v = judge(fighters[i], r);
@@ -130,9 +131,17 @@ class SkyContest {
   final List<Racer> fighters;
   final List<SkyCast> casts = [];
 
-  /// Who casts when in each round: the others first, the player (index 0)
-  /// last, so the player sees what it has to beat.
-  List<int> get castOrder => [for (var i = 1; i < fighters.length; i++) i, 0];
+  /// Who casts last in each round: the player watching.
+  final int last;
+
+  /// Who casts when in each round: the others first, the player ([last])
+  /// last, so the player sees what it has to beat. (Only the show's order:
+  /// the stars are the same whoever watches.)
+  List<int> get castOrder => [
+    for (var i = 0; i < fighters.length; i++)
+      if (i != last) i,
+    last,
+  ];
 
   /// How [r] is judged in round [round].
   ContestVerdict judge(Racer r, int round) {

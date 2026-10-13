@@ -17,6 +17,7 @@
 
 import 'package:alchemons/games/cosmic/contest_judging.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_rules.dart';
 
 /// What a stretch of the course is.
@@ -265,6 +266,9 @@ class FlightSim {
     if (at >= tick) (_pending[i] ??= []).add(at);
   }
 
+  /// Whether [i] has a boost tapped and waiting for its tick.
+  bool hasPending(int i) => _pending[i]?.isNotEmpty ?? false;
+
   bool canBoost(int i) {
     final s = states[i];
     return s.boostsLeft > 0 && !s.busy && s.finishTime == null;
@@ -342,14 +346,25 @@ class FlightSim {
     List<Racer> fighters,
     List<List<int>> choices, [
     Map<int, List<int>> taps = const {},
-  ]) {
+  ]) => FlightSim.replay(course, fighters, choices, taps, kRaceMaxTicks);
+
+  /// A fresh flight with [taps] (flyer → ticks) replayed up to [tick]: a
+  /// tap from another phone that came late, put in where it belongs. Only
+  /// the players' taps (a computer flyer taps again by itself).
+  factory FlightSim.replay(
+    FlightCourse course,
+    List<Racer> fighters,
+    List<List<int>> choices,
+    Map<int, List<int>> taps,
+    int tick,
+  ) {
     final sim = FlightSim(course, fighters, choices);
     for (final e in taps.entries) {
       for (final t in e.value) {
         sim.tap(e.key, t);
       }
     }
-    while (!sim.over) {
+    while (sim.tick < tick && !sim.over) {
       sim.step();
     }
     return sim;
@@ -361,6 +376,10 @@ const _c = FlightKind.comets;
 const _a = FlightKind.asteroids;
 const _g = FlightKind.gravity;
 const _n = FlightKind.nebula;
+
+/// The course for an Emerald Cup bout.
+FlightCourse flightCourseOf(GemBout bout) =>
+    kFlightCourses[bout.place] ?? kFlightCourses.values.first;
 
 /// The Emerald Cup's courses, by their bouts' places. Each way through a
 /// fork takes about as long for a flyer judged 3, so which is the quicker

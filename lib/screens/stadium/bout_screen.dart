@@ -6,7 +6,9 @@
 // is doing, what is under way, and the action (CHARGE, BOOST) with a pip
 // for each stamina bar when there is one. Upright, like the Trials, so
 // nothing turns. When it is over, the places and what the win paid; AGAIN
-// starts it over in place.
+// starts it over in place. With friends ([RaceLink]) the player's taps go
+// to the other phones and theirs come in, and the results lead back to the
+// lobby.
 
 import 'dart:async';
 
@@ -47,6 +49,7 @@ class BoutScreen extends StatefulWidget {
     required this.stage,
     required this.onFinished,
     this.onDone,
+    this.live,
   });
 
   final GemCup cup;
@@ -54,8 +57,12 @@ class BoutScreen extends StatefulWidget {
   final List<Racer> fighters;
   final List<RaceBody> bodies;
 
-  /// Makes the bout, once.
+  /// Makes the bout, once (with friends, kept to [live]'s gun).
   final BoutStage Function() stage;
+
+  /// Set for a bout with friends: the other players' taps by fighter, and
+  /// where the player's go.
+  final RaceLink? live;
 
   /// Called once, as the results come up, with the player's place (1–3)
   /// and mark. Pays what the bout pays, keeps its record, and says what it
@@ -91,7 +98,7 @@ class _BoutScreenState extends State<BoutScreen>
         switch (b) {
           case GamepadButton.a:
             if (_stage.done) {
-              _done(RaceOutcome(place: _place, again: true));
+              _done(RaceOutcome(place: _place, again: widget.live == null));
             } else {
               _act();
             }
@@ -104,6 +111,17 @@ class _BoutScreenState extends State<BoutScreen>
       },
     );
     unawaited(loadRaceNumerals(style: const TextStyle()));
+    widget.live?.taps.addListener(_theirTaps);
+    _theirTaps();
+  }
+
+  /// The other players' taps, into the bout.
+  void _theirTaps() {
+    final link = widget.live;
+    if (link == null) return;
+    for (final e in link.taps.value.entries) {
+      if (e.key != _stage.player) _stage.mergeTaps(e.key, e.value);
+    }
   }
 
   AudioController? _audio;
@@ -121,6 +139,7 @@ class _BoutScreenState extends State<BoutScreen>
 
   @override
   void dispose() {
+    widget.live?.taps.removeListener(_theirTaps);
     _audio?.releaseSoundOwner(this);
     _pad.release();
     _ticker.dispose();
@@ -180,7 +199,9 @@ class _BoutScreenState extends State<BoutScreen>
   }
 
   void _act() {
-    if (_stage.act()) HapticFeedback.mediumImpact();
+    if (!_stage.act()) return;
+    HapticFeedback.mediumImpact();
+    widget.live?.send(_stage.myTaps);
   }
 
   void _done(RaceOutcome outcome) {
@@ -204,7 +225,9 @@ class _BoutScreenState extends State<BoutScreen>
       palette: BracketPalette.dark,
       accent: kLeaveDangerAccent,
       title: 'LEAVE THE BOUT?',
-      message: 'The bout ends here and counts as a loss.',
+      message: widget.live != null
+          ? 'Your Alchemon goes on without you.'
+          : 'The bout ends here and counts as a loss.',
       cancelLabel: 'STAY',
       confirmLabel: 'LEAVE',
     );
@@ -264,8 +287,7 @@ class _BoutScreenState extends State<BoutScreen>
                               ),
                               Text(
                                 '${widget.cup.name.toUpperCase()} · '
-                                'BOUT ${widget.bout + 1} OF '
-                                '${widget.cup.bouts.length}',
+                                '${widget.live != null ? 'WITH FRIENDS' : 'BOUT ${widget.bout + 1} OF ${widget.cup.bouts.length}'}',
                                 style: bracketText(
                                   context,
                                   9.5,
@@ -513,31 +535,40 @@ class _BoutScreenState extends State<BoutScreen>
                   ),
                 ],
                 const SizedBox(height: 14),
-                Row(
-                  children: [
-                    Expanded(
-                      child: BracketButton(
-                        label: 'LEAVE',
-                        palette: BracketPalette.dark,
-                        accent: _brass,
-                        primary: false,
-                        height: 40,
-                        onTap: () => _done(RaceOutcome(place: place)),
+                if (widget.live != null)
+                  BracketButton(
+                    label: 'BACK TO THE LOBBY',
+                    palette: BracketPalette.dark,
+                    accent: _brass,
+                    height: 40,
+                    onTap: () => _done(RaceOutcome(place: place)),
+                  )
+                else
+                  Row(
+                    children: [
+                      Expanded(
+                        child: BracketButton(
+                          label: 'LEAVE',
+                          palette: BracketPalette.dark,
+                          accent: _brass,
+                          primary: false,
+                          height: 40,
+                          onTap: () => _done(RaceOutcome(place: place)),
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: BracketButton(
-                        label: 'AGAIN',
-                        palette: BracketPalette.dark,
-                        accent: _brass,
-                        height: 40,
-                        onTap: () =>
-                            _done(RaceOutcome(place: place, again: true)),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: BracketButton(
+                          label: 'AGAIN',
+                          palette: BracketPalette.dark,
+                          accent: _brass,
+                          height: 40,
+                          onTap: () =>
+                              _done(RaceOutcome(place: place, again: true)),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
               ],
             ),
           ),

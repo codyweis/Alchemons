@@ -2,8 +2,9 @@
 //
 // A friend asking to race, wherever the player is: the game's notice at
 // the top — "Bo asks you to race · Flare Track" — with JOIN, which opens
-// the race's lobby. Each invitation is told once; one missed waits on the
-// Trials (and runs out after a while).
+// the race's lobby, and DECLINE, which says no (the host sees the lane
+// free). Each invitation is told once; one missed waits on the Trials
+// (and runs out after a while).
 
 import 'package:alchemons/games/stadium/race_room.dart';
 import 'package:alchemons/screens/stadium/race_lobby_screen.dart';
@@ -62,13 +63,18 @@ class _RaceInvitesState extends State<RaceInvites> {
   void _tell(RaceRoom room) {
     final nav = rootNavigatorKey.currentState;
     final overlay = nav?.overlay;
-    if (nav == null || overlay == null) return;
+    final rooms = _rooms;
+    if (nav == null || overlay == null || rooms == null) return;
     showGameSnack(
       nav.context,
-      '${room.nameOf(room.host)} asks you to race · ${room.course.name}',
+      '${room.nameOf(room.host)} asks you to race · ${room.placeName}',
       overlay: overlay,
       accent: _brass,
       duration: const Duration(seconds: 14),
+      secondary: SnackBarAction(
+        label: 'DECLINE',
+        onPressed: () => rooms.decline(room),
+      ),
       action: SnackBarAction(
         label: 'JOIN',
         onPressed: () => RaceLobbyScreen.open(nav.context, room.id),

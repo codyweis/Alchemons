@@ -14,6 +14,9 @@
 // tails (comet tails), clouds of coloured light (nebula) — and comes
 // together again; a band of green light across the top is the gate. Each
 // flyer leaves a wake along its own way.
+//
+// With friends ([BoutLive]) every phone flies the same flight, kept to the
+// shared gun, the others' boosts merged in as they come.
 
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -22,16 +25,12 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/obsidian_kit.dart';
 import 'package:alchemons/games/stadium/bout_stage.dart';
 import 'package:alchemons/games/stadium/flight_rules.dart';
-import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_bodies.dart';
 import 'package:alchemons/games/stadium/race_painter.dart';
 import 'package:alchemons/games/stadium/race_rules.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flutter/material.dart';
 
-/// The course for an Emerald Cup bout.
-FlightCourse flightCourseOf(GemBout bout) =>
-    kFlightCourses[bout.place] ?? kFlightCourses.values.first;
 
 enum _Phase { intro, countdown, fly, done }
 
@@ -42,6 +41,7 @@ class FlightStage extends ChangeNotifier implements BoutStage {
     required this.bodies,
     required this.player,
     required List<List<int>> choices,
+    this.live,
   }) : sim = FlightSim(course, fighters, choices) {
     final n = fighters.length;
     pd = List.filled(n, 0);
@@ -55,7 +55,10 @@ class FlightStage extends ChangeNotifier implements BoutStage {
   final List<RaceBody> bodies;
   @override
   final int player;
-  final FlightSim sim;
+  FlightSim sim;
+
+  /// Set for a flight with friends.
+  final BoutLive? live;
 
   static const double introSeconds = 2.0, countdownSeconds = 3.0;
 
@@ -103,15 +106,46 @@ class FlightStage extends ChangeNotifier implements BoutStage {
   @override
   String? get caption => null;
   @override
-  bool get canAct => flying && sim.canBoost(player);
+  bool get canAct => flying && sim.canBoost(player) && !sim.hasPending(player);
   @override
   int get actsLeft => sim.states[player].boostsLeft;
   @override
   bool act() {
     if (!canAct) return false;
-    sim.tap(player);
+    sim.tap(player, live == null ? null : sim.tick + BoutLive.tapLead);
     sounds.add(BoutSound.act);
     return true;
+  }
+
+  @override
+  List<int> get myTaps => [...?sim.taps[player]];
+
+  @override
+  void mergeTaps(int i, List<int> ticks) {
+    if (i < 0 || i >= fighters.length || i == player) return;
+    final have = sim.taps[i] ?? const <int>[];
+    final fresh = [
+      for (final t in ticks)
+        if (!have.contains(t)) t,
+    ];
+    if (fresh.isEmpty) return;
+    if (fresh.every((t) => t >= sim.tick)) {
+      for (final t in fresh) {
+        sim.tap(i, t);
+      }
+      return;
+    }
+    // The players' taps (a computer flyer taps again by itself).
+    final all = <int, List<int>>{
+      for (final e in sim.taps.entries)
+        if (fighters[e.key].isPlayer) e.key: [...e.value],
+    };
+    (all[i] ??= []).addAll(fresh);
+    sim = FlightSim.replay(course, fighters, sim.choices, all, sim.tick);
+    for (var k = 0; k < fighters.length; k++) {
+      pd[k] = sim.states[k].distance;
+      _seenBoosts[k] = sim.states[k].boostsAt.length;
+    }
   }
 
   @override
@@ -170,6 +204,12 @@ class FlightStage extends ChangeNotifier implements BoutStage {
   void advance(double dt) {
     dt = min(dt, 0.1);
     clock += dt;
+    final live = this.live;
+    if (live != null && _phase.index <= _Phase.countdown.index) {
+      // The count ends on the gun, whenever this phone came to it.
+      clock = max(clock - dt, introSeconds + countdownSeconds - live.toGun);
+      if (clock < 0) clock = 0;
+    }
     switch (_phase) {
       case _Phase.intro:
         if (clock >= introSeconds) _phase = _Phase.countdown;
@@ -185,10 +225,15 @@ class FlightStage extends ChangeNotifier implements BoutStage {
         }
       case _Phase.fly:
         flyClock += dt;
-        _run(dt);
+        if (live != null) {
+          _runLive(live, dt);
+        } else {
+          _run(dt);
+        }
         if (sim.over) {
           _overAt ??= clock;
-          if (clock - _overAt! >= 1.8) {
+          // With friends, a moment more for a last tap from far away.
+          if (clock - _overAt! >= (live == null ? 1.8 : 2.4)) {
             _phase = _Phase.done;
             sounds.add(BoutSound.win);
           }
@@ -206,32 +251,59 @@ class FlightStage extends ChangeNotifier implements BoutStage {
     if (!sim.over) {
       _acc += dt;
       while (_acc >= step && !sim.over) {
-        for (var i = 0; i < d.length; i++) {
-          pd[i] = sim.states[i].distance;
-        }
-        sim.step();
+        _step();
         _acc -= step;
-        for (var i = 0; i < d.length; i++) {
-          final s = sim.states[i];
-          if (s.boostsAt.length != _seenBoosts[i]) {
-            _seenBoosts[i] = s.boostsAt.length;
-            boostAtClock[i] = clock;
-          }
-          if (s.finishTime != null && i < 3 && !_finishedSaid[i]) {
-            _finishedSaid[i] = true;
-            sounds.add(BoutSound.out);
-          }
-        }
       }
-      final a = _acc / step;
-      for (var i = 0; i < d.length; i++) {
-        d[i] = pd[i] + (sim.states[i].distance - pd[i]) * a;
-      }
+      _between(_acc / step);
     } else {
-      // Past the gate, each drifts on a little.
-      for (var i = 0; i < d.length; i++) {
-        d[i] = min(d[i] + 40 * dt, sim.lengths[i] + 140);
+      _drift(dt);
+    }
+  }
+
+  /// With friends: stepped to where the wall clock says, so every phone is
+  /// at the same tick at the same moment.
+  void _runLive(BoutLive live, double dt) {
+    if (sim.over) {
+      _drift(dt);
+      return;
+    }
+    final at = max(0.0, -live.toGun) * kRaceTickRate;
+    final target = at.floor();
+    while (sim.tick < target && !sim.over) {
+      _step();
+    }
+    _between(sim.over ? 1.0 : (at - target).clamp(0.0, 1.0));
+  }
+
+  void _step() {
+    for (var i = 0; i < d.length; i++) {
+      pd[i] = sim.states[i].distance;
+    }
+    sim.step();
+    for (var i = 0; i < d.length; i++) {
+      final s = sim.states[i];
+      if (s.boostsAt.length != _seenBoosts[i]) {
+        _seenBoosts[i] = s.boostsAt.length;
+        boostAtClock[i] = clock;
       }
+      if (s.finishTime != null && i < 3 && !_finishedSaid[i]) {
+        _finishedSaid[i] = true;
+        sounds.add(BoutSound.out);
+      }
+    }
+  }
+
+  /// Each one [a] of the way from its last step to this one.
+  void _between(double a) {
+    for (var i = 0; i < d.length; i++) {
+      d[i] = pd[i] + (sim.states[i].distance - pd[i]) * a;
+    }
+  }
+
+  /// Past the gate, each drifts on a little.
+  void _drift(double dt) {
+    for (var i = 0; i < d.length; i++) {
+      d[i] = min(d[i] + 40 * dt, sim.lengths[i] + 140);
     }
   }
 }

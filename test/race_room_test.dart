@@ -82,8 +82,14 @@ void main() {
   });
 
   group('RaceRoom', () {
-    RaceRoom room({List<String> field = const []}) => RaceRoom.fromJson('r1', {
+    RaceRoom room({
+      List<String> field = const [],
+      int? cpu,
+      Map<String, int> ready = const {},
+    }) => RaceRoom.fromJson('r1', {
       'host': 'a',
+      'cpu': ?cpu,
+      'ready': ready,
       'invited': ['a', 'b', 'c'],
       'names': {'a': 'Ann', 'b': 'Bo', 'c': 'Cy'},
       'cup': 1,
@@ -140,6 +146,43 @@ void main() {
       final r = room(field: ['b']);
       expect(r.lanes(), {'b': 5});
       expect(r.racers('b').length, 6);
+    });
+
+    test('the host takes computers out: the players keep the front', () {
+      final none = room(cpu: 0);
+      expect(none.racers('b').map((x) => x.id), ['live:a', 'live:b']);
+      expect(none.lanes(), {'a': 0, 'b': 1});
+      expect(none.tapsByLane(), {
+        0: [120, 400],
+      });
+      final two = room(cpu: 2);
+      expect(two.racers('b').length, 4);
+      expect(two.lanes(), {'a': 2, 'b': 3});
+      // More than there is room for fills only the lanes left.
+      expect(room(cpu: 5).racers('b').length, 6);
+    });
+
+    test('READY holds for the race after this run, and the host waits', () {
+      expect(room().isReady('a'), isTrue, reason: 'the host starts it');
+      expect(room().isReady('b'), isFalse);
+      expect(room().canStart, isFalse);
+      expect(room().notReady.map((s) => s.uid), ['b']);
+      final ready = room(ready: {'b': 2});
+      expect(ready.isReady('b'), isTrue);
+      expect(ready.canStart, isTrue);
+      // Ready for a race already run is not ready for this one.
+      expect(room(ready: {'b': 1}).canStart, isFalse);
+      // Mid-race nobody starts another.
+      expect(room(field: ['a', 'b'], ready: {'b': 2}).canStart, isFalse);
+    });
+
+    test('a seat from an older game is known as one', () {
+      final json = _seat('b', 'Fire', 5).toJson()..remove('v');
+      expect(RaceSeat.fromJson('b', json)!.current, isFalse);
+      expect(
+        RaceSeat.fromJson('b', _seat('b', 'Fire', 5).toJson())!.current,
+        isTrue,
+      );
     });
   });
 
@@ -262,9 +305,20 @@ void main() {
       final lobby = rooms.last!;
       expect(lobby.racing.map((s) => s.uid), ['a', 'b']);
 
+      // Not until Bo is ready.
       await ann.start(lobby);
       await Future<void>.delayed(Duration.zero);
+      expect(rooms.last!.state, RaceRoomState.lobby);
+      await bo.setReady(rooms.last!, true);
+      await Future<void>.delayed(Duration.zero);
+      expect(rooms.last!.isReady('b'), isTrue);
+      expect(rooms.last!.canStart, isTrue);
+
+      await ann.start(rooms.last!);
+      await Future<void>.delayed(Duration.zero);
       final racing = rooms.last!;
+      // Ready for this one, not the next.
+      expect(racing.isReady('b'), isFalse);
       expect(racing.state, RaceRoomState.racing);
       expect(racing.run, 1);
       expect(racing.field, ['a', 'b']);
@@ -278,17 +332,19 @@ void main() {
       expect(rooms.last!.tapsByLane(), {
         5: [310, 920],
       });
-      // Bo leaving mid-race keeps his seat for the phones still loading.
+      // Bo leaving mid-race is off the list at once, but keeps his seat
+      // for the phones still loading; the race still has him.
       await bo.leave(rooms.last!);
       await Future<void>.delayed(Duration.zero);
+      expect(rooms.last!.invited, ['a']);
       expect(rooms.last!.seats.keys, containsAll(['a', 'b']));
+      expect(rooms.last!.lanes(), {'a': 4, 'b': 5});
 
+      // Back between races, the host clears it.
       await ann.backToLobby(rooms.last!);
       await Future<void>.delayed(Duration.zero);
       expect(rooms.last!.state, RaceRoomState.lobby);
       expect(rooms.last!.field, isEmpty);
-      await bo.leave(rooms.last!);
-      await Future<void>.delayed(Duration.zero);
       expect(rooms.last!.seats.keys, ['a']);
       // The host leaving closes it.
       await ann.leave(rooms.last!);
@@ -314,6 +370,85 @@ void main() {
       addTearDown(again.dispose);
       await Future<void>.delayed(const Duration(milliseconds: 10));
       expect(again.invites, isEmpty);
+    });
+
+    test(
+      'DECLINE: gone from this phone, and the host sees the lane free',
+      () async {
+        final ann = player('a', 'Ann'), bo = player('b', 'Bo');
+        addTearDown(ann.dispose);
+        addTearDown(bo.dispose);
+        final id = await ann.host(
+          cup: 0,
+          race: 0,
+          invite: [const FriendCard(uid: 'b', name: 'Bo')],
+        );
+        await Future<void>.delayed(Duration.zero);
+        await bo.decline(bo.invites.single);
+        await Future<void>.delayed(Duration.zero);
+        expect(bo.invites, isEmpty);
+        final room = await ann.watch(id).first;
+        expect(room!.invited, ['a']);
+      },
+    );
+
+    test(
+      'a player leaving between races takes their READY with them',
+      () async {
+        final ann = player('a', 'Ann'), bo = player('b', 'Bo');
+        addTearDown(ann.dispose);
+        addTearDown(bo.dispose);
+        final id = await ann.host(
+          cup: 0,
+          race: 0,
+          invite: [const FriendCard(uid: 'b', name: 'Bo')],
+        );
+        await bo.sit(id, _seat('b', 'Fire', 4.9));
+        await bo.setReady((await bo.watch(id).first)!, true);
+        await bo.leave((await bo.watch(id).first)!);
+        final room = (await ann.watch(id).first)!;
+        expect(room.invited, ['a']);
+        expect(room.seats, isEmpty);
+        expect(room.ready, isEmpty);
+      },
+    );
+
+    test('the host takes lanes out and puts computers back', () async {
+      final ann = player('a', 'Ann'), bo = player('b', 'Bo');
+      addTearDown(ann.dispose);
+      addTearDown(bo.dispose);
+      final id = await ann.host(
+        cup: 0,
+        race: 0,
+        invite: [
+          const FriendCard(uid: 'b', name: 'Bo'),
+          const FriendCard(uid: 'c', name: 'Cy'),
+        ],
+      );
+      await ann.sit(id, _seat('a', 'Water', 5.1));
+      await bo.sit(id, _seat('b', 'Fire', 4.9));
+      await bo.setReady((await bo.watch(id).first)!, true);
+      var room = (await ann.watch(id).first)!;
+      expect(room.rivalsBeside(3), 3);
+
+      await ann.setComputers(room, 0);
+      room = (await ann.watch(id).first)!;
+      expect(room.cpu, 0);
+      expect(room.racers('a').length, 2);
+
+      // Cy never came; Bo is taken out too, READY and all.
+      await ann.remove(room, 'c');
+      await ann.remove((await ann.watch(id).first)!, 'b');
+      room = (await ann.watch(id).first)!;
+      expect(room.invited, ['a']);
+      expect(room.seats.keys, ['a']);
+      expect(room.ready, isEmpty);
+      // The host is never taken out.
+      await ann.remove(room, 'a');
+      expect((await ann.watch(id).first)!.invited, ['a']);
+
+      await ann.setComputers(room, 2);
+      expect((await ann.watch(id).first)!.racers('a').length, 3);
     });
 
     test('the host asks more friends in, up to the lanes', () async {

@@ -529,8 +529,8 @@ service cloud.firestore {
     // and their own boost taps (during one).
     function isRaceRoomShape(d) {
       return d.keys().hasOnly(['host', 'invited', 'names', 'cup', 'race',
-              'state', 'run', 'seats', 'taps', 'field', 'startAt',
-              'createdAt', 'updatedAt']) &&
+              'state', 'run', 'seats', 'taps', 'field', 'startAt', 'cpu',
+              'ready', 'ev', 'plans', 'createdAt', 'updatedAt']) &&
           d.host is string &&
           d.invited is list && d.invited.size() >= 1 &&
           d.invited.size() <= 6 && d.invited[0] == d.host &&
@@ -542,6 +542,10 @@ service cloud.firestore {
           d.seats is map && d.seats.size() <= 6 &&
           d.taps is map && d.taps.size() <= 6 &&
           d.field is list && d.field.size() <= 6 &&
+          (!('cpu' in d) || (d.cpu is int && d.cpu >= 0 && d.cpu <= 5)) &&
+          (!('ready' in d) || (d.ready is map && d.ready.size() <= 6)) &&
+          (!('ev' in d) || d.ev in ['race', 'gem']) &&
+          (!('plans' in d) || (d.plans is map && d.plans.size() <= 6)) &&
           (d.startAt == null || d.startAt is int) &&
           d.updatedAt == request.time;
     }
@@ -549,7 +553,8 @@ service cloud.firestore {
     function isRaceSeat(s) {
       return s is map &&
           s.keys().hasOnly(['player', 'id', 'entrant', 'ratings', 'boosts',
-              'look', 'at']) &&
+              'look', 'v', 'at']) &&
+          (!('v' in s) || s.v is int) &&
           s.player is string && s.player.size() <= 40 &&
           s.id is string && s.id.size() <= 80 &&
           s.entrant is map && s.entrant.size() <= 20 &&
@@ -584,6 +589,37 @@ service cloud.firestore {
     }
 
     // The writer's taps: during a race, for that race.
+    // READY: a player's own, between races, for the race after this run.
+    function myReadyOk(d, r) {
+      let me = request.auth.uid;
+      let after = d.get('ready', {});
+      return !after.diff(r.get('ready', {})).affectedKeys().hasAny([me]) ||
+          (r.state == 'lobby' && (!(me in after) || after[me] == r.run));
+    }
+    // A route through the space course: a player's own, between races.
+    function myPlanOk(d, r) {
+      let me = request.auth.uid;
+      let after = d.get('plans', {});
+      return !after.diff(r.get('plans', {})).affectedKeys().hasAny([me]) ||
+          (r.state == 'lobby' &&
+           (!(me in after) ||
+            (after[me] is map && after[me].keys().hasOnly(['run', 'at', 'r']) &&
+             after[me].run == r.run && after[me].at is string &&
+             after[me].at.size() <= 40 &&
+             after[me].r is list && after[me].r.size() <= 8)));
+    }
+    // A player may take only themselves off the list (the host stays).
+    function onlyMeOff(d, r) {
+      return !d.diff(r).affectedKeys().hasAny(['invited']) ||
+          d.invited == r.invited.removeAll([request.auth.uid]);
+    }
+    // The host may drop the seats (and READY) of those no longer asked,
+    // between races; nothing else in them.
+    function onlyGoneDropped(after, before, invited) {
+      return after.diff(before).addedKeys().size() == 0 &&
+          after.diff(before).changedKeys().size() == 0 &&
+          !after.diff(before).removedKeys().hasAny(invited);
+    }
     function myTapsOk(d, r) {
       let me = request.auth.uid;
       return !d.taps.diff(r.taps).affectedKeys().hasAny([me]) ||
@@ -613,22 +649,43 @@ service cloud.firestore {
           request.resource.data.host == resource.data.host &&
           request.resource.data.createdAt == resource.data.createdAt &&
           (
-            // Anyone in it: their own seat and taps.
+            // Anyone in it: their own seat, READY and taps, and leaving.
             (request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['seats', 'taps', 'updatedAt']) &&
+                .hasOnly(['seats', 'taps', 'ready', 'plans', 'invited',
+                    'updatedAt']) &&
              onlyMine(request.resource.data.seats, resource.data.seats) &&
              onlyMine(request.resource.data.taps, resource.data.taps) &&
+             onlyMine(request.resource.data.get('ready', {}),
+                 resource.data.get('ready', {})) &&
+             onlyMine(request.resource.data.get('plans', {}),
+                 resource.data.get('plans', {})) &&
+             onlyMeOff(request.resource.data, resource.data) &&
              mySeatOk(request.resource.data, resource.data) &&
+             myReadyOk(request.resource.data, resource.data) &&
+             myPlanOk(request.resource.data, resource.data) &&
              myTapsOk(request.resource.data, resource.data)) ||
-            // The host: who is asked, the course, starting and ending a
-            // race (which clears the taps).
+            // The host: who is asked, the course (or bout), the computer's
+            // lanes, starting and ending a race (which clears the taps),
+            // and the seats of those taken out or gone.
             (request.auth.uid == resource.data.host &&
              request.resource.data.diff(resource.data).affectedKeys()
-                .hasOnly(['invited', 'names', 'cup', 'race', 'state', 'run',
-                    'field', 'startAt', 'taps', 'updatedAt']) &&
+                .hasOnly(['invited', 'names', 'cup', 'race', 'ev', 'state',
+                    'run', 'field', 'startAt', 'taps', 'cpu', 'seats',
+                    'ready', 'plans', 'updatedAt']) &&
              (!request.resource.data.diff(resource.data).affectedKeys()
                  .hasAny(['taps']) ||
               request.resource.data.taps.size() == 0) &&
+             (!request.resource.data.diff(resource.data).affectedKeys()
+                 .hasAny(['seats', 'ready', 'plans']) ||
+              (request.resource.data.state == 'lobby' &&
+               onlyGoneDropped(request.resource.data.seats,
+                   resource.data.seats, request.resource.data.invited) &&
+               onlyGoneDropped(request.resource.data.get('ready', {}),
+                   resource.data.get('ready', {}),
+                   request.resource.data.invited) &&
+               onlyGoneDropped(request.resource.data.get('plans', {}),
+                   resource.data.get('plans', {}),
+                   request.resource.data.invited))) &&
              (!request.resource.data.diff(resource.data).affectedKeys()
                  .hasAny(['invited']) ||
               asksOnlyFriends(request.resource.data.invited)))

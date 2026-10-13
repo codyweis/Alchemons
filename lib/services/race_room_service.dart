@@ -79,9 +79,7 @@ class RaceRoomService extends ChangeNotifier {
             (r.createdAt == null ||
                 now.difference(r.createdAt!) < kRaceInviteLife))
           r,
-    ]..sort(
-      (a, b) => (b.createdAt ?? now).compareTo(a.createdAt ?? now),
-    );
+    ]..sort((a, b) => (b.createdAt ?? now).compareTo(a.createdAt ?? now));
   }
 
   // ── Listening ───────────────────────────────────────────────────────────
@@ -122,6 +120,17 @@ class RaceRoomService extends ChangeNotifier {
     if (_uid != uid) return;
     _dismissed = (prefs.getStringList(_dismissedKey(uid)) ?? const []).toSet();
     if (!_disposed) notifyListeners();
+  }
+
+  /// Says no to [room]'s invitation: it goes from this phone at once, and
+  /// this player leaves the room's list, so the host sees the lane free.
+  Future<void> decline(RaceRoom room) async {
+    await dismiss(room.id);
+    try {
+      await leave(room);
+    } on RaceRoomException catch (e) {
+      debugPrint('RaceRoomService: the host was not told: $e');
+    }
   }
 
   /// Waves an invitation away.
@@ -171,11 +180,12 @@ class RaceRoomService extends ChangeNotifier {
   static String _cut(String name) =>
       name.length > 24 ? name.substring(0, 24) : name;
 
-  /// Makes a room for [cup]'s race [race] with [invite] asked in; returns
-  /// its id.
+  /// Makes a room for [cup]'s race [race] (with [gem], a gem cup's bout)
+  /// with [invite] asked in; returns its id.
   Future<String> host({
     required int cup,
     required int race,
+    bool gem = false,
     List<FriendCard> invite = const [],
   }) async {
     final me = _me;
@@ -188,6 +198,7 @@ class RaceRoomService extends ChangeNotifier {
         'names': {me: myName, for (final f in asked) f.uid: _cut(f.name)},
         'cup': cup,
         'race': race,
+        if (gem) 'ev': 'gem',
         'state': 'lobby',
         'run': 0,
         'seats': <String, Object?>{},
@@ -218,13 +229,49 @@ class RaceRoomService extends ChangeNotifier {
     );
   }
 
-  /// Sets the course (the host, between races).
-  Future<void> setCourse(RaceRoom room, int cup, int race) async {
+  /// Sets the course — with [gem], a gem cup's bout (the host, between
+  /// races).
+  Future<void> setCourse(
+    RaceRoom room,
+    int cup,
+    int race, {
+    bool gem = false,
+  }) async {
     if (room.host != _me || room.state != RaceRoomState.lobby) return;
     await _run(
       () => _rooms.doc(room.id).update({
+        'ev': gem ? 'gem' : 'race',
         'cup': cup,
         'race': race,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
+    );
+  }
+
+  /// Takes [uid] out of [room] (the host, between races): a friend asked
+  /// who has not come, or one in who keeps the rest waiting. Their lane
+  /// goes back to the computer.
+  Future<void> remove(RaceRoom room, String uid) async {
+    if (room.host != _me || uid == room.host) return;
+    if (room.state != RaceRoomState.lobby) return;
+    await _run(
+      () => _rooms.doc(room.id).update({
+        'invited': FieldValue.arrayRemove([uid]),
+        'seats.$uid': FieldValue.delete(),
+        'ready.$uid': FieldValue.delete(),
+        'plans.$uid': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
+    );
+  }
+
+  /// How many computer racers may fill the lanes the players leave (the
+  /// host, between races).
+  Future<void> setComputers(RaceRoom room, int count) async {
+    if (room.host != _me || room.state != RaceRoomState.lobby) return;
+    await _run(
+      () => _rooms.doc(room.id).update({
+        'cpu': count.clamp(0, kRaceRoomSeats - 1),
         'updatedAt': FieldValue.serverTimestamp(),
       }),
     );
@@ -233,7 +280,7 @@ class RaceRoomService extends ChangeNotifier {
   /// Starts the race (the host): the gun goes [kRaceRoomLead] from now on
   /// the server's clock, and the taps of the last race are cleared.
   Future<void> start(RaceRoom room) async {
-    if (room.host != _me) return;
+    if (room.host != _me || !room.canStart) return;
     final gun = serverNowMs() + kRaceRoomLead.inMilliseconds;
     await _run(
       () => _rooms.doc(room.id).update({
@@ -247,7 +294,8 @@ class RaceRoomService extends ChangeNotifier {
     );
   }
 
-  /// Back to gathering after a race (the host).
+  /// Back to gathering after a race (the host). The seats of any who left
+  /// during it (kept for the race's sake) go now.
   Future<void> backToLobby(RaceRoom room) async {
     if (room.host != _me || room.state == RaceRoomState.lobby) return;
     await _run(
@@ -255,6 +303,12 @@ class RaceRoomService extends ChangeNotifier {
         'state': 'lobby',
         'startAt': null,
         'field': <String>[],
+        for (final uid in room.seats.keys)
+          if (!room.invited.contains(uid)) 'seats.$uid': FieldValue.delete(),
+        for (final uid in room.ready.keys)
+          if (!room.invited.contains(uid)) 'ready.$uid': FieldValue.delete(),
+        for (final uid in room.plans.keys)
+          if (!room.invited.contains(uid)) 'plans.$uid': FieldValue.delete(),
         'updatedAt': FieldValue.serverTimestamp(),
       }),
     );
@@ -288,19 +342,58 @@ class RaceRoomService extends ChangeNotifier {
     }
   }
 
-  /// Leaves [room]: a player gives up their seat (kept while a race is on,
-  /// so the phones still loading it can draw them); the host closes it.
+  /// READY (or not) for the next race, between races; on the space course
+  /// with the [plan]ned route.
+  Future<void> setReady(RaceRoom room, bool ready, {List<int>? plan}) async {
+    final me = _me;
+    if (room.host == me || room.state != RaceRoomState.lobby) return;
+    await _run(
+      () => _rooms.doc(room.id).update({
+        'ready.$me': ready ? room.run : FieldValue.delete(),
+        if (ready && plan != null) 'plans.$me': _plan(room, plan),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
+    );
+  }
+
+  /// This player's route through the space course, between races (the
+  /// host's, before START).
+  Future<void> setPlan(RaceRoom room, List<int> plan) async {
+    final me = _me;
+    if (room.state != RaceRoomState.lobby) return;
+    await _run(
+      () => _rooms.doc(room.id).update({
+        'plans.$me': _plan(room, plan),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
+    );
+  }
+
+  static Map<String, Object?> _plan(RaceRoom room, List<int> plan) =>
+      RacePlan(run: room.run, at: room.placeKey, route: plan).toJson();
+
+  /// Leaves [room]: a player goes from its list and gives up their seat
+  /// (kept while a race is on, so the phones still loading it can draw
+  /// them — the host clears it after); the host closes it.
   Future<void> leave(RaceRoom room) async {
     final me = _me;
     final doc = _rooms.doc(room.id);
-    if (room.host != me && room.state == RaceRoomState.racing) return;
+    if (room.host == me) {
+      await _run(() => doc.delete());
+      return;
+    }
+    final between = room.state == RaceRoomState.lobby;
     await _run(
-      () => room.host == me
-          ? doc.delete()
-          : doc.update({
-              'seats.$me': FieldValue.delete(),
-              'updatedAt': FieldValue.serverTimestamp(),
-            }),
+      () => doc.update({
+        'invited': FieldValue.arrayRemove([me]),
+        if (between && room.seats.containsKey(me))
+          'seats.$me': FieldValue.delete(),
+        if (between && room.ready.containsKey(me))
+          'ready.$me': FieldValue.delete(),
+        if (between && room.plans.containsKey(me))
+          'plans.$me': FieldValue.delete(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      }),
     );
   }
 

@@ -12,7 +12,8 @@
 //
 // SkyPainter draws it in grains on a dark sky, like everything else. The
 // whole night is worked out before the first cast (SkyContest); the stage
-// is only a clock.
+// is only a clock — with friends ([BoutLive]), kept to the shared gun, the
+// same stars lit on every phone, each with its own player in the middle.
 
 import 'dart:math';
 import 'dart:typed_data';
@@ -273,7 +274,8 @@ class SkyStage extends ChangeNotifier implements BoutStage {
     required this.bodies,
     required this.player,
     List<SkyFigure>? figures,
-  }) : contest = SkyContest(bout, fighters) {
+    this.live,
+  }) : contest = SkyContest(bout, fighters, last: player) {
     this.figures = figures ?? [for (final b in bodies) SkyFigure.of(b.grains)];
     gestures = [for (final b in bodies) skyGestureOf(b.member.family)];
     final n = fighters.length;
@@ -308,6 +310,9 @@ class SkyStage extends ChangeNotifier implements BoutStage {
   final List<RaceBody> bodies;
   @override
   final int player;
+
+  /// Set for a night with friends.
+  final BoutLive? live;
   final SkyContest contest;
   late final List<SkyFigure> figures;
   late final List<SkyGesture> gestures;
@@ -417,10 +422,21 @@ class SkyStage extends ChangeNotifier implements BoutStage {
   @override
   late final CustomPainter painter = SkyPainter(this);
 
+  /// Nothing to tap under the night sky.
+  @override
+  List<int> get myTaps => const [];
+  @override
+  void mergeTaps(int i, List<int> ticks) {}
+
   @override
   void advance(double dt) {
     dt = min(dt, 0.1);
     clock += dt;
+    // With friends, the first cast goes up on the gun.
+    if (live case final live?) {
+      clock = max(clock - dt, introSeconds - live.toGun);
+      if (clock < 0) clock = 0;
+    }
     for (final t in times) {
       final said = _said[t.index];
       if (said == 0 && clock >= t.release) {
@@ -465,7 +481,9 @@ class _Layout {
     k0 = min(w / 475, h / 751);
     body = k0 * 1.85;
     final n = s.fighters.length;
-    colX = [for (var i = 0; i < n; i++) w * _cols(n)[i]];
+    final cols = _cols(n);
+    // The player in the first column (the middle), the rest in turn after.
+    colX = [for (var i = 0; i < n; i++) w * cols[(i - s.player + n) % n]];
     feet = [for (final x in colX) Offset(x, ridgeY(x) + 3 * k0)];
     centre = [
       for (var i = 0; i < n; i++)

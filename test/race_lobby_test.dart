@@ -5,10 +5,13 @@ import 'dart:ui' as ui;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/contest_judging.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart';
+import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/stadium/race_room.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/providers/theme_provider.dart';
+import 'package:alchemons/screens/stadium/bout_screen.dart';
 import 'package:alchemons/screens/stadium/race_lobby_screen.dart';
 import 'package:alchemons/screens/stadium/race_screen.dart';
 import 'package:alchemons/services/account_service.dart';
@@ -17,6 +20,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/race_room_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -30,7 +34,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // The lobby of a race with friends: the host's lanes, a friend's seat
-// coming in, START, and both going to the race on the shared gun.
+// coming in and READY, a computer taken out, START, and both going to the
+// race on the shared gun; and a friend's side — READY UP, LEAVE.
 //
 //   LOBBY_OUT=/tmp/lobby flutter test test/race_lobby_test.dart
 // also writes frames (LOBBY_SIZE=475x751 for the Fold).
@@ -75,10 +80,14 @@ void main() {
     );
   });
 
-  testWidgets('a friend joins, the host starts, both go to the race', (
-    tester,
-  ) async {
-    SharedPreferences.setMockInitialValues({});
+  /// Ann hosts a room with Bo asked; the lobby opens on [viewer]'s phone
+  /// (a page that opens it, so it can be left).
+  Future<_Lobby> openLobby(
+    WidgetTester tester, {
+    String viewer = 'a',
+    String? progress,
+  }) async {
+    SharedPreferences.setMockInitialValues({RaceProgress.prefsKey: ?progress});
     tester.view.physicalSize = size * 2;
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
@@ -181,57 +190,109 @@ void main() {
           ChangeNotifierProvider<ConstellationEffectsService>.value(
             value: constellations,
           ),
-          ChangeNotifierProvider<RaceRoomService>.value(value: ann),
+          ChangeNotifierProvider<RaceRoomService>.value(
+            value: viewer == 'a' ? ann : bo,
+          ),
         ],
         child: MaterialApp(
           debugShowCheckedModeBanner: false,
           theme: ThemeData.dark(),
           builder: (context, child) =>
               RepaintBoundary(key: shot, child: child!),
-          home: RaceLobbyScreen(roomId: roomId),
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: Center(
+                child: TextButton(
+                  onPressed: () => RaceLobbyScreen.open(context, roomId),
+                  child: const Text('OPEN'),
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );
+    await tester.tap(find.text('OPEN'));
+    return _Lobby(ann, bo, roomId, snap, settle);
+  }
+
+  Future<void> boSits(WidgetTester tester, _Lobby l) => tester.runAsync(
+    () => l.bo.sit(
+      l.roomId,
+      RaceSeat(
+        uid: 'b',
+        player: 'Bo',
+        instanceId: 'his',
+        entrant: const ContestEntrant(
+          name: 'Ember',
+          element: 'Fire',
+          family: 'mane',
+          statRating: 0,
+        ),
+        ratings: const {
+          CosmicContestTrait.speed: 5.1,
+          CosmicContestTrait.strength: 4.4,
+          CosmicContestTrait.intelligence: 3.8,
+          CosmicContestTrait.beauty: 4.0,
+        },
+        boosts: 3,
+        look: const ResidentLook(baseId: 'MAN03'),
+      ),
+    ),
+  );
+
+  Future<RaceRoom> roomOf(WidgetTester tester, _Lobby l) async =>
+      (await tester.runAsync(() => l.ann.watch(l.roomId).first))!;
+
+  testWidgets('a friend joins and readies, the host starts, both race', (
+    tester,
+  ) async {
+    final l = await openLobby(tester);
+    final settle = l.settle, snap = l.snap;
     await settle(12);
     // Ann is in; Bo is asked; the cup's rivals fill four lanes.
-    expect(find.text('RACE WITH FRIENDS'), findsOneWidget);
-    expect(find.text('Ann'), findsOneWidget);
-    expect(find.text('YOU'), findsOneWidget);
+    expect(find.text('WITH FRIENDS'), findsOneWidget);
+    expect(find.text('Ann · YOU'), findsOneWidget);
+    expect(find.text('HOST'), findsOneWidget);
     expect(find.text('Bo'), findsOneWidget);
     expect(find.text('ASKED · NOT IN YET'), findsOneWidget);
-    expect(find.text('WAITING FOR FRIENDS'), findsOneWidget);
+    expect(find.text('WAITING FOR FRIENDS TO JOIN'), findsOneWidget);
+    expect(find.textContaining('COMPUTER ·'), findsNWidgets(4));
     await snap('asked');
 
-    // Bo comes in.
-    await tester.runAsync(() async {
-      await bo.sit(
-        roomId,
-        RaceSeat(
-          uid: 'b',
-          player: 'Bo',
-          instanceId: 'his',
-          entrant: const ContestEntrant(
-            name: 'Ember',
-            element: 'Fire',
-            family: 'mane',
-            statRating: 0,
-          ),
-          ratings: const {
-            CosmicContestTrait.speed: 5.1,
-            CosmicContestTrait.strength: 4.4,
-            CosmicContestTrait.intelligence: 3.8,
-            CosmicContestTrait.beauty: 4.0,
-          },
-          boosts: 3,
-          look: const ResidentLook(baseId: 'MAN03'),
-        ),
-      );
-    });
+    // Bo comes in, not ready: START waits on him.
+    await boSits(tester, l);
     await settle(6);
     expect(find.text('ASKED · NOT IN YET'), findsNothing);
-    expect(find.text('HOST'), findsNothing);
-    expect(find.text('START'), findsOneWidget);
+    expect(find.text('NOT READY'), findsOneWidget);
+    expect(find.text('WAITING FOR BO TO GET READY'), findsOneWidget);
+    await tester.tap(find.text('START'));
+    await settle(4);
+    expect((await roomOf(tester, l)).state, RaceRoomState.lobby);
     await snap('joined');
+
+    // Bo readies.
+    await tester.runAsync(
+      () async => l.bo.setReady((await l.bo.watch(l.roomId).first)!, true),
+    );
+    await settle(6);
+    expect(find.text('READY'), findsOneWidget);
+    expect(find.text('EVERYONE IS READY'), findsOneWidget);
+
+    // Ann takes a computer out: its lane stands open, one to put back.
+    final cpu = find.ancestor(
+      of: find.textContaining('COMPUTER ·').first,
+      matching: find.byType(Row),
+    );
+    await tester.tap(
+      find.descendant(of: cpu.first, matching: find.byType(BracketIconButton)),
+    );
+    await settle(6);
+    expect(find.textContaining('COMPUTER ·'), findsNWidgets(3));
+    expect(find.text('OPEN LANE'), findsOneWidget);
+    expect(find.text('ADD COMPUTER'), findsOneWidget);
+    expect((await roomOf(tester, l)).cpu, 3);
+    await snap('lane_open');
 
     // START: the race comes up sideways, on the shared gun.
     final turns = <String>[];
@@ -267,11 +328,96 @@ void main() {
     expect(turns.first, contains('landscape'));
     final race = tester.widget<RaceScreen>(find.byType(RaceScreen));
     expect(race.live, isNotNull);
-    expect(race.racers.length, 6);
+    // Five racers: the open lane stays empty at the back.
+    expect(race.racers.length, 5);
     expect(race.racers.where((r) => r.isPlayer).single.id, 'live:a');
-    expect(race.racers.map((r) => r.id).skip(4), ['live:a', 'live:b']);
+    expect(race.racers.map((r) => r.id).skip(3), ['live:a', 'live:b']);
+    for (var i = 0; i < 120; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
     await snap('race');
   });
+
+  testWidgets('gems: the host turns to the island, both fight it', (
+    tester,
+  ) async {
+    // The Silver Cup won: the Ruby Cup's first bout is open.
+    final l = await openLobby(tester, progress: '{"copper":3,"silver":3}');
+    await l.settle(12);
+    await tester.tap(find.text('GEMS'));
+    await l.settle(6);
+    final gem = await roomOf(tester, l);
+    expect(gem.gem, isTrue);
+    expect(gem.placeName, kGemCups[0].bouts[0].name);
+    expect(find.text(kGemCups[0].bouts[0].name.toUpperCase()), findsOneWidget);
+    // Three to a bout: Ann, Bo asked, one of the bout's rivals.
+    expect(find.textContaining('COMPUTER ·'), findsOneWidget);
+    await boSits(tester, l);
+    await tester.runAsync(
+      () async => l.bo.setReady((await l.bo.watch(l.roomId).first)!, true),
+    );
+    await l.settle(6);
+    expect(find.text('EVERYONE IS READY'), findsOneWidget);
+    await l.snap('gem_lobby');
+
+    await tester.tap(find.text('START'));
+    for (
+      var i = 0;
+      i < 200 && find.byType(BoutScreen).evaluate().isEmpty;
+      i++
+    ) {
+      await l.settle(1);
+    }
+    final bout = tester.widget<BoutScreen>(find.byType(BoutScreen));
+    expect(bout.live, isNotNull);
+    expect(bout.fighters.map((f) => f.id).skip(1), ['live:a', 'live:b']);
+    // To the gun (on the wall clock) and into the fight.
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(seconds: 10)),
+    );
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    expect(find.text('CHARGE'), findsOneWidget);
+    await l.snap('gem_bout');
+  });
+
+  testWidgets('a friend readies up, and leaves', (tester) async {
+    final l = await openLobby(tester, viewer: 'b');
+    await l.settle(12);
+    // Bo's phone sits him with his own racer.
+    expect(find.text('Bo · YOU'), findsOneWidget);
+    expect(find.text('CHANGE'), findsOneWidget);
+    expect(find.text('ANN STARTS WHEN EVERYONE IS READY'), findsOneWidget);
+    expect(find.text('LEAVE'), findsOneWidget);
+    await l.snap('friend');
+
+    await tester.tap(find.text('READY UP'));
+    await l.settle(6);
+    expect(find.text('NOT READY'), findsOneWidget);
+    expect(find.text('READY · ANN STARTS THE RACE'), findsOneWidget);
+    expect((await roomOf(tester, l)).isReady('b'), isTrue);
+    await l.snap('friend_ready');
+
+    await tester.tap(find.text('LEAVE'));
+    await l.settle(12);
+    expect(find.byType(RaceLobbyScreen), findsNothing);
+    final room = await roomOf(tester, l);
+    expect(room.invited, ['a']);
+    expect(room.seats, isEmpty);
+    expect(room.ready, isEmpty);
+  });
+}
+
+typedef _Snap = Future<void> Function(String name);
+typedef _Settle = Future<void> Function([int frames]);
+
+class _Lobby {
+  _Lobby(this.ann, this.bo, this.roomId, this.snap, this.settle);
+  final RaceRoomService ann, bo;
+  final String roomId;
+  final _Snap snap;
+  final _Settle settle;
 }
 
 class _FakeUser implements User {

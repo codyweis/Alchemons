@@ -792,6 +792,7 @@ class _StadiumScreenState extends State<StadiumScreen>
   /// The chosen bout: its name and pay, the event and what it asks, the
   /// two rivals at the line, and START.
   Widget _gemDetail(BuildContext context) {
+    final rooms = context.watch<RaceRoomService?>();
     final cup = _gemDef;
     final bout = cup.bouts[_bout];
     final open = _boutOpen;
@@ -882,16 +883,46 @@ class _StadiumScreenState extends State<StadiumScreen>
           ),
         ),
         const SizedBox(height: 8),
-        BracketButton(
-          label: !open ? 'LOCKED' : (_starting ? 'STEPPING OUT…' : 'START'),
-          palette: BracketPalette.dark,
-          accent: _brass,
-          height: 42,
-          enabled: open && !_starting && _racer != null,
-          onTap: _startGem,
+        Row(
+          children: [
+            // The bout with friends, for a player who can.
+            if (rooms != null && rooms.available) ...[
+              Expanded(
+                child: BracketButton(
+                  label: 'WITH FRIENDS',
+                  palette: BracketPalette.dark,
+                  accent: _brass,
+                  primary: false,
+                  height: 42,
+                  enabled: open && !_starting,
+                  onTap: _fightFriends,
+                ),
+              ),
+              const SizedBox(width: 10),
+            ],
+            Expanded(
+              child: BracketButton(
+                label: !open
+                    ? 'LOCKED'
+                    : (_starting ? 'STEPPING OUT…' : 'START'),
+                palette: BracketPalette.dark,
+                accent: _brass,
+                height: 42,
+                enabled: open && !_starting && _racer != null,
+                onTap: _startGem,
+              ),
+            ),
+          ],
         ),
       ],
     );
+  }
+
+  /// A room for the bout on show, to ask friends into.
+  Future<void> _fightFriends() async {
+    if (_starting || _leaving || !_boutOpen) return;
+    HapticFeedback.selectionClick();
+    await RaceLobbyScreen.host(context, cup: _gem, race: _bout, gem: true);
   }
 
   /// A gem cup's bout: the three set down on the island or under the night
@@ -1296,7 +1327,7 @@ class _StadiumScreenState extends State<StadiumScreen>
     await RaceLobbyScreen.host(context, cup: _cup, race: _race);
   }
 
-  /// A friend's invitation waiting: who, which course, and JOIN.
+  /// A friend's invitation waiting: who, which course, DECLINE and JOIN.
   Widget _inviteSlip(BuildContext context, RaceRoom room) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1318,7 +1349,7 @@ class _StadiumScreenState extends State<StadiumScreen>
               Expanded(
                 child: Text(
                   '${room.nameOf(room.host).toUpperCase()} ASKS YOU TO RACE · '
-                  '${room.course.name.toUpperCase()}',
+                  '${room.placeName.toUpperCase()}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: bracketText(
@@ -1330,7 +1361,27 @@ class _StadiumScreenState extends State<StadiumScreen>
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  HapticFeedback.selectionClick();
+                  context.read<RaceRoomService>().decline(room);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                  child: Text(
+                    'DECLINE',
+                    style: bracketText(
+                      context,
+                      10.5,
+                      _muted,
+                      weight: FontWeight.w800,
+                      letterSpacing: 1.8,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
               Text(
                 'JOIN',
                 style: bracketText(

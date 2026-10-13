@@ -302,7 +302,9 @@ class _Geo {
     double zoom, {
     this.camY = 0,
     double Function(double x)? ground,
-  }) : w = size.width,
+    int racers = 6,
+  }) : first = (6 - racers).clamp(0, 5),
+       w = size.width,
        h = size.height,
        k0 = (size.height / 360).clamp(0.6, 1.6).toDouble(),
        _ground = ground ?? _flat {
@@ -314,6 +316,10 @@ class _Geo {
   }
 
   final double w, h, k0, camX;
+
+  /// The track lane the first racer runs in: a field of fewer than six
+  /// (a race with friends and no computer) races in the front lanes.
+  final int first;
 
   /// The ground's height the camera is held at (world px).
   final double camY;
@@ -332,10 +338,16 @@ class _Geo {
   double dy(double x) => (camY - _ground(x)) * k;
   double get viewL => camX - w * 0.5 / k - 40;
   double get viewR => camX + w * 0.5 / k + 40;
-  double laneY(int i) => top + (i + 0.6) * gap;
 
-  /// Back lanes stand a little smaller.
-  double depth(int i) => 0.84 + 0.032 * i;
+  /// Where racer [i] runs.
+  double laneY(int i) => trackY(i + first);
+
+  /// The track's own lane [lane] (0 at the back, 5 at the front).
+  double trackY(int lane) => top + (lane + 0.6) * gap;
+
+  /// Back lanes stand a little smaller: racer [i], or the track's [lane].
+  double depth(int i) => trackDepth(i + first);
+  double trackDepth(int lane) => 0.84 + 0.032 * lane;
 
   /// Where a row of the floor stands, from the back edge (0) to the front
   /// (1), and how deep it is there.
@@ -370,6 +382,7 @@ class RacePainter extends CustomPainter {
       stage.zoom,
       camY: stage.camY,
       ground: layout.groundAt,
+      racers: stage.racers.length,
     );
     final t = stage.clock;
     final look = kSceneLooks[stage.course.scene];
@@ -1036,8 +1049,8 @@ class RacePainter extends CustomPainter {
           for (var lane = p % 2; lane < 6; lane += 2) {
             _cairn(
               c,
-              Offset(g.sx(x), g.laneY(lane) + dy),
-              g.k * g.depth(lane),
+              Offset(g.sx(x), g.trackY(lane) + dy),
+              g.k * g.trackDepth(lane),
               p * 7 + lane,
             );
           }

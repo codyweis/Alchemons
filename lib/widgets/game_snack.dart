@@ -46,6 +46,9 @@ void showGameSnack(
   /// never the background.
   Color? accent,
   SnackBarAction? action,
+
+  /// A quieter second choice before [action] (an invitation's DECLINE).
+  SnackBarAction? secondary,
   Duration duration = const Duration(seconds: 3),
 
   /// Where it shows, for a caller outside any screen (the navigator's own
@@ -69,6 +72,7 @@ void showGameSnack(
       surface: fc.bg1,
       text: fc.textPrimary,
       action: action,
+      secondary: secondary,
       duration: duration,
       onDismiss: GameSnack._dismiss,
     ),
@@ -86,6 +90,7 @@ class _TopNotification extends StatefulWidget {
     required this.action,
     required this.duration,
     required this.onDismiss,
+    this.secondary,
   });
 
   final String message;
@@ -93,6 +98,7 @@ class _TopNotification extends StatefulWidget {
   final Color surface;
   final Color text;
   final SnackBarAction? action;
+  final SnackBarAction? secondary;
   final Duration duration;
   final VoidCallback onDismiss;
 
@@ -126,6 +132,28 @@ class _TopNotificationState extends State<_TopNotification>
     _ctl.dispose();
     super.dispose();
   }
+
+  /// A choice on the right: tapping it puts the notice away and does it.
+  Widget _label(SnackBarAction action, Color color) => GestureDetector(
+    onTap: () {
+      widget.onDismiss();
+      action.onPressed();
+    },
+    behavior: HitTestBehavior.opaque,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      child: Text(
+        action.label.toUpperCase(),
+        style: TextStyle(
+          fontFamily: 'monospace',
+          color: color,
+          fontSize: 11.5,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 1.0,
+        ),
+      ),
+    ),
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -205,31 +233,13 @@ class _TopNotificationState extends State<_TopNotification>
                           ),
                         ),
                       ),
-                      if (widget.action != null) ...[
+                      if (widget.secondary case final second?) ...[
                         const SizedBox(width: 10),
-                        GestureDetector(
-                          onTap: () {
-                            widget.onDismiss();
-                            widget.action!.onPressed();
-                          },
-                          behavior: HitTestBehavior.opaque,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 4,
-                            ),
-                            child: Text(
-                              widget.action!.label.toUpperCase(),
-                              style: TextStyle(
-                                fontFamily: 'monospace',
-                                color: widget.tint,
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1.0,
-                              ),
-                            ),
-                          ),
-                        ),
+                        _label(second, widget.text.withValues(alpha: 0.55)),
+                      ],
+                      if (widget.action case final action?) ...[
+                        const SizedBox(width: 10),
+                        _label(action, widget.tint),
                       ],
                     ],
                   ),

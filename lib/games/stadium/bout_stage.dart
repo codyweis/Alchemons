@@ -6,12 +6,32 @@
 // player's taps in, plays what it asks to hear, and lays the same HUD over
 // each: the three by name, what is under way, the action with a pip per
 // stamina bar (when there is one), and the places when it is over.
+//
+// A bout with friends (race_room.dart) runs on every phone at once: each
+// keeps to the shared gun ([BoutLive]), sends its own player's taps, and
+// takes the others' as they come ([BoutStage.mergeTaps]).
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 
 /// What a bout asks to be heard (the race's own sounds serve).
 enum BoutSound { countTick, gun, act, hit, out, win, cast, land }
+
+/// A live bout's timing: the gun at [gunAt] on [wall]'s clock (seconds),
+/// and the bout kept to that clock, tick for tick.
+class BoutLive {
+  const BoutLive({required this.gunAt, required this.wall});
+
+  final double gunAt;
+  final double Function() wall;
+
+  /// Seconds to the gun (less than none once it has gone).
+  double get toGun => gunAt - wall();
+
+  /// A tap is put in this many ticks after it is made, on every phone, so
+  /// it has time to reach the others before it is due.
+  static const int tapLead = 12;
+}
 
 abstract class BoutStage implements Listenable {
   /// The player's place in the three.
@@ -69,6 +89,13 @@ abstract class BoutStage implements Listenable {
 
   /// Draws it.
   CustomPainter get painter;
+
+  /// The player's taps so far, as ticks (to send to the other phones).
+  List<int> get myTaps;
+
+  /// Another phone's taps for fighter [i], all of them so far: one for a
+  /// tick already run replays the bout to now with it.
+  void mergeTaps(int i, List<int> ticks);
 
   void advance(double dt);
   void dispose();

@@ -10,6 +10,10 @@
 // IslandPainter draws it, in grains on black like everything else: a sand
 // island floating among the stars, its rock hanging under it, the crowd's
 // lights in a ring far below.
+//
+// With friends ([BoutLive]) every phone fights the same bout: it keeps to
+// the shared gun, and the island is turned so each phone's own fighter
+// starts at the front.
 
 import 'dart:math';
 import 'dart:ui' as ui;
@@ -51,10 +55,14 @@ class IslandStage extends ChangeNotifier implements BoutStage {
     required this.fighters,
     required this.bodies,
     required this.player,
-  }) : sim = IslandSim(bout, fighters) {
+    this.live,
+  }) : sim = IslandSim(bout, fighters),
+       // The player's start turned to the front (the bottom of the screen).
+       _turnC = cos(-player * 2 * pi / fighters.length),
+       _turnS = sin(-player * 2 * pi / fighters.length) {
     final n = fighters.length;
-    px = [for (final s in sim.states) s.x];
-    py = [for (final s in sim.states) s.y];
+    px = [for (final s in sim.states) _vx(s.x, s.y)];
+    py = [for (final s in sim.states) _vy(s.x, s.y)];
     x = [...px];
     y = [...py];
     _seenHits = List.filled(n, 0);
@@ -71,7 +79,17 @@ class IslandStage extends ChangeNotifier implements BoutStage {
   /// The player's place in [fighters].
   @override
   final int player;
-  final IslandSim sim;
+  IslandSim sim;
+
+  /// Set for a bout with friends.
+  final BoutLive? live;
+
+  /// The island as this phone watches it: turned so the player starts at
+  /// the front. [turn] takes a place (or a way) on the island to the view.
+  final double _turnC, _turnS;
+  double _vx(double x, double y) => x * _turnC - y * _turnS;
+  double _vy(double x, double y) => x * _turnS + y * _turnC;
+  Offset turn(double x, double y) => Offset(_vx(x, y), _vy(x, y));
 
   /// The three set down, then the count.
   static const double introSeconds = 2.4, countdownSeconds = 3.0;
@@ -112,7 +130,8 @@ class IslandStage extends ChangeNotifier implements BoutStage {
       ? max(0, introSeconds + countdownSeconds - clock)
       : 0;
 
-  bool get canCharge => fighting && sim.canCharge(player);
+  bool get canCharge =>
+      fighting && sim.canCharge(player) && !sim.hasPending(player);
   int get chargesLeft => sim.states[player].charges;
 
   /// The island's radius as watched, eased between steps.
@@ -121,12 +140,50 @@ class IslandStage extends ChangeNotifier implements BoutStage {
   @override
   List<int> get standings => sim.standings;
 
-  /// The player taps a charge.
+  /// The player taps a charge (with friends, a moment on, so the other
+  /// phones have it in time).
   bool tapCharge() {
     if (!canCharge) return false;
-    sim.tap(player);
+    sim.tap(player, live == null ? null : sim.tick + BoutLive.tapLead);
     sounds.add(BoutSound.act);
     return true;
+  }
+
+  @override
+  List<int> get myTaps => [...?sim.taps[player]];
+
+  @override
+  void mergeTaps(int i, List<int> ticks) {
+    if (i < 0 || i >= fighters.length || i == player) return;
+    final have = sim.taps[i] ?? const <int>[];
+    final fresh = [
+      for (final t in ticks)
+        if (!have.contains(t)) t,
+    ];
+    if (fresh.isEmpty) return;
+    if (fresh.every((t) => t >= sim.tick)) {
+      for (final t in fresh) {
+        sim.tap(i, t);
+      }
+      return;
+    }
+    final all = <int, List<int>>{
+      for (final e in sim.taps.entries) e.key: [...e.value],
+    };
+    (all[i] ??= []).addAll(fresh);
+    sim = IslandSim.replay(bout, fighters, all, sim.tick);
+    // What has been shown stays shown; what the replay undid is undone.
+    for (var k = 0; k < fighters.length; k++) {
+      final st = sim.states[k];
+      px[k] = _vx(st.x, st.y);
+      py[k] = _vy(st.x, st.y);
+      _seenCharges[k] = st.chargesAt.length;
+      _seenHits[k] = st.hitsAt.length;
+      if (st.fellAt == null && _seenFall[k]) {
+        _seenFall[k] = false;
+        fellAtClock[k] = null;
+      }
+    }
   }
 
   // ── what the bout screen reads ──
@@ -176,6 +233,12 @@ class IslandStage extends ChangeNotifier implements BoutStage {
   void advance(double dt) {
     dt = min(dt, 0.1);
     clock += dt;
+    final live = this.live;
+    if (live != null && phase.index <= IslandStagePhase.countdown.index) {
+      // The count ends on the gun, whenever this phone came to it.
+      clock = max(clock - dt, introSeconds + countdownSeconds - live.toGun);
+      if (clock < 0) clock = 0;
+    }
     switch (phase) {
       case IslandStagePhase.intro:
         if (clock >= introSeconds) phase = IslandStagePhase.countdown;
@@ -191,10 +254,15 @@ class IslandStage extends ChangeNotifier implements BoutStage {
         }
       case IslandStagePhase.fight:
         fightClock += dt;
-        _run(dt);
+        if (live != null) {
+          _runLive(live);
+        } else {
+          _run(dt);
+        }
         if (sim.over) {
           _overAt ??= clock;
-          if (clock - _overAt! >= endHold) {
+          // With friends, a moment more for a last tap from far away.
+          if (clock - _overAt! >= endHold + (live == null ? 0 : 0.6)) {
             phase = IslandStagePhase.done;
             sounds.add(BoutSound.win);
           }
@@ -213,19 +281,43 @@ class IslandStage extends ChangeNotifier implements BoutStage {
       _acc += dt;
       while (_acc >= step && !sim.over) {
         for (var i = 0; i < x.length; i++) {
-          px[i] = sim.states[i].x;
-          py[i] = sim.states[i].y;
+          px[i] = _vx(sim.states[i].x, sim.states[i].y);
+          py[i] = _vy(sim.states[i].x, sim.states[i].y);
         }
         sim.step();
         _acc -= step;
         _events();
       }
     }
-    final a = sim.over ? 1.0 : _acc / step;
+    _between(sim.over ? 1.0 : _acc / step);
+  }
+
+  /// With friends: stepped to where the wall clock says, so every phone is
+  /// at the same tick at the same moment.
+  void _runLive(BoutLive live) {
+    final at = max(0.0, -live.toGun) * kIslandTickRate;
+    final target = at.floor();
+    if (!sim.over) {
+      // Far behind (the game was away): catch up without a burst for each.
+      final many = target - sim.tick > 2;
+      while (sim.tick < target && !sim.over) {
+        for (var i = 0; i < x.length; i++) {
+          px[i] = _vx(sim.states[i].x, sim.states[i].y);
+          py[i] = _vy(sim.states[i].x, sim.states[i].y);
+        }
+        sim.step();
+        if (!many || sim.tick >= target - 1) _events();
+      }
+    }
+    _between(sim.over ? 1.0 : (at - target).clamp(0.0, 1.0));
+  }
+
+  /// Each one [a] of the way from its last step to this one, as watched.
+  void _between(double a) {
     for (var i = 0; i < x.length; i++) {
       final s = sim.states[i];
-      x[i] = px[i] + (s.x - px[i]) * a;
-      y[i] = py[i] + (s.y - py[i]) * a;
+      x[i] = px[i] + (_vx(s.x, s.y) - px[i]) * a;
+      y[i] = py[i] + (_vy(s.x, s.y) - py[i]) * a;
     }
   }
 
@@ -243,7 +335,7 @@ class IslandStage extends ChangeNotifier implements BoutStage {
         final o = t >= 0 ? sim.states[t] : s;
         bursts.add(
           IslandBurst(
-            Offset((s.x + o.x) / 2, (s.y + o.y) / 2),
+            turn((s.x + o.x) / 2, (s.y + o.y) / 2),
             clock,
             t >= 0 ? t : i,
           ),
@@ -254,7 +346,7 @@ class IslandStage extends ChangeNotifier implements BoutStage {
       if (s.fellAt != null && !_seenFall[i]) {
         _seenFall[i] = true;
         fellAtClock[i] = clock;
-        bursts.add(IslandBurst(Offset(s.x, s.y), clock, i, fall: true));
+        bursts.add(IslandBurst(turn(s.x, s.y), clock, i, fall: true));
         cheer = 1;
         sounds.add(BoutSound.out);
       }
@@ -820,7 +912,7 @@ class IslandPainter extends CustomPainter {
     final b = _b..clear();
     final dir = st.target >= 0
         ? Offset(s.x[st.target] - s.x[i], s.y[st.target] - s.y[i])
-        : Offset(st.dx, st.dy);
+        : s.turn(st.dx, st.dy);
     final len = dir.distance;
     final fx = len > 0 ? dir.dx / len : 1.0, fy = len > 0 ? dir.dy / len : 0.0;
     if (st.phase == FighterPhase.windup) {
@@ -916,7 +1008,7 @@ class IslandPainter extends CustomPainter {
   ) {
     final s = stage;
     final st = s.sim.states[i];
-    final out = Offset(st.x, st.y);
+    final out = stage.turn(st.x, st.y);
     final ol = out.distance;
     final ox = ol > 0 ? out.dx / ol : 0.0;
     Offset where(double a) =>

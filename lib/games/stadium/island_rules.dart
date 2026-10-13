@@ -19,7 +19,11 @@
 // of their own — harder ones — one for each stamina bar.
 //
 // Deterministic and stepped at [kIslandTickRate], like the race: the same
-// three with the same taps make the same bout.
+// three with the same taps make the same bout — on every phone, too (a bout
+// with friends runs on each of theirs): only + − × ÷ and square roots,
+// which come out the same to the last bit everywhere; the turns a fighter
+// wanders through are worked out here ([islandSin]) rather than by the
+// platform's own sine, which need not.
 
 import 'dart:math' as math;
 
@@ -28,6 +32,26 @@ import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/stadium/race_rules.dart';
 
 const int kIslandTickRate = 60;
+
+/// sin([x]) from + − × ÷ alone, so every phone agrees on it to the last
+/// bit (a platform's own sine need not): folded into −π/2..π/2, then its
+/// series to x¹⁵ (off by less than 1e-9).
+double islandSin(double x) {
+  const twoPi = 2 * math.pi;
+  var a = x - (x / twoPi).roundToDouble() * twoPi;
+  if (a > math.pi / 2) a = math.pi - a;
+  if (a < -math.pi / 2) a = -math.pi - a;
+  final a2 = a * a;
+  var term = a, sum = a;
+  for (var k = 1; k <= 7; k++) {
+    term = -term * a2 / ((2 * k) * (2 * k + 1));
+    sum += term;
+  }
+  return sum;
+}
+
+/// cos([x]), as [islandSin].
+double islandCos(double x) => islandSin(x + math.pi / 2);
 
 /// The longest a bout runs before the one nearest the middle is given it.
 const int kIslandMaxTicks = 90 * kIslandTickRate;
@@ -170,8 +194,8 @@ class IslandSim {
       final a = math.pi / 2 + i * 2 * math.pi / n;
       states.add(
         IslandFighter(
-          math.cos(a) * kIslandRadius * 0.55,
-          math.sin(a) * kIslandRadius * 0.55,
+          islandCos(a) * kIslandRadius * 0.55,
+          islandSin(a) * kIslandRadius * 0.55,
           fighters[i].boosts,
         )..nextThink = 50 + i * 23,
       );
@@ -253,6 +277,9 @@ class IslandSim {
     if (at >= tick) (_pending[i] ??= []).add(at);
   }
 
+  /// Whether fighter [i] has a charge tapped and waiting for its tick.
+  bool hasPending(int i) => _pending[i]?.isNotEmpty ?? false;
+
   /// Whether fighter [i] could charge now.
   bool canCharge(int i) {
     final s = states[i];
@@ -329,12 +356,13 @@ class IslandSim {
     tick++;
   }
 
-  /// 0..1 from two whole numbers, the same on every machine.
+  /// 0..1 from two whole numbers, the same on every machine — the web's
+  /// too, where whole numbers are doubles: nothing here passes 2⁵³.
   static double _hash(int a, int b) {
-    var x = (a * 73856093) ^ (b * 19349663) ^ 0x5bd1e995;
-    x = (x ^ (x >> 13)) * 0x5bd1e995;
-    x ^= x >> 15;
-    return (x & 0xFFFF) / 0xFFFF;
+    var x = (a * 7919 + b * 104729 + 12345) % 2147483647;
+    x = (x * 48271) % 2147483647;
+    x = (x * 48271) % 2147483647;
+    return (x % 65536) / 65535;
   }
 
   void _think(int i) {
@@ -426,8 +454,8 @@ class IslandSim {
         final keep = (0.22 + 0.18 * (1 - clever)) * r;
         final a = tick * 0.012 + i * 2.1;
         final wander = (1 - clever) * 0.18 * r;
-        final hx = (al < 1e-9 ? 0 : ax / al * keep) + math.cos(a) * wander;
-        final hy = (al < 1e-9 ? 0 : ay / al * keep) + math.sin(a) * wander;
+        final hx = (al < 1e-9 ? 0 : ax / al * keep) + islandCos(a) * wander;
+        final hy = (al < 1e-9 ? 0 : ay / al * keep) + islandSin(a) * wander;
         final ox = hx - s.x, oy = hy - s.y;
         final d = math.sqrt(ox * ox + oy * oy);
         if (d > 2) {

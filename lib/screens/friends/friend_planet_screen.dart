@@ -690,9 +690,9 @@ class _FeaturedAlchemon extends StatelessWidget {
   }
 }
 
-/// RACE: a race with this friend, while they are in the game — for a
-/// player who has found the Trials. Opens a lobby with them asked in, on
-/// the course this player is racing for.
+/// RACE: a race with this friend — for a player who has found the
+/// Trials. Opens a lobby with them asked in, on the course this player is
+/// racing for.
 class _RaceButton extends StatefulWidget {
   const _RaceButton({required this.friend, required this.accent});
 
@@ -727,7 +727,7 @@ class _RaceButtonState extends State<_RaceButton> {
 
   Future<void> _race() async {
     if (_opening) return;
-    _opening = true;
+    setState(() => _opening = true);
     HapticFeedback.selectionClick();
     final prefs = await SharedPreferences.getInstance();
     final progress = RaceProgress.deserialise(
@@ -745,7 +745,7 @@ class _RaceButtonState extends State<_RaceButton> {
         invite: [widget.friend],
       );
     }
-    _opening = false;
+    if (mounted) setState(() => _opening = false);
   }
 
   @override
@@ -754,20 +754,18 @@ class _RaceButtonState extends State<_RaceButton> {
     if (!_found || rooms == null || !rooms.available) {
       return const SizedBox.shrink();
     }
-    final online = context.select<FriendService?, bool>(
-      (f) => f?.isOnline(widget.friend.uid) ?? false,
-    );
+    // Always open (the author, 2026-10-13: it "looks disabled"): a friend
+    // away finds the invitation waiting on their Trials when they come in.
     return Padding(
       padding: const EdgeInsets.only(left: 10),
       child: SizedBox(
         width: 130,
         child: BracketButton(
-          label: online ? 'RACE' : 'RACE · AWAY',
+          label: 'RACE',
           height: 42,
           palette: _palette,
           accent: widget.accent,
-          primary: false,
-          enabled: online,
+          enabled: !_opening,
           onTap: _race,
         ),
       ),

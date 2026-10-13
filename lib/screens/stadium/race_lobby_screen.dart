@@ -4,28 +4,39 @@
 // friends", live, invited while they are online). The lobby of one room:
 // the course (the host steps through the ones they have opened), the six
 // lanes — the players who have joined with their racers, the friends asked
-// and not yet in, the cup's computer rivals in the rest — your own racer
-// to change, and the host's INVITE and START. Everyone in it goes to the
-// race together when the host starts: the lights go down, the phone turns,
-// and the gun goes at the same moment on every phone.
+// and not yet in, the cup's computer rivals in the rest (the host takes
+// any lane out, and puts a computer back in an open one) — your own racer
+// to change, a player's READY and LEAVE, and the host's INVITE and START,
+// once everyone in is ready. Everyone in it goes to the race together when
+// the host starts: the lights go down, the phone turns, and the gun goes
+// at the same moment on every phone.
 
 import 'dart:async';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/stadium/bout_stage.dart';
+import 'package:alchemons/games/stadium/flight_rules.dart';
+import 'package:alchemons/games/stadium/flight_stage.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart';
+import 'package:alchemons/games/stadium/island_stage.dart';
 import 'package:alchemons/games/stadium/race_bodies.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/stadium/race_painter.dart';
 import 'package:alchemons/games/stadium/race_room.dart';
 import 'package:alchemons/games/stadium/race_scenes.dart';
+import 'package:alchemons/games/stadium/sky_rules.dart';
+import 'package:alchemons/games/stadium/sky_stage.dart';
 import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/navigation/world_transition.dart';
+import 'package:alchemons/screens/stadium/bout_screen.dart';
 import 'package:alchemons/screens/friends/friend_planet_screen.dart'
     show kFriendOnlineColor;
 import 'package:alchemons/screens/stadium/course_map.dart';
 import 'package:alchemons/screens/stadium/race_screen.dart';
 import 'package:alchemons/screens/stadium/racer_gate.dart';
+import 'package:alchemons/screens/stadium/route_planner.dart';
 import 'package:alchemons/screens/stadium/stadium_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/friend_service.dart';
@@ -70,16 +81,23 @@ class RaceLobbyScreen extends StatefulWidget {
         ),
       );
 
-  /// Makes a room for [cup]'s race [race], asks [invite] in, and opens it.
+  /// Makes a room for [cup]'s race [race] (with [gem], a gem cup's bout),
+  /// asks [invite] in, and opens it.
   static Future<void> host(
     BuildContext context, {
     required int cup,
     required int race,
+    bool gem = false,
     List<FriendCard> invite = const [],
   }) async {
     final rooms = context.read<RaceRoomService>();
     try {
-      final id = await rooms.host(cup: cup, race: race, invite: invite);
+      final id = await rooms.host(
+        cup: cup,
+        race: race,
+        gem: gem,
+        invite: invite,
+      );
       if (context.mounted) await open(context, id);
     } on RaceRoomException catch (e) {
       if (context.mounted) showGameSnack(context, e.message);
@@ -131,9 +149,10 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
         .watch(widget.roomId)
         .listen(
           _onRoom,
+          // Shut out of it: taken off its list (or it was never ours).
           onError: (Object e) {
             debugPrint('RaceLobby: room not read: $e');
-            _closed();
+            _closed(message: 'You are no longer in this race.');
           },
         );
     unawaited(_loadRacer());
@@ -171,9 +190,14 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
       _heard = true;
       if (room.state == RaceRoomState.racing) _seenRun = room.run;
     }
+    final me = _me;
+    // The host took this player out.
+    if (me != null && room.host != me && !room.invited.contains(me)) {
+      _closed(message: 'You are no longer in this race.');
+      return;
+    }
     setState(() => _room = room);
     _sitIfNeeded();
-    final me = _me;
     if (_racing) {
       _taps.value = {
         for (final e in room.taps.entries)
@@ -187,20 +211,21 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
     }
   }
 
-  /// The room is gone: the host closed it. Mid-race, the race runs on
-  /// here and the lobby goes once it is left.
-  void _closed() {
+  /// The room is gone (the host closed it), or this player is out of it.
+  /// Mid-race, the race runs on here and the lobby goes once it is left.
+  void _closed({String message = 'The race was closed.'}) {
     if (_leaving || !mounted) return;
     if (_racing) {
-      _gone = true;
+      _gone = message;
       return;
     }
     _leaving = true;
-    if (!_hosting) showGameSnack(context, 'The race was closed.');
+    if (!_hosting) showGameSnack(context, message);
     Navigator.of(context).pop();
   }
 
-  bool _gone = false;
+  /// Why the lobby goes once the race on here is left.
+  String? _gone;
 
   /// Takes (or updates) this player's seat with their racer.
   Future<void> _sitIfNeeded() async {
@@ -232,7 +257,13 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
   }
 
   Future<void> _chooseRacer() async {
-    if (_racing || _room?.state != RaceRoomState.lobby) return;
+    final room = _room;
+    if (_racing || room == null || room.state != RaceRoomState.lobby) return;
+    // Not ready while choosing: the host cannot start without them.
+    final me = _me;
+    if (me != null && !_hosting && room.isReady(me)) {
+      unawaited(_setReady(room, false));
+    }
     _flying.value = false;
     await pickRacer(
       context,
@@ -260,16 +291,52 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
           if (_progress.raceOpen(kRaceCups[c], r)) (c, r),
   ];
 
+  /// The gem cups' bouts the host has opened, in order.
+  List<(int, int)> get _bouts => [
+    for (var g = 0; g < kGemCups.length; g++)
+      if (_progress.gemOpen(g))
+        for (var b = 0; b < kGemCups[g].bouts.length; b++)
+          if (_progress.boutOpen(kGemCups[g], b)) (g, b),
+  ];
+
   void _stepCourse(int by) {
     final room = _room;
     if (room == null || !_hosting) return;
-    final list = _courses;
+    final list = room.gem ? _bouts : _courses;
     if (list.isEmpty) return;
     var at = list.indexOf((room.cup, room.race));
     at = at < 0 ? 0 : (at + by) % list.length;
     HapticFeedback.selectionClick();
     final (c, r) = list[at];
-    unawaited(_rooms.setCourse(room, c, r));
+    unawaited(_rooms.setCourse(room, c, r, gem: room.gem));
+  }
+
+  /// RACES or GEMS: the host moves the room to the first it has opened.
+  void _switchEvent(bool gem) {
+    final room = _room;
+    if (room == null || !_hosting || room.gem == gem) return;
+    final list = gem ? _bouts : _courses;
+    if (list.isEmpty) return;
+    HapticFeedback.selectionClick();
+    final (c, r) = list.first;
+    unawaited(_rooms.setCourse(room, c, r, gem: gem));
+  }
+
+  /// This player's route through the space course, planned now; null if
+  /// they backed out.
+  Future<List<int>?> _planRoute(RaceRoom room) async {
+    final me = _me;
+    final seat = me == null ? null : room.seats[me];
+    if (seat == null) return null;
+    return planFlightRoute(
+      context,
+      title: room.bout.name,
+      subtitle:
+          '${room.gemDef.name.toUpperCase()} · WITH FRIENDS · '
+          'PLAN YOUR ROUTE',
+      course: flightCourseOf(room.bout),
+      racer: seat.racer(isPlayer: true),
+    );
   }
 
   Future<void> _invite() async {
@@ -284,9 +351,54 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
     );
   }
 
+  /// Takes [uid] out of the race: a friend asked who has not come, or one
+  /// in (asked first) who keeps the rest waiting.
+  Future<void> _remove(RaceRoom room, String uid) async {
+    if (room.seats.containsKey(uid)) {
+      final go = await showBracketConfirm(
+        context,
+        palette: BracketPalette.dark,
+        accent: kLeaveDangerAccent,
+        title: 'TAKE ${room.nameOf(uid).toUpperCase()} OUT?',
+        message: 'They leave the lobby. You can invite them again.',
+        cancelLabel: 'KEEP',
+        confirmLabel: 'TAKE OUT',
+      );
+      if (!go || !mounted) return;
+    }
+    HapticFeedback.selectionClick();
+    try {
+      await _rooms.remove(_room ?? room, uid);
+    } on RaceRoomException catch (e) {
+      if (mounted) showGameSnack(context, e.message);
+    }
+  }
+
+  /// The computer's racers in the lanes left: [count] of them.
+  Future<void> _computers(RaceRoom room, int count) async {
+    HapticFeedback.selectionClick();
+    try {
+      await _rooms.setComputers(room, count);
+    } on RaceRoomException catch (e) {
+      if (mounted) showGameSnack(context, e.message);
+    }
+  }
+
   Future<void> _start() async {
-    final room = _room;
-    if (room == null || !_hosting || _lining) return;
+    final room = _room, me = _me;
+    if (room == null || me == null || !_hosting || _lining) return;
+    // The space course: the host's own route first.
+    if (room.needsPlan && room.planOf(me) == null) {
+      final plan = await _planRoute(room);
+      if (plan == null || !mounted) return;
+      try {
+        await _rooms.setPlan(_room ?? room, plan);
+      } on RaceRoomException catch (e) {
+        if (mounted) showGameSnack(context, e.message);
+      }
+      return;
+    }
+    if (!room.canStart) return;
     HapticFeedback.mediumImpact();
     try {
       await _rooms.start(room);
@@ -297,8 +409,8 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
 
   // ── The race ────────────────────────────────────────────────────────────
 
-  /// The room has started a race with this player in it: the six are read
-  /// and loaded, and the race opens on the shared gun.
+  /// The room has started a race with this player in it: the field is read
+  /// and loaded, and the race (or bout) opens on the shared gun.
   Future<void> _launch(RaceRoom room) async {
     final me = _me, startAt = room.startAt;
     if (me == null || startAt == null || _racing) return;
@@ -306,8 +418,43 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
     _seenRun = room.run;
     setState(() => _lining = true);
     HapticFeedback.mediumImpact();
-    final catalog = context.read<CreatureCatalog>();
     _lanes = room.lanes();
+    final link = RaceLink(
+      gunAtMs: _rooms.localMs(startAt),
+      taps: _taps,
+      send: (ticks) {
+        final now = _room;
+        if (now != null) unawaited(_rooms.sendTaps(now, ticks));
+      },
+    );
+    try {
+      if (room.gem) {
+        await _fight(room, me, link);
+      } else {
+        await _race(room, me, link);
+      }
+    } finally {
+      _racing = false;
+    }
+    if (!mounted) return;
+    if (_gone case final message?) {
+      _closed(message: message);
+      return;
+    }
+    setState(() => _lining = false);
+    // The host brings the room back for the next one.
+    final now = _room;
+    if (now != null && now.host == me) unawaited(_rooms.backToLobby(now));
+  }
+
+  /// The taps so far, by lane, as the race opens.
+  void _tapsNow(RaceRoom room) => _taps.value = {
+    for (final e in (_room ?? room).taps.entries)
+      if (_lanes[e.key] case final lane?) lane: e.value,
+  };
+
+  Future<void> _race(RaceRoom room, String me, RaceLink link) async {
+    final catalog = context.read<CreatureCatalog>();
     final racers = room.racers(me);
     final lineup = room.lineup;
     final rivals = racers.length - lineup.length;
@@ -326,10 +473,7 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
       }
     }
     if (!mounted) return;
-    _taps.value = {
-      for (final e in (_room ?? room).taps.entries)
-        if (_lanes[e.key] case final lane?) lane: e.value,
-    };
+    _tapsNow(room);
     setState(() => _lining = false);
     await VoidPortal.pushThroughTurn<RaceOutcome>(
       context,
@@ -341,14 +485,7 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
         forms: forms,
         // A race with friends is for the race: nothing is paid.
         onFinished: (_) async => const TrialsPayout(),
-        live: RaceLink(
-          gunAtMs: _rooms.localMs(startAt),
-          taps: _taps,
-          send: (ticks) {
-            final now = _room;
-            if (now != null) unawaited(_rooms.sendTaps(now, ticks));
-          },
-        ),
+        live: link,
       ),
       scene: const RaceLightsScene(),
       from: null,
@@ -362,16 +499,105 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
         DeviceOrientation.portraitDown,
       ],
     );
-    _racing = false;
-    if (!mounted) return;
-    if (_gone) {
-      _closed();
-      return;
+  }
+
+  /// A gem cup's bout with friends: the three loaded, the bout opened
+  /// upright on the shared gun.
+  Future<void> _fight(RaceRoom room, String me, RaceLink link) async {
+    final catalog = context.read<CreatureCatalog>();
+    final cup = room.gemDef, b = room.boutIndex;
+    final fighters = room.fighters();
+    final lineup = room.lineup;
+    final rivals = fighters.length - lineup.length;
+    final pool = cup.rivalsOf(b);
+    final bodies = [
+      for (var i = 0; i < fighters.length; i++)
+        if (i < rivals)
+          rivalBody(catalog, pool[i])
+        else
+          RaceBody(seatMember(catalog, lineup[i - rivals])),
+    ];
+    for (final body in bodies) {
+      if (body.ticker == null) await body.load(Flame.images);
     }
-    setState(() {});
-    // The host brings the room back for the next one.
-    final now = _room;
-    if (now != null && now.host == me) unawaited(_rooms.backToLobby(now));
+    final figures = cup.event == GemEvent.sky
+        ? await loadSkyFigures(bodies)
+        : null;
+    final routes = room.needsPlan ? room.routes(fighters) : null;
+    final player = _lanes[me];
+    if (!mounted || player == null) return;
+    _tapsNow(room);
+    final live = BoutLive(
+      gunAt: link.gunAtMs / 1000,
+      wall: () => DateTime.now().millisecondsSinceEpoch / 1000,
+    );
+    setState(() => _lining = false);
+    await Navigator.of(context).push<RaceOutcome>(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 420),
+        reverseTransitionDuration: const Duration(milliseconds: 320),
+        pageBuilder: (_, _, _) => BoutScreen(
+          cup: cup,
+          bout: b,
+          fighters: fighters,
+          bodies: bodies,
+          live: link,
+          stage: () => switch (cup.event) {
+            GemEvent.flight => FlightStage(
+              course: flightCourseOf(cup.bouts[b]),
+              fighters: fighters,
+              bodies: bodies,
+              player: player,
+              choices: routes!,
+              live: live,
+            ),
+            GemEvent.sky => SkyStage(
+              bout: skyBoutOf(cup.bouts[b]),
+              figures: figures,
+              fighters: fighters,
+              bodies: bodies,
+              player: player,
+              live: live,
+            ),
+            GemEvent.island => IslandStage(
+              bout: islandBoutOf(cup.bouts[b]),
+              fighters: fighters,
+              bodies: bodies,
+              player: player,
+              live: live,
+            ),
+          },
+          // A bout with friends is for the bout: nothing is paid.
+          onFinished: (_) async => const TrialsPayout(),
+        ),
+        transitionsBuilder: (_, a, _, child) => FadeTransition(
+          opacity: CurvedAnimation(parent: a, curve: Curves.easeOutCubic),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  // ── A player ────────────────────────────────────────────────────────────
+
+  bool _readying = false;
+
+  /// READY (or not); on the space course, READY plans the route first.
+  Future<void> _setReady(RaceRoom room, bool ready) async {
+    if (_readying) return;
+    List<int>? plan;
+    if (ready && room.needsPlan) {
+      plan = await _planRoute(room);
+      if (plan == null || !mounted) return;
+    }
+    setState(() => _readying = true);
+    try {
+      await _rooms.setReady(_room ?? room, ready, plan: plan);
+    } on RaceRoomException catch (e) {
+      if (mounted) showGameSnack(context, e.message);
+    } finally {
+      if (mounted) setState(() => _readying = false);
+    }
   }
 
   Future<void> _leave() async {
@@ -467,7 +693,7 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
             child: Text(
-              'RACE WITH FRIENDS',
+              'WITH FRIENDS',
               style: bracketText(
                 context,
                 15,
@@ -478,9 +704,56 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
             ),
           ),
         ),
+        const Spacer(),
+        if (_room case final room?
+            when _hosting &&
+                room.state == RaceRoomState.lobby &&
+                _bouts.isNotEmpty)
+          _eventSwitch(context, room),
       ],
     ),
   );
+
+  /// RACES · GEMS, for the host: what the room races.
+  Widget _eventSwitch(BuildContext context, RaceRoom room) {
+    Widget side(String label, bool gem) {
+      final on = room.gem == gem;
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: on || _lining ? null : () => _switchEvent(gem),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                label,
+                style: bracketText(
+                  context,
+                  11,
+                  on ? _brassHot : _muted,
+                  weight: FontWeight.w800,
+                  letterSpacing: 1.8,
+                ),
+              ),
+              const SizedBox(height: 4),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 260),
+                width: on ? 18 : 0,
+                height: 2,
+                color: _brass,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [side('RACES', false), side('GEMS', true)],
+    );
+  }
 
   Widget _label(BuildContext context, String text) => Text(
     text,
@@ -493,10 +766,12 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
     ),
   );
 
-  /// The course: its name, where it runs, and its map. The host steps
-  /// through the courses they have opened.
+  /// The course: its name, where it runs, and its map — or the gem cup's
+  /// bout: its name, its cup and event, and what it asks. The host steps
+  /// through the ones they have opened.
   Widget _course(BuildContext context, RaceRoom room) {
     final course = room.course;
+    final gem = room.gem;
     final canStep = _hosting && room.state == RaceRoomState.lobby;
     Widget arrow(IconData icon, int by) => canStep
         ? BracketIconButton(
@@ -517,12 +792,12 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
               child: AnimatedSwitcher(
                 duration: const Duration(milliseconds: 260),
                 child: Column(
-                  key: ValueKey(course.id),
+                  key: ValueKey(room.placeKey),
                   children: [
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Text(
-                        course.name.toUpperCase(),
+                        room.placeName.toUpperCase(),
                         style: bracketText(
                           context,
                           19,
@@ -534,8 +809,11 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${room.cupDef.name.toUpperCase()} · '
-                      '${raceSceneName(course.scene)}',
+                      gem
+                          ? '${room.gemDef.name.toUpperCase()} · '
+                                '${room.gemDef.event.title}'
+                          : '${room.cupDef.name.toUpperCase()} · '
+                                '${raceSceneName(course.scene)}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: bracketText(
@@ -556,35 +834,61 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
         ),
         SizedBox(
           height: 60,
-          child: RepaintBoundary(
-            child: CustomPaint(
-              size: Size.infinite,
-              painter: CourseMapPainter(
-                course: course,
-                clock: _clock,
-                textStyle:
-                    Theme.of(context).textTheme.bodyMedium ?? const TextStyle(),
-              ),
-            ),
-          ),
+          child: gem
+              ? Center(
+                  child: Text(
+                    room.needsPlan
+                        ? '${room.gemDef.event.line} Each of you plans '
+                              'a route before READY.'
+                        : room.gemDef.event.line,
+                    textAlign: TextAlign.center,
+                    style: bracketText(context, 12, _ink.withValues(alpha: .8)),
+                  ),
+                )
+              : RepaintBoundary(
+                  child: CustomPaint(
+                    size: Size.infinite,
+                    painter: CourseMapPainter(
+                      course: course,
+                      clock: _clock,
+                      textStyle:
+                          Theme.of(context).textTheme.bodyMedium ??
+                          const TextStyle(),
+                    ),
+                  ),
+                ),
         ),
       ],
     );
   }
 
-  /// The six lanes: the players in, the friends asked, the computer's.
+  /// The lanes (six, or a bout's three): the players in, the friends
+  /// asked, the computer's, and any the host has left open. Between races
+  /// the host takes any lane out but their own, and puts a computer back
+  /// in an open one.
   Widget _lanesList(BuildContext context, RaceRoom room) {
     final catalog = context.read<CreatureCatalog>();
     final me = _me;
+    final between = room.state == RaceRoomState.lobby && !_racing;
+    final edit = _hosting && between && !_lining;
     final joined = room.racing.take(kRaceRoomSeats).toList();
     final asked = [
       for (final uid in room.invited)
         if (!room.seats.containsKey(uid)) uid,
     ];
-    final rivals = (kRaceRoomSeats - joined.length - asked.length).clamp(
+    final rivals = room.rivalsBeside(joined.length + asked.length);
+    final open = (room.held - joined.length - asked.length - rivals).clamp(
       0,
-      room.cupDef.rivals.length,
+      room.held,
     );
+    // Room for another computer: an open lane, and a rival left to fill it.
+    final more = open > 0 && rivals < room.rivalPool.length;
+    String tagOf(RaceSeat seat) {
+      if (seat.uid == room.host) return 'HOST';
+      if (!between) return room.field.contains(seat.uid) ? 'RACING' : '';
+      return room.isReady(seat.uid) ? 'READY' : 'NOT READY';
+    }
+
     final rows = <Widget>[
       for (final seat in joined)
         _LaneRow(
@@ -594,15 +898,18 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
                 : seatMember(catalog, seat),
             40,
           ),
-          title: seat.player,
-          line:
-              '${seat.entrant.name.toUpperCase()} · '
-              '${seat.entrant.element.toUpperCase()}',
-          tag: seat.uid == me ? 'YOU' : (seat.uid == room.host ? 'HOST' : ''),
+          title: seat.uid == me ? '${seat.player} · YOU' : seat.player,
+          line: seat.current
+              ? '${seat.entrant.name.toUpperCase()} · '
+                    '${seat.entrant.element.toUpperCase()}'
+              : 'NEEDS THE LATEST VERSION OF THE GAME',
+          tag: tagOf(seat),
+          tagLit: seat.uid == room.host || room.isReady(seat.uid),
           lit: true,
-          onTap: seat.uid == me ? _chooseRacer : null,
-          action: seat.uid == me && room.state == RaceRoomState.lobby
-              ? 'CHANGE'
+          onTap: seat.uid == me && between ? _chooseRacer : null,
+          action: seat.uid == me && between ? 'CHANGE' : null,
+          onRemove: edit && seat.uid != room.host
+              ? () => _remove(room, seat.uid)
               : null,
         ),
       for (final uid in asked)
@@ -611,8 +918,9 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
           line: 'ASKED · NOT IN YET',
           tag: '',
           lit: false,
+          onRemove: edit ? () => _remove(room, uid) : null,
         ),
-      for (final rival in room.cupDef.rivals.take(rivals))
+      for (final rival in room.rivalPool.take(rivals))
         _LaneRow(
           sprite: rivalMember(catalog, rival) == null
               ? null
@@ -621,6 +929,16 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
           line: 'COMPUTER · ${rival.element.toUpperCase()}',
           tag: '',
           lit: false,
+          onRemove: edit ? () => _computers(room, rivals - 1) : null,
+        ),
+      for (var i = 0; i < open; i++)
+        _LaneRow(
+          title: 'OPEN LANE',
+          line: 'NO ONE RACES HERE',
+          tag: '',
+          lit: false,
+          onTap: edit && more ? () => _computers(room, rivals + 1) : null,
+          action: edit && more ? 'ADD COMPUTER' : null,
         ),
     ];
     return ListView.separated(
@@ -637,60 +955,141 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
     // while one was on.
     final mine = on && room.field.contains(_me) && room.run == _seenRun;
     final host = room.nameOf(room.host).toUpperCase();
+    final me = _me;
+    final what = room.gem ? 'BOUT' : 'RACE';
+    final crowded = room.racing.length > room.held;
     if (!_hosting) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+      final seated = me != null && room.seats.containsKey(me);
+      final ready = me != null && room.isReady(me);
+      final between = room.state == RaceRoomState.lobby && !_racing;
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _status(
+            context,
+            _lining
+                ? 'ON YOUR MARKS…'
+                : mine
+                ? 'WAITING FOR $host'
+                : on
+                ? 'A $what IS ON · YOU ARE IN THE NEXT ONE'
+                : crowded
+                ? 'A BOUT HOLDS ${room.held} · WAITING FOR $host'
+                : ready
+                ? 'READY · $host STARTS THE $what'
+                : '$host STARTS WHEN EVERYONE IS READY',
+            lit: _lining || ready,
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: BracketButton(
+                  label: 'LEAVE',
+                  palette: BracketPalette.dark,
+                  accent: _brass,
+                  primary: false,
+                  height: 42,
+                  enabled: !_lining,
+                  onTap: _leave,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                flex: 2,
+                child: BracketButton(
+                  label: ready
+                      ? 'NOT READY'
+                      : (room.needsPlan ? 'PLAN YOUR ROUTE' : 'READY UP'),
+                  palette: BracketPalette.dark,
+                  accent: _brass,
+                  primary: !ready,
+                  height: 42,
+                  enabled: seated && between && !_lining && !_readying,
+                  onTap: () => _setReady(room, !ready),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+    final waiting = room.notReady;
+    final full = room.invited.length >= room.held;
+    // The space course: the host plans a route before starting.
+    final plan = room.needsPlan && me != null && room.planOf(me) == null;
+    final String status;
+    if (_lining) {
+      status = 'ON YOUR MARKS…';
+    } else if (crowded) {
+      status = 'A BOUT HOLDS ${room.held} · TAKE SOMEONE OUT';
+    } else if (room.racing.length < 2) {
+      status = room.invited.length < 2
+          ? 'INVITE A FRIEND TO RACE'
+          : 'WAITING FOR FRIENDS TO JOIN';
+    } else if (waiting.length == 1) {
+      status = 'WAITING FOR ${waiting.first.player.toUpperCase()} TO GET READY';
+    } else if (waiting.isNotEmpty) {
+      status = 'WAITING FOR ${waiting.length} TO GET READY';
+    } else {
+      status = 'EVERYONE IS READY';
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _status(context, status, lit: _lining || room.canStart),
+        Row(
+          children: [
+            Expanded(
+              child: BracketButton(
+                label: full ? 'LANES FULL' : 'INVITE',
+                palette: BracketPalette.dark,
+                accent: _brass,
+                primary: false,
+                height: 42,
+                enabled: !full && room.state == RaceRoomState.lobby,
+                onTap: _invite,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              flex: 2,
+              child: BracketButton(
+                label: _lining
+                    ? 'LINING UP…'
+                    : (plan ? 'PLAN YOUR ROUTE' : 'START'),
+                palette: BracketPalette.dark,
+                accent: _brass,
+                height: 42,
+                enabled:
+                    !_lining &&
+                    (plan ? room.state == RaceRoomState.lobby : room.canStart),
+                onTap: _start,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  /// A line over the buttons: what the room is waiting on.
+  Widget _status(BuildContext context, String text, {required bool lit}) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
         child: Text(
-          _lining
-              ? 'ON YOUR MARKS…'
-              : mine
-              ? 'WAITING FOR $host'
-              : on
-              ? 'A RACE IS ON · YOU ARE IN THE NEXT ONE'
-              : '$host STARTS THE RACE',
+          text,
           textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: bracketText(
             context,
-            11,
-            _lining ? _brassHot : _muted,
+            10.5,
+            lit ? _brassHot : _muted,
             weight: FontWeight.w800,
             letterSpacing: 1.8,
           ),
         ),
       );
-    }
-    final ready = room.racing.length >= 2;
-    final full = room.invited.length >= kRaceRoomSeats;
-    return Row(
-      children: [
-        Expanded(
-          child: BracketButton(
-            label: full ? 'LANES FULL' : 'INVITE',
-            palette: BracketPalette.dark,
-            accent: _brass,
-            primary: false,
-            height: 42,
-            enabled: !full && room.state == RaceRoomState.lobby,
-            onTap: _invite,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          flex: 2,
-          child: BracketButton(
-            label: _lining
-                ? 'LINING UP…'
-                : (ready ? 'START' : 'WAITING FOR FRIENDS'),
-            palette: BracketPalette.dark,
-            accent: _brass,
-            height: 42,
-            enabled: ready && !_lining && room.state == RaceRoomState.lobby,
-            onTap: _start,
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 /// One lane in the lobby.
@@ -700,16 +1099,21 @@ class _LaneRow extends StatelessWidget {
     required this.line,
     required this.tag,
     required this.lit,
+    this.tagLit = true,
     this.sprite,
     this.onTap,
     this.action,
+    this.onRemove,
   });
 
   final Widget? sprite;
   final String title, line, tag;
-  final bool lit;
+  final bool lit, tagLit;
   final VoidCallback? onTap;
   final String? action;
+
+  /// The host's ×: takes the lane out.
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -795,7 +1199,7 @@ class _LaneRow extends StatelessWidget {
                     style: bracketText(
                       context,
                       9.5,
-                      _brassHot,
+                      tagLit ? _brassHot : _muted,
                       weight: FontWeight.w800,
                       letterSpacing: 1.6,
                     ),
@@ -813,6 +1217,19 @@ class _LaneRow extends StatelessWidget {
                       weight: FontWeight.w800,
                       letterSpacing: 1.6,
                     ),
+                  ),
+                ),
+              if (onRemove != null)
+                Padding(
+                  padding: const EdgeInsets.only(left: 10),
+                  child: BracketIconButton(
+                    icon: AppIcons.close_rounded,
+                    onTap: () {
+                      HapticFeedback.selectionClick();
+                      onRemove!();
+                    },
+                    palette: BracketPalette.dark,
+                    size: 28,
                   ),
                 ),
             ],
