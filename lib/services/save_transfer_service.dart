@@ -5,6 +5,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/mobile_store_service.dart';
 import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
+import 'package:flutter/foundation.dart' show compute;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SaveTransferException implements Exception {
@@ -14,6 +15,14 @@ class SaveTransferException implements Exception {
 
   @override
   String toString() => message;
+}
+
+/// A packed backup, and a fingerprint of what is in it but not of when it was
+/// made, so an unchanged game can be told from a changed one.
+class SaveExport {
+  const SaveExport({required this.saveCode, required this.fingerprint});
+  final String saveCode;
+  final String fingerprint;
 }
 
 class SaveTransferService {
@@ -32,6 +41,10 @@ class SaveTransferService {
     'account.pending_transfer_code',
     MobileStoreService.pendingRedeemsKey,
     'account.reset_pending.v1',
+    // Autosave's own record of what it last sent; in the backup it would
+    // change the backup each time it was written.
+    'account.autosave_fingerprint.v1',
+    'account.autosave_at.v1',
   };
 
   final AlchemonsDatabase db;
@@ -42,7 +55,12 @@ class SaveTransferService {
     this.validateGeneration = SaveGenerationService.validate,
   });
 
-  Future<String> exportSaveCode({required String ownerAccountId}) async {
+  Future<String> exportSaveCode({required String ownerAccountId}) async =>
+      (await exportSave(ownerAccountId: ownerAccountId)).saveCode;
+
+  /// The tables are read in one transaction, so the backup is one moment of
+  /// the game, and the packing runs off the UI thread.
+  Future<SaveExport> exportSave({required String ownerAccountId}) async {
     // A backup can only ever be of this account's own game.
     try {
       await SaveGenerationService.claimFor(db, ownerAccountId);
@@ -54,37 +72,42 @@ class SaveTransferService {
     final prefs = await SharedPreferences.getInstance();
     final tables = <String, List<Map<String, dynamic>>>{};
 
-    for (final table in db.allTables) {
-      try {
-        final rows = await db
-            .customSelect(
-              'SELECT * FROM "${table.actualTableName}"',
-              readsFrom: {table},
-            )
-            .get();
+    await db.transaction(() async {
+      for (final table in db.allTables) {
+        try {
+          final rows = await db
+              .customSelect(
+                'SELECT * FROM "${table.actualTableName}"',
+                readsFrom: {table},
+              )
+              .get();
 
-        tables[table.actualTableName] = rows
-            .map(
-              (row) => row.data.map(
-                (key, value) => MapEntry(
-                  key,
-                  _encodeValue(value, context: '${table.actualTableName}.$key'),
+          tables[table.actualTableName] = rows
+              .map(
+                (row) => row.data.map(
+                  (key, value) => MapEntry(
+                    key,
+                    _encodeValue(
+                      value,
+                      context: '${table.actualTableName}.$key',
+                    ),
+                  ),
                 ),
-              ),
-            )
-            .toList();
-      } on SaveTransferException {
-        rethrow;
-      } catch (error) {
-        if (_isMissingTableError(error)) {
-          tables[table.actualTableName] = const <Map<String, dynamic>>[];
-          continue;
+              )
+              .toList();
+        } on SaveTransferException {
+          rethrow;
+        } catch (error) {
+          if (_isMissingTableError(error)) {
+            tables[table.actualTableName] = const <Map<String, dynamic>>[];
+            continue;
+          }
+          throw SaveTransferException(
+            'Failed to export table ${table.actualTableName}: $error',
+          );
         }
-        throw SaveTransferException(
-          'Failed to export table ${table.actualTableName}: $error',
-        );
       }
-    }
+    });
 
     final preferences = <String, dynamic>{};
     for (final key in prefs.getKeys()) {
@@ -100,23 +123,24 @@ class SaveTransferService {
       }
     }
 
-    final payload = <String, dynamic>{
+    final content = jsonEncode(<String, dynamic>{
       'ownerAccountId': ownerAccountId,
       'generation': await SaveGenerationService.local(db),
       'schemaVersion': db.schemaVersion,
-      'exportedAtUtc': DateTime.now().toUtc().toIso8601String(),
       'tables': tables,
       'preferences': preferences,
-    };
-
-    final saveCode = _encodePayload(payload);
-    final saveCodeBytes = utf8.encode(saveCode).length;
-    if (saveCodeBytes > _maxCloudSaveBytes) {
+    });
+    final export = await compute(_packSave, (
+      content,
+      DateTime.now().toUtc().toIso8601String(),
+    ));
+    // Base64 is ASCII: one byte a character.
+    if (export.saveCode.length > _maxCloudSaveBytes) {
       throw const SaveTransferException(
         'This account backup is too large for cloud save storage.',
       );
     }
-    return saveCode;
+    return export;
   }
 
   Future<void> importSaveCode(
@@ -384,13 +408,6 @@ class SaveTransferService {
     return Variable<Object>(value as Object);
   }
 
-  String _encodePayload(Map<String, dynamic> payload) {
-    final jsonBytes = utf8.encode(jsonEncode(payload));
-    final compressedBytes = GZipEncoder().encodeBytes(jsonBytes, level: 9);
-    final encoded = base64UrlEncode(compressedBytes);
-    return '$_prefix$encoded';
-  }
-
   String _decodePayload(String rawCode) {
     if (rawCode.startsWith(_prefix)) {
       final compressedBytes = base64Url.decode(
@@ -405,4 +422,19 @@ class SaveTransferService {
     );
     return utf8.decode(Uint8List.fromList(legacyBytes));
   }
+}
+
+/// Packs a backup on a background isolate. The time it was made goes in as
+/// the first key, outside what the fingerprint covers.
+SaveExport _packSave((String, String) job) {
+  final (content, exportedAtUtc) = job;
+  final contentBytes = utf8.encode(content);
+  final json =
+      '{"exportedAtUtc":${jsonEncode(exportedAtUtc)},${content.substring(1)}';
+  final compressed = GZipEncoder().encodeBytes(utf8.encode(json), level: 9);
+  return SaveExport(
+    saveCode: '${SaveTransferService._prefix}${base64UrlEncode(compressed)}',
+    fingerprint:
+        '${getCrc32(contentBytes).toRadixString(16)}-${contentBytes.length}',
+  );
 }

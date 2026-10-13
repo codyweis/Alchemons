@@ -11,12 +11,7 @@
 // same in every faction theme — the player has not picked one yet.
 
 import 'package:alchemons/audio/audio.dart';
-import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/services/account_cloud_save_service.dart';
-import 'package:alchemons/services/account_service.dart';
-import 'package:alchemons/services/account_session_service.dart';
-import 'package:alchemons/services/save_restore_reload_service.dart';
-import 'package:alchemons/services/save_transfer_service.dart';
+import 'package:alchemons/services/account_sign_in.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
@@ -24,7 +19,6 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 enum _WelcomeChoice { newPlayer, returning }
 
@@ -73,154 +67,166 @@ Future<_WelcomeChoice?> _showWelcomeDialog(BuildContext context) async {
   };
 }
 
-/// Signs in and restores the account's cloud backup. Returns `true` on success.
+/// Signs in and brings the account's save here. Returns `true` when it was
+/// restored; an account with no save yet keeps this new game as its save and
+/// the onboarding goes on.
 Future<bool> _attemptRestore(BuildContext context) async {
-  final creds = await _showCredentialDialog(context);
-  if (creds == null || !context.mounted) return false;
-
-  final account = context.read<AccountService>();
-  final session = context.read<AccountSessionService>();
-  final cloudSave = context.read<AccountCloudSaveService>();
-  final db = context.read<AlchemonsDatabase>();
-
-  _showProgressDialog(context, 'RESTORING ACCOUNT');
-  try {
-    await account.signIn(email: creds.email, password: creds.password);
-    final uid = account.user?.uid;
-    if (uid == null) {
-      throw const AccountException('Sign-in failed. Try again.');
-    }
-
-    final snapshot = await cloudSave.getSnapshot(uid);
-    if (snapshot == null) {
-      throw const AccountCloudSaveException(
-        'No cloud backup on this account. Start fresh, then back up from '
-        'your profile.',
-      );
-    }
-
-    final saveCode = await cloudSave.downloadSaveCode(uid);
-    await SaveTransferService(db).importSaveCode(saveCode, ownerAccountId: uid);
-
-    if (!context.mounted) return false;
-    await reloadStateAfterSaveRestore(context);
-    await session.rotateCurrentDeviceId();
-    await session.claimCurrentDevice(force: true);
-    await session.refresh();
-
-    if (context.mounted) _dismissProgressDialog(context);
+  SignInResult? signedIn;
+  final done = await _showCredentialDialog(
+    context,
+    submit: (creds) async {
+      try {
+        signedIn = await signInAndBringSave(
+          context,
+          email: creds.email,
+          password: creds.password,
+        );
+        return null;
+      } catch (error) {
+        return signInErrorText(error);
+      }
+    },
+  );
+  if (done != true) return false;
+  if (signedIn == SignInResult.restored) {
     _snack(context.mounted ? context : null, 'Account restored. Welcome back');
     return true;
-  } on AccountException catch (error) {
-    if (context.mounted) _dismissProgressDialog(context);
-    _snack(context.mounted ? context : null, error.message, isError: true);
-    return false;
-  } on AccountCloudSaveException catch (error) {
-    if (context.mounted) _dismissProgressDialog(context);
-    _snack(context.mounted ? context : null, error.message, isError: true);
-    return false;
-  } on SaveTransferException catch (error) {
-    if (context.mounted) _dismissProgressDialog(context);
-    _snack(context.mounted ? context : null, error.message, isError: true);
-    return false;
-  } catch (error) {
-    if (context.mounted) _dismissProgressDialog(context);
-    _snack(
-      context.mounted ? context : null,
-      'Restore failed: $error',
-      isError: true,
-    );
-    return false;
   }
+  _snack(
+    context.mounted ? context : null,
+    'Signed in. Your new game saves to this account.',
+  );
+  return false;
 }
 
-Future<_Credentials?> _showCredentialDialog(BuildContext context) {
+/// Email and password, checked before it closes: a wrong password shows
+/// under the fields and the dialog stays for another try. True once [submit]
+/// (null for success, else what to show) has worked.
+Future<bool?> _showCredentialDialog(
+  BuildContext context, {
+  required Future<String?> Function(_Credentials creds) submit,
+}) async {
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   var obscure = true;
+  var busy = false;
+  String? error;
 
-  return showDialog<_Credentials>(
+  final done = await showDialog<bool>(
     context: context,
     barrierColor: Colors.black.withValues(alpha: 0.7),
     builder: (context) {
       final accent = storyDialogAccent(StoryDialogKind.info);
       return StatefulBuilder(
         builder: (context, setDialogState) {
-          return _BracketDialogFrame(
-            accent: accent,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _title('SIGN IN'),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Use the email and password from your account.',
-                    style: bracketText(
-                      context,
-                      13,
-                      _palette.ink.withValues(alpha: 0.85),
-                    ).copyWith(height: 1.4),
-                  ),
-                  const SizedBox(height: 16),
-                  _BracketField(
-                    controller: emailController,
-                    label: 'EMAIL',
-                    accent: accent,
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 10),
-                  _BracketField(
-                    controller: passwordController,
-                    label: 'PASSWORD',
-                    accent: accent,
-                    obscureText: obscure,
-                    suffix: IconButton(
-                      onPressed: context.soundAction(
-                        () => setDialogState(() => obscure = !obscure),
-                      ),
-                      icon: Icon(
-                        obscure
-                            ? AppIcons.visibility_rounded
-                            : AppIcons.visibility_off_rounded,
-                        color: _palette.muted,
-                        size: 18,
+          Future<void> trySignIn() async {
+            if (busy) return;
+            setDialogState(() {
+              busy = true;
+              error = null;
+            });
+            final failure = await submit(
+              _Credentials(
+                email: emailController.text.trim(),
+                password: passwordController.text,
+              ),
+            );
+            if (!context.mounted) return;
+            if (failure == null) {
+              Navigator.pop(context, true);
+            } else {
+              setDialogState(() {
+                busy = false;
+                error = failure;
+              });
+            }
+          }
+
+          return PopScope(
+            canPop: !busy,
+            child: _BracketDialogFrame(
+              accent: accent,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _title('SIGN IN'),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use the email and password from your account.',
+                      style: bracketText(
+                        context,
+                        13,
+                        _palette.ink.withValues(alpha: 0.85),
+                      ).copyWith(height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    _BracketField(
+                      controller: emailController,
+                      label: 'EMAIL',
+                      accent: accent,
+                      keyboardType: TextInputType.emailAddress,
+                    ),
+                    const SizedBox(height: 10),
+                    _BracketField(
+                      controller: passwordController,
+                      label: 'PASSWORD',
+                      accent: accent,
+                      obscureText: obscure,
+                      suffix: IconButton(
+                        onPressed: context.soundAction(
+                          () => setDialogState(() => obscure = !obscure),
+                        ),
+                        icon: Icon(
+                          obscure
+                              ? AppIcons.visibility_rounded
+                              : AppIcons.visibility_off_rounded,
+                          color: _palette.muted,
+                          size: 18,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: BracketButton(
-                          label: 'CANCEL',
-                          primary: false,
-                          height: 42,
-                          palette: _palette,
-                          accent: accent,
-                          onTap: () => Navigator.pop(context),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: BracketButton(
-                          label: 'SIGN IN',
-                          height: 42,
-                          palette: _palette,
-                          accent: accent,
-                          onTap: () => Navigator.pop(
-                            context,
-                            _Credentials(
-                              email: emailController.text.trim(),
-                              password: passwordController.text,
-                            ),
-                          ),
-                        ),
+                    if (error != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        error!,
+                        style: bracketText(
+                          context,
+                          13,
+                          storyDialogAccent(StoryDialogKind.danger),
+                        ).copyWith(height: 1.4),
                       ),
                     ],
-                  ),
-                ],
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: BracketButton(
+                            label: 'CANCEL',
+                            primary: false,
+                            height: 42,
+                            enabled: !busy,
+                            palette: _palette,
+                            accent: accent,
+                            onTap: () => Navigator.pop(context),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: BracketButton(
+                            label: busy ? 'WORKING…' : 'SIGN IN',
+                            height: 42,
+                            enabled: !busy,
+                            palette: _palette,
+                            accent: accent,
+                            onTap: trySignIn,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -228,38 +234,11 @@ Future<_Credentials?> _showCredentialDialog(BuildContext context) {
       );
     },
   );
-}
-
-void _showProgressDialog(BuildContext context, String title) {
-  showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    barrierColor: Colors.black.withValues(alpha: 0.7),
-    builder: (context) {
-      final accent = storyDialogAccent(StoryDialogKind.info);
-      return _BracketDialogFrame(
-        accent: accent,
-        child: Row(
-          children: [
-            SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.5,
-                valueColor: AlwaysStoppedAnimation<Color>(accent),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(child: _title(title)),
-          ],
-        ),
-      );
-    },
-  );
-}
-
-void _dismissProgressDialog(BuildContext context) {
-  Navigator.of(context, rootNavigator: true).pop();
+  // The fields finish unmounting before their controllers go.
+  await WidgetsBinding.instance.endOfFrame;
+  emailController.dispose();
+  passwordController.dispose();
+  return done;
 }
 
 /// The game's top notification. Falls back to the root messenger's context

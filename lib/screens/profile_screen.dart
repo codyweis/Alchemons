@@ -58,6 +58,8 @@ import 'package:alchemons/services/progress_reset_service.dart';
 import 'package:alchemons/services/push_notification_service.dart';
 import 'package:alchemons/services/save_generation_service.dart';
 import 'package:alchemons/services/save_restore_reload_service.dart';
+import 'package:alchemons/services/account_sign_in.dart';
+import 'package:alchemons/services/cloud_autosave_service.dart';
 import 'package:alchemons/services/save_transfer_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
@@ -106,6 +108,16 @@ TextStyle _prose(BuildContext context, Color color, {double size = 12.5}) =>
     bracketText(context, size, color).copyWith(height: 1.4);
 
 const Color _kDanger = Color(0xFFE57373);
+
+/// "4 minutes ago": when the game last went up to the account.
+String _savedAgo(DateTime at) {
+  final d = DateTime.now().difference(at);
+  String ago(int n, String unit) => '$n $unit${n == 1 ? '' : 's'} ago';
+  if (d.inMinutes < 1) return 'Just now';
+  if (d.inHours < 1) return ago(d.inMinutes, 'minute');
+  if (d.inDays < 1) return ago(d.inHours, 'hour');
+  return ago(d.inDays, 'day');
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // PROFILE SCREEN
@@ -613,7 +625,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   ) {
     if (cosmicHints.isEmpty) {
       return Text(
-        'None found yet. They turn up at contests in space.',
+        'None found.',
         style: _prose(context, palette.muted),
       );
     }
@@ -683,37 +695,45 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
       return;
     }
-    final result = await _showCredentialDialog(
-      title: 'CREATE ACCOUNT',
-      submitLabel: 'CREATE',
-      includeDisplayName: true,
-    );
-    if (!mounted || result == null) return;
-
-    _showProgressDialog(
-      title: 'CREATING ACCOUNT',
-      message: 'Setting up your transfer account.',
-    );
-
     final accountService = context.read<AccountService>();
     final sessionService = context.read<AccountSessionService>();
-    try {
-      await accountService.createAccount(
-        email: result.email,
-        password: result.password,
-        displayName: result.displayName,
-      );
-      await sessionService.claimCurrentDevice(force: true);
-      await _loadSaveOwner();
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack('Account created. Save transfer is now unlocked.');
-    } on AccountException catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack(error.message, isError: true);
-    } catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack('Account creation failed: $error', isError: true);
-    }
+    final autosave = context.read<CloudAutosaveService>();
+    final done = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (_) => _CredentialDialog(
+        title: 'CREATE ACCOUNT',
+        submitLabel: 'CREATE',
+        includeDisplayName: true,
+        message:
+            'The game on this device becomes the account\'s save, and saves '
+            'to it from now on.',
+        submit: (result) async {
+          try {
+            await accountService.createAccount(
+              email: result.email,
+              password: result.password,
+              displayName: result.displayName,
+            );
+          } on AccountException catch (error) {
+            return error.message;
+          }
+          try {
+            await sessionService.claimCurrentDevice(force: true);
+          } catch (error) {
+            // Signed in should always mean this device plays the account.
+            await accountService.signOut();
+            return 'Your account was created, but this device could not be '
+                'linked to it: $error Use SIGN IN to finish.';
+          }
+          return null;
+        },
+      ),
+    );
+    if (done != true || !mounted) return;
+    unawaited(autosave.save());
+    await _loadSaveOwner();
+    _showTransferSnack('Account created. Your game now saves to it.');
   }
 
   bool _resetBusy = false;
@@ -772,42 +792,42 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _signInAccount() async {
-    final result = await _showCredentialDialog(
-      title: 'SIGN IN',
-      submitLabel: 'SIGN IN',
+    SignInResult? signedIn;
+    final done = await showDialog<bool>(
+      context: context,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (_) => _CredentialDialog(
+        title: 'SIGN IN',
+        submitLabel: 'SIGN IN',
+        message:
+            'Your account\'s save comes to this device, and this becomes the '
+            'account\'s device.',
+        warning:
+            'If the account has a save, it replaces the game here. Progress '
+            'on this device that isn\'t in that account is lost.',
+        submit: (result) async {
+          try {
+            signedIn = await signInAndBringSave(
+              context,
+              email: result.email,
+              password: result.password,
+            );
+            return null;
+          } catch (error) {
+            return signInErrorText(error);
+          }
+        },
+      ),
     );
-    if (!mounted || result == null) return;
-
-    _showProgressDialog(
-      title: 'SIGNING IN',
-      message: 'Verifying your account for save transfer.',
-    );
-
-    final accountService = context.read<AccountService>();
-    final sessionService = context.read<AccountSessionService>();
-    try {
-      await accountService.signIn(
-        email: result.email,
-        password: result.password,
-      );
-      await sessionService.refresh();
-      await _loadSaveOwner();
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack(
-        _ownedElsewhere(accountService)
-            ? 'Signed in. The game on this device belongs to another account: '
-                  'restore this account\'s backup to play it here, or reset '
-                  'progress to start a new game for this account.'
-            : 'Signed in. Your local save stays active on this device until '
-                  'you choose restore or switch the account here.',
-      );
-    } on AccountException catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack(error.message, isError: true);
-    } catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack('Sign in failed: $error', isError: true);
-    }
+    if (done != true || !mounted) return;
+    await _loadSaveOwner();
+    if (signedIn == SignInResult.restored) await _reloadProfileState();
+    _showTransferSnack(switch (signedIn) {
+      SignInResult.restored => 'Your account\'s save is on this device now.',
+      SignInResult.savedHere =>
+        'Signed in. This game now saves to your account.',
+      _ => 'Signed in.',
+    });
   }
 
   Future<void> _renameAccount(AccountService account) async {
@@ -930,6 +950,29 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Future<void> _signOutAccount(AccountService account) async {
+    final autosave = context.read<CloudAutosaveService>();
+    if (autosave.enabled) {
+      _showProgressDialog(
+        title: 'SIGNING OUT',
+        message: 'Saving your game to your account first.',
+      );
+      final saved = await autosave.save();
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      if (!saved) {
+        final confirmed = await showBracketConfirm(
+          context,
+          palette: _palette,
+          accent: _kDanger,
+          title: 'SIGN OUT WITHOUT SAVING?',
+          message:
+              autosave.error ?? 'Your game could not be saved to your account.',
+          warning: 'Progress since the last save stays only on this device.',
+          confirmLabel: 'SIGN OUT',
+        );
+        if (!confirmed || !mounted) return;
+      }
+    }
     try {
       await account.signOut();
       await _loadSaveOwner();
@@ -939,62 +982,16 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
-  Future<void> _exportSave() async {
-    if (_saveTransferBusy) return;
-    final account = context.read<AccountService>();
-    final session = context.read<AccountSessionService>();
-    if (!account.isSignedIn) {
-      _showTransferSnack(
-        'Sign in with an account before backing up this save.',
-        isError: true,
-      );
-      return;
-    }
-    if (!session.state.activeOnThisDevice) {
-      _showTransferSnack(
-        'This device is not the active device for the signed-in account.',
-        isError: true,
-      );
-      return;
-    }
-    setState(() => _saveTransferBusy = true);
-    _showProgressDialog(
-      title: 'BACKING UP SAVE',
-      message: 'Uploading this device save to your account.',
+  Future<void> _saveNow() async {
+    final autosave = context.read<CloudAutosaveService>();
+    final saved = await autosave.save(force: true);
+    if (!mounted) return;
+    _showTransferSnack(
+      saved
+          ? 'Saved to your account.'
+          : autosave.error ?? 'Could not save to your account.',
+      isError: !saved,
     );
-
-    try {
-      final db = context.read<AlchemonsDatabase>();
-      final cloudSave = context.read<AccountCloudSaveService>();
-      final transfer = SaveTransferService(db);
-      final saveCode = await transfer.exportSaveCode(
-        ownerAccountId: account.user!.uid,
-      );
-      final snapshot = await cloudSave.uploadSave(
-        uid: account.user!.uid,
-        sourceDeviceId: session.deviceId!,
-        saveCode: saveCode,
-      );
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
-      _showTransferSnack(
-        'Account backup uploaded${snapshot.revision > 0 ? ' (revision ${snapshot.revision})' : ''}. Sign into this account on another device and restore it there.',
-      );
-    } on SaveTransferException catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
-      _showTransferSnack(error.message, isError: true);
-    } on AccountCloudSaveException catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
-      _showTransferSnack(error.message, isError: true);
-    } catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      if (!mounted) return;
-      _showTransferSnack('Save export failed: $error', isError: true);
-    } finally {
-      if (mounted) setState(() => _saveTransferBusy = false);
-    }
   }
 
   Future<void> _importSave() async {
@@ -1012,9 +1009,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       context,
       palette: _palette,
       accent: _accent,
-      title: 'RESTORE BACKUP?',
+      title: 'RESTORE HERE?',
       message:
-          'This replaces the save on this device with the latest backup from this account.',
+          'This replaces the game on this device with the account\'s latest save, and makes this the account\'s device.',
       warning:
           'Progress on this device is lost unless it has been backed up somewhere else.',
       confirmLabel: 'RESTORE',
@@ -1024,30 +1021,31 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     setState(() => _saveTransferBusy = true);
     _showProgressDialog(
-      title: 'RESTORING BACKUP',
-      message:
-          'Downloading the latest account save and moving this account here.',
+      title: 'RESTORING',
+      message: 'Bringing the account\'s latest save to this device.',
     );
     try {
       final db = context.read<AlchemonsDatabase>();
       final cloudSave = context.read<AccountCloudSaveService>();
-      final transferCode = await cloudSave.downloadSaveCode(account.user!.uid);
-      final transfer = SaveTransferService(db);
-      await transfer.importSaveCode(
-        transferCode,
-        ownerAccountId: account.user!.uid,
-      );
+      await context.read<CloudAutosaveService>().hold(() async {
+        final transferCode = await cloudSave.downloadSaveCode(
+          account.user!.uid,
+        );
+        await SaveTransferService(
+          db,
+        ).importSaveCode(transferCode, ownerAccountId: account.user!.uid);
+        if (mounted) await reloadStateAfterSaveRestore(context);
+        // A fresh device identity only once the backup is in: rotating first
+        // left a failed download with this device silently deactivated.
+        await session.rotateCurrentDeviceId();
+        await session.claimCurrentDevice(force: true);
+        await session.refresh();
+      });
       if (!mounted) return;
-      await reloadStateAfterSaveRestore(context);
-      // A fresh device identity only once the backup is in: rotating first
-      // left a failed download with this device silently deactivated.
-      await session.rotateCurrentDeviceId();
-      await session.claimCurrentDevice(force: true);
-      await session.refresh();
       await _reloadProfileState();
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
-      _showTransferSnack('Account backup restored. This device is now active.');
+      _showTransferSnack('Your account\'s save is on this device now.');
     } on SaveTransferException catch (error) {
       if (mounted) Navigator.of(context, rootNavigator: true).pop();
       if (!mounted) return;
@@ -1062,49 +1060,6 @@ class _ProfileScreenState extends State<ProfileScreen>
       _showTransferSnack('Save import failed: $error', isError: true);
     } finally {
       if (mounted) setState(() => _saveTransferBusy = false);
-    }
-  }
-
-  Future<void> _activateThisDevice(AccountSessionService session) async {
-    final confirmed = await showBracketConfirm(
-      context,
-      palette: _palette,
-      accent: _accent,
-      title: 'USE THIS DEVICE?',
-      message:
-          'Account transfer stops working on the device that was active before.',
-      confirmLabel: 'TAKE OVER',
-    );
-
-    if (!confirmed || !mounted) return;
-
-    _showProgressDialog(
-      title: 'ACTIVATING DEVICE',
-      message: 'Marking this device as the only active device for the account.',
-    );
-
-    final db = context.read<AlchemonsDatabase>();
-    final uid = context.read<AccountService>().user?.uid;
-    try {
-      // Refused before the device identity changes, not after.
-      if (uid != null) await SaveGenerationService.claimFor(db, uid);
-      await session.rotateCurrentDeviceId();
-      await session.claimCurrentDevice(force: true);
-      await _loadSaveOwner();
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack('This device is now active for the account.');
-    } on SaveOwnershipException catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack(error.message, isError: true);
-    } on AccountSessionException catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack(error.message, isError: true);
-    } catch (error) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
-      _showTransferSnack(
-        'Could not activate this device: $error',
-        isError: true,
-      );
     }
   }
 
@@ -1141,50 +1096,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Future<_CredentialDialogResult?> _showCredentialDialog({
-    required String title,
-    required String submitLabel,
-    bool includeDisplayName = false,
-  }) async {
-    final emailController = TextEditingController();
-    final passwordController = TextEditingController();
-    final nameController = TextEditingController();
-
-    return showDialog<_CredentialDialogResult>(
-      context: context,
-      barrierColor: Colors.black.withValues(alpha: 0.7),
-      builder: (context) => _FormDialog(
-        title: title,
-        submitLabel: submitLabel,
-        onSubmit: () => Navigator.pop(
-          context,
-          _CredentialDialogResult(
-            email: emailController.text.trim(),
-            password: passwordController.text,
-            displayName: nameController.text.trim(),
-          ),
-        ),
-        children: [
-          if (includeDisplayName) ...[
-            _FormField(controller: nameController, hint: 'Account name'),
-            const SizedBox(height: 10),
-          ],
-          _FormField(
-            controller: emailController,
-            hint: 'Email',
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 10),
-          _FormField(
-            controller: passwordController,
-            hint: 'Password',
-            secret: true,
-          ),
-        ],
       ),
     );
   }
@@ -1327,15 +1238,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                           const CampaignRewardsButton(
                             style: CampaignRewardsStyle.tile,
                           ),
-                          _Row(
-                            title: 'COSMIC NOTES',
-                            palette: palette,
-                            below: _buildCosmicHints(
-                              palette,
-                              accent,
-                              data?.cosmicHints ?? const [],
+                          // Notes found at the space contests before they
+                          // were retired; none turn up any more.
+                          if ((data?.cosmicHints ?? const []).isNotEmpty)
+                            _Row(
+                              title: 'COSMIC NOTES',
+                              palette: palette,
+                              below: _buildCosmicHints(
+                                palette,
+                                accent,
+                                data?.cosmicHints ?? const [],
+                              ),
                             ),
-                          ),
                           _Row(
                             title: 'REPLAY INTRO',
                             description: 'Watch the opening story again',
@@ -1479,6 +1393,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           _cloudSaveRow(
                             account,
                             accountSession,
+                            context.watch<CloudAutosaveService>(),
                             palette,
                             accent,
                           ),
@@ -1748,11 +1663,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           _Reading(label: 'EMAIL', value: account.email, palette: palette),
           _Reading(
             label: 'THIS DEVICE',
-            value: activeHere
-                ? 'Active · playing the account save'
+            value: !session.state.initialized
+                ? 'Checking…'
+                : activeHere
+                ? 'Active · saving to your account'
                 : ownedElsewhere
                 ? 'Not active · this game belongs to another account'
-                : 'Not active · playing its local save',
+                : 'Not active · the account is on another device',
             palette: palette,
           ),
           const SizedBox(height: 12),
@@ -1762,14 +1679,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             children: [
               // Each as wide as its word: a wrap would stretch them.
               for (final button in [
-                if (!activeHere && !ownedElsewhere)
-                  BracketButton(
-                    label: 'USE THIS DEVICE',
-                    height: 36,
-                    palette: palette,
-                    accent: accent,
-                    onTap: () => _activateThisDevice(session),
-                  ),
                 _QuietButton(
                   label: 'RENAME',
                   palette: palette,
@@ -1806,59 +1715,78 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _cloudSaveRow(
     AccountService account,
     AccountSessionService session,
+    CloudAutosaveService autosave,
     BracketPalette palette,
     Color accent,
   ) {
-    final ready =
-        !_saveTransferBusy &&
-        account.initialized &&
-        account.isConfigured &&
-        account.isSignedIn;
-    final canBackUp = ready && session.state.activeOnThisDevice;
+    if (!account.isSignedIn) {
+      return _Row(
+        title: 'CLOUD SAVE',
+        description:
+            'Sign in to keep your game saved to an account, for a lost phone '
+            'or a new one.',
+        palette: palette,
+      );
+    }
+    if (!session.state.initialized) {
+      return _Row(
+        title: 'CLOUD SAVE',
+        description: 'Checking your account…',
+        palette: palette,
+      );
+    }
+    final ownedElsewhere = _ownedElsewhere(account);
+    if (ownedElsewhere || !session.state.activeOnThisDevice) {
+      return _Row(
+        title: 'CLOUD SAVE',
+        description: ownedElsewhere
+            ? 'The game on this device belongs to a different account, so it '
+                  'doesn\'t save to this one. Restore brings this account\'s '
+                  'save here and replaces it.'
+            : 'Your account is playing on another device, so progress here '
+                  'doesn\'t save to it. Restore brings the account\'s latest '
+                  'save here and replaces this game.',
+        palette: palette,
+        below: BracketButton(
+          label: _saveTransferBusy ? 'WORKING…' : 'RESTORE',
+          height: 40,
+          enabled: !_saveTransferBusy && account.isConfigured,
+          palette: palette,
+          accent: accent,
+          onTap: _importSave,
+        ),
+      );
+    }
+    final savedAt = autosave.savedAt;
+    final error = autosave.saving ? null : autosave.error;
     return _Row(
       title: 'CLOUD SAVE',
-      description: !account.isSignedIn
-          ? 'Sign in to back up or restore a save.'
-          : _ownedElsewhere(account)
-          ? 'The game on this device belongs to a different account. Restore '
-                'this account\'s backup to play it here, or reset progress to '
-                'start a new game for this account.'
-          : !session.state.activeOnThisDevice
-          ? 'This account is active on another device. You can keep playing '
-                'the local save here, restore the account backup onto this '
-                'device, or make this device the active one.'
-          : 'Back up this save to your account, then restore it on another '
-                'device. Restoring replaces that device\'s save.',
+      description: 'Your game saves to your account when you leave the app.',
       palette: palette,
-      below: Row(
+      below: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: canBackUp
-                ? BracketButton(
-                    label: _saveTransferBusy ? 'WORKING…' : 'BACK UP',
-                    height: 40,
-                    palette: palette,
-                    accent: accent,
-                    onTap: _exportSave,
-                  )
-                : _QuietButton(
-                    label: _saveTransferBusy ? 'WORKING…' : 'BACK UP',
-                    height: 40,
-                    enabled: false,
-                    palette: palette,
-                    accent: accent,
-                    onTap: _exportSave,
-                  ),
+          _Reading(
+            label: 'LAST SAVED',
+            value: autosave.saving
+                ? 'Saving…'
+                : savedAt == null
+                ? 'Not yet'
+                : _savedAgo(savedAt),
+            palette: palette,
           ),
-          const SizedBox(width: 10),
-          Expanded(
+          if (error != null) ...[
+            const SizedBox(height: 6),
+            Text(error, style: _prose(context, _kDanger)),
+          ],
+          const SizedBox(height: 12),
+          IntrinsicWidth(
             child: _QuietButton(
-              label: _saveTransferBusy ? 'WORKING…' : 'RESTORE',
-              height: 40,
-              enabled: ready,
+              label: 'SAVE NOW',
+              enabled: !autosave.saving,
               palette: palette,
               accent: accent,
-              onTap: _importSave,
+              onTap: _saveNow,
             ),
           ),
         ],
@@ -3361,6 +3289,139 @@ class _ProfileData {
 
   _ProfileData withTitles(ProfileTitleState titles) =>
       _ProfileData(faction, discoveredCount, cosmicHints, titles);
+}
+
+/// Email and password, checked before it closes: a wrong password, or
+/// anything else that goes wrong, shows under the fields and the dialog
+/// stays for another try. Pops true once [submit] has worked.
+class _CredentialDialog extends StatefulWidget {
+  const _CredentialDialog({
+    required this.title,
+    required this.submitLabel,
+    required this.submit,
+    this.message,
+    this.warning,
+    this.includeDisplayName = false,
+  });
+
+  final String title;
+  final String submitLabel;
+  final String? message;
+  final String? warning;
+  final bool includeDisplayName;
+
+  /// Null when it worked; otherwise what to show.
+  final Future<String?> Function(_CredentialDialogResult result) submit;
+
+  @override
+  State<_CredentialDialog> createState() => _CredentialDialogState();
+}
+
+class _CredentialDialogState extends State<_CredentialDialog> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
+  final _name = TextEditingController();
+  bool _busy = false;
+  String? _error;
+
+  Future<void> _submit() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    final error = await widget.submit(
+      _CredentialDialogResult(
+        email: _email.text.trim(),
+        password: _password.text,
+        displayName: _name.text.trim(),
+      ),
+    );
+    if (!mounted) return;
+    if (error == null) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _busy = false;
+        _error = error;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    _name.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = context.read<FactionTheme>();
+    final palette = BracketPalette.fromTheme(theme);
+    final accent = bracketReadableAccent(theme);
+    return PopScope(
+      canPop: !_busy,
+      child: _DialogShell(
+        title: widget.title,
+        children: [
+          if (widget.message != null) ...[
+            Text(
+              widget.message!,
+              style: _prose(context, palette.ink, size: 13.5),
+            ),
+            const SizedBox(height: 10),
+          ],
+          if (widget.warning != null) ...[
+            Text(widget.warning!, style: _prose(context, _kDanger, size: 13)),
+            const SizedBox(height: 14),
+          ],
+          if (widget.includeDisplayName) ...[
+            _FormField(controller: _name, hint: 'Account name'),
+            const SizedBox(height: 10),
+          ],
+          _FormField(
+            controller: _email,
+            hint: 'Email',
+            keyboardType: TextInputType.emailAddress,
+          ),
+          const SizedBox(height: 10),
+          _FormField(controller: _password, hint: 'Password', secret: true),
+          if (_error != null) ...[
+            const SizedBox(height: 12),
+            Text(_error!, style: _prose(context, _kDanger, size: 13)),
+          ],
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              Expanded(
+                child: _QuietButton(
+                  label: 'CANCEL',
+                  height: 42,
+                  enabled: !_busy,
+                  palette: palette,
+                  accent: accent,
+                  onTap: () => Navigator.of(context).pop(),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: BracketButton(
+                  label: _busy ? 'WORKING…' : widget.submitLabel,
+                  height: 42,
+                  enabled: !_busy,
+                  palette: palette,
+                  accent: accent,
+                  onTap: _submit,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _CredentialDialogResult {

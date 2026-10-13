@@ -124,6 +124,9 @@ class AccountSessionService extends ChangeNotifier {
       return;
     }
 
+    // Right after a sign-in the account listener may still be reading it, and
+    // without it this device can't be recognised as the active one.
+    _deviceId ??= await _deviceIdentityService.getDeviceId();
     try {
       final doc = await _doc(uid).get();
       await _applySnapshot(doc);

@@ -17,6 +17,7 @@ import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
+import 'package:alchemons/services/cloud_autosave_service.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -208,7 +209,11 @@ void main() {
         await settle(8);
       }
 
-      Future<void> show({required bool signedIn, bool fromHome = false}) async {
+      Future<void> show({
+        required bool signedIn,
+        bool activeHere = false,
+        bool fromHome = false,
+      }) async {
         await tester.pumpWidget(
           MultiProvider(
             key: UniqueKey(),
@@ -219,10 +224,13 @@ void main() {
                 create: (_) => _FakeAccount(signedIn: signedIn),
               ),
               ChangeNotifierProvider<AccountSessionService>(
-                create: (_) => _FakeSession(active: !signedIn),
+                create: (_) => _FakeSession(active: activeHere),
               ),
               Provider<AccountCloudSaveService>(
                 create: (_) => _FakeCloudSave(),
+              ),
+              ChangeNotifierProvider<CloudAutosaveService>(
+                create: (_) => _FakeAutosave(),
               ),
               ChangeNotifierProvider<AudioController>(
                 create: (_) => AudioController(db),
@@ -312,6 +320,18 @@ void main() {
       await settle(8);
       await shoot('7_signed_in');
 
+      // Signed in on the account's device: it saves on its own.
+      await show(signedIn: true, activeHere: true);
+      await tester.dragFrom(const Offset(195, 600), const Offset(0, -2000));
+      await settle(8);
+      await tester.scrollUntilVisible(
+        find.text('TRANSFER ACCOUNT'),
+        -200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await settle(8);
+      await shoot('7b_signed_in_saving');
+
       // A sign-in dialog.
       await show(signedIn: false);
       await tester.scrollUntilVisible(
@@ -323,6 +343,14 @@ void main() {
       await tester.tap(find.text('SIGN IN'));
       await settle(10);
       await shoot('8_sign_in_dialog');
+
+      // A wrong password stays in the dialog, under the fields.
+      await tester.enterText(find.byType(TextField).first, 'me@example.com');
+      await tester.enterText(find.byType(TextField).last, 'nope');
+      await tester.tap(find.text('SIGN IN').last);
+      await settle(10);
+      expect(find.text('Email or password is incorrect.'), findsOneWidget);
+      await shoot('8b_wrong_password');
 
       // Larger text, as the Fold's monospace runs: nothing may overflow
       // (an overflow fails the test).
@@ -433,6 +461,9 @@ class _FakeAccount extends ChangeNotifier implements AccountService {
   @override
   String? get configurationError => null;
   @override
+  Future<void> signIn({required String email, required String password}) =>
+      Future.error(const AccountException('Email or password is incorrect.'));
+  @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
@@ -444,12 +475,25 @@ class _FakeSession extends ChangeNotifier implements AccountSessionService {
   @override
   AccountSessionState get state => active
       ? const AccountSessionState.active(activeDeviceId: 'here')
-      : const AccountSessionState.idle();
+      : const AccountSessionState.inactive(activeDeviceId: 'elsewhere');
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }
 
 class _FakeCloudSave implements AccountCloudSaveService {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _FakeAutosave extends ChangeNotifier implements CloudAutosaveService {
+  @override
+  bool get enabled => true;
+  @override
+  bool get saving => false;
+  @override
+  DateTime? get savedAt => DateTime.now().subtract(const Duration(minutes: 4));
+  @override
+  String? get error => null;
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
 }

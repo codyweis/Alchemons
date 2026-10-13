@@ -12,6 +12,7 @@ import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/athanor_service.dart';
 import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/account_cloud_save_service.dart';
+import 'package:alchemons/services/cloud_autosave_service.dart';
 import 'package:alchemons/services/account_session_service.dart';
 import 'package:alchemons/services/device_identity_service.dart';
 import 'package:alchemons/providers/selected_party.dart';
@@ -116,6 +117,17 @@ class AppProviders extends StatelessWidget {
 
         Provider<AccountCloudSaveService>(
           create: (_) => AccountCloudSaveService(),
+        ),
+
+        // Not lazy: it watches for the game leaving the screen from launch.
+        ChangeNotifierProvider<CloudAutosaveService>(
+          lazy: false,
+          create: (ctx) => CloudAutosaveService(
+            db: ctx.read<AlchemonsDatabase>(),
+            account: ctx.read<AccountService>(),
+            session: ctx.read<AccountSessionService>(),
+            cloudSave: ctx.read<AccountCloudSaveService>(),
+          ),
         ),
 
         Provider<PurchaseVerificationService>(
