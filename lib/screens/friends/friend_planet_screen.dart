@@ -16,8 +16,8 @@
 // their home features, as it looks on their home. By their name, a green dot
 // while they are in the game; under their division, when they were last seen.
 //
-// TRADE under the planet opens the trade table with them (trade_screen.dart),
-// with a dot while it waits on the player.
+// TRADE · FUSE under the planet opens the table with them (trade_screen.dart),
+// where the two trade or fuse, with a dot while it waits on the player.
 //
 // The ⋮ holds what is needed to stop being friends: remove, block, report.
 
@@ -648,7 +648,7 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
   }
 }
 
-/// TRADE: the table with them, dotted while it waits on the player.
+/// TRADE · FUSE: the table with them, dotted while it waits on the player.
 /// The Alchemon a friend's home features, as it looks there, over its
 /// species' name. Nothing for a species this game does not know.
 class _FeaturedAlchemon extends StatelessWidget {
@@ -788,7 +788,7 @@ class _TradeButton extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         BracketButton(
-          label: 'TRADE',
+          label: 'TRADE · FUSE',
           height: 42,
           palette: _palette,
           accent: accent,

@@ -285,6 +285,7 @@ class EggHatching {
       isPrismaticSkin: hp.isPrismaticSkin,
       mutation: hp.mutation,
       likelihoodAnalysisJson: hp.likelihoodAnalysisJson,
+      provenance: hp.provenance,
       source: hp.source,
       statBeauty: derivedStats['beauty'],
       statSpeed: derivedStats['speed'],

@@ -1,6 +1,6 @@
 // lib/models/trade.dart
 //
-// Trading Alchemons with friends: one for one, three a week.
+// Trading Alchemons with friends, one for one, or fusing them: three a week.
 //
 // Two friends share one trade table (trades/{a}_{b} in Firestore, the two
 // uids in order). Each puts one Alchemon on their side of it. Changing what
@@ -14,8 +14,15 @@
 // collection, until the trade is done or they take it back
 // (TradeService keeps it in the save meanwhile).
 //
-// A trade uses one of each player's three for the week (Monday 00:00 UTC to
-// the next); 100 gold gives three more.
+// The table can fuse the two instead ([TradeMode.fuse]): both stay with
+// their owners, and each player gets the same cultivation. The second to
+// confirm makes it, once, and writes it on the table ([TradeTable.result]);
+// each game then puts it in a chamber of its own. A fusion confirms with its
+// own flags (aFuse / bFuse) and ends 'fused', not 'done', so a game too old
+// to know fusions never takes one for a trade.
+//
+// A trade or a fusion uses one of each player's three for the week (Monday
+// 00:00 UTC to the next); 100 gold gives three more.
 
 import 'dart:convert';
 
@@ -130,13 +137,52 @@ class TradeStep {
   }
 }
 
+/// Two friends fusing their Alchemons into the one it came from: [byName],
+/// its first owner, and [withName], the friend whose Alchemon was the other
+/// parent.
+class FusionOrigin {
+  const FusionOrigin({
+    required this.byUid,
+    required this.byName,
+    required this.withUid,
+    required this.withName,
+    required this.atMs,
+  });
+
+  final String byUid, byName, withUid, withName;
+  final int atMs;
+
+  Map<String, dynamic> toJson() => {
+    'by': byUid,
+    'byName': byName,
+    'with': withUid,
+    'withName': withName,
+    'at': atMs,
+  };
+
+  static FusionOrigin? fromJson(Object? j) {
+    if (j is! Map) return null;
+    final by = j['by'], with_ = j['with'], at = j['at'];
+    if (by is! String || with_ is! String || at is! num) return null;
+    return FusionOrigin(
+      byUid: by,
+      byName: _name(j['byName']),
+      withUid: with_,
+      withName: _name(j['withName']),
+      atMs: at.toInt(),
+    );
+  }
+}
+
 /// Who has owned an Alchemon, as traded: the alchemist it began with (the
-/// first to trade it away) and each trade since, oldest first. Saved in its
-/// `provenance` column; null for one never traded.
+/// first to trade it away) and each trade since, oldest first; and, for one
+/// two friends fused, who they were ([fused]). Saved in its `provenance`
+/// column; null for one never traded or fused with a friend.
 class TradeProvenance {
-  const TradeProvenance(this.steps);
+  const TradeProvenance(this.steps, {this.fused});
 
   final List<TradeStep> steps;
+  final FusionOrigin? fused;
 
   /// The alchemist it began with.
   String? get firstName => steps.isEmpty ? null : steps.first.fromName;
@@ -148,7 +194,8 @@ class TradeProvenance {
   /// How many have owned it, its owner now included.
   int get owners => steps.length + 1;
 
-  TradeProvenance plus(TradeStep step) => TradeProvenance([...steps, step]);
+  TradeProvenance plus(TradeStep step) =>
+      TradeProvenance([...steps, step], fused: fused);
 
   /// The most a history keeps: the first owner's trade and the latest.
   static const int maxSteps = 24;
@@ -160,6 +207,7 @@ class TradeProvenance {
     return jsonEncode({
       'v': 1,
       'steps': [for (final s in kept) s.toJson()],
+      if (fused != null) 'fused': fused!.toJson(),
     });
   }
 
@@ -172,7 +220,10 @@ class TradeProvenance {
         for (final s in j['steps'] as List)
           if (TradeStep.fromJson(s) case final step?) step,
       ];
-      return steps.isEmpty ? null : TradeProvenance(steps);
+      final fused = FusionOrigin.fromJson(j['fused']);
+      return steps.isEmpty && fused == null
+          ? null
+          : TradeProvenance(steps, fused: fused);
     } catch (_) {
       return null;
     }
@@ -294,7 +345,16 @@ class TradeOffer {
   int get hashCode => Object.hash(id, card);
 }
 
-enum TradeStatus { open, done }
+/// What a table does with the two on it.
+enum TradeMode {
+  trade,
+  fuse;
+
+  static TradeMode of(Object? v) => v == 'fuse' ? fuse : trade;
+}
+
+/// Open; traded; or fused.
+enum TradeStatus { open, done, fused }
 
 /// The trade table two friends share, as stored.
 class TradeTable {
@@ -307,6 +367,10 @@ class TradeTable {
     this.bOffer,
     this.aReady = false,
     this.bReady = false,
+    this.mode = TradeMode.trade,
+    this.aFuse = false,
+    this.bFuse = false,
+    this.result,
     this.status = TradeStatus.open,
     this.aClaimed = false,
     this.bClaimed = false,
@@ -318,10 +382,20 @@ class TradeTable {
   final String a, b;
   final String aName, bName;
   final TradeOffer? aOffer, bOffer;
+
+  /// Each side has confirmed the trade.
   final bool aReady, bReady;
+  final TradeMode mode;
+
+  /// Each side has confirmed the fusion.
+  final bool aFuse, bFuse;
+
+  /// A fused table's cultivation (an EggPayload, as JSON), the same for
+  /// both.
+  final String? result;
   final TradeStatus status;
 
-  /// Each side's game has collected the done trade.
+  /// Each side's game has collected the done trade or fusion.
   final bool aClaimed, bClaimed;
 
   /// Who wrote last.
@@ -333,7 +407,14 @@ class TradeTable {
   static String idFor(String x, String y) =>
       x.compareTo(y) < 0 ? '${x}_$y' : '${y}_$x';
 
-  bool get done => status == TradeStatus.done;
+  /// Traded or fused: finished, and can't be undone.
+  bool get done => status != TradeStatus.open;
+
+  /// Traded.
+  bool get traded => status == TradeStatus.done;
+
+  /// Fused.
+  bool get fused => status == TradeStatus.fused;
 
   /// [uid]'s view of it.
   TradeView of(String uid) => TradeView(this, uid == a);
@@ -352,7 +433,15 @@ class TradeTable {
       bOffer: TradeOffer.fromJson(d['bOffer']),
       aReady: d['aReady'] == true,
       bReady: d['bReady'] == true,
-      status: d['status'] == 'done' ? TradeStatus.done : TradeStatus.open,
+      mode: TradeMode.of(d['mode']),
+      aFuse: d['aFuse'] == true,
+      bFuse: d['bFuse'] == true,
+      result: d['result'] is String ? d['result'] as String : null,
+      status: switch (d['status']) {
+        'done' => TradeStatus.done,
+        'fused' => TradeStatus.fused,
+        _ => TradeStatus.open,
+      },
       aClaimed: d['aClaimed'] == true,
       bClaimed: d['bClaimed'] == true,
       lastBy: d['lastBy'] is String ? d['lastBy'] as String : null,
@@ -381,7 +470,7 @@ enum TradePhase {
   /// The friend confirmed; waiting for this side.
   theyConfirmed,
 
-  /// Traded.
+  /// Traded or fused.
   done,
 }
 
@@ -398,8 +487,20 @@ class TradeView {
   String get theirName => isA ? table.bName : table.aName;
   TradeOffer? get mine => isA ? table.aOffer : table.bOffer;
   TradeOffer? get theirs => isA ? table.bOffer : table.aOffer;
+  TradeMode get mode => table.mode;
+  bool get fusing => table.mode == TradeMode.fuse;
+
+  /// This side has confirmed the trade (only ever on a trade table).
   bool get iReady => isA ? table.aReady : table.bReady;
   bool get theyReady => isA ? table.bReady : table.aReady;
+
+  /// This side has confirmed the fusion (only ever on a fusion table).
+  bool get iFuse => isA ? table.aFuse : table.bFuse;
+  bool get theyFuse => isA ? table.bFuse : table.aFuse;
+
+  /// Confirmed, whichever the table does.
+  bool get iConfirmed => fusing ? iFuse : iReady;
+  bool get theyConfirmed => fusing ? theyFuse : theyReady;
   bool get iClaimed => isA ? table.aClaimed : table.bClaimed;
   bool get theyClaimed => isA ? table.bClaimed : table.aClaimed;
 
@@ -413,8 +514,8 @@ class TradeView {
     if (m == null && t == null) return TradePhase.empty;
     if (t == null) return TradePhase.waitingForThem;
     if (m == null) return TradePhase.yourTurn;
-    if (iReady) return TradePhase.youConfirmed;
-    if (theyReady) return TradePhase.theyConfirmed;
+    if (iConfirmed) return TradePhase.youConfirmed;
+    if (theyConfirmed) return TradePhase.theyConfirmed;
     return TradePhase.bothUp;
   }
 

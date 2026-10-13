@@ -1,15 +1,17 @@
 // lib/services/trade_service.dart
 //
 // Trading with friends (lib/models/trade.dart): the tables this player shares
-// with each friend, kept live, and what they do at them — put an Alchemon up,
-// take it back, confirm, take a confirmation back — plus the week's three
-// trades and the 100 gold that gives three more.
+// with each friend, kept live, and what they do at them — trade or fuse, put
+// an Alchemon up, take it back, confirm, take a confirmation back — plus the
+// week's three trades or fusions and the 100 gold that gives three more.
 //
-// The save's side of every move is TradeVault's (lib/services/trade_vault.dart).
-// This keeps the two in step: whenever a table changes (or the game starts,
-// or a save is restored) it looks at each one and settles the save to match —
-// a confirmed Alchemon waits on its table, one no longer confirmed comes
-// back, and a done trade is collected, once, and marked so on the table.
+// The save's side of every move is TradeVault's (lib/services/trade_vault.dart)
+// and, for fusions, FriendFusionLab's (lib/services/friend_fusion_lab.dart).
+// This keeps the save and the tables in step: whenever a table changes (or
+// the game starts, or a save is restored) it looks at each one and settles
+// the save to match — a confirmed Alchemon waits on its trade table, one no
+// longer confirmed comes back, and a done trade or fusion is collected, once,
+// and marked so on the table.
 //
 // Firestore (rules in firestore.rules):
 //   trades/{a}_{b}   the table (TradeTable)
@@ -23,7 +25,10 @@ import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/models/trade.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/cosmetic_wear_service.dart';
+import 'package:alchemons/services/breeding_service.dart'
+    show EggCreationResult, EggPlacement;
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/friend_fusion_lab.dart';
 import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/save_generation_service.dart';
 import 'package:alchemons/services/trade_vault.dart';
@@ -39,8 +44,10 @@ class TradeException implements Exception {
   String toString() => message;
 }
 
-/// A done trade this player has not watched yet: the two Alchemons as they
-/// were on the table, the friend's as it arrived.
+/// A done trade or fusion this player has not watched yet: the two
+/// Alchemons as they were on the table, the friend's as it arrived. For a
+/// fusion, [gave] is this player's parent and [got] the friend's, both still
+/// with their owners, and [vial] the cultivation each got.
 class TradeArrival {
   const TradeArrival({
     required this.tableId,
@@ -49,11 +56,24 @@ class TradeArrival {
     required this.friendName,
     required this.gave,
     required this.got,
+    this.mode = TradeMode.trade,
+    this.vial,
+    this.chamber,
   });
 
   final String tableId, key, friendUid, friendName;
   final TradedCreature gave;
   final TradedCreature got;
+  final TradeMode mode;
+
+  /// A fusion's cultivation, as it was on the table (an EggPayload, JSON).
+  final String? vial;
+
+  /// The chamber this player's cultivation went into (from 0); null for
+  /// cold storage.
+  final int? chamber;
+
+  bool get fused => mode == TradeMode.fuse;
 
   Map<String, dynamic> toJson() => {
     'table': tableId,
@@ -62,6 +82,9 @@ class TradeArrival {
     'friendName': friendName,
     'gave': gave.encode(),
     'got': got.encode(),
+    if (fused) 'mode': mode.name,
+    if (vial != null) 'vial': vial,
+    if (chamber != null) 'chamber': chamber,
   };
 
   static TradeArrival? fromJson(
@@ -75,6 +98,7 @@ class TradeArrival {
     final got = read(j['got'] as String?);
     if (gave == null || got == null) return null;
     final name = j['friendName'];
+    final vial = j['vial'], chamber = j['chamber'];
     return TradeArrival(
       tableId: table,
       key: key,
@@ -82,6 +106,9 @@ class TradeArrival {
       friendName: name is String ? name : 'Alchemist',
       gave: gave,
       got: got,
+      mode: TradeMode.of(j['mode']),
+      vial: vial is String ? vial : null,
+      chamber: chamber is num ? chamber.toInt() : null,
     );
   }
 }
@@ -93,6 +120,9 @@ enum ConfirmResult {
 
   /// Both have: traded.
   traded,
+
+  /// Both have: fused.
+  fused,
 
   /// This player's Alchemon had changed since it went up; the table has it
   /// as it is now, and both confirm again.
@@ -123,6 +153,17 @@ class TradeService extends ChangeNotifier {
   FirebaseFirestore? _firestore;
 
   FirebaseFirestore get _fs => _firestore ??= FirebaseFirestore.instance;
+
+  /// Fusing's side of the save, once the lab's recipes have loaded; a fusion
+  /// done before then is collected when it is given.
+  FriendFusionLab? get lab => _lab;
+  FriendFusionLab? _lab;
+
+  void attachLab(FriendFusionLab? lab) {
+    if (identical(lab, _lab)) return;
+    _lab = lab;
+    if (lab != null && _uid != null) unawaited(_settle());
+  }
 
   String? _uid;
   Map<String, TradeTable> _tables = const {};
@@ -173,8 +214,8 @@ class TradeService extends ChangeNotifier {
       _arrivals.isNotEmpty ||
       _tables.keys.any((uid) => tableWith(uid)?.waitingOnMe ?? false);
 
-  /// Trades left this week: the week's three (or more, bought), less those
-  /// done and those confirmed and waiting.
+  /// Trades or fusions left this week: the week's three (or more, bought),
+  /// less those done and those confirmed and waiting.
   int left([DateTime? now]) {
     final n = _allowance.left(now ?? DateTime.now()) - _confirmedWaiting();
     return n < 0 ? 0 : n;
@@ -190,7 +231,7 @@ class TradeService extends ChangeNotifier {
     for (final e in _tables.entries) {
       if (e.key == except) continue;
       final v = e.value.of(me);
-      if (!e.value.done && v.iReady) n++;
+      if (!e.value.done && v.iConfirmed) n++;
     }
     return n;
   }
@@ -304,13 +345,31 @@ class TradeService extends ChangeNotifier {
 
   // ── At the table ────────────────────────────────────────────────────────
 
-  /// Why [instance] can't go up, or null.
-  Future<String?> whyNot(CreatureInstance instance, {String? friendUid}) {
+  /// Why [instance] can't go up, or null. On a fusion table it stays the
+  /// player's, so only being up on another table stops it.
+  Future<String?> whyNot(CreatureInstance instance, {String? friendUid}) async {
     final me = _uid;
-    final mineHere = me == null || friendUid == null
-        ? null
-        : tableWith(friendUid)?.mine?.id;
-    return vault.whyNot(instance, elsewhere: {...offered}..remove(mineHere));
+    final here = me == null || friendUid == null ? null : tableWith(friendUid);
+    final elsewhere = {...offered}..remove(here?.mine?.id);
+    if (here?.fusing ?? false) {
+      return elsewhere.contains(instance.instanceId)
+          ? 'It is on another table.'
+          : null;
+    }
+    return vault.whyNot(instance, elsewhere: elsewhere);
+  }
+
+  /// Why the two up on the fusion table with [friendUid] can't fuse in this
+  /// game, or null (also when there aren't two up to ask about).
+  Future<String?> whyNotFuse(String friendUid) async {
+    final v = tableWith(friendUid);
+    final lab = _lab;
+    final mine = v?.mine, theirs = read(v?.theirs?.card);
+    if (v == null || !v.fusing || lab == null || mine == null) return null;
+    if (theirs == null) return "This game can't fuse with their Alchemon.";
+    final now = await db.creatureDao.getInstance(mine.id);
+    if (now == null) return 'Yours is no longer in your collection.';
+    return lab.whyNot(now, theirs.instance);
   }
 
   /// [raw] (a friend's card) read and cleaned, or null.
@@ -343,21 +402,16 @@ class TradeService extends ChangeNotifier {
         final snap = await tx.get(_table(id));
         final t = TradeTable.fromDoc(snap.data());
         if (t == null || (t.done && t.aClaimed && t.bClaimed)) {
-          tx.set(_table(id), _fresh(me, friend, offer));
+          tx.set(_table(id), _fresh(me, friend, offer, mode: t?.mode));
           return;
         }
-        if (t.done) {
-          throw const TradeException(
-            'The last trade is still being collected.',
-          );
-        }
+        if (t.done) throw _stillCollecting(t);
         final v = t.of(me);
         if (v.mine == offer) return;
         tx.update(_table(id), {
           '${v.my}Name': _myName,
           '${v.my}Offer': offer.toJson(),
-          'aReady': false,
-          'bReady': false,
+          ..._unconfirmed,
           'lastBy': me,
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -365,7 +419,28 @@ class TradeService extends ChangeNotifier {
     );
   }
 
-  Map<String, dynamic> _fresh(String me, FriendCard friend, TradeOffer? mine) {
+  /// Every confirmation, cleared: what goes with any change to the table.
+  static const Map<String, Object> _unconfirmed = {
+    'aReady': false,
+    'bReady': false,
+    'aFuse': false,
+    'bFuse': false,
+  };
+
+  static TradeException _stillCollecting(TradeTable t) => TradeException(
+    t.fused
+        ? 'The last fusion is still being collected.'
+        : 'The last trade is still being collected.',
+  );
+
+  /// A new table, or one cleared after the last was collected by both: it
+  /// keeps doing what the last did ([mode]).
+  Map<String, dynamic> _fresh(
+    String me,
+    FriendCard friend,
+    TradeOffer? mine, {
+    TradeMode? mode,
+  }) {
     final meIsA = me.compareTo(friend.uid) < 0;
     final a = meIsA ? me : friend.uid, b = meIsA ? friend.uid : me;
     return {
@@ -376,8 +451,9 @@ class TradeService extends ChangeNotifier {
       'bName': meIsA ? _cut(friend.name) : _myName,
       'aOffer': meIsA ? mine?.toJson() : null,
       'bOffer': meIsA ? null : mine?.toJson(),
-      'aReady': false,
-      'bReady': false,
+      ..._unconfirmed,
+      'mode': (mode ?? TradeMode.trade).name,
+      'result': null,
       'status': 'open',
       'aClaimed': false,
       'bClaimed': false,
@@ -413,13 +489,39 @@ class TradeService extends ChangeNotifier {
         }
         tx.update(_table(id), {
           '${v.my}Offer': null,
-          'aReady': false,
-          'bReady': false,
+          ..._unconfirmed,
           'lastBy': me,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       }),
     );
+  }
+
+  /// Has the table with [friend] trade or fuse. What is up stays up; both
+  /// confirmations clear.
+  Future<void> setMode(FriendCard friend, TradeMode mode) async {
+    final me = _me;
+    await _ownGame();
+    final id = TradeTable.idFor(me, friend.uid);
+    await _run(
+      () => _fs.runTransaction((tx) async {
+        final snap = await tx.get(_table(id));
+        final t = TradeTable.fromDoc(snap.data());
+        if (t == null || (t.done && t.aClaimed && t.bClaimed)) {
+          tx.set(_table(id), _fresh(me, friend, null, mode: mode));
+          return;
+        }
+        if (t.done) throw _stillCollecting(t);
+        if (t.mode == mode) return;
+        tx.update(_table(id), {
+          'mode': mode.name,
+          ..._unconfirmed,
+          'lastBy': me,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }),
+    );
+    await _settle();
   }
 
   /// Confirms the two on the table with [friend] as they are. Done at once
@@ -433,6 +535,7 @@ class TradeService extends ChangeNotifier {
     if (seen == null || seen.table.done || mine == null || theirs == null) {
       throw const TradeException('Both need an Alchemon on the table.');
     }
+    if (seen.fusing) return _confirmFusion(friend, seen, mine, theirs);
     if (seen.iReady) return ConfirmResult.waiting;
     final got = read(theirs.card);
     if (got == null) {
@@ -489,6 +592,84 @@ class TradeService extends ChangeNotifier {
     return traded ? ConfirmResult.traded : ConfirmResult.waiting;
   }
 
+  /// [confirm] on a fusion table. The second to confirm makes the
+  /// cultivation, from the two as the table has them, and writes it there
+  /// in the same write that finishes it.
+  Future<ConfirmResult> _confirmFusion(
+    FriendCard friend,
+    TradeView seen,
+    TradeOffer mine,
+    TradeOffer theirs,
+  ) async {
+    final me = _me;
+    final id = seen.table.id;
+    if (seen.iFuse) return ConfirmResult.waiting;
+    final lab = _lab;
+    if (lab == null) {
+      throw const TradeException('The lab is still opening. Try again.');
+    }
+    final got = read(theirs.card);
+    if (got == null) {
+      throw const TradeException("This game can't fuse with their Alchemon.");
+    }
+    if (left() < 1) {
+      throw const TradeException('No trades or fusions left this week.');
+    }
+    final now = await vault.card(mine.id);
+    if (now == null) {
+      await takeBack(friend.uid);
+      throw const TradeException(
+        'Your Alchemon is no longer in your collection.',
+      );
+    }
+    final why = await lab.whyNot(now.instance, got.instance);
+    if (why != null) throw TradeException(why);
+    if (_substance(now.encode()) != _substance(mine.card)) {
+      await put(friend, mine.id);
+      return ConfirmResult.refreshed;
+    }
+    // Made whether or not the friend has confirmed yet: they may while this
+    // is being written.
+    final a = read(seen.isA ? mine.card : theirs.card);
+    final b = read(seen.isA ? theirs.card : mine.card);
+    final result = a == null || b == null
+        ? null
+        : lab.brew(a.instance, b.instance);
+    if (result == null) {
+      throw const TradeException('These two make nothing together.');
+    }
+
+    var fused = false;
+    await _run(
+      () => _fs.runTransaction((tx) async {
+        final snap = await tx.get(_table(id));
+        final t = TradeTable.fromDoc(snap.data());
+        if (t == null || t.done) {
+          throw const TradeException('The table has changed.');
+        }
+        final v = t.of(me);
+        if (!v.fusing || v.mine != mine || v.theirs != theirs) {
+          throw const TradeException('The table has changed. Look again.');
+        }
+        if (v.iFuse) return;
+        fused = v.theyFuse;
+        tx.update(_table(id), {
+          '${v.my}Fuse': true,
+          '${v.my}Name': _myName,
+          if (fused) ...{
+            'status': 'fused',
+            'result': result,
+            'doneAt': FieldValue.serverTimestamp(),
+          },
+          'lastBy': me,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }),
+    );
+    await _settle();
+    return fused ? ConfirmResult.fused : ConfirmResult.waiting;
+  }
+
   /// A card without what changes on its own (stamina), to compare.
   static String _substance(String card) {
     try {
@@ -502,8 +683,8 @@ class TradeService extends ChangeNotifier {
     }
   }
 
-  /// Takes this player's confirmation back (their Alchemon returns to the
-  /// collection, still up on the table).
+  /// Takes this player's confirmation back (on a trade table, their
+  /// Alchemon returns to the collection, still up on it).
   Future<void> unconfirm(String friendUid) async {
     final me = _me;
     final id = TradeTable.idFor(me, friendUid);
@@ -513,9 +694,9 @@ class TradeService extends ChangeNotifier {
         final t = TradeTable.fromDoc(snap.data());
         if (t == null || t.done) return;
         final v = t.of(me);
-        if (!v.iReady) return;
+        if (!v.iConfirmed) return;
         tx.update(_table(id), {
-          '${v.my}Ready': false,
+          '${v.my}${v.fusing ? 'Fuse' : 'Ready'}': false,
           'lastBy': me,
           'updatedAt': FieldValue.serverTimestamp(),
         });
@@ -524,8 +705,8 @@ class TradeService extends ChangeNotifier {
     await _settle();
   }
 
-  /// Three more trades this week, for [TradeRules.resetGold] gold, once
-  /// the week's are used. False when there isn't the gold.
+  /// Three more trades or fusions this week, for [TradeRules.resetGold]
+  /// gold, once the week's are used. False when there isn't the gold.
   Future<bool> buyMore() async {
     final me = _me;
     await _ownGame();
@@ -600,7 +781,7 @@ class TradeService extends ChangeNotifier {
       final v = t?.of(me);
       if (t != null &&
           v!.mine?.id == e.value.instanceId &&
-          (t.done ? !v.iClaimed : v.iReady)) {
+          (t.done ? t.traded && !v.iClaimed : !v.fusing && v.iReady)) {
         continue;
       }
       await vault.release(e.key, gone: _gone);
@@ -616,7 +797,7 @@ class TradeService extends ChangeNotifier {
           await _quietly(() => _takeBack(v.them));
           continue;
         }
-        if (v.iReady && mine != null) {
+        if (!v.fusing && v.iReady && mine != null) {
           final held = await vault.escrow(t.id, mine.id);
           if (!held && (await vault.escrowed())[t.id] == null) {
             // Confirmed, and gone from the collection some other way.
@@ -625,7 +806,10 @@ class TradeService extends ChangeNotifier {
         }
         continue;
       }
-      if (!v.iClaimed && await _collect(t, v)) changed = true;
+      if (v.iClaimed) continue;
+      if (t.traded ? await _collect(t, v) : await _collectFusion(t, v)) {
+        changed = true;
+      }
     }
 
     _waiting = {
@@ -691,6 +875,96 @@ class TradeService extends ChangeNotifier {
         }
       }
     }
+    await _claim(t, me, doneAt, gave: mine.id, got: got.id);
+    return changed;
+  }
+
+  /// Collects the fusion on [t]: this player's cultivation into a chamber
+  /// (or cold storage) and a rest for their parent, once, then marks it
+  /// collected on the table and counts it. True when the save changed.
+  Future<bool> _collectFusion(TradeTable t, TradeView v) async {
+    final lab = _lab;
+    // Collected once the lab is open ([attachLab] settles again).
+    if (lab == null) return false;
+    final me = v.me;
+    final mine = v.mine, theirs = v.theirs;
+    final doneAt = t.doneAt;
+    if (mine == null || theirs == null || doneAt == null) return false;
+    final atMs = doneAt.millisecondsSinceEpoch;
+    final key = '${t.id}@$atMs';
+    final payload = lab.read(t.result);
+    final got = read(theirs.card);
+    if (payload == null || got == null) {
+      debugPrint('TradeService: the fusion on ${t.id} could not be read');
+      return false;
+    }
+    final EggCreationResult? placed;
+    try {
+      placed = await db.transaction(() async {
+        if (await vault.collected(key)) return null;
+        final r = await lab.place(
+          payload: payload,
+          origin: FusionOrigin(
+            byUid: me,
+            byName: v.myName,
+            withUid: v.them,
+            withName: v.theirName,
+            atMs: atMs,
+          ),
+          mineId: mine.id,
+          theirs: got.instance,
+        );
+        final eggId = r.eggId;
+        if (!r.success || eggId == null) {
+          throw TradeException(r.message ?? 'It could not be kept.');
+        }
+        await vault.keepReceipt(
+          key,
+          TradeReceipt(gave: mine.id, got: eggId, atMs: atMs),
+        );
+        return r;
+      });
+    } catch (e) {
+      // Tried again on the next settling.
+      debugPrint('TradeService: the fusion on ${t.id} was not collected: $e');
+      return false;
+    }
+    if (placed != null) {
+      final gave = read(mine.card);
+      if (gave != null) {
+        _arrivals = [
+          ..._arrivals.where((a) => a.key != key),
+          TradeArrival(
+            tableId: t.id,
+            key: key,
+            friendUid: v.them,
+            friendName: v.theirName,
+            gave: gave,
+            got: got,
+            mode: TradeMode.fuse,
+            vial: t.result,
+            chamber: placed.placement == EggPlacement.incubator
+                ? placed.slotId
+                : null,
+          ),
+        ];
+        await _saveArrivals();
+      }
+    }
+    await _claim(t, me, doneAt);
+    return placed != null;
+  }
+
+  /// Marks the done trade or fusion on [t] collected by this player and
+  /// counts it in the week it was done; a trade also notes what left ([gave])
+  /// and what came back ([got]).
+  Future<void> _claim(
+    TradeTable t,
+    String me,
+    DateTime doneAt, {
+    String? gave,
+    String? got,
+  }) async {
     try {
       await _fs
           .runTransaction((tx) async {
@@ -702,9 +976,9 @@ class TradeService extends ChangeNotifier {
             final trader = await tx.get(_trader(me));
             final d = trader.data();
             final allowance = TradeAllowance.fromJson(d);
-            final gone = {..._readGone(d?['gone'])}
-              ..remove(got.id)
-              ..[mine.id] = doneAt.millisecondsSinceEpoch;
+            final gone = {..._readGone(d?['gone'])};
+            if (got != null) gone.remove(got);
+            if (gave != null) gone[gave] = doneAt.millisecondsSinceEpoch;
             final counts =
                 TradeRules.weekOf(doneAt) == TradeRules.weekOf(DateTime.now());
             final next = counts ? allowance.plusOne(DateTime.now()) : allowance;
@@ -725,7 +999,6 @@ class TradeService extends ChangeNotifier {
       // Collected in the save; marked on the table next time.
       debugPrint('TradeService: collected ${t.id}, not marked yet: $e');
     }
-    return changed;
   }
 
   /// The newest [n] of [gone].

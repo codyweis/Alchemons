@@ -40,6 +40,11 @@ class EggPayload {
   final ParentageData? parentage;
   final String? likelihoodAnalysisJson;
 
+  /// Where it came from beyond its parents, for its `provenance` column: a
+  /// `TradeProvenance`, saved (a fusion with a friend says who). Null for
+  /// most.
+  final String? provenance;
+
   EggPayload({
     required this.baseId,
     required this.rarity,
@@ -55,6 +60,7 @@ class EggPayload {
     required this.lineage,
     this.parentage,
     this.likelihoodAnalysisJson,
+    this.provenance,
   });
 
   Map<String, dynamic> toJson() {
@@ -74,6 +80,7 @@ class EggPayload {
       if (parentage != null) 'parentage': parentage!.toJson(),
       if (likelihoodAnalysisJson != null)
         'likelihoodAnalysis': likelihoodAnalysisJson,
+      if (provenance != null) 'provenance': provenance,
     };
   }
 
@@ -103,6 +110,7 @@ class EggPayload {
           ? ParentageData.fromJson(json['parentage'] as Map<String, dynamic>)
           : null,
       likelihoodAnalysisJson: json['likelihoodAnalysis'] as String?,
+      provenance: json['provenance'] as String?,
     );
   }
 }

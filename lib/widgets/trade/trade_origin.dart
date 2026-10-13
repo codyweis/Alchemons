@@ -2,7 +2,8 @@
 //
 // Who an Alchemon came from, in words, for wherever its origin is shown:
 // "Traded to you by Sam · Oct 11, 2026", and the owner it began with when
-// that was someone else.
+// that was someone else; "Fused with Sam · Oct 12, 2026" for one two
+// friends fused.
 
 import 'package:alchemons/models/trade.dart';
 
@@ -20,11 +21,20 @@ String tradeDate(int utcMs) {
 /// [p] as lines of its origin. [owner]: whose it is now, by name, or null
 /// for the player's own.
 List<String> tradeOriginLines(TradeProvenance? p, {String? owner}) {
-  final last = p?.last;
-  if (p == null || last == null) return const [];
+  if (p == null) return const [];
+  final last = p.last;
+  final fused = p.fused;
   return [
-    'Traded to ${owner ?? 'you'} by ${last.fromName} · ${tradeDate(last.atMs)}',
-    if (p.steps.length > 1 && p.firstName != last.fromName)
-      'First owner: ${p.firstName}',
+    if (fused != null)
+      last == null
+          ? 'Fused with ${fused.withName} · ${tradeDate(fused.atMs)}'
+          : 'Fused by ${fused.byName} and ${fused.withName} · '
+                '${tradeDate(fused.atMs)}',
+    if (last != null) ...[
+      'Traded to ${owner ?? 'you'} by ${last.fromName} · '
+          '${tradeDate(last.atMs)}',
+      if (p.steps.length > 1 && p.firstName != last.fromName)
+        'First owner: ${p.firstName}',
+    ],
   ];
 }

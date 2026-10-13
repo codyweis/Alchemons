@@ -8,9 +8,14 @@
 // stands up whole (lib/widgets/fx/trade_swap.dart) — and the one that
 // arrived is the player's.
 //
-// The table is live: what the friend does shows as they do it. A trade that
-// was done while the player was away plays when they next open the table.
-// Under it, the week's trades: three, then 100 gold for three more.
+// TRADE / FUSE at the top: fusing, the two pour into the sigil as the lab's
+// pair pour into its orb (FusionParticleField), the lab's cinematic makes
+// the cultivation out of them, and the two stand back up on their stages —
+// each is still its owner's. Both players get the cultivation.
+//
+// The table is live: what the friend does shows as they do it. A trade or
+// fusion done while the player was away plays when they next open the
+// table. Under it, the week's three, then 100 gold for three more.
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -34,6 +39,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/breed_cinematic_fx.dart';
 import 'package:alchemons/widgets/fx/cosmetics/case_style_art.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/grain_text.dart';
@@ -69,11 +75,33 @@ class TradeScreen extends StatefulWidget {
 }
 
 class _TradeScreenState extends State<TradeScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _swap = AnimationController(
     vsync: this,
     duration: TradeSwap.duration,
   );
+
+  /// A fusion's pour into the sigil, in [FusionParticleField]'s seconds.
+  late final AnimationController _merge = AnimationController(
+    vsync: this,
+    duration: Duration(
+      milliseconds: (FusionParticleField.duration * 1000).round(),
+    ),
+  );
+  FusionParticleField? _pour;
+
+  /// The two stand back up after a fusion: 0 gone, 1 whole.
+  late final AnimationController _return = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+    value: 1,
+  );
+  final GlobalKey _sigilKey = GlobalKey();
+
+  /// Why the pair up on a fusion table can't fuse here, for the pair it was
+  /// asked of ([_checkFor]).
+  Future<String?>? _check;
+  String? _checkFor;
   final GlobalKey _stackKey = GlobalKey();
   final GlobalKey _mineSprite = GlobalKey();
   final GlobalKey _theirSprite = GlobalKey();
@@ -93,7 +121,8 @@ class _TradeScreenState extends State<TradeScreen>
     super.initState();
     // The reset countdown, once a minute.
     _clock = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
+      // Resting ends on its own: ask again.
+      if (mounted) setState(() => _checkFor = null);
     });
   }
 
@@ -101,6 +130,8 @@ class _TradeScreenState extends State<TradeScreen>
   void dispose() {
     _clock?.cancel();
     _swap.dispose();
+    _merge.dispose();
+    _return.dispose();
     super.dispose();
   }
 
@@ -122,10 +153,13 @@ class _TradeScreenState extends State<TradeScreen>
 
   Future<void> _choose() async {
     final trades = context.read<TradeService>();
+    final fusing = trades.tableWith(_friend.uid)?.fusing ?? false;
     final picked = await showSpecimenPickerRoute(
       context: context,
       theme: context.read<FactionTheme>(),
-      searchHint: 'OFFER ${_friend.name.toUpperCase()}',
+      searchHint: fusing
+          ? 'FUSE WITH ${_friend.name.toUpperCase()}'
+          : 'OFFER ${_friend.name.toUpperCase()}',
       prefsScopeKey: 'trade_picker',
       onWillSelectInstance: (inst) async {
         final why = await trades.whyNot(inst, friendUid: _friend.uid);
@@ -148,20 +182,24 @@ class _TradeScreenState extends State<TradeScreen>
         (c.instance.nickname?.trim().isNotEmpty ?? false)
         ? c.instance.nickname!.trim()
         : catalog.getCreatureById(c.instance.baseId)?.name ?? 'Alchemon';
-    final last = v.theyReady;
+    final last = v.theyConfirmed;
     final ok = await showBracketConfirm(
       context,
       palette: _palette,
       accent: _brass,
-      title: 'TRADE?',
-      message:
-          'Your ${nameOf(mine)} for ${_friend.name}\'s ${nameOf(theirs)}. '
-          '${last ? "This can't be undone." : "Once ${_friend.name} confirms too, it is done and can't be undone."}',
+      title: v.fusing ? 'FUSE?' : 'TRADE?',
+      message: v.fusing
+          ? 'Your ${nameOf(mine)} with ${_friend.name}\'s ${nameOf(theirs)}. '
+                'You each get the cultivation, and each keeps their own. '
+                '${last ? "This can't be undone." : "Once ${_friend.name} confirms too, it is done and can't be undone."}'
+          : 'Your ${nameOf(mine)} for ${_friend.name}\'s ${nameOf(theirs)}. '
+                '${last ? "This can't be undone." : "Once ${_friend.name} confirms too, it is done and can't be undone."}',
       details: Text(
-        'Uses 1 of your ${trades.left()} trades left this week.',
+        'Uses 1 of the ${trades.left()} trades and fusions you have left '
+        'this week.',
         style: caseMono(10.5, _palette.muted),
       ),
-      confirmLabel: last ? 'TRADE' : 'CONFIRM',
+      confirmLabel: last ? (v.fusing ? 'FUSE' : 'TRADE') : 'CONFIRM',
     );
     if (!ok || !mounted) return;
     context.sound(SoundCue.uiConfirm);
@@ -183,8 +221,8 @@ class _TradeScreenState extends State<TradeScreen>
       context,
       palette: _palette,
       accent: _brass,
-      title: 'THREE MORE TRADES?',
-      message: 'Three more trades this week.',
+      title: 'THREE MORE?',
+      message: 'Three more trades or fusions this week.',
       amounts: const [(CoinKind.gold, TradeRules.resetGold)],
       amountsLabel: 'YOU PAY',
       confirmLabel: 'BUY',
@@ -212,8 +250,12 @@ class _TradeScreenState extends State<TradeScreen>
 
   // ── The trade, played ───────────────────────────────────────────────────
 
+  Future<void> _setMode(TradeMode mode) =>
+      _do(() => context.read<TradeService>().setMode(_friend, mode));
+
   /// Plays [arrival] once its two sprites are on screen to read.
   Future<void> _play(TradeArrival arrival) async {
+    if (arrival.fused) return _playFusion(arrival);
     _arrival = arrival;
     _played = false;
     _field = null;
@@ -273,6 +315,105 @@ class _TradeScreenState extends State<TradeScreen>
     setState(() => _played = true);
   }
 
+  /// Plays the fusion [arrival]: the two pour into the sigil, the lab's
+  /// cinematic makes the cultivation out of them, and they stand back up.
+  Future<void> _playFusion(TradeArrival arrival) async {
+    _arrival = arrival;
+    _played = false;
+    _pour = null;
+    _return.value = 1;
+    setState(() {});
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (!mounted || _arrival != arrival) return;
+    final catalog = context.read<CreatureCatalog>();
+    Color colorOf(TradedCreature c) => BreedConstants.getTypeColor(
+      catalog.getCreatureById(c.instance.baseId)?.types.firstOrNull ?? 'Fire',
+    );
+    final theirColor = colorOf(arrival.got), myColor = colorOf(arrival.gave);
+    final ratio = math.min(MediaQuery.devicePixelRatioOf(context), 2.6);
+    await WidgetsBinding.instance.endOfFrame;
+    RenderBox? boxOf(GlobalKey key) {
+      final box = key.currentContext?.findRenderObject();
+      return box is RenderBox && box.attached && box.hasSize ? box : null;
+    }
+
+    Future<SpecimenGrains?> read(GlobalKey key) async {
+      final box = key.currentContext?.findRenderObject();
+      if (box is! RenderRepaintBoundary || !box.attached) return null;
+      try {
+        return await SpecimenGrains.capture(box, pixelRatio: ratio);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    final theirs = await read(_theirSprite);
+    final mine = await read(_mineSprite);
+    if (!mounted || _arrival != arrival) return;
+    final stack = boxOf(_stackKey), sigil = boxOf(_sigilKey);
+    final theirBox = boxOf(_theirSprite), myBox = boxOf(_mineSprite);
+    FusionParticleField? field;
+    if (stack != null && sigil != null && theirBox != null && myBox != null) {
+      Offset centre(RenderBox b) =>
+          stack.globalToLocal(b.localToGlobal(b.size.center(Offset.zero)));
+      field = FusionParticleField(
+        specimens: [
+          theirs ?? SpecimenGrains.disc(theirColor),
+          mine ?? SpecimenGrains.disc(myColor),
+        ],
+        centres: [centre(theirBox), centre(myBox)],
+        scales: const [1, 1],
+        core: centre(sigil),
+        coreRadius: sigil.size.shortestSide / 2 * 0.6,
+        colors: [theirColor, myColor],
+      );
+    }
+    setState(() => _pour = field);
+    context.sound(SoundCue.fusionMerge, owner: this);
+    unawaited(HapticFeedback.mediumImpact());
+    if (field != null) await _merge.forward(from: 0);
+    if (!mounted || _arrival != arrival) return;
+    _return.value = 0;
+
+    final sigilRect = sigil == null
+        ? null
+        : sigil.localToGlobal(Offset.zero) & sigil.size;
+    final core = sigilRect == null
+        ? null
+        : Rect.fromCenter(
+            center: sigilRect.center,
+            width: sigilRect.shortestSide * 0.6,
+            height: sigilRect.shortestSide * 0.6,
+          );
+    final outcome = ValueNotifier<FusionRevealData?>(
+      FusionRevealData(accent: Color.lerp(theirColor, myColor, 0.5)!),
+    );
+    await showAlchemyFusionCinematic<bool>(
+      context: context,
+      leftSprite: const SizedBox.shrink(),
+      rightSprite: const SizedBox.shrink(),
+      // The pair already poured in on the table.
+      drawSpecimens: false,
+      leftColor: theirColor,
+      rightColor: myColor,
+      coreRect: core,
+      outcome: outcome,
+      grains: field?.specimens,
+      minDuration: const Duration(milliseconds: 2800),
+      task: () async => true,
+    );
+    outcome.dispose();
+    if (!mounted) return;
+    setState(() {
+      _pour = null;
+      _played = true;
+    });
+    _merge.value = 0;
+    unawaited(HapticFeedback.lightImpact());
+    // Each is still its owner's: back on its stage.
+    await _return.forward(from: 0);
+  }
+
   Future<void> _dismiss() async {
     final arrival = _arrival;
     if (arrival == null) return;
@@ -281,9 +422,12 @@ class _TradeScreenState extends State<TradeScreen>
     setState(() {
       _arrival = null;
       _field = null;
+      _pour = null;
       _played = false;
     });
     _swap.value = 0;
+    _merge.value = 0;
+    _return.value = 1;
   }
 
   Future<void> _seeIt() async {
@@ -315,13 +459,21 @@ class _TradeScreenState extends State<TradeScreen>
     final arrival = _arrival;
 
     // What stands on each stage: the table's two; during a trade, the two
-    // trading places; after one, each where it went.
-    final traded = view?.table.done ?? false;
+    // trading places; after one, each where it went. A fusion leaves each
+    // where it was.
+    final traded = view?.table.traded ?? false;
     final mineCard =
         arrival?.gave ??
         trades.read((traded ? view?.theirs : view?.mine)?.card);
     final theirCard =
         arrival?.got ?? trades.read((traded ? view?.mine : view?.theirs)?.card);
+    if (view != null && view.fusing && view.phase != TradePhase.done) {
+      final key = '${view.mine?.card.hashCode}|${view.theirs?.card.hashCode}';
+      if (key != _checkFor) {
+        _checkFor = key;
+        _check = trades.whyNotFuse(_friend.uid);
+      }
+    }
 
     return Scaffold(
       backgroundColor: _palette.bg0,
@@ -329,6 +481,7 @@ class _TradeScreenState extends State<TradeScreen>
         child: Column(
           children: [
             _header(context),
+            _modes(trades, view),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, box) =>
@@ -351,27 +504,19 @@ class _TradeScreenState extends State<TradeScreen>
           palette: _palette,
           onTap: () => Navigator.of(context).maybePop(),
         ),
+        // TRADE / FUSE under it says what the table is.
         Expanded(
-          child: Column(
-            children: [
-              Text(
-                _friend.name,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.cinzel(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: _brassBright,
-                  letterSpacing: 1.1,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'TRADE TABLE',
-                style: caseMono(10, _palette.muted, spacing: 3),
-              ),
-            ],
+          child: Text(
+            _friend.name,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: GoogleFonts.cinzel(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: _brassBright,
+              letterSpacing: 1.1,
+            ),
           ),
         ),
         // Balances the back button.
@@ -379,6 +524,32 @@ class _TradeScreenState extends State<TradeScreen>
       ],
     ),
   );
+
+  /// TRADE or FUSE: what the table does with the two on it. Either player
+  /// can switch it while nothing is being finished.
+  Widget _modes(TradeService trades, TradeView? v) {
+    final finishing =
+        v != null && v.table.done && !(v.table.aClaimed && v.table.bClaimed);
+    final can = !_busy && _arrival == null && !finishing;
+    final fusing = v?.fusing ?? false;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(56, 10, 56, 0),
+      child: Opacity(
+        opacity: can ? 1 : BracketButton.disabledOpacity,
+        child: IgnorePointer(
+          ignoring: !can,
+          child: BracketTabs(
+            labels: const ['TRADE', 'FUSE'],
+            selected: fusing ? 1 : 0,
+            onSelect: (i) =>
+                _setMode(i == 1 ? TradeMode.fuse : TradeMode.trade),
+            palette: _palette,
+            accent: _brass,
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _table(
     BuildContext context,
@@ -393,12 +564,28 @@ class _TradeScreenState extends State<TradeScreen>
     final gap = h - stageH * 2 - 8;
     final sigilR = math.min(gap * 0.4, w * 0.17).clamp(26.0, 72.0);
     final arrival = _arrival;
-    final iReady = view?.iReady ?? false;
-    final theyReady = view?.theyReady ?? false;
+    final iReady = view?.iConfirmed ?? false;
+    final theyReady = view?.theyConfirmed ?? false;
     final done = arrival != null || (view?.table.done ?? false);
+    final pour = _pour;
     return Stack(
       key: _stackKey,
       children: [
+        // A fusion's grains on the far side of the sigil, under it.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: pour == null
+                  ? null
+                  : FusionParticlePainter(
+                      pour,
+                      () => _merge.value * FusionParticleField.duration,
+                      back: true,
+                      repaint: _merge,
+                    ),
+            ),
+          ),
+        ),
         // Their side.
         Positioned(
           left: 16,
@@ -411,6 +598,8 @@ class _TradeScreenState extends State<TradeScreen>
             after: arrival?.gave,
             spriteKey: _theirSprite,
             swap: _swap,
+            pour: pour == null ? null : (_merge, (t) => pour.cutY(0, t)),
+            back: _return,
             confirmed: theyReady && !done,
             empty: 'Nothing up yet.',
             onTap: () =>
@@ -418,6 +607,17 @@ class _TradeScreenState extends State<TradeScreen>
           ),
         ),
         // The sigil between.
+        Positioned(
+          left: 0,
+          right: 0,
+          top: stageH,
+          bottom: stageH,
+          child: IgnorePointer(
+            child: Center(
+              child: SizedBox.square(key: _sigilKey, dimension: sigilR * 2),
+            ),
+          ),
+        ),
         Positioned(
           left: 0,
           right: 0,
@@ -461,10 +661,27 @@ class _TradeScreenState extends State<TradeScreen>
             after: arrival?.got,
             spriteKey: _mineSprite,
             swap: _swap,
+            pour: pour == null ? null : (_merge, (t) => pour.cutY(1, t)),
+            back: _return,
             confirmed: iReady && !done,
             empty: 'Tap to choose.',
             onEmptyTap: _busy ? null : _choose,
             onTap: () => _show(_played ? arrival?.got : mineCard),
+          ),
+        ),
+        // The rest of a fusion's grains, over the sigil and the pair.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: pour == null
+                  ? null
+                  : FusionParticlePainter(
+                      pour,
+                      () => _merge.value * FusionParticleField.duration,
+                      back: false,
+                      repaint: _merge,
+                    ),
+            ),
           ),
         ),
         // The swap itself, over everything.
@@ -491,7 +708,7 @@ class _TradeScreenState extends State<TradeScreen>
             bottom: stageH,
             child: Center(
               child: GrainText(
-                'TRADED',
+                arrival?.fused ?? false ? 'FUSED' : 'TRADED',
                 textAlign: TextAlign.center,
                 style: GoogleFonts.cinzel(
                   fontSize: 30,
@@ -515,9 +732,18 @@ class _TradeScreenState extends State<TradeScreen>
       final name = (got.nickname?.trim().isNotEmpty ?? false)
           ? got.nickname!.trim()
           : catalog.getCreatureById(got.baseId)?.name ?? 'It';
+      final where = arrival.chamber == null
+          ? 'Yours went to cold storage.'
+          : 'Yours is in chamber ${arrival.chamber! + 1}.';
       children.addAll([
         _line(
-          _played ? '$name is yours, from ${arrival.friendName}.' : 'Trading…',
+          arrival.fused
+              ? (_played
+                    ? '${arrival.friendName} has the same cultivation. $where'
+                    : 'Fusing…')
+              : _played
+              ? '$name is yours, from ${arrival.friendName}.'
+              : 'Trading…',
         ),
         const SizedBox(height: 12),
         AnimatedOpacity(
@@ -527,16 +753,18 @@ class _TradeScreenState extends State<TradeScreen>
             ignoring: !_played,
             child: Row(
               children: [
-                Expanded(
-                  child: BracketButton(
-                    label: 'SEE IT',
-                    primary: false,
-                    palette: _palette,
-                    accent: _brass,
-                    onTap: _seeIt,
+                if (!arrival.fused) ...[
+                  Expanded(
+                    child: BracketButton(
+                      label: 'SEE IT',
+                      primary: false,
+                      palette: _palette,
+                      accent: _brass,
+                      onTap: _seeIt,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 10),
+                  const SizedBox(width: 10),
+                ],
                 Expanded(
                   child: BracketButton(
                     label: 'DONE',
@@ -562,6 +790,7 @@ class _TradeScreenState extends State<TradeScreen>
 
   /// What this player can do now, and what the table is waiting on.
   List<Widget> _turn(TradeService trades, TradeView? v) {
+    if (v?.fusing ?? false) return _fuseTurn(trades, v!);
     final them = _friend.name;
     final phase = v?.phase ?? TradePhase.empty;
     Widget button(String label, VoidCallback? onTap, {bool primary = true}) =>
@@ -599,7 +828,7 @@ class _TradeScreenState extends State<TradeScreen>
       ),
       TradePhase.bothUp => (
         none
-            ? 'No trades left this week.'
+            ? 'No trades or fusions left this week.'
             : 'Confirm when the trade looks right.',
         [
           button('CHANGE', _choose, primary: false),
@@ -619,7 +848,7 @@ class _TradeScreenState extends State<TradeScreen>
       ),
       TradePhase.theyConfirmed => (
         none
-            ? '$them confirmed. No trades left this week.'
+            ? '$them confirmed. No trades or fusions left this week.'
             : '$them confirmed. Confirm to trade.',
         [
           button('CHANGE', _choose, primary: false),
@@ -635,6 +864,102 @@ class _TradeScreenState extends State<TradeScreen>
       ),
     };
     return [_line(text), const SizedBox(height: 12), Row(children: buttons)];
+  }
+
+  /// [_turn] on a fusion table. Each keeps their own, so nothing waits on
+  /// it; the lab's rules say whether the two can fuse here.
+  List<Widget> _fuseTurn(TradeService trades, TradeView v) {
+    final them = _friend.name;
+    Widget button(String label, VoidCallback? onTap, {bool primary = true}) =>
+        Expanded(
+          child: BracketButton(
+            label: label,
+            primary: primary,
+            enabled: onTap != null && !_busy,
+            palette: _palette,
+            accent: _brass,
+            onTap: onTap ?? () {},
+          ),
+        );
+    final none = trades.left() < 1;
+    Widget asked(String ready, String label) => FutureBuilder<String?>(
+      future: _check,
+      builder: (context, snap) {
+        final why = snap.connectionState == ConnectionState.done
+            ? snap.data
+            : null;
+        final blocked = none || why != null;
+        return Column(
+          children: [
+            _line(none ? 'No trades or fusions left this week.' : why ?? ready),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                button('CHANGE', _choose, primary: false),
+                const SizedBox(width: 10),
+                button(label, blocked ? null : () => _confirm(v)),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+    final List<Widget> out = switch (v.phase) {
+      TradePhase.empty => [
+        _line('Choose an Alchemon to fuse with $them\'s.'),
+        const SizedBox(height: 12),
+        Row(children: [button('CHOOSE', _choose)]),
+      ],
+      TradePhase.waitingForThem => [
+        _line('Waiting for $them to put one up.'),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            button(
+              'TAKE BACK',
+              () => _do(() => trades.takeBack(_friend.uid)),
+              primary: false,
+            ),
+            const SizedBox(width: 10),
+            button('CHANGE', _choose),
+          ],
+        ),
+      ],
+      TradePhase.yourTurn => [
+        _line('$them put one up. Choose one to fuse with it.'),
+        const SizedBox(height: 12),
+        Row(children: [button('CHOOSE', _choose)]),
+      ],
+      TradePhase.bothUp => [
+        asked('Confirm when the pair looks right.', 'CONFIRM'),
+      ],
+      TradePhase.youConfirmed => [
+        _line('Confirmed. Waiting for $them.'),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            button(
+              'UNDO CONFIRM',
+              () => _do(() => trades.unconfirm(_friend.uid)),
+              primary: false,
+            ),
+          ],
+        ),
+      ],
+      TradePhase.theyConfirmed => [
+        asked('$them confirmed. Confirm to fuse.', 'FUSE'),
+      ],
+      TradePhase.done => [
+        _line(
+          v.theyClaimed
+              ? 'Fused. Choose again to trade or fuse.'
+              : 'Fused. Waiting for $them to collect theirs.',
+        ),
+        const SizedBox(height: 12),
+        Row(children: [button('CHOOSE', v.theyClaimed ? _choose : null)]),
+      ],
+    };
+    return out;
   }
 
   Widget _line(String text) => SizedBox(
@@ -668,8 +993,8 @@ class _TradeScreenState extends State<TradeScreen>
     final text = !trades.allowanceKnown
         ? 'READING THIS WEEK\'S TRADES…'
         : left == 0
-        ? 'NO TRADES LEFT  ·  MORE IN $resets'
-        : '$left OF ${TradeRules.perWeek} TRADES LEFT THIS WEEK  ·  '
+        ? 'NONE LEFT THIS WEEK  ·  MORE IN $resets'
+        : '$left OF ${TradeRules.perWeek} LEFT THIS WEEK  ·  '
               'RESETS IN $resets';
     return Column(
       children: [
@@ -708,10 +1033,12 @@ class _Stage extends StatelessWidget {
     required this.card,
     required this.spriteKey,
     required this.swap,
+    required this.back,
     required this.confirmed,
     required this.empty,
     required this.onTap,
     this.after,
+    this.pour,
     this.onEmptyTap,
   });
 
@@ -719,6 +1046,14 @@ class _Stage extends StatelessWidget {
   final TradedCreature? card, after;
   final GlobalKey spriteKey;
   final Animation<double> swap;
+
+  /// A fusion pouring this one into the sigil: its clock, in seconds of
+  /// [FusionParticleField], and where the crest has reached at a time (the
+  /// sprite above it is grains now).
+  final (Animation<double>, double Function(double t))? pour;
+
+  /// It standing back up after a fusion (0 gone, 1 whole).
+  final Animation<double> back;
   final bool confirmed;
   final String empty;
   final VoidCallback onTap;
@@ -830,13 +1165,34 @@ class _Stage extends StatelessWidget {
                         bottom: box.maxHeight * 0.16,
                         child: Center(
                           child: AnimatedBuilder(
-                            animation: swap,
-                            builder: (context, child) => Opacity(
-                              opacity: next == null
-                                  ? 1
-                                  : TradeSwap.leavingOpacity(swap.value),
-                              child: child,
-                            ),
+                            animation: Listenable.merge([
+                              swap,
+                              back,
+                              ?pour?.$1,
+                            ]),
+                            builder: (context, child) {
+                              final opacity =
+                                  (next == null
+                                      ? 1.0
+                                      : TradeSwap.leavingOpacity(swap.value)) *
+                                  Curves.easeOut.transform(back.value);
+                              final p = pour;
+                              final cut = p == null
+                                  ? double.negativeInfinity
+                                  : p.$2(
+                                      p.$1.value * FusionParticleField.duration,
+                                    );
+                              return ClipRect(
+                                clipper: SpriteCrestClipper(cut),
+                                clipBehavior: cut == double.negativeInfinity
+                                    ? Clip.none
+                                    : Clip.hardEdge,
+                                child: Opacity(
+                                  opacity: cut == double.infinity ? 0 : opacity,
+                                  child: child,
+                                ),
+                              );
+                            },
                             child: RepaintBoundary(
                               key: spriteKey,
                               child: InstanceSprite(

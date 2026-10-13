@@ -10,7 +10,8 @@
 //
 // Settings rows:
 //   trade_escrow_v1    {"<table id>": <row JSON>}  confirmed, waiting
-//   trade_receipts_v1  {"<trade key>": {"gave", "got", "at"}}  collected
+//   trade_receipts_v1  {"<trade key>": {"gave", "got", "at"}}  collected (a
+//                      fusion's "got" is its cultivation's id)
 
 import 'dart:convert';
 
@@ -241,12 +242,20 @@ class TradeVault {
     await _carry(row.instanceId, got.caseStyle, got.trail);
 
     all[key] = TradeReceipt(gave: giveId, got: row.instanceId, atMs: step.atMs);
-    await db.settingsDao.setSetting(
-      receiptsKey,
-      jsonEncode({for (final e in all.entries) e.key: e.value.toJson()}),
-    );
+    await _saveReceipts(all);
     return row;
   });
+
+  /// Keeps [receipt] for [key], from inside the transaction that collected
+  /// it: a fusion's, whose cultivation [TradeReceipt.got] is.
+  Future<void> keepReceipt(String key, TradeReceipt receipt) async =>
+      _saveReceipts({...await receipts(), key: receipt});
+
+  Future<void> _saveReceipts(Map<String, TradeReceipt> all) =>
+      db.settingsDao.setSetting(
+        receiptsKey,
+        jsonEncode({for (final e in all.entries) e.key: e.value.toJson()}),
+      );
 
   /// Takes out of the collection any Alchemon traded away ([gone]: id →
   /// when) that a restored save brought back. Returns how many.
@@ -352,6 +361,7 @@ class TradeVault {
 }
 
 /// A done trade, collected: what left, what arrived, and when it was done.
+/// For a fusion, the parent (which stayed) and the cultivation.
 class TradeReceipt {
   const TradeReceipt({
     required this.gave,

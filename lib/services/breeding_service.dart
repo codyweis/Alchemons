@@ -59,7 +59,7 @@ class BreedingServiceV2 {
 
   /// Returns true if cross-species breeding is allowed between these two base IDs,
   /// based on mutationFamily + constellation unlock state.
-  Future<bool> _canCrossBreed(String baseIdA, String baseIdB) async {
+  Future<bool> canCrossBreed(String baseIdA, String baseIdB) async {
     final baseA = repository.getCreatureById(baseIdA);
     final baseB = repository.getCreatureById(baseIdB);
 
@@ -100,7 +100,7 @@ class BreedingServiceV2 {
     String? likelihoodAnalysisJson,
   }) async {
     // ---- Cross-species gate (owned vs owned) ----
-    final allowed = await _canCrossBreed(parent1.baseId, parent2.baseId);
+    final allowed = await canCrossBreed(parent1.baseId, parent2.baseId);
     if (!allowed) {
       return EggCreationResult.failure('Cross-species synthesis is locked.');
     }
@@ -152,6 +152,46 @@ class BreedingServiceV2 {
     );
   }
 
+  /// Two friends' Alchemons fused ([a] from the trade table's first side,
+  /// [b] from its second, so it is the same pair whoever makes it): the
+  /// cultivation both of them get, made once and placed nowhere yet — each
+  /// game places its own with [placeFriendVial]. Null when the two make
+  /// nothing. The gates (rested, Mystics, two families) are each player's
+  /// own and are checked before this.
+  EggPayload? brewForFriends(CreatureInstance a, CreatureInstance b) {
+    final result = engine.breedInstances(a, b);
+    final offspring = result.creature;
+    if (!result.success || offspring == null) return null;
+    final payload = payloadFactory.fromBreedingResult(
+      offspring,
+      likelihoodAnalysisJson: _buildInstanceBreedingAnalysis(a, b, offspring),
+    );
+    return EggPayload.fromJson({
+      ...payload.toJson(),
+      'source': 'friend_fusion',
+    });
+  }
+
+  /// Puts [payload] (from [brewForFriends]) in a free chamber, or in cold
+  /// storage when none is, cultivating as long as this player's own natures,
+  /// constellation and boosts say.
+  Future<EggCreationResult> placeFriendVial(
+    EggPayload payload, {
+    bool bothParentsFire = false,
+  }) async {
+    final species = repository.getCreatureById(payload.baseId);
+    if (species == null) {
+      return EggCreationResult.failure('This game does not know that Alchemon.');
+    }
+    return _createEgg(
+      species,
+      payload,
+      bothParentsFire: bothParentsFire,
+      enforceStorageCapacity: false,
+      naturesFromPayload: true,
+    );
+  }
+
   /// Wild breeding - breed instance with wild catalog creature
   ///
   /// Same pattern: only one breeding pass, then analysis on that result.
@@ -172,7 +212,7 @@ class BreedingServiceV2 {
     AlchemonMutation? forcedMutation,
   }) async {
     // ---- Cross-species gate (owned vs wild) ----
-    final allowed = await _canCrossBreed(ownedParent.baseId, wildCreature.id);
+    final allowed = await canCrossBreed(ownedParent.baseId, wildCreature.id);
     if (!allowed) {
       return EggCreationResult.failure(
         'Cross-species synthesis with wild specimens is locked.',
@@ -350,6 +390,8 @@ class BreedingServiceV2 {
     bool bothParentsFire = false,
     PureBreedingInfo? pureBreedingInfo,
     bool enforceStorageCapacity = true,
+    // [creature] is the species only, so the natures are the payload's.
+    bool naturesFromPayload = false,
   }) async {
     final rarityKey = creature.rarity.toLowerCase();
     final baseHatchDelay =
@@ -360,7 +402,8 @@ class BreedingServiceV2 {
     // Apply nature + constellation + (maybe) fire perk
     final adjustedDelay = _applyHatchModifiers(
       baseHatchDelay,
-      creature,
+      natureId: naturesFromPayload ? payload.natureId : creature.nature?.id,
+      nature2Id: naturesFromPayload ? payload.natureId2 : creature.nature2?.id,
       bothParentsFire: bothParentsFire,
     );
 
@@ -525,16 +568,17 @@ class BreedingServiceV2 {
   String _familyOf(Creature creature) => creature.mutationFamily ?? 'Unknown';
 
   Duration _applyHatchModifiers(
-    Duration base,
-    Creature creature, {
+    Duration base, {
+    String? natureId,
+    String? nature2Id,
     bool bothParentsFire = false,
   }) {
     // FactionService internally checks current faction == Volcanic, perk1
     // active and bothParentsFire, and does the 50% RNG. Returns 1.0 or 0.5.
     return cultivationDuration(
       base: base,
-      natureId: creature.nature?.id,
-      nature2Id: creature.nature2?.id,
+      natureId: natureId,
+      nature2Id: nature2Id,
       gestationReduction: constellation.getGestationReduction(),
       fireMultiplier: factions.fireBreederTimeMultiplier(
         bothParentsFire: bothParentsFire,

@@ -20,6 +20,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/constellation_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
+import 'package:alchemons/services/friend_fusion_lab.dart';
 import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/services/race_room_service.dart';
@@ -409,6 +410,20 @@ class AppProviders extends StatelessWidget {
                   factions: ctx.read<FactionService>(),
                 );
               },
+        ),
+
+        // Fusing with friends needs the lab, which waits for the recipes;
+        // the trade tables are given it once it is ready. Not lazy, so a
+        // fusion finished elsewhere is collected without opening anything.
+        ProxyProvider2<BreedingServiceV2?, StaminaService, FriendFusionLab?>(
+          lazy: false,
+          update: (ctx, breeding, stamina, _) {
+            final lab = breeding == null
+                ? null
+                : FriendFusionLab(breeding: breeding, stamina: stamina);
+            ctx.read<TradeService>().attachLab(lab);
+            return lab;
+          },
         ),
       ],
       child: child,

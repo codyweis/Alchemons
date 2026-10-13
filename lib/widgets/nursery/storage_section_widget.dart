@@ -1436,6 +1436,7 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
       'wild_capture' || 'wild' => 'Wild Capture',
       'wild_fusion' || 'wild_breeding' => 'Wild Fusion',
       'standard_fusion' || 'breeding' => 'Standard Fusion',
+      'friend_fusion' => 'Friend Fusion',
       'rift_portal' => 'Rift Portal',
       'planet_summon' => 'Planet Summon',
       'boss_summon' => 'Altar Summon',

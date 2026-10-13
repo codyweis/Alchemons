@@ -2234,6 +2234,8 @@ String _formatSource(String source) {
     case 'standard_fusion':
     case 'breeding':
       return 'Fusion';
+    case 'friend_fusion':
+      return 'Friend Fusion';
     case 'rift_portal':
       return 'Rift Portal';
     case 'planet_summon':

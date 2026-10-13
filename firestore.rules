@@ -331,6 +331,25 @@ service cloud.firestore {
     // (aClaimed / bClaimed); once both have, either may clear the table for
     // the next trade. Putting up, confirming and finishing need the two to be
     // friends; taking back and collecting do not.
+    //
+    // A table can fuse instead (mode 'fuse'; a table without one trades).
+    // Switching clears every confirmation. A fusion confirms with its own
+    // flags (aFuse / bFuse, never aReady / bReady), and the one confirming
+    // second ends it 'fused' with the cultivation both get (result) in the
+    // same write. Games older than fusions only know 'done', so they never
+    // take a fusion for a trade, and can't confirm one.
+
+    function tradeMode(d) {
+      return d.get('mode', 'trade');
+    }
+
+    function fuseFlag(d, s) {
+      return d.get(s + 'Fuse', false);
+    }
+
+    function noneConfirmed(d) {
+      return !d.aReady && !d.bReady && !fuseFlag(d, 'a') && !fuseFlag(d, 'b');
+    }
 
     function tradeSide(d) {
       return request.auth.uid == d.a ? 'a' : 'b';
@@ -359,7 +378,7 @@ service cloud.firestore {
     function isTradeShape(tradeId, d) {
       return d.keys().hasOnly(['a', 'b', 'parties', 'aName', 'bName', 'aOffer', 'bOffer',
             'aReady', 'bReady', 'status', 'aClaimed', 'bClaimed', 'lastBy',
-            'updatedAt', 'doneAt']) &&
+            'updatedAt', 'doneAt', 'mode', 'aFuse', 'bFuse', 'result']) &&
           d.keys().hasAll(['a', 'b', 'parties', 'aName', 'bName', 'aOffer', 'bOffer',
             'aReady', 'bReady', 'status', 'aClaimed', 'bClaimed', 'lastBy',
             'updatedAt', 'doneAt']) &&
@@ -372,33 +391,48 @@ service cloud.firestore {
           isTradeOffer(d.aOffer) && isTradeOffer(d.bOffer) &&
           d.aReady is bool && d.bReady is bool &&
           d.aClaimed is bool && d.bClaimed is bool &&
-          d.status in ['open', 'done'] &&
+          tradeMode(d) in ['trade', 'fuse'] &&
+          fuseFlag(d, 'a') is bool && fuseFlag(d, 'b') is bool &&
+          d.status in ['open', 'done', 'fused'] &&
           d.lastBy == request.auth.uid &&
           d.updatedAt == request.time &&
-          (d.status == 'done' || (!d.aClaimed && !d.bClaimed && d.doneAt == null)) &&
+          (d.status != 'open' || (!d.aClaimed && !d.bClaimed && d.doneAt == null)) &&
           (!d.aReady || (d.aOffer != null && d.bOffer != null)) &&
-          (!d.bReady || (d.aOffer != null && d.bOffer != null));
+          (!d.bReady || (d.aOffer != null && d.bOffer != null)) &&
+          (!fuseFlag(d, 'a') || (d.aOffer != null && d.bOffer != null)) &&
+          (!fuseFlag(d, 'b') || (d.aOffer != null && d.bOffer != null)) &&
+          // Each confirms its own way, and ends its own way.
+          (tradeMode(d) == 'trade'
+            ? !fuseFlag(d, 'a') && !fuseFlag(d, 'b') && d.status != 'fused'
+            : !d.aReady && !d.bReady && d.status != 'done') &&
+          // Only a fused table holds a cultivation.
+          (d.status == 'fused'
+            ? d.get('result', null) is string && d.result.size() <= 60000
+            : d.get('result', null) == null);
     }
 
     // A fresh table, or one cleared after a trade both sides collected: only
     // the writer's side may hold anything, and nothing is confirmed.
     function isFreshTable(d) {
       let s = tradeSide(d);
-      return d.status == 'open' && !d.aReady && !d.bReady &&
+      return d.status == 'open' && noneConfirmed(d) &&
           d[tradeOther(s) + 'Offer'] == null &&
           (d[s + 'Offer'] == null || areFriends(tradePartner(d)));
     }
 
-    // Open to open: the writer's own side changes.
+    // Open to open: the writer's own side changes, or what the table does.
     function isTradeTurn(d, r) {
       let s = tradeSide(r);
       let o = tradeOther(s);
-      let changed = d[s + 'Offer'] != r[s + 'Offer'];
-      let readying = d[s + 'Ready'] == true && r[s + 'Ready'] == false;
+      let changed = d[s + 'Offer'] != r[s + 'Offer'] || tradeMode(d) != tradeMode(r);
+      let readying = (d[s + 'Ready'] == true && r[s + 'Ready'] == false) ||
+          (fuseFlag(d, s) == true && fuseFlag(r, s) == false);
       return r.status == 'open' && d.status == 'open' &&
           d.diff(r).affectedKeys().hasOnly([s + 'Name', s + 'Offer', s + 'Ready',
-            o + 'Ready', 'lastBy', 'updatedAt']) &&
-          (changed ? (!d.aReady && !d.bReady) : d[o + 'Ready'] == r[o + 'Ready']) &&
+            o + 'Ready', s + 'Fuse', o + 'Fuse', 'mode', 'lastBy', 'updatedAt']) &&
+          (changed
+            ? noneConfirmed(d)
+            : d[o + 'Ready'] == r[o + 'Ready'] && fuseFlag(d, o) == fuseFlag(r, o)) &&
           (!readying || areFriends(tradePartner(r))) &&
           (!changed || d[s + 'Offer'] == null || areFriends(tradePartner(r)));
     }
@@ -417,10 +451,25 @@ service cloud.firestore {
           areFriends(tradePartner(r));
     }
 
-    // Done: the writer's game has collected it.
+    // Open to fused: the second confirmation of a fusion, with what it made.
+    function isFuseDone(d, r) {
+      let s = tradeSide(r);
+      let o = tradeOther(s);
+      return r.status == 'open' && d.status == 'fused' &&
+          tradeMode(r) == 'fuse' &&
+          fuseFlag(r, o) == true &&
+          fuseFlag(d, 'a') == true && fuseFlag(d, 'b') == true &&
+          d.aOffer != null && d.bOffer != null &&
+          d.diff(r).affectedKeys().hasOnly(['status', s + 'Fuse', s + 'Name',
+            'result', 'doneAt', 'lastBy', 'updatedAt']) &&
+          d.doneAt == request.time &&
+          areFriends(tradePartner(r));
+    }
+
+    // Done or fused: the writer's game has collected it.
     function isTradeClaim(d, r) {
       let s = tradeSide(r);
-      return r.status == 'done' && d.status == 'done' &&
+      return r.status in ['done', 'fused'] && d.status == r.status &&
           d.diff(r).affectedKeys().hasOnly([s + 'Claimed', 'lastBy', 'updatedAt']) &&
           d[s + 'Claimed'] == true;
     }
@@ -440,8 +489,9 @@ service cloud.firestore {
           isTradeShape(tradeId, request.resource.data) &&
           (isTradeTurn(request.resource.data, resource.data) ||
            isTradeDone(request.resource.data, resource.data) ||
+           isFuseDone(request.resource.data, resource.data) ||
            isTradeClaim(request.resource.data, resource.data) ||
-           (resource.data.status == 'done' && resource.data.aClaimed &&
+           (resource.data.status in ['done', 'fused'] && resource.data.aClaimed &&
             resource.data.bClaimed && isFreshTable(request.resource.data)));
       allow delete: if isSignedIn() &&
           request.auth.uid in resource.data.parties &&
