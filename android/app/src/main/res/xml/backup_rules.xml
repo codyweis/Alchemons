@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and older. Firebase Auth encrypts the signed-in user with a key
+     kept in the Android Keystore, which is never backed up. Restored on a
+     reinstall without that key, these files can't be read or replaced, so the
+     player is signed out on every launch. Everything else is still backed up. -->
+<full-backup-content>
+    <exclude domain="sharedpref" path="com.google.firebase.auth.api.Store.W0RFRkFVTFRd+MTo3ODE3OTgxOTEyMjphbmRyb2lkOjAxNjJjYTM4MjlhODdkY2E3Y2FjZWI.xml" />
+    <exclude domain="sharedpref" path="com.google.firebase.auth.api.crypto.W0RFRkFVTFRd+MTo3ODE3OTgxOTEyMjphbmRyb2lkOjAxNjJjYTM4MjlhODdkY2E3Y2FjZWI.xml" />
+</full-backup-content>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 12 and newer; see backup_rules.xml for why Firebase Auth's
+     encrypted sign-in files stay behind. The file names are "[DEFAULT]" and
+     this package's Firebase app id, base64-encoded. -->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="com.google.firebase.auth.api.Store.W0RFRkFVTFRd+MTo3ODE3OTgxOTEyMjphbmRyb2lkOjAxNjJjYTM4MjlhODdkY2E3Y2FjZWI.xml" />
+        <exclude domain="sharedpref" path="com.google.firebase.auth.api.crypto.W0RFRkFVTFRd+MTo3ODE3OTgxOTEyMjphbmRyb2lkOjAxNjJjYTM4MjlhODdkY2E3Y2FjZWI.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="com.google.firebase.auth.api.Store.W0RFRkFVTFRd+MTo3ODE3OTgxOTEyMjphbmRyb2lkOjAxNjJjYTM4MjlhODdkY2E3Y2FjZWI.xml" />
+        <exclude domain="sharedpref" path="com.google.firebase.auth.api.crypto.W0RFRkFVTFRd+MTo3ODE3OTgxOTEyMjphbmRyb2lkOjAxNjJjYTM4MjlhODdkY2E3Y2FjZWI.xml" />
+    </device-transfer>
+</data-extraction-rules>

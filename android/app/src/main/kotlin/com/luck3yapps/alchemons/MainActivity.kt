@@ -2,6 +2,7 @@ package com.luck3yapps.alchemons
 
 import android.hardware.input.InputManager
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -16,6 +17,11 @@ class MainActivity : FlutterActivity(), GamepadsCompatibleActivity {
     // and sticks before Flutter's own key handling does.
     private var keyListener: ((KeyEvent) -> Boolean)? = null
     private var motionListener: ((MotionEvent) -> Boolean)? = null
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        RestoredAuthCleanup.run(this)
+        super.onCreate(savedInstanceState)
+    }
 
     override fun dispatchGenericMotionEvent(motionEvent: MotionEvent): Boolean {
         if (motionListener?.invoke(motionEvent) == true) return true
