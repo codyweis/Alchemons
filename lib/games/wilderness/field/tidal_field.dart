@@ -832,21 +832,6 @@ class TidalField extends _GrainField {
     return pts;
   }
 
-  /// A closed outline drawn smooth: through the middles of its edges, each
-  /// corner a curve.
-  Path _smooth(List<Offset> pts) {
-    final path = Path();
-    final n = pts.length;
-    final first = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
-    path.moveTo(first.dx, first.dy);
-    for (var i = 0; i < n; i++) {
-      final a = pts[i], b = pts[(i + 1) % n];
-      final mid = Offset.lerp(a, b, 0.5)!;
-      path.quadraticBezierTo(a.dx, a.dy, mid.dx, mid.dy);
-    }
-    return path..close();
-  }
-
   // ── The flat ─────────────────────────────────────────────────────────────
 
   /// The pools in the flat where the wild has them: (x as a share of the

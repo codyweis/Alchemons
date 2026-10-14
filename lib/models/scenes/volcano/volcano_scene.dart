@@ -36,7 +36,8 @@ final volcanoScene = SceneDefinition(
   // where each point's encounter partner stands (a pace to the side its
   // battle position names), so a partner that cannot float has rock too —
   // unless another creature's rock or another partner's is there already,
-  // which it stands on instead. Nothing stands on the lava.
+  // which it stands on instead. Only Lava Alchemons stand in the lava, in
+  // the pools of it open at the two lava points.
   //
   // x is a share of the point's own layer's loop.
   spawnPoints: [
@@ -140,6 +141,26 @@ final volcanoScene = SceneDefinition(
       anchor: SceneLayer.layer3,
       size: Vector2(64, 64),
       battlePos: const Offset(0.5484, 0.565),
+    ),
+    // standing in a pool of open lava short of SP_volcano_01's shelf, its
+    // partner on that shelf
+    SpawnPoint(
+      id: 'SP_volcano_13',
+      normalizedPos: const Offset(0.2633, 0.83),
+      anchor: SceneLayer.layer4,
+      size: Vector2(80, 80),
+      battlePos: const Offset(0.3633, 0.70),
+      perch: SpawnPerch.lava,
+    ),
+    // standing in a pool of open lava short of SP_volcano_04's shelf, its
+    // partner on that shelf
+    SpawnPoint(
+      id: 'SP_volcano_14',
+      normalizedPos: const Offset(0.6333, 0.83),
+      anchor: SceneLayer.layer4,
+      size: Vector2(80, 80),
+      battlePos: const Offset(0.7333, 0.70),
+      perch: SpawnPerch.lava,
     ),
   ],
 );

@@ -199,6 +199,21 @@ abstract class _GrainField extends FieldArt {
     return (x + (lo + hi) / 2, (hi - lo) / 2);
   }
 
+  /// A closed outline drawn smooth: through the middles of its edges, each
+  /// corner a curve.
+  Path _smooth(List<Offset> pts) {
+    final path = Path();
+    final n = pts.length;
+    final first = Offset.lerp(pts[n - 1], pts[0], 0.5)!;
+    path.moveTo(first.dx, first.dy);
+    for (var i = 0; i < n; i++) {
+      final a = pts[i], b = pts[(i + 1) % n];
+      final mid = Offset.lerp(a, b, 0.5)!;
+      path.quadraticBezierTo(a.dx, a.dy, mid.dx, mid.dy);
+    }
+    return path..close();
+  }
+
   /// The places on [layer] where creatures stand on ground of their own,
   /// each with the size of what stands there. An encounter partner whose
   /// place is one of them stands on that ground and needs none of its own.

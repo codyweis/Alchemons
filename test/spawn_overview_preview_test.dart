@@ -73,6 +73,7 @@ void main() {
     const big = 'rare/HOR03_earthhorn';
     const flyer = 'legendary/WNG04_airwing';
     const wader = 'common/LET02_waterlet';
+    const lavaWader = 'common/LET06_lavalet';
     final sprites = <String, ui.Image>{};
     await tester.runAsync(() async {
       // A real face for the point ids (tests draw text in boxes otherwise).
@@ -83,7 +84,7 @@ void main() {
             ))
             .load();
       }
-      for (final p in [walker, big, flyer, wader]) {
+      for (final p in [walker, big, flyer, wader, lavaWader]) {
         final file = 'assets/images/creatures/${p}_spritesheet.png';
         final data = await rootBundle.load(file);
         final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
@@ -131,6 +132,7 @@ void main() {
       final sprite = switch (p.perch) {
         SpawnPerch.air => flyer,
         SpawnPerch.wade => wader,
+        SpawnPerch.lava => lavaWader,
         SpawnPerch.ground => n++ % 2 == 0 ? walker : big,
       };
       final size = p.size.x;

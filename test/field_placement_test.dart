@@ -92,6 +92,34 @@ void main() {
   onlyFloatersAloft('Volcano', volcanoScene, volcanoEncounterPools);
   onlyFloatersAloft('Dunes', dunesScene, dunesEncounterPools);
 
+  test('only Lava Alchemons stand in the Volcano\'s lava', () {
+    expect(speciesCanWadeLava('LET06'), isTrue);
+    expect(speciesCanWadeLava('HOR06'), isTrue);
+    expect(speciesCanWadeLava('LET01'), isFalse);
+    expect(speciesCanWadeLava('WNG02'), isFalse);
+    final tables = volcanoEncounterPools(volcanoScene);
+    for (final p in volcanoScene.spawnPoints.where(
+      (p) => p.perch == SpawnPerch.lava,
+    )) {
+      final service = EncounterService(
+        scene: volcanoScene,
+        party: const [],
+        tableBuilder: volcanoEncounterPools,
+        seed: 11,
+      );
+      final pool = poolForSpawn(
+        spawnId: p.id,
+        sceneWide: tables.sceneWide,
+        perSpawn: tables.perSpawn,
+      ).where((e) => p.takes(e.speciesId));
+      expect(pool.isEmpty, isFalse, reason: '${p.id} has nothing to roll');
+      for (var i = 0; i < 200; i++) {
+        final roll = service.roll(spawnId: p.id);
+        expect(speciesCanWadeLava(roll.speciesId), isTrue, reason: p.id);
+      }
+    }
+  });
+
   test('the sandstorm brings only what the Dunes\' air points can take '
       'there, and stands the rest on the sand', () {
     for (final e in dunesSandstorm.pool.entries) {
@@ -761,7 +789,9 @@ void main() {
   for (final h in const [412.0, 475.0, 700.0]) {
     test('every Volcano standing point stands on its own shelf at $h', () {
       final field = builtVolcano(h);
-      for (final p in volcanoScene.spawnPoints.where((p) => !p.aloft)) {
+      for (final p in volcanoScene.spawnPoints.where(
+        (p) => p.perch == SpawnPerch.ground,
+      )) {
         final x = p.normalizedPos.dx * volcanoPeriod(p.anchor);
         final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
         expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
@@ -788,6 +818,27 @@ void main() {
           ground.rest - hang,
           lessThan(p.size.y * 0.2),
           reason: '${p.id} hangs too high over it',
+        );
+      }
+    });
+
+    test('what stands in the Volcano\'s lava stands in it, not on rock, '
+        'at $h', () {
+      final field = builtVolcano(h);
+      final bathers = volcanoScene.spawnPoints.where(
+        (p) => p.perch == SpawnPerch.lava,
+      );
+      expect(bathers, isNotEmpty);
+      for (final p in bathers) {
+        final x = p.normalizedPos.dx * volcanoPeriod(p.anchor);
+        final feet = p.normalizedPos.dy * h + p.size.y * 0.42;
+        expect(field.perchFor(p.id), closeTo(feet, 1e-6), reason: p.id);
+        expect(field.groundAt(p.anchor, x), isNull, reason: '${p.id} on rock');
+        // Its encounter partner stands on another creature's shelf.
+        expect(
+          field.groundAt(p.anchor, x + p.partnerSide * kFieldPairGap),
+          isNotNull,
+          reason: '${p.id} partner',
         );
       }
     });

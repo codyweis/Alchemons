@@ -97,6 +97,9 @@ void main() {
       'SP_volcano_07': ('uncommon/PIP06_lavapip', 0.85),
       'SP_volcano_08': ('uncommon/LET14_spiritlet', 0.7),
       'SP_volcano_09': ('legendary/WNG01_firewing', 1.0),
+      // Standing in the lava.
+      'SP_volcano_13': ('common/LET06_lavalet', 0.75),
+      'SP_volcano_14': ('uncommon/PIP06_lavapip', 0.85),
     };
 
     final json =

@@ -63,10 +63,10 @@ class VolcanoField extends _GrainField {
   /// Daylight colors of the land; the hour's ambient light multiplies
   /// them.
   static const _albedo = <int, Color>{
-    _gRange: Color(0xFF6C2C32),
-    _gCone: Color(0xFF4E2020),
-    _gHill: Color(0xFF8A3828),
-    _gRock: Color(0xFF3E2422),
+    _gRange: Color(0xFF5A3840),
+    _gCone: Color(0xFF40292A),
+    _gHill: Color(0xFF5C3A32),
+    _gRock: Color(0xFF352B2B),
     _gAshTop: Color(0xFF8E8078),
   };
 
@@ -74,7 +74,7 @@ class VolcanoField extends _GrainField {
   static const _plumeAsh = Color(0xFF6E5A54), _eruptionAsh = Color(0xFF4A3C38);
 
   /// The lava's crust, and the colors its heat runs through.
-  static const _crust = Color(0xFF34201E);
+  static const _crust = Color(0xFF2E2526);
   static const _lavaOrange = Color(0xFFF05A1C), _lavaHot = Color(0xFFFFCC52);
 
   /// The lava's light on what stands over it, from dull to warm.
@@ -384,7 +384,6 @@ class VolcanoField extends _GrainField {
       double stand, {
       double? seatX,
       bool basalt = false,
-      int steps = 0,
       int? own,
     }) {
       final s = own ?? seed++;
@@ -393,12 +392,11 @@ class VolcanoField extends _GrainField {
         cx: cx,
         hw: hw,
         plate: (basalt ? 14 : 12) * k * _u,
-        rise: (basalt ? r.range(34, 44) : r.range(16, 22)) * k * _u,
-        flare: hw * (basalt ? r.range(0.05, 0.1) : 0.03),
+        rise: (basalt ? r.range(34, 44) : r.range(22, 30)) * k * _u,
+        flare: hw * (basalt ? r.range(0.1, 0.15) : 0.08),
         seed: s,
         haze: back ? 0.3 : 0.0,
         basalt: basalt,
-        steps: steps,
       );
       // Seat it so feet at [seatX] stand at [stand].
       b.level = stand - _sStand(b, seatX ?? cx);
@@ -426,8 +424,9 @@ class VolcanoField extends _GrainField {
       final basalt =
           !p.aloft && (own != null ? own.isEven : ground++ % 2 == 0);
       // Shelves under creatures are sized by the creatures, not the
-      // screen: the pace between a pair is the same on every screen.
-      if (!p.aloft) {
+      // screen: the pace between a pair is the same on every screen. What
+      // stands in the lava has none.
+      if (!p.aloft && p.perch != SpawnPerch.lava) {
         final (mid, extra) = _sharedSpan(p, x);
         final hw = size * (basalt ? 1.0 : 1.15) + extra;
         shelves.add(
@@ -437,8 +436,6 @@ class VolcanoField extends _GrainField {
             _feet(p),
             seatX: x,
             basalt: basalt,
-            // A basalt shelf steps down on the side away from its partner.
-            steps: basalt ? -side.round() : 0,
             own: own,
           ),
         );
@@ -488,19 +485,16 @@ class VolcanoField extends _GrainField {
   /// The lava at a shelf's foot.
   double _sLava(_Shelf s) => s.level + s.plate * 0.45 + s.rise;
 
-  /// Where feet stand on [s] at [x]. Basalt is flat, stepping down at one
-  /// end; a bank of cinder crowns, and slopes away into the lava at its
-  /// ends.
+  /// Where feet stand on [s] at [x]. Basalt is worn nearly level across
+  /// its middle, its shoulders rounding away toward the lava; a bank of
+  /// cinder crowns, and slopes away into the lava at its ends.
   double _sStand(_Shelf s, double x) {
     final t = _st(s, x);
     if (s.basalt) {
-      var y = s.level;
-      if (s.steps != 0) {
-        final k = t * s.steps;
-        if (k > 0.6) y += s.rise * 0.18;
-        if (k > 0.8) y += s.rise * 0.18;
-      }
-      return y;
+      final edge = ((t.abs() - 0.55) / 0.45).clamp(0.0, 1.0);
+      return s.level +
+          (s.rise + s.plate) * 0.5 * math.pow(edge, 2.2) +
+          s.plate * 0.06 * fieldNoise(x / (26 * _u), s.seed + 1);
     }
     return s.level +
         (s.rise + s.plate * 0.45) * math.pow(t.abs(), 3.2) +
@@ -508,27 +502,34 @@ class VolcanoField extends _GrainField {
   }
 
   double _sPinch(_Shelf s, double x) =>
-      (1 - math.pow(_st(s, x).abs(), s.basalt ? 8 : 5)).toDouble();
+      (1 - math.pow(_st(s, x).abs(), s.basalt ? 4 : 5)).toDouble();
 
-  /// The back of its top, against what is behind it — on basalt, broken
-  /// uneven.
+  /// The back of its top, against what is behind it: on basalt worn
+  /// uneven, on cinder knobbed with clinker.
   double _sBack(_Shelf s, double x) {
     final wear = s.basalt
-        ? 0.8 + 0.4 * (fieldNoise(x / (13 * _u), s.seed + 4) * 0.5 + 0.5)
-        : 1.0;
+        ? 0.8 +
+              0.4 * (fieldNoise(x / (13 * _u), s.seed + 4) * 0.5 + 0.5) +
+              1.6 *
+                  math.pow(
+                    math.max(0.0, fieldNoise(x / (19 * _u), s.seed + 7)),
+                    2,
+                  )
+        : 1.0 +
+              0.9 *
+                  math.pow(
+                    (fieldNoise(x / (7 * _u), s.seed + 4) * 0.5 + 0.5),
+                    3,
+                  );
     return _sStand(s, x) - s.plate * 0.55 * _sPinch(s, x) * wear;
   }
 
-  /// The front lip of its top, where the face drops to the lava. Basalt
-  /// breaks in columns, so its lip steps a little from one to the next.
-  double _sFront(_Shelf s, double x) {
-    var y = _sStand(s, x) + s.plate * 0.45 * _sPinch(s, x);
-    if (s.basalt) {
-      final col = ((x - s.cx) / (s.hw * 0.13)).floor();
-      y += (fieldHash(col, s.seed + 9) - 0.3) * 1.6 * _u;
-    }
-    return y;
-  }
+  /// The front lip of its top, where the face drops to the lava, a little
+  /// broken.
+  double _sFront(_Shelf s, double x) =>
+      _sStand(s, x) +
+      s.plate * 0.45 * _sPinch(s, x) +
+      (s.basalt ? 1.2 * _u * fieldNoise(x / (9 * _u), s.seed + 9) : 0);
 
   /// Where its face meets the lava, a little uneven.
   double _lavaEdge(_Shelf s, double x) =>
@@ -626,6 +627,10 @@ class VolcanoField extends _GrainField {
             light: true,
             paint: (c) {
               _paintRangeLight(c, w);
+              // The ranges stand behind the cones: their light stops at a
+              // cone's skyline.
+              final cut = Paint()..blendMode = BlendMode.clear;
+              eachCone((k, x) => c.drawPath(_conePath(k, x), cut));
               _sinking(far, () => eachCone((k, x) => _paintConeLight(c, k, x)));
             },
           ),
@@ -961,8 +966,8 @@ class VolcanoField extends _GrainField {
   }
 
   void _paintRangeLight(Canvas c, double w) {
-    _rimBands(c, w, (x) => _range(0, x), [(3.0, 0.12), (9.0, 0.05)]);
-    _rimBands(c, w, (x) => _range(1, x), [(2.5, 0.16), (7.0, 0.07)]);
+    _rimBands(c, w, (x) => _range(0, x), [(3.0, 0.07), (9.0, 0.04)]);
+    _rimBands(c, w, (x) => _range(1, x), [(2.5, 0.1), (7.0, 0.05)]);
   }
 
   /// The cones on the far layer: the one that burns, and an old one gone
@@ -1001,6 +1006,12 @@ class VolcanoField extends _GrainField {
           ? 4 * _u * (1 - f * f) * (t < 0 ? 0.8 : 1.0)
           : -3 * _u * (1 - f * f);
     }
+    // The burning cone grew lopsided: a shoulder down its right flank
+    // where an old vent built up, a knob low on its left.
+    if (k.burning) {
+      y -= _h * 0.04 * math.exp(-math.pow((t - 0.52) / 0.13, 2));
+      y -= _h * 0.016 * math.exp(-math.pow((t + 0.78) / 0.09, 2));
+    }
     // Ragged along its flanks, more so lower down.
     y += _u * (1.4 + 4 * a) * fieldNoise(x / (9 * _u), 77 + k.seed);
     y += _u * 3 * a * fieldNoise(x / (31 * _u), 79 + k.seed);
@@ -1018,13 +1029,18 @@ class VolcanoField extends _GrainField {
   }
 
   /// The gullies running down a cone from its crater: (where across it,
-  /// how deep).
-  List<(double, double)> _gulliesOf(_Cone k) {
+  /// how deep, how far down it runs) — unevenly spaced, some cut deep and
+  /// run to the foot, some shallow and short.
+  List<(double, double, double)> _gulliesOf(_Cone k) {
     final r = FieldRandom(k.seed * 101);
-    final n = k.burning ? 15 : 11;
+    final n = k.burning ? 11 : 8;
     return [
       for (var i = 0; i < n; i++)
-        (-0.95 + 1.9 * (i + 0.5 + r.range(-0.3, 0.3)) / n, r.range(0.5, 1.0)),
+        (
+          -0.95 + 1.9 * (i + 0.5 + r.range(-0.45, 0.45)) / n,
+          r.range(0.3, 1.0),
+          r.next() < 0.6 ? 1.0 : r.range(0.45, 0.8),
+        ),
     ];
   }
 
@@ -1087,7 +1103,7 @@ class VolcanoField extends _GrainField {
       );
     final gullies = _gulliesOf(k);
     for (var i = 0; i < gullies.length; i++) {
-      final (q, depth) = gullies[i];
+      final (q, depth, len) = gullies[i];
       final front = math.pow(math.max(0.05, 1 - q * q), 0.35).toDouble();
       for (final (off, map) in [
         (0.0, fieldMap(haze, 0, 0.84, 0.75 * depth)),
@@ -1095,8 +1111,9 @@ class VolcanoField extends _GrainField {
       ]) {
         final left = <Offset>[], right = <Offset>[];
         for (var j = 0; j <= 16; j++) {
-          final a = _rim(k) + (1 - _rim(k)) * j / 16;
-          final gw = (0.5 + 4.5 * a * depth) * _u * front;
+          final a = _rim(k) + (1 - _rim(k)) * len * j / 16;
+          final end = len < 1 ? math.min(1.0, (16 - j) / 5) : 1.0;
+          final gw = (0.5 + 4.5 * a * depth) * _u * front * end;
           final p = _gully(k, cx, q, a, 900 + i + k.seed * 50);
           final at = p.translate(off * gw, 0);
           left.add(at.translate(-gw, 0));
@@ -1258,10 +1275,10 @@ class VolcanoField extends _GrainField {
     final sparks = GrainBatch(_sparkAlpha.length);
     final gullies = _gulliesOf(k);
     for (var i = 0; i < gullies.length; i++) {
-      final (q, depth) = gullies[i];
+      final (q, depth, len) = gullies[i];
       for (var j = 1; j <= 12; j++) {
         if (fieldHash(j, 820 + i) > 0.42 * depth) continue;
-        final a = _rim(k) + (1 - _rim(k)) * j / 16;
+        final a = _rim(k) + (1 - _rim(k)) * len * j / 16;
         final gw = (0.5 + 4.5 * a * depth) * _u;
         final p = _gully(k, cx, q, a, 900 + i + k.seed * 50);
         sparks.add(j < 4 ? 2 : 1, p.dx - gw * 2.1, p.dy);
@@ -1968,6 +1985,42 @@ class VolcanoField extends _GrainField {
     (0.91, 0.71, 20, 3),
   ];
 
+  /// A pool of open lava round each point on [layer] that stands in it:
+  /// (x, y, half width, half depth, seed), its creature standing in the
+  /// middle of it a little toward the near side.
+  List<(double, double, double, double, int)> _bathingPools(SceneLayer layer) =>
+      [
+        for (final p in _spawns)
+          if (p.anchor == layer && p.perch == SpawnPerch.lava)
+            () {
+              final rx = p.size.x * 0.72;
+              return (_spawnX(p), _feet(p) - rx * 0.06, rx, rx * 0.3, 1500);
+            }(),
+      ];
+
+  /// A pool's two edges, far and near, as matching runs of points.
+  (List<Offset>, List<Offset>) _poolEdges(
+    double cx,
+    double cy,
+    double rx,
+    double ry,
+    int seed,
+  ) {
+    final a = <Offset>[], b = <Offset>[];
+    // Round the ellipse by angle, so its ends close round, not square; its
+    // edges a little uneven.
+    for (var k = 0; k <= 20; k++) {
+      final phi = math.pi * k / 20;
+      final half = ry * math.sin(phi);
+      final wob = 1 + 0.2 * fieldNoise(k * 0.45, seed);
+      final x =
+          cx - math.cos(phi) * rx * (1 + 0.08 * fieldNoise(k * 0.45, seed + 1));
+      a.add(Offset(x, cy - half * wob));
+      b.add(Offset(x, cy + half * wob * 0.8));
+    }
+    return (a, b);
+  }
+
   /// Where a river on [layer] runs at [y]: its middle and half its width.
   (double, double) _riverAt(
     (double, double, double, double, double) river,
@@ -1994,7 +2047,16 @@ class VolcanoField extends _GrainField {
       _u *
       (1 - math.pow(t.abs(), 6)) *
       (0.55 + 0.45 * fieldNoise(t * 4.5 + seed * 0.37, 883 + seed).abs() * 2)
-          .clamp(0.25, 1.4);
+          .clamp(0.25, 1.4) *
+      _moatOpen(t, seed);
+
+  /// How open a moat is along its length ([t] -1 to 1): crusted over along
+  /// stretches, open only here and there.
+  double _moatOpen(double t, int seed) =>
+      ((fieldNoise(t * 2.6 + seed * 0.71, 907 + seed) + 0.15) / 0.35).clamp(
+        0.0,
+        1.0,
+      );
 
   /// How open and how warm the lava is at [x], [y] on [layer]: open 1 is
   /// molten rock with no crust over it; warm, how much of the heat shows
@@ -2017,6 +2079,10 @@ class VolcanoField extends _GrainField {
     }
     for (final (fx, fy, rx, ry) in layer == near ? _nearPools : _midPools) {
       final ex = dx(fx * w) / (rx * _u), ey = (y - fy * _h) / (ry * _u);
+      spot(math.sqrt(ex * ex + ey * ey));
+    }
+    for (final (px, py, rx, ry, _) in _bathingPools(layer)) {
+      final ex = dx(px) / rx, ey = (y - py) / ry;
       spot(math.sqrt(ex * ex + ey * ey));
     }
     void foot(double d, double t, double below) {
@@ -2063,26 +2129,36 @@ class VolcanoField extends _GrainField {
       out.add(_Band(a, b, (0.42, 0.85, 0.42), river: true));
     }
     for (final (fx, fy, rx, ry) in layer == near ? _nearPools : _midPools) {
-      final cx = fx * w, cy = fy * _h;
-      final a = <Offset>[], b = <Offset>[];
-      for (var k = 0; k <= 20; k++) {
-        final t = -1 + 2 * k / 20;
-        final half = ry * _u * math.sqrt(1 - t * t);
-        final wob = 1 + 0.25 * fieldNoise(k * 0.7, (fx * 1000).round());
-        a.add(Offset(cx + t * rx * _u * wob, cy - half * wob));
-        b.add(Offset(cx + t * rx * _u * wob, cy + half * wob * 0.8));
-      }
+      final (a, b) = _poolEdges(
+        fx * w,
+        fy * _h,
+        rx * _u,
+        ry * _u,
+        (fx * 1000).round(),
+      );
       out.add(_Band(a, b, (0.38, 0.72, 0.38)));
     }
+    // Hot through the middle where something stands in it and stirs it,
+    // dull at its edges where the crust is closing in.
+    for (final (px, py, rx, ry, seed) in _bathingPools(layer)) {
+      final (a, b) = _poolEdges(px, py, rx, ry, seed);
+      out.add(_Band(a, b, (0.28, 0.8, 0.28)));
+    }
     var seed = 0;
-    void moat(double x0, double x1, double Function(double) edge) {
+    void moat(
+      double x0,
+      double x1,
+      double Function(double) edge, {
+      int? own,
+    }) {
       final a = <Offset>[], b = <Offset>[];
       seed++;
+      final key = own ?? seed;
       for (var x = x0; x <= x1 + 0.01; x += 2 * _u) {
         final t = (x - (x0 + x1) / 2) / ((x1 - x0) / 2);
         final y = edge(x);
         a.add(Offset(x, y - 1.5 * _u));
-        b.add(Offset(x, y + _moatDepth(t, layer, seed)));
+        b.add(Offset(x, y + _moatDepth(t, layer, key)));
       }
       out.add(_Band(a, b, (0.9, 0.5, 0.12)));
     }
@@ -2092,6 +2168,7 @@ class VolcanoField extends _GrainField {
         s.cx - s.hw - s.flare,
         s.cx + s.hw + s.flare,
         (x) => _lavaEdge(s, x),
+        own: s.seed,
       );
     }
     for (final sp in _spires[layer] ?? const <_Spire>[]) {
@@ -2136,7 +2213,11 @@ class VolcanoField extends _GrainField {
       for (var i = 0; i < n; i++) {
         final jx = fieldHash(i * 2, seed + row * 7) - 0.5;
         final jy = fieldHash(i * 2 + 1, seed + row * 7) - 0.5;
-        sites.add(Offset((i + 0.5 + jx * 0.9) * w / n, y + jy * rh * 0.95));
+        final x = (i + 0.5 + jx * 0.9) * w / n;
+        // Where it cooled in sheets the plates run big; elsewhere it is
+        // broken small.
+        if (fieldHash(i, seed + row * 11) < 0.75 * _slabs(layer, x)) continue;
+        sites.add(Offset(x, y + jy * rh * 0.95));
         sizes.add(rh);
       }
       y += rh * (0.8 + 0.4 * fieldHash(row, seed + 3));
@@ -2190,7 +2271,8 @@ class VolcanoField extends _GrainField {
       final (open, warm) = _lavaAt(layer, cx, cy);
       // Back onto the lava, drawn in from the cracks — wider where it is
       // warm — the edges a little wavy.
-      final crack = (0.3 + 0.07 * rh / _u) * _u * (1 + warm * 1.6 + open * 2);
+      final crack =
+          (0.3 + 0.07 * rh / _u) * _u * (1 + warm * 1.6 + open * 0.5);
       final pts = <Offset>[];
       for (var e = 0; e < poly.length; e++) {
         final a = Offset(poly[e].dx, poly[e].dy / stretch);
@@ -2212,6 +2294,32 @@ class VolcanoField extends _GrainField {
       out.add((pts, cx, cy, rh, i, open, warm));
     }
     return out;
+  }
+
+  /// How far the crust at [x] on [layer] cooled in great sheets rather
+  /// than broke small: 0 to 1, in broad stretches.
+  double _slabs(SceneLayer layer, double x) {
+    final n = fieldLoopNoise(
+      x,
+      (layer == mid ? 110 : 190) * _u,
+      layer == mid ? 815 : 855,
+      _period(layer),
+    );
+    final k = ((n + 0.1) / 0.5).clamp(0.0, 1.0);
+    return k * k * (3 - 2 * k);
+  }
+
+  /// How much ash lies on the crust at [x] on [layer]: 0 bare to 1 grey
+  /// with it, in drifts.
+  double _ashOn(SceneLayer layer, double x) {
+    final n = fieldLoopNoise(
+      x,
+      (layer == mid ? 80 : 140) * _u,
+      layer == mid ? 817 : 857,
+      _period(layer),
+    );
+    final k = ((n + 0.05) / 0.45).clamp(0.0, 1.0);
+    return k * k * (3 - 2 * k);
   }
 
   /// [band] drawn a loop away too where it reaches over an edge of [w].
@@ -2300,7 +2408,11 @@ class VolcanoField extends _GrainField {
           ..shader = Gradient.linear(
             Offset(0, top),
             Offset(0, bottom),
-            [_heat(0.06), _heat(0.045), _heat(0.03)],
+            [
+              _heat(0.06, shade: 0.4),
+              _heat(0.045, shade: 0.8),
+              _heat(0.03, shade: 0.85),
+            ],
             [0.0, fade / (bottom - top), 1.0],
           ),
       )
@@ -2329,7 +2441,8 @@ class VolcanoField extends _GrainField {
     }
     // The crust.
     for (final (pts, cx, cy, size, id, _, warm) in plates) {
-      final own = (fieldHash(id, 873) - 0.5) * 0.24;
+      final own =
+          (fieldHash(id, 873) - 0.5) * 0.2 + 0.46 - 0.4 * _ashOn(layer, cx);
       final a = ((cy - top) / (5 * _u)).clamp(0.25, 1.0);
       for (final dx in [0.0, if (cx > w - size * 3) -w, if (cx < size * 3) w]) {
         final at = [for (final q in pts) q.translate(dx, 0)];
@@ -2342,8 +2455,8 @@ class VolcanoField extends _GrainField {
           Path()..addPolygon(at, true),
           Paint()
             ..shader = Gradient.linear(Offset(0, y0), Offset(0, y1), [
-              _heat(0.06 * warm, shade: 0.08 + own, a: a),
-              _heat(0.02 * warm, shade: 0.5 + own, a: a),
+              _heat(0.06 * warm, shade: own - 0.1, a: a),
+              _heat(0.02 * warm, shade: own + 0.12, a: a),
             ]),
         );
       }
@@ -2626,46 +2739,75 @@ class VolcanoField extends _GrainField {
     return path..close();
   }
 
-  /// A shelf's face: from its lip down to the lava, its ends breaking out
-  /// a little wider toward the lava.
+  /// A shelf's face: from its lip down to the lava, its sides bulging out
+  /// and running wider to a foot spread in the lava, drawn round.
   Path _shelfFace(_Shelf s) {
     final x0 = s.cx - s.hw, x1 = s.cx + s.hw;
     final wl = _sLava(s);
-    final step = 2 * _u;
-    final path = Path()..moveTo(x0, _sFront(s, x0));
-    for (var x = x0; x <= x1; x += step) {
-      path.lineTo(x, _sFront(s, x));
+    final step = s.hw / 12;
+    final pts = <Offset>[
+      for (var x = x0; x <= x1 + 0.01; x += step) Offset(x, _sFront(s, x)),
+    ];
+    List<Offset> side(double dir) {
+      final xs = dir > 0 ? x1 : x0;
+      final y0 = _sFront(s, xs);
+      return [
+        for (var i = 1; i <= 5; i++)
+          () {
+            final f = i / 5;
+            final bulge =
+                s.hw *
+                0.05 *
+                math.sin(f * math.pi) *
+                (1 + 0.6 * fieldNoise(f * 2.3, s.seed + (dir > 0 ? 11 : 12)));
+            final break_ =
+                s.hw *
+                0.07 *
+                (fieldHash(i, s.seed + (dir > 0 ? 13 : 14)) - 0.4);
+            return Offset(
+              xs + dir * (s.flare * math.pow(f, 1.3) + bulge + break_),
+              y0 + (wl - y0) * f,
+            );
+          }(),
+      ];
     }
-    path
-      ..lineTo(x1, _sFront(s, x1))
-      ..lineTo(
-        x1 + s.flare * 0.45,
-        _sFront(s, x1) + (wl - _sFront(s, x1)) * 0.4,
-      )
-      ..lineTo(x1 + s.flare, wl);
-    for (var x = x1 + s.flare; x >= x0 - s.flare; x -= step) {
-      path.lineTo(x, _lavaEdge(s, x));
+
+    pts.addAll(side(1));
+    for (var x = x1 + s.flare - step; x > x0 - s.flare + step; x -= step) {
+      pts.add(Offset(x, _lavaEdge(s, x)));
     }
-    return path
-      ..lineTo(x0 - s.flare, wl)
-      ..lineTo(
-        x0 - s.flare * 0.45,
-        _sFront(s, x0) + (wl - _sFront(s, x0)) * 0.4,
-      )
-      ..close();
+    pts.addAll(side(-1).reversed);
+    return _smooth(pts);
   }
 
-  /// A shelf of basalt: its flat top broken toward the back, stepping down
-  /// at one end; its face split in columns, each its own shade, a ledge
-  /// across them, scorched dark where it stands in the lava.
+  /// A shelf of basalt, worn round: its top nearly level, its shoulders
+  /// rounding away, its sides bulging down to a broad foot in the lava.
+  /// Lit from above and to the left; planes where it has split away,
+  /// darker down its shaded side; soft streaks where the weather has run
+  /// down it; pitted; scorched black where it stands in the lava.
   void _paintBasalt(Canvas c, _Shelf s) {
     final haze = s.haze;
     final wl = _sLava(s);
     final x0 = s.cx - s.hw, x1 = s.cx + s.hw;
+    final lip = _sFront(s, s.cx);
+    final h = wl - lip;
     final top = _edge(s, (x) => _sBack(s, x), (x) => _sFront(s, x) + 0.6 * _u);
     final face = _shelfFace(s);
     c
-      ..drawPath(face, Paint()..color = fieldMap(haze, 0, 0.62))
+      ..drawPath(
+        face,
+        Paint()
+          ..shader = Gradient.linear(
+            Offset(s.cx - s.hw * 0.7, lip),
+            Offset(s.cx + s.hw * 0.5, wl),
+            [
+              fieldMap(haze, 0.12, 0.28),
+              fieldMap(haze, 0.03, 0.52),
+              fieldMap(haze, 0, 0.82),
+            ],
+            const [0.0, 0.5, 1.0],
+          ),
+      )
       ..drawPath(
         top,
         Paint()
@@ -2674,107 +2816,60 @@ class VolcanoField extends _GrainField {
             Offset(0, _sFront(s, s.cx)),
             [fieldMap(haze, 0.3, 0.06), fieldMap(haze, 0.1, 0.24)],
           ),
-      );
-    c
+      )
       ..save()
       ..clipPath(face);
-    double lip(double x) => _sFront(s, x.clamp(x0, x1));
-    // Columns down the face, the ends turned away into shade, each lit a
-    // little along its left edge.
+    double lipAt(double x) => _sFront(s, x.clamp(x0, x1));
     final r = FieldRandom(s.seed * 7 + 1);
-    final cuts = <double>[x0 - s.flare - 2 * _u];
-    var x = x0;
-    while (true) {
-      x += s.hw * r.range(0.09, 0.2);
-      if (x >= x1 - s.hw * 0.06) break;
-      cuts.add(x);
-    }
-    cuts.add(x1 + s.flare + 2 * _u);
-    for (var k = 0; k + 1 < cuts.length; k++) {
-      final a = cuts[k], z = cuts[k + 1];
-      final side = (((a + z) / 2) - s.cx) / s.hw;
-      final turn = math.pow(math.min(1.0, side.abs()), 2.2).toDouble();
-      final own = r.range(-0.09, 0.09);
-      final lean = r.range(-0.06, 0.06) * s.rise;
+    // Planes where it has split away: darker down its shaded side, a few
+    // lighter up its lit side.
+    for (var i = 0; i < 4 + (s.hw / (36 * _u)).floor(); i++) {
+      final right = r.next() < 0.65;
+      final fx =
+          s.cx + (right ? r.range(0.0, 0.95) : r.range(-0.95, -0.15)) * s.hw;
+      final fy = lipAt(fx) + r.range(0.12, 0.8) * h;
+      final fw = s.hw * r.range(0.18, 0.4), fh = h * r.range(0.25, 0.55);
       c.drawPath(
         Path()..addPolygon([
-          Offset(a, lip(a) - 2 * _u),
-          Offset(z, lip(z) - 2 * _u),
-          Offset(z + lean, wl + 3 * _u),
-          Offset(a + lean, wl + 3 * _u),
+          Offset(fx - fw * 0.5, fy - fh * 0.3),
+          Offset(fx + fw * 0.2, fy - fh * 0.5),
+          Offset(fx + fw * 0.55, fy + fh * 0.1),
+          Offset(fx + fw * 0.1, fy + fh * 0.5),
+          Offset(fx - fw * 0.45, fy + fh * 0.25),
         ], true),
         Paint()
-          ..shader =
-              Gradient.linear(Offset(0, _sFront(s, s.cx)), Offset(0, wl), [
-                fieldMap(haze, 0.03, 0.42 + 0.3 * turn + own),
-                fieldMap(haze, 0, 0.74 + 0.16 * turn + own),
-              ]),
+          ..color = right
+              ? fieldMap(haze, 0, 0.72, 0.32)
+              : fieldMap(haze, 0.14, 0.12, 0.24),
       );
-      final ew = math.min((z - a) * 0.22, 1.6 * _u);
-      c.drawPath(
-        Path()..addPolygon([
-          Offset(a, lip(a)),
-          Offset(a + ew, lip(a + ew)),
-          Offset(a + ew + lean, wl),
-          Offset(a + lean, wl),
-        ], true),
+    }
+    // Soft streaks where the weather has run down it.
+    for (var i = 0; i < 3 + (s.hw / (50 * _u)).floor(); i++) {
+      final sx = s.cx + r.range(-0.8, 0.7) * s.hw;
+      final sw = r.range(3, 7) * _u * (haze > 0 ? 0.7 : 1);
+      final y0 = lipAt(sx) + h * r.range(0.05, 0.3);
+      c.drawRect(
+        Rect.fromLTRB(sx, y0, sx + sw, wl),
         Paint()
-          ..shader = Gradient.linear(
-            Offset(0, _sFront(s, s.cx)),
-            Offset(0, wl),
-            [
-              fieldMap(haze, 0.22, 0.16 + 0.3 * turn, 0.7),
-              fieldMap(haze, 0.05, 0.6, 0.3),
-            ],
-          ),
+          ..shader = Gradient.linear(Offset(0, y0), Offset(0, wl), [
+            fieldMap(haze, 0, 0.7, 0),
+            fieldMap(haze, 0, 0.7, 0.28),
+          ]),
       );
-    }
-    // A ledge across the face: lit along its top, its shadow under it.
-    final ledgeF = r.range(0.38, 0.55);
-    double ledge(double x) =>
-        lip(x) +
-        (wl - lip(x)) *
-            (ledgeF + 0.08 * fieldNoise(x / (24 * _u), s.seed + 21));
-    for (final (off, thick, map) in [
-      (0.0, 1.4, fieldMap(haze, 0.18, 0.2, 0.65)),
-      (1.4, 2.8, fieldMap(haze, 0, 0.9, 0.55)),
-    ]) {
-      final band = Path()..moveTo(x0 - s.flare, ledge(x0) + off * _u);
-      for (var x = x0 - s.flare; x <= x1 + s.flare; x += 2.5 * _u) {
-        band.lineTo(x, ledge(x) + off * _u);
-      }
-      for (var x = x1 + s.flare; x >= x0 - s.flare; x -= 2.5 * _u) {
-        band.lineTo(x, ledge(x) + (off + thick) * _u);
-      }
-      c.drawPath(band..close(), Paint()..color = map);
-    }
-    // The edge of the top, catching the light, with its shadow under it.
-    for (final (off, thick, map) in [
-      (0.0, 1.3, fieldMap(haze, 0.3, 0.1, 0.8)),
-      (1.3, 2.4, fieldMap(haze, 0, 0.84, 0.5)),
-    ]) {
-      final band = Path()..moveTo(x0, _sFront(s, x0) + off * _u);
-      for (var x = x0; x <= x1; x += 1.5 * _u) {
-        band.lineTo(x, _sFront(s, x) + off * _u);
-      }
-      for (var x = x1; x >= x0; x -= 1.5 * _u) {
-        band.lineTo(x, _sFront(s, x) + (off + thick) * _u);
-      }
-      c.drawPath(band..close(), Paint()..color = map);
     }
     // Scorched where it stands in the lava.
     c.drawRect(
       Rect.fromLTRB(
-        x0 - s.flare,
-        wl - s.rise * 0.35,
-        x1 + s.flare,
+        x0 - s.flare * 1.3,
+        wl - s.rise * 0.4,
+        x1 + s.flare * 1.3,
         wl + 4 * _u,
       ),
       Paint()
         ..shader = Gradient.linear(
-          Offset(0, wl - s.rise * 0.35),
+          Offset(0, wl - s.rise * 0.4),
           Offset(0, wl),
-          [fieldMap(haze, 0, 0.6, 0), fieldMap(haze, 0, 0.95, 0.8)],
+          [fieldMap(haze, 0, 0.6, 0), fieldMap(haze, 0, 0.95, 0.85)],
         ),
     );
     // Pits and flecks.
@@ -2782,31 +2877,39 @@ class VolcanoField extends _GrainField {
     final n = (s.hw * s.rise * 1.4 / (_u * _u * 10)).round();
     for (var k = 0; k < n; k++) {
       final gx = s.cx + (fieldHash(k, s.seed + 31) * 2 - 1) * (s.hw + s.flare);
-      final gy = lip(gx) + fieldHash(k, s.seed + 37) * (wl - lip(gx));
+      final gy = lipAt(gx) + fieldHash(k, s.seed + 37) * (wl - lipAt(gx));
       grains.add(fieldHash(k, s.seed + 41) < 0.6 ? 0 : 1, gx, gy);
     }
     grains
       ..draw(c, 0, 1.5 * _u, fieldMap(haze, 0, 0.92, 0.55))
       ..draw(c, 1, 1.3 * _u, fieldMap(haze, 0.3, 0.2, 0.4));
     c.restore();
-    // Risers where the top steps down, in shade.
-    if (s.steps != 0) {
-      for (final k in const [0.6, 0.8]) {
-        final sx = s.cx + k * s.steps * s.hw;
-        final hi = _sStand(s, sx - s.steps * 0.5 * _u);
-        final lo = _sStand(s, sx + s.steps * 0.5 * _u);
-        final wd = 2.5 * _u * s.steps;
-        c.drawPath(
-          Path()..addPolygon([
-            Offset(sx, hi - s.plate * 0.55),
-            Offset(sx + wd, lo - s.plate * 0.55),
-            Offset(sx + wd, lo + s.plate * 0.45),
-            Offset(sx, hi + s.plate * 0.45),
-          ], true),
-          Paint()..color = fieldMap(haze, 0, 0.55),
-        );
-      }
+    // Blocks broken off it, lying at its foot.
+    final blocks = Path(), lit = Path();
+    for (var k = 0; k < 2 + (s.hw / (30 * _u)).floor(); k++) {
+      final side = r.next() < 0.5 ? -1.0 : 1.0;
+      final bx = s.cx + side * (s.hw + s.flare * r.range(0.3, 1.1));
+      final rad = r.range(3, 7) * _u * (haze > 0 ? 0.7 : 1);
+      final by = _lavaEdge(s, bx) - rad * 0.35;
+      final pts = [
+        for (var j = 0; j < 6; j++)
+          Offset(
+            bx + math.cos(j / 6 * math.pi * 2) * rad * r.range(0.8, 1.25),
+            by + math.sin(j / 6 * math.pi * 2) * rad * r.range(0.5, 0.75),
+          ),
+      ];
+      blocks.addPolygon(pts, true);
+      lit.addPolygon([
+        pts[3],
+        pts[4],
+        pts[5],
+        Offset.lerp(pts[5], pts[0], 0.5)!,
+        Offset(bx, by - rad * 0.1),
+      ], true);
     }
+    c
+      ..drawPath(blocks, Paint()..color = fieldMap(haze, 0.02, 0.62))
+      ..drawPath(lit, Paint()..color = fieldMap(haze, 0.2, 0.22));
   }
 
   /// A bank of cinder: a crowned heap of scoria, rough with holes and
@@ -2899,52 +3002,39 @@ class VolcanoField extends _GrainField {
       ..drawPath(lit, Paint()..color = fieldMap(haze, 0.28, 0.18));
   }
 
-  /// The ash on a shelf, for an ash-graded sheet: lying over a cinder
-  /// bank's whole top, in drifts along the back of a basalt one, a few
-  /// stones of pumice on it.
+  /// The ash on a shelf, for an ash-graded sheet: in drifts along the back
+  /// of its top, a few stones of pumice on it.
   void _paintAshTop(Canvas c, _Shelf s) {
     final haze = s.haze;
     final r = FieldRandom(s.seed * 3 + 5);
-    if (!s.basalt) {
-      c.drawPath(
-        _edge(s, (x) => _sBack(s, x), (x) => _sFront(s, x) + 0.8 * _u),
-        Paint()
-          ..shader = Gradient.linear(
-            Offset(0, _sBack(s, s.cx)),
-            Offset(0, _sFront(s, s.cx)),
-            [fieldMap(haze, 0.16, 0.12), fieldMap(haze, 0.02, 0.46)],
-          ),
+    final top = _edge(
+      s,
+      (x) => _sBack(s, x) - 0.5 * _u,
+      (x) => _sFront(s, x) + 0.4 * _u,
+    );
+    c
+      ..save()
+      ..clipPath(top);
+    final drifts = Path();
+    final n = (s.hw / (3 * _u)).round();
+    for (var k = 0; k < n; k++) {
+      final x = s.cx + r.range(-1, 1) * s.hw;
+      if (fieldLoopNoise(x, 36 * _u, s.seed, 0) < -0.15) continue;
+      final back = _sBack(s, x), front = _sFront(s, x);
+      final d = math.pow(r.next(), 1.8).toDouble();
+      final y = back + d * (front - back) * 0.8;
+      final rad = r.range(3, 8) * _u * (1 - d * 0.5) * (haze > 0 ? 0.7 : 1);
+      drifts.addOval(
+        Rect.fromCenter(
+          center: Offset(x, y),
+          width: rad * 3,
+          height: rad * 0.9,
+        ),
       );
-    } else {
-      final top = _edge(
-        s,
-        (x) => _sBack(s, x) - 0.5 * _u,
-        (x) => _sFront(s, x) + 0.4 * _u,
-      );
-      c
-        ..save()
-        ..clipPath(top);
-      final drifts = Path();
-      final n = (s.hw / (3 * _u)).round();
-      for (var k = 0; k < n; k++) {
-        final x = s.cx + r.range(-1, 1) * s.hw;
-        if (fieldLoopNoise(x, 36 * _u, s.seed, 0) < -0.15) continue;
-        final back = _sBack(s, x), front = _sFront(s, x);
-        final d = math.pow(r.next(), 1.8).toDouble();
-        final y = back + d * (front - back) * 0.8;
-        final rad = r.range(3, 8) * _u * (1 - d * 0.5) * (haze > 0 ? 0.7 : 1);
-        drifts.addOval(
-          Rect.fromCenter(
-            center: Offset(x, y),
-            width: rad * 3,
-            height: rad * 0.9,
-          ),
-        );
-      }
-      c
-        ..drawPath(drifts, Paint()..color = fieldMap(haze, 0.08, 0.25, 0.85))
-        ..restore();
     }
+    c
+      ..drawPath(drifts, Paint()..color = fieldMap(haze, 0.08, 0.25, 0.85))
+      ..restore();
     // Pumice lying about on it.
     final stones = Path(), lit = Path();
     for (var k = 0; k < 2 + (s.hw / (36 * _u)).floor(); k++) {
@@ -2972,25 +3062,29 @@ class VolcanoField extends _GrainField {
       ..drawPath(lit, Paint()..color = fieldMap(haze, 0.3, 0.1));
   }
 
-  /// A shelf's fire, for a lava-graded sheet: lava lapping at its foot, and
-  /// in basalt a fissure or two where it seeps up into the face.
+  /// A shelf's fire, for a lava-graded sheet: lava lapping at its foot
+  /// where the moat round it is open, and in basalt a fissure or two where
+  /// it seeps up into the face.
   void _paintShelfLava(Canvas c, _Shelf s) {
     final x0 = s.cx - s.hw - s.flare, x1 = s.cx + s.hw + s.flare;
     final wl = _sLava(s);
-    final lap = Path()..moveTo(x0, _lavaEdge(s, x0) - 4 * _u);
+    final lap = Path();
+    double open(double x) => _moatOpen((x - s.cx) / (s.hw + s.flare), s.seed);
     for (var x = x0; x <= x1; x += 2 * _u) {
-      lap.lineTo(
-        x,
-        _lavaEdge(s, x) -
-            4 * _u -
-            1.2 * _u * fieldNoise(x / (5 * _u), s.seed + 6),
-      );
-    }
-    for (var x = x1; x >= x0; x -= 2 * _u) {
-      lap.lineTo(x, _lavaEdge(s, x) + 2.5 * _u);
+      final k = open(x), k2 = open(x + 2 * _u);
+      if (k <= 0.02 && k2 <= 0.02) continue;
+      double up(double x, double k) =>
+          _lavaEdge(s, x) -
+          (4 * _u + 1.2 * _u * fieldNoise(x / (5 * _u), s.seed + 6)) * k;
+      lap.addPolygon([
+        Offset(x, up(x, k)),
+        Offset(x + 2 * _u, up(x + 2 * _u, k2)),
+        Offset(x + 2 * _u, _lavaEdge(s, x + 2 * _u) + 2.5 * _u * k2),
+        Offset(x, _lavaEdge(s, x) + 2.5 * _u * k),
+      ], true);
     }
     c.drawPath(
-      lap..close(),
+      lap,
       Paint()
         ..shader = Gradient.linear(
           Offset(0, wl - 5 * _u),
@@ -3171,12 +3265,12 @@ class VolcanoField extends _GrainField {
     if (_placed) return _placedSpires(mid);
     final out = <_Spire>[];
     for (final (fx, hw, hgt, seed) in const [
-      (0.075, 16.0, 46.0, 1),
-      (0.105, 10.0, 28.0, 2),
-      (0.44, 13.0, 36.0, 3),
-      (0.72, 15.0, 52.0, 4),
-      (0.745, 9.0, 24.0, 5),
-      (0.985, 12.0, 30.0, 6),
+      (0.075, 12.0, 64.0, 1),
+      (0.105, 8.0, 38.0, 2),
+      (0.44, 10.0, 50.0, 3),
+      (0.72, 11.0, 72.0, 4),
+      (0.745, 7.0, 34.0, 5),
+      (0.985, 9.0, 42.0, 6),
     ]) {
       final x = fx * w;
       if (_shelfAt(mid, x, reach: 1.3) != null) continue;
@@ -3248,15 +3342,19 @@ class VolcanoField extends _GrainField {
     final r = FieldRandom(s.seed);
     final tip = Offset(s.x + r.range(-0.35, 0.35) * s.hw, s.base - s.h);
     final left = <Offset>[], right = <Offset>[];
-    const n = 7;
+    const n = 9;
     for (var k = 0; k <= n; k++) {
       final f = k / n;
       final y = s.base - s.h * (1 - f);
+      // A column broken off short, not a point: blunt at its top, ragged
+      // all the way down, spreading only at its foot.
       final half =
-          s.hw * (0.08 + 0.92 * math.pow(f, 0.8)) * r.range(0.82, 1.15);
+          s.hw *
+          (0.3 + 0.45 * f + 0.25 * math.pow(f, 4)) *
+          r.range(0.75, 1.25);
       final cx = tip.dx + (s.x - tip.dx) * f;
-      left.add(Offset(cx - half, y + r.range(-1.5, 1.5) * _u));
-      right.add(Offset(cx + half, y + r.range(-1.5, 1.5) * _u));
+      left.add(Offset(cx - half, y + r.range(-2, 2) * _u));
+      right.add(Offset(cx + half, y + r.range(-2, 2) * _u));
     }
     left.add(Offset(s.x - s.hw * 1.15, s.base + 2 * _u));
     right.add(Offset(s.x + s.hw * 1.15, s.base + 2 * _u));
@@ -4383,6 +4481,74 @@ class VolcanoField extends _GrainField {
     }
   }
 
+  /// The color the near lava's grade gives heat [h] this frame, for lava
+  /// drawn live over it.
+  Color _liveHeat(double h, {double a = 1}) {
+    final base = _sil(_crust, _light);
+    final p = _pulse * (1 + 0.06 * _surge);
+    final r = math.min(1.0, h * 2) * p, g = math.max(0.0, h * 2 - 1) * p;
+    double ch(double b, double o, double hot) =>
+        (b + (o - b) * r + (hot - o) * g).clamp(0.0, 1.0);
+    return Color.from(
+      alpha: a,
+      red: ch(base.r, _lavaOrange.r, _lavaHot.r),
+      green: ch(base.g, _lavaOrange.g, _lavaHot.g),
+      blue: ch(base.b, _lavaOrange.b, _lavaHot.b),
+    );
+  }
+
+  final GrainBatch _bathBatch = GrainBatch(1);
+
+  /// What stands in the lava stands in it: the near part of its pool drawn
+  /// again over its feet, from a little above where they stand, and the
+  /// surface bright where it rings its legs, breathing.
+  void _paintBathing(Canvas canvas, FieldView view) {
+    final t = view.time;
+    for (final p in _spawns) {
+      if (p.anchor != near || p.perch != SpawnPerch.lava) continue;
+      final pool = _bathingPools(near)
+          .where((q) => (q.$1 - _spawnX(p)).abs() < 1)
+          .firstOrNull;
+      if (pool == null) continue;
+      final (px, py, rx, ry, seed) = pool;
+      final (a, b) = _poolEdges(px, py, rx, ry, seed);
+      final band = _Band(a, b, (0.28, 0.8, 0.28));
+      final line = _feet(p) - p.size.y * 0.14;
+      for (final shift in _shiftsFor(near, view, rx * 1.3)) {
+        final x = px + shift;
+        if (x + rx < view.left || x - rx > view.right) continue;
+        canvas
+          ..save()
+          ..clipRect(
+            Rect.fromLTRB(x - rx * 1.3, line, x + rx * 1.3, py + ry * 2),
+          );
+        _bandStrip(
+          canvas,
+          band,
+          shift,
+          const [-1, 0, 1],
+          [_liveHeat(0.28), _liveHeat(0.8), _liveHeat(0.28)],
+        );
+        canvas.restore();
+        // The surface round its legs, brightest where it touches them.
+        _bathBatch.clear();
+        final half = p.size.x * 0.3;
+        for (var k = 0; k < 16; k++) {
+          final f = k / 15 * 2 - 1;
+          final shimmer = 0.5 + 0.5 * math.sin(t * 2.6 + k * 1.7);
+          if (shimmer < 0.4) continue;
+          _bathBatch.add(0, x + f * half, line + (1 - f * f) * 1.8 * _u);
+        }
+        _bathBatch.draw(
+          canvas,
+          0,
+          1.8 * _u,
+          Color.lerp(_lavaHot, const Color(0xFFFFF4C8), 0.35)!,
+        );
+      }
+    }
+  }
+
   /// Just the cores of the hottest two shades of [_sparkBatch]: for
   /// grains riding on lava, whose own light is round them already.
   void _drawSparkCores(Canvas canvas, double k) {
@@ -4899,6 +5065,7 @@ class VolcanoField extends _GrainField {
           );
         }
         if (front) {
+          _paintBathing(canvas, view);
           _paintSparks(canvas, view);
           _paintKicked(canvas, view);
           _paintAsh(canvas, view);
@@ -4956,7 +5123,6 @@ class _Shelf {
     required this.haze,
     required this.basalt,
     this.flare = 0,
-    this.steps = 0,
   });
 
   /// Its middle and half its width, in layer units, and how much wider it
@@ -4970,10 +5136,6 @@ class _Shelf {
   /// How far off it is (0 near; a far shelf is hazed).
   final double haze;
   final bool basalt;
-
-  /// Which end of a basalt shelf steps down toward the lava: -1 left, 1
-  /// right.
-  final int steps;
 
   /// Where feet stand at its middle, less its unevenness there; set once
   /// it is seated.
@@ -5226,15 +5388,15 @@ const _volcanoSunrise = _Light(
 
 const _volcanoMorning = _Light(
   sky: [
-    Color(0xFF5C2224),
-    Color(0xFF6E2828),
-    Color(0xFF84302A),
-    Color(0xFF9C3A2E),
-    Color(0xFFB04432),
-    Color(0xFFC25036),
-    Color(0xFFD25C3A),
-    Color(0xFFDA663E),
-    Color(0xFFDA663E),
+    Color(0xFF2C1C1F),
+    Color(0xFF382224),
+    Color(0xFF4A2A2A),
+    Color(0xFF603431),
+    Color(0xFF7A403A),
+    Color(0xFF944E42),
+    Color(0xFFAA5E4A),
+    Color(0xFFB66A52),
+    Color(0xFFB66A52),
   ],
   ambient: Color(0xFFDCB29C),
   rim: Color(0xFFFFD09A),
@@ -5242,8 +5404,8 @@ const _volcanoMorning = _Light(
   floor: 0.45,
   glow: 0.6,
   stars: 0,
-  cloudTop: Color(0xFFA8463A),
-  cloudBottom: Color(0xFF702A26),
+  cloudTop: Color(0xFF8C5648),
+  cloudBottom: Color(0xFF5A3230),
   cloudGlint: Color(0xFFFFB888),
   grass: [
     Color(0xFF140C09),
@@ -5261,15 +5423,15 @@ const _volcanoMorning = _Light(
 
 const _volcanoDay = _Light(
   sky: [
-    Color(0xFF642424),
-    Color(0xFF782A28),
-    Color(0xFF8E322A),
-    Color(0xFFA43C2E),
-    Color(0xFFB84632),
-    Color(0xFFC85236),
-    Color(0xFFD45E3A),
-    Color(0xFFDC683E),
-    Color(0xFFDC683E),
+    Color(0xFF301E20),
+    Color(0xFF3E2426),
+    Color(0xFF522C2C),
+    Color(0xFF6A3633),
+    Color(0xFF84433B),
+    Color(0xFF9E5244),
+    Color(0xFFB4624E),
+    Color(0xFFC06E56),
+    Color(0xFFC06E56),
   ],
   ambient: Color(0xFFE8C4AC),
   rim: Color(0xFFFFDCA8),
@@ -5277,8 +5439,8 @@ const _volcanoDay = _Light(
   floor: 0.7,
   glow: 0.5,
   stars: 0,
-  cloudTop: Color(0xFFB84E3C),
-  cloudBottom: Color(0xFF7C2E28),
+  cloudTop: Color(0xFF94604E),
+  cloudBottom: Color(0xFF5E3634),
   cloudGlint: Color(0xFFFFC090),
   grass: [
     Color(0xFF120A08),
@@ -5296,15 +5458,15 @@ const _volcanoDay = _Light(
 
 const _volcanoAfternoon = _Light(
   sky: [
-    Color(0xFF54201F),
-    Color(0xFF682624),
-    Color(0xFF802E26),
-    Color(0xFF9C3828),
-    Color(0xFFBA462C),
-    Color(0xFFD25630),
-    Color(0xFFE46A36),
-    Color(0xFFEC763C),
-    Color(0xFFEC763C),
+    Color(0xFF2E1C1F),
+    Color(0xFF3C2224),
+    Color(0xFF522A2A),
+    Color(0xFF6C3430),
+    Color(0xFF884238),
+    Color(0xFFA2523F),
+    Color(0xFFBA6448),
+    Color(0xFFC67050),
+    Color(0xFFC67050),
   ],
   ambient: Color(0xFFD8A88A),
   rim: Color(0xFFFFC688),
@@ -5312,8 +5474,8 @@ const _volcanoAfternoon = _Light(
   floor: 0.3,
   glow: 0.75,
   stars: 0,
-  cloudTop: Color(0xFF9A3C30),
-  cloudBottom: Color(0xFFC25E3C),
+  cloudTop: Color(0xFF8A5244),
+  cloudBottom: Color(0xFFA0583E),
   cloudGlint: Color(0xFFFFC890),
   grass: [
     Color(0xFF120A08),

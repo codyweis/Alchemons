@@ -99,10 +99,10 @@ class _WildLife extends _HomeLife {
           game._loopDelta(id, sp.id),
   ];
 
-  /// What wades stays in its pool.
+  /// What stands in a pool, of water or of lava, stays in it.
   @override
   (double, double) _rangeOf(SpawnPoint sp) =>
-      sp.perch == SpawnPerch.wade ? (0, 0) : super._rangeOf(sp);
+      sp.immersed ? (0, 0) : super._rangeOf(sp);
 
   /// On the ground: a finger, a flight, or what it chose last.
   void _roam(_Liver l, WildMonComponent comp, SpawnPoint sp, double dt) {

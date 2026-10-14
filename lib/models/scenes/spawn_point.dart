@@ -15,12 +15,22 @@ enum SpawnPerch {
   /// Wading in shallow water — the last pools of the Swamp gone dry. Only a
   /// Water creature may spawn here (see [speciesCanWade]).
   wade,
+
+  /// Standing in a pool of open lava — the Volcano's. Only a Lava creature
+  /// may spawn here (see [speciesCanWadeLava]).
+  lava,
 }
 
 /// Whether a species belongs wading in shallow water: the Water element.
 bool speciesCanWade(String speciesId) {
   final m = RegExp(r'^[A-Z]{3}(\d{2})').firstMatch(speciesId);
   return m != null && int.parse(m.group(1)!) == 2;
+}
+
+/// Whether a species belongs standing in molten rock: the Lava element.
+bool speciesCanWadeLava(String speciesId) {
+  final m = RegExp(r'^[A-Z]{3}(\d{2})').firstMatch(speciesId);
+  return m != null && int.parse(m.group(1)!) == 6;
 }
 
 /// Whether a species may be shown in the air rather than standing on
@@ -80,12 +90,17 @@ class SpawnPoint {
   bool get aloft => perch == SpawnPerch.air;
 
   /// Whether [speciesId] can be shown at this point: in the open air only
-  /// what floats, in the water only what wades.
+  /// what floats, in the water only what wades, in the lava only Lava.
   bool takes(String speciesId) => switch (perch) {
     SpawnPerch.ground => true,
     SpawnPerch.air => speciesCanFloat(speciesId),
     SpawnPerch.wade => speciesCanWade(speciesId),
+    SpawnPerch.lava => speciesCanWadeLava(speciesId),
   };
+
+  /// Whether what stands here stands in something it cannot walk out of —
+  /// a pool of water or of lava — and so stays where it is.
+  bool get immersed => perch == SpawnPerch.wade || perch == SpawnPerch.lava;
 
   /// Which side of the wild creature its encounter partner stands in a
   /// field that loops: 1 to the right, -1 to the left.
