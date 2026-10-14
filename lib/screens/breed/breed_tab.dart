@@ -347,7 +347,6 @@ class _BreedingTabState extends State<BreedingTab>
     return (block: null, note: null);
   }
 
-  static String _shortWait(Duration d) {
   /// How many times FUSE ALL would fuse this pair: the stamina of the more
   /// tired one, as far as the chambers and cold storage have room. Zero when
   /// that is under two, or the constellation has not given the button.
@@ -365,6 +364,7 @@ class _BreedingTabState extends State<BreedingTab>
     return times >= 2 ? times : 0;
   }
 
+  static String _shortWait(Duration d) {
     if (d.isNegative || d.inMinutes < 1) return 'any moment';
     final h = d.inHours, m = d.inMinutes % 60;
     return h > 0 ? '${h}h ${m}m' : '${m}m';
@@ -451,8 +451,8 @@ class _BreedingTabState extends State<BreedingTab>
                 gold,
                 ready.block == null,
                 standing: widget.shown && !compact,
-              ),
                 fuseAll: ready.block == null ? _fuseAllCount(room) : 0,
+              ),
             ),
             // Clear of the dock's raised FUSION icon, which otherwise sat on
             // the middle of the button.
@@ -487,8 +487,8 @@ class _BreedingTabState extends State<BreedingTab>
     Color gold,
     bool clear, {
     required bool standing,
-  }) {
     int fuseAll = 0,
+  }) {
     Widget slab(Widget row, {bool enabled = true, NavSlabSplit? split}) =>
         NavSlab(
           site: NavSlabSite.fusion,
@@ -516,7 +516,6 @@ class _BreedingTabState extends State<BreedingTab>
           onTap: _onBreedTap,
         ),
       );
-    }
       if (fuseAll < 2) return fuse;
       return Column(
         mainAxisSize: MainAxisSize.min,
@@ -537,6 +536,7 @@ class _BreedingTabState extends State<BreedingTab>
           ),
         ],
       );
+    }
     if (p1 != null || p2 != null) {
       return slab(
         enabled: !_isBreeding,
@@ -1321,7 +1321,6 @@ class _BreedingTabState extends State<BreedingTab>
         minDuration: const Duration(milliseconds: 2800),
         startSkipped: skipped,
         task: () async {
-          final result = await breedingService.breedInstances(
           if (times > 1) {
             return _fuseRepeatedly(
               times,
@@ -1335,6 +1334,7 @@ class _BreedingTabState extends State<BreedingTab>
               ),
             );
           }
+          final result = await breedingService.breedInstances(
             selectedParent1!,
             selectedParent2!,
           );
@@ -1442,7 +1442,6 @@ class _BreedingTabState extends State<BreedingTab>
       parent2.instanceId,
       instanceOverlayForNature: speciesB,
     );
-  }
     return true;
   }
 
@@ -1503,6 +1502,7 @@ class _BreedingTabState extends State<BreedingTab>
       color: stored > 0 ? Colors.orange : null,
     );
     return true;
+  }
 
   // ───────────────────────────── choosing ─────────────────────────────────
 
