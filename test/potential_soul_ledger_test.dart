@@ -137,8 +137,8 @@ void main() {
       elementRecipes: ElementRecipeConfig(recipes: const {}),
       familyRecipes: const FamilyRecipeConfig(recipes: {}),
     );
-    // Even before rarity, then the commoner family x3 for each rarity step:
-    // a Common Let and a Legendary Kin, 27 to 1.
+    // Even before rarity, then the commoner family x2.4 for each rarity
+    // step: a Common Let and a Legendary Kin, about 13.8 to 1.
     final let = of('Let', 'Common'), kin = of('Kin', 'Legendary');
     expect(engine.getFamilyDistribution(let, kin).asPercentages(), {
       'Let': closeTo(50, 1e-9),
@@ -146,7 +146,7 @@ void main() {
     });
     expect(
       engine.getBiasedFamilyDistribution(let, kin).asPercentages()['Let'],
-      closeTo(100 * 27 / 28, 1e-6),
+      closeTo(100 * 13.824 / 14.824, 1e-6),
     );
   });
 }

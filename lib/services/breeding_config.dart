@@ -141,7 +141,7 @@ class BreedingTuning {
   final int
   globalMutationChance; // % chance for any breeding to trigger a mutation check
   final double elementalBiasPenalty;
-  final int familyBiasPenalty;
+  final double familyBiasPenalty;
 
   final double elementLineageBiasPerPoint; // e.g. 0.05 => +5% weight per point
   final double elementLineageBiasCapMult; // e.g. 1.50  => max x1.5
@@ -162,7 +162,7 @@ class BreedingTuning {
     this.globalMutationChance =
         2, // 2% chance for any breeding to trigger mutation
     this.elementalBiasPenalty = .5, // double the chance
-    this.familyBiasPenalty = 3,
+    this.familyBiasPenalty = 2.4,
 
     this.elementLineageBiasPerPoint = 0.05,
     this.elementLineageBiasCapMult = 1.5,

@@ -1726,8 +1726,8 @@ class BreedingEngine {
 
     final newWeights = Map<String, double>.from(base.weights);
 
-    final stepMult = tuning.familyBiasPenalty; // default 3.0
-    // e.g. gap=3 → 3^3 = 27x  weight to the less-rare family
+    final stepMult = tuning.familyBiasPenalty; // default 2.4
+    // e.g. gap=3 → 2.4^3 ≈ 13.8x weight to the less-rare family
     final gapMult = pow(stepMult, rarityGap).toDouble();
 
     if (newWeights.containsKey(lessRareFamily)) {
