@@ -24,15 +24,15 @@ bool speciesCanWade(String speciesId) {
 }
 
 /// Whether a species may be shown in the air rather than standing on
-/// something: anything with wings, and the elements of the air — Air, Steam
-/// and Lightning (wind, vapour and the storm). Species ids are a family
-/// code and an element number, `WNG04`.
+/// something: anything with wings, the elements of the air — Air, Steam
+/// and Lightning (wind, vapour and the storm) — and Spirit, which drifts.
+/// Species ids are a family code and an element number, `WNG04`.
 bool speciesCanFloat(String speciesId) {
   if (speciesId.startsWith('WNG')) return true;
   final m = RegExp(r'^[A-Z]{3}(\d{2})').firstMatch(speciesId);
   if (m == null) return false;
   final element = int.parse(m.group(1)!);
-  return element == 4 || element == 5 || element == 7;
+  return element == 4 || element == 5 || element == 7 || element == 14;
 }
 
 class SpawnPoint {

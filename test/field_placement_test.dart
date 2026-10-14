@@ -32,7 +32,7 @@ import 'package:alchemons/services/encounter_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('only wings, Air, Steam and Lightning may float', () {
+  test('only wings, Air, Steam, Lightning and Spirit may float', () {
     for (final id in [
       'WNG01',
       'WNG03',
@@ -42,6 +42,8 @@ void main() {
       'LET05',
       'PIP07',
       'LET07',
+      'LET14',
+      'MAN14',
     ]) {
       expect(speciesCanFloat(id), isTrue, reason: id);
     }
@@ -891,7 +893,7 @@ void main() {
   }
 
   test('no Arcane point is in the open air: the only floaters it rolls are '
-      'its legendary wings', () {
+      'its legendary wings and its Spirits, who stand on the glass', () {
     final ids = arcaneScene.spawnPoints.map((p) => p.id).toSet();
     expect(ids, {'SP_arcane_01', 'SP_arcane_02', 'SP_arcane_03'});
     for (final p in arcaneScene.spawnPoints) {
@@ -903,7 +905,9 @@ void main() {
       );
     }
     final pool = arcaneEncounterPools(arcaneScene).sceneWide.entries;
-    final floaters = pool.where((e) => speciesCanFloat(e.speciesId));
+    final floaters = pool.where(
+      (e) => speciesCanFloat(e.speciesId) && e.speciesId.substring(3) != '14',
+    );
     for (final e in floaters) {
       expect(e.speciesId, startsWith('WNG'), reason: e.speciesId);
       expect(e.rarity, EncounterRarity.legendary, reason: e.speciesId);
