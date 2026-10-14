@@ -1358,6 +1358,72 @@ class _HomeLife {
 /// A piece of scenery carried by hand: the piece come apart into a drift
 /// of grains the shape of it, that sets into the piece where it is put
 /// down. Drawn in [box] (layer units, round its point).
+/// What is chosen while the home biome is arranged, lit from below as the
+/// HUD lights a chosen chip: warm light pooled on the ground under it and a
+/// faint glow rising off it, breathing. Two gradient fills a frame, and
+/// only while something is chosen.
+class _ChosenLight extends PositionComponent {
+  _ChosenLight(this.game, this.id) : super(priority: -1);
+
+  final SceneGame game;
+  final String id;
+  double _t = 0;
+
+  // Drawn at a radius of one and scaled to what is lit; how strong it is
+  // comes from the paint's own alpha.
+  static final Paint _light = Paint()
+    ..blendMode = BlendMode.plus
+    ..shader = ui.Gradient.radial(
+      Offset.zero,
+      1,
+      const [Color(0xFFE4C16A), Color(0x99D9A24E), Color(0x00D9A24E)],
+      const [0, 0.45, 1],
+    );
+
+  @override
+  void update(double dt) => _t += dt;
+
+  void _pool(
+    Canvas canvas,
+    double x,
+    double y,
+    double rx,
+    double ry,
+    double a,
+  ) {
+    if (rx <= 0 || ry <= 0) return;
+    _light.color = Color.fromRGBO(255, 255, 255, a.clamp(0.0, 1.0));
+    canvas
+      ..save()
+      ..translate(x, y)
+      ..scale(rx, ry)
+      ..drawCircle(Offset.zero, 1, _light)
+      ..restore();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final b = game._chosenBox(id);
+    if (b == null) return;
+    final foot = game._chosenFoot(id);
+    final fadeIn = math.min(1.0, _t / 0.3);
+    final breathe = (0.72 + 0.28 * math.sin(_t * 2.4)) * fadeIn;
+    final cx = b.center.dx, w = math.max(b.width, 24.0);
+    if (foot == null) {
+      // In the air: a glow round it, nothing on the ground.
+      final a = 0.3 * breathe;
+      _pool(canvas, cx, b.center.dy, w * 0.62, b.height * 0.62, a);
+      return;
+    }
+    // The glow rises off the ground it stands on, faint by its top…
+    final rise = math.max(foot - b.top, 20.0);
+    _pool(canvas, cx, foot, w * 0.6, rise, 0.22 * breathe);
+    // …and the light lies on that ground, a flat pool round its feet.
+    final rx = w * 0.62 + 8;
+    _pool(canvas, cx, foot, rx, rx * 0.22, 0.8 * breathe);
+  }
+}
+
 class _PieceGhost extends PositionComponent {
   _PieceGhost(this.box, this.tint) : super(priority: 50);
 

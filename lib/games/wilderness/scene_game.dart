@@ -525,9 +525,14 @@ class SceneGame extends FlameGame with ScaleDetector {
       final id = entry.key;
       final s = entry.value;
       final existing = _wildBySpawnId[id];
+      // Parentage, not isMounted: a wild just brought back from the
+      // keepers is not mounted until the next tick, and a second sync in
+      // the same frame (a fusion's close runs two) took it for missing and
+      // rolled a new creature over it — a prismatic lost its shine.
       final needsRefresh =
           existing == null ||
-          !existing.isMounted ||
+          existing.parent == null ||
+          existing.isRemoving ||
           existing.speciesId != s.speciesId ||
           existing.rarityLabel != s.rarity.name;
       if (needsRefresh) {
@@ -1438,6 +1443,8 @@ class SceneGame extends FlameGame with ScaleDetector {
     if (tapped != null) {
       _pending = null;
       onResidentTap?.call(tapped);
+    } else if (arranging && _held == null) {
+      onEmptyTap?.call();
     }
   }
 
@@ -1534,6 +1541,14 @@ class SceneGame extends FlameGame with ScaleDetector {
   final Map<String, (Creature, CreatureInstance?, bool)> _residentLooks = {};
   ScaleEffect? _marking;
   String? _markedId;
+
+  /// The light under what is chosen ([markChosen]), and the anchor it was
+  /// put on — a point that is built again gets it back ([_lightChosen]).
+  _ChosenLight? _chosenLight;
+  PositionComponent? _chosenAnchor;
+
+  /// A tap while arranging that landed on nothing that can be chosen.
+  void Function()? onEmptyTap;
 
   /// The resident being moved, the finger moving it (screen px), and where
   /// on the creature it was taken hold of (layer units, from its anchor).
@@ -1783,7 +1798,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     if (!sp.aloft) {
       _mirrorOnGlass(anchor, comp, sp.anchor, _standDrop[spawnId]!);
     }
-    if (_markedId == spawnId) markResident(spawnId);
+    if (_markedId == spawnId) markChosen(spawnId);
     if (gather) {
       anchor.add(
         WildSummon.gather(comp, accent: _accentOf(comp), mirror: flip)
@@ -1827,10 +1842,16 @@ class SceneGame extends FlameGame with ScaleDetector {
     showResident(spawnId, look.$1, instance: look.$2, flip: !look.$3);
   }
 
-  /// The resident being looked at (arranging, the one chosen), breathing
-  /// gently as a wild creature does to be tapped; null for none.
-  void markResident(String? spawnId) {
+  /// What is chosen while arranging — a resident, a keepsake, a piece of
+  /// decor or scenery — by its point's id, lit from below as the HUD lights
+  /// a chosen chip (see [_ChosenLight]); a resident also breathes gently,
+  /// as a wild creature does to be tapped. Null for nothing.
+  void markChosen(String? spawnId) {
     _markedId = spawnId;
+    _chosenLight?.removeFromParent();
+    _chosenLight = null;
+    _chosenAnchor = null;
+    _lightChosen();
     final was = _marking;
     _marking = null;
     if (was != null) {
@@ -1851,6 +1872,43 @@ class SceneGame extends FlameGame with ScaleDetector {
         ),
       ),
     );
+  }
+
+  /// Puts the chosen thing's light on its point, if it is not on it — the
+  /// point may have been built again since it was chosen.
+  void _lightChosen() {
+    final id = _markedId;
+    final anchor = id == null ? null : _spawnPointComps[id];
+    if (id == null || anchor == null || identical(anchor, _chosenAnchor)) {
+      return;
+    }
+    _chosenLight?.removeFromParent();
+    _chosenAnchor = anchor;
+    anchor.add(_chosenLight = _ChosenLight(this, id));
+  }
+
+  /// What the chosen [id] fills round its point, in its point's units: a
+  /// resident round its middle, a keepsake or scenery by its box.
+  Rect? _chosenBox(String id) {
+    final r = _residents[id];
+    if (r != null) {
+      return Rect.fromCenter(
+        center: Offset.zero,
+        width: r.size.x * 0.9,
+        height: r.size.y * 0.9,
+      );
+    }
+    final b = _boxes[id];
+    if (b == null || _things.containsKey(id)) return b;
+    final u = _viewportH / 475;
+    return Rect.fromLTRB(b.left * u, b.top * u, b.right * u, b.bottom * u);
+  }
+
+  /// Where the ground is under the chosen [id], down from its point; null
+  /// for what is up in the air.
+  double? _chosenFoot(String id) {
+    if (_pointOf(id)?.aloft ?? true) return null;
+    return _residents.containsKey(id) ? (_standDrop[id] ?? 0) : 0;
   }
 
   /// Where on its row, as a share of the row's loop, a resident put down at
@@ -2265,6 +2323,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       _life.update(dt);
       _trails.update(dt);
       _ambience.update(dt);
+      if (_markedId != null) _lightChosen();
     }
     final waiting = _pending;
     if (waiting != null) {
@@ -2446,6 +2505,10 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// The player's creature deployed into the encounter, if any.
   @visibleForTesting
   WildMonComponent? get debugPartyCreature => _partyCreature;
+
+  /// The wild Alchemon standing at [spawnId], if any.
+  @visibleForTesting
+  WildMonComponent? debugWildAt(String spawnId) => _wildBySpawnId[spawnId];
 
   /// Pans the camera straight to [x] (world units), no easing.
   @visibleForTesting

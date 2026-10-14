@@ -256,6 +256,16 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   /// placed piece.
   String? _selected;
 
+  /// The tray something chosen was just placed from, closed so it can be
+  /// seen where it stands: open again once it is let go (OK, or a tap on
+  /// empty ground).
+  _Tray? _returnTray;
+
+  /// A line said along the bottom for a moment — why something could not
+  /// be done — over whatever is said there otherwise.
+  String? _flash;
+  Timer? _flashTimer;
+
   late final RevealWhenReady _reveal;
 
   /// Sweeps the hour forward to a new one, as the day would.
@@ -295,6 +305,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     // Browser build only: leaving is a natural pause for an ad.
     WebAds.breakAfter('home_biome');
     _disarm?.cancel();
+    _flashTimer?.cancel();
     _reveal.dispose();
     _sweep.dispose();
     _trayClock.dispose();
@@ -398,7 +409,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       ..onSound = _play
       ..onResidentTap = _onTap
       ..onResidentPicked = _onPicked
-      ..onResidentDropped = _onDropped;
+      ..onResidentDropped = _onDropped
+      ..onEmptyTap = _onEmptyTap;
     // The Athanor's trails and this realm's ambience, if any are worn.
     final wear = context.read<CosmeticWearService?>();
     if (wear != null) {
@@ -478,6 +490,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     if (realm == _layout.realm) return;
     HapticFeedback.selectionClick();
     _select(null);
+    _returnTray = null;
     setState(() {
       _veiled = true;
       // Only Living Sands is held still to play in, and has its trays.
@@ -669,12 +682,26 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   // ── Arranging ────────────────────────────────────────────────────────────
 
   void _toggleArranging() {
-    HapticFeedback.selectionClick();
     final on = !_arranging;
+    // Previews not bought go when arranging ends: said first, and left only
+    // on a second tap.
+    if (!on && _armed == 'done') {
+      _disarm?.cancel();
+      _armed = null;
+    } else if (!on && _layout.placed.any((p) => p.trial)) {
+      _twice('done', () {});
+      _say(
+        'Decor you have not bought is removed when you leave. '
+        'Tap again to leave.',
+      );
+      return;
+    }
+    HapticFeedback.selectionClick();
     setState(() {
       _arranging = on;
       if (!on) {
         _tray = _Tray.none;
+        _returnTray = null;
         _zoomedOut = false;
       }
     });
@@ -746,8 +773,37 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   void _select(String? spawnId) {
     if (_selected == spawnId) return;
     setState(() => _selected = spawnId);
-    final resident = spawnId == null ? null : _layout.resident(spawnId);
-    _game?.markResident(resident?.spawnId);
+    _game?.markChosen(spawnId);
+  }
+
+  /// Done with what is chosen (OK, or a tap on empty ground): it is let go,
+  /// and the tray it was placed from opens again for the next one.
+  void _letGo() {
+    if (_selected == null) return;
+    HapticFeedback.selectionClick();
+    _select(null);
+    _reopenTray();
+  }
+
+  /// The tray what was chosen was placed from, open again.
+  void _reopenTray() {
+    final back = _returnTray;
+    _returnTray = null;
+    if (back != null && _tray == _Tray.none) {
+      setState(() => _tray = back);
+      _syncTrayClock();
+    }
+  }
+
+  void _onEmptyTap() => _letGo();
+
+  /// Says [text] along the bottom for a few seconds.
+  void _say(String text) {
+    _flashTimer?.cancel();
+    setState(() => _flash = text);
+    _flashTimer = Timer(const Duration(milliseconds: 3200), () {
+      if (mounted) setState(() => _flash = null);
+    });
   }
 
   HomeResident? get _selectedResident =>
@@ -919,9 +975,11 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     double height,
   ) {
     final row = _layout.realm.row(back: r.back);
-    // Something that can float, let go well above where it would stand,
-    // stays up there.
-    final lift = _floats(r.instanceId) && height < row.height - 0.07
+    // Something that can float, let go well above where it would stand —
+    // more than half its own height, so a hand that drifts up a little
+    // while carrying it along still sets it down — stays up there.
+    final lift =
+        _floats(r.instanceId) && height < row.height - row.size / 475 * 0.55
         ? height.clamp(0.12, row.height - 0.07)
         : null;
     var moved = r.copyWith(x: share, lift: () => lift, beside: () => null);
@@ -934,7 +992,12 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       moved = moved.copyWith(x: nest.$2, beside: () => nest.$1);
     } else {
       final x = _layout.freeSpotNear(moved, share, movingGroup: lift == null);
-      if (x == null) return;
+      if (x == null) {
+        HapticFeedback.heavyImpact();
+        _say('No room on this row. Move something and try again.');
+        return;
+      }
+      _sayIfMoved(share, x, back: r.back);
       moved = moved.copyWith(x: x);
     }
     var layout = _layout.replace(moved);
@@ -943,9 +1006,13 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     layout = lift != null
         ? layout.freeBeside(r.spawnId)
         : layout.carryBeside(r.spawnId, moved.x - r.x);
+    // The group it left closes up behind it.
+    final left = r.beside;
+    if (left != null && left != moved.beside) layout = layout.packBeside(left);
     _commit(layout);
     game.relayout(_points);
     _restandBeside(game, r.spawnId);
+    if (left != null) _restandBeside(game, left);
     HapticFeedback.lightImpact();
     _play(SoundCue.homeSet);
   }
@@ -966,18 +1033,36 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       final x = _layout.freeSpotForPiece(moved, share, movingGroup: true);
       if (x == null) {
         HapticFeedback.heavyImpact();
+        _say('No room on this row. Move something and try again.');
         return;
       }
+      _sayIfMoved(share, x, back: p.back);
       moved = moved.copyWith(x: x);
     }
-    _commit(_layout.replacePiece(moved).carryBeside(p.spawnId, moved.x - p.x));
+    var layout = _layout
+        .replacePiece(moved)
+        .carryBeside(p.spawnId, moved.x - p.x);
+    // The group it left closes up behind it.
+    final left = p.beside;
+    if (left != null && left != moved.beside) layout = layout.packBeside(left);
+    _commit(layout);
     game.relayout(_points);
     _restand(game, moved);
     _restandBeside(game, p.spawnId);
+    if (left != null) _restandBeside(game, left);
     HapticFeedback.lightImpact();
     // Scenery carried in grains sets back into its piece; anything else is
     // set down on its ground.
     _play(p.isKeepsake ? SoundCue.homeSet : SoundCue.homeSceneryGather);
+  }
+
+  /// Says why, when what was let go at [from] stands well away at [to]:
+  /// there was no room where the finger left it.
+  void _sayIfMoved(double from, double to, {required bool back}) {
+    final d = (to - from + 0.5) % 1.0 - 0.5;
+    if (d.abs() > _layout.gap(back: back) * 0.6) {
+      _say('No room there, so it went to the nearest open spot.');
+    }
   }
 
   /// Stands again the keepsakes beside [hostId], which went where it went.
@@ -1016,9 +1101,10 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       }
       moved = moved.copyWith(x: x);
       HapticFeedback.selectionClick();
-      _commit(_layout.replace(moved).freeBeside(r.spawnId));
+      _commit(_closeUp(_layout.replace(moved).freeBeside(r.spawnId), r.beside));
       game.relayout(_points);
       _restandBeside(game, r.spawnId);
+      if (r.beside != null) _restandBeside(game, r.beside!);
       return;
     }
     final p = _selectedPiece;
@@ -1040,10 +1126,13 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     }
     moved = moved.copyWith(x: x);
     HapticFeedback.selectionClick();
-    _commit(_layout.replacePiece(moved).freeBeside(p.spawnId));
+    _commit(
+      _closeUp(_layout.replacePiece(moved).freeBeside(p.spawnId), p.beside),
+    );
     game.relayout(_points);
     _restand(game, moved);
     _restandBeside(game, p.spawnId);
+    if (p.beside != null) _restandBeside(game, p.beside!);
   }
 
   void _turn() {
@@ -1106,10 +1195,16 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     }
     moved = moved.copyWith(x: x, beside: () => null);
     HapticFeedback.selectionClick();
-    _commit(_layout.replace(moved).freeBeside(r.spawnId));
+    _commit(_closeUp(_layout.replace(moved).freeBeside(r.spawnId), r.beside));
     game.relayout(_points);
     _restandBeside(game, r.spawnId);
+    if (r.beside != null) _restandBeside(game, r.beside!);
   }
+
+  /// [layout] with the group [host] stands at the head of closed up, after
+  /// one of its own left it; [layout] as it is for none.
+  HomeBiomeLayout _closeUp(HomeBiomeLayout layout, String? host) =>
+      host == null ? layout : layout.packBeside(host);
 
   void _sendAway() {
     final r = _selectedResident;
@@ -1117,16 +1212,21 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       HapticFeedback.mediumImpact();
       _select(null);
       _apply(
-        _layout
-            .copyWith(
-              residents: [
-                for (final o in _layout.residents)
-                  if (o.instanceId != r.instanceId) o,
-              ],
-            )
-            .freeBeside(r.spawnId),
+        _closeUp(
+          _layout
+              .copyWith(
+                residents: [
+                  for (final o in _layout.residents)
+                    if (o.instanceId != r.instanceId) o,
+                ],
+              )
+              .freeBeside(r.spawnId),
+          r.beside,
+        ),
         gone: [r],
       );
+      final game = _game;
+      if (game != null && r.beside != null) _restandBeside(game, r.beside!);
       return;
     }
     final p = _selectedPiece;
@@ -1135,18 +1235,23 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     HapticFeedback.mediumImpact();
     _select(null);
     _commit(
-      _layout
-          .withPlaced([
-            for (final o in _layout.placed)
-              if (o.id != p.id) o,
-          ])
-          .freeBeside(p.spawnId),
+      _closeUp(
+        _layout
+            .withPlaced([
+              for (final o in _layout.placed)
+                if (o.id != p.id) o,
+            ])
+            .freeBeside(p.spawnId),
+        p.beside,
+      ),
     );
     game
       ..removeThing(p.spawnId)
       ..relayout(_points);
     _restandBeside(game, p.spawnId);
+    if (p.beside != null) _restandBeside(game, p.beside!);
     _play(SoundCue.homeDissolve);
+    _reopenTray();
   }
 
   /// Places a new [kind] — a piece of the realm's scenery, or one of the
@@ -1174,8 +1279,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         ].first;
         id = '$kind#$copy';
       } else if (trying.isNotEmpty) {
-        // Already being tried: choose that one.
-        _select(trying.first.spawnId);
+        // Already being tried: choose that one, and show it.
+        _showChosen(game, trying.first.spawnId);
         return;
       } else if (!decor.athanorOnly && _decor.ownedOf(kind) < decor.max) {
         // Not owned (or not enough): stood in faint, to be tried and
@@ -1185,7 +1290,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       } else {
         // All of it is out: choose the one there.
         final there = _layout.placed.where((p) => p.kind == kind).firstOrNull;
-        if (there != null) _select(there.spawnId);
+        if (there != null) _showChosen(game, there.spawnId);
+        _say('${decor.name}: every one you own is placed here.');
         return;
       }
     } else if (keepsake) {
@@ -1202,13 +1308,18 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       if (copy == null) {
         // All of it is out: choose the one there instead.
         final there = _layout.placed.where((p) => p.kind == kind).first;
-        _select(there.spawnId);
+        _showChosen(game, there.spawnId);
+        _say('${k.title} is already placed.');
         return;
       }
       id = '$kind#$copy';
     } else {
       if (_layout.scenery.length >= kHomeBiomeMaxScenery) {
         HapticFeedback.heavyImpact();
+        _say(
+          'Scenery is full ($kHomeBiomeMaxScenery of '
+          '$kHomeBiomeMaxScenery). Put a piece away to add another.',
+        );
         return;
       }
       id = '${kind}_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
@@ -1234,6 +1345,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     }
     if (placed == null) {
       HapticFeedback.heavyImpact();
+      _say('No free ground for it. Move something and try again.');
       return;
     }
     HapticFeedback.lightImpact();
@@ -1241,12 +1353,21 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     _commit(_layout.withPlaced([..._layout.placed, placed]));
     game.relayout(_points);
     _standPiece(game, placed);
-    // The tray goes, so what was put down can be seen where it stands,
-    // chosen, to be moved — or bought.
-    setState(() => _tray = _Tray.none);
-    _syncTrayClock();
-    _select(placed.spawnId);
-    game.lookAt(placed.spawnId);
+    _showChosen(game, placed.spawnId);
+  }
+
+  /// Chooses [spawnId] from a tray and brings it on screen. A tall tray
+  /// goes, so it can be seen where it stands — to be moved, or bought —
+  /// and comes back once it is let go; the scenery's is one short row and
+  /// stays, for the next piece.
+  void _showChosen(SceneGame game, String spawnId) {
+    if (_tray != _Tray.scenery && _tray != _Tray.none) {
+      _returnTray = _tray;
+      setState(() => _tray = _Tray.none);
+      _syncTrayClock();
+    }
+    _select(spawnId);
+    game.lookAt(spawnId);
   }
 
   /// Puts [layout] in place: the newcomers in [added] gather out of
@@ -1440,9 +1561,22 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                     ],
                   ],
                   const Spacer(),
-                  if (_arranging && _tray != _Tray.none)
-                    _trayRow(context)
-                  else if (_arranging && _selected == null)
+                  if (_arranging && _tray != _Tray.none) ...[
+                    if (_flash != null) ...[
+                      _note(context, _flash!),
+                      const SizedBox(height: 6),
+                    ],
+                    _trayRow(context),
+                  ] else if (_flash != null)
+                    _note(context, _flash!)
+                  else if (_arranging && (_selectedPiece?.trial ?? false))
+                    _note(context, 'This is a preview. Buy it to keep it here.')
+                  else if (_arranging && _selected != null)
+                    _note(
+                      context,
+                      'Hold it to move it. Tap OK when it is in place.',
+                    )
+                  else if (_arranging)
                     _note(
                       context,
                       'Hold something to move it. Tap to choose it.',
@@ -1534,7 +1668,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           const SizedBox(width: 10),
         ],
         _HudButton(
-          label: _arranging ? 'Done' : 'Arrange',
+          label: _arranging
+              ? (_armed == 'done' ? 'Leave?' : 'Done')
+              : 'Arrange',
           icon: _arranging ? AppIcons.check_rounded : AppIcons.tune_rounded,
           accent: _amber,
           active: _arranging,
@@ -1722,7 +1858,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     } else if (p != null) {
       final scenery = _layout.realm.sceneryOf(p.kind);
       name = p.decor != null
-          ? '${p.decor!.name}${p.trial ? ' · TRYING' : ''}'
+          ? '${p.decor!.name}${p.trial ? ' · PREVIEW' : ''}'
           : p.isKeepsake
           ? (_ledger.byId(p.kind)?.title ?? '')
           : (scenery?.label ?? '');
@@ -1778,6 +1914,20 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       );
     } else {
       return const SizedBox.shrink();
+    }
+    // Let go of it, for the next thing. A preview is kept only by buying
+    // it, so it has no OK.
+    if (p == null || !p.trial) {
+      chips.insertAll(0, [
+        const SizedBox(width: 6),
+        _Chip(
+          label: 'OK',
+          icon: AppIcons.check_rounded,
+          selected: true,
+          accent: _amber,
+          onTap: _letGo,
+        ),
+      ]);
     }
     return Align(
       alignment: Alignment.centerLeft,
@@ -1869,6 +2019,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                 placed: _layout.placed
                     .where((p) => p.kind == d.id && !p.trial)
                     .length,
+                canBuy: !d.athanorOnly && _decor.ownedOf(d.id) < d.max,
                 onTap: () => _place(d.id, keepsake: true),
               ),
               const SizedBox(width: 6),
@@ -2159,30 +2310,52 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   }
 }
 
-/// A piece of decor on the tray: its picture, its name, and how many stand
-/// here of how many owned — or its price.
+/// A piece of decor on the tray: its picture, its name, how many are owned,
+/// and what a tap does — places one of those owned, or stands a preview of
+/// one more to be bought where it stands.
 class _DecorTile extends StatelessWidget {
   const _DecorTile({
     required this.decor,
     required this.owned,
     required this.placed,
+    required this.canBuy,
     required this.onTap,
   });
 
   final HomeDecor decor;
   final int owned, placed;
+
+  /// Whether one more can be bought (fewer owned than a realm can stand).
+  final bool canBuy;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final has = owned > 0;
+    final left = owned - placed;
     final price = decor.gold > 0 ? '${decor.gold} G' : '${decor.silver} S';
+    final (status, lit) = left > 0
+        ? ('PLACE · $left LEFT', true)
+        : canBuy
+        ? ('PREVIEW · $price', false)
+        : ('ALL PLACED', false);
+    final own = owned == 0
+        ? 'NOT OWNED'
+        : canBuy
+        ? 'OWN $owned OF ${decor.max}'
+        : 'OWN $owned';
+    TextStyle line(Color color) => TextStyle(
+      fontFamily: 'monospace',
+      color: color,
+      fontSize: 8,
+      fontWeight: FontWeight.w700,
+      letterSpacing: 0.6,
+    );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
       child: CustomPaint(
         foregroundPainter: BracketFramePainter(
-          color: has
+          color: lit
               ? _amber.withValues(alpha: 0.9)
               : _palette.line.withValues(alpha: 0.9),
           bracketSize: 7,
@@ -2200,7 +2373,7 @@ class _DecorTile extends StatelessWidget {
             children: [
               Expanded(
                 child: Opacity(
-                  opacity: has ? 1 : 0.7,
+                  opacity: owned > 0 ? 1 : 0.7,
                   child: KeepsakeView(decor.id),
                 ),
               ),
@@ -2217,15 +2390,12 @@ class _DecorTile extends StatelessWidget {
                   letterSpacing: 0.6,
                 ),
               ),
+              Text(own, maxLines: 1, style: line(_palette.muted)),
               Text(
-                has ? '$placed/$owned HERE' : 'TRY · $price',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: has ? _amber : _palette.muted,
-                  fontSize: 8,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.8,
-                ),
+                status,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: line(lit ? _amber : _palette.ink.withValues(alpha: 0.8)),
               ),
             ],
           ),
@@ -2289,13 +2459,13 @@ class _KeepsakeTileState extends State<_KeepsakeTile> {
   @override
   Widget build(BuildContext context) {
     final k = widget.keepsake;
-    final all = widget.placed >= k.copies;
+    final left = k.copies - widget.placed;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(widget.onTap),
       child: CustomPaint(
         foregroundPainter: BracketFramePainter(
-          color: all
+          color: left > 0
               ? _amber.withValues(alpha: 0.9)
               : _palette.line.withValues(alpha: 0.9),
           bracketSize: 7,
@@ -2333,10 +2503,14 @@ class _KeepsakeTileState extends State<_KeepsakeTile> {
                 ),
               ),
               Text(
-                '${widget.placed}/${k.copies} OUT',
+                left <= 0
+                    ? 'PLACED'
+                    : k.copies > 1
+                    ? 'PLACE · $left LEFT'
+                    : 'PLACE',
                 style: TextStyle(
                   fontFamily: 'monospace',
-                  color: all ? _amber : _palette.muted,
+                  color: left > 0 ? _amber : _palette.muted,
                   fontSize: 8,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.8,

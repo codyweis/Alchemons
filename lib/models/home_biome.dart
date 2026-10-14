@@ -49,6 +49,9 @@ Future<bool> homeDebugOn() async {
 /// How many Alchemons can live in the home biome at once.
 const int kHomeBiomeMaxResidents = 12;
 
+/// How many can stand beside one thing, on each side of it.
+const int kHomeBesidePerSide = 3;
+
 /// Where the layout is kept (a Settings row: it travels with the save).
 const String kHomeBiomeSettingsKey = 'home_biome_v1';
 
@@ -1280,10 +1283,12 @@ class HomeBiomeLayout {
     );
   }
 
-  /// Something standing [id] put down at [x] on [back]'s row close beside
-  /// something else standing there (a resident on the ground, a keepsake),
-  /// on a side of it that is free: what it would stand beside and where,
-  /// sharing its ground — or null to stand on its own.
+  /// Something standing [id] put down at [x] on [back]'s row close to what
+  /// already stands there — something on its own ground (a resident on the
+  /// ground, a keepsake) and whatever stands beside it — joins that group at
+  /// its end on the side it was let go (or the other side, if that one is
+  /// full or has no room), sharing its ground: what it would stand beside and
+  /// where, or null to stand on its own.
   (String, double)? nestBeside(String id, double x, {required bool back}) {
     final row = realm.row(back: back);
     final period = realm.period(row.layer);
@@ -1292,45 +1297,106 @@ class HomeBiomeLayout {
     // What already stands beside it moves with it; it cannot be put
     // beside one of its own.
     if (all.any((o) => o.$4 == id)) return null;
+    final self = _besideWidth(id);
+    final selfReach = size * 0.95 * (piece(id)?.decor?.wide ?? 1);
     (String, double)? best;
     var bestD = double.infinity;
     for (final (hid, hx, _, hhost) in all) {
       if (hid == id || hhost != null) continue;
       if (hostOf(id, hid, back: back) == null) continue;
+      // The group: the host where it stands, what stands beside it either
+      // side of it.
+      final beside = [
+        for (final (sid, sx, sreach, shost) in all)
+          if (shost == hid && sid != id) (sid, _wrap(sx - hx), sreach),
+      ];
       final d = _wrap(x - hx);
-      if (d.abs() > size * 1.1 || d.abs() >= bestD) continue;
-      final side = d >= 0 ? 1.0 : -1.0;
-      // One on each side of it at most.
-      final taken = all.any(
-        (o) => o.$4 == hid && o.$1 != id && _wrap(o.$2 - hx).sign == side,
-      );
-      if (taken) continue;
-      final keepsake = piece(hid)?.isKeepsake ?? false;
-      // Beside a wide piece (a Wonder), out at its edge, not in it.
-      final wide = piece(hid)?.decor?.wide ?? 1;
-      final offset = keepsake ? 0.62 * math.max(1.0, wide * 1.25) : 0.78;
-      final at = (hx + side * size * offset) % 1.0;
-      // The pair's ground — with whatever already stands beside the host —
-      // must not run into anything else.
-      final reach = size * 0.95;
-      var lo = -reach, hi = reach;
-      final pair = {id, hid};
-      for (final (sid, sx, sreach, shost) in all) {
-        if (shost != hid || sid == id) continue;
-        pair.add(sid);
-        final d = _wrap(sx - hx);
-        lo = math.min(lo, d - sreach);
-        hi = math.max(hi, d + sreach);
+      // Let go within a size of one of them.
+      var near = d.abs();
+      for (final (_, off, _) in beside) {
+        near = math.min(near, (d - off).abs());
       }
-      final dn = _wrap(at - hx);
-      lo = math.min(lo, dn - reach);
-      hi = math.max(hi, dn + reach);
-      final rest = _taken(back: back, aloft: false, also: pair);
-      if (!_freeAt((hx + (lo + hi) / 2) % 1.0, (hi - lo) / 2, rest)) continue;
-      best = (hid, at);
-      bestD = d.abs();
+      if (near > size * 1.1 || near >= bestD) continue;
+      final preferred = d >= 0 ? 1.0 : -1.0;
+      for (final side in [preferred, -preferred]) {
+        final onSide = [
+          for (final m in beside)
+            if (m.$2.sign == side) m,
+        ];
+        if (onSide.length >= kHomeBesidePerSide) continue;
+        // Next to the one at that end, by both their widths.
+        var end = (hid, 0.0);
+        for (final (sid, off, _) in onSide) {
+          if (off.abs() > end.$2.abs()) end = (sid, off);
+        }
+        final step = 0.39 * (_besideWidth(end.$1) + self) * size;
+        final dn = end.$2 + side * step;
+        // The group's ground, grown by it, must not run into anything else.
+        var lo = -selfReach + dn, hi = selfReach + dn;
+        final group = {id, hid};
+        for (final (sid, sx, sreach, shost) in all) {
+          if (sid != hid && shost != hid) continue;
+          group.add(sid);
+          if (sid == id) continue;
+          final o = _wrap(sx - hx);
+          lo = math.min(lo, o - sreach);
+          hi = math.max(hi, o + sreach);
+        }
+        final rest = _taken(back: back, aloft: false, also: group);
+        if (!_freeAt((hx + (lo + hi) / 2) % 1.0, (hi - lo) / 2, rest)) {
+          continue;
+        }
+        best = (hid, (hx + dn) % 1.0);
+        bestD = near;
+        break;
+      }
     }
     return best;
+  }
+
+  /// [layout] with what stands beside [hostId] closed up to it on each
+  /// side, in the order it stood — one gone from the middle of a group
+  /// leaves no gap.
+  HomeBiomeLayout packBeside(String hostId) {
+    final hr = resident(hostId);
+    final hp = hr == null ? piece(hostId) : null;
+    final hx = hr?.x ?? hp?.x;
+    if (hx == null) return this;
+    final back = hr?.back ?? hp!.back;
+    final row = realm.row(back: back);
+    final size = row.size / realm.period(row.layer);
+    final to = <String, double>{};
+    for (final side in const [1.0, -1.0]) {
+      final members = [
+        for (final (sid, sx, _, shost) in _standing(back: back))
+          if (shost == hostId && _wrap(sx - hx).sign == side)
+            (sid, _wrap(sx - hx).abs()),
+      ]..sort((a, b) => a.$2.compareTo(b.$2));
+      var end = hostId, at = 0.0;
+      for (final (sid, _) in members) {
+        at += 0.39 * (_besideWidth(end) + _besideWidth(sid)) * size;
+        to[sid] = (hx + side * at) % 1.0;
+        end = sid;
+      }
+    }
+    if (to.isEmpty) return this;
+    return copyWith(
+      residents: [
+        for (final r in residents)
+          if (to[r.spawnId] case final x?) r.copyWith(x: x) else r,
+      ],
+    ).withPlaced([
+      for (final p in placed)
+        if (to[p.spawnId] case final x?) p.copyWith(x: x) else p,
+    ]);
+  }
+
+  /// How wide [id] stands beside others, in creatures: a creature or a
+  /// small keepsake one, a Wonder its own width and more (out at its edge,
+  /// not in it).
+  double _besideWidth(String id) {
+    final wide = piece(id)?.decor?.wide ?? 1;
+    return wide > 1 ? wide * 1.4 : 1;
   }
 
   /// [layout] with whatever stood beside [hostId] moved along by [by] (a
