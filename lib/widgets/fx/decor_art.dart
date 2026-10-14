@@ -216,21 +216,21 @@ class _RuneStone extends KeepsakeArt {
   static const _at = Offset(0, -52);
 
   @override
-  Rect get box => const Rect.fromLTRB(-30, -96, 30, 4);
+  Rect get box => const Rect.fromLTRB(-32, -102, 32, 4);
 
   @override
   void body(Canvas c) {
     final stone = StoneLight(const Color(0xFF8A8F9A));
-    final slab = _poly(const [
-      Offset(-26, 2),
-      Offset(-28, -60),
-      Offset(-14, -90),
-      Offset(10, -94),
-      Offset(26, -70),
-      Offset(24, 2),
-    ]);
+    // A standing stone worn round, leaning a little, wider at its foot.
+    final slab = Path()
+      ..moveTo(-27, 3)
+      ..quadraticBezierTo(-32, -50, -22, -86)
+      ..quadraticBezierTo(-16, -104, -4, -100)
+      ..quadraticBezierTo(18, -92, 24, -64)
+      ..quadraticBezierTo(30, -26, 27, 3)
+      ..close();
     _solid(c, slab, stone.ink);
-    _shade(c, slab, _litAcross(stone, -28, 26, k: 0.5));
+    _shade(c, slab, _litAcross(stone, -31, 29, k: 0.5));
   }
 
   /// The sign: the classical triangles, the Sun's disc, the Moon's
@@ -274,19 +274,35 @@ class _RuneStone extends KeepsakeArt {
 
   late final Path _glyph = _sign();
 
+  final _Grains _motes = _Grains(10);
+
   @override
   void under(Canvas c, KeepsakeTime k) =>
-      paintDisc(c, m.pool, _at, 40, 0.3 + 0.5 * k.night);
+      paintDisc(c, m.pool, _at, 46, 0.35 + 0.5 * k.night);
 
   @override
   void live(Canvas c, KeepsakeTime k) {
-    final b = 0.65 + 0.2 * math.sin(k.t * 0.9) + 0.3 * k.stir;
-    _solid(c, _glyph, _a(m.hot, b));
-    paintDisc(c, m.spark, _at, 10, 0.25 * b);
+    // The sign glows in its own element's light, not white: brightest by
+    // night, breathing slowly, flaring when someone comes to it.
+    final b = 0.55 + 0.15 * math.sin(k.t * 0.9) + 0.25 * k.night + 0.3 * k.stir;
+    paintDisc(c, m.pool, _at, 26, 0.6 * b);
+    _solid(c, _glyph, _a(m.rim, b));
+    // A few motes of it rising off the stone.
+    _motes.clear();
+    for (var i = 0; i < 10; i++) {
+      final life = (k.t * (0.12 + 0.06 * _hash(i, 11)) + _hash(i, 12)) % 1.0;
+      _motes.add(
+        _at.dx + (_hash(i, 13) - 0.5) * 26 + math.sin(k.t + i) * 3 * life,
+        _at.dy + 8 - life * 46,
+      );
+    }
+    _motes.draw(c, 1.8, _a(m.rim, (0.25 + 0.45 * k.night) * b));
   }
 }
 
-/// A banner in a faction's colors on a tall pole, moving with the wind.
+/// A banner in a faction's colors on a tall pole, moving with the wind: a
+/// long streamer, deep at the pole and thinning to light at its tail,
+/// which sheds grains on the wind.
 class _Banner extends KeepsakeArt {
   _Banner(int style)
     : super(
@@ -298,8 +314,11 @@ class _Banner extends KeepsakeArt {
         ], style),
       );
 
+  // Fresh, older and nearly gone, each drawn fainter.
+  final List<_Grains> _shed = [_Grains(14), _Grains(14), _Grains(14)];
+
   @override
-  Rect get box => const Rect.fromLTRB(-20, -270, 90, 4);
+  Rect get box => const Rect.fromLTRB(-20, -270, 132, 4);
 
   @override
   void body(Canvas c) {
@@ -309,47 +328,68 @@ class _Banner extends KeepsakeArt {
     paintOrb(c, StoneLight(_gold), const Offset(0, -266), 4.5);
   }
 
+  /// A point on the cloth: [u] along it from the pole (0) to its tail (1),
+  /// [v] across it from its top edge (-1) to its bottom (1).
+  Offset _at(double u, double v, KeepsakeTime k) {
+    const top = -256.0, root = 30.0, length = 128.0;
+    final wave = 1 + 0.6 * k.stir;
+    final ripple = math.sin(k.t * 1.4 - u * 3.6) * 8 * u * wave;
+    final half = root / 2 * (1 - u * 0.88);
+    final droop = u * u * 30;
+    return Offset(4 + u * length, top + root / 2 + droop + ripple + v * half);
+  }
+
+  @override
+  void under(Canvas c, KeepsakeTime k) {
+    final tail = _at(0.85, 0, k);
+    paintDisc(c, m.pool, tail, 46, 0.35 + 0.45 * k.night);
+  }
+
   @override
   void live(Canvas c, KeepsakeTime k) {
-    // The cloth: hung from the pole's head, waving along its length.
-    const top = -252.0, h = 110.0, w = 78.0;
-    final wave = 1 + 0.6 * k.stir;
-    Offset at(double u, double v) {
-      final ripple = math.sin(k.t * 2.2 - u * 4) * 5 * u * wave;
-      return Offset(3 + u * w, top + v * h * (1 - u * 0.12) + ripple + u * 4);
-    }
-
-    const n = 10;
-    final topEdge = [for (var i = 0; i <= n; i++) at(i / n, 0)];
-    final bottom = [for (var i = n; i >= 0; i--) at(i / n, 1)];
-    // A swallowtail cut at the free end.
-    final tail = at(0.82, 0.5);
-    final cloth = _poly([...topEdge, tail, ...bottom]);
-    // Cloth is lit by the day, not from inside: darker by night.
-    final dark = 0.4 + 0.35 * k.night;
+    const n = 14;
+    final cloth = _poly([
+      for (var i = 0; i <= n; i++) _at(i / n, -1, k),
+      _at(1.05, 0, k),
+      for (var i = n; i >= 0; i--) _at(i / n, 1, k),
+    ]);
+    // Deep, nearly dark, in its color at the pole; only the tail is lit,
+    // and that more by night.
+    final glow = 0.6 + 0.4 * k.night;
+    final deep = 0.78 + 0.1 * k.night;
     _shade(
       c,
       cloth,
-      ui.Gradient.linear(at(0, 0), at(1, 1), [
-        Color.lerp(m.essence, const Color(0xFF05060B), dark)!,
-        Color.lerp(m.essence, const Color(0xFF05060B), dark + 0.25)!,
-      ]),
+      ui.Gradient.linear(
+        _at(0, 0, k),
+        _at(1.05, 0, k),
+        [
+          Color.lerp(m.essence, m.ink, deep)!,
+          Color.lerp(m.essence, m.ink, deep - 0.22)!,
+          _a(m.rim, 0.7 * glow),
+          _a(m.hot, 0),
+        ],
+        const [0.0, 0.5, 0.86, 1.0],
+      ),
     );
-    // Its fold catching the light, in a band along the ripple.
-    final fold = _poly([
-      for (var i = 0; i <= n; i++) at(i / n, 0.05),
-      for (var i = n; i >= 0; i--) at(i / n, 0.22),
-    ]);
-    _shade(
-      c,
-      fold,
-      ui.Gradient.linear(at(0, 0), at(1, 0), [
-        _a(m.rim, 0.35),
-        _a(m.rim, 0.05),
-      ]),
-    );
-    // A gold sigil on it.
-    paintOrb(c, StoneLight(_gold), at(0.4, 0.5), 7);
+
+    // The tail comes apart into grains, carried off downwind.
+    for (final g in _shed) {
+      g.clear();
+    }
+    for (var i = 0; i < 42; i++) {
+      final life = (k.t * (0.22 + 0.12 * _hash(i, 3)) + _hash(i, 4)) % 1.0;
+      final from = _at(0.78 + 0.22 * _hash(i, 5), (_hash(i, 6) - 0.5) * 1.2, k);
+      final drift = math.sin(k.t * 1.1 + i * 1.7) * 5 * life;
+      _shed[math.min(2, (life * 3).floor())].add(
+        from.dx + life * (34 + 18 * _hash(i, 7)) * (1 + 0.5 * k.stir),
+        from.dy + life * (6 + 12 * _hash(i, 8)) + drift,
+      );
+    }
+    final bright = 0.55 + 0.45 * k.night;
+    _shed[0].draw(c, 2.4, _a(m.hot, 0.85 * bright));
+    _shed[1].draw(c, 2.0, _a(m.rim, 0.55 * bright));
+    _shed[2].draw(c, 1.6, _a(m.rim, 0.25 * bright));
   }
 }
 
@@ -583,9 +623,15 @@ class _Fountain extends KeepsakeArt {
   }
 }
 
-/// A woven nest of dark reeds. At night a resident sleeps in it.
+/// A low nest, its rim soft grains of down round a dark hollow that glows
+/// warm by night. At night a resident sleeps in it.
 class _RestNest extends KeepsakeArt {
   _RestNest() : super(const Color(0xFFE8C88A));
+
+  final _Grains _rimLit = _Grains(760);
+  final _Grains _rimMid = _Grains(760);
+  final _Grains _rimShade = _Grains(760);
+  final _Grains _glow = _Grains(64);
 
   @override
   Rect get box => const Rect.fromLTRB(-88, -44, 88, 4);
@@ -595,41 +641,16 @@ class _RestNest extends KeepsakeArt {
 
   @override
   void body(Canvas c) {
-    final reed = StoneLight(const Color(0xFFB08A5A));
-    // Back rim, then the bowl, the lining lit warm.
-    final bowl = Path()
-      ..moveTo(-86, -30)
-      ..quadraticBezierTo(-80, 2, 0, 2)
-      ..quadraticBezierTo(80, 2, 86, -30)
-      ..quadraticBezierTo(0, -14, -86, -30)
+    // The hollow: a low dark mound the down lies round.
+    final mound = Path()
+      ..moveTo(-82, -18)
+      ..quadraticBezierTo(-78, 3, 0, 3)
+      ..quadraticBezierTo(78, 3, 82, -18)
+      ..quadraticBezierTo(0, -34, -82, -18)
       ..close();
-    _solid(c, bowl, reed.ink);
-    _shade(c, bowl, _litAcross(reed, -86, 86, k: 0.45));
-    // Reeds woven across it: thin filled strands.
-    for (var i = 0; i < 9; i++) {
-      final y = -26 + i * 2.8;
-      final strand = _poly([
-        Offset(-82 + i * 3, y),
-        Offset(82 - i * 3, y - 2),
-        Offset(82 - i * 3, y - 0.6),
-        Offset(-82 + i * 3, y + 1.4),
-      ]);
-      _shade(
-        c,
-        strand,
-        ui.Gradient.linear(const Offset(-80, 0), const Offset(80, 0), [
-          _a(reed.rim, 0.22),
-          _a(reed.rim, 0.05),
-        ]),
-      );
-    }
-    final lining = _poly(const [
-      Offset(-70, -30),
-      Offset(70, -30),
-      Offset(50, -22),
-      Offset(-50, -22),
-    ]);
-    _glass(c, m, lining, const Offset(0, -26), 50);
+    final earth = StoneLight(const Color(0xFF8A7A62));
+    _solid(c, mound, earth.ink);
+    _shade(c, mound, _litAcross(earth, -82, 82, k: 0.35));
   }
 
   @override
@@ -637,15 +658,50 @@ class _RestNest extends KeepsakeArt {
       _groundPool(c, m, 0, 90, 0.2 + 0.35 * k.night);
 
   @override
-  void live(Canvas c, KeepsakeTime k) {}
+  void live(Canvas c, KeepsakeTime k) {
+    // Warm in the hollow by night.
+    paintDisc(c, m.pool, const Offset(0, -20), 64, 0.15 + 0.5 * k.night);
+    _rimLit.clear();
+    _rimMid.clear();
+    _rimShade.clear();
+    _glow.clear();
+    // The down: fine grains packed in a band round the hollow's rim,
+    // thickest at its middle, stirring a little.
+    for (var i = 0; i < 760; i++) {
+      final a = _hash(i, 21) * math.pi * 2;
+      final band = 1 - 0.16 * (_hash(i, 22) + _hash(i, 24)) / 2;
+      final puff = math.sin(k.t * 0.8 + i * 0.7) * 0.6 * (1 + k.stir);
+      final x = math.cos(a) * 80 * band;
+      final y = -18 + math.sin(a) * 12 * band - _hash(i, 23) * 7 + puff;
+      // Lit toward the key light (left) and on top; shaded round the back.
+      final lit = -x / 80 * 0.6 + math.sin(a) * 0.5 + _hash(i, 25) * 0.6;
+      (lit > 0.55
+              ? _rimLit
+              : lit > 0.1
+              ? _rimMid
+              : _rimShade)
+          .add(x, y);
+      if (i % 12 == 0) _glow.add(x * 0.92, y + 1);
+    }
+    _rimShade.draw(c, 1.9, _a(Color.lerp(m.essence, m.ink, 0.66)!, 0.95));
+    _rimMid.draw(c, 1.8, _a(Color.lerp(m.essence, m.ink, 0.4)!, 0.9));
+    _rimLit.draw(c, 1.7, _a(m.essence, 0.8));
+    _glow.draw(c, 1.6, _a(m.hot, 0.1 + 0.5 * k.night));
+  }
 }
 
-/// A tall perch with a crossbar. Flyers land on it.
+/// A tall spire ending in a crescent cradle, lit faintly inside. Flyers
+/// land in it.
 class _FlyerPerch extends KeepsakeArt {
   _FlyerPerch() : super(const Color(0xFF9FD6F2));
 
+  // The cradle: a crescent, horns up, its inner curve where a flyer sits.
+  static const _centre = Offset(0, -327);
+  static const _r = 36.0, _thick = 9.0;
+  final _Grains _motes = _Grains(16);
+
   @override
-  Rect get box => const Rect.fromLTRB(-40, -320, 40, 4);
+  Rect get box => const Rect.fromLTRB(-44, -340, 44, 4);
 
   @override
   double? get seat => 300;
@@ -654,19 +710,37 @@ class _FlyerPerch extends KeepsakeArt {
   void body(Canvas c) {
     final post = StoneLight(const Color(0xFF8C96B4));
     _plinth(c, post, 36, 10, steps: 3);
-    _shaft(c, post, 0, -10, -296, 16, 11);
-    _block(c, post, const Rect.fromLTRB(-36, -302, 36, -296), bevel: 1.6);
-    for (final x in const [-36.0, 36.0]) {
-      paintOrb(c, m, Offset(x, -299), 3.6);
-    }
+    _shaft(c, post, 0, -10, -294, 16, 8);
+    // Thick at the bottom, tapering to points at the horns.
+    const n = 24;
+    final cradle = _poly([
+      for (var i = 0; i <= n; i++) _centre + polar(_r, math.pi * i / n),
+      for (var i = n; i >= 0; i--)
+        _centre +
+            polar(_r - _thick * math.sin(math.pi * i / n), math.pi * i / n),
+    ]);
+    _solid(c, cradle, post.ink);
+    _shade(c, cradle, _litAcross(post, -_r, _r, k: 0.6));
   }
 
   @override
   void under(Canvas c, KeepsakeTime k) =>
-      paintDisc(c, m.pool, const Offset(0, -300), 40, 0.3 + 0.4 * k.night);
+      paintDisc(c, m.pool, const Offset(0, -306), 46, 0.3 + 0.45 * k.night);
 
   @override
-  void live(Canvas c, KeepsakeTime k) {}
+  void live(Canvas c, KeepsakeTime k) {
+    // Light held in the cradle, and a few motes drifting up out of it.
+    paintDisc(c, m.spark, const Offset(0, -304), 6, 0.2 + 0.35 * k.night);
+    _motes.clear();
+    for (var i = 0; i < 16; i++) {
+      final life = (k.t * (0.1 + 0.06 * _hash(i, 31)) + _hash(i, 32)) % 1.0;
+      _motes.add(
+        (_hash(i, 33) - 0.5) * 44 + math.sin(k.t * 0.7 + i) * 4 * life,
+        -304 - life * 60,
+      );
+    }
+    _motes.draw(c, 1.8, _a(m.rim, 0.2 + 0.45 * k.night));
+  }
 }
 
 /// A seat between two posts. A resident climbs on and swings.
@@ -726,9 +800,12 @@ class _Swing extends KeepsakeArt {
   }
 }
 
-/// A cloth roof on four posts. Under weather, the residents shelter here.
+/// A pale veil hung between two posts, lit from beneath by a small lamp.
+/// Under weather, the residents shelter here.
 class _Canopy extends KeepsakeArt {
   _Canopy() : super(const Color(0xFFE8C88A));
+
+  final StoneLight _silk = StoneLight(const Color(0xFF8C96B4));
 
   @override
   Rect get box => const Rect.fromLTRB(-150, -250, 150, 4);
@@ -744,34 +821,54 @@ class _Canopy extends KeepsakeArt {
   @override
   void body(Canvas c) {
     final post = StoneLight(const Color(0xFF8C96B4));
-    for (final x in const [-136.0, -96.0, 96.0, 136.0]) {
-      _shaft(c, post, x, 2, -196, 14, 10);
+    for (final x in const [-134.0, 134.0]) {
+      _shaft(c, post, x, 2, -206, 14, 9);
+      paintOrb(c, StoneLight(_gold), Offset(x, -210), 4);
     }
   }
 
   @override
   void under(Canvas c, KeepsakeTime k) {
     _groundPool(c, m, 0, 150, 0.15 + 0.4 * k.night);
-    paintDisc(c, m.pool, const Offset(0, -170), 90, 0.2 + 0.3 * k.night);
+    paintDisc(c, m.pool, const Offset(0, -176), 110, 0.25 + 0.35 * k.night);
   }
 
   @override
   void live(Canvas c, KeepsakeTime k) {
-    // The roof: cloth sagging between the posts, lifting in the wind.
+    // The veil: sagging from post to post, lifting in the wind, its hem in
+    // three soft scallops; pale and thin enough to see the sky through.
     final lift = math.sin(k.t * 1.1) * 3 * (1 + k.stir);
-    final roof = Path()
-      ..moveTo(-148, -196)
-      ..quadraticBezierTo(-74, -246 + lift, 0, -240 + lift)
-      ..quadraticBezierTo(74, -246 + lift, 148, -196)
-      ..quadraticBezierTo(74, -206 - lift, 0, -200 - lift)
-      ..quadraticBezierTo(-74, -206 - lift, -148, -196)
+    final sway = math.sin(k.t * 0.8 + 1) * 2 * (1 + k.stir);
+    final veil = Path()
+      ..moveTo(-136, -208)
+      ..quadraticBezierTo(-70, -250 + lift, 0, -244 + lift)
+      ..quadraticBezierTo(70, -250 + lift, 136, -208)
+      ..quadraticBezierTo(118, -178 + sway, 90, -184 + sway)
+      ..quadraticBezierTo(60, -170 - sway, 30, -182 - sway)
+      ..quadraticBezierTo(0, -168 + sway, -30, -182 + sway)
+      ..quadraticBezierTo(-60, -170 - sway, -90, -184 - sway)
+      ..quadraticBezierTo(-118, -178 + sway, -136, -208)
       ..close();
-    final cloth = StoneLight(const Color(0xFF9A6A4A));
-    _solid(c, roof, cloth.ink);
-    _shade(c, roof, _litAcross(cloth, -148, 148, k: 0.6));
-    // A lantern hung under its ridge.
-    paintDisc(c, m.pool, const Offset(0, -186), 40, 0.4 + 0.5 * k.night);
-    paintOrb(c, m, Offset(0, -186 + lift * 0.5), 6);
+    // The dark of the posts at its ridge, thinning toward the hem, where
+    // the lamp below lights it — warmer by night.
+    final glow = 0.45 + 0.55 * k.night;
+    _shade(
+      c,
+      veil,
+      ui.Gradient.linear(
+        const Offset(0, -248),
+        const Offset(0, -170),
+        [
+          _a(_silk.ink, 0.95),
+          _a(_silk.face, 0.75),
+          _a(Color.lerp(m.essence, m.rim, 0.2)!, 0.2 + 0.4 * glow),
+        ],
+        const [0.0, 0.62, 1.0],
+      ),
+    );
+    // A small lamp hung under its ridge.
+    paintDisc(c, m.pool, const Offset(0, -196), 44, 0.4 + 0.5 * k.night);
+    paintOrb(c, m, Offset(0, -196 + lift * 0.5), 5);
   }
 }
 
