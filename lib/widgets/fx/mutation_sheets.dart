@@ -537,9 +537,12 @@ Uint8List albinoRgba(MutationBakeJob job) {
 
 /// A faction variant: every color turned in OKLab by the one amount that
 /// lands the sheet's main color (its solid colors' mean, eyes aside) on its
-/// faction's hue ([kVariantPalette]), its strength and light scaled as the
-/// faction keeps them; its eyes ([MutationBakeJob.eyes], read as a mask)
-/// left their own color.
+/// faction's hue ([kVariantPalette]) — or, where that would hardly change it
+/// ([kVariantLeastChange]), on the far end of the faction's range; a pale or
+/// dark body's color raised toward [kVariantBodyChroma], near-greys given
+/// the faction's hue; its strength and light scaled as the faction keeps
+/// them; its eyes ([MutationBakeJob.eyes], read as a mask) left their own
+/// color.
 Uint8List variantRgba(MutationBakeJob job) {
   final swap = kVariantPalette[job.look.faction]!;
   final src = job.rgba;
@@ -547,6 +550,7 @@ Uint8List variantRgba(MutationBakeJob job) {
   final n = job.width * job.height;
   final out = Uint8List(n * 4);
   final labL = Float32List(n), labA = Float32List(n), labB = Float32List(n);
+  final body = Uint8List(n);
   final lin = Float64List(256);
   for (var c = 0; c < 256; c++) {
     final v = c / 255.0;
@@ -555,7 +559,10 @@ Uint8List variantRgba(MutationBakeJob job) {
         : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
   }
 
-  var sumA = 0.0, sumB = 0.0;
+  // The body — what is solid, eyes aside: its main color and how colored
+  // it is.
+  var sumA = 0.0, sumB = 0.0, sumC = 0.0;
+  var bodyCount = 0;
   for (var i = 0; i < n; i++) {
     final o = i * 4;
     if (src[o + 3] == 0) continue;
@@ -568,16 +575,51 @@ Uint8List variantRgba(MutationBakeJob job) {
     labL[i] = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
     labA[i] = la;
     labB[i] = lb;
-    // The main color: what is solid and colored, eyes aside.
     if (src[o + 3] < 128 || (eyes != null && eyes[o + 3] > 0)) continue;
-    if (la * la + lb * lb < 0.04 * 0.04) continue;
+    body[i] = 1;
+    bodyCount++;
+    final c = math.sqrt(la * la + lb * lb);
+    sumC += c;
+    if (c < 0.04) continue;
     sumA += la;
     sumB += lb;
   }
-  final turn = sumA == 0 && sumB == 0
-      ? 0.0
-      : swap.hue * math.pi / 180 - math.atan2(sumB, sumA);
-  final cs = math.cos(turn) * swap.chroma, sn = math.sin(turn) * swap.chroma;
+
+  double rad(double degrees) => degrees * math.pi / 180;
+  double apart(double a, double b) {
+    final d = (a - b) % (2 * math.pi);
+    return math.min(d, 2 * math.pi - d);
+  }
+
+  // How much the body changes, on average, turned by [turn].
+  double change(double turn) {
+    if (bodyCount == 0) return double.infinity;
+    final ct = math.cos(turn) * swap.chroma, st = math.sin(turn) * swap.chroma;
+    final dl = 1 - swap.light;
+    var total = 0.0;
+    for (var i = 0; i < n; i++) {
+      if (body[i] == 0) continue;
+      final a = labA[i], b = labB[i], l = labL[i] * dl;
+      final da = a - (a * ct - b * st), db = b - (a * st + b * ct);
+      total += math.sqrt(l * l + da * da + db * db);
+    }
+    return total / bodyCount;
+  }
+
+  final own = sumA == 0 && sumB == 0 ? null : math.atan2(sumB, sumA);
+  var hue = rad(swap.hue);
+  if (own != null && change(hue - own) < kVariantLeastChange) {
+    final low = rad(swap.low), high = rad(swap.high);
+    hue = apart(low, own) > apart(high, own) ? low : high;
+  }
+  final turn = own == null ? 0.0 : hue - own;
+  final ct = math.cos(turn), st = math.sin(turn);
+  final lift = bodyCount == 0
+      ? 1.0
+      : (kVariantBodyChroma / math.max(sumC / bodyCount, 1e-6)).clamp(
+          1.0,
+          kVariantMostLift,
+        );
 
   int srgb(double v) {
     if (v <= 0) return 0;
@@ -592,9 +634,28 @@ Uint8List variantRgba(MutationBakeJob job) {
     final o = i * 4;
     final alpha = src[o + 3];
     if (alpha == 0) continue;
-    final a = labA[i], b = labB[i];
-    final ll = labL[i] * swap.light;
-    final aa = a * cs - b * sn, bb = a * sn + b * cs;
+    final light = labL[i];
+    var aa = labA[i] * ct - labB[i] * st, bb = labA[i] * st + labB[i] * ct;
+    var c = math.sqrt(aa * aa + bb * bb) * lift;
+    // A near-grey, away from the darkest lines and brightest glints, takes
+    // a little of the faction's hue.
+    final grey =
+        kVariantGreyChroma *
+        ((light - 0.12) / 0.2).clamp(0.0, 1.0) *
+        ((0.97 - light) / 0.12).clamp(0.0, 1.0);
+    var h = math.atan2(bb, aa);
+    if (c < grey) {
+      final w = (grey - c) / grey;
+      final from = c > 1e-4 ? h : hue;
+      h = math.atan2(
+        (1 - w) * math.sin(from) + w * math.sin(hue),
+        (1 - w) * math.cos(from) + w * math.cos(hue),
+      );
+      c = grey;
+    }
+    aa = c * math.cos(h) * swap.chroma;
+    bb = c * math.sin(h) * swap.chroma;
+    final ll = light * swap.light;
     final l = ll + 0.3963377774 * aa + 0.2158037573 * bb;
     final m = ll - 0.1055613458 * aa - 0.0638541728 * bb;
     final s = ll - 0.0894841775 * aa - 1.2914855480 * bb;

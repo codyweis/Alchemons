@@ -143,6 +143,20 @@ void main() {
       expect(chroma(earthen, mid), lessThan(chroma(volcanic, mid) * 0.75));
     });
 
+    test('a red body made Volcanic still changes: it goes orange', () {
+      final src = disc(230, 70, 60);
+      final out = bake(src, MutationLook.variantVolcanic);
+      // Turned only to Volcanic's own hue it would hardly move (green ~80).
+      expect(out[mid + 1], greaterThan(src[mid + 1] + 25));
+    });
+
+    test('a grey body takes its faction\'s hue', () {
+      final src = disc(200, 204, 206);
+      final out = bake(src, MutationLook.variantArcane);
+      expect(out[mid + 2] - out[mid + 1], greaterThan(8));
+      expect(out[mid], greaterThan(out[mid + 1]));
+    });
+
     test('its eyes keep their own color', () {
       final src = disc(230, 70, 60);
       final eyes = Uint8List(src.length)..[mid + 3] = 255;
