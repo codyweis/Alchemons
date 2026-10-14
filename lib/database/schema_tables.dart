@@ -123,6 +123,12 @@ class CreatureInstances extends Table {
   /// Travels with it; breeding never passes it on.
   TextColumn get provenance => text().nullable()();
 
+  /// The Potential Souls put into it, each stat and what it added: a
+  /// `PotentialSoulLedger`, saved. Counts toward its cap and is what a refund
+  /// takes back. Travels with it; breeding never passes it on (the Potential
+  /// it raised does).
+  TextColumn get potentialSouls => text().nullable()();
+
   // STAT COLUMNS
   RealColumn get statSpeed => real().withDefault(const Constant(3.0))();
   RealColumn get statIntelligence => real().withDefault(const Constant(3.0))();

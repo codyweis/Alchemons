@@ -10,6 +10,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/instance_stat_traits.dart';
+import 'package:drift/drift.dart' show Value;
 import 'package:uuid/uuid.dart';
 
 /// What to do when species cap is reached.
@@ -321,6 +322,28 @@ class PotentialSoulApplyResult {
         silverCost: 0,
         error: message,
       );
+}
+
+class PotentialSoulRefundResult {
+  final bool ok;
+
+  /// How many Souls came back.
+  final int souls;
+  final int goldCost;
+  final String? error;
+
+  const PotentialSoulRefundResult({
+    required this.ok,
+    required this.souls,
+    required this.goldCost,
+    this.error,
+  });
+
+  const PotentialSoulRefundResult.fail(String message)
+    : ok = false,
+      souls = 0,
+      goldCost = 0,
+      error = message;
 }
 
 /// Thrown to roll back an Enhancement transaction when the Silver half of the
@@ -842,6 +865,13 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
         '${stat.statKey} Potential is already 100.',
       );
     }
+    final ledger = PotentialSoulLedger.decode(target.potentialSouls);
+    if (ledger.isFull) {
+      return PotentialSoulApplyResult.fail(
+        stat.statKey,
+        'It already holds ${PotentialSoulRules.maxPerAlchemon} Potential Souls.',
+      );
+    }
 
     final silverCost = AlchemonStatSystem.potentialSoulSilverCost(
       currentPotential,
@@ -913,6 +943,9 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
           statIntelligencePotential: intelligencePotential,
           statStrengthPotential: strengthPotential,
           statBeautyPotential: beautyPotential,
+          potentialSouls: Value(
+            ledger.plus(stat.statKey, appliedGain).encode(),
+          ),
         );
       });
     } on _PotentialSoulApplyAbort catch (failure) {
@@ -926,6 +959,80 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
       appliedGain: appliedGain,
       newPotential: newPotential,
       silverCost: silverCost,
+    );
+  }
+
+  /// Takes every Potential Soul back out of [targetInstanceId], for
+  /// [PotentialSoulRules.refundGoldEach] Gold each: the Souls return to the
+  /// inventory and each Potential drops by what they added. The Silver paid
+  /// to put them in is not returned, and what its offspring inherited stays
+  /// theirs.
+  Future<PotentialSoulRefundResult> refundPotentialSouls({
+    required String targetInstanceId,
+    required CreatureCatalog repo,
+  }) async {
+    final target = await _db.creatureDao.getInstance(targetInstanceId);
+    if (target == null) {
+      return const PotentialSoulRefundResult.fail('Target not found');
+    }
+    final ledger = PotentialSoulLedger.decode(target.potentialSouls);
+    if (ledger.count == 0) {
+      return const PotentialSoulRefundResult.fail(
+        'It holds no Potential Souls.',
+      );
+    }
+    final goldCost = ledger.count * PotentialSoulRules.refundGoldEach;
+    if (await _db.currencyDao.getGoldBalance() < goldCost) {
+      return PotentialSoulRefundResult.fail(
+        '$goldCost Gold is required to take its Souls back.',
+      );
+    }
+
+    double back(double potential, String stat) =>
+        max(1, potential - ledger.gainIn(stat)).toDouble();
+    final speedPotential = back(target.statSpeedPotential, 'speed');
+    final intelligencePotential = back(
+      target.statIntelligencePotential,
+      'intelligence',
+    );
+    final strengthPotential = back(target.statStrengthPotential, 'strength');
+    final beautyPotential = back(target.statBeautyPotential, 'beauty');
+    final derived = CreatureInstanceService._deriveStats(
+      instance: target,
+      repo: repo,
+      joinedFaction: await FactionService.joinedId(_db),
+      speedPotential: speedPotential,
+      intelligencePotential: intelligencePotential,
+      strengthPotential: strengthPotential,
+      beautyPotential: beautyPotential,
+    );
+
+    final paid = await _db.transaction(() async {
+      if (!await _db.currencyDao.spendGold(goldCost)) return false;
+      await _db.inventoryDao.addItemQty(InvKeys.potentialSoul, ledger.count);
+      await _db.creatureDao.updatePotentialProgression(
+        instanceId: target.instanceId,
+        statSpeed: derived['speed']!,
+        statIntelligence: derived['intelligence']!,
+        statStrength: derived['strength']!,
+        statBeauty: derived['beauty']!,
+        statSpeedPotential: speedPotential,
+        statIntelligencePotential: intelligencePotential,
+        statStrengthPotential: strengthPotential,
+        statBeautyPotential: beautyPotential,
+        potentialSouls: const Value(null),
+      );
+      return true;
+    });
+    if (!paid) {
+      return PotentialSoulRefundResult.fail(
+        '$goldCost Gold is required to take its Souls back.',
+      );
+    }
+    return PotentialSoulRefundResult(
+      ok: true,
+      souls: ledger.count,
+      goldCost: goldCost,
     );
   }
 }

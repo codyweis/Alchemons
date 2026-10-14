@@ -80,6 +80,11 @@ void main() {
     final old = await db.creatureDao.getInstance('old-1');
     expect(old, isNotNull);
     expect(old!.mutation, isNull, reason: 'no existing Alchemon is mutated');
+    expect(
+      old.potentialSouls,
+      isNull,
+      reason: 'the upgrade adds an empty Potential Soul ledger',
+    );
 
     await db.customStatement(
       "UPDATE creature_instances SET mutation = 'transmuted' "

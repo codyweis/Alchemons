@@ -248,14 +248,27 @@ extension _TrayPages on _FeedingScreenState {
     final potential = stat == null ? 0 : _potentialOf(inst, stat);
     final maxed = stat != null && potential >= AlchemonStatSystem.maxPotential;
     final affordable = stat != null && silver >= cost;
-    final ready = stat != null && held > 0 && !maxed && affordable && !_busy;
+    final souls = PotentialSoulLedger.decode(inst.potentialSouls);
+    final full = souls.isFull;
+    final ready =
+        stat != null && held > 0 && !maxed && !full && affordable && !_busy;
+    // With no Potential chosen, the button takes its Souls back instead.
+    final refundable = stat == null && souls.count > 0 && !_busy;
+    final refundCost = souls.count * PotentialSoulRules.refundGoldEach;
     final tint = stat?.color ?? _kSoul;
     final canRead = _canReadPotential;
 
     final String status;
     Color statusColor = _kPalette.muted;
-    if (held == 0) {
+    if (stat == null && _refundArmed) {
+      status =
+          'Its Potentials drop by what its Souls added. The Silver is not '
+          'returned.';
+      statusColor = _kPalette.ink;
+    } else if (held == 0) {
       status = 'No Potential Souls held.';
+    } else if (full) {
+      status = 'It holds ${PotentialSoulRules.maxPerAlchemon} Potential Souls.';
     } else if (stat == null) {
       status = 'Choose a Potential.';
       statusColor = _kPalette.ink;
@@ -305,6 +318,11 @@ extension _TrayPages on _FeedingScreenState {
         Text(
           '$held HELD',
           style: _mono(9.5, held > 0 ? _kPalette.ink : _kPalette.muted),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '${souls.count}/${PotentialSoulRules.maxPerAlchemon} IN IT',
+          style: _mono(9.5, souls.count > 0 ? _kPalette.ink : _kPalette.muted),
         ),
       ],
     );
@@ -373,24 +391,42 @@ extension _TrayPages on _FeedingScreenState {
               ),
               const SizedBox(height: 10),
               Opacity(
-                opacity: ready ? 1 : 0,
+                opacity: ready || refundable ? 1 : 0,
                 child: IgnorePointer(
-                  ignoring: !ready,
-                  child: BracketButton(
-                    label: _soulArmed ? 'CANCEL' : 'CONFIRM',
-                    palette: _kPalette,
-                    accent: tint,
-                    primary: !_soulArmed,
-                    height: 36,
-                    onTap: () {
-                      if (_soulArmed) {
-                        HapticFeedback.selectionClick();
-                      } else {
-                        HapticFeedback.mediumImpact();
-                      }
-                      _set(() => _soulArmed = !_soulArmed);
-                    },
-                  ),
+                  ignoring: !(ready || refundable),
+                  child: refundable
+                      ? BracketButton(
+                          label: _refundArmed
+                              ? 'CONFIRM · $refundCost GOLD'
+                              : 'TAKE BACK',
+                          palette: _kPalette,
+                          accent: _kSoul,
+                          primary: _refundArmed,
+                          height: 36,
+                          onTap: () {
+                            if (_refundArmed) {
+                              _refundSouls(inst);
+                            } else {
+                              HapticFeedback.selectionClick();
+                              _set(() => _refundArmed = true);
+                            }
+                          },
+                        )
+                      : BracketButton(
+                          label: _soulArmed ? 'CANCEL' : 'CONFIRM',
+                          palette: _kPalette,
+                          accent: tint,
+                          primary: !_soulArmed,
+                          height: 36,
+                          onTap: () {
+                            if (_soulArmed) {
+                              HapticFeedback.selectionClick();
+                            } else {
+                              HapticFeedback.mediumImpact();
+                            }
+                            _set(() => _soulArmed = !_soulArmed);
+                          },
+                        ),
                 ),
               ),
             ],
@@ -416,6 +452,7 @@ extension _TrayPages on _FeedingScreenState {
               HapticFeedback.selectionClick();
               if (_soulStat != type) _soulSwapController.forward(from: 0);
               _set(() {
+                _refundArmed = false;
                 // Re-tapping the armed stat disarms, so there is always a
                 // way back out of a committed soul.
                 if (_soulStat == type && _soulArmed) {

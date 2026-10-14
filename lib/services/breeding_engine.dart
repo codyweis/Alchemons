@@ -111,6 +111,11 @@ const double kVariantFirstChancePct = 1.0;
 const double kVariantChancePerPointPct = 1.0;
 const double kVariantMostChancePct = 15.0;
 
+/// When two families with no recipe breed, the child takes the commoner
+/// parent's family this much more often (in percent) for each rarity step
+/// between them: a Common × Legendary pairing goes 80/20.
+const double kCrossFamilyRarityTilt = 10.0;
+
 /// Result of a breed() call.
 class BreedingResult {
   final Creature? creature;
@@ -645,9 +650,28 @@ class BreedingEngine {
       return OutcomeDistribution<String>(map);
     }
 
-    // cross-family with no recipe: default 50/50 lineage tug-of-war
-    return OutcomeDistribution<String>({fam1: 50.0, fam2: 50.0});
+    // cross-family with no recipe: a lineage tug-of-war the commoner parent
+    // wins more of, [kCrossFamilyRarityTilt] for each rarity step between
+    // them (a Common Let and a Legendary Kin: 80/20).
+    int rank(Creature c) {
+      final i = _tiltRarityOrder.indexOf(c.rarity);
+      return i < 0 ? 0 : i;
+    }
+
+    final tilt = ((rank(p2) - rank(p1)) * kCrossFamilyRarityTilt).clamp(
+      -40.0,
+      40.0,
+    );
+    return OutcomeDistribution<String>({fam1: 50.0 + tilt, fam2: 50.0 - tilt});
   }
+
+  static const _tiltRarityOrder = [
+    'Common',
+    'Uncommon',
+    'Rare',
+    'Legendary',
+    'Mystic',
+  ];
 
   OutcomeDistribution<String> getElementDistribution(Creature p1, Creature p2) {
     final t1 = p1.types.isNotEmpty ? p1.types.first.trim() : null;

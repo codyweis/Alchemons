@@ -791,6 +791,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
     required double statIntelligencePotential,
     required double statStrengthPotential,
     required double statBeautyPotential,
+    Value<String?> potentialSouls = const Value.absent(),
   }) async {
     await (update(
       creatureInstances,
@@ -804,6 +805,7 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         statIntelligencePotential: Value(statIntelligencePotential),
         statStrengthPotential: Value(statStrengthPotential),
         statBeautyPotential: Value(statBeautyPotential),
+        potentialSouls: potentialSouls,
       ),
     );
   }

@@ -29,6 +29,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
+import 'package:alchemons/models/potential_soul.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
@@ -171,6 +172,9 @@ class _FeedingScreenState extends State<FeedingScreen>
   // Potential, confirm the price, and only then is the soul draggable.
   AlchemicalPowerupType? _soulStat;
   bool _soulArmed = false;
+
+  /// Taking its Souls back costs Gold, so it asks twice.
+  bool _refundArmed = false;
 
   // ── the first-time drag hint ──
   bool _dragHintChecked = false;
@@ -335,6 +339,7 @@ class _FeedingScreenState extends State<FeedingScreen>
       _message = null;
       _soulStat = null;
       _soulArmed = false;
+      _refundArmed = false;
       _pickerLeaving = true;
       _arriving = true;
       _flight = null;
@@ -1548,6 +1553,35 @@ class _FeedingScreenState extends State<FeedingScreen>
   }
 
   // ───────────────────────────── souls ─────────────────────────────
+
+  /// Takes every Soul back out of [inst] (souls_refund in the service): they
+  /// return to the inventory and its Potentials drop by what they added.
+  Future<void> _refundSouls(CreatureInstance inst) async {
+    if (_busy) return;
+    final db = context.read<AlchemonsDatabase>();
+    final repo = context.read<CreatureCatalog>();
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    final result = await CreatureInstanceService(
+      db,
+    ).refundPotentialSouls(targetInstanceId: inst.instanceId, repo: repo);
+    if (!mounted) return;
+    if (result.ok) {
+      HapticFeedback.mediumImpact();
+    } else {
+      HapticFeedback.vibrate();
+    }
+    setState(() {
+      _busy = false;
+      _refundArmed = false;
+      _message = result.ok
+          ? '${result.souls} Potential Souls taken back for '
+                '${result.goldCost} Gold.'
+          : result.error ?? 'Its Souls could not be taken back.';
+    });
+  }
 
   Future<void> _applySoul(
     CreatureInstance inst,
