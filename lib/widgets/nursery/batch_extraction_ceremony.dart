@@ -64,10 +64,9 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony> {
   String? _error;
   bool _skipped = false;
 
-  /// Card snapshots for the new discoveries, captured as each card is
-  /// dismissed and flown once the whole run has been seen.
-  final List<({DiscoveryFlightCapture? capture, String creatureId})>
-  _pendingFlights = [];
+  /// The new discoveries, noted as each card is dismissed and filed once the
+  /// whole run has been seen.
+  final List<DiscoveryFlight> _pendingFlights = [];
 
   int get _completed => _results.length;
 
@@ -156,10 +155,11 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony> {
   /// Movement 2: the real result card, one specimen at a time. Each call
   /// awaits its own dialog, so the loop IS the "next" flow.
   ///
-  /// New discoveries do NOT file themselves away here. Each card's flight
-  /// switches to the catalog, and doing that per card meant the discovery
-  /// animation ran before the player had finished going through the batch.
-  /// The cards are captured instead and flown together afterwards.
+  /// New discoveries do NOT file themselves away here. Filing switches to
+  /// the catalog, and doing that per card meant the discovery animation ran
+  /// before the player had finished going through the batch. Each card is
+  /// noted instead (and comes apart as any other does), and they are filed
+  /// together afterwards.
   Future<void> _beginCards() async {
     if (_phase == _Phase.cards) return;
     setState(() => _phase = _Phase.cards);
@@ -170,12 +170,7 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony> {
         r.instance.instanceId,
         r.isNewDiscovery,
         cinematicQuality: _quality,
-        onDeferDiscoveryFlight: r.isNewDiscovery
-            ? (capture) => _pendingFlights.add((
-                capture: capture,
-                creatureId: r.creature.id,
-              ))
-            : null,
+        onDeferDiscoveryFlight: r.isNewDiscovery ? _pendingFlights.add : null,
       );
     }
     if (!mounted) return;
@@ -184,10 +179,11 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony> {
 
   /// Movement 3: every new species files itself into the catalog, in turn.
   ///
-  /// This is the same flight a single extraction ends with -- card flies to
-  /// the species' own tile, catalog scrolls it into view, tile pulses -- just
-  /// run once per discovery, so a batch visits each new entry's spot instead
-  /// of collapsing them into one.
+  /// This is the same filing a single extraction ends with -- the catalog
+  /// scrolls the species' own cell into view and its sand pours in, settling
+  /// on the shadow until the portrait comes up -- just run once per
+  /// discovery, the sand gathering where each card stood, so a batch visits
+  /// each new entry's spot instead of collapsing them into one.
   Future<void> _fileAwayDiscoveries() async {
     if (_pendingFlights.isEmpty) {
       if (mounted) Navigator.of(context).pop(_completed);
@@ -196,13 +192,14 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony> {
     final navigator = Navigator.of(context);
     final flights = List.of(_pendingFlights);
     _pendingFlights.clear();
-    // Close the ceremony first: the flights land in the catalog, which is
-    // behind this route, and a card cannot fly to a tile covered by a
+    // Close the ceremony first: the sand lands in the catalog, which is
+    // behind this route, and cannot pour into a cell covered by a
     // full-screen black barrier.
     navigator.pop(_completed);
-    await NewDiscoveryReveal.instance.playCapturedSequence(
+    await NewDiscoveryReveal.instance.playFilingSequence(
       context: navigator.context,
-      entries: flights,
+      flights: flights,
+      reduced: _quality == CinematicQuality.performance,
     );
   }
 

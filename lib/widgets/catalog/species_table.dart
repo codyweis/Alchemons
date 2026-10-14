@@ -11,7 +11,9 @@
 // filling in.
 //
 // Everything is still: portraits are stills, the shadows paint once. The only
-// thing that moves is a reveal, when a new species files itself away.
+// thing that moves is a reveal, when a new species files itself away: its
+// cell stays its shadow while the sand pours in, and the portrait comes up
+// through the settled grains ([DiscoveryFiling]).
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/breed_constants.dart';
@@ -22,6 +24,7 @@ import 'package:alchemons/services/new_discovery_reveal_controller.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/fx/codex_stage.dart';
+import 'package:alchemons/widgets/fx/discovery_filing.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart';
 import 'package:flutter/material.dart';
 
@@ -104,11 +107,24 @@ class SpeciesTable extends StatelessWidget {
         onTap: () => onTap(c, entry.player.discovered),
       );
       if (c.id != revealCreatureId) return built;
-      // Keyed so the filing-away card lands on this exact cell.
+      // Keyed so the filing sand pours into this exact cell.
       final key = NewDiscoveryReveal.instance.revealTileKey ??= GlobalKey(
         debugLabel: 'reveal-tile-${c.id}',
       );
-      return _RevealPulse(key: key, child: built);
+      return _RevealFill(
+        key: key,
+        shadow: _Cell(
+          key: ValueKey('species-shadow:${c.id}'),
+          entry: entry,
+          count: 0,
+          palette: palette,
+          faded: false,
+          showElement: showElement,
+          shadowed: true,
+          onTap: () {},
+        ),
+        found: built,
+      );
     }
 
     final body = layout == CatalogLayout.shelves
@@ -461,6 +477,7 @@ class _Cell extends StatelessWidget {
     required this.faded,
     required this.onTap,
     this.showElement = false,
+    this.shadowed = false,
   });
 
   final CreatureEntry entry;
@@ -472,10 +489,14 @@ class _Cell extends StatelessWidget {
   /// A small element mark in the corner — the shelves have no element rows.
   final bool showElement;
 
+  /// Drawn as its shadow even though it is found: a new species, before its
+  /// sand has settled.
+  final bool shadowed;
+
   @override
   Widget build(BuildContext context) {
     final c = entry.creature;
-    final known = entry.player.discovered;
+    final known = entry.player.discovered && !shadowed;
     Widget cell;
     if (known) {
       cell = CustomPaint(
@@ -597,15 +618,7 @@ class _ShadowState extends State<_Shadow> {
   }
 
   Future<void> _load() async {
-    final c = widget.species;
-    final body = await PortraitBody.load(
-      c.image.startsWith('assets/') ? c.image : 'assets/images/${c.image}',
-      height: 52,
-      element: c.types.isEmpty ? 'Spirit' : c.types.first,
-      color: const Color(0xFF3A404C),
-      locked: true,
-      maxGrains: 480,
-    );
+    final body = await catalogPortrait(widget.species, locked: true);
     if (!mounted) return;
     setState(() => _body = body);
   }
@@ -631,7 +644,7 @@ class _ShadowPainter extends CustomPainter {
     size.center(Offset.zero),
     1.3,
     opacity: opacity,
-    scale: 0.9,
+    scale: kCatalogGrainScale,
   );
 
   @override
@@ -639,53 +652,24 @@ class _ShadowPainter extends CustomPainter {
       old.body != body || old.opacity != opacity;
 }
 
-/// A newly found species, landing: the cell pops and a gilt frame flares and
-/// fades. No blur — the frame is drawn, not glowed.
-class _RevealPulse extends StatefulWidget {
-  const _RevealPulse({super.key, required this.child});
+/// A newly found species, landing: its shadow while the sand pours in, then
+/// the portrait coming up through the settled grains as the filing says.
+class _RevealFill extends StatelessWidget {
+  const _RevealFill({super.key, required this.shadow, required this.found});
 
-  final Widget child;
-
-  @override
-  State<_RevealPulse> createState() => _RevealPulseState();
-}
-
-class _RevealPulseState extends State<_RevealPulse>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1600),
-  )..forward();
+  final Widget shadow;
+  final Widget found;
 
   @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-    animation: _ctl,
-    builder: (_, child) {
-      final t = _ctl.value;
-      final scale = t < 0.25
-          ? 0.85 + 0.23 * (t / 0.25)
-          : t < 0.45
-          ? 1.08 - 0.08 * ((t - 0.25) / 0.2)
-          : 1.0;
-      final flare = (1 - t).clamp(0.0, 1.0);
-      return Transform.scale(
-        scale: scale,
-        child: CustomPaint(
-          foregroundPainter: BracketFramePainter(
-            color: kCaseGilt.withValues(alpha: flare),
-            bracketSize: 7,
-            strokeWidth: 1 + 1.5 * flare,
-          ),
-          child: child,
-        ),
-      );
-    },
-    child: widget.child,
+  Widget build(BuildContext context) => ValueListenableBuilder<double>(
+    valueListenable: NewDiscoveryReveal.instance.revealFill,
+    // One shape throughout, so neither cell is rebuilt from scratch as it
+    // crosses over (the shadow would have to read its grains again).
+    builder: (_, fill, _) => Stack(
+      children: [
+        Opacity(opacity: 1 - fill, child: shadow),
+        Opacity(opacity: fill, child: found),
+      ],
+    ),
   );
 }

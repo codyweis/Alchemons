@@ -170,8 +170,8 @@ class CreaturesScreenState extends State<CreaturesScreen> {
       _catalogBuilt = true;
     });
     // The user's place is worth keeping, but the revealed cell is brought
-    // into view: the card flies to that cell and cannot land on something
-    // scrolled off the screen. The table builds every cell, so the cell's
+    // into view: the card's sand pours into that cell and cannot land on
+    // something scrolled off the screen. The table builds every cell, so the cell's
     // own key is enough to find it.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;

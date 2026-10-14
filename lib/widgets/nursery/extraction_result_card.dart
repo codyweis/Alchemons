@@ -92,19 +92,20 @@ class ExtractionResultCard extends StatefulWidget {
   final bool isNewDiscovery;
   final CinematicQuality cinematicQuality;
 
-  /// When set, a new discovery's card is captured and handed back INSTEAD of
-  /// flying to the catalog. The batch ceremony uses this: flying on each card
-  /// would switch sections partway through the run, which is what made the
-  /// discovery animation play before the player had seen every specimen.
-  final void Function(DiscoveryFlightCapture? capture)? onDeferDiscoveryFlight;
+  /// When set, a new discovery is noted and handed back INSTEAD of filing
+  /// itself into the catalog, and its card comes apart as any other does.
+  /// The batch ceremony uses this: filing on each card would switch sections
+  /// partway through the run, which is what made the discovery animation
+  /// play before the player had seen every specimen.
+  final void Function(DiscoveryFlight flight)? onDeferDiscoveryFlight;
 
   @override
   State<ExtractionResultCard> createState() => _ExtractionResultCardState();
 }
 
 class _ExtractionResultCardState extends State<ExtractionResultCard> {
-  // On the card's RepaintBoundary, so a new discovery can be snapshotted for
-  // its filing-away flight into the catalog.
+  // On the card's RepaintBoundary, so it can be pictured to come apart (and,
+  // for a new discovery, to pour into its cell in the catalog).
   final GlobalKey _cardKey = GlobalKey(debugLabel: 'extraction-card-boundary');
   final EssenceReveal _reveal = EssenceReveal.once();
   final Object _soundOwner = Object();
@@ -132,6 +133,8 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
   @override
   void initState() {
     super.initState();
+    // Its cell's grains, read while the card is up, for the sand to settle on.
+    if (widget.isNewDiscovery) NewDiscoveryReveal.instance.prepare(_species);
     WidgetsBinding.instance.addPostFrameCallback((_) => _begin());
   }
 
@@ -187,48 +190,54 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
     } catch (_) {}
     setState(() => _closing = true);
 
-    // A new species flies into the catalog; everything else comes apart
-    // into its sand on the way out.
-    var dissolve = true;
-    if (widget.isNewDiscovery) {
+    // A frame for the card to hold still (its tickers are off now), so the
+    // picture taken of it is the card as it stands.
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted) {
+      final color = _rimColor(AlchemonMutation.byId(_instance.mutation));
+      final reduced = widget.cinematicQuality == CinematicQuality.performance;
+      final seed = _instance.instanceId.hashCode;
       final defer = widget.onDeferDiscoveryFlight;
-      if (defer != null) {
-        // Captured while the card is still up; the batch flies them all once
-        // every card has been seen.
-        defer(
-          await NewDiscoveryReveal.instance.captureCard(
-            context: context,
-            cardBoundaryKey: _cardKey,
-          ),
-        );
-      } else {
-        dissolve = false;
-        await NewDiscoveryReveal.instance.playFilingAway(
+      // A new species pours its sand into its cell in the catalog; anything
+      // else comes apart into its sand on the way out.
+      final bool going;
+      if (widget.isNewDiscovery && defer == null) {
+        going = await NewDiscoveryReveal.instance.playFilingAway(
           context: context,
           cardBoundaryKey: _cardKey,
-          creatureId: _species.id,
+          species: _species,
+          color: color,
+          barrier: kExtractionCardBarrier,
+          reduced: reduced,
+          seed: seed,
         );
-      }
-    }
-
-    if (dissolve && mounted) {
-      // A frame for the card to hold still (its tickers are off now), so
-      // the picture taken of it is the card as it stands.
-      await WidgetsBinding.instance.endOfFrame;
-      if (mounted) {
-        final mutation = AlchemonMutation.byId(_instance.mutation);
-        final going = await CardDissolve.play(
+      } else {
+        if (defer != null && widget.isNewDiscovery) {
+          // The batch files them all once every card has been seen, each
+          // one's sand gathering where its card stood.
+          defer(
+            DiscoveryFlight(
+              species: _species,
+              from:
+                  NewDiscoveryReveal.instance.rectOf(_cardKey) ??
+                  Offset.zero & MediaQuery.sizeOf(context),
+              color: color,
+              seed: seed,
+            ),
+          );
+        }
+        going = await CardDissolve.play(
           context: context,
           boundaryKey: _cardKey,
           element: _species.types.isEmpty ? null : _species.types.first,
-          color: _rimColor(mutation),
+          color: color,
           barrier: kExtractionCardBarrier,
-          reduced: widget.cinematicQuality == CinematicQuality.performance,
-          seed: _instance.instanceId.hashCode,
+          reduced: reduced,
+          seed: seed,
         );
-        // Not on the card's owner: that is stopped as the card goes.
-        if (going && mounted) context.sound(SoundCue.extractionDissolve);
       }
+      // Not on the card's owner: that is stopped as the card goes.
+      if (going && mounted) context.sound(SoundCue.extractionDissolve);
     }
 
     if (route != null && route.isActive) {

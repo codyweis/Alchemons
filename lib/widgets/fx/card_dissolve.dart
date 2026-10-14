@@ -40,6 +40,53 @@ const double _kSweep = 0.30;
 /// How long the dim under the card takes to lift.
 const double _kDimLift = 0.45;
 
+/// A card's own layer, pictured as it stands, to be taken apart in an
+/// overlay once its route has gone.
+class CardPicture {
+  CardPicture._(this.image, this.rect, this.pixelRatio);
+
+  /// The card, at [pixelRatio].
+  final ui.Image image;
+
+  /// Where it stood on the screen.
+  final Rect rect;
+  final double pixelRatio;
+
+  /// Pictures what [boundaryKey] shows. Null when it has gone, or the raster
+  /// did not come back in time.
+  static Future<CardPicture?> take(
+    BuildContext context,
+    GlobalKey boundaryKey,
+  ) async {
+    final boundary = boundaryKey.currentContext?.findRenderObject();
+    if (boundary is! RenderRepaintBoundary || !boundary.attached) return null;
+    final rect = boundary.localToGlobal(Offset.zero) & boundary.size;
+    // At the screen's own density: the first frames ARE the card, and a
+    // softer picture would show as it swapped in.
+    final pixelRatio = math.min(
+      MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0,
+      3.0,
+    );
+    final Future<ui.Image> pending;
+    try {
+      pending = boundary.toImage(pixelRatio: pixelRatio);
+    } catch (_) {
+      return null;
+    }
+    try {
+      final image = await pending.timeout(const Duration(milliseconds: 400));
+      return CardPicture._(image, rect, pixelRatio);
+    } on TimeoutException {
+      unawaited(pending.then<void>((i) => i.dispose(), onError: (_) {}));
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void dispose() => image.dispose();
+}
+
 class CardDissolve {
   CardDissolve._();
 
@@ -62,42 +109,17 @@ class CardDissolve {
     int seed = 0,
   }) async {
     final overlay = Overlay.maybeOf(context, rootOverlay: true);
-    final boundary = boundaryKey.currentContext?.findRenderObject();
-    if (overlay == null ||
-        boundary is! RenderRepaintBoundary ||
-        !boundary.attached) {
-      return false;
-    }
-    final rect = boundary.localToGlobal(Offset.zero) & boundary.size;
-    // At the screen's own density: the first frames ARE the card, and a
-    // softer picture would show as it swapped in.
-    final pixelRatio = math.min(
-      MediaQuery.maybeDevicePixelRatioOf(context) ?? 2.0,
-      3.0,
-    );
-    final Future<ui.Image> pending;
-    try {
-      pending = boundary.toImage(pixelRatio: pixelRatio);
-    } catch (_) {
-      return false;
-    }
-    final ui.Image image;
-    try {
-      image = await pending.timeout(const Duration(milliseconds: 400));
-    } on TimeoutException {
-      unawaited(pending.then<void>((i) => i.dispose(), onError: (_) {}));
-      return false;
-    } catch (_) {
-      return false;
-    }
+    if (overlay == null) return false;
+    final card = await CardPicture.take(context, boundaryKey);
+    if (card == null) return false;
     if (!overlay.mounted) {
-      image.dispose();
+      card.dispose();
       return false;
     }
     final field = CardDissolveField(
-      image: image,
-      pixelRatio: pixelRatio,
-      size: rect.size,
+      image: card.image,
+      pixelRatio: card.pixelRatio,
+      size: card.rect.size,
       element: element,
       color: color,
       reduced: reduced,
@@ -107,7 +129,7 @@ class CardDissolve {
     entry = OverlayEntry(
       builder: (_) => _DissolveOverlay(
         field: field,
-        at: rect.topLeft,
+        at: card.rect.topLeft,
         barrier: barrier,
         onDone: () {
           if (entry.mounted) entry.remove();

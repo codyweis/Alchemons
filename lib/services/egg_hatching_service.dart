@@ -686,7 +686,6 @@ class EggHatching {
     final instance = await db.creatureDao.getInstance(instanceId);
     final creature = repo.getCreatureById(instance?.baseId ?? '');
 
-
     Map<String, dynamic>? parentPayload;
     final parentageJson = instance?.parentageJson;
     if (parentageJson != null && parentageJson.isNotEmpty) {
@@ -968,7 +967,7 @@ class EggHatching {
     String instanceId,
     bool isNewDiscovery, {
     required CinematicQuality cinematicQuality,
-    void Function(DiscoveryFlightCapture? capture)? onDeferDiscoveryFlight,
+    void Function(DiscoveryFlight flight)? onDeferDiscoveryFlight,
   }) => _showExtractionResult(
     context,
     instanceId,
@@ -982,7 +981,7 @@ class EggHatching {
     String instanceId,
     bool isNewDiscovery, {
     required CinematicQuality cinematicQuality,
-    void Function(DiscoveryFlightCapture? capture)? onDeferDiscoveryFlight,
+    void Function(DiscoveryFlight flight)? onDeferDiscoveryFlight,
   }) async {
     final offspring = await _effectiveFromInstance(context, instanceId);
     if (!context.mounted) return;
