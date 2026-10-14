@@ -608,7 +608,19 @@ class _HomeLife {
       return;
     }
 
-    // A finger close by: it turns to look.
+    if (_heed(l, comp, dt)) {
+      _walk(l, comp, sp, dt, size);
+      return;
+    }
+
+    l.wait -= dt;
+    if (l.wait <= 0 && (l.target - l.dx).abs() < 0.5) _choose(l, comp, sp, base);
+    _walk(l, comp, sp, dt, size);
+  }
+
+  /// A finger close by: it stops and turns to look, a moment. Whether it
+  /// is looking.
+  bool _heed(_Liver l, WildMonComponent comp, double dt) {
     final touch = game._touches.isEmpty ? null : game._touches.last;
     if (touch != null && game._fieldTime - touch.time < 0.35) {
       final sx = game.screenXOf(l.id);
@@ -619,15 +631,9 @@ class _HomeLife {
           ..target = l.dx;
       }
     }
-    if (l.heedFor > 0) {
-      l.heedFor -= dt;
-      _walk(l, comp, sp, dt, size);
-      return;
-    }
-
-    l.wait -= dt;
-    if (l.wait <= 0 && (l.target - l.dx).abs() < 0.5) _choose(l, comp, sp, base);
-    _walk(l, comp, sp, dt, size);
+    if (l.heedFor <= 0) return false;
+    l.heedFor -= dt;
+    return true;
   }
 
   /// Asleep: still, its frames held, breathing.

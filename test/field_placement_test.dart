@@ -895,7 +895,7 @@ void main() {
   test('no Arcane point is in the open air: the only floaters it rolls are '
       'its legendary wings and its Spirits, who stand on the glass', () {
     final ids = arcaneScene.spawnPoints.map((p) => p.id).toSet();
-    expect(ids, {'SP_arcane_01', 'SP_arcane_02', 'SP_arcane_03'});
+    expect(ids, {for (var i = 1; i <= 7; i++) 'SP_arcane_0$i'});
     for (final p in arcaneScene.spawnPoints) {
       expect(p.aloft, isFalse, reason: p.id);
       expect(

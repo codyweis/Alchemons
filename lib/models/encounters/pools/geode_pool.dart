@@ -36,6 +36,7 @@ geodeEncounterPools(SceneDefinition scene) {
   final perSpawn = <String, EncounterPool>{
     'SP_geode_04': aloft,
     'SP_geode_08': aloft,
+    'SP_geode_13': aloft,
   };
 
   final entries = isNight(now)

@@ -44,6 +44,35 @@ swampEncounterPools(SceneDefinition scene) {
         ), // Spiritmask (floats)
       ],
     ),
+    'SP_swamp_12': EncounterPool(
+      entries: [
+        // Over the open water under the third great cypress — flying/floating
+        // creatures only
+        EncounterEntry(
+          speciesId: 'LET04',
+          rarity: EncounterRarity.common,
+          weightMul: 0.75,
+        ), // Airlet
+        EncounterEntry(
+          speciesId: 'LET14',
+          rarity: EncounterRarity.uncommon,
+          weightMul: 0.20,
+          condition: isNight,
+        ), // Spiritlet (floats)
+        EncounterEntry(
+          speciesId: 'WNG08',
+          rarity: EncounterRarity.legendary,
+          weightMul: 0.08,
+          condition: isDay,
+        ), // Mudwing
+        EncounterEntry(
+          speciesId: 'MSK14',
+          rarity: EncounterRarity.rare,
+          weightMul: 0.12,
+          condition: isNight,
+        ), // Spiritmask (floats)
+      ],
+    ),
   };
 
   final List<EncounterEntry> entries = [];
@@ -101,7 +130,7 @@ swampEncounterPools(SceneDefinition scene) {
   ]);
 
   if (isDay(now)) {
-    // Wings only spawn at aerial SP_swamp_03
+    // Wings only spawn at the aerial SP_swamp_03 and SP_swamp_12
   } else if (isNight(now)) {
     entries.addAll([
       // --- Night Spawns ---
@@ -158,9 +187,9 @@ const _swampPond = EncounterPool(
 /// Dust most of all (about two in five, and the only wild Dustpip, Dustmane,
 /// Dusthorn, Dustmask and Dustwing), with Mud and Earth on the cracked
 /// floor and a little Poison. Waterlets hang on only in the last pool by
-/// the marsh pocket (SP_swamp_09, there only when it is dry). Over the marsh
-/// pocket's open air only the floaters can come: Airlets on the dusty wind,
-/// now and then a Dustwing or a Mudwing.
+/// the marsh pocket (SP_swamp_09, there only when it is dry). Over the open
+/// water only the floaters can come: Airlets on the dusty wind, now and then
+/// a Dustwing or a Mudwing.
 const swampDry = WildWeather(
   kind: WeatherKind.dry,
   label: 'DRY',

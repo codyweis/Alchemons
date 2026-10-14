@@ -806,9 +806,9 @@ class WildernessSpawnService extends ChangeNotifier {
         ? cameraSafePoints
         : freePoints;
 
-    // Roll how many to spawn: 1..freePoints.length
-    // ensure no more than 4
-    final spawnCount = 1 + _rng.nextInt(min(candidatePoints.length, 5));
+    // How many come: two to seven (as many as there are points, if fewer).
+    final spawnCount =
+        2 + _rng.nextInt(max(1, min(candidatePoints.length, 7) - 1));
 
     // Shuffle to sample distinct points without repetition
     candidatePoints.shuffle(_rng);

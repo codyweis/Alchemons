@@ -24,9 +24,10 @@ final skyScene = SceneDefinition(
   // take creatures that can float; each of the others stands on an isle the
   // field builds under it. The field also builds an isle where each point's
   // encounter partner stands (a pace to the side its battle position
-  // names), so a partner that cannot float has ground too. A battle
-  // position's height is where a floating partner hangs, just over that
-  // isle.
+  // names), so a partner that cannot float has ground too — unless another
+  // creature's isle or another partner's is there already, which it stands
+  // on instead. A battle position's height is where a floating partner
+  // hangs, just over that isle.
   //
   // x is a share of the point's own layer's loop.
   spawnPoints: [
@@ -97,6 +98,53 @@ final skyScene = SceneDefinition(
       anchor: SceneLayer.layer3,
       size: Vector2(65, 65),
       battlePos: const Offset(0.96, 0.47),
+    ),
+    // on a near isle past the open air (SP_sky_03's partner stands on it),
+    // its partner on the isle SP_sky_05's partner stands on
+    SpawnPoint(
+      id: 'SP_sky_09',
+      normalizedPos: const Offset(0.3875, 0.55),
+      anchor: SceneLayer.layer4,
+      size: Vector2(85, 85),
+      battlePos: const Offset(0.4875, 0.56),
+    ),
+    // on a near isle under the open air late in the loop, its partner on
+    // the isle SP_sky_07's partner stands on
+    SpawnPoint(
+      id: 'SP_sky_10',
+      normalizedPos: const Offset(0.80, 0.60),
+      anchor: SceneLayer.layer4,
+      size: Vector2(80, 80),
+      battlePos: const Offset(0.90, 0.60),
+    ),
+    // on a far isle under the high air, first thing in view, its partner on
+    // the isle SP_sky_02's partner stands on
+    SpawnPoint(
+      id: 'SP_sky_11',
+      normalizedPos: const Offset(0.20, 0.44),
+      anchor: SceneLayer.layer3,
+      size: Vector2(62, 62),
+      battlePos: const Offset(0.30, 0.46),
+    ),
+    // in the open air over the isle between SP_sky_09 and SP_sky_05, its
+    // partner on SP_sky_09's isle
+    SpawnPoint(
+      id: 'SP_sky_12',
+      normalizedPos: const Offset(0.46875, 0.25),
+      anchor: SceneLayer.layer4,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.36875, 0.55),
+      perch: SpawnPerch.air,
+    ),
+    // in the open air past SP_sky_05, short of the great tree, its partner
+    // on SP_sky_05's isle
+    SpawnPoint(
+      id: 'SP_sky_13',
+      normalizedPos: const Offset(0.63125, 0.40),
+      anchor: SceneLayer.layer4,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.53125, 0.62),
+      perch: SpawnPerch.air,
     ),
   ],
 );

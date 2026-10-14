@@ -37,6 +37,7 @@ dunesEncounterPools(SceneDefinition scene) {
   final perSpawn = <String, EncounterPool>{
     'SP_dunes_04': aloft,
     'SP_dunes_08': aloft,
+    'SP_dunes_14': aloft,
   };
 
   final entries = isNight(now)

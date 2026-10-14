@@ -19,7 +19,8 @@ part of 'grain_field.dart';
 //
 // The isles the creatures use are built from the spawn points: one under
 // each standing creature, and one under the place each encounter's partner
-// stands, so a partner that cannot float always has ground.
+// stands, so a partner that cannot float always has ground — unless that
+// place is on another creature's isle, or another partner's, already.
 //
 // Still sheets are baked as maps (see field_art.dart), read through the
 // hour's grades:
@@ -216,6 +217,9 @@ class SkyField extends _GrainField {
       return i;
     }
 
+    // A partner whose place is where another creature stands, or where
+    // another partner's isle went, stands on that isle.
+    final stood = _seatsOn(layer);
     for (final p in _spawns.where((p) => p.anchor == layer)) {
       final x = _spawnX(p);
       final side = p.partnerSide;
@@ -240,6 +244,8 @@ class SkyField extends _GrainField {
       if (!_partners) continue;
       final bp = p.getBattlePos();
       final px = x + side * kFieldPairGap;
+      if (_atPlace(stood, px, layer)) continue;
+      stood.add((px, p.size.x));
       final hw = p.size.x * 0.85;
       isles.add(
         isle(px + side * hw * 0.1, hw, bp.dy * _h + p.size.y * 0.5, seatX: px),

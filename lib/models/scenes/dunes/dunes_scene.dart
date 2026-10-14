@@ -94,5 +94,54 @@ final dunesScene = SceneDefinition(
       battlePos: const Offset(0.8, 0.62),
       perch: SpawnPerch.air,
     ),
+    // in the sand, past the first pillar
+    SpawnPoint(
+      id: 'SP_dunes_09',
+      normalizedPos: const Offset(0.29, 0.79),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.19, 0.79),
+    ),
+    // in the sand, past the low rock
+    SpawnPoint(
+      id: 'SP_dunes_10',
+      normalizedPos: const Offset(0.515, 0.80),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.415, 0.80),
+    ),
+    // in the sand, short of the second pillar
+    SpawnPoint(
+      id: 'SP_dunes_11',
+      normalizedPos: const Offset(0.705, 0.80),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.805, 0.80),
+    ),
+    // on the great dunes, past the arch
+    SpawnPoint(
+      id: 'SP_dunes_12',
+      normalizedPos: const Offset(0.40, 0.635),
+      anchor: SceneLayer.layer3,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.50, 0.635),
+    ),
+    // on the great dunes, past the last pillar
+    SpawnPoint(
+      id: 'SP_dunes_13',
+      normalizedPos: const Offset(0.875, 0.625),
+      anchor: SceneLayer.layer3,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.975, 0.625),
+    ),
+    // over the great dunes, early in the loop
+    SpawnPoint(
+      id: 'SP_dunes_14',
+      normalizedPos: const Offset(0.24, 0.34),
+      anchor: SceneLayer.layer3,
+      size: Vector2(60, 60),
+      battlePos: const Offset(0.14, 0.62),
+      perch: SpawnPerch.air,
+    ),
   ],
 );

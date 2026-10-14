@@ -41,6 +41,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 part 'home_life.dart';
+part 'wild_life.dart';
 part 'home_cosmetics.dart';
 
 //KEEP THIS FOR INFO
@@ -1020,6 +1021,18 @@ class SceneGame extends FlameGame with ScaleDetector {
   // Encounter mode flow
   // ------------------------------------------------------------
 
+  /// The Alchemon met in the encounter, stood where it is on its way back
+  /// to its place, until it is there.
+  void _placeMet() {
+    final id = _currentEncounterSpawnId, home = _metHome;
+    if (_mode != SceneMode.encounter || id == null || home == null) return;
+    final anchor = _spawnPointComps[id];
+    final o = _wildLife.offsetOf(id);
+    if (anchor == null || (o == null && !_metAway)) return;
+    _metAway = o != null;
+    anchor.position.setValues(home.x + (o?.dx ?? 0), home.y + (o?.dy ?? 0));
+  }
+
   void _handleWildTap(String spawnId, String speciesId, Creature? hydrated) {
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     if (nowMs - _lastEncounterTapMs < 300) return;
@@ -1043,6 +1056,14 @@ class SceneGame extends FlameGame with ScaleDetector {
     _mode = SceneMode.encounter;
     _currentEncounterSpawnId = spawnId;
 
+    // It is met at its place: it goes back there from wherever it had
+    // wandered (see wild_life.dart), and the camera frames the place.
+    final at = _spawnPointComps[spawnId];
+    final away = _wildLife.offsetOf(spawnId);
+    _metHome = at?.position.clone()
+      ?..sub(Vector2(away?.dx ?? 0, away?.dy ?? 0));
+    _metAway = away != null;
+
     final toHide = _wildBySpawnId.keys.where((id) => id != spawnId).toList();
     for (final id in toHide) {
       final wild = _wildBySpawnId.remove(id);
@@ -1063,7 +1084,8 @@ class SceneGame extends FlameGame with ScaleDetector {
       return;
     }
 
-    final wild = wildAnchor.position.clone();
+    final home = spawnId == _currentEncounterSpawnId ? _metHome : null;
+    final wild = (home ?? wildAnchor.position).clone();
     final layerDef = scene.layers.firstWhere((l) => l.id == sp.anchor);
     final parallaxFactor = layerDef.parallaxFactor;
 
@@ -1375,6 +1397,8 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   void exitEncounterMode() {
     _mode = SceneMode.exploration;
+    _metHome = null;
+    _metAway = false;
     _fusion?.removeFromParent();
     _fusion = null;
 
@@ -1596,6 +1620,17 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// home_life.dart).
   bool lively = false;
   late final _HomeLife _life = _HomeLife(this);
+
+  /// Whether the wild Alchemons live in the field (see wild_life.dart):
+  /// they stroll, look round and fly. Off, each stands at its place.
+  bool wildLively = true;
+  late final _WildLife _wildLife = _WildLife(this);
+
+  /// Where the Alchemon met in the encounter stands — its place, which it
+  /// goes back to from wherever it had wandered — and whether it is still
+  /// on its way.
+  Vector2? _metHome;
+  bool _metAway = false;
 
   /// The trail (the Athanor's) a resident leaves where it walks, by its
   /// instance id; null for none (see home_cosmetics.dart).
@@ -2324,6 +2359,9 @@ class SceneGame extends FlameGame with ScaleDetector {
       _trails.update(dt);
       _ambience.update(dt);
       if (_markedId != null) _lightChosen();
+    } else {
+      _wildLife.update(dt);
+      _placeMet();
     }
     final waiting = _pending;
     if (waiting != null) {
@@ -2502,6 +2540,25 @@ class SceneGame extends FlameGame with ScaleDetector {
   @visibleForTesting
   void debugFrameEncounter(String spawnId) => _enterEncounterMode(spawnId);
 
+  /// How far the wild Alchemon at [spawnId] has wandered from its place,
+  /// if at all (layer units).
+  @visibleForTesting
+  Offset? debugWildOffset(String spawnId) => _wildLife.offsetOf(spawnId);
+
+  /// Sends the wild Alchemon at [spawnId] up off the ground for [seconds],
+  /// as one that can fly does now and then.
+  @visibleForTesting
+  void debugWildTakeOff(String spawnId, {double seconds = 4}) {
+    final sp = _pointOf(spawnId);
+    if (sp == null) return;
+    _wildLife._livers.putIfAbsent(spawnId, () => _Liver(spawnId, 0));
+    _wildLife._flights[spawnId] = _Flight(alt: sp.size.x * 0.6, time: seconds);
+  }
+
+  /// Where the point [spawnId] stands now, its creature with it.
+  @visibleForTesting
+  Vector2? debugAnchorAt(String spawnId) => _spawnPointComps[spawnId]?.position;
+
   /// The player's creature deployed into the encounter, if any.
   @visibleForTesting
   WildMonComponent? get debugPartyCreature => _partyCreature;
@@ -2539,9 +2596,9 @@ class SceneGame extends FlameGame with ScaleDetector {
     for (final l in _layers.values) {
       l.updateOffsetClamped(_cameraX, viewportW, loop: _loops);
     }
-    if (_loops && _mode == SceneMode.exploration) {
+    if (_mode == SceneMode.exploration && (_loops || !showcase)) {
       _repositionSpawnPoints();
-      _placeRift(viewportW);
+      if (_loops) _placeRift(viewportW);
     }
   }
 
@@ -2573,7 +2630,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       final base = _spawnBaseX(p);
       var x = _loops ? _nearestLoop(base, p.anchor, viewportW) : base;
       var y = _anchorY(p, p.normalizedPos.dy * _viewportH);
-      final o = showcase ? _life.offsetOf(p.id) : null;
+      final o = showcase ? _life.offsetOf(p.id) : _wildLife.offsetOf(p.id);
       if (o != null) {
         x += o.dx;
         y += o.dy;
@@ -3176,12 +3233,8 @@ class _FieldSheetsComponent extends Component with HasGameReference<SceneGame> {
           ..color = Color.fromRGBO(0, 0, 0, shown.clamp(0.0, 1.0));
       }
       // As many repeats as are on screen — more than three when zoomed out.
-      final k0 = wrap <= 0
-          ? 0
-          : ((view.left - b.right - drift) / wrap).floor();
-      final k1 = wrap <= 0
-          ? 0
-          : ((view.right - b.left - drift) / wrap).ceil();
+      final k0 = wrap <= 0 ? 0 : ((view.left - b.right - drift) / wrap).floor();
+      final k1 = wrap <= 0 ? 0 : ((view.right - b.left - drift) / wrap).ceil();
       for (var k = k0; k <= k1; k++) {
         final shift = drift + k * wrap;
         if (b.right + shift < view.left || b.left + shift > view.right) {
@@ -3318,7 +3371,12 @@ class _FieldSkyComponent extends Component with HasGameReference<SceneGame> {
       canvas
         ..save()
         ..clipRect(
-          Rect.fromLTRB(0, view.screenY(0), game.size.x, view.screenY(view.height)),
+          Rect.fromLTRB(
+            0,
+            view.screenY(0),
+            game.size.x,
+            view.screenY(view.height),
+          ),
         );
       art.paintSky(canvas, Size(game.size.x, game.size.y), view);
       canvas.restore();

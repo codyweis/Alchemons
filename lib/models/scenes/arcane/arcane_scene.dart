@@ -10,7 +10,7 @@ import 'package:flame/components.dart';
 final arcaneScene = SceneDefinition(
   // The Arcane wraps round like the other fields: the near ground (which
   // scrolls at twice the camera) comes round again every 2000 units, under
-  // three screens — it has only three creatures to show.
+  // three screens.
   worldWidth: 1000,
   worldHeight: 850,
   loop: true,
@@ -22,11 +22,12 @@ final arcaneScene = SceneDefinition(
     LayerDefinition(id: SceneLayer.layer3, imagePath: '', parallaxFactor: 0.35),
     LayerDefinition(id: SceneLayer.layer4, imagePath: '', parallaxFactor: 1.0),
   ],
-  // Spirit, Dark, Light, Blood and Crystal don't float, and the only
-  // floaters the Arcane rolls are its legendary wings — an open-air point
-  // would roll nothing else — so every point stands on the glass, which
-  // runs out to the dust band under every creature and every encounter's
-  // partner alike.
+  // Every point stands on the glass, which runs out to the dust band under
+  // every creature and every encounter's partner alike. There is no
+  // open-air point: the glass gives back what stands on it, mirrored about
+  // its feet, so a creature hung in the void would have its image hung
+  // there too. Its floaters — the legendary wings and the Spirits — stand
+  // on the glass with the rest.
   //
   // x is a share of the point's own layer's loop.
   spawnPoints: [
@@ -53,6 +54,38 @@ final arcaneScene = SceneDefinition(
       anchor: SceneLayer.layer4,
       size: Vector2(80, 80),
       battlePos: const Offset(0.54, 0.71),
+    ),
+    // near, short of the middle stone
+    SpawnPoint(
+      id: 'SP_arcane_04',
+      normalizedPos: const Offset(0.36, 0.70),
+      anchor: SceneLayer.layer4,
+      size: Vector2(80, 80),
+      battlePos: const Offset(0.26, 0.70),
+    ),
+    // near, short of the great stone, late in the loop
+    SpawnPoint(
+      id: 'SP_arcane_05',
+      normalizedPos: const Offset(0.87, 0.70),
+      anchor: SceneLayer.layer4,
+      size: Vector2(80, 80),
+      battlePos: const Offset(0.77, 0.70),
+    ),
+    // far off, early in the loop
+    SpawnPoint(
+      id: 'SP_arcane_06',
+      normalizedPos: const Offset(0.25, 0.58),
+      anchor: SceneLayer.layer3,
+      size: Vector2(64, 64),
+      battlePos: const Offset(0.15, 0.58),
+    ),
+    // far off, late in the loop
+    SpawnPoint(
+      id: 'SP_arcane_07',
+      normalizedPos: const Offset(0.76, 0.57),
+      anchor: SceneLayer.layer3,
+      size: Vector2(66, 66),
+      battlePos: const Offset(0.86, 0.57),
     ),
   ],
 );

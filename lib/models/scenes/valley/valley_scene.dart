@@ -97,5 +97,46 @@ final valleySceneCorrected = SceneDefinition(
       battlePos: const Offset(0.70, 0.34),
       perch: SpawnPerch.air,
     ),
+    // in the meadow, between the near great tree and the middle one
+    SpawnPoint(
+      id: 'SP_valley_09',
+      normalizedPos: const Offset(0.25, 0.79),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.35, 0.79),
+    ),
+    // in the meadow, past the middle great tree
+    SpawnPoint(
+      id: 'SP_valley_10',
+      normalizedPos: const Offset(0.50, 0.80),
+      anchor: SceneLayer.layer4,
+      size: Vector2(100, 100),
+      battlePos: const Offset(0.40, 0.80),
+    ),
+    // in the meadow, short of the boulder
+    SpawnPoint(
+      id: 'SP_valley_11',
+      normalizedPos: const Offset(0.75, 0.79),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.65, 0.79),
+    ),
+    // on the near hill, early in the loop
+    SpawnPoint(
+      id: 'SP_valley_12',
+      normalizedPos: const Offset(0.32, 0.66),
+      anchor: SceneLayer.layer3,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.42, 0.66),
+    ),
+    // over the hills, past the middle
+    SpawnPoint(
+      id: 'SP_valley_13',
+      normalizedPos: const Offset(0.62, 0.32),
+      anchor: SceneLayer.layer3,
+      size: Vector2(60, 60),
+      battlePos: const Offset(0.52, 0.32),
+      perch: SpawnPerch.air,
+    ),
   ],
 );

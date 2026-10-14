@@ -34,8 +34,9 @@ final volcanoScene = SceneDefinition(
   // steam vent only takes creatures that can float; the field builds a
   // shelf of basalt or a bank of cinder under each of the others, and one
   // where each point's encounter partner stands (a pace to the side its
-  // battle position names), so a partner that cannot float has rock too.
-  // Nothing stands on the lava.
+  // battle position names), so a partner that cannot float has rock too —
+  // unless another creature's rock or another partner's is there already,
+  // which it stands on instead. Nothing stands on the lava.
   //
   // x is a share of the point's own layer's loop.
   spawnPoints: [
@@ -47,7 +48,7 @@ final volcanoScene = SceneDefinition(
       size: Vector2(85, 85),
       battlePos: const Offset(0.22, 0.70),
     ),
-    // on a bank of cinder past the second dead tree
+    // on basalt past the second dead tree
     SpawnPoint(
       id: 'SP_volcano_01',
       normalizedPos: const Offset(0.35, 0.70),
@@ -88,7 +89,7 @@ final volcanoScene = SceneDefinition(
       size: Vector2(66, 66),
       battlePos: const Offset(0.32, 0.575),
     ),
-    // on a bank of cinder in the lake, midway round
+    // on basalt in the lake, midway round
     SpawnPoint(
       id: 'SP_volcano_07',
       normalizedPos: const Offset(0.52, 0.565),
@@ -103,6 +104,42 @@ final volcanoScene = SceneDefinition(
       anchor: SceneLayer.layer3,
       size: Vector2(66, 66),
       battlePos: const Offset(0.88, 0.57),
+    ),
+    // on a bank of cinder where SP_volcano_02's partner stands, and each
+    // one's partner on the other's rock
+    SpawnPoint(
+      id: 'SP_volcano_09',
+      normalizedPos: const Offset(0.2067, 0.70),
+      anchor: SceneLayer.layer4,
+      size: Vector2(85, 85),
+      battlePos: const Offset(0.1067, 0.70),
+    ),
+    // on a bank of cinder where SP_volcano_01's partner stands, and each
+    // one's partner on the other's rock
+    SpawnPoint(
+      id: 'SP_volcano_10',
+      normalizedPos: const Offset(0.4367, 0.70),
+      anchor: SceneLayer.layer4,
+      size: Vector2(90, 90),
+      battlePos: const Offset(0.3367, 0.70),
+    ),
+    // on a bank of cinder in the lake where SP_volcano_05's partner stands,
+    // and each one's partner on the other's rock
+    SpawnPoint(
+      id: 'SP_volcano_11',
+      normalizedPos: const Offset(0.3484, 0.575),
+      anchor: SceneLayer.layer3,
+      size: Vector2(66, 66),
+      battlePos: const Offset(0.2484, 0.575),
+    ),
+    // on a bank of cinder in the lake where SP_volcano_07's partner stands,
+    // and each one's partner on the other's rock
+    SpawnPoint(
+      id: 'SP_volcano_12',
+      normalizedPos: const Offset(0.6484, 0.565),
+      anchor: SceneLayer.layer3,
+      size: Vector2(64, 64),
+      battlePos: const Offset(0.5484, 0.565),
     ),
   ],
 );

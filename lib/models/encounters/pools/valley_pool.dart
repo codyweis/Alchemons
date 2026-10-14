@@ -83,6 +83,21 @@ valleyEncounterPools(SceneDefinition scene) {
         ),
       ],
     ),
+    'SP_valley_13': EncounterPool(
+      entries: [
+        // Over the hills — air/flying only
+        EncounterEntry(
+          speciesId: 'LET04',
+          rarity: EncounterRarity.common,
+          weightMul: 0.75,
+        ),
+        EncounterEntry(
+          speciesId: 'WNG04',
+          rarity: EncounterRarity.legendary,
+          weightMul: 0.08,
+        ),
+      ],
+    ),
     'SP_valley_08': EncounterPool(
       entries: [
         // Cloud layer — air/flying only

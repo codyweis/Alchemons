@@ -20,7 +20,7 @@ final tidalScene = SceneDefinition(
     LayerDefinition(id: SceneLayer.layer4, imagePath: '', parallaxFactor: 1.0),
     LayerDefinition(id: SceneLayer.layer5, imagePath: '', parallaxFactor: 1.6),
   ],
-  // Every point says what holds its creature up. The two over the sea only
+  // Every point says what holds its creature up. The three over the sea only
   // take creatures that can float, the two in it only Water ones; every other stands on a stand of basalt
   // columns built at its feet — on the reef, or on the shelf over the flat
   // the tide comes and goes on — and so does each one's encounter partner.
@@ -110,6 +110,31 @@ final tidalScene = SceneDefinition(
       size: Vector2(62, 62),
       battlePos: const Offset(0.52, 0.62),
       perch: SpawnPerch.wade,
+    ),
+    // on the shelf, between the headland and the tall stand
+    SpawnPoint(
+      id: 'SP_tidal_11',
+      normalizedPos: const Offset(0.546, 0.80),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.646, 0.80),
+    ),
+    // on the reef, late in the loop, under the far air
+    SpawnPoint(
+      id: 'SP_tidal_12',
+      normalizedPos: const Offset(0.88, 0.63),
+      anchor: SceneLayer.layer3,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.98, 0.63),
+    ),
+    // over the sea, early in the loop
+    SpawnPoint(
+      id: 'SP_tidal_13',
+      normalizedPos: const Offset(0.28, 0.34),
+      anchor: SceneLayer.layer3,
+      size: Vector2(60, 60),
+      battlePos: const Offset(0.18, 0.62),
+      perch: SpawnPerch.air,
     ),
   ],
 );

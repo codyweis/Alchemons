@@ -20,7 +20,7 @@ final geodeScene = SceneDefinition(
     LayerDefinition(id: SceneLayer.layer4, imagePath: '', parallaxFactor: 1.0),
     LayerDefinition(id: SceneLayer.layer5, imagePath: '', parallaxFactor: 1.6),
   ],
-  // Every point says what holds its creature up. The two in the air under
+  // Every point says what holds its creature up. The three in the air under
   // the roof only take creatures that can float; the ledge rises under the
   // points on it, and a split geode stands under the high point on the
   // floor.
@@ -91,6 +91,47 @@ final geodeScene = SceneDefinition(
       anchor: SceneLayer.layer3,
       size: Vector2(60, 60),
       battlePos: const Offset(0.8, 0.62),
+      perch: SpawnPerch.air,
+    ),
+    // on the floor, past the amethyst
+    SpawnPoint(
+      id: 'SP_geode_09',
+      normalizedPos: const Offset(0.29, 0.79),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.19, 0.79),
+    ),
+    // on the floor, short of the great ice cluster
+    SpawnPoint(
+      id: 'SP_geode_10',
+      normalizedPos: const Offset(0.69, 0.80),
+      anchor: SceneLayer.layer4,
+      size: Vector2(95, 95),
+      battlePos: const Offset(0.79, 0.80),
+    ),
+    // on the ledge, under the first air
+    SpawnPoint(
+      id: 'SP_geode_11',
+      normalizedPos: const Offset(0.46, 0.635),
+      anchor: SceneLayer.layer3,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.56, 0.635),
+    ),
+    // on the ledge, late in the loop
+    SpawnPoint(
+      id: 'SP_geode_12',
+      normalizedPos: const Offset(0.875, 0.625),
+      anchor: SceneLayer.layer3,
+      size: Vector2(70, 70),
+      battlePos: const Offset(0.975, 0.625),
+    ),
+    // in the air in the first crack's shaft, over the prism
+    SpawnPoint(
+      id: 'SP_geode_13',
+      normalizedPos: const Offset(0.27, 0.40),
+      anchor: SceneLayer.layer3,
+      size: Vector2(60, 60),
+      battlePos: const Offset(0.17, 0.62),
       perch: SpawnPerch.air,
     ),
   ],

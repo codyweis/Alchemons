@@ -22,8 +22,9 @@ part of 'grain_field.dart';
 //
 // The banks the creatures use are built from the spawn points: one under
 // each standing creature, and one under the place each encounter's partner
-// stands, so a partner that cannot float always has ground. Nothing stands
-// on the water.
+// stands, so a partner that cannot float always has ground — unless that
+// place is on another creature's bank, or another partner's, already.
+// Nothing stands on the water.
 //
 // Still sheets are baked as maps (see field_art.dart), read through the
 // hour's grades:
@@ -395,6 +396,9 @@ class SwampField extends _GrainField {
             )
             .toList()
           ..sort((a, b) => _spawnX(a).compareTo(_spawnX(b)));
+    // A partner whose place is where another creature stands, or where
+    // another partner's bank went, stands on that bank.
+    final stood = _seatsOn(layer);
     var ground = 0;
     for (final p in points) {
       final x = _spawnX(p);
@@ -426,6 +430,8 @@ class SwampField extends _GrainField {
       }
       // Under where its encounter partner stands.
       if (!_partners) continue;
+      if (_atPlace(stood, px, layer)) continue;
+      stood.add((px, size));
       final hw = size * (stone ? 0.85 : 0.75);
       banks.add(
         bank(

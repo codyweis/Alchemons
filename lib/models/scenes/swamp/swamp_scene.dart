@@ -23,14 +23,16 @@ final swampScene = SceneDefinition(
     LayerDefinition(id: SceneLayer.layer5, imagePath: '', parallaxFactor: 1.6),
   ],
   // Every point says what holds its creature up. The marsh pocket over the
-  // open water only takes creatures that can float; the field builds a
-  // stone or a bank of peat under each of the others, and one where each
-  // point's encounter partner stands (a pace to the side its battle
-  // position names), so a partner that cannot float has ground too. Nothing
-  // stands on the water. When the Swamp has gone dry its last pool by the
-  // marsh pocket is one more point, there only then: Water creatures wade
-  // in it (and are found nowhere else), their partners standing on the dry
-  // floor.
+  // open water, and the air under the third great cypress, only take
+  // creatures that can float; the field builds a stone or a bank of peat
+  // under each of the others, and one where each point's encounter partner
+  // stands (a pace to the side its battle position names), so a partner
+  // that cannot float has ground too — unless another creature's bank or
+  // another partner's is there already, which it stands on instead.
+  // Nothing stands on the water. When the Swamp has gone dry its last pool
+  // by the marsh pocket is one more point, there only then: Water creatures
+  // wade in it (and are found nowhere else), their partners standing on the
+  // dry floor.
   //
   // x is a share of the point's own layer's loop.
   spawnPoints: [
@@ -83,7 +85,7 @@ final swampScene = SceneDefinition(
       size: Vector2(90, 90),
       battlePos: const Offset(0.89, 0.69),
     ),
-    // on a bank of peat among the back cypresses, midway round
+    // on a stone among the back cypresses, midway round
     SpawnPoint(
       id: 'SP_swamp_07',
       normalizedPos: const Offset(0.52, 0.565),
@@ -108,6 +110,34 @@ final swampScene = SceneDefinition(
       battlePos: const Offset(0.6, 0.80),
       perch: SpawnPerch.wade,
       onlyIn: WeatherKind.dry,
+    ),
+    // on a bank of peat among the back cypresses where SP_swamp_05's partner
+    // stands, and each one's partner on the other's bank
+    SpawnPoint(
+      id: 'SP_swamp_10',
+      normalizedPos: const Offset(0.3376, 0.575),
+      anchor: SceneLayer.layer3,
+      size: Vector2(66, 66),
+      battlePos: const Offset(0.2376, 0.575),
+    ),
+    // on a bank of peat among the back cypresses where SP_swamp_07's partner
+    // stands, and each one's partner on the other's bank
+    SpawnPoint(
+      id: 'SP_swamp_11',
+      normalizedPos: const Offset(0.6576, 0.565),
+      anchor: SceneLayer.layer3,
+      size: Vector2(64, 64),
+      battlePos: const Offset(0.5576, 0.565),
+    ),
+    // over the open water under the third great cypress, its partner on
+    // SP_swamp_04's stone
+    SpawnPoint(
+      id: 'SP_swamp_12',
+      normalizedPos: const Offset(0.7579, 0.44),
+      anchor: SceneLayer.layer4,
+      size: Vector2(76, 76),
+      battlePos: const Offset(0.6579, 0.68),
+      perch: SpawnPerch.air,
     ),
   ],
 );

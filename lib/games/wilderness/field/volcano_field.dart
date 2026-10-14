@@ -27,8 +27,9 @@ part of 'grain_field.dart';
 //
 // The shelves the creatures use are built from the spawn points: one under
 // each standing creature, and one under the place each encounter's partner
-// stands, so a partner that cannot float always has rock. Nothing stands on
-// the lava.
+// stands, so a partner that cannot float always has rock — unless that place
+// is on another creature's shelf, or another partner's, already. Nothing
+// stands on the lava.
 //
 // Still sheets are baked as maps (see field_art.dart), read through the
 // hour's grades:
@@ -409,6 +410,9 @@ class VolcanoField extends _GrainField {
     final points =
         _spawns.where((p) => p.anchor == layer && !_shares(p)).toList()
           ..sort((a, b) => _spawnX(a).compareTo(_spawnX(b)));
+    // A partner whose place is where another creature stands, or where
+    // another partner's shelf went, stands on that shelf.
+    final stood = _seatsOn(layer);
     var ground = 0;
     for (final p in points) {
       final x = _spawnX(p);
@@ -441,6 +445,8 @@ class VolcanoField extends _GrainField {
       }
       // Under where its encounter partner stands.
       if (!_partners) continue;
+      if (_atPlace(stood, px, layer)) continue;
+      stood.add((px, size));
       final hw = size * (basalt ? 0.8 : 0.85);
       shelves.add(
         shelf(

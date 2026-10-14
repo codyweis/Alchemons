@@ -40,6 +40,7 @@ tidalEncounterPools(SceneDefinition scene) {
   final perSpawn = <String, EncounterPool>{
     'SP_tidal_04': aloft,
     'SP_tidal_08': aloft,
+    'SP_tidal_13': aloft,
   };
 
   final entries = [

@@ -199,6 +199,20 @@ abstract class _GrainField extends FieldArt {
     return (x + (lo + hi) / 2, (hi - lo) / 2);
   }
 
+  /// The places on [layer] where creatures stand on ground of their own,
+  /// each with the size of what stands there. An encounter partner whose
+  /// place is one of them stands on that ground and needs none of its own.
+  List<(double, double)> _seatsOn(SceneLayer layer) => [
+    for (final p in _spawns)
+      if (p.anchor == layer && p.perch == SpawnPerch.ground)
+        (_spawnX(p), p.size.x),
+  ];
+
+  /// Whether [x] on [layer] is one of [places] (see [_seatsOn]): within
+  /// half the size of what stands there.
+  bool _atPlace(List<(double, double)> places, double x, SceneLayer layer) =>
+      places.any((s) => _loopDelta(x, s.$1, layer).abs() < s.$2 * 0.5);
+
   /// Where the feet of [p], standing beside another on its ground, go: on
   /// that ground where it stands.
   double? _sharedPerch(SpawnPoint p) =>
