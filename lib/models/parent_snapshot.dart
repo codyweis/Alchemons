@@ -135,8 +135,11 @@ class ParentSnapshot {
 
   /// Legacy helper for catalog-only creatures (wild spawn, undomesticated).
   /// These guys are effectively "founders": depth 0, lineage = {their faction:1}.
+  /// Their faction is their element's, as an owned one's is — not their
+  /// family, which goes in the family lineage.
   factory ParentSnapshot.fromCreature(Creature c) {
-    final nf = c.mutationFamily ?? 'Unknown';
+    final nf = elementalGroupNameOf(c);
+    final family = c.mutationFamily ?? 'Unknown';
     final seedLineage = <String, int>{};
     if (nf != 'Unknown') {
       seedLineage[nf] = 1;
@@ -144,8 +147,8 @@ class ParentSnapshot {
     final seedElem = <String, int>{};
     if (c.types.isNotEmpty) seedElem[c.types.first] = 1;
     final seedFamily = <String, int>{};
-    if (nf != 'Unknown') {
-      seedFamily[nf] = 1; // using mutationFamily as family id
+    if (family != 'Unknown') {
+      seedFamily[family] = 1; // using mutationFamily as family id
     }
 
     return ParentSnapshot(
@@ -178,7 +181,8 @@ class ParentSnapshot {
     Creature c,
     CreatureStats? stats,
   ) {
-    final nf = c.mutationFamily ?? 'Unknown';
+    final nf = elementalGroupNameOf(c);
+    final family = c.mutationFamily ?? 'Unknown';
     final seedLineage = <String, int>{};
     if (nf != 'Unknown') {
       seedLineage[nf] = 1;
@@ -186,7 +190,7 @@ class ParentSnapshot {
     final seedElem = <String, int>{};
     if (c.types.isNotEmpty) seedElem[c.types.first] = 1;
     final seedFamily = <String, int>{};
-    if (nf != 'Unknown') seedFamily[nf] = 1;
+    if (family != 'Unknown') seedFamily[family] = 1;
 
     return ParentSnapshot(
       instanceId: null,

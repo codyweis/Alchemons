@@ -101,6 +101,16 @@ const Map<String, Map<String, double>> tintBiasPerType = {
 /// any shared tint is (about 63%).
 const double kAlbinoRollShare = 0.16;
 
+/// A child can turn variant toward a parent's faction only once its line
+/// holds [kVariantLineageNeeded] lineage points in it (about one per
+/// generation bred with that faction): then at [kVariantFirstChancePct], +
+/// [kVariantChancePerPointPct] for each point after, at most
+/// [kVariantMostChancePct] — 15% at 24 points.
+const int kVariantLineageNeeded = 10;
+const double kVariantFirstChancePct = 1.0;
+const double kVariantChancePerPointPct = 1.0;
+const double kVariantMostChancePct = 15.0;
+
 /// Result of a breed() call.
 class BreedingResult {
   final Creature? creature;
@@ -1408,12 +1418,13 @@ class BreedingEngine {
     // You can’t variant into the same faction you already are.
     if (partnerFaction == childNativeFaction) return 0.0;
 
-    // How much heritage do we already have in THAT partner's faction?
+    // How much heritage do we already have in THAT partner's faction? None
+    // shows until ten generations of it: then 1%, +1% each point after.
     final score = lineageCounts[partnerFaction] ?? 0;
-    if (score <= 0) return 0.0;
-
-    // Each lineage point = +0.5%, capped at 10%
-    return (score * 0.5).clamp(0.0, 10.0);
+    if (score < kVariantLineageNeeded) return 0.0;
+    return (kVariantFirstChancePct +
+            (score - kVariantLineageNeeded) * kVariantChancePerPointPct)
+        .clamp(0.0, kVariantMostChancePct);
   }
 
   /// Compute the chance (0-100) that we would have rolled *any* variantFaction
