@@ -3,7 +3,7 @@
 // THE EXTRACTION RESULT: the card a new specimen arrives on.
 //
 //   The extraction card's own layout -- the forge header, the stat profile,
-//   the SPECIMEN / GENETICS analysis tabs and the docked confirm -- around a
+//   the GENETICS / SPECIMEN analysis tabs and the docked confirm -- around a
 //   lit stage where the specimen arrives. The hatch ends with the newborn
 //   gathering out of grains, and the stage picks up there: its element gathers
 //   into it (the same [ElementalEssence] reveal its details open with), and
@@ -1079,7 +1079,8 @@ Color _potentialTierColor(int potential) {
 
 // ── analysis ────────────────────────────────────────────────────────────────
 
-/// SPECIMEN and GENETICS, a swipe or a tap apart.
+/// GENETICS and SPECIMEN, a swipe or a tap apart: the genetics first, as
+/// what a hatch is checked for.
 class _AnalysisTabs extends StatefulWidget {
   const _AnalysisTabs({
     required this.reading,
@@ -1114,7 +1115,7 @@ class _AnalysisTabsState extends State<_AnalysisTabs> {
                 child: ListenableBuilder(
                   listenable: controller,
                   builder: (context, _) => BracketTabs(
-                    labels: const ['SPECIMEN', 'GENETICS'],
+                    labels: const ['GENETICS', 'SPECIMEN'],
                     selected: controller.index,
                     onSelect: controller.animateTo,
                     palette: palette,
@@ -1147,11 +1148,11 @@ class _AnalysisTabsState extends State<_AnalysisTabs> {
                     physics: const NeverScrollableScrollPhysics(),
                     children: [
                       _AnalysisPanel(
-                        rows: widget.reading.specimen,
+                        rows: widget.reading.genetics,
                         palette: palette,
                       ),
                       _AnalysisPanel(
-                        rows: widget.reading.genetics,
+                        rows: widget.reading.specimen,
                         palette: palette,
                       ),
                     ],

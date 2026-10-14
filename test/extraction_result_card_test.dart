@@ -190,10 +190,11 @@ void main() {
       for (var i = 0; i < 30; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
+      // GENETICS is the first tab, so its rows are what comes in.
       final reading = tester.widget<AnimatedOpacity>(
         find
             .ancestor(
-              of: find.text('CLASSIFICATION'),
+              of: find.text('SIZE VARIANT'),
               matching: find.byType(AnimatedOpacity),
             )
             .first,
@@ -241,14 +242,17 @@ void main() {
       ]) {
         expect(find.text(mark), findsOneWidget, reason: mark);
       }
-      expect(find.text('Mystic'), findsOneWidget);
       // No analyzers unlocked in a fresh save: no Potential, no Dominants.
+      // GENETICS is the first tab, so it is what shows.
       expect(_potentials(), findsNothing);
-      await tester.tap(find.text('GENETICS'));
+      expect(find.text('SIZE VARIANT'), findsOneWidget);
+      expect(find.text('DOMINANT'), findsNothing);
+      expect(find.text('Mystic'), findsNothing);
+      await tester.tap(find.text('SPECIMEN'));
       for (var i = 0; i < 12; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
-      expect(find.text('DOMINANT'), findsNothing);
+      expect(find.text('Mystic'), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
       await drain(tester);
@@ -275,10 +279,7 @@ void main() {
       }
       expect(_potentials(), findsNWidgets(4));
       expect(find.textContaining('P 91', findRichText: true), findsOneWidget);
-      await tester.tap(find.text('GENETICS'));
-      for (var i = 0; i < 12; i++) {
-        await tester.pump(const Duration(milliseconds: 50));
-      }
+      // GENETICS is the first tab: Dominants read without a tap.
       expect(find.text('DOMINANT'), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
