@@ -302,7 +302,6 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     );
   }
 
-
   // ══════════════════════════════════════════════════════════════════════════
   //  COMPANION SPRITE COLOR FILTERS
   // ══════════════════════════════════════════════════════════════════════════
@@ -350,31 +349,10 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     return ui.ColorFilter.matrix(m);
   }
 
-  ui.ColorFilter _albinoColorFilter(double brightness) {
-    const r = 0.299, g = 0.587, b = 0.114;
-    return ui.ColorFilter.matrix(<double>[
-      r * brightness,
-      g * brightness,
-      b * brightness,
-      0,
-      0,
-      r * brightness,
-      g * brightness,
-      b * brightness,
-      0,
-      0,
-      r * brightness,
-      g * brightness,
-      b * brightness,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ]);
-  }
+  /// [v]'s genetics filter: none for an albino, whose look is in its sheet
+  /// ([sheetForVisuals]) — but a mutated one's.
+  ui.ColorFilter? _creatureFilter(SpriteVisuals v) =>
+      isAlbinoLook(v) ? albinoFilter(v) : _geneticsColorFilter(v);
 
   // ── Matrix math ───────────────────────────────────────────────────────────
 

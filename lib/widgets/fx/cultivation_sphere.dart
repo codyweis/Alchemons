@@ -7,6 +7,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/fusion_burst.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flutter/material.dart';
@@ -106,7 +107,7 @@ class CultivationGrains {
   /// The genetics coloring a sprite is drawn with, as one matrix.
   static List<double>? _coloring(Genetics? g, bool prismatic) {
     final bri = briFromGenes(g), sat = satFromGenes(g), hue = hueFromGenes(g);
-    if (bri == 1.45 && !prismatic) return albinoMatrix(bri);
+    if (bri == 1.45 && !prismatic) return kAlbinoMatrix;
     List<double>? m;
     if (sat != 1.0 || bri != 1.0) m = brightnessSaturationMatrix(bri, sat);
     final h = ((hue % 360) + 360) % 360;

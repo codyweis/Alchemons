@@ -304,12 +304,11 @@ class PurebloodRiteService {
       requiredSize: 'tiny',
     ),
     _ChallengeBlueprint(
-      title: 'Albino Darklet',
+      title: 'Elementally Pure Darklet',
       family: 'Let',
       previewSpeciesName: 'Darklet',
       requiredElement: 'Dark',
       requireElementalPurity: true,
-      requiredTint: 'albino',
     ),
     _ChallengeBlueprint(
       title: 'Giant Pure Bloodpip',
@@ -344,14 +343,13 @@ class PurebloodRiteService {
       requiredSize: 'giant',
     ),
     _ChallengeBlueprint(
-      title: 'Pure Lighthorn Tiny Metabolic Albino',
+      title: 'Pure Lighthorn Tiny Metabolic',
       family: 'Horn',
       previewSpeciesName: 'Lighthorn',
       requiredElement: 'Light',
       requireElementalPurity: true,
       requireSpeciesPurity: true,
       requiredSize: 'tiny',
-      requiredTint: 'albino',
       requiredNature: 'Metabolic',
     ),
   ];
@@ -824,9 +822,11 @@ class PurebloodRiteService {
     final sizes = GeneticsCatalog.track(
       'size',
     ).variants.map((v) => v.id).where((id) => id != 'normal').toList();
-    final tints = GeneticsCatalog.track(
-      'tinting',
-    ).variants.map((v) => v.id).where((id) => id != 'normal').toList();
+    // Albino is too rare to ask for in a week.
+    final tints = GeneticsCatalog.track('tinting').variants
+        .map((v) => v.id)
+        .where((id) => id != 'normal' && id != 'albino')
+        .toList();
     final natures = NatureCatalog.rollable.map((n) => n.id).toList();
     final variantFactions = FactionId.values.map((f) => f.name).toList();
 
@@ -911,9 +911,7 @@ class PurebloodRiteService {
     } else if (size != null) {
       difficulty += 1;
     }
-    if (tint == 'albino') {
-      difficulty += 2;
-    } else if (tint != null) {
+    if (tint != null) {
       difficulty += 1;
     }
     if (nature != null) {

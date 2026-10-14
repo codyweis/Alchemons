@@ -49,6 +49,7 @@ import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
 import 'package:alchemons/systems/effects/effect_registry.dart';
+import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
@@ -5474,12 +5475,7 @@ class CosmicGame extends FlameGame with PanDetector {
             // Apply genetics color filter
             if (g.visuals != null) {
               final v = g.visuals!;
-              final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
-              if (isAlbino) {
-                paint.colorFilter = _albinoColorFilter(v.brightness);
-              } else {
-                paint.colorFilter = _geneticsColorFilter(v);
-              }
+              paint.colorFilter = _creatureFilter(v);
             }
 
             // Render simple effect overlays for alchemy/variant effects (behind sprite)
@@ -6027,12 +6023,7 @@ class CosmicGame extends FlameGame with PanDetector {
         // Apply genetics color filter if visuals available
         if (companionVisuals != null) {
           final v = companionVisuals;
-          final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
-          if (isAlbino) {
-            paint.colorFilter = _albinoColorFilter(v.brightness);
-          } else {
-            paint.colorFilter = _geneticsColorFilter(v);
-          }
+          paint.colorFilter = _creatureFilter(v);
         }
         _applyCasterHitFlash(paint, comp);
 
@@ -6241,12 +6232,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
         if (_duelOpponentVisuals != null) {
           final v = _duelOpponentVisuals!;
-          final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
-          if (isAlbino) {
-            paint.colorFilter = _albinoColorFilter(v.brightness);
-          } else {
-            paint.colorFilter = _geneticsColorFilter(v);
-          }
+          paint.colorFilter = _creatureFilter(v);
         }
         _applyCasterHitFlash(paint, opp);
 

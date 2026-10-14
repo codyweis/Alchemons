@@ -2154,12 +2154,12 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final base = repo.getCreatureById(inst.baseId);
       if (base?.spriteData == null) return;
-      // A mutated one is baked here too, so it never flashes plain first.
-      final sheet = mutatedSheet(
+      // A mutated or albino one is baked here too, so it never flashes
+      // plain first.
+      final sheet = sheetForVisuals(
         sheetFromCreature(base!),
-        mutation: inst.mutation,
-        prismatic: inst.isPrismaticSkin,
-      );
+        visualsFromInstance(base, inst),
+      )!;
       await loadCreatureSheet(Flame.images, sheet.path);
     } catch (_) {}
   }

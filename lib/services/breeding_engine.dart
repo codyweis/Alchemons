@@ -94,6 +94,13 @@ const Map<String, Map<String, double>> tintBiasPerType = {
   'Blood': {'warm': 1.25, 'vibrant': 1.10, 'cool': 0.90},
 };
 
+/// Albino is rolled at this share of its dominance: about 1 in 100 wild
+/// creatures and eggs of mismatched parents, as rare as a wild prismatic skin
+/// (1 in 350 from two parents of one other tint, who mostly pass on their
+/// own). A mutation never lands on it. Two albino parents still pass it on as
+/// any shared tint is (about 63%).
+const double kAlbinoRollShare = 0.16;
+
 /// Result of a breed() call.
 class BreedingResult {
   final Creature? creature;
@@ -920,23 +927,20 @@ class BreedingEngine {
     };
 
     // apply per-type tint bias
-    Map<String, double> biased = _applyTintBiasInternal(
+    final biased = _applyTintBiasInternal(
       baseDom: baseDom,
       p1Types: p1.types,
       p2Types: p2.types,
     );
 
-    // sticky if parents match
-    if (p1Var.id == p2Var.id) {
-      final shared = p1Var.id;
-      biased[shared] = (biased[shared] ?? 0) * 6.0; // ~70% stickiness
-    }
-
     final mutationChance = track.mutationChance;
     final inheritChance = 1.0 - mutationChance;
 
+    // As [_applyGenetics] mutates: never to normal, never to albino.
     final mutPool = <String, double>{};
-    final nonNormals = track.variants.where((v) => v.id != 'normal');
+    final nonNormals = track.variants.where(
+      (v) => v.id != 'normal' && v.id != 'albino',
+    );
     for (final v in nonNormals) {
       mutPool[v.id] = 1.0;
     }
@@ -947,7 +951,13 @@ class BreedingEngine {
       return w.map((k, v) => MapEntry(k, v / tot));
     }
 
+    // As [_applyGenetics] inherits: parents that match keep their tint 70%
+    // of the time outright, before any weighted pick.
     final normInherit = normalize(biased);
+    if (p1Var.id == p2Var.id) {
+      normInherit.updateAll((id, w) => w * 0.30);
+      normInherit[p1Var.id] = (normInherit[p1Var.id] ?? 0) + 0.70;
+    }
     final normMut = normalize(mutPool);
 
     final finalWeights = <String, double>{};
@@ -1946,6 +1956,7 @@ class BreedingEngine {
         w[variantId] = (w[variantId] ?? 0) * mult;
       });
     }
+    w['albino'] = (w['albino'] ?? 0) * kAlbinoRollShare;
     // always keep "normal" at some min
     w['normal'] = (w['normal'] ?? 0.01).clamp(0.01, double.infinity);
     return w;

@@ -58,6 +58,7 @@ import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/games/shared/type_effectiveness.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/events.dart';
@@ -21183,14 +21184,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           BlendMode.srcATop,
         );
       } else if (visuals != null) {
-        // Apply genetics color filter
+        // Apply genetics color filter: none for an albino, whose look is in
+        // its sheet — but a mutated one's.
         final v = visuals;
-        final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
-        if (isAlbino) {
-          paint.colorFilter = _albinoColorFilter(v.brightness);
-        } else {
-          paint.colorFilter = _geneticsColorFilter(v);
-        }
+        paint.colorFilter = isAlbinoLook(v)
+            ? albinoFilter(v)
+            : _geneticsColorFilter(v);
       }
 
       // Flip sprite to face movement direction (past a margin either way).
@@ -21290,32 +21289,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       ], m);
     }
     return ui.ColorFilter.matrix(m);
-  }
-
-  ui.ColorFilter _albinoColorFilter(double brightness) {
-    const r = 0.299, g = 0.587, b = 0.114;
-    return ui.ColorFilter.matrix(<double>[
-      r * brightness,
-      g * brightness,
-      b * brightness,
-      0,
-      0,
-      r * brightness,
-      g * brightness,
-      b * brightness,
-      0,
-      0,
-      r * brightness,
-      g * brightness,
-      b * brightness,
-      0,
-      0,
-      0,
-      0,
-      0,
-      1,
-      0,
-    ]);
   }
 
   List<double> _identityMatrix() => <double>[

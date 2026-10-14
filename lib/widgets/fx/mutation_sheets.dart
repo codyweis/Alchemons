@@ -17,8 +17,13 @@
 //     creature's colors, so tints still show; a prismatic one is read in
 //     rainbow, and the usual prismatic hue cycle then sets it flowing.
 //
+// An albino is baked the same way, though it is a pigment and not a
+// mutation: its ivory body and red eyes (albino_look.dart). A mutated albino
+// keeps its mutation's sheet and is filtered albino as it is drawn.
+//
 // The pixel work runs on a background isolate. A big (1200px-frame) sheet is
-// baked at [kMutationMaxFrame] — no screen draws a creature larger.
+// baked at [kMutationMaxFrame] — no screen draws a creature larger
+// ([bakedFrameSize]).
 
 import 'dart:async';
 import 'dart:math' as math;
@@ -27,6 +32,8 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/fx/albino_look.dart';
+import 'package:alchemons/widgets/fx/darklet_ring.dart';
 import 'package:flame/cache.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/foundation.dart' show compute, debugPrint;
@@ -45,7 +52,8 @@ const int kMutationMaxFrame = 512;
 enum MutationLook {
   transmuted('transmuted'),
   alchemized('alchemized'),
-  alchemizedPrismatic('alchemized-prismatic');
+  alchemizedPrismatic('alchemized-prismatic'),
+  albino('albino');
 
   const MutationLook(this.id);
   final String id;
@@ -67,6 +75,16 @@ enum MutationLook {
   }
 }
 
+/// The frame a sheet with [width]×[height] frames is baked at: no bigger than
+/// [kMutationMaxFrame]. But Darklet's: its ring knows it by its frame size
+/// (darklet_ring.dart), so its bake keeps it.
+(int, int) bakedFrameSize(double width, double height) {
+  final k = DarkletRing.matches(width, height)
+      ? 1.0
+      : math.min(1.0, kMutationMaxFrame / math.max(width, height));
+  return (math.max(1, (width * k).round()), math.max(1, (height * k).round()));
+}
+
 /// What a baked key was made from.
 class _BakeSpec {
   const _BakeSpec({
@@ -77,10 +95,14 @@ class _BakeSpec {
     required this.cols,
     required this.rowCount,
     required this.frames,
+    this.eyes,
   });
 
   final String basePath;
   final MutationLook look;
+
+  /// An albino's eye overlay, if its species has one.
+  final String? eyes;
 
   /// Frame size in the BAKED sheet.
   final int frameW, frameH;
@@ -91,27 +113,27 @@ final Map<String, _BakeSpec> _specs = {};
 final Map<String, Future<ui.Image>> _baked = {};
 
 /// The sheet to draw for a creature with [mutation] (an [AlchemonMutation]
-/// id, or null). Unmutated, it is [sheet] itself; mutated, it names a baked
-/// copy — load it with [loadCreatureSheet], never `images.load`.
+/// id, or null), and [albino] or not ([isAlbinoLook]). Plain, it is [sheet]
+/// itself; mutated or albino, it names a baked copy — load it with
+/// [loadCreatureSheet], never `images.load`. A baked sheet passed back in is
+/// returned as it is.
 SpriteSheetDef mutatedSheet(
   SpriteSheetDef sheet, {
   String? mutation,
   bool prismatic = false,
+  bool albino = false,
 }) {
-  final look = MutationLook.of(
-    AlchemonMutation.byId(mutation),
-    prismatic: prismatic,
-  );
+  if (_specs.containsKey(sheet.path)) return sheet;
+  final look =
+      MutationLook.of(AlchemonMutation.byId(mutation), prismatic: prismatic) ??
+      (albinoBakes(albino: albino && !prismatic, mutation: mutation)
+          ? MutationLook.albino
+          : null);
   if (look == null) return sheet;
   final key = '${sheet.path}#mut:${look.id}';
   final rows = math.max(1, sheet.rows);
   final cols = (sheet.totalFrames + rows - 1) ~/ rows;
-  final k = math.min(
-    1.0,
-    kMutationMaxFrame / math.max(sheet.frameSize.x, sheet.frameSize.y),
-  );
-  final fw = math.max(1, (sheet.frameSize.x * k).round());
-  final fh = math.max(1, (sheet.frameSize.y * k).round());
+  final (fw, fh) = bakedFrameSize(sheet.frameSize.x, sheet.frameSize.y);
   _specs[key] ??= _BakeSpec(
     basePath: sheet.path,
     look: look,
@@ -120,6 +142,7 @@ SpriteSheetDef mutatedSheet(
     cols: cols,
     rowCount: rows,
     frames: sheet.totalFrames,
+    eyes: look == MutationLook.albino ? albinoEyesPath(sheet.path) : null,
   );
   return SpriteSheetDef(
     path: key,
@@ -138,6 +161,7 @@ SpriteSheetDef? sheetForVisuals(SpriteSheetDef? sheet, SpriteVisuals? visuals) {
     sheet,
     mutation: visuals?.mutation,
     prismatic: visuals?.isPrismatic ?? false,
+    albino: visuals != null && isAlbinoLook(visuals),
   );
 }
 
@@ -167,6 +191,9 @@ Future<ui.Image> _bake(Images images, _BakeSpec spec) async {
       format: ui.ImageByteFormat.rawStraightRgba,
     );
     if (data == null) throw StateError('sheet could not be read');
+    final eyes = spec.eyes == null
+        ? null
+        : await _readOverlay(images, spec.eyes!, w, h);
     final job = MutationBakeJob(
       rgba: data.buffer.asUint8List(),
       width: w,
@@ -176,6 +203,7 @@ Future<ui.Image> _bake(Images images, _BakeSpec spec) async {
       cols: spec.cols,
       frames: spec.frames,
       look: spec.look,
+      eyes: eyes,
     );
     final out = await compute(bakeMutation, job);
     final baked = await _fromPremultiplied(out, w, h);
@@ -185,6 +213,35 @@ Future<ui.Image> _bake(Images images, _BakeSpec spec) async {
     // Better the plain creature than none: same frames, same size.
     debugPrint('[MutationSheets] bake failed for ${spec.basePath}: $e');
     return identical(scaled, base) ? base.clone() : scaled;
+  }
+}
+
+/// The overlay at [path] (under the cache's prefix) as straight RGBA, [w]×[h]:
+/// read once for a bake and let go, never kept in the cache. Null if it will
+/// not load — the albino is baked without its eyes.
+Future<Uint8List?> _readOverlay(
+  Images images,
+  String path,
+  int w,
+  int h,
+) async {
+  try {
+    final bytes = await images.bundle.load('${images.prefix}$path');
+    final codec = await ui.instantiateImageCodec(
+      bytes.buffer.asUint8List(),
+      targetWidth: w,
+      targetHeight: h,
+    );
+    final image = (await codec.getNextFrame()).image;
+    codec.dispose();
+    final data = await image.toByteData(
+      format: ui.ImageByteFormat.rawStraightRgba,
+    );
+    image.dispose();
+    return data?.buffer.asUint8List();
+  } catch (e) {
+    debugPrint('[MutationSheets] no albino eyes from $path: $e');
+    return null;
   }
 }
 
@@ -223,11 +280,15 @@ class MutationBakeJob {
     required this.cols,
     required this.frames,
     required this.look,
+    this.eyes,
   });
 
   final Uint8List rgba;
   final int width, height, frameW, frameH, cols, frames;
   final MutationLook look;
+
+  /// An albino's eye overlay, straight RGBA the size of [rgba], or null.
+  final Uint8List? eyes;
 }
 
 /// Bakes [job] into premultiplied RGBA of the same size.
@@ -235,6 +296,7 @@ Uint8List bakeMutation(MutationBakeJob job) => switch (job.look) {
   MutationLook.transmuted => transmuteRgba(job),
   MutationLook.alchemized => alchemizeRgba(job, rainbow: false),
   MutationLook.alchemizedPrismatic => alchemizeRgba(job, rainbow: true),
+  MutationLook.albino => albinoRgba(job),
 };
 
 /// The polished-gold ramp, dark to light: bronze shadow to pale highlight.
@@ -300,7 +362,7 @@ Uint8List transmuteRgba(MutationBakeJob job) {
         .pow(((b / 255.0 - lo) / (hi - lo)).clamp(0.0, 1.0), gamma)
         .toDouble();
     lutL[b] = l;
-    final c = _rampAt(l);
+    final c = _rampOf(_goldRamp, l);
     lutR[b] = (c >> 16) & 0xFF;
     lutG[b] = (c >> 8) & 0xFF;
     lutB[b] = c & 0xFF;
@@ -346,11 +408,11 @@ Uint8List transmuteRgba(MutationBakeJob job) {
   return out;
 }
 
-int _rampAt(double l) {
-  for (var i = 1; i < _goldRamp.length; i++) {
-    final (p1, c1) = _goldRamp[i];
-    if (l <= p1 || i == _goldRamp.length - 1) {
-      final (p0, c0) = _goldRamp[i - 1];
+int _rampOf(List<(double, int)> ramp, double l) {
+  for (var i = 1; i < ramp.length; i++) {
+    final (p1, c1) = ramp[i];
+    if (l <= p1 || i == ramp.length - 1) {
+      final (p0, c0) = ramp[i - 1];
       final t = ((l - p0) / (p1 - p0)).clamp(0.0, 1.0);
       int ch(int s) =>
           (((c0 >> s) & 0xFF) + (((c1 >> s) & 0xFF) - ((c0 >> s) & 0xFF)) * t)
@@ -358,7 +420,81 @@ int _rampAt(double l) {
       return (ch(16) << 16) | (ch(8) << 8) | ch(0);
     }
   }
-  return _goldRamp.last.$2;
+  return ramp.last.$2;
+}
+
+/// The albino: the sheet's light and shade, its middle lifted to
+/// [kAlbinoMid] if it sits lower, on [kAlbinoRamp], with [kAlbinoPigment] of
+/// its own colors and its red eyes ([MutationBakeJob.eyes]) laid over.
+Uint8List albinoRgba(MutationBakeJob job) {
+  final src = job.rgba;
+  final eyes = job.eyes;
+  final n = job.width * job.height;
+  final out = Uint8List(n * 4);
+
+  final hist = List<int>.filled(256, 0);
+  var solid = 0;
+  for (var i = 0; i < n; i++) {
+    final o = i * 4;
+    if (src[o + 3] < 128) continue;
+    hist[(_lum(src, o) * 255).round().clamp(0, 255)]++;
+    solid++;
+  }
+  if (solid == 0) return out;
+  int pct(double q) {
+    final target = (solid * q).floor();
+    var acc = 0;
+    for (var b = 0; b < 256; b++) {
+      acc += hist[b];
+      if (acc > target) return b;
+    }
+    return 255;
+  }
+
+  // Its darkest lines stay dark, but never the body itself: a species drawn
+  // nearly all in one dark tone (Darklet) still has a middle to lift.
+  final lo = math.min(pct(0.02), pct(0.5) * 0.5) / 255.0;
+  final hi = math.max(lo + 1 / 255.0, pct(0.98) / 255.0);
+  final median = ((pct(0.5) / 255.0 - lo) / (hi - lo)).clamp(0.0, 1.0);
+  var gamma = 1.0;
+  if (median > 0.005 && median < kAlbinoMid) {
+    gamma = (math.log(kAlbinoMid) / math.log(median)).clamp(0.15, 1.0);
+  }
+
+  // Luminance byte → ivory, once.
+  final lutR = Uint8List(256), lutG = Uint8List(256), lutB = Uint8List(256);
+  for (var b = 0; b < 256; b++) {
+    final l = math
+        .pow(((b / 255.0 - lo) / (hi - lo)).clamp(0.0, 1.0), gamma)
+        .toDouble();
+    final c = _rampOf(kAlbinoRamp, l);
+    lutR[b] = (c >> 16) & 0xFF;
+    lutG[b] = (c >> 8) & 0xFF;
+    lutB[b] = c & 0xFF;
+  }
+
+  for (var i = 0; i < n; i++) {
+    final o = i * 4;
+    final a = src[o + 3];
+    if (a == 0) continue;
+    final y = 0.299 * src[o] + 0.587 * src[o + 1] + 0.114 * src[o + 2];
+    final lb = y.round().clamp(0, 255);
+    var r = lutR[lb] + kAlbinoPigment * (src[o] - y);
+    var g = lutG[lb] + kAlbinoPigment * (src[o + 1] - y);
+    var b = lutB[lb] + kAlbinoPigment * (src[o + 2] - y);
+    if (eyes != null && eyes[o + 3] > 0) {
+      final e = eyes[o + 3] / 255.0;
+      r += (eyes[o] - r) * e;
+      g += (eyes[o + 1] - g) * e;
+      b += (eyes[o + 2] - b) * e;
+    }
+    final k = a / 255.0;
+    out[o] = (r.clamp(0.0, 255.0) * k).round();
+    out[o + 1] = (g.clamp(0.0, 255.0) * k).round();
+    out[o + 2] = (b.clamp(0.0, 255.0) * k).round();
+    out[o + 3] = a;
+  }
+  return out;
 }
 
 /// Each frame's solid bounding box, in sheet pixels; null for an empty frame.

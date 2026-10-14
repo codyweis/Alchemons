@@ -9,18 +9,18 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 /// The colour filter [v]'s genetics put on its sprite at [time] seconds (a
-/// prismatic creature's hue turns with it): albino, or saturation,
-/// brightness, hue and lineage tint.
-ui.ColorFilter creatureGeneticsFilter(SpriteVisuals v, double time) =>
-    v.brightness == 1.45 && !v.isPrismatic
-    ? _albino(v.brightness)
-    : _genetics(v, time);
+/// prismatic creature's hue turns with it): saturation, brightness, hue and
+/// lineage tint. An albino's look is in its sheet ([sheetForVisuals]), so it
+/// gets none — but a mutated one, whose sheet carries the mutation.
+ui.ColorFilter? creatureGeneticsFilter(SpriteVisuals v, double time) =>
+    isAlbinoLook(v) ? albinoFilter(v) : _genetics(v, time);
 
 /// The radius an aura is drawn at round a sprite shown [displaySize] across:
 /// half of it, held between 10 and 38 as open space holds its own.
@@ -117,32 +117,6 @@ ui.ColorFilter _genetics(SpriteVisuals v, double time) {
     ], m);
   }
   return ui.ColorFilter.matrix(m);
-}
-
-ui.ColorFilter _albino(double brightness) {
-  const r = 0.299, g = 0.587, b = 0.114;
-  return ui.ColorFilter.matrix(<double>[
-    r * brightness,
-    g * brightness,
-    b * brightness,
-    0,
-    0,
-    r * brightness,
-    g * brightness,
-    b * brightness,
-    0,
-    0,
-    r * brightness,
-    g * brightness,
-    b * brightness,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ]);
 }
 
 List<double> _identityMatrix() => <double>[

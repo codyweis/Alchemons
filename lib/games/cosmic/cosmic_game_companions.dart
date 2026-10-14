@@ -168,10 +168,7 @@ extension CosmicGameCompanions on CosmicGame {
     final paint = Paint()..filterQuality = ui.FilterQuality.high;
     final v = _companionVisualsBySlot[slotIndex];
     if (v != null) {
-      final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
-      paint.colorFilter = isAlbino
-          ? _albinoColorFilter(v.brightness)
-          : _geneticsColorFilter(v);
+      paint.colorFilter = _creatureFilter(v);
     }
     sprite.render(c, anchor: Anchor.center, overridePaint: paint);
     final image = rec.endRecording().toImageSync(w, h);
@@ -319,7 +316,8 @@ extension CosmicGameCompanions on CosmicGame {
   Future<void> _loadDuelOpponentSprite(CosmicPartyMember member) async {
     final loadToken = ++_duelOpponentSpriteLoadToken;
     final expectedInstanceId = member.instanceId;
-    final sheet = member.spriteSheet;
+    // Its own sheet, or the baked copy an albino (or a mutated one) wears.
+    final sheet = sheetForVisuals(member.spriteSheet, member.spriteVisuals);
     final sheetPath = sheet?.path ?? '<no-sheet>';
     try {
       if (sheet == null) {
@@ -331,10 +329,14 @@ extension CosmicGameCompanions on CosmicGame {
         return;
       }
       ui.Image image;
-      try {
-        image = await images.load(_toFlameImageKey(sheet.path));
-      } catch (_) {
-        image = await _loadUiImageFromBundle(_toBundleImageKey(sheet.path));
+      if (isMutatedSheetPath(sheet.path)) {
+        image = await loadCreatureSheet(images, sheet.path);
+      } else {
+        try {
+          image = await images.load(_toFlameImageKey(sheet.path));
+        } catch (_) {
+          image = await _loadUiImageFromBundle(_toBundleImageKey(sheet.path));
+        }
       }
       if (loadToken != _duelOpponentSpriteLoadToken ||
           duelOpponent?.member.instanceId != expectedInstanceId) {

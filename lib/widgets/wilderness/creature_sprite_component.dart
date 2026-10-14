@@ -5,6 +5,7 @@ import 'package:alchemons/games/sprite_effects/alchemy_effect_component.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/darklet_ring.dart';
@@ -19,6 +20,10 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
     with HasGameReference<G> {
   final SpriteSheetDef sheet;
   final SpriteVisuals visuals;
+
+  /// The sheet drawn: [sheet], or its baked mutation or albino copy (given
+  /// either, the same).
+  late final SpriteSheetDef _drawn = sheetForVisuals(sheet, visuals)!;
   final Vector2 desiredSize;
   final String? alchemyEffect;
   final String? variantFaction;
@@ -130,7 +135,7 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
       ..scale(_anim.scale.x, _anim.scale.y);
     sprite.render(
       c,
-      size: sheet.frameSize,
+      size: _drawn.frameSize,
       anchor: Anchor.center,
       overridePaint: Paint()
         ..colorFilter = _anim.paint.colorFilter
@@ -196,31 +201,31 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
     Image image;
     try {
-      image = await loadCreatureSheet(game.images, sheet.path);
+      image = await loadCreatureSheet(game.images, _drawn.path);
     } catch (e) {
       image = await _loadFallbackImage();
     }
 
-    final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
+    final cols = (_drawn.totalFrames + _drawn.rows - 1) ~/ _drawn.rows;
 
     final anim = SpriteAnimation.fromFrameData(
       image,
       SpriteAnimationData.sequenced(
-        amount: sheet.totalFrames,
+        amount: _drawn.totalFrames,
         amountPerRow: cols,
-        textureSize: sheet.frameSize,
-        stepTime: sheet.stepTime,
+        textureSize: _drawn.frameSize,
+        stepTime: _drawn.stepTime,
         loop: true,
       ),
     );
 
-    final fit = _fitScale(sheet.frameSize, desiredSize);
+    final fit = _fitScale(_drawn.frameSize, desiredSize);
     final finalScale = fit * visuals.scale;
 
     _anim =
         SpriteAnimationComponent(
             animation: anim,
-            size: sheet.frameSize,
+            size: _drawn.frameSize,
             anchor: Anchor.center,
             position: size / 2,
             priority: 0, // Sprite on top
@@ -232,11 +237,11 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
     add(_anim);
     // Darklet's galaxy ring, in the sprite's own space: far side behind it,
     // near side over it.
-    if (DarkletRing.matches(sheet.frameSize.x, sheet.frameSize.y)) {
+    if (DarkletRing.matches(_drawn.frameSize.x, _drawn.frameSize.y)) {
       for (final front in [false, true]) {
         add(
           _RingLayer(_anim, front: front)
-            ..size = sheet.frameSize
+            ..size = _drawn.frameSize
             ..anchor = Anchor.center
             ..position = size / 2
             ..scale = Vector2.all(finalScale)
@@ -282,9 +287,9 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
   void _applyColorFilters() {
     final paint = _anim.paint;
 
-    // Albino (non-prismatic) matches widget: grayscale + brightness
+    // Albino (non-prismatic): its look is in its sheet, but a mutated one's.
     if (_isAlbino && !visuals.isPrismatic) {
-      paint.colorFilter = ColorFilter.matrix(albinoMatrix(visuals.brightness));
+      paint.colorFilter = albinoFilter(visuals);
       paint.color = const Color(0xFFFFFFFF);
       return;
     }
@@ -456,35 +461,6 @@ List<double> hueRotationMatrix(double degrees) {
     0.213 - c * 0.213 - s * 0.787,
     0.715 - c * 0.715 + s * 0.715,
     0.072 + c * 0.928 + s * 0.072,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
-}
-
-List<double> albinoMatrix(double brightness) {
-  const double rLum = 0.299;
-  const double gLum = 0.587;
-  const double bLum = 0.114;
-
-  return <double>[
-    rLum * brightness,
-    gLum * brightness,
-    bLum * brightness,
-    0,
-    0,
-    rLum * brightness,
-    gLum * brightness,
-    bLum * brightness,
-    0,
-    0,
-    rLum * brightness,
-    gLum * brightness,
-    bLum * brightness,
     0,
     0,
     0,

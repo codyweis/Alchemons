@@ -725,10 +725,11 @@ extension CosmicGameWild on CosmicGame {
       reference + _toroidalDelta(p, reference);
 
   Future<void> _loadWildSprite(SpaceWildAlchemon w) async {
-    final sheet = w.member.spriteSheet;
+    // Its own sheet, or the baked copy an albino (or a mutated one) wears.
+    final sheet = sheetForVisuals(w.member.spriteSheet, w.member.spriteVisuals);
     if (sheet == null) return;
     try {
-      final image = await images.load(sheet.path);
+      final image = await loadCreatureSheet(images, sheet.path);
       final cols = (sheet.totalFrames + sheet.rows - 1) ~/ sheet.rows;
       final anim = SpriteAnimation.fromFrameData(
         image,
@@ -811,10 +812,7 @@ extension CosmicGameWild on CosmicGame {
         ..filterQuality = ui.FilterQuality.medium;
       final v = w.member.spriteVisuals;
       if (v != null) {
-        final isAlbino = v.brightness == 1.45 && !v.isPrismatic;
-        paint.colorFilter = isAlbino
-            ? _albinoColorFilter(v.brightness)
-            : _geneticsColorFilter(v);
+        paint.colorFilter = _creatureFilter(v);
       }
       canvas.save();
       if (exhausted) {

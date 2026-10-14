@@ -90,8 +90,13 @@ class WildlifeGenerator {
             final baseDom = {for (final v in track.variants) v.id: v.dominance};
             final biased = _applyTintBias(baseDom, types);
             resultId = _weightedPickMap(biased);
+            // As breeding mutates a tint: never to albino.
             if (mutates) {
-              resultId = _mutateAwayFromNormal(track, from: resultId);
+              resultId = _mutateAwayFromNormal(
+                track,
+                from: resultId,
+                except: const {'albino'},
+              );
             }
           } else {
             // generic dominance weighted
@@ -176,6 +181,7 @@ class WildlifeGenerator {
         w[variantId] = (w[variantId] ?? 0) * mult;
       });
     }
+    w['albino'] = (w['albino'] ?? 0) * kAlbinoRollShare;
     w['normal'] = (w['normal'] ?? 0).clamp(0.01, double.infinity);
     return w;
   }
@@ -191,8 +197,14 @@ class WildlifeGenerator {
     return weights.keys.last;
   }
 
-  String _mutateAwayFromNormal(GeneTrack track, {required String from}) {
-    final pool = track.variants.where((v) => v.id != 'normal').toList();
+  String _mutateAwayFromNormal(
+    GeneTrack track, {
+    required String from,
+    Set<String> except = const {},
+  }) {
+    final pool = track.variants
+        .where((v) => v.id != 'normal' && !except.contains(v.id))
+        .toList();
     if (pool.isEmpty) return from;
     return pool[_rng.nextInt(pool.length)].id;
   }

@@ -7,6 +7,7 @@ import 'package:alchemons/models/celebration_costume.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
@@ -136,6 +137,10 @@ class _CreatureSpriteState extends State<CreatureSprite>
   // Helper to detect albino based on brightness value
   bool get _isAlbino => widget.brightness == 1.45;
 
+  /// Albino, and not trumped by prismatic.
+  static bool _albinoOf(CreatureSprite w) =>
+      w.brightness == 1.45 && !w.isPrismatic;
+
   AnimationController? _hueController;
   SpriteAnimation? _spriteAnimation;
   SpriteAnimationTicker? _spriteTicker;
@@ -181,6 +186,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
         widget.mutation != oldWidget.mutation ||
         (widget.mutation != null &&
             widget.isPrismatic != oldWidget.isPrismatic) ||
+        _albinoOf(widget) != _albinoOf(oldWidget) ||
         widget.totalFrames != oldWidget.totalFrames ||
         widget.rows != oldWidget.rows ||
         widget.frameSize != oldWidget.frameSize ||
@@ -232,12 +238,11 @@ class _CreatureSpriteState extends State<CreatureSprite>
 
     // Prismatic trumps albino - only use albino processing if not prismatic
     if (_isAlbino && !widget.isPrismatic) {
-      // For albino: apply desaturation matrix to convert to grayscale,
-      // then brighten without any hue shifts
-      sprite = ColorFiltered(
-        colorFilter: ColorFilter.matrix(albinoMatrix(widget.brightness)),
-        child: sprite,
-      );
+      // An albino's look is baked into its sheet; a mutated one's sheet
+      // carries the mutation, so it is filtered albino here.
+      if (!albinoBakes(albino: true, mutation: widget.mutation)) {
+        sprite = ColorFiltered(colorFilter: kAlbinoFilter, child: sprite);
+      }
     } else {
       // Normal color processing for non-albino creatures or prismatic creatures
       final normalizedHue =
@@ -333,7 +338,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
     });
   }
 
-  /// The sheet actually drawn: the asset, or its baked mutation.
+  /// The sheet actually drawn: the asset, or its baked mutation or albino.
   SpriteSheetDef get _sheet => mutatedSheet(
     SpriteSheetDef(
       path: widget.spritePath,
@@ -344,6 +349,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
     ),
     mutation: widget.mutation,
     prismatic: widget.isPrismatic,
+    albino: _albinoOf(widget),
   );
 
   Future<void> _loadAnimation() async {
@@ -574,37 +580,6 @@ List<double> hueRotationMatrix(double degrees) {
     0.213 - c * 0.213 - s * 0.787,
     0.715 - c * 0.715 + s * 0.715,
     0.072 + c * 0.928 + s * 0.072,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
-}
-
-// Albino matrix that desaturates to grayscale and applies brightness
-List<double> albinoMatrix(double brightness) {
-  // Luminance coefficients for RGB -> grayscale conversion
-  const double rLum = 0.299;
-  const double gLum = 0.587;
-  const double bLum = 0.114;
-
-  return <double>[
-    rLum * brightness,
-    gLum * brightness,
-    bLum * brightness,
-    0,
-    0,
-    rLum * brightness,
-    gLum * brightness,
-    bLum * brightness,
-    0,
-    0,
-    rLum * brightness,
-    gLum * brightness,
-    bLum * brightness,
     0,
     0,
     0,
