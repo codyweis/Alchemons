@@ -176,6 +176,18 @@ class ConstellationCatalog {
     tier: 7,
   );
 
+  // a side stone off the gestation path's last
+  static const fuseAllStamina = ConstellationSkill(
+    id: 'breeder_fuse_all_stamina',
+    name: 'Fuse All Stamina',
+    description:
+        'Adds a button under FUSE that fuses the pair until one of them runs out of stamina',
+    tree: ConstellationTree.breeder,
+    pointsCost: 20,
+    prerequisites: ['breeder_accelerated_gestation3'],
+    tier: 7,
+  );
+
   // path 2 – Harvesting Wilderness Specimens
   static const harvestingWildernessSpecimens = ConstellationSkill(
     id: 'breeder_harvesting_wilderness_specimens',
@@ -569,6 +581,7 @@ class ConstellationCatalog {
     acceleratedGestation,
     acceleratedGestation2,
     acceleratedGestation3,
+    fuseAllStamina,
     harvestingWildernessSpecimens,
     harvestingWildernessSpecimens2,
     harvestingWildernessSpecimens3,

@@ -184,8 +184,8 @@ void main() {
     await tester.tap(find.byType(StadiumTrophyEmblem));
     await tester.pump();
     expect(lifted.value, isTrue);
-    // Lift, unfold into the arena, open out onto the shelf: upright the
-    // whole way, so nothing turns.
+    // The cup glides from home onto the shelf: upright the whole way, so
+    // nothing turns.
     await play(3.0, at: [.25, .5, .75, .9, 1.1, 1.4, 1.7, 2.0, 2.4, 2.9]);
     expect(turns, isEmpty);
     expect(find.byType(StadiumScreen), findsOneWidget);

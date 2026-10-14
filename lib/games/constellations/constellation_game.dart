@@ -429,13 +429,28 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     final tempNodes = <String, SkillNode>{};
     for (final tier in tierMap.keys) {
       final skillsInTier = tierMap[tier]!;
-      final horizontalSpacing = skillsInTier.length > 1 ? 220.0 : 0.0;
-      final totalWidth = (skillsInTier.length - 1) * horizontalSpacing;
+      // A stone whose parent is on its own row is a side stone: it stands
+      // one column further out than the parent, beside it, rather than
+      // taking a place in the row (or a row of its own, which would make the
+      // tree too tall to frame on a phone).
+      final rowIds = {for (final s in skillsInTier) s.id};
+      bool isSide(ConstellationSkill s) => s.prerequisites.any(rowIds.contains);
+      final row = skillsInTier.where((s) => !isSide(s)).toList();
+      final horizontalSpacing = row.length > 1 ? 220.0 : 0.0;
+      final totalWidth = (row.length - 1) * horizontalSpacing;
       final startX = -totalWidth / 2;
+      final xOf = <String, double>{
+        for (int i = 0; i < row.length; i++)
+          row[i].id: startX + (i * horizontalSpacing),
+      };
+      for (final side in skillsInTier.where(isSide)) {
+        final parentX =
+            xOf[side.prerequisites.firstWhere(rowIds.contains)] ?? 0.0;
+        xOf[side.id] = parentX + (parentX < 0 ? -220.0 : 220.0);
+      }
 
-      for (int i = 0; i < skillsInTier.length; i++) {
-        final skill = skillsInTier[i];
-        final x = startX + (i * horizontalSpacing);
+      for (final skill in skillsInTier) {
+        final x = xOf[skill.id]!;
         final y = baseY - (tier * verticalSpacing);
 
         final isUnlocked = _unlockedSkills.contains(skill.id);

@@ -142,9 +142,17 @@ const double kTrialsHeaderHeight = 46;
 double trialsShelfHeight(Size size) =>
     (size.height * .26).clamp(150.0, 250.0).toDouble();
 
+/// Where the shelf of cups stands on the hub, worked out before the hub is
+/// built: the way in from home flies its cup there while the hub is read.
+Rect trialsShelfRect(Size size, EdgeInsets pad) => Rect.fromLTWH(
+  pad.left + 16,
+  pad.top + kTrialsHeaderHeight,
+  size.width - pad.horizontal - 32,
+  trialsShelfHeight(size),
+);
+
 /// Where the crowd stands on the hub: a band across the top, from the
 /// header to about halfway down the shelf, behind the cups' spotlight.
-/// The way in from home sweeps its stands' ring up into exactly this.
 Rect trialsStandsBand(Size size, EdgeInsets pad) => Rect.fromLTWH(
   0,
   pad.top + 2,

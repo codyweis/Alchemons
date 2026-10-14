@@ -348,6 +348,23 @@ class _BreedingTabState extends State<BreedingTab>
   }
 
   static String _shortWait(Duration d) {
+  /// How many times FUSE ALL would fuse this pair: the stamina of the more
+  /// tired one, as far as the chambers and cold storage have room. Zero when
+  /// that is under two, or the constellation has not given the button.
+  int _fuseAllCount(_Room room) {
+    final p1 = selectedParent1, p2 = selectedParent2;
+    if (p1 == null || p2 == null || !room.known) return 0;
+    if (!context.read<ConstellationEffectsService>().hasFuseAllStamina()) {
+      return 0;
+    }
+    var times = math.min(_staminaOf(p1).bars, _staminaOf(p2).bars);
+    final stored = room.stored, capacity = room.capacity;
+    if (stored != null && capacity != null) {
+      times = math.min(times, room.free + math.max(0, capacity - stored));
+    }
+    return times >= 2 ? times : 0;
+  }
+
     if (d.isNegative || d.inMinutes < 1) return 'any moment';
     final h = d.inHours, m = d.inMinutes % 60;
     return h > 0 ? '${h}h ${m}m' : '${m}m';
@@ -435,6 +452,7 @@ class _BreedingTabState extends State<BreedingTab>
                 ready.block == null,
                 standing: widget.shown && !compact,
               ),
+                fuseAll: ready.block == null ? _fuseAllCount(room) : 0,
             ),
             // Clear of the dock's raised FUSION icon, which otherwise sat on
             // the middle of the button.
@@ -470,6 +488,7 @@ class _BreedingTabState extends State<BreedingTab>
     bool clear, {
     required bool standing,
   }) {
+    int fuseAll = 0,
     Widget slab(Widget row, {bool enabled = true, NavSlabSplit? split}) =>
         NavSlab(
           site: NavSlabSite.fusion,
@@ -486,7 +505,7 @@ class _BreedingTabState extends State<BreedingTab>
     final p1 = selectedParent1, p2 = selectedParent2;
     if (p1 != null && p2 != null) {
       final enabled = clear && !_isBreeding;
-      return slab(
+      final fuse = slab(
         enabled: enabled,
         BracketButton(
           label: 'FUSE',
@@ -498,6 +517,26 @@ class _BreedingTabState extends State<BreedingTab>
         ),
       );
     }
+      if (fuseAll < 2) return fuse;
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          fuse,
+          const SizedBox(height: 8),
+          SizedBox(
+            width: 168,
+            child: BracketButton(
+              label: 'FUSE ALL ×$fuseAll',
+              primary: false,
+              height: 34,
+              palette: palette,
+              accent: gold,
+              enabled: enabled,
+              onTap: () => _onBreedTap(times: fuseAll),
+            ),
+          ),
+        ],
+      );
     if (p1 != null || p2 != null) {
       return slab(
         enabled: !_isBreeding,
@@ -976,7 +1015,7 @@ class _BreedingTabState extends State<BreedingTab>
 
   // Read the specimens into grains first, then check, then run the merge in
   // the chamber, then the cinematic and the fusion itself.
-  Future<void> _onBreedTap() async {
+  Future<void> _onBreedTap({int times = 1}) async {
     if (selectedParent1 == null || selectedParent2 == null) return;
     if (_isBreeding) return;
 
@@ -1066,7 +1105,7 @@ class _BreedingTabState extends State<BreedingTab>
 
       // now jump to cinematic + actual breeding
       if (!mounted) return;
-      await _performBreeding(skipped: skipped);
+      await _performBreeding(skipped: skipped, times: times);
     } finally {
       if (mounted) {
         _preCinematicFadeController.reset();
@@ -1219,7 +1258,10 @@ class _BreedingTabState extends State<BreedingTab>
     );
   }
 
-  Future<void> _performBreeding({bool skipped = false}) async {
+  /// The fusion, [times] over for FUSE ALL: one cinematic, and a fusion per
+  /// time behind it, each rolled on its own, until the count is made or one
+  /// of the pair (or the room) runs out first.
+  Future<void> _performBreeding({bool skipped = false, int times = 1}) async {
     if (selectedParent1 == null || selectedParent2 == null) return;
 
     try {
@@ -1280,6 +1322,19 @@ class _BreedingTabState extends State<BreedingTab>
         startSkipped: skipped,
         task: () async {
           final result = await breedingService.breedInstances(
+          if (times > 1) {
+            return _fuseRepeatedly(
+              times,
+              speciesA,
+              speciesB,
+              (result) => outcomeNotifier.value = _buildRevealData(
+                repo.getCreatureById(result.creatureId ?? ''),
+                result.pureBreedingInfo,
+                colorA,
+                colorB,
+              ),
+            );
+          }
             selectedParent1!,
             selectedParent2!,
           );
@@ -1353,8 +1408,9 @@ class _BreedingTabState extends State<BreedingTab>
     }
   }
 
-  /// Handle stamina costs with faction-specific perks
-  Future<void> _handleStaminaCost(
+  /// Handle stamina costs with faction-specific perks. False when the Water
+  /// perk rolled and nothing was spent.
+  Future<bool> _handleStaminaCost(
     CreatureInstance parent1,
     CreatureInstance parent2,
     Creature speciesA,
@@ -1374,7 +1430,7 @@ class _BreedingTabState extends State<BreedingTab>
 
     // 50% chance to skip if perk is active
     if (skipStamina && math.Random().nextBool()) {
-      return; // Lucky! No stamina cost
+      return false; // Lucky! No stamina cost
     }
 
     // Spend stamina normally WITH creature data for nature modifiers
@@ -1387,6 +1443,66 @@ class _BreedingTabState extends State<BreedingTab>
       instanceOverlayForNature: speciesB,
     );
   }
+    return true;
+  }
+
+  /// FUSE ALL's fusions, inside the one cinematic. Each is checked against
+  /// the database first — a nature can charge two bars for one fusion, and
+  /// the room can fill — and stops there. The reveal shows the rarest kind
+  /// made (a pure line over a standard one). The Water perk, when it rolls,
+  /// leaves the bars where they were rather than adding a fusion.
+  Future<bool> _fuseRepeatedly(
+    int times,
+    Creature speciesA,
+    Creature speciesB,
+    void Function(EggCreationResult) reveal,
+  ) async {
+    final breedingService = context.read<BreedingServiceV2>();
+    final stamina = context.read<StaminaService>();
+    final p1 = selectedParent1!, p2 = selectedParent2!;
+    var made = 0, stored = 0, kept = 0;
+    EggCreationResult? shown;
+    String? stoppedBy;
+    for (var i = 0; i < times; i++) {
+      if (i > 0) {
+        if (!await stamina.canBreed(p1.instanceId) ||
+            !await stamina.canBreed(p2.instanceId)) {
+          break;
+        }
+        stoppedBy = await breedingService.getEggPlacementFailureMessage();
+        if (stoppedBy != null) break;
+      }
+      final result = await breedingService.breedInstances(p1, p2);
+      if (!result.success) {
+        stoppedBy = result.message ?? 'Fusion failed';
+        break;
+      }
+      made++;
+      if (result.placement == EggPlacement.storage) stored++;
+      if (shown == null ||
+          (shown.pureBreedingInfo == null && result.pureBreedingInfo != null)) {
+        shown = result;
+        reveal(result);
+      }
+      if (!await _handleStaminaCost(p1, p2, speciesA, speciesB)) kept++;
+    }
+    if (made == 0) {
+      _pendingFusionToast = _PendingToast(
+        stoppedBy ?? 'Fusion failed',
+        color: Colors.orange,
+      );
+      return false;
+    }
+    final parts = [
+      'Fused $made ${made == 1 ? 'time' : 'times'}',
+      if (stored > 0) '$stored to cold storage',
+      if (kept > 0) 'Water kept $kept ${kept == 1 ? 'bar' : 'bars'}',
+    ];
+    _pendingFusionToast = _PendingToast(
+      parts.join(' · '),
+      color: stored > 0 ? Colors.orange : null,
+    );
+    return true;
 
   // ───────────────────────────── choosing ─────────────────────────────────
 

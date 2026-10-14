@@ -93,6 +93,11 @@ class ConstellationEffectsService extends ChangeNotifier {
     return _unlockedSkillIds.contains('breeder_cross_species');
   }
 
+  /// Whether FUSE has the fuse-all-stamina button under it
+  bool hasFuseAllStamina() {
+    return _unlockedSkillIds.contains('breeder_fuse_all_stamina');
+  }
+
   /// Check if gene analyzer is unlocked
   bool hasGeneAnalyzer() {
     return _unlockedSkillIds.contains('breeder_gene_analyzer');
