@@ -3,6 +3,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
+import 'package:alchemons/utils/instance_stat_traits.dart';
 import 'package:drift/drift.dart';
 
 class BloodRebirthService {
@@ -24,16 +25,20 @@ class BloodRebirthService {
         throw StateError('The chosen companion is no longer available.');
       }
       final base = species.baseStats;
+      // As it will be: Bloodborn, which is no faction's variant.
+      final reborn = instance.copyWith(
+        variantFaction: const Value('bloodborn'),
+      );
       double stat(String key, int? points, int enhancement) =>
           AlchemonStatSystem.effectiveInternal(
             speciesBase: points ?? 60,
             level: instance.level,
             potential: potential,
             enhancementRank: enhancement,
-            additionalMultiplier: AlchemonStatSystem.natureMultiplier(
-              instance.natureId,
+            additionalMultiplier: instanceTraitMultiplier(
+              reborn,
               key,
-              instance.natureId2,
+              species: species,
             ),
           );
       await (db.update(

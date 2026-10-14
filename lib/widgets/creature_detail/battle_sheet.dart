@@ -583,6 +583,15 @@ class _BattleSheetState extends State<_BattleSheet> {
     if (!purityBonus.isNone && purityBonus.statKey == key) {
       sources.add('Purity +${(purityBonus.bonus * 100).round()}%');
     }
+    final variantBonus = resolveVariantStatBonus(
+      variantFaction: i.variantFaction,
+      joinedFaction: context.read<FactionService>().current?.name,
+    );
+    if (variantBonus.statKeys.contains(key)) {
+      sources.add(
+        '${variantBonus.faction} variant +${(variantBonus.bonus * 100).round()}%',
+      );
+    }
     final constellation = context
         .read<ConstellationEffectsService>()
         .getCombatStatBonusPercent(key);

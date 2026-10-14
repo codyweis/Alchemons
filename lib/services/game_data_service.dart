@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/models/purity_stat_bonus.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
+import 'package:alchemons/utils/instance_stat_traits.dart';
 import 'package:drift/drift.dart';
 import '../database/alchemons_db.dart';
 import '../models/creature.dart';
@@ -51,18 +53,22 @@ class GameDataService {
     }
 
     // Reconcile old saves and any instances created by legacy paths with the
-    // canonical Base × Level × Potential × Enhancement × Nature formula.
+    // canonical Base × Level × Potential × Enhancement × traits formula.
     // This is idempotent and only writes rows whose cached combat values differ.
-    await _reconcileInstanceStats();
+    await reconcileInstanceStats();
 
     _initialized = true;
   }
 
-  Future<void> _reconcileInstanceStats() async {
+  /// Rewrites every creature's stats that the formula now gives differently:
+  /// at launch, and when the player joins another faction (its variants are
+  /// worth more).
+  Future<void> reconcileInstanceStats() async {
     final instances = await db.creatureDao.listAllInstances();
+    final joined = await FactionService.joinedId(db);
     await db.transaction(() async {
       for (final instance in instances) {
-        await _writeDerivedStats(instance);
+        await _writeDerivedStats(instance, joined);
       }
     });
   }
@@ -75,14 +81,18 @@ class GameDataService {
   Future<void> refreshInstanceStats(String instanceId) async {
     final instance = await db.creatureDao.getInstance(instanceId);
     if (instance == null) return;
-    await _writeDerivedStats(instance);
+    await _writeDerivedStats(instance, await FactionService.joinedId(db));
   }
 
   /// The canonical formula, in one place:
-  /// Base x Level x Potential x Enhancement x Nature x Purity.
+  /// Base x Level x Potential x Enhancement x Nature x Purity x Variant
+  /// ([instanceTraitMultiplier]), for a player who joined [joinedFaction].
   ///
   /// Idempotent — it only writes when the stored values actually differ.
-  Future<void> _writeDerivedStats(CreatureInstance instance) async {
+  Future<void> _writeDerivedStats(
+    CreatureInstance instance,
+    String? joinedFaction,
+  ) async {
     final species = catalog.getCreatureById(instance.baseId);
     final base =
         species?.baseStats ??
@@ -93,30 +103,21 @@ class GameDataService {
           beauty: 60,
         );
 
-    // An unbroken bloodline is worth one rolled stat. The roll comes from the
+    // An unbroken bloodline is worth one rolled stat, taken from the
     // instance id rather than a random source precisely because this runs on
-    // every load and writes back: a fresh roll each time would hand the
-    // creature a different bonus every launch.
-    final purity = classifyInstancePurity(instance, species: species);
-    final purityBonus = resolvePurityStatBonus(
-      instanceId: instance.instanceId,
-      isElementallyPure: purity.isElementallyPure,
-      isSpeciesPure: purity.isSpeciesPure,
-    );
-
+    // every load and writes back (purity_stat_bonus.dart).
     double derive(int speciesBase, num potential, int rank, String key) =>
         AlchemonStatSystem.effectiveInternal(
           speciesBase: speciesBase,
           level: instance.level,
           potential: potential,
           enhancementRank: rank,
-          additionalMultiplier:
-              AlchemonStatSystem.natureMultiplier(
-                instance.natureId,
-                key,
-                instance.natureId2,
-              ) *
-              purityBonus.multiplierFor(key),
+          additionalMultiplier: instanceTraitMultiplier(
+            instance,
+            key,
+            species: species,
+            joinedFaction: joinedFaction,
+          ),
         );
 
     final speed = derive(

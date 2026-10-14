@@ -10,6 +10,7 @@ import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -259,6 +260,9 @@ void main() {
             Provider<StaminaService>.value(value: StaminaService(db)),
             ChangeNotifierProvider<ConstellationEffectsService>.value(
               value: constellation,
+            ),
+            ChangeNotifierProvider<FactionService>.value(
+              value: FactionService(db),
             ),
           ],
           child: MaterialApp(

@@ -8,6 +8,7 @@ import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/creature_instance_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/utils/instance_stat_traits.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -73,8 +74,18 @@ void main() {
     expect(result.ok, isTrue);
     expect(result.delta, 3);
     expect(updated!.statSpeedEnhancement, 1);
-    expect(updated.statSpeed, closeTo(3.8625, 0.0001));
-    expect(updated.statIntelligence, closeTo(3.75, 0.0001));
+    // Its bloodline's purity roll is kept through the rank, as the load-time
+    // pass would give it.
+    double kept(String key) => instanceTraitMultiplier(
+      updated,
+      key,
+      species: catalog.getCreatureById('TEST01'),
+    );
+    expect(updated.statSpeed, closeTo(3.8625 * kept('speed'), 0.0001));
+    expect(
+      updated.statIntelligence,
+      closeTo(3.75 * kept('intelligence'), 0.0001),
+    );
     expect(await db.inventoryDao.getItemQty(InvKeys.powerupSpeed), 0);
   });
 

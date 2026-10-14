@@ -5,6 +5,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/battle_tab.dart';
 import 'package:alchemons/screens/ability_preview_screen.dart';
@@ -77,6 +78,9 @@ void main() {
           Provider<FactionTheme>.value(value: theme),
           ChangeNotifierProvider<ConstellationEffectsService>.value(
             value: ConstellationEffectsService(database),
+          ),
+          ChangeNotifierProvider<FactionService>.value(
+            value: FactionService(database),
           ),
         ],
         child: MaterialApp(

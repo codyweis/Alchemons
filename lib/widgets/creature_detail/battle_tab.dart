@@ -4,6 +4,7 @@ import 'dart:math';
 import 'package:alchemons/models/family_combat_copy.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/purity_stat_bonus.dart';
+import 'package:alchemons/models/variant_stat_bonus.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
@@ -14,6 +15,7 @@ import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:provider/provider.dart';
@@ -205,6 +207,24 @@ class _CombatBoostsCard extends StatelessWidget {
         _BoostEntry(
           'Purity · ${purityBonus.lineageLabel}',
           '${_statLabel(purityBonus.statKey!)} +${(purityBonus.bonus * 100).round()}%',
+        ),
+      );
+    }
+
+    final variantBonus = resolveVariantStatBonus(
+      variantFaction: instance.variantFaction,
+      joinedFaction: context.watch<FactionService>().current?.name,
+    );
+    if (!variantBonus.isNone) {
+      final percent = '+${(variantBonus.bonus * 100).round()}%';
+      entries.add(
+        _BoostEntry(
+          variantBonus.joined
+              ? 'Variant · ${variantBonus.faction}, your faction'
+              : 'Variant · ${variantBonus.faction}',
+          variantBonus.statKeys.length == 4
+              ? 'All stats $percent'
+              : '${_statLabel(variantBonus.statKeys.single)} $percent',
         ),
       );
     }

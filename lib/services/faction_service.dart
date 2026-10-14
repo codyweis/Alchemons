@@ -167,6 +167,14 @@ class FactionService extends ChangeNotifier {
     return _cached;
   }
 
+  /// The joined faction's id ('volcanic'…), read straight from the save, or
+  /// null before one is joined: for the services that derive stats without
+  /// this provider (a variant of the joined faction is worth more).
+  static Future<String?> joinedId(AlchemonsDatabase db) async {
+    final id = await db.settingsDao.getSetting(_kFactionKey);
+    return id == null || id.isEmpty ? null : id;
+  }
+
   Future<void> reloadFromStorage() async {
     _cached = null;
     _dockLoaded = false;

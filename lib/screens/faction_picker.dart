@@ -22,6 +22,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/fx/starter_vial_handoff.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/services/game_data_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -173,6 +174,7 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
     final selected = _factions[_currentIndex];
     final svc = context.read<FactionService>();
     final db = context.read<AlchemonsDatabase>();
+    final gameData = context.read<GameDataService>();
     // Only the very first choice brings a starter vial to carry into a
     // chamber; a faction change bought later just closes.
     final firstChoice = svc.current == null;
@@ -188,6 +190,8 @@ class _FactionPickerDialogState extends State<FactionPickerDialog>
       }
       // Persist through the service (single source of truth).
       await svc.setId(selected.id);
+      // Variants of the faction joined are worth more: restate everyone's.
+      await gameData.reconcileInstanceStats();
       await db.settingsDao.setMustPickFaction(false);
     } catch (_) {
       if (mounted) setState(() => _committing = false);

@@ -8,6 +8,8 @@ import 'package:alchemons/models/potential_soul.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/faction_service.dart';
+import 'package:alchemons/utils/instance_stat_traits.dart';
 import 'package:uuid/uuid.dart';
 
 /// What to do when species cap is reached.
@@ -30,9 +32,13 @@ class CreatureInstanceService {
 
   CreatureInstanceService(this._db, {this.speciesCap = 100});
 
+  /// The canonical stats (as `GameDataService` writes them at load) for
+  /// [instance] with any of its level, ranks or Potentials replaced, held by
+  /// a player who joined [joinedFaction].
   static Map<String, double> _deriveStats({
     required db.CreatureInstance instance,
     required CreatureCatalog repo,
+    required String? joinedFaction,
     int? level,
     int? speedEnhancement,
     int? intelligenceEnhancement,
@@ -53,52 +59,43 @@ class CreatureInstanceService {
           beauty: 60,
         );
     final resolvedLevel = level ?? instance.level;
+    double derive(String key, int speciesBase, num potential, int rank) =>
+        AlchemonStatSystem.effectiveInternal(
+          speciesBase: speciesBase,
+          level: resolvedLevel,
+          potential: potential,
+          enhancementRank: rank,
+          additionalMultiplier: instanceTraitMultiplier(
+            instance,
+            key,
+            species: species,
+            joinedFaction: joinedFaction,
+          ),
+        );
     return {
-      'speed': AlchemonStatSystem.effectiveInternal(
-        speciesBase: base.speed,
-        level: resolvedLevel,
-        potential: speedPotential ?? instance.statSpeedPotential,
-        enhancementRank: speedEnhancement ?? instance.statSpeedEnhancement,
-        additionalMultiplier: AlchemonStatSystem.natureMultiplier(
-          instance.natureId,
-          'speed',
-          instance.natureId2,
-        ),
+      'speed': derive(
+        'speed',
+        base.speed,
+        speedPotential ?? instance.statSpeedPotential,
+        speedEnhancement ?? instance.statSpeedEnhancement,
       ),
-      'intelligence': AlchemonStatSystem.effectiveInternal(
-        speciesBase: base.intelligence,
-        level: resolvedLevel,
-        potential: intelligencePotential ?? instance.statIntelligencePotential,
-        enhancementRank:
-            intelligenceEnhancement ?? instance.statIntelligenceEnhancement,
-        additionalMultiplier: AlchemonStatSystem.natureMultiplier(
-          instance.natureId,
-          'intelligence',
-          instance.natureId2,
-        ),
+      'intelligence': derive(
+        'intelligence',
+        base.intelligence,
+        intelligencePotential ?? instance.statIntelligencePotential,
+        intelligenceEnhancement ?? instance.statIntelligenceEnhancement,
       ),
-      'strength': AlchemonStatSystem.effectiveInternal(
-        speciesBase: base.strength,
-        level: resolvedLevel,
-        potential: strengthPotential ?? instance.statStrengthPotential,
-        enhancementRank:
-            strengthEnhancement ?? instance.statStrengthEnhancement,
-        additionalMultiplier: AlchemonStatSystem.natureMultiplier(
-          instance.natureId,
-          'strength',
-          instance.natureId2,
-        ),
+      'strength': derive(
+        'strength',
+        base.strength,
+        strengthPotential ?? instance.statStrengthPotential,
+        strengthEnhancement ?? instance.statStrengthEnhancement,
       ),
-      'beauty': AlchemonStatSystem.effectiveInternal(
-        speciesBase: base.beauty,
-        level: resolvedLevel,
-        potential: beautyPotential ?? instance.statBeautyPotential,
-        enhancementRank: beautyEnhancement ?? instance.statBeautyEnhancement,
-        additionalMultiplier: AlchemonStatSystem.natureMultiplier(
-          instance.natureId,
-          'beauty',
-          instance.natureId2,
-        ),
+      'beauty': derive(
+        'beauty',
+        base.beauty,
+        beautyPotential ?? instance.statBeautyPotential,
+        beautyEnhancement ?? instance.statBeautyEnhancement,
       ),
     };
   }
@@ -665,6 +662,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
         final derived = CreatureInstanceService._deriveStats(
           instance: leveled,
           repo: repo,
+          joinedFaction: await FactionService.joinedId(_db),
         );
         await _db.creatureDao.updateStats(
           instanceId: leveled.instanceId,
@@ -754,6 +752,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     final derived = CreatureInstanceService._deriveStats(
       instance: target,
       repo: repo,
+      joinedFaction: await FactionService.joinedId(_db),
       speedEnhancement: speedRank,
       intelligenceEnhancement: intelligenceRank,
       strengthEnhancement: strengthRank,
@@ -882,6 +881,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     final derived = CreatureInstanceService._deriveStats(
       instance: target,
       repo: repo,
+      joinedFaction: await FactionService.joinedId(_db),
       speedPotential: speedPotential,
       intelligencePotential: intelligencePotential,
       strengthPotential: strengthPotential,

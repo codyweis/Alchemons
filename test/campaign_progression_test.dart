@@ -7,6 +7,7 @@ import 'package:alchemons/services/blood_rebirth_service.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
 import 'package:alchemons/services/mystic_ritual_service.dart';
+import 'package:alchemons/utils/instance_stat_traits.dart';
 import 'package:alchemons/screens/story/models/story_page.dart';
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
@@ -83,6 +84,12 @@ void main() {
             level: 8,
             potential: 95,
             enhancementRank: 2,
+            // Its bloodline's purity roll kept, as every stat writer keeps it.
+            additionalMultiplier: instanceTraitMultiplier(
+              after,
+              'speed',
+              species: species,
+            ),
           ),
           .000001,
         ),
