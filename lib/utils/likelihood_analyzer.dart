@@ -569,9 +569,17 @@ class BreedingLikelihoodAnalyzer {
   }) {
     final babyElem = baby.types.isNotEmpty ? baby.types.first : 'Unknown';
 
+    // Given the family it took: a child leans to that parent's element.
+    final babyFamily = baby.mutationFamily;
     final elemDist = (parentA != null && parentB != null)
-        ? engine.getLineageAwareElementDistribution(p1, p2, parentA, parentB)
-        : engine.getBiasedElementDistribution(p1, p2);
+        ? engine.getLineageAwareElementDistribution(
+            p1,
+            p2,
+            parentA,
+            parentB,
+            childFamily: babyFamily,
+          )
+        : engine.getBiasedElementDistribution(p1, p2, childFamily: babyFamily);
     final elemPctMap = elemDist.asPercentages();
 
     debugPrint(
@@ -1093,14 +1101,24 @@ class BreedingLikelihoodAnalyzer {
     final famDist = (parentA != null && parentB != null)
         ? engine.getLineageAwareFamilyDistribution(p1, p2, parentA, parentB)
         : engine.getBiasedFamilyDistribution(p1, p2);
-    final elemDist = (parentA != null && parentB != null)
-        ? engine.getLineageAwareElementDistribution(p1, p2, parentA, parentB)
-        : engine.getBiasedElementDistribution(p1, p2);
+    // The element roll depends on the family taken (a child leans to that
+    // parent's element), so it is read per family.
+    Map<String, double> elemProbFor(String family) {
+      final dist = (parentA != null && parentB != null)
+          ? engine.getLineageAwareElementDistribution(
+              p1,
+              p2,
+              parentA,
+              parentB,
+              childFamily: family,
+            )
+          : engine.getBiasedElementDistribution(p1, p2, childFamily: family);
+      return dist.asPercentages().map(
+        (k, v) => MapEntry(k, (v / 100.0).clamp(0.0, 1.0)),
+      );
+    }
 
     final familyProb = famDist.asPercentages().map(
-      (k, v) => MapEntry(k, (v / 100.0).clamp(0.0, 1.0)),
-    );
-    final elemProb = elemDist.asPercentages().map(
       (k, v) => MapEntry(k, (v / 100.0).clamp(0.0, 1.0)),
     );
 
@@ -1112,7 +1130,7 @@ class BreedingLikelihoodAnalyzer {
 
     for (final fe in familyProb.entries) {
       if (fe.value <= 0.0) continue;
-      for (final ee in elemProb.entries) {
+      for (final ee in elemProbFor(fe.key).entries) {
         if (ee.value <= 0.0) continue;
 
         final branchShare = fe.value * ee.value;

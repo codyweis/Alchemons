@@ -122,7 +122,7 @@ void main() {
     },
   );
 
-  test('a cross with no recipe leans toward the commoner family', () {
+  test('a cross with no recipe leans hard toward the commoner family', () {
     Creature of(String family, String rarity) => Creature(
       id: '$family$rarity',
       name: family,
@@ -137,24 +137,16 @@ void main() {
       elementRecipes: ElementRecipeConfig(recipes: const {}),
       familyRecipes: const FamilyRecipeConfig(recipes: {}),
     );
-    Map<String, double> odds(Creature a, Creature b) =>
-        engine.getFamilyDistribution(a, b).asPercentages();
-
-    expect(odds(of('Let', 'Common'), of('Kin', 'Legendary')), {
-      'Let': closeTo(80, 1e-9),
-      'Kin': closeTo(20, 1e-9),
-    });
-    expect(odds(of('Kin', 'Legendary'), of('Let', 'Common')), {
-      'Kin': closeTo(20, 1e-9),
-      'Let': closeTo(80, 1e-9),
-    });
-    expect(odds(of('Let', 'Rare'), of('Kin', 'Rare')), {
+    // Even before rarity, then the commoner family x3 for each rarity step:
+    // a Common Let and a Legendary Kin, 27 to 1.
+    final let = of('Let', 'Common'), kin = of('Kin', 'Legendary');
+    expect(engine.getFamilyDistribution(let, kin).asPercentages(), {
       'Let': closeTo(50, 1e-9),
       'Kin': closeTo(50, 1e-9),
     });
     expect(
-      odds(of('Let', 'Uncommon'), of('Kin', 'Rare'))['Let'],
-      closeTo(60, 1e-9),
+      engine.getBiasedFamilyDistribution(let, kin).asPercentages()['Let'],
+      closeTo(100 * 27 / 28, 1e-6),
     );
   });
 }

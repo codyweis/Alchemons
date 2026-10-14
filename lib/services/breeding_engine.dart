@@ -111,10 +111,11 @@ const double kVariantFirstChancePct = 1.0;
 const double kVariantChancePerPointPct = 1.0;
 const double kVariantMostChancePct = 15.0;
 
-/// When two families with no recipe breed, the child takes the commoner
-/// parent's family this much more often (in percent) for each rarity step
-/// between them: a Common × Legendary pairing goes 80/20.
-const double kCrossFamilyRarityTilt = 10.0;
+/// A cross-family child that takes one parent's family takes after that
+/// parent in element too: that parent's element counts this many times over
+/// in its element roll (a Waterlet × Poisonkin's Kins lean Poison, its Lets
+/// Water).
+const double kFamilyParentElementWeight = 2.0;
 
 /// Result of a breed() call.
 class BreedingResult {
@@ -295,6 +296,7 @@ class BreedingEngine {
       p2,
       parentA,
       parentB,
+      childFamily: childFamily,
     );
     final childElement = elemDist.sample(_random);
 
@@ -562,12 +564,15 @@ class BreedingEngine {
     return biased;
   }
 
+  /// The element roll, for a child of [childFamily] when its family is
+  /// already known ([kFamilyParentElementWeight]).
   OutcomeDistribution<String> getLineageAwareElementDistribution(
     Creature p1,
     Creature p2,
     ParentSnapshot a,
-    ParentSnapshot b,
-  ) {
+    ParentSnapshot b, {
+    String? childFamily,
+  }) {
     final base = getBiasedElementDistribution(
       p1,
       p2,
@@ -590,7 +595,34 @@ class BreedingEngine {
       capMult: tuning.elementLineageBiasCapMult,
     );
 
-    return biased;
+    return _favorFamilyParentElement(biased, p1, p2, childFamily);
+  }
+
+  /// [dist] with the element of the parent whose family [childFamily] is
+  /// counted [kFamilyParentElementWeight] times over: a child that takes
+  /// after one parent in family takes after it in element too. Unchanged for
+  /// a same-family pair, a family neither parent has, or no family given.
+  OutcomeDistribution<String> _favorFamilyParentElement(
+    OutcomeDistribution<String> dist,
+    Creature p1,
+    Creature p2,
+    String? childFamily,
+  ) {
+    if (childFamily == null) return dist;
+    final fam1 = _familyOf(p1), fam2 = _familyOf(p2);
+    if (fam1 == fam2) return dist;
+    final parent = childFamily == fam1
+        ? p1
+        : childFamily == fam2
+        ? p2
+        : null;
+    if (parent == null || parent.types.isEmpty) return dist;
+    final element = parent.types.first;
+    final weights = Map<String, double>.from(dist.weights);
+    final w = weights[element];
+    if (w == null) return dist;
+    weights[element] = w * kFamilyParentElementWeight;
+    return OutcomeDistribution<String>(weights);
   }
 
   OutcomeDistribution<String> getFamilyDistribution(Creature p1, Creature p2) {
@@ -650,28 +682,11 @@ class BreedingEngine {
       return OutcomeDistribution<String>(map);
     }
 
-    // cross-family with no recipe: a lineage tug-of-war the commoner parent
-    // wins more of, [kCrossFamilyRarityTilt] for each rarity step between
-    // them (a Common Let and a Legendary Kin: 80/20).
-    int rank(Creature c) {
-      final i = _tiltRarityOrder.indexOf(c.rarity);
-      return i < 0 ? 0 : i;
-    }
-
-    final tilt = ((rank(p2) - rank(p1)) * kCrossFamilyRarityTilt).clamp(
-      -40.0,
-      40.0,
-    );
-    return OutcomeDistribution<String>({fam1: 50.0 + tilt, fam2: 50.0 - tilt});
+    // cross-family with no recipe: default 50/50 lineage tug-of-war (the
+    // commoner parent's family is favored after, in
+    // [_biasFamilyTowardLessRareParent])
+    return OutcomeDistribution<String>({fam1: 50.0, fam2: 50.0});
   }
-
-  static const _tiltRarityOrder = [
-    'Common',
-    'Uncommon',
-    'Rare',
-    'Legendary',
-    'Mystic',
-  ];
 
   OutcomeDistribution<String> getElementDistribution(Creature p1, Creature p2) {
     final t1 = p1.types.isNotEmpty ? p1.types.first.trim() : null;
@@ -1022,8 +1037,9 @@ class BreedingEngine {
 
   OutcomeDistribution<String> getBiasedElementDistribution(
     Creature p1,
-    Creature p2,
-  ) {
+    Creature p2, {
+    String? childFamily,
+  }) {
     // 1. base element blend (recipes / nature bias toward parent types)
     final base = getElementDistribution(p1, p2);
 
@@ -1033,7 +1049,8 @@ class BreedingEngine {
     // 3. apply per-parent nature multiplier for "keep my same type"
     final natureBiased = _applySameTypeNatureBias(crossFamPenalized, p1, p2);
 
-    return natureBiased;
+    // 4. a child of one parent's family leans to that parent's element
+    return _favorFamilyParentElement(natureBiased, p1, p2, childFamily);
   }
 
   // ── 2.6 Nature / Genetics / Stats helpers ────────────────────────────────
