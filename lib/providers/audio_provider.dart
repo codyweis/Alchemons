@@ -425,7 +425,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
   ///
   /// Idempotent: calling it again for the cue already running does nothing,
   /// so a caller can drive it from a state change without checking first.
-  Future<void> startSustained(AmbienceCue cue, {double volume = 0.45}) async {
+  Future<void> startSustained(AmbienceCue cue, {double volume = 0.225}) async {
     if (_disposed) return;
     if (!effectiveSoundsEnabled) return;
     if (_sustainCue == cue && _sustainPlayer.playing) return;

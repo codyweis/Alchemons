@@ -123,7 +123,7 @@ class SoundEffectsPlayer {
     try {
       if (cached == null) await use.voice.load(asset);
       if (!_active.contains(use)) return;
-      await use.voice.configure(.70 * cue.gain, speed.clamp(.5, 3.0));
+      await use.voice.configure(.35 * cue.gain, speed.clamp(.5, 3.0));
       if (!_active.contains(use)) return;
       await use.voice.play();
       healthy = true;

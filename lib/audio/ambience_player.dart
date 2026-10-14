@@ -119,7 +119,7 @@ class AmbiencePlayer {
       try {
         // Mute/background stops immediately; ordinary scene changes fade out.
         if (_enabled && !_disposed) {
-          for (final volume in [.12, .06, 0.0]) {
+          for (final volume in [.06, .03, 0.0]) {
             await old.volume(volume);
             await _delay(const Duration(milliseconds: 30));
           }
@@ -155,7 +155,7 @@ class AmbiencePlayer {
           }
         }),
       );
-      for (final volume in [.06, .12, .18]) {
+      for (final volume in [.03, .06, .09]) {
         if (revision != _revision || !identical(_voice, next)) break;
         await next.volume(volume);
         await _delay(const Duration(milliseconds: 30));
