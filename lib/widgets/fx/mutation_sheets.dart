@@ -536,13 +536,13 @@ Uint8List albinoRgba(MutationBakeJob job) {
 }
 
 /// A faction variant: every color turned in OKLab by the one amount that
-/// lands the sheet's main color (its solid colors' mean, eyes aside) on its
-/// faction's hue ([kVariantPalette]) — or, where that would hardly change it
+/// lands the sheet's main color (the hue most of its body is, eyes aside) on
+/// its faction's hue ([kVariantPalette]) — or, where that would hardly change it
 /// ([kVariantLeastChange]), on the far end of the faction's range; a pale or
 /// dark body's color raised toward [kVariantBodyChroma], near-greys given
 /// the faction's hue; its strength and light scaled as the faction keeps
 /// them; its eyes ([MutationBakeJob.eyes], read as a mask) left their own
-/// color.
+/// color, unless that is the color the body turns to.
 Uint8List variantRgba(MutationBakeJob job) {
   final swap = kVariantPalette[job.look.faction]!;
   final src = job.rgba;
@@ -559,9 +559,12 @@ Uint8List variantRgba(MutationBakeJob job) {
         : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
   }
 
-  // The body — what is solid, eyes aside: its main color and how colored
-  // it is.
-  var sumA = 0.0, sumB = 0.0, sumC = 0.0;
+  // The body — what is solid, eyes aside: how its colors fall round the
+  // hue circle (in 5° steps, by area), and how colored it is. And the eyes'
+  // own color.
+  const steps = 72;
+  final hues = Float64List(steps);
+  var sumC = 0.0, eyeA = 0.0, eyeB = 0.0;
   var bodyCount = 0;
   for (var i = 0; i < n; i++) {
     final o = i * 4;
@@ -575,14 +578,21 @@ Uint8List variantRgba(MutationBakeJob job) {
     labL[i] = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
     labA[i] = la;
     labB[i] = lb;
-    if (src[o + 3] < 128 || (eyes != null && eyes[o + 3] > 0)) continue;
+    final c = math.sqrt(la * la + lb * lb);
+    if (src[o + 3] < 128) continue;
+    if (eyes != null && eyes[o + 3] > 0) {
+      if (c >= 0.04) {
+        eyeA += la;
+        eyeB += lb;
+      }
+      continue;
+    }
     body[i] = 1;
     bodyCount++;
-    final c = math.sqrt(la * la + lb * lb);
     sumC += c;
     if (c < 0.04) continue;
-    sumA += la;
-    sumB += lb;
+    final h = math.atan2(lb, la) % (2 * math.pi);
+    hues[(h / (2 * math.pi) * steps).floor() % steps] += 1;
   }
 
   double rad(double degrees) => degrees * math.pi / 180;
@@ -606,7 +616,34 @@ Uint8List variantRgba(MutationBakeJob job) {
     return total / bodyCount;
   }
 
-  final own = sumA == 0 && sumB == 0 ? null : math.atan2(sumB, sumA);
+  // Its main color: the hue most of its body is (not the mean of all its
+  // colors, which a bright flame or crest drags off the body), refined to
+  // the mean of the body's colors within 15° of it.
+  double? own;
+  var peak = -1, most = 0.0;
+  for (var k = 0; k < steps; k++) {
+    var around = 0.0;
+    for (var d = -2; d <= 2; d++) {
+      around += hues[(k + d) % steps];
+    }
+    if (around > most) {
+      most = around;
+      peak = k;
+    }
+  }
+  if (peak >= 0) {
+    final centre = (peak + 0.5) / steps * 2 * math.pi;
+    var a = 0.0, b = 0.0;
+    for (var i = 0; i < n; i++) {
+      if (body[i] == 0) continue;
+      final la = labA[i], lb = labB[i];
+      if (la * la + lb * lb < 0.04 * 0.04) continue;
+      if (apart(math.atan2(lb, la), centre) > rad(15)) continue;
+      a += la;
+      b += lb;
+    }
+    own = math.atan2(b, a);
+  }
   var hue = rad(swap.hue);
   if (own != null && change(hue - own) < kVariantLeastChange) {
     final low = rad(swap.low), high = rad(swap.high);
@@ -614,6 +651,12 @@ Uint8List variantRgba(MutationBakeJob job) {
   }
   final turn = own == null ? 0.0 : hue - own;
   final ct = math.cos(turn), st = math.sin(turn);
+  // Its eyes keep their own color — unless the body is turning to it, where
+  // they would vanish into it: then they turn with the body, keeping the
+  // contrast they were drawn with.
+  final keepEyes =
+      eyes != null &&
+      (eyeA == 0 && eyeB == 0 || apart(math.atan2(eyeB, eyeA), hue) > rad(45));
   final lift = bodyCount == 0
       ? 1.0
       : (kVariantBodyChroma / math.max(sumC / bodyCount, 1e-6)).clamp(
@@ -669,7 +712,7 @@ Uint8List variantRgba(MutationBakeJob job) {
     var bl = srgb(
       -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3,
     ).toDouble();
-    if (eyes != null && eyes[o + 3] > 0) {
+    if (keepEyes && eyes[o + 3] > 0) {
       final e = eyes[o + 3] / 255.0;
       r += (src[o] - r) * e;
       g += (src[o + 1] - g) * e;
