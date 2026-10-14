@@ -122,8 +122,6 @@ class HatchCeremonyParams {
 
 class EggHatching {
   EggHatching._();
-  static OverlayEntry? _activeDiscoveryOverlay;
-  static int _overlayVersion = 0;
 
   // ============================================================================
   // PUBLIC API
@@ -1015,65 +1013,38 @@ class EggHatching {
   // DIALOG UI COMPONENTS
   // ============================================================================
 
+  /// The post-hatch notice that new recipes are in the encyclopedia: the
+  /// game's one notice plate ([showGameSnack]), the whole bar opening it.
   static void _showScorchedDiscoveryOverlay(
     BuildContext context, {
     required List<EncyclopediaRecipeEntry> unlocked,
   }) {
     final rootNav = Navigator.of(context, rootNavigator: true);
-    final overlay = rootNav.overlay;
-    if (overlay == null) return;
-
     final unlockQueue = List<EncyclopediaRecipeEntry>.unmodifiable(unlocked);
     final count = unlockQueue.length;
-    final title = count == 1
-        ? 'New discovery added'
-        : '$count new discoveries added';
-
-    void dismissOverlay() {
-      _activeDiscoveryOverlay?.remove();
-      _activeDiscoveryOverlay = null;
-    }
-
-    void openEncyclopedia() {
-      dismissOverlay();
-      rootNav.push(
-        MaterialPageRoute(
-          builder: (_) =>
-              AlchemicalEncyclopediaScreen(unlockShowcase: unlockQueue),
+    showGameSnack(
+      context,
+      count == 1 ? 'New discovery added' : '$count new discoveries added',
+      // Amber, because that is what the encyclopedia it opens is dressed in.
+      accent: FC.of(context).amberBright,
+      action: SnackBarAction(
+        label: 'Encyclopedia',
+        onPressed: context.soundTap(
+          () => rootNav.push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  AlchemicalEncyclopediaScreen(unlockShowcase: unlockQueue),
+            ),
+          ),
         ),
-      );
-    }
-
-    dismissOverlay();
-    final int version = ++_overlayVersion;
-
-    // Resolved from the caller, not the overlay builder: the root overlay can
-    // sit above the faction provider depending on where the hatch was started.
-    final fc = FC.of(context);
-
-    late final OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (_) => _ForgeTapToast(
-        fc: fc,
-        // Amber, because that is what the encyclopedia it opens is dressed in.
-        tint: fc.amberBright,
-        icon: AppIcons.menu_book_rounded,
-        title: title,
-        hint: 'Tap to open encyclopedia',
-        onTap: context.soundAction(openEncyclopedia),
       ),
+      duration: const Duration(seconds: 4),
+      overlay: rootNav.overlay,
     );
-
-    _activeDiscoveryOverlay = entry;
-    overlay.insert(entry);
-
-    Future<void>.delayed(const Duration(seconds: 4), () {
-      if (_overlayVersion == version) {
-        dismissOverlay();
-      }
-    });
   }
 
+  /// The post-hatch notice that a species reached a breeding milestone, on
+  /// the same plate, the whole bar opening its progress.
   static void showConstellationMilestoneOverlay(
     BuildContext context, {
     required String speciesId,
@@ -1081,195 +1052,29 @@ class EggHatching {
     required PendingMilestoneShowcase showcase,
   }) {
     final rootNav = Navigator.of(context, rootNavigator: true);
-    final overlay = rootNav.overlay;
-    if (overlay == null) return;
-
-    void dismissOverlay() {
-      _activeDiscoveryOverlay?.remove();
-      _activeDiscoveryOverlay = null;
-    }
-
-    void openProgress() {
-      dismissOverlay();
-      rootNav.push(
-        MaterialPageRoute(
-          builder: (_) => ConstellationProgressOverviewScreen(
-            highlightSpeciesId: speciesId,
-          ),
-        ),
-      );
-    }
-
-    dismissOverlay();
-    final int version = ++_overlayVersion;
-
-    final fc = FC.of(context);
-
-    late final OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (_) => _ForgeTapToast(
-        fc: fc,
-        tint: FC.blue,
-        icon: AppIcons.auto_awesome_rounded,
-        title:
-            '$speciesName reached ${showcase.milestoneCount} bred  •  +${showcase.pointsAwarded} constellation points',
-        // A hundred bred is an effigy for the home biome.
-        hint: showcase.milestoneCount >= kEffigyBredCount
-            ? 'Its effigy waits at home  •  Tap to open progress'
-            : 'Tap to open progress',
-        onTap: context.soundAction(openProgress),
-      ),
-    );
-
-    _activeDiscoveryOverlay = entry;
-    overlay.insert(entry);
-
-    Future<void>.delayed(const Duration(seconds: 4), () {
-      if (_overlayVersion == version) {
-        dismissOverlay();
-      }
-    });
-  }
-}
-
-/// Top-of-screen tap-through notice for the post-hatch results (a new
-/// encyclopedia entry, a constellation milestone).
-///
-/// These were rounded gradient pills with white sans text — the last two
-/// notifications in the game that did not look like [showGameSnack]. This is
-/// that same plate: flat surface, 4px radius, accent spine, monospace chrome.
-/// They are not routed through GameSnack itself because they keep their own
-/// bookkeeping (one at a time, versioned against a 4s timer) and the whole
-/// plate is the tap target rather than a trailing action label.
-class _ForgeTapToast extends StatefulWidget {
-  const _ForgeTapToast({
-    required this.fc,
-    required this.tint,
-    required this.icon,
-    required this.title,
-    required this.hint,
-    required this.onTap,
-  });
-
-  final FC fc;
-  final Color tint;
-  final IconData icon;
-  final String title;
-  final String hint;
-  final VoidCallback? onTap;
-
-  @override
-  State<_ForgeTapToast> createState() => _ForgeTapToastState();
-}
-
-class _ForgeTapToastState extends State<_ForgeTapToast>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 220),
-  )..forward();
-
-  @override
-  void dispose() {
-    _ctl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final fc = widget.fc;
-    // Off the view rather than the nearest MediaQuery: a SafeArea between
-    // here and the top zeroes the inset for everything below it.
-    final inset = MediaQueryData.fromView(View.of(context)).viewPadding.top;
-
-    return Positioned(
-      top: inset + kSnackTopGap,
-      left: 14,
-      right: 14,
-      child: SlideTransition(
-        position: Tween<Offset>(
-          begin: const Offset(0, -0.6),
-          end: Offset.zero,
-        ).animate(CurvedAnimation(parent: _ctl, curve: Curves.easeOutCubic)),
-        child: FadeTransition(
-          opacity: _ctl,
-          child: Material(
-            color: Colors.transparent,
-            child: GestureDetector(
-              onTap: widget.onTap,
-              behavior: HitTestBehavior.opaque,
-              child: Container(
-                constraints: const BoxConstraints(maxWidth: 560),
-                decoration: BoxDecoration(
-                  color: fc.bg1,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: widget.tint.withValues(alpha: 0.5)),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x66000000),
-                      blurRadius: 12,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
-                padding: const EdgeInsets.fromLTRB(0, 10, 11, 10),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 3,
-                      height: 30,
-                      color: widget.tint,
-                      margin: const EdgeInsets.only(right: 11),
-                    ),
-                    Icon(widget.icon, size: 16, color: widget.tint),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.title.toUpperCase(),
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: fc.textPrimary,
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w700,
-                              letterSpacing: 0.6,
-                              height: 1.3,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            widget.hint.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontFamily: 'monospace',
-                              color: fc.textMuted,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 1.3,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      AppIcons.chevron_right_rounded,
-                      size: 14,
-                      color: fc.textMuted,
-                    ),
-                  ],
-                ),
+    // A hundred bred is an effigy for the home biome.
+    final effigy = showcase.milestoneCount >= kEffigyBredCount
+        ? '. Its effigy waits at home'
+        : '';
+    showGameSnack(
+      context,
+      '$speciesName reached ${showcase.milestoneCount} bred  •  '
+      '+${showcase.pointsAwarded} constellation points$effigy',
+      accent: FC.blue,
+      action: SnackBarAction(
+        label: 'Progress',
+        onPressed: context.soundTap(
+          () => rootNav.push(
+            MaterialPageRoute(
+              builder: (_) => ConstellationProgressOverviewScreen(
+                highlightSpeciesId: speciesId,
               ),
             ),
           ),
         ),
       ),
+      duration: const Duration(seconds: 4),
+      overlay: rootNav.overlay,
     );
   }
 }
