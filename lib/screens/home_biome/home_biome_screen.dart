@@ -816,11 +816,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     _play(SoundCue.homeDissolve);
     _select(null);
     final gone = [..._layout.keepsakes];
-    var layout = _layout.withPlaced([..._layout.scenery]);
-    for (final p in gone) {
-      layout = layout.freeBeside(p.spawnId);
-    }
-    _commit(layout);
+    _commit(_layout.putKeepsakesAway());
     for (final p in gone) {
       game.removeThing(p.spawnId);
     }
@@ -833,14 +829,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     HapticFeedback.mediumImpact();
     _select(null);
     setState(() => _veiled = true);
-    _commit(
-      _settle(
-        _layout.withPlaced([
-          ..._layout.realm.defaultPieces,
-          ..._layout.keepsakes,
-        ]),
-      ),
-    );
+    _commit(_settle(_layout.resetScenery()));
     await Future<void>.delayed(const Duration(milliseconds: 260));
     if (!mounted) return;
     _buildGame();
@@ -894,24 +883,20 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     final copy = [
       for (var i = 0; i < decor.max; i++)
         if (!used.contains(i)) i,
-    ].first;
-    final bought = p.copyWith(id: '${p.kind}#$copy');
-    // What stood beside the trial stands beside the bought one.
-    var layout = _layout.withPlaced([
-      for (final o in _layout.placed)
-        if (o.id == p.id) bought else o,
-    ]);
-    layout = layout.copyWith(
-      residents: [
-        for (final r in layout.residents)
-          r.beside == p.spawnId ? r.copyWith(beside: () => bought.spawnId) : r,
-      ],
-    );
+    ].firstOrNull;
+    final current = _layout.piece(p.spawnId);
+    if (_game != game || current == null || !current.trial || copy == null) {
+      setState(() {});
+      return;
+    }
+    final bought = current.copyWith(id: '${p.kind}#$copy');
+    final layout = _layout.renamePiece(current, bought.id);
     _select(null);
     _commit(layout);
     game.removeThing(p.spawnId);
     game.relayout(_points);
     _standPiece(game, bought);
+    _restandBeside(game, bought.spawnId);
     _select(bought.spawnId);
   }
 
@@ -948,7 +933,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     if (nest != null) {
       moved = moved.copyWith(x: nest.$2, beside: () => nest.$1);
     } else {
-      final x = _layout.freeSpotNear(moved, share);
+      final x = _layout.freeSpotNear(moved, share, movingGroup: lift == null);
       if (x == null) return;
       moved = moved.copyWith(x: x);
     }
@@ -978,7 +963,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     if (nest != null) {
       moved = moved.copyWith(x: nest.$2, beside: () => nest.$1);
     } else {
-      final x = _layout.freeSpotForPiece(moved, share);
+      final x = _layout.freeSpotForPiece(moved, share, movingGroup: true);
       if (x == null) {
         HapticFeedback.heavyImpact();
         return;

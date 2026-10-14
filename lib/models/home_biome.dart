@@ -956,6 +956,46 @@ class HomeBiomeLayout {
   HomeBiomeLayout withPlaced(List<HomePiece> list) =>
       copyWith(pieces: {...pieces, realm.name: list});
 
+  /// Shelves earned keepsakes while preserving scenery and owned decor.
+  HomeBiomeLayout putKeepsakesAway() {
+    var out = withPlaced([
+      for (final p in placed)
+        if (!p.isKeepsake || p.decor != null) p,
+    ]);
+    for (final p in keepsakes) {
+      out = out.freeBeside(p.spawnId);
+    }
+    return out;
+  }
+
+  /// Restores only the realm's scenery; furnishings stay in place.
+  HomeBiomeLayout resetScenery() => withPlaced([
+    ...realm.defaultPieces,
+    for (final p in placed)
+      if (p.isKeepsake) p,
+  ]);
+
+  /// Changes a piece's identity without detaching anything sharing its ground.
+  HomeBiomeLayout renamePiece(HomePiece piece, String id) {
+    final renamed = piece.copyWith(id: id);
+    return copyWith(
+      residents: [
+        for (final r in residents)
+          r.beside == piece.spawnId
+              ? r.copyWith(beside: () => renamed.spawnId)
+              : r,
+      ],
+    ).withPlaced([
+      for (final p in placed)
+        if (p.id == piece.id)
+          renamed
+        else if (p.beside == piece.spawnId)
+          p.copyWith(beside: () => renamed.spawnId)
+        else
+          p,
+    ]);
+  }
+
   /// This layout in a realm that is [open] — the first of them when its own
   /// is not (an Arcane home before the Arcane is unlocked).
   HomeBiomeLayout within(List<HomeRealm> open) =>
@@ -1173,14 +1213,26 @@ class HomeBiomeLayout {
     required bool aloft,
     required double reach,
     String? except,
+    double? groupOrigin,
   }) {
+    var lo = -reach, hi = reach;
+    if (groupOrigin != null && !aloft) {
+      for (final (_, x, memberReach, host) in _standing(back: back)) {
+        if (host != except || host == null) continue;
+        final offset = _wrap(x - groupOrigin);
+        lo = math.min(lo, offset - memberReach);
+        hi = math.max(hi, offset + memberReach);
+      }
+    }
+    final center = (lo + hi) / 2;
+    final groupReach = (hi - lo) / 2;
     final taken = _taken(back: back, aloft: aloft, except: except);
     final step = reach / 3;
     final tries = (1 / step).ceil();
     for (var i = 0; i <= tries; i++) {
       for (final s in i == 0 ? const [1] : const [1, -1]) {
         final at = (x + s * i * step) % 1.0;
-        if (_freeAt(at, reach, taken)) return at;
+        if (_freeAt(at + center, groupReach, taken)) return at;
       }
     }
     return null;
@@ -1188,7 +1240,7 @@ class HomeBiomeLayout {
 
   /// Where [r] can stand nearest [x] on its row without crowding anything
   /// else there, or null if the row has no room.
-  double? freeSpotNear(HomeResident r, double x) {
+  double? freeSpotNear(HomeResident r, double x, {bool movingGroup = false}) {
     final aloft = r.lift != null;
     return _freeNear(
       x,
@@ -1196,12 +1248,13 @@ class HomeBiomeLayout {
       aloft: aloft,
       reach: _reachOf(back: r.back, aloft: aloft),
       except: r.spawnId,
+      groupOrigin: movingGroup ? resident(r.spawnId)?.x : null,
     );
   }
 
   /// Where [p] can stand nearest [x] on its row, or null if there is no
   /// room. Scenery that is not ground can stand anywhere.
-  double? freeSpotForPiece(HomePiece p, double x) {
+  double? freeSpotForPiece(HomePiece p, double x, {bool movingGroup = false}) {
     // What hangs in the air can hang anywhere.
     if (p.hangs) return x % 1.0;
     if (p.isKeepsake) {
@@ -1211,6 +1264,7 @@ class HomeBiomeLayout {
         aloft: false,
         reach: _reachOf(back: p.back) * (p.decor?.wide ?? 1),
         except: p.spawnId,
+        groupOrigin: movingGroup ? piece(p.spawnId)?.x : null,
       );
     }
     final k = realm.sceneryOf(p.kind);
