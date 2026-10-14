@@ -58,6 +58,7 @@ import 'package:alchemons/widgets/fx/grain_assembly.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart'
     show GrainBatch, SpecimenGrains;
+import 'package:alchemons/widgets/fx/variant_look.dart';
 
 part 'cosmic_game_helpers.dart';
 part 'cosmic_game_components.dart';

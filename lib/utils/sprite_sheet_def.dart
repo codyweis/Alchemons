@@ -47,6 +47,10 @@ class SpriteVisuals {
   /// sheet through [mutatedSheet]; a Transmuted one carries no tint here.
   final String? mutation;
 
+  /// The species ('LET01'…), when known: whose sheet a variant's palette
+  /// swap is baked for (variant_look.dart).
+  final String? speciesId;
+
   /// What the Elemental Aura shows: the pigment's faction when it has an
   /// off-faction one, so the aura matches its tint, else its own element.
   String? get auraElement => variantFaction ?? elementType;
@@ -65,6 +69,7 @@ class SpriteVisuals {
     this.elementType,
     this.prismaticHueDeg = 0.0, // Default value
     this.mutation,
+    this.speciesId,
   });
 }
 
@@ -140,5 +145,6 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
         ? creature!.types.first
         : null,
     mutation: mutation,
+    speciesId: creature?.id ?? inst?.baseId,
   );
 }

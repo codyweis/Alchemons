@@ -11,6 +11,7 @@ import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/darklet_ring.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
+import 'package:alchemons/widgets/fx/variant_look.dart';
 import 'package:alchemons/models/celebration_costume.dart';
 import 'package:flame/components.dart';
 import 'package:flame/extensions.dart';
@@ -323,7 +324,10 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
     // 3) Variant tint — equivalent to ColorFiltered.mode(tint, BlendMode.modulate)
     final tintColor = visuals.tint ?? _deriveVariantTint();
 
-    if (tintColor != null && !(_isAlbino && !visuals.isPrismatic)) {
+    // None over an albino, or a variant whose palette swap is in its sheet.
+    if (tintColor != null &&
+        !(_isAlbino && !visuals.isPrismatic) &&
+        !variantBaked(visuals)) {
       final tr = tintColor.r;
       final tg = tintColor.g;
       final tb = tintColor.b;

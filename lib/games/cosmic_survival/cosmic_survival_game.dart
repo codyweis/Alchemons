@@ -60,6 +60,7 @@ import 'package:alchemons/games/shared/type_effectiveness.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
+import 'package:alchemons/widgets/fx/variant_look.dart';
 import 'package:flame/components.dart' show Anchor;
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
@@ -21263,7 +21264,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         : v.hueShiftDeg;
     final normHue = ((rawHue % 360) + 360) % 360;
     if (normHue != 0) m = _mulMatrix(_hueMatrix(normHue), m);
-    if (v.tint != null && !(v.brightness == 1.45 && !v.isPrismatic)) {
+    // No lineage tint over a variant whose palette swap is in its sheet.
+    if (v.tint != null &&
+        !(v.brightness == 1.45 && !v.isPrismatic) &&
+        !variantBaked(v)) {
       final tr = v.tint!.r, tg = v.tint!.g, tb = v.tint!.b;
       m = _mulMatrix(<double>[
         tr,

@@ -12,6 +12,7 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
+import 'package:alchemons/widgets/fx/variant_look.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
@@ -91,7 +92,10 @@ ui.ColorFilter _genetics(SpriteVisuals v, double time) {
       : v.hueShiftDeg;
   final normHue = ((rawHue % 360) + 360) % 360;
   if (normHue != 0) m = _mulMatrix(_hueMatrix(normHue), m);
-  if (v.tint != null && !(v.brightness == 1.45 && !v.isPrismatic)) {
+  // No lineage tint over a variant whose palette swap is in its sheet.
+  if (v.tint != null &&
+      !(v.brightness == 1.45 && !v.isPrismatic) &&
+      !variantBaked(v)) {
     final tr = v.tint!.r, tg = v.tint!.g, tb = v.tint!.b;
     m = _mulMatrix(<double>[
       tr,

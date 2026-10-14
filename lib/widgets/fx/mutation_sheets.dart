@@ -18,8 +18,10 @@
 //     rainbow, and the usual prismatic hue cycle then sets it flowing.
 //
 // An albino is baked the same way, though it is a pigment and not a
-// mutation: its ivory body and red eyes (albino_look.dart). A mutated albino
-// keeps its mutation's sheet and is filtered albino as it is drawn.
+// mutation: its ivory body and red eyes (albino_look.dart). So is a faction
+// variant of a polished species: its palette swap (variant_look.dart). A
+// mutated albino or variant keeps its mutation's sheet and is filtered as it
+// is drawn.
 //
 // The pixel work runs on a background isolate. A big (1200px-frame) sheet is
 // baked at [kMutationMaxFrame] — no screen draws a creature larger
@@ -34,6 +36,7 @@ import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/darklet_ring.dart';
+import 'package:alchemons/widgets/fx/variant_look.dart';
 import 'package:flame/cache.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/foundation.dart' show compute, debugPrint;
@@ -53,10 +56,23 @@ enum MutationLook {
   transmuted('transmuted'),
   alchemized('alchemized'),
   alchemizedPrismatic('alchemized-prismatic'),
-  albino('albino');
+  albino('albino'),
+  variantVolcanic('variant-volcanic', 'Volcanic'),
+  variantOceanic('variant-oceanic', 'Oceanic'),
+  variantVerdant('variant-verdant', 'Verdant'),
+  variantEarthen('variant-earthen', 'Earthen'),
+  variantArcane('variant-arcane', 'Arcane');
 
-  const MutationLook(this.id);
+  const MutationLook(this.id, [this.faction]);
   final String id;
+
+  /// A variant's faction ([kVariantPalette]'s spelling); null for the rest.
+  final String? faction;
+
+  /// The variant look for [faction], or null.
+  static MutationLook? variant(String? faction) => values
+      .where((l) => l.faction != null && l.faction == faction)
+      .firstOrNull;
 
   static MutationLook? of(
     AlchemonMutation? mutation, {
@@ -113,8 +129,9 @@ final Map<String, _BakeSpec> _specs = {};
 final Map<String, Future<ui.Image>> _baked = {};
 
 /// The sheet to draw for a creature with [mutation] (an [AlchemonMutation]
-/// id, or null), and [albino] or not ([isAlbinoLook]). Plain, it is [sheet]
-/// itself; mutated or albino, it names a baked copy — load it with
+/// id, or null), [albino] or not ([isAlbinoLook]), and of [variant] faction
+/// or none. Plain, it is [sheet] itself; mutated, albino or a polished
+/// species' variant ([variantSwap]), it names a baked copy — load it with
 /// [loadCreatureSheet], never `images.load`. A baked sheet passed back in is
 /// returned as it is.
 SpriteSheetDef mutatedSheet(
@@ -122,13 +139,22 @@ SpriteSheetDef mutatedSheet(
   String? mutation,
   bool prismatic = false,
   bool albino = false,
+  String? variant,
 }) {
   if (_specs.containsKey(sheet.path)) return sheet;
+  final pale = albino && !prismatic;
   final look =
       MutationLook.of(AlchemonMutation.byId(mutation), prismatic: prismatic) ??
-      (albinoBakes(albino: albino && !prismatic, mutation: mutation)
+      (albinoBakes(albino: pale, mutation: mutation)
           ? MutationLook.albino
-          : null);
+          : MutationLook.variant(
+              variantSwap(
+                speciesId: speciesOfSheet(sheet.path),
+                faction: variant,
+                albino: pale,
+                mutation: mutation,
+              ),
+            ));
   if (look == null) return sheet;
   final key = '${sheet.path}#mut:${look.id}';
   final rows = math.max(1, sheet.rows);
@@ -142,7 +168,10 @@ SpriteSheetDef mutatedSheet(
     cols: cols,
     rowCount: rows,
     frames: sheet.totalFrames,
-    eyes: look == MutationLook.albino ? albinoEyesPath(sheet.path) : null,
+    // An albino's eyes are painted red from it; a variant's kept as drawn.
+    eyes: look == MutationLook.albino || look.faction != null
+        ? albinoEyesPath(sheet.path)
+        : null,
   );
   return SpriteSheetDef(
     path: key,
@@ -162,6 +191,9 @@ SpriteSheetDef? sheetForVisuals(SpriteSheetDef? sheet, SpriteVisuals? visuals) {
     mutation: visuals?.mutation,
     prismatic: visuals?.isPrismatic ?? false,
     albino: visuals != null && isAlbinoLook(visuals),
+    variant: visuals != null && variantBaked(visuals)
+        ? visuals.variantFaction
+        : null,
   );
 }
 
@@ -287,7 +319,8 @@ class MutationBakeJob {
   final int width, height, frameW, frameH, cols, frames;
   final MutationLook look;
 
-  /// An albino's eye overlay, straight RGBA the size of [rgba], or null.
+  /// The eye overlay, straight RGBA the size of [rgba], or null: an albino's
+  /// red eyes, or where a variant's eyes are, to keep.
   final Uint8List? eyes;
 }
 
@@ -297,6 +330,11 @@ Uint8List bakeMutation(MutationBakeJob job) => switch (job.look) {
   MutationLook.alchemized => alchemizeRgba(job, rainbow: false),
   MutationLook.alchemizedPrismatic => alchemizeRgba(job, rainbow: true),
   MutationLook.albino => albinoRgba(job),
+  MutationLook.variantVolcanic ||
+  MutationLook.variantOceanic ||
+  MutationLook.variantVerdant ||
+  MutationLook.variantEarthen ||
+  MutationLook.variantArcane => variantRgba(job),
 };
 
 /// The polished-gold ramp, dark to light: bronze shadow to pale highlight.
@@ -496,6 +534,96 @@ Uint8List albinoRgba(MutationBakeJob job) {
   }
   return out;
 }
+
+/// A faction variant: every color turned in OKLab by the one amount that
+/// lands the sheet's main color (its solid colors' mean, eyes aside) on its
+/// faction's hue ([kVariantPalette]), its strength and light scaled as the
+/// faction keeps them; its eyes ([MutationBakeJob.eyes], read as a mask)
+/// left their own color.
+Uint8List variantRgba(MutationBakeJob job) {
+  final swap = kVariantPalette[job.look.faction]!;
+  final src = job.rgba;
+  final eyes = job.eyes;
+  final n = job.width * job.height;
+  final out = Uint8List(n * 4);
+  final labL = Float32List(n), labA = Float32List(n), labB = Float32List(n);
+  final lin = Float64List(256);
+  for (var c = 0; c < 256; c++) {
+    final v = c / 255.0;
+    lin[c] = v <= 0.04045
+        ? v / 12.92
+        : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+  }
+
+  var sumA = 0.0, sumB = 0.0;
+  for (var i = 0; i < n; i++) {
+    final o = i * 4;
+    if (src[o + 3] == 0) continue;
+    final r = lin[src[o]], g = lin[src[o + 1]], b = lin[src[o + 2]];
+    final l = _cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+    final m = _cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+    final s = _cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+    final la = 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s;
+    final lb = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s;
+    labL[i] = 0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s;
+    labA[i] = la;
+    labB[i] = lb;
+    // The main color: what is solid and colored, eyes aside.
+    if (src[o + 3] < 128 || (eyes != null && eyes[o + 3] > 0)) continue;
+    if (la * la + lb * lb < 0.04 * 0.04) continue;
+    sumA += la;
+    sumB += lb;
+  }
+  final turn = sumA == 0 && sumB == 0
+      ? 0.0
+      : swap.hue * math.pi / 180 - math.atan2(sumB, sumA);
+  final cs = math.cos(turn) * swap.chroma, sn = math.sin(turn) * swap.chroma;
+
+  int srgb(double v) {
+    if (v <= 0) return 0;
+    if (v >= 1) return 255;
+    final e = v <= 0.0031308
+        ? 12.92 * v
+        : 1.055 * math.pow(v, 1 / 2.4).toDouble() - 0.055;
+    return (e * 255).round().clamp(0, 255);
+  }
+
+  for (var i = 0; i < n; i++) {
+    final o = i * 4;
+    final alpha = src[o + 3];
+    if (alpha == 0) continue;
+    final a = labA[i], b = labB[i];
+    final ll = labL[i] * swap.light;
+    final aa = a * cs - b * sn, bb = a * sn + b * cs;
+    final l = ll + 0.3963377774 * aa + 0.2158037573 * bb;
+    final m = ll - 0.1055613458 * aa - 0.0638541728 * bb;
+    final s = ll - 0.0894841775 * aa - 1.2914855480 * bb;
+    final l3 = l * l * l, m3 = m * m * m, s3 = s * s * s;
+    var r = srgb(
+      4.0767416621 * l3 - 3.3077115913 * m3 + 0.2309699292 * s3,
+    ).toDouble();
+    var g = srgb(
+      -1.2684380046 * l3 + 2.6097574011 * m3 - 0.3413193965 * s3,
+    ).toDouble();
+    var bl = srgb(
+      -0.0041960863 * l3 - 0.7034186147 * m3 + 1.7076147010 * s3,
+    ).toDouble();
+    if (eyes != null && eyes[o + 3] > 0) {
+      final e = eyes[o + 3] / 255.0;
+      r += (src[o] - r) * e;
+      g += (src[o + 1] - g) * e;
+      bl += (src[o + 2] - bl) * e;
+    }
+    final k = alpha / 255.0;
+    out[o] = (r * k).round();
+    out[o + 1] = (g * k).round();
+    out[o + 2] = (bl * k).round();
+    out[o + 3] = alpha;
+  }
+  return out;
+}
+
+double _cbrt(double x) => x <= 0 ? 0 : math.pow(x, 1 / 3).toDouble();
 
 /// Each frame's solid bounding box, in sheet pixels; null for an empty frame.
 List<(int, int, int, int)?> _frameBoxes(MutationBakeJob job) {

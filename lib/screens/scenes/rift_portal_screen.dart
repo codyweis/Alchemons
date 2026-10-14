@@ -478,6 +478,7 @@ class _VoidSprite extends StatelessWidget {
           hueShift: visuals.hueShiftDeg,
           isPrismatic: isPrismatic,
           tint: visuals.tint,
+          variantFaction: visuals.variantFaction,
         ),
       );
     } else {

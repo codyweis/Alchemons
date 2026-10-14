@@ -319,8 +319,11 @@ extension CosmicGameHomeAndVisuals on CosmicGame {
     final normHue = ((rawHue % 360) + 360) % 360;
     if (normHue != 0) m = _mulMatrix(_hueMatrix(normHue), m);
 
-    // Apply variant tint if present and not albino
-    if (v.tint != null && !(v.brightness == 1.45 && !v.isPrismatic)) {
+    // Apply variant tint if present and not albino, nor a variant whose
+    // palette swap is in its sheet
+    if (v.tint != null &&
+        !(v.brightness == 1.45 && !v.isPrismatic) &&
+        !variantBaked(v)) {
       final tr = v.tint!.r, tg = v.tint!.g, tb = v.tint!.b;
       m = _mulMatrix(<double>[
         tr,

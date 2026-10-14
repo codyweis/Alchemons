@@ -13,6 +13,7 @@ import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/darklet_ring.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
+import 'package:alchemons/widgets/fx/variant_look.dart';
 import 'package:flame/components.dart' show Vector2;
 import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
@@ -141,6 +142,16 @@ class _CreatureSpriteState extends State<CreatureSprite>
   static bool _albinoOf(CreatureSprite w) =>
       w.brightness == 1.45 && !w.isPrismatic;
 
+  /// Its variant is baked into its sheet, a palette swap, not tinted here.
+  bool get _variantBaked =>
+      variantSwap(
+        speciesId: speciesOfSheet(widget.spritePath),
+        faction: widget.variantFaction,
+        albino: _albinoOf(widget),
+        mutation: widget.mutation,
+      ) !=
+      null;
+
   AnimationController? _hueController;
   SpriteAnimation? _spriteAnimation;
   SpriteAnimationTicker? _spriteTicker;
@@ -187,6 +198,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
         (widget.mutation != null &&
             widget.isPrismatic != oldWidget.isPrismatic) ||
         _albinoOf(widget) != _albinoOf(oldWidget) ||
+        widget.variantFaction != oldWidget.variantFaction ||
         widget.totalFrames != oldWidget.totalFrames ||
         widget.rows != oldWidget.rows ||
         widget.frameSize != oldWidget.frameSize ||
@@ -269,8 +281,11 @@ class _CreatureSpriteState extends State<CreatureSprite>
 
     final effectiveTint = widget.tint ?? _deriveVariantTint();
 
-    // optional overall tint (rarely needed, skip for non-prismatic albino)
-    if (effectiveTint != null && !(_isAlbino && !widget.isPrismatic)) {
+    // optional overall tint (rarely needed, skip for non-prismatic albino,
+    // and for a variant whose palette swap is in its sheet)
+    if (effectiveTint != null &&
+        !(_isAlbino && !widget.isPrismatic) &&
+        !_variantBaked) {
       sprite = ColorFiltered(
         colorFilter: ColorFilter.mode(effectiveTint, BlendMode.modulate),
         child: sprite,
@@ -350,6 +365,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
     mutation: widget.mutation,
     prismatic: widget.isPrismatic,
     albino: _albinoOf(widget),
+    variant: widget.variantFaction,
   );
 
   Future<void> _loadAnimation() async {
@@ -467,6 +483,7 @@ class InstanceSprite extends StatelessWidget {
         hueShift: visuals.hueShiftDeg,
         isPrismatic: visuals.isPrismatic,
         tint: visuals.tint,
+        variantFaction: visuals.variantFaction,
         mutation: visuals.mutation,
         // Costumes are drawn by the sprite itself; an effect, round it below.
         costumes: instance.costumes,
