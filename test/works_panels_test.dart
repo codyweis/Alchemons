@@ -50,6 +50,11 @@ class _Actions implements WorksActions {
   @override
   void setRefineKeep(int keep) => calls.add('refine keep $keep');
   @override
+  void openArmory() => calls.add('armory');
+  @override
+  Future<void> dismantle(WorksBuilding b) async =>
+      calls.add('take down ${b.name}');
+  @override
   Future<void> openOutpost(String element) async =>
       calls.add('outpost $element');
   @override
@@ -158,6 +163,7 @@ void main() {
         recipe: 'Fire+Water',
         made: 312,
       ),
+      armory: ArmoryState(tier: 1, berth: 3),
     );
     works.bay.slots[0]
       ..instanceId = 'w4'
@@ -347,7 +353,9 @@ void main() {
       await settle(tester, 2);
     }
 
-    expect(find.text('BERTHS 3/4'), findsOneWidget);
+    expect(find.text('BERTHS 4/4'), findsOneWidget);
+    await tap('works.armory.open');
+    await tab('BAY');
     await tap('works.bay.collect');
     await tap('works.bay.slot.1');
     await tab('PRESS');
@@ -356,15 +364,18 @@ void main() {
     await tap('works.refinery.slot');
     await tap('works.refinery.recipe.Air+Fire');
     await tap('works.refinery.keep.200');
+    await tap('works.takeDown.refinery');
     await tab('PLANETS');
     await tap('works.outpost.Fire');
     expect(actions.calls, [
+      'armory',
       'collect',
       'assign scavenger null 1',
       'keep 500',
       'assign refiner null 0',
       'recipe Air+Fire',
       'refine keep 200',
+      'take down refinery',
       'outpost Fire',
     ]);
     await tester.pumpWidget(const SizedBox());

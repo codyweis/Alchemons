@@ -59,6 +59,7 @@ class WorksView {
     this.atPlanet,
     this.berthCount = 2,
     this.knownRecipes = const {},
+    this.shipSkin,
   });
 
   final WorksState works;
@@ -88,6 +89,9 @@ class WorksView {
 
   /// Refinery recipes the Codex has found, as pair keys ('Fire+Water').
   final Set<String> knownRecipes;
+
+  /// The hull the ship flies, held in the Armory's gantry.
+  final String? shipSkin;
 }
 
 /// What the screens can ask for.
@@ -101,6 +105,8 @@ abstract class WorksActions {
   void setReserve(int reserve);
   void setRecipe(String? recipe);
   void setRefineKeep(int keep);
+  void openArmory();
+  Future<void> dismantle(WorksBuilding b);
   Future<void> openOutpost(String element);
   Future<void> help();
 }
@@ -132,7 +138,7 @@ String jobFigure(
     '${WorkRules.scavengerFind(p.strength)} A TRIP · '
         '${fmtDuration(WorkRules.scavengerTripMs(p.speed))}',
   WorkJob.presser =>
-    '${WorkRules.pressRate(p.strength, pressTier).toStringAsFixed(0)}/MIN',
+    '${WorkRules.pressRate(p.beauty, pressTier).toStringAsFixed(0)}/MIN',
   WorkJob.refiner =>
     '${(WorkRules.refineRate(p.intelligence) * WorkRules.refineYield(refineTier)).toStringAsFixed(1)} MADE/MIN',
 };
@@ -152,7 +158,7 @@ double jobScore(
     WorkRules.scavengerFind(p.strength) /
             (WorkRules.scavengerTripMs(p.speed) / 60000) +
         WorkRules.scavengerShardOdds(p.intelligence),
-  WorkJob.presser => WorkRules.pressRate(p.strength, pressTier),
+  WorkJob.presser => WorkRules.pressRate(p.beauty, pressTier),
   WorkJob.refiner => WorkRules.refineRate(p.intelligence),
 };
 
@@ -161,7 +167,7 @@ String jobReads(WorkJob job) => switch (job) {
   WorkJob.miner => 'LEVEL · SIZE · NATURE',
   WorkJob.courier => 'SPEED · STRENGTH',
   WorkJob.scavenger => 'SPEED · STRENGTH · INTELLIGENCE',
-  WorkJob.presser => 'STRENGTH',
+  WorkJob.presser => 'BEAUTY',
   WorkJob.refiner => 'INTELLIGENCE',
 };
 
@@ -646,14 +652,14 @@ String refineYieldLine(int tier) => switch (tier) {
 
 // ── the Works ───────────────────────────────────────────────────────────────
 
-enum WorksTab { bay, press, refinery, planets }
+enum WorksTab { armory, bay, press, refinery, planets }
 
 class WorksPanel extends StatefulWidget {
   const WorksPanel({
     super.key,
     required this.view,
     required this.actions,
-    this.initialTab = WorksTab.bay,
+    this.initialTab = WorksTab.armory,
   });
 
   final ValueListenable<WorksView> view;
@@ -675,9 +681,10 @@ class _WorksPanelState extends State<WorksPanel> {
 
   WorksActions get actions => widget.actions;
 
-  static const _labels = ['BAY', 'PRESS', 'REFINERY', 'PLANETS'];
+  static const _labels = ['ARMORY', 'BAY', 'PRESS', 'REFINERY', 'PLANETS'];
 
   Color _accentOf(WorksTab t) => switch (t) {
+    WorksTab.armory => kArmoryLight,
     WorksTab.bay => kScavengerBayLight,
     WorksTab.press => kSilverPressLight,
     WorksTab.refinery => kRefineryLight,
@@ -734,17 +741,17 @@ class _WorksPanelState extends State<WorksPanel> {
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                  child: BracketTabs(
+                  child: _TabStrip(
                     key: const ValueKey('works.tabs'),
                     labels: _labels,
                     selected: _tab.index,
                     onSelect: (i) => setState(() => _tab = WorksTab.values[i]),
-                    palette: panelPalette,
                     accent: _accentOf(_tab),
                   ),
                 ),
                 Expanded(
                   child: switch (_tab) {
+                    WorksTab.armory => _armoryView(context, v),
                     WorksTab.bay => _bay(context, v),
                     WorksTab.press => _press(context, v),
                     WorksTab.refinery => _refinery(context, v),
@@ -768,7 +775,12 @@ class _WorksPanelState extends State<WorksPanel> {
     Color accent = _amber,
     Key? key,
   }) {
-    if (tier >= WorkRules.maxTier) return _line('FULLY BUILT');
+    if (tier >= WorkRules.maxTier) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [_gap(10), _line('FULLY BUILT'), _takeDown(b)],
+      );
+    }
     final noBerth = tier == 0 && v.works.freeBerth(v.berthCount) == null;
     final cost = worksCost(b, tier + 1);
     final ok = !noBerth && worksCostCovered(cost, v.storage, v.silver);
@@ -795,9 +807,30 @@ class _WorksPanelState extends State<WorksPanel> {
           enabled: ok,
           onTap: () => tier == 0 ? actions.build(b) : actions.upgrade(b),
         ),
+        if (tier > 0) _takeDown(b),
       ],
     );
   }
+
+  /// A quiet way to free a berth.
+  Widget _takeDown(WorksBuilding b) => Padding(
+    padding: const EdgeInsets.only(top: 14),
+    child: Align(
+      alignment: Alignment.centerRight,
+      child: GestureDetector(
+        key: ValueKey('works.takeDown.${b.name}'),
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(() => actions.dismantle(b)),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Text(
+            'TAKE DOWN',
+            style: panelLabel(9, panelPalette.muted, spacing: 1.2),
+          ),
+        ),
+      ),
+    ),
+  );
 
   Widget _stage({
     required double height,
@@ -815,6 +848,76 @@ class _WorksPanelState extends State<WorksPanel> {
       paint: paint,
     );
     return dim ? Opacity(opacity: 0.45, child: stage) : stage;
+  }
+
+  // ── armory ──
+
+  Widget _armoryView(BuildContext context, WorksView v) {
+    final a = v.works.armory;
+    Widget stage(double h) => _stage(
+      height: h,
+      accent: kArmoryLight,
+      reach: 40,
+      reachX: 34,
+      dim: !a.built,
+      paint: (c, t) => paintArmory(
+        c,
+        at: const Offset(0, -2),
+        tier: a.built ? a.tier : 1,
+        t: t,
+        skin: v.shipSkin,
+      ),
+    );
+    if (!a.built) {
+      return _BuildingView(
+        title: 'ARMORY',
+        accent: kArmoryLight,
+        tier: 0,
+        stage: stage,
+        children: [
+          _line(
+            'The ship\'s workshop. Its weapons, ammo, systems, stations and '
+            'upgrades are made here, and the Armory\'s tier sets how far '
+            'each upgrade can go.',
+            color: panelPalette.ink,
+            size: 10,
+          ),
+          _buildOrUpgrade(
+            v,
+            WorksBuilding.armory,
+            0,
+            accent: kArmoryLight,
+            key: const ValueKey('works.armory.build'),
+          ),
+        ],
+      );
+    }
+    final power = WorkRules.armoryPowerCap(a.tier);
+    final tank = WorkRules.armoryTankCap(a.tier);
+    return _BuildingView(
+      title: 'ARMORY',
+      accent: kArmoryLight,
+      tier: a.tier,
+      stage: stage,
+      children: [
+        _line(
+          'UPGRADES GO AS FAR AS: AMMO AND MISSILE POWER $power/5 · '
+          'FUEL TANK AND CARGO HOLD $tank/3',
+          color: panelPalette.ink,
+          size: 10,
+        ),
+        _gap(10),
+        BracketButton(
+          key: const ValueKey('works.armory.open'),
+          label: 'OPEN THE ARMORY',
+          height: 44,
+          palette: panelPalette,
+          accent: kArmoryLight,
+          onTap: actions.openArmory,
+        ),
+        _buildOrUpgrade(v, WorksBuilding.armory, a.tier, accent: kArmoryLight),
+      ],
+    );
   }
 
   // ── bay ──
@@ -1706,4 +1809,57 @@ class OutpostPanel extends StatelessWidget {
       ],
     ];
   }
+}
+
+/// The Works' tabs: one row of even tabs where each keeps its whole name,
+/// and a row that scrolls sideways where they would be cut short.
+class _TabStrip extends StatelessWidget {
+  const _TabStrip({
+    super.key,
+    required this.labels,
+    required this.selected,
+    required this.onSelect,
+    required this.accent,
+  });
+
+  final List<String> labels;
+  final int selected;
+  final ValueChanged<int> onSelect;
+  final Color accent;
+
+  static const double _minTab = 88;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      final even = (box.maxWidth - 8 * (labels.length - 1)) / labels.length;
+      if (even >= _minTab) {
+        return BracketTabs(
+          labels: labels,
+          selected: selected,
+          onSelect: onSelect,
+          palette: panelPalette,
+          accent: accent,
+        );
+      }
+      return SizedBox(
+        height: 40,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: labels.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 8),
+          itemBuilder: (context, i) => SizedBox(
+            width: _minTab,
+            child: BracketTabs(
+              labels: [labels[i]],
+              selected: i == selected ? 0 : -1,
+              onSelect: (_) => onSelect(i),
+              palette: panelPalette,
+              accent: accent,
+            ),
+          ),
+        ),
+      );
+    },
+  );
 }

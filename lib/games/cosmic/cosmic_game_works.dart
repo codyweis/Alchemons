@@ -119,6 +119,7 @@ extension CosmicGameWorks on CosmicGame {
   Offset? get worksBayPos => berthPos(works?.bay.berth ?? -1);
   Offset? get worksPressPos => berthPos(works?.press.berth ?? -1);
   Offset? get worksRefineryPos => berthPos(works?.refinery.berth ?? -1);
+  Offset? get worksArmoryPos => berthPos(works?.armory.berth ?? -1);
 
   /// The bay sits level, its cradles hanging down, as the stations stand.
   double get _bayRot => 0;
@@ -530,6 +531,21 @@ extension CosmicGameWorks on CosmicGame {
             at + const Offset(-36, 8) * _artScale,
             facingRight: true,
             bob: pressing ? sin(_elapsed * 2 * pi / 3.6) * 1.4 : 0,
+          );
+        }
+      }
+
+      final armory = w.armory;
+      if (armory.built && worksArmoryPos != null) {
+        final at = worksArmoryPos! + shift;
+        if (!isOutsideViewport(at, cx, cy, screenW, screenH, margin: 0.75)) {
+          paintArmory(
+            canvas,
+            at: at,
+            tier: armory.tier,
+            t: _elapsed,
+            scale: _artScale,
+            skin: activeShipSkin,
           );
         }
       }

@@ -5145,6 +5145,10 @@ class _CosmicScreenState extends State<CosmicScreen>
   Future<void> _handleTryRecipe(String recipeId) async {
     // If already unlocked, nothing to confirm
     if (_customizationState.unlockedIds.contains(recipeId)) return;
+    if (isArmoryRecipe(recipeId) && !_works.armory.built) {
+      _showQuote('Build the Armory in the Works to make this.');
+      return;
+    }
     final recipe = kHomeRecipes.cast<HomeRecipe?>().firstWhere(
       (r) => r!.id == recipeId,
       orElse: () => null,
@@ -5220,6 +5224,23 @@ class _CosmicScreenState extends State<CosmicScreen>
   void _handleUpgradePowerUp(String type) {
     if (_homePlanet == null) return;
     final state = _customizationState;
+    // The Armory's tier sets how far each upgrade can go.
+    final current = switch (type) {
+      'fuel' => state.fuelUpgradeLevel,
+      'ammo' => state.ammoUpgradeLevel,
+      _ => state.missileUpgradeLevel,
+    };
+    final cap = type == 'fuel'
+        ? WorkRules.armoryTankCap(_works.armory.tier)
+        : WorkRules.armoryPowerCap(_works.armory.tier);
+    if (current >= cap) {
+      _showQuote(
+        _works.armory.built
+            ? 'Upgrade the Armory to go further.'
+            : 'Build the Armory in the Works to upgrade the ship.',
+      );
+      return;
+    }
 
     if (type == 'fuel') {
       final level = state.fuelUpgradeLevel;
@@ -5340,6 +5361,9 @@ class _CosmicScreenState extends State<CosmicScreen>
       }
     });
   }
+
+  /// Whether the customization overlay is the Lab (looks) or the Armory.
+  LabMode _labMode = LabMode.looks;
 
   /// Which customization lab tab the player was last on. Held here rather than
   /// in the lab's State because preview unmounts the whole overlay — State-local
@@ -5686,6 +5710,14 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     if (_cargoLevel >= CargoUpgrade.maxLevel) {
       _showQuote('Cargo is fully upgraded!');
+      return;
+    }
+    if (_cargoLevel >= WorkRules.armoryTankCap(_works.armory.tier)) {
+      _showQuote(
+        _works.armory.built
+            ? 'Upgrade the Armory to go further.'
+            : 'Build the Armory in the Works to upgrade the ship.',
+      );
       return;
     }
     final cost = CargoUpgrade.costForNextLevel(_cargoLevel);
@@ -8017,6 +8049,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     paintHome: _game?.paintHomeShowcase,
                     wearing: _customizationState.activeIds,
                     onCustomize: () => _openSubPanel(_CosmicPanel.home, () {
+                      _labMode = LabMode.looks;
                       _showHomeMenu = false;
                       _showCustomizationMenu = true;
                     }),
@@ -8079,6 +8112,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                     // The lab's stage and effect pictures are the real
                     // home planet, drawn by the game.
                     paintHome: _game?.paintHomeShowcase,
+                    mode: _labMode,
+                    armoryTier: _works.armory.tier,
                   ),
                 ),
 

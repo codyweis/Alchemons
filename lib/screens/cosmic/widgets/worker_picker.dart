@@ -32,6 +32,7 @@ WorkerProfile workerProfileOf(CreatureInstance inst, String element) =>
       speed: inst.statSpeed,
       intelligence: inst.statIntelligence,
       strength: inst.statStrength,
+      beauty: inst.statBeauty,
       harvestRate: computeHarvestRatePerMinute(inst),
     );
 

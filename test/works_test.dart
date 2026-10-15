@@ -512,4 +512,50 @@ void main() {
       expect(back.jobOf('x')?.$1, WorkJob.refiner);
     });
   });
+
+  group('armory', () {
+    test('its tier caps how far the ship\'s upgrades go', () {
+      expect(
+        [for (var t = 0; t <= 3; t++) WorkRules.armoryPowerCap(t)],
+        [0, 2, 4, 5],
+      );
+      expect(
+        [for (var t = 0; t <= 3; t++) WorkRules.armoryTankCap(t)],
+        [0, 1, 2, 3],
+      );
+    });
+
+    test('it stands in a berth and is cheap to start', () {
+      final works = WorksState(armory: ArmoryState(tier: 1));
+      expect(works.armory.berth, 0);
+      expect(works.berthsUsed, 1);
+      final cost = worksCost(WorksBuilding.armory, 1);
+      expect(cost.silver, 0);
+      expect(cost.matter, lessThanOrEqualTo(100));
+      final back = WorksState.deserialise(works.serialise());
+      expect(back.armory.tier, 1);
+      expect(back.armory.berth, 0);
+    });
+
+    test('taking a building down frees its berth and its workers', () {
+      final works = WorksState(
+        bay: ScavengerBayState(tier: 2, berth: 0),
+        refinery: RefineryState(
+          tier: 1,
+          berth: 1,
+          refiner: 'r',
+          recipe: 'Fire+Water',
+        ),
+      );
+      works.bay.slots[0].instanceId = 's';
+      expect(works.freeBerth(2), isNull);
+      works.dismantle(WorksBuilding.refinery);
+      expect(works.freeBerth(2), 1);
+      expect(works.workerIds, {'s'});
+      works.dismantle(WorksBuilding.scavengerBay);
+      expect(works.workerIds, isEmpty);
+      expect(works.bay.slots, isEmpty);
+      expect(works.berthsUsed, 0);
+    });
+  });
 }

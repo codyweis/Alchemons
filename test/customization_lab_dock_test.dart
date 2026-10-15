@@ -11,6 +11,7 @@ class _Calls {
   final toggled = <String>[];
   final sized = <int>[];
   var upgradedSize = 0;
+  final powered = <String>[];
 }
 
 Widget _lab(
@@ -19,6 +20,8 @@ Widget _lab(
   Map<String, double> stored = const {},
   int tab = 0,
   HomePlanet? planet,
+  LabMode mode = LabMode.looks,
+  int armoryTier = 0,
 }) => MaterialApp(
   home: Scaffold(
     body: CustomizationMenuOverlay(
@@ -36,9 +39,11 @@ Widget _lab(
       cargoLevel: 0,
       isNearHome: true,
       onUpgradeCargo: () {},
-      onUpgradePowerUp: (_) {},
+      onUpgradePowerUp: calls.powered.add,
       onGarrison: () {},
       initialTab: tab,
+      mode: mode,
+      armoryTier: armoryTier,
     ),
   ),
 );
@@ -67,7 +72,6 @@ Future<void> _act(WidgetTester tester) async {
 }
 
 void main() {
-
   testWidgets('both tabs lay out on a narrow phone', (tester) async {
     tester.view.physicalSize = const Size(360, 740);
     tester.view.devicePixelRatio = 1.0;
@@ -80,6 +84,17 @@ void main() {
       expect(tester.takeException(), isNull, reason: 'tab $tab');
       await tester.pumpWidget(const SizedBox());
     }
+    await tester.pumpWidget(
+      _lab(
+        _Calls(),
+        state: HomeCustomizationState(),
+        mode: LabMode.armory,
+        armoryTier: 2,
+      ),
+    );
+    await _settle(tester);
+    expect(tester.takeException(), isNull, reason: 'armory');
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('a locked thing keeps its name, shows its price, and crafts', (
@@ -91,6 +106,8 @@ void main() {
         calls,
         state: HomeCustomizationState(),
         stored: const {'Fire': 999, 'Lightning': 999},
+        mode: LabMode.armory,
+        armoryTier: 1,
       ),
     );
     await _settle(tester);
@@ -103,7 +120,14 @@ void main() {
 
   testWidgets('a craft the hold cannot pay for does nothing', (tester) async {
     final calls = _Calls();
-    await tester.pumpWidget(_lab(calls, state: HomeCustomizationState()));
+    await tester.pumpWidget(
+      _lab(
+        calls,
+        state: HomeCustomizationState(),
+        mode: LabMode.armory,
+        armoryTier: 1,
+      ),
+    );
     await _settle(tester);
     await _tap(tester, 'lab.recipe.storm_bolts');
     await _act(tester);
@@ -132,7 +156,8 @@ void main() {
       _lab(
         calls,
         state: HomeCustomizationState(unlockedIds: {'refuel_station'}),
-        tab: 1,
+        mode: LabMode.armory,
+        armoryTier: 1,
       ),
     );
     await _settle(tester);
@@ -166,5 +191,50 @@ void main() {
     expect(find.text('UNLOCK'), findsOneWidget);
     await _act(tester);
     expect(calls.upgradedSize, 1);
+  });
+
+  testWidgets('the Lab keeps the looks; the ship\'s fittings are the '
+      'Armory\'s', (tester) async {
+    await tester.pumpWidget(_lab(_Calls(), state: HomeCustomizationState()));
+    await _settle(tester);
+    expect(find.byKey(const ValueKey('lab.hull.standard')), findsOneWidget);
+    expect(find.byKey(const ValueKey('lab.armoryNote')), findsOneWidget);
+    expect(find.byKey(const ValueKey('lab.recipe.storm_bolts')), findsNothing);
+    await tester.pumpWidget(
+      _lab(_Calls(), state: HomeCustomizationState(), tab: 1),
+    );
+    await _settle(tester);
+    expect(
+      find.byKey(const ValueKey('lab.recipe.refuel_station')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('the Armory\'s tier caps how far an upgrade goes', (
+    tester,
+  ) async {
+    final calls = _Calls();
+    final state = HomeCustomizationState()..ammoUpgradeLevel = 2;
+    await tester.pumpWidget(
+      _lab(
+        calls,
+        state: state,
+        planet: HomePlanet(position: Offset.zero, astralBank: 99999),
+        mode: LabMode.armory,
+        armoryTier: 1,
+      ),
+    );
+    await _settle(tester);
+    final capped = find.text('TIER 2');
+    await tester.scrollUntilVisible(
+      capped,
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await _settle(tester);
+    expect(capped, findsOneWidget);
+    await tester.tap(capped);
+    await _settle(tester);
+    expect(calls.powered, isEmpty);
   });
 }

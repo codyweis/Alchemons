@@ -24,6 +24,7 @@ const String _loadHoldIntroSeenKey = 'cosmic_load_hold_intro_seen_v1';
 const String _worksCoachDoneKey = 'cosmic_works_coach_done_v1';
 const String _outpostCoachDoneKey = 'cosmic_outpost_coach_done_v1';
 const String _refineryIntroSeenKey = 'cosmic_refinery_intro_seen_v1';
+const String _armoryIntroSeenKey = 'cosmic_armory_intro_seen_v1';
 
 /// How often the works are caught up while space is open.
 const Duration _worksTickEvery = Duration(seconds: 4);
@@ -39,7 +40,8 @@ const List<StoryBeat> _worksIntroBeats = [
     title: 'AT HOME',
     message:
         'Buildings stand in berths round your planet; a bigger planet opens '
-        'more. A Scavenger Bay sends scavengers out for elements from the '
+        'more. The Armory is where your ship is upgraded. A Scavenger Bay '
+        'sends scavengers out for elements from the '
         'planets you have found. A Silver Press turns spare elements into '
         'silver. A Refinery makes one element out of two, by the recipes you '
         'have found in the Codex.',
@@ -57,7 +59,7 @@ const List<StoryBeat> _worksIntroBeats = [
     message:
         'Each job reads different stats. Miners: level, size and nature. '
         'Couriers: speed and strength. Scavengers: speed, strength and '
-        'intelligence. Pressers: strength. Refiners: intelligence. The picker '
+        'intelligence. Pressers: beauty. Refiners: intelligence. The picker '
         'puts the best first.',
   ),
 ];
@@ -92,6 +94,12 @@ class _WorksActionsImpl implements WorksActions {
 
   @override
   void setRecipe(String? recipe) => s._worksSetRecipe(recipe);
+
+  @override
+  void openArmory() => s._openArmory();
+
+  @override
+  Future<void> dismantle(WorksBuilding b) => s._worksDismantle(b);
 
   @override
   void setRefineKeep(int keep) => s._worksSetRefineKeep(keep);
@@ -267,6 +275,7 @@ extension _CosmicWorks on _CosmicScreenState {
       atPlanet: here,
       berthCount: _berthCount,
       knownRecipes: _knownRecipes,
+      shipSkin: _customizationState.activeShipSkin,
     );
   }
 
@@ -356,12 +365,7 @@ extension _CosmicWorks on _CosmicScreenState {
       _showQuote('All berths are taken. A bigger planet opens more.');
       return;
     }
-    final name = switch (b) {
-      WorksBuilding.scavengerBay => 'SCAVENGER BAY',
-      WorksBuilding.silverPress => 'SILVER PRESS',
-      WorksBuilding.refinery => 'REFINERY',
-      WorksBuilding.extractor => 'EXTRACTOR',
-    };
+    final name = _worksName(b);
     final ok = await _payWorksCost(worksCost(b, 1), title: 'BUILD THE $name?');
     if (!ok || !mounted) return;
     _tickWorks();
@@ -378,6 +382,8 @@ extension _CosmicWorks on _CosmicScreenState {
         _works.refinery
           ..tier = 1
           ..updatedMs = _nowMs;
+      case WorksBuilding.armory:
+        _works.armory.tier = 1;
       case WorksBuilding.extractor:
         return;
     }
@@ -386,11 +392,84 @@ extension _CosmicWorks on _CosmicScreenState {
     _showQuote(switch (b) {
       WorksBuilding.scavengerBay => 'Scavenger Bay built. Give it a scavenger.',
       WorksBuilding.silverPress => 'Silver Press built. Give it a presser.',
+      WorksBuilding.armory => 'Armory built. Your ship is upgraded here now.',
       _ => 'Refinery built. Give it a refiner and choose what to make.',
     });
     await _saveWorks();
     _publishWorksView();
     if (b == WorksBuilding.refinery) await _maybeShowRefineryIntro();
+    if (b == WorksBuilding.armory) await _maybeShowArmoryIntro();
+  }
+
+  String _worksName(WorksBuilding b) => switch (b) {
+    WorksBuilding.scavengerBay => 'SCAVENGER BAY',
+    WorksBuilding.silverPress => 'SILVER PRESS',
+    WorksBuilding.refinery => 'REFINERY',
+    WorksBuilding.armory => 'ARMORY',
+    WorksBuilding.extractor => 'EXTRACTOR',
+  };
+
+  /// The Armory's beat, the first time one is built.
+  Future<void> _maybeShowArmoryIntro() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_armoryIntroSeenKey) ?? false) return;
+    await prefs.setBool(_armoryIntroSeenKey, true);
+    if (!mounted) return;
+    await showStoryDialog(
+      context,
+      beats: const [
+        StoryBeat(
+          title: 'THE ARMORY',
+          message:
+              'Your ship\'s weapons, ammo, systems, stations and upgrades are '
+              'made here now. Its tier sets how far each upgrade can go: '
+              'upgrade the Armory to take them further.',
+        ),
+      ],
+      primaryLabel: 'GOT IT',
+    );
+  }
+
+  /// Opens the Armory: the Works panel gives way to it, and BACK returns to
+  /// the home base window.
+  void _openArmory() {
+    if (!_works.armory.built) return;
+    Navigator.of(context).maybePop();
+    _labMode = LabMode.armory;
+    _openSubPanel(_CosmicPanel.home, () {
+      _showHomeMenu = false;
+      _showCustomizationMenu = true;
+    });
+  }
+
+  /// Takes a home building down to free its berth, after asking.
+  Future<void> _worksDismantle(WorksBuilding b) async {
+    if (!_works.berths.containsKey(b)) return;
+    final ok = await showBracketConfirm(
+      context,
+      palette: panelPalette,
+      accent: CosmicScreenStyles.danger,
+      title: 'TAKE DOWN THE ${_worksName(b)}?',
+      message: b == WorksBuilding.armory
+          ? 'Its berth comes free. What the ship already has stays, but it '
+                'cannot be upgraded further until an Armory stands again.'
+          : 'Its berth comes free and its workers stop. What it cost is not '
+                'given back${b == WorksBuilding.scavengerBay ? '; its crates are collected first' : ''}.',
+      confirmLabel: 'TAKE DOWN',
+    );
+    if (!ok || !mounted) return;
+    _tickWorks();
+    if (b == WorksBuilding.scavengerBay && _works.bay.crates.isNotEmpty) {
+      _worksCollectCrates();
+    }
+    _works.dismantle(b);
+    HapticFeedback.heavyImpact();
+    _showQuote('${_worksName(b)} taken down. Its berth is free.');
+    await _refreshWorkers();
+    await _saveWorks();
+    _updatePressIntake();
+    _publishWorksView();
+    _rebuild();
   }
 
   /// The Refinery's beat, the first time one is built.
@@ -490,6 +569,8 @@ extension _CosmicWorks on _CosmicScreenState {
         tier = _works.press.tier;
       case WorksBuilding.refinery:
         tier = _works.refinery.tier;
+      case WorksBuilding.armory:
+        tier = _works.armory.tier;
     }
     if (tier <= 0 || tier >= WorkRules.maxTier) return;
     final ok = await _payWorksCost(
@@ -511,6 +592,8 @@ extension _CosmicWorks on _CosmicScreenState {
         _works.press.tier = tier + 1;
       case WorksBuilding.refinery:
         _works.refinery.tier = tier + 1;
+      case WorksBuilding.armory:
+        _works.armory.tier = tier + 1;
     }
     HapticFeedback.heavyImpact();
     _showQuote('Upgraded to tier ${tier + 1}.');

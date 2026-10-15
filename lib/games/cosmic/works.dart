@@ -11,6 +11,9 @@
 //                  then a few astral shards; their finds wait in crates.
 //   Silver Press   beside home. Presses whatever storage holds over the
 //                  reserve into silver.
+//   Armory         beside home. The ship's workshop: its weapons, systems,
+//                  ammo, home stations and upgrades are made here, and the
+//                  Armory's tier sets how far each upgrade can go.
 //   Refinery       beside home. Makes one element out of two others, by the
 //                  recipe table (constants/element_combos.dart), for the
 //                  recipes the Codex has found. It always makes less than it
@@ -26,7 +29,8 @@
 //   courier    Speed → flight speed, Strength → load per trip
 //   scavenger  Speed → trip length, Strength → find size, Intelligence →
 //              how often a find carries astral shards
-//   presser    Strength → grains pressed a minute
+//   presser    Beauty → grains pressed a minute (an eye for what is worth
+//              keeping)
 //   refiner    Intelligence → elements refined a minute
 //
 // Everything here is plain data and arithmetic on wall-clock milliseconds:
@@ -72,8 +76,8 @@ abstract final class WorkRules {
   }
 
   // Press.
-  static double pressRate(double strength, int tier) =>
-      (4 + 2 * strength.clamp(0.0, 20.0)) * pressTierMultiplier(tier);
+  static double pressRate(double beauty, int tier) =>
+      (4 + 2 * beauty.clamp(0.0, 20.0)) * pressTierMultiplier(tier);
   static double pressTierMultiplier(int tier) => switch (tier) {
     <= 1 => 1.0,
     2 => 1.6,
@@ -102,6 +106,19 @@ abstract final class WorkRules {
   /// breeding pair, so the Codex can never record it (Crystal still comes
   /// from Earth + Lightning).
   static const Set<String> refineExcluded = {'Dust+Spirit'};
+
+  // Armory.
+  /// How far AMMO POWER and MISSILE POWER (five levels) may go at an
+  /// Armory of [tier].
+  static int armoryPowerCap(int tier) => switch (tier) {
+    <= 0 => 0,
+    1 => 2,
+    2 => 4,
+    _ => 5,
+  };
+
+  /// How far the FUEL TANK and the CARGO HOLD (three levels) may go.
+  static int armoryTankCap(int tier) => tier.clamp(0, 3);
 
   /// The Refinery's recipes: pair key (as in kElementCombos) → what it makes.
   static final Map<String, String> refineRecipes = {
@@ -187,6 +204,13 @@ WorksCost worksCost(WorksBuilding b, int toTier, {String? element}) {
         2 => const WorksCost(matter: 400, silver: 800),
         _ => const WorksCost(matter: 900, silver: 1800),
       };
+    // Cheap to start: the ship's upgrades wait on it.
+    case WorksBuilding.armory:
+      return switch (toTier) {
+        <= 1 => const WorksCost(matter: 60),
+        2 => const WorksCost(matter: 300, silver: 500),
+        _ => const WorksCost(matter: 800, silver: 1500),
+      };
   }
 }
 
@@ -262,7 +286,7 @@ Map<String, int>? elementsForCost(WorksCost cost, Map<String, double> stored) {
 
 // ── workers ─────────────────────────────────────────────────────────────────
 
-enum WorksBuilding { extractor, scavengerBay, silverPress, refinery }
+enum WorksBuilding { extractor, scavengerBay, silverPress, refinery, armory }
 
 enum WorkJob { miner, courier, scavenger, presser, refiner }
 
@@ -284,6 +308,7 @@ class WorkerProfile {
     required this.speed,
     required this.intelligence,
     required this.strength,
+    this.beauty = 3,
     required this.harvestRate,
   });
 
@@ -292,6 +317,7 @@ class WorkerProfile {
   final double speed;
   final double intelligence;
   final double strength;
+  final double beauty;
 
   /// Units a minute as a miner (the Biome Extractors' rate).
   final int harvestRate;
@@ -589,16 +615,38 @@ class RefineryState {
   );
 }
 
+/// The ship's workshop. No one works it: what it holds is the ship's own
+/// upgrades, made from storage and shards as they always were.
+class ArmoryState {
+  ArmoryState({this.tier = 0, this.berth = -1});
+
+  /// 0 = not built.
+  int tier;
+
+  /// Which berth round home it stands in.
+  int berth;
+
+  bool get built => tier > 0;
+
+  Map<String, dynamic> toJson() => {'t': tier, 'bh': berth};
+  factory ArmoryState.fromJson(Map<String, dynamic> j) => ArmoryState(
+    tier: ((j['t'] as num?)?.toInt() ?? 0).clamp(0, WorkRules.maxTier),
+    berth: (j['bh'] as num?)?.toInt() ?? -1,
+  );
+}
+
 class WorksState {
   WorksState({
     Map<String, ExtractorState>? extractors,
     ScavengerBayState? bay,
     SilverPressState? press,
     RefineryState? refinery,
+    ArmoryState? armory,
   }) : extractors = extractors ?? {},
        bay = bay ?? ScavengerBayState(),
        press = press ?? SilverPressState(),
-       refinery = refinery ?? RefineryState() {
+       refinery = refinery ?? RefineryState(),
+       armory = armory ?? ArmoryState() {
     fitBerths();
   }
 
@@ -606,9 +654,14 @@ class WorksState {
   final ScavengerBayState bay;
   final SilverPressState press;
   final RefineryState refinery;
+  final ArmoryState armory;
 
   bool get isEmpty =>
-      extractors.isEmpty && !bay.built && !press.built && !refinery.built;
+      extractors.isEmpty &&
+      !bay.built &&
+      !press.built &&
+      !refinery.built &&
+      !armory.built;
 
   /// Every Alchemon at work, whatever its job.
   Set<String> get workerIds => {
@@ -625,6 +678,7 @@ class WorksState {
     if (bay.built) WorksBuilding.scavengerBay: bay.berth,
     if (press.built) WorksBuilding.silverPress: press.berth,
     if (refinery.built) WorksBuilding.refinery: refinery.berth,
+    if (armory.built) WorksBuilding.armory: armory.berth,
   };
 
   int get berthsUsed => berths.length;
@@ -646,6 +700,50 @@ class WorksState {
         press.berth = berth;
       case WorksBuilding.refinery:
         refinery.berth = berth;
+      case WorksBuilding.armory:
+        armory.berth = berth;
+      case WorksBuilding.extractor:
+        break;
+    }
+  }
+
+  /// The tier [b] is built to at home (0 = not built).
+  int homeTier(WorksBuilding b) => switch (b) {
+    WorksBuilding.scavengerBay => bay.tier,
+    WorksBuilding.silverPress => press.tier,
+    WorksBuilding.refinery => refinery.tier,
+    WorksBuilding.armory => armory.tier,
+    WorksBuilding.extractor => 0,
+  };
+
+  /// Takes [b] down, freeing its berth: its workers leave their jobs and
+  /// it starts again from nothing. The bay's crates must be emptied first.
+  void dismantle(WorksBuilding b) {
+    switch (b) {
+      case WorksBuilding.scavengerBay:
+        for (final id in bay.workerIds.toList()) {
+          release(id);
+        }
+        bay
+          ..tier = 0
+          ..berth = -1
+          ..crates.clear()
+          ..fitSlots();
+      case WorksBuilding.silverPress:
+        press
+          ..tier = 0
+          ..berth = -1
+          ..presser = null;
+      case WorksBuilding.refinery:
+        refinery
+          ..tier = 0
+          ..berth = -1
+          ..refiner = null
+          ..recipe = null;
+      case WorksBuilding.armory:
+        armory
+          ..tier = 0
+          ..berth = -1;
       case WorksBuilding.extractor:
         break;
     }
@@ -656,6 +754,7 @@ class WorksState {
   void fitBerths() {
     final seen = <int>{};
     for (final b in const [
+      WorksBuilding.armory,
       WorksBuilding.scavengerBay,
       WorksBuilding.silverPress,
       WorksBuilding.refinery,
@@ -708,6 +807,7 @@ class WorksState {
     'b': bay.toJson(),
     'p': press.toJson(),
     'r': refinery.toJson(),
+    'a': armory.toJson(),
   });
 
   factory WorksState.deserialise(String? raw) {
@@ -734,6 +834,9 @@ class WorksState {
         refinery: j['r'] == null
             ? null
             : RefineryState.fromJson((j['r'] as Map).cast<String, dynamic>()),
+        armory: j['a'] == null
+            ? null
+            : ArmoryState.fromJson((j['a'] as Map).cast<String, dynamic>()),
       );
     } catch (_) {
       return WorksState();
@@ -1026,7 +1129,7 @@ void _advancePress(
   final w = press.presser == null ? null : workers[press.presser];
   if (!press.built || w == null) return;
   final budget =
-      WorkRules.pressRate(w.strength, press.tier) * (now - from) / 60000;
+      WorkRules.pressRate(w.beauty, press.tier) * (now - from) / 60000;
   if (budget <= 0) return;
   final surplus = <String, double>{
     for (final e in storage.entries)

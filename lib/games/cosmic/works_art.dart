@@ -22,6 +22,10 @@
 //                  each into the retort, where the grains change to what
 //                  they make, and what is made drips into a heap below.
 //                  Tier shows as lights along the beam.
+//   Armory         a gantry of two stone pylons and a beam over a pad, the
+//                  player's own ship held upright in its clamps, weld
+//                  sparks falling from its flank. Tier shows as lights
+//                  along the beam.
 //   Grain flows    matter sent from one place to another (a hopper sent
 //                  home, crates emptied into home): a current of grains on a
 //                  lopsided curve, each born a little after the last.
@@ -35,11 +39,13 @@ import 'dart:ui' as ui;
 import 'package:flutter/painting.dart';
 
 import 'obsidian_kit.dart';
+import 'ship_art.dart' show paintShipHull;
 
 /// The Works' own lights.
 const Color kScavengerBayLight = Color(0xFFE0915A);
 const Color kSilverPressLight = Color(0xFFCFDCEB);
 const Color kRefineryLight = Color(0xFFB9A2F2);
+const Color kArmoryLight = Color(0xFFE58A5C);
 
 /// How far each piece reaches from its origin, in art units — what a stage
 /// sizes it by.
@@ -47,6 +53,7 @@ const double kExtractorReach = 64;
 const double kBayReach = 46;
 const double kPressReach = 44;
 const double kRefineryReach = 44;
+const double kArmoryReach = 44;
 
 double _smooth(double x) {
   final t = x.clamp(0.0, 1.0);
@@ -930,6 +937,115 @@ class _RefineryArt {
       }
     }
     paintDisc(c, m.spark, const Offset(0, -29), 2.6 * breathe, 0.7);
+  }
+}
+
+// ── Armory ──────────────────────────────────────────────────────────────────
+
+final Map<int, _ArmoryArt> _armories = {};
+
+/// Draws the Armory at [at], holding the hull [skin] (null: the standard
+/// hull) in its gantry.
+void paintArmory(
+  Canvas c, {
+  required Offset at,
+  required int tier,
+  required double t,
+  double scale = 1,
+  String? skin,
+  double wake = 0,
+}) {
+  final art = _armories[tier.clamp(1, 3)] ??= _ArmoryArt(tier.clamp(1, 3));
+  c.save();
+  c.translate(at.dx, at.dy);
+  c.scale(scale);
+  art.paint(c, t, skin, wake.clamp(0.0, 1.0));
+  c.restore();
+}
+
+class _ArmoryArt {
+  _ArmoryArt(this.tier);
+  final int tier;
+  final StoneLight m = StoneLight(kArmoryLight, warm: 0.0);
+
+  late final CutStone _pylon = ridgeArm(m, 0, 50, 4.6, 3.4);
+  late final CutStone _beam = ridgeArm(m, 0, 52, 4.2, 3.8);
+  late final CutStone _clamp = ridgeArm(m, 0, 11, 2.4, 1.8);
+  late final CutStone _pad = CutStone.gem(m, const [
+    Offset(-24, 18),
+    Offset(24, 18),
+    Offset(27, 22),
+    Offset(22, 27),
+    Offset(-22, 27),
+    Offset(-27, 22),
+  ], Offset(0, 21));
+
+  late final BakedArt _frame = BakedArt(const Rect.fromLTRB(-32, -38, 32, 30), (
+    c,
+  ) {
+    for (final x in [-20.0, 20.0]) {
+      c.save();
+      c.translate(x, 18);
+      c.rotate(-pi / 2);
+      _pylon.paint(c, -pi / 2, glow: 0, reach: 10);
+      c.restore();
+    }
+    c.save();
+    c.translate(-26, -32);
+    _beam.paint(c, 0, glow: 0.3, reach: 12);
+    c.restore();
+    _pad.paint(c, 0, glow: 0.7, reach: 18);
+    for (var i = 0; i < tier; i++) {
+      paintOrb(c, m, Offset(-7.0 + i * 7, -32), 1.7, alpha: 0.9);
+    }
+  });
+
+  /// The clamps reach in from the pylons and hold the hull: drawn over it.
+  late final BakedArt _clamps = BakedArt(const Rect.fromLTRB(-22, -12, 22, 0), (
+    c,
+  ) {
+    c.save();
+    c.translate(-19, -6);
+    _clamp.paint(c, 0, glow: 0);
+    c.restore();
+    c.save();
+    c.translate(19, -6);
+    c.rotate(pi);
+    _clamp.paint(c, pi, glow: 0);
+    c.restore();
+  });
+
+  final PointBatch _sparks = PointBatch(24);
+  final PointBatch _hot = PointBatch(8);
+
+  void paint(Canvas c, double t, String? skin, double wake) {
+    final breathe = 0.86 + 0.14 * sin(t * 2.1);
+    paintDisc(c, m.pool, const Offset(0, 4), 58, 0.9 + 0.6 * wake);
+    _frame.draw(c);
+    // The hull, upright in the gantry, its engines banked low.
+    c.save();
+    c.translate(0, -3);
+    c.scale(0.78);
+    paintShipHull(c, skin, t, engines: 0.25);
+    c.restore();
+    _clamps.draw(c);
+
+    // Welding on its flank: sparks spill and fall away, now and then.
+    const weld = Offset(7, 2);
+    final on = sin(t * 0.9) > -0.35;
+    _sparks.clear();
+    _hot.clear();
+    if (on) {
+      for (var i = 0; i < 18; i++) {
+        final q = (t * 0.9 + hash01(i, 81)) % 1.0;
+        final vx = (hash01(i, 82) - 0.3) * 22;
+        final p = weld + Offset(vx * q, -6 * q + 30 * q * q);
+        (q < 0.25 ? _hot : _sparks).add(p.dx, p.dy);
+      }
+      paintDisc(c, m.spark, weld, 3.2 * breathe, 0.9);
+    }
+    _sparks.draw(c, 1.2, m.grainDim.withValues(alpha: 0.7));
+    _hot.draw(c, 1.6, m.grainHot);
   }
 }
 

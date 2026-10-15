@@ -147,6 +147,14 @@ void main() {
       ),
       (c) =>
           paintRefinery(c, at: Offset.zero, tier: 3, t: 5.5, scale: artScale),
+      (c) => paintArmory(
+        c,
+        at: Offset.zero,
+        tier: 2,
+        t: 3.1,
+        scale: artScale,
+        skin: 'skin_inferno',
+      ),
       (c) => paintGrainFlow(
         c,
         from: const Offset(-70, 50),
@@ -232,6 +240,7 @@ void main() {
         out: const Color(0xFFB0BEC5),
         working: true,
       ),
+      'armory': (c, t) => paintArmory(c, at: Offset.zero, tier: 3, t: t),
       'press': (c, t) => paintSilverPress(
         c,
         at: Offset.zero,

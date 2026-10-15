@@ -125,6 +125,7 @@ void main() {
           refiner: 'r0',
           recipe: 'Fire+Water',
         ),
+        armory: ArmoryState(tier: 2, berth: 3),
       );
       works.bay.slots[0].instanceId = 's0';
       works.bay.slots[1]

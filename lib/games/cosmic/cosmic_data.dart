@@ -2786,6 +2786,17 @@ class HomeRecipe {
 }
 
 /// The built-in home customization recipes.
+/// Whether the Armory makes [id]: everything for the ship but how it looks
+/// — weapons, systems, ammo and the home stations. Hulls and the home's
+/// effects stay in the Lab.
+bool isArmoryRecipe(String id) {
+  if (id.startsWith('skin_')) return false;
+  for (final r in kHomeRecipes) {
+    if (r.id == id) return r.category != HomeRecipeCategory.visual;
+  }
+  return false;
+}
+
 const List<HomeRecipe> kHomeRecipes = [
   // ── Visual (planet decorations) ──
   HomeRecipe(

@@ -15,6 +15,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/works.dart' show WorkRules;
 import 'package:alchemons/games/cosmic/ship_art.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -52,10 +53,18 @@ class CustomizationMenuOverlay extends StatefulWidget {
     this.garrisonStationed = 0,
     this.garrisonSlots = 0,
     this.paintHome,
+    this.mode = LabMode.looks,
+    this.armoryTier = 0,
   });
 
   final HomeCustomizationState customizationState;
   final ElementStorage elementStorage;
+
+  /// LOOKS for the Lab, ARMORY for the Armory.
+  final LabMode mode;
+
+  /// The Armory's tier, which caps how far each upgrade can go.
+  final int armoryTier;
   final HomePlanet? homePlanet;
   final int cargoLevel;
   final bool isNearHome;
@@ -129,6 +138,11 @@ const _shipAccent = CosmicScreenStyles.teal;
 const _homeAccent = CosmicScreenStyles.amberBright;
 const _palette = panelPalette;
 
+/// Which half of the ship's fittings a Lab shows: the LOOKS (hulls, and the
+/// home's size, color and effects) or the ARMORY (weapons, systems, ammo,
+/// stations and upgrades, as far as the Armory's tier lets them go).
+enum LabMode { looks, armory }
+
 const _hullIds = ['skin_phantom', 'skin_solar', 'skin_inferno', 'skin_crystal'];
 const _weaponIds = ['equip_machinegun', 'equip_missiles'];
 const _systemIds = ['equip_orbitals', 'equip_matter_injector'];
@@ -185,6 +199,11 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
   void _select(_Pick pick) =>
       setState(() => _pick = _pick == pick ? null : pick);
 
+  bool get _armory => widget.mode == LabMode.armory;
+
+  /// The ship is on show: the Armory, or the Lab's SHIP tab.
+  bool get _onShip => _armory || _activeTab == 0;
+
   /// After any change the parent makes to the state objects it owns.
   void _after(VoidCallback act) {
     act();
@@ -201,7 +220,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = _activeTab == 0 ? _shipAccent : _homeAccent;
+    final accent = _onShip ? _shipAccent : _homeAccent;
     return Material(
       color: Colors.transparent,
       child: Container(
@@ -210,22 +229,27 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           child: Column(
             children: [
               _header(),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: BracketTabs(
-                  labels: const ['SHIP', 'HOME'],
-                  selected: _activeTab,
-                  onSelect: _setTab,
-                  palette: _palette,
-                  accent: accent,
+              if (!_armory)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: BracketTabs(
+                    labels: const ['SHIP', 'HOME'],
+                    selected: _activeTab,
+                    onSelect: _setTab,
+                    palette: _palette,
+                    accent: accent,
+                  ),
                 ),
-              ),
               const SizedBox(height: 10),
               _stage(accent),
               Expanded(
                 child: AnimatedSwitcher(
                   duration: const Duration(milliseconds: 180),
-                  child: _activeTab == 0 ? _shipTab() : _homeTab(),
+                  child: _armory
+                      ? _armoryTab()
+                      : _activeTab == 0
+                      ? _shipTab()
+                      : _homeTab(),
                 ),
               ),
               _pick == null ? _backDock() : _dock(_pick!, accent),
@@ -238,7 +262,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
 
   Widget _header() {
     return PanelHeader(
-      title: 'CUSTOMIZATION LAB',
+      title: _armory ? 'ARMORY' : 'CUSTOMIZATION LAB',
       onClose: widget.onClose,
       // What there is to spend, a tap from the full list.
       trailing: GestureDetector(
@@ -287,7 +311,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     final cs = widget.customizationState;
     final Widget stage;
     String caption;
-    if (_activeTab == 0) {
+    if (_onShip) {
       // The hull on show: the one picked, else the one flying.
       var skin = cs.activeShipSkin;
       if (pick?.kind == _PickKind.standardHull) skin = null;
@@ -336,7 +360,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             bottom: 8,
             child: Text(caption, style: panelLabel(10.5, _palette.muted)),
           ),
-          if (_activeTab == 1 && widget.canPreview && widget.onPreview != null)
+          if (!_onShip && widget.canPreview && widget.onPreview != null)
             Positioned(
               right: 16,
               bottom: 4,
@@ -366,8 +390,9 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
 
   // ── SHIP ───────────────────────────────────────────────────────────────
 
+  /// The Lab's SHIP tab: how the ship looks. What it carries is the
+  /// Armory's.
   Widget _shipTab() {
-    final cs = widget.customizationState;
     return ListView(
       key: const PageStorageKey<String>('cosmic.lab.ship'),
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -375,6 +400,25 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         _section('HULL'),
         _grid(5, [_hullTile(null), for (final id in _hullIds) _hullTile(id)]),
         const SizedBox(height: 14),
+        Text(
+          'WEAPONS, AMMO, SYSTEMS, STATIONS AND UPGRADES ARE MADE AT THE '
+          'ARMORY, IN THE WORKS.',
+          key: const ValueKey('lab.armoryNote'),
+          style: panelLabel(9.5, _palette.muted, spacing: 0.8),
+        ),
+      ],
+    );
+  }
+
+  /// The Armory: what the ship carries, and how far its upgrades go.
+  Widget _armoryTab() {
+    final cs = widget.customizationState;
+    final power = WorkRules.armoryPowerCap(widget.armoryTier);
+    final tank = WorkRules.armoryTankCap(widget.armoryTier);
+    return ListView(
+      key: const PageStorageKey<String>('cosmic.armory'),
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+      children: [
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -403,12 +447,16 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         _section('AMMO'),
         _grid(4, [for (final id in _ammoIds) _recipeTile(id)]),
         const SizedBox(height: 14),
-        _section('UPGRADES'),
-        _cargoRow(),
+        _section('STATIONS'),
+        _grid(4, [for (final id in _stationIds) _recipeTile(id)]),
+        const SizedBox(height: 14),
+        _section('UPGRADES', trailing: 'ARMORY TIER ${widget.armoryTier}'),
+        _cargoRow(cap: tank),
         _powerRow(
           label: 'AMMO POWER',
           level: cs.ammoUpgradeLevel,
           max: HomeCustomizationState.maxUpgradeLevel,
+          cap: power,
           value:
               '+${((HomeCustomizationState.damageMultiplier(cs.ammoUpgradeLevel) - 1) * 100).round()}%',
           costs: HomeCustomizationState.upgradeCosts,
@@ -418,6 +466,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           label: 'MISSILE POWER',
           level: cs.missileUpgradeLevel,
           max: HomeCustomizationState.maxUpgradeLevel,
+          cap: power,
           value:
               '+${((HomeCustomizationState.missileDamageMultiplier(cs.missileUpgradeLevel) - 1) * 100).round()}%',
           costs: HomeCustomizationState.upgradeCosts,
@@ -427,6 +476,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           label: 'FUEL TANK',
           level: cs.fuelUpgradeLevel,
           max: HomeCustomizationState.maxFuelUpgradeLevel,
+          cap: tank,
           value:
               '${ShipFuel.capacityForLevel(cs.fuelUpgradeLevel).toInt()} UNITS',
           costs: HomeCustomizationState.fuelUpgradeCosts,
@@ -434,6 +484,14 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         ),
       ],
     );
+  }
+
+  /// The Armory tier an upgrade at [level] needs to go on, by [capOf].
+  static int _tierFor(int level, int Function(int tier) capOf) {
+    for (var t = 1; t <= WorkRules.maxTier; t++) {
+      if (capOf(t) > level) return t;
+    }
+    return WorkRules.maxTier;
   }
 
   Widget _hullTile(String? id) {
@@ -464,7 +522,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     final owned = cs.isUnlocked(id);
     final pick = _Pick(_PickKind.recipe, id);
     final isStation = _stationIds.contains(id);
-    final accent = _activeTab == 0 ? _shipAccent : _homeAccent;
+    final accent = _onShip ? _shipAccent : _homeAccent;
     return _Tile(
       key: ValueKey('lab.recipe.$id'),
       accent: accent,
@@ -486,9 +544,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     return words.last == 'STATION' ? words.first : words.last;
   }
 
-  Widget _cargoRow() {
+  Widget _cargoRow({required int cap}) {
     final level = widget.cargoLevel;
     final maxed = level >= CargoUpgrade.maxLevel;
+    final capped = !maxed && level >= cap;
     final cost = maxed
         ? const <String, int>{}
         : CargoUpgrade.costForNextLevel(level);
@@ -506,8 +565,12 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           for (final e in cost.entries) CostChip(e.key, e.value, _stored),
         ],
       ),
-      buttonLabel: widget.isNearHome ? 'UPGRADE' : 'DOCK AT HOME',
-      enabled: widget.isNearHome && _canAfford(cost),
+      buttonLabel: capped
+          ? 'TIER ${_tierFor(level, WorkRules.armoryTankCap)}'
+          : widget.isNearHome
+          ? 'UPGRADE'
+          : 'DOCK AT HOME',
+      enabled: !capped && widget.isNearHome && _canAfford(cost),
       onUpgrade: () => _after(widget.onUpgradeCargo),
     );
   }
@@ -516,11 +579,16 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
     required String label,
     required int level,
     required int max,
+    required int cap,
     required String value,
     required List<int> costs,
     required VoidCallback onUpgrade,
   }) {
     final maxed = level >= max;
+    final capped = !maxed && level >= cap;
+    final capOf = max == HomeCustomizationState.maxUpgradeLevel
+        ? WorkRules.armoryPowerCap
+        : WorkRules.armoryTankCap;
     final next = maxed ? 0 : costs[level];
     return _UpgradeRow(
       label: label,
@@ -530,8 +598,10 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
       accent: _shipAccent,
       maxed: maxed,
       cost: ShardAmount(next, size: 11.5, enabled: _shards >= next),
-      buttonLabel: 'LV ${level + 1}',
-      enabled: _shards >= next,
+      buttonLabel: capped
+          ? 'TIER ${_tierFor(level, capOf)}'
+          : 'LV ${level + 1}',
+      enabled: !capped && _shards >= next,
       onUpgrade: () => _after(onUpgrade),
     );
   }
@@ -594,9 +664,6 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           trailing: '${visuals.where(cs.isUnlocked).length}/${visuals.length}',
         ),
         _grid(4, [for (final id in visuals) _effectTile(id)]),
-        const SizedBox(height: 14),
-        _section('STATIONS'),
-        _grid(4, [for (final id in _stationIds) _recipeTile(id)]),
       ],
     );
   }
