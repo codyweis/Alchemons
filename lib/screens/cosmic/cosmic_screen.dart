@@ -90,6 +90,7 @@ import 'package:alchemons/games/stadium/trials_records.dart';
 import 'widgets/planet_descent_passage.dart';
 import 'widgets/chart_zoom.dart';
 import 'widgets/space_action_glyphs.dart';
+import 'widgets/space_trigger.dart';
 
 const _cosmicMeterPalette = BracketPalette.dark;
 
@@ -4390,11 +4391,18 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  /// Wraps a weapon button in whichever gesture its mode calls for.
+  /// How far past a combat button's plate a press still lands on it.
+  static const double _kCombatReach = 8;
+
+  /// A combat button's plate, and the mark drawn on it.
+  static const double _kCombatButton = 62, _kCombatGlyph = 54;
+
+  /// Wraps a weapon button in whichever press its mode calls for (see
+  /// [SpaceTrigger]: raw pointers, so a drifting thumb never loses it).
   ///
-  /// On auto it is a toggle, so a tap arms or stands the weapon down. On
-  /// manual it is a trigger held with a raw Listener — a tap recogniser
-  /// gives up the moment the thumb drifts, and a firing thumb drifts.
+  /// On auto it is a toggle, so a press arms or stands the weapon down. On
+  /// manual it is a trigger, firing while held. [key] marks the plate (the
+  /// coach frames it), not the wider reach round it.
   Widget _weaponTrigger({
     Key? key,
     required bool auto,
@@ -4402,23 +4410,20 @@ class _CosmicScreenState extends State<CosmicScreen>
     required void Function(bool firing) setFiring,
     required Widget child,
   }) {
+    final plate = KeyedSubtree(key: key, child: child);
     if (auto) {
-      return GestureDetector(
-        key: key,
-        // Opaque, or only the glyph inside the plate answers a tap — the
-        // border and padding are not hit-testable on their own.
-        behavior: HitTestBehavior.opaque,
-        onTap: context.soundAction(() => setFiring(!firing)),
-        child: child,
+      return SpaceTrigger.toggle(
+        reach: _kCombatReach,
+        onPressed: context.soundTap(() => setFiring(!firing)),
+        child: plate,
       );
     }
-    return Listener(
-      key: key,
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: (_) => setFiring(true),
-      onPointerUp: (_) => setFiring(false),
-      onPointerCancel: (_) => setFiring(false),
-      child: child,
+    return SpaceTrigger.hold(
+      reach: _kCombatReach,
+      onHeld: (down) {
+        if (mounted) setFiring(down);
+      },
+      child: plate,
     );
   }
 
@@ -4428,7 +4433,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     required Widget child,
   }) {
     return _CosmicSquareHudButton(
-      size: 50,
+      size: _kCombatButton,
       accent: accent,
       active: active,
       child: child,
@@ -8448,10 +8453,13 @@ class _CosmicScreenState extends State<CosmicScreen>
               // (Fuel & missiles now auto-refill at home — no buttons needed)
 
               // ── Combat buttons (right side) ──
+              // Each catches presses [_kCombatReach] past its plate, so the
+              // column sits that much further out to keep the plates where
+              // they were.
               if (!_showMiniMap && !_anyOverlayOpen)
                 Positioned(
-                  bottom: 20,
-                  right: 12,
+                  bottom: 20 - _kCombatReach,
+                  right: 12 - _kCombatReach,
                   child: AnimatedOpacity(
                     opacity: isMemoryTutorial
                         ? 1.0
@@ -8462,34 +8470,39 @@ class _CosmicScreenState extends State<CosmicScreen>
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
-                          // Boost button
+                          // Boost button: held, or locked on with a press.
                           if (showCosmicHud && _customizationState.hasBooster)
-                            GestureDetector(
-                              onTapDown: _boostToggleMode
-                                  ? null
-                                  : (_) => _startBoosting(),
-                              onTapUp: _boostToggleMode
-                                  ? null
-                                  : (_) => _stopBoosting(),
-                              onTapCancel: _boostToggleMode
-                                  ? null
-                                  : _stopBoosting,
-                              onTap: context.soundAction(
-                                _boostToggleMode ? _toggleBoosting : null,
-                              ),
-                              child: _buildWeaponHudButton(
-                                accent: const Color(0xFFFF6F00),
-                                active: _isBoosting,
-                                child: SpaceActionGlyph(
-                                  SpaceAction.boost,
-                                  size: 44,
-                                  color: const Color(0xFFFF6F00),
-                                  lit: _isBoosting,
-                                ),
-                              ),
+                            Builder(
+                              builder: (context) {
+                                final plate = _buildWeaponHudButton(
+                                  accent: const Color(0xFFFF6F00),
+                                  active: _isBoosting,
+                                  child: SpaceActionGlyph(
+                                    SpaceAction.boost,
+                                    size: _kCombatGlyph,
+                                    color: const Color(0xFFFF6F00),
+                                    lit: _isBoosting,
+                                  ),
+                                );
+                                if (_boostToggleMode) {
+                                  return SpaceTrigger.toggle(
+                                    reach: _kCombatReach,
+                                    onPressed: context.soundTap(
+                                      _toggleBoosting,
+                                    ),
+                                    child: plate,
+                                  );
+                                }
+                                return SpaceTrigger.hold(
+                                  reach: _kCombatReach,
+                                  onHeld: (down) {
+                                    if (!mounted) return;
+                                    down ? _startBoosting() : _stopBoosting();
+                                  },
+                                  child: plate,
+                                );
+                              },
                             ),
-                          if (showCosmicHud && _customizationState.hasBooster)
-                            const SizedBox(height: 14),
                           // Weapon buttons. Each one arms its own weapon and
                           // stays lit while it is minding itself.
                           Column(
@@ -8511,7 +8524,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                       children: [
                                         SpaceActionGlyph(
                                           SpaceAction.missile,
-                                          size: 44,
+                                          size: _kCombatGlyph,
                                           color: const Color(0xFFE53935),
                                           lit: _isShootingMissiles,
                                         ),
@@ -8537,9 +8550,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                                     ),
                                   ),
                                 ),
-                              if (showCosmicHud &&
-                                  _customizationState.hasMissiles)
-                                const SizedBox(height: 10),
                               _weaponTrigger(
                                 key: _coachGunKey,
                                 auto: _autoFireGun,
@@ -8552,7 +8562,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                                   active: _isShooting,
                                   child: SpaceActionGlyph(
                                     SpaceAction.gun,
-                                    size: 44,
+                                    size: _kCombatGlyph,
                                     color: const Color(0xFF00E5FF),
                                     lit: _isShooting,
                                   ),
@@ -10050,7 +10060,11 @@ class _CosmicSquareHudButton extends StatelessWidget {
       child: CustomPaint(
         painter: BracketFramePainter(
           color: lineColor,
-          bracketSize: size >= 50 ? 8 : 6,
+          bracketSize: size >= 60
+              ? 10
+              : size >= 50
+              ? 8
+              : 6,
           strokeWidth: active ? 1.35 : 1.05,
         ),
         child: AnimatedContainer(
