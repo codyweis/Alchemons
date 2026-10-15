@@ -8,6 +8,12 @@
 // burst of essence loose (the tap boost). Full, it breathes; collected, it
 // pours up out of the neck.
 //
+// An Alchemized Alchemon (made of grains that never settle) works at ten
+// times the yield, and the chamber shows it: as it is put in, a share of its
+// grains comes away all at once and pours across in a thick rope of its
+// violet light, and the liquid flares as they land; for the rest of the run
+// its stream is twice as thick and half of it violet.
+//
 // No hoops, no strokes: glass is filled gradients, light is pools, the
 // contents are grains (see feedback on VFX material, and the cultivation
 // sphere / dock emblem this borrows from).
@@ -16,9 +22,11 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -234,6 +242,10 @@ class ExtractionVesselField {
   bool occupied = false;
   double _slide = -1;
 
+  /// The Alchemon at the bench is Alchemized: its stream runs thicker, and
+  /// half of it in its own violet.
+  bool alchemized = false;
+
   // ── State ─────────────────────────────────────────────────────────────
   double time = 0;
   double _shown = 0;
@@ -254,7 +266,7 @@ class ExtractionVesselField {
   static const int surfaceGrains = 90;
 
   // Motes: everything loose in the glass. Struct of arrays, fixed capacity.
-  static const int _cap = 420;
+  static const int _cap = 900;
   final Float32List _ox = Float32List(_cap), _oy = Float32List(_cap);
   final Float32List _vx = Float32List(_cap), _vy = Float32List(_cap);
   final Float32List _born = Float32List(_cap), _life = Float32List(_cap);
@@ -263,6 +275,48 @@ class ExtractionVesselField {
   int _n = 0;
 
   static const int _peel = 0, _splash = 1, _rise = 2, _vent = 3, _dust = 4;
+
+  /// A grain of an Alchemized Alchemon's pack: it rises off the body and
+  /// gathers over its head, then pours across with the rest in one rope.
+  static const int _gush = 5;
+
+  /// A rise mote of this [_tone] is violet: a spark off the pack's flare.
+  static const int _sparkTone = 1;
+
+  // ── The pack ─────────────────────────────────────────────────────────
+  // An Alchemized Alchemon put in: [_packGrains] of its grains come away
+  // over [_packEmit] s, thickest in the middle, and the liquid flares as
+  // they land.
+  static const double _packEmit = 0.75, _packSpan = 3.4;
+  static const int _packGrains = 480;
+  double _packAt = -100, _packDebt = 0, _sparkDebt = 0;
+
+  /// An Alchemized Alchemon has just been put in: it packs itself in.
+  void pack() {
+    _packAt = time;
+    _packDebt = 0;
+  }
+
+  /// Seconds since the pack began (long past any pack before the first).
+  double get packAge => time - _packAt;
+
+  /// The liquid's flare as the pack lands: up with the first grains in,
+  /// slowly down after the last.
+  double get _flare {
+    final t = packAge;
+    if (t < 0.7 || t > _packSpan) return 0;
+    final up = _smooth((t - 0.7) / 0.55);
+    return t < 1.5 ? up : math.exp(-(t - 1.5) * 1.6);
+  }
+
+  /// The Alchemon's own light while its grains leave it.
+  double get _aura {
+    final t = packAge;
+    if (t < 0 || t > 2.4) return 0;
+    return _smooth(t / 0.3) * (1 - _smooth((t - 0.8) / 1.4));
+  }
+
+  static final Color _alchemy = mutationAccent(AlchemonMutation.alchemized);
 
   // Ripples on the surface from taps: x, born.
   final Float32List _ripX = Float32List(4),
@@ -391,29 +445,27 @@ class ExtractionVesselField {
     _seed[i] = _spawned++;
   }
 
-  void _spawnPeel() {
+  void _spawnPeel() => _spawnOffBody(_peel, 2.1 + _h(_spawned, 8) * 0.8);
+
+  /// A grain of the creature's own, leaving it as a [kind] mote.
+  void _spawnOffBody(int kind, double life) {
     final g = _geo!;
     final k = _spawned;
     final sp = _specimen;
     if (sp != null) {
       final j = (_h(k, 7) * sp.length).floor().clamp(0, sp.length - 1);
       _spawn(
-        _peel,
+        kind,
         _specimenAt.dx + sp.hx[j],
         _specimenAt.dy + sp.hy[j],
-        2.1 + _h(k, 8) * 0.8,
+        life,
         tone: math.min(sp.tone[j], 254),
       );
     } else {
       final a = _h(k, 7) * math.pi * 2;
       final r = math.sqrt(_h(k, 9)) * g.creatureSize * 0.26;
       final c = g.creatureCenter;
-      _spawn(
-        _peel,
-        c.dx + math.cos(a) * r,
-        c.dy + math.sin(a) * r * 1.15,
-        2.1 + _h(k, 8) * 0.8,
-      );
+      _spawn(kind, c.dx + math.cos(a) * r, c.dy + math.sin(a) * r * 1.15, life);
     }
   }
 
@@ -492,7 +544,7 @@ class ExtractionVesselField {
         _spawn(_vent, x, _wave(x, base), 0.75 + _h(k, 32) * 0.35);
       }
     } else if (mode == VesselMode.running) {
-      _peelDebt += dt * (42 + 30 * _stir);
+      _peelDebt += dt * (42 + 30 * _stir) * (alchemized ? 2 : 1);
       while (_peelDebt >= 1) {
         _peelDebt -= 1;
         _spawnPeel();
@@ -508,6 +560,40 @@ class ExtractionVesselField {
         final cw = g.chord(base) * 0.8;
         final x = g.center.dx + (_h(k, 41) * 2 - 1) * cw;
         _spawn(_rise, x, _wave(x, base), 1.8 + _h(k, 42) * 1.2);
+      }
+    }
+    final pa = packAge;
+    if (pa >= 0 && pa < _packEmit && !venting) {
+      // Thickest in the middle of the pour (the sine's mean is 2/π).
+      _packDebt +=
+          dt *
+          _packGrains /
+          _packEmit *
+          math.pi /
+          2 *
+          math.sin(math.pi * pa / _packEmit);
+      while (_packDebt >= 1) {
+        _packDebt -= 1;
+        _spawnOffBody(_gush, 1.15 + _h(_spawned, 8) * 0.45);
+      }
+    }
+    final flare = _flare;
+    if (flare > 0.01) {
+      // The liquid turns over as it lands, and throws violet sparks.
+      _stir = math.max(_stir, flare * 1.6);
+      _sparkDebt += dt * 34 * flare;
+      while (_sparkDebt >= 1) {
+        _sparkDebt -= 1;
+        final k = _spawned;
+        final cw = g.chord(base) * 0.7;
+        final x = g.center.dx + (_h(k, 43) * 2 - 1) * cw;
+        _spawn(
+          _rise,
+          x,
+          _wave(x, base),
+          1.1 + _h(k, 44) * 0.8,
+          tone: _sparkTone,
+        );
       }
     }
     if (mode == VesselMode.empty) {
@@ -534,11 +620,11 @@ class ExtractionVesselField {
         continue;
       }
       final kind = _kind[i];
-      if (kind == _peel || kind == _splash) {
+      if (kind == _peel || kind == _gush || kind == _splash) {
         final p = _motePos(i, age, base);
         // In the liquid now.
         if (p.dy > _wave(p.dx, base) &&
-            (kind == _peel ? age / _life[i] > _pourAt : age > 0.12)) {
+            (kind == _splash ? age > 0.12 : age / _life[i] > _pourAt)) {
           _kill(i);
         }
       }
@@ -549,12 +635,63 @@ class ExtractionVesselField {
   /// neck until [_pourAt], then down into the liquid.
   static const double _liftAt = 0.14, _pourAt = 0.7;
 
+  /// A pack's grain has gathered over the creature's head by here.
+  static const double _gatherAt = 0.3;
+
   Offset _motePos(int i, double age, double base) {
     final g = _geo!;
     final r = g.radius;
     final s = _seed[i];
     final tau = (age / _life[i]).clamp(0.0, 1.0);
     switch (_kind[i]) {
+      case _gush:
+        // Up off the body and drawn together over its head, then across in
+        // one rope into the neck, then down it.
+        final c = g.creatureCenter, cs = g.creatureSize;
+        // Gathered loosely, not to a point.
+        final root =
+            Offset(c.dx + cs * 0.12, c.dy - cs * 0.42) +
+            Offset(
+              (_h(s, 65) - 0.5) * cs * 0.24,
+              (_h(s, 66) - 0.5) * cs * 0.14,
+            );
+        final gx = g.center.dx + (_h(s, 61) - 0.5) * g.neckHalf * 0.8;
+        final gy = g.mouthY + r * 0.02;
+        if (tau <= _gatherAt) {
+          final u = Curves.easeInOut.transform(tau / _gatherAt);
+          final drift = math.sin(u * math.pi);
+          return Offset.lerp(Offset(_ox[i], _oy[i]), root, u)! +
+              Offset(r * 0.08 * (_h(s, 64) - 0.5) * drift, -r * 0.06 * drift);
+        }
+        if (tau <= _pourAt) {
+          final u = Curves.easeInOut.transform(
+            (tau - _gatherAt) / (_pourAt - _gatherAt),
+          );
+          final cx = (root.dx + gx) / 2;
+          final cy = math.min(root.dy, gy) - r * (0.62 + 0.06 * _h(s, 62));
+          final a = (1 - u) * (1 - u), b = 2 * u * (1 - u), e = u * u;
+          // Each grain winds round the rope's line as it goes, so it is a
+          // twist of sand with a body, not a drawn arc.
+          var tx = (1 - u) * (cx - root.dx) + u * (gx - cx);
+          var ty = (1 - u) * (cy - root.dy) + u * (gy - cy);
+          final tl = math.sqrt(tx * tx + ty * ty) + 1e-3;
+          tx /= tl;
+          ty /= tl;
+          final wind = math.cos(_h(s, 67) * math.pi * 2 + u * 7);
+          final off =
+              math.sin(u * math.pi) *
+              r *
+              (0.1 * wind + 0.12 * (_h(s, 63) - 0.5));
+          return Offset(
+            a * root.dx + b * cx + e * gx - ty * off,
+            a * root.dy + b * cy + e * gy + tx * off,
+          );
+        }
+        final fg = (tau - _pourAt) / (1 - _pourAt);
+        return Offset(
+          gx + math.sin(fg * 4 + s) * g.neckHalf * 0.25,
+          gy + (g.bottom - gy) * fg * fg,
+        );
       case _peel:
         // Off the body, outward and up; across in an arc; down the neck.
         final ox = _ox[i], oy = _oy[i];
@@ -659,10 +796,12 @@ class ExtractionVesselField {
   static final Paint _p = Paint();
 
   // Buckets: pool tones 0-4, surface 5-6, specimen tones 7-22, peel stages
-  // 23-25, splash 26, rise 27, vent 28, dust 29.
+  // 23-25, splash 26, rise 27, vent 28, dust 29, violet stages 30-32, violet
+  // sparks 33.
   static const int _poolB = 0, _surfB = 5, _specB = 7, _stageB = 23;
   static const int _splashB = 26, _riseB = 27, _ventB = 28, _dustB = 29;
-  final GrainBatch _batch = GrainBatch(30);
+  static const int _violetB = 30, _sparkB = 33;
+  final GrainBatch _batch = GrainBatch(34);
 
   Color get _ink => mode == VesselMode.locked
       ? const Color(0xFF6E6A73)
@@ -675,7 +814,12 @@ class ExtractionVesselField {
     return switch (mode) {
       VesselMode.locked => 0.12,
       VesselMode.empty => 0.35,
-      _ => 0.55 + 0.45 * _shown + 0.5 * beat + 0.4 * _stir.clamp(0.0, 1.0),
+      _ =>
+        0.55 +
+            0.45 * _shown +
+            0.5 * beat +
+            0.4 * _stir.clamp(0.0, 1.0) +
+            0.9 * _flare,
     };
   }
 
@@ -689,6 +833,29 @@ class ExtractionVesselField {
     final base = surfaceBase();
 
     _paintFloor(canvas, g, ink);
+
+    // An Alchemized Alchemon packing itself in: its violet light round it
+    // and on the bench under it while its grains leave.
+    final aura = _aura;
+    if (aura > 0.01) {
+      final cs = g.creatureSize;
+      _p.shader = ui.Gradient.radial(
+        g.creatureCenter,
+        cs * 0.62,
+        [
+          _alchemy.withValues(alpha: 0.2 * aura),
+          _alchemy.withValues(alpha: 0.05 * aura),
+          Colors.transparent,
+        ],
+        const [0.0, 0.5, 1.0],
+      );
+      canvas.drawCircle(g.creatureCenter, cs * 0.62, _p);
+      _pool(canvas, Offset(g.creatureCenter.dx, g.floorY), cs * 0.6, r * 0.2, [
+        _alchemy.withValues(alpha: 0.22 * aura),
+        Colors.transparent,
+      ]);
+      _p.shader = null;
+    }
 
     // The glass body: dark smoke, faintly the element's color.
     final glass = g.glass;
@@ -815,6 +982,21 @@ class ExtractionVesselField {
     canvas.translate(-c.dx, -base);
     canvas.drawCircle(Offset(c.dx, base), cw, _p);
     canvas.restore();
+    // The pack landing: violet light swelling up from the liquid.
+    final flare = _flare;
+    if (flare > 0.01) {
+      _p.shader = ui.Gradient.radial(
+        Offset(c.dx, (base + c.dy) / 2),
+        r * 1.2,
+        [
+          _alchemy.withValues(alpha: 0.42 * flare),
+          _alchemy.withValues(alpha: 0.12 * flare),
+          Colors.transparent,
+        ],
+        const [0.0, 0.5, 1.0],
+      );
+      canvas.drawRect(Rect.fromCircle(center: c, radius: r * 1.2), _p);
+    }
     _p.shader = null;
 
     // The liquid's grains, turning in a slow roll.
@@ -885,11 +1067,15 @@ class ExtractionVesselField {
       final tau = age / _life[i];
       switch (_kind[i]) {
         case _peel:
+        case _gush:
           if (tau < 0.2 && sp != null && _tone[i] < 16) {
             b.add(_specB + _tone[i], p.dx, p.dy);
           } else {
+            // An Alchemized Alchemon's grains keep their violet: all of a
+            // pack, half of its stream.
+            final violet = _kind[i] == _gush || (alchemized && _seed[i].isEven);
             b.add(
-              _stageB +
+              (violet ? _violetB : _stageB) +
                   (tau < 0.5
                       ? 0
                       : tau < _pourAt
@@ -902,7 +1088,9 @@ class ExtractionVesselField {
         case _splash:
           b.add(_splashB, p.dx, p.dy);
         case _rise:
-          if (tau < 0.85) b.add(_riseB, p.dx, p.dy);
+          if (tau < 0.85) {
+            b.add(_tone[i] == _sparkTone ? _sparkB : _riseB, p.dx, p.dy);
+          }
         case _vent:
           b.add(_ventB, p.dx, p.dy);
         default:
@@ -920,7 +1108,12 @@ class ExtractionVesselField {
     b.draw(canvas, _poolB + 1, grain, Color.lerp(ink, deep, 0.45)!);
     b.draw(canvas, _poolB + 2, grain, ink.withValues(alpha: 0.95));
     b.draw(canvas, _poolB + 3, grain * 1.05, hot.withValues(alpha: 0.9));
-    b.draw(canvas, _poolB + 4, grain * 1.25, white);
+    b.draw(
+      canvas,
+      _poolB + 4,
+      grain * 1.25,
+      alchemized ? Color.lerp(_alchemy, Colors.white, 0.6)! : white,
+    );
     b.draw(canvas, _surfB, grain * 1.1, hot);
     b.draw(canvas, _surfB + 1, grain * 1.35, white);
 
@@ -936,6 +1129,14 @@ class ExtractionVesselField {
     b.draw(canvas, _stageB, grain * 1.7, hot);
     b.draw(canvas, _stageB + 1, grain * 1.5, Color.lerp(ink, hot, 0.4)!);
     b.draw(canvas, _stageB + 2, grain * 1.3, ink);
+    final vHot = Color.lerp(_alchemy, Colors.white, 0.45)!;
+    b.draw(canvas, _violetB, grain * 5, _alchemy.withValues(alpha: 0.12));
+    b.draw(canvas, _violetB + 1, grain * 4.4, _alchemy.withValues(alpha: 0.1));
+    b.draw(canvas, _violetB, grain * 1.7, vHot);
+    b.draw(canvas, _violetB + 1, grain * 1.5, _alchemy);
+    b.draw(canvas, _violetB + 2, grain * 1.3, Color.lerp(_alchemy, ink, 0.5)!);
+    b.draw(canvas, _sparkB, grain * 2.8, _alchemy.withValues(alpha: 0.14));
+    b.draw(canvas, _sparkB, grain * 1.15, vHot.withValues(alpha: 0.9));
     b.draw(canvas, _splashB, grain * 3.2, ink.withValues(alpha: 0.16));
     b.draw(canvas, _splashB, grain * 1.35, hot);
     b.draw(canvas, _riseB, grain * 2.8, ink.withValues(alpha: 0.12));
@@ -1068,6 +1269,7 @@ class ExtractionVessel extends StatefulWidget {
     this.creatureId,
     this.element,
     this.reveal,
+    this.alchemized = false,
     this.vent,
     this.onTap,
     this.lockedIcon,
@@ -1090,6 +1292,10 @@ class ExtractionVessel extends StatefulWidget {
 
   /// Set when the creature has just been put in: it gathers into place.
   final EssenceReveal? reveal;
+
+  /// The creature is Alchemized: put in (with a [reveal]), it packs itself
+  /// in, and its stream runs thicker.
+  final bool alchemized;
 
   /// Runs while the liquid pours out (a collect, or ending a run).
   final Animation<double>? vent;
@@ -1143,6 +1349,19 @@ class _ExtractionVesselState extends State<ExtractionVessel>
   bool _reading = false;
   Object? _readFor;
 
+  /// Put-ins already packed, so a chamber built again doesn't pack twice.
+  static final Expando<bool> _packed = Expando('vessel_packed');
+
+  /// An Alchemized Alchemon just put in packs itself in, once it has been
+  /// read (so its grains leave in its own colours).
+  void _maybePack() {
+    final reveal = widget.reveal;
+    if (!widget.alchemized || reveal == null || _packed[reveal] == true) return;
+    _packed[reveal] = true;
+    _field.pack();
+    HapticFeedback.mediumImpact();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1168,7 +1387,8 @@ class _ExtractionVesselState extends State<ExtractionVessel>
     _field
       ..accent = widget.accent
       ..mode = widget.mode
-      ..occupied = widget.creature != null;
+      ..occupied = widget.creature != null
+      ..alchemized = widget.alchemized && widget.creature != null;
   }
 
   void _tick(Duration elapsed) {
@@ -1239,6 +1459,7 @@ class _ExtractionVesselState extends State<ExtractionVessel>
       // No read just means the motes leave in the element's color.
     } finally {
       _reading = false;
+      if (mounted && widget.creatureId == id) _maybePack();
     }
   }
 

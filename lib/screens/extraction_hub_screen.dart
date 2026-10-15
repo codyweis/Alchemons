@@ -13,6 +13,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/game_data_service.dart';
@@ -1114,6 +1115,8 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
                 creatureId: creature?.inst.instanceId,
                 element: creature?.base.types.firstOrNull,
                 reveal: _reveal,
+                alchemized:
+                    creature?.inst.mutation == AlchemonMutation.alchemized.id,
                 lockedIcon: AppIcons.lock_rounded,
                 creature: creature == null
                     ? null

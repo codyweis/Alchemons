@@ -1,11 +1,20 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
 import 'package:alchemons/models/parent_snapshot.dart'; // CreatureInstance
+import 'package:alchemons/models/wild_fusion.dart';
+
+/// What an Alchemized Alchemon extracts a minute, whatever its level, size or
+/// nature: ten times a level-10 Alchemon of normal size (6/min).
+const int kAlchemizedHarvestRate = 60;
 
 int computeHarvestRatePerMinute(
   CreatureInstance inst, {
   bool hasMatchingElement = true,
 }) {
+  if (inst.mutation == AlchemonMutation.alchemized.id) {
+    return kAlchemizedHarvestRate;
+  }
+
   // base
   double rate = 1 + (inst.level - 1);
 
