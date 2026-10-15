@@ -23,6 +23,7 @@ import 'dart:async' show Completer, Timer;
 import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart'
     show kCompanionSpeciesScale;
@@ -1605,6 +1606,11 @@ class _BreedingTabState extends State<BreedingTab>
             AllSpecimensPage(
               theme: theme,
               instancePrefsScopeKey: 'breed_specimens',
+              onEncyclopedia: () => Navigator.of(context).push<void>(
+                MaterialPageRoute(
+                  builder: (_) => const AlchemicalEncyclopediaScreen(),
+                ),
+              ),
               popOnSelect: true,
               title: title,
               selectedInstanceIds: selectedIds,

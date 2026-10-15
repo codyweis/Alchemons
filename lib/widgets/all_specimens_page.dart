@@ -35,6 +35,9 @@ class AllSpecimensPage extends StatefulWidget {
   final bool closeReturnsSelection;
   final String? instancePrefsScopeKey;
 
+  /// When set, the header's right corner holds an encyclopedia button.
+  final VoidCallback? onEncyclopedia;
+
   /// Optional corner badge for every case, e.g. a sale value.
   final Widget? Function(CreatureInstance inst, Creature species)?
   cardBadgeBuilder;
@@ -55,6 +58,7 @@ class AllSpecimensPage extends StatefulWidget {
     this.allowedPrimaryTypes = const [],
     this.closeReturnsSelection = false,
     this.instancePrefsScopeKey,
+    this.onEncyclopedia,
     this.cardBadgeBuilder,
     this.caseWrapper,
   });
@@ -123,6 +127,14 @@ class _AllSpecimensPageState extends State<AllSpecimensPage> {
                         style: caseMono(13, palette.ink, spacing: 1.6),
                       ),
                     ),
+                    if (widget.onEncyclopedia != null) ...[
+                      const SizedBox(width: 12),
+                      BracketIconButton(
+                        icon: AppIcons.menu_book_rounded,
+                        onTap: widget.onEncyclopedia!,
+                        palette: palette,
+                      ),
+                    ],
                   ],
                 ),
               ),
