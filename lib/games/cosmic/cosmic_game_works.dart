@@ -89,20 +89,36 @@ extension CosmicGameWorks on CosmicGame {
     return _toroidalDelta(home.position, rig).distance;
   }
 
+  /// The berths' ring: out past what the home wears (its rings, moons and
+  /// veils reach about 2.2 of its radius), at the size it is shown.
   double get _worksRing {
     final vr = homePlanet?.visualRadius ?? 80;
-    return vr + 130 + vr * 0.9;
+    return vr * 2.6 + 150;
   }
 
-  static const double _bayBearing = 2.45;
-  static const double _pressBearing = 0.7;
+  /// Where each berth stands round home, in the order they fill: the lower
+  /// sides first, then the upper, then straight below and above. Never on
+  /// the planet.
+  static const List<double> _berthBearings = [
+    pi * 5 / 6,
+    pi / 6,
+    pi * 7 / 6,
+    pi * 11 / 6,
+    pi / 2,
+    pi * 3 / 2,
+  ];
 
-  Offset? get worksBayPos => homePlanet == null
-      ? null
-      : homePlanet!.position + polar(_worksRing, _bayBearing);
-  Offset? get worksPressPos => homePlanet == null
-      ? null
-      : homePlanet!.position + polar(_worksRing, _pressBearing);
+  /// Berth [i] in the world, or null with no home.
+  Offset? berthPos(int i) {
+    final home = homePlanet;
+    if (home == null || i < 0) return null;
+    return home.position +
+        polar(_worksRing, _berthBearings[i % _berthBearings.length]);
+  }
+
+  Offset? get worksBayPos => berthPos(works?.bay.berth ?? -1);
+  Offset? get worksPressPos => berthPos(works?.press.berth ?? -1);
+  Offset? get worksRefineryPos => berthPos(works?.refinery.berth ?? -1);
 
   /// The bay sits level, its cradles hanging down, as the stations stand.
   double get _bayRot => 0;
@@ -514,6 +530,36 @@ extension CosmicGameWorks on CosmicGame {
             at + const Offset(-36, 8) * _artScale,
             facingRight: true,
             bob: pressing ? sin(_elapsed * 2 * pi / 3.6) * 1.4 : 0,
+          );
+        }
+      }
+
+      final refinery = w.refinery;
+      if (refinery.built && worksRefineryPos != null) {
+        final at = worksRefineryPos! + shift;
+        if (!isOutsideViewport(at, cx, cy, screenW, screenH, margin: 0.75)) {
+          final parts = refinery.parts;
+          final working =
+              worksRefining &&
+              refinery.refiner != null &&
+              worksMembers[refinery.refiner] != null;
+          paintRefinery(
+            canvas,
+            at: at,
+            tier: refinery.tier,
+            t: _elapsed,
+            scale: _artScale,
+            inA: parts == null ? null : elementColor(parts.$1),
+            inB: parts == null ? null : elementColor(parts.$2),
+            out: parts == null ? null : elementColor(parts.$3),
+            working: working,
+          );
+          _drawWorker(
+            canvas,
+            refinery.refiner,
+            at + const Offset(-38, 14) * _artScale,
+            facingRight: true,
+            bob: working ? sin(_elapsed * 2.4) * 1.2 : 0,
           );
         }
       }

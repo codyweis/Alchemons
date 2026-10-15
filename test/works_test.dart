@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/hold_loading.dart';
 import 'package:alchemons/games/cosmic/works.dart';
@@ -366,6 +369,147 @@ void main() {
         planGateLoad(PlanetRecipe.pure(element: 'Fire'), {'Fire': 40}),
         isNull,
       );
+    });
+  });
+
+  group('refinery', () {
+    RefineryState refinery({int tier = 1, int keep = 0}) => RefineryState(
+      tier: tier,
+      refiner: 'r',
+      recipe: 'Fire+Water',
+      keep: keep,
+      updatedMs: 1,
+    );
+
+    test('takes two in equal parts and makes half as much', () {
+      final r = refinery();
+      final storage = <String, double>{'Fire': 1000, 'Water': 1000};
+      final report = advanceWorks(
+        WorksState(refinery: r),
+        nowMs: 1 + 10 * _min,
+        storage: storage,
+        workers: {'r': _w('r', intelligence: 3)},
+        distanceHome: (_) => 0,
+        scavengeElements: const [],
+      );
+      final taken = WorkRules.refineRate(3) * 10;
+      expect(storage['Fire'], closeTo(1000 - taken / 2, 0.01));
+      expect(storage['Water'], closeTo(1000 - taken / 2, 0.01));
+      expect(storage['Steam'], closeTo(taken * 0.5, 0.01));
+      expect(report.refined['Steam'], closeTo(taken * 0.5, 0.01));
+    });
+
+    test('never makes more than it takes, at any tier', () {
+      for (var tier = 1; tier <= WorkRules.maxTier; tier++) {
+        expect(WorkRules.refineYield(tier), lessThanOrEqualTo(1));
+      }
+      expect(WorkRules.refineYield(3), greaterThan(WorkRules.refineYield(1)));
+    });
+
+    test('stops at what it keeps of the scarcer input', () {
+      final r = refinery(keep: 50);
+      final storage = <String, double>{'Fire': 1000, 'Water': 80};
+      advanceWorks(
+        WorksState(refinery: r),
+        nowMs: 1 + 600 * _min,
+        storage: storage,
+        workers: {'r': _w('r')},
+        distanceHome: (_) => 0,
+        scavengeElements: const [],
+      );
+      expect(storage['Water'], closeTo(50, 0.01));
+      expect(storage['Fire'], closeTo(970, 0.01));
+      expect(storage['Steam'], closeTo(30, 0.01));
+    });
+
+    test('does nothing with no refiner or no recipe', () {
+      final storage = <String, double>{'Fire': 100, 'Water': 100};
+      advanceWorks(
+        WorksState(
+          refinery: RefineryState(tier: 1, refiner: 'r', updatedMs: 1),
+        ),
+        nowMs: 1 + 60 * _min,
+        storage: storage,
+        workers: {'r': _w('r')},
+        distanceHome: (_) => 0,
+        scavengeElements: const [],
+      );
+      expect(storage, {'Fire': 100, 'Water': 100});
+    });
+
+    test('every recipe it offers can be found by breeding', () {
+      final recipes =
+          (jsonDecode(
+                    File(
+                      'assets/data/alchemons_element_recipes.json',
+                    ).readAsStringSync(),
+                  )
+                  as Map<String, dynamic>)['recipes']
+              as Map<String, dynamic>;
+      for (final e in WorkRules.refineRecipes.entries) {
+        final ab = e.key.split('+');
+        final pair =
+            (recipes['${ab[0]}+${ab[1]}'] ?? recipes['${ab[1]}+${ab[0]}'])
+                as Map<String, dynamic>?;
+        expect(pair, isNotNull, reason: '${e.key} has no breeding pair');
+        expect(pair!.containsKey(e.value), isTrue, reason: e.key);
+      }
+      expect(WorkRules.refineRecipes.containsKey('Dust+Spirit'), isFalse);
+    });
+  });
+
+  group('berths', () {
+    test('a home has two to six, by the largest size unlocked', () {
+      expect(
+        [for (var t = 0; t <= 4; t++) homeBerthsForTier(t)],
+        [2, 3, 4, 5, 6],
+      );
+    });
+
+    test('buildings take the first free berth', () {
+      final works = WorksState(
+        bay: ScavengerBayState(tier: 1, berth: 0),
+        refinery: RefineryState(tier: 1, berth: 2),
+      );
+      expect(works.freeBerth(4), 1);
+      expect(works.freeBerth(2), 1);
+      works.press
+        ..tier = 1
+        ..berth = 1;
+      expect(works.freeBerth(3), isNull);
+      expect(works.berthsUsed, 3);
+    });
+
+    test('buildings from before berths each get one of their own', () {
+      final works = WorksState(
+        bay: ScavengerBayState(tier: 1),
+        press: SilverPressState(tier: 1),
+      );
+      expect(works.bay.berth, isNot(works.press.berth));
+      expect({works.bay.berth, works.press.berth}, {0, 1});
+      final dup = WorksState(
+        bay: ScavengerBayState(tier: 1, berth: 0),
+        press: SilverPressState(tier: 1, berth: 0),
+      );
+      expect({dup.bay.berth, dup.press.berth}, {0, 1});
+    });
+
+    test('a refinery survives a round trip', () {
+      final works = WorksState(
+        refinery: RefineryState(
+          tier: 2,
+          berth: 3,
+          refiner: 'x',
+          recipe: 'Air+Fire',
+          keep: 200,
+          made: 12.5,
+        ),
+      );
+      final back = WorksState.deserialise(works.serialise());
+      expect(back.refinery.recipe, 'Air+Fire');
+      expect(back.refinery.parts, ('Air', 'Fire', 'Lightning'));
+      expect(back.refinery.berth, 3);
+      expect(back.jobOf('x')?.$1, WorkJob.refiner);
     });
   });
 }

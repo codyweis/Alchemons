@@ -42,6 +42,7 @@ class WorkerPicker extends StatefulWidget {
     this.element,
     this.distance = 0,
     this.pressTier = 1,
+    this.refineTier = 1,
     this.blocked = const {},
     this.atWork = const {},
     this.current,
@@ -55,6 +56,7 @@ class WorkerPicker extends StatefulWidget {
   /// How far a courier would fly, for its run.
   final double distance;
   final int pressTier;
+  final int refineTier;
 
   /// Alchemons that cannot be taken, and why ("IN PARTY").
   final Map<String, String> blocked;
@@ -245,6 +247,7 @@ class _WorkerPickerState extends State<WorkerPicker> {
                       c.profile,
                       distance: widget.distance,
                       pressTier: widget.pressTier,
+                      refineTier: widget.refineTier,
                     ),
                     style: panelLabel(9.5, panelPalette.ink, spacing: 0.3),
                   ),

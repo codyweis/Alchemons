@@ -57,6 +57,8 @@ class WorksView {
     required this.nowMs,
     this.nearRig,
     this.atPlanet,
+    this.berthCount = 2,
+    this.knownRecipes = const {},
   });
 
   final WorksState works;
@@ -79,6 +81,13 @@ class WorksView {
   /// The element of the found planet the ship is at, if any (an extractor
   /// is built there).
   final String? atPlanet;
+
+  /// Berths round home for the home buildings (by the largest size
+  /// unlocked).
+  final int berthCount;
+
+  /// Refinery recipes the Codex has found, as pair keys ('Fire+Water').
+  final Set<String> knownRecipes;
 }
 
 /// What the screens can ask for.
@@ -90,6 +99,8 @@ abstract class WorksActions {
   void collectCrates();
   void sendHome(String element);
   void setReserve(int reserve);
+  void setRecipe(String? recipe);
+  void setRefineKeep(int keep);
   Future<void> openOutpost(String element);
   Future<void> help();
 }
@@ -111,6 +122,7 @@ String jobFigure(
   WorkerProfile p, {
   double distance = 0,
   int pressTier = 1,
+  int refineTier = 1,
 }) => switch (job) {
   WorkJob.miner => '${p.harvestRate}/MIN',
   WorkJob.courier =>
@@ -121,6 +133,8 @@ String jobFigure(
         '${fmtDuration(WorkRules.scavengerTripMs(p.speed))}',
   WorkJob.presser =>
     '${WorkRules.pressRate(p.strength, pressTier).toStringAsFixed(0)}/MIN',
+  WorkJob.refiner =>
+    '${(WorkRules.refineRate(p.intelligence) * WorkRules.refineYield(refineTier)).toStringAsFixed(1)} MADE/MIN',
 };
 
 /// Units a minute [p] moves at [job]: how the picker ranks.
@@ -139,6 +153,7 @@ double jobScore(
             (WorkRules.scavengerTripMs(p.speed) / 60000) +
         WorkRules.scavengerShardOdds(p.intelligence),
   WorkJob.presser => WorkRules.pressRate(p.strength, pressTier),
+  WorkJob.refiner => WorkRules.refineRate(p.intelligence),
 };
 
 /// Which stats a job reads, for the slot's small print.
@@ -147,6 +162,7 @@ String jobReads(WorkJob job) => switch (job) {
   WorkJob.courier => 'SPEED · STRENGTH',
   WorkJob.scavenger => 'SPEED · STRENGTH · INTELLIGENCE',
   WorkJob.presser => 'STRENGTH',
+  WorkJob.refiner => 'INTELLIGENCE',
 };
 
 // ── the stage ───────────────────────────────────────────────────────────────
@@ -334,6 +350,7 @@ class WorkerSlotRow extends StatelessWidget {
     required this.onClear,
     this.distance = 0,
     this.pressTier = 1,
+    this.refineTier = 1,
     this.emptyLabel,
     this.slotKey,
   });
@@ -348,6 +365,7 @@ class WorkerSlotRow extends StatelessWidget {
   final VoidCallback onClear;
   final double distance;
   final int pressTier;
+  final int refineTier;
   final String? emptyLabel;
   final Key? slotKey;
 
@@ -410,6 +428,7 @@ class WorkerSlotRow extends StatelessWidget {
                         p,
                         distance: distance,
                         pressTier: pressTier,
+                        refineTier: refineTier,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -542,9 +561,10 @@ class _TierBeads extends StatelessWidget {
   );
 }
 
-/// One building's card: its name and tier over its stage, then [children].
-class _BuildingCard extends StatelessWidget {
-  const _BuildingCard({
+/// One building's view in the Works: its name and tier, its stage, and what
+/// it does. Wide, the stage stands beside the rest; narrow, above it.
+class _BuildingView extends StatelessWidget {
+  const _BuildingView({
     required this.title,
     required this.accent,
     required this.tier,
@@ -555,39 +575,56 @@ class _BuildingCard extends StatelessWidget {
   final String title;
   final Color accent;
   final int tier;
-  final Widget stage;
+
+  /// The stage at a height (infinite: fill the column).
+  final Widget Function(double height) stage;
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-    foregroundPainter: BracketFramePainter(
-      color: accent.withValues(alpha: 0.4),
-    ),
-    child: Container(
-      color: panelPalette.bg1.withValues(alpha: 0.45),
-      padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) {
+    final head = Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: panelLabel(11, accent, spacing: 1.8),
-                ),
-              ),
-              if (tier > 0) _TierBeads(tier, accent),
-            ],
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: panelLabel(12, accent, spacing: 2),
+            ),
           ),
-          stage,
-          ...children,
+          if (tier > 0) ...[
+            Text('TIER $tier  ', style: panelLabel(9, panelPalette.muted)),
+            _TierBeads(tier, accent),
+          ],
         ],
       ),
-    ),
-  );
+    );
+    return LayoutBuilder(
+      builder: (context, box) {
+        if (box.maxWidth >= 560) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 5, child: stage(double.infinity)),
+              Expanded(
+                flex: 6,
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(4, 4, 16, 16),
+                  children: [head, ...children],
+                ),
+              ),
+            ],
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+          children: [head, stage(150), _gap(4), ...children],
+        );
+      },
+    );
+  }
 }
 
 Widget _line(String text, {Color? color, double size = 9.5}) => Padding(
@@ -600,13 +637,52 @@ Widget _line(String text, {Color? color, double size = 9.5}) => Padding(
 
 Widget _gap([double h = 8]) => SizedBox(height: h);
 
+/// What a refinery tier makes of what it takes, in whole numbers.
+String refineYieldLine(int tier) => switch (tier) {
+  <= 1 => 'EVERY 2 IN MAKES 1',
+  2 => 'EVERY 5 IN MAKES 3',
+  _ => 'EVERY 3 IN MAKES 2',
+};
+
 // ── the Works ───────────────────────────────────────────────────────────────
 
-class WorksPanel extends StatelessWidget {
-  const WorksPanel({super.key, required this.view, required this.actions});
+enum WorksTab { bay, press, refinery, planets }
+
+class WorksPanel extends StatefulWidget {
+  const WorksPanel({
+    super.key,
+    required this.view,
+    required this.actions,
+    this.initialTab = WorksTab.bay,
+  });
 
   final ValueListenable<WorksView> view;
   final WorksActions actions;
+  final WorksTab initialTab;
+
+  @override
+  State<WorksPanel> createState() => _WorksPanelState();
+}
+
+class _WorksPanelState extends State<WorksPanel> {
+  late WorksTab _tab = widget.initialTab;
+
+  @override
+  void didUpdateWidget(covariant WorksPanel old) {
+    super.didUpdateWidget(old);
+    if (old.initialTab != widget.initialTab) _tab = widget.initialTab;
+  }
+
+  WorksActions get actions => widget.actions;
+
+  static const _labels = ['BAY', 'PRESS', 'REFINERY', 'PLANETS'];
+
+  Color _accentOf(WorksTab t) => switch (t) {
+    WorksTab.bay => kScavengerBayLight,
+    WorksTab.press => kSilverPressLight,
+    WorksTab.refinery => kRefineryLight,
+    WorksTab.planets => _amber,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -623,108 +699,134 @@ class WorksPanel extends StatelessWidget {
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
           onTap: () {},
-          child: Column(
-            children: [
-              PanelHeader(
-                title: 'THE WORKS',
-                trailing: GestureDetector(
-                  key: const ValueKey('works.help'),
-                  behavior: HitTestBehavior.opaque,
-                  onTap: context.soundAction(actions.help),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    child: Text('HOW IT WORKS', style: panelLabel(9.5, _amber)),
-                  ),
-                ),
-                onClose: close,
-              ),
-              Expanded(
-                child: ValueListenableBuilder<WorksView>(
-                  valueListenable: view,
-                  builder: (context, v, _) => LayoutBuilder(
-                    builder: (context, box) {
-                      final cards = [
-                        _bayCard(context, v),
-                        _pressCard(context, v),
-                        _outpostsCard(context, v),
-                      ];
-                      if (box.maxWidth < 640) {
-                        return ListView(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                          children: [
-                            for (final c in cards) ...[c, _gap(12)],
-                          ],
-                        );
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (var i = 0; i < cards.length; i++) ...[
-                              if (i > 0) const SizedBox(width: 10),
-                              Expanded(
-                                child: SingleChildScrollView(child: cards[i]),
-                              ),
-                            ],
-                          ],
+          child: ValueListenableBuilder<WorksView>(
+            valueListenable: widget.view,
+            builder: (context, v, _) => Column(
+              children: [
+                PanelHeader(
+                  title: 'THE WORKS',
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'BERTHS ${v.works.berthsUsed}/${v.berthCount}',
+                        key: const ValueKey('works.berths'),
+                        style: panelLabel(9.5, panelPalette.muted),
+                      ),
+                      GestureDetector(
+                        key: const ValueKey('works.help'),
+                        behavior: HitTestBehavior.opaque,
+                        onTap: context.soundAction(actions.help),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          child: Text(
+                            'HOW IT WORKS',
+                            style: panelLabel(9.5, _amber),
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                    ],
+                  ),
+                  onClose: close,
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                  child: BracketTabs(
+                    key: const ValueKey('works.tabs'),
+                    labels: _labels,
+                    selected: _tab.index,
+                    onSelect: (i) => setState(() => _tab = WorksTab.values[i]),
+                    palette: panelPalette,
+                    accent: _accentOf(_tab),
                   ),
                 ),
-              ),
-            ],
+                Expanded(
+                  child: switch (_tab) {
+                    WorksTab.bay => _bay(context, v),
+                    WorksTab.press => _press(context, v),
+                    WorksTab.refinery => _refinery(context, v),
+                    WorksTab.planets => _planets(context, v),
+                  },
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
+  /// BUILD, or UPGRADE to the next tier, with its cost; or FULLY BUILT. A
+  /// home building needs a free berth to be built.
   Widget _buildOrUpgrade(
-    BuildContext context,
     WorksView v,
     WorksBuilding b,
     int tier, {
-    String? element,
+    Color accent = _amber,
     Key? key,
   }) {
-    if (tier >= WorkRules.maxTier) {
-      return _line('FULLY BUILT', color: panelPalette.muted);
-    }
-    final cost = worksCost(b, tier + 1, element: element);
-    final ok = worksCostCovered(cost, v.storage, v.silver);
+    if (tier >= WorkRules.maxTier) return _line('FULLY BUILT');
+    final noBerth = tier == 0 && v.works.freeBerth(v.berthCount) == null;
+    final cost = worksCost(b, tier + 1);
+    final ok = !noBerth && worksCostCovered(cost, v.storage, v.silver);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _gap(8),
-        WorksCostLine(cost: cost, storage: v.storage, silver: v.silver),
+        _gap(10),
+        if (tier > 0) const PanelSectionHeader('UPGRADE'),
+        if (noBerth)
+          _line(
+            'ALL ${v.berthCount} BERTHS ARE TAKEN. A BIGGER PLANET OPENS MORE.',
+            color: panelPalette.ink,
+          )
+        else
+          WorksCostLine(cost: cost, storage: v.storage, silver: v.silver),
         _gap(6),
         BracketButton(
           key: key,
           label: tier == 0 ? 'BUILD' : 'UPGRADE TO TIER ${tier + 1}',
-          height: 38,
+          height: 40,
           palette: panelPalette,
-          accent: _amber,
+          accent: accent,
           primary: tier == 0,
           enabled: ok,
-          onTap: () => tier == 0
-              ? actions.build(b, element: element)
-              : actions.upgrade(b, element: element),
+          onTap: () => tier == 0 ? actions.build(b) : actions.upgrade(b),
         ),
       ],
     );
   }
 
-  Widget _bayCard(BuildContext context, WorksView v) {
-    final bay = v.works.bay;
+  Widget _stage({
+    required double height,
+    required Color accent,
+    required double reach,
+    double? reachX,
+    required bool dim,
+    required void Function(Canvas c, double t) paint,
+  }) {
     final stage = WorksStage(
+      accent: accent,
+      reach: reach,
+      reachX: reachX,
+      height: height,
+      paint: paint,
+    );
+    return dim ? Opacity(opacity: 0.45, child: stage) : stage;
+  }
+
+  // ── bay ──
+
+  Widget _bay(BuildContext context, WorksView v) {
+    final bay = v.works.bay;
+    Widget stage(double h) => _stage(
+      height: h,
       accent: kScavengerBayLight,
       reach: 26,
       reachX: kBayReach,
+      dim: !bay.built,
       paint: (c, t) => paintScavengerBay(
         c,
         at: const Offset(0, 4),
@@ -737,21 +839,24 @@ class WorksPanel extends StatelessWidget {
       ),
     );
     if (!bay.built) {
-      return _BuildingCard(
+      return _BuildingView(
         title: 'SCAVENGER BAY',
         accent: kScavengerBayLight,
         tier: 0,
-        stage: Opacity(opacity: 0.45, child: stage),
+        stage: stage,
         children: [
           _line(
-            'Scavengers fly out and bring back elements from the planets you have found, and sometimes astral shards.',
-            size: 9.5,
+            'Scavengers fly out and bring back elements from the planets you '
+            'have found, and sometimes astral shards. Their finds wait in '
+            'crates until you collect them.',
+            color: panelPalette.ink,
+            size: 10,
           ),
           _buildOrUpgrade(
-            context,
             v,
             WorksBuilding.scavengerBay,
             0,
+            accent: kScavengerBayLight,
             key: const ValueKey('works.bay.build'),
           ),
         ],
@@ -760,7 +865,7 @@ class WorksPanel extends StatelessWidget {
     final finds = bay.crates.length;
     final units = bay.crates.fold(0, (s, c) => s + c.units);
     final shards = bay.crates.fold(0, (s, c) => s + c.shards);
-    return _BuildingCard(
+    return _BuildingView(
       title: 'SCAVENGER BAY',
       accent: kScavengerBayLight,
       tier: bay.tier,
@@ -773,8 +878,23 @@ class WorksPanel extends StatelessWidget {
           value: '$finds/${bay.crateCap}',
           color: kScavengerBayLight,
         ),
+        _gap(4),
+        BracketButton(
+          key: const ValueKey('works.bay.collect'),
+          label: finds == 0
+              ? 'NOTHING TO COLLECT'
+              : 'COLLECT ${panelFmt(units)}'
+                    '${shards > 0 ? ' + $shards SHARDS' : ''}',
+          height: 40,
+          palette: panelPalette,
+          accent: kScavengerBayLight,
+          enabled: finds > 0,
+          onTap: actions.collectCrates,
+        ),
+        _gap(10),
+        PanelSectionHeader(bay.slots.length > 1 ? 'SCAVENGERS' : 'SCAVENGER'),
         for (var i = 0; i < bay.slots.length; i++) ...[
-          _gap(6),
+          if (i > 0) _gap(6),
           _slot(
             v,
             WorkSlotRef(WorkJob.scavenger, index: i),
@@ -783,19 +903,12 @@ class WorksPanel extends StatelessWidget {
             key: ValueKey('works.bay.slot.$i'),
           ),
         ],
-        _gap(8),
-        BracketButton(
-          key: const ValueKey('works.bay.collect'),
-          label: finds == 0
-              ? 'NOTHING TO COLLECT'
-              : 'COLLECT ${panelFmt(units)}${shards > 0 ? ' + $shards SHARDS' : ''}',
-          height: 38,
-          palette: panelPalette,
+        _buildOrUpgrade(
+          v,
+          WorksBuilding.scavengerBay,
+          bay.tier,
           accent: kScavengerBayLight,
-          enabled: finds > 0,
-          onTap: actions.collectCrates,
         ),
-        _buildOrUpgrade(context, v, WorksBuilding.scavengerBay, bay.tier),
       ],
     );
   }
@@ -812,17 +925,21 @@ class WorksPanel extends StatelessWidget {
     return 'RESTING';
   }
 
-  Widget _pressCard(BuildContext context, WorksView v) {
+  // ── press ──
+
+  Widget _press(BuildContext context, WorksView v) {
     final press = v.works.press;
     final intake = <Color>[
       for (final e in v.storage.entries)
         if (e.value > press.reserve + 0.5) elementColor(e.key),
     ];
     final presser = press.presser == null ? null : v.profiles[press.presser];
-    final stage = WorksStage(
+    Widget stage(double h) => _stage(
+      height: h,
       accent: kSilverPressLight,
       reach: 38,
       reachX: 36,
+      dim: !press.built,
       paint: (c, t) => paintSilverPress(
         c,
         at: Offset.zero,
@@ -833,20 +950,23 @@ class WorksPanel extends StatelessWidget {
       ),
     );
     if (!press.built) {
-      return _BuildingCard(
+      return _BuildingView(
         title: 'SILVER PRESS',
         accent: kSilverPressLight,
         tier: 0,
-        stage: Opacity(opacity: 0.45, child: stage),
+        stage: stage,
         children: [
           _line(
-            'Presses spare elements into silver. It leaves alone what you tell it to keep.',
+            'Presses spare elements into silver, ${WorkRules.grainsPerSilver} '
+            'for 1. It leaves alone as much of each as you tell it to keep.',
+            color: panelPalette.ink,
+            size: 10,
           ),
           _buildOrUpgrade(
-            context,
             v,
             WorksBuilding.silverPress,
             0,
+            accent: kSilverPressLight,
             key: const ValueKey('works.press.build'),
           ),
         ],
@@ -856,7 +976,7 @@ class WorksPanel extends StatelessWidget {
       0.0,
       (s, x) => s + (x > press.reserve ? x - press.reserve : 0),
     );
-    return _BuildingCard(
+    return _BuildingView(
       title: 'SILVER PRESS',
       accent: kSilverPressLight,
       tier: press.tier,
@@ -866,14 +986,17 @@ class WorksPanel extends StatelessWidget {
           presser == null
               ? 'NO PRESSER'
               : surplus < 1
-              ? 'NOTHING OVER THE RESERVE'
+              ? 'NOTHING OVER WHAT IT KEEPS'
               : 'PRESSING ${panelFmt(surplus)} SPARE',
           color: presser != null && surplus >= 1 ? panelPalette.ink : null,
+          size: 10,
         ),
         _line(
-          '${WorkRules.grainsPerSilver} ELEMENTS MAKE 1 SILVER · ${panelFmt(press.pressedSilver)} PRESSED SO FAR',
+          '${WorkRules.grainsPerSilver} ELEMENTS MAKE 1 SILVER · '
+          '${panelFmt(press.pressedSilver)} PRESSED SO FAR',
         ),
-        _gap(6),
+        _gap(10),
+        const PanelSectionHeader('PRESSER'),
         _slot(
           v,
           const WorkSlotRef(WorkJob.presser),
@@ -881,36 +1004,239 @@ class WorksPanel extends StatelessWidget {
           pressTier: press.tier,
           key: const ValueKey('works.press.slot'),
         ),
-        _gap(8),
-        Text('KEEP OF EACH', style: panelLabel(9, panelPalette.muted)),
-        _gap(4),
-        Wrap(
-          spacing: 6,
-          runSpacing: 6,
-          children: [
-            for (final r in WorkRules.pressReserves)
-              _Chip(
-                key: ValueKey('works.press.keep.$r'),
-                label: panelFmt(r),
-                on: press.reserve == r,
-                onTap: () => actions.setReserve(r),
-              ),
-          ],
+        _gap(10),
+        const PanelSectionHeader('KEEP OF EACH'),
+        _chips(
+          'works.press.keep',
+          press.reserve,
+          kSilverPressLight,
+          actions.setReserve,
         ),
-        _buildOrUpgrade(context, v, WorksBuilding.silverPress, press.tier),
+        _buildOrUpgrade(
+          v,
+          WorksBuilding.silverPress,
+          press.tier,
+          accent: kSilverPressLight,
+        ),
       ],
     );
   }
 
-  Widget _outpostsCard(BuildContext context, WorksView v) {
+  Widget _chips(
+    String keyPrefix,
+    int value,
+    Color accent,
+    ValueChanged<int> onPick,
+  ) => Wrap(
+    spacing: 6,
+    runSpacing: 6,
+    children: [
+      for (final r in WorkRules.pressReserves)
+        _Chip(
+          key: ValueKey('$keyPrefix.$r'),
+          label: panelFmt(r),
+          on: value == r,
+          accent: accent,
+          onTap: () => onPick(r),
+        ),
+    ],
+  );
+
+  // ── refinery ──
+
+  Widget _refinery(BuildContext context, WorksView v) {
+    final r = v.works.refinery;
+    final parts = r.parts;
+    final refiner = r.refiner == null ? null : v.profiles[r.refiner];
+    final spare =
+        parts != null &&
+        (v.storage[parts.$1] ?? 0) > r.keep + 0.5 &&
+        (v.storage[parts.$2] ?? 0) > r.keep + 0.5;
+    final working = r.built && refiner != null && spare;
+    Widget stage(double h) => _stage(
+      height: h,
+      accent: kRefineryLight,
+      reach: 40,
+      reachX: 38,
+      dim: !r.built,
+      paint: (c, t) => paintRefinery(
+        c,
+        at: Offset.zero,
+        tier: r.built ? r.tier : 1,
+        t: t,
+        inA: parts == null ? null : elementColor(parts.$1),
+        inB: parts == null ? null : elementColor(parts.$2),
+        out: parts == null ? null : elementColor(parts.$3),
+        working: working,
+      ),
+    );
+    if (!r.built) {
+      return _BuildingView(
+        title: 'REFINERY',
+        accent: kRefineryLight,
+        tier: 0,
+        stage: stage,
+        children: [
+          _line(
+            'Makes one element out of two others, by the recipes you have '
+            'found in the Codex. It makes less than it takes: every 2 in '
+            'makes 1, and better at higher tiers.',
+            color: panelPalette.ink,
+            size: 10,
+          ),
+          _buildOrUpgrade(
+            v,
+            WorksBuilding.refinery,
+            0,
+            accent: kRefineryLight,
+            key: const ValueKey('works.refinery.build'),
+          ),
+        ],
+      );
+    }
+    final perMin = refiner == null
+        ? 0.0
+        : WorkRules.refineRate(refiner.intelligence) *
+              WorkRules.refineYield(r.tier);
+    final String status;
+    if (parts == null) {
+      status = 'CHOOSE WHAT TO MAKE';
+    } else if (refiner == null) {
+      status = 'NO REFINER';
+    } else if (!spare) {
+      final short = (v.storage[parts.$1] ?? 0) <= r.keep + 0.5
+          ? parts.$1
+          : parts.$2;
+      status = 'OUT OF ${short.toUpperCase()} OVER WHAT IT KEEPS';
+    } else {
+      status =
+          'MAKING ${parts.$3.toUpperCase()} · '
+          '${perMin.toStringAsFixed(1)}/MIN';
+    }
+    final all = WorkRules.refineRecipes.entries.toList();
+    final found = [
+      for (final e in all)
+        if (v.knownRecipes.contains(e.key)) e,
+    ];
+    return _BuildingView(
+      title: 'REFINERY',
+      accent: kRefineryLight,
+      tier: r.tier,
+      stage: stage,
+      children: [
+        _line(status, color: working ? panelPalette.ink : null, size: 10),
+        _line('${refineYieldLine(r.tier)} · ${panelFmt(r.made)} MADE SO FAR'),
+        _gap(10),
+        const PanelSectionHeader('REFINER'),
+        _slot(
+          v,
+          const WorkSlotRef(WorkJob.refiner),
+          r.refiner,
+          refineTier: r.tier,
+          key: const ValueKey('works.refinery.slot'),
+        ),
+        _gap(10),
+        PanelSectionHeader(
+          'MAKE',
+          trailing: '${found.length}/${all.length} FOUND',
+        ),
+        if (found.isEmpty)
+          _line(
+            'NO RECIPES FOUND YET. FUSING ELEMENTS FINDS THEM.',
+            color: panelPalette.ink,
+          ),
+        for (final e in found) _recipeRow(v, e.key, e.value, r.recipe == e.key),
+        if (all.length > found.length)
+          _line('${all.length - found.length} MORE NOT YET FOUND'),
+        _gap(10),
+        const PanelSectionHeader('KEEP OF EACH INPUT'),
+        _chips(
+          'works.refinery.keep',
+          r.keep,
+          kRefineryLight,
+          actions.setRefineKeep,
+        ),
+        _buildOrUpgrade(
+          v,
+          WorksBuilding.refinery,
+          r.tier,
+          accent: kRefineryLight,
+        ),
+      ],
+    );
+  }
+
+  Widget _recipeRow(WorksView v, String key, String out, bool chosen) {
+    final ab = key.split('+');
+    final ink = elementInk(out);
+    String have(String e) =>
+        '${e.toUpperCase()} ${panelFmt((v.storage[e] ?? 0).floor())}';
+    return GestureDetector(
+      key: ValueKey('works.refinery.recipe.$key'),
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(() => actions.setRecipe(chosen ? null : key)),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: (chosen ? kRefineryLight : panelPalette.line).withValues(
+              alpha: chosen ? 0.9 : 0.35,
+            ),
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 7, 10, 7),
+            color: chosen
+                ? kRefineryLight.withValues(alpha: 0.1)
+                : panelPalette.bg1.withValues(alpha: 0.5),
+            child: Row(
+              children: [
+                PanelDot(ink, size: 9),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        out.toUpperCase(),
+                        style: panelLabel(10.5, ink, spacing: 0.8),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${have(ab[0])} + ${have(ab[1])}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: panelLabel(
+                          8.5,
+                          panelPalette.muted,
+                          spacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (chosen)
+                  Text('MAKING', style: panelLabel(8.5, kRefineryLight)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── planets ──
+
+  Widget _planets(BuildContext context, WorksView v) {
     final built = v.works.extractors;
-    return _BuildingCard(
+    return _BuildingView(
       title: 'EXTRACTORS',
       accent: _amber,
       tier: 0,
-      stage: WorksStage(
+      stage: (h) => _stage(
+        height: h,
         accent: _amber,
         reach: kExtractorReach * 0.62,
+        dim: false,
         paint: (c, t) {
           c.translate(0, 26);
           const col = Color(0xFFE0B068);
@@ -928,11 +1254,14 @@ class WorksPanel extends StatelessWidget {
       ),
       children: [
         _line(
-          'Build one at any planet you have found, with ${WorkRules.extractorBuildUnits} of its element in your cargo.',
+          'Build one at any planet you have found, with '
+          '${WorkRules.extractorBuildUnits} of its element in your cargo. '
+          'Tap a planet to see its extractor.',
+          color: panelPalette.ink,
+          size: 10,
         ),
-        _gap(6),
-        if (v.planetsFound.isEmpty)
-          _line('NO PLANETS FOUND YET', color: panelPalette.muted),
+        _gap(8),
+        if (v.planetsFound.isEmpty) _line('NO PLANETS FOUND YET'),
         for (final e in v.planetsFound) _outpostRow(context, v, e, built[e]),
       ],
     );
@@ -950,13 +1279,13 @@ class WorksPanel extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(() => actions.openOutpost(e)),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           children: [
             PanelDot(x == null ? ink.withValues(alpha: 0.35) : ink, size: 8),
             const SizedBox(width: 7),
             SizedBox(
-              width: 78,
+              width: 92,
               child: Text(
                 planetName(e).toUpperCase(),
                 maxLines: 1,
@@ -1007,6 +1336,7 @@ class WorksPanel extends StatelessWidget {
     String? id, {
     String? status,
     int pressTier = 1,
+    int refineTier = 1,
     Key? key,
   }) => WorkerSlotRow(
     slotKey: key,
@@ -1015,6 +1345,7 @@ class WorksPanel extends StatelessWidget {
     profile: id == null ? null : v.profiles[id],
     status: status,
     pressTier: pressTier,
+    refineTier: refineTier,
     onAssign: () => actions.assign(ref),
     onClear: () => actions.clear(ref),
   );
@@ -1029,10 +1360,12 @@ class _Chip extends StatelessWidget {
     super.key,
     required this.label,
     required this.on,
+    required this.accent,
     required this.onTap,
   });
   final String label;
   final bool on;
+  final Color accent;
   final VoidCallback onTap;
 
   @override
@@ -1041,20 +1374,20 @@ class _Chip extends StatelessWidget {
     onTap: context.soundAction(onTap),
     child: CustomPaint(
       foregroundPainter: BracketFramePainter(
-        color: (on ? kSilverPressLight : panelPalette.line).withValues(
+        color: (on ? accent : panelPalette.line).withValues(
           alpha: on ? 0.9 : 0.45,
         ),
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         color: on
-            ? kSilverPressLight.withValues(alpha: 0.12)
+            ? accent.withValues(alpha: 0.12)
             : panelPalette.bg1.withValues(alpha: 0.5),
         child: Text(
           label,
           style: panelLabel(
             9.5,
-            on ? kSilverPressLight : panelPalette.muted,
+            on ? accent : panelPalette.muted,
             spacing: 0.4,
           ),
         ),

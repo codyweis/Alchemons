@@ -23,6 +23,7 @@ const String _worksFirstRigSeenKey = 'cosmic_works_first_rig_seen_v1';
 const String _loadHoldIntroSeenKey = 'cosmic_load_hold_intro_seen_v1';
 const String _worksCoachDoneKey = 'cosmic_works_coach_done_v1';
 const String _outpostCoachDoneKey = 'cosmic_outpost_coach_done_v1';
+const String _refineryIntroSeenKey = 'cosmic_refinery_intro_seen_v1';
 
 /// How often the works are caught up while space is open.
 const Duration _worksTickEvery = Duration(seconds: 4);
@@ -37,9 +38,11 @@ const List<StoryBeat> _worksIntroBeats = [
   StoryBeat(
     title: 'AT HOME',
     message:
-        'A Scavenger Bay sends scavengers out to bring back elements from the '
+        'Buildings stand in berths round your planet; a bigger planet opens '
+        'more. A Scavenger Bay sends scavengers out for elements from the '
         'planets you have found. A Silver Press turns spare elements into '
-        'silver, and keeps as much of each as you tell it to.',
+        'silver. A Refinery makes one element out of two, by the recipes you '
+        'have found in the Codex.',
   ),
   StoryBeat(
     title: 'AT PLANETS',
@@ -54,7 +57,8 @@ const List<StoryBeat> _worksIntroBeats = [
     message:
         'Each job reads different stats. Miners: level, size and nature. '
         'Couriers: speed and strength. Scavengers: speed, strength and '
-        'intelligence. Pressers: strength. The picker puts the best first.',
+        'intelligence. Pressers: strength. Refiners: intelligence. The picker '
+        'puts the best first.',
   ),
 ];
 
@@ -87,6 +91,12 @@ class _WorksActionsImpl implements WorksActions {
   void setReserve(int reserve) => s._worksSetReserve(reserve);
 
   @override
+  void setRecipe(String? recipe) => s._worksSetRecipe(recipe);
+
+  @override
+  void setRefineKeep(int keep) => s._worksSetRefineKeep(keep);
+
+  @override
   Future<void> openOutpost(String element) => s._openOutpost(element);
 
   @override
@@ -111,6 +121,7 @@ extension _CosmicWorks on _CosmicScreenState {
     await _refreshWorkers();
     if (!mounted) return;
     unawaited(_refreshWalletCurrencies());
+    unawaited(_refreshKnownRecipes());
     _tickWorks(announce: true);
     _worksTimer?.cancel();
     _worksTimer = Timer.periodic(_worksTickEvery, (_) => _tickWorks());
@@ -211,6 +222,17 @@ extension _CosmicWorks on _CosmicScreenState {
       intake.addAll(over.take(4).map((e) => elementColor(e.key)));
     }
     _game?.worksPressIntake = intake;
+
+    // The Refinery works while it has a refiner and both inputs to spare.
+    final r = _works.refinery;
+    final parts = r.parts;
+    _game?.worksRefining =
+        r.built &&
+        parts != null &&
+        r.refiner != null &&
+        _workerProfiles[r.refiner] != null &&
+        (_elementStorage.stored[parts.$1] ?? 0) > r.keep + 0.5 &&
+        (_elementStorage.stored[parts.$2] ?? 0) > r.keep + 0.5;
   }
 
   Future<void> _saveWorks() async {
@@ -243,6 +265,8 @@ extension _CosmicWorks on _CosmicScreenState {
           ? here
           : null,
       atPlanet: here,
+      berthCount: _berthCount,
+      knownRecipes: _knownRecipes,
     );
   }
 
@@ -257,6 +281,7 @@ extension _CosmicWorks on _CosmicScreenState {
     if (!_worksAvailable) return;
     if (_worksCoachButton) _finishWorksCoach();
     await _refreshWalletCurrencies();
+    await _refreshKnownRecipes();
     _tickWorks();
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
@@ -317,40 +342,77 @@ extension _CosmicWorks on _CosmicScreenState {
 
   // ── building ─────────────────────────────────────────────────────────────
 
+  /// Berths round home, by the largest size unlocked.
+  int get _berthCount => homeBerthsForTier(_homePlanet?.sizeTierLevel ?? 0);
+
   Future<void> _worksBuild(WorksBuilding b, {String? element}) async {
     if (b == WorksBuilding.extractor) {
       if (element != null) await _buildExtractor(element);
       return;
     }
-    final current = b == WorksBuilding.scavengerBay
-        ? _works.bay.tier
-        : _works.press.tier;
-    if (current > 0) return;
-    final ok = await _payWorksCost(
-      worksCost(b, 1),
-      title: b == WorksBuilding.scavengerBay
-          ? 'BUILD THE SCAVENGER BAY?'
-          : 'BUILD THE SILVER PRESS?',
-    );
+    if (_works.berths.containsKey(b)) return;
+    final berth = _works.freeBerth(_berthCount);
+    if (berth == null) {
+      _showQuote('All berths are taken. A bigger planet opens more.');
+      return;
+    }
+    final name = switch (b) {
+      WorksBuilding.scavengerBay => 'SCAVENGER BAY',
+      WorksBuilding.silverPress => 'SILVER PRESS',
+      WorksBuilding.refinery => 'REFINERY',
+      WorksBuilding.extractor => 'EXTRACTOR',
+    };
+    final ok = await _payWorksCost(worksCost(b, 1), title: 'BUILD THE $name?');
     if (!ok || !mounted) return;
     _tickWorks();
-    if (b == WorksBuilding.scavengerBay) {
-      _works.bay
-        ..tier = 1
-        ..fitSlots();
-    } else {
-      _works.press
-        ..tier = 1
-        ..updatedMs = _nowMs;
+    switch (b) {
+      case WorksBuilding.scavengerBay:
+        _works.bay
+          ..tier = 1
+          ..fitSlots();
+      case WorksBuilding.silverPress:
+        _works.press
+          ..tier = 1
+          ..updatedMs = _nowMs;
+      case WorksBuilding.refinery:
+        _works.refinery
+          ..tier = 1
+          ..updatedMs = _nowMs;
+      case WorksBuilding.extractor:
+        return;
     }
+    _works.setBerth(b, berth);
     HapticFeedback.heavyImpact();
-    _showQuote(
-      b == WorksBuilding.scavengerBay
-          ? 'Scavenger Bay built. Give it a scavenger.'
-          : 'Silver Press built. Give it a presser.',
-    );
+    _showQuote(switch (b) {
+      WorksBuilding.scavengerBay => 'Scavenger Bay built. Give it a scavenger.',
+      WorksBuilding.silverPress => 'Silver Press built. Give it a presser.',
+      _ => 'Refinery built. Give it a refiner and choose what to make.',
+    });
     await _saveWorks();
     _publishWorksView();
+    if (b == WorksBuilding.refinery) await _maybeShowRefineryIntro();
+  }
+
+  /// The Refinery's beat, the first time one is built.
+  Future<void> _maybeShowRefineryIntro() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool(_refineryIntroSeenKey) ?? false) return;
+    await prefs.setBool(_refineryIntroSeenKey, true);
+    if (!mounted) return;
+    await showStoryDialog(
+      context,
+      beats: const [
+        StoryBeat(
+          title: 'THE REFINERY',
+          message:
+              'Choose what to make. It takes two elements from storage and '
+              'makes one, by a recipe you have found in the Codex: every 2 in '
+              'makes 1, better at higher tiers. It leaves alone as much of '
+              'each input as you tell it to keep.',
+        ),
+      ],
+      primaryLabel: 'GOT IT',
+    );
   }
 
   Future<void> _buildExtractor(String element) async {
@@ -426,6 +488,8 @@ extension _CosmicWorks on _CosmicScreenState {
         tier = _works.bay.tier;
       case WorksBuilding.silverPress:
         tier = _works.press.tier;
+      case WorksBuilding.refinery:
+        tier = _works.refinery.tier;
     }
     if (tier <= 0 || tier >= WorkRules.maxTier) return;
     final ok = await _payWorksCost(
@@ -445,6 +509,8 @@ extension _CosmicWorks on _CosmicScreenState {
           ..fitSlots();
       case WorksBuilding.silverPress:
         _works.press.tier = tier + 1;
+      case WorksBuilding.refinery:
+        _works.refinery.tier = tier + 1;
     }
     HapticFeedback.heavyImpact();
     _showQuote('Upgraded to tier ${tier + 1}.');
@@ -513,6 +579,8 @@ extension _CosmicWorks on _CosmicScreenState {
         return slot.index < slots.length ? slots[slot.index].instanceId : null;
       case WorkJob.presser:
         return _works.press.presser;
+      case WorkJob.refiner:
+        return _works.refinery.refiner;
     }
   }
 
@@ -544,6 +612,7 @@ extension _CosmicWorks on _CosmicScreenState {
             ? 0
             : game.worksDistanceHome(slot.element!),
         pressTier: _works.press.tier,
+        refineTier: _works.refinery.tier,
         blocked: blocked,
         atWork: atWork,
         current: _occupant(slot),
@@ -587,6 +656,10 @@ extension _CosmicWorks on _CosmicScreenState {
       case WorkJob.presser:
         _works.press
           ..presser = id
+          ..updatedMs = _nowMs;
+      case WorkJob.refiner:
+        _works.refinery
+          ..refiner = id
           ..updatedMs = _nowMs;
     }
     HapticFeedback.mediumImpact();
@@ -676,6 +749,48 @@ extension _CosmicWorks on _CosmicScreenState {
     HapticFeedback.selectionClick();
     unawaited(_saveWorks());
     _updatePressIntake();
+    _publishWorksView();
+  }
+
+  void _worksSetRecipe(String? recipe) {
+    final r = _works.refinery;
+    if (r.recipe == recipe) return;
+    if (recipe != null && !_knownRecipes.contains(recipe)) return;
+    _tickWorks();
+    r.recipe = recipe;
+    HapticFeedback.selectionClick();
+    unawaited(_saveWorks());
+    _updatePressIntake();
+    _publishWorksView();
+  }
+
+  void _worksSetRefineKeep(int keep) {
+    if (_works.refinery.keep == keep) return;
+    _tickWorks();
+    _works.refinery.keep = keep;
+    HapticFeedback.selectionClick();
+    unawaited(_saveWorks());
+    _updatePressIntake();
+    _publishWorksView();
+  }
+
+  /// Which Refinery recipes the Codex has found: an outcome made by fusing,
+  /// in either order of its pair.
+  Future<void> _refreshKnownRecipes() async {
+    final db = context.read<AlchemonsDatabase>();
+    final found = await AlchemicalEncyclopediaService.loadFoundElementOutcomes(
+      db,
+    );
+    if (!mounted) return;
+    _knownRecipes = {
+      for (final e in WorkRules.refineRecipes.entries)
+        if (() {
+          final ab = e.key.split('+');
+          return found.contains('${ab[0]}+${ab[1]}::${e.value}') ||
+              found.contains('${ab[1]}+${ab[0]}::${e.value}');
+        }())
+          e.key,
+    };
     _publishWorksView();
   }
 

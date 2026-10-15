@@ -17,6 +17,11 @@
 //   Silver Press   two pillars and a beam over an anvil; a heavy ram eases
 //                  down on the grains drawn in under it, and silver comes
 //                  off the anvil's lip into a heap.
+//   Refinery       a stone beam holding two glass flasks over a retort.
+//                  Each flask turns with its input; a current pours from
+//                  each into the retort, where the grains change to what
+//                  they make, and what is made drips into a heap below.
+//                  Tier shows as lights along the beam.
 //   Grain flows    matter sent from one place to another (a hopper sent
 //                  home, crates emptied into home): a current of grains on a
 //                  lopsided curve, each born a little after the last.
@@ -34,12 +39,14 @@ import 'obsidian_kit.dart';
 /// The Works' own lights.
 const Color kScavengerBayLight = Color(0xFFE0915A);
 const Color kSilverPressLight = Color(0xFFCFDCEB);
+const Color kRefineryLight = Color(0xFFB9A2F2);
 
 /// How far each piece reaches from its origin, in art units — what a stage
 /// sizes it by.
 const double kExtractorReach = 64;
 const double kBayReach = 46;
 const double kPressReach = 44;
+const double kRefineryReach = 44;
 
 double _smooth(double x) {
   final t = x.clamp(0.0, 1.0);
@@ -716,6 +723,213 @@ class _PressArt {
       final g = _heap[(t * 3).floor() % _heap.length];
       paintDisc(c, kGlint, g, 2.2, 0.6);
     }
+  }
+}
+
+// ── Refinery ────────────────────────────────────────────────────────────────
+
+/// The flasks' and the retort's centres, in refinery units.
+const Offset kFlaskAAt = Offset(-21, -12);
+const Offset kFlaskBAt = Offset(21, -12);
+const Offset kRetortAt = Offset(0, 12);
+const double _flaskR = 8.5;
+const double _retortR = 11.5;
+
+final Map<int, _RefineryArt> _refineries = {};
+
+/// Draws the Refinery at [at]. [inA] and [inB] are the colours going in and
+/// [out] the colour made (null with no recipe chosen); [working] while it
+/// has a refiner and both inputs to spare.
+void paintRefinery(
+  Canvas c, {
+  required Offset at,
+  required int tier,
+  required double t,
+  double scale = 1,
+  Color? inA,
+  Color? inB,
+  Color? out,
+  bool working = false,
+  double wake = 0,
+}) {
+  final art = _refineries[tier.clamp(1, 3)] ??= _RefineryArt(tier.clamp(1, 3));
+  c.save();
+  c.translate(at.dx, at.dy);
+  c.scale(scale);
+  art.paint(c, t, inA, inB, out, working, wake.clamp(0.0, 1.0));
+  c.restore();
+}
+
+class _RefineryArt {
+  _RefineryArt(this.tier);
+  final int tier;
+  final StoneLight m = StoneLight(kRefineryLight, warm: 0.04);
+  late final ui.Shader _glass = _glassShader(m);
+
+  late final CutStone _beam = ridgeArm(m, 0, 54, 4.2, 3.6);
+  late final CutStone _hanger = ridgeArm(m, 0, 9, 1.8, 1.4);
+  late final CutStone _spine = ridgeArm(m, 0, 24, 3, 2.2);
+
+  /// A collar each flask hangs in, open at the bottom so it can pour.
+  CutStone _collar(Offset at) => CutStone.gem(m, [
+    for (final p in crescentPoints(_flaskR + 1.6, -pi * 0.92, -pi * 0.08, 3))
+      at + p,
+  ], at + const Offset(0, -_flaskR));
+
+  late final CutStone _collarA = _collar(kFlaskAAt);
+  late final CutStone _collarB = _collar(kFlaskBAt);
+
+  /// The cradle the retort sits in.
+  late final CutStone _cradle = CutStone.gem(m, [
+    for (final p in crescentPoints(_retortR + 2, pi * 0.12, pi * 0.88, 4.4))
+      kRetortAt + p,
+  ], kRetortAt + const Offset(0, _retortR));
+
+  late final BakedArt _body = BakedArt(const Rect.fromLTRB(-34, -36, 34, 34), (
+    c,
+  ) {
+    // The spine down from the beam to the retort's neck.
+    c.save();
+    c.translate(0, -27);
+    c.rotate(pi / 2);
+    _spine.paint(c, pi / 2, glow: 0.2, reach: 10);
+    c.restore();
+    for (final x in [kFlaskAAt.dx, kFlaskBAt.dx]) {
+      c.save();
+      c.translate(x, -28);
+      c.rotate(pi / 2);
+      _hanger.paint(c, pi / 2);
+      c.restore();
+    }
+    c.save();
+    c.translate(-27, -29);
+    _beam.paint(c, 0, glow: 0.3, reach: 14);
+    c.restore();
+    for (var i = 0; i < tier; i++) {
+      paintOrb(c, m, Offset(-7.0 + i * 7, -29), 1.7, alpha: 0.9);
+    }
+    paintDisc(c, _glass, kFlaskAAt, _flaskR);
+    paintDisc(c, _glass, kFlaskBAt, _flaskR);
+    paintDisc(c, _glass, kRetortAt, _retortR);
+    _collarA.paint(c, 0, glow: 0, reach: 6);
+    _collarB.paint(c, 0, glow: 0, reach: 6);
+    _cradle.paint(c, 0, glow: 0.4, reach: 10);
+  });
+
+  /// The made heap under the retort: settled grains.
+  static final List<Offset> _heap = () {
+    final r = Random(71);
+    return [
+      for (var i = 0; i < 40; i++)
+        () {
+          final x = (r.nextDouble() - 0.5) * 2;
+          final h = 1 - x.abs();
+          return Offset(x * 10, 33 - r.nextDouble() * h * 5);
+        }(),
+    ];
+  }();
+
+  final PointBatch _a = PointBatch(40);
+  final PointBatch _b = PointBatch(40);
+  final PointBatch _made = PointBatch(70);
+  final PointBatch _heapPts = PointBatch(44);
+
+  /// Grains turning in a glass of radius [r] at [at], [n] of them.
+  void _swirl(PointBatch into, Offset at, double r, double t, int n, int salt) {
+    for (var i = 0; i < n; i++) {
+      final rr = sqrt(hash01(i, salt)) * (r - 1.4);
+      final a = hash01(i, salt + 1) * 2 * pi + t * (0.5 + hash01(i, salt + 2));
+      final p = at + polar(rr, a);
+      // Settled toward the bottom of the glass.
+      into.add(p.dx, p.dy + (r - rr) * 0.25);
+    }
+  }
+
+  /// A current from a flask's mouth to the retort's: [n] grains on an arc.
+  void _pour(PointBatch into, Offset from, double t, int n, int salt) {
+    final to = kRetortAt + const Offset(0, -_retortR + 2);
+    final mid = Offset((from.dx + to.dx) / 2, from.dy + 4);
+    for (var i = 0; i < n; i++) {
+      final u = (t * 0.45 + hash01(i, salt)) % 1.0;
+      final q = Offset.lerp(
+        Offset.lerp(from, mid, u)!,
+        Offset.lerp(mid, to, u)!,
+        u,
+      )!;
+      into.add(q.dx + sin(u * 7 + i) * 0.8, q.dy);
+    }
+  }
+
+  void paint(
+    Canvas c,
+    double t,
+    Color? inA,
+    Color? inB,
+    Color? out,
+    bool working,
+    double wake,
+  ) {
+    final breathe = 0.86 + 0.14 * sin(t * 2.3);
+    paintDisc(c, m.pool, const Offset(0, -2), 56, 0.85 + 0.6 * wake);
+    final la = inA == null ? null : stoneLightFor(inA);
+    final lb = inB == null ? null : stoneLightFor(inB);
+    final lo = out == null ? null : stoneLightFor(out);
+    if (la != null) paintDisc(c, la.pool, kFlaskAAt, 22, working ? 1.2 : 0.6);
+    if (lb != null) paintDisc(c, lb.pool, kFlaskBAt, 22, working ? 1.2 : 0.6);
+    if (lo != null) paintDisc(c, lo.pool, kRetortAt, 30, working ? 1.4 : 0.6);
+    _body.draw(c);
+
+    _a.clear();
+    _b.clear();
+    _made.clear();
+    if (la != null) _swirl(_a, kFlaskAAt, _flaskR, t, 26, 3);
+    if (lb != null) _swirl(_b, kFlaskBAt, _flaskR, t, 26, 9);
+    if (working && la != null && lb != null) {
+      _pour(_a, kFlaskAAt + const Offset(3, _flaskR - 1), t, 12, 15);
+      _pour(_b, kFlaskBAt + const Offset(-3, _flaskR - 1), t, 12, 21);
+    }
+    if (lo != null) {
+      _swirl(_made, kRetortAt, _retortR, t * 1.3, working ? 56 : 30, 27);
+    }
+    if (la != null) _a.draw(c, 1.25, la.grainHot);
+    if (lb != null) _b.draw(c, 1.25, lb.grainHot);
+    if (lo != null) {
+      paintDisc(
+        c,
+        lo.spark,
+        kRetortAt,
+        _retortR * 0.55 * breathe,
+        working ? 0.7 : 0.3,
+      );
+      _made.draw(c, 1.35, lo.grainHot);
+    }
+    paintDisc(c, kGlint, kFlaskAAt + const Offset(-3, -3.4), 1.7, 0.55);
+    paintDisc(c, kGlint, kFlaskBAt + const Offset(-3, -3.4), 1.7, 0.55);
+    paintDisc(c, kGlint, kRetortAt + const Offset(-4.2, -4.6), 2.3, 0.6);
+
+    // What is made drips from the retort into its heap.
+    _heapPts.clear();
+    if (lo != null) {
+      for (final p in _heap) {
+        _heapPts.add(p.dx, p.dy);
+      }
+      _heapPts.draw(
+        c,
+        1.25,
+        lo.grainDim.withValues(alpha: working ? 0.85 : 0.45),
+      );
+      if (working) {
+        final q = (t * 0.8) % 1.0;
+        paintDisc(
+          c,
+          lo.spark,
+          Offset(0, kRetortAt.dy + _retortR + 3 + q * 6),
+          1.6,
+          1 - q,
+        );
+      }
+    }
+    paintDisc(c, m.spark, const Offset(0, -29), 2.6 * breathe, 0.7);
   }
 }
 

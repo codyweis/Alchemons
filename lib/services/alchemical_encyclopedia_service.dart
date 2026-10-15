@@ -170,6 +170,22 @@ class AlchemicalEncyclopediaService {
   // which a test's fake clock may have stopped running.
   static _RecipeCatalog? _catalog;
 
+  /// The element formula outcomes found so far, as
+  /// [EncyclopediaRecipeEntry.outcomePathKey] keys ('Fire+Water::Steam'),
+  /// and nothing else: what the Works' Refinery reads to know which recipes
+  /// it may make.
+  static Future<Set<String>> loadFoundElementOutcomes(
+    AlchemonsDatabase db,
+  ) async {
+    final recipes = await _loadCatalog();
+    return _readDiscoveredOutcomeSet(
+      db,
+      currentKey: _elementDiscoveredKey,
+      legacyPairKey: _legacyElementDiscoveredKey,
+      recipesByPair: recipes.elementByPair,
+    );
+  }
+
   /// Everything the Codex shows. Without a [catalog] only formulas make an
   /// element or family known, and families have no faces.
   static Future<AlchemicalEncyclopediaSnapshot> loadSnapshot({

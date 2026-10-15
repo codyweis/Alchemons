@@ -523,6 +523,9 @@ class CosmicGame extends FlameGame with PanDetector {
 
   /// The colours going under the Silver Press (storage over its reserve).
   List<Color> worksPressIntake = const [];
+
+  /// Whether the Refinery has both its inputs to spare.
+  bool worksRefining = false;
   final Map<String, _WorkerSprite> _workerSprites = {};
   final List<_WorksFlow> _worksFlows = [];
 

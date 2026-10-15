@@ -134,6 +134,19 @@ void main() {
         pressing: true,
         intake: const [fire, water],
       ),
+      (c) => paintRefinery(
+        c,
+        at: Offset.zero,
+        tier: 1,
+        t: 2.2,
+        scale: artScale,
+        inA: fire,
+        inB: water,
+        out: const Color(0xFFB0BEC5),
+        working: true,
+      ),
+      (c) =>
+          paintRefinery(c, at: Offset.zero, tier: 3, t: 5.5, scale: artScale),
       (c) => paintGrainFlow(
         c,
         from: const Offset(-70, 50),
@@ -208,6 +221,16 @@ void main() {
         crates: const [fire, water, crystal, fire],
         crateCap: 6,
         searching: true,
+      ),
+      'refinery': (c, t) => paintRefinery(
+        c,
+        at: Offset.zero,
+        tier: 2,
+        t: t,
+        inA: fire,
+        inB: water,
+        out: const Color(0xFFB0BEC5),
+        working: true,
       ),
       'press': (c, t) => paintSilverPress(
         c,

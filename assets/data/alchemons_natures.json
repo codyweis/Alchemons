@@ -1,6 +1,8 @@
 {
   "natures": [
     { "id": "Metabolic", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "harvest_rate_mult": 1.20 }, "description": "Harvests resources 20% faster" },
+    { "id": "Anabolic", "tier": "Utility", "wildWeight": 2, "dominance": 1, "effect": { "harvest_rate_mult": 1.35 }, "description": "Harvests resources 35% faster" },
+    { "id": "Hypermetabolic", "tier": "Rare", "wildWeight": 1, "dominance": 1, "effect": { "harvest_rate_mult": 1.50 }, "description": "Harvests resources 50% faster" },
     { "id": "Reproductive", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "stamina_breeding_cost_mult": 0.50 }, "description": "Breeding uses 50% less stamina on average" },
     { "id": "Ecophysiological", "tier": "Utility", "wildWeight": 3, "dominance": 1, "effect": { "wild_fusion_stability_add": 0.05 }, "description": "Adds 5% stability to Wild Fusion attempts" },
     { "id": "Sympatric", "tier": "Utility", "wildWeight": 2, "dominance": 1, "effect": { "breed_same_species_chance_mult": 0.70 }, "description": "Favors divergent family outcomes when breeding" },

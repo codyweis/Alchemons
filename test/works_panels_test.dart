@@ -46,6 +46,10 @@ class _Actions implements WorksActions {
   @override
   void setReserve(int reserve) => calls.add('keep $reserve');
   @override
+  void setRecipe(String? recipe) => calls.add('recipe $recipe');
+  @override
+  void setRefineKeep(int keep) => calls.add('refine keep $keep');
+  @override
   Future<void> openOutpost(String element) async =>
       calls.add('outpost $element');
   @override
@@ -140,12 +144,20 @@ void main() {
       },
       bay: ScavengerBayState(
         tier: 2,
+        berth: 0,
         crates: [
           const ScavengerFind(elements: {'Fire': 14, 'Dust': 6}, shards: 2),
           const ScavengerFind(elements: {'Water': 20}),
         ],
       ),
-      press: SilverPressState(tier: 1, presser: 'w5', reserve: 200),
+      press: SilverPressState(tier: 1, berth: 1, presser: 'w5', reserve: 200),
+      refinery: RefineryState(
+        tier: 2,
+        berth: 2,
+        refiner: 'w6',
+        recipe: 'Fire+Water',
+        made: 312,
+      ),
     );
     works.bay.slots[0]
       ..instanceId = 'w4'
@@ -154,20 +166,26 @@ void main() {
     return works;
   }
 
-  WorksView view(WorksState works, {String? nearRig, String? atPlanet}) =>
-      WorksView(
-        works: works,
-        profiles: profiles,
-        members: members,
-        storage: const {'Fire': 640, 'Water': 210, 'Earth': 95, 'Dust': 30},
-        hold: const {'Fire': 36, 'Air': 20},
-        silver: 2400,
-        planetsFound: const ['Fire', 'Water', 'Earth', 'Dust', 'Air'],
-        distanceHome: (_) => 7200,
-        nowMs: DateTime.now().millisecondsSinceEpoch,
-        nearRig: nearRig,
-        atPlanet: atPlanet,
-      );
+  WorksView view(
+    WorksState works, {
+    String? nearRig,
+    String? atPlanet,
+    int berthCount = 4,
+  }) => WorksView(
+    works: works,
+    profiles: profiles,
+    members: members,
+    storage: const {'Fire': 640, 'Water': 210, 'Earth': 95, 'Dust': 30},
+    hold: const {'Fire': 36, 'Air': 20},
+    silver: 2400,
+    planetsFound: const ['Fire', 'Water', 'Earth', 'Dust', 'Air'],
+    distanceHome: (_) => 7200,
+    nowMs: DateTime.now().millisecondsSinceEpoch,
+    nearRig: nearRig,
+    atPlanet: atPlanet,
+    berthCount: berthCount,
+    knownRecipes: const {'Fire+Water', 'Air+Fire', 'Earth+Fire'},
+  );
 
   final key = GlobalKey();
 
@@ -223,10 +241,30 @@ void main() {
           view: ValueNotifier(view(WorksState())),
           actions: actions,
         ),
-        'works_built': WorksPanel(
-          view: ValueNotifier(view(builtWorks())),
+        'works_refinery_empty': WorksPanel(
+          view: ValueNotifier(view(WorksState())),
           actions: actions,
+          initialTab: WorksTab.refinery,
         ),
+        'works_refinery_no_berth': WorksPanel(
+          view: ValueNotifier(
+            view(
+              WorksState(
+                bay: ScavengerBayState(tier: 1, berth: 0),
+                press: SilverPressState(tier: 1, berth: 1),
+              ),
+              berthCount: 2,
+            ),
+          ),
+          actions: actions,
+          initialTab: WorksTab.refinery,
+        ),
+        for (final tab in WorksTab.values)
+          'works_${tab.name}': WorksPanel(
+            view: ValueNotifier(view(builtWorks())),
+            actions: actions,
+            initialTab: tab,
+          ),
         'outpost_unbuilt': OutpostPanel(
           element: 'Earth',
           view: ValueNotifier(view(builtWorks(), atPlanet: 'Earth')),
@@ -292,23 +330,42 @@ void main() {
       ),
     );
     await settle(tester);
-    await tester.tap(find.byKey(const ValueKey('works.bay.collect')));
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('works.press.keep.500')),
-    );
-    await tester.tap(find.byKey(const ValueKey('works.press.keep.500')));
-    await tester.ensureVisible(
-      find.byKey(const ValueKey('works.outpost.Fire')),
-    );
-    await tester.tap(find.byKey(const ValueKey('works.outpost.Fire')));
-    await tester.ensureVisible(find.byKey(const ValueKey('works.bay.slot.1')));
-    await tester.tap(find.byKey(const ValueKey('works.bay.slot.1')));
-    await settle(tester, 2);
+    Future<void> tap(String key) async {
+      final f = find.byKey(ValueKey(key));
+      await tester.ensureVisible(f);
+      await tester.tap(f);
+      await settle(tester, 2);
+    }
+
+    Future<void> tab(String label) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('works.tabs')),
+          matching: find.text(label),
+        ),
+      );
+      await settle(tester, 2);
+    }
+
+    expect(find.text('BERTHS 3/4'), findsOneWidget);
+    await tap('works.bay.collect');
+    await tap('works.bay.slot.1');
+    await tab('PRESS');
+    await tap('works.press.keep.500');
+    await tab('REFINERY');
+    await tap('works.refinery.slot');
+    await tap('works.refinery.recipe.Air+Fire');
+    await tap('works.refinery.keep.200');
+    await tab('PLANETS');
+    await tap('works.outpost.Fire');
     expect(actions.calls, [
       'collect',
-      'keep 500',
-      'outpost Fire',
       'assign scavenger null 1',
+      'keep 500',
+      'assign refiner null 0',
+      'recipe Air+Fire',
+      'refine keep 200',
+      'outpost Fire',
     ]);
     await tester.pumpWidget(const SizedBox());
     await settle(tester, 2);

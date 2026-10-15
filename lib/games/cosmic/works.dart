@@ -11,6 +11,13 @@
 //                  then a few astral shards; their finds wait in crates.
 //   Silver Press   beside home. Presses whatever storage holds over the
 //                  reserve into silver.
+//   Refinery       beside home. Makes one element out of two others, by the
+//                  recipe table (constants/element_combos.dart), for the
+//                  recipes the Codex has found. It always makes less than it
+//                  takes: 2 in, 1 out, better with tiers, never past even.
+//
+// Home buildings stand in berths round the home, never on it: Tiny 2 …
+// Huge 6 by the largest size unlocked (homeBerthsForTier).
 //
 // Jobs read the stats the player already sees, one formula each, so the
 // panel can print exactly what an Alchemon would do before it is put there:
@@ -20,6 +27,7 @@
 //   scavenger  Speed → trip length, Strength → find size, Intelligence →
 //              how often a find carries astral shards
 //   presser    Strength → grains pressed a minute
+//   refiner    Intelligence → elements refined a minute
 //
 // Everything here is plain data and arithmetic on wall-clock milliseconds:
 // [advanceWorks] brings the state up to now, whether that is a second later
@@ -28,6 +36,8 @@
 
 import 'dart:convert';
 import 'dart:math';
+
+import 'package:alchemons/constants/element_combos.dart';
 
 // ── job maths ───────────────────────────────────────────────────────────────
 
@@ -70,6 +80,34 @@ abstract final class WorkRules {
     _ => 2.5,
   };
   static const int grainsPerSilver = 2;
+
+  // Refiner.
+  /// Elements a minute it takes in, half of each.
+  static double refineRate(double intelligence) =>
+      6 + 3 * intelligence.clamp(0.0, 20.0);
+
+  /// What comes out for each element that goes in, by tier: 2 in, 1 out at
+  /// first, better with tiers, never more out than in — the press would
+  /// turn anything better into silver from nothing.
+  static double refineYield(int tier) => switch (tier) {
+    <= 1 => 0.5,
+    2 => 0.6,
+    _ => 2 / 3,
+  };
+
+  /// How much of each input it leaves alone, as the press's choices.
+  static const int defaultRefineKeep = 50;
+
+  /// Recipes the Refinery never offers. Dust + Spirit → Crystal has no
+  /// breeding pair, so the Codex can never record it (Crystal still comes
+  /// from Earth + Lightning).
+  static const Set<String> refineExcluded = {'Dust+Spirit'};
+
+  /// The Refinery's recipes: pair key (as in kElementCombos) → what it makes.
+  static final Map<String, String> refineRecipes = {
+    for (final e in kElementCombos.entries)
+      if (!refineExcluded.contains(e.key)) e.key: e.value,
+  };
 
   /// The reserves a press can be set to keep, per element.
   static const List<int> pressReserves = [0, 50, 100, 200, 500, 1000];
@@ -142,6 +180,12 @@ WorksCost worksCost(WorksBuilding b, int toTier, {String? element}) {
         <= 1 => const WorksCost(matter: 150),
         2 => const WorksCost(matter: 400, silver: 300),
         _ => const WorksCost(matter: 900, silver: 900),
+      };
+    case WorksBuilding.refinery:
+      return switch (toTier) {
+        <= 1 => const WorksCost(matter: 150, silver: 300),
+        2 => const WorksCost(matter: 400, silver: 800),
+        _ => const WorksCost(matter: 900, silver: 1800),
       };
   }
 }
@@ -218,9 +262,9 @@ Map<String, int>? elementsForCost(WorksCost cost, Map<String, double> stored) {
 
 // ── workers ─────────────────────────────────────────────────────────────────
 
-enum WorksBuilding { extractor, scavengerBay, silverPress }
+enum WorksBuilding { extractor, scavengerBay, silverPress, refinery }
 
-enum WorkJob { miner, courier, scavenger, presser }
+enum WorkJob { miner, courier, scavenger, presser, refiner }
 
 extension WorkJobX on WorkJob {
   String get label => switch (this) {
@@ -228,6 +272,7 @@ extension WorkJobX on WorkJob {
     WorkJob.courier => 'COURIER',
     WorkJob.scavenger => 'SCAVENGER',
     WorkJob.presser => 'PRESSER',
+    WorkJob.refiner => 'REFINER',
   };
 }
 
@@ -383,6 +428,7 @@ class ScavengerSlot {
 class ScavengerBayState {
   ScavengerBayState({
     this.tier = 0,
+    this.berth = -1,
     List<ScavengerSlot>? slots,
     List<ScavengerFind>? crates,
   }) : slots = slots ?? [],
@@ -392,6 +438,9 @@ class ScavengerBayState {
 
   /// 0 = not built.
   int tier;
+
+  /// Which berth round home it stands in.
+  int berth;
   List<ScavengerSlot> slots;
   List<ScavengerFind> crates;
 
@@ -411,12 +460,14 @@ class ScavengerBayState {
 
   Map<String, dynamic> toJson() => {
     't': tier,
+    'bh': berth,
     's': [for (final s in slots) s.toJson()],
     'c': [for (final c in crates) c.toJson()],
   };
   factory ScavengerBayState.fromJson(Map<String, dynamic> j) =>
       ScavengerBayState(
         tier: ((j['t'] as num?)?.toInt() ?? 0).clamp(0, WorkRules.maxTier),
+        berth: (j['bh'] as num?)?.toInt() ?? -1,
         slots: [
           for (final s in (j['s'] as List? ?? const []))
             ScavengerSlot.fromJson((s as Map).cast<String, dynamic>()),
@@ -431,6 +482,7 @@ class ScavengerBayState {
 class SilverPressState {
   SilverPressState({
     this.tier = 0,
+    this.berth = -1,
     this.presser,
     this.reserve = WorkRules.defaultPressReserve,
     this.updatedMs = 0,
@@ -440,6 +492,9 @@ class SilverPressState {
 
   /// 0 = not built.
   int tier;
+
+  /// Which berth round home it stands in.
+  int berth;
   String? presser;
 
   /// How much of each element it leaves alone.
@@ -456,6 +511,7 @@ class SilverPressState {
 
   Map<String, dynamic> toJson() => {
     't': tier,
+    'bh': berth,
     'p': presser,
     'r': reserve,
     'u': updatedMs,
@@ -464,6 +520,7 @@ class SilverPressState {
   };
   factory SilverPressState.fromJson(Map<String, dynamic> j) => SilverPressState(
     tier: ((j['t'] as num?)?.toInt() ?? 0).clamp(0, WorkRules.maxTier),
+    berth: (j['bh'] as num?)?.toInt() ?? -1,
     presser: j['p'] as String?,
     reserve: (j['r'] as num?)?.toInt() ?? WorkRules.defaultPressReserve,
     updatedMs: (j['u'] as num?)?.toInt() ?? 0,
@@ -472,27 +529,148 @@ class SilverPressState {
   );
 }
 
+class RefineryState {
+  RefineryState({
+    this.tier = 0,
+    this.berth = -1,
+    this.refiner,
+    this.recipe,
+    this.keep = WorkRules.defaultRefineKeep,
+    this.updatedMs = 0,
+    this.made = 0,
+  });
+
+  /// 0 = not built.
+  int tier;
+
+  /// Which berth round home it stands in.
+  int berth;
+  String? refiner;
+
+  /// The pair it is making from, as kElementCombos keys it ('Fire+Water'),
+  /// or null with nothing chosen.
+  String? recipe;
+
+  /// How much of each input it leaves alone.
+  int keep;
+  int updatedMs;
+
+  /// Elements made since it was built.
+  double made;
+
+  bool get built => tier > 0;
+
+  /// The recipe's two inputs and its output, or null.
+  (String, String, String)? get parts {
+    final r = recipe;
+    final out = r == null ? null : WorkRules.refineRecipes[r];
+    if (r == null || out == null) return null;
+    final ab = r.split('+');
+    return (ab[0], ab[1], out);
+  }
+
+  Map<String, dynamic> toJson() => {
+    't': tier,
+    'bh': berth,
+    'w': refiner,
+    'r': recipe,
+    'k': keep,
+    'u': updatedMs,
+    'm': made,
+  };
+  factory RefineryState.fromJson(Map<String, dynamic> j) => RefineryState(
+    tier: ((j['t'] as num?)?.toInt() ?? 0).clamp(0, WorkRules.maxTier),
+    berth: (j['bh'] as num?)?.toInt() ?? -1,
+    refiner: j['w'] as String?,
+    recipe: j['r'] as String?,
+    keep: (j['k'] as num?)?.toInt() ?? WorkRules.defaultRefineKeep,
+    updatedMs: (j['u'] as num?)?.toInt() ?? 0,
+    made: (j['m'] as num?)?.toDouble() ?? 0,
+  );
+}
+
 class WorksState {
   WorksState({
     Map<String, ExtractorState>? extractors,
     ScavengerBayState? bay,
     SilverPressState? press,
+    RefineryState? refinery,
   }) : extractors = extractors ?? {},
        bay = bay ?? ScavengerBayState(),
-       press = press ?? SilverPressState();
+       press = press ?? SilverPressState(),
+       refinery = refinery ?? RefineryState() {
+    fitBerths();
+  }
 
   final Map<String, ExtractorState> extractors;
   final ScavengerBayState bay;
   final SilverPressState press;
+  final RefineryState refinery;
 
-  bool get isEmpty => extractors.isEmpty && !bay.built && !press.built;
+  bool get isEmpty =>
+      extractors.isEmpty && !bay.built && !press.built && !refinery.built;
 
   /// Every Alchemon at work, whatever its job.
   Set<String> get workerIds => {
     for (final x in extractors.values) ...x.workerIds,
     ...bay.workerIds,
     ?press.presser,
+    ?refinery.refiner,
   };
+
+  // ── berths ──
+
+  /// The berths the home buildings stand in, built ones only.
+  Map<WorksBuilding, int> get berths => {
+    if (bay.built) WorksBuilding.scavengerBay: bay.berth,
+    if (press.built) WorksBuilding.silverPress: press.berth,
+    if (refinery.built) WorksBuilding.refinery: refinery.berth,
+  };
+
+  int get berthsUsed => berths.length;
+
+  /// The first berth free among [count], or null when all are taken.
+  int? freeBerth(int count) {
+    final taken = berths.values.toSet();
+    for (var i = 0; i < count; i++) {
+      if (!taken.contains(i)) return i;
+    }
+    return null;
+  }
+
+  void setBerth(WorksBuilding b, int berth) {
+    switch (b) {
+      case WorksBuilding.scavengerBay:
+        bay.berth = berth;
+      case WorksBuilding.silverPress:
+        press.berth = berth;
+      case WorksBuilding.refinery:
+        refinery.berth = berth;
+      case WorksBuilding.extractor:
+        break;
+    }
+  }
+
+  /// Gives every built home building a berth of its own (one built before
+  /// berths existed, or two that claim the same one).
+  void fitBerths() {
+    final seen = <int>{};
+    for (final b in const [
+      WorksBuilding.scavengerBay,
+      WorksBuilding.silverPress,
+      WorksBuilding.refinery,
+    ]) {
+      final at = berths[b];
+      if (at == null) continue;
+      if (at >= 0 && seen.add(at)) continue;
+      var i = 0;
+      while (seen.contains(i) || (berths.values.contains(i) && i != at)) {
+        i++;
+      }
+      setBerth(b, i);
+      seen.add(i);
+    }
+  }
 
   /// The job [instanceId] is doing, and where, or null.
   (WorkJob, String?)? jobOf(String instanceId) {
@@ -502,6 +680,7 @@ class WorksState {
     }
     if (bay.workerIds.contains(instanceId)) return (WorkJob.scavenger, null);
     if (press.presser == instanceId) return (WorkJob.presser, null);
+    if (refinery.refiner == instanceId) return (WorkJob.refiner, null);
     return null;
   }
 
@@ -520,6 +699,7 @@ class WorksState {
       }
     }
     if (press.presser == instanceId) press.presser = null;
+    if (refinery.refiner == instanceId) refinery.refiner = null;
   }
 
   String serialise() => jsonEncode({
@@ -527,6 +707,7 @@ class WorksState {
     'x': [for (final x in extractors.values) x.toJson()],
     'b': bay.toJson(),
     'p': press.toJson(),
+    'r': refinery.toJson(),
   });
 
   factory WorksState.deserialise(String? raw) {
@@ -550,6 +731,9 @@ class WorksState {
             : SilverPressState.fromJson(
                 (j['p'] as Map).cast<String, dynamic>(),
               ),
+        refinery: j['r'] == null
+            ? null
+            : RefineryState.fromJson((j['r'] as Map).cast<String, dynamic>()),
       );
     } catch (_) {
       return WorksState();
@@ -562,10 +746,13 @@ class WorksState {
 /// What the works did between two advances.
 class WorksReport {
   final Map<String, double> delivered = {};
+  final Map<String, double> refined = {};
   int silver = 0;
   int finds = 0;
 
-  bool get isEmpty => delivered.isEmpty && silver == 0 && finds == 0;
+  bool get isEmpty =>
+      delivered.isEmpty && refined.isEmpty && silver == 0 && finds == 0;
+  double get refinedUnits => refined.values.fold(0.0, (s, v) => s + v);
   double get deliveredUnits => delivered.values.fold(0.0, (s, v) => s + v);
 
   void deliver(String element, double units) {
@@ -638,6 +825,7 @@ WorksReport advanceWorks(
     );
   }
   _advanceBay(works.bay, nowMs, workers, scavengeElements, report);
+  _advanceRefinery(works.refinery, nowMs, storage, workers, report);
   _advancePress(works.press, nowMs, storage, workers, report);
   return report;
 }
@@ -794,6 +982,35 @@ void _advanceBay(
     s.tripStartMs = now;
     s.tripMs = WorkRules.scavengerTripMs(w.speed);
   }
+}
+
+void _advanceRefinery(
+  RefineryState r,
+  int now,
+  Map<String, double> storage,
+  Map<String, WorkerProfile> workers,
+  WorksReport report,
+) {
+  if (r.updatedMs <= 0 || r.updatedMs > now) r.updatedMs = now;
+  final from = max(r.updatedMs, now - WorkRules.maxCatchUpMs);
+  r.updatedMs = now;
+  final w = r.refiner == null ? null : workers[r.refiner];
+  final parts = r.parts;
+  if (!r.built || w == null || parts == null) return;
+  final (a, b, out) = parts;
+  final budget = WorkRules.refineRate(w.intelligence) * (now - from) / 60000;
+  // Equal parts of each input, as far as both last over what it keeps.
+  final spareA = (storage[a] ?? 0) - r.keep;
+  final spareB = (storage[b] ?? 0) - r.keep;
+  final each = min(budget / 2, min(spareA, spareB));
+  if (each <= 0.0001) return;
+  storage[a] = storage[a]! - each;
+  storage[b] = storage[b]! - each;
+  final made = 2 * each * WorkRules.refineYield(r.tier);
+  storage[out] = (storage[out] ?? 0) + made;
+  storage.removeWhere((_, v) => v <= 0.01);
+  r.made += made;
+  report.refined[out] = (report.refined[out] ?? 0) + made;
 }
 
 void _advancePress(

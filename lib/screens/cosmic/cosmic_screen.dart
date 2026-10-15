@@ -47,6 +47,7 @@ import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/services/blood_rebirth_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
@@ -195,6 +196,9 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _worksCoachButton = false;
   bool _outpostCoachDone = true;
   bool _outpostCoach = false;
+
+  /// Refinery recipes the Codex has found (pair keys).
+  Set<String> _knownRecipes = const {};
   final GlobalKey _coachWorksKey = GlobalKey();
   final GlobalKey _coachOutpostKey = GlobalKey();
 
@@ -1883,7 +1887,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
   /// Garrison slots unlocked by active size tier: 1, 3, 4, 7, 9.
   int get _garrisonSlots =>
-      homeGarrisonSlotsForTier(_homePlanet?.activeSizeTier ?? 0);
+      homeGarrisonSlotsForTier(_homePlanet?.sizeTierLevel ?? 0);
 
   /// Gold / silver / soft, read when the base panel opens. They do not change
   /// while it is up, so a one-shot read beats holding a subscription open.
@@ -5378,26 +5382,27 @@ class _CosmicScreenState extends State<CosmicScreen>
     _homePlanet!.sizeTierLevel = (_homePlanet!.sizeTierLevel + 1).clamp(0, 4);
     _homePlanet!.activeSizeTier = _homePlanet!.sizeTierLevel;
     _saveHomePlanet();
-    _showQuote('Unlocked ${_homePlanet!.sizeTier} size!');
+    final tier = _homePlanet!.sizeTierLevel;
+    _showQuote(
+      '${_homePlanet!.sizeTier} unlocked: '
+      '${homeGarrisonSlotsForTier(tier)} garrison slots, '
+      '${homeBerthsForTier(tier)} berths.',
+    );
+    unawaited(_initGarrison());
+    _publishWorksView();
     setState(() {});
     _markHomeVisualChanged();
   }
 
-  void _handleSelectPlanetSize(int tier) async {
+  /// Picks the size the home is shown at. What the largest unlocked size
+  /// gives (garrison slots, berths) stays: a smaller look costs nothing.
+  void _handleSelectPlanetSize(int tier) {
     if (_homePlanet == null) return;
     if (tier > _homePlanet!.sizeTierLevel) return;
-    final oldSlots = _garrisonSlots;
     _homePlanet!.activeSizeTier = tier;
     _saveHomePlanet();
-    final newSlots = _garrisonSlots;
-    // Clear garrison slots that exceed the new tier's capacity
-    if (newSlots < oldSlots) {
-      final db = context.read<AlchemonsDatabase>();
-      for (var i = newSlots; i < oldSlots; i++) {
-        await db.settingsDao.setCosmicGarrisonSlotInstance(i, null);
-      }
-      await _initGarrison();
-    }
+    // The garrison orbits at the shown size.
+    _spawnGarrisonInGame();
     _markHomeVisualChanged();
     setState(() {});
   }

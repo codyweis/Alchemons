@@ -2420,10 +2420,16 @@ const int kHomeGarrisonMaxSlots = 9;
 const List<int> kHomeGarrisonSlotsByTier = [1, 3, 4, 7, 9];
 const List<double> _kHomeGarrisonBaseAngles = [-pi / 2, pi / 6, 5 * pi / 6];
 
-int homeGarrisonSlotsForTier(int activeSizeTier) {
-  final tier = activeSizeTier.clamp(0, kHomeGarrisonSlotsByTier.length - 1);
+/// Garrison slots a home has, by the largest size it has unlocked (a
+/// smaller look keeps them).
+int homeGarrisonSlotsForTier(int unlockedSizeTier) {
+  final tier = unlockedSizeTier.clamp(0, kHomeGarrisonSlotsByTier.length - 1);
   return kHomeGarrisonSlotsByTier[tier];
 }
+
+/// Berths round the home for the Works' buildings, by the largest size it
+/// has unlocked: Tiny 2 … Huge 6. A smaller look keeps them.
+int homeBerthsForTier(int unlockedSizeTier) => 2 + unlockedSizeTier.clamp(0, 4);
 
 int homeGarrisonLayerForSlot(int slotIndex) {
   final clamped = slotIndex.clamp(0, kHomeGarrisonMaxSlots - 1);

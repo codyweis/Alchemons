@@ -575,6 +575,15 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             trailing: HomePlanet.tierNames[planet.activeSizeTier],
           ),
           _sizeRow(planet),
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'UNLOCKED: ${homeGarrisonSlotsForTier(planet.sizeTierLevel)} '
+              'GARRISON · ${homeBerthsForTier(planet.sizeTierLevel)} BERTHS'
+              ' · KEPT AT ANY SIZE YOU PICK',
+              style: panelLabel(9, panelPalette.muted, spacing: 0.8),
+            ),
+          ),
           const SizedBox(height: 14),
           _section('COLOR', trailing: _colorName(planet.activeColor)),
           _colorSwatches(planet),
@@ -997,6 +1006,14 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _dockTitle(HomePlanet.tierNames[tier].toUpperCase(), subtitle: 'SIZE'),
+        Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Text(
+            '${homeGarrisonSlotsForTier(tier)} GARRISON · '
+            '${homeBerthsForTier(tier)} BERTHS',
+            style: panelLabel(10, panelPalette.ink, spacing: 0.8),
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.only(top: 10),
           child: ShardAmount(cost, size: 13, enabled: _shards >= cost),

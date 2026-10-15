@@ -20,6 +20,7 @@
 //
 // All maths are pure (unit-tested without the engine).
 
+import 'package:alchemons/constants/element_combos.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -235,36 +236,16 @@ bool interactionSucceeded(InteractionResult r) =>
     r == InteractionResult.passed || r == InteractionResult.passedViaRecipe;
 
 // ── Recipe table (element-combo alternate solutions) ────────
-
-const Map<String, String> _dungeonRecipes = {
-  'Air+Fire': 'Lightning',
-  'Earth+Fire': 'Lava',
-  'Ice+Lava': 'Steam',
-  'Fire+Water': 'Steam',
-  'Plant+Fire': 'Dust',
-  'Air+Earth': 'Dust',
-  'Spirit+Water': 'Ice',
-  'Plant+Water': 'Mud',
-  'Lava+Mud': 'Poison',
-  'Plant+Mud': 'Poison',
-  'Earth+Lightning': 'Crystal',
-  'Dust+Spirit': 'Crystal',
-  'Lightning+Crystal': 'Spirit',
-  'Crystal+Spirit': 'Light',
-  'Poison+Spirit': 'Dark',
-  'Dark+Light': 'Blood',
-  'Mud+Light': 'Plant',
-  'Ice+Light': 'Air',
-  'Air+Ice': 'Water',
-};
+//
+// The table itself is shared with the Works' Refinery:
+// lib/constants/element_combos.dart.
 
 /// Element produced by combining [a] and [b] (order-independent), or null.
 ///
 /// Every recipe works every time. No dungeon reaction is left to chance: a
 /// puzzle verb that can fail on a correct answer teaches the player that the
 /// answer was wrong.
-String? dungeonRecipeResult(String a, String b) =>
-    _dungeonRecipes['$a+$b'] ?? _dungeonRecipes['$b+$a'];
+String? dungeonRecipeResult(String a, String b) => elementComboResult(a, b);
 
 // ── Stat-scaled tunables (pure) ─────────────────────────────
 

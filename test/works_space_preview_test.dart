@@ -111,13 +111,20 @@ void main() {
         },
         bay: ScavengerBayState(
           tier: 3,
+          berth: 0,
           crates: [
             const ScavengerFind(elements: {'Fire': 12, 'Ice': 8}),
             const ScavengerFind(elements: {'Water': 20}),
             const ScavengerFind(elements: {'Crystal': 20}, shards: 2),
           ],
         ),
-        press: SilverPressState(tier: 2, presser: 'p0', reserve: 100),
+        press: SilverPressState(tier: 2, berth: 1, presser: 'p0', reserve: 100),
+        refinery: RefineryState(
+          tier: 2,
+          berth: 2,
+          refiner: 'r0',
+          recipe: 'Fire+Water',
+        ),
       );
       works.bay.slots[0].instanceId = 's0';
       works.bay.slots[1]
@@ -134,7 +141,9 @@ void main() {
         's1': member('s1', pick('Lightning', 'wing')),
         's2': member('s2', pick('Water', 'let')),
         'p0': member('p0', pick('Earth', 'horn')),
+        'r0': member('r0', pick('Crystal', 'kin')),
       });
+      game.worksRefining = true;
       game.worksPressIntake = const [Color(0xFFFF6B2B), Color(0xFF2E9BFF)];
       await Future<void>.delayed(const Duration(milliseconds: 600));
     });
