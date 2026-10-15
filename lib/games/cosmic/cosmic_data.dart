@@ -1320,9 +1320,13 @@ class ElementMeter {
 
   /// Max capacity — once total reaches this, the meter is full.
   static const double maxCapacity = 100.0;
+  static const int maxCapacityUnits = 100;
 
   double get total => _collected.values.fold(0.0, (s, v) => s + v);
   bool get isFull => total >= maxCapacity;
+
+  /// Room left before the meter is full.
+  double get space => (maxCapacity - total).clamp(0.0, maxCapacity);
   double get fillPct => (total / maxCapacity).clamp(0.0, 1.0);
 
   Map<String, double> get breakdown => Map.unmodifiable(_collected);
@@ -1342,6 +1346,20 @@ class ElementMeter {
   /// Remove all of a specific element from the meter.
   void removeElement(String element) {
     _collected.remove(element);
+  }
+
+  /// Takes up to [amount] of [element] out of the meter; returns what was
+  /// taken.
+  double take(String element, double amount) {
+    final have = _collected[element] ?? 0;
+    final taken = amount.clamp(0.0, have);
+    final left = have - taken;
+    if (left <= 0.0001) {
+      _collected.remove(element);
+    } else {
+      _collected[element] = left;
+    }
+    return taken;
   }
 
   void reset() => _collected.clear();

@@ -11,7 +11,6 @@
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:flutter/material.dart';
@@ -26,7 +25,6 @@ class HomeBaseStats {
   const HomeBaseStats({
     this.gold = 0,
     this.silver = 0,
-    this.soft = 0,
     this.shardsCarried = 0,
     this.shardCapacity = 0,
     this.astralBank = 0,
@@ -41,7 +39,6 @@ class HomeBaseStats {
 
   final int gold;
   final int silver;
-  final int soft;
 
   /// Shards in the ship's hold, and what the hold can take.
   final int shardsCarried;
@@ -74,6 +71,9 @@ class HomePlanetMenuOverlay extends StatelessWidget {
     required this.stats,
     required this.onCustomize,
     required this.onClose,
+    this.onLoadHold,
+    this.onWorks,
+    this.worksKey,
     this.paintHome,
     this.wearing = const {},
   });
@@ -83,6 +83,15 @@ class HomePlanetMenuOverlay extends StatelessWidget {
   final HomeBaseStats stats;
   final VoidCallback onCustomize;
   final VoidCallback onClose;
+
+  /// Opens LOAD THE HOLD: storage into the ship, for the gates.
+  final VoidCallback? onLoadHold;
+
+  /// Opens THE WORKS: the base's buildings and the Alchemons at work.
+  final VoidCallback? onWorks;
+
+  /// On the WORKS button, for the tutorial's coach mark.
+  final Key? worksKey;
 
   /// Draws the real planet on the stage (CosmicGame.paintHomeShowcase).
   final HomeShowcasePainter? paintHome;
@@ -282,7 +291,8 @@ class HomePlanetMenuOverlay extends StatelessWidget {
     );
   }
 
-  /// Account-wide money — not tied to this ship or this base.
+  /// Account-wide money — not tied to this ship or this base. Astral shards
+  /// are not money here: they are the readings above (banked and carried).
   Widget _wallet() {
     return Wrap(
       spacing: 22,
@@ -290,28 +300,52 @@ class HomePlanetMenuOverlay extends StatelessWidget {
       children: [
         CoinAmount(kind: CoinKind.gold, amount: stats.gold, size: 13),
         CoinAmount(kind: CoinKind.silver, amount: stats.silver, size: 13),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              AppIcons.diamond_rounded,
-              size: 14,
-              color: Color(0xFFB388FF),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              panelFmt(stats.soft),
-              style: panelLabel(13, const Color(0xFFB388FF), spacing: 0.4),
-            ),
-            const SizedBox(width: 6),
-            Text('SHARDS', style: panelLabel(9, panelPalette.muted)),
-          ],
-        ),
       ],
     );
   }
 
   Widget _dock() {
+    final side = <Widget>[
+      if (onLoadHold != null)
+        BracketButton(
+          key: const ValueKey('home.loadHold'),
+          label: 'LOAD SHIP',
+          height: 46,
+          palette: panelPalette,
+          accent: _accent,
+          primary: false,
+          onTap: onLoadHold!,
+        ),
+      if (onWorks != null)
+        KeyedSubtree(
+          key: worksKey,
+          child: BracketButton(
+            key: const ValueKey('home.works'),
+            label: 'WORKS',
+            height: 46,
+            palette: panelPalette,
+            accent: _accent,
+            primary: false,
+            onTap: onWorks!,
+          ),
+        ),
+    ];
+    final customize = BracketButton(
+      key: const ValueKey('home.customize'),
+      label: 'CUSTOMIZE',
+      height: 46,
+      palette: panelPalette,
+      accent: _accent,
+      onTap: onCustomize,
+    );
+    Widget row(List<Widget> items) => Row(
+      children: [
+        for (var i = 0; i < items.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(child: items[i]),
+        ],
+      ],
+    );
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
       decoration: BoxDecoration(
@@ -322,13 +356,15 @@ class HomePlanetMenuOverlay extends StatelessWidget {
       ),
       child: SafeArea(
         top: false,
-        child: BracketButton(
-          key: const ValueKey('home.customize'),
-          label: 'CUSTOMIZE',
-          height: 46,
-          palette: panelPalette,
-          accent: _accent,
-          onTap: onCustomize,
+        // Three across only where each keeps its whole name; narrower, the
+        // base's own actions share a row above CUSTOMIZE.
+        child: LayoutBuilder(
+          builder: (context, box) => side.isEmpty || box.maxWidth >= 520
+              ? row([...side, customize])
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [row(side), const SizedBox(height: 8), customize],
+                ),
         ),
       ),
     );

@@ -79,10 +79,11 @@ HomePlanetMenuOverlay _home() => HomePlanetMenuOverlay(
     dustTotal: 120,
     gold: 999999,
     silver: 1234567,
-    soft: 88,
   ),
   onCustomize: () => _calls.add('customize'),
   onClose: () => _calls.add('close'),
+  onLoadHold: () => _calls.add('load'),
+  onWorks: () => _calls.add('works'),
 );
 
 Future<void> _settle(WidgetTester tester) async {

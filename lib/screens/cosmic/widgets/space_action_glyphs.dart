@@ -14,6 +14,7 @@
 //   ship     the hull the player flies, in its grains
 //   raid     a planet with the storm of an overrun on it (the chart's own)
 //   summon   the raid beacon (the item's own glyph)
+//   outpost  the planet's extractor (works_art.dart), its hopper lit
 //
 // And the combat buttons:
 //
@@ -34,6 +35,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/obsidian_kit.dart';
 import 'package:alchemons/games/cosmic/ship_art.dart';
+import 'package:alchemons/games/cosmic/works_art.dart';
 import 'package:alchemons/widgets/cosmic_ship_emblem.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
@@ -50,6 +52,7 @@ enum SpaceAction {
   ship,
   raid,
   summon,
+  outpost,
   gun,
   boost,
   missile,
@@ -205,6 +208,20 @@ class SpaceActionPainter extends CustomPainter {
         paintRaidGlyph(canvas, c, s, color);
       case SpaceAction.summon:
         break; // its own widget
+      case SpaceAction.outpost:
+        canvas.save();
+        canvas.translate(c.dx, c.dy + s * 0.4);
+        canvas.scale(s * 0.86 / kExtractorReach);
+        paintExtractor(
+          canvas,
+          at: Offset.zero,
+          essence: color,
+          tier: 1,
+          t: t,
+          fill: 0.55,
+          mining: lit,
+        );
+        canvas.restore();
       case SpaceAction.gun:
         _gun(canvas, c, s, t);
       case SpaceAction.boost:

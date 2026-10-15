@@ -67,7 +67,6 @@ void main() {
   const stats = HomeBaseStats(
     gold: 1240,
     silver: 18400,
-    soft: 36,
     shardsCarried: 140,
     shardCapacity: 400,
     astralBank: 820,

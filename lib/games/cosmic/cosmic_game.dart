@@ -42,7 +42,9 @@ import 'station_art.dart';
 import 'poi_art.dart';
 import 'asteroid_art.dart';
 import 'landmark_art.dart';
-import 'obsidian_kit.dart' show paintDisc, stoneLightFor;
+import 'obsidian_kit.dart' show paintDisc, polar, stoneLightFor;
+import 'works.dart';
+import 'works_art.dart';
 import 'package:alchemons/games/stadium/stadium_space_art.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
@@ -78,6 +80,7 @@ part 'cosmic_game_horn.dart';
 part 'cosmic_game_kin.dart';
 part 'cosmic_game_mane.dart';
 part 'cosmic_game_travel.dart';
+part 'cosmic_game_works.dart';
 
 /// Cached icon-glyph painters for item loot drops — same shop icon set
 /// resolved via [InventoryItemArtwork.offerFor], baked once per (icon, color)
@@ -512,6 +515,16 @@ class CosmicGame extends FlameGame with PanDetector {
 
   // Home planet (player-built)
   HomePlanet? homePlanet;
+
+  // The Works (cosmic_game_works.dart): the screen owns the state and keeps
+  // it caught up; the game draws it.
+  WorksState? works;
+  Map<String, CosmicPartyMember> worksMembers = const {};
+
+  /// The colours going under the Silver Press (storage over its reserve).
+  List<Color> worksPressIntake = const [];
+  final Map<String, _WorkerSprite> _workerSprites = {};
+  final List<_WorksFlow> _worksFlows = [];
 
   // Asteroid belt
   late AsteroidBelt asteroidBelt;
@@ -2263,6 +2276,7 @@ class CosmicGame extends FlameGame with PanDetector {
     super.update(dt);
     if (_tearWild != null || _tearCloseT >= 0) dt = _tickPortalTear(dt);
     _elapsed += dt;
+    _updateWorks(dt);
     // The party's abilities touch the wild Alchemon being fought as they
     // touch any body, but only while they resolve: the ship's guns, enemy AI
     // and the spawner never see it in the enemy list.
@@ -5575,6 +5589,9 @@ class CosmicGame extends FlameGame with PanDetector {
         );
       }
     }
+
+    // ── the Works: extractors, the bay, the press, and their workers ──
+    _renderWorks(canvas, cx, cy, screenW, screenH);
 
     // ── asteroids ──
     // Near-black stone lit by the key light, and dust through the belt

@@ -70,6 +70,10 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/bracket_controls.dart'
+    show showBracketConfirm;
+import 'package:alchemons/widgets/coin_icon.dart' show CoinKind;
+import 'package:alchemons/games/cosmic/works.dart';
 
 // Scorched Forge design tokens
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
@@ -78,6 +82,9 @@ import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'models/map_marker.dart';
 import 'widgets/widgets.dart';
 import 'widgets/coach_mark.dart';
+import 'widgets/load_hold_panel.dart';
+import 'widgets/works_panels.dart';
+import 'widgets/worker_picker.dart';
 import 'widgets/mini_map_circle.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -91,6 +98,8 @@ import 'widgets/planet_descent_passage.dart';
 import 'widgets/chart_zoom.dart';
 import 'widgets/space_action_glyphs.dart';
 import 'widgets/space_trigger.dart';
+
+part 'cosmic_screen_works.dart';
 
 const _cosmicMeterPalette = BracketPalette.dark;
 
@@ -170,6 +179,38 @@ class _CosmicScreenState extends State<CosmicScreen>
   Timer? _raidTimer;
   int _raidBeaconQty = 0;
   ElementStorage _elementStorage = ElementStorage();
+
+  // ── The Works (cosmic_screen_works.dart) ──
+  WorksState _works = WorksState();
+  Map<String, WorkerProfile> _workerProfiles = const {};
+  Map<String, CosmicPartyMember> _workerMembers = const {};
+  Timer? _worksTimer;
+  int _worksTicks = 0;
+  late final ValueNotifier<WorksView> _worksView = ValueNotifier(
+    _makeWorksView(),
+  );
+  late final WorksActions _worksActions = _WorksActionsImpl(this);
+  bool _worksCoachDone = true;
+  bool _worksCoachHome = false;
+  bool _worksCoachButton = false;
+  bool _outpostCoachDone = true;
+  bool _outpostCoach = false;
+  final GlobalKey _coachWorksKey = GlobalKey();
+  final GlobalKey _coachOutpostKey = GlobalKey();
+
+  /// The rail carries OUTPOST: the ship is at a planet it has found, away
+  /// from home, and the Works are open.
+  bool get _outpostRailShowing =>
+      _worksAvailable &&
+      !_isNearHome &&
+      _nearPlanet != null &&
+      _nearPlanet!.discovered;
+
+  /// For the part files, which cannot call [setState] themselves.
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
+
   bool _showElementsCaptured = false;
   Map<String, double> _capturedBreakdown = {};
 
@@ -981,6 +1022,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         }
         _initCosmicParty();
         _initGarrison();
+        unawaited(_initWorks());
       });
     } else {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -993,6 +1035,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         }
         _initCosmicParty();
         _initGarrison();
+        unawaited(_initWorks());
       });
     }
 
@@ -1172,6 +1215,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     // Block if already stationed in garrison
     if (_garrisonMembers.any((m) => m?.instanceId == instanceId)) {
       _showQuote('Already stationed at your home base!');
+      return;
+    }
+    if (_works.workerIds.contains(instanceId)) {
+      _showQuote('That Alchemon is at work in the Works.');
       return;
     }
     // If the slot being replaced has an active companion, return it first
@@ -1854,7 +1901,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   HomeBaseStats get _homeBaseStats => HomeBaseStats(
     gold: _walletCurrencies['gold'] ?? 0,
     silver: _walletCurrencies['silver'] ?? 0,
-    soft: _walletCurrencies['soft'] ?? 0,
     shardsCarried: _game?.shipWallet.shards ?? 0,
     shardCapacity: _game?.shipWallet.shardCapacity ?? 0,
     astralBank: _homePlanet?.astralBank ?? 0,
@@ -1889,52 +1935,12 @@ class _CosmicScreenState extends State<CosmicScreen>
         final inst = await db.creatureDao.getInstance(id);
         if (inst != null) {
           seenInstanceIds.add(id);
-          final base = catalog.getCreatureById(inst.baseId);
-          final typeName = (base?.types.isNotEmpty ?? false)
-              ? base!.types.first
-              : 'Earth';
-          final family = base?.mutationFamily ?? 'kin';
-          final name = inst.nickname ?? base?.name ?? inst.baseId;
-          final sheet = base?.spriteData != null
-              ? sheetFromCreature(base!)
-              : null;
-          final visuals = visualsFromInstance(base, inst);
           members.add(
-            CosmicPartyMember(
-              instanceId: inst.instanceId,
-              baseId: inst.baseId,
-              displayName: name,
-              imagePath: base?.image != null
-                  ? 'assets/images/${base!.image}'
-                  : null,
-              element: typeName,
-              family: family,
-              level: inst.level,
-              statSpeed: combatBonuses.applyCombatStatBonus(
-                'speed',
-                inst.statSpeed,
-              ),
-              statIntelligence: combatBonuses.applyCombatStatBonus(
-                'intelligence',
-                inst.statIntelligence,
-              ),
-              statStrength: combatBonuses.applyCombatStatBonus(
-                'strength',
-                inst.statStrength,
-              ),
-              statBeauty: combatBonuses.applyCombatStatBonus(
-                'beauty',
-                inst.statBeauty,
-              ),
-              statSpeedPotential: inst.statSpeedPotential,
-              statIntelligencePotential: inst.statIntelligencePotential,
-              statStrengthPotential: inst.statStrengthPotential,
-              statBeautyPotential: inst.statBeautyPotential,
+            cosmicMemberFromInstance(
+              inst,
+              catalog.getCreatureById(inst.baseId),
               slotIndex: i,
-              staminaBars: 3,
-              staminaMax: inst.staminaMax,
-              spriteSheet: sheet,
-              spriteVisuals: visuals,
+              bonus: combatBonuses.applyCombatStatBonus,
             ),
           );
           continue;
@@ -1964,6 +1970,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     // Block if already in ship party
     if (_partyMembers.any((m) => m?.instanceId == instanceId)) {
       _showQuote('Already assigned to your ship party!');
+      return;
+    }
+    if (_works.workerIds.contains(instanceId)) {
+      _showQuote('That Alchemon is at work in the Works.');
       return;
     }
     final alreadyGarrisonedElsewhere = _garrisonMembers.asMap().entries.any(
@@ -2145,6 +2155,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           if (planet != null) {
             unawaited(_maybeShowPlanetRecipeArrivalIntro(planet));
           }
+          _publishWorksView();
         }
       });
     }
@@ -4142,6 +4153,74 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
+  /// The sealed gates the ship has found, each with the pattern it wants —
+  /// what LOAD THE HOLD offers to pack.
+  List<GatePattern> _gatePatterns() {
+    final game = _game;
+    if (game == null) return const [];
+    return [
+      for (final p in game.world_.planets)
+        if (p.discovered &&
+            !_unsealedGates.contains(p.element) &&
+            (p.element != kBloodPlanetElement || _bloodPlanetUnlocked))
+          GatePattern(
+            planetName: planetName(p.element),
+            recipe: _getRecipeForPlanet(p),
+          ),
+    ];
+  }
+
+  /// LOAD THE HOLD, from the home base window.
+  Future<void> _openLoadHold() async {
+    final game = _game;
+    if (game == null || _homePlanet == null) return;
+    final open = showStationPanel<void>(
+      context,
+      LoadHoldPanel(
+        stored: Map.of(_elementStorage.stored),
+        hold: Map.of(game.meter.breakdown),
+        patterns: _gatePatterns(),
+        onLoad: (plan) {
+          _handleLoadHold(plan);
+          Navigator.of(context).maybePop();
+        },
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    if (mounted) await _maybeShowLoadHoldIntro();
+    await open;
+  }
+
+  /// Storage into the hold, as [plan] says. With `emptyFirst` the hold's
+  /// cargo goes back into storage before anything is taken out (a pattern
+  /// fills the whole hold).
+  void _handleLoadHold(HoldLoadPlan plan) {
+    final game = _game;
+    if (game == null) return;
+    final meter = game.meter;
+    if (plan.emptyFirst && meter.total > 0) {
+      _elementStorage.addAll(Map.of(meter.breakdown));
+      meter.reset();
+    }
+    var loaded = 0.0;
+    for (final e in plan.units.entries) {
+      final have = _elementStorage.stored[e.key] ?? 0;
+      final take = min(e.value.toDouble(), min(have, meter.space));
+      if (take <= 0) continue;
+      _elementStorage.stored[e.key] = have - take;
+      meter.add(e.key, take);
+      loaded += take;
+    }
+    _elementStorage.stored.removeWhere((_, v) => v <= 0.01);
+    _saveElementStorage();
+    game.onMeterChanged();
+    if (loaded > 0) {
+      _showQuote('Loaded ${loaded.round()} into the ship.');
+      HapticFeedback.mediumImpact();
+    }
+    setState(() {});
+  }
+
   /// Manual deposit: meter + wallet combined.
   void _handleDepositAll() {
     if (_game == null || _homePlanet == null || !_isNearHome) return;
@@ -4283,6 +4362,35 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
     final actions = <Widget>[shipAction];
 
+    // At a planet the ship has found: its extractor, built or to build.
+    final outpostPlanet = _outpostRailShowing ? _nearPlanet : null;
+    if (outpostPlanet != null) {
+      _maybeStartOutpostCoach(outpostShowing: true);
+      final built = _works.extractors[outpostPlanet.element];
+      actions.insert(
+        0,
+        Tooltip(
+          message: built == null ? 'Build an extractor' : 'Extractor',
+          child: GestureDetector(
+            key: const ValueKey('cosmic.rail.outpost'),
+            onTap: context.soundAction(
+              () => unawaited(_openOutpost(outpostPlanet.element)),
+            ),
+            child: _CosmicSquareHudButton(
+              key: _coachOutpostKey,
+              accent: elementInk(outpostPlanet.element),
+              active: built != null || _outpostCoach,
+              child: SpaceActionGlyph(
+                SpaceAction.outpost,
+                color: outpostPlanet.color,
+                lit: built != null,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     if (showHomeActions && home != null) {
       actions.clear();
       actions.addAll([
@@ -4312,6 +4420,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           child: GestureDetector(
             onTap: context.soundAction(() {
               _advanceHomeTour(from: 1);
+              _advanceWorksCoach();
               setState(() => _showHomeMenu = true);
               unawaited(_refreshWalletCurrencies());
             }),
@@ -4900,6 +5009,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _saveNexusState(),
       _saveCacheState(),
       _saveBloodRingState(),
+      _saveWorks(),
     ]);
   }
 
@@ -6763,6 +6873,8 @@ class _CosmicScreenState extends State<CosmicScreen>
     _companionCooldownUiTimer?.cancel();
     _companionTick.dispose();
     _raidTimer?.cancel();
+    _worksTimer?.cancel();
+    _worksView.dispose();
     _meterPulse.dispose();
     _meterTick.dispose();
     _emptySlotPulse.dispose();
@@ -7904,6 +8016,23 @@ class _CosmicScreenState extends State<CosmicScreen>
                       _showCustomizationMenu = true;
                     }),
                     onClose: () => setState(() => _showHomeMenu = false),
+                    onLoadHold: _openLoadHold,
+                    onWorks: _worksAvailable
+                        ? () => unawaited(_openWorks())
+                        : null,
+                    worksKey: _coachWorksKey,
+                  ),
+                ),
+              if (showCosmicHud &&
+                  _showHomeMenu &&
+                  _worksCoachButton &&
+                  _homePlanet != null)
+                Positioned.fill(
+                  child: CosmicCoachMark(
+                    key: const ValueKey('works-coach-button'),
+                    text: 'The Works: buildings your Alchemons run.',
+                    target: _coachWorksKey,
+                    accent: CosmicScreenStyles.amber,
                   ),
                 ),
 
@@ -7970,10 +8099,12 @@ class _CosmicScreenState extends State<CosmicScreen>
                     hintText:
                         'Pick a slot, then tap an Alchemon to assign it. '
                         'Summon crew from the HUD to fight beside your ship.',
-                    excludeInstanceIds: _garrisonMembers
-                        .whereType<CosmicPartyMember>()
-                        .map((m) => m.instanceId)
-                        .toSet(),
+                    excludeInstanceIds: {
+                      ..._garrisonMembers.whereType<CosmicPartyMember>().map(
+                        (m) => m.instanceId,
+                      ),
+                      ..._works.workerIds,
+                    },
                   ),
                 ),
 
@@ -7993,10 +8124,12 @@ class _CosmicScreenState extends State<CosmicScreen>
                     hintText:
                         'Pick a slot, then tap an Alchemon to station it. '
                         'Garrison size grows with planet tier.',
-                    excludeInstanceIds: _partyMembers
-                        .whereType<CosmicPartyMember>()
-                        .map((m) => m.instanceId)
-                        .toSet(),
+                    excludeInstanceIds: {
+                      ..._partyMembers.whereType<CosmicPartyMember>().map(
+                        (m) => m.instanceId,
+                      ),
+                      ..._works.workerIds,
+                    },
                   ),
                 ),
 
@@ -8423,7 +8556,12 @@ class _CosmicScreenState extends State<CosmicScreen>
                       : 20,
                   left: 12,
                   child: AnimatedOpacity(
-                    opacity: _nearPlanet != null && !_isNearHome ? 0.25 : 1.0,
+                    opacity:
+                        _nearPlanet != null &&
+                            !_isNearHome &&
+                            !_outpostRailShowing
+                        ? 0.25
+                        : 1.0,
                     duration: const Duration(milliseconds: 350),
                     child: AnimatedSlide(
                       offset: Offset.zero,
@@ -8438,6 +8576,9 @@ class _CosmicScreenState extends State<CosmicScreen>
                                 !_showElementsCaptured;
                             if (showCosmicHud) {
                               _maybeStartHomeTour(
+                                homeActionsShowing: homeActions,
+                              );
+                              _maybeStartWorksCoach(
                                 homeActionsShowing: homeActions,
                               );
                             }
@@ -8613,6 +8754,40 @@ class _CosmicScreenState extends State<CosmicScreen>
                     key: ValueKey('home-tour-$_homeTourStep'),
                     text: _homeTourSteps[_homeTourStep!].$1,
                     target: _homeTourTarget(_homeTourStep!),
+                    accent: CosmicScreenStyles.amber,
+                  ),
+                ),
+
+              // ── The Works, pointed out once ──
+              if (showCosmicHud &&
+                  _worksCoachHome &&
+                  _isNearHome &&
+                  _homeTourStep == null &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned.fill(
+                  child: CosmicCoachMark(
+                    key: const ValueKey('works-coach-home'),
+                    text:
+                        'New: the Works. Open your base to put Alchemons '
+                        'to work.',
+                    target: _coachHomeKey,
+                    accent: CosmicScreenStyles.amber,
+                  ),
+                ),
+              if (showCosmicHud &&
+                  _outpostCoach &&
+                  _outpostRailShowing &&
+                  !_showMiniMap &&
+                  !_anyOverlayOpen)
+                Positioned.fill(
+                  child: CosmicCoachMark(
+                    key: const ValueKey('works-coach-outpost'),
+                    text:
+                        'Build an extractor on this planet: '
+                        '${WorkRules.extractorBuildUnits} of its element '
+                        'from your cargo.',
+                    target: _coachOutpostKey,
                     accent: CosmicScreenStyles.amber,
                   ),
                 ),
