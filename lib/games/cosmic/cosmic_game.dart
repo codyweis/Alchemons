@@ -529,6 +529,16 @@ class CosmicGame extends FlameGame with PanDetector {
   final Map<String, _WorkerSprite> _workerSprites = {};
   final List<_WorksFlow> _worksFlows = [];
 
+  /// Per scavenger out: the trip it is on, the element it leads with and
+  /// where it searches — rolled once a trip, not every frame
+  /// (cosmic_game_works.dart).
+  final Map<String, ({int trip, String lead, int hash, int spin})>
+  _scavengeTrips = {};
+
+  /// The bay's crate colours, kept until the crates change.
+  List<Color> _crateColors = const [];
+  (int, Object?) _crateColorsOf = (0, null);
+
   // Asteroid belt
   late AsteroidBelt asteroidBelt;
 

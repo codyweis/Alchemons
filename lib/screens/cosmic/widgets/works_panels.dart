@@ -106,9 +106,9 @@ abstract class WorksActions {
   void setRecipe(String? recipe);
   void setRefineKeep(int keep);
   void openArmory();
+  Future<void> openCodex();
   Future<void> dismantle(WorksBuilding b);
   Future<void> openOutpost(String element);
-  Future<void> help();
 }
 
 const Color _amber = CosmicScreenStyles.amberBright;
@@ -459,9 +459,16 @@ class WorkerSlotRow extends StatelessWidget {
               GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: context.soundAction(onClear),
+                // Takes the Alchemon off the job; a wide target for a thumb.
                 child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Text('OFF', style: panelLabel(9, panelPalette.muted)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 12,
+                  ),
+                  child: Text(
+                    'REMOVE',
+                    style: panelLabel(9, panelPalette.muted),
+                  ),
                 ),
               ),
             ],
@@ -472,7 +479,8 @@ class WorkerSlotRow extends StatelessWidget {
   }
 }
 
-/// A cost as chips: named elements against storage, any-matter, silver.
+/// A cost in words: its named elements against what is held, the elements
+/// of any kind it takes, and its silver (a coin alone did not say silver).
 class WorksCostLine extends StatelessWidget {
   const WorksCostLine({
     super.key,
@@ -486,41 +494,86 @@ class WorksCostLine extends StatelessWidget {
   final Map<String, double> storage;
   final int silver;
 
-  /// When the elements come out of the hold instead (an extractor's build).
+  /// When the elements come out of the ship's cargo instead (an extractor's
+  /// build).
   final Map<String, double>? fromHold;
 
   @override
   Widget build(BuildContext context) {
     final source = fromHold ?? storage;
-    final storeTotal = storage.values.fold(0.0, (s, v) => s + v);
-    final named = cost.elements.values.fold(0, (s, v) => s + v);
+    // Said the way the rest of the line is: how much of what, and what is
+    // held only when it falls short.
+    final parts = <Widget>[
+      for (final e in cost.elements.entries)
+        () {
+          final have = source[e.key] ?? 0;
+          final ok = have + 1e-6 >= e.value;
+          final ink = elementInk(e.key);
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PanelDot(ok ? ink : ink.withValues(alpha: 0.4), size: 6),
+              const SizedBox(width: 5),
+              Text(
+                '${panelFmt(e.value)} ${e.key.toUpperCase()}'
+                '${ok ? '' : ' · YOU HAVE ${panelFmt(have)}'}',
+                style: panelLabel(
+                  9.5,
+                  ok ? ink : CosmicScreenStyles.textMuted,
+                  spacing: 0.4,
+                ),
+              ),
+            ],
+          );
+        }(),
+    ];
+    if (fromHold != null) {
+      parts.add(Text('FROM CARGO', style: panelLabel(8.5, panelPalette.muted)));
+    }
+    if (cost.matter > 0) {
+      // Any elements will do; which ones the confirmation names.
+      final named = cost.elements.values.fold(0, (s, v) => s + v);
+      final have = storage.values.fold(0.0, (s, v) => s + v) - named;
+      final ok = have + 1e-6 >= cost.matter;
+      parts.add(
+        Text(
+          '${panelFmt(cost.matter)} ANY ELEMENTS'
+          '${ok ? '' : ' · YOU HAVE ${panelFmt(have < 0 ? 0 : have)}'}',
+          style: panelLabel(
+            9.5,
+            ok ? panelPalette.ink : CosmicScreenStyles.textMuted,
+            spacing: 0.4,
+          ),
+        ),
+      );
+    }
+    if (cost.silver > 0) {
+      final ok = silver >= cost.silver;
+      parts.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CoinIcon(kind: CoinKind.silver, size: 11),
+            const SizedBox(width: 4),
+            Text(
+              '${panelFmt(cost.silver)} SILVER',
+              style: panelLabel(
+                9.5,
+                ok ? panelPalette.ink : CosmicScreenStyles.textMuted,
+                spacing: 0.4,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Wrap(
       spacing: 12,
       runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        for (final e in cost.elements.entries)
-          CostChip(e.key, e.value, source, size: 9.5),
-        if (cost.matter > 0)
-          Text(
-            '${panelFmt(cost.matter)} ANY ELEMENTS',
-            style: panelLabel(
-              9.5,
-              storeTotal - named >= cost.matter
-                  ? panelPalette.ink
-                  : CosmicScreenStyles.textMuted,
-              spacing: 0.4,
-            ),
-          ),
-        if (cost.silver > 0)
-          CoinAmount(
-            kind: CoinKind.silver,
-            amount: cost.silver,
-            size: 10,
-            color: silver >= cost.silver ? null : CosmicScreenStyles.textMuted,
-          ),
-        if (fromHold != null)
-          Text('FROM CARGO', style: panelLabel(8.5, panelPalette.muted)),
+        Text('COSTS', style: panelLabel(8.5, panelPalette.muted)),
+        ...parts,
       ],
     );
   }
@@ -645,9 +698,9 @@ Widget _gap([double h = 8]) => SizedBox(height: h);
 
 /// What a refinery tier makes of what it takes, in whole numbers.
 String refineYieldLine(int tier) => switch (tier) {
-  <= 1 => 'EVERY 2 IN MAKES 1',
-  2 => 'EVERY 5 IN MAKES 3',
-  _ => 'EVERY 3 IN MAKES 2',
+  <= 1 => '2 IN → 1 OUT',
+  2 => '5 IN → 3 OUT',
+  _ => '3 IN → 2 OUT',
 };
 
 // ── the Works ───────────────────────────────────────────────────────────────
@@ -712,30 +765,13 @@ class _WorksPanelState extends State<WorksPanel> {
               children: [
                 PanelHeader(
                   title: 'THE WORKS',
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'BERTHS ${v.works.berthsUsed}/${v.berthCount}',
-                        key: const ValueKey('works.berths'),
-                        style: panelLabel(9.5, panelPalette.muted),
-                      ),
-                      GestureDetector(
-                        key: const ValueKey('works.help'),
-                        behavior: HitTestBehavior.opaque,
-                        onTap: context.soundAction(actions.help),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
-                          ),
-                          child: Text(
-                            'HOW IT WORKS',
-                            style: panelLabel(9.5, _amber),
-                          ),
-                        ),
-                      ),
-                    ],
+                  trailing: Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Text(
+                      'SLOTS ${v.works.berthsUsed}/${v.berthCount}',
+                      key: const ValueKey('works.berths'),
+                      style: panelLabel(9.5, panelPalette.muted),
+                    ),
                   ),
                   onClose: close,
                 ),
@@ -791,7 +827,7 @@ class _WorksPanelState extends State<WorksPanel> {
         if (tier > 0) const PanelSectionHeader('UPGRADE'),
         if (noBerth)
           _line(
-            'ALL ${v.berthCount} BERTHS ARE TAKEN. A BIGGER PLANET OPENS MORE.',
+            'NO FREE SLOTS. A BIGGER PLANET HAS MORE.',
             color: panelPalette.ink,
           )
         else
@@ -876,9 +912,7 @@ class _WorksPanelState extends State<WorksPanel> {
         stage: stage,
         children: [
           _line(
-            'The ship\'s workshop. Its weapons, ammo, systems, stations and '
-            'upgrades are made here, and the Armory\'s tier sets how far '
-            'each upgrade can go.',
+            'Where your ship is upgraded.',
             color: panelPalette.ink,
             size: 10,
           ),
@@ -900,9 +934,15 @@ class _WorksPanelState extends State<WorksPanel> {
       tier: a.tier,
       stage: stage,
       children: [
+        // In the Armory's own words, so the caps read straight across.
         _line(
-          'UPGRADES GO AS FAR AS: AMMO AND MISSILE POWER $power/5 · '
-          'FUEL TANK AND CARGO HOLD $tank/3',
+          'AMMO + MISSILE POWER UP TO LV $power OF 5',
+          color: panelPalette.ink,
+          size: 10,
+        ),
+        _gap(4),
+        _line(
+          'FUEL TANK + CARGO HOLD UP TO LV $tank OF 3',
           color: panelPalette.ink,
           size: 10,
         ),
@@ -949,9 +989,7 @@ class _WorksPanelState extends State<WorksPanel> {
         stage: stage,
         children: [
           _line(
-            'Scavengers fly out and bring back elements from the planets you '
-            'have found, and sometimes astral shards. Their finds wait in '
-            'crates until you collect them.',
+            'Scavengers bring back elements from planets you have found.',
             color: panelPalette.ink,
             size: 10,
           ),
@@ -1060,8 +1098,7 @@ class _WorksPanelState extends State<WorksPanel> {
         stage: stage,
         children: [
           _line(
-            'Presses spare elements into silver, ${WorkRules.grainsPerSilver} '
-            'for 1. It leaves alone as much of each as you tell it to keep.',
+            'Turns spare elements into silver.',
             color: panelPalette.ink,
             size: 10,
           ),
@@ -1181,9 +1218,7 @@ class _WorksPanelState extends State<WorksPanel> {
         stage: stage,
         children: [
           _line(
-            'Makes one element out of two others, by the recipes you have '
-            'found in the Codex. It makes less than it takes: every 2 in '
-            'makes 1, and better at higher tiers.',
+            'Makes one element from two, by the recipes in your Codex.',
             color: panelPalette.ink,
             size: 10,
           ),
@@ -1228,7 +1263,7 @@ class _WorksPanelState extends State<WorksPanel> {
       stage: stage,
       children: [
         _line(status, color: working ? panelPalette.ink : null, size: 10),
-        _line('${refineYieldLine(r.tier)} · ${panelFmt(r.made)} MADE SO FAR'),
+        _line(refineYieldLine(r.tier)),
         _gap(10),
         const PanelSectionHeader('REFINER'),
         _slot(
@@ -1239,18 +1274,23 @@ class _WorksPanelState extends State<WorksPanel> {
           key: const ValueKey('works.refinery.slot'),
         ),
         _gap(10),
-        PanelSectionHeader(
-          'MAKE',
-          trailing: '${found.length}/${all.length} FOUND',
+        Row(
+          children: [
+            const Expanded(child: PanelSectionHeader('MAKE')),
+            const SizedBox(width: 10),
+            GestureDetector(
+              key: const ValueKey('works.refinery.codex'),
+              behavior: HitTestBehavior.opaque,
+              onTap: context.soundAction(actions.openCodex),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(6, 2, 0, 8),
+                child: Text('CODEX ›', style: panelLabel(9.5, kRefineryLight)),
+              ),
+            ),
+          ],
         ),
-        if (found.isEmpty)
-          _line(
-            'NO RECIPES FOUND YET. FUSING ELEMENTS FINDS THEM.',
-            color: panelPalette.ink,
-          ),
+        if (found.isEmpty) _line('NONE YET'),
         for (final e in found) _recipeRow(v, e.key, e.value, r.recipe == e.key),
-        if (all.length > found.length)
-          _line('${all.length - found.length} MORE NOT YET FOUND'),
         _gap(10),
         const PanelSectionHeader('KEEP OF EACH INPUT'),
         _chips(
@@ -1357,14 +1397,12 @@ class _WorksPanelState extends State<WorksPanel> {
       ),
       children: [
         _line(
-          'Build one at any planet you have found, with '
-          '${WorkRules.extractorBuildUnits} of its element in your cargo. '
-          'Tap a planet to see its extractor.',
+          'Fly to a planet to build one there.',
           color: panelPalette.ink,
           size: 10,
         ),
         _gap(8),
-        if (v.planetsFound.isEmpty) _line('NO PLANETS FOUND YET'),
+        if (v.planetsFound.isEmpty) _line('NONE FOUND YET'),
         for (final e in v.planetsFound) _outpostRow(context, v, e, built[e]),
       ],
     );
@@ -1539,20 +1577,6 @@ class OutpostPanel extends StatelessWidget {
                 children: [
                   PanelHeader(
                     title: '${planetName(element).toUpperCase()} EXTRACTOR',
-                    trailing: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: context.soundAction(actions.help),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 8,
-                        ),
-                        child: Text(
-                          'HOW IT WORKS',
-                          style: panelLabel(9.5, _amber),
-                        ),
-                      ),
-                    ),
                     onClose: close,
                   ),
                   Expanded(
@@ -1660,8 +1684,8 @@ class OutpostPanel extends StatelessWidget {
     return [
       const PanelSectionHeader('NOT BUILT'),
       _line(
-        'An extractor mines this planet\'s ${element.toUpperCase()} into its hopper. '
-        'Only ${element.toUpperCase()} Alchemons can mine it.',
+        'MINES ${element.toUpperCase()}. ITS MINER MUST BE '
+        '${element.toUpperCase()}.',
         color: panelPalette.ink,
         size: 10,
       ),
@@ -1679,7 +1703,7 @@ class OutpostPanel extends StatelessWidget {
         here
             ? (have >= WorkRules.extractorBuildUnits
                   ? 'READY TO BUILD'
-                  : 'GATHER ${WorkRules.extractorBuildUnits - have} MORE ${element.toUpperCase()} HERE, OR LOAD IT AT HOME')
+                  : 'NEEDS ${WorkRules.extractorBuildUnits} ${element.toUpperCase()} IN CARGO')
             : 'FLY TO ${planetName(element).toUpperCase()} TO BUILD',
       ),
       _gap(10),
@@ -1772,9 +1796,7 @@ class OutpostPanel extends StatelessWidget {
               actions.clear(WorkSlotRef(WorkJob.courier, element: element)),
         )
       else
-        _line(
-          'AT TIER 2 A COURIER FLIES THE HOPPER HOME ON ITS OWN. UNTIL THEN, COME HERE AND SEND IT HOME.',
-        ),
+        _line('TIER 2 ADDS A COURIER.'),
       _gap(10),
       const PanelSectionHeader('UPGRADE'),
       if (x.tier >= WorkRules.maxTier)
@@ -1829,11 +1851,48 @@ class _TabStrip extends StatelessWidget {
 
   static const double _minTab = 88;
 
+  /// BracketTabs' label: 12 px monospace, spaced 1.6 a letter.
+  static const double _labelSize = 12;
+  static const double _labelSpacing = 1.6;
+
+  /// The smallest the labels are drawn to fit them all in, as a fraction of
+  /// their size: about 9 px. Narrower than that, the strip scrolls.
+  static const double _minFit = 0.75;
+
+  /// The text size, as a fraction of [_labelSize], at which every label
+  /// fits a tab [width] wide with [pad] clear either side. Letter spacing
+  /// does not shrink with the text, so it is taken out first.
+  double _fitFor(double width, double pad) {
+    var fit = double.infinity;
+    for (final l in labels) {
+      final tp = TextPainter(
+        text: TextSpan(
+          text: l,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: _labelSize,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        maxLines: 1,
+      )..layout();
+      final spacing = l.length * _labelSpacing;
+      fit = min(fit, (width - 2 * pad - spacing) / max(1.0, tp.width));
+      tp.dispose();
+    }
+    return fit;
+  }
+
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
-      final even = (box.maxWidth - 8 * (labels.length - 1)) / labels.length;
-      if (even >= _minTab) {
+      final scaler = MediaQuery.textScalerOf(context);
+      final now = scaler.scale(_labelSize) / _labelSize;
+      final n = labels.length;
+      // At their own size, with room to spare.
+      final even = (box.maxWidth - 8 * (n - 1)) / n;
+      if (even >= _minTab && _fitFor(even, 8) >= now) {
         return BracketTabs(
           labels: labels,
           selected: selected,
@@ -1842,20 +1901,48 @@ class _TabStrip extends StatelessWidget {
           accent: accent,
         );
       }
+      // Closer together, the labels a little smaller: every tab in view.
+      const gap = 4.0;
+      final fit = min(now, _fitFor((box.maxWidth - gap * (n - 1)) / n, 3));
+      if (fit >= _minFit) {
+        return MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(fit)),
+          child: BracketTabs(
+            labels: labels,
+            selected: selected,
+            onSelect: onSelect,
+            palette: panelPalette,
+            accent: accent,
+            gap: gap,
+          ),
+        );
+      }
+      // Too narrow even so: the strip scrolls, fading at its edge so the
+      // tabs past it read as more to come rather than cut off.
       return SizedBox(
         height: 40,
-        child: ListView.separated(
-          scrollDirection: Axis.horizontal,
-          itemCount: labels.length,
-          separatorBuilder: (_, _) => const SizedBox(width: 8),
-          itemBuilder: (context, i) => SizedBox(
-            width: _minTab,
-            child: BracketTabs(
-              labels: [labels[i]],
-              selected: i == selected ? 0 : -1,
-              onSelect: (_) => onSelect(i),
-              palette: panelPalette,
-              accent: accent,
+        child: ShaderMask(
+          blendMode: BlendMode.dstIn,
+          shaderCallback: (r) => const LinearGradient(
+            colors: [Colors.white, Colors.white, Colors.transparent],
+            stops: [0, 0.9, 1],
+          ).createShader(r),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.only(right: 28),
+            itemCount: n,
+            separatorBuilder: (_, _) => const SizedBox(width: 8),
+            itemBuilder: (context, i) => SizedBox(
+              width: _minTab,
+              child: BracketTabs(
+                labels: [labels[i]],
+                selected: i == selected ? 0 : -1,
+                onSelect: (_) => onSelect(i),
+                palette: panelPalette,
+                accent: accent,
+              ),
             ),
           ),
         ),

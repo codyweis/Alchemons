@@ -486,14 +486,7 @@ extension CosmicGameWorks on CosmicGame {
             rot: _bayRot,
             scale: _homeScale,
             resting: rest,
-            crates: [
-              for (final c in bay.crates)
-                elementColor(
-                  c.elements.entries
-                      .reduce((a, b) => a.value >= b.value ? a : b)
-                      .key,
-                ),
-            ],
+            crates: _crateColorsFor(bay.crates),
             crateCap: bay.crateCap,
             searching: bay.out > 0,
           );
@@ -510,21 +503,14 @@ extension CosmicGameWorks on CosmicGame {
         }
         // Scavengers out: toward the planet whose matter they will bring
         // back, a while searching there, then home with it.
-        final kinds = scavengeElements;
         for (final s in bay.slots) {
           final id = s.instanceId;
           if (id == null || !s.out || worksMembers[id] == null) continue;
           final m = worksMembers[id]!;
-          final find = rollFind(
-            instanceId: id,
-            trip: s.trips,
-            units: 1,
-            shardOdds: 0,
-            elements: kinds,
-          );
-          final lead = find.elements.keys.first;
+          final trip = _scavengeTripOf(id, s.trips);
+          final lead = trip.lead;
           final mouth = _onBay(kBayMouthAt) + shift;
-          final target = _scavengeTarget(id, s.trips, lead, mouth);
+          final target = _scavengeTarget(trip.hash, lead, mouth);
           final ph = ((now - s.tripStartMs) / max(1, s.tripMs)).clamp(0.0, 1.0);
           Offset pos;
           Offset heading;
@@ -535,7 +521,7 @@ extension CosmicGameWorks on CosmicGame {
             heading = target - mouth;
           } else if (ph < 0.62) {
             final u = (ph - 0.38) / 0.24;
-            final a = u * 2 * pi + stableHash(id) % 7;
+            final a = u * 2 * pi + trip.spin;
             pos = target + Offset(cos(a) * 150, sin(a) * 90) * sin(u * pi);
             heading = Offset(-sin(a), cos(a));
           } else {
@@ -656,11 +642,46 @@ extension CosmicGameWorks on CosmicGame {
     _renderWorksFlows(canvas, cx, cy, screenW, screenH);
   }
 
-  /// Where a scavenger searches on trip [trip]: out toward the planet of
-  /// [element], some of the way, a little to one side.
-  Offset _scavengeTarget(String id, int trip, String element, Offset from) {
+  /// The trip scavenger [id] is on: the element its find leads with (the
+  /// same roll the works make for it) and the hashes that place its search.
+  ({int trip, String lead, int hash, int spin}) _scavengeTripOf(
+    String id,
+    int trip,
+  ) {
+    final known = _scavengeTrips[id];
+    if (known != null && known.trip == trip) return known;
+    final find = rollFind(
+      instanceId: id,
+      trip: trip,
+      units: 1,
+      shardOdds: 0,
+      elements: scavengeElements,
+    );
+    return _scavengeTrips[id] = (
+      trip: trip,
+      lead: find.elements.keys.first,
+      hash: stableHash('$id:$trip'),
+      spin: stableHash(id) % 7,
+    );
+  }
+
+  /// The colour of each crate in the bay: its find's largest element.
+  List<Color> _crateColorsFor(List<ScavengerFind> crates) {
+    final key = (crates.length, crates.isEmpty ? null : crates.last);
+    if (key == _crateColorsOf) return _crateColors;
+    _crateColorsOf = key;
+    return _crateColors = [
+      for (final c in crates)
+        elementColor(
+          c.elements.entries.reduce((a, b) => a.value >= b.value ? a : b).key,
+        ),
+    ];
+  }
+
+  /// Where a scavenger searches on the trip hashed [h]: out toward the
+  /// planet of [element], some of the way, a little to one side.
+  Offset _scavengeTarget(int h, String element, Offset from) {
     final planet = _planetOf(element);
-    final h = stableHash('$id:$trip');
     final along = 0.35 + (h % 1000) / 1000 * 0.3;
     final side = (((h >> 10) % 1000) / 1000 - 0.5) * 900;
     Offset to;

@@ -10,57 +10,31 @@ part of 'cosmic_screen.dart';
 //  OutpostPanel read it through [_worksView] and act through
 //  [_WorksActionsImpl].
 //
-//  Teaching, all once: a coach mark on the home base the first time the
-//  base shows after the Works arrive, then on its WORKS button; the Works'
-//  story beats the first time it opens; a coach mark on OUTPOST at the
-//  first found planet without an extractor; beats when the first extractor
-//  is built; one beat the first time LOAD SHIP opens.
+//  Teaching, kept short and shown once: coach marks on the home base, then
+//  its WORKS button, then OUTPOST at the first found planet without an
+//  extractor; one line when the Works first open and one when the first
+//  extractor is built. Everything else the panels show plainly.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const String _worksPrefsKey = 'cosmic_works_v1';
 const String _worksIntroSeenKey = 'cosmic_works_intro_seen_v1';
 const String _worksFirstRigSeenKey = 'cosmic_works_first_rig_seen_v1';
-const String _loadHoldIntroSeenKey = 'cosmic_load_hold_intro_seen_v1';
 const String _worksCoachDoneKey = 'cosmic_works_coach_done_v1';
 const String _outpostCoachDoneKey = 'cosmic_outpost_coach_done_v1';
-const String _refineryIntroSeenKey = 'cosmic_refinery_intro_seen_v1';
-const String _armoryIntroSeenKey = 'cosmic_armory_intro_seen_v1';
 
 /// How often the works are caught up while space is open.
 const Duration _worksTickEvery = Duration(seconds: 4);
+
+/// How often what the works made is written down while space is open.
+/// Saving rewrites the whole prefs file, and pressed silver is a database
+/// write, so the ticks between only add up; leaving space writes at once.
+const int _worksSaveEveryTicks = 8;
 
 const List<StoryBeat> _worksIntroBeats = [
   StoryBeat(
     title: 'THE WORKS',
     message:
-        'Your Alchemons can work for your base. They keep working while you '
-        'fly and while you are away.',
-  ),
-  StoryBeat(
-    title: 'AT HOME',
-    message:
-        'Buildings stand in berths round your planet; a bigger planet opens '
-        'more. The Armory is where your ship is upgraded. A Scavenger Bay '
-        'sends scavengers out for elements from the '
-        'planets you have found. A Silver Press turns spare elements into '
-        'silver. A Refinery makes one element out of two, by the recipes you '
-        'have found in the Codex.',
-  ),
-  StoryBeat(
-    title: 'AT PLANETS',
-    message:
-        'Fly to a planet you have found with ${WorkRules.extractorBuildUnits} '
-        'of its element in your cargo, and build an Extractor there. A miner of '
-        'that element fills its hopper. Come back to send the hopper home, or '
-        'upgrade it so a courier carries it home for you.',
-  ),
-  StoryBeat(
-    title: 'WHO DOES WHAT',
-    message:
-        'Each job reads different stats. Miners: level, size and nature. '
-        'Couriers: speed and strength. Scavengers: speed, strength and '
-        'intelligence. Pressers: beauty. Refiners: intelligence. The picker '
-        'puts the best first.',
+        'Buildings your Alchemons run. They keep working while you are away.',
   ),
 ];
 
@@ -99,6 +73,9 @@ class _WorksActionsImpl implements WorksActions {
   void openArmory() => s._openArmory();
 
   @override
+  Future<void> openCodex() => s._openCodex();
+
+  @override
   Future<void> dismantle(WorksBuilding b) => s._worksDismantle(b);
 
   @override
@@ -106,9 +83,6 @@ class _WorksActionsImpl implements WorksActions {
 
   @override
   Future<void> openOutpost(String element) => s._openOutpost(element);
-
-  @override
-  Future<void> help() => s._showWorksIntro();
 }
 
 extension _CosmicWorks on _CosmicScreenState {
@@ -118,10 +92,19 @@ extension _CosmicWorks on _CosmicScreenState {
 
   int get _nowMs => DateTime.now().millisecondsSinceEpoch;
 
+  /// A word back from the Works. The Works' panels stand over the space
+  /// screen, whose own quote line would be hidden under them, so this goes
+  /// on the app's top layer.
+  void _worksSay(String message) {
+    if (!mounted) return;
+    showGameSnack(context, message, accent: CosmicScreenStyles.amberBright);
+  }
+
   // ── load, catch up, save ─────────────────────────────────────────────────
 
   Future<void> _initWorks() async {
     if (widget.memoryTutorial) return;
+    _worksDb;
     final prefs = await SharedPreferences.getInstance();
     _works = WorksState.deserialise(prefs.getString(_worksPrefsKey));
     _worksCoachDone = prefs.getBool(_worksCoachDoneKey) ?? false;
@@ -185,20 +168,25 @@ extension _CosmicWorks on _CosmicScreenState {
     );
     _worksTicks++;
     if (report.silver > 0) {
-      final db = context.read<AlchemonsDatabase>();
-      unawaited(
-        db.currencyDao.addSilver(report.silver).then((_) {
-          if (mounted) unawaited(_refreshWalletCurrencies());
-        }),
-      );
+      // Held until the next save, and shown at once without rebuilding the
+      // whole screen for it.
+      _worksSilverPending += report.silver;
+      _walletCurrencies = {
+        ..._walletCurrencies,
+        'silver': (_walletCurrencies['silver'] ?? 0) + report.silver,
+      };
       if (!announce) game.playSilverPressed();
     }
     _updatePressIntake();
-    if (!report.isEmpty) _saveElementStorage();
-    if (!report.isEmpty || announce || _worksTicks % 8 == 0) {
+    if (!report.isEmpty) _worksDirty = true;
+    if (announce || _worksTicks % _worksSaveEveryTicks == 0) {
       unawaited(_saveWorks());
     }
-    if (announce && !report.isEmpty) {
+    if (announce &&
+        (report.deliveredUnits >= 1 ||
+            report.finds > 0 ||
+            report.refinedUnits >= 1 ||
+            report.silver > 0)) {
       _showQuote(_awayLine(report));
     }
     _publishWorksView();
@@ -210,9 +198,9 @@ extension _CosmicWorks on _CosmicScreenState {
         '${r.deliveredUnits.round()} elements came home',
       if (r.finds > 0)
         '${r.finds} ${r.finds == 1 ? 'find' : 'finds'} in the bay',
+      if (r.refinedUnits >= 1) '${r.refinedUnits.round()} refined',
       if (r.silver > 0) '${r.silver} silver pressed',
     ];
-    if (parts.isEmpty) return 'The Works kept working.';
     return 'While you were away: ${parts.join(', ')}.';
   }
 
@@ -243,9 +231,24 @@ extension _CosmicWorks on _CosmicScreenState {
         (_elementStorage.stored[parts.$2] ?? 0) > r.keep + 0.5;
   }
 
+  /// Saves the works with what they made since the last save: the silver
+  /// pressed and, when deliveries or the refinery changed it, storage. All
+  /// at once, so a game killed between saves catches up again from the last
+  /// one rather than losing or doubling anything.
   Future<void> _saveWorks() async {
     if (widget.memoryTutorial) return;
+    final silver = _worksSilverPending;
+    _worksSilverPending = 0;
+    final dirty = _worksDirty;
+    _worksDirty = false;
+    if (silver > 0) await _worksDb.currencyDao.addSilver(silver);
     final prefs = await SharedPreferences.getInstance();
+    if (dirty) {
+      await prefs.setString(
+        _elementStoragePrefsKey,
+        _elementStorage.serialise(),
+      );
+    }
     await prefs.setString(_worksPrefsKey, _works.serialise());
   }
 
@@ -310,11 +313,7 @@ extension _CosmicWorks on _CosmicScreenState {
   }
 
   Future<void> _showWorksIntro() async {
-    await showStoryDialog(
-      context,
-      beats: _worksIntroBeats,
-      primaryLabel: 'GOT IT',
-    );
+    await showStoryDialog(context, beats: _worksIntroBeats, primaryLabel: 'OK');
   }
 
   Future<void> _openOutpost(String element) async {
@@ -327,26 +326,6 @@ extension _CosmicWorks on _CosmicScreenState {
       context,
       OutpostPanel(element: element, view: _worksView, actions: _worksActions),
     );
-  }
-
-  /// LOAD SHIP's one beat, the first time it opens.
-  Future<void> _maybeShowLoadHoldIntro() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_loadHoldIntroSeenKey) ?? false) return;
-    if (!mounted) return;
-    await showStoryDialog(
-      context,
-      beats: const [
-        StoryBeat(
-          title: 'LOAD SHIP',
-          message:
-              'Gates only take what the ship carries. Load elements from '
-              'storage here, or tap FILL to pack a gate\'s pattern exactly.',
-        ),
-      ],
-      primaryLabel: 'GOT IT',
-    );
-    await prefs.setBool(_loadHoldIntroSeenKey, true);
   }
 
   // ── building ─────────────────────────────────────────────────────────────
@@ -362,7 +341,7 @@ extension _CosmicWorks on _CosmicScreenState {
     if (_works.berths.containsKey(b)) return;
     final berth = _works.freeBerth(_berthCount);
     if (berth == null) {
-      _showQuote('All berths are taken. A bigger planet opens more.');
+      _worksSay('No free slots. A bigger planet has more.');
       return;
     }
     final name = _worksName(b);
@@ -389,17 +368,19 @@ extension _CosmicWorks on _CosmicScreenState {
     }
     _works.setBerth(b, berth);
     HapticFeedback.heavyImpact();
-    _showQuote(switch (b) {
-      WorksBuilding.scavengerBay => 'Scavenger Bay built. Give it a scavenger.',
-      WorksBuilding.silverPress => 'Silver Press built. Give it a presser.',
-      WorksBuilding.armory => 'Armory built. Your ship is upgraded here now.',
-      _ => 'Refinery built. Give it a refiner and choose what to make.',
-    });
+    _worksSay('${_worksTitle(b)} built.');
     await _saveWorks();
     _publishWorksView();
-    if (b == WorksBuilding.refinery) await _maybeShowRefineryIntro();
-    if (b == WorksBuilding.armory) await _maybeShowArmoryIntro();
   }
+
+  /// [b]'s name as a sentence says it.
+  String _worksTitle(WorksBuilding b) => switch (b) {
+    WorksBuilding.scavengerBay => 'Scavenger Bay',
+    WorksBuilding.silverPress => 'Silver Press',
+    WorksBuilding.refinery => 'Refinery',
+    WorksBuilding.armory => 'Armory',
+    WorksBuilding.extractor => 'Extractor',
+  };
 
   String _worksName(WorksBuilding b) => switch (b) {
     WorksBuilding.scavengerBay => 'SCAVENGER BAY',
@@ -409,25 +390,14 @@ extension _CosmicWorks on _CosmicScreenState {
     WorksBuilding.extractor => 'EXTRACTOR',
   };
 
-  /// The Armory's beat, the first time one is built.
-  Future<void> _maybeShowArmoryIntro() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_armoryIntroSeenKey) ?? false) return;
-    await prefs.setBool(_armoryIntroSeenKey, true);
-    if (!mounted) return;
-    await showStoryDialog(
-      context,
-      beats: const [
-        StoryBeat(
-          title: 'THE ARMORY',
-          message:
-              'Your ship\'s weapons, ammo, systems, stations and upgrades are '
-              'made here now. Its tier sets how far each upgrade can go: '
-              'upgrade the Armory to take them further.',
-        ),
-      ],
-      primaryLabel: 'GOT IT',
+  /// The Codex, over the Works: the recipes found are the Refinery's.
+  Future<void> _openCodex() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const AlchemicalEncyclopediaScreen(),
+      ),
     );
+    if (mounted) await _refreshKnownRecipes();
   }
 
   /// Opens the Armory: the Works panel gives way to it, and BACK returns to
@@ -451,10 +421,8 @@ extension _CosmicWorks on _CosmicScreenState {
       accent: CosmicScreenStyles.danger,
       title: 'TAKE DOWN THE ${_worksName(b)}?',
       message: b == WorksBuilding.armory
-          ? 'Its berth comes free. What the ship already has stays, but it '
-                'cannot be upgraded further until an Armory stands again.'
-          : 'Its berth comes free and its workers stop. What it cost is not '
-                'given back${b == WorksBuilding.scavengerBay ? '; its crates are collected first' : ''}.',
+          ? 'Frees its slot. The ship keeps its upgrades.'
+          : 'Frees its slot. Nothing is refunded.',
       confirmLabel: 'TAKE DOWN',
     );
     if (!ok || !mounted) return;
@@ -464,7 +432,7 @@ extension _CosmicWorks on _CosmicScreenState {
     }
     _works.dismantle(b);
     HapticFeedback.heavyImpact();
-    _showQuote('${_worksName(b)} taken down. Its berth is free.');
+    _worksSay('${_worksTitle(b)} taken down.');
     await _refreshWorkers();
     await _saveWorks();
     _updatePressIntake();
@@ -472,39 +440,17 @@ extension _CosmicWorks on _CosmicScreenState {
     _rebuild();
   }
 
-  /// The Refinery's beat, the first time one is built.
-  Future<void> _maybeShowRefineryIntro() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool(_refineryIntroSeenKey) ?? false) return;
-    await prefs.setBool(_refineryIntroSeenKey, true);
-    if (!mounted) return;
-    await showStoryDialog(
-      context,
-      beats: const [
-        StoryBeat(
-          title: 'THE REFINERY',
-          message:
-              'Choose what to make. It takes two elements from storage and '
-              'makes one, by a recipe you have found in the Codex: every 2 in '
-              'makes 1, better at higher tiers. It leaves alone as much of '
-              'each input as you tell it to keep.',
-        ),
-      ],
-      primaryLabel: 'GOT IT',
-    );
-  }
-
   Future<void> _buildExtractor(String element) async {
     final game = _game;
     if (game == null || _works.extractors.containsKey(element)) return;
     if (_worksPlanetHere != element) {
-      _showQuote('Fly to ${planetName(element)} to build its extractor.');
+      _worksSay('Fly to ${planetName(element)} to build its extractor.');
       return;
     }
     const need = WorkRules.extractorBuildUnits;
     final have = game.meter.breakdown[element] ?? 0;
     if (have + 1e-6 < need) {
-      _showQuote('Your cargo needs $need $element to build here.');
+      _worksSay('Your cargo needs $need $element to build here.');
       return;
     }
     final ok = await showBracketConfirm(
@@ -538,20 +484,11 @@ extension _CosmicWorks on _CosmicScreenState {
         context,
         beats: [
           StoryBeat(
-            title: 'EXTRACTOR BUILT',
-            message:
-                'Give it a $element Alchemon to mine. The hopper holds '
-                '${WorkRules.hopperCap(1)}; when it is full, mining stops '
-                'until it goes home.',
-          ),
-          const StoryBeat(
-            title: 'GETTING IT HOME',
-            message:
-                'Fly back here and tap SEND HOME, or upgrade the extractor to '
-                'tier 2 and give it a courier who flies it home on its own.',
+            title: 'EXTRACTOR',
+            message: 'Give it a $element Alchemon to mine.',
           ),
         ],
-        primaryLabel: 'GOT IT',
+        primaryLabel: 'OK',
       );
     }
   }
@@ -596,7 +533,7 @@ extension _CosmicWorks on _CosmicScreenState {
         _works.armory.tier = tier + 1;
     }
     HapticFeedback.heavyImpact();
-    _showQuote('Upgraded to tier ${tier + 1}.');
+    _worksSay('Upgraded to tier ${tier + 1}.');
     _tickWorks();
     await _saveWorks();
     _publishWorksView();
@@ -608,12 +545,14 @@ extension _CosmicWorks on _CosmicScreenState {
     final db = context.read<AlchemonsDatabase>();
     final plan = elementsForCost(cost, _elementStorage.stored);
     if (plan == null) {
-      _showQuote('Not enough in storage.');
+      _worksSay('Not enough in storage.');
       return false;
     }
+    // Pressed silver not yet saved is banked first, so it can be spent.
+    if (cost.silver > 0) await _saveWorks();
     final silver = await db.currencyDao.getSilverBalance();
     if (silver < cost.silver) {
-      _showQuote('Not enough silver.');
+      _worksSay('Not enough silver.');
       return false;
     }
     if (!mounted) return false;
@@ -634,7 +573,7 @@ extension _CosmicWorks on _CosmicScreenState {
     );
     if (!ok || !mounted) return false;
     if (cost.silver > 0 && !await db.currencyDao.spendSilver(cost.silver)) {
-      _showQuote('Not enough silver.');
+      _worksSay('Not enough silver.');
       return false;
     }
     for (final e in plan.entries) {
@@ -708,7 +647,7 @@ extension _CosmicWorks on _CosmicScreenState {
   Future<void> _assignWorker(WorkSlotRef slot, String id) async {
     if (_partyMembers.any((m) => m?.instanceId == id) ||
         _garrisonMembers.any((m) => m?.instanceId == id)) {
-      _showQuote('That Alchemon is with your ship or garrison.');
+      _worksSay('That Alchemon is with your ship or garrison.');
       return;
     }
     _tickWorks();
@@ -796,7 +735,7 @@ extension _CosmicWorks on _CosmicScreenState {
     _game?.playCratesEmptied(colors);
     HapticFeedback.mediumImpact();
     final units = got.values.fold(0, (s, v) => s + v);
-    _showQuote(
+    _worksSay(
       'Collected $units elements'
       '${shards > 0 ? ' and $shards astral shards' : ''}.',
     );
@@ -807,7 +746,7 @@ extension _CosmicWorks on _CosmicScreenState {
   void _worksSendHome(String element) {
     final game = _game;
     if (game == null || _worksPlanetHere != element) {
-      _showQuote('Fly to ${planetName(element)} to send its hopper home.');
+      _worksSay('Fly to ${planetName(element)} to send its hopper home.');
       return;
     }
     _tickWorks();
@@ -821,7 +760,7 @@ extension _CosmicWorks on _CosmicScreenState {
     unawaited(_saveWorks());
     game.playHopperSentHome(element);
     HapticFeedback.mediumImpact();
-    _showQuote('Sent ${units.floor()} $element home.');
+    _worksSay('Sent ${units.floor()} $element home.');
     _publishWorksView();
   }
 

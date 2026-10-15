@@ -235,9 +235,13 @@ class BracketTabs extends StatelessWidget {
     required this.palette,
     required this.accent,
     this.icons,
+    this.gap = 8,
   });
 
   final List<String> labels;
+
+  /// Space between tabs.
+  final double gap;
 
   /// Tabs no longer show icons; kept until the last caller drops it.
   @Deprecated('Tabs no longer show icons; drop the argument')
@@ -252,7 +256,7 @@ class BracketTabs extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < labels.length; i++) ...[
-          if (i > 0) const SizedBox(width: 8),
+          if (i > 0) SizedBox(width: gap),
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,

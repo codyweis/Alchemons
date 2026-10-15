@@ -736,8 +736,8 @@ class _PressArt {
 // ── Refinery ────────────────────────────────────────────────────────────────
 
 /// The flasks' and the retort's centres, in refinery units.
-const Offset kFlaskAAt = Offset(-21, -12);
-const Offset kFlaskBAt = Offset(21, -12);
+const Offset kFlaskAAt = Offset(-21, -9);
+const Offset kFlaskBAt = Offset(21, -9);
 const Offset kRetortAt = Offset(0, 12);
 const double _flaskR = 8.5;
 const double _retortR = 11.5;
@@ -774,17 +774,30 @@ class _RefineryArt {
   late final ui.Shader _glass = _glassShader(m);
 
   late final CutStone _beam = ridgeArm(m, 0, 54, 4.2, 3.6);
-  late final CutStone _hanger = ridgeArm(m, 0, 9, 1.8, 1.4);
-  late final CutStone _spine = ridgeArm(m, 0, 24, 3, 2.2);
+  late final CutStone _hanger = ridgeArm(m, 0, 10, 1.8, 1.4);
+  late final CutStone _spine = ridgeArm(m, 0, 26, 3, 2.2);
 
-  /// A collar each flask hangs in, open at the bottom so it can pour.
-  CutStone _collar(Offset at) => CutStone.gem(m, [
-    for (final p in crescentPoints(_flaskR + 1.6, -pi * 0.92, -pi * 0.08, 3))
-      at + p,
-  ], at + const Offset(0, -_flaskR));
+  /// The band round a glass's neck, where its hanger holds it: narrow, so
+  /// the glass reads as a flask hung up, not a lidded eye.
+  CutStone _neck(Offset top, double w) => CutStone.gem(m, [
+    top + Offset(-w / 2, -3.2),
+    top + Offset(w / 2, -3.2),
+    top + Offset(w / 2 + 1, 0.9),
+    top + Offset(-w / 2 - 1, 0.9),
+  ], top + const Offset(0, -1.2));
 
-  late final CutStone _collarA = _collar(kFlaskAAt);
-  late final CutStone _collarB = _collar(kFlaskBAt);
+  late final CutStone _neckA = _neck(
+    kFlaskAAt + const Offset(0, -_flaskR + 0.6),
+    5,
+  );
+  late final CutStone _neckB = _neck(
+    kFlaskBAt + const Offset(0, -_flaskR + 0.6),
+    5,
+  );
+  late final CutStone _neckRetort = _neck(
+    kRetortAt + const Offset(0, -_retortR + 0.6),
+    6.5,
+  );
 
   /// The cradle the retort sits in.
   late final CutStone _cradle = CutStone.gem(m, [
@@ -795,7 +808,7 @@ class _RefineryArt {
   late final BakedArt _body = BakedArt(const Rect.fromLTRB(-34, -36, 34, 34), (
     c,
   ) {
-    // The spine down from the beam to the retort's neck.
+    // The spine down from the beam, holding the retort by its neck.
     c.save();
     c.translate(0, -27);
     c.rotate(pi / 2);
@@ -803,7 +816,7 @@ class _RefineryArt {
     c.restore();
     for (final x in [kFlaskAAt.dx, kFlaskBAt.dx]) {
       c.save();
-      c.translate(x, -28);
+      c.translate(x, -27);
       c.rotate(pi / 2);
       _hanger.paint(c, pi / 2);
       c.restore();
@@ -812,14 +825,16 @@ class _RefineryArt {
     c.translate(-27, -29);
     _beam.paint(c, 0, glow: 0.3, reach: 14);
     c.restore();
+    // The tier, as beads along the beam to one side of the spine.
     for (var i = 0; i < tier; i++) {
-      paintOrb(c, m, Offset(-7.0 + i * 7, -29), 1.7, alpha: 0.9);
+      paintOrb(c, m, Offset(7.0 + i * 5.5, -29), 1.5, alpha: 0.9);
     }
     paintDisc(c, _glass, kFlaskAAt, _flaskR);
     paintDisc(c, _glass, kFlaskBAt, _flaskR);
     paintDisc(c, _glass, kRetortAt, _retortR);
-    _collarA.paint(c, 0, glow: 0, reach: 6);
-    _collarB.paint(c, 0, glow: 0, reach: 6);
+    _neckA.paint(c, 0, glow: 0.2, reach: 5);
+    _neckB.paint(c, 0, glow: 0.2, reach: 5);
+    _neckRetort.paint(c, 0, glow: 0.3, reach: 6);
     _cradle.paint(c, 0, glow: 0.4, reach: 10);
   });
 
@@ -910,8 +925,8 @@ class _RefineryArt {
       );
       _made.draw(c, 1.35, lo.grainHot);
     }
-    paintDisc(c, kGlint, kFlaskAAt + const Offset(-3, -3.4), 1.7, 0.55);
-    paintDisc(c, kGlint, kFlaskBAt + const Offset(-3, -3.4), 1.7, 0.55);
+    paintDisc(c, kGlint, kFlaskAAt + const Offset(-4.4, -1.2), 1.4, 0.35);
+    paintDisc(c, kGlint, kFlaskBAt + const Offset(-4.4, -1.2), 1.4, 0.35);
     paintDisc(c, kGlint, kRetortAt + const Offset(-4.2, -4.6), 2.3, 0.6);
 
     // What is made drips from the retort into its heap.
@@ -1018,6 +1033,25 @@ class _ArmoryArt {
   final PointBatch _sparks = PointBatch(24);
   final PointBatch _hot = PointBatch(8);
 
+  /// The docked hull, baked for the skin it wears: dozens of cut faces with
+  /// their own light, still while it sits in the gantry. Finer than a
+  /// station's bake, since the home buildings stand larger.
+  BakedArt? _hullBaked;
+  String? _hullSkin;
+
+  BakedArt _hull(String? skin) {
+    if (_hullBaked == null || skin != _hullSkin) {
+      _hullBaked?.dispose();
+      _hullSkin = skin;
+      _hullBaked = BakedArt(
+        const Rect.fromLTRB(-39, -37, 39, 32),
+        (c) => paintShipHull(c, skin, 0, engines: 0.25),
+        ppu: 8,
+      );
+    }
+    return _hullBaked!;
+  }
+
   void paint(Canvas c, double t, String? skin, double wake) {
     final breathe = 0.86 + 0.14 * sin(t * 2.1);
     paintDisc(c, m.pool, const Offset(0, 4), 58, 0.9 + 0.6 * wake);
@@ -1026,7 +1060,7 @@ class _ArmoryArt {
     c.save();
     c.translate(0, -3);
     c.scale(0.78);
-    paintShipHull(c, skin, t, engines: 0.25);
+    _hull(skin).draw(c);
     c.restore();
     _clamps.draw(c);
 

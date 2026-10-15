@@ -401,8 +401,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
         _grid(5, [_hullTile(null), for (final id in _hullIds) _hullTile(id)]),
         const SizedBox(height: 14),
         Text(
-          'WEAPONS, AMMO, SYSTEMS, STATIONS AND UPGRADES ARE MADE AT THE '
-          'ARMORY, IN THE WORKS.',
+          'SHIP UPGRADES ARE IN THE ARMORY, IN THE WORKS.',
           key: const ValueKey('lab.armoryNote'),
           style: panelLabel(9.5, _palette.muted, spacing: 0.8),
         ),
@@ -649,8 +648,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               'UNLOCKED: ${homeGarrisonSlotsForTier(planet.sizeTierLevel)} '
-              'GARRISON · ${homeBerthsForTier(planet.sizeTierLevel)} BERTHS'
-              ' · KEPT AT ANY SIZE YOU PICK',
+              'GARRISON · ${homeBerthsForTier(planet.sizeTierLevel)} BUILDING SLOTS',
               style: panelLabel(9, panelPalette.muted, spacing: 0.8),
             ),
           ),
@@ -1077,7 +1075,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
           padding: const EdgeInsets.only(top: 6),
           child: Text(
             '${homeGarrisonSlotsForTier(tier)} GARRISON · '
-            '${homeBerthsForTier(tier)} BERTHS',
+            '${homeBerthsForTier(tier)} BUILDING SLOTS',
             style: panelLabel(10, panelPalette.ink, spacing: 0.8),
           ),
         ),

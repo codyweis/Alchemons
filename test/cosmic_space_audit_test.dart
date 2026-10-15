@@ -32,6 +32,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/planets/planet_art.dart';
+import 'package:alchemons/games/cosmic/works.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -111,6 +112,10 @@ String _sectionFor(int line) {
   return name;
 }
 
+/// AUDIT_DEEP=1: name each draw by the innermost game function that made
+/// it, rather than the one CosmicGame.render called.
+final _deep = Platform.environment['AUDIT_DEEP'] == '1';
+
 final _frameRe = RegExp(r'^#\d+\s+(\S+) \((\S+?):(\d+):\d+\)$');
 
 /// Records what a frame asks of the GPU, attributed to where it was asked.
@@ -125,7 +130,7 @@ class _Census implements Canvas {
 
   (String, String) _where() {
     final lines = StackTrace.current.toString().split('\n');
-    String? prevFn, prevFile;
+    String? prevFn, prevFile, deepest;
     for (final l in lines) {
       final m = _frameRe.firstMatch(l.trim());
       if (m == null) continue;
@@ -133,12 +138,17 @@ class _Census implements Canvas {
       final file = m.group(2)!;
       if (fn == 'CosmicGame.render' && file.endsWith('cosmic_game.dart')) {
         final section = _sectionFor(int.parse(m.group(3)!));
-        final callee = prevFn == null || prevFile!.contains('cosmic_space_audit')
-            ? section
-            : '$prevFn  [${prevFile.split('/').last}]';
+        final callee = _deep && deepest != null
+            ? deepest
+            : prevFn == null || prevFile!.contains('cosmic_space_audit')
+                ? section
+                : '$prevFn  [${prevFile.split('/').last}]';
         return (section, callee);
       }
       if (!file.contains('dart:') && !fn.startsWith('_Census')) {
+        deepest ??= file.contains('/lib/') || file.startsWith('package:alchemons')
+            ? '$fn  [${file.split('/').last}]'
+            : null;
         prevFn = fn;
         prevFile = file;
       }
@@ -273,9 +283,10 @@ class _Census implements Canvas {
   }
 }
 
-CosmicPartyMember _member(String family, String element, int slot) =>
+CosmicPartyMember _member(String family, String element, int slot,
+        {String? id}) =>
     CosmicPartyMember(
-      instanceId: '$family-$element-$slot',
+      instanceId: id ?? '$family-$element-$slot',
       baseId: '${family.substring(0, 3).toUpperCase()}01',
       displayName: '$element $family',
       family: family,
@@ -463,6 +474,84 @@ void main() {
         await shoot('21_home_$id');
       }
       game.activeCustomizations = {};
+
+      // ── the Works: every home building staffed, scavengers out ──
+      final now = DateTime.now().millisecondsSinceEpoch;
+      game.homePlanet!.sizeTierLevel = 4;
+      game.homePlanet!.activeSizeTier = 4;
+      final works = WorksState(
+        extractors: {
+          'Fire': ExtractorState(
+            element: 'Fire',
+            updatedMs: now,
+            tier: 3,
+            miners: ['m0', 'm1'],
+            courier: 'c0',
+            hopper: 380,
+            cycleStartMs: now - 2000,
+            cycleMs: 120000,
+            cargo: 25,
+            delivered: false,
+          ),
+        },
+        bay: ScavengerBayState(
+          tier: 3,
+          berth: 0,
+          crates: [
+            const ScavengerFind(elements: {'Fire': 12, 'Ice': 8}),
+            const ScavengerFind(elements: {'Water': 20}),
+          ],
+        ),
+        press: SilverPressState(tier: 2, berth: 1, presser: 'p0'),
+        refinery: RefineryState(
+          tier: 2,
+          berth: 2,
+          refiner: 'r0',
+          recipe: 'Air+Fire',
+        ),
+        armory: ArmoryState(tier: 2, berth: 3),
+      );
+      for (var i = 0; i < 3; i++) {
+        final s = works.bay.slots[i];
+        s.instanceId = 's$i';
+        // One resting, two out at different points of their trips.
+        if (i > 0) {
+          s.tripStartMs = now - i * 40000;
+          s.tripMs = 150000;
+          s.trips = i;
+        }
+      }
+      game.works = works;
+      game.setWorksMembers({
+        for (final (id, fam, el) in [
+          ('m0', 'Horn', 'Fire'),
+          ('m1', 'Mane', 'Fire'),
+          ('c0', 'Wing', 'Air'),
+          ('s0', 'Pip', 'Earth'),
+          ('s1', 'Let', 'Water'),
+          ('s2', 'Kin', 'Plant'),
+          ('p0', 'Horn', 'Earth'),
+          ('r0', 'Kin', 'Crystal'),
+        ])
+          id: _member(fam, el, 0, id: id),
+      });
+      game.worksPressIntake = const [Color(0xFFFF6B2B), Color(0xFF2E9BFF)];
+      game.worksRefining = true;
+      final home = game.homePlanet!;
+      flyTo(home.position + Offset(0, home.visualRadius + 70));
+      game.cycleZoomLevel(); // far, to take in the whole ring
+      settle(1);
+      await shoot('22_home_works_ring');
+      game.cycleZoomLevel(); // back round to close
+      game.cycleZoomLevel(); // and mid
+      flyTo(game.worksBayPos! + const Offset(-230, 20));
+      settle(0.6);
+      await shoot('22_home_works_bay');
+      flyTo(game.extractorRigPos('Fire')! + const Offset(260, 60));
+      settle(0.6);
+      await shoot('23_works_extractor');
+      game.works = WorksState();
+      game.setWorksMembers(const {});
       game.homePlanet = null;
 
       // ── landmarks ──

@@ -28,6 +28,8 @@ import 'package:alchemons/screens/cosmic/cosmic_sell_sheet.dart';
 import 'package:alchemons/screens/cosmic/gold_conversion_sheet.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
+import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/station_art.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_settings_overlay.dart';
@@ -140,6 +142,9 @@ class CosmicScreen extends StatefulWidget {
 /// than one parent, so BACK cannot be hardcoded to one destination.
 enum _CosmicPanel { none, home, ship, lab }
 
+/// Where home's element storage is kept.
+const String _elementStoragePrefsKey = 'cosmic_element_storage';
+
 class _CosmicScreenState extends State<CosmicScreen>
     with TickerProviderStateMixin, RouteAware {
   static const _prefsKey = 'cosmic_fog_state_v2';
@@ -187,6 +192,16 @@ class _CosmicScreenState extends State<CosmicScreen>
   Map<String, CosmicPartyMember> _workerMembers = const {};
   Timer? _worksTimer;
   int _worksTicks = 0;
+
+  /// Made since the works were last saved: silver not yet in the wallet,
+  /// and whether they changed storage (cosmic_screen_works.dart,
+  /// [_saveWorks]).
+  int _worksSilverPending = 0;
+  bool _worksDirty = false;
+
+  /// Taken while mounted ([_initWorks]), so a save that lands after the
+  /// screen has gone still reaches the wallet.
+  late final AlchemonsDatabase _worksDb = context.read<AlchemonsDatabase>();
   late final ValueNotifier<WorksView> _worksView = ValueNotifier(
     _makeWorksView(),
   );
@@ -746,7 +761,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     });
 
     // Load element storage
-    final storageRaw = prefs.getString('cosmic_element_storage');
+    final storageRaw = prefs.getString(_elementStoragePrefsKey);
     if (storageRaw != null) {
       _elementStorage = ElementStorage.deserialise(storageRaw);
     }
@@ -1898,7 +1913,14 @@ class _CosmicScreenState extends State<CosmicScreen>
     final db = context.read<AlchemonsDatabase>();
     final all = await db.currencyDao.getAllCurrencies();
     if (!mounted) return;
-    setState(() => _walletCurrencies = all);
+    // Silver the press has made since the works were last saved is not in
+    // the database yet.
+    setState(
+      () => _walletCurrencies = {
+        ...all,
+        'silver': (all['silver'] ?? 0) + _worksSilverPending,
+      },
+    );
   }
 
   /// Snapshot of everything the base panel reports besides the element store.
@@ -3368,6 +3390,16 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
     if (_nearMarketPOI == null || _game == null) return;
+    // Markets and the portals read the wallet from the database: silver
+    // pressed since the works were last saved is banked first.
+    if (_worksSilverPending > 0) {
+      unawaited(
+        _saveWorks().then((_) {
+          if (mounted) _openMarketShop();
+        }),
+      );
+      return;
+    }
     if (_nearMarketPOI!.type == POIType.survivalPortal) {
       _enterSurvivalPortal();
       return;
@@ -4190,8 +4222,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         },
       ),
     );
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-    if (mounted) await _maybeShowLoadHoldIntro();
     await open;
   }
 
@@ -5410,7 +5440,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _showQuote(
       '${_homePlanet!.sizeTier} unlocked: '
       '${homeGarrisonSlotsForTier(tier)} garrison slots, '
-      '${homeBerthsForTier(tier)} berths.',
+      '${homeBerthsForTier(tier)} building slots.',
     );
     unawaited(_initGarrison());
     _publishWorksView();
@@ -6760,11 +6790,11 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Future<void> _saveElementStorage() async {
+    // Storage holds what the works delivered since they were last saved:
+    // they are saved with it, so neither is ever ahead of the other.
+    if (_worksDirty) return _saveWorks();
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(
-      'cosmic_element_storage',
-      _elementStorage.serialise(),
-    );
+    await prefs.setString(_elementStoragePrefsKey, _elementStorage.serialise());
   }
 
   void _triggerScreenShakeAndSummon() {
@@ -8068,7 +8098,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 Positioned.fill(
                   child: CosmicCoachMark(
                     key: const ValueKey('works-coach-button'),
-                    text: 'The Works: buildings your Alchemons run.',
+                    text: 'Open the Works.',
                     target: _coachWorksKey,
                     accent: CosmicScreenStyles.amber,
                   ),
@@ -8808,9 +8838,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 Positioned.fill(
                   child: CosmicCoachMark(
                     key: const ValueKey('works-coach-home'),
-                    text:
-                        'New: the Works. Open your base to put Alchemons '
-                        'to work.',
+                    text: 'New: the Works.',
                     target: _coachHomeKey,
                     accent: CosmicScreenStyles.amber,
                   ),
@@ -8823,10 +8851,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                 Positioned.fill(
                   child: CosmicCoachMark(
                     key: const ValueKey('works-coach-outpost'),
-                    text:
-                        'Build an extractor on this planet: '
-                        '${WorkRules.extractorBuildUnits} of its element '
-                        'from your cargo.',
+                    text: 'Build an extractor here.',
                     target: _coachOutpostKey,
                     accent: CosmicScreenStyles.amber,
                   ),

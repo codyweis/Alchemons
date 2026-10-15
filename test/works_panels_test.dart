@@ -52,13 +52,13 @@ class _Actions implements WorksActions {
   @override
   void openArmory() => calls.add('armory');
   @override
+  Future<void> openCodex() async => calls.add('codex');
+  @override
   Future<void> dismantle(WorksBuilding b) async =>
       calls.add('take down ${b.name}');
   @override
   Future<void> openOutpost(String element) async =>
       calls.add('outpost $element');
-  @override
-  Future<void> help() async => calls.add('help');
 }
 
 void main() {
@@ -353,7 +353,7 @@ void main() {
       await settle(tester, 2);
     }
 
-    expect(find.text('BERTHS 4/4'), findsOneWidget);
+    expect(find.text('SLOTS 4/4'), findsOneWidget);
     await tap('works.armory.open');
     await tab('BAY');
     await tap('works.bay.collect');
@@ -362,6 +362,7 @@ void main() {
     await tap('works.press.keep.500');
     await tab('REFINERY');
     await tap('works.refinery.slot');
+    await tap('works.refinery.codex');
     await tap('works.refinery.recipe.Air+Fire');
     await tap('works.refinery.keep.200');
     await tap('works.takeDown.refinery');
@@ -373,6 +374,7 @@ void main() {
       'assign scavenger null 1',
       'keep 500',
       'assign refiner null 0',
+      'codex',
       'recipe Air+Fire',
       'refine keep 200',
       'take down refinery',

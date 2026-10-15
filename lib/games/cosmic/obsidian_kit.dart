@@ -319,7 +319,7 @@ CutStone ridgeArm(StoneLight m, double from, double to, double w0, double w1) =>
 /// single draw: a station's cut solids are dozens of faces, and only its
 /// light and grains change from frame to frame.
 class BakedArt {
-  BakedArt(this.bounds, this.paint);
+  BakedArt(this.bounds, this.paint, {this.ppu = defaultPpu});
 
   /// The image's extent in station units.
   final Rect bounds;
@@ -328,7 +328,16 @@ class BakedArt {
 
   /// Pixels per station unit: a little over the most a station is ever
   /// magnified on a phone (the closest zoom, ×1.6, ×3 screen ≈ 4).
-  static const double _ppu = 4.5;
+  static const double defaultPpu = 4.5;
+
+  /// Pixels per unit for this one, for art drawn larger than a station.
+  final double ppu;
+
+  /// Lets the image go, for art that is replaced rather than kept.
+  void dispose() {
+    _image?.dispose();
+    _image = null;
+  }
 
   static final Paint _imagePaint = Paint()
     ..filterQuality = FilterQuality.medium
@@ -348,13 +357,13 @@ class BakedArt {
   ui.Image _bake() {
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
-    c.scale(_ppu);
+    c.scale(ppu);
     c.translate(-bounds.left, -bounds.top);
     paint(c);
     final pic = rec.endRecording();
     final img = pic.toImageSync(
-      (bounds.width * _ppu).ceil(),
-      (bounds.height * _ppu).ceil(),
+      (bounds.width * ppu).ceil(),
+      (bounds.height * ppu).ceil(),
     );
     pic.dispose();
     return img;

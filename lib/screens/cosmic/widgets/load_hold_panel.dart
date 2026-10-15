@@ -312,7 +312,8 @@ class _LoadHoldPanelState extends State<LoadHoldPanel> {
           SizedBox(
             width: 44,
             child: Text(
-              planned == 0 ? '—' : panelFmt(planned),
+              // A dash here read as a third button between − and +.
+              panelFmt(planned),
               textAlign: TextAlign.center,
               style: panelLabel(
                 12,
