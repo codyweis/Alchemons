@@ -16,12 +16,13 @@ import 'package:flutter/material.dart';
 class GameSnack {
   GameSnack._();
 
-  static OverlayEntry? _entry;
+  /// Puts the notice that is showing away, if one is.
+  static VoidCallback? _close;
 
   static void _dismiss() {
-    final entry = _entry;
-    _entry = null;
-    if (entry != null && entry.mounted) entry.remove();
+    final close = _close;
+    _close = null;
+    close?.call();
   }
 }
 
@@ -64,7 +65,21 @@ void showGameSnack(
   // stacking on top of it or queueing behind it.
   GameSnack._dismiss();
 
+  // Each notice removes its own entry, once. Keyed on the entry rather than
+  // on whichever is current: two shown in one frame used to leave the first
+  // (inserted but not yet built, so not "mounted") in the overlay, and its
+  // swipe then removed the second and left itself behind as a dismissed
+  // Dismissible still in the tree.
   late OverlayEntry entry;
+  var gone = false;
+  void close() {
+    if (gone) return;
+    gone = true;
+    if (GameSnack._close == close) GameSnack._close = null;
+    // A progress reset can take the overlay down first.
+    if (overlay!.mounted) entry.remove();
+  }
+
   entry = OverlayEntry(
     builder: (_) => _TopNotification(
       message: message,
@@ -74,10 +89,10 @@ void showGameSnack(
       action: action,
       secondary: secondary,
       duration: duration,
-      onDismiss: GameSnack._dismiss,
+      onDismiss: close,
     ),
   );
-  GameSnack._entry = entry;
+  GameSnack._close = close;
   overlay.insert(entry);
 }
 
