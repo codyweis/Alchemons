@@ -108,12 +108,65 @@ extension CosmicGameWorks on CosmicGame {
     pi * 3 / 2,
   ];
 
+  /// The berths turn round home, once in eight minutes, as what orbits a
+  /// planet does — a ring of buildings held still in space reads as pasted
+  /// on. Each also floats a little on its own.
+  double get _worksOrbit => _elapsed * 2 * pi / 480;
+
+  /// Home buildings grow with the planet: a Huge home's stand about half as
+  /// large again as a Tiny one's.
+  double get _homeScale {
+    final vr = homePlanet?.visualRadius ?? 80;
+    return 2.0 + vr / 250 * 1.3;
+  }
+
   /// Berth [i] in the world, or null with no home.
   Offset? berthPos(int i) {
     final home = homePlanet;
     if (home == null || i < 0) return null;
-    return home.position +
-        polar(_worksRing, _berthBearings[i % _berthBearings.length]);
+    final bearing = _berthBearings[i % _berthBearings.length] + _worksOrbit;
+    final float = Offset(0, sin(_elapsed * 0.6 + i * 1.7) * 4);
+    return home.position + polar(_worksRing, bearing) + float;
+  }
+
+  /// What ties a home building to its planet: the planet's own light on the
+  /// side that faces it, and a faint current of grains between the two —
+  /// what it makes going home, or ([inbound], the Armory) what it draws.
+  void _paintHomeTies(
+    Canvas canvas,
+    Offset at,
+    Offset homeAt,
+    Color light, {
+    required int seed,
+    bool inbound = false,
+  }) {
+    final home = homePlanet;
+    if (home == null) return;
+    final toward = homeAt - at;
+    final d = toward.distance;
+    if (d < 1) return;
+    final dir = toward / d;
+    final k = _homeScale;
+    paintDisc(
+      canvas,
+      stoneLightFor(home.blendedColor).pool,
+      at + dir * 24 * k,
+      62 * k,
+      1.15,
+    );
+    final rim = homeAt - dir * (home.visualRadius * 0.96);
+    final near = at + dir * 16 * k;
+    paintSupplyLine(
+      canvas,
+      from: inbound ? rim : near,
+      to: inbound ? near : rim,
+      color: light,
+      t: _elapsed,
+      seed: seed,
+      // Pulled back, a grain would shrink below a pixel: keep it about the
+      // size it is at the middle zoom, as the gravity rings do.
+      grain: 2.2 * max(1.0, 0.72 / cameraZoom),
+    );
   }
 
   Offset? get worksBayPos => berthPos(works?.bay.berth ?? -1);
@@ -127,7 +180,7 @@ extension CosmicGameWorks on CosmicGame {
   Offset _onBay(Offset local) {
     final at = worksBayPos ?? Offset.zero;
     final c = cos(_bayRot), s = sin(_bayRot);
-    final x = local.dx * _artScale, y = local.dy * _artScale;
+    final x = local.dx * _homeScale, y = local.dy * _homeScale;
     return at + Offset(x * c - y * s, x * s + y * c);
   }
 
@@ -262,7 +315,7 @@ extension CosmicGameWorks on CosmicGame {
     if (at == null || _worksFlows.any((f) => f.seed == 11)) return;
     _addFlow(
       _WorksFlow(
-        from: () => (worksPressPos ?? at) + const Offset(25, 29) * _artScale,
+        from: () => (worksPressPos ?? at) + const Offset(25, 29) * _homeScale,
         to: () => homePlanet?.position ?? ship.pos,
         colors: const [kSilverPressLight],
         seed: 11,
@@ -424,13 +477,14 @@ extension CosmicGameWorks on CosmicGame {
           for (final s in bay.slots) s.instanceId != null && !s.out,
         ];
         if (!isOutsideViewport(at, cx, cy, screenW, screenH, margin: 0.75)) {
+          _paintHomeTies(canvas, at, homeAt, kScavengerBayLight, seed: 1);
           paintScavengerBay(
             canvas,
             at: at,
             tier: bay.tier,
             t: _elapsed,
             rot: _bayRot,
-            scale: _artScale,
+            scale: _homeScale,
             resting: rest,
             crates: [
               for (final c in bay.crates)
@@ -449,7 +503,7 @@ extension CosmicGameWorks on CosmicGame {
               canvas,
               bay.slots[i].instanceId,
               _onBay(bayBerthAt(i, bay.tier) + const Offset(0, -2)) + shift,
-              size: 0.3,
+              size: 0.42 * _homeScale / _artScale,
               bob: sin(_elapsed * 1.6 + i * 2) * 1.2,
             );
           }
@@ -516,19 +570,21 @@ extension CosmicGameWorks on CosmicGame {
               press.presser != null &&
               worksMembers[press.presser] != null &&
               worksPressIntake.isNotEmpty;
+          _paintHomeTies(canvas, at, homeAt, kSilverPressLight, seed: 2);
           paintSilverPress(
             canvas,
             at: at,
             tier: press.tier,
             t: _elapsed,
-            scale: _artScale,
+            scale: _homeScale,
             pressing: pressing,
             intake: worksPressIntake,
           );
           _drawWorker(
             canvas,
             press.presser,
-            at + const Offset(-36, 8) * _artScale,
+            at + const Offset(-36, 8) * _homeScale,
+            size: 0.4 * _homeScale / _artScale,
             facingRight: true,
             bob: pressing ? sin(_elapsed * 2 * pi / 3.6) * 1.4 : 0,
           );
@@ -539,12 +595,20 @@ extension CosmicGameWorks on CosmicGame {
       if (armory.built && worksArmoryPos != null) {
         final at = worksArmoryPos! + shift;
         if (!isOutsideViewport(at, cx, cy, screenW, screenH, margin: 0.75)) {
+          _paintHomeTies(
+            canvas,
+            at,
+            homeAt,
+            kArmoryLight,
+            seed: 3,
+            inbound: true,
+          );
           paintArmory(
             canvas,
             at: at,
             tier: armory.tier,
             t: _elapsed,
-            scale: _artScale,
+            scale: _homeScale,
             skin: activeShipSkin,
           );
         }
@@ -559,12 +623,19 @@ extension CosmicGameWorks on CosmicGame {
               worksRefining &&
               refinery.refiner != null &&
               worksMembers[refinery.refiner] != null;
+          _paintHomeTies(
+            canvas,
+            at,
+            homeAt,
+            parts == null ? kRefineryLight : elementColor(parts.$3),
+            seed: 4,
+          );
           paintRefinery(
             canvas,
             at: at,
             tier: refinery.tier,
             t: _elapsed,
-            scale: _artScale,
+            scale: _homeScale,
             inA: parts == null ? null : elementColor(parts.$1),
             inB: parts == null ? null : elementColor(parts.$2),
             out: parts == null ? null : elementColor(parts.$3),
@@ -573,7 +644,8 @@ extension CosmicGameWorks on CosmicGame {
           _drawWorker(
             canvas,
             refinery.refiner,
-            at + const Offset(-38, 14) * _artScale,
+            at + const Offset(-38, 14) * _homeScale,
+            size: 0.4 * _homeScale / _artScale,
             facingRight: true,
             bob: working ? sin(_elapsed * 2.4) * 1.2 : 0,
           );

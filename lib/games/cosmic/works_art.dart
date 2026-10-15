@@ -1098,6 +1098,42 @@ void paintGrainFlow(
   }
 }
 
+/// A faint, steady current of grains from [from] to [to]: what a building
+/// beside home sends to it, or (the Armory) draws from it. Sparse and slow,
+/// on a gentle bow, the grains thinning at both ends so the current seems
+/// to rise out of one and settle into the other. Never a line.
+void paintSupplyLine(
+  Canvas c, {
+  required Offset from,
+  required Offset to,
+  required Color color,
+  required double t,
+  int seed = 0,
+  int count = 30,
+  double grain = 2.2,
+}) {
+  final d = to - from;
+  final len = d.distance;
+  if (len < 1) return;
+  final n = Offset(-d.dy, d.dx) / len;
+  final bow = len * 0.07 * (hash01(seed, 3) > 0.5 ? 1 : -1);
+  _flowHead.clear();
+  _flowTail.clear();
+  for (var i = 0; i < count; i++) {
+    final u = (t * 0.12 + hash01(i + seed * 31, 4)) % 1.0;
+    final k = 4 * u * (1 - u);
+    final side = (hash01(i + seed * 31, 5) - 0.5) * 12;
+    final p = from + d * u + n * (bow * k + side * k);
+    (u > 0.18 && u < 0.82 ? _flowHead : _flowTail).add(p.dx, p.dy);
+  }
+  _flowTail.draw(c, grain * 0.8, color.withValues(alpha: 0.3));
+  _flowHead.draw(
+    c,
+    grain,
+    Color.lerp(color, const Color(0xFFFFFFFF), 0.2)!.withValues(alpha: 0.7),
+  );
+}
+
 final PointBatch _flowHead = PointBatch(200);
 final PointBatch _flowTail = PointBatch(400);
 
