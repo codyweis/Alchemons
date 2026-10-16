@@ -32,6 +32,7 @@ import 'cosmic_overlay_chrome.dart';
 import 'cosmic_panel_kit.dart';
 import 'cosmic_screen_styles.dart';
 import 'station_panel_kit.dart' show StationDock;
+import 'works_tutorials.dart';
 
 /// A slot a worker fills: its job, the extractor it is at (null at home),
 /// and which of that job's slots.
@@ -629,11 +630,15 @@ class _BuildingView extends StatelessWidget {
     required this.tier,
     required this.stage,
     required this.children,
+    this.help,
   });
 
   final String title;
   final Color accent;
   final int tier;
+
+  /// Whose tutorial the ? beside the name opens.
+  final WorksBuilding? help;
 
   /// The stage at a height (infinite: fill the column).
   final Widget Function(double height) stage;
@@ -657,6 +662,7 @@ class _BuildingView extends StatelessWidget {
             Text('TIER $tier  ', style: panelLabel(9, panelPalette.muted)),
             _TierBeads(tier, accent),
           ],
+          if (help != null) WorksHelpButton(building: help!, accent: accent),
         ],
       ),
     );
@@ -907,6 +913,7 @@ class _WorksPanelState extends State<WorksPanel> {
     if (!a.built) {
       return _BuildingView(
         title: 'ARMORY',
+        help: WorksBuilding.armory,
         accent: kArmoryLight,
         tier: 0,
         stage: stage,
@@ -930,6 +937,7 @@ class _WorksPanelState extends State<WorksPanel> {
     final tank = WorkRules.armoryTankCap(a.tier);
     return _BuildingView(
       title: 'ARMORY',
+      help: WorksBuilding.armory,
       accent: kArmoryLight,
       tier: a.tier,
       stage: stage,
@@ -984,6 +992,7 @@ class _WorksPanelState extends State<WorksPanel> {
     if (!bay.built) {
       return _BuildingView(
         title: 'SCAVENGER BAY',
+        help: WorksBuilding.scavengerBay,
         accent: kScavengerBayLight,
         tier: 0,
         stage: stage,
@@ -1008,6 +1017,7 @@ class _WorksPanelState extends State<WorksPanel> {
     final shards = bay.crates.fold(0, (s, c) => s + c.shards);
     return _BuildingView(
       title: 'SCAVENGER BAY',
+      help: WorksBuilding.scavengerBay,
       accent: kScavengerBayLight,
       tier: bay.tier,
       stage: stage,
@@ -1093,6 +1103,7 @@ class _WorksPanelState extends State<WorksPanel> {
     if (!press.built) {
       return _BuildingView(
         title: 'SILVER PRESS',
+        help: WorksBuilding.silverPress,
         accent: kSilverPressLight,
         tier: 0,
         stage: stage,
@@ -1118,6 +1129,7 @@ class _WorksPanelState extends State<WorksPanel> {
     );
     return _BuildingView(
       title: 'SILVER PRESS',
+      help: WorksBuilding.silverPress,
       accent: kSilverPressLight,
       tier: press.tier,
       stage: stage,
@@ -1213,6 +1225,7 @@ class _WorksPanelState extends State<WorksPanel> {
     if (!r.built) {
       return _BuildingView(
         title: 'REFINERY',
+        help: WorksBuilding.refinery,
         accent: kRefineryLight,
         tier: 0,
         stage: stage,
@@ -1258,6 +1271,7 @@ class _WorksPanelState extends State<WorksPanel> {
     ];
     return _BuildingView(
       title: 'REFINERY',
+      help: WorksBuilding.refinery,
       accent: kRefineryLight,
       tier: r.tier,
       stage: stage,
@@ -1577,6 +1591,11 @@ class OutpostPanel extends StatelessWidget {
                 children: [
                   PanelHeader(
                     title: '${planetName(element).toUpperCase()} EXTRACTOR',
+                    trailing: WorksHelpButton(
+                      building: WorksBuilding.extractor,
+                      element: element,
+                      accent: ink,
+                    ),
                     onClose: close,
                   ),
                   Expanded(

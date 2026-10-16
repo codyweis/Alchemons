@@ -2220,12 +2220,17 @@ class ElementStorage {
       .map((e) => '${e.key}:${e.value.toStringAsFixed(1)}')
       .join(',');
 
+  /// Keys that are not one of the 17 elements are dropped: older builds left
+  /// some (a real one is `Metal`), and every "any elements" cost and the
+  /// press drew on them as if they were.
   factory ElementStorage.deserialise(String raw) {
     if (raw.isEmpty) return ElementStorage();
     final map = <String, double>{};
     for (final part in raw.split(',')) {
       final kv = part.split(':');
-      if (kv.length == 2) map[kv[0]] = double.tryParse(kv[1]) ?? 0;
+      if (kv.length == 2 && kElementColors.containsKey(kv[0])) {
+        map[kv[0]] = double.tryParse(kv[1]) ?? 0;
+      }
     }
     return ElementStorage(stored: map);
   }

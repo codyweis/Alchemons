@@ -17,6 +17,7 @@ import 'package:alchemons/screens/cosmic/cosmic_screen.dart'
 import 'package:alchemons/screens/cosmic/widgets/load_hold_panel.dart';
 import 'package:alchemons/screens/cosmic/widgets/worker_picker.dart';
 import 'package:alchemons/screens/cosmic/widgets/works_panels.dart';
+import 'package:alchemons/screens/cosmic/widgets/works_tutorials.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -380,6 +381,99 @@ void main() {
       'take down refinery',
       'outpost Fire',
     ]);
+    await tester.pumpWidget(const SizedBox());
+    await settle(tester, 2);
+  });
+
+  test('each building explains itself with the rules it runs on', () {
+    for (final b in WorksBuilding.values) {
+      expect(
+        worksTutorial(b, element: 'Fire').length,
+        greaterThanOrEqualTo(2),
+        reason: b.name,
+      );
+    }
+    String all(WorksBuilding b, {String? element}) =>
+        worksTutorial(b, element: element).map((p) => p.message).join(' ');
+    expect(
+      all(WorksBuilding.extractor, element: 'Fire'),
+      contains('a Fire Alchemon'),
+    );
+    expect(
+      all(WorksBuilding.extractor, element: 'Air'),
+      contains('an Air Alchemon'),
+    );
+    expect(all(WorksBuilding.extractor), contains("this planet's element"));
+    expect(
+      all(WorksBuilding.extractor, element: 'Ice'),
+      contains('holds ${WorkRules.hopperCap(1)}'),
+    );
+    expect(
+      all(WorksBuilding.scavengerBay),
+      contains('all ${WorkRules.crateCap(1)} crates'),
+    );
+    expect(
+      all(WorksBuilding.silverPress),
+      contains('${WorkRules.grainsPerSilver} elements make 1 silver'),
+    );
+    expect(
+      all(WorksBuilding.armory),
+      contains('reach level ${WorkRules.armoryPowerCap(1)}'),
+    );
+  });
+
+  testWidgets('every building\'s ? opens its tutorial', (tester) async {
+    tester.view.physicalSize = const Size(475, 751);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await seed(tester);
+    final actions = _Actions();
+    await tester.pumpWidget(
+      host(
+        WorksPanel(view: ValueNotifier(view(builtWorks())), actions: actions),
+      ),
+    );
+    await settle(tester);
+
+    Future<void> read(WorksBuilding b, String opens, {String? tab}) async {
+      if (tab != null) {
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(const ValueKey('works.tabs')),
+            matching: find.text(tab),
+          ),
+        );
+        await settle(tester, 2);
+      }
+      await tester.tap(find.byKey(ValueKey('works.help.${b.name}')));
+      await settle(tester, 4);
+      expect(find.textContaining(opens), findsOneWidget, reason: b.name);
+      await shoot(tester, 'tutorial_${b.name}');
+      final pages = worksTutorial(b).length;
+      for (var i = 0; i < pages; i++) {
+        await tester.tap(find.text(i == pages - 1 ? 'OK' : 'NEXT'));
+        await settle(tester, 4);
+      }
+      expect(find.textContaining(opens), findsNothing, reason: b.name);
+    }
+
+    await read(WorksBuilding.armory, 'are made here');
+    await read(WorksBuilding.scavengerBay, 'Scavengers fly', tab: 'BAY');
+    await read(WorksBuilding.silverPress, 'into silver', tab: 'PRESS');
+    await read(WorksBuilding.refinery, 'out of two others', tab: 'REFINERY');
+    expect(actions.calls, isEmpty);
+
+    await tester.pumpWidget(
+      host(
+        OutpostPanel(
+          element: 'Fire',
+          view: ValueNotifier(view(builtWorks())),
+          actions: actions,
+        ),
+      ),
+    );
+    await settle(tester);
+    await read(WorksBuilding.extractor, 'Mines Fire from this planet');
     await tester.pumpWidget(const SizedBox());
     await settle(tester, 2);
   });

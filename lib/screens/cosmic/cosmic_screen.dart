@@ -89,6 +89,7 @@ import 'widgets/widgets.dart';
 import 'widgets/coach_mark.dart';
 import 'widgets/load_hold_panel.dart';
 import 'widgets/works_panels.dart';
+import 'widgets/works_tutorials.dart';
 import 'widgets/worker_picker.dart';
 import 'widgets/mini_map_circle.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';

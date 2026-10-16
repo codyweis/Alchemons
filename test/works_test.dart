@@ -25,6 +25,17 @@ WorkerProfile _w(
 const _min = 60000;
 
 void main() {
+  test('storage drops keys that are not elements, such as an old Metal', () {
+    final storage = ElementStorage.deserialise(
+      'Fire:640.0,Metal:900.0,Air:12.5',
+    );
+    expect(storage.stored, {'Fire': 640.0, 'Air': 12.5});
+    expect(
+      elementsForCost(const WorksCost(matter: 100), storage.stored)!.keys,
+      ['Fire'],
+    );
+  });
+
   group('extractor', () {
     test('a miner fills the hopper at its rate, up to the cap', () {
       final x = ExtractorState(element: 'Fire', updatedMs: 1000, miners: ['m']);

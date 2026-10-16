@@ -12,13 +12,16 @@ part of 'cosmic_screen.dart';
 //
 //  Teaching, kept short and shown once: coach marks on the home base, then
 //  its WORKS button, then OUTPOST at the first found planet without an
-//  extractor; one line when the Works first open and one when the first
-//  extractor is built. Everything else the panels show plainly.
+//  extractor; one line when the Works first open, and each building's own
+//  few pages (works_tutorials.dart) the first time one is built. The ?
+//  beside a building's name opens them again.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const String _worksPrefsKey = 'cosmic_works_v1';
 const String _worksIntroSeenKey = 'cosmic_works_intro_seen_v1';
-const String _worksFirstRigSeenKey = 'cosmic_works_first_rig_seen_v1';
+
+/// The buildings whose tutorial has been shown, by [WorksBuilding.name].
+const String _worksTaughtKey = 'cosmic_works_taught_v1';
 const String _worksCoachDoneKey = 'cosmic_works_coach_done_v1';
 const String _outpostCoachDoneKey = 'cosmic_outpost_coach_done_v1';
 
@@ -371,6 +374,17 @@ extension _CosmicWorks on _CosmicScreenState {
     _worksSay('${_worksTitle(b)} built.');
     await _saveWorks();
     _publishWorksView();
+    await _teachWorksBuilding(b);
+  }
+
+  /// [b]'s tutorial, the first time one is built.
+  Future<void> _teachWorksBuilding(WorksBuilding b, {String? element}) async {
+    final prefs = await SharedPreferences.getInstance();
+    final taught = prefs.getStringList(_worksTaughtKey) ?? const <String>[];
+    if (taught.contains(b.name) || !mounted) return;
+    await prefs.setStringList(_worksTaughtKey, [...taught, b.name]);
+    if (!mounted) return;
+    await showWorksTutorial(context, b, element: element);
   }
 
   /// [b]'s name as a sentence says it.
@@ -475,22 +489,7 @@ extension _CosmicWorks on _CosmicScreenState {
     _publishWorksView();
     if (_outpostCoach) _finishOutpostCoach();
     _rebuild();
-
-    final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool(_worksFirstRigSeenKey) ?? false) && mounted) {
-      await prefs.setBool(_worksFirstRigSeenKey, true);
-      if (!mounted) return;
-      await showStoryDialog(
-        context,
-        beats: [
-          StoryBeat(
-            title: 'EXTRACTOR',
-            message: 'Give it a $element Alchemon to mine.',
-          ),
-        ],
-        primaryLabel: 'OK',
-      );
-    }
+    await _teachWorksBuilding(WorksBuilding.extractor, element: element);
   }
 
   Future<void> _worksUpgrade(WorksBuilding b, {String? element}) async {
