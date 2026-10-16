@@ -67,6 +67,7 @@ class EnemyVisual {
     this.seed = 0,
     this.facing,
     this.turn = 0,
+    this.droneForm = 0,
   });
 
   final ui.Offset position;
@@ -109,6 +110,10 @@ class EnemyVisual {
   /// fast it is turning. Null facing draws at the raw heading.
   final double? facing;
   final double turn;
+
+  /// Which of the drone's forms this body wears (enemy_body_art.dart);
+  /// read only for drones.
+  final int droneForm;
 
   /// The angle the body is drawn at.
   double get bodyAngle =>
@@ -158,6 +163,7 @@ class EnemyVisual {
     isPlagueCore: e.isPlagueCore,
     visualColor: e.visualColor,
     seed: _seedOf(e),
+    droneForm: e.droneForm >= 0 ? e.droneForm : droneFormForSeed(_seedOf(e)),
   );
 
   /// The open world's body at the render clock [time].
@@ -186,6 +192,10 @@ class EnemyVisual {
     flightSteering: e.flightSteering,
     rootTimer: e.hornPlantRootTimer,
     seed: _seedOf(e),
+    // A pack shares one form; a loner wears its own.
+    droneForm: e.packId >= 0
+        ? (e.packId * 7 + 1) % kDroneForms
+        : droneFormForSeed(_seedOf(e)),
   );
 }
 
@@ -265,6 +275,17 @@ const _kSwarmTiers = [
   EnemyTier.phantom,
 ];
 
+/// The sheet's groups of cells: a group per tier, and one per drone form.
+const _kSwarmGroups = 3 + kDroneForms;
+
+int _swarmGroup(EnemyTier tier, int form) => switch (tier) {
+  EnemyTier.wisp => 0,
+  EnemyTier.drone => 1 + form % kDroneForms,
+  EnemyTier.sentinel => 1 + kDroneForms,
+  EnemyTier.phantom => 2 + kDroneForms,
+  _ => -1,
+};
+
 /// Body radius in atlas pixels, and how far the body sits forward of the
 /// cell's centre (body radii) so a trailing tail has room behind it.
 (double, double) _swarmSpec(EnemyTier tier) => switch (tier) {
@@ -273,10 +294,10 @@ const _kSwarmTiers = [
   _ => (14, 0),
 };
 
-int _swarmColumn(EnemyTier tier, bool flash, int frame) {
-  final t = _kSwarmTiers.indexOf(tier);
-  if (t < 0) return -1;
-  return t * _kSwarmCellsPerTier + (flash ? _kSwarmFrames : frame);
+int _swarmColumn(EnemyTier tier, bool flash, int frame, [int form = 0]) {
+  final g = _swarmGroup(tier, form);
+  if (g < 0) return -1;
+  return g * _kSwarmCellsPerTier + (flash ? _kSwarmFrames : frame);
 }
 
 /// The time each baked frame shows. Frames are spread through a second so
@@ -284,18 +305,46 @@ int _swarmColumn(EnemyTier tier, bool flash, int frame) {
 double _swarmFrameTime(int frame) => frame * 0.37;
 
 ui.Image? _swarmAtlas;
+Future<void>? _swarmAtlasLoading;
 
-ui.Image _buildSwarmAtlas() {
+/// Whether the horde sheet has been baked.
+bool get survivalSwarmAtlasReady => _swarmAtlas != null;
+
+/// Builds the horde sheet off the frame. Safe to call from `onLoad` without
+/// awaiting: until it lands, every body draws through the live painters.
+/// It used to be built lazily with `toImageSync` mid-frame, the moment a
+/// field first crossed the batch threshold — the leading suspect for bodies
+/// vanishing at the rim as a new batch spawned (an image not yet resident on
+/// the device's renderer draws nothing). A failed build is forgotten, so the
+/// next call tries again.
+Future<void> ensureSurvivalSwarmAtlas() => _swarmAtlasLoading ??= () async {
+  try {
+    final (pic, w, h) = _recordSwarmAtlas();
+    final image = await pic.toImage(w, h);
+    pic.dispose();
+    _swarmAtlas = image;
+  } catch (_) {
+    _swarmAtlasLoading = null;
+  }
+}();
+
+(ui.Picture, int, int) _recordSwarmAtlas() {
   final rec = ui.PictureRecorder();
   final canvas = Canvas(rec);
   for (var row = 0; row < _kSwarmAtlasElements.length; row++) {
     final element = _kSwarmAtlasElements[row];
     final pal = enemyPalette(element);
-    for (final tier in _kSwarmTiers) {
+    for (final (tier, form) in [
+      for (final tier in _kSwarmTiers)
+        if (tier == EnemyTier.drone)
+          for (var form = 0; form < kDroneForms; form++) (tier, form)
+        else
+          (tier, 0),
+    ]) {
       final (unit, shift) = _swarmSpec(tier);
       for (var f = 0; f <= _kSwarmFrames; f++) {
         final flash = f == _kSwarmFrames;
-        final col = _swarmColumn(tier, flash, f);
+        final col = _swarmColumn(tier, flash, f, form);
         canvas.save();
         canvas.clipRect(
           Rect.fromLTWH(
@@ -324,16 +373,17 @@ ui.Image _buildSwarmAtlas() {
               flash: hit,
             );
           case EnemyTier.drone:
-            // Every frame the same pose: stepping between poses at the
-            // atlas's frame rate reads as a stutter.
+            // Baked at rest: the batch turns each body to its heading, or
+            // by its tumble for the forms that tumble.
             paintDroneBody(
               canvas,
               pal,
               time: t,
               seed: 0,
               heading: 0,
+              form: form,
               flash: hit,
-              rock: false,
+              baked: true,
             );
           case EnemyTier.sentinel:
             paintSentinelBody(
@@ -360,13 +410,11 @@ ui.Image _buildSwarmAtlas() {
       }
     }
   }
-  final pic = rec.endRecording();
-  final image = pic.toImageSync(
-    (_kSwarmCell * _kSwarmTiers.length * _kSwarmCellsPerTier).toInt(),
+  return (
+    rec.endRecording(),
+    (_kSwarmCell * _kSwarmGroups * _kSwarmCellsPerTier).toInt(),
     (_kSwarmCell * _kSwarmAtlasElements.length).toInt(),
   );
-  pic.dispose();
-  return image;
 }
 
 /// Bodies that may use the baked sentinel/phantom cells, or keep only their
@@ -400,6 +448,11 @@ class SurvivalSwarmBatch {
   int get length => _count;
 
   bool add(CosmicSurvivalEnemy enemy, double time, {bool dense = false}) {
+    // Not baked yet: this body draws live rather than not at all.
+    if (_swarmAtlas == null) {
+      ensureSurvivalSwarmAtlas().ignore();
+      return false;
+    }
     final busy =
         enemy.action.isBusy ||
         (enemy.flightSteering?.showTelegraphRing ?? false);
@@ -413,7 +466,12 @@ class SurvivalSwarmBatch {
     final tier = enemy.tier;
     final seed = identityHashCode(enemy) & 1023;
     final frame = (time * _kSwarmFps + seed).floor() % _kSwarmFrames;
-    final col = _swarmColumn(tier, enemy.hitFlash > 0.3, frame);
+    final form = tier == EnemyTier.drone
+        ? (enemy.droneForm >= 0
+              ? enemy.droneForm
+              : droneFormForSeed(_seedOf(enemy)))
+        : 0;
+    final col = _swarmColumn(tier, enemy.hitFlash > 0.3, frame, form);
     if (col < 0) return false;
     final (unit, shift) = _swarmSpec(tier);
     final scale = enemy.radius / unit;
@@ -421,11 +479,15 @@ class SurvivalSwarmBatch {
       _xforms = Float32List(_xforms.length * 2)..setAll(0, _xforms);
       _rects = Float32List(_rects.length * 2)..setAll(0, _rects);
     }
-    // Turned about the body, which sits [shift] forward of the cell centre.
-    final facing = enemy.facing.follow(
+    // Turned about the body, which sits [shift] forward of the cell centre:
+    // to its heading, or by its tumble for the drone forms that tumble.
+    final heading = enemy.facing.follow(
       enemy.action.isBusy ? enemy.action.aimAngle : enemy.angle,
       time,
     );
+    final facing = tier == EnemyTier.drone && form != 0
+        ? droneSpin(form, time, _seedOf(enemy))
+        : heading;
     final scos = scale * cos(facing);
     final ssin = scale * sin(facing);
     final ax = _kSwarmCell / 2 + shift * unit;
@@ -446,7 +508,7 @@ class SurvivalSwarmBatch {
 
   void flush(Canvas canvas, double time) {
     if (_count > 0) {
-      final atlas = _swarmAtlas ??= _buildSwarmAtlas();
+      final atlas = _swarmAtlas!;
       canvas.drawRawAtlas(
         atlas,
         Float32List.sublistView(_xforms, 0, _count * 4),
@@ -560,6 +622,7 @@ void drawEnemy({
         time: elapsed,
         seed: seed,
         heading: enemy.bodyAngle,
+        form: enemy.droneForm,
         turn: enemy.turn,
         charge: windUp,
         dash: commit,

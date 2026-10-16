@@ -328,11 +328,17 @@ class SurvivalTopHud extends StatelessWidget {
     this.orbShield = 0,
     this.compact = false,
     this.element,
+    this.nextElement,
   });
 
   /// The wave's element (every small enemy in it shares one), named small
   /// under the clock; null shows nothing.
   final String? element;
+
+  /// Set once the wave is all on the field: the element the next wave will
+  /// share, shown in its place as NEXT, so the bench can be readied for it.
+  /// 'Boss' for a boss wave next.
+  final String? nextElement;
 
   /// A narrow screen (the Fold's cover): the keys keep their row and the
   /// gauges drop under it, side by side, instead of being squeezed.
@@ -436,10 +442,12 @@ class SurvivalTopHud extends StatelessWidget {
         ),
         const SizedBox(height: 2),
         Text(time, style: hudMono(10, HudInk.ink, spacing: 1.0)),
-        if (element != null) const SizedBox(height: _elementLine + 1),
+        if (element != null || nextElement != null)
+          const SizedBox(height: _elementLine + 1),
       ],
     );
-    final e = element;
+    final next = nextElement;
+    final e = next ?? element;
     return HudGlass(
       padding: e == null
           ? const EdgeInsets.fromLTRB(10, 6, 10, 6)
@@ -460,11 +468,15 @@ class SurvivalTopHud extends StatelessWidget {
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
                     child: Text(
-                      e.toUpperCase(),
+                      next == null
+                          ? e.toUpperCase()
+                          : 'NEXT · ${e.toUpperCase()}',
                       maxLines: 1,
                       style: hudMono(
                         7.5,
-                        Color.lerp(elementColor(e), HudInk.ink, 0.4)!,
+                        e == 'Boss'
+                            ? SurvivalInk.brassBright
+                            : Color.lerp(elementColor(e), HudInk.ink, 0.4)!,
                         spacing: 0.8,
                       ),
                     ),

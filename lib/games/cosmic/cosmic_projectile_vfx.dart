@@ -2390,8 +2390,9 @@ void pushLetSkyfallImpact(
 /// The ground under an incoming meteor. [progress] runs 0 at the cast to 1 at
 /// the landing; [radius] is the blast the landing opens, read off the falling
 /// projectile. The art lives in let_vfx.dart ([drawLetTelegraphShadow]): a
-/// shadow pool of the element's dark that deepens as the stone closes — no
-/// hoop, no ticks. [color] is the fallback when no [element] is passed.
+/// filled pool of the element's dark over the blast that deepens as the
+/// stone closes, its light gathering at the heart — no hoop, no rim band, no
+/// ticks. [color] is the fallback when no [element] is passed.
 void drawLetSkyfallTelegraph({
   required ui.Canvas canvas,
   required ui.Offset centre,

@@ -1,6 +1,6 @@
 // lib/games/cosmic_survival/surge_grains.dart
 //
-// What a kill pays into the surge. Each body leaves a few brass grains where
+// What a kill pays into the surge. Each body leaves a few violet grains where
 // it fell, carrying its share of the meter. They wait there until the ship
 // passes close enough to pull them in, or until they lie inside the core's
 // field, which drinks them; the meter is paid when a grain arrives. At the
@@ -36,8 +36,12 @@ int surgeGrainsFor(EnemyTier tier, bool elite) =>
     } +
     (elite ? 5 : 0);
 
-const _brass = Color(0xFFE2C98F);
-const _brassHot = Color(0xFFFFF4DC);
+// The surge's own violet (SurvivalInk.surge / surgeHot / surgeDeep), so a
+// grain reads as the meter it fills, and never as the brass of a Light or
+// Fire wave's bodies.
+const _surge = Color(0xFF9A7CEB);
+const _surgeHot = Color(0xFFF0DCFF);
+const _surgeDeep = Color(0xFF6B58D8);
 
 /// Grains within this of the core's centre are taken by it.
 const double _kCoreDrink = 170;
@@ -109,14 +113,14 @@ class SurgeGrains {
 
   /// Moves the grains. [pull] is the ship's reach (null while it is down);
   /// [toCore] sends every grain to the core by itself. [onTaken] receives
-  /// each grain's value as it arrives.
+  /// each grain's value as it arrives, and whether the ship took it.
   void update(
     double dt,
     Offset core,
     Offset ship, {
     required double? pull,
     required bool toCore,
-    required void Function(double value) onTaken,
+    required void Function(double value, bool byShip) onTaken,
   }) {
     if (_grains.isEmpty) return;
     final drag = exp(-4 * dt);
@@ -145,7 +149,7 @@ class SurgeGrains {
           final sx = ship.dx - g.x, sy = ship.dy - g.y;
           final d = max(1.0, sqrt(sx * sx + sy * sy));
           if (d < _kShipTake) {
-            onTaken(g.value);
+            onTaken(g.value, true);
             takenValue += g.value;
             g.value = 0;
             g.age = -1;
@@ -156,7 +160,7 @@ class SurgeGrains {
           g.vy += (sy / d * speed - g.vy) * steer;
         case 2:
           if (toCoreDist < _kCoreDrink - 8) {
-            onTaken(g.value);
+            onTaken(g.value, false);
             takenValue += g.value;
             g.value = 0;
             g.age = -1;
@@ -192,7 +196,7 @@ class SurgeGrains {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Paints the grains inside [view]: lying ones as brass points, moving
+  /// Paints the grains inside [view]: lying ones as violet points, moving
   /// ones with a short trail behind.
   void paint(Canvas c, Rect view) {
     var h = 0, t = 0;
@@ -214,7 +218,7 @@ class SurgeGrains {
     if (t > 0) {
       _dots
         ..strokeWidth = 2.0
-        ..color = _brass.withValues(alpha: 0.30);
+        ..color = _surgeDeep.withValues(alpha: 0.42);
       c.drawRawPoints(
         ui.PointMode.points,
         Float32List.sublistView(_tails, 0, t),
@@ -225,11 +229,11 @@ class SurgeGrains {
     final heads = Float32List.sublistView(_heads, 0, h);
     _dots
       ..strokeWidth = 3.4
-      ..color = _brass.withValues(alpha: 0.9);
+      ..color = _surge.withValues(alpha: 0.92);
     c.drawRawPoints(ui.PointMode.points, heads, _dots);
     _dots
       ..strokeWidth = 1.6
-      ..color = _brassHot.withValues(alpha: 0.95);
+      ..color = _surgeHot.withValues(alpha: 0.95);
     c.drawRawPoints(ui.PointMode.points, heads, _dots);
   }
 

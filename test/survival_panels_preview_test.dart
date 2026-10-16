@@ -81,80 +81,130 @@ void main() {
     }
   }
 
-  testWidgets('surge draft', (tester) async {
+  /// The draft some way into a run, as the screen shows it: the TAKEN
+  /// strip, three cards, the keys, and what the next wave brings.
+  Widget draft({
+    PowerUpState? state,
+    String nextWaveElement = 'Water',
+    bool nextIsBoss = false,
+  }) {
+    // A build some way in, for the TAKEN strip: the same picks the cards
+    // below are offered more of, and a few others.
+    final taken = state ?? PowerUpState();
+    for (final (id, slot) in const [
+      ('world_plant', 0),
+      ('strength_up', 1),
+      ('strength_up', 1),
+      ('shield_pulse', null),
+      ('command_speed', null),
+      ('chain_lightning', 1),
+    ]) {
+      final def = [
+        ...kAllPowerUps,
+        ...kMysticWorldPowerUps,
+      ].firstWhere((d) => d.id == id);
+      taken.apply(def, targetSlot: slot);
+    }
+    return PowerUpSelectionOverlay(
+      choices: [
+        OfferedPowerUpChoice(
+          def: kMysticWorldPowerUps.firstWhere((d) => d.id == 'world_plant'),
+          targetSlot: 0,
+          targetName: 'Verdant',
+          currentLevel: 1,
+        ),
+        OfferedPowerUpChoice(
+          def: kAllPowerUps.firstWhere((d) => d.id == 'strength_up'),
+          targetSlot: 1,
+          targetName: 'Bulwark',
+          currentLevel: 2,
+        ),
+        OfferedPowerUpChoice(
+          def: kAllPowerUps.firstWhere(
+            (d) => d.category == PowerUpCategory.shipWeapon,
+          ),
+          currentLevel: 0,
+        ),
+      ],
+      currentWave: 12,
+      party: [
+        member(
+          'Mystic',
+          'Plant',
+          'Verdant',
+          image: 'assets/images/creatures/mystic/MYS12_plantmystic.png',
+        ),
+        member(
+          'Horn',
+          'Fire',
+          'Bulwark',
+          image: 'assets/images/creatures/rare/HOR01_firehorn.png',
+        ),
+      ],
+      powerUps: taken,
+      onSelect: (def, {targetSlot, targetName}) {},
+      onReroll: () {},
+      onBanish: (_) {},
+      nextWaveElement: nextWaveElement,
+      nextIsBoss: nextIsBoss,
+    );
+  }
+
+  Future<void> shootDraft(
+    WidgetTester tester,
+    String name,
+    Widget overlay, {
+    Future<void> Function()? then,
+  }) async {
     if (out == null) return;
     Directory(out).createSync(recursive: true);
     final key = GlobalKey();
     debugDisableShadows = false;
     try {
-      // A build some way in, for the TAKEN strip: the same picks the cards
-      // below are offered more of, and a few others.
-      final taken = PowerUpState();
-      for (final (id, slot) in const [
-        ('world_plant', 0),
-        ('strength_up', 1),
-        ('strength_up', 1),
-        ('shield_pulse', null),
-        ('command_speed', null),
-        ('chain_lightning', 1),
-      ]) {
-        final def = [
-          ...kAllPowerUps,
-          ...kMysticWorldPowerUps,
-        ].firstWhere((d) => d.id == id);
-        taken.apply(def, targetSlot: slot);
-      }
-      await show(
-        tester,
-        key,
-        PowerUpSelectionOverlay(
-          choices: [
-            OfferedPowerUpChoice(
-              def: kMysticWorldPowerUps.firstWhere(
-                (d) => d.id == 'world_plant',
-              ),
-              targetSlot: 0,
-              targetName: 'Verdant',
-              currentLevel: 1,
-            ),
-            OfferedPowerUpChoice(
-              def: kAllPowerUps.firstWhere((d) => d.id == 'strength_up'),
-              targetSlot: 1,
-              targetName: 'Bulwark',
-              currentLevel: 2,
-            ),
-            OfferedPowerUpChoice(
-              def: kAllPowerUps.firstWhere(
-                (d) => d.category == PowerUpCategory.shipWeapon,
-              ),
-              currentLevel: 0,
-            ),
-          ],
-          currentWave: 12,
-          party: [
-            member(
-              'Mystic',
-              'Plant',
-              'Verdant',
-              image: 'assets/images/creatures/mystic/MYS12_plantmystic.png',
-            ),
-            member(
-              'Horn',
-              'Fire',
-              'Bulwark',
-              image: 'assets/images/creatures/rare/HOR01_firehorn.png',
-            ),
-          ],
-          powerUps: taken,
-          onSelect: (def, {targetSlot, targetName}) {},
-        ),
-      );
+      await show(tester, key, overlay);
       await precacheLobbyImages(tester);
       await tester.pump(const Duration(milliseconds: 40));
-      await shoot(tester, key, 'surge_draft');
+      if (then != null) {
+        await then();
+        for (var i = 0; i < 12; i++) {
+          await tester.pump(const Duration(milliseconds: 40));
+        }
+      }
+      await shoot(tester, key, name);
     } finally {
       debugDisableShadows = true;
+      await tester.pumpWidget(const SizedBox());
     }
+  }
+
+  testWidgets('surge draft', (tester) async {
+    await shootDraft(tester, 'surge_draft', draft());
+  });
+
+  // BANISH pressed, before a card is chosen: every card lit in the ember.
+  testWidgets('surge draft, banish armed', (tester) async {
+    await shootDraft(
+      tester,
+      'surge_draft_banish',
+      draft(),
+      then: () =>
+          tester.tap(find.byKey(const ValueKey('survival.draft.banish'))),
+    );
+  });
+
+  // A boss next, both rerolls spent and one banish.
+  testWidgets('surge draft, boss next, a key spent', (tester) async {
+    final state = PowerUpState()
+      ..restoreDraftKeys(
+        rerollsLeft: 0,
+        banishesLeft: 1,
+        banished: const {'ship_damage'},
+      );
+    await shootDraft(
+      tester,
+      'surge_draft_boss_spent',
+      draft(state: state, nextIsBoss: true),
+    );
   });
 
   testWidgets('results', (tester) async {

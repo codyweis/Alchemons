@@ -103,22 +103,75 @@ void _stone(
 // Before the landing: the shadow on the ground and the stone in the air
 // ─────────────────────────────────────────────────────────────────────────
 
-/// The telegraph pool's gradient per ink colour, at unit size and full
-/// strength.
-final Map<int, ui.Shader> _telegraphShaders = {};
+/// What one element's telegraph is painted with, worked out once: the pool's
+/// unit gradient, the light it gathers and the grit drawn in after it.
+typedef _TelegraphLook = ({ui.Shader pool, ui.Color light, ui.Color grit});
+
+final Map<String?, _TelegraphLook> _telegraphLooks = {};
+
+_TelegraphLook _telegraphLook(String? element) =>
+    _telegraphLooks[element] ??= () {
+      final m = vfxMaterial(element);
+      // The element's dark, lifted toward its light just far enough to stain
+      // the arena floor (about 13% grey): most inks already do, but Water's,
+      // Dark's and Blood's are blacker than the floor and vanished into it.
+      double lum(ui.Color c) => 0.3 * c.r + 0.59 * c.g + 0.11 * c.b;
+      final lift = ((0.13 - lum(m.ink)) / (lum(m.light) - lum(m.ink)))
+          .clamp(0.06, 0.24)
+          .toDouble();
+      final stain = ui.Color.lerp(m.ink, m.light, lift)!.toARGB32() & 0xFFFFFF;
+      // Its light taken a little toward its own hue, so the pale materials
+      // (Air, Steam, Spirit) do not all gather the same grey.
+      final light = ui.Color.lerp(
+        m.light,
+        elementColor(element ?? ''),
+        kVfxGlowingElements.contains(element) ? 0.3 : 0.18,
+      )!;
+      return (
+        // Dense through the middle, easing off toward the edge and gone just
+        // past it, where the irregular outline cuts across the fall.
+        pool: ui.Gradient.radial(
+          ui.Offset.zero,
+          1.04,
+          [
+            ui.Color(0xFF000000 | stain),
+            ui.Color(0xFF000000 | stain).withValues(alpha: 0.92),
+            ui.Color(0xFF000000 | stain).withValues(alpha: 0.7),
+            ui.Color(stain),
+          ],
+          const [0.0, 0.5, 0.84, 1.0],
+        ),
+        light: light,
+        grit: ui.Color.lerp(m.glint, light, 0.35)!,
+      );
+    }();
+
+/// The pool's outline at unit size: a few irregular rounds, built once, so a
+/// field of telegraphs does not show one stamped disc over and over. Only a
+/// little irregular — the edge is the blast's reach and must not mislead.
+final List<ui.Path> _telegraphPools = [
+  for (var i = 0; i < 6; i++)
+    vfxBlob(ui.Offset.zero, 1, 17.0 + i * 5.3, n: 12, wobble: 0.07),
+];
 
 /// The ground under an incoming meteor. [progress] runs 0 at the cast to 1 at
 /// the landing. [radius] is the blast the landing opens — callers pass
 /// `letSkyfallBlastRadius` (or a Deadfall rock's crater) read off the falling
 /// projectile — so the cue covers exactly what will be hit at every band.
 ///
-/// A shadow, not a reticle. The element's dark pools over the blast and
-/// deepens as the stone closes, a soft band of its light marks where the
-/// blast ends, and the stone's own shadow gathers at the heart: "something is
-/// falling here". The telegraph this replaced was a stroked hoop with three
-/// turning tick spokes, drawn on every cast.
+/// A shadow and a gathering light, not a reticle. The element's dark pools
+/// over the blast — an irregular round whose edge is the blast's reach,
+/// filled, so the width reads without any outline — and deepens as the
+/// stone closes. Over it the stone's light, cast ahead of it, starts broad
+/// and faint and gathers to the heart, brightening, a little on the side the
+/// stone comes in from until it is nearly down; grit is drawn in after it.
+/// So the edge of the pool goes dark just as the heart lights: "something
+/// lands here, this wide, soon". The telegraphs this replaced were stroked
+/// hoops (then a soft band of light round the rim, which still read as one).
 ///
-/// Three fills (four with the ambient grit), one gradient each, no blur.
+/// Three fills while the stone is high, four as it closes (one fewer with
+/// [reduceAmbient], which drops the grit); gradients cached, no blur, no
+/// strokes, no layers.
 void drawLetTelegraphShadow({
   required ui.Canvas canvas,
   required ui.Offset centre,
@@ -130,66 +183,70 @@ void drawLetTelegraphShadow({
 }) {
   if (radius <= 1) return;
   final t = _c01(progress);
-  final m = vfxMaterial(element);
+  final look = _telegraphLook(element);
   final c = centre;
+  // Stable per mark: the impact point holds still for the whole fall.
+  final seed = (c.dx * 0.071 + c.dy * 0.113).abs() % 97.0;
   // Registers at once — a cue that eases in over the whole fall is invisible
   // exactly while it is useful — then deepens with the fall, which speeds up.
-  final presence = _c01(t * 5);
+  final presence = _easeOut(t * 4.5);
   final close = t * t;
 
-  // The pool: the element's dark over the whole blast. A little wide and soft
-  // while the stone is high, settling onto the blast as it lands. One unit
-  // gradient per ink, drawn scaled, its strength on the paint's alpha (it
-  // was a new shader per falling stone per frame).
-  final poolR = radius * (1.06 - 0.06 * t);
-  final dark = m.ink.toARGB32() & 0xFFFFFF;
-  final a = (0.34 + 0.42 * close) * presence;
+  // The pool, spreading out to the blast as it registers and slowly turning,
+  // drawn scaled from its unit outline and gradient, strength on the paint.
   _fill
-    ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: _c01(a))
-    ..shader = _telegraphShaders[dark] ??= ui.Gradient.radial(
-      ui.Offset.zero,
-      1,
-      [
-        ui.Color(0xFF000000 | dark),
-        ui.Color(0xFF000000 | dark).withValues(alpha: 0.82),
-        ui.Color(dark),
-      ],
-      const [0.0, 0.72, 1.0],
-    );
+    ..color = const ui.Color(
+      0xFFFFFFFF,
+    ).withValues(alpha: _c01((0.45 + 0.42 * close) * presence))
+    ..shader = look.pool;
   canvas.save();
   canvas.translate(c.dx, c.dy);
-  canvas.scale(poolR);
-  canvas.drawCircle(ui.Offset.zero, 1, _fill);
+  canvas.rotate(seed + time * 0.2);
+  canvas.scale(radius * (0.86 + 0.14 * presence));
+  canvas.drawPath(
+    _telegraphPools[seed.floor() % _telegraphPools.length],
+    _fill,
+  );
   canvas.restore();
   _fill.shader = null;
 
-  // Where the blast ends: a wide soft band of the element's light, brighter
-  // as the stone closes. Wide on purpose — a narrow band reads as a hoop.
-  vfxSoftRing(
+  // The stone's light, gathering: broad and faint while it is high, drawn
+  // in to the heart and brightening as it drops. It leans toward the side
+  // the stone falls in from (every drop comes down the screen) and settles
+  // on the centre as it lands, so the cue is lopsided, never a bullseye.
+  final heart = c + ui.Offset(0, -radius * 0.16 * (1 - t) * (1 - t));
+  vfxSpill(
     canvas,
-    c,
-    radius * 0.9,
-    radius * 0.13,
-    m.light,
-    (0.04 + 0.13 * close) * presence,
+    heart,
+    radius * (0.95 - 0.6 * _easeOut(t)),
+    look.light,
+    (0.12 + 0.45 * close) * presence,
+  );
+  // Its hot core, coming up only in the last half of the fall: soon.
+  final hot = _c01((t - 0.4) / 0.6);
+  vfxSpill(
+    canvas,
+    heart,
+    radius * (0.09 + 0.1 * hot),
+    look.grit,
+    0.6 * hot * hot * (3 - 2 * hot),
   );
 
-  // The stone's own shadow gathering under it, swelling and darkening as it
-  // drops: how close it is.
-  vfxSpill(canvas, c, radius * (0.12 + 0.36 * close), _black, 0.7 * close);
-
   if (reduceAmbient) return;
-  // Grit lifting off the ground ahead of the blow, drawn in toward the heart.
+  // Grit drawn in after the light: each grain lifts where it lay, is pulled
+  // in on one shared curl, and slows as it collects at the heart, where the
+  // light swallows it. One batch; few, so it never traces the rim.
   vfxGrainsDiscard();
-  final seed = (c.dx * 0.071 + c.dy * 0.113).abs() % 97.0;
-  for (var i = 0; i < 12; i++) {
-    final u = (time * 0.35 + vfxHash(seed + i * 1.7)) % 1.0;
-    final ang = seed + i * 2.399;
-    final d =
-        radius * (0.88 - 0.6 * u) * (0.55 + 0.45 * vfxHash(seed + i * 3.1));
-    vfxGrain(c.dx + cos(ang) * d, c.dy + sin(ang) * d);
+  final n = (radius / 13).clamp(6.0, 14.0).round();
+  for (var i = 0; i < n; i++) {
+    final u = (time * 0.7 + vfxHash(seed + i * 1.7)) % 1.0;
+    final e = 1 - (1 - u) * (1 - u);
+    final from = radius * (0.6 + 0.34 * vfxHash(seed + i * 3.1));
+    final ang = seed + i * 2.399 + 0.9 * e;
+    final d = from * (1 - 0.86 * e);
+    vfxGrain(heart.dx + cos(ang) * d, heart.dy + sin(ang) * d);
   }
-  vfxGrainsFlush(canvas, max(1.2, radius * 0.012), m.glint, 0.32 * presence);
+  vfxGrainsFlush(canvas, max(1.3, radius * 0.011), look.grit, 0.5 * presence);
 }
 
 /// Per-element stone and wake proportions for a falling Let:

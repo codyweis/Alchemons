@@ -331,6 +331,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   // Power-up selection state
   List<OfferedPowerUpChoice> _powerUpChoices = [];
 
+  /// The wave the open draft was drawn for; its REROLL and BANISH draw
+  /// against the same one.
+  int _draftWave = 1;
+
   // Boss announcement
   String? _bossAnnouncement;
   String? _bossAnnouncementSubtitle;
@@ -1362,22 +1366,54 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   void _handleWaveIntermission() {
     if (_game == null || !mounted) return;
     final party = _party ?? const <CosmicPartyMember>[];
-    final choices =
-        !_game!.powerUps.hasKeystone && _game!.spawner.currentWave >= 10
-        ? generateKeystoneChoices(
-            _game!.powerUps,
-            _game!.spawner.currentWave,
-            party: party,
-          )
+    final wave = _game!.spawner.currentWave;
+    final choices = !_game!.powerUps.hasKeystone && wave >= 10
+        ? generateKeystoneChoices(_game!.powerUps, wave, party: party)
         : generatePowerUpChoices(
             _game!.powerUps,
-            _game!.spawner.currentWave,
+            wave,
             party: party,
             defeatedCompanionSlots: _game!.defeatedCompanionSlots,
           );
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _powerUpChoices = choices);
+      if (!mounted) return;
+      setState(() {
+        _draftWave = wave;
+        _powerUpChoices = choices;
+      });
     });
+  }
+
+  /// REROLL: three fresh cards, one of the run's rerolls spent.
+  void _rerollDraft() {
+    final game = _game;
+    if (game == null || !mounted || _powerUpChoices.isEmpty) return;
+    final next = rerollPowerUpDraft(
+      game.powerUps,
+      _draftWave,
+      current: _powerUpChoices,
+      party: _party ?? const [],
+      defeatedCompanionSlots: game.defeatedCompanionSlots,
+    );
+    if (next == null) return;
+    setState(() => _powerUpChoices = next);
+  }
+
+  /// BANISH: the card at [index] is never offered again this run, and a
+  /// fresh one takes its place. The pick is still to make.
+  void _banishFromDraft(int index) {
+    final game = _game;
+    if (game == null || !mounted || _powerUpChoices.isEmpty) return;
+    final next = banishFromPowerUpDraft(
+      game.powerUps,
+      _draftWave,
+      current: _powerUpChoices,
+      index: index,
+      party: _party ?? const [],
+      defeatedCompanionSlots: game.defeatedCompanionSlots,
+    );
+    if (next == null) return;
+    setState(() => _powerUpChoices = next);
   }
 
   void _handleWaveCleared(int wave) {
@@ -3005,6 +3041,10 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
               party: _party ?? const [],
               powerUps: game.powerUps,
               onSelect: _selectPowerUp,
+              onReroll: _rerollDraft,
+              onBanish: _banishFromDraft,
+              nextWaveElement: game.spawner.nextWaveElement,
+              nextIsBoss: game.spawner.nextIsBoss,
             ),
 
           if (_showPauseMenu) _buildPauseOverlay(game),
@@ -3341,6 +3381,17 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                         !game.spawner.isBossWave
                     ? game.spawner.waveElement
                     : null,
+                // Once the whole wave is on the field, the next one's
+                // element takes the line: time to ready the bench.
+                nextElement:
+                    game.isLoaded &&
+                        game.spawner.currentWave > 0 &&
+                        game.spawner.spawnedThisWave >=
+                            game.spawner.targetCountThisWave
+                    ? (game.spawner.nextIsBoss
+                          ? 'Boss'
+                          : game.spawner.nextWaveElement)
+                    : null,
                 keys: [
                   HudKey(
                     key: const ValueKey('survival.pause'),
@@ -3554,6 +3605,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                                 const SizedBox(height: 16),
                               ],
 
+                            _PauseWaveElements(
+                              now: game.spawner.isBossWave
+                                  ? null
+                                  : game.spawner.waveElement,
+                              next: game.spawner.nextIsBoss
+                                  ? null
+                                  : game.spawner.nextWaveElement,
+                            ),
+                            const SizedBox(height: 10),
                             // RUN. Secondary by design: interesting, but never
                             // the reason anybody opened this screen mid-fight.
                             _PauseStatRow(
@@ -4070,6 +4130,43 @@ class _TestTeamChip extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// This wave's element and the next one's, for choosing who to send. A
+/// boss wave, now or next, says BOSS.
+class _PauseWaveElements extends StatelessWidget {
+  const _PauseWaveElements({required this.now, required this.next});
+
+  final String? now;
+  final String? next;
+
+  @override
+  Widget build(BuildContext context) {
+    TextSpan part(String label, String? element) => TextSpan(
+      children: [
+        TextSpan(text: '$label  ', style: hudMono(9, HudInk.muted)),
+        TextSpan(
+          text: (element ?? 'Boss').toUpperCase(),
+          style: hudMono(
+            10,
+            element == null
+                ? SurvivalInk.brassBright
+                : Color.lerp(elementColor(element), HudInk.ink, 0.4)!,
+            spacing: 0.8,
+          ),
+        ),
+      ],
+    );
+    return Text.rich(
+      TextSpan(
+        children: [
+          part('THIS WAVE', now),
+          const TextSpan(text: '      '),
+          part('NEXT WAVE', next),
+        ],
       ),
     );
   }

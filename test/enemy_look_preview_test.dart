@@ -207,6 +207,7 @@ void main() {
     scatter(EnemyTier.brute, brutes, 150, 360);
     scatter(EnemyTier.colossus, colossi, 220, 300);
 
+    if (atlas) await tester.runAsync(ensureSurvivalSwarmAtlas);
     final batch = SurvivalSwarmBatch();
     for (final b in bodies) {
       if (atlas && batch.add(b, 1.3, dense: true)) continue;

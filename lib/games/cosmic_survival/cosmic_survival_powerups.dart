@@ -749,6 +749,12 @@ const kAllPowerUps = [
   ...kRarePerks,
 ];
 
+/// The draft's two keys, per run: REROLL draws three fresh cards, BANISH
+/// takes one upgrade out of the run and puts a fresh card in its place.
+/// Tune them here.
+const int kSurvivalDraftRerolls = 2;
+const int kSurvivalDraftBanishes = 2;
+
 class PowerUpState {
   final Map<String, int> _globalStacks = {};
   final Map<int, Map<String, int>> _companionStacks = {};
@@ -756,7 +762,56 @@ class PowerUpState {
   final List<AppliedPowerUp> _history = [];
   final Map<String, String> _choiceSelections = {};
 
+  int _rerollsLeft = kSurvivalDraftRerolls;
+  int _banishesLeft = kSurvivalDraftBanishes;
+  final Set<String> _banished = {};
+
   List<AppliedPowerUp> get history => List.unmodifiable(_history);
+
+  /// REROLLs the run has left.
+  int get rerollsLeft => _rerollsLeft;
+
+  /// BANISHes the run has left.
+  int get banishesLeft => _banishesLeft;
+
+  /// Upgrades banished this run: never offered again.
+  Set<String> get banished => Set.unmodifiable(_banished);
+
+  bool isBanished(String id) => _banished.contains(id);
+
+  /// How many fresh draws the keys have made this run, so each one is
+  /// seeded apart from the last and a continued run draws the same.
+  int get draftRedraws =>
+      max(0, kSurvivalDraftRerolls - _rerollsLeft) +
+      max(0, kSurvivalDraftBanishes - _banishesLeft);
+
+  /// Spends a REROLL; false with none left.
+  bool spendReroll() {
+    if (_rerollsLeft <= 0) return false;
+    _rerollsLeft--;
+    return true;
+  }
+
+  /// Spends a BANISH on [id]; false with none left.
+  bool spendBanish(String id) {
+    if (_banishesLeft <= 0) return false;
+    _banishesLeft--;
+    _banished.add(id);
+    return true;
+  }
+
+  /// A continued run's keys, as it left them.
+  void restoreDraftKeys({
+    required int rerollsLeft,
+    required int banishesLeft,
+    required Iterable<String> banished,
+  }) {
+    _rerollsLeft = max(0, rerollsLeft);
+    _banishesLeft = max(0, banishesLeft);
+    _banished
+      ..clear()
+      ..addAll(banished);
+  }
 
   int getGlobalStacks(String id) => _globalStacks[id] ?? 0;
 
@@ -1201,7 +1256,6 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
   Set<int> defeatedCompanionSlots = const {},
 }) {
   final rng = Random(wave * 37 + 11);
-  final companionCount = party.length;
 
   final exclusiveFork = _buildExclusiveThisOrThatChoice(
     state,
@@ -1212,9 +1266,116 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
   );
   if (exclusiveFork.isNotEmpty) return exclusiveFork;
 
-  final available = kAllPowerUps
+  return _drawPowerUpChoices(
+    state,
+    wave,
+    rng: rng,
+    packLeaderRoll: Random(wave * 53 + state.history.length * 7 + 3),
+    party: party,
+    defeatedCompanionSlots: defeatedCompanionSlots,
+  );
+}
+
+/// Whether a draft offers REROLL and BANISH: every draft but a keystone's.
+bool powerUpDraftHasKeys(List<OfferedPowerUpChoice> choices) =>
+    choices.isNotEmpty && !choices.any((c) => c.def.isKeystone);
+
+/// REROLL: three fresh cards in place of [current], by every rule a draft
+/// is drawn by. It avoids the cards on the table while there are at least
+/// three others to draw from. Spends one of [state]'s rerolls; null, with
+/// nothing spent, when there are none left, the draft is a keystone's, or
+/// there is nothing to draw.
+///
+/// A this-or-that draft rerolls into an ordinary one: drawing the same pair
+/// again would spend the reroll on nothing.
+List<OfferedPowerUpChoice>? rerollPowerUpDraft(
+  PowerUpState state,
+  int wave, {
+  required List<OfferedPowerUpChoice> current,
+  List<CosmicPartyMember> party = const [],
+  Set<int> defeatedCompanionSlots = const {},
+}) {
+  if (state.rerollsLeft <= 0 || !powerUpDraftHasKeys(current)) return null;
+  final salt = state.draftRedraws + 1;
+  final fresh = _drawPowerUpChoices(
+    state,
+    wave,
+    rng: Random(wave * 37 + 11 + salt * 7919),
+    packLeaderRoll: Random(
+      wave * 53 + state.history.length * 7 + 3 + salt * 7919,
+    ),
+    party: party,
+    defeatedCompanionSlots: defeatedCompanionSlots,
+    avoid: {for (final c in current) c.def.id},
+  );
+  if (fresh.isEmpty || !state.spendReroll()) return null;
+  return fresh;
+}
+
+/// BANISH: [current]'s card at [index] is never offered again this run, and
+/// a fresh card takes its place (one not already on the table). Spends one
+/// of [state]'s banishes; null, with nothing spent, when there are none
+/// left, the draft is a keystone's, or banishing would leave nothing to
+/// take. When nothing is left to draw, the card goes and the draft is one
+/// shorter.
+List<OfferedPowerUpChoice>? banishFromPowerUpDraft(
+  PowerUpState state,
+  int wave, {
+  required List<OfferedPowerUpChoice> current,
+  required int index,
+  List<CosmicPartyMember> party = const [],
+  Set<int> defeatedCompanionSlots = const {},
+}) {
+  if (state.banishesLeft <= 0 || !powerUpDraftHasKeys(current)) return null;
+  if (index < 0 || index >= current.length) return null;
+  final gone = current[index].def.id;
+  final salt = state.draftRedraws + 1;
+  final kept = [
+    for (var i = 0; i < current.length; i++)
+      if (i != index) current[i],
+  ];
+  final replacement = _drawPowerUpChoices(
+    state,
+    wave,
+    rng: Random(wave * 41 + 17 + salt * 7919),
+    party: party,
+    defeatedCompanionSlots: defeatedCompanionSlots,
+    exclude: {gone, for (final c in kept) c.def.id},
+    count: 1,
+  );
+  if (replacement.isEmpty && kept.isEmpty) return null;
+  if (!state.spendBanish(gone)) return null;
+  return [
+    for (var i = 0; i < current.length; i++)
+      if (i != index)
+        current[i]
+      else if (replacement.isNotEmpty)
+        replacement.first,
+  ];
+}
+
+/// The draw every draft is made by: up to [count] cards from what the run
+/// can take (stack limits, either-or groups, Mystic worlds in the party,
+/// nothing banished). [exclude] is never drawn; [avoid] is not drawn while
+/// at least three others are left. With [packLeaderRoll], half of draws
+/// lead with Pack Leader.
+List<OfferedPowerUpChoice> _drawPowerUpChoices(
+  PowerUpState state,
+  int wave, {
+  required Random rng,
+  Random? packLeaderRoll,
+  required List<CosmicPartyMember> party,
+  required Set<int> defeatedCompanionSlots,
+  Set<String> exclude = const {},
+  Set<String> avoid = const {},
+  int count = 3,
+}) {
+  final companionCount = party.length;
+  var available = kAllPowerUps
       .where(
         (def) =>
+            !state.isBanished(def.id) &&
+            !exclude.contains(def.id) &&
             _mysticWorldIsFielded(def, party) &&
             state.canApply(
               def,
@@ -1223,6 +1384,10 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
             ),
       )
       .toList();
+  if (avoid.isNotEmpty) {
+    final fresh = available.where((d) => !avoid.contains(d.id)).toList();
+    if (fresh.length >= 3) available = fresh;
+  }
   final chosen = <OfferedPowerUpChoice>[];
   final usedKeys = <String>{};
 
@@ -1243,13 +1408,19 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
     return PowerUpRarity.common;
   }
 
-  for (var i = 0; i < 3 && available.isNotEmpty; i++) {
+  // A draw that lands on a card already on the table draws again (a few
+  // tries per place): skipping it left about a quarter of drafts with two
+  // cards.
+  var attempts = 0;
+  while (chosen.length < count &&
+      available.isNotEmpty &&
+      attempts < count * 8) {
+    final i = attempts++;
     // Half of all drafts lead with Pack Leader (while it can still be taken):
     // another alchemon on the field is the pick that changes a run most, so
     // it should be on the table often rather than on a schedule. Rolled on
     // its own seed so the rest of the draft is unchanged by it.
-    if (i == 0 &&
-        Random(wave * 53 + state.history.length * 7 + 3).nextDouble() < 0.5) {
+    if (i == 0 && packLeaderRoll != null && packLeaderRoll.nextDouble() < 0.5) {
       final packLeader = available.firstWhere(
         (d) => d.id == 'pack_leader',
         orElse: () => available.first, // fallback if maxed
@@ -1322,11 +1493,13 @@ List<OfferedPowerUpChoice> _buildExclusiveThisOrThatChoice(
   if (groupDefs.length < 2) return const [];
 
   final canOfferAll = groupDefs.every(
-    (def) => state.canApply(
-      def,
-      companionCount: party.length,
-      defeatedCompanionSlots: defeatedCompanionSlots,
-    ),
+    (def) =>
+        !state.isBanished(def.id) &&
+        state.canApply(
+          def,
+          companionCount: party.length,
+          defeatedCompanionSlots: defeatedCompanionSlots,
+        ),
   );
   if (!canOfferAll) return const [];
 

@@ -7,7 +7,8 @@
 // Intelligence, a bloom for Beauty, a fan for Spread Shot, a comet for the
 // rockets, a shell for the pulse, grains rising for healing, a burst for the
 // nova, a chain for Chain Lightning, brass grains drawn in to one point for
-// the Surge Magnet — so three cards never look alike. Keyed by id.
+// the Surge Magnet, two ember currents braided into one surge for Warpath —
+// so three cards never look alike. Keyed by id.
 //
 // Live on the draft cards through GrainGlyph (one shared clock for all of
 // them); still in the TAKEN strip (painted once). A card's art is about
@@ -42,7 +43,7 @@ enum UpgradeMotif {
   drip,
   hourglass,
   spiral,
-  wedge,
+  braid,
   world,
   magnet,
 }
@@ -80,6 +81,8 @@ const _heal = Color(0xFF7FD6A0);
 const _blood = Color(0xFFD9485A);
 const _volt = Color(0xFFB9A8FF);
 const _brass = Color(0xFFCDB07A);
+// The ship's embers in Warpath's braid, a gold beside Strength's red.
+const _ember = Color(0xFFF2B25C);
 
 UpgradeArtSpec upgradeArtFor(PowerUpDef def) {
   final world = def.mysticElement;
@@ -171,7 +174,11 @@ UpgradeArtSpec upgradeArtFor(PowerUpDef def) {
       _beauty,
       second: _volt,
     ),
-    'keystone_warpath' => const UpgradeArtSpec(UpgradeMotif.wedge, _strength),
+    'keystone_warpath' => const UpgradeArtSpec(
+      UpgradeMotif.braid,
+      _strength,
+      second: _ember,
+    ),
     'surge_magnet' => const UpgradeArtSpec(UpgradeMotif.magnet, _brass),
     _ => const UpgradeArtSpec(UpgradeMotif.core, _brass),
   };
@@ -373,8 +380,15 @@ abstract final class UpgradeArtPaint {
       case UpgradeMotif.spiral:
         GrainGlass.pool(canvas, c, r * 0.36, spec.color, alpha: 0.9);
         _spiral(t);
-      case UpgradeMotif.wedge:
-        _wedge(t, s);
+      case UpgradeMotif.braid:
+        GrainGlass.pool(
+          canvas,
+          c + _braidAt(1.0) * r,
+          r * 0.42,
+          spec.second ?? spec.color,
+          alpha: 0.85,
+        );
+        _braid(t, s);
       case UpgradeMotif.magnet:
         GrainGlass.pool(
           canvas,
@@ -978,24 +992,109 @@ abstract final class UpgradeArtPaint {
     _add(_glint, p0.dx, p0.dy);
   }
 
-  // ── Warpath: grains pressing forward in a wedge. ──
-  static void _wedge(double t, int s) {
-    for (var row = 0; row < 3; row++) {
-      final p = (t * 0.28 + row / 3) % 1.0;
-      final apex = 0.62 - p * 1.3;
-      final width = 0.55 - row * 0.04;
-      for (var j = -7; j <= 7; j++) {
-        final u = j / 7;
-        final x = u * width;
-        final y = apex + u.abs() * 0.42;
-        if (x * x + y * y > 0.8) continue;
-        final k = j == 0
-            ? _hot
-            : u.abs() < 0.4
-            ? _lit
-            : _body;
-        _add(p > 0.8 ? _deep : k, x, y);
+  // ── Warpath: two currents braided into one surge. ──
+  // The team's embers (red) and the ship's (gold) come in from behind as two
+  // currents, one high and one low, twist round each other and pour together
+  // into one swell at the front that leans on, its upper side ahead of its
+  // lower like a wave about to break. A rope, not an arrowhead: the currents
+  // cross and recross instead of meeting at a point, and the front is a
+  // rounded crest, never a tip. The twist rolls forward with the grains.
+  static const Offset _braidFrom = Offset(-0.74, 0.16);
+  static const Offset _braidBend = Offset(-0.12, 0.14);
+  static const Offset _braidTo = Offset(0.3, -0.06);
+
+  static Offset _braidAt(double u) {
+    final v = 1 - u;
+    return _braidFrom * (v * v) + _braidBend * (2 * u * v) + _braidTo * (u * u);
+  }
+
+  /// The braid's sideways direction at [u], toward the top of the card.
+  static Offset _braidNormal(double u) {
+    final d =
+        (_braidBend - _braidFrom) * (2 * (1 - u)) +
+        (_braidTo - _braidBend) * (2 * u);
+    return Offset(d.dy, -d.dx) / d.distance;
+  }
+
+  static void _braid(double t, int s) {
+    // The two currents, half a turn apart: where one passes over the other
+    // it is lit, where it passes under it sinks to its dark.
+    for (var strand = 0; strand < 2; strand++) {
+      final ship = strand == 1;
+      for (var i = 0; i < 62; i++) {
+        final k = i + strand * 64;
+        // Running forward, quickening toward the front.
+        final p = (t * 0.2 + i / 62 + _h(k, 50 + s) * 0.02) % 1.0;
+        final u = p * (0.8 + 0.2 * p);
+        // Wide apart behind, drawn tight where they pour together.
+        final amp = 0.33 * (1 - 0.8 * u);
+        final phase =
+            math.pi / 2 + u * math.pi * 1.9 - t * 0.8 + strand * math.pi;
+        final over = math.cos(phase);
+        // A current, not a thread: grains spread across it, thinning on.
+        final across = (_h(k, 51 + s) - 0.5) * 0.15 * (1 - 0.45 * u);
+        final q =
+            _braidAt(u) + _braidNormal(u) * (amp * math.sin(phase) + across);
+        if (q.distanceSquared > 0.84) continue;
+        _add(
+          u < 0.1
+              ? _deep
+              : over > 0.4
+              ? (u > 0.62 ? _hot : _lit)
+              : over > -0.35
+              ? _body
+              : _deep,
+          q.dx,
+          q.dy,
+          second: ship,
+        );
       }
+    }
+    // The surge: one swell where they have joined, its upper side further
+    // on than its lower, breathing forward a little.
+    final head = _braidAt(1.0);
+    const fwd = Offset(0.96, -0.28);
+    const up = Offset(-0.28, -0.96);
+    final lean = 0.02 * math.sin(t * 1.2);
+    for (var i = 0; i < 56; i++) {
+      final a = _h(i, 52 + s) * math.pi * 2;
+      final rr = math.sqrt(_h(i, 53 + s));
+      final x = math.cos(a) * rr, y = math.sin(a) * rr;
+      // Lopsided: the higher a grain sits, the further on it rides.
+      final ahead = 0.1 + x * 0.19 + y * 0.09 + lean;
+      final q = head + fwd * ahead + up * (y * 0.21 + 0.02);
+      _add(
+        rr < 0.45 ? _hot : (rr < 0.8 ? _lit : _body),
+        q.dx,
+        q.dy,
+        second: i.isOdd,
+      );
+    }
+    final crest = head + fwd * 0.24 + up * 0.12;
+    _add(_glint, crest.dx, crest.dy);
+    // A few grains thrown on ahead of the crest, thinning as they go.
+    for (var i = 0; i < 8; i++) {
+      final l = (t * 0.45 + _h(i, 56 + s)) % 1.0;
+      final q =
+          head +
+          fwd * (0.24 + 0.3 * GrainGlass.smooth(l)) +
+          up * ((_h(i, 57 + s) - 0.35) * 0.3);
+      if (q.distanceSquared > 0.84) continue;
+      _add(
+        l < 0.35 ? _lit : (l < 0.7 ? _body : _deep),
+        q.dx,
+        q.dy,
+        second: i.isEven,
+      );
+    }
+    // And a few shed off the rope, drifting back and out as they fade.
+    for (var i = 0; i < 8; i++) {
+      final l = (t * 0.32 + _h(i, 54 + s)) % 1.0;
+      final u0 = 0.3 + 0.5 * _h(i, 55 + s);
+      final out = (i.isEven ? 1 : -1) * (0.12 + 0.18 * GrainGlass.smooth(l));
+      final q = _braidAt(u0 - 0.12 * l) + _braidNormal(u0) * out;
+      if (q.distanceSquared > 0.84) continue;
+      _add(l < 0.3 ? _body : _deep, q.dx, q.dy, second: i % 3 == 0);
     }
   }
 }

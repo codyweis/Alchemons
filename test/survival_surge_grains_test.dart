@@ -174,6 +174,43 @@ void main() {
     expect(lit, lessThan(120 * 0.4), reason: 'mostly its own colours');
   });
 
+  test('a wave\u2019s drones share one form, and a run meets all three', () {
+    final spawner = CosmicSurvivalSpawner(random: Random(8));
+    spawner.startFirstWave();
+    final seen = <int>{};
+    for (var w = 0; w < 24; w++) {
+      spawner.forceNextWaveForTest();
+      if (spawner.isBossWave) continue;
+      final drones = <CosmicSurvivalEnemy>[];
+      for (var i = 0; i < 200 && drones.length < 12; i++) {
+        drones.addAll(
+          spawner
+              .update(0.25, 0, 900, 700, Offset.zero)
+              .where((e) => e.tier == EnemyTier.drone),
+        );
+      }
+      if (drones.isEmpty) continue;
+      expect(
+        drones.map((e) => e.droneForm).toSet(),
+        {spawner.waveDroneForm},
+        reason: 'wave ${spawner.currentWave}',
+      );
+      seen.add(spawner.waveDroneForm);
+    }
+    expect(seen, {0, 1, 2});
+  });
+
+  test('each wave arrives in the element named as next the wave before', () {
+    final spawner = CosmicSurvivalSpawner(random: Random(3));
+    spawner.startFirstWave();
+    for (var w = 0; w < 30; w++) {
+      final promised = spawner.nextWaveElement;
+      expect(promised, isNot(spawner.waveElement));
+      spawner.forceNextWaveForTest();
+      expect(spawner.waveElement, promised, reason: 'wave ${spawner.currentWave}');
+    }
+  });
+
   test('a wave’s small bodies share one element; elites keep their own', () {
     final spawner = CosmicSurvivalSpawner(random: Random(11));
     spawner.startFirstWave();

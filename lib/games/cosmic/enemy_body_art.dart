@@ -111,32 +111,32 @@ class EnemyPalette {
     const [0.0, 0.42, 1.0],
   );
 
-  /// A dart flank: a lit spine at y = 0, dark across the wing, its leading
-  /// edge catching the body's own light.
-  late final ui.Shader dartFlank = ui.Gradient.linear(
-    const Offset(0, 0),
-    const Offset(0, -0.86),
-    [
-      Color.lerp(face, rim, 0.55)!,
-      Color.lerp(ink, face, 0.35)!,
-      ink,
-      Color.lerp(ink, essence, 0.55)!,
-    ],
-    const [0.0, 0.12, 0.55, 1.0],
+  /// The bead drone's dark glass, its light deep at the front.
+  late final ui.Shader beadGlass = ui.Gradient.radial(
+    const Offset(0.35, 0),
+    1.3,
+    [Color.lerp(ink, essence, 0.32)!, ink, Color.lerp(ink, rim, 0.38)!],
+    const [0.0, 0.58, 1.0],
   );
 
-  /// Light across a dart flank as it banks up into view.
-  late final ui.Shader dartSheen = ui.Gradient.linear(
-    const Offset(0.6, 0),
-    const Offset(-0.4, -0.8),
-    [_a(hot, 0.35), _a(essence, 0.22), _a(essence, 0)],
+  /// An eye of its own light.
+  late final ui.Shader eye = ui.Gradient.radial(
+    Offset.zero,
+    1,
+    [hot, essence, _a(essence, 0)],
     const [0.0, 0.45, 1.0],
   );
 
-  late final ui.Shader exhaust = ui.Gradient.linear(
-    const Offset(-0.5, 0),
-    const Offset(-2.3, 0),
-    [_a(essence, 0.55), _a(essence, 0)],
+  /// The sliver drone's obsidian, lit along one edge only.
+  late final ui.Shader sliverEdge = ui.Gradient.linear(
+    const Offset(0, 0.22),
+    const Offset(0, -0.2),
+    [
+      Color.lerp(rim, hot, 0.35)!,
+      ink,
+      Color.lerp(ink, const Color(0xFF000000), 0.35)!,
+    ],
+    const [0.0, 0.42, 1.0],
   );
 
   /// Dark glass: light deep inside, black body, a rim where the edge
@@ -381,69 +381,168 @@ void paintWispBody(
 
 // ── drone ───────────────────────────────────────────────────────────────────
 //
-// A swept dart of obsidian: two curved flanks meeting in a lit spine, their
-// leading edges catching its own light, a burning eye near the nose and a
-// contrail from the notch behind. It banks into its turns like a swift —
-// the body narrows as it rolls, the rising wing catches the light, the
-// contrail bends through the turn — and flying straight it rocks gently.
-// Coils on the wind-up; streaks on the dash.
-//
-// No twitch. The old body jittered on purpose, and at horde density its
-// baked frames stepped between poses; both read as choppy steering.
+// The fast darting body, in one of three forms. It used to be a swept dart
+// with a contrail — the same silhouette as the player's ship, so a horde of
+// them read as a fleet of little fighters and the ship was lost among them.
+// None of the three has wings or a nose:
+//   0 bead     — a drop of dark glass with one slit of its light for an
+//                eye, shedding a few loose grains behind;
+//   1 sliver   — a lopsided sliver of obsidian tumbling end over end, lit
+//                on one edge, a little dust behind;
+//   2 swarmlet — one lead ember with three smaller ones circling it on
+//                uneven orbits, darting as one.
+// The form is the body's look only: every drone moves and fights the same.
+// Coils on the wind-up; stretches on the dash.
 
-/// The left flank (−y); the right is its mirror. Nose at +x.
-final Path _dartFlank = Path()
-  ..moveTo(1.32, 0)
-  ..quadraticBezierTo(0.42, -0.26, -0.56, -0.86)
-  ..quadraticBezierTo(-0.4, -0.4, -0.28, 0)
+/// How many drone forms there are.
+const int kDroneForms = 3;
+
+/// A drone's form when nothing chose one for it: from its stable seed.
+int droneFormForSeed(double seed) => (seed * 7.3).floor() % kDroneForms;
+
+/// The angle a tumbling form is turned to at [time] (the sliver's tumble,
+/// the swarmlet's slow turn). The bead faces its heading.
+double droneSpin(int form, double time, double seed) {
+  final dir = _frac(seed * 3) < 0.5 ? 1.0 : -1.0;
+  return switch (form) {
+    1 => seed * 6.28 + time * 2.0 * dir,
+    2 => seed * 4 + time * 1.6 * dir,
+    _ => 0,
+  };
+}
+
+final Path _beadPath = Path()
+  ..moveTo(0.95, 0)
+  ..cubicTo(0.95, 0.68, 0.3, 0.86, -0.25, 0.66)
+  ..quadraticBezierTo(-0.82, 0.38, -0.86, 0)
+  ..quadraticBezierTo(-0.82, -0.38, -0.25, -0.66)
+  ..cubicTo(0.3, -0.86, 0.95, -0.68, 0.95, 0)
   ..close();
 
+final Path _sliverPath = Path()
+  ..moveTo(1.3, 0.05)
+  ..lineTo(0.35, 0.29)
+  ..lineTo(-0.55, 0.22)
+  ..lineTo(-1.2, -0.02)
+  ..lineTo(-0.3, -0.24)
+  ..lineTo(0.55, -0.16)
+  ..close();
+
+/// One lead ember forward, three round it on lopsided, unequal orbits —
+/// never a tidy square.
+const _swarmRadii = [0.0, 0.62, 0.44, 0.78];
+const _swarmRates = [0.0, 2.6, -3.4, 1.9];
+const _swarmTilt = [0.0, 0.55, 0.9, 0.35];
+
+/// A drone in [form] (see above), facing +x after [heading]. [baked] draws
+/// it for the horde sheet: without the trail laid along its path, and with
+/// the tumbling forms unturned (the batch turns each body by [droneSpin]).
 void paintDroneBody(
   Canvas c,
   EnemyPalette pal, {
   required double time,
   required double seed,
   required double heading,
+  int form = 0,
   double turn = 0,
   double charge = 0,
   double dash = 0,
   double flash = 0,
-  bool rock = true,
+  bool baked = false,
 }) {
   final pulse = 0.6 + 0.4 * sin(time * 5 + seed * 3);
-  _circle(c, pal.glow, 2.0 + 0.4 * dash);
-  c.save();
-  c.rotate(heading);
-
-  // The contrail, bent toward the turn (the path behind a turning body
-  // curves round the same centre it turns about).
   final bend = (turn * 0.32).clamp(-0.9, 0.9);
-  final len = (2.1 + 1.8 * dash) * (0.9 + 0.12 * pulse);
-  final tail = Path()
-    ..moveTo(-0.26, -0.15)
-    ..quadraticBezierTo(-0.3 - len * 0.55, -0.09 + bend * 0.3, -0.3 - len, bend)
-    ..quadraticBezierTo(-0.3 - len * 0.55, 0.09 + bend * 0.3, -0.26, 0.15)
-    ..close();
-  _path(c, tail, pal.exhaust, 0.75 + 0.25 * max(charge, dash));
-
-  // Banked: the body narrows as it rolls, and the wing on the outside of
-  // the turn rises into the light.
-  final roll =
-      ((turn * 0.3).clamp(-1.0, 1.0) +
-              (rock ? 0.22 * sin(time * 1.7 + seed * 2) : 0.0))
-          .clamp(-1.0, 1.0);
-  c.scale(1 - 0.12 * charge + 0.08 * dash, 1 - 0.34 * roll.abs());
-  for (final side in const [-1.0, 1.0]) {
-    c.save();
-    c.scale(1, side);
-    _path(c, _dartFlank, pal.dartFlank);
-    // The −y wing rises in a clockwise (positive) roll.
-    final rise = side < 0 ? roll : -roll;
-    if (rise > 0.05) _path(c, _dartFlank, pal.dartSheen, rise);
-    c.restore();
+  switch (form % kDroneForms) {
+    case 0: // the bead
+      _circle(c, pal.glow, 1.9 + 0.4 * dash);
+      c.save();
+      c.rotate(heading);
+      if (!baked) {
+        // A few grains loosening off its back, drifting apart rather than
+        // laid in a line.
+        _grainReset();
+        for (var i = 0; i < 5; i++) {
+          final k = _frac(time * 0.9 + i / 5 + seed);
+          final side = sin(seed * 11 + i * 2.7);
+          _grainAdd(
+            k < 0.5 ? 0 : 1,
+            -0.85 - k * 1.3 * (1 + 0.5 * dash),
+            side * (0.25 + 0.55 * k) + bend * k,
+          );
+        }
+        _grainDraw(c, 0, 0.24, pal.essence.withValues(alpha: 0.6));
+        _grainDraw(c, 1, 0.18, pal.essence.withValues(alpha: 0.3));
+      }
+      c.save();
+      c.scale(1 - 0.1 * charge + 0.08 * dash, 1 + 0.06 * charge);
+      _path(c, _beadPath, pal.beadGlass);
+      c.restore();
+      // The eye: one slit of its light across its heading, opening as it
+      // winds up.
+      c.save();
+      c.translate(0.4, 0);
+      c.scale(0.16 + 0.08 * charge, 0.5);
+      _circle(c, pal.eye, 1, 0.9 + 0.1 * pulse);
+      c.restore();
+      c.restore();
+    case 1: // the sliver
+      _circle(c, pal.glow, 1.6);
+      if (!baked) {
+        c.save();
+        c.rotate(heading);
+        _grainReset();
+        for (var i = 0; i < 6; i++) {
+          final k = (i + 1) / 6;
+          _grainAdd(
+            k < 0.5 ? 0 : 1,
+            -0.6 - k * 1.7,
+            sin(seed * 9 + i * 2.3) * 0.28 * k + bend * k * k,
+          );
+        }
+        _grainDraw(c, 0, 0.22, pal.essence.withValues(alpha: 0.55));
+        _grainDraw(c, 1, 0.16, pal.essence.withValues(alpha: 0.3));
+        c.restore();
+      }
+      c.save();
+      if (!baked) {
+        c.rotate(droneSpin(1, time * (1 + 0.4 * dash), seed));
+      }
+      c.scale(1 + 0.12 * dash - 0.08 * charge, 1);
+      _path(c, _sliverPath, pal.sliverEdge);
+      _sparkAt(c, pal, const Offset(0.2, 0.16), 0.15 + 0.05 * pulse);
+      c.restore();
+    case _: // the swarmlet
+      _circle(c, pal.glow, 2.0);
+      c.save();
+      c.rotate(baked ? 0 : heading);
+      _grainReset();
+      // The lead ember sits forward; the others circle it. Baked, the
+      // cluster is drawn at rest and the batch turns it whole.
+      final huddle = 1 - 0.25 * charge;
+      for (var m = 0; m < 4; m++) {
+        final a = seed * 4 + m * 2.3 + (baked ? 0 : time * _swarmRates[m]);
+        final p = m == 0
+            ? const Offset(0.45, 0)
+            : Offset(
+                -0.1 + cos(a) * _swarmRadii[m] * huddle,
+                sin(a) * _swarmRadii[m] * _swarmTilt[m] * huddle,
+              );
+        // Halo then core, as points: the cluster is three draws.
+        _grainAdd(m == 0 ? 0 : 1, p.dx, p.dy);
+        _grainAdd(m == 0 ? 2 : 3, p.dx, p.dy);
+        if (!baked) {
+          for (var j = 1; j <= 2; j++) {
+            _grainAdd(4, p.dx - 0.3 * j * (1 + dash), p.dy + bend * 0.1 * j);
+          }
+        }
+      }
+      _grainDraw(c, 4, 0.16, pal.essence.withValues(alpha: 0.3));
+      _grainDraw(c, 0, 1.1, pal.essence.withValues(alpha: 0.32));
+      _grainDraw(c, 1, 0.7, pal.essence.withValues(alpha: 0.3));
+      _grainDraw(c, 2, 0.5, pal.hot.withValues(alpha: 0.95));
+      _grainDraw(c, 3, 0.3, pal.hot.withValues(alpha: 0.85 + 0.15 * pulse));
+      c.restore();
   }
-  _sparkAt(c, pal, const Offset(0.72, 0), 0.3 + 0.07 * pulse + 0.18 * charge);
-  c.restore();
   _hitFlash(c, flash, 1.1);
 }
 

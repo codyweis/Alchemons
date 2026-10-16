@@ -10,9 +10,10 @@
 // from its beginning, so anything that only lives inside a wave — enemies,
 // projectiles, cooldowns, outbreaks, effects — is not kept; it all comes
 // back from the wave. What is kept is what the run has built up: the picks,
-// the meter, every hit point, who is out and who is down, the run's totals,
-// and the party, guardian upgrades, orb, ship and mastery paths exactly as
-// the run started with them.
+// the meter, the draft's REROLLs and BANISHes left and what was banished,
+// every hit point, who is out and who is down, the run's totals, and the
+// party, guardian upgrades, orb, ship and mastery paths exactly as the run
+// started with them.
 //
 // Leaving mid-wave never heals: each hit point is the lower of the wave's
 // checkpoint and the moment of leaving ([SuspendedSurvivalRun.leftAt]).
@@ -159,8 +160,12 @@ class SuspendedSurvivalRun {
     required this.abilityLevels,
     required this.mastery,
     required this.shipSkin,
+    this.rerollsLeft = kSurvivalDraftRerolls,
+    this.banishesLeft = kSurvivalDraftBanishes,
+    Set<String> banished = const {},
   }) : phoenixUsed = Set.unmodifiable(phoenixUsed),
-       deployedSlots = Set.unmodifiable(deployedSlots);
+       deployedSlots = Set.unmodifiable(deployedSlots),
+       banished = Set.unmodifiable(banished);
 
   final int version;
   final int savedAtMs;
@@ -224,6 +229,13 @@ class SuspendedSurvivalRun {
   /// The mastery paths the run locked at its start.
   final SurvivalFamilyMasterySnapshot mastery;
 
+  /// The draft's keys the run has left, and the upgrades it has banished.
+  /// A save from before they were kept reads as a fresh run's: every key
+  /// left, nothing banished.
+  final int rerollsLeft;
+  final int banishesLeft;
+  final Set<String> banished;
+
   /// The upgrade state to build the run with: a copy, so Base Command
   /// cannot change a run that has been left.
   SurvivalUpgradeState get upgradeState => SurvivalUpgradeState(
@@ -236,7 +248,8 @@ class SuspendedSurvivalRun {
   /// The run as left mid-wave: this run (the start of the wave in progress)
   /// with every hit point the lower of this and [atExit]. Leaving never
   /// heals. The picks, meter and totals stay at the wave's start, because the
-  /// wave is played again and earns them again.
+  /// wave is played again and earns them again — and so do the draft's keys:
+  /// a draft drawn mid-wave is drawn again, so what was spent on it is too.
   SuspendedSurvivalRun leftAt(SuspendedSurvivalRun atExit, {int? savedAtMs}) {
     final exitSlots = {for (final s in atExit.slots) s.slot: s};
     // A creature revived mid-wave fell mid-wave. The replay drops the revive
@@ -327,6 +340,9 @@ class SuspendedSurvivalRun {
       abilityLevels: abilityLevels,
       mastery: mastery,
       shipSkin: shipSkin,
+      rerollsLeft: rerollsLeft,
+      banishesLeft: banishesLeft,
+      banished: banished,
     );
   }
 
@@ -383,6 +399,11 @@ class SuspendedSurvivalRun {
         },
     ],
     'shipSkin': shipSkin,
+    'draft': {
+      'rerolls': rerollsLeft,
+      'banishes': banishesLeft,
+      'banished': banished.toList()..sort(),
+    },
   };
 
   String encode() => jsonEncode(toJson());
@@ -448,6 +469,7 @@ class SuspendedSurvivalRun {
       for (final slot in json['active'] as List) (slot as num).toInt(),
     ];
     final deployed = json['deployed'];
+    final draft = json['draft'];
 
     // Read back at this version: a legacy save gains its deployed slots
     // below, and is written at this version from then on.
@@ -505,6 +527,17 @@ class SuspendedSurvivalRun {
       },
       mastery: SurvivalFamilyMasterySnapshot(mastery),
       shipSkin: json['shipSkin'] as String?,
+      // Not kept before the keys were: a fresh run's. A banished upgrade
+      // this build no longer has is simply never offered.
+      rerollsLeft: draft is Map
+          ? (draft['rerolls'] as num).toInt()
+          : kSurvivalDraftRerolls,
+      banishesLeft: draft is Map
+          ? (draft['banishes'] as num).toInt()
+          : kSurvivalDraftBanishes,
+      banished: draft is Map
+          ? {for (final id in draft['banished'] as List) id as String}
+          : const {},
     );
   }
 

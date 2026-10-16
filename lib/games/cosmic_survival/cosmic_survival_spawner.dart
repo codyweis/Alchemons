@@ -13,6 +13,7 @@ import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/enemy_body_art.dart' show kDroneForms;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/shared/enemy_facing.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
@@ -280,6 +281,9 @@ class CosmicSurvivalEnemy with MasteryPayloadStatuses {
   double slowMultiplier;
   double attackCooldown;
   double retargetTimer;
+  /// Which of the drone's forms a drone wears (enemy_body_art.dart); -1
+  /// lets its seed choose. Set per wave, so a wave's drones match.
+  int droneForm = -1;
   final bool isElite;
   final EliteAffix? eliteAffix;
   // Mane+Plant pierce sets this to the source slot index. If the
@@ -738,7 +742,8 @@ class CosmicSurvivalSpawner {
     : _rng = random ?? Random(),
       // Seeded when the main stream is, so a seeded run stays reproducible.
       _knotRng = random == null ? Random() : Random(7919),
-      _waveElementRng = random == null ? Random() : Random(4241);
+      _waveElementRng = random == null ? Random() : Random(4241),
+      _droneFormRng = random == null ? Random() : Random(6151);
 
   final Random _rng;
 
@@ -750,6 +755,30 @@ class CosmicSurvivalSpawner {
   /// bosses keep their own, so they stand out of the tide — and the wave
   /// reads as one mass rather than confetti, with a matchup to plan for.
   String waveElement = 'Fire';
+
+  /// The element the next wave's small bodies will share, rolled a wave
+  /// ahead so the player can choose who to send before it arrives.
+  String nextWaveElement = 'Fire';
+  bool _nextRolled = false;
+
+  /// The form this wave's drones wear (enemy_body_art.dart), rolled per
+  /// wave like its element so a wave's drones match and a run meets all of
+  /// them.
+  int waveDroneForm = 0;
+
+  /// Draws for [waveDroneForm] only, off every other stream.
+  final Random _droneFormRng;
+
+  /// Whether the wave after this one is a boss wave.
+  bool get nextIsBoss => isBossWaveNumber(currentWave + 1);
+
+  String _rollElementAfter(String? previous) {
+    String e;
+    do {
+      e = _kElements[_waveElementRng.nextInt(_kElements.length)];
+    } while (e == previous);
+    return e;
+  }
 
   /// Draws for wisp knots only. Kept off [_rng] so laying knots does not
   /// reshuffle every other spawn decision a seeded run depends on.
@@ -822,10 +851,16 @@ class CosmicSurvivalSpawner {
         ? 3
         : 4;
     _waveSizeJitter = 0.90 + _rng.nextDouble() * 0.25;
-    final previous = waveElement;
+    if (!_nextRolled) {
+      nextWaveElement = _rollElementAfter(null);
+      _nextRolled = true;
+    }
+    waveElement = nextWaveElement;
+    nextWaveElement = _rollElementAfter(waveElement);
+    final lastForm = waveDroneForm;
     do {
-      waveElement = _kElements[_waveElementRng.nextInt(_kElements.length)];
-    } while (waveElement == previous);
+      waveDroneForm = _droneFormRng.nextInt(kDroneForms);
+    } while (waveDroneForm == lastForm && currentWave > 1);
     bossSpawned = false;
     _spawnedThisWave = 0;
     _artilleryThisWave = 0;
@@ -1077,7 +1112,7 @@ class CosmicSurvivalSpawner {
     );
     final spawned = <CosmicSurvivalEnemy>[];
     for (var i = 0; i < batchSize; i++) {
-      spawned.add(_spawnEnemy(viewW, viewH, orbPos));
+      spawned.add(_spawnEnemy(viewW, viewH, orbPos)..droneForm = waveDroneForm);
       _spawnedThisWave++;
     }
     return spawned;
@@ -1450,6 +1485,9 @@ class CosmicSurvivalSpawner {
           target: CosmicEnemyTarget.orb,
         ),
       );
+    }
+    for (final e in out) {
+      e.droneForm = waveDroneForm;
     }
     return out;
   }
@@ -1959,6 +1997,9 @@ class CosmicSurvivalSpawner {
           },
         ),
       );
+    }
+    for (final e in adds) {
+      e.droneForm = waveDroneForm;
     }
     return adds;
   }

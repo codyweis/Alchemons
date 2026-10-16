@@ -2165,6 +2165,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // The ability particle grain (ability_grains.dart), built off the frame
     // with toImage; particles draw as plain discs until it lands.
     AbilityGrainSprite.ensureLoaded().ignore();
+    ensureSurvivalSwarmAtlas().ignore();
     final skinDef = kOrbBases.firstWhere(
       (d) => d.skin == upgradeState.equippedSkin,
       orElse: () => kOrbBases.first,
@@ -2344,6 +2345,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       },
       mastery: mastery.snapshot,
       shipSkin: shipSkin,
+      rerollsLeft: powerUps.rerollsLeft,
+      banishesLeft: powerUps.banishesLeft,
+      banished: powerUps.banished,
     );
   }
 
@@ -2368,6 +2372,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     for (final slot in run.phoenixUsed) {
       powerUps.consumePhoenixRebirth(slot);
     }
+    powerUps.restoreDraftKeys(
+      rerollsLeft: run.rerollsLeft,
+      banishesLeft: run.banishesLeft,
+      banished: run.banished,
+    );
 
     startGame();
     for (var wave = 1; wave < run.wave; wave++) {
@@ -9107,10 +9116,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   @visibleForTesting
   void debugGrantAlchemy(double value) => _grantAlchemy(value);
 
+  /// When the ship last made the gathering sound.
+  double _lastGrainSound = -1;
+
   /// A surge grain taken in by the ship or the core. Paid even while the
-  /// ship is down: the kill that left it was made while it was up.
-  void _takeSurgeGrain(double value) {
+  /// ship is down: the kill that left it was made while it was up. The ship
+  /// gathering them is heard (a soft intake and a pinch of grains, at most
+  /// every 150 ms); the core drinking them is silent.
+  void _takeSurgeGrain(double value, bool byShip) {
     if (value <= 0) return;
+    if (byShip && stats.timeElapsed - _lastGrainSound >= 0.15) {
+      _lastGrainSound = stats.timeElapsed;
+      onSound?.call(SoundCue.cosmicMatterCollect);
+    }
     alchemicalMeter = min(
       alchemicalMeterMax,
       alchemicalMeter +

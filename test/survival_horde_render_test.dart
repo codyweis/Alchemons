@@ -9,6 +9,7 @@ import '../tool/survival_horde_arena.dart';
 import 'package:flame/components.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   CosmicSurvivalEnemy enemy({
     EnemyTier tier = EnemyTier.wisp,
     EnemyTrait? trait,
@@ -55,7 +56,15 @@ void main() {
       ..action.phase = EnemyActionPhase.windUp;
     expect(canSimplifySurvivalSwarmEnemy(acting), isFalse);
   });
-  test('swarm batch takes plain bodies and declines the detailed ones', () {
+  test('swarm batch draws live until its sheet is baked', () {
+    // Nothing is baked mid-frame any more: before the sheet lands, every
+    // body declines the batch and draws through the live painters.
+    if (survivalSwarmAtlasReady) return;
+    expect(SurvivalSwarmBatch().add(enemy(), 0), isFalse);
+  });
+
+  test('swarm batch takes plain bodies and declines the detailed ones', () async {
+    await ensureSurvivalSwarmAtlas();
     final batch = SurvivalSwarmBatch();
     expect(batch.add(enemy(), 0), isTrue);
     expect(batch.add(enemy(tier: EnemyTier.drone)..hitFlash = 1, 0), isTrue);

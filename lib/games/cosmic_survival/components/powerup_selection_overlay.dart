@@ -58,13 +58,37 @@ Color powerUpAccentColor(PowerUpDef def) {
   };
 }
 
+/// BANISH's light: the kit's danger red, cooled toward its grey, so a card
+/// armed to go reads as at risk without shouting.
+final Color _banishEmber = Color.lerp(
+  SurvivalInk.danger,
+  SurvivalInk.muted,
+  0.3,
+)!;
+
+/// A line's color in an element's (or the boss's) tone: mixed toward the ink
+/// so it sits with the words round it.
+Color _toneOf(Color c) => Color.lerp(c, SurvivalInk.ink, 0.4)!;
+
 class PowerUpSelectionOverlay extends StatefulWidget {
   final List<OfferedPowerUpChoice> choices;
   final int currentWave;
   final List<CosmicPartyMember> party;
+
+  /// The run's picks, and its REROLLs and BANISHes left.
   final PowerUpState powerUps;
   final void Function(PowerUpDef def, {int? targetSlot, String? targetName})
   onSelect;
+
+  /// REROLL and BANISH. Without them (and on a keystone draft) the draft
+  /// shows neither key.
+  final VoidCallback? onReroll;
+  final ValueChanged<int>? onBanish;
+
+  /// What the next wave's small bodies share, for the NEXT WAVE line; or
+  /// [nextIsBoss], which says BOSS instead.
+  final String? nextWaveElement;
+  final bool nextIsBoss;
 
   const PowerUpSelectionOverlay({
     super.key,
@@ -73,12 +97,20 @@ class PowerUpSelectionOverlay extends StatefulWidget {
     required this.party,
     required this.powerUps,
     required this.onSelect,
+    this.onReroll,
+    this.onBanish,
+    this.nextWaveElement,
+    this.nextIsBoss = false,
   });
 
   @override
   State<PowerUpSelectionOverlay> createState() =>
       _PowerUpSelectionOverlayState();
 }
+
+/// The draft's keys, in the order they sit.
+const int _rerollKey = 0;
+const int _banishKey = 1;
 
 class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
     with SingleTickerProviderStateMixin {
@@ -89,10 +121,31 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
   late final Animation<double> _panelSlide;
   late final Animation<double> _cardStagger;
 
-  /// A controller chooses with the stick or d-pad and takes with A.
+  /// A controller chooses with the stick or d-pad and takes with A: down
+  /// past the last card is the row of keys, left and right along it.
   PlayInputClaim? _pad;
   int _padChoice = 0;
+
+  /// The key a controller is on, or null while it is on the cards.
+  int? _padKey;
   bool _padStickHeld = false;
+
+  /// BANISH pressed: the next card chosen is banished, not taken.
+  bool _banishArmed = false;
+
+  bool get _showingKeystones => widget.choices.any((c) => c.def.isKeystone);
+
+  bool get _hasKeys =>
+      (widget.onReroll != null || widget.onBanish != null) &&
+      powerUpDraftHasKeys(widget.choices);
+
+  bool get _canReroll =>
+      _hasKeys && widget.onReroll != null && widget.powerUps.rerollsLeft > 0;
+
+  bool get _canBanish =>
+      _hasKeys && widget.onBanish != null && widget.powerUps.banishesLeft > 0;
+
+  bool _keyLive(int key) => key == _rerollKey ? _canReroll : _canBanish;
 
   @override
   void initState() {
@@ -104,15 +157,21 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
       context,
       onMove: _onPadMove,
       onPressed: (b) {
+        // B puts an armed BANISH down again.
+        if (b == GamepadButton.b && _banishArmed) {
+          _toggleBanish();
+          return;
+        }
         // Not until the cards are down: A was the nova a moment ago, and a
         // press meant for it must not take a card unread.
         if (b != GamepadButton.a || !_entryController.isCompleted) return;
         if (widget.choices.isEmpty) return;
-        context
-            .soundAction(
-              () => _pick(_padChoice.clamp(0, widget.choices.length - 1)),
-            )
-            ?.call();
+        final VoidCallback press = switch (_padKey) {
+          _rerollKey => _reroll,
+          _banishKey => _toggleBanish,
+          _ => () => _tapCard(_padChoice.clamp(0, widget.choices.length - 1)),
+        };
+        context.soundAction(press)?.call();
       },
     );
     _entryController = AnimationController(
@@ -150,21 +209,61 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
     });
   }
 
+  @override
+  void didUpdateWidget(covariant PowerUpSelectionOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // A reroll or a banish has changed the cards: the controller stays where
+    // it was, if that is still there to be on.
+    if (widget.choices.isNotEmpty) {
+      _padChoice = _padChoice.clamp(0, widget.choices.length - 1);
+    }
+    if (!_canBanish) _banishArmed = false;
+    final key = _padKey;
+    if (key != null && !_keyLive(key)) {
+      _padKey = _keyLive(1 - key) ? 1 - key : null;
+    }
+  }
+
   void _onPadMove(Offset v) {
     if (v.distance < 0.3) {
       _padStickHeld = false;
       return;
     }
-    if (_padStickHeld || v.dy.abs() < 0.5 || widget.choices.isEmpty) return;
+    if (_padStickHeld || widget.choices.isEmpty) return;
+    final vertical = v.dy.abs() >= v.dx.abs();
+    if ((vertical ? v.dy : v.dx).abs() < 0.5) return;
     _padStickHeld = true;
-    final next = (_padChoice + (v.dy > 0 ? 1 : -1)).clamp(
-      0,
-      widget.choices.length - 1,
-    );
-    if (next != _padChoice) HapticFeedback.selectionClick();
+    final last = widget.choices.length - 1;
+    final wasChoice = _padChoice, wasKey = _padKey;
+    if (vertical) {
+      final down = v.dy > 0;
+      if (_padKey != null) {
+        if (!down) {
+          _padKey = null;
+          _padChoice = last;
+        }
+      } else if (down && _padChoice >= last) {
+        // Off the bottom card onto the keys: the first one that can be used.
+        _padKey = _keyLive(_rerollKey)
+            ? _rerollKey
+            : _keyLive(_banishKey)
+            ? _banishKey
+            : null;
+      } else {
+        _padChoice = (_padChoice + (down ? 1 : -1)).clamp(0, last);
+      }
+    } else if (_padKey != null) {
+      final toward = v.dx > 0 ? _banishKey : _rerollKey;
+      if (_keyLive(toward)) _padKey = toward;
+    }
+    if (_padChoice != wasChoice || _padKey != wasKey) {
+      HapticFeedback.selectionClick();
+    }
     // Rebuilt either way: the first push is also what dims the others.
-    setState(() => _padChoice = next);
+    setState(() {});
   }
+
+  void _tapCard(int i) => _banishArmed ? _banish(i) : _pick(i);
 
   void _pick(int i) {
     final choice = widget.choices[i];
@@ -176,6 +275,24 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
     );
   }
 
+  void _banish(int i) {
+    setState(() => _banishArmed = false);
+    HapticFeedback.mediumImpact();
+    widget.onBanish?.call(i);
+  }
+
+  void _reroll() {
+    if (!_canReroll) return;
+    setState(() => _banishArmed = false);
+    widget.onReroll!();
+  }
+
+  void _toggleBanish() {
+    if (!_banishArmed && !_canBanish) return;
+    HapticFeedback.selectionClick();
+    setState(() => _banishArmed = !_banishArmed);
+  }
+
   @override
   void dispose() {
     _pad?.release();
@@ -183,11 +300,22 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
     super.dispose();
   }
 
+  /// NEXT WAVE · FIRE, or · BOSS, in that one's tone.
+  (String, Color)? get _nextWave {
+    if (widget.nextIsBoss) {
+      return ('NEXT WAVE · BOSS', _toneOf(SurvivalInk.danger));
+    }
+    final element = widget.nextWaveElement;
+    if (element == null || element.isEmpty) return null;
+    return (
+      'NEXT WAVE · ${element.toUpperCase()}',
+      _toneOf(elementColor(element)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final showingKeystones = widget.choices.any(
-      (choice) => choice.def.isKeystone,
-    );
+    final showingKeystones = _showingKeystones;
     final sharedChoiceGroup = widget.choices.isNotEmpty
         ? widget.choices.first.def.choiceGroup
         : null;
@@ -197,6 +325,9 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
         widget.choices.every(
           (choice) => choice.def.choiceGroup == sharedChoiceGroup,
         );
+    final nextWave = _nextWave;
+    final padMode =
+        GameControllerService.instance.mode.value != PlayInputMode.touch;
     return AnimatedBuilder(
       animation: _entryController,
       builder: (context, _) {
@@ -242,9 +373,13 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                             // One title, not two stacked: "FORGE OFFERINGS"
                             // over "ALCHEMICAL SURGE" said the same thing
                             // twice and pushed the cards down the screen.
+                            // While BANISH is armed it says what the next
+                            // card chosen is for.
                             const SizedBox(height: 2),
                             Text(
-                              showingKeystones
+                              _banishArmed
+                                  ? 'CHOOSE ONE TO BANISH'
+                                  : showingKeystones
                                   ? 'WAVE ${widget.currentWave} KEYSTONE'
                                   : isThisOrThatOffer
                                   ? 'UNIQUE CHOICE'
@@ -257,6 +392,16 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                                 letterSpacing: 2.2,
                               ),
                             ),
+                            // What the next wave brings, so a pick can be
+                            // made against it.
+                            if (nextWave != null) ...[
+                              const SizedBox(height: 5),
+                              Text(
+                                nextWave.$1,
+                                key: const ValueKey('survival.draft.next'),
+                                style: hudMono(9.5, nextWave.$2, spacing: 1.6),
+                              ),
+                            ],
                             // What the run has taken so far, so a pick is
                             // made against the build, not from memory.
                             if (widget.powerUps.history.isNotEmpty) ...[
@@ -268,9 +413,13 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                             ],
                             const SizedBox(height: 14),
                             for (var i = 0; i < widget.choices.length; i++) ...[
-                              _buildCard(i),
+                              _buildCard(i, padMode: padMode),
                               if (i < widget.choices.length - 1)
                                 const SizedBox(height: 10),
+                            ],
+                            if (_hasKeys) ...[
+                              const SizedBox(height: 12),
+                              _buildKeys(padMode: padMode),
                             ],
                           ],
                         ),
@@ -286,7 +435,7 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
     );
   }
 
-  Widget _buildCard(int i) {
+  Widget _buildCard(int i, {required bool padMode}) {
     final count = widget.choices.length;
     final span = count <= 1 ? 0.0 : 0.35 / count;
     final start = (i / max(1, count)) * 0.55;
@@ -295,23 +444,170 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
     final eased = Curves.easeOutCubic.transform(cardT);
     // On a controller the cards it isn't on fade back, the way a frame
     // says "not this one".
-    final padMode =
-        GameControllerService.instance.mode.value != PlayInputMode.touch;
-    final passed = padMode && i != _padChoice ? 0.42 : 1.0;
-    return Opacity(
-      opacity: eased * passed,
-      child: Transform.translate(
-        offset: Offset(0, (1 - eased) * 18),
-        child: _PowerUpCard(
-          key: ValueKey('survival.draft.$i'),
-          choice: widget.choices[i],
-          party: widget.party,
-          padChosen: padMode && i == _padChoice,
-          onTap: () => _pick(i),
+    final chosen = padMode && _padKey == null && i == _padChoice;
+    final passed = padMode && !chosen ? 0.42 : 1.0;
+    final choice = widget.choices[i];
+    // Armed, every card is lit in the banish ember, quietly; the one a
+    // controller is on, fully. Otherwise only a controller's choice is lit.
+    final light = _banishArmed
+        ? _banishEmber.withValues(alpha: chosen ? 1.0 : 0.72)
+        : chosen
+        ? powerUpAccentColor(choice.def)
+        : null;
+    // A card drawn in by a reroll or a banish eases up into its place; the
+    // one it replaces is simply gone.
+    final inMs = 300 + 70 * i;
+    return KeyedSubtree(
+      key: ValueKey('survival.draft.$i'),
+      child: Opacity(
+        opacity: eased * passed,
+        child: Transform.translate(
+          offset: Offset(0, (1 - eased) * 18),
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: AnimatedSwitcher(
+              duration: Duration(milliseconds: inMs),
+              reverseDuration: Duration.zero,
+              switchInCurve: Interval(
+                70 * i / inMs,
+                1,
+                curve: Curves.easeOutCubic,
+              ),
+              layoutBuilder: (current, _) => current ?? const SizedBox(),
+              transitionBuilder: (child, t) => FadeTransition(
+                opacity: t,
+                child: SlideTransition(
+                  position: Tween(
+                    begin: const Offset(0, 0.06),
+                    end: Offset.zero,
+                  ).animate(t),
+                  child: child,
+                ),
+              ),
+              child: _PowerUpCard(
+                key: ValueKey(
+                  'survival.draft.card.${choice.def.id}:${choice.targetSlot}',
+                ),
+                choice: choice,
+                party: widget.party,
+                light: light,
+                banishing: _banishArmed,
+                onTap: () => _tapCard(i),
+              ),
+            ),
+          ),
         ),
       ),
     );
   }
+
+  /// REROLL and BANISH, the words themselves the keys, each with what the
+  /// run has left. A spent one goes dim and takes no taps.
+  Widget _buildKeys({required bool padMode}) {
+    final t = Curves.easeOutCubic.transform(
+      ((_cardStagger.value - 0.55) / 0.45).clamp(0.0, 1.0),
+    );
+    Color? padLight(int key) =>
+        padMode && _padKey == key ? SurvivalInk.brassGlow : null;
+    return Opacity(
+      opacity: t,
+      child: Row(
+        children: [
+          Expanded(
+            child: _DraftKey(
+              key: const ValueKey('survival.draft.reroll'),
+              word: 'REROLL',
+              left: widget.powerUps.rerollsLeft,
+              enabled: _canReroll,
+              light: padLight(_rerollKey),
+              onTap: _reroll,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _DraftKey(
+              key: const ValueKey('survival.draft.banish'),
+              word: 'BANISH',
+              left: widget.powerUps.banishesLeft,
+              enabled: _canBanish,
+              light: _banishArmed ? _banishEmber : padLight(_banishKey),
+              onTap: _toggleBanish,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// One of the draft's keys: its word and the count left, on the cards' ink,
+/// lit from below while it is armed or a controller is on it.
+class _DraftKey extends StatelessWidget {
+  const _DraftKey({
+    super.key,
+    required this.word,
+    required this.left,
+    required this.enabled,
+    required this.onTap,
+    this.light,
+  });
+
+  final String word;
+  final int left;
+  final bool enabled;
+  final VoidCallback onTap;
+  final Color? light;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    enabled: enabled,
+    label: '$word, $left left',
+    child: Opacity(
+      opacity: enabled ? 1 : 0.4,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: enabled ? context.soundAction(onTap) : null,
+        child: CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: light ?? SurvivalInk.plain,
+            strokeWidth: 1.4,
+          ),
+          child: Container(
+            height: 38,
+            alignment: Alignment.center,
+            color: SurvivalInk.bg1.withValues(alpha: 0.96),
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '$word ',
+                    style: hudMono(
+                      11.5,
+                      enabled ? SurvivalInk.ink : SurvivalInk.muted,
+                      weight: FontWeight.w900,
+                      spacing: 1.8,
+                    ),
+                  ),
+                  TextSpan(
+                    text: '$left',
+                    style: hudMono(
+                      11.5,
+                      enabled ? SurvivalInk.brassBright : SurvivalInk.muted,
+                      weight: FontWeight.w900,
+                      spacing: 1.8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
 }
 
 CosmicPartyMember? _memberAt(List<CosmicPartyMember> party, int? slot) =>
@@ -320,19 +616,26 @@ CosmicPartyMember? _memberAt(List<CosmicPartyMember> party, int? slot) =>
 /// One offer: its drawn art (the one colored thing on the card), its name
 /// with NEW or how far it is taken, what it does, who it is for, and what
 /// kind of thing it is. Bare ink; only a controller's chosen card is lit
-/// from below, in the offer's color.
+/// from below, in the offer's color (or every card, in the banish ember,
+/// while BANISH is armed).
 class _PowerUpCard extends StatelessWidget {
   const _PowerUpCard({
     super.key,
     required this.choice,
     required this.party,
-    required this.padChosen,
     required this.onTap,
+    this.light,
+    this.banishing = false,
   });
 
   final OfferedPowerUpChoice choice;
   final List<CosmicPartyMember> party;
-  final bool padChosen;
+
+  /// The light under the card, or null for none.
+  final Color? light;
+
+  /// A tap banishes this card rather than taking it.
+  final bool banishing;
   final VoidCallback onTap;
 
   @override
@@ -474,13 +777,14 @@ class _PowerUpCard extends StatelessWidget {
         ...lines,
         if (targetName != null) 'for $targetName',
         if (isNew) 'new',
+        if (banishing) 'banish',
       ].join(', '),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: context.soundAction(onTap),
         child: CustomPaint(
           foregroundPainter: BracketFramePainter(
-            color: padChosen ? powerUpAccentColor(def) : SurvivalInk.plain,
+            color: light ?? SurvivalInk.plain,
             strokeWidth: 1.4,
           ),
           child: Container(
