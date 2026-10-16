@@ -62,7 +62,7 @@ Generated from authored text found in the repo.
 ## Cosmic: First Planet Entry
 
 - Source: `lib/screens/story/beauty_mask_reveal.dart` (shown by `lib/games/planet_dungeon/planet_dungeon_screen.dart`)
-- Reachability: Reachable once, on the first descent into any planet's dungeon. The cinematic: the descent lands in the live Valley with the party standing in it; the Valley stops, then it and every other wild realm (Sky, Swamp, Volcano, Arcane, Dunes, Geode, Tidal) sift away in turn until only the planet is left; the realms' grains gather into the wild map's circles in the planet's dark and come apart; the planet's light rises. Each line waits for a tap.
+- Reachability: Reachable once, on the first descent into any planet's dungeon. The cinematic: the descent lands in the live Valley with the party standing in it; the Valley stops, then it and every other wild realm (Sky, Swamp, Volcano, Arcane, Dunes, Geode, Tidal) sift away in turn onto black, the party left standing; the realms' grains gather into the wild map's circles in the dark and come apart; the memory below plays; only as it thins is the planet's room shown (dim, the party on its floor); after the stanza the planet's light rises. Each line waits for a tap.
 
 - [Line] Beauty Obstructs Reality
 - The valley is here, where it cannot be.
@@ -70,10 +70,10 @@ Generated from authored text found in the repo.
 - It is nothing but desolation and precariousness. Eventually reality seeps through the mind's defense. Why would I create such a world.
 - [Line] AM I DREAMING?
 - No, I am finally awake.
-- [Line] You did not make the valley to hide the world from danger. You made it to hide your work from yourself.
+- [Line] You did not make the realms for the love of Alchemons. You did it to protect your own perception from what you know is wrong.
 - [Memory] Your work (`lib/screens/story/work_memory.dart`): in brass grains on black, two wild Alchemons drift in space; the player's ship (the equipped hull) takes them on ropes of grain and they strain against them; they are forced into one sphere (one pulls back out once) and it settles into the kind that leads the party, made from the two kinds the recipe tables most often make it from; the grains it did not need drift off and go out; the ship goes and the memory thins, and the new one crosses, still in brass, to where the party's lead stands in the room and becomes it.
 - [Line, during the memory, while they strain] The opening's second card (`AlchemonsStory.darkPrelude[1]`, the collector's census: catch, kill, stuff and describe).
-- [Stanza, after the memory, beside the party; the lines come one after another, one tap] I am a collector and Alchemons exist to be collected. / I am not sorry. / I do not need to hide reality behind beauty. / If Alchemy is wrong, why is it so beautiful?
+- [Stanza, after the memory, beside the party; a line a tap, each staying as the next comes] I am a collector and Alchemons exist to be collected. / I am not sorry. / I do not need to hide reality behind beauty. / If Alchemy is wrong, why is it so beautiful?
 
 ## Cosmic: Recipe / Pathway Guidance
 

@@ -1,9 +1,9 @@
 // lib/screens/story/work_memory.dart
 //
-// YOUR WORK. The memory the first descent's last line opens onto ("You made
-// it to hide your work from yourself"), between that line and the planet's
-// light. All of it in grains, drained to brass, on black: remembered, not
-// happening.
+// YOUR WORK. The memory the first descent's last line opens onto ("You did
+// it to protect your own perception from what you know is wrong"), before
+// the planet is ever shown. All of it in grains, drained to brass, on black:
+// remembered, not happening.
 //
 // Two wild Alchemons drift in open space, turning round each other. Your
 // ship -- the hull you fly now -- slides in, and ropes of grain go out and

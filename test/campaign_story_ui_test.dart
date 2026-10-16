@@ -134,24 +134,28 @@ void main() {
       expect(find.text('AM I DREAMING?'), findsOneWidget);
       await read('No, I am finally awake.', 'CONTINUE');
       await read(
-        'You did not make the valley to hide the world from danger. You '
-            'made it to hide your work from yourself.',
+        'You did not make the realms for the love of Alchemons. You did it '
+            'to protect your own perception from what you know is wrong.',
         'CONTINUE',
       );
-      // No memory without its cast: straight to what the alchemist says,
-      // which comes a line at a time and is not taken as read until all of
-      // it is there.
-      await run(1);
-      expect(find.text('I am not sorry.'), findsOneWidget);
-      await tester.tap(find.byType(BeautyMaskReveal), warnIfMissed: false);
-      await run(1);
-      expect(
-        find.text('If Alchemy is wrong, why is it so beautiful?'),
-        findsOneWidget,
-      );
-      await run(5);
-      expect(completed, 0);
-      await tester.tap(find.byType(BeautyMaskReveal), warnIfMissed: false);
+      // No memory without its cast: straight to what the alchemist says, a
+      // line a tap, each staying as the next comes.
+      const avowal = [
+        'I am a collector and Alchemons exist to be collected.',
+        'I am not sorry.',
+        'I do not need to hide reality behind beauty.',
+        'If Alchemy is wrong, why is it so beautiful?',
+      ];
+      for (var i = 0; i < avowal.length; i++) {
+        await run(1.2);
+        expect(find.text(avowal[i]), findsOneWidget);
+        expect(find.text(avowal[0]), findsOneWidget);
+        if (i + 1 < avowal.length) {
+          expect(find.text(avowal[i + 1]), findsNothing);
+        }
+        expect(completed, 0);
+        await tester.tap(find.byType(BeautyMaskReveal), warnIfMissed: false);
+      }
       // The planet's light rises, and only then is it over.
       await run(1);
       expect(completed, 0);

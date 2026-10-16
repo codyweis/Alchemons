@@ -6,22 +6,25 @@
 // grains slip at one place in the sky -- and the Valley sifts away, and
 // behind it is the Sky, and behind that the Swamp, and every other realm on
 // the wild map in turn, each held a little less and falling a little
-// faster, until the last one goes and nothing is behind it but the planet.
+// faster, until the last one goes and there is nothing behind it: black.
 //
-// The party stays standing through all of it (the creatures were real; the
-// realms were not) and walks onto the planet's floor where the room has
-// them. Some of every realm's grains do not fall: they hang in the planet's
-// dark as lights of the colours they were, and gather into the realms'
-// circles on the wild map -- the realms shown as what they are, things made
-// -- and the circles come apart one by one.
+// The party stays standing through all of it, in the dark after it (the
+// creatures were real; the realms were not). Some of every realm's grains
+// do not fall: they hang in the dark as lights of the colours they were,
+// and gather into the realms' circles on the wild map -- the realms shown
+// as what they are, things made -- and the circles come apart one by one.
 //
-// The lines are the campaign's (docs/campaign_story_canon.md: kept word for
-// word): the first descent's own three, and the "Trees and valleys are
-// absent" passage written for this moment and never reachable until now.
-// Each waits for a tap, as the opening's quotes do; the motion between them
-// plays on its own. The last line opens a memory (work_memory.dart): wild
-// Alchemons taken by your ship and forced into one -- the kind that leads
-// your party -- with the opening's collector card read while they strain.
+// The lines: the first descent's own, the "Trees and valleys are absent"
+// passage written for this moment, and lines the author wrote for this
+// cinematic (docs/story_mode_content_inventory.md). Each waits for a tap, as
+// the opening's quotes do; the motion between them plays on its own. The
+// line about why the realms were made opens a memory (work_memory.dart):
+// wild Alchemons taken by your ship and forced into one -- the kind that
+// leads your party -- with the opening's collector card read while they
+// strain. Only as the memory thins is the planet shown: its room, dim, the
+// party on its floor, and the one made in the memory crossing to where the
+// lead stands and becoming it. Then the alchemist says what he is, a line a
+// tap, and the planet's light rises.
 //
 // Cheap, for its length: the planet below is frozen throughout. Only the
 // Valley is ever live; every other realm is pictured once while the descent
@@ -152,15 +155,12 @@ class _Line {
   /// Set smaller: a long passage.
   final bool long;
 
-  /// Lines that come one after another, each a moment after the last, and
-  /// are read as one (in place of [text]).
+  /// Lines read one tap at a time, each staying as the next comes (in
+  /// place of [text]).
   final List<String>? stanza;
 
   List<String> get lines => stanza ?? [text];
 }
-
-/// How long after one line of a stanza the next comes.
-const double _kStanzaStep = 1.5;
 
 final _lines = [
   _Line(
@@ -177,8 +177,8 @@ final _lines = [
   _Line(title: 'AM I DREAMING?', text: 'No, I am finally awake.'),
   _Line(
     text:
-        'You did not make the valley to hide the world from danger. You made '
-        'it to hide your work from yourself.',
+        'You did not make the realms for the love of Alchemons. You did it to '
+        'protect your own perception from what you know is wrong.',
   ),
   // The opening's second card, read again in the memory while the two
   // strain on the ropes: the same words, from the same place.
@@ -217,8 +217,8 @@ const double _kStopAt = 1.4, _kSlipAt = 3.8;
 /// Valley's is the stillness), and how long its front takes to cross it.
 /// Each is held less and falls faster than the last; the last is slower
 /// again, since nothing comes after it.
-const _kHold = [0.0, 2.4, 2.0, 1.7, 1.4, 1.1, 0.9, 0.8];
-const _kFront = [3.4, 2.8, 2.4, 2.1, 1.8, 1.6, 1.4, 2.8];
+const _kHold = [0.0, 1.92, 1.6, 1.36, 1.12, 0.88, 0.72, 0.64];
+const _kFront = [2.72, 2.24, 1.92, 1.68, 1.44, 1.28, 1.12, 2.24];
 
 /// Which way each realm's grains are carried: all the same way within a
 /// realm, turning between them.
@@ -227,9 +227,10 @@ const _kWind = [1.0, -0.8, 1.0, 0.7, -1.0, 0.9, -0.7, 0.6];
 /// The party walking onto the planet's floor; the planet's light rising.
 const double _kGlide = 2.0, _kRise = 2.4;
 
-/// How dark the planet is under the cinematic until its light rises, and
-/// under the map (darker, so the map is not read over the room).
-const double _kVeil = 0.62, _kVeilMap = 0.84;
+/// How dark the planet's room is once it is shown, until its light rises.
+/// Before that -- from the first realm's fall to the memory thinning -- it
+/// is not shown at all.
+const double _kVeil = 0.62;
 
 /// The map: its grains gathering, then the circles coming apart one by one,
 /// then the dust going out.
@@ -285,12 +286,15 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
   double _stopAt = 0;
   final Set<int> _spoken = {};
 
+  /// How many of the stanza's lines have been shown.
+  int _stanzaShown = 0;
+
   bool _saving = false;
   String? _error;
 
   /// The planet's dark, eased; the pool of dark behind the words, eased,
   /// and where the words last were.
-  double _veil = _kVeil;
+  double _veil = 1;
   double _pool = 0;
   Rect? _poolRect;
   final GlobalKey _textKey = GlobalKey();
@@ -380,7 +384,8 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
     _map = WildMapField()
       ..slots = kWildCoreSlots
       ..arcane = true
-      ..layout(_size)
+      // Above the party, who stand in the dark below it.
+      ..layout(Size(_size.width, _size.height * 0.72))
       ..settle(gather: true);
     await WidgetsBinding.instance.endOfFrame;
     for (final (id, scene) in _realms) {
@@ -445,6 +450,7 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
     setState(() {
       _stop = line;
       _stopAt = _clock;
+      _stanzaShown = 1;
     });
   }
 
@@ -507,15 +513,13 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
         }
     }
     if (_seg.index >= _Seg.masks.index) _air.step(dt, _size);
-    // The memory is dark until it thins, and then the room comes back.
-    final inWork = _seg == _Seg.work && _workT < WorkMemory.thinsAt;
-    final veil = switch (_seg) {
-      _Seg.map => _kVeilMap,
-      _ when inWork => 1.0,
-      _ => _kVeil,
-    };
-    // Quicker into the memory's dark than out of it.
-    _veil += (veil - _veil) * math.min(1.0, dt / (inWork ? 0.45 : 0.8));
+    // Nothing of the planet until the memory thins (the realms fall onto
+    // black, and everything after them is said in the dark); then its room,
+    // dim, until its light rises.
+    final dark =
+        _seg.index < _Seg.work.index ||
+        (_seg == _Seg.work && _workT < WorkMemory.thinsAt);
+    _veil += ((dark ? 1.0 : _kVeil) - _veil) * math.min(1.0, dt / 0.8);
     final pool = _stop != null || _error != null ? 1.0 : 0.0;
     _pool += (pool - _pool) * math.min(1.0, dt / 0.35);
     _frame.tick();
@@ -668,10 +672,16 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
       return;
     }
     final line = _stop;
-    if (line == null) return;
-    final lines = _lines[line].lines.length;
-    if (_clock - _stopAt < 0.9 + (lines - 1) * _kStanzaStep) return;
+    if (line == null || _clock - _stopAt < 0.9) return;
     HapticFeedback.lightImpact();
+    // A stanza's next line, under the ones already said.
+    if (_stanzaShown < _lines[line].lines.length) {
+      setState(() {
+        _stanzaShown++;
+        _stopAt = _clock;
+      });
+      return;
+    }
     setState(() => _stop = null);
     switch (line) {
       case 0:
@@ -719,12 +729,16 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
 
   // ── Drawing ────────────────────────────────────────────────────────
 
-  /// How far the party has walked onto the planet's floor (0 still in the
-  /// realms, 1 where the room has them).
+  /// How far the party has walked onto the planet's floor (0 still where
+  /// the realms left them, 1 where the room has them). They stand in the
+  /// dark until the memory takes them; they are on the floor when the room
+  /// comes back. Without a memory, they walk onto it as it does.
   double get _glide => switch (_seg) {
-    _Seg.landing || _Seg.still || _Seg.masks => 0,
-    _Seg.bare => _smoother((_segT / _kGlide).clamp(0.0, 1.0)),
-    _ => 1,
+    _Seg.work => _workT < WorkMemory.thinsAt ? 0 : 1,
+    _Seg.avowal =>
+      _work != null ? 1 : _smoother((_segT / _kGlide).clamp(0.0, 1.0)),
+    _Seg.rise => 1,
+    _ => 0,
   };
 
   /// How much of the planet's light has risen.
@@ -797,7 +811,7 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
     final party = widget.party;
     final w = _size.width;
     if (_seg == _Seg.work) return (const Alignment(0, -0.82), 620);
-    if (_seg.index <= _Seg.masks.index || party == null || party.count == 0) {
+    if (_glide < 0.5 || party == null || party.count == 0) {
       return (const Alignment(0, -0.5), 560);
     }
     var x = 0.0;
@@ -842,10 +856,11 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
             ),
             const SizedBox(height: 12),
           ],
-          for (final (i, text) in line.lines.indexed) ...[
+          for (final (i, text) in line.lines.take(_stanzaShown).indexed) ...[
             if (i > 0) const SizedBox(height: 6),
             _Delayed(
-              delay: i * _kStanzaStep,
+              key: ValueKey(i),
+              delay: i == 0 ? 0 : 0.05,
               child: Text(
                 text,
                 textAlign: TextAlign.center,
@@ -877,7 +892,8 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
           const SizedBox(height: 16),
           // The way on, once the line has had a moment to be read.
           _Delayed(
-            delay: 1.1 + (line.lines.length - 1) * _kStanzaStep,
+            key: ValueKey('hint$_stanzaShown'),
+            delay: 1.1,
             child: Text(
               line.hint,
               style: TextStyle(
@@ -1122,7 +1138,7 @@ class _RevealPainter extends CustomPainter {
 /// [child], faded up [delay] seconds after it is first shown: the way on,
 /// once a line has had a moment to be read, or a stanza's next line.
 class _Delayed extends StatefulWidget {
-  const _Delayed({required this.delay, required this.child});
+  const _Delayed({super.key, required this.delay, required this.child});
 
   final double delay;
   final Widget child;

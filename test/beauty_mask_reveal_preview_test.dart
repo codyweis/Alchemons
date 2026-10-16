@@ -31,7 +31,8 @@ import 'package:google_fonts/google_fonts.dart';
 // One PNG per frame at REVEAL_FPS (default 20), and reveal.mp4 when ffmpeg
 // is on the path. REVEAL_SIZE=880x412 picks the screen (logical px),
 // REVEAL_ELEMENT the planet (Fire), REVEAL_SCALE the frames' scale (1.5),
-// REVEAL_SHOOT_FROM the second the frames start (0; ~64 is the memory).
+// REVEAL_SHOOT_FROM the second the frames start (0), REVEAL_EVERY every how
+// many frames one is shot (1).
 // Crimson Text stands in as Georgia Italic, so the run may end "failed"
 // once google_fonts notices the real one is missing; the frames are written.
 void main() {
@@ -55,6 +56,9 @@ void main() {
       final element = Platform.environment['REVEAL_ELEMENT'] ?? 'Fire';
       final shootFrom =
           double.tryParse(Platform.environment['REVEAL_SHOOT_FROM'] ?? '') ?? 0;
+      // Every how many frames one is shot (the clip's rate is fps / every).
+      final every =
+          int.tryParse(Platform.environment['REVEAL_EVERY'] ?? '') ?? 1;
       const dpr = 2.0;
       tester.view.physicalSize = screen * dpr;
       tester.view.devicePixelRatio = dpr;
@@ -262,10 +266,11 @@ void main() {
       double? hintSince;
       var clock = 0.0;
       var after = 0.0;
+      var frame = 0;
       while (clock < 180) {
         await tester.pump(step);
         clock += 1 / fps;
-        if (clock >= shootFrom) await shoot();
+        if (clock >= shootFrom && frame++ % every == 0) await shoot();
         final hint =
             find.text('LOOK CLOSER').evaluate().isNotEmpty ||
             find.text('CONTINUE').evaluate().isNotEmpty;
@@ -293,7 +298,7 @@ void main() {
           await Process.run('ffmpeg', [
             '-y',
             '-framerate',
-            '$fps',
+            '${fps / every}',
             '-i',
             '$out/frame_%04d.png',
             '-c:v',

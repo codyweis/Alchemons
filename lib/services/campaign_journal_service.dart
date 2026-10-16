@@ -61,7 +61,7 @@ const campaignEntries = [
   JournalEntry(
     'revelation',
     'Beauty obstructs reality',
-    'You did not make the valley to hide the world from danger. You made it to hide your work from yourself.',
+    'You did not make the realms for the love of Alchemons. You did it to protect your own perception from what you know is wrong.',
   ),
   JournalEntry(
     'guardian',
