@@ -8,6 +8,7 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
+import 'package:alchemons/games/cosmic_survival/surge_grains.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -126,6 +127,13 @@ void main() {
     }
     for (final m in party) {
       game.summonCompanion(m.slotIndex);
+    }
+    // The budget is measured as if every grain is gathered: at the top
+    // Surge Magnet level a cleared wave sends the ones left out home. (This
+    // harness never flies the ship out to gather them.)
+    final magnet = kAllPowerUps.firstWhere((d) => d.id == 'surge_magnet');
+    for (var i = 0; i < kSurgeMagnetMaxLevel; i++) {
+      game.powerUps.apply(magnet);
     }
     for (var w = 1; w < startWave; w++) {
       game.spawner.forceNextWaveForTest();

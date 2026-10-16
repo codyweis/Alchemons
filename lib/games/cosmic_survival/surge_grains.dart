@@ -3,10 +3,10 @@
 // What a kill pays into the surge. Each body leaves a few violet grains where
 // it fell, carrying its share of the meter. They wait there until the ship
 // passes close enough to pull them in, or until they lie inside the core's
-// field, which drinks them; the meter is paid when a grain arrives. At the
-// top Surge Magnet level they stream into the core on their own, and when a
-// wave is cleared every grain still lying out there does the same, so none
-// is ever lost: collecting only brings the surge sooner.
+// field, which drinks them; the meter is paid when a grain arrives. Grains
+// the ship leaves stay out, wave after wave, until it gathers them. Surge
+// Magnet widens the ship's pull, and at its top level a cleared wave sends
+// every grain still lying out into the core.
 //
 // Budget: at most [SurgeGrains.cap] grains; past it a kill's value is added
 // to grains already lying out instead of new ones. Heads and trails go out
@@ -19,11 +19,12 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_data.dart' show EnemyTier;
 import 'package:flutter/painting.dart';
 
-/// How far the ship pulls grains from at each Surge Magnet level below the
-/// top one. At the top level they stream to the core by themselves.
+/// How far the ship pulls grains from at each Surge Magnet level (the top
+/// level keeps the last reach).
 const List<double> kSurgePullRange = [150, 230, 310, 390];
 
-/// The Surge Magnet level at which grains go to the core on their own.
+/// The Surge Magnet level at which a cleared wave sends the grains left out
+/// into the core.
 const int kSurgeMagnetMaxLevel = 4;
 
 /// How many grains a body leaves, by size.
@@ -112,14 +113,13 @@ class SurgeGrains {
   }
 
   /// Moves the grains. [pull] is the ship's reach (null while it is down);
-  /// [toCore] sends every grain to the core by itself. [onTaken] receives
-  /// each grain's value as it arrives, and whether the ship took it.
+  /// [onTaken] receives each grain's value as it arrives, and whether the
+  /// ship took it.
   void update(
     double dt,
     Offset core,
     Offset ship, {
     required double? pull,
-    required bool toCore,
     required void Function(double value, bool byShip) onTaken,
   }) {
     if (_grains.isEmpty) return;
@@ -130,7 +130,7 @@ class SurgeGrains {
       final cx = g.x - core.dx, cy = g.y - core.dy;
       final toCoreDist = sqrt(cx * cx + cy * cy);
       if (g.age >= _kHang && g.heading == 0) {
-        if (toCore || toCoreDist < _kCoreDrink) {
+        if (toCoreDist < _kCoreDrink) {
           g.heading = 2;
         } else if (pull != null) {
           final sx = ship.dx - g.x, sy = ship.dy - g.y;

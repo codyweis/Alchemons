@@ -273,7 +273,8 @@ const kShipWeapons = [
     tags: [PowerUpTag.basicAttack],
   ),
   // Kills leave surge grains that wait for the ship (surge_grains.dart).
-  // Each level widens the ship's pull; the last sends them to the core.
+  // Each level widens the ship's pull; the last has a cleared wave send the
+  // grains left out to the core.
   PowerUpDef(
     id: 'surge_magnet',
     name: 'Surge Magnet',
@@ -1308,7 +1309,7 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
     },
     'kinetic_overdrive' => '+10% ship round impact, speed, and lifetime',
     'surge_magnet' => nextLevel >= 4
-        ? 'Surge grains fly into the orb by themselves'
+        ? 'When a wave ends, every grain left out flows into the orb'
         : 'Ship pulls surge grains from further away (+80)',
     'shield_pulse' => '+1 shield pulse level',
     'auto_turret' => '+1 auto-turret level',

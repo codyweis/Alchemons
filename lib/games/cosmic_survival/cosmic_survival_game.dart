@@ -2563,7 +2563,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       pull: ship.isDead
           ? null
           : kSurgePullRange[min(magnet, kSurgePullRange.length - 1)],
-      toCore: magnet >= kSurgeMagnetMaxLevel,
       onTaken: _takeSurgeGrain,
     );
     _updateAlchemicalMeterDisplay(dt);
@@ -2630,8 +2629,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final bossWave = spawner.isBossWave;
       onWaveCleared?.call(clearedWave);
       _cleanupBetweenWaves();
-      // Whatever the ship did not gather flows to the core now.
-      _surgeGrains.flushToCore();
+      _endWaveGrains();
       _grantIntermissionReward(clearedWave, bossWave: bossWave);
       _maybeTriggerPowerUpSelection();
       spawner.resumeAfterIntermission();
@@ -9188,6 +9186,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           value * CosmicSurvivalBalance.alchemicalRewardMultiplier,
     );
   }
+
+  /// A cleared wave: at the top Surge Magnet level, whatever the ship did
+  /// not gather flows to the core; below it, the grains stay out for the
+  /// ship.
+  void _endWaveGrains() {
+    if (powerUps.surgeMagnetLevel >= kSurgeMagnetMaxLevel) {
+      _surgeGrains.flushToCore();
+    }
+  }
+
+  /// The wave-clear step for grains, for tests.
+  @visibleForTesting
+  void debugEndWaveGrains() => _endWaveGrains();
 
   /// Surge value lying on the field, not yet taken in.
   @visibleForTesting

@@ -104,7 +104,7 @@ void main() {
     expect(game.alchemicalMeter, greaterThan(before));
   });
 
-  test('Surge Magnet widens the pull, and its top level sends grains home', () async {
+  test('Surge Magnet widens the pull, and its top level sends a cleared wave\u2019s grains home', () async {
     final magnet = kAllPowerUps.firstWhere((d) => d.id == 'surge_magnet');
     expect(magnet.maxStacks, kSurgeMagnetMaxLevel);
 
@@ -122,15 +122,31 @@ void main() {
       expect(game.debugSurgeOut < 1e-9, taken, reason: 'level $level');
     }
 
-    final game = await arena();
-    for (var i = 0; i < kSurgeMagnetMaxLevel; i++) {
-      game.applyPowerUp(magnet);
+    // Below the top level a cleared wave leaves the grains out for the
+    // ship; at the top level they flow home.
+    for (final (level, home) in [
+      (kSurgeMagnetMaxLevel - 1, false),
+      (kSurgeMagnetMaxLevel, true),
+    ]) {
+      final game = await arena();
+      for (var i = 0; i < level; i++) {
+        game.applyPowerUp(magnet);
+      }
+      final away = game.orb.position + const Offset(-700, 0);
+      final e = body(game.orb.position + const Offset(700, 0));
+      game.enemies.add(e);
+      game.debugKillEnemy(e);
+      // Mid-wave, nothing goes home by itself at any level.
+      run(game, 3, shipAt: away);
+      expect(game.debugSurgeOut, greaterThan(0), reason: 'level $level');
+      game.debugEndWaveGrains();
+      run(game, 5, shipAt: away);
+      expect(
+        game.debugSurgeOut < 1e-9,
+        home,
+        reason: 'level $level after the wave',
+      );
     }
-    final e = body(game.orb.position + const Offset(700, 0));
-    game.enemies.add(e);
-    game.debugKillEnemy(e);
-    run(game, 5, shipAt: game.orb.position + const Offset(-700, 0));
-    expect(game.debugSurgeOut, closeTo(0, 1e-9));
   });
 
   test('a full field keeps every kill’s value', () {
