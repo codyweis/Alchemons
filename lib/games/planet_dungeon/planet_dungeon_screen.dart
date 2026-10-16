@@ -26,6 +26,15 @@ import 'package:alchemons/services/game_controller_service.dart';
 import 'package:alchemons/widgets/controller_hints.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/screens/story/beauty_mask_reveal.dart';
+import 'package:alchemons/screens/story/work_memory.dart';
+import 'package:alchemons/models/creature.dart' show Creature;
+import 'package:alchemons/utils/sprite_sheet_def.dart' show sheetFromCreature;
+import 'package:alchemons/widgets/cosmic_ship_emblem.dart'
+    show CosmicShipEmblem;
+import 'package:alchemons/widgets/fx/mutation_sheets.dart'
+    show loadCreatureSheet;
+import 'package:flame/flame.dart' show Flame;
+import 'dart:ui' as ui;
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/screens/cosmic/widgets/virtual_joystick.dart';
 import 'package:flame/game.dart';
@@ -1456,6 +1465,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                   begin: widget.revealed,
                   onReady: () => _masksReady = true,
                   party: _game == null ? null : _DungeonParty(_game!),
+                  memoryCast: _workMemoryCast,
                   onComplete: () async {
                     if (!widget.replayReveal) {
                       final db = context.read<AlchemonsDatabase>();
@@ -1964,6 +1974,68 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     ([GamepadButton.back], 'HINT'),
     ([GamepadButton.start], 'MAP'),
   ];
+
+  /// Who the first descent's memory is about: the party's lead as it looks
+  /// now, the two kinds the recipe tables make it from, taken wild, and the
+  /// hull the player flies.
+  Future<WorkMemoryCast?> _workMemoryCast() async {
+    final game = _game;
+    if (game == null || game.partyLookCount == 0) return null;
+    final lead = game.creatures.first.member;
+    final catalog = context.read<CreatureCatalog>();
+    final side = MediaQuery.sizeOf(context).height * 0.26;
+    return workMemoryCast(
+      family: lead.family,
+      element: lead.element,
+      side: side,
+      leadHalfHeight: game.partyLookHalfHeight(0),
+      // Read facing the way it stands in the room, so it lands as itself.
+      paintLead: (c) => game.paintPartyLook(
+        c,
+        0,
+        faceRight: game.partyLookFacesRight(0),
+        time: 0,
+      ),
+      firstFrameOf: (family, element) =>
+          _firstFrameOf(catalog, family, element),
+      skin: CosmicShipEmblem.skin.value,
+    );
+  }
+
+  /// The first frame of the sheet of the [family] [element] species (or of
+  /// any of the family, if none is that element), as a wild one looks.
+  static Future<ui.Image?> _firstFrameOf(
+    CreatureCatalog catalog,
+    String family,
+    String element,
+  ) async {
+    final f = family.toLowerCase();
+    Creature? pick;
+    for (final c in catalog.creatures) {
+      if (c.spriteData == null) continue;
+      if ((c.mutationFamily ?? '').toLowerCase() != f) continue;
+      if (c.types.isNotEmpty && c.types.first == element) {
+        pick = c;
+        break;
+      }
+      pick ??= c;
+    }
+    if (pick == null) return null;
+    final sheet = sheetFromCreature(pick);
+    final image = await loadCreatureSheet(Flame.images, sheet.path);
+    final fw = sheet.frameSize.x, fh = sheet.frameSize.y;
+    final rec = ui.PictureRecorder();
+    Canvas(rec).drawImageRect(
+      image,
+      Rect.fromLTWH(0, 0, fw, fh),
+      Rect.fromLTWH(0, 0, fw, fh),
+      Paint(),
+    );
+    final picture = rec.endRecording();
+    final frame = await picture.toImage(fw.round(), fh.round());
+    picture.dispose();
+    return frame;
+  }
 
   /// The game when a run can take the controller: loaded and thawed, with
   /// nothing over it (the descent, a reward, the raid's spoils, the map).

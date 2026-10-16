@@ -133,13 +133,25 @@ void main() {
       await run(15);
       expect(find.text('AM I DREAMING?'), findsOneWidget);
       await read('No, I am finally awake.', 'CONTINUE');
-      await run(2);
-      expect(find.text('A memory speaks'), findsOneWidget);
       await read(
         'You did not make the valley to hide the world from danger. You '
             'made it to hide your work from yourself.',
         'CONTINUE',
       );
+      // No memory without its cast: straight to what the alchemist says,
+      // which comes a line at a time and is not taken as read until all of
+      // it is there.
+      await run(1);
+      expect(find.text('I am not sorry.'), findsOneWidget);
+      await tester.tap(find.byType(BeautyMaskReveal), warnIfMissed: false);
+      await run(1);
+      expect(
+        find.text('If Alchemy is wrong, why is it so beautiful?'),
+        findsOneWidget,
+      );
+      await run(5);
+      expect(completed, 0);
+      await tester.tap(find.byType(BeautyMaskReveal), warnIfMissed: false);
       // The planet's light rises, and only then is it over.
       await run(1);
       expect(completed, 0);

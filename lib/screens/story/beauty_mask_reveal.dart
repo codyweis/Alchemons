@@ -19,7 +19,9 @@
 // word): the first descent's own three, and the "Trees and valleys are
 // absent" passage written for this moment and never reachable until now.
 // Each waits for a tap, as the opening's quotes do; the motion between them
-// plays on its own.
+// plays on its own. The last line opens a memory (work_memory.dart): wild
+// Alchemons taken by your ship and forced into one -- the kind that leads
+// your party -- with the opening's collector card read while they strain.
 //
 // Cheap, for its length: the planet below is frozen throughout. Only the
 // Valley is ever live; every other realm is pictured once while the descent
@@ -41,6 +43,8 @@ import 'package:alchemons/models/scenes/swamp/swamp_scene.dart';
 import 'package:alchemons/models/scenes/tidal/tidal_scene.dart';
 import 'package:alchemons/models/scenes/valley/valley_scene.dart';
 import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
+import 'package:alchemons/screens/story/models/story_page.dart';
+import 'package:alchemons/screens/story/work_memory.dart';
 import 'package:alchemons/widgets/fx/realm_sift.dart';
 import 'package:alchemons/widgets/wilderness/wild_map.dart';
 import 'package:flame/game.dart';
@@ -79,7 +83,12 @@ abstract interface class RevealParty {
   double halfHeight(int i);
 
   /// Draws creature [i] centred on the canvas, at [zoom] 1.
-  void paint(Canvas canvas, int i, {required bool faceRight, required double time});
+  void paint(
+    Canvas canvas,
+    int i, {
+    required bool faceRight,
+    required double time,
+  });
 
   /// Moves their own animations on.
   void step(double dt);
@@ -93,6 +102,7 @@ class BeautyMaskReveal extends StatefulWidget {
     this.begin,
     this.party,
     this.pictures,
+    this.memoryCast,
   });
 
   /// The last line has been read and the planet's light has risen.
@@ -110,6 +120,11 @@ class BeautyMaskReveal extends StatefulWidget {
   /// made, and the Valley is its picture instead of live.
   final List<RealmPicture>? pictures;
 
+  /// Who the memory after the last line is about. Asked for once the party
+  /// is on the planet's floor; without it (or if it comes back empty) the
+  /// planet's light rises straight after the last line.
+  final Future<WorkMemoryCast?> Function()? memoryCast;
+
   @override
   State<BeautyMaskReveal> createState() => _BeautyMaskRevealState();
 }
@@ -118,25 +133,36 @@ class BeautyMaskReveal extends StatefulWidget {
 class _Line {
   const _Line({
     this.title,
-    this.caption,
     required this.text,
     this.more,
     this.hint = 'CONTINUE',
+    this.long = false,
+    this.stanza,
   });
 
   /// Set above the line in the dialogs' monospace capitals.
   final String? title;
 
-  /// Set above the line, small, in the voice's serif.
-  final String? caption;
   final String text;
 
   /// A second paragraph, smaller.
   final String? more;
   final String hint;
+
+  /// Set smaller: a long passage.
+  final bool long;
+
+  /// Lines that come one after another, each a moment after the last, and
+  /// are read as one (in place of [text]).
+  final List<String>? stanza;
+
+  List<String> get lines => stanza ?? [text];
 }
 
-const _lines = [
+/// How long after one line of a stanza the next comes.
+const double _kStanzaStep = 1.5;
+
+final _lines = [
   _Line(
     title: 'Beauty Obstructs Reality',
     text: 'The valley is here, where it cannot be.',
@@ -150,14 +176,32 @@ const _lines = [
   ),
   _Line(title: 'AM I DREAMING?', text: 'No, I am finally awake.'),
   _Line(
-    caption: 'A memory speaks',
     text:
         'You did not make the valley to hide the world from danger. You made '
         'it to hide your work from yourself.',
   ),
+  // The opening's second card, read again in the memory while the two
+  // strain on the ropes: the same words, from the same place.
+  _Line(text: AlchemonsStory.darkPrelude[1].mainText, long: true),
+  const _Line(
+    text: '',
+    stanza: [
+      'I am a collector and Alchemons exist to be collected.',
+      'I am not sorry.',
+      'I do not need to hide reality behind beauty.',
+      'If Alchemy is wrong, why is it so beautiful?',
+    ],
+  ),
 ];
 
-enum _Seg { landing, still, masks, bare, map, awake, rise }
+/// The collector's card, read in the memory.
+const int _kCollector = 4;
+
+/// What the alchemist says once the memory is over, with the one made of
+/// it standing in the room: the author's words.
+const int _kAvowal = 5;
+
+enum _Seg { landing, still, masks, bare, map, awake, work, avowal, rise }
 
 /// The hour every realm is lit at: late gold, the mask at its loveliest.
 const double _kHour = 18.4;
@@ -251,6 +295,27 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
   Rect? _poolRect;
   final GlobalKey _textKey = GlobalKey();
   final GlobalKey _stageKey = GlobalKey();
+
+  /// The memory after the last line: who it is about (asked for once the
+  /// party is on the floor), its own time (held while the collector's card
+  /// is read) and its clock (which is not); the party's fade while it plays.
+  bool _castAsked = false;
+  WorkMemory? _work;
+  double _workT = 0, _workClock = 0;
+
+  /// How much of party member [i] shows: gone while the memory plays; the
+  /// rest back as it thins, and the lead only once the one made in it has
+  /// crossed to its place.
+  double _shown(int i) {
+    if (_seg != _Seg.work) return 1;
+    if (_workT < WorkMemory.thinsAt) {
+      return 1 - _smoother((_workClock / 0.5).clamp(0.0, 1.0));
+    }
+    final from = i == 0 && _work?.landAt != null
+        ? WorkMemory.landedAt
+        : WorkMemory.thinsAt + 0.4;
+    return _smoother(((_workT - from) / 1.2).clamp(0.0, 1.0));
+  }
 
   @override
   void initState() {
@@ -417,10 +482,24 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
           _dropPictures();
         }
       case _Seg.bare:
+        if (!_castAsked) _askCast();
         if (_segT >= _kGlide + 0.8) _show(1);
       case _Seg.map:
         _stepMap(dt);
       case _Seg.awake:
+        break;
+      case _Seg.work:
+        _workClock += dt;
+        if (_stop != _kCollector) _workT += dt;
+        if (_workT >= WorkMemory.holdAt && !_spoken.contains(_kCollector)) {
+          _workT = WorkMemory.holdAt;
+          _show(_kCollector);
+        }
+        if (_workT >= WorkMemory.duration) {
+          _enter(_Seg.avowal);
+          _show(_kAvowal);
+        }
+      case _Seg.avowal:
         break;
       case _Seg.rise:
         if (_segT >= _kRise && !_saving && _error == null) {
@@ -428,8 +507,15 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
         }
     }
     if (_seg.index >= _Seg.masks.index) _air.step(dt, _size);
-    final veil = _seg == _Seg.map ? _kVeilMap : _kVeil;
-    _veil += (veil - _veil) * math.min(1.0, dt / 0.8);
+    // The memory is dark until it thins, and then the room comes back.
+    final inWork = _seg == _Seg.work && _workT < WorkMemory.thinsAt;
+    final veil = switch (_seg) {
+      _Seg.map => _kVeilMap,
+      _ when inWork => 1.0,
+      _ => _kVeil,
+    };
+    // Quicker into the memory's dark than out of it.
+    _veil += (veil - _veil) * math.min(1.0, dt / (inWork ? 0.45 : 0.8));
     final pool = _stop != null || _error != null ? 1.0 : 0.0;
     _pool += (pool - _pool) * math.min(1.0, dt / 0.35);
     _frame.tick();
@@ -554,13 +640,37 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
     return map.riftRect;
   }
 
+  /// Asks who the memory is about, now the party is on the floor (and the
+  /// room laid out): it is ready long before the last line is read.
+  Future<void> _askCast() async {
+    _castAsked = true;
+    final ask = widget.memoryCast;
+    if (ask == null || _reduced) return;
+    try {
+      final cast = await ask();
+      if (!mounted || cast == null || cast.taken.length < 2) return;
+      final party = widget.party;
+      final lead = party != null && party.count > 0;
+      _work = WorkMemory(
+        cast,
+        _size,
+        landAt: lead ? party.restAt(0) : null,
+        landZoom: lead ? party.zoom : 1,
+      );
+    } catch (_) {
+      // No memory, then: the light rises after the last line.
+    }
+  }
+
   void _onTap() {
     if (_error != null) {
       unawaited(_finish());
       return;
     }
     final line = _stop;
-    if (line == null || _clock - _stopAt < 0.9) return;
+    if (line == null) return;
+    final lines = _lines[line].lines.length;
+    if (_clock - _stopAt < 0.9 + (lines - 1) * _kStanzaStep) return;
     HapticFeedback.lightImpact();
     setState(() => _stop = null);
     switch (line) {
@@ -576,6 +686,15 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
       case 2:
         _show(3);
       case 3:
+        if (_work != null && !_reduced) {
+          _enter(_Seg.work);
+        } else {
+          _enter(_Seg.avowal);
+          _show(_kAvowal);
+        }
+      case _kCollector:
+        break;
+      case _kAvowal:
         _enter(_Seg.rise);
     }
   }
@@ -616,63 +735,58 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
   Widget build(BuildContext context) {
     return PopScope(
       canPop: false,
-      child: Material(
-        type: MaterialType.transparency,
-        child: _stage(),
-      ),
+      child: Material(type: MaterialType.transparency, child: _stage()),
     );
   }
 
   Widget _stage() {
     return LayoutBuilder(
-        builder: (context, constraints) {
-          final size = constraints.biggest;
-          if (_size != size) {
-            final first = _size == Size.zero;
-            _size = size;
-            if (first) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) unawaited(_prepare());
-              });
-            }
+      builder: (context, constraints) {
+        final size = constraints.biggest;
+        if (_size != size) {
+          final first = _size == Size.zero;
+          _size = size;
+          if (first) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) unawaited(_prepare());
+            });
           }
-          final valley = _valley;
-          final prep = _prepGame;
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _onTap,
-            child: Stack(
-              key: _stageKey,
-              fit: StackFit.expand,
-              children: [
-                // The planet, dark under it all until its light rises.
-                AnimatedBuilder(
-                  animation: _frame,
-                  builder: (context, _) => ColoredBox(
-                    color: Colors.black.withValues(
-                      alpha: _veil * (1 - _risen),
-                    ),
+        }
+        final valley = _valley;
+        final prep = _prepGame;
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _onTap,
+          child: Stack(
+            key: _stageKey,
+            fit: StackFit.expand,
+            children: [
+              // The planet, dark under it all until its light rises.
+              AnimatedBuilder(
+                animation: _frame,
+                builder: (context, _) => ColoredBox(
+                  color: Colors.black.withValues(alpha: _veil * (1 - _risen)),
+                ),
+              ),
+              if (prep != null)
+                Offstage(
+                  child: GameWidget(key: ObjectKey(prep), game: prep),
+                ),
+              if (valley != null)
+                Opacity(
+                  opacity: _valleyFade,
+                  child: RepaintBoundary(
+                    child: GameWidget(key: ObjectKey(valley), game: valley),
                   ),
                 ),
-                if (prep != null)
-                  Offstage(
-                    child: GameWidget(key: ObjectKey(prep), game: prep),
-                  ),
-                if (valley != null)
-                  Opacity(
-                    opacity: _valleyFade,
-                    child: RepaintBoundary(
-                      child: GameWidget(key: ObjectKey(valley), game: valley),
-                    ),
-                  ),
-                RepaintBoundary(
-                  child: CustomPaint(painter: _RevealPainter(this)),
-                ),
-                _text(),
-              ],
-            ),
-          );
-        },
+              RepaintBoundary(
+                child: CustomPaint(painter: _RevealPainter(this)),
+              ),
+              _text(),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -682,6 +796,7 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
   (Alignment, double) _textPlace() {
     final party = widget.party;
     final w = _size.width;
+    if (_seg == _Seg.work) return (const Alignment(0, -0.82), 620);
     if (_seg.index <= _Seg.masks.index || party == null || party.count == 0) {
       return (const Alignment(0, -0.5), 560);
     }
@@ -727,28 +842,25 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
             ),
             const SizedBox(height: 12),
           ],
-          if (line.caption != null) ...[
-            Text(
-              line.caption!,
-              textAlign: TextAlign.center,
-              style: GoogleFonts.crimsonText(
-                fontSize: 15,
-                color: brass.withValues(alpha: 0.85),
-                fontStyle: FontStyle.italic,
+          for (final (i, text) in line.lines.indexed) ...[
+            if (i > 0) const SizedBox(height: 6),
+            _Delayed(
+              delay: i * _kStanzaStep,
+              child: Text(
+                text,
+                textAlign: TextAlign.center,
+                style: GoogleFonts.crimsonText(
+                  fontSize: line.long ? 18 : 22,
+                  height: line.long ? 1.5 : 1.45,
+                  // A stanza's last line, its question, in brass.
+                  color: line.stanza != null && i == line.lines.length - 1
+                      ? brass
+                      : ink,
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ),
-            const SizedBox(height: 8),
           ],
-          Text(
-            line.text,
-            textAlign: TextAlign.center,
-            style: GoogleFonts.crimsonText(
-              fontSize: 22,
-              height: 1.45,
-              color: ink,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
           if (line.more != null) ...[
             const SizedBox(height: 10),
             Text(
@@ -764,7 +876,19 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
           ],
           const SizedBox(height: 16),
           // The way on, once the line has had a moment to be read.
-          _DelayedHint(label: line.hint, color: brass),
+          _Delayed(
+            delay: 1.1 + (line.lines.length - 1) * _kStanzaStep,
+            child: Text(
+              line.hint,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: brass.withValues(alpha: 0.75),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 2.4,
+              ),
+            ),
+          ),
         ],
       );
     }
@@ -797,6 +921,10 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
   void _paintScene(Canvas canvas, Size size) {
     if (_seg.index <= _Seg.masks.index) _paintRealms(canvas, size);
     _paintParty(canvas, size);
+    final work = _work;
+    if (work != null && _seg == _Seg.work) {
+      work.paint(canvas, _workT, _workClock);
+    }
     final map = _map;
     if (map != null && _seg == _Seg.map && _mapAlpha > 0.004) {
       if (_mapAlpha < 0.999) {
@@ -924,7 +1052,8 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
     for (var i = 0; i < n; i++) {
       tallest = math.max(tallest, party.halfHeight(i));
     }
-    final stance = rest * (size.height * 0.1 / (tallest * rest)).clamp(1.0, 3.2);
+    final stance =
+        rest * (size.height * 0.1 / (tallest * rest)).clamp(1.0, 3.2);
     final g = _glide;
     for (var i = 0; i < n; i++) {
       final hh = party.halfHeight(i);
@@ -950,10 +1079,23 @@ class _BeautyMaskRevealState extends State<BeautyMaskReveal>
         );
       }
       // Drawn whole to the end: the room takes them over where they stand.
+      // Gone while the memory plays: it is not now.
       canvas.save();
       canvas.translate(at.dx, at.dy);
       canvas.scale(z);
+      final fade = _shown(i);
+      if (fade <= 0.01) {
+        canvas.restore();
+        continue;
+      }
+      if (fade < 0.999) {
+        canvas.saveLayer(
+          null,
+          Paint()..color = Colors.white.withValues(alpha: fade),
+        );
+      }
       party.paint(canvas, i, faceRight: party.facesRight(i), time: _clock);
+      if (fade < 0.999) canvas.restore();
       canvas.restore();
     }
   }
@@ -977,25 +1119,30 @@ class _RevealPainter extends CustomPainter {
   bool shouldRepaint(_RevealPainter old) => old.state != state;
 }
 
-/// The way on, faded up once the line has had a moment to be read.
-class _DelayedHint extends StatefulWidget {
-  const _DelayedHint({required this.label, required this.color});
+/// [child], faded up [delay] seconds after it is first shown: the way on,
+/// once a line has had a moment to be read, or a stanza's next line.
+class _Delayed extends StatefulWidget {
+  const _Delayed({required this.delay, required this.child});
 
-  final String label;
-  final Color color;
+  final double delay;
+  final Widget child;
 
   @override
-  State<_DelayedHint> createState() => _DelayedHintState();
+  State<_Delayed> createState() => _DelayedState();
 }
 
-class _DelayedHintState extends State<_DelayedHint> {
+class _DelayedState extends State<_Delayed> {
   bool _shown = false;
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
-    _timer = Timer(const Duration(milliseconds: 1100), () {
+    if (widget.delay <= 0) {
+      _shown = true;
+      return;
+    }
+    _timer = Timer(Duration(milliseconds: (widget.delay * 1000).round()), () {
       if (mounted) setState(() => _shown = true);
     });
   }
@@ -1010,15 +1157,6 @@ class _DelayedHintState extends State<_DelayedHint> {
   Widget build(BuildContext context) => AnimatedOpacity(
     opacity: _shown ? 1 : 0,
     duration: const Duration(milliseconds: 700),
-    child: Text(
-      widget.label,
-      style: TextStyle(
-        fontFamily: 'monospace',
-        color: widget.color.withValues(alpha: 0.75),
-        fontSize: 11,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 2.4,
-      ),
-    ),
+    child: widget.child,
   );
 }
