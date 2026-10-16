@@ -14,7 +14,7 @@
 //
 // Budget: no blur, no offscreen layers. Stars and grains go through
 // drawRawPoints in a few buckets; the floor is one gradient fill; the
-// nebula behind the stars is one recorded picture.
+// nebula behind the stars is four gradient fills and three point batches.
 
 import 'dart:math';
 import 'dart:typed_data';
@@ -177,91 +177,159 @@ class ArenaSky {
 
 // ── the nebula ──────────────────────────────────────────────────────────────
 
-/// One cloud of the nebula, centred [x], [y] from the core, [rx] by [ry].
+/// One cloud of the nebula, centred [x], [y] from the core, [rx] by [ry],
+/// wandering [drift] units on a [period]-second loop.
 class _Cloud {
-  const _Cloud(this.x, this.y, this.rx, this.ry, this.color, this.weight);
-  final double x, y, rx, ry, weight;
+  const _Cloud(
+    this.x,
+    this.y,
+    this.rx,
+    this.ry,
+    this.color,
+    this.weight,
+    this.drift,
+    this.period,
+  );
+  final double x, y, rx, ry, weight, drift, period;
   final Color color;
 }
 
-/// Deep midnight clouds, with one warm one near the core.
+/// Deep midnight clouds, with one faint warm one near the core.
 const _kClouds = [
-  _Cloud(-700, -900, 1100, 700, Color(0xFF3B2F86), 0.9),
-  _Cloud(800, -200, 800, 1000, Color(0xFF1F4A6E), 0.8),
-  _Cloud(-400, 900, 1000, 650, Color(0xFF5A2E66), 0.75),
-  _Cloud(250, -150, 600, 500, Color(0xFF6A5232), 0.45),
+  _Cloud(-700, -900, 1100, 700, Color(0xFF3B2F86), 0.9, 120, 70),
+  _Cloud(800, -200, 800, 1000, Color(0xFF1F4A6E), 0.8, 100, 55),
+  _Cloud(-400, 900, 1000, 650, Color(0xFF5A2E66), 0.75, 110, 63),
+  _Cloud(250, -150, 600, 500, Color(0xFF6A5232), 0.3, 70, 47),
 ];
 
 /// Faint clouds and a haze of fine grains behind the stars, so the fight
 /// has a sky with depth rather than a black page. It slides at a fifth of
-/// the camera's speed.
+/// the camera's speed; the clouds wander and breathe on loops of about a
+/// minute, and their grains turn slowly round them, glimmering in and out.
+/// Kept dim: it is the back of the sky, never something to look at.
 ///
-/// Budget: recorded once into a picture (four gradient fills and four point
-/// batches); a frame is one drawPicture.
+/// Budget: four gradient fills (shaders built once) and three point batches
+/// of at most [_grainCount] grains, culled to the view. No blur.
 class ArenaNebula {
-  static const _factor = 0.2;
-
-  /// Recorded once per process; every run shares it.
-  static final ui.Picture _picture = _record();
-
-  static ui.Picture _record() {
-    final rec = ui.PictureRecorder();
-    final c = Canvas(rec);
+  ArenaNebula() {
     final r = Random(17);
-    final dots = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 1.7;
+    var k = 0;
     for (var ci = 0; ci < _kClouds.length; ci++) {
       final cl = _kClouds[ci];
-      c.save();
-      c.translate(cl.x, cl.y);
-      c.scale(1, cl.ry / cl.rx);
-      c.drawCircle(
-        Offset.zero,
-        cl.rx,
-        Paint()
-          ..shader = ui.Gradient.radial(
-            Offset.zero,
-            cl.rx,
-            [
-              cl.color.withValues(alpha: 0.42 * cl.weight),
-              cl.color.withValues(alpha: 0.16 * cl.weight),
-              cl.color.withValues(alpha: 0),
-            ],
-            const [0.0, 0.55, 1.0],
-          ),
-      );
-      c.restore();
-      // Lumpy lobes of grains: a few sub-centres per cloud.
-      final n = (5200 * cl.weight).round();
-      final pts = Float32List(n * 2);
-      for (var i = 0; i < n; i++) {
-        final sub = r.nextInt(4);
-        final sx = cl.x + cos(sub * 1.9 + ci) * cl.rx * 0.35;
-        final sy = cl.y + sin(sub * 2.3 + ci) * cl.ry * 0.35;
-        final g1 = (r.nextDouble() + r.nextDouble() + r.nextDouble()) / 3 - 0.5;
-        final g2 = (r.nextDouble() + r.nextDouble() + r.nextDouble()) / 3 - 0.5;
-        pts[i * 2] = sx + g1 * cl.rx * 1.6;
-        pts[i * 2 + 1] = sy + g2 * cl.ry * 1.6;
+      final n = (_grainCount * cl.weight / _totalWeight).round();
+      for (var i = 0; i < n && k < _grainCount; i++, k++) {
+        // Denser toward the middle, in an ellipse the cloud's own shape.
+        final d = pow(r.nextDouble(), 0.75).toDouble();
+        _cloud[k] = ci;
+        _angle[k] = r.nextDouble() * 2 * pi;
+        _reach[k] = d;
+        // Inner grains turn a little faster, like the dust lanes.
+        _turn[k] = (0.006 + 0.014 * (1 - d)) * (ci.isEven ? 1 : -1);
+        _bucket[k] = r.nextInt(_buckets);
       }
-      dots.color = Color.lerp(
-        cl.color,
-        const Color(0xFFCFD6F2),
-        0.45,
-      )!.withValues(alpha: 0.42);
-      c.drawRawPoints(ui.PointMode.points, pts, dots);
     }
-    return rec.endRecording();
+    _count = k;
   }
 
-  /// Paints the nebula round [orb] for a camera looking at [view].
-  void paint(Canvas c, Rect view, Offset orb) {
+  static const _factor = 0.2;
+  static const _grainCount = 2600;
+  static const _buckets = 3;
+  static final double _totalWeight = _kClouds.fold(
+    0.0,
+    (sum, c) => sum + c.weight,
+  );
+
+  int _count = 0;
+  final Int8List _cloud = Int8List(_grainCount);
+  final Float32List _angle = Float32List(_grainCount);
+  final Float32List _reach = Float32List(_grainCount);
+  final Float32List _turn = Float32List(_grainCount);
+  final Int8List _bucket = Int8List(_grainCount);
+  final List<Float32List> _pts = List.generate(
+    _buckets,
+    (_) => Float32List(_grainCount * 2),
+  );
+  final List<int> _n = List.filled(_buckets, 0);
+
+  static final List<ui.Shader> _shaders = [
+    for (final cl in _kClouds)
+      ui.Gradient.radial(
+        Offset.zero,
+        1,
+        [
+          cl.color.withValues(alpha: 0.26 * cl.weight),
+          cl.color.withValues(alpha: 0.10 * cl.weight),
+          cl.color.withValues(alpha: 0),
+        ],
+        const [0.0, 0.55, 1.0],
+      ),
+  ];
+  final Paint _fill = Paint();
+  final Paint _dots = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeWidth = 1.4;
+  final List<Offset> _centre = List.filled(_kClouds.length, Offset.zero);
+  final List<double> _breath = List.filled(_kClouds.length, 1);
+
+  /// Paints the nebula round [orb] for a camera looking at [view], [time]
+  /// seconds into the run.
+  void paint(Canvas c, Rect view, Offset orb, double time) {
     final at = orb + (view.center - orb) * (1 - _factor);
-    c.save();
-    c.translate(at.dx, at.dy);
-    c.drawPicture(_picture);
-    c.restore();
+    for (var ci = 0; ci < _kClouds.length; ci++) {
+      final cl = _kClouds[ci];
+      final w = 2 * pi * time / cl.period;
+      _centre[ci] =
+          at + Offset(cl.x + cos(w) * cl.drift, cl.y + sin(w * 0.7) * cl.drift);
+      _breath[ci] = 1 + 0.05 * sin(w * 1.3 + ci);
+      final rx = cl.rx * _breath[ci], ry = cl.ry * _breath[ci];
+      final p = _centre[ci];
+      if (p.dx + rx < view.left ||
+          p.dx - rx > view.right ||
+          p.dy + ry < view.top ||
+          p.dy - ry > view.bottom) {
+        continue;
+      }
+      c.save();
+      c.translate(p.dx, p.dy);
+      c.scale(rx, ry);
+      c.drawCircle(Offset.zero, 1, _fill..shader = _shaders[ci]);
+      c.restore();
+    }
+    _fill.shader = null;
+
+    for (var b = 0; b < _buckets; b++) {
+      _n[b] = 0;
+    }
+    final l = view.left - 4, t = view.top - 4;
+    final rgt = view.right + 4, btm = view.bottom + 4;
+    for (var k = 0; k < _count; k++) {
+      final ci = _cloud[k];
+      final cl = _kClouds[ci];
+      final a = _angle[k] + _turn[k] * time;
+      final d = _reach[k] * _breath[ci];
+      final x = _centre[ci].dx + cos(a) * cl.rx * d;
+      final y = _centre[ci].dy + sin(a) * cl.ry * d;
+      if (x < l || x > rgt || y < t || y > btm) continue;
+      final b = _bucket[k];
+      final i = _n[b];
+      _pts[b][i] = x;
+      _pts[b][i + 1] = y;
+      _n[b] = i + 2;
+    }
+    for (var b = 0; b < _buckets; b++) {
+      if (_n[b] == 0) continue;
+      // Each third glimmers on its own slow beat.
+      final glow = 0.5 + 0.5 * sin(time * 0.35 + b * 2.1);
+      _dots.color = const Color(0xFFB8BEE0).withValues(
+        alpha: 0.08 + 0.12 * glow,
+      );
+      c.drawRawPoints(
+        ui.PointMode.points,
+        Float32List.sublistView(_pts[b], 0, _n[b]),
+        _dots,
+      );
+    }
   }
 }
 

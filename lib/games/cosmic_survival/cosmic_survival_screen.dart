@@ -2909,8 +2909,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
             ),
           ),
 
-          // Joystick (bottom left). Re-check `game.isLoaded` on live ticks so
-          // enabled joystick appears as soon as the game finishes loading.
+          // The floating joystick's area. Re-check `game.isLoaded` on live
+          // ticks so it is there as soon as the game finishes loading.
           ValueListenableBuilder<int>(
             valueListenable: _liveUiTick,
             builder: (_, __, ___) {
@@ -2923,25 +2923,24 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                       PlayInputMode.touch) {
                 return const SizedBox.shrink();
               }
-              // Held through the entrance, then easing in with the HUD.
+              // Held through the entrance. It floats: nothing is drawn
+              // until a thumb comes down in the lower left, between the top
+              // of the field's lower half and the party row.
               final held = _entrance.active;
+              final screen = MediaQuery.sizeOf(context);
+              final inset = MediaQuery.paddingOf(context).bottom;
               return Positioned(
-                bottom: 20 + _joystickLift(),
-                left: 12,
+                left: 0,
+                width: screen.width * 0.58,
+                top: screen.height * 0.38,
+                bottom: 20 + inset + _partyRowHeight() + 8,
                 child: IgnorePointer(
                   ignoring: held,
-                  child: AnimatedOpacity(
-                    opacity: held ? 0 : 1,
-                    duration: const Duration(milliseconds: 500),
-                    curve: Curves.easeOut,
-                    child: SafeArea(
-                      child: VirtualJoystick(
-                        sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
-                        onDirectionChanged: (dir) {
-                          game.setJoystickInput(dir ?? Offset.zero);
-                        },
-                      ),
-                    ),
+                  child: FloatingJoystick(
+                    sizeMultiplier: _largeJoystick ? 1.35 : 1.0,
+                    onDirectionChanged: (dir) {
+                      game.setJoystickInput(dir ?? Offset.zero);
+                    },
                   ),
                 ),
               );
@@ -2949,7 +2948,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
           ),
           if (cameraMode && !over)
             Positioned(
-              bottom: 20,
+              bottom: 20 + _partyRowHeight() + 10,
               left: 12,
               child: SafeArea(
                 child: HudGlass(
@@ -3225,8 +3224,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       alignment: Alignment.bottomRight,
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(
-            bottom: 20 + SurvivalPartySlot.height + 10,
+          padding: EdgeInsets.only(
+            bottom: 20 + _partyRowHeight() + 10,
             right: 8,
           ),
           child: AnimatedScale(
@@ -3829,33 +3828,33 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
   // ── Party Row ──────────────────────────────────────────
 
-  /// Whether the row is too wide to sit beside the joystick: then it takes
-  /// the bottom edge and the joystick stands on it.
-  bool _partyRowFullWidth() {
+  /// The party row's case width: as wide as fits across the bottom edge,
+  /// up to a size that leaves the field the room it needs.
+  double _partyCaseWidth() {
     final party = _party ?? const <CosmicPartyMember>[];
-    final maxActive = _game?.maxActiveCompanions ?? 1;
-    final shown = min(party.length, maxActive);
-    final need = SurvivalPartyRow.widthFor(shown, fold: party.length > shown);
-    final joystick = 2 * 52 * (_largeJoystick ? 1.35 : 1.0) + 12 + 10;
-    return MediaQuery.sizeOf(context).width - 12 - joystick < need;
+    final n = SurvivalPartyRow.casesFor(max(1, party.length));
+    const gap = SurvivalPartyRow.gap;
+    final room =
+        MediaQuery.sizeOf(context).width - 24 - SurvivalPartyRow.followWidth;
+    return ((room / n) - gap).clamp(40.0, 56.0);
   }
 
-  double _joystickLift() =>
-      _partyRowFullWidth() ? SurvivalPartySlot.height + 10 : 0;
+  /// Height of the row, for what stands over it.
+  double _partyRowHeight() => SurvivalPartyRow.heightFor(_partyCaseWidth());
 
   Widget _buildPartyRow(CosmicSurvivalGame game) {
     final party = _party;
     if (party == null || party.isEmpty) return const SizedBox.shrink();
-    final full = _partyRowFullWidth();
+    final caseWidth = _partyCaseWidth();
     final pad =
         GameControllerService.instance.mode.value != PlayInputMode.touch;
     return Positioned(
-      left: full ? 12 : null,
+      left: 12,
       right: 12,
       bottom: 20,
       child: SafeArea(
         child: Align(
-          alignment: full ? Alignment.bottomCenter : Alignment.bottomRight,
+          alignment: Alignment.bottomCenter,
           child: SurvivalPartyRow(
             entries: [
               for (var i = 0; i < party.length; i++)
@@ -3871,6 +3870,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                 ),
             ],
             maxActive: game.maxActiveCompanions,
+            caseWidth: caseWidth,
             tethered: game.companionTethered,
             onTapSlot: (slot) => _toggleCompanion(game, slot),
             onFollow: () {

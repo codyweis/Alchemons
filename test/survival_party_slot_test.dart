@@ -229,20 +229,23 @@ void main() {
     },
   );
 
-  testWidgets('reserves fold into one case that opens them', (tester) async {
+  SurvivalPartyEntry entry(int slot, {required bool out}) => SurvivalPartyEntry(
+    slot: slot,
+    member: member(),
+    state: SurvivalPartySlotState(
+      active: out,
+      following: false,
+      dead: false,
+      hp: 1,
+      cooldown: 2,
+    ),
+  );
+
+  Future<List<int>> pumpRow(
+    WidgetTester tester,
+    List<SurvivalPartyEntry> entries,
+  ) async {
     final tapped = <int>[];
-    SurvivalPartyEntry entry(int slot, {required bool out}) =>
-        SurvivalPartyEntry(
-          slot: slot,
-          member: member(),
-          state: SurvivalPartySlotState(
-            active: out,
-            following: false,
-            dead: false,
-            hp: 1,
-            cooldown: 2,
-          ),
-        );
     await tester.pumpWidget(
       MaterialApp(
         theme: ThemeData(fontFamily: 'Preview'),
@@ -250,11 +253,7 @@ void main() {
           body: Align(
             alignment: Alignment.bottomRight,
             child: SurvivalPartyRow(
-              entries: [
-                entry(0, out: true),
-                entry(1, out: true),
-                for (var i = 2; i < 5; i++) entry(i, out: false),
-              ],
+              entries: entries,
               maxActive: 2,
               tethered: true,
               onTapSlot: tapped.add,
@@ -265,17 +264,43 @@ void main() {
         ),
       ),
     );
-    expect(find.byType(SurvivalPartySlot), findsNWidgets(2));
-    expect(find.text('+3'), findsOneWidget);
-    expect(find.text('FOLLOW'), findsOneWidget);
-    await tester.tap(find.text('+3'));
-    await tester.pumpAndSettle();
+    return tapped;
+  }
+
+  testWidgets('a party of five shows every case, each in its own place', (
+    tester,
+  ) async {
+    final tapped = await pumpRow(tester, [
+      entry(0, out: true),
+      entry(1, out: true),
+      for (var i = 2; i < 5; i++) entry(i, out: false),
+    ]);
     expect(find.byType(SurvivalPartySlot), findsNWidgets(5));
+    expect(find.textContaining('+'), findsNothing);
+    expect(find.text('FOLLOW'), findsOneWidget);
+    await tester.tap(find.byType(SurvivalPartySlot).at(3));
+    await tester.pumpAndSettle();
+    expect(tapped, [3]);
+    // Deploying from the bench does not move anyone.
+    expect(find.byType(SurvivalPartySlot), findsNWidgets(5));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('only a squad of more than five folds its bench', (tester) async {
+    final tapped = await pumpRow(tester, [
+      entry(0, out: true),
+      entry(1, out: true),
+      for (var i = 2; i < 9; i++) entry(i, out: false),
+    ]);
+    expect(find.byType(SurvivalPartySlot), findsNWidgets(2));
+    expect(find.text('+7'), findsOneWidget);
+    await tester.tap(find.text('+7'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SurvivalPartySlot), findsNWidgets(9));
     // The tray sits above the row: its first case is the first reserve.
     await tester.tap(find.byType(SurvivalPartySlot).first);
     await tester.pumpAndSettle();
     expect(tapped, [2]);
-    // Choosing one closes the tray.
     expect(find.byType(SurvivalPartySlot), findsNWidgets(2));
     expect(tester.takeException(), isNull);
   });

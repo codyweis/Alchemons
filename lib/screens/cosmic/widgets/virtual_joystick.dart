@@ -77,6 +77,131 @@ class VirtualJoystickState extends State<VirtualJoystick> {
   }
 }
 
+/// A joystick that floats. At rest it waits faintly at its home in the
+/// bottom-left of its area, so it is always clear where to put a thumb; a
+/// thumb coming down anywhere in the area brings it, lit, to that spot, and
+/// on release it glides home and dims. It takes no space of its own.
+class FloatingJoystick extends StatefulWidget {
+  const FloatingJoystick({
+    super.key,
+    required this.onDirectionChanged,
+    this.sizeMultiplier = 1.0,
+    this.restOpacity = 0.3,
+  });
+
+  /// Called with a normalised direction (magnitude 0-1), or null when released.
+  final ValueChanged<Offset?> onDirectionChanged;
+  final double sizeMultiplier;
+
+  /// How strongly the lens shows while nobody is steering.
+  final double restOpacity;
+
+  @override
+  State<FloatingJoystick> createState() => _FloatingJoystickState();
+}
+
+class _FloatingJoystickState extends State<FloatingJoystick> {
+  final ValueNotifier<Offset?> _knob = ValueNotifier(null);
+
+  /// Where the lens is centred while held: where the thumb came down, kept
+  /// far enough in for the whole lens to fit. Null at rest.
+  Offset? _origin;
+  bool get _held => _origin != null;
+  Size _box = Size.zero;
+
+  double get _baseRadius =>
+      VirtualJoystickState._defaultBaseRadius * widget.sizeMultiplier;
+  double get _knobRadius =>
+      VirtualJoystickState._defaultKnobRadius * widget.sizeMultiplier;
+
+  /// The lens's resting centre: the area's bottom-left corner.
+  Offset _home(double r) => Offset(r + 12, max(r, _box.height - r - 4));
+
+  void _down(Offset p) {
+    final r = _baseRadius;
+    setState(() {
+      _origin = Offset(
+        p.dx.clamp(r, max(r, _box.width - r)),
+        p.dy.clamp(r, max(r, _box.height - r)),
+      );
+    });
+    _move(p);
+  }
+
+  void _move(Offset p) {
+    final o = _origin;
+    if (o == null) return;
+    final reach = _baseRadius - _knobRadius;
+    var d = p - o;
+    if (d.distance > reach) d = d / d.distance * reach;
+    _knob.value = d;
+    widget.onDirectionChanged(d / reach);
+  }
+
+  void _up() {
+    if (!_held) return;
+    _knob.value = null;
+    setState(() => _origin = null);
+    widget.onDirectionChanged(null);
+  }
+
+  @override
+  void dispose() {
+    _knob.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, box) {
+      _box = box.biggest;
+      final r = _baseRadius;
+      final at = _origin ?? _home(r);
+      // It jumps to a thumb at once, and eases home when let go.
+      final ease = _held ? Duration.zero : const Duration(milliseconds: 280);
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onPanDown: (d) => _down(d.localPosition),
+        onPanUpdate: (d) => _move(d.localPosition),
+        onPanEnd: (_) => _up(),
+        onPanCancel: _up,
+        child: Stack(
+          children: [
+            AnimatedPositioned(
+              duration: ease,
+              curve: Curves.easeOutCubic,
+              left: at.dx - r,
+              top: at.dy - r,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _held ? 1 : widget.restOpacity,
+                  duration: _held
+                      ? const Duration(milliseconds: 90)
+                      : const Duration(milliseconds: 280),
+                  curve: Curves.easeOut,
+                  child: RepaintBoundary(
+                    child: SizedBox(
+                      width: r * 2,
+                      height: r * 2,
+                      child: CustomPaint(
+                        painter: _JoystickPainter(
+                          knob: _knob,
+                          baseRadius: r,
+                          knobRadius: _knobRadius,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 /// A dark glass lens with a glass bead in it. The lens's limb catches a
 /// little light instead of being outlined; four short marks at the compass
 /// points stand in for the old cross. The bead is pale glass at rest and

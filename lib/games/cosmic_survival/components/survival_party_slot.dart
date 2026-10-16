@@ -1,8 +1,11 @@
 // lib/games/cosmic_survival/components/survival_party_slot.dart
 //
-// The party along the bottom edge of the run: a row of small specimen cases,
-// the reserves folded into one "+N" case, and FOLLOW / FREE at the end. The
-// field stays clear; the top bar and the surge tube carry the run.
+// The party along the bottom edge of the run: a row of specimen cases, the
+// whole party in slot order (a party is five at most, so nobody is ever
+// hidden), and FOLLOW / FREE at its end. Nothing stands on it: the joystick
+// floats (see FloatingJoystick). The field stays clear; the top bar
+// and the surge tube carry the run. Only a debug squad of more than five
+// folds its bench into one "+N" case.
 //
 // Each case is its own repaint boundary. The row rebuilds on the HUD's tick
 // as the rest of the HUD does, and a case's tubes repaint only when its
@@ -104,6 +107,7 @@ class SurvivalPartySlot extends StatelessWidget {
     required this.state,
     required this.onTap,
     this.feedCount,
+    this.width = defaultWidth,
   });
 
   final CosmicPartyMember member;
@@ -113,9 +117,13 @@ class SurvivalPartySlot extends StatelessWidget {
   /// A Plant Mask's feeds this deployment, shown in the case's corner.
   final int? feedCount;
 
-  static const width = 40.0;
-  static const height = 58.0;
-  static const _art = 32.0;
+  /// The case's width; its height and art follow from it.
+  final double width;
+
+  static const defaultWidth = 52.0;
+  static double heightFor(double width) => (width * 1.34).roundToDouble();
+  double get height => heightFor(width);
+  double get _art => width - 12;
 
   /// Reserve: the creature in grey, dimmed — present, not out.
   static const _reserve = ColorFilter.matrix([
@@ -150,8 +158,7 @@ class SurvivalPartySlot extends StatelessWidget {
             width: _art,
             height: _art,
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) =>
-                const SizedBox.square(dimension: _art),
+            errorBuilder: (_, __, ___) => SizedBox.square(dimension: _art),
           );
     final vines = feedCount == null || !s.active
         ? null
@@ -183,11 +190,11 @@ class SurvivalPartySlot extends StatelessWidget {
                 width: width,
                 height: height,
                 color: SurvivalInk.bg0.withValues(alpha: 0.86),
-                padding: const EdgeInsets.fromLTRB(4, 3, 4, 5),
+                padding: const EdgeInsets.fromLTRB(5, 4, 5, 6),
                 child: Column(
                   children: [
                     SizedBox(
-                      height: 36,
+                      height: _art + 4,
                       child: CustomPaint(
                         painter: s.active
                             ? CaseLightPainter(
@@ -207,10 +214,10 @@ class SurvivalPartySlot extends StatelessWidget {
                                     ),
                             ),
                             if (s.dead)
-                              const Icon(
+                              Icon(
                                 Icons.close_rounded,
                                 color: SurvivalInk.danger,
-                                size: 22,
+                                size: _art * 0.6,
                               ),
                             if (vines != null)
                               Positioned(
@@ -219,7 +226,7 @@ class SurvivalPartySlot extends StatelessWidget {
                                 child: Text(
                                   '$feedCount',
                                   style: hudMono(
-                                    7,
+                                    8,
                                     SurvivalInk.follow,
                                     spacing: 0,
                                   ),
@@ -230,12 +237,12 @@ class SurvivalPartySlot extends StatelessWidget {
                       ),
                     ),
                     const Spacer(),
-                    _tube(s.hp, _hpColor(s.hp), 3),
+                    _tube(s.hp, _hpColor(s.hp), 4),
                     const SizedBox(height: 3),
                     _tube(
                       s.specialFill,
                       s.ready ? SurvivalInk.brassGlow : SurvivalInk.brass,
-                      s.ready ? 4 : 3,
+                      s.ready ? 5 : 4,
                     ),
                   ],
                 ),
@@ -269,10 +276,11 @@ class SurvivalPartyEntry {
   final int? feedCount;
 }
 
-/// The party along the bottom edge: the ones out (and the fallen), a dim
-/// empty case for each open place a reserve could fill, the reserves folded
-/// into one "+N" case that opens them in a tray above the row, and FOLLOW /
-/// FREE.
+/// The party along the bottom edge: every member in slot order, out ones
+/// lit, the bench grey, the fallen crossed, then FOLLOW / FREE. Over
+/// [shownMax] (a debug squad), the ones out stay in the row, a dim empty case
+/// marks each open place, and the bench folds into one "+N" case that opens
+/// it in a tray above the row.
 class SurvivalPartyRow extends StatefulWidget {
   const SurvivalPartyRow({
     super.key,
@@ -282,6 +290,7 @@ class SurvivalPartyRow extends StatefulWidget {
     required this.onTapSlot,
     required this.onFollow,
     required this.wrap,
+    this.caseWidth = SurvivalPartySlot.defaultWidth,
     this.padSlot,
   });
 
@@ -294,19 +303,30 @@ class SurvivalPartyRow extends StatefulWidget {
   /// Lets the screen mark the controller's chosen slot.
   final Widget Function(int slot, Widget child) wrap;
 
+  /// Each case's width.
+  final double caseWidth;
+
   /// The slot a controller is on, if one is steering: a reserve chosen that
   /// way opens the tray so it can be seen.
   final int? padSlot;
 
+  /// The most a party can bring; up to this many, every case is shown.
+  static const shownMax = 5;
   static const gap = 4.0;
   static const foldWidth = 30.0;
-  static const followWidth = 46.0;
+  static const followWidth = 42.0;
 
-  /// The row's width with [shown] cases, and a fold when [fold].
-  static double widthFor(int shown, {required bool fold}) =>
-      shown * (SurvivalPartySlot.width + gap) +
-      (fold ? foldWidth + gap : 0) +
-      followWidth;
+  /// How many case-widths the row needs for a party of [members].
+  static int casesFor(int members) =>
+      members <= shownMax ? members : shownMax + 1;
+
+  /// The row's width for [members] cases of [caseWidth], FOLLOW included.
+  static double widthFor(int members, double caseWidth) =>
+      casesFor(members) * (caseWidth + gap) + followWidth;
+
+  /// The row's height with cases of [caseWidth].
+  static double heightFor(double caseWidth) =>
+      SurvivalPartySlot.heightFor(caseWidth);
 
   @override
   State<SurvivalPartyRow> createState() => _SurvivalPartyRowState();
@@ -322,17 +342,42 @@ class _SurvivalPartyRowState extends State<SurvivalPartyRow> {
       state: e.state,
       feedCount: e.feedCount,
       onTap: onTap,
+      width: widget.caseWidth,
     ),
   );
 
   /// The bench opens up to this many cases across.
   static const _trayAcross = 6;
 
+  Widget get _follow => _FollowKey(
+    tethered: widget.tethered,
+    onTap: widget.onFollow,
+    height: SurvivalPartySlot.heightFor(widget.caseWidth),
+  );
+
   @override
   Widget build(BuildContext context) =>
-      LayoutBuilder(builder: (context, box) => _build(context, box.maxWidth));
+      widget.entries.length <= SurvivalPartyRow.shownMax
+      ? _buildAll()
+      : LayoutBuilder(
+          builder: (context, box) => _buildFolded(context, box.maxWidth),
+        );
 
-  Widget _build(BuildContext context, double room) {
+  /// The whole party, each in its own place.
+  Widget _buildAll() => Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      for (final e in widget.entries) ...[
+        _case(e, () => widget.onTapSlot(e.slot)),
+        const SizedBox(width: SurvivalPartyRow.gap),
+      ],
+      _follow,
+    ],
+  );
+
+  Widget _buildFolded(BuildContext context, double room) {
+    final caseH = SurvivalPartySlot.heightFor(widget.caseWidth);
     final out = widget.entries
         .where((e) => e.state.active || e.state.dead)
         .toList();
@@ -361,22 +406,14 @@ class _SurvivalPartyRowState extends State<SurvivalPartyRow> {
           child: trayShown
               ? Padding(
                   padding: const EdgeInsets.only(bottom: 6),
-                  // Six across at most (fewer on a narrow screen), at least
-                  // as wide as the row, filling from the right: a long
-                  // bench stacks up in a few rows instead of one column.
+                  // Six across at most (fewer on a narrow screen), filling
+                  // from the right: a long bench stacks up in a few rows.
                   child: SizedBox(
                     width: min(
                       room,
-                      max(
-                        SurvivalPartyRow.widthFor(
-                          out.length + empty,
-                          fold: true,
-                        ),
-                        _trayAcross *
-                                (SurvivalPartySlot.width +
-                                    SurvivalPartyRow.gap) -
-                            SurvivalPartyRow.gap,
-                      ),
+                      _trayAcross *
+                              (widget.caseWidth + SurvivalPartyRow.gap) -
+                          SurvivalPartyRow.gap,
                     ),
                     child: Wrap(
                       alignment: WrapAlignment.end,
@@ -414,8 +451,8 @@ class _SurvivalPartyRowState extends State<SurvivalPartyRow> {
                     () => setState(() => _tray = true),
                   ),
                   child: Container(
-                    width: SurvivalPartySlot.width,
-                    height: SurvivalPartySlot.height,
+                    width: widget.caseWidth,
+                    height: caseH,
                     color: SurvivalInk.bg0.withValues(alpha: 0.5),
                   ),
                 ),
@@ -426,11 +463,12 @@ class _SurvivalPartyRowState extends State<SurvivalPartyRow> {
               _ReserveFold(
                 count: reserve.length,
                 open: trayShown,
+                height: caseH,
                 onTap: () => setState(() => _tray = !_tray),
               ),
               const SizedBox(width: SurvivalPartyRow.gap),
             ],
-            _FollowKey(tethered: widget.tethered, onTap: widget.onFollow),
+            _follow,
           ],
         ),
       ],
@@ -443,11 +481,13 @@ class _ReserveFold extends StatelessWidget {
   const _ReserveFold({
     required this.count,
     required this.open,
+    required this.height,
     required this.onTap,
   });
 
   final int count;
   final bool open;
+  final double height;
   final VoidCallback onTap;
 
   @override
@@ -465,7 +505,7 @@ class _ReserveFold extends StatelessWidget {
         ),
         child: Container(
           width: SurvivalPartyRow.foldWidth,
-          height: SurvivalPartySlot.height,
+          height: height,
           color: SurvivalInk.bg0.withValues(alpha: 0.86),
           alignment: Alignment.center,
           child: Text(
@@ -486,10 +526,15 @@ class _ReserveFold extends StatelessWidget {
 /// FOLLOW (the nearest Alchemon tows behind the ship) or FREE. The word is
 /// the control; lit from below while one follows.
 class _FollowKey extends StatelessWidget {
-  const _FollowKey({required this.tethered, required this.onTap});
+  const _FollowKey({
+    required this.tethered,
+    required this.onTap,
+    required this.height,
+  });
 
   final bool tethered;
   final VoidCallback onTap;
+  final double height;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -506,13 +551,13 @@ class _FollowKey extends StatelessWidget {
         ),
         child: Container(
           width: SurvivalPartyRow.followWidth,
-          height: SurvivalPartySlot.height,
+          height: height,
           color: SurvivalInk.bg0.withValues(alpha: 0.86),
           alignment: Alignment.center,
           child: Text(
             tethered ? 'FOLLOW' : 'FREE',
             style: hudMono(
-              7.5,
+              8,
               tethered ? SurvivalInk.follow : SurvivalInk.muted,
               spacing: 0.6,
             ),

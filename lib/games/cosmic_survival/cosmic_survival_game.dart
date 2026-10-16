@@ -19738,7 +19738,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     canvas.translate(-cx + shake.dx, -cy + shake.dy);
 
     final view = Rect.fromLTWH(cx, cy, viewW, viewH);
-    _nebula.paint(canvas, view, orb.position);
+    _nebula.paint(canvas, view, orb.position, stats.timeElapsed);
     _sky.paint(canvas, view, stats.timeElapsed, _currentZoom);
     // Mystic environment tint — viewport-covering element wash that
     // sits between the starfield and the arena. Stacks if multiple
