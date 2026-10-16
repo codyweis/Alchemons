@@ -546,3 +546,43 @@ void paintShockFront(
 }
 
 final _Points _front = _Points(3);
+
+/// The orb's own light going out from it, [t] (0 → 1) of the way through:
+/// a front of grains racing out to [reach] and thinning as it goes, over a
+/// faint pool. The shield pulse's push is pale; the nova's burn is [light]
+/// at its hottest ([hot]). Wide, faint and gone in half a second — a front
+/// of matter, never a ring.
+///
+/// Budget: one gradient fill and three point batches while it runs.
+void paintOrbFront(
+  Canvas c,
+  Offset origin,
+  double reach,
+  Color light,
+  double t, {
+  bool hot = false,
+}) {
+  if (t <= 0 || t >= 1) return;
+  final e = 1 - pow(1 - t, 3).toDouble();
+  final radius = 30 + (reach - 30) * e;
+  final fade = (1 - t) * (1 - t);
+  vfxSpill(c, origin, radius * 1.05, light, (hot ? 0.26 : 0.16) * fade);
+  _front.clear();
+  final n = (radius * 0.5).clamp(30, 160).toInt();
+  for (var i = 0; i < n; i++) {
+    final a = (i + vfxHash(i * 2.3 + reach)) / n * 2 * pi;
+    final j = vfxHash(i * 4.1 + reach);
+    final d = radius + (j - 0.6) * 18;
+    _front.add(j > 0.75 ? 1 : 0, origin.dx + cos(a) * d, origin.dy + sin(a) * d);
+    if (i % 3 == 0) {
+      final back = radius - 12 - vfxHash(i * 6.7) * 36;
+      if (back > 0) {
+        _front.add(2, origin.dx + cos(a) * back, origin.dy + sin(a) * back);
+      }
+    }
+  }
+  final lit = Color.lerp(light, const Color(0xFFFFFFFF), hot ? 0.45 : 0.25)!;
+  _front.draw(c, 2, 3.0, light.withValues(alpha: 0.3 * fade));
+  _front.draw(c, 0, 4.2, light.withValues(alpha: 0.85 * fade));
+  _front.draw(c, 1, 5.6, lit.withValues(alpha: 0.95 * fade));
+}

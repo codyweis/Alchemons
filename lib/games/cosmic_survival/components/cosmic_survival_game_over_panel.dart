@@ -21,11 +21,13 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
-/// The loss: a muted ember red, the HUD's danger rather than candy pink.
-const Color _frame = Color(0xFFE8857A);
+import 'survival_hud.dart';
 
-/// The way forward, in the console's amber.
-const Color _go = Color(0xFFE4B356);
+/// The loss: the HUD's own danger, not a red of the panel's own.
+const Color _frame = SurvivalInk.danger;
+
+/// The way forward, in the kit's pale brass.
+const Color _go = SurvivalInk.brassBright;
 
 class CosmicSurvivalGameOverPanel extends StatefulWidget {
   const CosmicSurvivalGameOverPanel({
@@ -188,8 +190,8 @@ class _CosmicSurvivalGameOverPanelState
                                     children: [
                                       Container(
                                         height: 1,
-                                        color: Colors.white.withValues(
-                                          alpha: 0.08,
+                                        color: SurvivalInk.plain.withValues(
+                                          alpha: 0.3,
                                         ),
                                       ),
                                       const SizedBox(height: 12),
@@ -238,7 +240,7 @@ class _CosmicSurvivalGameOverPanelState
                               Expanded(
                                 child: _ResultsButton(
                                   label: 'NEW TEAM',
-                                  color: Colors.white70,
+                                  color: SurvivalInk.ink,
                                   onPressed: context.soundAction(
                                     widget.onNewTeam,
                                   ),
@@ -270,33 +272,43 @@ class _CosmicSurvivalGameOverPanelState
     );
   }
 
+  // Each figure and label shrinks to its chip rather than wrapping: at large
+  // text on the folded Fold, "48210" broke over two lines.
   Widget _statChip(String label, String value) => Expanded(
     child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-        color: Colors.white.withValues(alpha: 0.035),
+        color: SurvivalInk.bg1,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(
-              value,
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: SurvivalInk.ink,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1,
+                ),
               ),
             ),
             const SizedBox(height: 3),
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: Colors.white.withValues(alpha: 0.45),
-                fontSize: 12,
-                letterSpacing: 1.5,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  color: SurvivalInk.muted,
+                  fontSize: 12,
+                  letterSpacing: 1.5,
+                ),
               ),
             ),
           ],
@@ -366,7 +378,7 @@ class _ResultsButton extends StatelessWidget {
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
-          foregroundColor: emphasized ? Colors.white : color,
+          foregroundColor: emphasized ? SurvivalInk.ink : color,
           side: BorderSide.none,
           backgroundColor: color.withValues(alpha: emphasized ? 0.14 : 0.06),
           padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 6),

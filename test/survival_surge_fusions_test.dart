@@ -593,7 +593,7 @@ void main() {
       expect(fusedDamage, greaterThan(plainDamage * 2));
     });
 
-    test('Rapid Rockets: rockets come as fast as shots', () async {
+    test('Rapid Rockets: rockets reload faster than shots', () async {
       Future<double> barrage(bool fused) async {
         final game = await arena(
           const ['rocket_barrage', 'fire_rate'],
@@ -610,7 +610,8 @@ void main() {
       final fused = await barrage(true);
       expect(plain, greaterThan(0));
       // 1.5x the rockets, give or take one in flight.
-      expect(fused / plain, inInclusiveRange(1.3, 1.7));
+      // 1.5 \u2192 kRapidRocketsReload: nearly twice the rockets.
+      expect(fused / plain, inInclusiveRange(1.6, 2.1));
     });
 
     test('Heavy Missiles: the overdrive drives the missiles', () async {
@@ -630,7 +631,10 @@ void main() {
       final plain = await firstMissile(false);
       final fused = await firstMissile(true);
       final kinetic = def('kinetic_overdrive').maxStacks;
-      expect(fused.damage / plain.damage, closeTo(1 + kinetic * 0.10, 1e-6));
+      expect(
+        fused.damage / plain.damage,
+        closeTo(1 + kinetic * kHeavyMissilesImpactPerLevel, 1e-6),
+      );
       expect(
         fused.velocity.distance / plain.velocity.distance,
         closeTo(1 + kinetic * 0.12, 1e-6),

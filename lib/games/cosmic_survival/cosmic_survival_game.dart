@@ -72,6 +72,14 @@ import 'package:flutter/material.dart';
 // COMPANION DATA - uses same stat formulas as cosmic game
 // ---------------------------------------------------------------------------
 
+/// One of the orb's fronts in flight (paintOrbFront).
+class _OrbFront {
+  _OrbFront({required this.reach, required this.seconds, required this.nova});
+  final double reach, seconds;
+  final bool nova;
+  double age = 0;
+}
+
 /// The least time between two hit flashes on one companion.
 const double kCompanionFlashGap = 0.5;
 
@@ -1637,6 +1645,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final ArenaSky _sky = ArenaSky();
   final ArenaNebula _nebula = ArenaNebula();
   final SurgeGrains _surgeGrains = SurgeGrains();
+
+  /// The shield pulse's and the nova's fronts going out from the orb.
+  final List<_OrbFront> _orbFronts = [];
   final ArenaRim _rim = ArenaRim();
 
   // VFX particles
@@ -2732,10 +2743,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Auto-fire at nearest enemy or boss
     ship.fireTimer += dt;
-    // Rapid Rockets (a fusion): rockets reload as fast as shots.
-    final rocketPenalty = powerUps.hasRocketBarrage && !powerUps.hasRapidRockets
-        ? 1.5
-        : 1.0;
+    // Rapid Rockets (a fusion): rockets reload faster than plain shots.
+    final rocketPenalty = !powerUps.hasRocketBarrage
+        ? 1.0
+        : powerUps.hasRapidRockets
+        ? kRapidRocketsReload
+        : 1.5;
     final effectiveFireCooldown =
         ship.fireCooldown * rocketPenalty / powerUps.fireRateMultiplier;
     if (ship.fireTimer >= effectiveFireCooldown) {
@@ -2889,7 +2902,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             ShipProjectile(
               position: ship.position,
               velocity: dir * shotSpeed,
-              damage: baseDamage * 0.6,
+              // Homing Spread: the side shots hit as hard as the centre.
+              damage: baseDamage * (homing ? 1.0 : 0.6),
               life: shotLife,
               isHoming: target != null,
               target: target,
@@ -2930,7 +2944,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 (20.0 + missileLevel * 10.0) *
                 powerUps.shipDamageMultiplier *
                 maskShipDamageAmp *
-                (1.0 + kinetic * 0.10);
+                (1.0 + kinetic * kHeavyMissilesImpactPerLevel);
             final splashRadius = 80.0 + missileLevel * 24.0;
             onSound?.call(SoundCue.shipMissile);
             shipProjectiles.add(
@@ -18913,11 +18927,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // == Orb Defenses ========================================================
 
   void _updateOrbDefenses(double dt) {
+    for (final f in _orbFronts) {
+      f.age += dt;
+    }
+    _orbFronts.removeWhere((f) => f.age >= f.seconds);
     if (powerUps.shieldPulseLevel > 0) {
       orb.shieldPulseTimer += dt;
       final interval = 12.0 - powerUps.shieldPulseLevel * 2;
       if (orb.shieldPulseTimer >= interval) {
         orb.shieldPulseTimer = 0;
+        _orbFronts.add(_OrbFront(reach: 200, seconds: 0.42, nova: false));
         _visitEnemiesNear(orb.position, 200, (enemy) {
           final d = (enemy.position - orb.position).distance;
           if (d < 200) {
@@ -18982,6 +19001,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   /// The orb's nova: its damage to every body in its reach.
   void _releaseOrbNova() {
+    _orbFronts.add(_OrbFront(reach: 250, seconds: 0.5, nova: true));
     _visitEnemiesNear(orb.position, 250, (enemy) {
       final d = (enemy.position - orb.position).distance;
       if (d < 250) {
@@ -18996,7 +19016,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _fireLinkedOrbTurret(CosmicSurvivalEnemy target) {
     final level = powerUps.autoTurretLevel;
     if (level <= 0 || target.isDead) return;
-    if (!_withinRange(target.position, orb.position, 360)) return;
+    if (!_withinRange(target.position, orb.position, kLinkedTurretReach)) {
+      return;
+    }
     final beamColor = Color.lerp(orb.secondaryColor, Colors.white, 0.25)!;
     _spawnBeam(
       orb.position,
@@ -19853,6 +19875,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
     _renderOrb(canvas);
+    for (final f in _orbFronts) {
+      paintOrbFront(
+        canvas,
+        orb.position,
+        f.reach,
+        f.nova ? orbLook(orb.skin).essence : const Color(0xFFE2C98F),
+        f.age / f.seconds,
+        hot: f.nova,
+      );
+    }
 
     // Incoming Let meteors mark the ground they are committed to. Drawn under
     // the bodies standing on it, because it is a mark on the arena floor and

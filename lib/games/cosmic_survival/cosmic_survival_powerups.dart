@@ -774,7 +774,7 @@ const kFusionPowerUps = [
   PowerUpDef(
     id: 'fusion_homing_spread',
     name: 'Homing Spread',
-    description: 'Side shots home in too',
+    description: 'Side shots home in and hit as hard as the centre shot',
     icon: '🌊',
     category: PowerUpCategory.shipWeapon,
     rarity: PowerUpRarity.legendary,
@@ -786,7 +786,7 @@ const kFusionPowerUps = [
   PowerUpDef(
     id: 'fusion_rapid_rockets',
     name: 'Rapid Rockets',
-    description: 'Rockets reload as fast as shots',
+    description: 'Rockets reload faster than shots',
     icon: '🚀',
     category: PowerUpCategory.shipWeapon,
     rarity: PowerUpRarity.legendary,
@@ -800,7 +800,7 @@ const kFusionPowerUps = [
     id: 'fusion_heavy_missiles',
     name: 'Heavy Missiles',
     description:
-        'Kinetic Overdrive drives the missiles: +30% impact, +36% speed',
+        'Kinetic Overdrive drives the missiles: +75% impact, +36% speed',
     icon: '🛰️',
     category: PowerUpCategory.shipWeapon,
     rarity: PowerUpRarity.legendary,
@@ -813,7 +813,7 @@ const kFusionPowerUps = [
   PowerUpDef(
     id: 'fusion_linked_turrets',
     name: 'Linked Turrets',
-    description: 'The orb turret fires on what the ship turret hits near it',
+    description: 'The orb turret fires on what the ship turret hits',
     icon: '🔧',
     category: PowerUpCategory.orbDefense,
     rarity: PowerUpRarity.legendary,
@@ -853,6 +853,15 @@ const kFusionPowerUps = [
 /// P70's mean first death about 1.7 waves past its parents and P100 + E10's
 /// not at all (0.5% measured about the same).
 const double kTemperedFieldShare = 0.01;
+
+/// Rapid Rockets: a rocket's reload against a plain shot's (1.5 without it).
+const double kRapidRocketsReload = 0.8;
+
+/// Heavy Missiles: missile impact per Kinetic Overdrive level.
+const double kHeavyMissilesImpactPerLevel = 0.25;
+
+/// Linked Turrets: how far from the orb its turret answers the ship's.
+const double kLinkedTurretReach = 700;
 
 /// At most this many fusion cards in one draft, so it keeps a drawn card.
 const int kMaxFusionCardsPerDraft = 2;
