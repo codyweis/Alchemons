@@ -149,6 +149,36 @@ void main() {
     }
   });
 
+  test('Autopilot flies a let-go ship out for grains, and steering keeps it', () async {
+    final autopilot = kAllPowerUps.firstWhere((d) => d.id == 'autopilot');
+    expect(autopilot.maxStacks, 1);
+    // 500 out: past the core's field and the idle orbit's pull.
+    for (final (pick, steer, taken) in [
+      (false, false, false),
+      (true, false, true),
+      (true, true, false),
+    ]) {
+      final game = await arena();
+      if (pick) game.applyPowerUp(autopilot);
+      final spot = game.orb.position + const Offset(500, 0);
+      final e = body(spot);
+      game.enemies.add(e);
+      game.debugKillEnemy(e);
+      game.setJoystickInput(steer ? const Offset(-1, 0) : Offset.zero);
+      run(game, 6);
+      final label = 'autopilot $pick, steering $steer';
+      expect(game.debugSurgeOut < 1e-9, taken, reason: label);
+      if (pick && !steer) {
+        run(game, 6);
+        expect(
+          (game.ship.position - game.orb.position).distance,
+          lessThan(400),
+          reason: 'with nothing left out it comes home to its orbit',
+        );
+      }
+    }
+  });
+
   test('a full field keeps every kill’s value', () {
     final grains = SurgeGrains(random: Random(1));
     for (var i = 0; i < SurgeGrains.cap + 200; i++) {

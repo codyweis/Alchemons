@@ -6,7 +6,8 @@
 // field, which drinks them; the meter is paid when a grain arrives. Grains
 // the ship leaves stay out, wave after wave, until it gathers them. Surge
 // Magnet widens the ship's pull, and at its top level a cleared wave sends
-// every grain still lying out into the core.
+// every grain still lying out into the core. Autopilot flies a ship that is
+// let go to them ([SurgeGrains.gatherTarget]).
 //
 // Budget: at most [SurgeGrains.cap] grains; past it a kill's value is added
 // to grains already lying out instead of new ones. Heads and trails go out
@@ -101,6 +102,40 @@ class SurgeGrains {
       }
       _grains.add(g);
     }
+  }
+
+  /// Where a ship at [from] should fly to gather: the lying grain worth the
+  /// most for the trip, within [reach] of the [core] and outside its field
+  /// (those it drinks for itself). Grains near [prefer], the last pick, count
+  /// for more, so the ship holds its course instead of dithering between two
+  /// heaps. Null when there is nothing out there to fetch.
+  Offset? gatherTarget(
+    Offset from,
+    Offset core, {
+    required double reach,
+    Offset? prefer,
+  }) {
+    _Grain? best;
+    var bestScore = 0.0;
+    const drink2 = _kCoreDrink * _kCoreDrink;
+    final reach2 = reach * reach;
+    for (final g in _grains) {
+      if (g.heading != 0) continue;
+      final cx = g.x - core.dx, cy = g.y - core.dy;
+      final c2 = cx * cx + cy * cy;
+      if (c2 < drink2 || c2 > reach2) continue;
+      final sx = g.x - from.dx, sy = g.y - from.dy;
+      var score = g.value / (sqrt(sx * sx + sy * sy) + 220);
+      if (prefer != null) {
+        final px = g.x - prefer.dx, py = g.y - prefer.dy;
+        if (px * px + py * py < 80 * 80) score *= 1.6;
+      }
+      if (score > bestScore) {
+        bestScore = score;
+        best = g;
+      }
+    }
+    return best == null ? null : Offset(best.x, best.y);
   }
 
   /// Sends every grain out now to the core (a cleared wave). Grains left by

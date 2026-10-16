@@ -6,8 +6,9 @@
 // does — a heap for Strength, streaks for Speed, a turning lattice for
 // Intelligence, a bloom for Beauty, a fan for Spread Shot, a comet for the
 // rockets, a shell for the pulse, grains rising for healing, a burst for the
-// nova, a chain for Chain Lightning, brass grains drawn in to one point for
-// the Surge Magnet, two ember currents braided into one surge for Warpath —
+// nova, a chain for Chain Lightning, violet grains drawn in to one point for
+// the Surge Magnet, the ship's loop out through violet grains and home for
+// Autopilot, two ember currents braided into one surge for Warpath —
 // so three cards never look alike. Keyed by id.
 //
 // A SURGE FUSION is drawn as its two parents' formations made one, in both
@@ -55,6 +56,7 @@ enum UpgradeMotif {
   braid,
   world,
   magnet,
+  sweep,
   // Surge fusions.
   seekingFan,
   rocketTrain,
@@ -97,6 +99,8 @@ const _heal = Color(0xFF7FD6A0);
 const _blood = Color(0xFFD9485A);
 const _volt = Color(0xFFB9A8FF);
 const _brass = Color(0xFFCDB07A);
+// The surge's violet (SurvivalInk.surge), the grains Autopilot fetches.
+const _surge = Color(0xFF9A7CEB);
 // The ship's embers in Warpath's braid, a gold beside Strength's red.
 const _ember = Color(0xFFF2B25C);
 
@@ -195,7 +199,12 @@ UpgradeArtSpec upgradeArtFor(PowerUpDef def) {
       _strength,
       second: _ember,
     ),
-    'surge_magnet' => const UpgradeArtSpec(UpgradeMotif.magnet, _brass),
+    'surge_magnet' => const UpgradeArtSpec(UpgradeMotif.magnet, _surge),
+    'autopilot' => const UpgradeArtSpec(
+      UpgradeMotif.sweep,
+      _surge,
+      second: _steel,
+    ),
     'fusion_homing_spread' => const UpgradeArtSpec(
       UpgradeMotif.seekingFan,
       _shot,
@@ -444,6 +453,16 @@ abstract final class UpgradeArtPaint {
           alpha: 0.95,
         );
         _magnet(t, s);
+      case UpgradeMotif.sweep:
+        GrainGlass.sphere(
+          canvas,
+          c + _sweepHome * r,
+          r * 0.21,
+          t,
+          a: spec.color,
+          glow: 0.6,
+        );
+        _sweep(t, s);
       case UpgradeMotif.world:
         GrainGlass.sphere(
           canvas,
@@ -1072,6 +1091,86 @@ abstract final class UpgradeArtPaint {
       );
     }
     _add(_glint, p0.dx, p0.dy);
+  }
+
+  // ── Autopilot: the ship's loop out from the orb and home again. ──
+  // The ship (a knot of steel grains, its wake behind it) leaves the orb,
+  // swings out along a petal through heaps of violet grains lying where
+  // bodies fell, and each heap it passes curls into it and rides its wake;
+  // then it comes home and goes again, the heaps settling back behind it.
+  static const Offset _sweepHome = Offset(-0.34, 0.32);
+
+  static Offset _sweepAt(double u) {
+    final a = -0.62 + (u - 0.5) * 1.5;
+    final rho = 0.98 * math.pow(math.sin(math.pi * u), 0.8).toDouble();
+    return _sweepHome + Offset(math.cos(a), math.sin(a)) * rho;
+  }
+
+  static void _sweep(double t, int s) {
+    final u = (t * 0.18) % 1.0;
+    final head = _sweepAt(u);
+    // The grains along its way, in small heaps where bodies fell: lying
+    // until it comes, then drawn into it. Taken ones settle back in, deep
+    // first, once it has gone by, so the loop always has some to fetch.
+    for (var i = 0; i < 8; i++) {
+      final ui = 0.14 + 0.72 * (i + 0.5 * _h(i, 60 + s)) / 8;
+      final at = _sweepAt(ui);
+      final next = _sweepAt(ui + 0.01);
+      final along = next - at;
+      final side = Offset(-along.dy, along.dx) / along.distance.clamp(1e-4, 9);
+      final heap = at + side * ((_h(i, 61 + s) - 0.5) * 0.16);
+      final come = (u - (ui - 0.06)) / 0.08;
+      // How far round since it was taken, for the settling back in.
+      final since = (u - ui + 1) % 1.0;
+      for (var g = 0; g < 3; g++) {
+        final spot =
+            heap +
+            Offset(
+              (_h(i * 3 + g, 64 + s) - 0.5) * 0.09,
+              (_h(i * 3 + g, 65 + s) - 0.5) * 0.09,
+            );
+        if (come > 0 && come < 1) {
+          final e = GrainGlass.smooth((come + g * 0.12).clamp(0.0, 1.0));
+          final q = Offset.lerp(spot, head, e)!;
+          _add(e > 0.6 ? _hot : _lit, q.dx, q.dy);
+        } else if (come >= 1 && since < 0.3) {
+          continue; // taken, not back yet
+        } else if (come >= 1 && since < 0.45) {
+          _add(_deep, spot.dx, spot.dy);
+        } else {
+          _add(g == 0 ? _lit : _body, spot.dx, spot.dy);
+        }
+      }
+    }
+    // Its wake, two lanes; the fetched grains ride the near part of it.
+    final along = _sweepAt(u + 0.01) - head;
+    final side =
+        Offset(-along.dy, along.dx) / along.distance.clamp(1e-4, 9) * 0.018;
+    for (var j = 1; j <= 18; j++) {
+      final w = u - j * 0.011;
+      if (w <= 0) break;
+      final q = _sweepAt(w);
+      final k = j < 4
+          ? _lit
+          : j < 10
+          ? _body
+          : _deep;
+      _add(k, q.dx + side.dx, q.dy + side.dy, second: true);
+      if (j < 12) _add(k, q.dx - side.dx, q.dy - side.dy, second: true);
+      if (j < 6 && j.isOdd) _add(_lit, q.dx, q.dy);
+    }
+    // The ship: a knot of hot steel grains.
+    for (var i = 0; i < 11; i++) {
+      final a = _h(i, 62 + s) * math.pi * 2 + t * 1.1;
+      final rr = 0.02 + _h(i, 63 + s) * 0.045;
+      _add(
+        i < 4 ? _hot : _lit,
+        head.dx + math.cos(a) * rr,
+        head.dy + math.sin(a) * rr,
+        second: true,
+      );
+    }
+    _add(_glint, head.dx, head.dy);
   }
 
   // ── Warpath: two currents braided into one surge. ──

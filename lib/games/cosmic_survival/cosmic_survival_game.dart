@@ -2714,23 +2714,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
       _dragTarget = null;
       _rememberCurrentOrbitRadius();
-    } else if (_dragTarget != null) {
+      _letGoFor = 0;
+      _gatherAt = null;
+    } else if (_dragTarget != null &&
+        (_dragTarget! - ship.position).distance > 5) {
       final dir = _dragTarget! - ship.position;
       final dist = dir.distance;
-      if (dist > 5) {
-        final nx = dir.dx / dist;
-        final ny = dir.dy / dist;
-        final move = min(ship.speed * plagueMove * dt, dist);
-        ship.position = Offset(
-          ship.position.dx + nx * move,
-          ship.position.dy + ny * move,
-        );
-        ship.angle = atan2(ny, nx);
-        _rememberCurrentOrbitRadius();
-      } else {
-        shipIsIdle = true;
-      }
-    } else {
+      final nx = dir.dx / dist;
+      final ny = dir.dy / dist;
+      final move = min(ship.speed * plagueMove * dt, dist);
+      ship.position = Offset(
+        ship.position.dx + nx * move,
+        ship.position.dy + ny * move,
+      );
+      ship.angle = atan2(ny, nx);
+      _rememberCurrentOrbitRadius();
+      _letGoFor = 0;
+      _gatherAt = null;
+    } else if (!_autopilotGather(dt, plagueMove)) {
       shipIsIdle = true;
     }
 
@@ -2771,6 +2772,62 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     ship.hitFlash = (ship.hitFlash - dt * 4).clamp(0, 1);
+  }
+
+  /// How long the ship must be let go before Autopilot takes it out.
+  static const double _kAutopilotLetGo = 0.6;
+
+  /// Seconds since the player last steered the ship.
+  double _letGoFor = 0;
+
+  /// Where Autopilot is flying the ship, and when it next looks again.
+  Offset? _gatherAt;
+  double _gatherLook = 0;
+
+  /// Autopilot (a draft pick): a ship let go for a moment, or flying itself
+  /// in CAMERA, goes out for the surge grains lying anywhere in the arena,
+  /// and once none are left flies home to its orbit. True while it is on its
+  /// way somewhere; false hands it to the idle orbit.
+  bool _autopilotGather(double dt, double plagueMove) {
+    if (!powerUps.hasAutopilot || ship.isDead) {
+      _gatherAt = null;
+      return false;
+    }
+    _letGoFor += dt;
+    if (!autopilot && _letGoFor < _kAutopilotLetGo) return false;
+    _gatherLook -= dt;
+    if (_gatherLook <= 0) {
+      _gatherLook = 0.3;
+      final found = _surgeGrains.gatherTarget(
+        ship.position,
+        orb.position,
+        reach: _arenaRadius,
+        prefer: _gatherAt,
+      );
+      _gatherAt = found == null
+          ? null
+          : _clampToArena(found, padding: _arenaShipPadding);
+    }
+    var at = _gatherAt;
+    if (at == null) {
+      // Nothing to fetch: home, to where the orbit takes it over.
+      final fromOrb = ship.position - orb.position;
+      final d = fromOrb.distance;
+      if (d <= _idleOrbitRadius + 60 || d < 1) return false;
+      at = orb.position + fromOrb / d * _idleOrbitRadius;
+    }
+    final dir = at - ship.position;
+    final dist = dir.distance;
+    if (dist < 12) {
+      // There: look again next frame.
+      _gatherLook = 0;
+      return false;
+    }
+    final move = min(ship.speed * plagueMove * dt, dist);
+    ship.position += dir / dist * move;
+    ship.angle = atan2(dir.dy, dir.dx);
+    _dragTarget = null;
+    return true;
   }
 
   void _applyOrbGravityToShip(double dt, {required bool shipIsIdle}) {

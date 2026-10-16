@@ -285,6 +285,19 @@ const kShipWeapons = [
     maxStacks: 4,
     tags: [PowerUpTag.tempo],
   ),
+  // The ship gathers for itself: let go of it, or watch in CAMERA, and it
+  // flies out to the grains lying round the orb and lets the orbit bring it
+  // back (cosmic_survival_game.dart, _autopilotGather).
+  PowerUpDef(
+    id: 'autopilot',
+    name: 'Autopilot',
+    description: 'When you let go, the ship flies out for surge grains',
+    icon: '🛰',
+    category: PowerUpCategory.shipWeapon,
+    rarity: PowerUpRarity.uncommon,
+    maxStacks: 1,
+    tags: [PowerUpTag.tempo],
+  ),
 ];
 
 const kOrbDefenses = [
@@ -1224,6 +1237,7 @@ class PowerUpState {
       (1 + getGlobalStacks('pack_leader')).clamp(1, 5);
   int get orbVitalityLevel => getGlobalStacks('orb_vitality');
   int get surgeMagnetLevel => getGlobalStacks('surge_magnet');
+  bool get hasAutopilot => getGlobalStacks('autopilot') > 0;
 
   // SURGE FUSIONS (kFusionPowerUps).
   bool get hasHomingSpread => has('fusion_homing_spread');
@@ -1311,6 +1325,7 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
     'surge_magnet' => nextLevel >= 4
         ? 'When a wave ends, every grain left out flows into the orb'
         : 'Ship pulls surge grains from further away (+80)',
+    'autopilot' => 'When you let go, the ship flies out for surge grains',
     'shield_pulse' => '+1 shield pulse level',
     'auto_turret' => '+1 auto-turret level',
     'regen_field' => '+1 regeneration field level',
