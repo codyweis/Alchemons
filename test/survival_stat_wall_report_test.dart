@@ -8,6 +8,7 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
+import 'package:alchemons/games/cosmic_survival/survival_suspended_run.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +30,11 @@ import 'package:flutter_test/flutter_test.dart';
 /// Bands default to P50..P100E10 and waves to every fifth non-boss wave from
 /// 31; a band stops at the first wave every seed dies on. Bands run
 /// one after another — split them across processes to go faster.
+///
+/// WALL_EXTRA adds picks on top of the benchmark's twenty, each `id` or
+/// `id*count` (a surge fusion and its parents, say:
+/// `shield_pulse*3,nova_detonation*3,fusion_nova_pulse`). WALL_SEEDS
+/// replaces the three seeds.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -40,7 +46,16 @@ void main() {
       .split(',')
       .map(int.parse)
       .toList();
-  const seeds = [7, 19, 29];
+  final seeds = (Platform.environment['WALL_SEEDS'] ?? '7,19,29')
+      .split(',')
+      .map(int.parse)
+      .toList();
+  final extra = <String>[];
+  for (final entry in (Platform.environment['WALL_EXTRA'] ?? '').split(',')) {
+    if (entry.trim().isEmpty) continue;
+    final [id, ...count] = entry.trim().split('*');
+    extra.addAll(List.filled(count.isEmpty ? 1 : int.parse(count.first), id));
+  }
 
   test('survival stat walls', () async {
     for (final band in bands) {
@@ -50,7 +65,7 @@ void main() {
       for (final wave in waves) {
         final outcomes = <String>[
           for (final seed in seeds)
-            await _hold(potential, enhancement, wave, seed),
+            await _hold(potential, enhancement, wave, seed, extra),
         ];
         // ignore: avoid_print
         print('$band  wave $wave  ${outcomes.join(' | ')}');
@@ -106,7 +121,13 @@ List<CosmicPartyMember> _party(int potential, int enhancement) {
 
 /// One wave from a cold start with the benchmark's twenty picks and the same
 /// simple pilot. Returns `ok <s> orb<%>`, `DIED@<s>` or `TIMEOUT orb<%>`.
-Future<String> _hold(int potential, int enhancement, int wave, int seed) async {
+Future<String> _hold(
+  int potential,
+  int enhancement,
+  int wave,
+  int seed, [
+  List<String> extra = const [],
+]) async {
   final game = CosmicSurvivalGame(
     party: _party(potential, enhancement),
     random: Random(seed),
@@ -135,6 +156,9 @@ Future<String> _hold(int potential, int enhancement, int wave, int seed) async {
   pick('command_strength');
   pick('command_intelligence');
   pick('command_speed');
+  for (final id in extra) {
+    game.applyPowerUp(kSurvivalPowerUpsById[id]!);
+  }
   game.startGame();
   for (var w = 1; w < wave; w++) {
     game.spawner.resumeAfterIntermission();

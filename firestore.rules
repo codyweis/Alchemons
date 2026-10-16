@@ -293,6 +293,34 @@ service cloud.firestore {
       allow delete: if isOwner(uid);
     }
 
+    // The best Survival run (survival_best_run.dart): its wave and score,
+    // when, and the species (baseIds) it took in. Read as homes are. Its own
+    // document, so a build from before it never writes one.
+    function isBestTeam(t) {
+      return t is list && t.size() <= 5 &&
+          (t.size() < 1 || (t[0] is string && t[0].size() <= 24)) &&
+          (t.size() < 2 || (t[1] is string && t[1].size() <= 24)) &&
+          (t.size() < 3 || (t[2] is string && t[2].size() <= 24)) &&
+          (t.size() < 4 || (t[3] is string && t[3].size() <= 24)) &&
+          (t.size() < 5 || (t[4] is string && t[4].size() <= 24));
+    }
+
+    match /survival_best/{uid} {
+      allow read: if isOwner(uid) || isFriendOf(uid);
+      allow create, update: if isOwner(uid) &&
+          request.resource.data.keys().hasOnly(['wave', 'score', 'at', 'team', 'updatedAt']) &&
+          request.resource.data.wave is int &&
+          request.resource.data.wave >= 0 &&
+          request.resource.data.wave <= 100000 &&
+          request.resource.data.score is int &&
+          request.resource.data.score >= 0 &&
+          (request.resource.data.get('at', null) == null ||
+           request.resource.data.at is timestamp) &&
+          isBestTeam(request.resource.data.team) &&
+          request.resource.data.updatedAt == request.time;
+      allow delete: if isOwner(uid);
+    }
+
     // When the player was last in the game (away: gone to the background),
     // for the dot by their name on friends' lists.
     match /presence/{uid} {

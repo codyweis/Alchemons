@@ -3,6 +3,8 @@
 // FRIENDS on the profile: the player's own code to give out, a way to enter
 // someone else's, the requests waiting either way, and their friends' home
 // planets — a tap on one opens that friend's page (friend_planet_screen.dart).
+// Under each planet, that friend's best Survival run, and beside FRIENDS the
+// player's own (friend_best_run.dart).
 //
 // Signed out, it only says what signing in would bring. Laid out as the
 // profile's own rows are, inside its panel.
@@ -12,12 +14,14 @@ import 'dart:async';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/friend_home.dart';
+import 'package:alchemons/screens/friends/friend_best_run.dart';
 import 'package:alchemons/screens/friends/friend_planet_screen.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/home_planet_view.dart';
@@ -38,6 +42,8 @@ TextStyle _mono(double size, Color color, {double spacing = 1.4}) => TextStyle(
 
 TextStyle _prose(BuildContext context, Color color, {double size = 12.5}) =>
     bracketText(context, size, color).copyWith(height: 1.4);
+
+final ForgeTokens _tokens = ForgeTokens(factionThemeFor(null));
 
 class FriendsPanel extends StatefulWidget {
   const FriendsPanel({
@@ -139,6 +145,7 @@ class _FriendsPanelState extends State<FriendsPanel> {
 
   List<Widget> _signedIn(FriendService friends) {
     final code = friends.code;
+    final mine = friends.myBest;
     return [
       _row(
         title: 'YOUR CODE',
@@ -208,12 +215,15 @@ class _FriendsPanelState extends State<FriendsPanel> {
       _row(
         title: friends.friends.isEmpty
             ? 'FRIENDS'
-            : 'FRIENDS  ·  ${friends.friends.length}',
+            : 'FRIENDS · ${friends.friends.length}',
         text: friends.friends.isEmpty
             ? (friends.loading && !friends.loaded
                   ? 'Loading…'
                   : 'No friends yet.')
             : 'Tap a planet to visit.',
+        trailing: friends.friends.isEmpty || mine == null
+            ? null
+            : MyBestRun(run: mine),
         below: friends.friends.isEmpty
             ? null
             : _PlanetGrid(
@@ -303,8 +313,8 @@ class _FriendsPanelState extends State<FriendsPanel> {
 }
 
 /// Friends' planets, three across, each still, with its owner's name: a
-/// green dot by it while they are in the game, and when they were last
-/// seen under it after.
+/// green dot by it while they are in the game, their best Survival run
+/// under it, and when they were last seen.
 class _PlanetGrid extends StatelessWidget {
   const _PlanetGrid({
     required this.friends,
@@ -317,14 +327,16 @@ class _PlanetGrid extends StatelessWidget {
   final List<FriendCard> friends;
   final bool Function(String uid) isOnline;
   final String? Function(String uid) seenLabel;
+
   final BracketPalette palette;
   final ValueChanged<FriendCard> onTap;
 
   @override
   Widget build(BuildContext context) {
-    // Every tile keeps the line when any has one, so they stay one height.
+    // Every tile keeps a line when any has one, so they stay one height.
     final seen = {for (final f in friends) f.uid: seenLabel(f.uid)};
     final anySeen = seen.values.any((s) => s != null);
+    final anyBest = friends.any((f) => f.survival != null);
     return LayoutBuilder(
       builder: (context, box) {
         const gap = 10.0;
@@ -343,28 +355,32 @@ class _PlanetGrid extends StatelessWidget {
                   padding: const EdgeInsets.fromLTRB(4, 6, 4, 8),
                   child: Column(
                     children: [
-                      // The glow fades out before the tile's edge, and
-                      // nothing it wears reaches the next one.
-                      ClipRect(
-                        child: ShaderMask(
-                          blendMode: BlendMode.dstIn,
-                          shaderCallback: (rect) => const RadialGradient(
-                            colors: [Color(0xFFFFFFFF), Color(0x00FFFFFF)],
-                            stops: [0.62, 1.0],
-                          ).createShader(rect),
-                          child: SizedBox.square(
-                            dimension: w - 8,
-                            // Not built yet: the plain grey one, dim.
-                            child: Opacity(
-                              opacity: f.planet == null ? 0.4 : 1,
-                              child: HomePlanetView(
-                                look: f.planet,
-                                fill: 0.62,
-                                animate: false,
+                      Stack(
+                        children: [
+                          // The glow fades out before the tile's edge, and
+                          // nothing it wears reaches the next one.
+                          ClipRect(
+                            child: ShaderMask(
+                              blendMode: BlendMode.dstIn,
+                              shaderCallback: (rect) => const RadialGradient(
+                                colors: [Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+                                stops: [0.62, 1.0],
+                              ).createShader(rect),
+                              child: SizedBox.square(
+                                dimension: w - 8,
+                                // Not built yet: the plain grey one, dim.
+                                child: Opacity(
+                                  opacity: f.planet == null ? 0.4 : 1,
+                                  child: HomePlanetView(
+                                    look: f.planet,
+                                    fill: 0.62,
+                                    animate: false,
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
                       const SizedBox(height: 4),
                       Row(
@@ -391,13 +407,14 @@ class _PlanetGrid extends StatelessWidget {
                             (t) => t?.attentionWith(f.uid) ?? false,
                           )) ...[
                             const SizedBox(width: 5),
-                            const HomeNoticeDot(
-                              color: Color(0xFFE4C16A),
-                              size: 8,
-                            ),
+                            HomeNoticeDot(color: _tokens.rewardGold, size: 8),
                           ],
                         ],
                       ),
+                      if (anyBest) ...[
+                        const SizedBox(height: 3),
+                        BestRunLine(run: f.survival, keep: true),
+                      ],
                       if (anySeen) ...[
                         const SizedBox(height: 2),
                         Text(
@@ -515,7 +532,7 @@ class _AddFriendDialogState extends State<_AddFriendDialog> {
               const SizedBox(height: 10),
               Text(
                 _error!,
-                style: _prose(context, const Color(0xFFE57373), size: 13),
+                style: _prose(context, kLeaveDangerAccent, size: 13),
               ),
             ],
             const SizedBox(height: 18),

@@ -9,8 +9,9 @@
 // (a checkpoint taken as each wave begins). The wave itself is played again
 // from its beginning, so anything that only lives inside a wave — enemies,
 // projectiles, cooldowns, outbreaks, effects — is not kept; it all comes
-// back from the wave. What is kept is what the run has built up: the picks,
-// the meter, the draft's REROLLs and BANISHes left and what was banished,
+// back from the wave. What is kept is what the run has built up: the picks
+// (a fusion taken among them), the meter, the draft's REROLLs and BANISHes
+// left, what was banished and which fusion parents the drafts have shown,
 // every hit point, who is out and who is down, the run's totals, and the
 // party, guardian upgrades, orb, ship and mastery paths exactly as the run
 // started with them.
@@ -44,7 +45,8 @@ const int kSuspendedRunLegacyVersion = 1;
 
 /// Every pick the run can hold, by id, for replaying a saved history.
 final Map<String, PowerUpDef> kSurvivalPowerUpsById = {
-  for (final def in [...kAllPowerUps, ...kKeystonePowerUps]) def.id: def,
+  for (final def in [...kAllPowerUps, ...kKeystonePowerUps, ...kFusionPowerUps])
+    def.id: def,
 };
 
 /// One pick, as the run's history holds it.
@@ -101,6 +103,7 @@ class SuspendedSlotStats {
     required this.kills,
     required this.damageTaken,
     required this.healingDone,
+    this.fieldSeconds = 0,
   });
 
   final int slot;
@@ -109,12 +112,16 @@ class SuspendedSlotStats {
   final double damageTaken;
   final double healingDone;
 
+  /// Seconds it was out, alive. A save from before this was kept reads 0.
+  final double fieldSeconds;
+
   Map<String, Object?> toJson() => {
     'slot': slot,
     'dealt': damageDealt,
     'kills': kills,
     'taken': damageTaken,
     'healed': healingDone,
+    'field': fieldSeconds,
   };
 
   static SuspendedSlotStats fromJson(Map<String, dynamic> json) =>
@@ -124,6 +131,7 @@ class SuspendedSlotStats {
         kills: (json['kills'] as num).toInt(),
         damageTaken: (json['taken'] as num).toDouble(),
         healingDone: (json['healed'] as num).toDouble(),
+        fieldSeconds: (json['field'] as num?)?.toDouble() ?? 0,
       );
 }
 
@@ -153,6 +161,7 @@ class SuspendedSurvivalRun {
     required this.healingToShip,
     required this.healingToOrb,
     required this.slotStats,
+    this.otherDamage = 0,
     Set<int> deployedSlots = const {},
     required this.party,
     required this.equippedOrb,
@@ -163,9 +172,11 @@ class SuspendedSurvivalRun {
     this.rerollsLeft = kSurvivalDraftRerolls,
     this.banishesLeft = kSurvivalDraftBanishes,
     Set<String> banished = const {},
+    Set<String> fusionParentsSeen = const {},
   }) : phoenixUsed = Set.unmodifiable(phoenixUsed),
        deployedSlots = Set.unmodifiable(deployedSlots),
-       banished = Set.unmodifiable(banished);
+       banished = Set.unmodifiable(banished),
+       fusionParentsSeen = Set.unmodifiable(fusionParentsSeen);
 
   final int version;
   final int savedAtMs;
@@ -212,6 +223,9 @@ class SuspendedSurvivalRun {
   final double healingToOrb;
   final List<SuspendedSlotStats> slotStats;
 
+  /// Damage no Alchemon dealt (the ship, the orb's defenses, run perks).
+  final double otherDamage;
+
   /// Every slot summoned at some point in the run, for its mastery: a
   /// creature that went out earns more than one kept in reserve.
   final Set<int> deployedSlots;
@@ -235,6 +249,11 @@ class SuspendedSurvivalRun {
   final int rerollsLeft;
   final int banishesLeft;
   final Set<String> banished;
+
+  /// The fusion parents the run's drafts have shown, for the pause panel's
+  /// FUSIONS list ([PowerUpState.seenFusionParents]). None in a save from
+  /// before they were kept.
+  final Set<String> fusionParentsSeen;
 
   /// The upgrade state to build the run with: a copy, so Base Command
   /// cannot change a run that has been left.
@@ -332,6 +351,7 @@ class SuspendedSurvivalRun {
       healingToShip: healingToShip,
       healingToOrb: healingToOrb,
       slotStats: slotStats,
+      otherDamage: otherDamage,
       // Deployed is for good: whoever went out before leaving went out.
       deployedSlots: {...deployedSlots, ...atExit.deployedSlots},
       party: party,
@@ -343,6 +363,7 @@ class SuspendedSurvivalRun {
       rerollsLeft: rerollsLeft,
       banishesLeft: banishesLeft,
       banished: banished,
+      fusionParentsSeen: fusionParentsSeen,
     );
   }
 
@@ -373,6 +394,7 @@ class SuspendedSurvivalRun {
       'healToMons': healingToMons,
       'healToShip': healingToShip,
       'healToOrb': healingToOrb,
+      'other': otherDamage,
       'bySlot': [for (final s in slotStats) s.toJson()],
     },
     'deployed': deployedSlots.toList()..sort(),
@@ -403,6 +425,7 @@ class SuspendedSurvivalRun {
       'rerolls': rerollsLeft,
       'banishes': banishesLeft,
       'banished': banished.toList()..sort(),
+      'seen': fusionParentsSeen.toList()..sort(),
     },
   };
 
@@ -502,6 +525,7 @@ class SuspendedSurvivalRun {
       healingToShip: (stats['healToShip'] as num).toDouble(),
       healingToOrb: (stats['healToOrb'] as num).toDouble(),
       slotStats: slotStats,
+      otherDamage: (stats['other'] as num?)?.toDouble() ?? 0,
       // A legacy save never kept who went out: anyone out when it was
       // taken, or who had done anything by then, had been.
       deployedSlots: deployed is List
@@ -537,6 +561,9 @@ class SuspendedSurvivalRun {
           : kSurvivalDraftBanishes,
       banished: draft is Map
           ? {for (final id in draft['banished'] as List) id as String}
+          : const {},
+      fusionParentsSeen: draft is Map && draft['seen'] is List
+          ? {for (final id in draft['seen'] as List) id as String}
           : const {},
     );
   }

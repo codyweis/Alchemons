@@ -46,6 +46,8 @@ Color powerUpAccentColor(PowerUpDef def) {
   final element = def.mysticElement;
   if (element != null) return _legible(elementColor(element));
   if (def.isKeystone) return const Color(0xFFE4C16A);
+  // A fusion is the two surges made one: the kit's own brass light.
+  if (def.isFusion) return SurvivalInk.brassGlow;
   return switch (def.category) {
     PowerUpCategory.shipWeapon => const Color(0xFFFF7A45),
     PowerUpCategory.orbDefense => const Color(0xFF4FA8FF),
@@ -492,6 +494,7 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                 ),
                 choice: choice,
                 party: widget.party,
+                fusesWith: widget.powerUps.fusionPartnerOf(choice.def.id),
                 light: light,
                 banishing: _banishArmed,
                 onTap: () => _tapCard(i),
@@ -618,18 +621,27 @@ CosmicPartyMember? _memberAt(List<CosmicPartyMember> party, int? slot) =>
 /// kind of thing it is. Bare ink; only a controller's chosen card is lit
 /// from below, in the offer's color (or every card, in the banish ember,
 /// while BANISH is armed).
+///
+/// A fusion is marked FUSION where NEW would be, and names its two parents
+/// where the kind would be. A parent of one says which upgrade it fuses
+/// with, in one plain line.
 class _PowerUpCard extends StatelessWidget {
   const _PowerUpCard({
     super.key,
     required this.choice,
     required this.party,
     required this.onTap,
+    this.fusesWith,
     this.light,
     this.banishing = false,
   });
 
   final OfferedPowerUpChoice choice;
   final List<CosmicPartyMember> party;
+
+  /// The other parent of the fusion this upgrade makes, while that fusion
+  /// can still be made.
+  final PowerUpDef? fusesWith;
 
   /// The light under the card, or null for none.
   final Color? light;
@@ -647,8 +659,12 @@ class _PowerUpCard extends StatelessWidget {
 
   Widget _build(BuildContext context, bool compact) {
     final def = choice.def;
-    final isNew = choice.currentLevel == 0 && !def.isKeystone;
+    final fusion = def.isFusion;
+    final isNew = choice.currentLevel == 0 && !def.isKeystone && !fusion;
     final leveled = def.showLevel && def.maxStacks > 1 && !def.isKeystone;
+    final parents = fusion
+        ? fusionParents(def).map((p) => p.name).join(' + ')
+        : null;
     final target = def.scope == PowerUpScope.companion
         ? _memberAt(party, choice.targetSlot)
         : null;
@@ -662,7 +678,12 @@ class _PowerUpCard extends StatelessWidget {
         : [increment];
     final detail = powerUpTotalLabel(choice);
 
-    Widget mark() => isNew
+    Widget mark() => fusion
+        ? Text(
+            'FUSION',
+            style: hudMono(9.5, SurvivalInk.brassGlow, spacing: 1.4),
+          )
+        : isNew
         ? Text(
             'NEW',
             style: hudMono(9.5, SurvivalInk.brassBright, spacing: 1.4),
@@ -723,6 +744,26 @@ class _PowerUpCard extends StatelessWidget {
             ),
           ),
         ],
+        if (fusesWith case final partner?) ...[
+          const SizedBox(height: 3),
+          Text.rich(
+            key: const ValueKey('survival.draft.fusesWith'),
+            TextSpan(
+              children: [
+                const TextSpan(text: 'Fuses with '),
+                TextSpan(
+                  text: partner.name,
+                  style: const TextStyle(color: SurvivalInk.brassBright),
+                ),
+              ],
+            ),
+            style: const TextStyle(
+              color: SurvivalInk.muted,
+              fontSize: 11.5,
+              height: 1.25,
+            ),
+          ),
+        ],
         // WHO IT IS FOR, on its own line: sharing a row with the tags it
         // ellipsized real names to "NO...", which is worse than no name.
         if (targetName != null && def.scope == PowerUpScope.companion) ...[
@@ -742,28 +783,38 @@ class _PowerUpCard extends StatelessWidget {
           runSpacing: 4,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
-            Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '${_kind(def)}  ·  ',
-                    style: hudMono(
-                      9,
-                      SurvivalInk.muted,
-                      spacing: compact ? 0.6 : 1.2,
+            if (parents != null)
+              Text(
+                parents.toUpperCase(),
+                style: hudMono(
+                  9,
+                  SurvivalInk.muted,
+                  spacing: compact ? 0.6 : 1.2,
+                ),
+              )
+            else
+              Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: '${_kind(def)}  ·  ',
+                      style: hudMono(
+                        9,
+                        SurvivalInk.muted,
+                        spacing: compact ? 0.6 : 1.2,
+                      ),
                     ),
-                  ),
-                  TextSpan(
-                    text: _rarityLabel(def.rarity),
-                    style: hudMono(
-                      9,
-                      _rarityColor(def.rarity),
-                      spacing: compact ? 0.6 : 1.2,
+                    TextSpan(
+                      text: _rarityLabel(def.rarity),
+                      style: hudMono(
+                        9,
+                        _rarityColor(def.rarity),
+                        spacing: compact ? 0.6 : 1.2,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             if (compact) mark(),
           ],
         ),
@@ -774,7 +825,9 @@ class _PowerUpCard extends StatelessWidget {
       button: true,
       label: [
         def.name,
+        if (parents != null) 'fusion of $parents',
         ...lines,
+        if (fusesWith != null) 'fuses with ${fusesWith!.name}',
         if (targetName != null) 'for $targetName',
         if (isNew) 'new',
         if (banishing) 'banish',
@@ -958,6 +1011,7 @@ class _TakenChip extends StatelessWidget {
 
 String _kind(PowerUpDef def) {
   if (def.isKeystone) return 'KEYSTONE';
+  if (def.isFusion) return 'FUSION';
   return switch (def.category) {
     PowerUpCategory.shipWeapon => 'SHIP',
     PowerUpCategory.orbDefense => 'ORB',

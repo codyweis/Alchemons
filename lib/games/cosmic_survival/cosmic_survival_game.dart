@@ -503,6 +503,11 @@ class CosmicSurvivalStats {
   int score = 0;
   double timeElapsed = 0;
 
+  /// Damage no Alchemon dealt: the ship's guns, the orb's own defenses, run
+  /// perks. With each companion's [CompanionRunStats.damageDealt] it makes
+  /// up everything the run dealt, so the results' shares add up.
+  double otherDamage = 0;
+
   String get formattedTime {
     final minutes = (timeElapsed ~/ 60).toString().padLeft(2, '0');
     final seconds = (timeElapsed % 60).toInt().toString().padLeft(2, '0');
@@ -518,6 +523,9 @@ class CompanionRunStats {
   // Healing this companion is directly responsible for (blessings,
   // lifesteal, blood pact). Ambient/team-wide healing is not attributed.
   double healingDone = 0;
+
+  /// Seconds out on the field, alive, on the run's clock.
+  double fieldSeconds = 0;
 }
 
 /// Run-wide healing totals split by recipient.
@@ -2331,8 +2339,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             kills: s.kills,
             damageTaken: s.damageTaken,
             healingDone: s.healingDone,
+            fieldSeconds: s.fieldSeconds,
           ),
       ],
+      otherDamage: stats.otherDamage,
       deployedSlots: deployedCompanionSlots,
       party: party,
       equippedOrb: upgradeState.equippedSkin,
@@ -2348,6 +2358,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       rerollsLeft: powerUps.rerollsLeft,
       banishesLeft: powerUps.banishesLeft,
       banished: powerUps.banished,
+      fusionParentsSeen: powerUps.seenFusionParents,
     );
   }
 
@@ -2377,6 +2388,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       banishesLeft: run.banishesLeft,
       banished: run.banished,
     );
+    powerUps.restoreSeenFusionParents(run.fusionParentsSeen);
 
     startGame();
     for (var wave = 1; wave < run.wave; wave++) {
@@ -2389,7 +2401,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     stats
       ..kills = run.kills
       ..score = run.score
-      ..timeElapsed = run.timeElapsed;
+      ..timeElapsed = run.timeElapsed
+      ..otherDamage = run.otherDamage;
     healingStats
       ..toMons = run.healingToMons
       ..toShip = run.healingToShip
@@ -2400,7 +2413,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ..damageDealt = s.damageDealt
         ..kills = s.kills
         ..damageTaken = s.damageTaken
-        ..healingDone = s.healingDone;
+        ..healingDone = s.healingDone
+        ..fieldSeconds = s.fieldSeconds;
     }
     deployedCompanionSlots
       ..clear()
@@ -2475,6 +2489,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _rebuildEnemySpatialGrid();
 
     stats.timeElapsed += dt;
+    activeCompanions.forEach((slot, comp) {
+      if (!comp.isDead) _runStatsFor(slot).fieldSeconds += dt;
+    });
     damageNumbers.update(dt);
     mastery.tick(dt);
 
@@ -2715,7 +2732,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Auto-fire at nearest enemy or boss
     ship.fireTimer += dt;
-    final rocketPenalty = powerUps.hasRocketBarrage ? 1.5 : 1.0;
+    // Rapid Rockets (a fusion): rockets reload as fast as shots.
+    final rocketPenalty = powerUps.hasRocketBarrage && !powerUps.hasRapidRockets
+        ? 1.5
+        : 1.0;
     final effectiveFireCooldown =
         ship.fireCooldown * rocketPenalty / powerUps.fireRateMultiplier;
     if (ship.fireTimer >= effectiveFireCooldown) {
@@ -2854,16 +2874,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Spread shot
     if (powerUps.spreadShotLevel > 0) {
+      final homing = powerUps.hasHomingSpread;
       for (var i = 1; i <= powerUps.spreadShotLevel; i++) {
         for (final sign in [-1.0, 1.0]) {
           final spreadAngle = sign * i * 0.25;
           final sa = atan2(norm.dy, norm.dx) + spreadAngle;
+          final dir = Offset(cos(sa), sin(sa));
+          // Homing Spread (a fusion): each side shot steers at the body
+          // nearest its own line, so the fan still covers its arc.
+          final target = homing
+              ? _nearestEnemyTo(ship.position + dir * 160, 220)
+              : null;
           shipProjectiles.add(
             ShipProjectile(
               position: ship.position,
-              velocity: Offset(cos(sa) * shotSpeed, sin(sa) * shotSpeed),
+              velocity: dir * shotSpeed,
               damage: baseDamage * 0.6,
               life: shotLife,
+              isHoming: target != null,
+              target: target,
             ),
           );
         }
@@ -2890,11 +2919,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           final dist = dir.distance;
           if (dist > 0.01) {
             final norm = Offset(dir.dx / dist, dir.dy / dist);
-            final speed = 330.0 + missileLevel * 30.0;
+            // Heavy Missiles (a fusion): Kinetic Overdrive's impact and
+            // speed carry to the launcher's missiles.
+            final kinetic = powerUps.hasHeavyMissiles
+                ? powerUps.kineticOverdriveLevel
+                : 0;
+            final speed =
+                (330.0 + missileLevel * 30.0) * (1.0 + kinetic * 0.12);
             final missileDamage =
                 (20.0 + missileLevel * 10.0) *
                 powerUps.shipDamageMultiplier *
-                maskShipDamageAmp;
+                maskShipDamageAmp *
+                (1.0 + kinetic * 0.10);
             final splashRadius = 80.0 + missileLevel * 24.0;
             onSound?.call(SoundCue.shipMissile);
             shipProjectiles.add(
@@ -2954,6 +2990,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             life: 0.08,
           );
           _damageEnemy(target, beamDamage, autoAttack: true);
+          if (powerUps.hasLinkedTurrets) _fireLinkedOrbTurret(target);
         } else {
           SurvivalBoss? best;
           double bestDist = 560;
@@ -8767,6 +8804,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final dealt = hpBefore - max(enemy.hp, 0.0);
     if (sourceSlotIndex != null && dealt > 0) {
       _runStatsFor(sourceSlotIndex).damageDealt += dealt;
+    } else if (dealt > 0) {
+      stats.otherDamage += dealt;
     }
     if (autoAttack) _payMysticBloodTithe(dealt, enemy.position);
 
@@ -10546,6 +10585,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final dealtToBoss = hpBefore - max(boss.hp, 0.0);
     if (sourceSlotIndex != null && dealtToBoss > 0) {
       _runStatsFor(sourceSlotIndex).damageDealt += dealtToBoss;
+    } else if (dealtToBoss > 0) {
+      stats.otherDamage += dealtToBoss;
     }
 
     final bossSource =
@@ -18886,6 +18927,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           }
           return false;
         });
+        // Nova Pulse (a fusion): the pulse sets off the nova as it goes.
+        if (powerUps.hasNovaPulse && powerUps.novaDetonationLevel > 0) {
+          _releaseOrbNova();
+        }
       }
     }
 
@@ -18913,10 +18958,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       orb.regenTimer += dt;
       if (orb.regenTimer >= 1.0) {
         orb.regenTimer = 0;
-        orb.currentHp = (orb.currentHp + 2.0 * powerUps.regenFieldLevel).clamp(
-          0,
-          orb.maxHp,
-        );
+        // Tempered Field (a fusion): a share of the orb's max HP as well.
+        final tempered = powerUps.hasTemperedField
+            ? orb.maxHp * kTemperedFieldShare
+            : 0.0;
+        orb.currentHp =
+            (orb.currentHp + 2.0 * powerUps.regenFieldLevel + tempered).clamp(
+              0,
+              orb.maxHp,
+            );
       }
     }
 
@@ -18925,15 +18975,37 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final interval = 15.0 - powerUps.novaDetonationLevel * 2;
       if (orb.novaTimer >= interval) {
         orb.novaTimer = 0;
-        _visitEnemiesNear(orb.position, 250, (enemy) {
-          final d = (enemy.position - orb.position).distance;
-          if (d < 250) {
-            _damageEnemy(enemy, 20.0 * powerUps.novaDetonationLevel);
-          }
-          return false;
-        });
+        _releaseOrbNova();
       }
     }
+  }
+
+  /// The orb's nova: its damage to every body in its reach.
+  void _releaseOrbNova() {
+    _visitEnemiesNear(orb.position, 250, (enemy) {
+      final d = (enemy.position - orb.position).distance;
+      if (d < 250) {
+        _damageEnemy(enemy, 20.0 * powerUps.novaDetonationLevel);
+      }
+      return false;
+    });
+  }
+
+  /// Linked Turrets (a fusion): the orb turret's shot at what the ship's
+  /// turret has just hit, when that is within the orb turret's reach.
+  void _fireLinkedOrbTurret(CosmicSurvivalEnemy target) {
+    final level = powerUps.autoTurretLevel;
+    if (level <= 0 || target.isDead) return;
+    if (!_withinRange(target.position, orb.position, 360)) return;
+    final beamColor = Color.lerp(orb.secondaryColor, Colors.white, 0.25)!;
+    _spawnBeam(
+      orb.position,
+      target.position,
+      beamColor,
+      width: 2.4 + level * 0.4,
+    );
+    _spawnHitSpark(target.position, beamColor);
+    _damageEnemy(target, _orbTurretDamage(level));
   }
 
   void _updateDetonation(double dt) {

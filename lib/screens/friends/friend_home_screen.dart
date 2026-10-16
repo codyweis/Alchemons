@@ -25,6 +25,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/home_biome/home_biome_screen.dart'
     show hydrateResident, standHomePieces;
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flame/game.dart';
@@ -34,7 +35,6 @@ import 'package:provider/provider.dart';
 
 // The field's HUD sits over a sky — always the dark palette.
 const _palette = BracketPalette.dark;
-const _amber = Color(0xFFE4C16A);
 
 /// [home] made ready to stand in a field: each resident's look as the field
 /// draws it, and the layout without anyone whose species this build does
@@ -372,7 +372,7 @@ class _ExitButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const accent = Color(0xFFC0392B);
+    final accent = ForgeTokens(factionThemeFor(null)).danger;
     return GestureDetector(
       onTap: context.soundTap(onTap),
       behavior: HitTestBehavior.opaque,
@@ -390,7 +390,7 @@ class _ExitButton extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(AppIcons.exit_to_app_rounded, color: accent, size: 20),
+              Icon(AppIcons.exit_to_app_rounded, color: accent, size: 20),
               const SizedBox(height: 5),
               Text(
                 'Exit',
@@ -410,7 +410,8 @@ class _ExitButton extends StatelessWidget {
   }
 }
 
-/// A few words on a slip of the HUD's dark, so they read over a bright sky.
+/// A few words on a slip of the HUD's dark, so they read over a bright sky:
+/// a flat fill, unlit (nothing here is chosen), as the home biome's notes.
 class _Slip extends StatelessWidget {
   const _Slip({required this.text, this.quiet = false});
 
@@ -418,25 +419,18 @@ class _Slip extends StatelessWidget {
   final bool quiet;
 
   @override
-  Widget build(BuildContext context) => CustomPaint(
-    foregroundPainter: BracketFramePainter(
-      color: (quiet ? _palette.line : _amber).withValues(alpha: 0.8),
-      bracketSize: 7,
-      strokeWidth: 1,
-    ),
-    child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      color: _palette.surfaceFill(),
-      child: Text(
-        text,
-        textAlign: TextAlign.center,
-        style: bracketText(
-          context,
-          quiet ? 12 : 11.5,
-          _palette.ink.withValues(alpha: 0.9),
-          weight: quiet ? FontWeight.w600 : FontWeight.w800,
-          letterSpacing: quiet ? 0.3 : 1.2,
-        ),
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+    color: _palette.surfaceFill(),
+    child: Text(
+      text,
+      textAlign: TextAlign.center,
+      style: bracketText(
+        context,
+        quiet ? 12 : 11.5,
+        _palette.ink.withValues(alpha: 0.9),
+        weight: quiet ? FontWeight.w600 : FontWeight.w800,
+        letterSpacing: quiet ? 0.3 : 1.2,
       ),
     ),
   );

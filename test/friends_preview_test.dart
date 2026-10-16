@@ -7,6 +7,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/cosmic_survival/survival_best_run.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/friend_home.dart';
@@ -223,7 +224,7 @@ void main() {
       },
       ambience: 'sun_motes',
     );
-    const friend = FriendCard(
+    final friend = FriendCard(
       uid: 'f1',
       name: 'Rowan',
       faction: 'oceanic',
@@ -247,6 +248,12 @@ void main() {
           'sand_island': 18400,
           'ice_island': 26900,
         },
+      ),
+      survival: SurvivalBestRun(
+        wave: 23,
+        score: 48200,
+        at: DateTime.now().subtract(const Duration(days: 3, hours: 2)),
+        team: const ['HOR01', 'LET12', 'PIP02', 'MAN09', 'WNG04'],
       ),
     );
 
@@ -298,9 +305,19 @@ void main() {
       await shoot('planets');
     }
 
-    if (wants('panel')) {
+    // The friends' best runs: Ash is furthest; Marlowe and Juniper have
+    // none (or theirs could not be read).
+    const bests = <SurvivalBestRun?>[
+      SurvivalBestRun(wave: 23, score: 48200),
+      SurvivalBestRun(wave: 31, score: 102400),
+      null,
+      SurvivalBestRun(wave: 8, score: 9100),
+      null,
+    ];
+    Future<void> panel(String name, SurvivalBestRun? mine) async {
       portrait();
       final friends = _FakeFriends(
+        myBest: mine,
         friends: [
           for (final (i, (_, look)) in looks.skip(1).take(5).indexed)
             FriendCard(
@@ -308,6 +325,7 @@ void main() {
               name: const ['Rowan', 'Ash', 'Marlowe', 'Wren', 'Juniper'][i],
               faction: 'earthen',
               planet: look,
+              survival: bests[i],
             ),
         ],
         incoming: const [
@@ -353,7 +371,12 @@ void main() {
         ),
       );
       await settle(4);
-      await shoot('panel');
+      await shoot(name);
+    }
+
+    if (wants('panel')) {
+      await panel('panel', const SurvivalBestRun(wave: 19, score: 35000));
+
     }
 
     if (wants('avatar')) {
@@ -559,7 +582,11 @@ class _FakeFriends extends ChangeNotifier implements FriendService {
     this.outgoing = const [],
     this.online = const {},
     this.seen = const {},
+    this.myBest,
   });
+
+  @override
+  final SurvivalBestRun? myBest;
 
   final Set<String> online;
   final Map<String, String> seen;

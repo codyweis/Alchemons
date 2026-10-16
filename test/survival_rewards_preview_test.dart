@@ -6,6 +6,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic_survival/components/cosmic_survival_game_over_panel.dart';
+import 'package:alchemons/games/cosmic_survival/survival_damage_report.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -25,9 +26,11 @@ import 'package:provider/provider.dart';
 import 'survival_lobby_harness.dart';
 
 // What a finished survival run pays out, as the player sees it: the results
-// with the rewards gathering into them (frames through it), the same reveal
-// in the inventory's loot-box popup, and a sheet of every reward survival can
-// drop drawn the way both of those draw it.
+// with who carried the run and the rewards gathering into them (frames
+// through it), the same results on the Fold's 344-wide cover screen (and at
+// 1.3x text, and with a healer out), the same reveal in the inventory's
+// loot-box popup, and a sheet of every reward survival can drop drawn the
+// way both of those draw it.
 //
 //   REWARDS_OUT=/tmp/rewards flutter test \
 //     test/survival_rewards_preview_test.dart --tags preview
@@ -191,6 +194,121 @@ void main() {
       ),
     ];
 
+    // Who carried it: the same four, the Kin kept in reserve all run, and
+    // what the ship and the orb's own defenses dealt between them.
+    const damage = SurvivalDamageReport(
+      lines: [
+        SurvivalDamageLine(
+          slot: 0,
+          name: 'Poisonhorn',
+          element: 'Poison',
+          imagePath: 'assets/images/creatures/rare/HOR13_poisonhorn.png',
+          damage: 48000,
+          kills: 610,
+          healing: 0,
+          deployed: true,
+          fieldSeconds: 802,
+        ),
+        SurvivalDamageLine(
+          slot: 1,
+          name: 'Lavapip',
+          element: 'Lava',
+          imagePath: 'assets/images/creatures/uncommon/PIP06_lavapip.png',
+          damage: 21000,
+          kills: 300,
+          healing: 0,
+          deployed: true,
+          fieldSeconds: 611,
+        ),
+        SurvivalDamageLine(
+          slot: 2,
+          name: 'Mudhorn',
+          element: 'Mud',
+          imagePath: 'assets/images/creatures/rare/HOR08_mudhorn.png',
+          damage: 9000,
+          kills: 90,
+          healing: 0,
+          deployed: true,
+          fieldSeconds: 290,
+        ),
+        SurvivalDamageLine(
+          slot: 3,
+          name: 'Lightkin',
+          element: 'Light',
+          imagePath: 'assets/images/creatures/legendary/KIN16_lightkin.png',
+          damage: 0,
+          kills: 0,
+          healing: 0,
+          deployed: false,
+          fieldSeconds: 0,
+        ),
+      ],
+      otherDamage: 6400,
+      otherKills: 840,
+    );
+    // Five out at some point, a Kin among them that healed.
+    const healer = SurvivalDamageReport(
+      lines: [
+        SurvivalDamageLine(
+          slot: 2,
+          name: 'Steamwing',
+          element: 'Steam',
+          imagePath: 'assets/images/creatures/legendary/WNG05_steamwing.png',
+          damage: 61300,
+          kills: 702,
+          healing: 0,
+          deployed: true,
+          fieldSeconds: 872,
+        ),
+        SurvivalDamageLine(
+          slot: 0,
+          name: 'Bloodmane',
+          element: 'Blood',
+          imagePath: 'assets/images/creatures/rare/MAN17_bloodmane.png',
+          damage: 33800,
+          kills: 455,
+          healing: 1200,
+          deployed: true,
+          fieldSeconds: 872,
+        ),
+        SurvivalDamageLine(
+          slot: 4,
+          name: 'Icelet',
+          element: 'Ice',
+          imagePath: 'assets/images/creatures/common/LET09_icelet.png',
+          damage: 12500,
+          kills: 160,
+          healing: 0,
+          deployed: true,
+          fieldSeconds: 431,
+        ),
+        SurvivalDamageLine(
+          slot: 1,
+          name: 'Waterkin',
+          element: 'Water',
+          imagePath: 'assets/images/creatures/legendary/KIN02_waterkin.png',
+          damage: 2100,
+          kills: 14,
+          healing: 18400,
+          deployed: true,
+          fieldSeconds: 872,
+        ),
+        SurvivalDamageLine(
+          slot: 3,
+          name: 'Lightkin',
+          element: 'Light',
+          imagePath: 'assets/images/creatures/legendary/KIN16_lightkin.png',
+          damage: 0,
+          kills: 0,
+          healing: 0,
+          deployed: false,
+          fieldSeconds: 0,
+        ),
+      ],
+      otherDamage: 9100,
+      otherKills: 509,
+    );
+
     debugDisableShadows = false;
     try {
       final shot = GlobalKey();
@@ -241,6 +359,7 @@ void main() {
               score: 48210,
               time: '14:32',
               rewards: run,
+              damage: damage,
               onQuit: () {},
               onNewTeam: () {},
               onReplay: () {},
@@ -253,7 +372,7 @@ void main() {
       final every = Platform.environment['REWARDS_FRAMES'] == '1';
       final times = every
           ? [for (var t = 0; t <= 4800; t += 50) t]
-          : const [300, 900, 1500, 2200, 3200, 4800];
+          : const [300, 900, 1500, 2200, 3200, 4800, 6000];
       for (final at in times) {
         while (ms < at) {
           await tester.pump(const Duration(milliseconds: 25));
@@ -270,7 +389,24 @@ void main() {
         );
       }
 
+      // Scrolled to the end, everything arrived.
+      await tester.drag(
+        find.byType(SingleChildScrollView).first,
+        const Offset(0, -1200),
+      );
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await shoot(tester, panel, 'results_scrolled');
+      await tester.drag(
+        find.byType(SingleChildScrollView).first,
+        const Offset(0, 1200),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+
       // A family's row, opened: what each of its creatures earned toward it.
+      await tester.ensureVisible(find.text('HORN MASTERY'));
+      await tester.pump(const Duration(milliseconds: 200));
       await tester.tap(find.text('HORN MASTERY'));
       for (var i = 0; i < 12; i++) {
         await tester.pump(const Duration(milliseconds: 40));
@@ -280,6 +416,89 @@ void main() {
       );
       await tester.pump();
       await shoot(tester, panel, 'results_mastery_detail');
+
+      // The Fold's cover screen, 344 wide: the same results, then at 1.3x
+      // text, then a party with a healer out.
+      Future<void> fold(
+        String name,
+        SurvivalDamageReport report, {
+        double text = 1,
+        List<int> at = const [1500, 6000],
+      }) async {
+        tester.view.physicalSize = const Size(344 * kLobbyDpr, 882 * kLobbyDpr);
+        final key = GlobalKey();
+        await tester.pumpWidget(
+          app(
+            key,
+            MediaQuery.withClampedTextScaling(
+              minScaleFactor: text,
+              maxScaleFactor: text,
+              child: ColoredBox(
+                color: const Color(0xFF06060A),
+                child: CosmicSurvivalGameOverPanel(
+                  key: ValueKey(name),
+                  wave: 23,
+                  kills: 1840,
+                  score: 48210,
+                  time: '14:32',
+                  rewards: run,
+                  damage: report,
+                  onQuit: () {},
+                  onNewTeam: () {},
+                  onReplay: () {},
+                ),
+              ),
+            ),
+          ),
+        );
+        var t = 0;
+        for (final when in at) {
+          while (t < when) {
+            await tester.pump(const Duration(milliseconds: 25));
+            t += 25;
+          }
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pump();
+          await shoot(tester, key, '${name}_${when}ms');
+        }
+        expect(tester.takeException(), isNull);
+      }
+
+      await fold('fold_results', damage);
+      await fold('fold_large_text', damage, text: 1.3, at: const [6000]);
+      await fold('fold_healer', healer, at: const [6000]);
+      tester.view.physicalSize = kLobbyPhysical;
+      // The healer's party at the phone's width too.
+      final wide = GlobalKey();
+      await tester.pumpWidget(
+        app(
+          wide,
+          ColoredBox(
+            color: const Color(0xFF06060A),
+            child: CosmicSurvivalGameOverPanel(
+              wave: 31,
+              kills: 2280,
+              score: 71900,
+              time: '14:32',
+              rewards: run,
+              damage: healer,
+              onQuit: () {},
+              onNewTeam: () {},
+              onReplay: () {},
+            ),
+          ),
+        ),
+      );
+      for (var i = 0; i < 240; i++) {
+        await tester.pump(const Duration(milliseconds: 25));
+      }
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+      await tester.pump();
+      await shoot(tester, wide, 'results_healer');
 
       // Every reward survival can pay, at the two sizes it is drawn.
       final keys = {

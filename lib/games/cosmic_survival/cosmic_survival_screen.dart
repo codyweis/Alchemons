@@ -1,4 +1,5 @@
 import 'components/survival_camera_button.dart';
+import 'components/survival_fusion_ledger.dart';
 import 'components/survival_hud.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -69,6 +70,8 @@ import 'package:alchemons/games/cosmic_survival/components/survival_lobby_team.d
 import 'package:alchemons/games/cosmic_survival/components/survival_mastery_strip.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_orb_entrance.dart';
 import 'package:alchemons/games/cosmic_survival/survival_suspended_run.dart';
+import 'package:alchemons/games/cosmic_survival/survival_best_run.dart';
+import 'package:alchemons/games/cosmic_survival/survival_damage_report.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
     show PanelReadout, PanelRow, PanelSectionHeader, panelLabel, panelPalette;
 import 'package:alchemons/services/web_ads.dart';
@@ -352,6 +355,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   int _finalKills = 0;
   int _finalScore = 0;
   String _finalTime = '00:00';
+  SurvivalDamageReport _finalDamage = SurvivalDamageReport.empty;
   bool _resolvingGameOver = false;
   bool _resolvingWave50Reward = false;
 
@@ -1585,6 +1589,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       _finalKills = _game?.stats.kills ?? 0;
       _finalScore = _game?.stats.score ?? 0;
       _finalTime = _game?.stats.formattedTime ?? '00:00';
+      _finalDamage = _game == null
+          ? SurvivalDamageReport.empty
+          : SurvivalDamageReport.fromGame(_game!);
       _resolvingGameOver = true;
     });
 
@@ -1855,6 +1862,16 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       wave: _finalWave,
       score: _finalScore,
       timeMs: ((_game?.stats.timeElapsed ?? 0) * 1000).round(),
+    );
+    // The run itself, with its team, for friends (survival_best_run.dart).
+    await SurvivalBestRun.note(
+      db.settingsDao,
+      wave: _finalWave,
+      score: _finalScore,
+      team: [
+        for (final m in _game?.party ?? _party ?? const <CosmicPartyMember>[])
+          m.baseId,
+      ],
     );
     await _loadHighScore();
   }
@@ -3741,6 +3758,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                                       );
                                     }).toList(),
                                   ),
+                            // FUSIONS: the recipes the run has seen a parent
+                            // of, each part grey until it is done.
+                            if (SurvivalFusionLedger.recipesFor(
+                              game.powerUps,
+                            ).isNotEmpty) ...[
+                              const SizedBox(height: 14),
+                              const PanelSectionHeader('FUSIONS'),
+                              SurvivalFusionLedger(powerUps: game.powerUps),
+                            ],
                             const SizedBox(height: 14),
                             const PanelSectionHeader('ALCHEMON STATS'),
                             const SizedBox(height: 8),
@@ -4046,6 +4072,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       score: _finalScore,
       time: _finalTime,
       rewards: _gameOverRewardEntries,
+      damage: _finalDamage,
       // Rewards and high scores are already banked by the time this panel
       // exists, so quitting only has to take the same way out as the pause
       // menu's QUIT — no confirmation, the run is already over.

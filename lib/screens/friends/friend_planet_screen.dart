@@ -12,9 +12,11 @@
 // A friend who has not built their home planet yet has nothing to look into:
 // their page shows a dim grey planet, still, and no portal.
 //
-// Under their name, the title they wear; under the planet, the Alchemon
-// their home features, as it looks on their home. By their name, a green dot
-// while they are in the game; under their division, when they were last seen.
+// Under their name, the title they wear; under the planet, its class, then
+// the Alchemon their home features, as it looks on their home. By their name,
+// a green dot while they are in the game; under their division, when they
+// were last seen. Then what they have done: their best Survival run with the
+// team that ran it (friend_best_run.dart), and the Trials.
 //
 // TRADE · FUSE under the planet opens the table with them (trade_screen.dart),
 // where the two trade or fuse, with a dot while it waits on the player.
@@ -32,6 +34,7 @@ import 'package:alchemons/models/faction.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
+import 'package:alchemons/screens/friends/friend_best_run.dart';
 import 'package:alchemons/screens/friends/friend_home_screen.dart';
 import 'package:alchemons/screens/friends/friend_trials.dart';
 import 'package:alchemons/screens/friends/trade_screen.dart';
@@ -440,12 +443,6 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                                       fontWeight: FontWeight.w700,
                                       color: accent,
                                       letterSpacing: 1.1,
-                                      shadows: const [
-                                        Shadow(
-                                          color: Colors.black,
-                                          blurRadius: 10,
-                                        ),
-                                      ],
                                     ),
                                   ),
                                 ),
@@ -465,9 +462,6 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                                   fontWeight: FontWeight.w600,
                                   color: _palette.ink,
                                   letterSpacing: 1,
-                                  shadows: const [
-                                    Shadow(color: Colors.black, blurRadius: 10),
-                                  ],
                                 ),
                               ),
                             ],
@@ -548,19 +542,25 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                           ),
                         ),
                 ),
+                // The planet's class, under the planet it is of.
+                if (friend.planet case final planet?)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      _planetLine(planet),
+                      textAlign: TextAlign.center,
+                      style: _mono(10, _palette.muted, spacing: 2),
+                    ),
+                  ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
                   child: Column(
                     children: [
                       if (friend.featured case final look?)
                         _FeaturedAlchemon(look: look),
-                      if (friend.planet case final planet?) ...[
-                        Text(
-                          _planetLine(planet),
-                          textAlign: TextAlign.center,
-                          style: _mono(10.5, _palette.muted, spacing: 2),
-                        ),
-                        const SizedBox(height: 10),
+                      if (friend.survival != null) ...[
+                        FriendBestRunBlock(friend: friend),
+                        const SizedBox(height: 12),
                       ],
                       FriendTrialsRow(friend: friend),
                       Row(
@@ -646,11 +646,10 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
   static String _planetLine(PlanetLook planet) {
     final color = premiumHomeColor(planet.color)?.label ?? planet.color;
     return '${planet.sizeName.toUpperCase()} CLASS'
-        '${color == null ? '' : '  ·  ${color.toUpperCase()}'}';
+        '${color == null ? '' : ' · ${color.toUpperCase()}'}';
   }
 }
 
-/// TRADE · FUSE: the table with them, dotted while it waits on the player.
 /// The Alchemon a friend's home features, as it looks there, over its
 /// species' name. Nothing for a species this game does not know.
 class _FeaturedAlchemon extends StatelessWidget {
@@ -667,7 +666,7 @@ class _FeaturedAlchemon extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -773,6 +772,7 @@ class _RaceButtonState extends State<_RaceButton> {
   }
 }
 
+/// TRADE · FUSE: the table with them, dotted while it waits on the player.
 class _TradeButton extends StatelessWidget {
   const _TradeButton({required this.friend, required this.accent});
 
@@ -795,10 +795,13 @@ class _TradeButton extends StatelessWidget {
           onTap: () => Navigator.of(context).push(TradeScreen.route(friend)),
         ),
         if (waiting)
-          const Positioned(
+          Positioned(
             right: -4,
             top: -4,
-            child: HomeNoticeDot(color: Color(0xFFE4C16A), size: 12),
+            child: HomeNoticeDot(
+              color: ForgeTokens(factionThemeFor(null)).rewardGold,
+              size: 12,
+            ),
           ),
       ],
     );

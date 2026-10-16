@@ -3,25 +3,38 @@
 // A friend's Trials on their planet page (the author, 2026-10-12: "keep
 // fastest times records, and then we can show them on our home planet
 // friends area"; picked: their trophy, and a sheet of records set against
-// the player's own): a row with the best cup they have reached and how many
-// cups they have won, and — tapped — every race and bout with their best
+// the player's own): a row with how many cups they have won and the best
+// cup they have reached, laid out as their best Survival run's above it
+// (friend_best_run.dart), and — tapped — every race and bout with their best
 // beside the player's, the better one lit.
 
 import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/models/friend_home.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/stadium_trophy.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-const Color _ink = Color(0xFFE6E2DA);
-const Color _muted = Color(0xFF8E8C88);
-const Color _brass = Color(0xFFCDB07A);
-const Color _brassHot = Color(0xFFE2C98F);
-const Color _bg1 = Color(0xFF131316);
+const _palette = BracketPalette.dark;
+final ForgeTokens _tokens = ForgeTokens(factionThemeFor(null));
+final Color _ink = _palette.ink;
+final Color _muted = _palette.muted;
+final Color _brass = _tokens.amberBright;
+final Color _brassHot = _tokens.amberGlow;
+final Color _bg1 = _palette.bg1;
+
+TextStyle _mono(double size, Color color, {double spacing = 1.4}) => TextStyle(
+  fontFamily: 'monospace',
+  color: color,
+  fontSize: size,
+  fontWeight: FontWeight.w800,
+  letterSpacing: spacing,
+  height: 1.2,
+);
 
 /// The cup a player's Trials show: the furthest gem cup they have won a bout
 /// of, else the race cup they are racing for.
@@ -40,7 +53,7 @@ int trialsCupsWon(RaceProgress progress) => [
   for (final c in kGemCups) progress.gemDone(c),
 ].where((d) => d).length;
 
-/// A friend's Trials, as a row on their page: their cup, the cups won, and
+/// A friend's Trials, as a row on their page: the cups won, their cup, and
 /// RECORDS. Nothing for a friend who has not raced.
 class FriendTrialsRow extends StatelessWidget {
   const FriendTrialsRow({super.key, required this.friend});
@@ -54,7 +67,7 @@ class FriendTrialsRow extends StatelessWidget {
     final progress = RaceProgress(trials.won);
     final won = trialsCupsWon(progress);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 14),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
@@ -62,37 +75,34 @@ class FriendTrialsRow extends StatelessWidget {
           showFriendTrials(context, friend);
         },
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('THE TRIALS', style: _mono(9.5, _muted, spacing: 1.8)),
+                  const SizedBox(height: 4),
+                  if (won == 0)
+                    Text(
+                      'No cups won yet',
+                      style: bracketText(context, 12, _muted),
+                    )
+                  else
+                    Text(
+                      '$won ${won == 1 ? 'CUP' : 'CUPS'} WON',
+                      style: _mono(15, _ink, spacing: 1),
+                    ),
+                ],
+              ),
+            ),
             StadiumTrophyEmblem(
               height: 30,
               look: trialsTopCup(progress),
               animate: false,
             ),
-            const SizedBox(width: 10),
-            Text(
-              won == 0
-                  ? 'THE TRIALS'
-                  : 'THE TRIALS · $won ${won == 1 ? 'CUP' : 'CUPS'}',
-              style: bracketText(
-                context,
-                10.5,
-                _ink.withValues(alpha: 0.85),
-                weight: FontWeight.w800,
-                letterSpacing: 1.6,
-              ),
-            ),
             const SizedBox(width: 12),
-            Text(
-              'RECORDS',
-              style: bracketText(
-                context,
-                10.5,
-                _brass,
-                weight: FontWeight.w800,
-                letterSpacing: 1.8,
-              ),
-            ),
+            Text('RECORDS', style: _mono(10.5, _brass, spacing: 1.8)),
           ],
         ),
       ),

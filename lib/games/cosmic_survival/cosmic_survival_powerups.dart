@@ -51,6 +51,12 @@ class PowerUpDef {
   /// party that cannot field it would be a dead pick in a three-way draft.
   final String? mysticElement;
 
+  /// Set on a SURGE FUSION ([kFusionPowerUps]): the two upgrades that make
+  /// it, each taken as far as it goes.
+  final List<String> fusedFrom;
+
+  bool get isFusion => fusedFrom.isNotEmpty;
+
   const PowerUpDef({
     required this.id,
     required this.name,
@@ -69,6 +75,7 @@ class PowerUpDef {
     this.isKeystone = false,
     this.choiceGroup,
     this.mysticElement,
+    this.fusedFrom = const [],
   });
 }
 
@@ -749,6 +756,125 @@ const kAllPowerUps = [
   ...kRarePerks,
 ];
 
+/// SURGE FUSIONS. Two upgrades, each taken as far as it goes, transmute into
+/// a third: from then on every ordinary draft holds it as one of its cards
+/// until it is taken or banished. The parents keep working; the fusion adds
+/// one bounded extra that makes their two mechanics work together.
+///
+/// Built only from ship, orb and team upgrades, so none depends on which
+/// Alchemon is fielded, and each upgrade is a parent of at most one. None of
+/// them reaches for what the families own (piercing, marking, push,
+/// vulnerable, stagger, ground lanes, every-Nth-attack cadence).
+///
+/// Never drawn at random: they are not in [kAllPowerUps].
+const kFusionPowerUps = [
+  // The spread's side shots were plain; Hunter Salvo only steered the
+  // centre one. Fused, each side shot steers too, at the body nearest its
+  // own line, so the fan still covers its arc.
+  PowerUpDef(
+    id: 'fusion_homing_spread',
+    name: 'Homing Spread',
+    description: 'Side shots home in too',
+    icon: '🌊',
+    category: PowerUpCategory.shipWeapon,
+    rarity: PowerUpRarity.legendary,
+    maxStacks: 1,
+    showLevel: false,
+    fusedFrom: ['spread_shot', 'homing_missiles'],
+  ),
+  // Rocket Barrage loads 1.5x slower than the gun it replaces.
+  PowerUpDef(
+    id: 'fusion_rapid_rockets',
+    name: 'Rapid Rockets',
+    description: 'Rockets reload as fast as shots',
+    icon: '🚀',
+    category: PowerUpCategory.shipWeapon,
+    rarity: PowerUpRarity.legendary,
+    maxStacks: 1,
+    showLevel: false,
+    fusedFrom: ['rocket_barrage', 'fire_rate'],
+  ),
+  // Kinetic Overdrive drove the gun's rounds only; the launcher's missiles
+  // flew at their own speed and impact.
+  PowerUpDef(
+    id: 'fusion_heavy_missiles',
+    name: 'Heavy Missiles',
+    description:
+        'Kinetic Overdrive drives the missiles: +30% impact, +36% speed',
+    icon: '🛰️',
+    category: PowerUpCategory.shipWeapon,
+    rarity: PowerUpRarity.legendary,
+    maxStacks: 1,
+    showLevel: false,
+    fusedFrom: ['missile_launcher', 'kinetic_overdrive'],
+  ),
+  // The ship's turret and the orb's: whatever the ship's turret hits within
+  // the orb turret's reach, the orb turret shoots as well.
+  PowerUpDef(
+    id: 'fusion_linked_turrets',
+    name: 'Linked Turrets',
+    description: 'The orb turret fires on what the ship turret hits near it',
+    icon: '🔧',
+    category: PowerUpCategory.orbDefense,
+    rarity: PowerUpRarity.legendary,
+    maxStacks: 1,
+    showLevel: false,
+    fusedFrom: ['rapid_turret', 'auto_turret'],
+  ),
+  // The orb's two timed defences: the pulse sets off the nova as it goes.
+  PowerUpDef(
+    id: 'fusion_nova_pulse',
+    name: 'Nova Pulse',
+    description: 'Every shield pulse sets off the nova',
+    icon: '☀️',
+    category: PowerUpCategory.orbDefense,
+    rarity: PowerUpRarity.legendary,
+    maxStacks: 1,
+    showLevel: false,
+    fusedFrom: ['shield_pulse', 'nova_detonation'],
+  ),
+  // Regeneration was a flat 2 HP a level; tempering's extra HP left it
+  // behind. Fused, it also restores a share of the orb's max HP.
+  PowerUpDef(
+    id: 'fusion_tempered_field',
+    name: 'Tempered Field',
+    description: 'Regeneration also restores 1% of orb max HP a second',
+    icon: '💚',
+    category: PowerUpCategory.orbDefense,
+    rarity: PowerUpRarity.legendary,
+    maxStacks: 1,
+    showLevel: false,
+    fusedFrom: ['regen_field', 'orb_vitality'],
+  ),
+];
+
+/// Tempered Field: the share of the orb's max HP regeneration adds a second,
+/// about twice what a full Field gives. On the stat-wall benchmark it moved
+/// P70's mean first death about 1.7 waves past its parents and P100 + E10's
+/// not at all (0.5% measured about the same).
+const double kTemperedFieldShare = 0.01;
+
+/// At most this many fusion cards in one draft, so it keeps a drawn card.
+const int kMaxFusionCardsPerDraft = 2;
+
+final Map<String, PowerUpDef> _kDrawnPowerUpsById = {
+  for (final def in kAllPowerUps) def.id: def,
+};
+
+/// The fusion's two parents, as upgrades.
+List<PowerUpDef> fusionParents(PowerUpDef fusion) => [
+  for (final id in fusion.fusedFrom)
+    if (_kDrawnPowerUpsById[id] case final def?) def,
+];
+
+/// The fusion [parentId] is a parent of, if any.
+PowerUpDef? fusionWithParent(String parentId) {
+  for (final fusion in kFusionPowerUps) {
+    if (fusion.fusedFrom.contains(parentId)) return fusion;
+  }
+  return null;
+}
+
 /// The draft's two keys, per run: REROLL draws three fresh cards, BANISH
 /// takes one upgrade out of the run and puts a fresh card in its place.
 /// Tune them here.
@@ -766,7 +892,83 @@ class PowerUpState {
   int _banishesLeft = kSurvivalDraftBanishes;
   final Set<String> _banished = {};
 
+  /// Fusion parents the run has had on a draft card, for the pause panel's
+  /// FUSIONS list.
+  final Set<String> _seenFusionParents = {};
+
   List<AppliedPowerUp> get history => List.unmodifiable(_history);
+
+  /// Fusion parents offered on a draft card this run (taken ones count too:
+  /// see [hasSeenFusionParent]).
+  Set<String> get seenFusionParents => Set.unmodifiable(_seenFusionParents);
+
+  bool hasSeenFusionParent(String id) =>
+      _seenFusionParents.contains(id) || getGlobalStacks(id) > 0;
+
+  /// Notes the fusion parents among [choices]: they were put in front of
+  /// the player.
+  void noteOffered(Iterable<OfferedPowerUpChoice> choices) {
+    for (final c in choices) {
+      if (fusionWithParent(c.def.id) != null) _seenFusionParents.add(c.def.id);
+    }
+  }
+
+  /// A continued run's seen parents, as it left them.
+  void restoreSeenFusionParents(Iterable<String> ids) {
+    _seenFusionParents
+      ..clear()
+      ..addAll(ids.where((id) => fusionWithParent(id) != null));
+  }
+
+  /// Whether [parent] has been taken as far as it goes.
+  bool fusionParentDone(PowerUpDef parent) =>
+      getGlobalStacks(parent.id) >= parent.maxStacks;
+
+  bool _fusionParentsDone(PowerUpDef fusion) {
+    final parents = fusionParents(fusion);
+    return parents.length == fusion.fusedFrom.length &&
+        parents.every(fusionParentDone);
+  }
+
+  /// Whether [fusion] is due a card: both parents done, and it is neither
+  /// taken nor banished.
+  bool fusionReady(PowerUpDef fusion) =>
+      fusion.isFusion &&
+      !has(fusion.id) &&
+      !isBanished(fusion.id) &&
+      _fusionParentsDone(fusion);
+
+  /// Every fusion due a card, in recipe order.
+  List<PowerUpDef> get readyFusions => [
+    for (final fusion in kFusionPowerUps)
+      if (fusionReady(fusion)) fusion,
+  ];
+
+  /// Whether [fusion] can still be made this run: not banished, and each
+  /// parent done or still to be had (not banished, not shut out by the
+  /// other path of an either-or or a weapon it excludes).
+  bool fusionStillPossible(PowerUpDef fusion) {
+    if (has(fusion.id)) return true;
+    if (isBanished(fusion.id)) return false;
+    for (final parent in fusionParents(fusion)) {
+      if (fusionParentDone(parent)) continue;
+      if (isBanished(parent.id) || !canApply(parent)) return false;
+    }
+    return true;
+  }
+
+  /// The other parent of the fusion [parentId] makes, while that fusion can
+  /// still be made; null otherwise.
+  PowerUpDef? fusionPartnerOf(String parentId) {
+    final fusion = fusionWithParent(parentId);
+    if (fusion == null || has(fusion.id) || !fusionStillPossible(fusion)) {
+      return null;
+    }
+    for (final parent in fusionParents(fusion)) {
+      if (parent.id != parentId) return parent;
+    }
+    return null;
+  }
 
   /// REROLLs the run has left.
   int get rerollsLeft => _rerollsLeft;
@@ -848,6 +1050,8 @@ class PowerUpState {
       final selected = _choiceSelections[def.choiceGroup!];
       if (selected != null && selected != def.id) return false;
     }
+    // A fusion only once both its parents are taken as far as they go.
+    if (def.isFusion && !_fusionParentsDone(def)) return false;
     if (def.scope == PowerUpScope.companion) {
       if (companionCount <= 0) return false;
       if (targetSlot != null) {
@@ -1010,6 +1214,14 @@ class PowerUpState {
       (1 + getGlobalStacks('pack_leader')).clamp(1, 5);
   int get orbVitalityLevel => getGlobalStacks('orb_vitality');
   int get surgeMagnetLevel => getGlobalStacks('surge_magnet');
+
+  // SURGE FUSIONS (kFusionPowerUps).
+  bool get hasHomingSpread => has('fusion_homing_spread');
+  bool get hasRapidRockets => has('fusion_rapid_rockets');
+  bool get hasHeavyMissiles => has('fusion_heavy_missiles');
+  bool get hasLinkedTurrets => has('fusion_linked_turrets');
+  bool get hasNovaPulse => has('fusion_nova_pulse');
+  bool get hasTemperedField => has('fusion_tempered_field');
 
   int displayedLevel(PowerUpDef def, {int? slotIndex}) => getStacks(
     def.id,
@@ -1264,17 +1476,36 @@ List<OfferedPowerUpChoice> generatePowerUpChoices(
     rng,
     defeatedCompanionSlots,
   );
-  if (exclusiveFork.isNotEmpty) return exclusiveFork;
+  if (exclusiveFork.isNotEmpty) {
+    state.noteOffered(exclusiveFork);
+    return exclusiveFork;
+  }
 
-  return _drawPowerUpChoices(
-    state,
-    wave,
-    rng: rng,
-    packLeaderRoll: Random(wave * 53 + state.history.length * 7 + 3),
-    party: party,
-    defeatedCompanionSlots: defeatedCompanionSlots,
-  );
+  // A fusion due a card leads the draft; the rest is drawn as ever.
+  final fusions = _fusionCards(state);
+  final draft = [
+    ...fusions,
+    ..._drawPowerUpChoices(
+      state,
+      wave,
+      rng: rng,
+      packLeaderRoll: Random(wave * 53 + state.history.length * 7 + 3),
+      party: party,
+      defeatedCompanionSlots: defeatedCompanionSlots,
+      count: 3 - fusions.length,
+    ),
+  ];
+  state.noteOffered(draft);
+  return draft;
 }
+
+/// A card for each fusion due one (both parents taken as far as they go,
+/// not taken or banished), in recipe order, at most
+/// [kMaxFusionCardsPerDraft].
+List<OfferedPowerUpChoice> _fusionCards(PowerUpState state) => [
+  for (final fusion in state.readyFusions.take(kMaxFusionCardsPerDraft))
+    OfferedPowerUpChoice(def: fusion, currentLevel: 0),
+];
 
 /// Whether a draft offers REROLL and BANISH: every draft but a keystone's.
 bool powerUpDraftHasKeys(List<OfferedPowerUpChoice> choices) =>
@@ -1288,6 +1519,9 @@ bool powerUpDraftHasKeys(List<OfferedPowerUpChoice> choices) =>
 ///
 /// A this-or-that draft rerolls into an ordinary one: drawing the same pair
 /// again would spend the reroll on nothing.
+///
+/// A fusion due a card stays on the table: only the drawn cards are drawn
+/// again.
 List<OfferedPowerUpChoice>? rerollPowerUpDraft(
   PowerUpState state,
   int wave, {
@@ -1297,6 +1531,7 @@ List<OfferedPowerUpChoice>? rerollPowerUpDraft(
 }) {
   if (state.rerollsLeft <= 0 || !powerUpDraftHasKeys(current)) return null;
   final salt = state.draftRedraws + 1;
+  final fusions = _fusionCards(state);
   final fresh = _drawPowerUpChoices(
     state,
     wave,
@@ -1307,9 +1542,12 @@ List<OfferedPowerUpChoice>? rerollPowerUpDraft(
     party: party,
     defeatedCompanionSlots: defeatedCompanionSlots,
     avoid: {for (final c in current) c.def.id},
+    count: 3 - fusions.length,
   );
   if (fresh.isEmpty || !state.spendReroll()) return null;
-  return fresh;
+  final draft = [...fusions, ...fresh];
+  state.noteOffered(draft);
+  return draft;
 }
 
 /// BANISH: [current]'s card at [index] is never offered again this run, and
@@ -1345,13 +1583,15 @@ List<OfferedPowerUpChoice>? banishFromPowerUpDraft(
   );
   if (replacement.isEmpty && kept.isEmpty) return null;
   if (!state.spendBanish(gone)) return null;
-  return [
+  final draft = [
     for (var i = 0; i < current.length; i++)
       if (i != index)
         current[i]
       else if (replacement.isNotEmpty)
         replacement.first,
   ];
+  state.noteOffered(draft);
+  return draft;
 }
 
 /// The draw every draft is made by: up to [count] cards from what the run

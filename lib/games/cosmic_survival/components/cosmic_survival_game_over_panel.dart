@@ -1,5 +1,6 @@
-// End-of-run results for cosmic survival: final stats, what the run paid out,
-// and the three ways out of it.
+// End-of-run results for cosmic survival: final stats, who carried the run
+// (survival_damage_breakdown.dart), what the run paid out, and the three ways
+// out of it.
 //
 // It comes up over the stilled arena as the core finishes coming apart, and
 // the rewards gather into it out of grains (reward_reveal.dart) — the reveal
@@ -11,6 +12,8 @@
 // of a finished run is the one control that must never be the casualty.
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/games/cosmic_survival/components/survival_damage_breakdown.dart';
+import 'package:alchemons/games/cosmic_survival/survival_damage_report.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/widgets/animations/reward_reveal.dart';
@@ -32,6 +35,7 @@ class CosmicSurvivalGameOverPanel extends StatefulWidget {
     required this.score,
     required this.time,
     required this.rewards,
+    this.damage = SurvivalDamageReport.empty,
     required this.onQuit,
     required this.onNewTeam,
     required this.onReplay,
@@ -42,6 +46,9 @@ class CosmicSurvivalGameOverPanel extends StatefulWidget {
   final int score;
   final String time;
   final List<LootOpeningEntry> rewards;
+
+  /// Who dealt the run's damage. Its section is left out when empty.
+  final SurvivalDamageReport damage;
 
   /// Leaves survival entirely and returns to whatever pushed it.
   final VoidCallback onQuit;
@@ -57,6 +64,7 @@ class _CosmicSurvivalGameOverPanelState
     extends State<CosmicSurvivalGameOverPanel>
     with SingleTickerProviderStateMixin {
   final _reveal = GlobalKey<RewardRevealState>();
+  final _damage = GlobalKey<SurvivalDamageBreakdownState>();
   late final AnimationController _in = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 900),
@@ -70,6 +78,7 @@ class _CosmicSurvivalGameOverPanelState
 
   void _finish() {
     _reveal.currentState?.finish();
+    _damage.currentState?.finish();
     if (_in.isAnimating) _in.value = 1;
   }
 
@@ -79,6 +88,7 @@ class _CosmicSurvivalGameOverPanelState
   @override
   Widget build(BuildContext context) {
     final rewards = widget.rewards;
+    final damage = widget.damage;
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: GestureDetector(
@@ -156,6 +166,18 @@ class _CosmicSurvivalGameOverPanelState
                                   ],
                                 ),
                               ),
+                              // Who carried it, between the run's totals and
+                              // what it paid. The actions are outside the
+                              // scroll, so this pushes the rewards down, never
+                              // the way out.
+                              if (!damage.isEmpty) ...[
+                                const SizedBox(height: 20),
+                                SurvivalDamageBreakdown(
+                                  key: _damage,
+                                  report: damage,
+                                  delay: const Duration(milliseconds: 380),
+                                ),
+                              ],
                               if (rewards.isNotEmpty) ...[
                                 const SizedBox(height: 20),
                                 FadeTransition(
@@ -187,7 +209,11 @@ class _CosmicSurvivalGameOverPanelState
                                 RewardReveal(
                                   key: _reveal,
                                   entries: rewards,
-                                  delay: const Duration(milliseconds: 650),
+                                  // After the damage rows have begun to
+                                  // settle, so the panel fills top down.
+                                  delay: Duration(
+                                    milliseconds: damage.isEmpty ? 650 : 950,
+                                  ),
                                   onTap: (e) => showRewardDetail(context, e),
                                 ),
                               ],

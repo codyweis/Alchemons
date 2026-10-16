@@ -10,6 +10,15 @@
 // the Surge Magnet, two ember currents braided into one surge for Warpath —
 // so three cards never look alike. Keyed by id.
 //
+// A SURGE FUSION is drawn as its two parents' formations made one, in both
+// parents' lights: the spread's streams turning onto their marks (Homing
+// Spread), rockets coming down the comet's path at the gun's pace (Rapid
+// Rockets), the overdrive's streaks poured into the missile's tail (Heavy
+// Missiles), the ship's and the orb's turret shots meeting on one body
+// (Linked Turrets), the pulse's shell breathing out the nova's grains (Nova
+// Pulse), and the regeneration's and the tempering's grains rising as one
+// braid (Tempered Field).
+//
 // Live on the draft cards through GrainGlyph (one shared clock for all of
 // them); still in the TAKEN strip (painted once). A card's art is about
 // 60–250 points in at most ten batched draws plus a few cached radial
@@ -46,6 +55,13 @@ enum UpgradeMotif {
   braid,
   world,
   magnet,
+  // Surge fusions.
+  seekingFan,
+  rocketTrain,
+  heavyComet,
+  linkedBolts,
+  pulseNova,
+  risingBraid,
 }
 
 class UpgradeArtSpec {
@@ -180,6 +196,36 @@ UpgradeArtSpec upgradeArtFor(PowerUpDef def) {
       second: _ember,
     ),
     'surge_magnet' => const UpgradeArtSpec(UpgradeMotif.magnet, _brass),
+    'fusion_homing_spread' => const UpgradeArtSpec(
+      UpgradeMotif.seekingFan,
+      _shot,
+      second: _steel,
+    ),
+    'fusion_rapid_rockets' => const UpgradeArtSpec(
+      UpgradeMotif.rocketTrain,
+      _shot,
+      second: _ember,
+    ),
+    'fusion_heavy_missiles' => const UpgradeArtSpec(
+      UpgradeMotif.heavyComet,
+      _shot,
+      second: _steel,
+    ),
+    'fusion_linked_turrets' => const UpgradeArtSpec(
+      UpgradeMotif.linkedBolts,
+      _steel,
+      second: _ward,
+    ),
+    'fusion_nova_pulse' => const UpgradeArtSpec(
+      UpgradeMotif.pulseNova,
+      _ward,
+      second: _orb,
+    ),
+    'fusion_tempered_field' => const UpgradeArtSpec(
+      UpgradeMotif.risingBraid,
+      _heal,
+      second: _orb,
+    ),
     _ => const UpgradeArtSpec(UpgradeMotif.core, _brass),
   };
 }
@@ -409,6 +455,42 @@ abstract final class UpgradeArtPaint {
           glow: 0.6,
         );
         _rise(t, s, from: 0.0, spread: 0.55, n: 26);
+      case UpgradeMotif.seekingFan:
+        _seekingFan(t, s);
+      case UpgradeMotif.rocketTrain:
+        _rocketTrain(t, s);
+      case UpgradeMotif.heavyComet:
+        _heavyComet(canvas, c, r, t, spec, s);
+      case UpgradeMotif.linkedBolts:
+        _linkedBolts(canvas, c, r, t, spec, s);
+      case UpgradeMotif.pulseNova:
+        GrainGlass.sphere(
+          canvas,
+          c,
+          r * 0.24,
+          t,
+          a: spec.color,
+          heat: 0.6,
+          heatColor: spec.second ?? spec.color,
+          glow: 0.7,
+        );
+        _pulseNova(t, s);
+      case UpgradeMotif.risingBraid:
+        GrainGlass.pool(
+          canvas,
+          c + Offset(-r * 0.14, r * 0.54),
+          r * 0.46,
+          spec.color,
+          alpha: 0.8,
+        );
+        GrainGlass.pool(
+          canvas,
+          c + Offset(r * 0.16, r * 0.56),
+          r * 0.42,
+          spec.second ?? spec.color,
+          alpha: 0.7,
+        );
+        _risingBraid(t, s);
     }
     _flush(canvas, c, r, spec);
   }
@@ -1095,6 +1177,375 @@ abstract final class UpgradeArtPaint {
       final q = _braidAt(u0 - 0.12 * l) + _braidNormal(u0) * out;
       if (q.distanceSquared > 0.84) continue;
       _add(l < 0.3 ? _body : _deep, q.dx, q.dy, second: i % 3 == 0);
+    }
+  }
+
+  // ══ Surge fusions: two parents' formations made one. ══
+
+  // ── Homing Spread: the spread's three streams, each turning onto a mark
+  // of its own the way Hunter Salvo's comet turns onto its. A stream leaves
+  // the spread's source in the shot's ember and takes the hunter's steel as
+  // it turns; it is hottest where it arrives.
+  static const Offset _seekSrc = Offset(-0.52, 0.5);
+  static const List<Offset> _seekMarks = [
+    Offset(0.04, -0.62),
+    Offset(0.36, -0.46),
+    Offset(0.62, -0.06),
+  ];
+
+  static Offset _seekAt(int lane, double p) {
+    final ang = -math.pi / 2 + (lane - 1) * 0.5 + 0.55;
+    final bend = _seekSrc + Offset(math.cos(ang), math.sin(ang)) * 0.95;
+    final v = 1 - p;
+    return _seekSrc * (v * v) + bend * (2 * p * v) + _seekMarks[lane] * (p * p);
+  }
+
+  static void _seekingFan(double t, int s) {
+    for (var lane = 0; lane < 3; lane++) {
+      for (var g = 0; g < 18; g++) {
+        final p = (t * 0.34 + g / 18 + lane * 0.11) % 1.0;
+        final q = _seekAt(lane, p);
+        final ahead = _seekAt(lane, math.min(1.0, p + 0.02));
+        final d = ahead - q;
+        final len = d.distance;
+        final nrm = len > 0 ? Offset(-d.dy, d.dx) / len : Offset.zero;
+        // A current a few grains wide, drawn tight as it closes in.
+        for (var w = 0; w < 2; w++) {
+          final across = (_h(g * 2 + w + lane * 40, 60 + s) - 0.5) * 0.07;
+          final at = q + nrm * (across * (1 - 0.6 * p));
+          if (at.distanceSquared > 0.84) continue;
+          final steel = p > 0.48;
+          _add(
+            p > 0.86
+                ? _hot
+                : p > 0.62
+                ? _lit
+                : p > 0.3
+                ? _body
+                : (p < 0.08 ? _lit : _deep),
+            at.dx,
+            at.dy,
+            second: steel,
+          );
+        }
+      }
+      // Where it arrives: a small knot of the hunter's steel.
+      final m = _seekMarks[lane];
+      for (var i = 0; i < 6; i++) {
+        final a = _h(i + lane * 9, 61 + s) * math.pi * 2 + t * 0.4;
+        final rr = 0.02 + _h(i + lane * 9, 62 + s) * 0.05;
+        _add(
+          i < 2 ? _hot : _lit,
+          m.dx + math.cos(a) * rr,
+          m.dy + math.sin(a) * rr,
+          second: true,
+        );
+      }
+    }
+    _add(_hot, _seekSrc.dx, _seekSrc.dy);
+    _add(_glint, _seekSrc.dx, _seekSrc.dy);
+    _add(_glint, _seekMarks[1].dx, _seekMarks[1].dy);
+  }
+
+  // ── Rapid Rockets: the rocket's comet path with rockets coming down it as
+  // close as the gun's shots, each a hot head on a short ember tail. They
+  // come in at one edge and leave at the other, so none pops in or out.
+  static void _rocketTrain(double t, int s) {
+    for (var k = 0; k < 3; k++) {
+      final head = -0.12 + ((t * 0.22 + k / 3) % 1.0) * 1.4;
+      for (var j = 0; j < 24; j++) {
+        final p = head - j * 0.011;
+        final q = _cometAt(p, 1);
+        final spread = j * 0.0019;
+        final jx = (_h(j + k * 30, 63 + s) - 0.5) * spread * 6;
+        final jy = (_h(j + k * 30, 64 + s) - 0.5) * spread * 6;
+        final at = Offset(q.dx + jx, q.dy + jy);
+        if (at.distanceSquared > 0.86) continue;
+        _add(
+          j < 2
+              ? _hot
+              : j < 6
+              ? _lit
+              : j < 14
+              ? _body
+              : _deep,
+          at.dx,
+          at.dy,
+          second: j >= 4,
+        );
+        // The tail loosens behind the head, a grain either side.
+        if (j > 4 && j.isEven) {
+          final side = Offset(q.dx - jy * 2.4, q.dy + jx * 2.4);
+          if (side.distanceSquared < 0.86) {
+            _add(j < 14 ? _body : _deep, side.dx, side.dy, second: true);
+          }
+        }
+      }
+      final q = _cometAt(head, 1);
+      if (q.distanceSquared < 0.8) _add(_glint, q.dx, q.dy);
+    }
+    // The path they all take: loose smoke along it, the long comet's tail.
+    for (var j = 0; j < 34; j++) {
+      final p = 0.04 + j / 34 * 0.92;
+      final q = _cometAt(p, 1);
+      final jx = (_h(j, 65 + s) - 0.5) * 0.06;
+      final jy = (_h(j, 66 + s) - 0.5) * 0.06;
+      _add(_deep, q.dx + jx, q.dy + jy, second: j.isOdd);
+    }
+  }
+
+  // ── Heavy Missiles: the launcher's heavy comet with its glass head, and
+  // the overdrive's steel streaks running in beside its tail and pouring
+  // into it, wide behind and drawn in toward the head.
+  static Offset _cometNormal(double p) {
+    const a = Offset(-0.72, 0.6), b = Offset(-0.42, -0.62);
+    const c = Offset(0.66, -0.3);
+    final d = (b - a) * (2 * (1 - p)) + (c - b) * (2 * p);
+    return Offset(-d.dy, d.dx) / d.distance;
+  }
+
+  static void _heavyComet(
+    Canvas canvas,
+    Offset c,
+    double r,
+    double t,
+    UpgradeArtSpec spec,
+    int s,
+  ) {
+    _comet(t, 2);
+    final head = _cometHead(t);
+    for (var row = 0; row < 4; row++) {
+      final side = (row - 1.5) * 0.12;
+      for (var k = 0; k < 2; k++) {
+        final f0 = (t * 0.42 + k / 2 + _h(row, 67 + s) * 0.5) % 1.0;
+        for (var j = 0; j < 7; j++) {
+          final f = f0 - j * 0.035;
+          if (f < 0) continue;
+          final p = head - 0.6 + f * 0.52;
+          if (p < 0) continue;
+          final at = _cometAt(p, 1) + _cometNormal(p) * (side * (1 - f) * 0.95);
+          if (at.distanceSquared > 0.86) continue;
+          _add(
+            j == 0
+                ? _hot
+                : j < 3
+                ? _lit
+                : f > 0.3
+                ? _body
+                : _deep,
+            at.dx,
+            at.dy,
+            second: true,
+          );
+        }
+      }
+    }
+    final q = _cometAt(head, 1);
+    GrainGlass.sphere(
+      canvas,
+      c + q * r,
+      r * 0.14,
+      t,
+      a: spec.color,
+      heat: 0.7,
+      heatColor: Color.lerp(spec.color, Colors.white, 0.5)!,
+      glow: 0.8,
+      density: 0.5,
+    );
+  }
+
+  // ── Linked Turrets: the orb, a glass core in the ward light, and two
+  // lanes of shots — the ship turret's steel from above, the orb turret's
+  // ward light from the core — meeting on one body.
+  static const Offset _linkHit = Offset(0.46, -0.34);
+  static const Offset _linkCore = Offset(-0.24, 0.3);
+  static const Offset _linkShip = Offset(-0.62, -0.46);
+
+  static void _linkedBolts(
+    Canvas canvas,
+    Offset c,
+    double r,
+    double t,
+    UpgradeArtSpec spec,
+    int s,
+  ) {
+    GrainGlass.sphere(
+      canvas,
+      c + _linkCore * r,
+      r * 0.27,
+      t,
+      a: spec.second ?? spec.color,
+      glow: 0.6,
+      spin: 0.4,
+    );
+    for (var lane = 0; lane < 2; lane++) {
+      final fromOrb = lane == 1;
+      final toward = _linkHit - (fromOrb ? _linkCore : _linkShip);
+      final len = toward.distance;
+      final dir = toward / len;
+      final from = fromOrb ? _linkCore + dir * 0.3 : _linkShip;
+      final run = fromOrb ? len - 0.3 : len;
+      for (var b = 0; b < 3; b++) {
+        final p = (t * 0.55 + b / 3 + lane * 0.17) % 1.0;
+        final head = from + dir * (p * run);
+        for (var j = 0; j < 6; j++) {
+          final back = j * 0.045;
+          if (back > p * run) break;
+          final q = head - dir * back;
+          _add(
+            j == 0
+                ? _hot
+                : j < 2
+                ? _lit
+                : j < 4
+                ? _body
+                : _deep,
+            q.dx,
+            q.dy,
+            second: fromOrb,
+          );
+        }
+      }
+    }
+    // The ship's turret: a few steel grains where its lane starts.
+    for (var i = 0; i < 6; i++) {
+      final a = _h(i, 68 + s) * math.pi * 2;
+      final rr = 0.02 + _h(i, 69 + s) * 0.05;
+      _add(
+        i < 2 ? _lit : _body,
+        _linkShip.dx + math.cos(a) * rr,
+        _linkShip.dy + math.sin(a) * rr,
+      );
+    }
+    // The body both lanes land on: one knot in both lights.
+    for (var i = 0; i < 16; i++) {
+      final a = _h(i, 70 + s) * math.pi * 2 + t * 0.5;
+      final rr = 0.02 + _h(i, 71 + s) * 0.08;
+      _add(
+        i < 6 ? _hot : _lit,
+        _linkHit.dx + math.cos(a) * rr,
+        _linkHit.dy + math.sin(a) * rr,
+        second: i.isOdd,
+      );
+    }
+    _add(_glint, _linkHit.dx, _linkHit.dy);
+  }
+
+  // ── Nova Pulse: the pulse's shell of grains round its core, breathing,
+  // and the nova's gold breathed out through it in three uneven plumes that
+  // curl as they drift and dim.
+  static void _pulseNova(double t, int s) {
+    final breathe = 0.5 + 0.035 * math.sin(t * 1.1);
+    final spin = t * 0.25;
+    for (var i = 0; i < 90; i++) {
+      final lat = math.asin(2 * _h(i, 72 + s) - 1);
+      final lon = _h(i, 73 + s) * math.pi * 2 + spin;
+      final rr = breathe * (0.96 + 0.08 * _h(i, 74 + s));
+      final x = rr * math.cos(lat) * math.cos(lon);
+      final y = rr * math.sin(lat);
+      final z = rr * math.cos(lat) * math.sin(lon);
+      final light = (-0.5 * x - 0.55 * y + 0.65 * z) / rr;
+      _add(
+        z < 0
+            ? _deep
+            : light > 0.55
+            ? _hot
+            : light > 0.1
+            ? _lit
+            : _body,
+        x,
+        y,
+      );
+    }
+    const plumes = [(-2.3, 24), (-0.5, 19), (1.3, 14)];
+    for (var k = 0; k < plumes.length; k++) {
+      final (angle, n) = plumes[k];
+      for (var i = 0; i < n; i++) {
+        final p = (t * 0.2 + i / n + _h(i + k * 40, 75 + s) * 0.35) % 1.0;
+        final e = GrainGlass.smooth(p);
+        final rr = breathe * 0.94 + e * 0.36;
+        final a =
+            angle +
+            (_h(i + k * 40, 76 + s) - 0.5) * (0.3 + 0.45 * p) +
+            0.45 * e;
+        final x = math.cos(a) * rr, y = math.sin(a) * rr;
+        if (x * x + y * y > 0.86) continue;
+        _add(
+          p < 0.22
+              ? _hot
+              : p < 0.5
+              ? _lit
+              : p < 0.78
+              ? _body
+              : _deep,
+          x,
+          y,
+          second: true,
+        );
+      }
+    }
+  }
+
+  // ── Tempered Field: the regeneration's green and the tempering's gold
+  // rising off one pool as two strands that twist round each other and draw
+  // together into one column, dimming as they rise.
+  static void _risingBraid(double t, int s) {
+    for (var strand = 0; strand < 2; strand++) {
+      final gold = strand == 1;
+      for (var i = 0; i < 56; i++) {
+        final k = i + strand * 60;
+        final p = (t * 0.16 + i / 56 + _h(k, 77 + s) * 0.015) % 1.0;
+        final y = 0.5 - p * 1.24;
+        final amp = 0.27 * (1 - 0.72 * p);
+        final phase = p * math.pi * 2.3 - t * 0.7 + strand * math.pi;
+        final over = math.cos(phase);
+        final across = (_h(k, 78 + s) - 0.5) * 0.1 * (1 - 0.5 * p);
+        final sway = math.sin(t * 0.5 + p * 2.2) * 0.04 * p;
+        final x = amp * math.sin(phase) + across + sway;
+        if (x * x + y * y > 0.84) continue;
+        _add(
+          p > 0.84
+              ? _deep
+              : over > 0.4
+              ? (p < 0.4 ? _hot : _lit)
+              : over > -0.35
+              ? _body
+              : _deep,
+          x,
+          y,
+          second: gold,
+        );
+      }
+    }
+    // A few loose ones rising beside it, as off either parent's pool.
+    for (var i = 0; i < 18; i++) {
+      final p = (t * 0.2 + _h(i, 81 + s)) % 1.0;
+      final side = i.isEven ? -1.0 : 1.0;
+      final x =
+          side * (0.3 + 0.14 * _h(i, 82 + s)) * (1 - 0.5 * p) +
+          math.sin(t * 0.8 + i) * 0.03;
+      final y = 0.46 - p * 1.0;
+      if (x * x + y * y > 0.84) continue;
+      _add(
+        p < 0.25
+            ? _lit
+            : p < 0.6
+            ? _body
+            : _deep,
+        x,
+        y,
+        second: i % 4 < 2,
+      );
+    }
+    // The pool both rise from.
+    for (var i = 0; i < 32; i++) {
+      final u = _h(i, 79 + s) * 2 - 1;
+      _add(
+        i % 4 == 0 ? _lit : _body,
+        u * 0.5,
+        0.55 + _h(i, 80 + s) * 0.09 * (1 - u * u),
+        second: i.isOdd,
+      );
     }
   }
 }

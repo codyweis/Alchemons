@@ -16,6 +16,7 @@ import 'dart:convert';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic_survival/survival_best_run.dart';
 import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -364,7 +365,8 @@ class TrialsCard {
 }
 
 /// A friend as their friends see them: a name, a division, the title they
-/// wear, their featured Alchemon, a planet, and the Trials.
+/// wear, their featured Alchemon, a planet, the Trials, and their best
+/// Survival run.
 class FriendCard {
   const FriendCard({
     required this.uid,
@@ -374,6 +376,7 @@ class FriendCard {
     this.featured,
     this.planet,
     this.trials,
+    this.survival,
   });
 
   /// The most a title's words can run, as published and as read.
@@ -399,7 +402,16 @@ class FriendCard {
   /// that published none).
   final TrialsCard? trials;
 
-  static FriendCard fromJson(String uid, Map<String, dynamic>? json) {
+  /// Their best Survival run, read from its own document (survival_best);
+  /// null before they have one, from a game that published none, or where
+  /// it could not be read.
+  final SurvivalBestRun? survival;
+
+  static FriendCard fromJson(
+    String uid,
+    Map<String, dynamic>? json, {
+    SurvivalBestRun? survival,
+  }) {
     final name = json?['name'];
     final title = json?['title'];
     return FriendCard(
@@ -419,6 +431,7 @@ class FriendCard {
           ? PlanetLook.fromJson(json!['planet'])
           : null,
       trials: TrialsCard.fromJson(json?['trials']),
+      survival: survival,
     );
   }
 }

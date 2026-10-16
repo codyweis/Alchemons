@@ -10,9 +10,10 @@
 // What a friend sees is published here from the player's own save whenever
 // it may have changed (signing in, coming back up from the home biome,
 // opening FRIENDS), and only when it has: the planet and name in
-// players/{uid}, the home biome in homes/{uid} (lib/models/friend_home.dart).
-// Only friends can read either (firestore.rules). Nothing is published for a
-// player who has never opened FRIENDS, nor from a game that belongs to
+// players/{uid}, the home biome in homes/{uid} (lib/models/friend_home.dart),
+// the best Survival run in survival_best/{uid} (survival_best_run.dart).
+// Only friends can read any of them (firestore.rules). Nothing is published
+// for a player who has never opened FRIENDS, nor from a game that belongs to
 // another account (SaveGenerationService).
 //
 // While such a player has the game open, it says so every few minutes in
@@ -27,6 +28,7 @@
 //   players/{uid}/friends/{uid}    {since}       — one each side
 //   players/{uid}/blocked/{uid}    {at}
 //   homes/{uid}                    {v, home, updatedAt}
+//   survival_best/{uid}            {wave, score, at?, team, updatedAt}
 //   friend_requests/{from}_{to}    {from, to, fromName, fromFaction, toCode,
 //                                   createdAt}
 //   reports/{auto}                 {from, about, reason, createdAt}
@@ -37,6 +39,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/cosmic_survival/survival_best_run.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/models/profile_titles.dart';
 import 'package:alchemons/services/account_service.dart';
@@ -148,18 +151,47 @@ String publishHash(String s) {
   return h.toRadixString(16);
 }
 
-/// "Seen 2 hours ago": how long before [now] a friend was last in the game,
-/// in the biggest whole unit.
-String seenAgo(DateTime at, DateTime now) {
+/// "2 hours ago": how long before [now] [at] was, in the biggest whole
+/// unit.
+String agoLabel(DateTime at, DateTime now) {
   final d = now.difference(at);
-  String ago(int n, String unit) => 'Seen $n $unit${n == 1 ? '' : 's'} ago';
-  if (d.inMinutes < 1) return 'Seen just now';
+  String ago(int n, String unit) => '$n $unit${n == 1 ? '' : 's'} ago';
+  if (d.inMinutes < 1) return 'just now';
   if (d.inHours < 1) return ago(d.inMinutes, 'minute');
   if (d.inDays < 1) return ago(d.inHours, 'hour');
   if (d.inDays < 14) return ago(d.inDays, 'day');
   if (d.inDays < 60) return ago(d.inDays ~/ 7, 'week');
-  return 'Seen over a month ago';
+  if (d.inDays < 365) return ago(d.inDays ~/ 30, 'month');
+  return 'over a year ago';
 }
+
+/// "Seen 2 hours ago": how long before [now] a friend was last in the game.
+String seenAgo(DateTime at, DateTime now) => now.difference(at).inDays < 60
+    ? 'Seen ${agoLabel(at, now)}'
+    : 'Seen over a month ago';
+
+/// A best Survival run as survival_best/{uid} has it (firestore.rules), or
+/// null for nothing or anything malformed.
+SurvivalBestRun? survivalBestFromDoc(Map<String, dynamic>? d) {
+  if (d == null) return null;
+  final wave = d['wave'], score = d['score'], at = d['at'];
+  if (wave is! num || score is! num || wave < 0 || score < 0) return null;
+  if (wave <= 0 && score <= 0) return null;
+  return SurvivalBestRun(
+    wave: wave.toInt(),
+    score: score.toInt(),
+    at: at is Timestamp ? at.toDate() : null,
+    team: SurvivalBestRun.teamOf(d['team']),
+  );
+}
+
+/// [run] as survival_best/{uid} stores it, without its updatedAt.
+Map<String, dynamic> survivalBestDoc(SurvivalBestRun run) => {
+  'wave': run.wave,
+  'score': run.score,
+  if (run.at != null) 'at': Timestamp.fromDate(run.at!),
+  'team': run.team,
+};
 
 class FriendService extends ChangeNotifier with WidgetsBindingObserver {
   FriendService({
@@ -174,9 +206,15 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
     _foreground = state == null || state == AppLifecycleState.resumed;
     account.addListener(_onAccount);
     _onAccount();
-    // A new title or featured Alchemon goes out to friends a moment later
-    // (publishIfChanged writes only what changed).
-    for (final key in [kFeaturedInstanceSettingKey, ProfileTitles.settingKey]) {
+    // A new title, featured Alchemon or Survival best goes out to friends a
+    // moment later (publishIfChanged writes only what changed).
+    for (final key in [
+      kFeaturedInstanceSettingKey,
+      ProfileTitles.settingKey,
+      SurvivalBestRun.settingKey,
+      'cosmic_survival_best_wave',
+      'cosmic_survival_high_score',
+    ]) {
       _settingSubs.add(
         db.settingsDao.watchSetting(key).skip(1).listen((_) => publishSoon()),
       );
@@ -233,6 +271,10 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
   bool _publishing = false;
   bool _disposed = false;
 
+  /// This player's own best Survival run, as last read: set against their
+  /// friends' on the list.
+  SurvivalBestRun? _myBest;
+
   /// Signed in with an account that can use friends.
   bool get available =>
       account.initialized && account.isConfigured && account.isSignedIn;
@@ -250,6 +292,10 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Why the last refresh failed, if it did.
   String? get error => _error;
+
+  /// This player's best Survival run, once the lists have been read; null
+  /// before they have one.
+  SurvivalBestRun? get myBest => _myBest;
 
   FirebaseFirestore get _fs => _firestore ??= FirebaseFirestore.instance;
 
@@ -273,6 +319,8 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
       _fs.collection('friend_codes').doc(code);
   DocumentReference<Map<String, dynamic>> _presence(String uid) =>
       _fs.collection('presence').doc(uid);
+  DocumentReference<Map<String, dynamic>> _survivalBest(String uid) =>
+      _fs.collection('survival_best').doc(uid);
 
   // ── The account ─────────────────────────────────────────────────────────
 
@@ -286,6 +334,7 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
     _outgoing = const [];
     _loaded = false;
     _error = null;
+    _myBest = null;
     _publishTimer?.cancel();
     _stopListening();
     _stopBeating();
@@ -521,6 +570,7 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
           if (FriendRequest.fromDoc(d.data()) case final r?)
             if (!friendIds.contains(r.to)) r,
       ];
+      _myBest = await _readMyBest();
       _loaded = true;
       // After the read, so the first snapshots match it and change nothing.
       _listenLists(me);
@@ -542,13 +592,36 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
   }
 
   Future<FriendCard?> _card(String uid) async {
+    final best = _bestOf(uid);
     try {
       final snap = await _player(uid).get();
-      return FriendCard.fromJson(uid, snap.data());
+      return FriendCard.fromJson(uid, snap.data(), survival: await best);
     } on FirebaseException {
       // A friendship only one side of which survived: shown nameless, so
       // it can still be removed.
       return FriendCard(uid: uid, name: 'Alchemist');
+    }
+  }
+
+  /// [uid]'s best Survival run, or null: when they have none, their game
+  /// published none, or it cannot be read (rules from before it). Never
+  /// fails: the list shows nothing for it.
+  Future<SurvivalBestRun?> _bestOf(String uid) async {
+    try {
+      final snap = await _survivalBest(uid).get().timeout(_wait);
+      return survivalBestFromDoc(snap.data());
+    } catch (e) {
+      debugPrint('FriendService: best run of $uid not read: $e');
+      return null;
+    }
+  }
+
+  Future<SurvivalBestRun?> _readMyBest() async {
+    try {
+      return await SurvivalBestRun.load(db);
+    } catch (e) {
+      debugPrint('FriendService: own best run not read: $e');
+      return null;
     }
   }
 
@@ -850,9 +923,9 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
     return name.length > 24 ? name.substring(0, 24) : name;
   }
 
-  /// Publishes this player's planet and home if either changed since they
-  /// were last published from this device. Nothing before they have a code,
-  /// nor from a game another account owns.
+  /// Publishes this player's planet, home and best Survival run if any
+  /// changed since they were last published from this device. Nothing
+  /// before they have a code, nor from a game another account owns.
   Future<void> publishIfChanged({bool force = false}) async {
     if (!available || _publishing) return;
     final me = account.user?.uid;
@@ -919,8 +992,41 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
         });
         await prefs.setString(homeKey, homeHash);
       }
+      await _publishBest(me, prefs, force: force);
     } finally {
       _publishing = false;
+    }
+  }
+
+  /// The best Survival run, in its own document so that rules from before
+  /// it refuse only it: the planet and home above have gone out either way.
+  /// Taken down if the save no longer has one (a new game).
+  Future<void> _publishBest(
+    String me,
+    SharedPreferences prefs, {
+    required bool force,
+  }) async {
+    final key = 'friends.published.$me.survival';
+    try {
+      final best = await SurvivalBestRun.load(db);
+      if (_uid == me && !_disposed) _myBest = best;
+      if (best == null) {
+        if (prefs.getString(key) == null) return;
+        await _survivalBest(me).delete().timeout(_wait);
+        await prefs.remove(key);
+        return;
+      }
+      final hash = publishHash(jsonEncode(best.toJson()));
+      if (!force && prefs.getString(key) == hash) return;
+      await _survivalBest(me)
+          .set({
+            ...survivalBestDoc(best),
+            'updatedAt': FieldValue.serverTimestamp(),
+          })
+          .timeout(_wait);
+      await prefs.setString(key, hash);
+    } catch (e) {
+      debugPrint('FriendService: best run not published: $e');
     }
   }
 
@@ -961,9 +1067,17 @@ class FriendService extends ChangeNotifier with WidgetsBindingObserver {
       }
       await batch.commit();
     }
+    // On its own: under rules from before it, deleting it is refused, and
+    // must not hold up the rest.
+    try {
+      await _survivalBest(me).delete().timeout(_wait);
+    } catch (e) {
+      debugPrint('FriendService: best run not taken down: $e');
+    }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('friends.published.$me.player');
     await prefs.remove('friends.published.$me.home');
+    await prefs.remove('friends.published.$me.survival');
     await prefs.remove(_codeKey(me));
   }
 
