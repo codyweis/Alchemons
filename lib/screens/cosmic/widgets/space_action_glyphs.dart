@@ -22,9 +22,6 @@
 //   boost    an engine's nozzle throwing its plume of grains — longer,
 //            hotter and flickering while it burns
 //   missile  a dart curving in on a target, its trail of grains behind it
-//   tether   a magnet of dark glass: linked, its poles lit and the party's
-//            grains drawn in toward them; unlinked, the poles dark and the
-//            grains drifting loose
 //
 // Small and cheap: a few discs and a batch of points. Deposit and descend
 // move while they are lit, the combat marks while they fire or burn, all
@@ -56,7 +53,6 @@ enum SpaceAction {
   gun,
   boost,
   missile,
-  tether,
 }
 
 class SpaceActionGlyph extends StatefulWidget {
@@ -228,94 +224,7 @@ class SpaceActionPainter extends CustomPainter {
         _boost(canvas, c, s, t);
       case SpaceAction.missile:
         _missile(canvas, c, s, t);
-      case SpaceAction.tether:
-        _tether(canvas, c, s, t);
     }
-  }
-
-  /// A magnet of dark glass, its poles lit while it holds the party, their
-  /// grains drawn in toward it (or drifting loose).
-  void _tether(Canvas canvas, Offset c, double s, double t) {
-    final m = stoneLightFor(color);
-    final cx = c.dx;
-    final outer = s * 0.36, inner = s * 0.15;
-    final base = c.dy + s * 0.08, top = c.dy - s * 0.1;
-    final magnet = Path()
-      ..moveTo(cx - outer, top)
-      ..lineTo(cx - outer, base)
-      ..arcTo(
-        Rect.fromCircle(center: Offset(cx, base), radius: outer),
-        math.pi,
-        -math.pi,
-        false,
-      )
-      ..lineTo(cx + outer, top)
-      ..lineTo(cx + inner, top)
-      ..lineTo(cx + inner, base)
-      ..arcTo(
-        Rect.fromCircle(center: Offset(cx, base), radius: inner),
-        0,
-        math.pi,
-        false,
-      )
-      ..lineTo(cx - inner, top)
-      ..close();
-    final held = lit ? 1.0 : 0.0;
-    // Its light pooled in the gap while it holds.
-    if (lit) {
-      paintDisc(canvas, m.leak, Offset(cx, top - s * 0.04), s * 0.36, 0.6);
-    }
-    _paint
-      ..shader = ui.Gradient.linear(
-        Offset(cx - outer, top),
-        Offset(cx + outer, base + outer),
-        [Color.lerp(m.face, m.rim, 0.25 + 0.2 * held)!, m.face, m.ink],
-        const [0.0, 0.45, 1.0],
-      )
-      ..color = const Color(0xFF000000);
-    canvas.drawPath(magnet, _paint);
-    _paint.shader = null;
-    // The poles: the legs' ends, lit with what it is holding.
-    final legW = outer - inner;
-    for (final side in const [-1.0, 1.0]) {
-      final pole = Rect.fromLTWH(
-        cx + side * (inner + legW / 2) - legW / 2,
-        top,
-        legW,
-        s * 0.08,
-      );
-      _paint
-        ..shader = ui.Gradient.linear(pole.topCenter, pole.bottomCenter, [
-          Color.lerp(m.essence, Colors.white, 0.35 * held)!,
-          Color.lerp(m.essence, m.ink, 0.5 + 0.3 * (1 - held))!,
-        ])
-        ..color = Color.fromRGBO(0, 0, 0, 0.45 + 0.55 * held);
-      canvas.drawRect(pole, _paint);
-      _paint.shader = null;
-      if (lit) paintDisc(canvas, m.spark, pole.topCenter, s * 0.09, 0.8);
-    }
-    // The party: grains drawn down over the gap, or loose above it.
-    final b = _b..clear();
-    for (var i = 0; i < 5; i++) {
-      final a = hash01(i, 21) * math.pi - math.pi;
-      final far = s * (0.36 + 0.1 * hash01(i, 22));
-      final ph = lit ? (t * 0.45 + i / 5) % 1.0 : 0.0;
-      final pull = lit ? 1 - math.pow(1 - ph, 2).toDouble() : 0.0;
-      final home = Offset(
-        cx + (hash01(i, 23) - 0.5) * inner * 1.6,
-        top - s * 0.1,
-      );
-      final loose = Offset(
-        cx + math.cos(a) * far,
-        top - s * 0.08 + math.sin(a) * far * 0.7,
-      );
-      final p = Offset.lerp(loose, home, pull * 0.85)!;
-      b.add(lit && ph > 0.85 ? 1 : 0, p.dx, p.dy);
-    }
-    final dim = lit ? 1.0 : 0.5;
-    b.draw(canvas, 0, s * 0.16, m.essence.withValues(alpha: 0.16 * dim));
-    b.draw(canvas, 0, s * 0.09, m.grainHot.withValues(alpha: dim));
-    b.draw(canvas, 1, s * 0.11, m.hot);
   }
 
   /// Bolts of light streaming up and out of a muzzle spark.

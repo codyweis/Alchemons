@@ -39,6 +39,8 @@ import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
 import 'package:alchemons/games/cosmic/planets/planet_art.dart'
     show paintSoftCircle;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
+import 'package:alchemons/games/cosmic_survival/components/survival_hud.dart'
+    show SurvivalInk, hudMono;
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/games/planet_dungeon/dungeon_debug_party.dart';
 import 'package:alchemons/models/creature.dart';
@@ -299,7 +301,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   // Slow-mode toggle
   bool _slowMode = false;
 
-  // Companion tether toggle (magnet)
+  // FOLLOW (companions keep with the ship) or FREE (they hold their ground).
   bool _companionTethered = true;
 
   // Joystick toggle (on by default)
@@ -1642,7 +1644,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Color get _memoryCoachAccent {
-    if (_memoryAwaitingTetherToggle) return const Color(0xFF42A5F5);
+    if (_memoryAwaitingTetherToggle) return SurvivalInk.follow;
     if (_memoryAwaitingGunToggle) return const Color(0xFF00E5FF);
     if (_memoryAwaitingSummon || _memoryCombatStarted) {
       return const Color(0xFF00E676);
@@ -1661,7 +1663,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _memoryFlightStart = _game?.ship.pos;
     setState(() {
       _memoryTutorialPrompt =
-          'Fly a little way. Your Alchemon follows while the magnet is lit.';
+          'Fly a little way. Your Alchemon follows while FOLLOW is lit.';
     });
     _watchMemoryFlightWithCompanion();
   }
@@ -1681,16 +1683,16 @@ class _CosmicScreenState extends State<CosmicScreen>
       if ((game.ship.pos - start).distance < 150) return;
 
       timer.cancel();
-      // The magnet has been on the HUD since the summon, so a player may
-      // have unlinked it already; the lesson starts from linked either way.
+      // FOLLOW has been on the HUD since the summon, so a player may have
+      // set it FREE already; the lesson starts from FOLLOW either way.
       _companionTethered = true;
       game.companionTethered = true;
       setState(() {
         _memoryAwaitingFlight = false;
         _memoryAwaitingTetherToggle = true;
         _memoryTutorialPrompt =
-            'Tap the magnet to unlink the tether. Your Alchemon will hold its '
-            'ground and fight there.';
+            'Tap FOLLOW to set your Alchemon FREE. It will hold its ground '
+            'and fight there.';
       });
     });
   }
@@ -4581,21 +4583,26 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
   }
 
-  Widget _buildCompanionTetherButton() {
+  /// FOLLOW or FREE, as in survival: the word is the control, lit while the
+  /// party keeps with the ship.
+  Widget _buildCompanionFollowButton() {
+    final following = _companionTethered;
     return KeyedSubtree(
       key: _coachTetherKey,
       child: _buildRightHudButton(
-        // A magnet holding the party's grains (or letting them drift).
-        glyph: SpaceActionGlyph(
-          SpaceAction.tether,
-          color: const Color(0xFF42A5F5),
-          lit: _companionTethered,
+        glyph: Text(
+          following ? 'FOLLOW' : 'FREE',
+          style: hudMono(
+            8,
+            following ? SurvivalInk.follow : _cosmicMeterPalette.muted,
+            spacing: 0.6,
+          ),
         ),
-        semanticLabel: _companionTethered
-            ? 'Companion tether linked; companions follow the ship'
-            : 'Companion tether unlinked; companions hold position',
-        accent: const Color(0xFF42A5F5),
-        active: _companionTethered,
+        semanticLabel: following
+            ? 'Follow on; companions keep with the ship'
+            : 'Follow off; companions hold their ground',
+        accent: SurvivalInk.follow,
+        active: following,
         onTap: () {
           setState(() => _companionTethered = !_companionTethered);
           _game?.companionTethered = _companionTethered;
@@ -8839,11 +8846,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                             const SizedBox(height: 10),
                           ],
                           // In the memory too: its first prompt already
-                          // speaks of the tether, so the magnet stands beside
-                          // the summoned Alchemon from the start.
+                          // speaks of FOLLOW, so it stands beside the
+                          // summoned Alchemon from the start.
                           if ((showCosmicHud || isMemoryTutorial) &&
                               _activeCompanionSlots.isNotEmpty) ...[
-                            _buildCompanionTetherButton(),
+                            _buildCompanionFollowButton(),
                             const SizedBox(height: 10),
                           ],
                           for (

@@ -187,21 +187,6 @@ void main() {
                         skin: 'skin_solar',
                       ),
                     ),
-                    plate(
-                      const SpaceActionGlyph(
-                        SpaceAction.tether,
-                        color: Color(0xFF42A5F5),
-                        lit: false,
-                      ),
-                    ),
-                    plate(
-                      const SpaceActionGlyph(
-                        SpaceAction.tether,
-                        color: Color(0xFF42A5F5),
-                      ),
-                      lit: true,
-                      accent: const Color(0xFF42A5F5),
-                    ),
                   ],
                 ),
               ],
