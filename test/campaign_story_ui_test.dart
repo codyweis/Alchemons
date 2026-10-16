@@ -13,6 +13,7 @@ import 'package:alchemons/screens/story/campaign_journal_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/campaign_rewards_button.dart';
+import 'package:alchemons/widgets/fx/realm_sift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -56,12 +57,28 @@ void main() {
   }
 
   testWidgets(
-    'revelation waits for taps, dissolves, then waits to acknowledge',
+    'revelation: every realm falls, each line waits for a tap, then it ends',
     (tester) async {
       tester.view.physicalSize = const Size(900, 540);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.resetPhysicalSize);
       addTearDown(tester.view.resetDevicePixelRatio);
+      const size = Size(900, 540);
+      // A plain colour stands in for each realm's field.
+      final pictures = <RealmPicture>[];
+      var shade = 0;
+      for (final (id, _) in maskedRealms()) {
+        final colour = Color(0xFF203040 + 0x0F0A05 * shade++);
+        final picture = await tester.runAsync(
+          () => RealmPicture.record(
+            id,
+            size,
+            1,
+            (c) => c.drawRect(Offset.zero & size, Paint()..color = colour),
+          ),
+        );
+        pictures.add(picture!);
+      }
       final key = GlobalKey();
       var completed = 0;
       await tester.pumpWidget(
@@ -75,6 +92,7 @@ void main() {
                 ),
                 Positioned.fill(
                   child: BeautyMaskReveal(
+                    pictures: pictures,
                     onComplete: () async {
                       completed++;
                     },
@@ -85,40 +103,47 @@ void main() {
           ),
         ),
       );
-      await tester.runAsync(
-        () => Future.wait([
-          for (final layer in [
-            'sky',
-            'clouds',
-            'backhills',
-            'hills',
-            'foreground',
-          ])
-            precacheImage(
-              AssetImage('assets/images/backgrounds/scenes/valley/$layer.png'),
-              key.currentContext!,
-            ),
-        ]),
-      );
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(seconds: 20));
-      expect(find.text('Look closer'), findsOneWidget);
-      expect(completed, 0);
+      // A frame at a time: the cinematic steps at most 1/20 s a frame.
+      Future<void> run(double seconds) async {
+        for (var t = 0.0; t < seconds; t += 0.05) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+      }
+
+      Future<void> read(String line, String hint) async {
+        await run(2);
+        expect(find.text(line), findsOneWidget);
+        expect(find.text(hint), findsOneWidget);
+        expect(completed, 0);
+        // A tap the moment a line shows is not taken as read.
+        await tester.tap(find.byType(BeautyMaskReveal), warnIfMissed: false);
+      }
+
+      // The Valley alone, then its line, which waits however long.
+      await run(5);
+      await run(20);
       await capture(tester, key, 'valley_before');
-      await tester.tap(find.text('Look closer'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1300));
-      await capture(tester, key, 'valley_dissolving');
-      await tester.pumpAndSettle();
-      expect(find.text('No, I am finally awake.'), findsOneWidget);
-      expect(completed, 0);
-      await tester.tap(find.text('Continue'));
-      await tester.pump();
+      await read('The valley is here, where it cannot be.', 'LOOK CLOSER');
+      // Every realm falls; then the planet, bare.
+      await run(16);
+      await capture(tester, key, 'realms_falling');
+      await run(26);
+      await read('Trees and valleys are absent in this universe.', 'CONTINUE');
+      // The realms gather on the map and come apart.
+      await run(15);
+      expect(find.text('AM I DREAMING?'), findsOneWidget);
+      await read('No, I am finally awake.', 'CONTINUE');
+      await run(2);
       expect(find.text('A memory speaks'), findsOneWidget);
-      await tester.pump(const Duration(seconds: 20));
+      await read(
+        'You did not make the valley to hide the world from danger. You '
+            'made it to hide your work from yourself.',
+        'CONTINUE',
+      );
+      // The planet's light rises, and only then is it over.
+      await run(1);
       expect(completed, 0);
-      await tester.tap(find.text('Continue'));
-      await tester.pumpAndSettle();
+      await run(3);
       expect(completed, 1);
       expect(tester.takeException(), isNull);
     },

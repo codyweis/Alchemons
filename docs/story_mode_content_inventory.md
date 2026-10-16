@@ -61,14 +61,17 @@ Generated from authored text found in the repo.
 
 ## Cosmic: First Planet Entry
 
-- Source: `lib/screens/cosmic/cosmic_screen.dart`
-- Reachability: Reachable on the first pathway entry into a cosmic planet scene.
+- Source: `lib/screens/story/beauty_mask_reveal.dart` (shown by `lib/games/planet_dungeon/planet_dungeon_screen.dart`)
+- Reachability: Reachable once, on the first descent into any planet's dungeon. The cinematic: the descent lands in the live Valley with the party standing in it; the Valley stops, then it and every other wild realm (Sky, Swamp, Volcano, Arcane, Dunes, Geode, Tidal) sift away in turn until only the planet is left; the realms' grains gather into the wild map's circles in the planet's dark and come apart; the planet's light rises. Each line waits for a tap.
 
-- [Dialog] Beauty Obstructs Reality
-- [Dream Prompt] AM I DREAMING?
-- [Response] No, I am finally awake.
-- [Desolation Popup] Trees and valleys are absent in this universe.
+- [Line] Beauty Obstructs Reality
+- The valley is here, where it cannot be.
+- [Line] Trees and valleys are absent in this universe.
 - It is nothing but desolation and precariousness. Eventually reality seeps through the mind's defense. Why would I create such a world.
+- [Line] AM I DREAMING?
+- No, I am finally awake.
+- [Line] A memory speaks
+- You did not make the valley to hide the world from danger. You made it to hide your work from yourself.
 
 ## Cosmic: Recipe / Pathway Guidance
 

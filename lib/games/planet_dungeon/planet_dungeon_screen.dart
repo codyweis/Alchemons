@@ -91,13 +91,21 @@ class PlanetDungeonScreen extends StatefulWidget {
     this.raid,
     this.onRaidCleared,
     this.revealBeautyMask = false,
+    this.replayReveal = false,
     this.revealReady,
     this.revealed,
   });
 
   final String element;
   final List<CosmicPartyMember> party;
+
+  /// The first descent: the cinematic in which the realms fall away plays
+  /// before the run (screens/story/beauty_mask_reveal.dart).
   final bool revealBeautyMask;
+
+  /// DEVELOPER: the cinematic plays again (the profile's FIRST DESCENT),
+  /// and having seen it is not saved.
+  final bool replayReveal;
 
   /// Non-null → this descent is a raid: one open arena, an empowered
   /// guardian, raid loot. Stars/clouds are neither read nor written.
@@ -182,6 +190,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   bool _showIntro = true;
   bool _showBeautyMask = false;
 
+  /// The first descent's cinematic has pictured its realms and its Valley
+  /// is up: the descent may show the page.
+  bool _masksReady = false;
+
   /// The descent's element is reparented (not rebuilt) when `_ready` flips and
   /// the screen swaps from "loading shell" to "live dungeon + overlay". Without
   /// this the painter's whole render subtree is torn down and recreated in the
@@ -230,7 +242,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       onPressed: _onPadPressed,
       onReleased: _onPadReleased,
     );
-    _showBeautyMask = widget.revealBeautyMask;
+    _showBeautyMask = widget.revealBeautyMask || widget.replayReveal;
     _flyCtrl = AnimationController(vsync: this, duration: _kStarFlightDuration)
       ..addStatusListener((s) {
         if (s == AnimationStatus.completed && mounted) {
@@ -353,6 +365,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // always the point of the descent. It just doesn't also render 100 hidden
     // frames while doing it. Thawed in [_thawDungeon].
     game.pauseEngine();
+    // The first descent's cinematic draws the party until it hands them to
+    // the room, so the room's own frozen frame is drawn without them.
+    game.partyLooksHidden = _showBeautyMask;
     // HAPTICS: the game says what happened; the phone says it to the hand,
     // unless the player switched it off in Settings.
     game.onHaptic = (kind) {
@@ -407,7 +422,9 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   /// once the passage has shown it.
   void _tickUnderPassage() {
     _warmFrozenDungeon();
-    if (_dungeonWarmed) widget.revealReady?.value = true;
+    if (_dungeonWarmed && (!_showBeautyMask || _masksReady)) {
+      widget.revealReady?.value = true;
+    }
     if (widget.revealed?.value ?? false) {
       _introTicker.stop();
       _thawDungeon();
@@ -1436,16 +1453,22 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
             if (_showBeautyMask && !_showIntro)
               Positioned.fill(
                 child: BeautyMaskReveal(
+                  begin: widget.revealed,
+                  onReady: () => _masksReady = true,
+                  party: _game == null ? null : _DungeonParty(_game!),
                   onComplete: () async {
-                    final db = context.read<AlchemonsDatabase>();
-                    await db.transaction(() async {
-                      await db.settingsDao.setSetting(
-                        CampaignJournalService.revelationKey,
-                        '1',
-                      );
-                      await CampaignJournalService(db).record('revelation');
-                    });
+                    if (!widget.replayReveal) {
+                      final db = context.read<AlchemonsDatabase>();
+                      await db.transaction(() async {
+                        await db.settingsDao.setSetting(
+                          CampaignJournalService.revelationKey,
+                          '1',
+                        );
+                        await CampaignJournalService(db).record('revelation');
+                      });
+                    }
                     if (!mounted) return;
+                    _game?.partyLooksHidden = false;
                     setState(() => _showBeautyMask = false);
                     _thawDungeon();
                   },
@@ -2965,6 +2988,41 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
 /// deck toward the spire.
 
 enum _TutorialTarget { utility, combat }
+
+/// The run's party, for the first descent's cinematic to stand in the
+/// realms before the planet shows: drawn by the dungeon's own code, so the
+/// room takes them over unchanged.
+class _DungeonParty implements RevealParty {
+  _DungeonParty(this.game);
+
+  final PlanetDungeonGame game;
+
+  @override
+  int get count => game.isAttached && game.hasLayout ? game.partyLookCount : 0;
+
+  @override
+  Offset restAt(int i) => game.partyLookAt(i);
+
+  @override
+  double get zoom => game.partyLookZoom;
+
+  @override
+  bool facesRight(int i) => game.partyLookFacesRight(i);
+
+  @override
+  double halfHeight(int i) => game.partyLookHalfHeight(i);
+
+  @override
+  void paint(
+    Canvas canvas,
+    int i, {
+    required bool faceRight,
+    required double time,
+  }) => game.paintPartyLook(canvas, i, faceRight: faceRight, time: time);
+
+  @override
+  void step(double dt) => game.stepPartyLooks(dt);
+}
 
 class _TutorialBeat {
   const _TutorialBeat({

@@ -87,7 +87,6 @@ class ScenePage extends StatefulWidget {
   final bool isTutorial;
   final bool isCosmicPlanetEntry;
   final String? cosmicElementName;
-  final bool showCosmicDesolationPopup;
   final void Function(NavSection section, {int? breedInitialTab})?
   onNavigateSection;
 
@@ -99,7 +98,6 @@ class ScenePage extends StatefulWidget {
     this.isTutorial = false,
     this.isCosmicPlanetEntry = false,
     this.cosmicElementName,
-    this.showCosmicDesolationPopup = false,
     this.onNavigateSection,
     this.revealReady,
   });
@@ -137,7 +135,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   bool _isCaptureTutorialScene = false;
   bool _riftSpawned = false;
   String? _shipSpawnId;
-  bool _cosmicDesolationDialogShown = false;
   bool _usingSessionSceneSpawns = false;
   bool _consumingSceneBatch = false;
   final Map<String, EncounterRoll> _sessionSceneSpawns = {};
@@ -228,9 +225,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       _initialized = true;
 
       if (_isCosmicPlanetMode) {
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
           _seedTransientEncounterSpawns();
-          await _maybeShowCosmicDesolationPopup();
         });
       } else {
         _spawnService.markSceneActive(widget.sceneId);
@@ -348,24 +344,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     if (qty < 1) {
       await _db.inventoryDao.addItemQty(InvKeys.wildFusion, 1);
     }
-  }
-
-  Future<void> _maybeShowCosmicDesolationPopup() async {
-    if (!_isCosmicPlanetMode ||
-        !widget.showCosmicDesolationPopup ||
-        _cosmicDesolationDialogShown ||
-        !mounted) {
-      return;
-    }
-    _cosmicDesolationDialogShown = true;
-    await LandscapeDialog.show(
-      context,
-      title: 'Trees and valleys are absent in this universe.',
-      message:
-          'It is nothing but desolation and precariousness. Eventually reality seeps through the mind\'s defense. Why would I create such a world.',
-      kind: LandscapeDialogKind.info,
-      primaryLabel: 'Continue',
-    );
   }
 
   Future<void> _maybeShowFirstVisitWildernessStoryDialog() async {

@@ -20,7 +20,10 @@ import 'dart:math' as math;
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart'
+    show kBloodPlanetElement, kPolishedDungeons;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
+import 'package:alchemons/games/planet_dungeon/planet_dungeon_screen.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart'
     show VolcanoField;
 import 'package:alchemons/models/dock_sets.dart';
@@ -480,6 +483,64 @@ class _ProfileScreenState extends State<ProfileScreen>
       context,
       MaterialPageRoute(builder: (_) => const AbilityLabScreen()),
     );
+  }
+
+  /// The first descent's cinematic again, over a planet picked at random
+  /// (any finished one but Blood, the last), with the space party. It is
+  /// the real descent's page: the portal is its loading screen while the
+  /// realms are pictured, then the run goes on as any run does. Seeing it
+  /// again is not saved.
+  Future<void> _playFirstDescent() async {
+    HapticFeedback.mediumImpact();
+    final party = await stadiumPartyFromSave(context);
+    if (!mounted) return;
+    if (party.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No Alchemons to take down with you.')),
+      );
+      return;
+    }
+    final planets = [
+      for (final e in kPolishedDungeons)
+        if (e != kBloodPlanetElement && kPlanetDungeonLayouts.containsKey(e)) e,
+    ];
+    final element = planets[math.Random().nextInt(planets.length)];
+    final ready = ValueNotifier<bool>(false);
+    final revealed = ValueNotifier<bool>(false);
+    // The portal opens onto the page once it is ready; the cinematic's
+    // first seconds are the Valley alone, so it may begin as it opens.
+    void shown() {
+      if (ready.value) revealed.value = true;
+    }
+
+    ready.addListener(shown);
+    await VoidPortal.pushThroughGlyphs<void>(
+      context,
+      page: PlanetDungeonScreen(
+        element: element,
+        party: party.take(3).toList(),
+        replayReveal: true,
+        revealReady: ready,
+        revealed: revealed,
+      ),
+      title: kPlanetDungeonLayouts[element]?.descentTitle ?? element,
+      label: 'DESCENDING',
+      element: element,
+      ready: ready,
+      orientation: const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ],
+      returnOrientation: const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ],
+    );
+    ready.removeListener(shown);
+    ready.dispose();
+    revealed.dispose();
+    if (!mounted) return;
+    unawaited(context.read<AudioController>().playHomeMusic());
   }
 
   Future<void> _openDungeonDebug() async {
@@ -1810,6 +1871,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           'at any stat band',
       'OPEN',
       _openAbilityLab,
+    ),
+    _DebugAction(
+      'FIRST DESCENT',
+      'Play the first descent\'s cinematic again: the realms fall away '
+          'over a random planet, with your space party. Not saved',
+      'PLAY',
+      _playFirstDescent,
     ),
     _DebugAction(
       'DUNGEON DEBUG',

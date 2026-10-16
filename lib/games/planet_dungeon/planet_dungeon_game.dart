@@ -15693,12 +15693,91 @@ class PlanetDungeonGame extends FlameGame {
     }
   }
 
-  void _renderCreatures(Canvas canvas) {
-    // A room pulled back to fit the screen draws its creatures a little
-    // larger, so they still read at the distance (the author, 2026-09-30).
-    // The survey's own look further back is left as it is.
+  /// A room pulled back to fit the screen draws its creatures a little
+  /// larger, so they still read at the distance (the author, 2026-09-30).
+  /// The survey's own look further back is left as it is.
+  double get _creatureBoost {
     final fit = _planetFitZoom;
-    final boost = fit < 0.999 ? min(1.4, 1 / sqrt(fit)) : 1.0;
+    return fit < 0.999 ? min(1.4, 1 / sqrt(fit)) : 1.0;
+  }
+
+  /// The creature as it looks everywhere else, centred on the canvas: its
+  /// genetics colours, its alchemy effect round it and its costumes on it.
+  void _paintLook(
+    Canvas canvas,
+    DungeonCreature c,
+    bool facingRight,
+    double time,
+  ) {
+    final ticker = c.ticker;
+    if (ticker == null) return;
+    final sprite = ticker.getSprite();
+    final looks = c.member.spriteVisuals;
+    final auraR = wornAuraRadius(
+      c.spriteScale * max(sprite.srcSize.x, sprite.srcSize.y),
+    );
+    paintWornAura(canvas, looks, auraR, time);
+    final paint = Paint()..filterQuality = ui.FilterQuality.high;
+    if (looks != null) {
+      paint.colorFilter = creatureGeneticsFilter(looks, time);
+    }
+    canvas.save();
+    canvas.scale(facingRight ? -c.spriteScale : c.spriteScale, c.spriteScale);
+    sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+    paintWornCostumes(canvas, looks, sprite, ticker.currentIndex, time);
+    canvas.restore();
+    paintWornAura(canvas, looks, auraR, time, front: true);
+  }
+
+  // ── The party, for the first descent's cinematic ─────────────────────
+  //
+  // Before the planet shows, the party stands in the realms as they fall
+  // away (screens/story/beauty_mask_reveal.dart), and then walks onto the
+  // floor where the room has them. They are drawn by the same code as the
+  // room's, so the room takes them over without a change.
+
+  /// Set while the cinematic draws the party instead of the room.
+  bool partyLooksHidden = false;
+
+  /// How many there are to draw.
+  int get partyLookCount => creatures.length;
+
+  /// Where creature [i] stands on the screen as the run begins.
+  Offset partyLookAt(int i) => worldToScreen(creatures[i].position);
+
+  /// The scale the room draws its creatures at on the screen.
+  double get partyLookZoom => viewZoom * _creatureBoost;
+
+  /// Whether creature [i] faces right as the run begins.
+  bool partyLookFacesRight(int i) => cos(creatures[i].angle) > 0;
+
+  /// Half creature [i]'s drawn height at [partyLookZoom] 1: from its middle
+  /// to its feet.
+  double partyLookHalfHeight(int i) {
+    final c = creatures[i];
+    final ticker = c.ticker;
+    if (ticker == null) return 13 * c.sizeK;
+    return c.spriteScale * ticker.getSprite().srcSize.y / 2;
+  }
+
+  /// Draws creature [i] centred on the canvas at [partyLookZoom] 1.
+  void paintPartyLook(
+    Canvas canvas,
+    int i, {
+    required bool faceRight,
+    required double time,
+  }) => _paintLook(canvas, creatures[i], faceRight, time);
+
+  /// Moves the party's own animations on while the engine is frozen.
+  void stepPartyLooks(double dt) {
+    for (final c in creatures) {
+      c.ticker?.update(dt);
+    }
+  }
+
+  void _renderCreatures(Canvas canvas) {
+    if (partyLooksHidden) return;
+    final boost = _creatureBoost;
     for (var i = 0; i < creatures.length; i++) {
       final c = creatures[i];
       // Dark: a body in another room is not here.
@@ -15953,30 +16032,8 @@ class PlanetDungeonGame extends FlameGame {
         drawAdvancedBlessingAura(canvas: canvas, time: _time);
       }
 
-      final ticker = c.ticker;
-      if (ticker != null) {
-        final sprite = ticker.getSprite();
-        // The creature as it looks everywhere else: its genetics colours,
-        // its alchemy effect round it and its costumes on it.
-        final looks = c.member.spriteVisuals;
-        final auraR = wornAuraRadius(
-          c.spriteScale * max(sprite.srcSize.x, sprite.srcSize.y),
-        );
-        paintWornAura(canvas, looks, auraR, _time);
-        final paint = Paint()..filterQuality = ui.FilterQuality.high;
-        if (looks != null) {
-          paint.colorFilter = creatureGeneticsFilter(looks, _time);
-        }
-        final facingRight = cos(c.angle) > 0;
-        canvas.save();
-        canvas.scale(
-          facingRight ? -c.spriteScale : c.spriteScale,
-          c.spriteScale,
-        );
-        sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
-        paintWornCostumes(canvas, looks, sprite, ticker.currentIndex, _time);
-        canvas.restore();
-        paintWornAura(canvas, looks, auraR, _time, front: true);
+      if (c.ticker != null) {
+        _paintLook(canvas, c, cos(c.angle) > 0, _time);
       } else {
         canvas.drawCircle(
           Offset.zero,
