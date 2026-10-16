@@ -8,8 +8,8 @@ class BreedConstants {
 
   // Rarity → hatch time mapping
   static const Map<String, Duration> rarityHatchTimes = {
-    'common': Duration(minutes: 2),
-    'uncommon': Duration(minutes: 15),
+    'common': Duration(minutes: 5),
+    'uncommon': Duration(minutes: 30),
     'rare': Duration(hours: 1),
     'mythic': Duration(hours: 12),
     'legendary': Duration(hours: 5),

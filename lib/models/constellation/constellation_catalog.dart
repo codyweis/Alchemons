@@ -149,7 +149,7 @@ class ConstellationCatalog {
   static const acceleratedGestation = ConstellationSkill(
     id: 'breeder_accelerated_gestation',
     name: 'Accelerated Gestation',
-    description: 'Reduce faction creature hatching times by 5%',
+    description: 'Reduce faction Alchemon hatching times by 5%',
     tree: ConstellationTree.breeder,
     pointsCost: 6,
     prerequisites: ['breeder_potential_analyzer'],
@@ -159,7 +159,7 @@ class ConstellationCatalog {
   static const acceleratedGestation2 = ConstellationSkill(
     id: 'breeder_accelerated_gestation2',
     name: 'Accelerated Gestation',
-    description: 'Reduce faction creature hatching times by another 5%',
+    description: 'Reduce faction Alchemon hatching times by another 5%',
     tree: ConstellationTree.breeder,
     pointsCost: 10,
     prerequisites: ['breeder_accelerated_gestation'],
@@ -169,7 +169,7 @@ class ConstellationCatalog {
   static const acceleratedGestation3 = ConstellationSkill(
     id: 'breeder_accelerated_gestation3',
     name: 'Accelerated Gestation',
-    description: 'Reduce faction creature hatching times by another 5%',
+    description: 'Reduce faction Alchemon hatching times by another 10%',
     tree: ConstellationTree.breeder,
     pointsCost: 16,
     prerequisites: ['breeder_accelerated_gestation2'],

@@ -132,10 +132,10 @@ class ConstellationEffectsService extends ChangeNotifier {
       reduction += 0.05; // +5%
     }
     if (_unlockedSkillIds.contains('breeder_accelerated_gestation3')) {
-      reduction += 0.05; // +5%
+      reduction += 0.10; // +10%
     }
 
-    return reduction; // Max 15% reduction
+    return reduction; // Max 20% reduction
   }
 
   /// Get wilderness harvest bonus (percentage)
