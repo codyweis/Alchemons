@@ -25,22 +25,27 @@ void main() {
   final out = Platform.environment['PANELS_OUT'];
   setUpAll(loadLobbyFonts);
 
-  CosmicPartyMember member(String family, String element, String name) =>
-      CosmicPartyMember(
-        instanceId: name,
-        baseId: 'PRV01',
-        displayName: name,
-        family: family,
-        element: element,
-        level: 10,
-        slotIndex: 0,
-        statSpeed: 4,
-        statIntelligence: 4,
-        statStrength: 4,
-        statBeauty: 4,
-        staminaBars: 3,
-        staminaMax: 3,
-      );
+  CosmicPartyMember member(
+    String family,
+    String element,
+    String name, {
+    String? image,
+  }) => CosmicPartyMember(
+    instanceId: name,
+    baseId: 'PRV01',
+    displayName: name,
+    family: family,
+    element: element,
+    level: 10,
+    slotIndex: 0,
+    statSpeed: 4,
+    statIntelligence: 4,
+    statStrength: 4,
+    statBeauty: 4,
+    staminaBars: 3,
+    staminaMax: 3,
+    imagePath: image,
+  );
 
   Future<void> shoot(WidgetTester tester, GlobalKey key, String name) async {
     await tester.runAsync(() async {
@@ -82,6 +87,23 @@ void main() {
     final key = GlobalKey();
     debugDisableShadows = false;
     try {
+      // A build some way in, for the TAKEN strip: the same picks the cards
+      // below are offered more of, and a few others.
+      final taken = PowerUpState();
+      for (final (id, slot) in const [
+        ('world_plant', 0),
+        ('strength_up', 1),
+        ('strength_up', 1),
+        ('shield_pulse', null),
+        ('command_speed', null),
+        ('chain_lightning', 1),
+      ]) {
+        final def = [
+          ...kAllPowerUps,
+          ...kMysticWorldPowerUps,
+        ].firstWhere((d) => d.id == id);
+        taken.apply(def, targetSlot: slot);
+      }
       await show(
         tester,
         key,
@@ -110,13 +132,25 @@ void main() {
           ],
           currentWave: 12,
           party: [
-            member('Mystic', 'Plant', 'Verdant'),
-            member('Horn', 'Fire', 'Bulwark'),
+            member(
+              'Mystic',
+              'Plant',
+              'Verdant',
+              image: 'assets/images/creatures/mystic/MYS12_plantmystic.png',
+            ),
+            member(
+              'Horn',
+              'Fire',
+              'Bulwark',
+              image: 'assets/images/creatures/rare/HOR01_firehorn.png',
+            ),
           ],
-          powerUps: PowerUpState(),
+          powerUps: taken,
           onSelect: (def, {targetSlot, targetName}) {},
         ),
       );
+      await precacheLobbyImages(tester);
+      await tester.pump(const Duration(milliseconds: 40));
       await shoot(tester, key, 'surge_draft');
     } finally {
       debugDisableShadows = true;

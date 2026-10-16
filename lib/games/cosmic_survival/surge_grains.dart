@@ -1,0 +1,237 @@
+// lib/games/cosmic_survival/surge_grains.dart
+//
+// What a kill pays into the surge. Each body leaves a few brass grains where
+// it fell, carrying its share of the meter. They wait there until the ship
+// passes close enough to pull them in, or until they lie inside the core's
+// field, which drinks them; the meter is paid when a grain arrives. At the
+// top Surge Magnet level they stream into the core on their own, and when a
+// wave is cleared every grain still lying out there does the same, so none
+// is ever lost: collecting only brings the surge sooner.
+//
+// Budget: at most [SurgeGrains.cap] grains; past it a kill's value is added
+// to grains already lying out instead of new ones. Heads and trails go out
+// as three drawRawPoints calls. No blur.
+
+import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+
+import 'package:alchemons/games/cosmic/cosmic_data.dart' show EnemyTier;
+import 'package:flutter/painting.dart';
+
+/// How far the ship pulls grains from at each Surge Magnet level below the
+/// top one. At the top level they stream to the core by themselves.
+const List<double> kSurgePullRange = [150, 230, 310, 390];
+
+/// The Surge Magnet level at which grains go to the core on their own.
+const int kSurgeMagnetMaxLevel = 4;
+
+/// How many grains a body leaves, by size.
+int surgeGrainsFor(EnemyTier tier, bool elite) =>
+    switch (tier) {
+      EnemyTier.wisp => 2,
+      EnemyTier.drone || EnemyTier.sentinel || EnemyTier.phantom => 3,
+      EnemyTier.brute => 8,
+      EnemyTier.colossus => 14,
+    } +
+    (elite ? 5 : 0);
+
+const _brass = Color(0xFFE2C98F);
+const _brassHot = Color(0xFFFFF4DC);
+
+/// Grains within this of the core's centre are taken by it.
+const double _kCoreDrink = 170;
+
+/// Grains within this of the ship are taken by it.
+const double _kShipTake = 18;
+
+/// Seconds a grain hangs where it fell before it can travel.
+const double _kHang = 0.45;
+
+class _Grain {
+  _Grain(this.x, this.y, this.vx, this.vy, this.value);
+  double x, y, vx, vy, value;
+  double age = 0;
+
+  /// Where it is headed once it moves: 0 lying, 1 to the ship, 2 to the core.
+  int heading = 0;
+  final Float32List trail = Float32List(10);
+  double sample = 0;
+}
+
+class SurgeGrains {
+  SurgeGrains({Random? random}) : _rng = random ?? Random(5);
+
+  static const int cap = 900;
+  final Random _rng;
+  final List<_Grain> _grains = [];
+
+  int get length => _grains.length;
+
+  /// Meter value left by kills, and taken in, over the grains' lifetime.
+  double spawnedValue = 0, takenValue = 0;
+
+  /// Meter value lying on the field, not yet collected.
+  double get valueOut => _grains.fold(0.0, (sum, g) => sum + g.value);
+
+  /// Leaves [count] grains at [at] carrying [value] between them.
+  void spawn(Offset at, int count, double value) {
+    if (value <= 0 || count <= 0) return;
+    spawnedValue += value;
+    final room = cap - _grains.length;
+    if (room <= 0) {
+      // Full: the value rides on grains already out, nothing is lost.
+      _grains[_rng.nextInt(_grains.length)].value += value;
+      return;
+    }
+    final n = min(count, room);
+    final each = value / n;
+    for (var i = 0; i < n; i++) {
+      final a = _rng.nextDouble() * 2 * pi;
+      final s = 14 + _rng.nextDouble() * 40;
+      final g = _Grain(at.dx, at.dy, cos(a) * s, sin(a) * s, each);
+      for (var k = 0; k < 10; k += 2) {
+        g.trail[k] = at.dx;
+        g.trail[k + 1] = at.dy;
+      }
+      _grains.add(g);
+    }
+  }
+
+  /// Sends every grain out now to the core (a cleared wave). Grains left by
+  /// later kills wait as usual.
+  void flushToCore() {
+    for (final g in _grains) {
+      g.heading = 2;
+      g.age = max(g.age, _kHang);
+    }
+  }
+
+  /// Moves the grains. [pull] is the ship's reach (null while it is down);
+  /// [toCore] sends every grain to the core by itself. [onTaken] receives
+  /// each grain's value as it arrives.
+  void update(
+    double dt,
+    Offset core,
+    Offset ship, {
+    required double? pull,
+    required bool toCore,
+    required void Function(double value) onTaken,
+  }) {
+    if (_grains.isEmpty) return;
+    final drag = exp(-4 * dt);
+    final steer = 1 - exp(-5 * dt);
+    for (final g in _grains) {
+      g.age += dt;
+      final cx = g.x - core.dx, cy = g.y - core.dy;
+      final toCoreDist = sqrt(cx * cx + cy * cy);
+      if (g.age >= _kHang && g.heading == 0) {
+        if (toCore || toCoreDist < _kCoreDrink) {
+          g.heading = 2;
+        } else if (pull != null) {
+          final sx = ship.dx - g.x, sy = ship.dy - g.y;
+          if (sx * sx + sy * sy < pull * pull) g.heading = 1;
+        }
+      }
+      switch (g.heading) {
+        case 0:
+          g.vx *= drag;
+          g.vy *= drag;
+        case 1:
+          if (pull == null) {
+            g.heading = 0;
+            break;
+          }
+          final sx = ship.dx - g.x, sy = ship.dy - g.y;
+          final d = max(1.0, sqrt(sx * sx + sy * sy));
+          if (d < _kShipTake) {
+            onTaken(g.value);
+            takenValue += g.value;
+            g.value = 0;
+            g.age = -1;
+            continue;
+          }
+          final speed = 260 + 520 * (1 - min(1.0, d / pull));
+          g.vx += (sx / d * speed - g.vx) * steer;
+          g.vy += (sy / d * speed - g.vy) * steer;
+        case 2:
+          if (toCoreDist < _kCoreDrink - 8) {
+            onTaken(g.value);
+            takenValue += g.value;
+            g.value = 0;
+            g.age = -1;
+            continue;
+          }
+          // Toward a point on the meter band a little round from here, so
+          // the stream curls in rather than falling straight.
+          final a = atan2(cy, cx) + 0.5;
+          final tx = core.dx + cos(a) * 158, ty = core.dy + sin(a) * 158;
+          final ex = tx - g.x, ey = ty - g.y;
+          final el = max(1.0, sqrt(ex * ex + ey * ey));
+          final u = ((g.age - _kHang) / 1.2).clamp(0.0, 1.0);
+          final speed = 90 + 400 * u * u * (3 - 2 * u);
+          g.vx += (ex / el * speed - g.vx) * steer;
+          g.vy += (ey / el * speed - g.vy) * steer;
+      }
+      g.x += g.vx * dt;
+      g.y += g.vy * dt;
+      g.sample += dt;
+      if (g.sample > 0.035) {
+        g.sample = 0;
+        g.trail.setRange(2, 10, g.trail, 0);
+        g.trail[0] = g.x;
+        g.trail[1] = g.y;
+      }
+    }
+    _grains.removeWhere((g) => g.age < 0);
+  }
+
+  final Float32List _heads = Float32List(cap * 2);
+  final Float32List _tails = Float32List(cap * 10);
+  final Paint _dots = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
+  /// Paints the grains inside [view]: lying ones as brass points, moving
+  /// ones with a short trail behind.
+  void paint(Canvas c, Rect view) {
+    var h = 0, t = 0;
+    for (final g in _grains) {
+      if (g.x < view.left ||
+          g.x > view.right ||
+          g.y < view.top ||
+          g.y > view.bottom) {
+        continue;
+      }
+      _heads[h++] = g.x;
+      _heads[h++] = g.y;
+      if (g.heading != 0) {
+        for (var k = 0; k < 10; k++) {
+          _tails[t++] = g.trail[k];
+        }
+      }
+    }
+    if (t > 0) {
+      _dots
+        ..strokeWidth = 2.0
+        ..color = _brass.withValues(alpha: 0.30);
+      c.drawRawPoints(
+        ui.PointMode.points,
+        Float32List.sublistView(_tails, 0, t),
+        _dots,
+      );
+    }
+    if (h == 0) return;
+    final heads = Float32List.sublistView(_heads, 0, h);
+    _dots
+      ..strokeWidth = 3.4
+      ..color = _brass.withValues(alpha: 0.9);
+    c.drawRawPoints(ui.PointMode.points, heads, _dots);
+    _dots
+      ..strokeWidth = 1.6
+      ..color = _brassHot.withValues(alpha: 0.95);
+    c.drawRawPoints(ui.PointMode.points, heads, _dots);
+  }
+
+  void clear() => _grains.clear();
+}

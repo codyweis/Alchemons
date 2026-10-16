@@ -5,10 +5,15 @@
 // as glass tubes with matter settled in them (the space HUD's meter tube)
 // rather than flat bars. The orb's gauge is lit in the core's own light, the
 // same color as the ring of cells round the core in the arena.
+//
+// Under the top bar, the run's main progress: the SURGE tube, full width,
+// filling toward the next draft. The party is a row of small cases along the
+// bottom edge (survival_party_slot.dart), so the field stays clear.
 
 import 'dart:math';
 import 'dart:ui' show PointMode;
 
+import 'package:alchemons/games/cosmic/cosmic_data.dart' show elementColor;
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flutter/material.dart';
 
@@ -26,6 +31,30 @@ class HudInk {
 
   /// The ship's own color: the pale steel of its hull's lit edge.
   static const ship = Color(0xFF8FC9D6);
+}
+
+/// The kit's ink and pale brass (BracketPalette.dark, ForgeTokens dark), for
+/// the surge tube, the party row and the draft.
+abstract final class SurvivalInk {
+  static const bg0 = Color(0xFF09090B);
+  static const bg1 = Color(0xFF131316);
+  static const ink = Color(0xFFE6E2DA);
+  static const muted = Color(0xFF8E8C88);
+
+  /// BracketPalette.dark.line: a frame in it draws nothing (unlit).
+  static const plain = Color(0xFF5A5852);
+  static const brass = Color(0xFFB89656);
+  static const brassBright = Color(0xFFCDB07A);
+  static const brassGlow = Color(0xFFE2C98F);
+
+  /// The Alchemon the ship tows.
+  static const follow = Color(0xFF7FD6C4);
+  static const danger = HudInk.danger;
+
+  /// The alchemical surge: the violet of the meter round the core.
+  static const surge = Color(0xFF9A7CEB);
+  static const surgeDeep = Color(0xFF5B48C8);
+  static const surgeHot = Color(0xFFD99BF5);
 }
 
 TextStyle hudMono(
@@ -297,7 +326,17 @@ class SurvivalTopHud extends StatelessWidget {
     required this.orbFraction,
     required this.orbColor,
     this.orbShield = 0,
+    this.compact = false,
+    this.element,
   });
+
+  /// The wave's element (every small enemy in it shares one), named small
+  /// under the clock; null shows nothing.
+  final String? element;
+
+  /// A narrow screen (the Fold's cover): the keys keep their row and the
+  /// gauges drop under it, side by side, instead of being squeezed.
+  final bool compact;
 
   final int wave;
   final String time;
@@ -310,63 +349,267 @@ class SurvivalTopHud extends StatelessWidget {
   /// The orb's shield as a share of its maximum health; 0 for none.
   final double orbShield;
 
+  Widget _gauges({required bool row}) {
+    final ship = HudGauge(
+      label: shipGhost ? 'GHOST' : 'SHIP',
+      fraction: shipGhost ? 1 : shipFraction,
+      color: HudInk.ship,
+      figure: shipGhost ? '—' : null,
+    );
+    final orb = HudGauge(
+      label: 'ORB',
+      fraction: orbFraction,
+      color: orbColor,
+      shield: orbShield,
+    );
+    return HudGlass(
+      padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
+      child: row
+          ? Row(
+              children: [
+                Expanded(child: ship),
+                const SizedBox(width: 10),
+                Expanded(child: orb),
+              ],
+            )
+          : Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [ship, const SizedBox(height: 7), orb],
+            ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (compact) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              _wavePane(),
+              const Spacer(),
+              for (final (i, k) in keys.indexed) ...[
+                if (i > 0) const SizedBox(width: 6),
+                k,
+              ],
+            ],
+          ),
+          const SizedBox(height: 6),
+          _gauges(row: true),
+        ],
+      );
+    }
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        HudGlass(
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text('WAVE ', style: hudMono(8.5, HudInk.muted)),
-                  Text(
-                    '$wave',
-                    style: hudMono(17, HudInk.amber, weight: FontWeight.w900),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(time, style: hudMono(10, HudInk.ink, spacing: 1.0)),
-            ],
-          ),
-        ),
+        _wavePane(),
         const SizedBox(width: 6),
         for (final k in keys) ...[k, const SizedBox(width: 6)],
         const SizedBox(width: 2),
-        Expanded(
-          child: HudGlass(
-            padding: const EdgeInsets.fromLTRB(8, 7, 8, 7),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                HudGauge(
-                  label: shipGhost ? 'GHOST' : 'SHIP',
-                  fraction: shipGhost ? 1 : shipFraction,
-                  color: HudInk.ship,
-                  figure: shipGhost ? '—' : null,
-                ),
-                const SizedBox(height: 7),
-                HudGauge(
-                  label: 'ORB',
-                  fraction: orbFraction,
-                  color: orbColor,
-                  shield: orbShield,
-                ),
-              ],
-            ),
-          ),
-        ),
+        Expanded(child: _gauges(row: false)),
       ],
     );
   }
+
+  Widget _wavePane() {
+    final figures = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.alphabetic,
+          children: [
+            Text('WAVE ', style: hudMono(8.5, HudInk.muted)),
+            Text(
+              '$wave',
+              style: hudMono(
+                17,
+                SurvivalInk.brassBright,
+                weight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        Text(time, style: hudMono(10, HudInk.ink, spacing: 1.0)),
+        if (element != null) const SizedBox(height: _elementLine + 1),
+      ],
+    );
+    final e = element;
+    return HudGlass(
+      padding: e == null
+          ? const EdgeInsets.fromLTRB(10, 6, 10, 6)
+          : const EdgeInsets.fromLTRB(10, 4, 10, 4),
+      child: e == null
+          ? figures
+          // The element's line takes the width the figures give it and no
+          // more, so a long name scales down rather than widening the plate.
+          : Stack(
+              children: [
+                figures,
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  height: _elementLine,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      e.toUpperCase(),
+                      maxLines: 1,
+                      style: hudMono(
+                        7.5,
+                        Color.lerp(elementColor(e), HudInk.ink, 0.4)!,
+                        spacing: 0.8,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
+
+  static const double _elementLine = 8.5;
+}
+
+/// The run's main progress, under the top bar: a full-width glass tube that
+/// fills with the surge as kills come in, as the meter round the core does.
+/// Near full, the pane is lit from below in the surge's violet; full opens
+/// the draft.
+///
+/// Rebuilt on the HUD's tick; the fill is quantized to about a pixel of a
+/// phone-wide tube, so the tube repaints only when it visibly moves.
+class SurgeStrip extends StatelessWidget {
+  const SurgeStrip({super.key, required this.fraction});
+
+  final double fraction;
+
+  @override
+  Widget build(BuildContext context) {
+    final f = (fraction.clamp(0.0, 1.0) * 400).round() / 400;
+    final near = f >= 0.85;
+    return RepaintBoundary(
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: near ? SurvivalInk.surge : SurvivalInk.plain,
+          strokeWidth: 1.4,
+        ),
+        child: Container(
+          color: SurvivalInk.bg0.withValues(alpha: 0.86),
+          padding: const EdgeInsets.fromLTRB(10, 5, 10, 5),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 46,
+                child: Text(
+                  'SURGE',
+                  style: hudMono(
+                    8.5,
+                    near ? SurvivalInk.surgeHot : SurvivalInk.muted,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: SizedBox(
+                  height: 10,
+                  child: CustomPaint(painter: SurgeTubePainter(f)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 34,
+                child: Text(
+                  '${(f * 100).floor()}%',
+                  textAlign: TextAlign.right,
+                  style: hudMono(
+                    10,
+                    near ? SurvivalInk.ink : SurvivalInk.muted,
+                    spacing: 0.4,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The surge tube: dark glass, the matter deep at its start and hot at its
+/// leading edge, grains settled in fixed places, the edge catching the
+/// light.
+class SurgeTubePainter extends CustomPainter {
+  SurgeTubePainter(this.fraction);
+
+  final double fraction;
+
+  static final Paint _p = Paint();
+  static final Paint _grain = Paint()
+    ..strokeCap = StrokeCap.round
+    ..style = PaintingStyle.stroke;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    _p.shader = const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF19181F), Color(0xFF08080B), Color(0xFF111116)],
+      stops: [0.0, 0.6, 1.0],
+    ).createShader(rect);
+    canvas.drawRect(rect, _p);
+
+    final w = size.width * fraction;
+    if (w > 0.5) {
+      final band = Rect.fromLTWH(0, 0, w, size.height);
+      _p.shader = LinearGradient(
+        colors: [
+          SurvivalInk.surgeDeep,
+          SurvivalInk.surge,
+          Color.lerp(SurvivalInk.surge, SurvivalInk.surgeHot, 0.6)!,
+        ],
+        stops: const [0.0, 0.7, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, max(w, 40), size.height));
+      canvas.drawRect(band, _p);
+      _p.shader = const LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [Color(0x40FFFFFF), Color(0x00FFFFFF), Color(0x66000000)],
+        stops: [0.0, 0.45, 1.0],
+      ).createShader(band);
+      canvas.drawRect(band, _p);
+      _grain
+        ..strokeWidth = 1.4
+        ..color = SurvivalInk.surgeHot.withValues(alpha: 0.75);
+      final pts = <Offset>[];
+      for (var i = 0; i * 3.1 < w - 2; i++) {
+        final h = ((i * 7919) % 97) / 97;
+        pts.add(Offset(i * 3.1 + h * 2.2, size.height * (0.2 + 0.68 * h)));
+      }
+      canvas.drawPoints(PointMode.points, pts, _grain);
+      _p
+        ..shader = null
+        ..color = const Color(0xFFF3E4FF).withValues(alpha: 0.9);
+      canvas.drawRect(Rect.fromLTWH(w - 1.5, 0, 1.5, size.height), _p);
+    }
+    _p.shader = const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0x22FFFFFF), Color(0x00FFFFFF)],
+    ).createShader(Rect.fromLTWH(0, 0, size.width, size.height * 0.4));
+    canvas.drawRect(Rect.fromLTWH(0, 0.5, size.width, size.height * 0.4), _p);
+    _p.shader = null;
+  }
+
+  @override
+  bool shouldRepaint(SurgeTubePainter old) => old.fraction != fraction;
 }
 
 /// The detonation key: a sphere of dark glass that fills with molten matter

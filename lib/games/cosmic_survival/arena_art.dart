@@ -13,7 +13,8 @@
 // space, in cosmic/hostile_shot_vfx.dart.
 //
 // Budget: no blur, no offscreen layers. Stars and grains go through
-// drawRawPoints in a few buckets; the floor is one gradient fill.
+// drawRawPoints in a few buckets; the floor is one gradient fill; the
+// nebula behind the stars is one recorded picture.
 
 import 'dart:math';
 import 'dart:typed_data';
@@ -171,6 +172,96 @@ class ArenaSky {
         );
       }
     }
+  }
+}
+
+// ── the nebula ──────────────────────────────────────────────────────────────
+
+/// One cloud of the nebula, centred [x], [y] from the core, [rx] by [ry].
+class _Cloud {
+  const _Cloud(this.x, this.y, this.rx, this.ry, this.color, this.weight);
+  final double x, y, rx, ry, weight;
+  final Color color;
+}
+
+/// Deep midnight clouds, with one warm one near the core.
+const _kClouds = [
+  _Cloud(-700, -900, 1100, 700, Color(0xFF3B2F86), 0.9),
+  _Cloud(800, -200, 800, 1000, Color(0xFF1F4A6E), 0.8),
+  _Cloud(-400, 900, 1000, 650, Color(0xFF5A2E66), 0.75),
+  _Cloud(250, -150, 600, 500, Color(0xFF6A5232), 0.45),
+];
+
+/// Faint clouds and a haze of fine grains behind the stars, so the fight
+/// has a sky with depth rather than a black page. It slides at a fifth of
+/// the camera's speed.
+///
+/// Budget: recorded once into a picture (four gradient fills and four point
+/// batches); a frame is one drawPicture.
+class ArenaNebula {
+  static const _factor = 0.2;
+
+  /// Recorded once per process; every run shares it.
+  static final ui.Picture _picture = _record();
+
+  static ui.Picture _record() {
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    final r = Random(17);
+    final dots = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = 1.7;
+    for (var ci = 0; ci < _kClouds.length; ci++) {
+      final cl = _kClouds[ci];
+      c.save();
+      c.translate(cl.x, cl.y);
+      c.scale(1, cl.ry / cl.rx);
+      c.drawCircle(
+        Offset.zero,
+        cl.rx,
+        Paint()
+          ..shader = ui.Gradient.radial(
+            Offset.zero,
+            cl.rx,
+            [
+              cl.color.withValues(alpha: 0.42 * cl.weight),
+              cl.color.withValues(alpha: 0.16 * cl.weight),
+              cl.color.withValues(alpha: 0),
+            ],
+            const [0.0, 0.55, 1.0],
+          ),
+      );
+      c.restore();
+      // Lumpy lobes of grains: a few sub-centres per cloud.
+      final n = (5200 * cl.weight).round();
+      final pts = Float32List(n * 2);
+      for (var i = 0; i < n; i++) {
+        final sub = r.nextInt(4);
+        final sx = cl.x + cos(sub * 1.9 + ci) * cl.rx * 0.35;
+        final sy = cl.y + sin(sub * 2.3 + ci) * cl.ry * 0.35;
+        final g1 = (r.nextDouble() + r.nextDouble() + r.nextDouble()) / 3 - 0.5;
+        final g2 = (r.nextDouble() + r.nextDouble() + r.nextDouble()) / 3 - 0.5;
+        pts[i * 2] = sx + g1 * cl.rx * 1.6;
+        pts[i * 2 + 1] = sy + g2 * cl.ry * 1.6;
+      }
+      dots.color = Color.lerp(
+        cl.color,
+        const Color(0xFFCFD6F2),
+        0.45,
+      )!.withValues(alpha: 0.42);
+      c.drawRawPoints(ui.PointMode.points, pts, dots);
+    }
+    return rec.endRecording();
+  }
+
+  /// Paints the nebula round [orb] for a camera looking at [view].
+  void paint(Canvas c, Rect view, Offset orb) {
+    final at = orb + (view.center - orb) * (1 - _factor);
+    c.save();
+    c.translate(at.dx, at.dy);
+    c.drawPicture(_picture);
+    c.restore();
   }
 }
 

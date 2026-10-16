@@ -35,6 +35,7 @@ import 'package:alchemons/games/cosmic/horn_runtime.dart';
 import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
+import 'package:alchemons/games/cosmic_survival/surge_grains.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
@@ -71,6 +72,13 @@ import 'package:flutter/material.dart';
 // COMPANION DATA - uses same stat formulas as cosmic game
 // ---------------------------------------------------------------------------
 
+/// The least time between two hit flashes on one companion.
+const double kCompanionFlashGap = 0.5;
+
+/// Below this share of its health a companion or the ship stands in ember
+/// light.
+const double _kLowHealth = 0.35;
+
 class CosmicSurvivalCompanion {
   final CosmicPartyMember member;
   int slotIndex;
@@ -98,7 +106,32 @@ class CosmicSurvivalCompanion {
   double specialCooldown;
   bool tethered;
   bool isDead;
+
+  /// Set to 1 by every hit and run down in the update. Gameplay reads it;
+  /// the sprite shows [shownFlash] instead.
   double hitFlash;
+
+  /// The flash the sprite shows: a hit lights it as a short soft wash at
+  /// most once every [kCompanionFlashGap] seconds. Shown raw, a creature in
+  /// contact with a horde was re-lit every frame and stayed a white cut-out.
+  double shownFlash = 0;
+  double _flashGate = 0;
+  double _flashAfterDecay = 0;
+
+  /// Runs [hitFlash] down and decides what the sprite shows this frame.
+  void tickFlash(double dt) {
+    final struck = hitFlash > _flashAfterDecay + 0.001;
+    _flashGate -= dt;
+    if (struck && _flashGate <= 0) {
+      shownFlash = 1;
+      _flashGate = kCompanionFlashGap;
+    } else {
+      shownFlash = max(0.0, shownFlash - dt * 7);
+    }
+    hitFlash = (hitFlash - dt * 4).clamp(0.0, 1.0);
+    _flashAfterDecay = hitFlash;
+  }
+
   double angle;
   int shieldHp;
   double chargeTimer;
@@ -1545,6 +1578,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   double get alchemicalMeterMax =>
       CosmicSurvivalBalance.alchemicalMeterCapacity(spawner.currentWave);
 
+  /// The meter as the arena shows it (eased toward the real value), 0..1:
+  /// what the HUD's surge tube reads, so the two fill together.
+  double get alchemicalMeterShown => _alchemicalMeterDisplayFrac;
+
   double _intermissionAlchemyGrantForWave(int wave, {required bool bossWave}) {
     if (wave <= 0) return 0;
     final base = bossWave ? 22.0 + wave * 1.25 : 8.0 + wave * 0.55;
@@ -1590,6 +1627,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   // Background stars
   final ArenaSky _sky = ArenaSky();
+  final ArenaNebula _nebula = ArenaNebula();
+  final SurgeGrains _surgeGrains = SurgeGrains();
   final ArenaRim _rim = ArenaRim();
 
   // VFX particles
@@ -2479,6 +2518,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
     _updateVfx(dt);
     _updateOutbreak(dt);
+    final magnet = powerUps.surgeMagnetLevel;
+    _surgeGrains.update(
+      dt,
+      orb.position,
+      ship.position,
+      pull: ship.isDead
+          ? null
+          : kSurgePullRange[min(magnet, kSurgePullRange.length - 1)],
+      toCore: magnet >= kSurgeMagnetMaxLevel,
+      onTaken: _takeSurgeGrain,
+    );
     _updateAlchemicalMeterDisplay(dt);
     _timeDilationTimer = max(0, _timeDilationTimer - dt);
     if (_timeDilationTimer <= 0) _timeDilationSlowFactor = 1.0;
@@ -2543,6 +2593,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final bossWave = spawner.isBossWave;
       onWaveCleared?.call(clearedWave);
       _cleanupBetweenWaves();
+      // Whatever the ship did not gather flows to the core now.
+      _surgeGrains.flushToCore();
       _grantIntermissionReward(clearedWave, bossWave: bossWave);
       _maybeTriggerPowerUpSelection();
       spawner.resumeAfterIntermission();
@@ -2983,7 +3035,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     comp.invincibleTimer = (comp.invincibleTimer - dt).clamp(0, 100);
     comp.stickyTargetLockTimer = (comp.stickyTargetLockTimer - dt).clamp(0, 10);
-    comp.hitFlash = (comp.hitFlash - dt * 4).clamp(0, 1);
+    comp.tickFlash(dt);
     _companionTickers[slotIndex]?.update(dt);
 
     // Charge state
@@ -8834,13 +8886,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (grantAlchemyReward && !ship.isDead) {
       final alchemyPacingMultiplier =
           _alchemicalKillPacingMultiplier * _alchemicalWaveStabilityMultiplier;
-      _grantAlchemy(
-        alchemyValue * _alchemyMeterGainMultiplier * alchemyPacingMultiplier,
-      );
-      _spawnAlchemyPickupBurst(
+      // Paid when its grains are taken in, not on the kill: see
+      // surge_grains.dart.
+      _surgeGrains.spawn(
         enemy.position,
-        _alchemyRewardColorForTier(enemy.tier),
-        count: enemy.isElite ? 8 : 5,
+        surgeGrainsFor(enemy.tier, enemy.isElite),
+        alchemyValue * _alchemyMeterGainMultiplier * alchemyPacingMultiplier,
       );
     }
     if (sourceSlotIndex != null) {
@@ -9056,6 +9107,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   @visibleForTesting
   void debugGrantAlchemy(double value) => _grantAlchemy(value);
 
+  /// A surge grain taken in by the ship or the core. Paid even while the
+  /// ship is down: the kill that left it was made while it was up.
+  void _takeSurgeGrain(double value) {
+    if (value <= 0) return;
+    alchemicalMeter = min(
+      alchemicalMeterMax,
+      alchemicalMeter +
+          value * CosmicSurvivalBalance.alchemicalRewardMultiplier,
+    );
+  }
+
+  /// Surge value lying on the field, not yet taken in.
+  @visibleForTesting
+  double get debugSurgeOut => _surgeGrains.valueOut;
+
+  @visibleForTesting
+  SurgeGrains get debugSurgeGrains => _surgeGrains;
+
   void _grantAlchemy(double value) {
     if (ship.isDead || value <= 0) return;
     alchemicalMeter = min(
@@ -9075,17 +9144,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if ((_alchemicalMeterDisplayFrac - target).abs() < 0.0008) {
       _alchemicalMeterDisplayFrac = target;
     }
-  }
-
-  Color _alchemyRewardColorForTier(EnemyTier tier) {
-    return switch (tier) {
-      EnemyTier.wisp => const Color(0xFF7DD3FC),
-      EnemyTier.drone => const Color(0xFF60A5FA),
-      EnemyTier.sentinel => const Color(0xFF34D399),
-      EnemyTier.phantom => const Color(0xFFF472B6),
-      EnemyTier.brute => const Color(0xFFF59E0B),
-      EnemyTier.colossus => const Color(0xFFFFE082),
-    };
   }
 
   void _spawnAlchemyPickupBurst(Offset center, Color color, {int count = 6}) {
@@ -19680,6 +19738,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     canvas.translate(-cx + shake.dx, -cy + shake.dy);
 
     final view = Rect.fromLTWH(cx, cy, viewW, viewH);
+    _nebula.paint(canvas, view, orb.position);
     _sky.paint(canvas, view, stats.timeElapsed, _currentZoom);
     // Mystic environment tint — viewport-covering element wash that
     // sits between the starfield and the arena. Stacks if multiple
@@ -19760,6 +19819,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _renderEnemy(canvas, enemy);
     }
     _swarmBatch.flush(canvas, stats.timeElapsed);
+    _surgeGrains.paint(canvas, view);
 
     // Beams and shockwaves sit above the bodies that threw them.
     _renderEnemyHazards(canvas);
@@ -20980,6 +21040,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Elemental aura: light of the creature's material pooled under it, soft
     // to its edge (it was a flat disc in the raw element colour).
     vfxSpill(canvas, Offset.zero, 27, abilityMaterialTint(ec), 0.24);
+    // Low health: ember light gathers under it. Its exact health is on its
+    // party case; the field carries no bars.
+    _paintLowHealthPool(canvas, Offset.zero, comp.hpPercent);
 
     // ── Kin support-path active overlays ──────────────────────
     if (comp.member.family.toLowerCase() == 'kin') {
@@ -21178,11 +21241,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       paintWornAura(canvas, visuals, auraR, stats.timeElapsed);
       final paint = Paint()..filterQuality = ui.FilterQuality.high;
 
-      // Hit flash
-      if (comp.hitFlash > 0) {
-        paint.colorFilter = const ui.ColorFilter.mode(
-          Colors.white,
-          BlendMode.srcATop,
+      // Hit flash: a soft white wash over its own colours, never a cut-out.
+      final flash = comp.shownFlash;
+      if (flash > 0.01) {
+        final v = visuals;
+        final List<double>? base = v == null
+            ? null
+            : isAlbinoLook(v)
+            ? (albinoBaked(v) ? null : kAlbinoMatrix)
+            : _geneticsMatrix(v);
+        paint.colorFilter = ui.ColorFilter.matrix(
+          _washMatrix(base, 0.55 * flash * flash),
         );
       } else if (visuals != null) {
         // Apply genetics color filter: none for an albino, whose look is in
@@ -21216,8 +21285,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       paintWornAura(canvas, visuals, auraR, stats.timeElapsed, front: true);
     } else {
       // Fallback: circle (no sprite sheet)
-      final flashColor = comp.hitFlash > 0
-          ? Color.lerp(ec, Colors.white, comp.hitFlash)!
+      final flashColor = comp.shownFlash > 0
+          ? Color.lerp(ec, Colors.white, 0.55 * comp.shownFlash)!
           : ec;
       canvas.drawCircle(
         Offset.zero,
@@ -21232,29 +21301,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     canvas.restore();
-
-    // HP bar above companion
-    final barW = 30.0;
-    final barY = comp.position.dy - 28;
-    canvas.drawRect(
-      Rect.fromLTWH(comp.position.dx - barW / 2, barY, barW, 3),
-      Paint()..color = Colors.white.withValues(alpha: 0.15),
-    );
-    final hpFrac = comp.hpPercent;
-    final hpColor = hpFrac > 0.5
-        ? const Color(0xFF00E676)
-        : hpFrac > 0.25
-        ? const Color(0xFFFFEA00)
-        : const Color(0xFFE53935);
-    canvas.drawRect(
-      Rect.fromLTWH(comp.position.dx - barW / 2, barY, barW * hpFrac, 3),
-      Paint()..color = hpColor,
-    );
   }
 
   // == Genetics Color Filters (same as cosmic game) ========================
 
-  ui.ColorFilter _geneticsColorFilter(SpriteVisuals v) {
+  ui.ColorFilter _geneticsColorFilter(SpriteVisuals v) =>
+      ui.ColorFilter.matrix(_geneticsMatrix(v));
+
+  /// [base] (identity when null) washed [w] of the way toward white.
+  List<double> _washMatrix(List<double>? base, double w) {
+    final m = List<double>.of(base ?? _identityMatrix());
+    for (var row = 0; row < 3; row++) {
+      for (var col = 0; col < 4; col++) {
+        m[row * 5 + col] *= 1 - w;
+      }
+      m[row * 5 + 4] = m[row * 5 + 4] * (1 - w) + 255 * w;
+    }
+    return m;
+  }
+
+  List<double> _geneticsMatrix(SpriteVisuals v) {
     var m = _identityMatrix();
     if (v.saturation != 1.0 || v.brightness != 1.0) {
       m = _mulMatrix(_bsSatMatrix(v.brightness, v.saturation), m);
@@ -21292,7 +21358,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         0,
       ], m);
     }
-    return ui.ColorFilter.matrix(m);
+    return m;
   }
 
   List<double> _identityMatrix() => <double>[
@@ -21413,9 +21479,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       drawKinTeslaShip(canvas: canvas, time: elapsed);
     }
 
+    if (!ghostMode) _paintLowHealthPool(canvas, Offset.zero, ship.hpPercent);
+
     canvas.restore();
     _renderShipHull(canvas, elapsed, ghostMode);
-    _renderShipHpBar(canvas, p);
   }
 
   /// The hull, drawn by the cosmic ship painter (ship_art.dart) so it looks
@@ -21443,22 +21510,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (ghostMode) canvas.restore();
   }
 
-  void _renderShipHpBar(Canvas canvas, Offset p) {
-    final barW = 30.0;
-    final barY = p.dy + 18;
-    canvas.drawRect(
-      Rect.fromLTWH(p.dx - barW / 2, barY, barW, 3),
-      Paint()..color = Colors.white.withValues(alpha: 0.15),
-    );
-    final hpFrac = ship.hpPercent;
-    final hpColor = hpFrac > 0.5
-        ? const Color(0xFF00E676)
-        : hpFrac > 0.25
-        ? const Color(0xFFFFEA00)
-        : const Color(0xFFE53935);
-    canvas.drawRect(
-      Rect.fromLTWH(p.dx - barW / 2, barY, barW * hpFrac, 3),
-      Paint()..color = hpColor,
+  /// Ember light pooled under a body below [_kLowHealth] of its health,
+  /// stronger the lower it is.
+  void _paintLowHealthPool(Canvas canvas, Offset at, double hp) {
+    if (hp >= _kLowHealth) return;
+    vfxSpill(
+      canvas,
+      at + const Offset(0, 10),
+      26,
+      const Color(0xFFE0703A),
+      0.2 + 0.4 * (1 - hp / _kLowHealth),
     );
   }
 }

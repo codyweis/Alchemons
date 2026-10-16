@@ -737,9 +737,19 @@ class CosmicSurvivalSpawner {
   CosmicSurvivalSpawner({Random? random})
     : _rng = random ?? Random(),
       // Seeded when the main stream is, so a seeded run stays reproducible.
-      _knotRng = random == null ? Random() : Random(7919);
+      _knotRng = random == null ? Random() : Random(7919),
+      _waveElementRng = random == null ? Random() : Random(4241);
 
   final Random _rng;
+
+  /// Draws for the wave's element only, off [_rng] for the same reason as
+  /// [_knotRng].
+  final Random _waveElementRng;
+
+  /// The element every small body of this wave shares. Elites, heavies and
+  /// bosses keep their own, so they stand out of the tide — and the wave
+  /// reads as one mass rather than confetti, with a matchup to plan for.
+  String waveElement = 'Fire';
 
   /// Draws for wisp knots only. Kept off [_rng] so laying knots does not
   /// reshuffle every other spawn decision a seeded run depends on.
@@ -812,6 +822,10 @@ class CosmicSurvivalSpawner {
         ? 3
         : 4;
     _waveSizeJitter = 0.90 + _rng.nextDouble() * 0.25;
+    final previous = waveElement;
+    do {
+      waveElement = _kElements[_waveElementRng.nextInt(_kElements.length)];
+    } while (waveElement == previous);
     bossSpawned = false;
     _spawnedThisWave = 0;
     _artilleryThisWave = 0;
@@ -1130,7 +1144,16 @@ class CosmicSurvivalSpawner {
     final joinsKnot =
         tier == EnemyTier.wisp && !isBossWave && _knotLeft > 0 && _knotAt != null;
     final rolledElement = _kElements[_rng.nextInt(_kElements.length)];
-    final element = joinsKnot ? _knotElement : rolledElement;
+    final smallBody =
+        tier == EnemyTier.wisp ||
+        tier == EnemyTier.drone ||
+        tier == EnemyTier.sentinel ||
+        tier == EnemyTier.phantom;
+    var element = joinsKnot
+        ? _knotElement
+        : smallBody
+        ? waveElement
+        : rolledElement;
     // CONDUCT — how it moves, straight from the wave's shape.
     var conduct = _conductForWave(currentWave, tier);
     if ((currentPattern == SurvivalWavePattern.siegePush ||
@@ -1231,6 +1254,7 @@ class CosmicSurvivalSpawner {
     final eliteAffix = isElite
         ? rollEliteAffixForWave(currentWave, _rng)
         : null;
+    if (isElite) element = rolledElement;
     final eliteMultiplier = isElite ? 2.2 : 1.0;
 
     final baseHp =

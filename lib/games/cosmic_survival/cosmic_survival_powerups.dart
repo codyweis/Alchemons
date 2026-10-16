@@ -265,6 +265,18 @@ const kShipWeapons = [
     maxStacks: 3,
     tags: [PowerUpTag.basicAttack],
   ),
+  // Kills leave surge grains that wait for the ship (surge_grains.dart).
+  // Each level widens the ship's pull; the last sends them to the core.
+  PowerUpDef(
+    id: 'surge_magnet',
+    name: 'Surge Magnet',
+    description: 'The ship pulls surge grains from further away',
+    icon: '✨',
+    category: PowerUpCategory.shipWeapon,
+    rarity: PowerUpRarity.uncommon,
+    maxStacks: 4,
+    tags: [PowerUpTag.tempo],
+  ),
 ];
 
 const kOrbDefenses = [
@@ -942,6 +954,7 @@ class PowerUpState {
   int get maxActiveCompanions =>
       (1 + getGlobalStacks('pack_leader')).clamp(1, 5);
   int get orbVitalityLevel => getGlobalStacks('orb_vitality');
+  int get surgeMagnetLevel => getGlobalStacks('surge_magnet');
 
   int displayedLevel(PowerUpDef def, {int? slotIndex}) => getStacks(
     def.id,
@@ -975,13 +988,16 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
   final def = choice.def;
   final nextLevel = choice.currentLevel + 1;
   if (def.isKeystone) {
+    // What PowerUpState and applyPowerUp actually give: a share of each
+    // Alchemon's own stat for the whole team, and the ship and orb figures.
     return switch (def.id) {
       'keystone_bastion_heart' =>
-        'Orb Durability +20%, Intelligence scaling +12%, Vitality scaling +14%',
-      'keystone_chrono_surge' =>
-        'Speed scaling +16%, Speed cadence +10%, Ship tempo +20%',
-      'keystone_spellbloom' => 'Beauty scaling +16%, Speed cadence +12%',
-      'keystone_warpath' => 'Strength scaling +22%, Ship impact scaling +20%',
+        'Orb max HP +20%, Team Intelligence +4%, Team Beauty +4%, '
+            'Team Strength +2%',
+      'keystone_chrono_surge' => 'Team Speed +10%, Ship fire rate +20%',
+      'keystone_spellbloom' =>
+        'Team Beauty +7%, Team Intelligence +4%, Team Speed +3%',
+      'keystone_warpath' => 'Team Strength +8%, Ship damage +20%',
       _ => def.description,
     };
   }
@@ -1015,6 +1031,9 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
       _ => 'High cadence beam pressure with heavy hits',
     },
     'kinetic_overdrive' => '+10% ship round impact, speed, and lifetime',
+    'surge_magnet' => nextLevel >= 4
+        ? 'Surge grains fly into the orb by themselves'
+        : 'Ship pulls surge grains from further away (+80)',
     'shield_pulse' => '+1 shield pulse level',
     'auto_turret' => '+1 auto-turret level',
     'regen_field' => '+1 regeneration field level',

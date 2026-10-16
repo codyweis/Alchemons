@@ -1487,11 +1487,11 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     if (!CosmicSurvivalSpawner.isBossWaveNumber(wave)) {
       context.sound(SoundCue.survivalWaveStart, owner: this);
     }
+    final boss = CosmicSurvivalSpawner.isBossWaveNumber(wave);
     final announcement = _WaveAnnouncementData(
-      title: CosmicSurvivalSpawner.isBossWaveNumber(wave)
-          ? 'BOSS WAVE $wave'
-          : 'WAVE $wave',
-      subtitle: null,
+      title: boss ? 'BOSS WAVE $wave' : 'WAVE $wave',
+      // The wave's element, named; the matchup is the player's to read.
+      subtitle: boss ? null : _game?.spawner.waveElement,
     );
     if (_waveAnnouncementTitle != null) {
       final alreadyQueued = _pendingWaveAnnouncements.any(
@@ -2926,7 +2926,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
               // Held through the entrance, then easing in with the HUD.
               final held = _entrance.active;
               return Positioned(
-                bottom: 20,
+                bottom: 20 + _joystickLift(),
                 left: 12,
                 child: IgnorePointer(
                   ignoring: held,
@@ -3017,7 +3017,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                 child: Align(
                   alignment: Alignment.topCenter,
                   child: Padding(
-                    padding: const EdgeInsets.only(top: 76),
+                    padding: EdgeInsets.only(top: 76 + _hudTopInset),
                     child: _SurvivalPlate(
                       accent: _C.danger,
                       background: _C.bg0.withValues(alpha: 0.94),
@@ -3090,7 +3090,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                     alignment: Alignment.topCenter,
                     child: Padding(
                       padding: EdgeInsets.only(
-                        top: _bossAnnouncement != null ? 168 : 76,
+                        top:
+                            (_bossAnnouncement != null ? 168 : 76) +
+                            _hudTopInset,
                       ),
                       child: AnimatedOpacity(
                         opacity: _waveAnnouncementTitle == null ? 0 : 1,
@@ -3154,7 +3156,14 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
         fit: StackFit.expand,
         children: [
           _buildHud(game),
-          _buildCompanionPanel(game),
+          // The vessel stands over the row's right end; drawn first, so an
+          // opened reserve tray covers it.
+          if (game.detonationUnlocked &&
+              _powerUpChoices.isEmpty &&
+              !_showPauseMenu &&
+              !game.isGameOver)
+            _buildDetonationButton(game),
+          _buildPartyRow(game),
           if (game.outbreak != null &&
               _bossAnnouncement == null &&
               _waveAnnouncementTitle == null &&
@@ -3162,9 +3171,9 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
               _powerUpChoices.isEmpty &&
               !game.isGameOver)
             Positioned(
-              top: 100,
+              top: 100 + _hudTopInset,
               left: 44,
-              right: 104,
+              right: 44,
               child: IgnorePointer(
                 child: SafeArea(
                   child: _SurvivalPlate(
@@ -3200,11 +3209,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                 ),
               ),
             ),
-          if (game.detonationUnlocked &&
-              _powerUpChoices.isEmpty &&
-              !_showPauseMenu &&
-              !game.isGameOver)
-            _buildDetonationButton(game),
           if (game.isLoaded && game.ship.isDead && !game.isGameOver)
             _buildGhostShipBanner(game),
         ],
@@ -3215,11 +3219,16 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   Widget _buildDetonationButton(CosmicSurvivalGame game) {
     final isReady = game.detonationReadyNotifier.value;
     final charge = game.detonationChargeFraction;
+    // The party row owns the bottom edge, so the vessel stands over its
+    // right end.
     return Align(
-      alignment: Alignment.bottomCenter,
+      alignment: Alignment.bottomRight,
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.only(bottom: 24),
+          padding: const EdgeInsets.only(
+            bottom: 20 + SurvivalPartySlot.height + 10,
+            right: 8,
+          ),
           child: AnimatedScale(
             scale: isReady ? 1.08 : 1.0,
             duration: const Duration(milliseconds: 520),
@@ -3301,6 +3310,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
   // ── HUD ────────────────────────────────────────────────
 
+  /// The top bar in two rows on a narrow screen (the Fold's cover).
+  bool get _compactTop => MediaQuery.sizeOf(context).width < 420;
+
+  /// How much further down the HUD's top reaches than the single 44 high
+  /// row of keys it once was: the wave plate's element line and the surge
+  /// tube, and on a narrow screen the gauges' own row. What sits under the
+  /// HUD (announcements, the outbreak plate) is pushed down by this.
+  double get _hudTopInset => _compactTop ? 68 : 37;
+
   Widget _buildHud(CosmicSurvivalGame game) {
     final orbHp = game.isLoaded ? game.orb.hpPercent : 1.0;
     return Positioned(
@@ -3310,38 +3328,55 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: SurvivalTopHud(
-            wave: game.spawner.currentWave,
-            time: game.stats.formattedTime,
-            keys: [
-              HudKey(
-                key: const ValueKey('survival.pause'),
-                icon: _showPauseMenu
-                    ? AppIcons.play_arrow_rounded
-                    : AppIcons.pause_rounded,
-                lit: _showPauseMenu,
-                tooltip: _showPauseMenu ? 'Resume' : 'Pause',
-                onTap: context.soundTap(_togglePauseMenu),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SurvivalTopHud(
+                compact: _compactTop,
+                wave: game.spawner.currentWave,
+                time: game.stats.formattedTime,
+                element:
+                    game.isLoaded &&
+                        game.spawner.currentWave > 0 &&
+                        !game.spawner.isBossWave
+                    ? game.spawner.waveElement
+                    : null,
+                keys: [
+                  HudKey(
+                    key: const ValueKey('survival.pause'),
+                    icon: _showPauseMenu
+                        ? AppIcons.play_arrow_rounded
+                        : AppIcons.pause_rounded,
+                    lit: _showPauseMenu,
+                    tooltip: _showPauseMenu ? 'Resume' : 'Pause',
+                    onTap: context.soundTap(_togglePauseMenu),
+                  ),
+                  SurvivalCameraButton(
+                    cameraMode: game.autopilotState,
+                    onToggle: context.soundTap(_toggleAutopilot),
+                  ),
+                  // Fast forward: 1.5x. Two was too fast to read a front.
+                  HudKey(
+                    icon: AppIcons.fast_forward_rounded,
+                    lit: game.timeScale > 1,
+                    tooltip: 'Fast forward',
+                    onTap: context.soundTap(_toggleFastForward),
+                  ),
+                ],
+                shipFraction: game.isLoaded ? game.ship.hpPercent : 1.0,
+                shipGhost: game.isLoaded && game.ship.isDead,
+                orbFraction: orbHp,
+                orbColor: game.isLoaded
+                    ? orbLook(game.orb.skin).hpColor(orbHp)
+                    : _C.accent,
+                orbShield: game.isLoaded ? game.orbShieldFraction : 0,
               ),
-              SurvivalCameraButton(
-                cameraMode: game.autopilotState,
-                onToggle: context.soundTap(_toggleAutopilot),
-              ),
-              // Fast forward: 1.5x. Two was too fast to read a front.
-              HudKey(
-                icon: AppIcons.fast_forward_rounded,
-                lit: game.timeScale > 1,
-                tooltip: 'Fast forward',
-                onTap: context.soundTap(_toggleFastForward),
+              const SizedBox(height: 6),
+              SurgeStrip(
+                fraction: game.isLoaded ? game.alchemicalMeterShown : 0,
               ),
             ],
-            shipFraction: game.isLoaded ? game.ship.hpPercent : 1.0,
-            shipGhost: game.isLoaded && game.ship.isDead,
-            orbFraction: orbHp,
-            orbColor: game.isLoaded
-                ? orbLook(game.orb.skin).hpColor(orbHp)
-                : _C.accent,
-            orbShield: game.isLoaded ? game.orbShieldFraction : 0,
           ),
         ),
       ),
@@ -3792,160 +3827,66 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     );
   }
 
-  // ── Companion Panel ────────────────────────────────────
+  // ── Party Row ──────────────────────────────────────────
 
-  Widget _buildCompanionPanel(CosmicSurvivalGame game) {
-    final party = _party;
-    if (party == null || party.isEmpty) return const SizedBox.shrink();
-
-    final tethered = game.companionTethered;
-    final screenHeight = MediaQuery.sizeOf(context).height;
-    final availableHeight = max(
-      120.0,
-      screenHeight - MediaQuery.paddingOf(context).vertical - 120.0,
-    );
-    // Give the party the height it actually needs, not half the screen.
-    //
-    // A full party of five wants about 410 here, and the old cap was the
-    // lesser of half the screen and 430 — so five slots scrolled even when
-    // there was room below them for all of it. Scrolling a five-item HUD to
-    // find a companion mid-fight is the worst moment to be scrolling.
-    // Bounded by what is genuinely free rather than by a flat fraction, so a
-    // short landscape phone still gives way rather than covering the field.
-    const slotStride = 84.0;
-    final wanted = party.length * slotStride;
-    final slotsMaxHeight = min(
-      min(wanted, screenHeight * 0.72),
-      max(48.0, availableHeight - 90),
-    );
-    return Positioned(
-      right: 12,
-      top: 100,
-      child: SafeArea(
-        // No plate.
-        //
-        // The party cards are already bordered boxes; wrapping the column of
-        // them in another bordered box drew a frame round a frame and ate
-        // width doing it. The cards are the chrome.
-        child: SizedBox(
-          width: SurvivalPartySlot.cardWidth,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: 'ACTIVE ',
-                        style: hudMono(8, HudInk.muted),
-                      ),
-                      TextSpan(
-                        text:
-                            '${game.activeCompanions.values.where((comp) => !comp.isDead).length}/${game.maxActiveCompanions}',
-                        style: hudMono(10, HudInk.amber, spacing: 0.6),
-                      ),
-                    ],
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 6),
-              ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: slotsMaxHeight),
-                child: Scrollbar(
-                  thickness: 3,
-                  radius: const Radius.circular(8),
-                  thumbVisibility: party.length > 8,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        for (var i = 0; i < party.length; i++) ...[
-                          _buildCompanionSlot(game, party[i], i),
-                          if (i < party.length - 1) const SizedBox(height: 6),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              // The magnet sits under the party it acts on, and matches their
-              // width — it used to be above them at 72 against their 54,
-              // which made the whole stack look ragged.
-              // Tether / Follow toggle
-              GestureDetector(
-                onTap: context.soundAction(() {
-                  HapticFeedback.lightImpact();
-                  if (tethered) {
-                    game.clearCompanionTether();
-                  } else {
-                    game.tetherClosestCompanionToShip();
-                  }
-                  setState(() {});
-                }),
-                child: HudGlass(
-                  accent:
-                      (tethered ? SurvivalPartySlot.followColor : HudInk.line)
-                          .withValues(alpha: 0.9),
-                  child: SizedBox(
-                    width: SurvivalPartySlot.cardWidth,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            tethered
-                                ? AppIcons.link_rounded
-                                : AppIcons.link_off_rounded,
-                            color: tethered
-                                ? SurvivalPartySlot.followColor
-                                : HudInk.muted,
-                            size: 17,
-                          ),
-                          const SizedBox(height: 3),
-                          Text(
-                            tethered ? 'FOLLOW' : 'FREE',
-                            style: hudMono(
-                              7,
-                              tethered
-                                  ? SurvivalPartySlot.followColor
-                                  : HudInk.muted,
-                              spacing: 0.8,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  /// Whether the row is too wide to sit beside the joystick: then it takes
+  /// the bottom edge and the joystick stands on it.
+  bool _partyRowFullWidth() {
+    final party = _party ?? const <CosmicPartyMember>[];
+    final maxActive = _game?.maxActiveCompanions ?? 1;
+    final shown = min(party.length, maxActive);
+    final need = SurvivalPartyRow.widthFor(shown, fold: party.length > shown);
+    final joystick = 2 * 52 * (_largeJoystick ? 1.35 : 1.0) + 12 + 10;
+    return MediaQuery.sizeOf(context).width - 12 - joystick < need;
   }
 
-  Widget _buildCompanionSlot(
-    CosmicSurvivalGame game,
-    CosmicPartyMember member,
-    int slotIndex,
-  ) {
-    return PadChosen(
-      chosen: slotIndex == _padSlot,
-      child: SurvivalPartySlot(
-        member: member,
-        state: SurvivalPartySlotState.fromGame(game, slotIndex),
-        feedCount:
-            member.family.toLowerCase() == 'mask' && member.element == 'Plant'
-            ? game.maskPlantFeedCount(slotIndex)
-            : null,
-        onTap: () => _toggleCompanion(game, slotIndex),
+  double _joystickLift() =>
+      _partyRowFullWidth() ? SurvivalPartySlot.height + 10 : 0;
+
+  Widget _buildPartyRow(CosmicSurvivalGame game) {
+    final party = _party;
+    if (party == null || party.isEmpty) return const SizedBox.shrink();
+    final full = _partyRowFullWidth();
+    final pad =
+        GameControllerService.instance.mode.value != PlayInputMode.touch;
+    return Positioned(
+      left: full ? 12 : null,
+      right: 12,
+      bottom: 20,
+      child: SafeArea(
+        child: Align(
+          alignment: full ? Alignment.bottomCenter : Alignment.bottomRight,
+          child: SurvivalPartyRow(
+            entries: [
+              for (var i = 0; i < party.length; i++)
+                SurvivalPartyEntry(
+                  slot: i,
+                  member: party[i],
+                  state: SurvivalPartySlotState.fromGame(game, i),
+                  feedCount:
+                      party[i].family.toLowerCase() == 'mask' &&
+                          party[i].element == 'Plant'
+                      ? game.maskPlantFeedCount(i)
+                      : null,
+                ),
+            ],
+            maxActive: game.maxActiveCompanions,
+            tethered: game.companionTethered,
+            onTapSlot: (slot) => _toggleCompanion(game, slot),
+            onFollow: () {
+              HapticFeedback.lightImpact();
+              if (game.companionTethered) {
+                game.clearCompanionTether();
+              } else {
+                game.tetherClosestCompanionToShip();
+              }
+              setState(() {});
+            },
+            padSlot: pad ? _padSlot : null,
+            wrap: (slot, child) =>
+                PadChosen(chosen: slot == _padSlot, child: child),
+          ),
+        ),
       ),
     );
   }

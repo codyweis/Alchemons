@@ -6,24 +6,16 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/services/game_controller_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
+    show CaseLightPainter, elementLight;
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DESIGN TOKENS (matching the survival screen aesthetic)
-// ─────────────────────────────────────────────────────────────────────────────
+import 'survival_hud.dart' show SurvivalInk, hudMono;
+import 'survival_upgrade_art.dart';
 
-class _C {
-  // Near-black ground so a saturated accent on top of it actually reads. The
-  // previous set was parchment on parchment at low alpha throughout, which is
-  // where "faded" came from: no element on the card was ever at full strength.
-  static const bg0 = Color(0xFF050507);
-  static const bg1 = Color(0xFF0B0B10);
-  static const bg3 = Color(0xFF1A1A22);
-  static const amber = Color(0xFFE0B65F);
-  static const textPrimary = Color(0xFFF4EEDF);
-  static const textMuted = Color(0xFF7A7488);
-}
+/// The draft's ground: the kit's ink (SurvivalInk), and its deepest
+/// raised tone for the light the backdrop falls from.
+const _inkRaised = Color(0xFF1D1D21);
 
 /// A card's accent: what the player's eye is supposed to sort on.
 ///
@@ -211,13 +203,13 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
         final backdropAlpha = (0.84 * _backdropFade.value).clamp(0.0, 1.0);
         return Container(
           decoration: BoxDecoration(
-            color: _C.bg0.withValues(alpha: backdropAlpha),
+            color: SurvivalInk.bg0.withValues(alpha: backdropAlpha),
             gradient: RadialGradient(
               center: Alignment.topCenter,
               radius: 1.15,
               colors: [
-                _C.bg3.withValues(alpha: 0.36 * _backdropFade.value),
-                _C.bg0.withValues(alpha: 0.9 * _backdropFade.value),
+                _inkRaised.withValues(alpha: 0.36 * _backdropFade.value),
+                SurvivalInk.bg0.withValues(alpha: 0.9 * _backdropFade.value),
               ],
             ),
           ),
@@ -240,7 +232,7 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                           // and its contents. The old version was one dim
                           // box inside another inside another, which is
                           // where "nested and boxy" came from.
-                          color: _C.bg0.withValues(
+                          color: SurvivalInk.bg0.withValues(
                             alpha: 0.97 * _panelOpacity.value,
                           ),
                         ),
@@ -259,12 +251,21 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
                                   : 'ALCHEMICAL SURGE',
                               style: const TextStyle(
                                 fontFamily: 'monospace',
-                                color: _C.textPrimary,
+                                color: SurvivalInk.ink,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
                                 letterSpacing: 2.2,
                               ),
                             ),
+                            // What the run has taken so far, so a pick is
+                            // made against the build, not from memory.
+                            if (widget.powerUps.history.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              _TakenStrip(
+                                powerUps: widget.powerUps,
+                                party: widget.party,
+                              ),
+                            ],
                             const SizedBox(height: 14),
                             for (var i = 0; i < widget.choices.length; i++) ...[
                               _buildCard(i),
@@ -301,184 +302,200 @@ class _PowerUpSelectionOverlayState extends State<PowerUpSelectionOverlay>
       opacity: eased * passed,
       child: Transform.translate(
         offset: Offset(0, (1 - eased) * 18),
-        child: _PowerUpCard(choice: widget.choices[i], onTap: () => _pick(i)),
+        child: _PowerUpCard(
+          key: ValueKey('survival.draft.$i'),
+          choice: widget.choices[i],
+          party: widget.party,
+          padChosen: padMode && i == _padChoice,
+          onTap: () => _pick(i),
+        ),
       ),
     );
   }
 }
 
+CosmicPartyMember? _memberAt(List<CosmicPartyMember> party, int? slot) =>
+    slot != null && slot >= 0 && slot < party.length ? party[slot] : null;
+
+/// One offer: its drawn art (the one colored thing on the card), its name
+/// with NEW or how far it is taken, what it does, who it is for, and what
+/// kind of thing it is. Bare ink; only a controller's chosen card is lit
+/// from below, in the offer's color.
 class _PowerUpCard extends StatelessWidget {
+  const _PowerUpCard({
+    super.key,
+    required this.choice,
+    required this.party,
+    required this.padChosen,
+    required this.onTap,
+  });
+
   final OfferedPowerUpChoice choice;
+  final List<CosmicPartyMember> party;
+  final bool padChosen;
   final VoidCallback onTap;
 
-  const _PowerUpCard({required this.choice, required this.onTap});
-
   @override
-  Widget build(BuildContext context) {
-    final def = choice.def;
-    final rarity = def.rarity;
-    final accent = powerUpAccentColor(def);
-    final systemLabel = _powerUpSystemLabel(def);
-    final systemIcon = _powerUpSystemIcon(def);
-    final isCompanion = def.scope == PowerUpScope.companion;
-    final offeredName = choice.targetName;
-    final incrementLabel = powerUpIncrementLabel(choice);
-    final totalLabel = powerUpTotalLabel(choice);
-    final keystoneEffects = def.isKeystone
-        ? incrementLabel
-              .split(',')
-              .map((line) => line.trim())
-              .where((line) => line.isNotEmpty)
-              .toList()
-        : const <String>[];
-    final showPips = def.showLevel && def.maxStacks > 1;
-    final hasTarget = isCompanion && offeredName != null;
+  Widget build(BuildContext context) => LayoutBuilder(
+    // A narrow card (the Fold's cover) keeps its title whole: smaller art,
+    // and the NEW / level mark drops to the kind line.
+    builder: (context, box) => _build(context, box.maxWidth < 330),
+  );
 
-    // Dark glass lit from behind at its medallion and from below in the
-    // category's color. The medallion — a lens with the category's light in
-    // it — is the one saturated thing per card, so the eye still sorts the
-    // offers by color before reading a word.
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        foregroundPainter: BracketFramePainter(
-          color: accent.withValues(alpha: 0.85),
-          strokeWidth: 1.3,
+  Widget _build(BuildContext context, bool compact) {
+    final def = choice.def;
+    final isNew = choice.currentLevel == 0 && !def.isKeystone;
+    final leveled = def.showLevel && def.maxStacks > 1 && !def.isKeystone;
+    final target = def.scope == PowerUpScope.companion
+        ? _memberAt(party, choice.targetSlot)
+        : null;
+    final targetName = choice.targetName ?? target?.displayName;
+    final increment = powerUpIncrementLabel(choice);
+    final lines = def.isKeystone
+        ? [
+            for (final l in increment.split(','))
+              if (l.trim().isNotEmpty) l.trim(),
+          ]
+        : [increment];
+    final detail = powerUpTotalLabel(choice);
+
+    Widget mark() => isNew
+        ? Text(
+            'NEW',
+            style: hudMono(9.5, SurvivalInk.brassBright, spacing: 1.4),
+          )
+        : leveled
+        ? _LevelPips(
+            level: choice.currentLevel,
+            maxStacks: def.maxStacks,
+            tint: SurvivalInk.brassBright,
+          )
+        : const SizedBox.shrink();
+
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                def.name.toUpperCase(),
+                style: hudMono(
+                  13.5,
+                  SurvivalInk.ink,
+                  weight: FontWeight.w900,
+                  spacing: 1.0,
+                ),
+              ),
+            ),
+            if (!compact) ...[
+              const SizedBox(width: 8),
+              Padding(padding: const EdgeInsets.only(top: 2), child: mark()),
+            ],
+          ],
         ),
+        const SizedBox(height: 6),
+        for (final line in lines)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 3),
+            child: Text(
+              line,
+              style: const TextStyle(
+                color: SurvivalInk.ink,
+                fontSize: 13.5,
+                height: 1.3,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        if (detail != null) ...[
+          const SizedBox(height: 1),
+          Text(
+            detail,
+            style: const TextStyle(
+              color: SurvivalInk.muted,
+              fontSize: 11.5,
+              height: 1.25,
+            ),
+          ),
+        ],
+        // WHO IT IS FOR, on its own line: sharing a row with the tags it
+        // ellipsized real names to "NO...", which is worse than no name.
+        if (targetName != null && def.scope == PowerUpScope.companion) ...[
+          const SizedBox(height: 6),
+          Text(
+            'FOR ${targetName.toUpperCase()}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: hudMono(11, SurvivalInk.brassBright, spacing: 1.2),
+          ),
+        ],
+        const SizedBox(height: 8),
+        // A narrow card lets the mark drop to its own line rather than
+        // shrinking the words.
+        Wrap(
+          spacing: 10,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            Text.rich(
+              TextSpan(
+                children: [
+                  TextSpan(
+                    text: '${_kind(def)}  ·  ',
+                    style: hudMono(
+                      9,
+                      SurvivalInk.muted,
+                      spacing: compact ? 0.6 : 1.2,
+                    ),
+                  ),
+                  TextSpan(
+                    text: _rarityLabel(def.rarity),
+                    style: hudMono(
+                      9,
+                      _rarityColor(def.rarity),
+                      spacing: compact ? 0.6 : 1.2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (compact) mark(),
+          ],
+        ),
+      ],
+    );
+
+    return Semantics(
+      button: true,
+      label: [
+        def.name,
+        ...lines,
+        if (targetName != null) 'for $targetName',
+        if (isNew) 'new',
+      ].join(', '),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: context.soundAction(onTap),
         child: CustomPaint(
-          painter: _CardLightPainter(accent),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 11),
+          foregroundPainter: BracketFramePainter(
+            color: padChosen ? powerUpAccentColor(def) : SurvivalInk.plain,
+            strokeWidth: 1.4,
+          ),
+          child: Container(
+            color: SurvivalInk.bg1.withValues(alpha: 0.96),
+            padding: const EdgeInsets.fromLTRB(10, 12, 12, 11),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: 40,
-                  height: 40,
-                  child: CustomPaint(
-                    painter: _MedallionPainter(accent),
-                    child: Icon(
-                      systemIcon,
-                      color: Color.lerp(accent, Colors.white, 0.7),
-                      size: 18,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 11),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        def.name.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: Color.lerp(_C.textPrimary, accent, 0.3),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.0,
-                          height: 1.15,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      if (def.isKeystone)
-                        for (final effect in keystoneEffects)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 3),
-                            child: Text(
-                              '+ $effect',
-                              style: const TextStyle(
-                                color: _C.textPrimary,
-                                fontSize: 13.5,
-                                height: 1.3,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          )
-                      else
-                        Text(
-                          incrementLabel,
-                          style: const TextStyle(
-                            color: _C.textPrimary,
-                            fontSize: 13.5,
-                            height: 1.3,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      if (totalLabel != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          totalLabel,
-                          style: const TextStyle(
-                            color: _C.textMuted,
-                            fontSize: 11.5,
-                            height: 1.25,
-                          ),
-                        ),
-                      ],
-                      // WHO IT IS FOR, on its own line.
-                      //
-                      // This shared a row with two tags and the level
-                      // pips, so on a real phone with real creature
-                      // names it ellipsized to "NO...", "BLIGH...",
-                      // "TERRA..." — which is worse than omitting it,
-                      // because the player can see that a name exists
-                      // and still cannot read which of their party it
-                      // names.
-                      if (hasTarget) ...[
-                        const SizedBox(height: 7),
-                        Row(
-                          children: [
-                            Icon(
-                              AppIcons.arrow_forward_rounded,
-                              color: accent,
-                              size: 13,
-                            ),
-                            const SizedBox(width: 5),
-                            Expanded(
-                              child: Text(
-                                offeredName.toUpperCase(),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: _C.amber,
-                                  fontSize: 11.5,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 1.2,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                      const SizedBox(height: 9),
-                      // What kind of thing it is, and how far along.
-                      Row(
-                        children: [
-                          _MiniTag(
-                            label: def.isKeystone ? 'DOCTRINE' : systemLabel,
-                            color: accent,
-                            filled: true,
-                          ),
-                          const SizedBox(width: 6),
-                          _MiniTag(
-                            label: _rarityLabel(rarity),
-                            color: _rarityColor(rarity),
-                          ),
-                          const Spacer(),
-                          if (showPips)
-                            _LevelPips(
-                              level: choice.currentLevel,
-                              maxStacks: def.maxStacks,
-                              tint: accent,
-                            ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
+                UpgradeArt(def: def, size: compact ? 44 : 58),
+                const SizedBox(width: 10),
+                Expanded(child: body),
+                if (target?.imagePath != null) ...[
+                  const SizedBox(width: 8),
+                  _TargetCase(member: target!, size: compact ? 40 : 52),
+                ],
               ],
             ),
           ),
@@ -488,125 +505,170 @@ class _PowerUpCard extends StatelessWidget {
   }
 }
 
-/// The card's glass, lit from behind its medallion.
-class _CardLightPainter extends CustomPainter {
-  _CardLightPainter(this.accent);
-  final Color accent;
+/// WHO a companion card is for: the Alchemon, in its element's light.
+class _TargetCase extends StatelessWidget {
+  const _TargetCase({required this.member, required this.size});
+
+  final CosmicPartyMember member;
+  final double size;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    canvas.drawRect(rect, Paint()..color = _C.bg1.withValues(alpha: 0.96));
-    final at = const Offset(32, 32);
-    final r = size.width * 0.62;
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            accent.withValues(alpha: 0.2),
-            accent.withValues(alpha: 0.06),
-            accent.withValues(alpha: 0),
-          ],
-          stops: const [0.0, 0.4, 1.0],
-        ).createShader(Rect.fromCircle(center: at, radius: r)),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_CardLightPainter old) => old.accent != accent;
-}
-
-/// A lens of dark glass with the category's light inside it.
-class _MedallionPainter extends CustomPainter {
-  _MedallionPainter(this.accent);
-  final Color accent;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final c = size.center(Offset.zero);
-    final r = size.shortestSide / 2;
-    final rect = Rect.fromCircle(center: c, radius: r);
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..shader = RadialGradient(
-          center: const Alignment(0, 0.15),
-          colors: [
-            accent.withValues(alpha: 0.95),
-            Color.lerp(accent, _C.bg0, 0.45)!,
-            Color.lerp(accent, _C.bg0, 0.85)!,
-          ],
-          stops: const [0.0, 0.55, 1.0],
-        ).createShader(rect),
-    );
-    // The limb catches the light; the glass's glint.
-    canvas.drawCircle(
-      c,
-      r,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0),
-            Colors.white.withValues(alpha: 0),
-            Color.lerp(accent, Colors.white, 0.5)!.withValues(alpha: 0.5),
-            Colors.white.withValues(alpha: 0),
-          ],
-          stops: const [0.0, 0.82, 0.95, 1.0],
-        ).createShader(rect),
-    );
-    canvas.drawOval(
-      Rect.fromCenter(
-        center: c + Offset(-r * 0.3, -r * 0.5),
-        width: r * 0.7,
-        height: r * 0.28,
+  Widget build(BuildContext context) => CustomPaint(
+    painter: CaseLightPainter(color: elementLight(member.element)),
+    child: SizedBox.square(
+      dimension: size,
+      child: Center(
+        child: Image.asset(
+          member.imagePath!,
+          width: size * 0.85,
+          height: size * 0.85,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+        ),
       ),
-      Paint()..color = Colors.white.withValues(alpha: 0.2),
-    );
-  }
+    ),
+  );
+}
+
+/// What the run has taken so far: one still art per upgrade (per Alchemon,
+/// for the ones that go to one), its level in the corner, and the face of
+/// the Alchemon it went to. Painted once; none of it moves.
+class _TakenStrip extends StatelessWidget {
+  const _TakenStrip({required this.powerUps, required this.party});
+
+  final PowerUpState powerUps;
+  final List<CosmicPartyMember> party;
 
   @override
-  bool shouldRepaint(_MedallionPainter old) => old.accent != accent;
+  Widget build(BuildContext context) {
+    final order = <String>[];
+    final picks = <String, ({PowerUpDef def, int? slot})>{};
+    for (final a in powerUps.history) {
+      final slot = a.def.scope == PowerUpScope.companion ? a.targetSlot : null;
+      final key = '${a.def.id}:${slot ?? '-'}';
+      if (picks.containsKey(key)) continue;
+      order.add(key);
+      picks[key] = (def: a.def, slot: slot);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text('TAKEN', style: hudMono(8.5, SurvivalInk.muted, spacing: 1.6)),
+        const SizedBox(height: 6),
+        SizedBox(
+          width: double.infinity,
+          child: RepaintBoundary(
+            child: Wrap(
+              spacing: 4,
+              runSpacing: 4,
+              children: [
+                for (final k in order)
+                  _TakenChip(
+                    def: picks[k]!.def,
+                    level: powerUps.getStacks(
+                      picks[k]!.def.id,
+                      slotIndex: picks[k]!.slot,
+                    ),
+                    member: _memberAt(party, picks[k]!.slot),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
-IconData _powerUpSystemIcon(PowerUpDef def) {
-  if (def.isKeystone) return AppIcons.account_tree_rounded;
-  return switch (def.category) {
-    PowerUpCategory.shipWeapon => AppIcons.rocket_launch_rounded,
-    PowerUpCategory.orbDefense => AppIcons.blur_circular_rounded,
-    PowerUpCategory.statBoost =>
-      def.scope == PowerUpScope.companion
-          ? AppIcons.pets_rounded
-          : AppIcons.groups_rounded,
-    PowerUpCategory.rarePerk =>
-      def.scope == PowerUpScope.companion
-          ? AppIcons.person_rounded
-          : AppIcons.auto_awesome_rounded,
-    PowerUpCategory.mysticWorld => AppIcons.public_rounded,
-  };
+class _TakenChip extends StatelessWidget {
+  const _TakenChip({required this.def, required this.level, this.member});
+
+  final PowerUpDef def;
+  final int level;
+  final CosmicPartyMember? member;
+
+  @override
+  Widget build(BuildContext context) {
+    final showLevel = def.showLevel && def.maxStacks > 1;
+    final face = member?.imagePath;
+    return Semantics(
+      label: [
+        def.name,
+        if (showLevel) 'level $level',
+        if (member != null) member!.displayName,
+      ].join(', '),
+      child: Container(
+        width: 34,
+        height: 34,
+        color: SurvivalInk.bg1,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: UpgradeArt(def: def, size: 30, animate: false),
+              ),
+            ),
+            if (face != null)
+              Positioned(
+                left: 0,
+                bottom: 0,
+                child: Container(
+                  width: 15,
+                  height: 15,
+                  color: SurvivalInk.bg0.withValues(alpha: 0.85),
+                  child: Image.asset(
+                    face,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                  ),
+                ),
+              ),
+            if (showLevel)
+              Positioned(
+                right: 0,
+                bottom: 0,
+                child: Container(
+                  color: SurvivalInk.bg0.withValues(alpha: 0.85),
+                  padding: const EdgeInsets.fromLTRB(3, 1, 2, 0),
+                  child: Text(
+                    '$level',
+                    style: hudMono(
+                      9,
+                      level >= def.maxStacks
+                          ? SurvivalInk.brassBright
+                          : SurvivalInk.ink,
+                      weight: FontWeight.w900,
+                      spacing: 0,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
-String _powerUpSystemLabel(PowerUpDef def) {
-  if (def.isKeystone) return 'DOCTRINE';
+String _kind(PowerUpDef def) {
+  if (def.isKeystone) return 'KEYSTONE';
   return switch (def.category) {
     PowerUpCategory.shipWeapon => 'SHIP',
     PowerUpCategory.orbDefense => 'ORB',
-    PowerUpCategory.statBoost =>
-      def.scope == PowerUpScope.companion ? 'COMPANION' : 'GLOBAL',
-    PowerUpCategory.rarePerk =>
-      def.scope == PowerUpScope.companion ? 'COMPANION' : 'GLOBAL',
-    // Its own banner: a world surge is not a companion buff, it deepens the
-    // map the fight is happening on.
+    PowerUpCategory.statBoost || PowerUpCategory.rarePerk =>
+      def.scope == PowerUpScope.companion ? 'ONE ALCHEMON' : 'TEAM',
+    // Its own kind: a world surge deepens the map the fight is on.
     PowerUpCategory.mysticWorld => 'WORLD',
   };
 }
 
 Color _rarityColor(PowerUpRarity rarity) => switch (rarity) {
-  PowerUpRarity.common => const Color(0xFFB5A98A),
-  PowerUpRarity.uncommon => const Color(0xFF5BC8E8),
-  PowerUpRarity.rare => const Color(0xFFD98E4B),
-  PowerUpRarity.legendary => const Color(0xFFE4C16A),
+  PowerUpRarity.common => SurvivalInk.muted,
+  PowerUpRarity.uncommon => const Color(0xFF7FB8D6),
+  PowerUpRarity.rare => const Color(0xFFD9A06A),
+  PowerUpRarity.legendary => SurvivalInk.brassGlow,
 };
 
 String _rarityLabel(PowerUpRarity rarity) => switch (rarity) {
@@ -616,70 +678,30 @@ String _rarityLabel(PowerUpRarity rarity) => switch (rarity) {
   PowerUpRarity.legendary => 'LEGENDARY',
 };
 
+/// Bars, not dots: a segmented bar reads as "two of three taken" at a
+/// glance where a row of circles reads as decoration.
 class _LevelPips extends StatelessWidget {
-  final int level;
-  final int maxStacks;
-  final Color tint;
-
   const _LevelPips({
     required this.level,
     required this.maxStacks,
     required this.tint,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    // Bars, not dots: a row of glowing circles reads as decoration, where a
-    // segmented bar reads as "two of three taken" at a glance.
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: List.generate(maxStacks, (index) {
-        final filled = index < level;
-        return Container(
-          width: 11,
-          height: 5,
-          margin: EdgeInsets.only(left: index == 0 ? 0 : 2),
-          color: filled ? tint : const Color(0xFF26262F),
-        );
-      }),
-    );
-  }
-}
-
-class _MiniTag extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool filled;
-
-  const _MiniTag({
-    required this.label,
-    required this.color,
-    this.filled = false,
-  });
+  final int level;
+  final int maxStacks;
+  final Color tint;
 
   @override
-  Widget build(BuildContext context) {
-    // A label on a faint wash. [filled] (the category) is lit from below; the
-    // rarity beside it stays plain. Neither is a solid chip any more.
-    return CustomPaint(
-      foregroundPainter: BracketFramePainter(
-        color: color.withValues(alpha: filled ? 0.9 : 0.55),
-        bracketSize: 4,
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: List.generate(
+      maxStacks,
+      (i) => Container(
+        width: 10,
+        height: 4,
+        margin: EdgeInsets.only(left: i == 0 ? 0 : 2),
+        color: i < level ? tint : const Color(0xFF26262B),
       ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
-        color: color.withValues(alpha: filled ? 0.12 : 0.05),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: filled ? Color.lerp(color, Colors.white, 0.2) : color,
-            fontSize: 9.5,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.0,
-          ),
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }

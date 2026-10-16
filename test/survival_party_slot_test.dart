@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
+import 'package:alchemons/games/cosmic_survival/components/survival_hud.dart'
+    show HudTubePainter;
 import 'package:alchemons/games/cosmic_survival/components/survival_party_slot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -83,6 +85,7 @@ void main() {
   );
 
   testWidgets('dead slots cannot trigger deployment or recall', (tester) async {
+    final semantics = tester.ensureSemantics();
     var taps = 0;
     await tester.pumpWidget(
       MaterialApp(
@@ -106,12 +109,16 @@ void main() {
     );
     await tester.tap(find.byType(SurvivalPartySlot));
     expect(taps, 0);
-    expect(find.text('DOWN'), findsOneWidget);
+    // The case shows its state in light and tubes; the words are in its
+    // semantics.
+    expect(find.bySemanticsLabel(RegExp(r'^Firepip, DOWN,')), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets(
     'all deployment states and cooldowns remain separate and readable',
     (tester) async {
+      final semantics = tester.ensureSemantics();
       final boundary = GlobalKey();
       const states = [
         SurvivalPartySlotState(
@@ -186,12 +193,24 @@ void main() {
         );
       });
       await tester.pumpAndSettle();
-      expect(find.text('FOLLOW'), findsOneWidget);
-      expect(find.text('ACTIVE'), findsOneWidget);
-      expect(find.text('RESERVE'), findsOneWidget);
-      expect(find.text('DOWN'), findsOneWidget);
-      expect(find.text('SP 3'), findsOneWidget);
+      for (final label in [
+        'Firepip, FOLLOW, 85 percent health, special in 3 s',
+        'Firepip, ACTIVE, 45 percent health, special ready',
+        'Firepip, RESERVE, 90 percent health, special in 8 s',
+        'Firepip, DOWN, 0 percent health',
+      ]) {
+        expect(find.bySemanticsLabel(label), findsOneWidget, reason: label);
+      }
+      // The special's tube: full when ready, empty on a fresh cooldown.
+      final fills = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .map((p) => p.painter)
+          .whereType<HudTubePainter>()
+          .map((t) => t.fraction)
+          .toList();
+      expect(fills, contains(1.0));
       expect(tester.takeException(), isNull);
+      semantics.dispose();
       final out = Platform.environment['ENEMY_SHEET_OUT'];
       if (out != null) {
         final render =
@@ -209,4 +228,55 @@ void main() {
       }
     },
   );
+
+  testWidgets('reserves fold into one case that opens them', (tester) async {
+    final tapped = <int>[];
+    SurvivalPartyEntry entry(int slot, {required bool out}) =>
+        SurvivalPartyEntry(
+          slot: slot,
+          member: member(),
+          state: SurvivalPartySlotState(
+            active: out,
+            following: false,
+            dead: false,
+            hp: 1,
+            cooldown: 2,
+          ),
+        );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: ThemeData(fontFamily: 'Preview'),
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.bottomRight,
+            child: SurvivalPartyRow(
+              entries: [
+                entry(0, out: true),
+                entry(1, out: true),
+                for (var i = 2; i < 5; i++) entry(i, out: false),
+              ],
+              maxActive: 2,
+              tethered: true,
+              onTapSlot: tapped.add,
+              onFollow: () {},
+              wrap: (slot, child) => child,
+            ),
+          ),
+        ),
+      ),
+    );
+    expect(find.byType(SurvivalPartySlot), findsNWidgets(2));
+    expect(find.text('+3'), findsOneWidget);
+    expect(find.text('FOLLOW'), findsOneWidget);
+    await tester.tap(find.text('+3'));
+    await tester.pumpAndSettle();
+    expect(find.byType(SurvivalPartySlot), findsNWidgets(5));
+    // The tray sits above the row: its first case is the first reserve.
+    await tester.tap(find.byType(SurvivalPartySlot).first);
+    await tester.pumpAndSettle();
+    expect(tapped, [2]);
+    // Choosing one closes the tray.
+    expect(find.byType(SurvivalPartySlot), findsNWidgets(2));
+    expect(tester.takeException(), isNull);
+  });
 }

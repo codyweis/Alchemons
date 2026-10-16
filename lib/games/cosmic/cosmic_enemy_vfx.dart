@@ -31,29 +31,6 @@ import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:flutter/material.dart';
 
-/// Cached label painters — laying these out per frame was never acceptable.
-final Map<String, TextPainter> _eliteAffixPainters = {};
-
-TextPainter _eliteAffixPainter(String label, Color color) {
-  final key = 'elite:$label:${color.toARGB32()}';
-  return _eliteAffixPainters.putIfAbsent(
-    key,
-    () => TextPainter(
-      text: TextSpan(
-        text: label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color.withValues(alpha: 0.95),
-          fontSize: 7.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.8,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout(),
-  );
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // EnemyVisual — the one thing the enemy renderer draws
 //
@@ -417,15 +394,8 @@ class SurvivalSwarmBatch {
   Float32List _xforms = Float32List(4 * 256);
   Float32List _rects = Float32List(4 * 256);
   int _count = 0;
-  final List<List<double>> _bars = List.generate(
-    _kSwarmAtlasElements.length,
-    (_) => <double>[],
-  );
   final List<CosmicSurvivalEnemy> _telegraphs = [];
   final Paint _atlasPaint = Paint()..filterQuality = FilterQuality.low;
-  final Paint _barPaint = Paint()
-    ..strokeWidth = 1
-    ..style = PaintingStyle.stroke;
 
   int get length => _count;
 
@@ -471,18 +441,6 @@ class SurvivalSwarmBatch {
     _rects[i + 3] = (row + 1) * _kSwarmCell;
     _count++;
     if (busy) _telegraphs.add(enemy);
-    final hp = enemy.hpFraction;
-    if (hp < 0.99) {
-      // Only damaged bodies need a health read at horde density.
-      final r = enemy.radius;
-      final y = enemy.position.dy - r - 3;
-      _bars[row].addAll([
-        enemy.position.dx - r,
-        y,
-        enemy.position.dx + r * (2 * hp - 1),
-        y,
-      ]);
-    }
     return true;
   }
 
@@ -505,17 +463,7 @@ class SurvivalSwarmBatch {
       final color = elementColor(enemy.element);
       final steering = visual.flightSteering;
       if (steering != null && steering.showTelegraphRing) {
-        canvas.drawCircle(
-          enemy.position,
-          enemy.radius + 5 + steering.windupTimer * 42,
-          _barPaint
-            ..strokeWidth = 1.6
-            ..color = Color.lerp(
-              color,
-              Colors.white,
-              0.5,
-            )!.withValues(alpha: 0.72),
-        );
+        _drawDiveTelegraph(canvas, enemy.position, enemy.radius, steering, color);
       }
       canvas.save();
       canvas.translate(enemy.position.dx, enemy.position.dy);
@@ -523,20 +471,6 @@ class SurvivalSwarmBatch {
       canvas.restore();
     }
     _telegraphs.clear();
-    _barPaint.strokeWidth = 1;
-    for (var row = 0; row < _bars.length; row++) {
-      final bars = _bars[row];
-      if (bars.isEmpty) continue;
-      _barPaint.color = elementColor(
-        _kSwarmAtlasElements[row],
-      ).withValues(alpha: 0.65);
-      canvas.drawRawPoints(
-        ui.PointMode.lines,
-        Float32List.fromList(bars),
-        _barPaint,
-      );
-      bars.clear();
-    }
   }
 }
 
@@ -571,18 +505,7 @@ void drawEnemy({
   // hover/dive swoop is readable and dodgeable (shared steering state).
   final steering = enemy.flightSteering;
   if (steering != null && steering.showTelegraphRing) {
-    canvas.drawCircle(
-      enemy.position,
-      enemy.radius + 5 + steering.windupTimer * 42,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = Color.lerp(
-          eColor,
-          Colors.white,
-          0.5,
-        )!.withValues(alpha: 0.72),
-    );
+    _drawDiveTelegraph(canvas, enemy.position, enemy.radius, steering, eColor);
   }
   final affixColor = switch (enemy.eliteAffix) {
     EliteAffix.bulwarked => const Color(0xFF7DD3FC),
@@ -679,22 +602,21 @@ void drawEnemy({
     final colossus = enemy.tier == EnemyTier.colossus;
     final hpFrac = enemy.hpFraction;
     if (hpFrac < 1.0 || enemy.isPlagueCore) {
-      final barW = r * (colossus ? 3.0 : 2.5);
-      final barH = colossus ? 4.0 : 3.0;
+      // Flat: an ink track and a pale fill of its own light.
+      final barW = r * (colossus ? 2.4 : 2.0);
       final barY = -r - (colossus ? 10 : 8);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: Offset(0, barY), width: barW, height: barH),
-          Radius.circular(barH / 2),
-        ),
-        Paint()..color = Colors.black.withValues(alpha: 0.6),
+      canvas.drawRect(
+        Rect.fromLTWH(-barW / 2, barY, barW, 2.5),
+        _heavyBarPaint..color = const Color(0x99000000),
       );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(-barW / 2, barY - barH / 2, barW * hpFrac, barH),
-          Radius.circular(barH / 2),
-        ),
-        Paint()..color = Color.lerp(Colors.red, eColor, hpFrac)!,
+      canvas.drawRect(
+        Rect.fromLTWH(-barW / 2, barY, barW * hpFrac, 2.5),
+        _heavyBarPaint
+          ..color = Color.lerp(
+            eColor,
+            Colors.white,
+            0.4,
+          )!.withValues(alpha: 0.8),
       );
     }
   }
@@ -725,17 +647,6 @@ void drawEnemy({
     );
   }
 
-  if (!reduceLabels && enemy.isElite && enemy.eliteAffix != null) {
-    final label = switch (enemy.eliteAffix!) {
-      EliteAffix.bulwarked => 'BULWARK',
-      EliteAffix.volatile => 'VOLATILE',
-      EliteAffix.vampiric => 'VAMPIRIC',
-      EliteAffix.overclocked => 'OVERCLOCK',
-      EliteAffix.relentless => 'RELENTLESS',
-    };
-    final tp = _eliteAffixPainter(label, affixColor);
-    tp.paint(canvas, Offset(-tp.width / 2, -r - 18));
-  }
 
   canvas.restore();
 }
@@ -1555,3 +1466,27 @@ void drawEnemyArchetypeMark({
 }
 
 final ui.Paint _markFill = ui.Paint();
+
+final Paint _heavyBarPaint = Paint();
+
+/// The dive warning: the body's light gathering in round it — wide and
+/// faint at first, tightening and brightening as the dive comes. It was a
+/// stroked hoop, which read as UI rather than as the body winding up.
+void _drawDiveTelegraph(
+  Canvas canvas,
+  Offset at,
+  double r,
+  FlightSteeringState steering,
+  Color color,
+) {
+  final reach = r + 5 + steering.windupTimer * 42;
+  final close = (1 - steering.windupTimer / 0.35).clamp(0.0, 1.0);
+  vfxSpill(canvas, at, reach * 1.25, color, 0.22 + 0.38 * close);
+  vfxSpill(
+    canvas,
+    at,
+    r * 1.6,
+    Color.lerp(color, const Color(0xFFFFFFFF), 0.4)!,
+    0.25 + 0.45 * close,
+  );
+}

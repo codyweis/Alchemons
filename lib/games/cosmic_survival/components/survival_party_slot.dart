@@ -1,3 +1,15 @@
+// lib/games/cosmic_survival/components/survival_party_slot.dart
+//
+// The party along the bottom edge of the run: a row of small specimen cases,
+// the reserves folded into one "+N" case, and FOLLOW / FREE at the end. The
+// field stays clear; the top bar and the surge tube carry the run.
+//
+// Each case is its own repaint boundary. The row rebuilds on the HUD's tick
+// as the rest of the HUD does, and a case's tubes repaint only when its
+// health moves or its special's charge crosses one of 24 steps.
+
+import 'dart:math';
+
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
@@ -15,6 +27,7 @@ class SurvivalPartySlotState {
     required this.dead,
     required this.hp,
     required this.cooldown,
+    this.charge = 0,
   });
 
   factory SurvivalPartySlotState.fromGame(CosmicSurvivalGame game, int slot) {
@@ -26,15 +39,23 @@ class SurvivalPartySlotState {
         (companion?.isDead ?? false) ||
         hp <= 0;
     final active = companion != null && !dead;
+    final cooldown =
+        companion?.specialCooldown ?? game.companionSpecialCooldown[slot] ?? 0;
+    // How far the special has come back, for its tube. A reserve has no
+    // interval to measure against, so its cached wait reads against ten
+    // seconds.
+    var charge = 0.0;
+    if (!dead && cooldown.isFinite && cooldown > 0.05) {
+      final total = companion?.effectiveSpecialCooldown ?? 10.0;
+      charge = (1 - cooldown / max(0.5, total)).clamp(0.0, 0.97);
+    }
     return SurvivalPartySlotState(
       active: active,
       following: active && game.tetheredCompanionSlot == slot,
       dead: dead,
       hp: dead ? 0 : hp,
-      cooldown:
-          companion?.specialCooldown ??
-          game.companionSpecialCooldown[slot] ??
-          0,
+      cooldown: cooldown,
+      charge: (charge * 24).floor() / 24,
     );
   }
 
@@ -43,6 +64,18 @@ class SurvivalPartySlotState {
   final bool dead;
   final double hp;
   final double cooldown;
+
+  /// While the special recharges, how far back it is, 0..1 in 24 steps.
+  final double charge;
+
+  /// A Mystic whose world is out carries an INFINITE cooldown: the cast is
+  /// spent for the deployment and only a recall gives it back.
+  bool get worldOut => !dead && !cooldown.isFinite;
+  bool get ready => !dead && cooldown.isFinite && cooldown <= 0.05;
+
+  /// The special's tube: full when ready, empty while a world is out.
+  double get specialFill => ready ? 1 : (worldOut ? 0 : charge);
+
   String get label => dead
       ? 'DOWN'
       : following
@@ -50,12 +83,20 @@ class SurvivalPartySlotState {
       : active
       ? 'ACTIVE'
       : 'RESERVE';
+
+  String get specialLabel => dead
+      ? ''
+      : worldOut
+      ? 'world out'
+      : ready
+      ? 'special ready'
+      : 'special in ${cooldown.ceil()} s';
 }
 
-/// A party member as a small specimen case: out in the arena, it stands lit
-/// in its element's light inside an amber frame; in reserve, it waits dim
-/// and colorless in dark glass. Its state, health and special sit outside
-/// the art, in the HUD's monospace and glass tube.
+/// A party member as a small specimen case: out in the arena, it stands in
+/// its element's light; in reserve, it waits grey. Under it, two glass tubes:
+/// its health, and its special (pale brass, brighter and fuller when ready).
+/// The one the ship tows is lit from below in the follow color.
 class SurvivalPartySlot extends StatelessWidget {
   const SurvivalPartySlot({
     super.key,
@@ -68,18 +109,13 @@ class SurvivalPartySlot extends StatelessWidget {
   final CosmicPartyMember member;
   final SurvivalPartySlotState state;
   final VoidCallback onTap;
+
+  /// A Plant Mask's feeds this deployment, shown in the case's corner.
   final int? feedCount;
 
-  /// Public so the HUD around these can match their width rather than
-  /// keeping its own copy of the number and drifting from it.
-  static const cardWidth = 54.0;
-  static const _artSize = 40.0;
-  static const _labelSize = 7.0;
-
-  static const activeColor = HudInk.amber;
-  static const followColor = Color(0xFF7FD6C4);
-  static const mutedColor = HudInk.muted;
-  static const downColor = HudInk.danger;
+  static const width = 40.0;
+  static const height = 58.0;
+  static const _art = 32.0;
 
   /// Reserve: the creature in grey, dimmed — present, not out.
   static const _reserve = ColorFilter.matrix([
@@ -89,146 +125,120 @@ class SurvivalPartySlot extends StatelessWidget {
     0, 0, 0, 0.8, 0,
   ]);
 
+  static Color _hpColor(double hp) => hp > 0.5
+      ? SurvivalInk.follow
+      : hp > 0.25
+      ? SurvivalInk.brass
+      : SurvivalInk.danger;
+
   @override
   Widget build(BuildContext context) {
-    final color = state.dead
-        ? downColor
-        : state.following
-        ? followColor
-        : state.active
-        ? activeColor
-        : mutedColor;
-    final action = state.dead
+    final s = state;
+    final name = member.displayName.isEmpty ? 'Alchemon' : member.displayName;
+    final action = s.dead
         ? 'Defeated'
-        : state.active
+        : s.active
         ? 'Tap to recall'
         : 'Tap to deploy';
-    final name = member.displayName.isEmpty ? 'Alchemon' : member.displayName;
     final portrait = member.imagePath == null
-        ? _fallback(name, color)
+        ? Text(
+            name.characters.first,
+            style: hudMono(18, SurvivalInk.muted, weight: FontWeight.w900),
+          )
         : Image.asset(
             member.imagePath!,
-            width: _artSize,
-            height: _artSize,
+            width: _art,
+            height: _art,
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => _fallback(name, color),
+            errorBuilder: (_, __, ___) =>
+                const SizedBox.square(dimension: _art),
           );
-    final ready =
-        !state.dead && state.cooldown.isFinite && state.cooldown <= 0.05;
+    final vines = feedCount == null || !s.active
+        ? null
+        : (1 + (feedCount! ~/ 10)).clamp(1, 10);
+    final special = s.specialLabel;
     return Semantics(
-      label:
-          '$name, ${state.label}, ${(state.hp * 100).round()} percent health',
+      label: [
+        name,
+        s.label,
+        '${(s.hp * 100).round()} percent health',
+        if (special.isNotEmpty) special,
+        if (vines != null) '$feedCount fed, $vines vines',
+      ].join(', '),
       hint: action,
       button: true,
-      enabled: !state.dead,
+      enabled: !s.dead,
       child: Tooltip(
-        message: '$name · ${state.label}\n$action',
+        message: '$name · ${s.label}\n$action',
         child: GestureDetector(
           behavior: HitTestBehavior.opaque,
-          onTap: state.dead ? null : context.soundAction(onTap),
-          child: CustomPaint(
-            foregroundPainter: BracketFramePainter(
-              color: state.active || state.dead
-                  ? color.withValues(alpha: 0.9)
-                  : HudInk.line.withValues(alpha: 0.9),
-              bracketSize: 7,
-              strokeWidth: state.active ? 1.5 : 1.1,
-            ),
-            child: Container(
-              width: cardWidth,
-              color: HudInk.glass.withValues(alpha: 0.88),
-              padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      state.label,
-                      style: hudMono(_labelSize, color, spacing: 0.8),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  SizedBox(
-                    height: _artSize,
-                    child: CustomPaint(
-                      painter: state.active
-                          ? CaseLightPainter(
-                              color: elementLight(member.element),
-                            )
-                          : null,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          Opacity(
-                            opacity: state.dead ? 0.3 : 1,
-                            child: state.active
-                                ? portrait
-                                : ColorFiltered(
-                                    colorFilter: _reserve,
-                                    child: portrait,
-                                  ),
-                          ),
-                          if (state.dead)
-                            const Icon(
-                              Icons.close_rounded,
-                              color: downColor,
-                              size: 28,
+          onTap: s.dead ? null : context.soundAction(onTap),
+          child: RepaintBoundary(
+            child: CustomPaint(
+              foregroundPainter: BracketFramePainter(
+                color: s.following ? SurvivalInk.follow : SurvivalInk.plain,
+                strokeWidth: 1.5,
+              ),
+              child: Container(
+                width: width,
+                height: height,
+                color: SurvivalInk.bg0.withValues(alpha: 0.86),
+                padding: const EdgeInsets.fromLTRB(4, 3, 4, 5),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 36,
+                      child: CustomPaint(
+                        painter: s.active
+                            ? CaseLightPainter(
+                                color: elementLight(member.element),
+                              )
+                            : null,
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Opacity(
+                              opacity: s.dead ? 0.3 : 1,
+                              child: s.active
+                                  ? portrait
+                                  : ColorFiltered(
+                                      colorFilter: _reserve,
+                                      child: portrait,
+                                    ),
                             ),
-                        ],
+                            if (s.dead)
+                              const Icon(
+                                Icons.close_rounded,
+                                color: SurvivalInk.danger,
+                                size: 22,
+                              ),
+                            if (vines != null)
+                              Positioned(
+                                top: 0,
+                                right: 0,
+                                child: Text(
+                                  '$feedCount',
+                                  style: hudMono(
+                                    7,
+                                    SurvivalInk.follow,
+                                    spacing: 0,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  SizedBox(
-                    height: 4,
-                    width: double.infinity,
-                    child: CustomPaint(
-                      painter: HudTubePainter(
-                        state.hp,
-                        state.hp > 0.5
-                            ? followColor
-                            : state.hp > 0.25
-                            ? activeColor
-                            : downColor,
-                      ),
+                    const Spacer(),
+                    _tube(s.hp, _hpColor(s.hp), 3),
+                    const SizedBox(height: 3),
+                    _tube(
+                      s.specialFill,
+                      s.ready ? SurvivalInk.brassGlow : SurvivalInk.brass,
+                      s.ready ? 4 : 3,
                     ),
-                  ),
-                  const SizedBox(height: 3),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      state.dead
-                          ? 'DEFEATED'
-                          : !state.cooldown.isFinite
-                          // A Mystic whose world is out carries an INFINITE
-                          // cooldown: the cast is spent for the deployment and
-                          // only a recall gives it back. `.ceil()` on infinity
-                          // throws in Dart, which crashed this widget's build —
-                          // and a crashed build paints a grey error box over the
-                          // party HUD in profile, where there is no red screen to
-                          // explain it.
-                          ? 'WORLD OUT'
-                          : state.cooldown > 0.05
-                          ? 'SP ${state.cooldown.ceil()}'
-                          : 'SP READY',
-                      style: hudMono(
-                        _labelSize,
-                        state.dead
-                            ? downColor
-                            : ready
-                            ? HudInk.ink
-                            : HudInk.muted,
-                        spacing: 0.6,
-                      ),
-                    ),
-                  ),
-                  if (feedCount != null && state.active)
-                    Text(
-                      '$feedCount · ${(1 + (feedCount! ~/ 10)).clamp(1, 10)} vines',
-                      style: hudMono(6, followColor, spacing: 0.3),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -237,10 +247,278 @@ class SurvivalPartySlot extends StatelessWidget {
     );
   }
 
-  /// Stands in for missing art, so it grows with the art rather than the
-  /// chrome — a slot with no image should still read as the same size slot.
-  Widget _fallback(String name, Color color) => Text(
-    name.characters.first,
-    style: hudMono(24, color, weight: FontWeight.w900),
+  static Widget _tube(double fraction, Color color, double height) => SizedBox(
+    height: height,
+    width: double.infinity,
+    child: CustomPaint(painter: HudTubePainter(fraction, color)),
+  );
+}
+
+/// One party member as the row lays it out.
+class SurvivalPartyEntry {
+  const SurvivalPartyEntry({
+    required this.slot,
+    required this.member,
+    required this.state,
+    this.feedCount,
+  });
+
+  final int slot;
+  final CosmicPartyMember member;
+  final SurvivalPartySlotState state;
+  final int? feedCount;
+}
+
+/// The party along the bottom edge: the ones out (and the fallen), a dim
+/// empty case for each open place a reserve could fill, the reserves folded
+/// into one "+N" case that opens them in a tray above the row, and FOLLOW /
+/// FREE.
+class SurvivalPartyRow extends StatefulWidget {
+  const SurvivalPartyRow({
+    super.key,
+    required this.entries,
+    required this.maxActive,
+    required this.tethered,
+    required this.onTapSlot,
+    required this.onFollow,
+    required this.wrap,
+    this.padSlot,
+  });
+
+  final List<SurvivalPartyEntry> entries;
+  final int maxActive;
+  final bool tethered;
+  final void Function(int slot) onTapSlot;
+  final VoidCallback onFollow;
+
+  /// Lets the screen mark the controller's chosen slot.
+  final Widget Function(int slot, Widget child) wrap;
+
+  /// The slot a controller is on, if one is steering: a reserve chosen that
+  /// way opens the tray so it can be seen.
+  final int? padSlot;
+
+  static const gap = 4.0;
+  static const foldWidth = 30.0;
+  static const followWidth = 46.0;
+
+  /// The row's width with [shown] cases, and a fold when [fold].
+  static double widthFor(int shown, {required bool fold}) =>
+      shown * (SurvivalPartySlot.width + gap) +
+      (fold ? foldWidth + gap : 0) +
+      followWidth;
+
+  @override
+  State<SurvivalPartyRow> createState() => _SurvivalPartyRowState();
+}
+
+class _SurvivalPartyRowState extends State<SurvivalPartyRow> {
+  bool _tray = false;
+
+  Widget _case(SurvivalPartyEntry e, VoidCallback onTap) => widget.wrap(
+    e.slot,
+    SurvivalPartySlot(
+      member: e.member,
+      state: e.state,
+      feedCount: e.feedCount,
+      onTap: onTap,
+    ),
+  );
+
+  /// The bench opens up to this many cases across.
+  static const _trayAcross = 6;
+
+  @override
+  Widget build(BuildContext context) =>
+      LayoutBuilder(builder: (context, box) => _build(context, box.maxWidth));
+
+  Widget _build(BuildContext context, double room) {
+    final out = widget.entries
+        .where((e) => e.state.active || e.state.dead)
+        .toList();
+    final reserve = widget.entries
+        .where((e) => !e.state.active && !e.state.dead)
+        .toList();
+    final open = max(
+      0,
+      widget.maxActive - out.where((e) => !e.state.dead).length,
+    );
+    final empty = min(open, reserve.length);
+    final padOnReserve = reserve.any((e) => e.slot == widget.padSlot);
+    // With nobody out (a run's start), the bench is what there is to do:
+    // it stands open until someone is deployed.
+    final nobodyOut = out.every((e) => e.state.dead);
+    final trayShown =
+        (_tray || padOnReserve || nobodyOut) && reserve.isNotEmpty;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        AnimatedSize(
+          duration: const Duration(milliseconds: 260),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.bottomRight,
+          child: trayShown
+              ? Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  // Six across at most (fewer on a narrow screen), at least
+                  // as wide as the row, filling from the right: a long
+                  // bench stacks up in a few rows instead of one column.
+                  child: SizedBox(
+                    width: min(
+                      room,
+                      max(
+                        SurvivalPartyRow.widthFor(
+                          out.length + empty,
+                          fold: true,
+                        ),
+                        _trayAcross *
+                                (SurvivalPartySlot.width +
+                                    SurvivalPartyRow.gap) -
+                            SurvivalPartyRow.gap,
+                      ),
+                    ),
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      spacing: SurvivalPartyRow.gap,
+                      runSpacing: SurvivalPartyRow.gap,
+                      children: [
+                        for (final e in reserve)
+                          _case(e, () {
+                            widget.onTapSlot(e.slot);
+                            setState(() => _tray = false);
+                          }),
+                      ],
+                    ),
+                  ),
+                )
+              : const SizedBox(width: 0, height: 0),
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            for (final e in out) ...[
+              _case(e, () => widget.onTapSlot(e.slot)),
+              const SizedBox(width: SurvivalPartyRow.gap),
+            ],
+            // An open place: tapping it opens the bench to fill it.
+            for (var i = 0; i < empty; i++) ...[
+              Semantics(
+                button: true,
+                label: 'Open place',
+                hint: 'Show the reserves',
+                child: GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: context.soundAction(
+                    () => setState(() => _tray = true),
+                  ),
+                  child: Container(
+                    width: SurvivalPartySlot.width,
+                    height: SurvivalPartySlot.height,
+                    color: SurvivalInk.bg0.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
+              const SizedBox(width: SurvivalPartyRow.gap),
+            ],
+            if (reserve.isNotEmpty) ...[
+              _ReserveFold(
+                count: reserve.length,
+                open: trayShown,
+                onTap: () => setState(() => _tray = !_tray),
+              ),
+              const SizedBox(width: SurvivalPartyRow.gap),
+            ],
+            _FollowKey(tethered: widget.tethered, onTap: widget.onFollow),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// The reserves, folded to their count.
+class _ReserveFold extends StatelessWidget {
+  const _ReserveFold({
+    required this.count,
+    required this.open,
+    required this.onTap,
+  });
+
+  final int count;
+  final bool open;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    label: '$count in reserve',
+    hint: open ? 'Close the reserves' : 'Show the reserves',
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: open ? SurvivalInk.brass : SurvivalInk.plain,
+          strokeWidth: 1.4,
+        ),
+        child: Container(
+          width: SurvivalPartyRow.foldWidth,
+          height: SurvivalPartySlot.height,
+          color: SurvivalInk.bg0.withValues(alpha: 0.86),
+          alignment: Alignment.center,
+          child: Text(
+            '+$count',
+            style: hudMono(
+              12,
+              open ? SurvivalInk.brassBright : SurvivalInk.muted,
+              weight: FontWeight.w900,
+              spacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// FOLLOW (the nearest Alchemon tows behind the ship) or FREE. The word is
+/// the control; lit from below while one follows.
+class _FollowKey extends StatelessWidget {
+  const _FollowKey({required this.tethered, required this.onTap});
+
+  final bool tethered;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    toggled: tethered,
+    label: tethered ? 'Follow on' : 'Follow off',
+    child: GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: context.soundAction(onTap),
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: tethered ? SurvivalInk.follow : SurvivalInk.plain,
+          strokeWidth: 1.4,
+        ),
+        child: Container(
+          width: SurvivalPartyRow.followWidth,
+          height: SurvivalPartySlot.height,
+          color: SurvivalInk.bg0.withValues(alpha: 0.86),
+          alignment: Alignment.center,
+          child: Text(
+            tethered ? 'FOLLOW' : 'FREE',
+            style: hudMono(
+              7.5,
+              tethered ? SurvivalInk.follow : SurvivalInk.muted,
+              spacing: 0.6,
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 }
