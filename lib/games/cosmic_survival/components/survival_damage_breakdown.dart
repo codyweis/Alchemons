@@ -61,7 +61,9 @@ class SurvivalDamageBreakdownState extends State<SurvivalDamageBreakdown>
   late final double _total;
 
   int get _rowCount =>
-      widget.report.lines.length + (widget.report.otherDamage > 0 ? 1 : 0);
+      widget.report.lines.length +
+      (widget.report.shipDamage > 0 ? 1 : 0) +
+      (widget.report.orbDamage > 0 ? 1 : 0);
 
   @override
   void initState() {
@@ -121,16 +123,25 @@ class SurvivalDamageBreakdownState extends State<SurvivalDamageBreakdown>
         ),
       );
     }
-    if (report.otherDamage > 0) {
+    // The ship, then the orb's defenses and the run's perks, after the
+    // party.
+    var next = report.lines.length;
+    for (final (name, damage, kills) in [
+      ('Ship', report.shipDamage, report.shipKills),
+      ('Orb and perks', report.orbDamage, report.orbKills),
+    ]) {
+      if (damage <= 0) continue;
+      final at = next++;
       rows
         ..add(const SizedBox(height: 5))
         ..add(
           _Arrival(
-            arrival: _arrival(report.lines.length),
+            arrival: _arrival(at),
             builder: (fill) => _OtherRow(
-              damage: report.otherDamage,
-              kills: report.otherKills,
-              share: report.shareOf(report.otherDamage),
+              name: name,
+              damage: damage,
+              kills: kills,
+              share: report.shareOf(damage),
               fill: fill,
             ),
           ),
@@ -339,12 +350,14 @@ class _BenchedRow extends StatelessWidget {
 /// it is not one of the party.
 class _OtherRow extends StatelessWidget {
   const _OtherRow({
+    required this.name,
     required this.damage,
     required this.kills,
     required this.share,
     required this.fill,
   });
 
+  final String name;
   final double damage;
   final int kills;
   final double share;
@@ -363,7 +376,7 @@ class _OtherRow extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _HeadLine(
-          name: 'Ship and orb',
+          name: name,
           nameColor: SurvivalInk.muted,
           share: share,
           damage: damage,

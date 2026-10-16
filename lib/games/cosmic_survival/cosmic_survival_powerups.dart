@@ -272,6 +272,17 @@ const kShipWeapons = [
     maxStacks: 3,
     tags: [PowerUpTag.basicAttack],
   ),
+  // The ship's own hull, for a player who flies it into the fight
+  // (cosmic_survival_game.dart, _syncShipHull).
+  PowerUpDef(
+    id: 'ship_hull',
+    name: 'Reinforced Hull',
+    description: '+50% ship hull, and the ship is rebuilt 6 s sooner',
+    icon: '🛡',
+    category: PowerUpCategory.shipWeapon,
+    maxStacks: 3,
+    tags: [PowerUpTag.fortress],
+  ),
   // Kills leave surge grains that wait for the ship (surge_grains.dart).
   // Each level widens the ship's pull; the last has a cleared wave send the
   // grains left out to the core.
@@ -1238,6 +1249,8 @@ class PowerUpState {
   int get orbVitalityLevel => getGlobalStacks('orb_vitality');
   int get surgeMagnetLevel => getGlobalStacks('surge_magnet');
   bool get hasAutopilot => getGlobalStacks('autopilot') > 0;
+  int get shipHullLevel => getGlobalStacks('ship_hull');
+  double get shipHullMultiplier => 1.0 + shipHullLevel * 0.5;
 
   // SURGE FUSIONS (kFusionPowerUps).
   bool get hasHomingSpread => has('fusion_homing_spread');
@@ -1326,6 +1339,7 @@ String powerUpIncrementLabel(OfferedPowerUpChoice choice) {
         ? 'When a wave ends, every grain left out flows into the orb'
         : 'Ship pulls surge grains from further away (+80)',
     'autopilot' => 'When you let go, the ship flies out for surge grains',
+    'ship_hull' => '+50% ship hull, rebuilt 6 s sooner',
     'shield_pulse' => '+1 shield pulse level',
     'auto_turret' => '+1 auto-turret level',
     'regen_field' => '+1 regeneration field level',

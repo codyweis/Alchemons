@@ -516,6 +516,11 @@ class CosmicSurvivalStats {
   /// up everything the run dealt, so the results' shares add up.
   double otherDamage = 0;
 
+  /// The ship's share of [otherDamage]: its guns, rockets, missiles and
+  /// turret. [shipKills] are the bodies it finished.
+  double shipDamage = 0;
+  int shipKills = 0;
+
   String get formattedTime {
     final minutes = (timeElapsed ~/ 60).toString().padLeft(2, '0');
     final seconds = (timeElapsed % 60).toInt().toString().padLeft(2, '0');
@@ -1543,8 +1548,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final ValueNotifier<double> detonationChargeNotifier = ValueNotifier(0);
   double _detonationTimer = 0;
 
-  // Ship respawn
-  static const double _shipRespawnDelay = 30.0;
+  // Ship respawn: 30 s, and 6 s sooner for each Reinforced Hull.
+  static const double _kShipRespawnBase = 30.0;
+  static const double _kShipRespawnPerHull = 6.0;
+  double get _shipRespawnDelay =>
+      _kShipRespawnBase - powerUps.shipHullLevel * _kShipRespawnPerHull;
   double _shipRespawnTimer = 0;
   double get shipRespawnRemaining => ship.isDead
       ? (_shipRespawnDelay - _shipRespawnTimer).clamp(0, _shipRespawnDelay)
@@ -2354,6 +2362,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ),
       ],
       otherDamage: stats.otherDamage,
+      shipDamage: stats.shipDamage,
+      shipKills: stats.shipKills,
       deployedSlots: deployedCompanionSlots,
       party: party,
       equippedOrb: upgradeState.equippedSkin,
@@ -2413,7 +2423,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       ..kills = run.kills
       ..score = run.score
       ..timeElapsed = run.timeElapsed
-      ..otherDamage = run.otherDamage;
+      ..otherDamage = run.otherDamage
+      ..shipDamage = run.shipDamage
+      ..shipKills = run.shipKills;
     healingStats
       ..toMons = run.healingToMons
       ..toShip = run.healingToShip
@@ -2453,6 +2465,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     orb.shieldHp = run.orbShield;
 
     ship.isDead = run.shipDead;
+    _syncShipHull();
     ship.currentHp = run.shipDead
         ? 0
         : run.shipHp.clamp(1.0, ship.maxHp).toDouble();
@@ -2682,7 +2695,38 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Keep drifting toward the last target, matching cosmic mode.
   }
 
+  // The ship keeps pace with the waves: its hull follows the enemies' damage
+  // and its hits their health, so what a player builds into it keeps its
+  // worth from the first wave to the last instead of melting away. Unbuilt
+  // it is still one small gun, a percent or two of a run's damage; the
+  // weapon picks are what make it count.
+  static const double _kShipBaseHull = 100;
+
+  /// The wave and Reinforced Hull level the hull was last sized for.
+  int _hullWave = 0;
+  double _hullBuilt = 0;
+
+  double get _shipWaveDamage =>
+      CosmicSurvivalBalance.enemyWaveHpScale(spawner.currentWave);
+
+  /// Sizes the hull for the wave, keeping the share of it the ship has left.
+  void _syncShipHull() {
+    final wave = spawner.currentWave;
+    final built = powerUps.shipHullMultiplier;
+    if (wave == _hullWave && built == _hullBuilt) return;
+    _hullWave = wave;
+    _hullBuilt = built;
+    final hull =
+        _kShipBaseHull *
+        CosmicSurvivalBalance.enemyWaveDamageScale(wave) *
+        built;
+    final left = ship.maxHp > 0 ? ship.currentHp / ship.maxHp : 1.0;
+    ship.maxHp = hull;
+    if (!ship.isDead) ship.currentHp = hull * left.clamp(0.0, 1.0);
+  }
+
   void _updateShip(double dt) {
+    _syncShipHull();
     final wasDead = ship.isDead;
     if (wasDead) {
       ship.fireTimer = 0;
@@ -2879,7 +2923,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final kineticLevel = powerUps.kineticOverdriveLevel;
     final kineticScale = 1.0 + kineticLevel * 0.10;
     final baseDamage =
-        10.0 * powerUps.shipDamageMultiplier * maskShipDamageAmp * kineticScale;
+        10.0 *
+        powerUps.shipDamageMultiplier *
+        maskShipDamageAmp *
+        kineticScale *
+        _shipWaveDamage;
     final shotSpeed = 400.0 * (1.0 + kineticLevel * 0.12);
     final shotLife = 3.0 + kineticLevel * 0.35;
 
@@ -2999,7 +3047,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 (20.0 + missileLevel * 10.0) *
                 powerUps.shipDamageMultiplier *
                 maskShipDamageAmp *
-                (1.0 + kinetic * kHeavyMissilesImpactPerLevel);
+                (1.0 + kinetic * kHeavyMissilesImpactPerLevel) *
+                _shipWaveDamage;
             final splashRadius = 80.0 + missileLevel * 24.0;
             onSound?.call(SoundCue.shipMissile);
             shipProjectiles.add(
@@ -3048,7 +3097,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           final beamDamage =
               (8.0 + turretLevel * 6.0) *
               powerUps.shipDamageMultiplier *
-              maskShipDamageAmp;
+              maskShipDamageAmp *
+              _shipWaveDamage;
           // The rapid turret's zap: the ship's own gun sound.
           onSound?.call(SoundCue.shipBolt);
           _spawnBeam(
@@ -3058,7 +3108,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             width: 2.1 + turretLevel * 0.35,
             life: 0.08,
           );
-          _damageEnemy(target, beamDamage, autoAttack: true);
+          _damageEnemy(target, beamDamage, autoAttack: true, fromShip: true);
           if (powerUps.hasLinkedTurrets) _fireLinkedOrbTurret(target);
         } else {
           SurvivalBoss? best;
@@ -3074,7 +3124,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             final beamDamage =
                 (7.0 + turretLevel * 5.0) *
                 powerUps.shipDamageMultiplier *
-                maskShipDamageAmp;
+                maskShipDamageAmp *
+                _shipWaveDamage;
             onSound?.call(SoundCue.shipBolt);
             _spawnBeam(
               ship.position,
@@ -3083,7 +3134,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               width: 2.1 + turretLevel * 0.35,
               life: 0.08,
             );
-            damageBoss(beamDamage, target: best, autoAttack: true);
+            damageBoss(
+              beamDamage,
+              target: best,
+              autoAttack: true,
+              fromShip: true,
+            );
           }
         }
       }
@@ -8775,6 +8831,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     bool fromPipSpecial = false,
     bool autoAttack = false,
     bool execute = false,
+    bool fromShip = false,
     int masteryCastId = 0,
     MasteryDamageSource? masterySource,
   }) {
@@ -8875,6 +8932,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _runStatsFor(sourceSlotIndex).damageDealt += dealt;
     } else if (dealt > 0) {
       stats.otherDamage += dealt;
+      if (fromShip) {
+        stats.shipDamage += dealt;
+        if (hpBefore > 0 && enemy.hp <= 0) stats.shipKills++;
+      }
     }
     if (autoAttack) _payMysticBloodTithe(dealt, enemy.position);
 
@@ -10599,6 +10660,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int? sourceSlotIndex,
     SurvivalBoss? target,
     bool autoAttack = false,
+    bool fromShip = false,
     int masteryCastId = 0,
     MasteryDamageSource? masterySource,
   }) {
@@ -10669,6 +10731,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _runStatsFor(sourceSlotIndex).damageDealt += dealtToBoss;
     } else if (dealtToBoss > 0) {
       stats.otherDamage += dealtToBoss;
+      if (fromShip) stats.shipDamage += dealtToBoss;
     }
 
     final bossSource =
@@ -11678,8 +11741,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Damage the way the SHIP deals it.
   @visibleForTesting
   void debugShipAttackDamage(CosmicSurvivalEnemy enemy, double damage) {
-    _damageEnemy(enemy, damage, autoAttack: true);
+    _damageEnemy(enemy, damage, autoAttack: true, fromShip: true);
   }
+
+  /// The ship's hull and the hit it would land now, after the wave's scaling
+  /// and its picks.
+  @visibleForTesting
+  ({double hull, double hit}) get debugShipPower {
+    _syncShipHull();
+    return (
+      hull: ship.maxHp,
+      hit: 10.0 * powerUps.shipDamageMultiplier * _shipWaveDamage,
+    );
+  }
+
+  /// Seconds a downed ship waits to be rebuilt.
+  @visibleForTesting
+  double get debugShipRespawnDelay => _shipRespawnDelay;
 
   /// How far this slot's embers reach from [from] — the distance to the
   /// furthest one. Exposed so a test can assert the field covers the arena
@@ -18713,7 +18791,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (!_withinRange(proj.position, enemy.position, enemy.radius + 5)) {
           return false;
         }
-        _damageEnemy(enemy, proj.damage, autoAttack: true);
+        _damageEnemy(enemy, proj.damage, autoAttack: true, fromShip: true);
         // Rocket splash AoE
         if (proj.splashRadius > 0) {
           _visitEnemiesNear(proj.position, proj.splashRadius, (other) {
@@ -18723,13 +18801,23 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               other.position,
               proj.splashRadius,
             )) {
-              _damageEnemy(other, proj.damage * 0.55, autoAttack: true);
+              _damageEnemy(
+                other,
+                proj.damage * 0.55,
+                autoAttack: true,
+                fromShip: true,
+              );
             }
             return false;
           });
           for (final b in allLivingBosses) {
             if (_withinRange(proj.position, b.position, proj.splashRadius)) {
-              damageBoss(proj.damage * 0.55, target: b, autoAttack: true);
+              damageBoss(
+                proj.damage * 0.55,
+                target: b,
+                autoAttack: true,
+                fromShip: true,
+              );
             }
           }
         }
@@ -18740,7 +18828,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (proj.life > 0) {
         for (final boss in allLivingBosses) {
           if (_withinRange(proj.position, boss.position, boss.radius + 5)) {
-            damageBoss(proj.damage, target: boss, autoAttack: true);
+            damageBoss(
+              proj.damage,
+              target: boss,
+              autoAttack: true,
+              fromShip: true,
+            );
             // Rocket splash AoE on boss
             if (proj.splashRadius > 0) {
               _visitEnemiesNear(proj.position, proj.splashRadius, (other) {
@@ -18749,7 +18842,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                   other.position,
                   proj.splashRadius,
                 )) {
-                  _damageEnemy(other, proj.damage * 0.55, autoAttack: true);
+                  _damageEnemy(
+                    other,
+                    proj.damage * 0.55,
+                    autoAttack: true,
+                    fromShip: true,
+                  );
                 }
                 return false;
               });

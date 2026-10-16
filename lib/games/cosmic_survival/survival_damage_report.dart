@@ -46,6 +46,8 @@ class SurvivalDamageReport {
     required this.lines,
     this.otherDamage = 0,
     this.otherKills = 0,
+    this.shipDamage = 0,
+    this.shipKills = 0,
   });
 
   static const empty = SurvivalDamageReport(lines: []);
@@ -56,6 +58,16 @@ class SurvivalDamageReport {
   /// What no Alchemon dealt: the ship, the orb's own defenses, run perks.
   final double otherDamage;
   final int otherKills;
+
+  /// The ship's part of [otherDamage] and [otherKills]: the results give it
+  /// a row of its own, since a run can be built around it.
+  final double shipDamage;
+  final int shipKills;
+
+  /// What is left of [otherDamage] once the ship's is taken out: the orb's
+  /// defenses and the run's perks.
+  double get orbDamage => (otherDamage - shipDamage).clamp(0.0, otherDamage);
+  int get orbKills => (otherKills - shipKills).clamp(0, otherKills);
 
   bool get isEmpty => lines.isEmpty;
 
@@ -113,6 +125,8 @@ class SurvivalDamageReport {
       lines: lines,
       otherDamage: game.stats.otherDamage,
       otherKills: (game.stats.kills - creatureKills).clamp(0, 1 << 30),
+      shipDamage: game.stats.shipDamage,
+      shipKills: game.stats.shipKills,
     );
   }
 }

@@ -245,6 +245,8 @@ void main() {
       ],
       otherDamage: 6400,
       otherKills: 840,
+      shipDamage: 4100,
+      shipKills: 610,
     );
     // Five out at some point, a Kin among them that healed.
     const healer = SurvivalDamageReport(

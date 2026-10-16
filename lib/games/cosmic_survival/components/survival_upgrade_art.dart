@@ -142,6 +142,11 @@ UpgradeArtSpec upgradeArtFor(PowerUpDef def) {
     'spread_shot' => const UpgradeArtSpec(UpgradeMotif.fan, _shot),
     'rocket_barrage' => const UpgradeArtSpec(UpgradeMotif.comet, _shot),
     'ship_damage' => const UpgradeArtSpec(UpgradeMotif.core, _shot),
+    'ship_hull' => const UpgradeArtSpec(
+      UpgradeMotif.shell,
+      _shot,
+      salt: 5,
+    ),
     'homing_missiles' => const UpgradeArtSpec(
       UpgradeMotif.comet,
       _steel,

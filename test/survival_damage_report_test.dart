@@ -173,13 +173,16 @@ void main() {
 
     test('damage no Alchemon dealt lands in the other line', () {
       final before = game.stats.otherDamage;
+      final shipBefore = game.stats.shipDamage;
       final enemy = game.enemies.firstWhere((e) => !e.isDead && e.hp > 10);
       game.debugShipAttackDamage(enemy, 5);
       expect(game.stats.otherDamage, closeTo(before + 5, 1e-6));
-      expect(
-        SurvivalDamageReport.fromGame(game).otherDamage,
-        closeTo(report.otherDamage + 5, 1e-6),
-      );
+      final after = SurvivalDamageReport.fromGame(game);
+      expect(after.otherDamage, closeTo(report.otherDamage + 5, 1e-6));
+      // The ship's own row takes it; the orb's keeps what it had.
+      expect(game.stats.shipDamage, closeTo(shipBefore + 5, 1e-6));
+      expect(after.shipDamage, closeTo(report.shipDamage + 5, 1e-6));
+      expect(after.orbDamage, closeTo(report.orbDamage, 1e-6));
     });
 
     test('time on the field runs on the run clock; the reserve is benched', () {
@@ -213,6 +216,8 @@ void main() {
     final decoded = SuspendedSurvivalRun.tryDecode(jsonEncode(kept.toJson()));
     expect(decoded, isNotNull);
     expect(decoded!.otherDamage, game.stats.otherDamage);
+    expect(decoded.shipDamage, game.stats.shipDamage);
+    expect(decoded.shipKills, game.stats.shipKills);
 
     final resumed = CosmicSurvivalGame(
       party: decoded.party,
@@ -296,6 +301,8 @@ void main() {
       ],
       otherDamage: 4000,
       otherKills: 12,
+      shipDamage: 2500,
+      shipKills: 8,
     );
 
     Future<void> pump(WidgetTester tester, Size logical) async {
@@ -329,7 +336,13 @@ void main() {
       expect(find.text('48.2K'), findsOneWidget);
       expect(find.text('79%'), findsOneWidget);
       expect(find.text('BENCHED'), findsOneWidget);
-      expect(find.text('SHIP AND ORB'), findsOneWidget);
+      // The ship gets a row of its own, then the orb's defenses and perks.
+      expect(find.text('SHIP'), findsOneWidget);
+      expect(find.text('ORB AND PERKS'), findsOneWidget);
+      expect(
+        tester.getTopLeft(find.text('SHIP')).dy,
+        lessThan(tester.getTopLeft(find.text('ORB AND PERKS')).dy),
+      );
       // Healing only where it healed.
       expect(find.textContaining('HEALED'), findsOneWidget);
       expect(

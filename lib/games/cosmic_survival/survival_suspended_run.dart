@@ -162,6 +162,8 @@ class SuspendedSurvivalRun {
     required this.healingToOrb,
     required this.slotStats,
     this.otherDamage = 0,
+    this.shipDamage = 0,
+    this.shipKills = 0,
     Set<int> deployedSlots = const {},
     required this.party,
     required this.equippedOrb,
@@ -225,6 +227,10 @@ class SuspendedSurvivalRun {
 
   /// Damage no Alchemon dealt (the ship, the orb's defenses, run perks).
   final double otherDamage;
+
+  /// The ship's part of [otherDamage], and the bodies it finished.
+  final double shipDamage;
+  final int shipKills;
 
   /// Every slot summoned at some point in the run, for its mastery: a
   /// creature that went out earns more than one kept in reserve.
@@ -352,6 +358,8 @@ class SuspendedSurvivalRun {
       healingToOrb: healingToOrb,
       slotStats: slotStats,
       otherDamage: otherDamage,
+      shipDamage: shipDamage,
+      shipKills: shipKills,
       // Deployed is for good: whoever went out before leaving went out.
       deployedSlots: {...deployedSlots, ...atExit.deployedSlots},
       party: party,
@@ -395,6 +403,8 @@ class SuspendedSurvivalRun {
       'healToShip': healingToShip,
       'healToOrb': healingToOrb,
       'other': otherDamage,
+      'ship': shipDamage,
+      'shipKills': shipKills,
       'bySlot': [for (final s in slotStats) s.toJson()],
     },
     'deployed': deployedSlots.toList()..sort(),
@@ -526,6 +536,8 @@ class SuspendedSurvivalRun {
       healingToOrb: (stats['healToOrb'] as num).toDouble(),
       slotStats: slotStats,
       otherDamage: (stats['other'] as num?)?.toDouble() ?? 0,
+      shipDamage: (stats['ship'] as num?)?.toDouble() ?? 0,
+      shipKills: (stats['shipKills'] as num?)?.toInt() ?? 0,
       // A legacy save never kept who went out: anyone out when it was
       // taken, or who had done anything by then, had been.
       deployedSlots: deployed is List
