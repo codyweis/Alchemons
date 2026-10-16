@@ -33,7 +33,6 @@ import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:flame/game.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:alchemons/models/inventory.dart' show InvKeys;
 import 'package:alchemons/providers/audio_provider.dart';
@@ -316,10 +315,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
             await _showCaptureTutorialDialog();
           }
 
-          if (mounted && !widget.isTutorial && !_isCaptureTutorialScene) {
-            await _maybeShowFirstVisitWildernessStoryDialog();
-          }
-
           if (!widget.isTutorial &&
               !_isCaptureTutorialScene &&
               !_riftSpawned &&
@@ -344,44 +339,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     if (qty < 1) {
       await _db.inventoryDao.addItemQty(InvKeys.wildFusion, 1);
     }
-  }
-
-  Future<void> _maybeShowFirstVisitWildernessStoryDialog() async {
-    if (_isCosmicPlanetMode || !mounted) return;
-    const eligibleScenes = {'valley', 'sky', 'swamp', 'volcano'};
-    if (!eligibleScenes.contains(widget.sceneId)) return;
-
-    final settings = _db.settingsDao;
-    final truthRevealPending =
-        await settings.getSetting('wilderness_truth_reveal_pending_v1') == '1';
-
-    // New saves hear this on their first Field entry after returning from
-    // real cosmic space. The planet-revelation flags preserve reachability
-    // for saves created before that return marker existed.
-    const planetStorySeenKey = 'cosmic_planet_pathway_intro_seen_v1';
-    final prefs = await SharedPreferences.getInstance();
-    final planetStorySeen =
-        (prefs.getBool(planetStorySeenKey) ?? false) ||
-        await _db.settingsDao.getSetting('campaign_revelation_seen_v1') == '1';
-    if (!truthRevealPending && !planetStorySeen || !mounted) return;
-
-    const key = 'wilderness_post_planet_story_seen';
-    final seen = (await settings.getSetting(key)) == '1';
-    if (seen || !mounted) return;
-
-    await LandscapeDialog.show(
-      context,
-      title: 'The Beautiful Lie',
-      message:
-          'I created this world to hide my shame from the death of Alchemons. '
-          'I filled it with a perception of life and called that beauty. '
-          'But beauty does not make it true.',
-      kind: LandscapeDialogKind.info,
-      primaryLabel: 'Continue',
-      barrierDismissible: false,
-    );
-    await settings.setSetting(key, '1');
-    await settings.deleteSetting('wilderness_truth_reveal_pending_v1');
   }
 
   // 🆕 Guarantee a LET spawn for tutorial

@@ -198,7 +198,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         title: 'A Relic Is Not A Trophy',
         message:
             'It is what remains when form fails. Not the creature, not its beauty, but the instruction that endured beneath both.\n\n'
-            'Is creation discovery or concealment, is beauty truth made visible, or a veil drawn over something worse.',
+            'Is creation discovery or concealment, is beauty truth made visible, or a veil drawn over something worse?',
       );
 
       if (!mounted) return;
@@ -531,7 +531,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         context,
         title: 'Carry It Outward',
         message:
-            'Do not keep it here.\n\nThe stars are not above this world. They are part of the seal. Bring the blood mystic outward, where the last offering can be witnessed.',
+            'Do not keep it here.\n\nThe stars are not above this world. Bring the blood mystic outward, where the last offering can be witnessed.',
       );
       await db.settingsDao.setSetting('blood_mystic_space_hint_seen_v1', '1');
     }

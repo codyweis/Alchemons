@@ -93,7 +93,6 @@ class BloodRebirthService {
     await db.creatureDao.deleteInstances([instanceId]);
     await db.inventoryDao.addItemQty(InvKeys.alchemyBloodAura, 1);
     await db.settingsDao.setSetting(CampaignJournalService.endingKey, eggId);
-    await CampaignJournalService(db).record('ending');
     return free != null;
   });
 

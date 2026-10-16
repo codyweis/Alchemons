@@ -31,7 +31,7 @@ const campaignEntries = [
   JournalEntry(
     'awakening',
     'Waking',
-    'You made somewhere beautiful enough to wake without remembering why you needed it.',
+    'You wake somewhere beautiful enough that you never think to ask why you needed it.',
   ),
   JournalEntry(
     'extraction',
@@ -45,7 +45,7 @@ const campaignEntries = [
   ),
   JournalEntry(
     'ship',
-    'Beyond the valley',
+    'Beyond the realms',
     'You follow the ship beyond the world that soothed you. Something there remembers your work.',
   ),
   JournalEntry(
@@ -77,11 +77,6 @@ const campaignEntries = [
     'blood',
     'The last guardian',
     'Nothing beautiful stands between you and your work now. Still, you prepare another ritual.',
-  ),
-  JournalEntry(
-    'ending',
-    'Rebirth',
-    'You called it sacrifice. You kept what you wanted. Once, you made a world to escape this hunger. Now you remember, and your hands return to their work.',
   ),
 ];
 
@@ -763,7 +758,7 @@ const campaignMissionInstructions = {
   'guardian_16':
       'Overcome all 16 non-Blood planetary guardians. Their relics unlock the corresponding Mystic rituals.',
   'blood_guardian':
-      'Complete Hemavorn’s gate offering, descend with Blood, Dark, and Light, and overcome Sanguorath.',
+      'Complete Hemavorn’s gate offering, descend with one Blood Alchemon, free the four held below, and overcome Sanguorath.',
   'witnesses_16':
       'Complete all 16 non-Blood Mystic rituals. Each needs its guardian relic and the required specimens. The altar remembers completed summons.',
   'blood_mystic':
@@ -1068,7 +1063,6 @@ class CampaignJournalService {
     if (metrics['guardians']! > 0) seen.add('guardian');
     if (metrics['mystics']! > 0) seen.add('mystic');
     if (metrics['bloodGuardian'] == 1) seen.add('blood');
-    if (metrics['ending'] == 1) seen.add('ending');
     return CampaignSnapshot(metrics, seen, {
       for (final a in campaignAchievements)
         if (flag(claimKey(a.id))) a.id,

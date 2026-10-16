@@ -2435,7 +2435,7 @@ class PlanetDungeonGame extends FlameGame {
     'Bogdrya': 'Bogdrya swallows, the whole fen shudders and drops!',
     'Wraithord': 'Wraithord thins. Its openings come shorter now!',
     'Solarin': 'Solarin blazes. Its openings come shorter now!',
-    'Sanguorath': 'Sanguorath races, the whole orrery beats double!',
+    'Sanguorath': 'Sanguorath races, and the heartbeat doubles!',
     'Botanica': 'Botanica tears open, and its roots thrash the floor!',
   };
   SpriteAnimationTicker? _guardianTicker;

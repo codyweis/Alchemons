@@ -5027,7 +5027,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// the dialog names the two real losses with their real amounts and stays
   /// quiet — no red, no alarm — when the hold is already empty.
   Future<void> _confirmLeave() async {
-    final db = context.read<AlchemonsDatabase>();
     final result = await showLeaveExpeditionConfirm(
       context,
       cargoUnits: _game?.meter.total ?? 0,
@@ -5037,23 +5036,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     );
     if (result && mounted) {
       await _flushVolatileState();
-      if (!widget.memoryTutorial) {
-        final alreadyReturned =
-            await db.settingsDao.getSetting(
-              'cosmic_first_return_recorded_v1',
-            ) ==
-            '1';
-        if (!alreadyReturned) {
-          await db.settingsDao.setSetting(
-            'cosmic_first_return_recorded_v1',
-            '1',
-          );
-          await db.settingsDao.setSetting(
-            'wilderness_truth_reveal_pending_v1',
-            '1',
-          );
-        }
-      }
       if (mounted) {
         _reportShipTarget();
         VoidPortal.pop(context);

@@ -172,7 +172,7 @@ final _lines = [
     text: 'Trees and valleys are absent in this universe.',
     more:
         'It is nothing but desolation and precariousness. Eventually reality '
-        "seeps through the mind's defense. Why would I create such a world.",
+        "seeps through the mind's defense. Why would I create such a world?",
   ),
   _Line(title: 'AM I DREAMING?', text: 'No, I am finally awake.'),
   _Line(

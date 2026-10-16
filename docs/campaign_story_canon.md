@@ -33,11 +33,11 @@ Alchemons occupy the tension between companions and specimens. Collection offers
 ## Delivered surfaces
 
 - **Home book button / Profile → Journal & Achievements.** Journey shows the next requirement; Memories shows unlocked campaign fragments and preserves the opening passages; Achievements offers one-time Gold/Silver claims.
-- **First planetary descent.** The live dungeon remains frozen behind layered Valley art. Tap to dissolve the mask, then acknowledge the awakening and presence. Completion persists only after acknowledgment, so interruption does not lose the reveal. Reduced-motion mode skips the dissolve motion.
+- **First planetary descent.** This is the one place the game says the alchemist made the realms (creator, 2026-10-16). It is a cinematic (`beauty_mask_reveal.dart`): the descent lands in the live Valley, every wild realm sifts away onto black, the "Your work" memory plays, and the alchemist answers it ("I am not sorry"). Every line waits for a tap. Completion persists only after the last line, so interruption does not lose the reveal. No earlier text may state that the player made the world; earlier lines may only hint at it.
 - **First relic and first Mystic.** Added presence passages state what the guardian resisted and distinguish it from the collected creature. Existing altar quotes remain.
-- **First extraction.** The original two-to-one passage is introduced as an older remembered ritual, so it does not falsely describe the starter vial's creation.
-- **Return to wilderness.** The first Field entry after returning from real cosmic space reveals that the alchemist created the beautiful wilderness as a perception of life to hide his shame over dead Alchemons. Legacy first-planet flags still preserve this beat for older saves.
-- **Ending.** Existing passages remain, with additional relapse-oriented text and an explicit preview before selection: the offering is consumed and comes back from the vial.
+- **First fusion.** The original two-to-one passage is introduced as an older remembered ritual. It waits for the first fusion that lands, because the starter vial fuses nothing.
+- **Return to wilderness.** Removed (creator, 2026-10-16). "The Beautiful Lie" played on the first Field entry after leaving cosmic space, which was before any descent, so it told the reveal before the reveal.
+- **Ending.** Existing passages remain, with additional relapse-oriented text and an explicit preview before selection: the offering is consumed and comes back from the vial. The ending has no journal memory (creator, 2026-10-16); its "Reborn" achievement is the only record.
 
 The suggested blinking-eyes effect on the home page remains an optional presentation idea, not part of this implementation. It should be staged alongside the existing starter modal rather than racing it.
 
