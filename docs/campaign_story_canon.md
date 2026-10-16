@@ -25,7 +25,7 @@ Alchemons occupy the tension between companions and specimens. Collection offers
 
 - Keep the complete-collection ending: all 16 earlier guardians, the recorded 16 earlier Mystic summons, the Blood guardian, Blood altar requirements, and the Ring.
 - Survival, contests, Pureblood rites, constellation completion, and base progression remain optional activities; achievements do not add story gates.
-- The Blood Ring uses sacrifice/rebirth language, but **transforms the same instance** into Bloodborn. It keeps its ID, species, nickname, level, XP, nature, genetics, Dominants, and Enhancement ranks. All four Potentials become **95/100** and current stats are recalculated. No duplicate creature or vial is created.
+- The Blood Ring is a real sacrifice and rebirth (creator, 2026-10-16). The offering is **consumed**, and a **Bloodborn Vial** (payload `source: 'bloodborn'`, carrying the offering's row) goes to the first free extraction chamber, ready at once, or to cold storage when every chamber is full. Its Potential Souls return to the inventory free, and what they added comes off its Potentials. What is extracted is a new instance with the offering's species, nickname, level, XP, natures, genetics, Dominants, Enhancement ranks and costumes. It is Bloodborn, in the Blood Aura, with every Potential raised to at least **95/100** (one already higher keeps its value: the rite never lowers a Potential) and stats recalculated. The ending marker holds the vial's id until extraction, then the reborn's.
 - Existing completed Ring saves remain completed. This pass does not silently alter creatures from past rewards or replay rewards for them.
 - Commitments and Mystic rewards are transactional. A full chamber sends the Mystic vial to Cold Storage without purchasing capacity.
 - Preserve existing saves and permanent earned progress. Interrupted memory events can resume; story seen flags are acknowledged after reading.
@@ -37,7 +37,7 @@ Alchemons occupy the tension between companions and specimens. Collection offers
 - **First relic and first Mystic.** Added presence passages state what the guardian resisted and distinguish it from the collected creature. Existing altar quotes remain.
 - **First extraction.** The original two-to-one passage is introduced as an older remembered ritual, so it does not falsely describe the starter vial's creation.
 - **Return to wilderness.** The first Field entry after returning from real cosmic space reveals that the alchemist created the beautiful wilderness as a perception of life to hide his shame over dead Alchemons. Legacy first-planet flags still preserve this beat for older saves.
-- **Ending.** Existing passages remain, with additional relapse-oriented text and an explicit same-companion transformation preview before selection.
+- **Ending.** Existing passages remain, with additional relapse-oriented text and an explicit preview before selection: the offering is consumed and comes back from the vial.
 
 The suggested blinking-eyes effect on the home page remains an optional presentation idea, not part of this implementation. It should be staged alongside the existing starter modal rather than racing it.
 

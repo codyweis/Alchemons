@@ -377,6 +377,11 @@ class TitleParticleField {
   bool _introRunning = false;
   double _introEnd = 0;
 
+  /// Hidden for an intro that has not started yet. Nothing moves then, but
+  /// it is not at rest: settled, it would be drawn whole from the cache,
+  /// and the finished title flashed up before the letters streamed in.
+  bool _awaitingIntro = false;
+
   /// Where a finger is on it (local px), and how fast it is moving.
   Offset? pointer;
   Offset pointerVel = Offset.zero;
@@ -407,6 +412,7 @@ class TitleParticleField {
     _introRunning = true;
     _introEnd = now + 8 * 0.17 + 0.28 + 1.6;
     _settled = false;
+    _awaitingIntro = false;
   }
 
   /// Nothing showing yet: every grain waits for [startIntro].
@@ -415,6 +421,7 @@ class TitleParticleField {
       release[i] = double.infinity;
     }
     _settled = false;
+    _awaitingIntro = true;
   }
 
   /// The title fully formed and still, as if the intro had long finished.
@@ -429,6 +436,7 @@ class TitleParticleField {
       _arrived[i] = 1;
     }
     _introRunning = false;
+    _awaitingIntro = false;
     _settled = true;
   }
 
@@ -595,7 +603,12 @@ class TitleParticleField {
       }
     }
     if (_introRunning && now > _introEnd) _introRunning = false;
-    _settled = !moving && !_introRunning && p == null && waves.isEmpty;
+    _settled =
+        !_awaitingIntro &&
+        !moving &&
+        !_introRunning &&
+        p == null &&
+        waves.isEmpty;
     if (_settled) {
       for (var i = 0; i < n; i++) {
         x[i] = samples.hx[i];

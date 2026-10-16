@@ -12,9 +12,7 @@ const _gold = 'assets/images/ui/alchemonstitle.png';
 Widget _host({bool active = true}) => MaterialApp(
   home: Scaffold(
     backgroundColor: const Color(0xFF0B0A16),
-    body: Center(
-      child: ParticleTitle(darkBackdrop: true, active: active),
-    ),
+    body: Center(child: ParticleTitle(darkBackdrop: true, active: active)),
   ),
 );
 
@@ -29,8 +27,9 @@ Future<void> _load(WidgetTester tester) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('it reads the logo into a few thousand grains, with outlines',
-      (tester) async {
+  testWidgets('it reads the logo into a few thousand grains, with outlines', (
+    tester,
+  ) async {
     late TitleSamples s;
     await tester.runAsync(() async => s = await TitleSamples.of(_gold));
     expect(s.length, inInclusiveRange(2500, 5000));
@@ -41,8 +40,27 @@ void main() {
     expect(s.letter.reduce((a, b) => a > b ? a : b), 8);
   });
 
-  testWidgets('tap, drag and long press all work, and the color is kept',
-      (tester) async {
+  testWidgets('hidden for its intro, it does not flash up whole first', (
+    tester,
+  ) async {
+    late TitleSamples s;
+    await tester.runAsync(() async => s = await TitleSamples.of(_gold));
+    final field = TitleParticleField(s)..hideForIntro();
+    // The wait before the letters come: nothing moves, but it is not at
+    // rest -- at rest it would be drawn whole, from the cache.
+    for (var i = 0; i < 20; i++) {
+      field.step(1 / 60, i / 60);
+    }
+    expect(field.settled, isFalse);
+    field.startIntro(0.35);
+    expect(field.settled, isFalse);
+    field.settleNow();
+    expect(field.settled, isTrue);
+  });
+
+  testWidgets('tap, drag and long press all work, and the color is kept', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host());
     await _load(tester);
     // Through the intro.
@@ -88,8 +106,9 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('paused before or during the intro, it is simply the title',
-      (tester) async {
+  testWidgets('paused before or during the intro, it is simply the title', (
+    tester,
+  ) async {
     await tester.pumpWidget(_host());
     await _load(tester);
     for (var i = 0; i < 40; i++) {

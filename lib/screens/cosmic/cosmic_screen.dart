@@ -62,7 +62,7 @@ import 'package:alchemons/screens/cosmic/elemental_nexus_screen.dart';
 import 'package:alchemons/screens/cosmic/cosmic_prologue_screen.dart';
 import 'package:alchemons/screens/cosmic/widgets/elemental_cache_popup.dart';
 import 'package:alchemons/screens/cosmic/widgets/elemental_cache_prompt.dart';
-import 'package:alchemons/screens/cosmic/blood_ring_ending_screen.dart';
+import 'package:alchemons/screens/story/blood_finale.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/game.dart';
@@ -2854,7 +2854,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   const Padding(
                     padding: EdgeInsets.only(bottom: 10),
                     child: Text(
-                      'Sacrifice and rebirth: choose a reserve companion to transform into its Bloodborn form. You keep the same companion, level, training, and nickname. All four Potentials become 95. This transformation is permanent.',
+                      'Sacrifice and rebirth: choose a reserve companion to offer. It is consumed, and a Bloodborn Vial goes to your extraction chamber. What is extracted keeps its level, training and nickname; any Potential below 95 becomes 95, and none is lowered. Its Potential Souls come back to you. This cannot be undone.',
                       textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.white70, fontSize: 13),
                     ),
@@ -2941,39 +2941,14 @@ class _CosmicScreenState extends State<CosmicScreen>
       }
     }
     final replayOffering = savedOffering ?? favoriteMember ?? mysticMember;
-    final savedOfferingName = game.bloodRing.lastOfferingName?.trim();
-    final storyName =
-        (savedOfferingName != null && savedOfferingName.isNotEmpty)
-        ? savedOfferingName
-        : replayOffering.displayName;
     _runningBloodEnding = true;
     var shouldReturnHome = false;
     game.pauseEngine();
     try {
+      // The finale again, with the companion that was remade (or, if it
+      // is not aboard, whoever is).
       await _pushFade<bool>(
-        BloodRingStoryScenePage(offeringName: storyName),
-        duration: const Duration(milliseconds: 280),
-      );
-
-      if (!mounted) return;
-      await _pushFade<bool>(
-        BloodRingValleyCreditsPage(
-          mysticImagePath: mysticMember.imagePath,
-          offeringImagePath:
-              game.bloodRing.lastOfferingImagePath ?? replayOffering.imagePath,
-          offeringElement:
-              game.bloodRing.lastOfferingElement ?? replayOffering.element,
-          offeringFamily:
-              game.bloodRing.lastOfferingFamily ?? replayOffering.family,
-          offeringIntelligence:
-              game.bloodRing.lastOfferingIntelligence ??
-              replayOffering.statIntelligence,
-          offeringStrength:
-              game.bloodRing.lastOfferingStrength ??
-              replayOffering.statStrength,
-          offeringBeauty:
-              game.bloodRing.lastOfferingBeauty ?? replayOffering.statBeauty,
-        ),
+        BloodFinalePage(offering: replayOffering),
         duration: const Duration(milliseconds: 280),
       );
       shouldReturnHome = true;
@@ -3084,6 +3059,7 @@ class _CosmicScreenState extends State<CosmicScreen>
   }
 
   Future<void> _runBloodRingEnding({
+    required CosmicPartyMember offering,
     required String storyAlchemonName,
     String? sacrificedInstanceId,
     String? mysticImagePath,
@@ -3117,21 +3093,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
       if (!mounted) return;
       await _pushFade<bool>(
-        BloodRingStoryScenePage(offeringName: storyAlchemonName),
-        duration: const Duration(milliseconds: 360),
-      );
-
-      if (!mounted) return;
-      await _pushFade<bool>(
-        BloodRingValleyCreditsPage(
-          mysticImagePath: mysticImagePath,
-          offeringImagePath: offeringImagePath,
-          offeringElement: offeringElement,
-          offeringFamily: offeringFamily,
-          offeringIntelligence: offeringIntelligence,
-          offeringStrength: offeringStrength,
-          offeringBeauty: offeringBeauty,
-        ),
+        BloodFinalePage(offering: offering),
         duration: const Duration(milliseconds: 360),
       );
 
@@ -3145,7 +3107,8 @@ class _CosmicScreenState extends State<CosmicScreen>
       if (species == null) {
         throw StateError('The chosen companion is no longer available.');
       }
-      await BloodRebirthService(db).transform(sacrificedInstanceId, species);
+      // Consumed: a Bloodborn Vial waits in the extraction chamber.
+      await BloodRebirthService(db).offer(sacrificedInstanceId, species);
 
       game.bloodRing.ritualCompleted = true;
       await _saveBloodRingState();
@@ -3226,6 +3189,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (picked == null) return;
 
     await _runBloodRingEnding(
+      offering: picked,
       storyAlchemonName: picked.displayName,
       sacrificedInstanceId: picked.instanceId,
       mysticImagePath: active.imagePath,

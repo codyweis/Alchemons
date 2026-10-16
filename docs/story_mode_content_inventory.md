@@ -95,14 +95,15 @@ Generated from authored text found in the repo.
 
 ## Cosmic: Blood Ring Ending
 
-- Source: `lib/screens/cosmic/blood_ring_ending_screen.dart`
-- Reachability: Reachable at the Blood Ring ending ritual.
+- Source: `lib/screens/story/blood_finale.dart` (pushed by `lib/screens/cosmic/cosmic_screen.dart` after the ring's ritual plays in space; replayed by tapping the ring once it is done, and from Profile > DEVELOPER > FINALE)
+- Reachability: Reachable at the Blood Ring ending ritual. The offering gathers up out of the ring's light in its grains (it is only ever shown as grains), is sacrificed (blood runs down over it and it drips away, all of it, into a pool at its feet), and a new one rises out of the blood, bigger and brighter, embers of blood rising round it: Bloodborn. It is sent below to the chamber (it drips away into the pool and the pool is drawn down), and the credits roll over the census (every species the save has found, in grains, in three lanes; a tapped one comes apart and gathers back). Last comes the vial: that pool sealed in a round chamber, the new one half formed out of it, beating. Each line waits for a tap. In the save the offering is consumed and a Bloodborn Vial waits, ready, in the extraction chamber (or cold storage); its extraction has its own ceremony, in which the blood shell melts into a pool, three heartbeats pass, and the reborn rises.
 
-- [Flash] THE BLOOD RING AWAKENS
-- Whether you accept reality for the beauty it is, or forge deceptions of beauty to shield yourself from chaos, the ring does not care.
-- Reality bends to the witness and the wound at once. What you call truth is only a story that survived long enough to be believed.
-- <mysticName> and <favoriteName> stand at the seam of worlds, where every certainty dissolves into choice.
-- If all things are constructs, then this construct is yours now. Walk forward.
+- [Line] Every collection has a favorite.
+- [Line] Alchemy is power.
+- [Line] Favorites can always become stronger.
+- [Credits] ALCHEMONS (the title in grains) / Created by: Cody Weisenberger, Luck3yApps LLC / Alchemon designs and sprites by: Nehaalg / Music by: Cleyton Kauffman, GloryToTheMachine / Special thanks to: Bryce, Whitney, Diego
+- [Line] The census is finished. The collector is not.
+- [Line] Thank you for playing.
 
 ## Cosmic: Blood Ring Gate
 

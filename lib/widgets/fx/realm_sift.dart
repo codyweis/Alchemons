@@ -501,6 +501,20 @@ class RealmAir {
     }
   }
 
+  /// A finger dragged [delta] at [at]: the grains near it are pushed along,
+  /// the nearest most, and drift on with it.
+  void stir(Offset at, Offset delta, {double reach = 70}) {
+    for (var i = 0; i < _n; i++) {
+      if (_go[i] >= 0 && _t >= _go[i]) continue;
+      final dx = _x[i] - at.dx, dy = _y[i] - at.dy;
+      final d = math.sqrt(dx * dx + dy * dy);
+      if (d >= reach) continue;
+      final k = (1 - d / reach) * 9;
+      _vx[i] += delta.dx * k;
+      _vy[i] += delta.dy * k;
+    }
+  }
+
   /// Every grain still in the air has been gathered, or none was sent.
   bool get settled {
     for (var i = 0; i < _n; i++) {

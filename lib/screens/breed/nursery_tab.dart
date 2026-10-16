@@ -297,7 +297,11 @@ class _NurseryTabState extends State<NurseryTab> {
           final rem = _remainingFor(s.hatchAtUtcMs!);
           if (rem.inSeconds <= 0) {
             anyReady = true;
-            readySlots.add(s);
+            // The Bloodborn Vial is never one of a batch: it has its own
+            // extraction (bloodborn_extraction.dart).
+            if (!(s.payloadJson?.contains('"source":"bloodborn"') ?? false)) {
+              readySlots.add(s);
+            }
             continue;
           }
           if (nextReady == null || rem < nextReady) nextReady = rem;

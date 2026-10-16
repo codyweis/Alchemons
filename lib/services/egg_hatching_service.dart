@@ -1,3 +1,4 @@
+import 'package:alchemons/services/blood_rebirth_service.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/audio/audio.dart';
 import 'dart:convert';
@@ -7,6 +8,7 @@ import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/utils/cultivation_time.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/models/home_keepsakes.dart' show kEffigyBredCount;
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -27,6 +29,7 @@ import 'package:alchemons/services/alchemical_encyclopedia_service.dart';
 import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/cold_storage_service.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
+import 'package:alchemons/widgets/animations/bloodborn_extraction.dart';
 import 'package:alchemons/widgets/animations/hatching_cinematic.dart';
 import 'package:alchemons/widgets/nursery/extraction_result_card.dart';
 import 'package:alchemons/widgets/nursery/hatch_curtain.dart';
@@ -223,17 +226,26 @@ class EggHatching {
     // Starter branch: exact DB write, no rerolls
     if (hp.source == 'starter' || hp.source == 'bloodborn') {
       final fb = _fallbackLineageFor(offspring);
+      // A Blood Ring vial carries the favorite that was offered: it comes
+      // out as that companion made new, not as a level-one specimen.
+      final raw = jsonDecode(slot.payloadJson ?? '{}');
+      final rebirth =
+          hp.source == 'bloodborn' &&
+          raw is Map<String, dynamic> &&
+          BloodRebirthService.carriesRecord(raw);
 
-      final createdId = await db.creatureDao.insertInstanceFromHatchPayload(
-        baseId: hp.baseId,
-        payload: {...hp.toJson(), 'stats': derivedStats},
-        fallbackGenerationDepth: fb.generationDepth,
-        fallbackFactionLineage: fb.factionLineage,
-        fallbackElementLineage: fb.elementLineage,
-        fallbackFamilyLineage: fb.familyLineage,
-        fallbackVariantFaction: fb.variantFaction,
-        fallbackIsPure: fb.isPure,
-      );
+      final createdId = rebirth
+          ? await BloodRebirthService(db).hatch(raw, offspring)
+          : await db.creatureDao.insertInstanceFromHatchPayload(
+              baseId: hp.baseId,
+              payload: {...hp.toJson(), 'stats': derivedStats},
+              fallbackGenerationDepth: fb.generationDepth,
+              fallbackFactionLineage: fb.factionLineage,
+              fallbackElementLineage: fb.elementLineage,
+              fallbackFamilyLineage: fb.familyLineage,
+              fallbackVariantFaction: fb.variantFaction,
+              fallbackIsPure: fb.isPure,
+            );
 
       if (createdId == null) {
         return HatchingResult.failure(
@@ -776,27 +788,41 @@ class EggHatching {
     try {
       // ✅ still use the original context for the cinematic if you want
       if (!context.mounted) return;
-      await playHatchingCinematicAlchemy(
-        context: context,
-        parentATypeId: types.isNotEmpty ? types[0] : offspring.types.first,
-        parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
-        // The element being hatched INTO -- the shell fuses both parent
-        // palettes into this one at 82% of its arc.
-        resultTypeId: offspring.types.isNotEmpty ? offspring.types.first : null,
-        paletteMain: primaryHue,
-        creatureSilhouette: silhouette,
-        // The shell owns the first 80% of this and its arc is 6.6s, matching
-        // the prototype; the remaining 20% is the whiteout and the silhouette
-        // reveal. At 6400 the shell's arc was compressed to 5.1s.
-        totalDuration: const Duration(milliseconds: kHatchCeremonyMs),
-        hintType: hintType,
-        variantColor: variantColor,
-        pureElementTypeId: pureElementTypeId,
-        // Drives which shell architecture the ceremony builds.
-        mutationFamily: family,
-        mutation: AlchemonMutation.byId(instance?.mutation),
-        quality: cinematicQuality,
-      );
+      // The Blood Ring's vial has its own: the shell melts into blood and
+      // the favorite rises out of it.
+      final vial = jsonDecode(slot.payloadJson ?? '{}');
+      if (vial is Map<String, dynamic> && isBloodbornPayload(vial)) {
+        await playBloodbornExtraction(
+          context: context,
+          payload: vial,
+          mutationFamily: family,
+          quality: cinematicQuality,
+        );
+      } else {
+        await playHatchingCinematicAlchemy(
+          context: context,
+          parentATypeId: types.isNotEmpty ? types[0] : offspring.types.first,
+          parentBTypeId: types.length > 1 ? types[1] : offspring.types.last,
+          // The element being hatched INTO -- the shell fuses both parent
+          // palettes into this one at 82% of its arc.
+          resultTypeId: offspring.types.isNotEmpty
+              ? offspring.types.first
+              : null,
+          paletteMain: primaryHue,
+          creatureSilhouette: silhouette,
+          // The shell owns the first 80% of this and its arc is 6.6s, matching
+          // the prototype; the remaining 20% is the whiteout and the silhouette
+          // reveal. At 6400 the shell's arc was compressed to 5.1s.
+          totalDuration: const Duration(milliseconds: kHatchCeremonyMs),
+          hintType: hintType,
+          variantColor: variantColor,
+          pureElementTypeId: pureElementTypeId,
+          // Drives which shell architecture the ceremony builds.
+          mutationFamily: family,
+          mutation: AlchemonMutation.byId(instance?.mutation),
+          quality: cinematicQuality,
+        );
+      }
     } catch (e) {
       // The alchemy cinematic never got far enough to drop the curtain; lift
       // it and go straight to the result.

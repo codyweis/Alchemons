@@ -24,6 +24,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart'
     show kBloodPlanetElement, kPolishedDungeons;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_screen.dart';
+import 'package:alchemons/screens/story/blood_finale.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart'
     show VolcanoField;
 import 'package:alchemons/models/dock_sets.dart';
@@ -40,6 +41,7 @@ import 'package:alchemons/screens/stadium/stadium_screen.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/screens/debug/ability_lab_screen.dart';
+import 'package:alchemons/screens/debug/bloodborn_vial_debug_screen.dart';
 import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
 import 'package:alchemons/screens/faction_picker.dart';
@@ -541,6 +543,59 @@ class _ProfileScreenState extends State<ProfileScreen>
     revealed.dispose();
     if (!mounted) return;
     unawaited(context.read<AudioController>().playHomeMusic());
+  }
+
+  /// The finale again, after the Blood Ring's ritual: the space party's
+  /// first Alchemon offered, the credits over the census of this save.
+  /// Nothing happens to the Alchemon and nothing is saved.
+  Future<void> _playFinale() async {
+    HapticFeedback.mediumImpact();
+    final party = await stadiumPartyFromSave(context);
+    if (!mounted) return;
+    if (party.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No Alchemons to offer.')));
+      return;
+    }
+    await VoidPortal.pushThroughGlyphs<void>(
+      context,
+      page: BloodFinalePage(offering: party.first),
+      title: 'The Blood Ring',
+      label: 'ENTERING',
+      element: 'Blood',
+      orientation: const [
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ],
+      returnOrientation: const [
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ],
+    );
+    if (!mounted) return;
+    unawaited(context.read<AudioController>().playHomeMusic());
+  }
+
+  /// The Bloodborn Vial and its extraction, for the space party's first
+  /// Alchemon, without the ending. Not saved.
+  Future<void> _openBloodbornVial() async {
+    HapticFeedback.mediumImpact();
+    final party = await stadiumPartyFromSave(context);
+    if (!mounted) return;
+    if (party.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No Alchemons to offer.')));
+      return;
+    }
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            BloodbornVialDebugScreen(instanceId: party.first.instanceId),
+      ),
+    );
   }
 
   Future<void> _openDungeonDebug() async {
@@ -1878,6 +1933,20 @@ class _ProfileScreenState extends State<ProfileScreen>
           'over a random planet, with your space party. Not saved',
       'PLAY',
       _playFirstDescent,
+    ),
+    _DebugAction(
+      'FINALE',
+      'Play the ending after the Blood Ring again: your space party\'s '
+          'first Alchemon remade, the credits over your census. Not saved',
+      'PLAY',
+      _playFinale,
+    ),
+    _DebugAction(
+      'BLOODBORN VIAL',
+      'Your space party\'s first Alchemon as a Bloodborn Vial in its '
+          'chamber, at four stages, and its extraction. Not saved',
+      'OPEN',
+      _openBloodbornVial,
     ),
     _DebugAction(
       'DUNGEON DEBUG',

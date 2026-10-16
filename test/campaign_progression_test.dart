@@ -52,89 +52,161 @@ void main() {
         statBeautyPotential: 84,
       );
 
-  test(
-    'rebirth keeps identity and training, sets 95, and grants once',
-    () async {
-      await companion();
-      final before = (await db.creatureDao.getInstance('favorite'))!;
-      final service = BloodRebirthService(db);
-      await Future.wait([
-        service.transform('favorite', species),
-        service.transform('favorite', species),
-      ]);
-      final after = (await db.creatureDao.getInstance('favorite'))!;
-      expect(await db.creatureDao.countBySpecies(species.id), 1);
-      expect(after.nickname, before.nickname);
-      expect(after.level, before.level);
-      expect(after.xp, before.xp);
-      expect(after.dominantStats, before.dominantStats);
-      expect(after.statStrengthEnhancement, before.statStrengthEnhancement);
-      expect(after.variantFaction, 'bloodborn');
-      expect([
-        after.statSpeedPotential,
-        after.statIntelligencePotential,
-        after.statStrengthPotential,
-        after.statBeautyPotential,
-      ], everyElement(95));
-      expect(
-        after.statSpeed,
-        closeTo(
-          AlchemonStatSystem.effectiveInternal(
-            speciesBase: species.baseStats!.speed,
-            level: 8,
-            potential: 95,
-            enhancementRank: 2,
-            // Its bloodline's purity roll kept, as every stat writer keeps it.
-            additionalMultiplier: instanceTraitMultiplier(
-              after,
-              'speed',
-              species: species,
-            ),
+  Future<List<IncubatorSlot>> vials() async =>
+      (await db.select(db.incubatorSlots).get())
+          .where(
+            (s) => s.payloadJson?.contains('"source":"bloodborn"') ?? false,
+          )
+          .toList();
+
+  test('the offering is consumed into one ready vial, and comes back Bloodborn '
+      'with its record', () async {
+    await companion();
+    final before = (await db.creatureDao.getInstance('favorite'))!;
+    final service = BloodRebirthService(db);
+    await Future.wait([
+      service.offer('favorite', species),
+      service.offer('favorite', species),
+    ]);
+    // Consumed, and one vial for it, ready now.
+    expect(await db.creatureDao.getInstance('favorite'), isNull);
+    final vial = (await vials()).single;
+    expect(vial.resultCreatureId, species.id);
+    expect(
+      vial.hatchAtUtcMs! <= DateTime.now().toUtc().millisecondsSinceEpoch,
+      isTrue,
+    );
+    expect(await db.inventoryDao.getItemQty(InvKeys.alchemyBloodAura), 1);
+    expect(
+      await db.settingsDao.getSetting(CampaignJournalService.endingKey),
+      vial.eggId,
+    );
+
+    final payload = jsonDecode(vial.payloadJson!) as Map<String, dynamic>;
+    expect(BloodRebirthService.carriesRecord(payload), isTrue);
+    final id = (await service.hatch(payload, species))!;
+    final after = (await db.creatureDao.getInstance(id))!;
+    expect(id, isNot('favorite'));
+    expect(after.nickname, before.nickname);
+    expect(after.level, before.level);
+    expect(after.xp, before.xp);
+    expect(after.statStrengthEnhancement, before.statStrengthEnhancement);
+    expect(after.variantFaction, 'bloodborn');
+    expect(after.alchemyEffect, 'blood_aura');
+    expect([
+      after.statSpeedPotential,
+      after.statIntelligencePotential,
+      after.statStrengthPotential,
+      after.statBeautyPotential,
+    ], everyElement(95));
+    expect(
+      after.statSpeed,
+      closeTo(
+        AlchemonStatSystem.effectiveInternal(
+          speciesBase: species.baseStats!.speed,
+          level: 8,
+          potential: 95,
+          enhancementRank: 2,
+          // Its bloodline's purity roll kept, as every stat writer keeps it.
+          additionalMultiplier: instanceTraitMultiplier(
+            after,
+            'speed',
+            species: species,
           ),
-          .000001,
+        ),
+        .000001,
+      ),
+    );
+    expect(await db.creatureDao.countBySpecies(species.id), 1);
+    expect(
+      await db.settingsDao.getSetting(CampaignJournalService.endingKey),
+      id,
+    );
+  });
+
+  test(
+    'the rite never lowers a Potential, and Souls come back with their gain',
+    () async {
+      await db.creatureDao.insertInstance(
+        instanceId: 'perfect',
+        baseId: species.id,
+        level: 12,
+        statSpeedPotential: 100,
+        statIntelligencePotential: 100,
+        statStrengthPotential: 100,
+        statBeautyPotential: 100,
+      );
+      // Two Souls: +3 Speed (born 97) and +5 Beauty (born 95).
+      await (db.update(
+        db.creatureInstances,
+      )..where((t) => t.instanceId.equals('perfect'))).write(
+        const CreatureInstancesCompanion(
+          potentialSouls: Value('speed:3,beauty:5'),
         ),
       );
-      expect(await db.inventoryDao.getItemQty(InvKeys.alchemyBloodAura), 1);
-      expect(
-        await db.settingsDao.getSetting(CampaignJournalService.endingKey),
-        'favorite',
-      );
-      expect(await db.select(db.eggs).get(), isEmpty);
+      final service = BloodRebirthService(db);
+      await service.offer('perfect', species);
+      expect(await db.inventoryDao.getItemQty(InvKeys.potentialSoul), 2);
+      final payload =
+          jsonDecode((await vials()).single.payloadJson!)
+              as Map<String, dynamic>;
+      final after = (await db.creatureDao.getInstance(
+        (await service.hatch(payload, species))!,
+      ))!;
+      expect(after.statSpeedPotential, 97);
+      expect(after.statIntelligencePotential, 100);
+      expect(after.statStrengthPotential, 100);
+      expect(after.statBeautyPotential, 95);
+      expect(after.potentialSouls, isNull);
     },
   );
 
+  test('full chambers send the Bloodborn Vial to cold storage', () async {
+    await companion();
+    for (final slot in await db.select(db.incubatorSlots).get()) {
+      await db.incubatorDao.placeEgg(
+        slotId: slot.id,
+        eggId: 'occupied_${slot.id}',
+        resultCreatureId: 'LET01',
+        rarity: 'Common',
+        hatchAtUtc: DateTime.now().toUtc(),
+      );
+    }
+    expect(await BloodRebirthService(db).offer('favorite', species), isFalse);
+    expect(await vials(), isEmpty);
+    final stored = (await db.select(db.eggs).get()).single;
+    expect(stored.resultCreatureId, species.id);
+    expect(stored.payloadJson, contains(BloodRebirthService.recordKey));
+  });
+
   test(
-    'failed rebirth rolls back specimen changes and remains retryable',
+    'failed rebirth keeps the offering, leaves no vial, and remains retryable',
     () async {
       await companion();
       await db.customStatement(
         "CREATE TRIGGER fail_rebirth BEFORE INSERT ON settings WHEN NEW.key = 'campaign_blood_rebirth_v1' BEGIN SELECT RAISE(ABORT, 'injected'); END",
       );
       await expectLater(
-        BloodRebirthService(db).transform('favorite', species),
+        BloodRebirthService(db).offer('favorite', species),
         throwsA(anything),
       );
-      expect(
-        (await db.creatureDao.getInstance('favorite'))!.statSpeedPotential,
-        81,
-      );
+      expect(await db.creatureDao.getInstance('favorite'), isNotNull);
+      expect(await vials(), isEmpty);
       expect(await db.inventoryDao.getItemQty(InvKeys.alchemyBloodAura), 0);
       expect(
         await db.settingsDao.getSetting(CampaignJournalService.endingKey),
         isNull,
       );
       await db.customStatement('DROP TRIGGER fail_rebirth');
-      await BloodRebirthService(db).transform('favorite', species);
-      expect(
-        (await db.creatureDao.getInstance('favorite'))!.statSpeedPotential,
-        95,
-      );
+      await BloodRebirthService(db).offer('favorite', species);
+      expect(await db.creatureDao.getInstance('favorite'), isNull);
+      expect(await vials(), hasLength(1));
     },
   );
 
   test('missing companion cannot complete the ending', () async {
     await expectLater(
-      BloodRebirthService(db).transform('missing', species),
+      BloodRebirthService(db).offer('missing', species),
       throwsStateError,
     );
     expect(

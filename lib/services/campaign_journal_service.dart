@@ -769,7 +769,7 @@ const campaignMissionInstructions = {
   'blood_mystic':
       'At the Blood altar, commit all eight required Blood species and use the Blood relic to perform the final Mystic ritual.',
   'ending':
-      'Extract Sanguorath, summon it in cosmic space, and bring another companion in reserve to the Blood Ring. That companion becomes Bloodborn with 95 in all four Potentials.',
+      'Extract Sanguorath, summon it in cosmic space, and bring another companion in reserve to the Blood Ring. It is offered, and a Bloodborn Vial goes to your extraction chamber: it comes back Bloodborn, every Potential at least 95.',
 };
 
 class CampaignSnapshot {

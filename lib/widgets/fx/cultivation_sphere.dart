@@ -4,10 +4,13 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/egg/egg_payload_helpers.dart'
+    show isBloodbornPayload;
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/albino_look.dart';
+import 'package:alchemons/widgets/fx/bloodborn_vial.dart';
 import 'package:alchemons/widgets/fx/fusion_burst.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:flutter/material.dart';
@@ -104,7 +107,11 @@ class CultivationGrains {
     });
   }
 
-  /// The genetics coloring a sprite is drawn with, as one matrix.
+  /// The genetics coloring a sprite is drawn with, as one matrix (null for
+  /// none).
+  static List<double>? coloring(Genetics? g, bool prismatic) =>
+      _coloring(g, prismatic);
+
   static List<double>? _coloring(Genetics? g, bool prismatic) {
     final bri = briFromGenes(g), sat = satFromGenes(g), hue = hueFromGenes(g);
     if (bri == 1.45 && !prismatic) return kAlbinoMatrix;
@@ -910,7 +917,11 @@ class _CultivationSphereState extends State<CultivationSphere>
   void initState() {
     super.initState();
     _rate = _targetRate;
-    _ticker = createTicker(_tick)..start();
+    _ticker = createTicker(_tick);
+    // A Bloodborn Vial is its own thing (see bloodborn_vial.dart): no
+    // sphere, so nothing here runs, and nothing flies or hands off.
+    if (_blood) return;
+    _ticker.start();
     final arrival = widget.arrival;
     if (arrival != null && !arrival._over) {
       final h = arrival.handoff;
@@ -942,7 +953,10 @@ class _CultivationSphereState extends State<CultivationSphere>
           : CultivationSphere.spinRate(widget.progress)) *
       widget.spinScale;
 
+  bool get _blood => isBloodbornPayload(widget.payload);
+
   Future<void> _load() async {
+    if (_blood) return;
     final parents = await CultivationGrains.forPayload(
       widget.payload,
       widget.types,
@@ -1015,6 +1029,15 @@ class _CultivationSphereState extends State<CultivationSphere>
 
   @override
   Widget build(BuildContext context) {
+    if (_blood) {
+      return BloodbornVial(
+        payload: widget.payload,
+        progress: widget.progress,
+        isReady: widget.isReady,
+        grains: widget.grains,
+        interactive: widget.interactive,
+      );
+    }
     final field = _field;
     final colors = _colors = [
       for (var i = 0; i < 2; i++)
