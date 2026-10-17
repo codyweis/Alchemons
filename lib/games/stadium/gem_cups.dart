@@ -80,7 +80,7 @@ const List<GemCup> kGemCups = [
     name: 'Ruby Cup',
     event: GemEvent.island,
     gold: [3, 4, 5],
-    rivalForm: [0.8, 0.93, 0.89],
+    rivalForm: [1.02, 0.98, 1.01],
     rivals: [
       RaceRival(
         name: 'Lavahorn',

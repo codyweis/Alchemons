@@ -15,6 +15,9 @@
 //     lined up with it, beats the nearest), how often it thinks, and how
 //     far from the edge it keeps;
 //   · Beauty — the crowd's favour, which steadies it at the brink.
+// Every charge runs as far, so Speed brings it there sooner, never further;
+// and every blow taken leaves one easier to move, so the bout is won over
+// all its blows rather than by whoever is caught last on a sliver of rock.
 // Every one of the three fights on its own; the player's taps are charges
 // of their own — harder ones — one for each stamina bar.
 //
@@ -56,6 +59,14 @@ double islandCos(double x) => islandSin(x + math.pi / 2);
 /// The longest a bout runs before the one nearest the middle is given it.
 const int kIslandMaxTicks = 90 * kIslandTickRate;
 
+/// What an even, unboosted blow carries (a charge at a judged Speed of 5
+/// into one as strong), and how much more each such blow taken leaves the
+/// next carrying.
+const double kIslandEvenBlow = (72 + 11 * 5) * 0.62, kIslandWearPerBlow = 0.12;
+
+/// How far a charge runs, in island units.
+const double kIslandDashReach = (72 + 11 * 5) * 22 / kIslandTickRate;
+
 /// The island's radius as it starts, in island units, and the least it
 /// crumbles to.
 const double kIslandRadius = 100, kIslandMinRadius = 16;
@@ -92,6 +103,12 @@ class IslandBout {
   double get grip => switch (kind) {
     IslandKind.ice => 0.986,
     _ => 0.93,
+  };
+
+  /// How much of its speed a charge that finds no one keeps.
+  double get pullUp => switch (kind) {
+    IslandKind.ice => 0.6,
+    _ => 0.2,
   };
 
   /// How fast the edge crumbles, in units a second once it starts.
@@ -154,9 +171,16 @@ class IslandFighter {
   /// Whether this charge is one of its stamina's (harder).
   bool boosted = false;
 
+  /// How knocked about it is: every blow it takes leaves it carried that
+  /// much further by the next one.
+  double worn = 0;
+
   /// Stamina charges left; when it next looks for someone to charge.
   int charges;
   int nextThink = 0;
+
+  /// How many times it has thought: what its pauses are drawn from.
+  int thinks = 0;
 
   /// The tick it went over the edge, and was gone.
   int? fellAt, outAt;
@@ -335,9 +359,14 @@ class IslandSim {
     s.chargesAt.add(tick);
   }
 
-  /// How long a charge winds up, and how long it runs.
-  static const int _windup = 18, _dash = 22;
+  /// How long a charge winds up.
+  static const int _windup = 18;
   static const int windupTicks = _windup;
+
+  /// How long fighter [i]'s charge runs: as far for every one of them, so a
+  /// quick one gets there sooner rather than further.
+  int dashTicks(int i) =>
+      (kIslandDashReach * kIslandTickRate / _dashSpeed(i)).round();
 
   void step() {
     if (over) return;
@@ -394,7 +423,8 @@ class IslandSim {
     // The clever think again sooner.
     s.nextThink =
         tick +
-        (62 + (6 - wits[i]).clamp(0.0, 6.0) * 15 + _hash(tick, i) * 40).round();
+        (62 + (6 - wits[i]).clamp(0.0, 6.0) * 15 + _hash(s.thinks++, i) * 40)
+            .round();
   }
 
   void _move(int i, double r) {
@@ -426,8 +456,11 @@ class IslandSim {
         s
           ..vx = s.dx * speed
           ..vy = s.dy * speed;
-        if (tick - s.phaseFrom >= _dash) {
+        if (tick - s.phaseFrom >= dashTicks(i)) {
+          // A charge that finds no one pulls up (on ice, it slides on).
           s
+            ..vx *= bout.pullUp
+            ..vy *= bout.pullUp
             ..phase = FighterPhase.stand
             ..phaseFrom = tick;
         }
@@ -458,13 +491,25 @@ class IslandSim {
         final hy = (al < 1e-9 ? 0 : ay / al * keep) + islandSin(a) * wander;
         final ox = hx - s.x, oy = hy - s.y;
         final d = math.sqrt(ox * ox + oy * oy);
-        if (d > 2) {
-          final acc = 46 + 12 * pace[i];
-          s
-            ..vx += ox / d * acc * dt
-            ..vy += oy / d * acc * dt;
-        }
         final cap = 30 + 7 * pace[i];
+        // Steps towards that spot, easing in as it nears it rather than
+        // running past (on ice especially): what it would be doing, and
+        // as much of a turn towards that as its pace allows in a tick.
+        final want = math.min(cap, d * 4);
+        final wx = d > 1e-6 ? ox / d * want : 0.0;
+        final wy = d > 1e-6 ? oy / d * want : 0.0;
+        final ex = wx - s.vx, ey = wy - s.vy;
+        final el = math.sqrt(ex * ex + ey * ey);
+        final acc = (46 + 12 * pace[i]) * dt;
+        if (el > acc) {
+          s
+            ..vx += ex / el * acc
+            ..vy += ey / el * acc;
+        } else {
+          s
+            ..vx = wx
+            ..vy = wy;
+        }
         final v = math.sqrt(s.vx * s.vx + s.vy * s.vy);
         if (v > cap && s.phase == FighterPhase.stand) {
           // Only its own steps are capped; a blow still carries it.
@@ -551,9 +596,11 @@ class IslandSim {
         (0.45 + 0.55 * push[i] / math.max(1.0, push[j])) *
         (a.boosted ? 1.4 : 1) *
         math.sqrt(mass(i) / mass(j));
+    final carry = hit * (1 + b.worn);
+    b.worn += kIslandWearPerBlow * hit / kIslandEvenBlow;
     b
-      ..vx += nx * hit
-      ..vy += ny * hit
+      ..vx += nx * carry
+      ..vy += ny * carry
       ..phase = FighterPhase.reel
       ..phaseFrom = tick;
     a
