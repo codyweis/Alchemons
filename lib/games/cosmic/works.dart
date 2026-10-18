@@ -844,6 +844,75 @@ class WorksState {
   }
 }
 
+// ── what wants the player ───────────────────────────────────────────────────
+
+/// Why a building wants the player: finds to collect, or the reason it has
+/// stopped. Only what a tap can mend — a press with nothing over its keep,
+/// or a courier that cannot keep up, is doing as it was told.
+enum WorksNeed {
+  /// Finds wait in the bay's crates.
+  collect,
+
+  /// The hopper is full and nothing carries it off: mining has stopped.
+  full,
+
+  /// No one works it, so it does nothing.
+  noWorker,
+
+  /// The Refinery has nothing chosen to make, though the Codex has found
+  /// something it could.
+  noRecipe,
+}
+
+WorksNeed? extractorNeed(ExtractorState x) {
+  if (x.hopperFull && x.courier == null) return WorksNeed.full;
+  if (x.miners.every((m) => m == null)) return WorksNeed.noWorker;
+  return null;
+}
+
+WorksNeed? bayNeed(ScavengerBayState bay) {
+  if (!bay.built) return null;
+  if (bay.crates.isNotEmpty) return WorksNeed.collect;
+  if (bay.slots.every((s) => s.instanceId == null)) return WorksNeed.noWorker;
+  return null;
+}
+
+WorksNeed? pressNeed(SilverPressState press) =>
+    press.built && press.presser == null ? WorksNeed.noWorker : null;
+
+/// [knownRecipes] are the pair keys the Codex has found.
+WorksNeed? refineryNeed(RefineryState r, Set<String> knownRecipes) {
+  if (!r.built) return null;
+  if (r.refiner == null) return WorksNeed.noWorker;
+  if (r.recipe == null &&
+      knownRecipes.any(WorkRules.refineRecipes.containsKey)) {
+    return WorksNeed.noRecipe;
+  }
+  return null;
+}
+
+extension WorksNeeds on WorksState {
+  /// Whether any extractor wants the player.
+  bool get extractorsNeed =>
+      extractors.values.any((x) => extractorNeed(x) != null);
+
+  /// Whether anything in the Works wants the player.
+  bool needsPlayer(Set<String> knownRecipes) =>
+      bayNeed(bay) != null ||
+      pressNeed(press) != null ||
+      refineryNeed(refinery, knownRecipes) != null ||
+      extractorsNeed;
+}
+
+/// What [x]'s courier is doing at [nowMs], in a few words, or null with no
+/// courier on a run.
+String? courierStatus(ExtractorState x, int nowMs) {
+  if (x.courier == null || x.cycleMs <= 0) return null;
+  final ph = (nowMs - x.cycleStartMs) / x.cycleMs;
+  if (ph >= 0.5) return 'FLYING BACK';
+  return x.cargo > 0 ? 'FLYING ${x.cargo.floor()} HOME' : 'ON ITS WAY HOME';
+}
+
 // ── the clock ───────────────────────────────────────────────────────────────
 
 /// What the works did between two advances.

@@ -22,7 +22,7 @@ import 'package:provider/provider.dart';
 import 'cosmic_overlay_chrome.dart';
 import 'cosmic_panel_kit.dart';
 import 'cosmic_screen_styles.dart';
-import 'works_panels.dart' show jobFigure, jobReads, jobScore;
+import 'works_panels.dart' show jobFigure, jobReads, jobScore, jobStats;
 
 /// What an Alchemon brings to a job, read from its record.
 WorkerProfile workerProfileOf(CreatureInstance inst, String element) =>
@@ -181,7 +181,7 @@ class _WorkerPickerState extends State<WorkerPicker> {
                         gridDelegate:
                             const SliverGridDelegateWithMaxCrossAxisExtent(
                               maxCrossAxisExtent: 128,
-                              mainAxisExtent: 104,
+                              mainAxisExtent: 118,
                               crossAxisSpacing: 8,
                               mainAxisSpacing: 8,
                             ),
@@ -254,12 +254,20 @@ class _WorkerPickerState extends State<WorkerPicker> {
                   ),
                 ),
                 const SizedBox(height: 2),
+                // Its own figures for what the job reads, so the rate above
+                // can be traced to them.
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   child: Text(
-                    current
-                        ? 'HERE NOW'
-                        : blockedWhy ?? working ?? 'LV ${c.inst.level}',
+                    jobStats(widget.job, c.profile, level: c.inst.level),
+                    style: panelLabel(8, panelPalette.muted, spacing: 0.4),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    current ? 'HERE NOW' : blockedWhy ?? working ?? ' ',
                     style: panelLabel(
                       8,
                       current

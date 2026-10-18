@@ -18,6 +18,7 @@ import 'package:alchemons/screens/cosmic/widgets/load_hold_panel.dart';
 import 'package:alchemons/screens/cosmic/widgets/worker_picker.dart';
 import 'package:alchemons/screens/cosmic/widgets/works_panels.dart';
 import 'package:alchemons/screens/cosmic/widgets/works_tutorials.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -381,6 +382,138 @@ void main() {
       'take down refinery',
       'outpost Fire',
     ]);
+    await tester.pumpWidget(const SizedBox());
+    await settle(tester, 2);
+  });
+
+  testWidgets('the Works mark what wants the player', (tester) async {
+    tester.view.physicalSize = const Size(475, 751);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await seed(tester);
+    final actions = _Actions();
+    final tabs = <WorksTab>[];
+    final v = view(builtWorks());
+    // Crates wait in the bay; Water's hopper is full with no one to mine
+    // or carry it.
+    expect(firstWorksTabNeeding(v), WorksTab.bay);
+    expect(firstWorksTabNeeding(view(WorksState())), isNull);
+    await tester.pumpWidget(
+      host(
+        WorksPanel(
+          view: ValueNotifier(v),
+          actions: actions,
+          onTabChanged: tabs.add,
+        ),
+      ),
+    );
+    await settle(tester);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('works.tabs')),
+        matching: find.byType(AttentionDot),
+      ),
+      findsNWidgets(2),
+    );
+
+    Future<void> tab(String label) async {
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const ValueKey('works.tabs')),
+          matching: find.text(label),
+        ),
+      );
+      await settle(tester, 2);
+    }
+
+    // An upgrade that can be paid for is lit like the thing to do.
+    await tab('BAY');
+    final upgrade = tester.widget<BracketButton>(
+      find.ancestor(
+        of: find.text('UPGRADE TO TIER 3'),
+        matching: find.byType(BracketButton),
+      ),
+    );
+    expect(upgrade.enabled, isTrue);
+    expect(upgrade.primary, isTrue);
+    await tester.tap(find.byKey(const ValueKey('works.bay.slot.0.remove')));
+    await settle(tester, 2);
+    expect(actions.calls, ['clear scavenger']);
+
+    // The press says what it makes in silver, as its presser's slot does.
+    await tab('PRESS');
+    expect(find.textContaining('SPARE · '), findsOneWidget);
+    expect(find.textContaining('SILVER/MIN'), findsNWidgets(2));
+
+    // A recipe short of an input says so, and stands dim.
+    await tab('REFINERY');
+    expect(find.text('NOT ENOUGH AIR'), findsOneWidget);
+    expect(find.text('NOT ENOUGH EARTH'), findsNothing);
+
+    await tab('PLANETS');
+    String status(String e) => tester
+        .widget<Text>(find.byKey(ValueKey('works.outpost.$e.status')))
+        .data!;
+    expect(status('Water'), 'FULL · NO MINER');
+    expect(status('Fire'), startsWith('MINING '));
+    expect(status('Fire'), contains('COURIER FLYING 25 HOME'));
+    expect(tabs, [
+      WorksTab.bay,
+      WorksTab.press,
+      WorksTab.refinery,
+      WorksTab.planets,
+    ]);
+    await tester.pumpWidget(const SizedBox());
+    await settle(tester, 2);
+  });
+
+  test('every slot and summary writes a rate a minute the same way', () {
+    const p = WorkerProfile(
+      instanceId: 'w',
+      element: 'Fire',
+      speed: 3,
+      intelligence: 4,
+      strength: 3,
+      beauty: 3,
+      harvestRate: 6,
+    );
+    expect(fmtRate(7.6), '7.6');
+    expect(fmtRate(12.4), '12');
+    expect(fmtRate(5), '5');
+    expect(jobFigure(WorkJob.miner, p), '6/MIN');
+    expect(jobFigure(WorkJob.courier, p, distance: 7200), endsWith('/MIN'));
+    expect(jobDetail(WorkJob.courier, p, distance: 7200), contains('A RUN'));
+    expect(jobDetail(WorkJob.miner, p), isNull);
+    expect(jobFigure(WorkJob.presser, p), '5 SILVER/MIN');
+    expect(jobFigure(WorkJob.refiner, p, refineTier: 2), '11 MADE/MIN');
+    expect(jobStats(WorkJob.courier, p, level: 9), 'SPD 3 · STR 3');
+    expect(jobStats(WorkJob.miner, p, level: 9), 'LV 9');
+    // The picker ranks a courier by what it moves a minute.
+    const slow = WorkerProfile(
+      instanceId: 's',
+      element: 'Fire',
+      speed: 1,
+      intelligence: 3,
+      strength: 3,
+      harvestRate: 6,
+    );
+    expect(
+      jobScore(WorkJob.courier, p, distance: 7200),
+      greaterThan(jobScore(WorkJob.courier, slow, distance: 7200)),
+    );
+  });
+
+  testWidgets('the picker shows the stats a job reads', (tester) async {
+    tester.view.physicalSize = const Size(475, 751);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await seed(tester);
+    await tester.pumpWidget(
+      host(const WorkerPicker(job: WorkJob.courier, distance: 7200)),
+    );
+    await settle(tester);
+    expect(find.textContaining('SPD '), findsWidgets);
+    expect(find.textContaining('LV '), findsNothing);
     await tester.pumpWidget(const SizedBox());
     await settle(tester, 2);
   });

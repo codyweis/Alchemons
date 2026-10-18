@@ -569,4 +569,85 @@ void main() {
       expect(works.berthsUsed, 0);
     });
   });
+
+  group('what wants the player', () {
+    test('an extractor wants a look when full with no courier, or unmined', () {
+      final x = ExtractorState(element: 'Fire', updatedMs: 0, hopper: 120);
+      expect(extractorNeed(x), WorksNeed.full);
+      x.hopper = 40;
+      expect(extractorNeed(x), WorksNeed.noWorker);
+      x.miners[0] = 'm';
+      expect(extractorNeed(x), isNull);
+      x.hopper = 120;
+      expect(extractorNeed(x), WorksNeed.full);
+      // A courier that cannot keep up is doing as it was told.
+      final y = ExtractorState(
+        element: 'Fire',
+        updatedMs: 0,
+        tier: 2,
+        miners: ['m'],
+        courier: 'c',
+        hopper: 300,
+      );
+      expect(extractorNeed(y), isNull);
+    });
+
+    test('the bay wants a look with finds waiting, or no one to send', () {
+      final bay = ScavengerBayState(tier: 1, berth: 0);
+      expect(bayNeed(bay), WorksNeed.noWorker);
+      bay.slots[0].instanceId = 's';
+      expect(bayNeed(bay), isNull);
+      bay.crates.add(const ScavengerFind(elements: {'Fire': 10}));
+      expect(bayNeed(bay), WorksNeed.collect);
+      expect(bayNeed(ScavengerBayState()), isNull, reason: 'not built');
+    });
+
+    test('the press and refinery want a worker; the refinery a recipe', () {
+      expect(pressNeed(SilverPressState(tier: 1)), WorksNeed.noWorker);
+      expect(pressNeed(SilverPressState(tier: 1, presser: 'p')), isNull);
+      expect(pressNeed(SilverPressState()), isNull, reason: 'not built');
+
+      final r = RefineryState(tier: 1);
+      expect(refineryNeed(r, const {}), WorksNeed.noWorker);
+      r.refiner = 'r';
+      // Nothing found in the Codex yet: nothing it could be asked to make.
+      expect(refineryNeed(r, const {}), isNull);
+      expect(refineryNeed(r, const {'Fire+Water'}), WorksNeed.noRecipe);
+      r.recipe = 'Fire+Water';
+      expect(refineryNeed(r, const {'Fire+Water'}), isNull);
+    });
+
+    test('the Works as a whole want a look when any part does', () {
+      final works = WorksState(
+        press: SilverPressState(tier: 1, berth: 0, presser: 'p'),
+      );
+      expect(works.needsPlayer(const {}), isFalse);
+      works.extractors['Fire'] = ExtractorState(
+        element: 'Fire',
+        updatedMs: 0,
+        miners: ['m'],
+        hopper: 120,
+      );
+      expect(works.extractorsNeed, isTrue);
+      expect(works.needsPlayer(const {}), isTrue);
+    });
+
+    test('a courier says where its run has it', () {
+      final x = ExtractorState(
+        element: 'Fire',
+        updatedMs: 0,
+        tier: 2,
+        courier: 'c',
+        cycleStartMs: 1000,
+        cycleMs: 100000,
+        cargo: 25,
+      );
+      expect(courierStatus(x, 21000), 'FLYING 25 HOME');
+      expect(courierStatus(x, 71000), 'FLYING BACK');
+      x.cargo = 0;
+      expect(courierStatus(x, 21000), 'ON ITS WAY HOME');
+      x.courier = null;
+      expect(courierStatus(x, 21000), isNull);
+    });
+  });
 }

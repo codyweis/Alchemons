@@ -169,6 +169,56 @@ extension CosmicGameWorks on CosmicGame {
     );
   }
 
+  /// The Works building under [screenPos] (the game's own coordinates), if
+  /// any: a home building, or an extractor with its planet's element. The
+  /// nearest wins where two reach, and every one is at least a thumb wide on
+  /// screen however far out the camera is.
+  (WorksBuilding, String?)? worksHitAt(Offset screenPos) {
+    final w = works;
+    if (w == null) return null;
+    final z = cameraZoom;
+    final tap = Offset(screenPos.dx / z + camX, screenPos.dy / z + camY);
+    final thumb = 28 / z;
+    (WorksBuilding, String?)? hit;
+    var best = double.infinity;
+    void consider(WorksBuilding b, String? element, Offset? at, double r) {
+      if (at == null) return;
+      final d = _toroidalDelta(at, tap).distance;
+      if (d <= max(r, thumb) && d < best) {
+        best = d;
+        hit = (b, element);
+      }
+    }
+
+    // About the reach of each piece, a little inside it: the art's glow
+    // and grains stand well past the solid part.
+    final k = _homeScale;
+    if (w.bay.built) {
+      consider(WorksBuilding.scavengerBay, null, worksBayPos, kBayReach * k);
+    }
+    if (w.press.built) {
+      consider(WorksBuilding.silverPress, null, worksPressPos, 36 * k);
+    }
+    if (w.refinery.built) {
+      consider(WorksBuilding.refinery, null, worksRefineryPos, 36 * k);
+    }
+    if (w.armory.built) {
+      consider(WorksBuilding.armory, null, worksArmoryPos, 36 * k);
+    }
+    // A rig stands up from its foot about 60 art units: its middle is
+    // halfway up.
+    for (final x in w.extractors.keys) {
+      if (_planetOf(x) == null) continue;
+      consider(
+        WorksBuilding.extractor,
+        x,
+        _onRig(x, const Offset(0, -30)),
+        36 * _artScale,
+      );
+    }
+    return hit;
+  }
+
   Offset? get worksBayPos => berthPos(works?.bay.berth ?? -1);
   Offset? get worksPressPos => berthPos(works?.press.berth ?? -1);
   Offset? get worksRefineryPos => berthPos(works?.refinery.berth ?? -1);

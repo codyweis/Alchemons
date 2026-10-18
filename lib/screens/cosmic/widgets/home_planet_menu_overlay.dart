@@ -13,6 +13,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'cosmic_overlay_chrome.dart';
@@ -74,6 +75,7 @@ class HomePlanetMenuOverlay extends StatelessWidget {
     this.onLoadHold,
     this.onWorks,
     this.worksKey,
+    this.worksNeedsYou,
     this.paintHome,
     this.wearing = const {},
   });
@@ -92,6 +94,9 @@ class HomePlanetMenuOverlay extends StatelessWidget {
 
   /// On the WORKS button, for the tutorial's coach mark.
   final Key? worksKey;
+
+  /// Whether something in the Works wants the player: a dot on WORKS.
+  final ValueListenable<bool>? worksNeedsYou;
 
   /// Draws the real planet on the stage (CosmicGame.paintHomeShowcase).
   final HomeShowcasePainter? paintHome;
@@ -305,6 +310,22 @@ class HomePlanetMenuOverlay extends StatelessWidget {
   }
 
   Widget _dock() {
+    Widget worksButton(bool needs) => BracketButton(
+      key: const ValueKey('home.works'),
+      label: 'WORKS',
+      height: 46,
+      palette: panelPalette,
+      accent: _accent,
+      primary: false,
+      trailing: needs
+          ? const AttentionDot(
+              key: ValueKey('home.works.needs'),
+              color: CosmicScreenStyles.amberBright,
+              size: 7,
+            )
+          : null,
+      onTap: onWorks!,
+    );
     final side = <Widget>[
       if (onLoadHold != null)
         BracketButton(
@@ -319,15 +340,12 @@ class HomePlanetMenuOverlay extends StatelessWidget {
       if (onWorks != null)
         KeyedSubtree(
           key: worksKey,
-          child: BracketButton(
-            key: const ValueKey('home.works'),
-            label: 'WORKS',
-            height: 46,
-            palette: panelPalette,
-            accent: _accent,
-            primary: false,
-            onTap: onWorks!,
-          ),
+          child: worksNeedsYou == null
+              ? worksButton(false)
+              : ValueListenableBuilder<bool>(
+                  valueListenable: worksNeedsYou!,
+                  builder: (context, needs, _) => worksButton(needs),
+                ),
         ),
     ];
     final customize = BracketButton(

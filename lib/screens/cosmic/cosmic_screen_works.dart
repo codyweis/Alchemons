@@ -15,6 +15,11 @@ part of 'cosmic_screen.dart';
 //  extractor; one line when the Works first open, and each building's own
 //  few pages (works_tutorials.dart) the first time one is built. The ?
 //  beside a building's name opens them again.
+//
+//  What wants the player (works.dart, WorksNeed: finds to collect, a full
+//  hopper, a building no one works) lights a dot on the home base button,
+//  on WORKS, on its tab and on OUTPOST, and the Works open on the first tab
+//  that has one. A tap on a building in space opens it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const String _worksPrefsKey = 'cosmic_works_v1';
@@ -288,11 +293,14 @@ extension _CosmicWorks on _CosmicScreenState {
   void _publishWorksView() {
     if (!mounted) return;
     _worksView.value = _makeWorksView();
+    _worksNeedsYou.value = _worksAvailable && _works.needsPlayer(_knownRecipes);
   }
 
   // ── opening the panels ───────────────────────────────────────────────────
 
-  Future<void> _openWorks() async {
+  /// Opens the Works on [tab] (a building tapped in space); else on the
+  /// first tab that wants the player, else where they last looked.
+  Future<void> _openWorks({WorksTab? tab}) async {
     if (!_worksAvailable) return;
     if (_worksCoachButton) _finishWorksCoach();
     await _refreshWalletCurrencies();
@@ -302,9 +310,20 @@ extension _CosmicWorks on _CosmicScreenState {
     final prefs = await SharedPreferences.getInstance();
     final introSeen = prefs.getBool(_worksIntroSeenKey) ?? false;
     if (!mounted) return;
+    final first =
+        tab ??
+        firstWorksTabNeeding(_worksView.value) ??
+        _worksLastTab ??
+        WorksTab.armory;
+    _worksLastTab = first;
     final open = showStationPanel<void>(
       context,
-      WorksPanel(view: _worksView, actions: _worksActions),
+      WorksPanel(
+        view: _worksView,
+        actions: _worksActions,
+        initialTab: first,
+        onTabChanged: (t) => _worksLastTab = t,
+      ),
     );
     if (!introSeen) {
       await Future<void>.delayed(const Duration(milliseconds: 350));
@@ -313,6 +332,56 @@ extension _CosmicWorks on _CosmicScreenState {
       await prefs.setBool(_worksIntroSeenKey, true);
     }
     await open;
+  }
+
+  void _spaceTapDown(PointerDownEvent e) {
+    // A second finger makes it a gesture, not a tap.
+    _spaceTap = _spaceTap == null ? (e.pointer, e.localPosition, _nowMs) : null;
+  }
+
+  void _spaceTapUp(PointerUpEvent e) {
+    final t = _spaceTap;
+    _spaceTap = null;
+    if (t == null || t.$1 != e.pointer) return;
+    if ((e.localPosition - t.$2).distance > kTouchSlop) return;
+    if (_nowMs - t.$3 > 350) return;
+    _handleSpaceTap(e.localPosition);
+  }
+
+  /// A tap in space: a Works building under it opens — a home building on
+  /// its own tab, an extractor at its outpost.
+  void _handleSpaceTap(Offset at) {
+    final game = _game;
+    if (game == null ||
+        !_worksAvailable ||
+        _anyOverlayOpen ||
+        _showMiniMap ||
+        _wildTearActive ||
+        _showBloodRitualOverlay ||
+        game.isTravelling) {
+      return;
+    }
+    final hit = game.worksHitAt(at);
+    if (hit == null) return;
+    // The touch also set the ship flying toward it; opening a building is
+    // not a wish to go there.
+    game.clearSteeringInput();
+    final (b, element) = hit;
+    if (element != null) {
+      unawaited(_openOutpost(element));
+      return;
+    }
+    unawaited(
+      _openWorks(
+        tab: switch (b) {
+          WorksBuilding.scavengerBay => WorksTab.bay,
+          WorksBuilding.silverPress => WorksTab.press,
+          WorksBuilding.refinery => WorksTab.refinery,
+          WorksBuilding.armory => WorksTab.armory,
+          WorksBuilding.extractor => WorksTab.planets,
+        },
+      ),
+    );
   }
 
   Future<void> _showWorksIntro() async {

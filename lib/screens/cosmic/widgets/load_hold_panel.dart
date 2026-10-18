@@ -270,7 +270,9 @@ class _LoadHoldPanelState extends State<LoadHoldPanel> {
               height: 34,
               palette: panelPalette,
               accent: elementInk(p.recipe.planetElement),
-              primary: false,
+              // Lit when it can be filled; quiet, it read as one that could
+              // not be.
+              primary: plan != null && !chosen,
               enabled: plan != null && !chosen,
               onTap: () => _fill(p),
             ),

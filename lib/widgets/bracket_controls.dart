@@ -236,12 +236,20 @@ class BracketTabs extends StatelessWidget {
     required this.accent,
     this.icons,
     this.gap = 8,
+    this.marked = const {},
+    this.markColor,
   });
 
   final List<String> labels;
 
   /// Space between tabs.
   final double gap;
+
+  /// Tabs that want a look, by index: a small dot in the corner.
+  final Set<int> marked;
+
+  /// The dot's colour; the accent when null.
+  final Color? markColor;
 
   /// Tabs no longer show icons; kept until the last caller drops it.
   @Deprecated('Tabs no longer show icons; drop the argument')
@@ -265,45 +273,50 @@ class BracketTabs extends StatelessWidget {
                 HapticFeedback.selectionClick();
                 onSelect(i);
               }),
-              child: CustomPaint(
-                foregroundPainter: BracketFramePainter(
-                  color: i == selected
-                      ? accent
-                      : palette.line.withValues(alpha: 0.7),
-                  bracketSize: 8,
-                  strokeWidth: i == selected ? 1.3 : 1,
-                ),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 160),
-                  height: 40,
-                  alignment: Alignment.center,
-                  color: i == selected
-                      ? palette.accentWash(
-                          accent,
-                          darkAlpha: 0.18,
-                          lightAlpha: 0.1,
-                        )
-                      : palette.surfaceMutedFill(),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Shrinks rather than overflowing on a phone set to
-                      // large text.
-                      Flexible(
-                        child: Text(
-                          labels[i],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: i == selected ? palette.ink : palette.muted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 1.6,
+              child: _withMark(
+                marked.contains(i),
+                CustomPaint(
+                  foregroundPainter: BracketFramePainter(
+                    color: i == selected
+                        ? accent
+                        : palette.line.withValues(alpha: 0.7),
+                    bracketSize: 8,
+                    strokeWidth: i == selected ? 1.3 : 1,
+                  ),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    height: 40,
+                    alignment: Alignment.center,
+                    color: i == selected
+                        ? palette.accentWash(
+                            accent,
+                            darkAlpha: 0.18,
+                            lightAlpha: 0.1,
+                          )
+                        : palette.surfaceMutedFill(),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Shrinks rather than overflowing on a phone set to
+                        // large text.
+                        Flexible(
+                          child: Text(
+                            labels[i],
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: i == selected
+                                  ? palette.ink
+                                  : palette.muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.6,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -313,6 +326,38 @@ class BracketTabs extends StatelessWidget {
       ],
     );
   }
+
+  Widget _withMark(bool on, Widget tab) {
+    if (!on) return tab;
+    return Stack(
+      children: [
+        tab,
+        Positioned(
+          top: 6,
+          right: 6,
+          child: AttentionDot(color: markColor ?? accent),
+        ),
+      ],
+    );
+  }
+}
+
+/// A small lit dot: something here wants a look.
+class AttentionDot extends StatelessWidget {
+  const AttentionDot({super.key, required this.color, this.size = 6});
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: size,
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: color,
+      border: Border.all(color: Colors.black.withValues(alpha: 0.6), width: 1),
+    ),
+  );
 }
 
 /// A small square button in a frame (back, close, remove).

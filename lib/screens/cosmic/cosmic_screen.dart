@@ -68,6 +68,7 @@ import 'package:alchemons/screens/story/blood_finale.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:flame/game.dart';
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:flutter/scheduler.dart';
@@ -76,7 +77,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/bracket_controls.dart'
-    show showBracketConfirm;
+    show AttentionDot, showBracketConfirm;
 import 'package:alchemons/widgets/coin_icon.dart' show CoinKind;
 import 'package:alchemons/games/cosmic/works.dart';
 
@@ -209,6 +210,18 @@ class _CosmicScreenState extends State<CosmicScreen>
     _makeWorksView(),
   );
   late final WorksActions _worksActions = _WorksActionsImpl(this);
+
+  /// Whether anything in the Works wants the player (finds to collect, a
+  /// stopped building): a dot on the home base button and on WORKS.
+  final ValueNotifier<bool> _worksNeedsYou = ValueNotifier(false);
+
+  /// The Works tab last looked at, to open on again when nothing wants the
+  /// player.
+  WorksTab? _worksLastTab;
+
+  /// A touch on space that may yet be a tap: its pointer, where it came
+  /// down, and when.
+  (int, Offset, int)? _spaceTap;
   bool _worksCoachDone = true;
   bool _worksCoachHome = false;
   bool _worksCoachButton = false;
@@ -4377,15 +4390,24 @@ class _CosmicScreenState extends State<CosmicScreen>
             onTap: context.soundAction(
               () => unawaited(_openOutpost(outpostPlanet.element)),
             ),
-            child: _CosmicSquareHudButton(
-              key: _coachOutpostKey,
-              accent: elementInk(outpostPlanet.element),
-              active: built != null || _outpostCoach,
-              child: SpaceActionGlyph(
-                SpaceAction.outpost,
-                color: outpostPlanet.color,
-                lit: built != null,
-              ),
+            // Read through the works' view so a hopper filling while the
+            // ship waits here lights the dot without a rebuild.
+            child: ValueListenableBuilder<WorksView>(
+              valueListenable: _worksView,
+              builder: (context, v, _) {
+                final x = v.works.extractors[outpostPlanet.element];
+                return _CosmicSquareHudButton(
+                  key: _coachOutpostKey,
+                  accent: elementInk(outpostPlanet.element),
+                  active: built != null || _outpostCoach,
+                  marked: x != null && extractorNeed(x) != null,
+                  child: SpaceActionGlyph(
+                    SpaceAction.outpost,
+                    color: outpostPlanet.color,
+                    lit: built != null,
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -4425,13 +4447,17 @@ class _CosmicScreenState extends State<CosmicScreen>
               setState(() => _showHomeMenu = true);
               unawaited(_refreshWalletCurrencies());
             }),
-            child: _CosmicSquareHudButton(
-              key: _coachHomeKey,
-              accent: CosmicScreenStyles.amber,
-              active: true,
-              child: SpaceActionGlyph(
-                SpaceAction.home,
-                color: home.blendedColor,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _worksNeedsYou,
+              builder: (context, needs, _) => _CosmicSquareHudButton(
+                key: _coachHomeKey,
+                accent: CosmicScreenStyles.amber,
+                active: true,
+                marked: needs,
+                child: SpaceActionGlyph(
+                  SpaceAction.home,
+                  color: home.blendedColor,
+                ),
               ),
             ),
           ),
@@ -6923,6 +6949,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     _raidTimer?.cancel();
     _worksTimer?.cancel();
     _worksView.dispose();
+    _worksNeedsYou.dispose();
     _meterPulse.dispose();
     _meterTick.dispose();
     _emptySlotPulse.dispose();
@@ -7449,7 +7476,16 @@ class _CosmicScreenState extends State<CosmicScreen>
               Positioned.fill(
                 child: RepaintBoundary(
                   key: _spaceScene,
-                  child: GameWidget(game: _game!),
+                  // A tap on a Works building opens it. Raw pointers, not a
+                  // tap recogniser: one in the arena would hold back the
+                  // game's steering, which takes the touch on its way down.
+                  child: Listener(
+                    behavior: HitTestBehavior.translucent,
+                    onPointerDown: _spaceTapDown,
+                    onPointerUp: _spaceTapUp,
+                    onPointerCancel: (_) => _spaceTap = null,
+                    child: GameWidget(game: _game!),
+                  ),
                 ),
               ),
 
@@ -8074,6 +8110,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                         ? () => unawaited(_openWorks())
                         : null,
                     worksKey: _coachWorksKey,
+                    worksNeedsYou: _worksNeedsYou,
                   ),
                 ),
               if (showCosmicHud &&
@@ -10264,6 +10301,7 @@ class _CosmicSquareHudButton extends StatelessWidget {
     this.active = false,
     this.disabled = false,
     this.size = 44,
+    this.marked = false,
   });
 
   final Color accent;
@@ -10271,6 +10309,9 @@ class _CosmicSquareHudButton extends StatelessWidget {
   final bool active;
   final bool disabled;
   final double size;
+
+  /// Something behind it wants the player: a dot in the corner.
+  final bool marked;
 
   @override
   Widget build(BuildContext context) {
@@ -10300,7 +10341,22 @@ class _CosmicSquareHudButton extends StatelessWidget {
           color: active
               ? accent.withValues(alpha: 0.16)
               : _cosmicMeterPalette.bg0.withValues(alpha: 0.76),
-          child: child,
+          child: marked
+              ? Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    child,
+                    const Positioned(
+                      top: 4,
+                      right: 4,
+                      child: AttentionDot(
+                        color: CosmicScreenStyles.amberBright,
+                      ),
+                    ),
+                  ],
+                )
+              : child,
         ),
       ),
     );

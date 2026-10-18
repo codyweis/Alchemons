@@ -122,34 +122,19 @@ String fmtDuration(int ms) {
   return '$m:${r.toString().padLeft(2, '0')}';
 }
 
-/// What [p] would do at [job], in a few words: the figure the picker sorts
-/// by and every slot shows.
-String jobFigure(
+/// A rate a minute as every Works screen writes it: whole from 10 up, else
+/// to one place, so a slot and its building's summary always agree.
+String fmtRate(double r) =>
+    r >= 10 || r == r.roundToDouble() ? '${r.round()}' : r.toStringAsFixed(1);
+
+/// What [p] makes or moves a minute at [job]: what goes in, out, or home a
+/// minute, the same figure the building's summary adds up.
+double jobRate(
   WorkJob job,
   WorkerProfile p, {
   double distance = 0,
   int pressTier = 1,
   int refineTier = 1,
-}) => switch (job) {
-  WorkJob.miner => '${p.harvestRate}/MIN',
-  WorkJob.courier =>
-    '${WorkRules.courierLoad(p.strength)} A RUN · '
-        '${fmtDuration(WorkRules.courierCycleMs(distance, p.speed))}',
-  WorkJob.scavenger =>
-    '${WorkRules.scavengerFind(p.strength)} A TRIP · '
-        '${fmtDuration(WorkRules.scavengerTripMs(p.speed))}',
-  WorkJob.presser =>
-    '${WorkRules.pressRate(p.beauty, pressTier).toStringAsFixed(0)}/MIN',
-  WorkJob.refiner =>
-    '${(WorkRules.refineRate(p.intelligence) * WorkRules.refineYield(refineTier)).toStringAsFixed(1)} MADE/MIN',
-};
-
-/// Units a minute [p] moves at [job]: how the picker ranks.
-double jobScore(
-  WorkJob job,
-  WorkerProfile p, {
-  double distance = 0,
-  int pressTier = 1,
 }) => switch (job) {
   WorkJob.miner => p.harvestRate.toDouble(),
   WorkJob.courier =>
@@ -157,11 +142,62 @@ double jobScore(
         (WorkRules.courierCycleMs(distance, p.speed) / 60000),
   WorkJob.scavenger =>
     WorkRules.scavengerFind(p.strength) /
-            (WorkRules.scavengerTripMs(p.speed) / 60000) +
-        WorkRules.scavengerShardOdds(p.intelligence),
-  WorkJob.presser => WorkRules.pressRate(p.beauty, pressTier),
-  WorkJob.refiner => WorkRules.refineRate(p.intelligence),
+        (WorkRules.scavengerTripMs(p.speed) / 60000),
+  WorkJob.presser =>
+    WorkRules.pressRate(p.beauty, pressTier) / WorkRules.grainsPerSilver,
+  WorkJob.refiner =>
+    WorkRules.refineRate(p.intelligence) * WorkRules.refineYield(refineTier),
 };
+
+/// What [p] would do at [job], as a rate a minute: the figure the picker
+/// sorts by and every slot shows.
+String jobFigure(
+  WorkJob job,
+  WorkerProfile p, {
+  double distance = 0,
+  int pressTier = 1,
+  int refineTier = 1,
+}) {
+  final r = fmtRate(
+    jobRate(
+      job,
+      p,
+      distance: distance,
+      pressTier: pressTier,
+      refineTier: refineTier,
+    ),
+  );
+  return switch (job) {
+    WorkJob.presser => '$r SILVER/MIN',
+    WorkJob.refiner => '$r MADE/MIN',
+    _ => '$r/MIN',
+  };
+}
+
+/// How a run or a trip makes up that rate, for those that come in loads.
+String? jobDetail(WorkJob job, WorkerProfile p, {double distance = 0}) =>
+    switch (job) {
+      WorkJob.courier =>
+        '${WorkRules.courierLoad(p.strength)} A RUN · '
+            '${fmtDuration(WorkRules.courierCycleMs(distance, p.speed))}',
+      WorkJob.scavenger =>
+        '${WorkRules.scavengerFind(p.strength)} A TRIP · '
+            '${fmtDuration(WorkRules.scavengerTripMs(p.speed))}',
+      _ => null,
+    };
+
+/// How the picker ranks: the rate, and for a scavenger its odds of shards
+/// on top.
+double jobScore(
+  WorkJob job,
+  WorkerProfile p, {
+  double distance = 0,
+  int pressTier = 1,
+}) =>
+    jobRate(job, p, distance: distance, pressTier: pressTier) +
+    (job == WorkJob.scavenger
+        ? WorkRules.scavengerShardOdds(p.intelligence)
+        : 0);
 
 /// Which stats a job reads, for the slot's small print.
 String jobReads(WorkJob job) => switch (job) {
@@ -171,6 +207,22 @@ String jobReads(WorkJob job) => switch (job) {
   WorkJob.presser => 'BEAUTY',
   WorkJob.refiner => 'INTELLIGENCE',
 };
+
+String _stat(double v) =>
+    v == v.roundToDouble() ? '${v.round()}' : v.toStringAsFixed(1);
+
+/// [p]'s own figures for what [job] reads: SPD 3 · STR 2. A miner's rate
+/// comes from its level, size and nature together, so it shows its level.
+String jobStats(WorkJob job, WorkerProfile p, {required int level}) =>
+    switch (job) {
+      WorkJob.miner => 'LV $level',
+      WorkJob.courier => 'SPD ${_stat(p.speed)} · STR ${_stat(p.strength)}',
+      WorkJob.scavenger =>
+        'SPD ${_stat(p.speed)} · STR ${_stat(p.strength)} · '
+            'INT ${_stat(p.intelligence)}',
+      WorkJob.presser => 'BEAUTY ${_stat(p.beauty)}',
+      WorkJob.refiner => 'INT ${_stat(p.intelligence)}',
+    };
 
 // ── the stage ───────────────────────────────────────────────────────────────
 
@@ -402,6 +454,7 @@ class WorkerSlotRow extends StatelessWidget {
       );
     }
     final ink = elementInk(m.element);
+    final detail = jobDetail(job, p, distance: distance);
     return GestureDetector(
       key: slotKey,
       behavior: HitTestBehavior.opaque,
@@ -429,13 +482,26 @@ class WorkerSlotRow extends StatelessWidget {
                       style: panelLabel(10, ink, spacing: 0.6),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      jobFigure(
-                        job,
-                        p,
-                        distance: distance,
-                        pressTier: pressTier,
-                        refineTier: refineTier,
+                    Text.rich(
+                      TextSpan(
+                        text: jobFigure(
+                          job,
+                          p,
+                          distance: distance,
+                          pressTier: pressTier,
+                          refineTier: refineTier,
+                        ),
+                        children: [
+                          if (detail != null)
+                            TextSpan(
+                              text: '  $detail',
+                              style: panelLabel(
+                                8.5,
+                                panelPalette.muted,
+                                spacing: 0.4,
+                              ),
+                            ),
+                        ],
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -457,7 +523,20 @@ class WorkerSlotRow extends StatelessWidget {
                   ],
                 ),
               ),
+              // The whole row changes who works it; said here so it is
+              // found.
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 12,
+                ),
+                child: Text('CHANGE', style: panelLabel(9, ink, spacing: 0.8)),
+              ),
               GestureDetector(
+                key: switch (slotKey) {
+                  ValueKey<String>(:final value) => ValueKey('$value.remove'),
+                  _ => null,
+                },
                 behavior: HitTestBehavior.opaque,
                 onTap: context.soundAction(onClear),
                 // Takes the Alchemon off the job; a wide target for a thumb.
@@ -557,7 +636,8 @@ class WorksCostLine extends StatelessWidget {
             const CoinIcon(kind: CoinKind.silver, size: 11),
             const SizedBox(width: 4),
             Text(
-              '${panelFmt(cost.silver)} SILVER',
+              '${panelFmt(cost.silver)} SILVER'
+              '${ok ? '' : ' · YOU HAVE ${panelFmt(silver)}'}',
               style: panelLabel(
                 9.5,
                 ok ? panelPalette.ink : CosmicScreenStyles.textMuted,
@@ -702,6 +782,26 @@ Widget _line(String text, {Color? color, double size = 9.5}) => Padding(
 
 Widget _gap([double h = 8]) => SizedBox(height: h);
 
+/// An extractor at a glance, for the PLANETS list: whether it has stopped,
+/// what its miners make, and where its courier is.
+String outpostStatus(
+  ExtractorState x,
+  Map<String, WorkerProfile> profiles,
+  int nowMs,
+) {
+  final rate = minerRate(x, profiles);
+  final courier = courierStatus(x, nowMs);
+  return [
+    if (extractorNeed(x) == WorksNeed.full) 'FULL',
+    if (x.miners.every((m) => m == null))
+      'NO MINER'
+    else
+      'MINING ${fmtRate(rate)}/MIN',
+    if (WorkRules.hasCourier(x.tier))
+      x.courier == null ? 'NO COURIER' : 'COURIER ${courier ?? 'WAITING'}',
+  ].join(' · ');
+}
+
 /// What a refinery tier makes of what it takes, in whole numbers.
 String refineYieldLine(int tier) => switch (tier) {
   <= 1 => '2 IN → 1 OUT',
@@ -713,17 +813,38 @@ String refineYieldLine(int tier) => switch (tier) {
 
 enum WorksTab { armory, bay, press, refinery, planets }
 
+/// Whether [tab] holds something that wants the player (see [WorksNeed]).
+bool worksTabNeeds(WorksTab tab, WorksView v) => switch (tab) {
+  WorksTab.armory => false,
+  WorksTab.bay => bayNeed(v.works.bay) != null,
+  WorksTab.press => pressNeed(v.works.press) != null,
+  WorksTab.refinery => refineryNeed(v.works.refinery, v.knownRecipes) != null,
+  WorksTab.planets => v.works.extractorsNeed,
+};
+
+/// The first tab that wants the player, or null when none does.
+WorksTab? firstWorksTabNeeding(WorksView v) {
+  for (final t in WorksTab.values) {
+    if (worksTabNeeds(t, v)) return t;
+  }
+  return null;
+}
+
 class WorksPanel extends StatefulWidget {
   const WorksPanel({
     super.key,
     required this.view,
     required this.actions,
     this.initialTab = WorksTab.armory,
+    this.onTabChanged,
   });
 
   final ValueListenable<WorksView> view;
   final WorksActions actions;
   final WorksTab initialTab;
+
+  /// Told each tab the player turns to, so the Works can open on it again.
+  final ValueChanged<WorksTab>? onTabChanged;
 
   @override
   State<WorksPanel> createState() => _WorksPanelState();
@@ -787,8 +908,15 @@ class _WorksPanelState extends State<WorksPanel> {
                     key: const ValueKey('works.tabs'),
                     labels: _labels,
                     selected: _tab.index,
-                    onSelect: (i) => setState(() => _tab = WorksTab.values[i]),
+                    onSelect: (i) {
+                      setState(() => _tab = WorksTab.values[i]);
+                      widget.onTabChanged?.call(_tab);
+                    },
                     accent: _accentOf(_tab),
+                    marked: {
+                      for (final t in WorksTab.values)
+                        if (worksTabNeeds(t, v)) t.index,
+                    },
                   ),
                 ),
                 Expanded(
@@ -845,7 +973,9 @@ class _WorksPanelState extends State<WorksPanel> {
           height: 40,
           palette: panelPalette,
           accent: accent,
-          primary: tier == 0,
+          // Lit when it can be paid for: a quiet upgrade read as one that
+          // could not be.
+          primary: tier == 0 || ok,
           enabled: ok,
           onTap: () => tier == 0 ? actions.build(b) : actions.upgrade(b),
         ),
@@ -919,7 +1049,7 @@ class _WorksPanelState extends State<WorksPanel> {
         stage: stage,
         children: [
           _line(
-            'Where your ship is upgraded.',
+            'WHERE YOUR SHIP IS UPGRADED.',
             color: panelPalette.ink,
             size: 10,
           ),
@@ -998,7 +1128,7 @@ class _WorksPanelState extends State<WorksPanel> {
         stage: stage,
         children: [
           _line(
-            'Scavengers bring back elements from planets you have found.',
+            'SCAVENGERS BRING BACK ELEMENTS FROM PLANETS YOU HAVE FOUND.',
             color: panelPalette.ink,
             size: 10,
           ),
@@ -1109,7 +1239,7 @@ class _WorksPanelState extends State<WorksPanel> {
         stage: stage,
         children: [
           _line(
-            'Turns spare elements into silver.',
+            'TURNS SPARE ELEMENTS INTO SILVER.',
             color: panelPalette.ink,
             size: 10,
           ),
@@ -1139,7 +1269,8 @@ class _WorksPanelState extends State<WorksPanel> {
               ? 'NO PRESSER'
               : surplus < 1
               ? 'NOTHING OVER WHAT IT KEEPS'
-              : 'PRESSING ${panelFmt(surplus)} SPARE',
+              : 'PRESSING ${panelFmt(surplus)} SPARE · '
+                    '${jobFigure(WorkJob.presser, presser, pressTier: press.tier)}',
           color: presser != null && surplus >= 1 ? panelPalette.ink : null,
           size: 10,
         ),
@@ -1231,7 +1362,7 @@ class _WorksPanelState extends State<WorksPanel> {
         stage: stage,
         children: [
           _line(
-            'Makes one element from two, by the recipes in your Codex.',
+            'MAKES ONE ELEMENT FROM TWO, BY THE RECIPES IN YOUR CODEX.',
             color: panelPalette.ink,
             size: 10,
           ),
@@ -1260,9 +1391,7 @@ class _WorksPanelState extends State<WorksPanel> {
           : parts.$2;
       status = 'OUT OF ${short.toUpperCase()} OVER WHAT IT KEEPS';
     } else {
-      status =
-          'MAKING ${parts.$3.toUpperCase()} · '
-          '${perMin.toStringAsFixed(1)}/MIN';
+      status = 'MAKING ${parts.$3.toUpperCase()} · ${fmtRate(perMin)}/MIN';
     }
     final all = WorkRules.refineRecipes.entries.toList();
     final found = [
@@ -1304,7 +1433,8 @@ class _WorksPanelState extends State<WorksPanel> {
           ],
         ),
         if (found.isEmpty) _line('NONE YET'),
-        for (final e in found) _recipeRow(v, e.key, e.value, r.recipe == e.key),
+        for (final e in found)
+          _recipeRow(v, e.key, e.value, r.recipe == e.key, r.keep),
         _gap(10),
         const PanelSectionHeader('KEEP OF EACH INPUT'),
         _chips(
@@ -1323,12 +1453,27 @@ class _WorksPanelState extends State<WorksPanel> {
     );
   }
 
-  Widget _recipeRow(WorksView v, String key, String out, bool chosen) {
+  Widget _recipeRow(
+    WorksView v,
+    String key,
+    String out,
+    bool chosen,
+    int keep,
+  ) {
     final ab = key.split('+');
     final ink = elementInk(out);
     String have(String e) =>
         '${e.toUpperCase()} ${panelFmt((v.storage[e] ?? 0).floor())}';
-    return GestureDetector(
+    // The first input without any over the keep, if one is short: such a
+    // recipe can still be chosen, but it would stand idle.
+    String? short;
+    for (final e in ab) {
+      if ((v.storage[e] ?? 0) <= keep + 0.5) {
+        short = e;
+        break;
+      }
+    }
+    final row = GestureDetector(
       key: ValueKey('works.refinery.recipe.$key'),
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(() => actions.setRecipe(chosen ? null : key)),
@@ -1371,7 +1516,12 @@ class _WorksPanelState extends State<WorksPanel> {
                     ],
                   ),
                 ),
-                if (chosen)
+                if (short != null)
+                  Text(
+                    'NOT ENOUGH ${short.toUpperCase()}',
+                    style: panelLabel(8.5, panelPalette.muted),
+                  )
+                else if (chosen)
                   Text('MAKING', style: panelLabel(8.5, kRefineryLight)),
               ],
             ),
@@ -1379,6 +1529,7 @@ class _WorksPanelState extends State<WorksPanel> {
         ),
       ),
     );
+    return short == null ? row : Opacity(opacity: 0.5, child: row);
   }
 
   // ── planets ──
@@ -1411,7 +1562,7 @@ class _WorksPanelState extends State<WorksPanel> {
       ),
       children: [
         _line(
-          'Fly to a planet to build one there.',
+          'FLY TO A PLANET TO BUILD ONE THERE.',
           color: panelPalette.ink,
           size: 10,
         ),
@@ -1429,6 +1580,7 @@ class _WorksPanelState extends State<WorksPanel> {
     ExtractorState? x,
   ) {
     final ink = elementInk(e);
+    final need = x == null ? null : extractorNeed(x);
     return GestureDetector(
       key: ValueKey('works.outpost.$e'),
       behavior: HitTestBehavior.opaque,
@@ -1439,43 +1591,86 @@ class _WorksPanelState extends State<WorksPanel> {
           children: [
             PanelDot(x == null ? ink.withValues(alpha: 0.35) : ink, size: 8),
             const SizedBox(width: 7),
-            SizedBox(
-              width: 92,
-              child: Text(
-                planetName(e).toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: panelLabel(
-                  9.5,
-                  x == null ? panelPalette.muted : ink,
-                  spacing: 0.5,
-                ),
-              ),
-            ),
             Expanded(
-              child: x == null
-                  ? Text('NOT BUILT', style: panelLabel(9, panelPalette.muted))
-                  : Row(
-                      children: [
-                        Expanded(
-                          child: SizedBox(
-                            height: 5,
-                            child: LinearProgressIndicator(
-                              value: x.hopper / x.hopperCap,
-                              backgroundColor: panelPalette.lineSoft,
-                              valueColor: AlwaysStoppedAnimation(
-                                ink.withValues(alpha: 0.8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      SizedBox(
+                        width: 92,
+                        child: Text(
+                          planetName(e).toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: panelLabel(
+                            9.5,
+                            x == null ? panelPalette.muted : ink,
+                            spacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: x == null
+                            ? Text(
+                                'NOT BUILT',
+                                style: panelLabel(9, panelPalette.muted),
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(
+                                    child: SizedBox(
+                                      height: 5,
+                                      child: LinearProgressIndicator(
+                                        value: x.hopper / x.hopperCap,
+                                        backgroundColor: panelPalette.lineSoft,
+                                        valueColor: AlwaysStoppedAnimation(
+                                          ink.withValues(alpha: 0.8),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '${x.hopper.floor()}/${x.hopperCap}',
+                                    style: panelLabel(
+                                      9,
+                                      panelPalette.ink,
+                                      spacing: 0.3,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                      ),
+                    ],
+                  ),
+                  if (x != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 3),
+                      child: Row(
+                        children: [
+                          if (need != null) ...[
+                            const AttentionDot(color: _amber, size: 5),
+                            const SizedBox(width: 5),
+                          ],
+                          Expanded(
+                            child: Text(
+                              outpostStatus(x, v.profiles, v.nowMs),
+                              key: ValueKey('works.outpost.$e.status'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: panelLabel(
+                                8.5,
+                                need != null ? _amber : panelPalette.muted,
+                                spacing: 0.5,
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${x.hopper.floor()}/${x.hopperCap}',
-                          style: panelLabel(9, panelPalette.ink, spacing: 0.3),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                ],
+              ),
             ),
             const SizedBox(width: 6),
             Text('›', style: panelLabel(13, panelPalette.muted)),
@@ -1750,20 +1945,12 @@ class OutpostPanel extends StatelessWidget {
     final rate = minerRate(x, v.profiles);
     final distance = v.distanceHome(element);
     final courier = x.courier == null ? null : v.profiles[x.courier];
-    final runMs = courier == null
-        ? 0
-        : WorkRules.courierCycleMs(distance, courier.speed);
     final runRate = courier == null
         ? 0.0
-        : WorkRules.courierLoad(courier.strength) / (runMs / 60000);
-    String? courierStatus;
-    if (courier != null && x.cycleMs > 0) {
-      final ph = (v.nowMs - x.cycleStartMs) / x.cycleMs;
-      courierStatus = ph < 0.5
-          ? (x.cargo > 0 ? 'FLYING ${x.cargo.floor()} HOME' : 'ON ITS WAY HOME')
-          : 'FLYING BACK';
-    }
+        : jobRate(WorkJob.courier, courier, distance: distance);
     final upTier = x.tier + 1;
+    final upCost = worksCost(WorksBuilding.extractor, upTier, element: element);
+    final canUpgrade = worksCostCovered(upCost, v.storage, v.silver);
     return [
       PanelGauge(
         label: 'HOPPER',
@@ -1776,8 +1963,8 @@ class OutpostPanel extends StatelessWidget {
       _line(
         rate <= 0
             ? 'NO MINER · NOTHING COMING IN'
-            : 'MINING ${rate.toStringAsFixed(0)}/MIN'
-                  '${courier != null ? ' · COURIER MOVES ${runRate.toStringAsFixed(1)}/MIN' : ''}',
+            : 'MINING ${fmtRate(rate)}/MIN'
+                  '${courier != null ? ' · COURIER MOVES ${fmtRate(runRate)}/MIN' : ''}',
         color: rate > 0 ? panelPalette.ink : null,
       ),
       _gap(8),
@@ -1807,7 +1994,7 @@ class OutpostPanel extends StatelessWidget {
           job: WorkJob.courier,
           member: x.courier == null ? null : v.members[x.courier],
           profile: courier,
-          status: courierStatus,
+          status: courier == null ? null : courierStatus(x, v.nowMs),
           distance: distance,
           onAssign: () =>
               actions.assign(WorkSlotRef(WorkJob.courier, element: element)),
@@ -1826,11 +2013,7 @@ class OutpostPanel extends StatelessWidget {
           _ => 'TIER 3: HOPPER ${WorkRules.hopperCap(3)} AND A SECOND MINER',
         }, color: panelPalette.ink),
         _gap(6),
-        WorksCostLine(
-          cost: worksCost(WorksBuilding.extractor, upTier, element: element),
-          storage: v.storage,
-          silver: v.silver,
-        ),
+        WorksCostLine(cost: upCost, storage: v.storage, silver: v.silver),
         _gap(6),
         BracketButton(
           key: const ValueKey('outpost.upgrade'),
@@ -1838,12 +2021,8 @@ class OutpostPanel extends StatelessWidget {
           height: 38,
           palette: panelPalette,
           accent: ink,
-          primary: false,
-          enabled: worksCostCovered(
-            worksCost(WorksBuilding.extractor, upTier, element: element),
-            v.storage,
-            v.silver,
-          ),
+          primary: canUpgrade,
+          enabled: canUpgrade,
           onTap: () =>
               actions.upgrade(WorksBuilding.extractor, element: element),
         ),
@@ -1861,12 +2040,16 @@ class _TabStrip extends StatelessWidget {
     required this.selected,
     required this.onSelect,
     required this.accent,
+    this.marked = const {},
   });
 
   final List<String> labels;
   final int selected;
   final ValueChanged<int> onSelect;
   final Color accent;
+
+  /// Tabs that want the player, by index: a dot in the corner.
+  final Set<int> marked;
 
   static const double _minTab = 88;
 
@@ -1918,6 +2101,8 @@ class _TabStrip extends StatelessWidget {
           onSelect: onSelect,
           palette: panelPalette,
           accent: accent,
+          marked: marked,
+          markColor: _amber,
         );
       }
       // Closer together, the labels a little smaller: every tab in view.
@@ -1935,6 +2120,8 @@ class _TabStrip extends StatelessWidget {
             palette: panelPalette,
             accent: accent,
             gap: gap,
+            marked: marked,
+            markColor: _amber,
           ),
         );
       }
@@ -1961,6 +2148,8 @@ class _TabStrip extends StatelessWidget {
                 onSelect: (_) => onSelect(i),
                 palette: panelPalette,
                 accent: accent,
+                marked: marked.contains(i) ? const {0} : const {},
+                markColor: _amber,
               ),
             ),
           ),
