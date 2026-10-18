@@ -6224,16 +6224,25 @@ class _CosmicScreenState extends State<CosmicScreen>
   /// A planet-surface action (DESCEND / ENTER RAID / SUMMON RAID): a plate of
   /// dark glass washed with its color, in accent brackets, the word in the
   /// console's type — the same button as the station sheets and the lab.
+  /// A [sublabel] rides beneath the word in small muted type, so the word
+  /// itself never has to share its one line with a level or a timer.
   Widget _planetCta({
     required String label,
     required Color accent,
     required VoidCallback onTap,
+    String? sublabel,
     IconData? icon,
     Widget? glyph,
     bool compact = false,
     bool fullWidth = false,
   }) {
     final fontSize = compact ? 11.0 : 12.5;
+    final word = Text(
+      label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: panelLabel(fontSize, panelPalette.ink, spacing: 1.6),
+    );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),
@@ -6265,12 +6274,26 @@ class _CosmicScreenState extends State<CosmicScreen>
                 const SizedBox(width: 9),
               ],
               Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: panelLabel(fontSize, panelPalette.ink, spacing: 1.6),
-                ),
+                child: sublabel == null
+                    ? word
+                    : Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          word,
+                          const SizedBox(height: 3),
+                          Text(
+                            sublabel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: panelLabel(
+                              fontSize - 3,
+                              panelPalette.muted,
+                              spacing: 1.4,
+                            ),
+                          ),
+                        ],
+                      ),
               ),
             ],
           ),
@@ -6406,12 +6429,15 @@ class _CosmicScreenState extends State<CosmicScreen>
     final raidCoolingDown = raid?.isCoolingDown(raidNow) ?? false;
     final raidRespawnRemaining =
         raid?.respawnRemaining(raidNow) ?? Duration.zero;
-    final raidActionLabel = raidCoolingDown
-        ? 'LEVEL 3 ECHO REFORMS  ·  '
+    // The word on one line, the level or the timer under it: together they
+    // ran past the placard and the word was the part that got cut.
+    final raidActionLabel = raidCoolingDown ? 'ECHO REFORMS' : 'ENTER RAID';
+    final raidActionSublabel = raidCoolingDown
+        ? 'LEVEL 3  ·  '
               '${raidRespawnRemaining.inHours}H '
               '${raidRespawnRemaining.inMinutes % 60}M'
-        : 'ENTER RAID  ·  LEVEL ${raid?.level}'
-              '${(raid?.level3Clears ?? 0) > 0 ? ' ECHO' : ''}';
+        : 'LEVEL ${raid?.level}'
+              '${(raid?.level3Clears ?? 0) > 0 ? '  ·  ECHO' : ''}';
 
     // Minimized: a slip with the name and stars that taps back open.
     if (_descentPlacardMinimized) {
@@ -6609,6 +6635,7 @@ class _CosmicScreenState extends State<CosmicScreen>
             const SizedBox(height: 14),
             _planetCta(
               label: raidActionLabel,
+              sublabel: raidActionSublabel,
               accent: const Color(0xFFE25544),
               glyph: SpaceActionGlyph(
                 SpaceAction.raid,
@@ -7459,7 +7486,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                   top: mapColumnTop + (_showPinnedMiniMap ? 84 : 44) + 6,
                   left: 12,
                   child: SafeArea(
-                    child: RaidBadge(raid: _raid!, now: DateTime.now().toUtc()),
+                    child: RaidBadge(
+                      raid: _raid!,
+                      now: DateTime.now().toUtc(),
+                      width: _showPinnedMiniMap ? 84 : 44,
+                    ),
                   ),
                 ),
 

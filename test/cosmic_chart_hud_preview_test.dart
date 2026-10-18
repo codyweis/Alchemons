@@ -25,7 +25,8 @@ import 'package:flutter_test/flutter_test.dart';
 //   CHART_HUD_OUT=/tmp/chart flutter test \
 //     test/cosmic_chart_hud_preview_test.dart --tags preview
 //
-// Writes chart.png, chart_zoom.png, chart_collapsed.png and hud.png.
+// Writes chart.png, chart_zoom.png, chart_collapsed.png, hud.png and
+// hud_named.png.
 void main() {
   final out = Platform.environment['CHART_HUD_OUT'];
   const w = 412.0, h = 915.0;
@@ -273,12 +274,13 @@ void main() {
                 Positioned(
                   top: 120 + 84 + 6,
                   left: 12,
-                  child: RaidBadge(raid: raid, now: now),
+                  child: RaidBadge(raid: raid, now: now, width: 84),
                 ),
                 Positioned(
                   top: 330,
                   left: 12,
                   child: RaidBadge(
+                    key: const ValueKey('closing'),
                     raid: RaidState(
                       element: 'Ice',
                       startUtc: now.subtract(const Duration(hours: 5)),
@@ -298,6 +300,11 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
     }
     await tester.runAsync(() => shoot(key, 'hud'));
+
+    // A tap names the planet beside the orb.
+    await tester.tap(find.byKey(const ValueKey('closing')));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.runAsync(() => shoot(key, 'hud_named'));
 
     // The meter full, and a recipe's targets on it.
     game.meter
