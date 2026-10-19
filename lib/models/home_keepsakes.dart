@@ -10,7 +10,9 @@
 //     itself, and with the Gold Cup and the gem cups a stat's piece (what
 //     the retired space contests gave; a contest mastered before then
 //     still counts);
-//   · a species bred a hundred times — its effigy, in its own grains.
+//   · a species bred a hundred times — its effigy, in its own grains;
+//   · a Mystic that visited the home (home_visitors.dart) — its effigy too;
+//   · a Core Shard dug up from under a home realm (home_secrets.dart).
 //
 // Nothing here is stored: what is owned is read from where the game already
 // keeps it (the planets' discovered ids, the contest progress, the Trials'
@@ -22,7 +24,9 @@ import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_cups.dart';
-import 'package:alchemons/models/home_biome.dart' show homeDebugOn;
+import 'package:alchemons/models/home_biome.dart' show HomeRealm, homeDebugOn;
+import 'package:alchemons/models/home_secrets.dart';
+import 'package:alchemons/models/home_visitors.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Where the planets' discovered ids are kept (the dungeon screen's key).
@@ -34,7 +38,7 @@ const String kContestProgressPrefsKey = CosmicContestProgress.prefsKey;
 /// How many of a species must have been bred for its effigy.
 const int kEffigyBredCount = 100;
 
-enum KeepsakeSource { maxim, contest, cup, effigy }
+enum KeepsakeSource { maxim, contest, cup, effigy, buried }
 
 class Keepsake {
   const Keepsake(
@@ -85,8 +89,31 @@ class Keepsake {
     speciesId: speciesId,
   );
 
+  /// The effigy a visitor left behind: the same piece as a bred one.
+  static Keepsake visitorEffigy(HomeVisitor v, String speciesName) => Keepsake(
+    'effigy:${v.speciesId}',
+    '$speciesName Effigy',
+    v.line,
+    source: KeepsakeSource.effigy,
+    speciesId: v.speciesId,
+  );
+
+  /// The shard found under [realm] (by its name), titled [title].
+  static Keepsake coreShard(String realm, String title) => Keepsake(
+    'core_shard:$realm',
+    '$title Shard',
+    'A piece of your planet\'s heart, found under the $title.',
+    source: KeepsakeSource.buried,
+  );
+
   /// The keepsake a piece of [kind] is, or null if there is none such.
   static Keepsake? byId(String kind, {String Function(String)? speciesName}) {
+    if (kind.startsWith('core_shard:')) {
+      final realm = HomeRealm.values
+          .where((r) => r.name == kind.substring(11))
+          .firstOrNull;
+      return realm == null ? null : coreShard(realm.name, realm.title);
+    }
     if (kind.startsWith('effigy:')) {
       final sp = kind.substring(7);
       return effigy(sp, speciesName?.call(sp) ?? sp);
@@ -356,7 +383,7 @@ class KeepsakeLedger {
             contests.isMastered(k.trait!) ||
                 (k.cupId != null && trialsCupDone(races, k.cupId!)),
           KeepsakeSource.cup => trialsCupDone(races, k.cupId!),
-          KeepsakeSource.effigy => false,
+          KeepsakeSource.effigy || KeepsakeSource.buried => false,
         })
           k,
       for (final e
@@ -382,35 +409,56 @@ class KeepsakeLedger {
       // No preferences to read (a test harness): nothing earned there.
     }
     final stats = await db.constellationDao.getAllBreedingStats();
+    final secrets = await HomeSecrets.load(db.settingsDao);
+    // What visitors left: each one met, its effigy. What was dug up: each
+    // realm's shard.
+    KeepsakeLedger withVisitors(KeepsakeLedger l, {bool all = false}) {
+      final out = [...l.owned];
+      for (final v in kHomeVisitors) {
+        if (!all && !secrets.visitors.contains(v.id)) continue;
+        if (out.any((k) => k.id == 'effigy:${v.speciesId}')) continue;
+        out.add(Keepsake.visitorEffigy(v, speciesName(v.speciesId)));
+      }
+      for (final realm in HomeRealm.values) {
+        if (!realm.buries) continue;
+        if (!all && !secrets.buried.contains(realm.name)) continue;
+        out.add(Keepsake.coreShard(realm.name, realm.title));
+      }
+      return KeepsakeLedger(out);
+    }
+
     // The developer tools open everything: every keepsake, and an effigy
-    // of each species the player has.
+    // of each species the player has (and each visitor).
     if (await homeDebugOn()) {
       final species = {
         for (final i in await db.creatureDao.getAllInstances()) i.baseId,
       }.toList()..sort();
-      return KeepsakeLedger([
-        ...Keepsake.all,
-        for (final id in species) Keepsake.effigy(id, speciesName(id)),
-      ]);
+      return withVisitors(
+        KeepsakeLedger([
+          ...Keepsake.all,
+          for (final id in species) Keepsake.effigy(id, speciesName(id)),
+        ]),
+        all: true,
+      );
     }
     try {
-      return from(
+      return withVisitors(from(
         starsRaw: stars,
         contestsRaw: contests,
         racesRaw: races,
         bred: {for (final s in stats) s.speciesId: s.totalBred},
         speciesName: speciesName,
-      );
+      ));
     } catch (_) {
       // A progress string from some other version: the effigies still
       // stand.
-      return from(
+      return withVisitors(from(
         starsRaw: '',
         contestsRaw: '',
         racesRaw: races,
         bred: {for (final s in stats) s.speciesId: s.totalBred},
         speciesName: speciesName,
-      );
+      ));
     }
   }
 }

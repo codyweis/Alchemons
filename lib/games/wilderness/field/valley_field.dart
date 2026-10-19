@@ -24,6 +24,9 @@ part of 'grain_field.dart';
 //   clouds       r = underside, g = glitter
 
 class ValleyField extends _GrainField {
+  @override
+  bool get shedsInSeason => true;
+
   ValleyField();
 
   static const far = SceneLayer.layer2;
@@ -44,6 +47,24 @@ class ValleyField extends _GrainField {
     _gRock: Color(0xFF6A6C70),
   };
 
+  /// The land in spring (fresher green, the trees in blossom) and autumn
+  /// (the trees rust and gold, the meadow straw); in winter the snow lies
+  /// on it instead.
+  static const _springAlbedo = <int, Color>{
+    _gHill: Color(0xFF447048),
+    _gGround: Color(0xFF5A8240),
+    _gTree: Color(0xFF7A566A),
+  };
+  static const _autumnAlbedo = <int, Color>{
+    _gHillFar: Color(0xFF56584A),
+    _gHill: Color(0xFF5C5632),
+    _gGround: Color(0xFF6C6434),
+    _gTree: Color(0xFF6E3E1A),
+  };
+
+  /// How deep the snow lies: falling now, or lying for the winter.
+  double get _lying => math.max(snow, _inSeason(HomeSeason.winter) * 0.8);
+
   @override
   List<(double, _Light)> get _keys => _valleyKeys;
 
@@ -57,9 +78,13 @@ class ValleyField extends _GrainField {
   @override
   void _buildGrades(_Light l) {
     final hazeHigh = l.skyAt(0.44), hazeLow = l.skyAt(0.585);
-    final cover = snow;
+    final cover = _lying;
     Color sil(int g) {
-      var a = _albedo[g]!;
+      var a = _seasoned(
+        _albedo[g]!,
+        spring: _springAlbedo[g],
+        autumn: _autumnAlbedo[g],
+      );
       // Snow lying on it: the far ranges whitest, the trees least.
       if (cover > 0) {
         a = Color.lerp(
@@ -376,7 +401,7 @@ class ValleyField extends _GrainField {
   @override
   Color lightAt(SceneLayer layer, double x, FieldView view) {
     final lit = super.lightAt(layer, x, view);
-    final s = snow;
+    final s = _lying;
     if (s < 0.01) return lit;
     // Bright where the day is; at night only a pale line the moon finds.
     final day = math.sqrt(_light.ambient.computeLuminance());
@@ -392,7 +417,9 @@ class ValleyField extends _GrainField {
   /// The hour's light under rain: drawn down to a soft overcast grey, the
   /// light everywhere and nowhere, the grass darker for being wet.
   @override
-  _Light _weathered(_Light l) {
+  _Light _weathered(_Light l) => _seasonLight(_byWeather(l));
+
+  _Light _byWeather(_Light l) {
     if (snow > 0.001) return _snowed(l);
     final r = rain;
     if (r <= 0.001) return l;

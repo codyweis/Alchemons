@@ -270,3 +270,311 @@ class _AmbienceLayer extends Component with HasGameReference<SceneGame> {
     _light.draw(canvas, blend: BlendMode.plus);
   }
 }
+
+/// What the season sheds into the air over a home with trees: leaves in
+/// autumn, petals in spring, over the near row's residents.
+class _SeasonDrift {
+  _SeasonDrift(this.game);
+
+  final SceneGame game;
+  bool _mounted = false;
+
+  void update() {
+    if (_mounted) return;
+    final art = game._art;
+    if (art == null || !art.shedsInSeason) return;
+    final container = game._layers[SceneLayer.layer4]?.container;
+    if (container == null) return;
+    _mounted = true;
+    container.add(_SeasonDriftLayer()..priority = 64);
+  }
+}
+
+class _SeasonDriftLayer extends Component with HasGameReference<SceneGame> {
+  final CosmeticAtlas _over = CosmeticAtlas(220);
+
+  @override
+  void render(Canvas canvas) {
+    final art = game._art;
+    final season = art?.season;
+    if (art == null || !seasonSheds(season)) return;
+    final shown = art.seasonAmount;
+    if (shown <= 0.004) return;
+    final container = parent;
+    if (container is! PositionComponent) return;
+    final view = game._fieldViewFor(container.position.x);
+    double? ground(double x) {
+      final g = art.groundAt(SceneLayer.layer4, x)?.rest;
+      return g != null && g.isFinite ? g : null;
+    }
+
+    paintSeasonDrift(
+      season!,
+      AmbienceView(
+        left: view.left,
+        right: view.right,
+        top: view.top,
+        bottom: view.bottom,
+        height: view.height,
+        time: view.time,
+        ground: ground,
+      ),
+      shown,
+      _over,
+    );
+    _over.draw(canvas);
+  }
+}
+
+/// The ground where residents live, taking on their elements over days
+/// (ground_mark_art.dart), and what those who moved or left left behind,
+/// fading: on each row's ground, under the trails.
+class _HomeMarks {
+  _HomeMarks(this.game);
+
+  final SceneGame game;
+  final Set<SceneLayer> _mounted = {};
+
+  void update() {
+    if (game.markOf == null &&
+        game.fadingMarks.isEmpty &&
+        game.harmonies.isEmpty &&
+        game.buried == null) {
+      return;
+    }
+    final layers = <SceneLayer>{
+      if (game.buried case final b?) b.layer,
+      for (final id in game._residents.keys)
+        if (game._pointOf(id) case final sp?) sp.anchor,
+      for (final m in game.fadingMarks) m.layer,
+    };
+    for (final layer in layers) {
+      if (_mounted.contains(layer)) continue;
+      final container = game._layers[layer]?.container;
+      if (container == null) continue;
+      _mounted.add(layer);
+      container
+        ..add(_MarkLayer(layer)..priority = 7)
+        ..add(_HarmonyLayer(layer)..priority = 60);
+    }
+  }
+}
+
+class _MarkLayer extends Component with HasGameReference<SceneGame> {
+  _MarkLayer(this.layer);
+
+  final SceneLayer layer;
+  final CosmeticAtlas _over = CosmeticAtlas(12 * 30 + 24 * 30);
+  final CosmeticAtlas _light = CosmeticAtlas(12 * 30 + 24 * 30);
+
+  @override
+  void render(Canvas canvas) {
+    final time = game._fieldTime;
+    final of = game.markOf;
+    if (of != null) {
+      for (final e in game._residents.entries) {
+        final id = e.key;
+        final sp = game._pointOf(id);
+        final anchor = game._spawnPointComps[id];
+        if (sp == null || anchor == null || sp.anchor != layer) continue;
+        if (sp.aloft) continue;
+        final element = game._residentLooks[id]?.$1.types.firstOrNull;
+        if (!elementMarks(element)) continue;
+        final strength = of(id);
+        if (strength <= 0.01) continue;
+        // Its own spot: the anchor goes where it walks.
+        final o = game._life.offsetOf(id) ?? Offset.zero;
+        paintGroundMark(
+          element!,
+          strength,
+          anchor.position.x - o.dx,
+          anchor.position.y - o.dy + (game._standDrop[id] ?? sp.size.x * 0.46),
+          sp.size.x,
+          time,
+          id.hashCode & 0xFFFF,
+          _over,
+          _light,
+        );
+      }
+    }
+    // Where something lies buried, while the place shows it.
+    if (game.buried case final cue? when cue.layer == layer) {
+      final p = game._buriedAt(cue);
+      if (p != null) {
+        paintBuriedCue(
+          p.dx,
+          p.dy,
+          cue.size,
+          cue.color,
+          time,
+          game._buriedRise,
+          _over,
+          _light,
+        );
+      }
+    }
+    // What a pair in harmony makes, lying on the ground between them.
+    for (final (a, b, makes) in game.harmonies) {
+      final ends = game._harmonyEnds(a, b, layer, chest: false);
+      if (ends == null) continue;
+      final (pa, pb, size) = ends;
+      final mid = Offset.lerp(pa, pb, 0.5)!;
+      paintGroundMark(
+        makes,
+        0.9,
+        mid.dx,
+        mid.dy,
+        size * 0.8,
+        time,
+        (a.hashCode ^ b.hashCode) & 0xFFFF,
+        _over,
+        _light,
+      );
+    }
+    final fading = game.fadingMarks;
+    if (fading.isNotEmpty) {
+      final container = parent;
+      if (container is PositionComponent) {
+        final view = game._fieldViewFor(container.position.x);
+        final mid = (view.left + view.right) / 2;
+        for (final m in fading) {
+          if (m.layer != layer || m.strength <= 0.01) continue;
+          final x = m.period > 0
+              ? m.x + m.period * ((mid - m.x) / m.period).roundToDouble()
+              : m.x;
+          if (x < view.left - m.size * 2 || x > view.right + m.size * 2) {
+            continue;
+          }
+          final feet = m.feet * view.height;
+          final g = game._art?.groundAt(layer, x, toward: feet)?.rest;
+          paintGroundMark(
+            m.element,
+            m.strength,
+            x,
+            g != null && g.isFinite ? g : feet,
+            m.size,
+            time,
+            m.seed,
+            _over,
+            _light,
+          );
+        }
+      }
+    }
+    _over.draw(canvas);
+    _light.draw(canvas, blend: BlendMode.plus);
+  }
+}
+
+/// The home left alone: after [SceneGame.idleTourAfter] seconds with no
+/// finger on it, the camera drifts in a little and goes from one resident
+/// to another — to whoever is doing something, if anyone is — staying with
+/// each a while. A touch ends it, and the camera eases back out.
+class _IdleTour {
+  _IdleTour(this.game);
+
+  final SceneGame game;
+
+  double _untouched = 0;
+  bool _touring = false;
+  double _fromZoom = 1;
+  double _stay = 0;
+  int _turn = 0;
+  String? _with;
+
+  /// How long it stays with each, and how close it comes.
+  static const _staySeconds = 9.0, _closer = 1.3;
+
+  void touched() {
+    _untouched = 0;
+    if (_touring) _end();
+  }
+
+  void update(double dt) {
+    final after = game.idleTourAfter;
+    final ids = game._residents.keys.toList();
+    if (after <= 0 ||
+        game.arranging ||
+        game.viewLocked ||
+        game._held != null ||
+        ids.isEmpty) {
+      _untouched = 0;
+      if (_touring) _end();
+      return;
+    }
+    _untouched += dt;
+    if (!_touring) {
+      if (_untouched < after) return;
+      _touring = true;
+      _fromZoom = game.cam.viewfinder.zoom;
+      _stay = 0;
+    }
+    _stay -= dt;
+    if (_stay <= 0 || _with == null || !ids.contains(_with)) {
+      _stay = _staySeconds;
+      _with = _next(ids);
+      game.zoomTo(_fromZoom * _closer);
+    }
+    final id = _with;
+    if (id != null) game.lookAt(id);
+  }
+
+  /// Whoever is doing something — walking, on a visit, going through a
+  /// portal — before whoever is not; each in its turn.
+  String? _next(List<String> ids) {
+    _turn++;
+    final busy = [
+      for (final id in ids)
+        if (game._life._livers[id] case final l?
+            when l.call != null || l.trip != null || l.act == _Act.stroll)
+          id,
+    ];
+    final from = busy.isNotEmpty ? busy : ids;
+    final pick = from[_turn % from.length];
+    // Not the same one twice running, if there is anyone else.
+    if (pick == _with && ids.length > 1) {
+      return ids[(ids.indexOf(pick) + 1) % ids.length];
+    }
+    return pick;
+  }
+
+  void _end() {
+    _touring = false;
+    _with = null;
+    game.zoomTo(_fromZoom);
+  }
+}
+
+/// The threads between residents in harmony, over them.
+class _HarmonyLayer extends Component with HasGameReference<SceneGame> {
+  _HarmonyLayer(this.layer);
+
+  final SceneLayer layer;
+  final CosmeticAtlas _light = CosmeticAtlas(12 * 64);
+
+  @override
+  void render(Canvas canvas) {
+    if (game.harmonies.isEmpty) return;
+    final night = nightAt(game.fieldHour);
+    for (final (a, b, makes) in game.harmonies) {
+      final ends = game._harmonyEnds(a, b, layer, chest: true);
+      if (ends == null) continue;
+      final ea = game._residentLooks[a]?.$1.types.firstOrNull;
+      final eb = game._residentLooks[b]?.$1.types.firstOrNull;
+      if (ea == null || eb == null) continue;
+      final (pa, pb, size) = ends;
+      paintHarmonyThread(
+        pa,
+        pb,
+        ea,
+        eb,
+        makes,
+        size,
+        game._fieldTime,
+        night,
+        _light,
+      );
+    }
+    _light.draw(canvas, blend: BlendMode.plus);
+  }
+}

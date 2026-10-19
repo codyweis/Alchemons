@@ -7,6 +7,7 @@
 
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
+import 'package:alchemons/games/wilderness/field/home_core_field.dart';
 import 'package:alchemons/games/wilderness/field/home_sand_field.dart';
 import 'package:alchemons/games/wilderness/field_essence.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
@@ -121,10 +122,15 @@ void main() {
   test('the Arcane is not a home until it is unlocked in the wild', () {
     final locked = HomeRealm.open(arcane: false);
     expect(locked, isNot(contains(HomeRealm.arcane)));
-    expect(locked.length, HomeRealm.values.length - 1 - kShopScenes.length);
+    expect(
+      locked.length,
+      HomeRealm.values.length - 2 - kShopScenes.length,
+    );
     expect(
       HomeRealm.open(arcane: true),
-      HomeRealm.values.where((r) => shopSceneOf(r.sceneId) == null),
+      HomeRealm.values.where(
+        (r) => shopSceneOf(r.sceneId) == null && r != HomeRealm.core,
+      ),
     );
     // A home made in the Arcane comes back in the Valley while it is locked
     // (with the Valley's own household), and as it was once it opens.
@@ -149,6 +155,7 @@ void main() {
     final all = HomeRealm.open(
       arcane: true,
       bought: {for (final s in kShopScenes) s.sceneId},
+      core: true,
     );
     expect(all, HomeRealm.values);
     // A Dunes home comes back in the Valley if the Dunes are not open, and
@@ -159,6 +166,23 @@ void main() {
       HomeRealm.valley,
     );
     expect(dunesHome.within(all).realm, HomeRealm.dunes);
+  });
+
+  test('the Core is a home only once it is found', () {
+    final bought = {for (final s in kShopScenes) s.sceneId};
+    expect(
+      HomeRealm.open(arcane: true, bought: bought),
+      isNot(contains(HomeRealm.core)),
+    );
+    expect(
+      HomeRealm.open(arcane: true, bought: bought, core: true),
+      contains(HomeRealm.core),
+    );
+    final coreHome = household.copyWith(realm: HomeRealm.core);
+    expect(
+      coreHome.within(HomeRealm.open(arcane: true)).realm,
+      HomeRealm.valley,
+    );
   });
 
   test('a broken or strange save is read as far as it makes sense', () {
@@ -280,11 +304,12 @@ void main() {
     HomeRealm.geode => GeodeField(),
     HomeRealm.tidal => TidalField(),
     HomeRealm.sand => HomeSandField(),
+    HomeRealm.core => HomeCoreField(),
   };
 
-  // Living Sands is a floor: everything on it stands on it, and it builds
-  // no ground of its own.
-  for (final realm in HomeRealm.values.where((r) => r != HomeRealm.sand)) {
+  // Living Sands and the Core are floors: everything on them stands on
+  // them, and they build no ground of their own.
+  for (final realm in HomeRealm.values.where((r) => !r.timeless)) {
     test('every resident in the ${realm.name} that stands has ground', () {
       final layout = everywhere.copyWith(realm: realm);
       final scene = layout.scene(floats);

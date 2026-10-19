@@ -225,9 +225,112 @@ abstract class KeepsakeArt {
     'ruby_cup' => _TrialsCup(TrophyMetal.ruby),
     'sapphire_cup' => _TrialsCup(TrophyMetal.sapphire),
     'emerald_cup' => _TrialsCup(TrophyMetal.emerald),
+    _ when id.startsWith('core_shard:') => CoreShardArt(
+      kShardLightOrder.indexOf(id.substring(11)),
+    ),
     _ when id.startsWith('effigy:') => EffigyPlinth(),
     _ => null,
   };
+}
+
+/// The realms a Core Shard can be found under (by realm name), in the order
+/// of [kCoreShardLights].
+const List<String> kShardLightOrder = [
+  'valley',
+  'sky',
+  'swamp',
+  'volcano',
+  'arcane',
+  'dunes',
+  'geode',
+  'tidal',
+  'sand',
+];
+
+/// The light in each realm's Core Shard (the shard found under it): Valley,
+/// Sky, Swamp, Volcano, Arcane, Dunes, Geode, Tidal, Living Sands.
+const List<Color> kCoreShardLights = [
+  Color(0xFF8EDB72),
+  Color(0xFFA8DCFF),
+  Color(0xFFB89A6A),
+  Color(0xFFFF8A3C),
+  Color(0xFFA88CFF),
+  Color(0xFFF0CC8A),
+  Color(0xFF6CF0D0),
+  Color(0xFF6AB8FF),
+  Color(0xFFE8E0F4),
+];
+
+/// A Core Shard: a piece of the planet's heart dug out from under a home
+/// realm — a jagged shard of obsidian standing out of a little heap of
+/// earth, a vein of its realm's light in it, beating slowly, motes rising
+/// off it.
+class CoreShardArt extends KeepsakeArt {
+  CoreShardArt(int realm)
+    : super(kCoreShardLights[realm.clamp(0, kCoreShardLights.length - 1)]);
+
+  final _Grains _motes = _Grains(48);
+
+  @override
+  Rect get box => const Rect.fromLTRB(-40, -150, 40, 4);
+
+  @override
+  void body(Canvas c) {
+    final heap = _poly(const [
+      Offset(-34, 2),
+      Offset(-20, -8),
+      Offset(-2, -11),
+      Offset(18, -7),
+      Offset(34, 2),
+    ]);
+    _solid(c, heap, m.ink);
+    _shade(c, heap, _litAcross(m, -34, 34, k: 0.35));
+    // The shard: broken off at a slant, two faces meeting on a ridge.
+    final shard = _poly(const [
+      Offset(-16, -6),
+      Offset(-20, -70),
+      Offset(-8, -128),
+      Offset(4, -146),
+      Offset(12, -104),
+      Offset(18, -40),
+      Offset(14, -6),
+    ]);
+    _solid(c, shard, m.ink);
+    _shade(c, shard, _litAcross(m, -20, 18, k: 0.55));
+    // Its vein of light, a narrow pane down its middle.
+    final vein = _poly(const [
+      Offset(-4, -18),
+      Offset(-7, -66),
+      Offset(0, -112),
+      Offset(5, -70),
+      Offset(4, -18),
+    ]);
+    _glass(c, m, vein, const Offset(-1, -66), 46);
+  }
+
+  @override
+  void under(Canvas c, KeepsakeTime k) {
+    final b = 0.8 + 0.2 * math.sin(k.t * 1.1);
+    paintDisc(c, m.pool, const Offset(0, -70), 60, (0.35 + 0.55 * k.night) * b);
+    _groundPool(c, m, 0, 56, 0.2 + 0.45 * k.night);
+  }
+
+  @override
+  void live(Canvas c, KeepsakeTime k) {
+    // It beats, slowly, as the heart it came from.
+    final beat = math.pow(0.5 + 0.5 * math.sin(k.t * 1.1), 3).toDouble();
+    paintDisc(c, m.spark, const Offset(-1, -70), 14 + 8 * beat, 0.2 + 0.3 * beat);
+    _motes.clear();
+    final n = (10 + 20 * k.night + 10 * k.stir).round();
+    for (var i = 0; i < n; i++) {
+      final f = (k.t * (0.06 + 0.03 * _hash(i, 5)) + _hash(i, 6)) % 1.0;
+      _motes.add(
+        (_hash(i, 7) - 0.5) * 30 + math.sin(k.t * 0.8 + i) * 6 * f,
+        -30 - f * 130,
+      );
+    }
+    _motes.draw(c, 2, _a(m.grainHot, 0.45));
+  }
 }
 
 // ── The kit: side-view obsidian ─────────────────────────────────────────────

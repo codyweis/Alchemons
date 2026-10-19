@@ -13,7 +13,9 @@ import 'package:alchemons/games/wilderness/harvest_field.dart';
 import 'package:alchemons/games/wilderness/particle_fusion_effect.dart';
 import 'package:alchemons/games/wilderness/wild_summon.dart';
 import 'package:alchemons/widgets/fx/cosmetics/cosmetic_atlas.dart';
+import 'package:alchemons/widgets/fx/cosmetics/ground_mark_art.dart';
 import 'package:alchemons/widgets/fx/cosmetics/home_ambience_art.dart';
+import 'package:alchemons/widgets/fx/cosmetics/season_drift_art.dart';
 import 'package:alchemons/widgets/fx/cosmetics/trail_art.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
@@ -23,6 +25,7 @@ import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/games/wilderness/ship_landing.dart';
 import 'package:alchemons/models/rift_state.dart';
 import 'package:alchemons/models/cosmetic_wear.dart';
+import 'package:alchemons/models/home_sky.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
@@ -80,6 +83,48 @@ typedef FieldLanding = ({
   double height,
   double scale,
 });
+
+/// Where something lies buried under a home realm (see [SceneGame.buried]):
+/// on [layer] at [x] (layer units, within one loop of [period]), on the row
+/// whose feet are at [feet] (a share of the height), [size] across, in
+/// [color].
+class BuriedCue {
+  const BuriedCue({
+    required this.layer,
+    required this.x,
+    required this.period,
+    required this.feet,
+    required this.size,
+    required this.color,
+  });
+
+  final SceneLayer layer;
+  final double x, period, feet, size;
+  final Color color;
+}
+
+/// A mark left on the ground of a home realm by a resident that has moved
+/// or gone (see paintGroundMark): on [layer] at [x] (layer units, within
+/// one loop of [period]), on the row whose feet are at [feet] (a share of
+/// the height), by a creature [size] across.
+class GroundMark {
+  const GroundMark({
+    required this.layer,
+    required this.x,
+    required this.period,
+    required this.feet,
+    required this.size,
+    required this.element,
+    required this.strength,
+    this.seed = 0,
+  });
+
+  final SceneLayer layer;
+  final double x, period, feet, size;
+  final String element;
+  final double strength;
+  final int seed;
+}
 
 class SceneGame extends FlameGame with ScaleDetector {
   SceneGame({
@@ -174,6 +219,18 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   /// The stage of the field's own cycle this visit (see [FieldArt.stage]).
   int fieldStage = 0;
+
+  /// The home's sky over the field — its planet, its constellations (see
+  /// [FieldArt.homeSky]); null in the wild.
+  HomeSkyLook? homeSky;
+
+  /// The season the home is in (see [FieldArt.season]); null for none. A
+  /// change eases the old one out of the land before the new one comes in;
+  /// the first is simply there.
+  HomeSeason? fieldSeason;
+  HomeSeason? _seasonShowing;
+  double _season = 0;
+  bool _seasonPrimed = false;
 
   /// The field drawn in code, if this scene has one — for previews.
   @visibleForTesting
@@ -315,6 +372,86 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   /// Eases the camera to [zoom].
   void zoomTo(double zoom) => _targetZoom = zoom.clamp(minZoom, maxZoom);
+
+  /// Where the two residents [a] and [b] of a harmony are on [layer] —
+  /// their chests as they move about, or else the feet of their own spots —
+  /// and their size; null unless both stand on it, on the same loop of it.
+  (Offset, Offset, double)? _harmonyEnds(
+    String a,
+    String b,
+    SceneLayer layer, {
+    required bool chest,
+  }) {
+    final sa = _pointOf(a), sb = _pointOf(b);
+    final aa = _spawnPointComps[a], ab = _spawnPointComps[b];
+    if (sa == null || sb == null || aa == null || ab == null) return null;
+    if (sa.anchor != layer || sb.anchor != layer) return null;
+    // The anchor goes where the resident goes; its spot is that less how
+    // far it has gone.
+    Offset at(String id, PositionComponent anchor, SpawnPoint sp) {
+      final drop = _standDrop[id] ?? sp.size.x * 0.46;
+      if (chest) {
+        return Offset(
+          anchor.position.x,
+          anchor.position.y + drop - sp.size.x * 0.42,
+        );
+      }
+      final o = _life.offsetOf(id) ?? Offset.zero;
+      return Offset(
+        anchor.position.x - o.dx,
+        anchor.position.y - o.dy + drop,
+      );
+    }
+
+    final pa = at(a, aa, sa), pb = at(b, ab, sb);
+    // Across the field's seam, two anchors a loop apart are not a pair.
+    if ((pa.dx - pb.dx).abs() > sa.size.x * 6) return null;
+    return (pa, pb, sa.size.x);
+  }
+
+  /// Where [cue] is this frame in its layer's units — its loop nearest the
+  /// view — and on the ground.
+  Offset? _buriedAt(BuriedCue cue) {
+    final container = _layers[cue.layer]?.container;
+    if (container == null) return null;
+    final view = _fieldViewFor(container.position.x);
+    final mid = (view.left + view.right) / 2;
+    final x = cue.period > 0
+        ? cue.x + cue.period * ((mid - cue.x) / cue.period).roundToDouble()
+        : cue.x;
+    final feet = cue.feet * view.height;
+    final g = _art?.groundAt(cue.layer, x, toward: feet)?.rest;
+    return Offset(x, g != null && g.isFinite ? g : feet);
+  }
+
+  /// A tap where something lies buried, while the place shows it, digs it.
+  void _tapBuried(Vector2 at) {
+    final cue = buried;
+    if (cue == null || arranging || _digging) return;
+    final container = _layers[cue.layer]?.container;
+    final p = _buriedAt(cue);
+    if (container == null || p == null) return;
+    final view = _fieldViewFor(container.position.x);
+    final sx = (p.dx - view.left) * view.zoom, sy = view.screenY(p.dy);
+    final reach = cue.size * 0.7 * view.zoom;
+    if ((Offset(at.x, at.y) - Offset(sx, sy)).distance > reach) return;
+    _digging = true;
+    _buriedRise = 0.001;
+  }
+
+  /// The view as it is now: where along the field the camera is, as a share
+  /// of the world's width, and how far it is zoomed.
+  (double, double) get view =>
+      ((_cameraX / scene.worldWidth) % 1.0, cam.viewfinder.zoom);
+
+  /// Puts the camera at [x] (a share of the world's width) and [zoom], at
+  /// once — a view the player framed. Only once the game has loaded.
+  void viewAt(double x, double zoom) {
+    _cameraX = _targetCameraX = x * scene.worldWidth;
+    _targetZoom = zoom.clamp(minZoom, maxZoom);
+    cam.viewfinder.zoom = _targetZoom;
+    _recomputeMaxCamBounds();
+  }
   final double maxZoom = 2.0;
   final double zoomEase = 20.0; // higher = snappier
   double? _pinchStartZoom;
@@ -1457,6 +1594,7 @@ class SceneGame extends FlameGame with ScaleDetector {
   // ------------------------------------------------------------
 
   void _touch(Vector2 at, Vector2 moved) {
+    _tour.touched();
     if (_art == null) return;
     _touches.add(FieldTouch(at.x, at.y, moved.x, moved.y, _fieldTime));
     if (_touches.length > 48) _touches.removeAt(0);
@@ -1470,6 +1608,7 @@ class SceneGame extends FlameGame with ScaleDetector {
 
   @override
   void onScaleStart(ScaleStartInfo info) {
+    _tour.touched();
     // Disable gestures during encounter
     if (_mode == SceneMode.encounter) return;
     _pinchStartZoom = cam.viewfinder.zoom;
@@ -1703,6 +1842,41 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// The ambience (the Athanor's) laid over this field; null for none.
   HomeAmbience? ambience;
   late final _HomeAmbience _ambience = _HomeAmbience(this);
+  late final _SeasonDrift _drift = _SeasonDrift(this);
+  late final _HomeMarks _marks = _HomeMarks(this);
+  late final _IdleTour _tour = _IdleTour(this);
+
+  /// Left alone this many seconds, the camera drifts from one resident to
+  /// another until a finger touches the field; 0 for never.
+  double idleTourAfter = 0;
+
+  /// How far the ground where each resident lives has taken on its
+  /// element (0–1, by spawn id); null for none, as in the wild.
+  double Function(String spawnId)? markOf;
+
+  /// What residents who moved or left have left behind, fading.
+  List<GroundMark> fadingMarks = const [];
+
+  /// Where something lies buried in this field, while the place shows it
+  /// (see paintBuriedCue); null when it does not.
+  BuriedCue? buried;
+
+  /// It was tapped where it lies: called once its grains have drawn up out
+  /// of the ground.
+  VoidCallback? onBuriedFound;
+
+  /// How far it has risen once tapped (0 until it is), and whether the
+  /// tap has been answered.
+  double _buriedRise = 0;
+  bool _digging = false;
+
+  /// Whether what lies buried is rising out of the ground now.
+  bool get buriedDigging => _digging;
+
+  /// Pairs of residents in harmony (by spawn id) and what they make
+  /// together: a thread joins them, brightest at night, and what they make
+  /// lies on the ground between them.
+  List<(String, String, String)> harmonies = const [];
 
   /// Stands [thing] at [spawnId], its feet at the point — on whatever the
   /// field built there, as a creature would be — able to be taken hold of
@@ -2444,11 +2618,24 @@ class SceneGame extends FlameGame with ScaleDetector {
           : ease(_weather, fieldWeather != null, 1.6);
       // A rainbow comes slowly, a while after the scene opens.
       _aftermath = ease(_aftermath, fieldAftermath && _fieldTime > 1.5, 2.6);
+      if (!_seasonPrimed) {
+        _seasonPrimed = true;
+        _seasonShowing = fieldSeason;
+        _season = fieldSeason == null ? 0 : 1;
+      } else if (fieldSeason != _seasonShowing) {
+        _season = max(0, _season - dt / 1.2);
+        if (_season <= 0) _seasonShowing = fieldSeason;
+      } else {
+        _season = ease(_season, fieldSeason != null, 0.9);
+      }
       art
         ..weatherKind = fieldWeather ?? art.weatherKind
         ..weather = _weather
         ..aftermath = _aftermath
         ..stage = fieldStage
+        ..homeSky = homeSky
+        ..season = _seasonShowing
+        ..seasonAmount = _season
         ..prepare(fieldHourOverride ?? _fieldHour, time: _fieldTime);
     }
 
@@ -2547,6 +2734,18 @@ class SceneGame extends FlameGame with ScaleDetector {
       _life.update(dt);
       _trails.update(dt);
       _ambience.update(dt);
+      _drift.update();
+      _marks.update();
+      _tour.update(dt);
+      if (_digging && buried != null) {
+        _buriedRise = math.min(1, _buriedRise + dt / 1.8);
+        if (_buriedRise >= 1) {
+          _digging = false;
+          _buriedRise = 0;
+          buried = null;
+          onBuriedFound?.call();
+        }
+      }
       if (_markedId != null) _lightChosen();
     } else {
       _wildLife.update(dt);
@@ -3535,6 +3734,7 @@ class _FieldTapComponent extends Component
   @override
   void onTapUp(TapUpEvent event) {
     game._fingerUp();
+    game._tapBuried(event.canvasPosition);
     event.continuePropagation = true;
   }
 }

@@ -35,6 +35,9 @@ part of 'grain_field.dart';
 //   clouds   r = underside, g = glitter
 
 class SwampField extends _GrainField {
+  @override
+  bool get shedsInSeason => true;
+
   SwampField();
 
   static const far = SceneLayer.layer2;
@@ -76,9 +79,38 @@ class SwampField extends _GrainField {
     _gWater: (Color(0xFF2E3A28), 0.5),
   };
 
-  /// Grade [g]'s daylight color, as dry as the Swamp is.
+  /// The Swamp in the seasons: moss and leaves fresh in spring, rusting
+  /// and gone to straw in autumn, the water skinned with ice and the moss
+  /// frosted in winter.
+  static const _springAlbedo = <int, Color>{
+    _gLeaf: Color(0xFF4A8236),
+    _gMoss: Color(0xFF8EB86A),
+    _gTurf: Color(0xFF568A38),
+  };
+  static const _autumnAlbedo = <int, Color>{
+    _gFar: Color(0xFF6E6A40),
+    _gMid: Color(0xFF5A5034),
+    _gLeaf: Color(0xFF7A5A26),
+    _gMoss: Color(0xFF8E8A50),
+    _gTurf: Color(0xFF7E7038),
+  };
+  static const _winterAlbedo = <int, Color>{
+    _gFar: Color(0xFF6E8078),
+    _gLeaf: Color(0xFF465444),
+    _gMoss: Color(0xFFB4BEC2),
+    _gTurf: Color(0xFFAAB4B8),
+    _gWater: Color(0xFF5E7480),
+    _gStone: Color(0xFFB8C0C6),
+  };
+
+  /// Grade [g]'s daylight color, as dry as the Swamp is, in its season.
   Color _albedoOf(int g) {
-    final a = _albedo[g]!;
+    final a = _seasoned(
+      _albedo[g]!,
+      spring: _springAlbedo[g],
+      autumn: _autumnAlbedo[g],
+      winter: _winterAlbedo[g],
+    );
     final d = dry;
     final to = _dried[g];
     if (d <= 0 || to == null) return a;
@@ -132,7 +164,9 @@ class SwampField extends _GrainField {
   /// The hour's light over the dried-out Swamp: the green haze turned to
   /// warm dust, the sedge to straw, fewer fireflies.
   @override
-  _Light _weathered(_Light l) {
+  _Light _weathered(_Light l) => _seasonLight(_byWeather(l));
+
+  _Light _byWeather(_Light l) {
     final d = dry;
     if (d <= 0.001) return l;
     Color ramp(Color c, Color dark, Color light, double k) {

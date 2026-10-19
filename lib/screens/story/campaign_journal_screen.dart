@@ -1,3 +1,5 @@
+import 'package:alchemons/models/home_secrets.dart';
+import 'package:alchemons/screens/home_biome/harmonies_page.dart';
 import 'package:alchemons/widgets/onboarding_tasks_section.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'dart:async';
@@ -133,10 +135,22 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
   CampaignJournalService get service =>
       CampaignJournalService(context.read<AlchemonsDatabase>());
 
+  /// What the home biome has given up of its secrets: once a harmony is
+  /// found there, the journal keeps a page of them.
+  HomeSecrets _secrets = const HomeSecrets();
+
   @override
   void initState() {
     super.initState();
     _snapshot = service.load();
+    _loadSecrets();
+  }
+
+  Future<void> _loadSecrets() async {
+    final secrets = await HomeSecrets.load(
+      context.read<AlchemonsDatabase>().settingsDao,
+    );
+    if (mounted) setState(() => _secrets = secrets);
   }
 
   Future<void> refresh() async {
@@ -598,6 +612,9 @@ class _CampaignJournalScreenState extends State<CampaignJournalScreen> {
           rewardLabel: current == null ? null : rewardLabel(current, size: 13),
           onProgress: () => showArchive(s, memories: false),
           onMemories: () => showArchive(s, memories: true),
+          onHarmonies: _secrets.harmonies.isEmpty
+              ? null
+              : () => HarmoniesPage.open(context, _secrets.harmonies),
         ),
         if (ready.isNotEmpty) ...[
           const SizedBox(height: 14),
@@ -853,6 +870,7 @@ class _StoryPanel extends StatelessWidget {
     required this.rewardLabel,
     required this.onProgress,
     required this.onMemories,
+    this.onHarmonies,
   });
 
   final CampaignAchievement? current;
@@ -860,6 +878,9 @@ class _StoryPanel extends StatelessWidget {
   final Widget? rewardLabel;
   final VoidCallback onProgress;
   final VoidCallback onMemories;
+
+  /// The page of harmonies found at home; null before the first is.
+  final VoidCallback? onHarmonies;
 
   @override
   Widget build(BuildContext context) {
@@ -939,6 +960,10 @@ class _StoryPanel extends StatelessWidget {
                 ),
               ],
             ),
+            if (onHarmonies case final open?) ...[
+              const SizedBox(height: 8),
+              _QuietButton(label: 'HARMONIES', onTap: open),
+            ],
           ],
         ),
       ),

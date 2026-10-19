@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:alchemons/games/constellations/constellation_art.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
+import 'package:alchemons/models/constellation/constellation_layout.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
@@ -244,9 +245,8 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   }
 
   final Map<ConstellationTree, Vector2> _treePositions = {
-    ConstellationTree.breeder: Vector2(0, -600),
-    ConstellationTree.combat: Vector2(-700, 400),
-    ConstellationTree.extraction: Vector2(700, 400),
+    for (final e in kConstellationTreeCentres.entries)
+      e.key: Vector2(e.value.dx, e.value.dy),
   };
 
   double _baseScaleForGesture = 1.0;
@@ -423,35 +423,15 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
     final tierMap = ConstellationCatalog.byTierForTree(tree);
     final maxTier = tierMap.keys.reduce(math.max);
-    final verticalSpacing = 180.0;
+    final verticalSpacing = kConstellationRowGap;
     final baseY = (maxTier * verticalSpacing) / 2;
+    final layout = constellationTreeLayout(tree);
 
     final tempNodes = <String, SkillNode>{};
     for (final tier in tierMap.keys) {
-      final skillsInTier = tierMap[tier]!;
-      // A stone whose parent is on its own row is a side stone: it stands
-      // one column further out than the parent, beside it, rather than
-      // taking a place in the row (or a row of its own, which would make the
-      // tree too tall to frame on a phone).
-      final rowIds = {for (final s in skillsInTier) s.id};
-      bool isSide(ConstellationSkill s) => s.prerequisites.any(rowIds.contains);
-      final row = skillsInTier.where((s) => !isSide(s)).toList();
-      final horizontalSpacing = row.length > 1 ? 220.0 : 0.0;
-      final totalWidth = (row.length - 1) * horizontalSpacing;
-      final startX = -totalWidth / 2;
-      final xOf = <String, double>{
-        for (int i = 0; i < row.length; i++)
-          row[i].id: startX + (i * horizontalSpacing),
-      };
-      for (final side in skillsInTier.where(isSide)) {
-        final parentX =
-            xOf[side.prerequisites.firstWhere(rowIds.contains)] ?? 0.0;
-        xOf[side.id] = parentX + (parentX < 0 ? -220.0 : 220.0);
-      }
-
-      for (final skill in skillsInTier) {
-        final x = xOf[skill.id]!;
-        final y = baseY - (tier * verticalSpacing);
+      for (final skill in tierMap[tier]!) {
+        final at = layout[skill.id]!;
+        final x = at.dx, y = at.dy;
 
         final isUnlocked = _unlockedSkills.contains(skill.id);
         final canUnlock = skill.canUnlock(_unlockedSkills) && !isUnlocked;
@@ -525,24 +505,12 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     Vector2 treeOffset,
   ) async {
     final tempNodes = <String, SkillNode>{};
-    const double ringSpacing = 180.0;
 
-    double angleForSkill(ConstellationSkill skill) {
-      final id = skill.id;
-      if (id.startsWith('combat_atk_')) return -math.pi / 2;
-      if (id.startsWith('combat_int_')) return 0.0;
-      if (id.startsWith('combat_beauty_')) return math.pi / 2;
-      if (id.startsWith('combat_speed_')) return math.pi;
-      return -math.pi / 2;
-    }
+    final layout = constellationTreeLayout(ConstellationTree.combat);
 
     for (final skill in skills) {
-      final angle = angleForSkill(skill);
-      final radius = skill.tier * ringSpacing;
-      final localPos = Vector2(
-        math.cos(angle) * radius,
-        math.sin(angle) * radius,
-      );
+      final at = layout[skill.id]!;
+      final localPos = Vector2(at.dx, at.dy);
       final worldPos = treeOffset + localPos;
 
       final isUnlocked = _unlockedSkills.contains(skill.id);

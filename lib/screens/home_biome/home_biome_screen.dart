@@ -28,13 +28,17 @@ import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/models/home_sand.dart';
+import 'package:alchemons/models/home_sky.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/home_keepsakes.dart';
+import 'package:alchemons/models/home_secrets.dart';
+import 'package:alchemons/models/home_visitors.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/screens/home_biome/home_sand_tray.dart';
+import 'package:alchemons/screens/home_biome/home_sky_source.dart';
 import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
@@ -98,6 +102,39 @@ loadHomeBiome(AlchemonsDatabase db, CreatureCatalog catalog) async {
     unawaited(layout.save(db.settingsDao));
   }
   return (layout, realms, looks);
+}
+
+/// Shows on [game]'s ground what [layout]'s residents have made of it:
+/// each one's element, coming in the longer it has lived where it stands,
+/// and what those who moved or left left behind, fading. [full] shows
+/// every mark at its strongest (the developer tools).
+void showHomeMarks(
+  SceneGame game,
+  HomeBiomeLayout layout, {
+  bool full = false,
+}) {
+  final now = DateTime.now().millisecondsSinceEpoch;
+  final since = {for (final r in layout.residents) r.spawnId: r.since};
+  game
+    ..markOf = (spawnId) {
+      final s = since[spawnId];
+      if (s == null) return 0;
+      return full ? 1 : homeMarkStrength(s, now);
+    }
+    ..fadingMarks = [
+      for (final m in layout.marksHere)
+        if (layout.realm.row(m.depth) case final row)
+          GroundMark(
+            layer: row.layer,
+            x: m.x * layout.realm.period(row.layer),
+            period: layout.realm.period(row.layer),
+            feet: row.feet,
+            size: row.size,
+            element: m.element,
+            strength: full ? m.strength : m.strengthAt(now),
+            seed: (m.x * 100000).round(),
+          ),
+    ];
 }
 
 /// Stands every piece of [layout]'s realm in [game]: each keepsake drawn
@@ -209,8 +246,8 @@ class HomeBiomeScreen extends StatefulWidget {
 }
 
 /// Which tray is open along the bottom while arranging: Living Sands has
-/// two, its colors and its settings.
-enum _Tray { none, scenery, keepsakes, decor, sand, sandSettings }
+/// two, its colors and its settings; the sky's is the same in every realm.
+enum _Tray { none, scenery, keepsakes, decor, sand, sandSettings, sky, kept }
 
 class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     with TickerProviderStateMixin {
@@ -228,6 +265,31 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   /// How much of the home decor the player owns.
   DecorLedger _decor = DecorLedger.empty;
+
+  /// What the sky is made of: the player's planet and constellations.
+  HomeSkySources _skySources = HomeSkySources.none;
+
+  /// The developer tools are on: every mark shows at its strongest.
+  bool _debug = false;
+
+  /// What the home has given up of its secrets so far.
+  HomeSecrets _secrets = const HomeSecrets();
+
+  /// The harmonies formed in this realm now.
+  List<HomeHarmony> _formed = const [];
+
+  /// A Mystic visiting while what brings it holds — never while arranging
+  /// or framing — and where it stands on the near row.
+  HomeVisitor? _visitor;
+  double _visitorX = 0.5;
+
+  /// Looks again now and then whether a visitor has come or gone (the
+  /// hour moves on, the night ends).
+  Timer? _visitClock;
+
+  /// Framing a view: the HUD stands aside while the player pans and
+  /// pinches to the view to keep.
+  bool _framing = false;
 
   SceneGame? _game;
   int _gameKey = 0;
@@ -310,6 +372,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     WebAds.breakAfter('home_biome');
     _disarm?.cancel();
     _flashTimer?.cancel();
+    _visitClock?.cancel();
     _reveal.dispose();
     _sweep.dispose();
     _trayClock.dispose();
@@ -324,6 +387,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     _realms = await HomeRealm.openNow(_db.settingsDao);
     _ledger = await KeepsakeLedger.load(_db, _speciesName);
     _decor = await DecorLedger.load(_db);
+    _skySources = await HomeSkySources.read(_db);
+    _debug = await homeDebugOn();
+    _secrets = await HomeSecrets.load(_db.settingsDao);
     var layout = await _keepLiving(
       (await HomeBiomeLayout.load(_db.settingsDao)).within(_realms),
     );
@@ -331,6 +397,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     final owned = _placedOwned(layout);
     if (owned.length != layout.placed.length) layout = layout.withPlaced(owned);
     layout = _settle(layout);
+    // Whoever the home has not seen settle yet settles now.
+    layout = layout.markedSince(layout, _now, _elementOf);
     unawaited(layout.save(_db.settingsDao));
     if (!mounted) return;
     _layout = layout;
@@ -380,14 +448,101 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   }
 
   void _commit(HomeBiomeLayout layout) {
-    setState(() => _layout = layout);
-    unawaited(layout.save(_db.settingsDao));
+    // The ground remembers who lived where.
+    final marked = layout.markedSince(_layout, _now, _elementOf);
+    setState(() => _layout = marked);
+    unawaited(marked.save(_db.settingsDao));
+    final game = _game;
+    if (game != null) {
+      showHomeMarks(game, marked, full: _debug);
+      _showHarmonies(game);
+      _showBuried(game);
+      unawaited(_syncVisitor());
+    }
   }
+
+  /// Where this realm's shard lies, while the place shows it — until it is
+  /// found. Tapped there, it rises out of the ground.
+  void _showBuried(SceneGame game) {
+    final realm = _layout.realm;
+    final shows =
+        realm.buries &&
+        !_secrets.buried.contains(realm.name) &&
+        buriedShows(realm, _layout.mood.id, DateTime.now());
+    if (!shows) {
+      if (game.buried != null && !_digging(game)) game.buried = null;
+      return;
+    }
+    final row = realm.row(HomeDepth.front);
+    final period = realm.period(row.layer);
+    game
+      ..buried = BuriedCue(
+        layer: row.layer,
+        x: buriedAt(realm) * period,
+        period: period,
+        feet: row.feet,
+        size: row.size,
+        color: kCoreShardLights[kShardLightOrder.indexOf(realm.name)],
+      )
+      ..onBuriedFound = _onBuriedFound;
+  }
+
+  bool _digging(SceneGame game) => game.buriedDigging;
+
+  /// A shard dug up: kept, and on the keepsake shelf. With the last of the
+  /// five, the Core is there among the realms. Nothing is said.
+  Future<void> _onBuriedFound() async {
+    HapticFeedback.heavyImpact();
+    _play(SoundCue.homeAppear);
+    final realm = _layout.realm;
+    _secrets = _secrets.copyWith(buried: {..._secrets.buried, realm.name});
+    await _secrets.save(_db.settingsDao);
+    final ledger = await KeepsakeLedger.load(_db, _speciesName);
+    final realms = await HomeRealm.openNow(_db.settingsDao);
+    if (!mounted) return;
+    setState(() {
+      _ledger = ledger;
+      _realms = realms;
+    });
+  }
+
+  /// The pairs sharing ground whose elements fuse and who have been there
+  /// through a night: shown in the field, and kept as found. Said to no
+  /// one.
+  void _showHarmonies(SceneGame game) {
+    final formed = formedHarmonies(
+      _layout,
+      _now,
+      _elementOf,
+      always: _debug,
+    );
+    _formed = formed;
+    game.harmonies = [for (final h in formed) (h.a, h.b, h.makes)];
+    final found = {for (final h in formed) h.key};
+    if (found.difference(_secrets.harmonies).isEmpty) return;
+    _secrets = _secrets.copyWith(
+      harmonies: {..._secrets.harmonies, ...found},
+    );
+    unawaited(_secrets.save(_db.settingsDao));
+  }
+
+  int get _now => DateTime.now().millisecondsSinceEpoch;
+
+  /// A resident's element, as far as the home has seen it.
+  String? _elementOf(String instanceId) =>
+      _looks[instanceId]?.$1.types.firstOrNull;
 
   bool _floats(String instanceId) =>
       speciesCanFloat(_looks[instanceId]?.$1.id ?? '');
 
-  List<SpawnPoint> get _points => _layout.spawnPoints(_floats);
+  List<SpawnPoint> get _points => [
+    ..._layout.spawnPoints(_floats),
+    if (_visitor case final v?)
+      _layout.spawnPointFor(_visitorResident(v, _visitorX), floats: false),
+  ];
+
+  HomeResident _visitorResident(HomeVisitor v, double x) =>
+      HomeResident(instanceId: 'visitor_${v.id}', x: x);
 
   /// Keepsakes owned that the player has not been shown yet.
   List<Keepsake> get _unseen => [
@@ -398,12 +553,15 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   // ── The field ────────────────────────────────────────────────────────────
 
   void _buildGame() {
+    _visitor = null;
     final mood = _layout.mood;
     final game = SceneGame(scene: _layout.scene(_floats), showcase: true)
       ..fieldHourOverride = _layout.hour
       ..fieldWeather = mood.weather
       ..fieldAftermath = mood.aftermath
       ..fieldStage = mood.stage
+      ..homeSky = homeSkyLookOf(_layout.sky, _skySources)
+      ..fieldSeason = _layout.sky.seasonAt(DateTime.now())
       ..arranging = _arranging
       ..overview = _arranging
       ..viewLocked = _locked
@@ -424,6 +582,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         ..trailOf = wear.trailOf
         ..ambience = wear.ambienceIn(_layout.realm.name);
     }
+    showHomeMarks(game, _layout, full: _debug);
+    _showHarmonies(game);
+    _showBuried(game);
     setState(() {
       _game = game;
       _gameKey++;
@@ -443,6 +604,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     HomeRealm.geode => const Color(0xFFCDB8FF),
     HomeRealm.tidal => const Color(0xFFA8E4F0),
     HomeRealm.sand => _layout.sandStyle.shimmer,
+    HomeRealm.core => const Color(0xFFE8C88A),
   };
 
   bool _canLift(String spawnId) {
@@ -469,6 +631,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     for (final p in _layout.placed) {
       _standPiece(game, p);
     }
+    // The home opens on the view the player framed, if they framed one.
+    if (_layout.frame case final f?) game.viewAt(f.x, f.zoom);
     // Revealed with everyone already standing, not popping in.
     await game.residentsLoaded().timeout(
       const Duration(seconds: 3),
@@ -478,6 +642,14 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     setState(() {
       _ready = true;
       _veiled = false;
+    });
+    unawaited(_syncVisitor());
+    _visitClock ??= Timer.periodic(const Duration(seconds: 30), (_) {
+      final game = _game;
+      if (game == null || !mounted) return;
+      _showHarmonies(game);
+      _showBuried(game);
+      unawaited(_syncVisitor());
     });
   }
 
@@ -719,6 +891,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       _dropTrials();
     }
     _syncTrayClock();
+    unawaited(_syncVisitor());
   }
 
   /// Whatever was only being tried goes, unbought.
@@ -1583,6 +1756,11 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     if (game != null) {
       // Zoomed out, the field floats in the room the HUD leaves it.
       final pad = MediaQuery.paddingOf(context);
+      // Left alone while looking, the camera goes visiting.
+      game.idleTourAfter =
+          _layout.sky.idleCamera && !_arranging && !_framing && _ready
+          ? 20
+          : 0;
       game
         ..overviewTop =
             pad.top + 8 + 54 + 8 + 32 + (_selected != null ? 40 : 0) + 14
@@ -1594,6 +1772,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                 ? 148
                 : _tray == _Tray.sandSettings
                 ? 124
+                : _tray == _Tray.sky
+                ? 100
                 : 56);
     }
     return Scaffold(
@@ -1637,7 +1817,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _topRow(context),
+                  if (!_framing) _topRow(context),
                   if (_arranging) ...[
                     const SizedBox(height: 8),
                     _settingsRow(context),
@@ -1647,7 +1827,9 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                     ],
                   ],
                   const Spacer(),
-                  if (_arranging && _tray != _Tray.none) ...[
+                  if (_framing)
+                    _framingRow(context)
+                  else if (_arranging && _tray != _Tray.none) ...[
                     if (_flash != null) ...[
                       _note(context, _flash!),
                       const SizedBox(height: 6),
@@ -1754,6 +1936,16 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           ),
           const SizedBox(width: 10),
         ],
+        if (!_arranging && _ready) ...[
+          _HudButton(
+            label: 'Frame',
+            icon: AppIcons.center_focus_strong_rounded,
+            accent: _amber,
+            active: _layout.frame != null,
+            onTap: _startFraming,
+          ),
+          const SizedBox(width: 10),
+        ],
         _HudButton(
           label: _arranging
               ? (_armed == 'done' ? 'Leave?' : 'Done')
@@ -1839,6 +2031,20 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
             accent: _amber,
             onTap: () => _openTray(_Tray.decor),
           ),
+          const SizedBox(width: 6),
+          _Chip(
+            label: 'SKY & SEASON',
+            selected: _tray == _Tray.sky,
+            accent: _amber,
+            onTap: () => _openTray(_Tray.sky),
+          ),
+          const SizedBox(width: 6),
+          _Chip(
+            label: 'LAYOUTS',
+            selected: _tray == _Tray.kept,
+            accent: _amber,
+            onTap: () => _openTray(_Tray.kept),
+          ),
           const SizedBox(width: 16),
           // Living Sands has no weather and no hour: only its colors and
           // how it lies.
@@ -1865,14 +2071,17 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
               ),
               const SizedBox(width: 6),
             ],
-            const SizedBox(width: 10),
-            for (final (label, h) in _hours) ...[
-              _Chip(
-                label: label,
-                selected: h == hour,
-                onTap: () => _setHour(h),
-              ),
-              const SizedBox(width: 6),
+            // The Core has no hour: nothing reaches it from the sky.
+            if (!_layout.realm.timeless) ...[
+              const SizedBox(width: 10),
+              for (final (label, h) in _hours) ...[
+                _Chip(
+                  label: label,
+                  selected: h == hour,
+                  onTap: () => _setHour(h),
+                ),
+                const SizedBox(width: 6),
+              ],
             ],
           ],
           // The ambiences owned (the Athanor's), and none.
@@ -2299,6 +2508,253 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     );
   }
 
+  /// The sky over every realm: which season the land is in, and what of
+  /// the planet and the player's constellations it shows; and whether the
+  /// camera drifts by itself when the home is left alone.
+  Widget _skyTray(BuildContext context) {
+    final sky = _layout.sky;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              const _TrayLabel('SEASON'),
+              for (final p in HomeSeasonPick.values) ...[
+                const SizedBox(width: 6),
+                _Chip(
+                  label: p.label,
+                  selected: p == sky.season,
+                  onTap: () => _setSky(sky.copyWith(season: p)),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              const _TrayLabel('SHOW'),
+              const SizedBox(width: 6),
+              _Chip(
+                label: 'PLANET',
+                selected: sky.planet,
+                onTap: () => _setSky(sky.copyWith(planet: !sky.planet)),
+              ),
+              const SizedBox(width: 6),
+              _Chip(
+                label: 'CONSTELLATIONS',
+                selected: sky.constellations,
+                onTap: () =>
+                    _setSky(sky.copyWith(constellations: !sky.constellations)),
+              ),
+              const SizedBox(width: 6),
+              _Chip(
+                label: 'IDLE CAMERA',
+                selected: sky.idleCamera,
+                onTap: () => _setSky(sky.copyWith(idleCamera: !sky.idleCamera)),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// The arrangements kept of this realm: one to come back to, or this one
+  /// kept in a free place (or over one, tapped twice).
+  Widget _keptTray(BuildContext context) {
+    final here = _layout.arrangementsHere;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          _TrayLabel('${_layout.realm.title.toUpperCase()} LAYOUTS'),
+          for (var i = 0; i < here.length; i++) ...[
+            const SizedBox(width: 10),
+            if (here[i] case final a?) ...[
+              _Chip(
+                label: a.residents.length == 1
+                    ? '${i + 1} · 1 ALCHEMON'
+                    : '${i + 1} · ${a.residents.length} ALCHEMONS',
+                selected: false,
+                onTap: () => _takeArrangement(i),
+              ),
+              const SizedBox(width: 4),
+              _Chip(
+                label: _armed == 'keep$i' ? 'TAP AGAIN' : 'KEEP OVER',
+                selected: _armed == 'keep$i',
+                accent: const Color(0xFFC0392B),
+                onTap: () => _twice('keep$i', () => _keepArrangement(i)),
+              ),
+            ] else
+              _Chip(
+                label: 'KEEP AS ${i + 1}',
+                icon: AppIcons.save_rounded,
+                selected: false,
+                onTap: () => _keepArrangement(i),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _keepArrangement(int slot) {
+    HapticFeedback.mediumImpact();
+    _commit(_layout.keepArrangement(slot));
+    _say('Kept as layout ${slot + 1}.');
+  }
+
+  /// The realm as it was kept in [slot]: whoever of it still lives, what of
+  /// it the player still has, laid out again under the veil.
+  Future<void> _takeArrangement(int slot) async {
+    HapticFeedback.selectionClick();
+    _select(null);
+    _returnTray = null;
+    setState(() => _veiled = true);
+    final switching = ++_realmSwitch;
+    var layout = await _keepLiving(_layout.takeArrangement(slot));
+    if (!mounted || switching != _realmSwitch) return;
+    layout = layout.withPlaced(_placedOwned(layout));
+    _commit(_settle(layout));
+    await Future<void>.delayed(const Duration(milliseconds: 260));
+    if (!mounted || switching != _realmSwitch) return;
+    _buildGame();
+  }
+
+  // ── Framing ──────────────────────────────────────────────────────────────
+
+  void _startFraming() {
+    HapticFeedback.selectionClick();
+    setState(() => _framing = true);
+    unawaited(_syncVisitor());
+  }
+
+  void _keepFrame() {
+    final game = _game;
+    if (game == null) return;
+    HapticFeedback.mediumImpact();
+    final (x, zoom) = game.view;
+    _commit(
+      _layout.copyWith(
+        frames: {..._layout.frames, _layout.realm.name: HomeFrame(x, zoom)},
+      ),
+    );
+    setState(() => _framing = false);
+    _say('This view is kept.');
+    unawaited(_syncVisitor());
+  }
+
+  void _forgetFrame() {
+    HapticFeedback.selectionClick();
+    _commit(
+      _layout.copyWith(
+        frames: {
+          for (final e in _layout.frames.entries)
+            if (e.key != _layout.realm.name) e.key: e.value,
+        },
+      ),
+    );
+    setState(() => _framing = false);
+    unawaited(_syncVisitor());
+  }
+
+  /// While framing, all there is: keep it, forget the one kept, or not.
+  Widget _framingRow(BuildContext context) => Column(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      _note(context, 'Pan and pinch to the view to keep.'),
+      const SizedBox(height: 8),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          _Chip(
+            label: 'KEEP THIS VIEW',
+            icon: AppIcons.check_rounded,
+            selected: true,
+            onTap: _keepFrame,
+          ),
+          if (_layout.frame != null) ...[
+            const SizedBox(width: 8),
+            _Chip(
+              label: 'FORGET VIEW',
+              selected: false,
+              accent: const Color(0xFFC0392B),
+              onTap: _forgetFrame,
+            ),
+          ],
+          const SizedBox(width: 8),
+          _Chip(
+            label: 'CANCEL',
+            selected: false,
+            onTap: () {
+              setState(() => _framing = false);
+              unawaited(_syncVisitor());
+            },
+          ),
+        ],
+      ),
+    ],
+  );
+
+  /// Whether a visitor comes, or goes, now: one stands among the residents
+  /// as long as what brings it holds. The first time one comes it leaves
+  /// its likeness as a keepsake — and says nothing.
+  Future<void> _syncVisitor() async {
+    final game = _game;
+    if (game == null || !_ready) return;
+    final now = DateTime.now();
+    final v = _arranging || _framing
+        ? null
+        : visitorAt(
+            momentOf(_layout, now, game.fieldHour, _formed),
+            anyway: _debug,
+          );
+    if (v?.id == _visitor?.id) return;
+    final old = _visitor;
+    _visitor = null;
+    if (old != null) game.removeResident(_visitorResident(old, 0).spawnId);
+    final species = v == null ? null : _catalog.getCreatureById(v.speciesId);
+    if (v != null && species != null) {
+      // Near the middle of the view, where there is room.
+      final row = _layout.realm.row(HomeDepth.front);
+      final near = game.shareAtScreen(row.layer, game.size.x / 2);
+      final x = _layout.freeSpotNear(_visitorResident(v, near), near);
+      if (x != null) {
+        _visitor = v;
+        _visitorX = x;
+      }
+    }
+    game.relayout(_points);
+    final come = _visitor;
+    if (come == null || species == null) return;
+    await game.showResident(
+      _visitorResident(come, _visitorX).spawnId,
+      species,
+      gather: true,
+    );
+    if (!mounted || _secrets.visitors.contains(come.id)) return;
+    _secrets = _secrets.copyWith(visitors: {..._secrets.visitors, come.id});
+    await _secrets.save(_db.settingsDao);
+    final ledger = await KeepsakeLedger.load(_db, _speciesName);
+    if (mounted) setState(() => _ledger = ledger);
+  }
+
+  /// Changes the sky's switches, saved, and shows them at once.
+  void _setSky(HomeSky sky) {
+    if (sky == _layout.sky) return;
+    HapticFeedback.selectionClick();
+    _commit(_layout.copyWith(sky: sky));
+    _game
+      ?..homeSky = homeSkyLookOf(sky, _skySources)
+      ..fieldSeason = sky.seasonAt(DateTime.now());
+  }
+
   /// Every piece of decor in this realm back on the shelf.
   void _putAllDecorAway() {
     final game = _game;
@@ -2327,6 +2783,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     if (_tray == _Tray.decor) return _decorTray(context);
     if (_tray == _Tray.sand) return _sandTray(context);
     if (_tray == _Tray.sandSettings) return _sandSettingsTray(context);
+    if (_tray == _Tray.sky) return _skyTray(context);
+    if (_tray == _Tray.kept) return _keptTray(context);
     if (_tray == _Tray.scenery) {
       final count = _layout.scenery.length;
       return SingleChildScrollView(

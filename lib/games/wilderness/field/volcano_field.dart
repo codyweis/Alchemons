@@ -70,6 +70,9 @@ class VolcanoField extends _GrainField {
     _gAshTop: Color(0xFF8E8078),
   };
 
+  /// Snow on the far range in winter (it never lies near the lava).
+  static const _winterAlbedo = <int, Color>{_gRange: Color(0xFFB8BEC8)};
+
   /// The plume's ash in daylight, and an eruption's, darker.
   static const _plumeAsh = Color(0xFF6E5A54), _eruptionAsh = Color(0xFF4A3C38);
 
@@ -224,7 +227,9 @@ class VolcanoField extends _GrainField {
   @override
   void _buildGrades(_Light l) {
     final hazeHigh = l.skyAt(0.42), hazeLow = l.skyAt(0.585);
-    Color sil(int g) => _sil(_albedo[g]!, l);
+    // Winter snow lies only on the far range, high above the heat.
+    Color sil(int g) =>
+        _sil(_seasoned(_albedo[g]!, winter: _winterAlbedo[g]), l);
     (double, double, double) fleck(Color s, double k) => (
       s.r * 0.9 + l.rim.r * l.rimStrength * k,
       s.g * 0.9 + l.rim.g * l.rimStrength * k,

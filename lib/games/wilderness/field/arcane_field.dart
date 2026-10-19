@@ -280,10 +280,16 @@ class ArcaneField extends _GrainField {
     _paintGlass(canvas, screen, view);
     final hole = _hole(screen, view);
     _paintVoidStars(canvas, screen, view, hole);
+    // A home's own sky: the Arcane draws its sky itself, so it lays the
+    // home's in round its own.
+    final home = _homeSky;
+    final frame = home == null ? null : _skyFrame(screen, view, 0);
+    if (home != null) home.paintBehind(canvas, frame!);
     _paintLantern(canvas, screen, view);
     if (hole != null) _paintHole(canvas, screen, view, hole);
     _paintAurora(canvas, screen, view);
     _paintMeteors(canvas, screen, view);
+    if (home != null) home.paintFront(canvas, frame!);
   }
 
   /// The void turned over in the glass below the band, dimming as the eye

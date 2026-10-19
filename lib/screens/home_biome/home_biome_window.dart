@@ -15,8 +15,11 @@ import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
+import 'package:alchemons/models/home_biome.dart';
+import 'package:alchemons/models/home_secrets.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/screens/home_biome/home_biome_screen.dart';
+import 'package:alchemons/screens/home_biome/home_sky_source.dart';
 import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:flame/game.dart';
@@ -57,6 +60,7 @@ class _HomeBiomeWindowState extends State<HomeBiomeWindow> {
     final db = context.read<AlchemonsDatabase>();
     final catalog = context.read<CreatureCatalog>();
     final (layout, _, looks) = await loadHomeBiome(db, catalog);
+    final sky = await HomeSkySources.read(db);
     if (!mounted) return;
     bool floats(String id) => speciesCanFloat(looks[id]?.$1.id ?? '');
     final mood = layout.mood;
@@ -65,6 +69,8 @@ class _HomeBiomeWindowState extends State<HomeBiomeWindow> {
       ..fieldWeather = mood.weather
       ..fieldAftermath = mood.aftermath
       ..fieldStage = mood.stage
+      ..homeSky = homeSkyLookOf(layout.sky, sky)
+      ..fieldSeason = layout.sky.seasonAt(DateTime.now())
       // As down there: the residents stroll, sleep at night, take portals.
       ..lively = true
       ..panDrift = 16;
@@ -75,12 +81,26 @@ class _HomeBiomeWindowState extends State<HomeBiomeWindow> {
         ..trailOf = wear.trailOf
         ..ambience = wear.ambienceIn(layout.realm.name);
     }
+    final debug = await homeDebugOn();
+    if (!mounted) return;
+    showHomeMarks(game, layout, full: debug);
+    game.harmonies = [
+      for (final h in formedHarmonies(
+        layout,
+        DateTime.now().millisecondsSinceEpoch,
+        (id) => looks[id]?.$1.types.firstOrNull,
+        always: debug,
+      ))
+        (h.a, h.b, h.makes),
+    ];
     // Loading needs the loop (components mount in its updates), so it runs
     // from the start unless home is already covered.
     if (!widget.active) game.pauseEngine();
     setState(() => _game = game);
     await game.loaded;
     if (!mounted || _game != game) return;
+    // The view the player framed, if any; it drifts on from there.
+    if (layout.frame case final f?) game.viewAt(f.x, f.zoom);
     for (final r in layout.residents) {
       final look = looks[r.instanceId];
       if (look == null) continue;

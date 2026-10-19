@@ -29,6 +29,9 @@ part of 'grain_field.dart';
 //   isles   r = haze, b = shade, g = fleck
 
 class SkyField extends _GrainField {
+  @override
+  bool get shedsInSeason => true;
+
   SkyField();
 
   static const far = SceneLayer.layer2;
@@ -43,6 +46,23 @@ class SkyField extends _GrainField {
     _gRock: Color(0xFFB8B4AE),
     _gTurf: Color(0xFF4E8248),
     _gTree: Color(0xFF2C5C3E),
+  };
+
+  /// The isles in the seasons: the turf fresher and the groves in blossom
+  /// in spring, the groves rust and the turf gold in autumn, snow lying on
+  /// turf and rock in winter.
+  static const _springAlbedo = <int, Color>{
+    _gTurf: Color(0xFF5A9450),
+    _gTree: Color(0xFF86607A),
+  };
+  static const _autumnAlbedo = <int, Color>{
+    _gTurf: Color(0xFF7A7238),
+    _gTree: Color(0xFF7A4A22),
+  };
+  static const _winterAlbedo = <int, Color>{
+    _gTurf: Color(0xFFC2CCD6),
+    _gRock: Color(0xFFCAD2DC),
+    _gTree: Color(0xFF2E4A40),
   };
 
   /// How fast the high cloud drifts, in units a second at the reference
@@ -74,7 +94,12 @@ class SkyField extends _GrainField {
   void _buildGrades(_Light l) {
     final hazeIsle = l.skyAt(0.5), hazeLow = l.skyAt(0.6);
     Color sil(int g) {
-      final a = _albedo[g]!;
+      final a = _seasoned(
+        _albedo[g]!,
+        spring: _springAlbedo[g],
+        autumn: _autumnAlbedo[g],
+        winter: _winterAlbedo[g],
+      );
       return Color.from(
         alpha: 1,
         red: a.r * l.ambient.r,
@@ -1853,7 +1878,9 @@ class SkyField extends _GrainField {
   /// the storm comes in, and thrown up toward white for a moment whenever
   /// the lightning goes.
   @override
-  _Light _weathered(_Light l) {
+  _Light _weathered(_Light l) => _seasonLight(_byWeather(l));
+
+  _Light _byWeather(_Light l) {
     final s = storm, f = _flash;
     if (s <= 0.001 && f <= 0.001) return l;
     Color slate(Color c, double dark) {

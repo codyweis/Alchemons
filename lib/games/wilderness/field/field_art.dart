@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui';
 
 import 'package:alchemons/models/encounters/wild_weather.dart';
+import 'package:alchemons/models/home_sky.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 
@@ -203,6 +204,20 @@ abstract class FieldArt {
   /// How much of what the weather leaves behind is showing (the Valley's
   /// rainbow), 0 to 1, eased in by the game.
   double aftermath = 0;
+
+  /// The home's own sky over this field — its planet and constellations
+  /// (home_sky_art.dart) — or null in the wild.
+  HomeSkyLook? homeSky;
+
+  /// The season the home is in, and how far the field has eased into it
+  /// (0–1); null in the wild, or with seasons off. Each field shows only
+  /// what its own land does in a season.
+  HomeSeason? season;
+  double seasonAmount = 0;
+
+  /// Whether this land has trees to shed into the air in a season — leaves
+  /// in autumn, petals in spring.
+  bool get shedsInSeason => false;
 
   /// Which stage of its own cycle the field is in this visit (see
   /// [SceneDefinition.stages]) — the Volcano still, smoking or erupting.

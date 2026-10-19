@@ -390,7 +390,7 @@ class AudioController extends ChangeNotifier with WidgetsBindingObserver {
       'sky' => MusicCue.wildSky,
       'volcano' => MusicCue.wildVolcano,
       'swamp' || 'poison' => MusicCue.wildSwamp,
-      'arcane' => MusicCue.wildArcane,
+      'arcane' || 'core' => MusicCue.wildArcane,
       _ => MusicCue.wildValley,
     };
     return playMusic(cue);

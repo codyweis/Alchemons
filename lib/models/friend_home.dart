@@ -210,6 +210,8 @@ class FriendHome {
     required this.layout,
     this.looks = const {},
     this.ambience,
+    this.planet,
+    this.constellations = const {},
   });
 
   /// Format of what is published; a newer one is still read as far as it
@@ -224,6 +226,12 @@ class FriendHome {
 
   /// The Athanor ambience worn in this realm (HomeAmbience id).
   final String? ambience;
+
+  /// What their sky is made of: their planet as it looks, and the
+  /// constellation stones they own (by skill id). The layout's own sky
+  /// settings say what of it shows.
+  final PlanetLook? planet;
+  final Set<String> constellations;
 
   /// The layout cut down to its own realm: the other realms' households,
   /// moods and scenery stay with their owner.
@@ -245,6 +253,9 @@ class FriendHome {
               if (!p.trial) p,
           ],
       },
+      sky: layout.sky,
+      marks: [...layout.marksHere],
+      frames: {if (layout.frame case final f?) realm.name: f},
     );
   }
 
@@ -253,6 +264,9 @@ class FriendHome {
     'layout': trim(layout).toJson(),
     'looks': {for (final e in looks.entries) e.key: e.value.toJson()},
     if (ambience != null) 'ambience': ambience,
+    if (planet != null) 'planet': planet!.toJson(),
+    if (constellations.isNotEmpty)
+      'constellations': constellations.toList()..sort(),
   });
 
   static FriendHome? decode(String? raw) {
@@ -281,6 +295,12 @@ class FriendHome {
         ambience: json['ambience'] is String
             ? json['ambience'] as String
             : null,
+        planet: json['planet'] is Map
+            ? PlanetLook.fromJson(json['planet'])
+            : null,
+        constellations: json['constellations'] is List
+            ? {...(json['constellations'] as List).whereType<String>()}
+            : const {},
       );
     } catch (_) {
       return null;
@@ -302,6 +322,14 @@ class FriendHome {
   }) async {
     final SettingsDao settings = db.settingsDao;
     final layout = await HomeBiomeLayout.loadOpen(settings);
+    PlanetLook? planet;
+    try {
+      planet = PlanetLook.read(await SharedPreferences.getInstance());
+    } catch (_) {}
+    var constellations = const <String>{};
+    try {
+      constellations = await db.constellationDao.getUnlockedSkillIds();
+    } catch (_) {}
     final looks = <String, ResidentLook>{};
     for (final r in layout.residents) {
       final inst = await db.creatureDao.getInstance(r.instanceId);
@@ -320,6 +348,8 @@ class FriendHome {
       ),
       looks: looks,
       ambience: ambienceIn?.call(layout.realm.name),
+      planet: planet,
+      constellations: constellations,
     );
   }
 }

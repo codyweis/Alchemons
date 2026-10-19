@@ -18,10 +18,13 @@ import 'dart:ui';
 import 'package:alchemons/database/daos/settings_dao.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
 import 'package:alchemons/games/wilderness/field/grain_field.dart';
+import 'package:alchemons/games/wilderness/field/home_core_field.dart';
 import 'package:alchemons/games/wilderness/field/home_sand_field.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/home_sand.dart';
+import 'package:alchemons/models/home_secrets.dart';
+import 'package:alchemons/models/home_sky.dart';
 import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/geode/geode_scene.dart';
@@ -242,6 +245,23 @@ enum HomeRealm {
     far: HomeRow(SceneLayer.layer3, 0.55, 70),
     mid: HomeRow(SceneLayer.layer3, 0.675, 85),
     moods: [HomeMood('clear', 'CLEAR')],
+  ),
+
+  // Found, never bought: the inside of the player's own planet, opened by
+  // the Core Shards buried under the five first realms
+  // (models/home_secrets.dart; games/wilderness/field/home_core_field.dart).
+  // Particles on the dark; no weather and no hour, only its heart, still or
+  // beating.
+  core(
+    'Core',
+    'dark',
+    near: HomeRow(SceneLayer.layer4, 0.80, 100),
+    far: HomeRow(SceneLayer.layer3, 0.58, 70),
+    mid: HomeRow(SceneLayer.layer3, 0.69, 85),
+    moods: [
+      HomeMood('still', 'STILL', stage: kCoreStill),
+      HomeMood('beating', 'BEATING', stage: kCoreBeating),
+    ],
   );
 
   const HomeRealm(
@@ -276,7 +296,14 @@ enum HomeRealm {
     HomeRealm.geode => geodeScene,
     HomeRealm.tidal => tidalScene,
     HomeRealm.sand => homeSandScene(),
+    HomeRealm.core => homeCoreScene(),
   };
+
+  /// Whether a Core Shard is buried under this realm (all but the Core).
+  bool get buries => this != HomeRealm.core;
+
+  /// Realms with no weather and no hour of their own.
+  bool get timeless => this == HomeRealm.sand || this == HomeRealm.core;
 
   HomeRow row(HomeDepth depth) => switch (depth) {
     HomeDepth.front => near,
@@ -298,7 +325,7 @@ enum HomeRealm {
 
   /// The pieces of this realm's own scenery the player can place.
   List<HomeScenery> get scenery => switch (this) {
-    HomeRealm.sand => const [],
+    HomeRealm.sand || HomeRealm.core => const [],
     HomeRealm.valley => const [
       HomeScenery(FieldPiece.tree, 'GREAT TREE', w: 100, h: 100, half: 120),
       HomeScenery(
@@ -518,7 +545,7 @@ enum HomeRealm {
 
     final s = sceneryOf;
     return switch (this) {
-      HomeRealm.sand => [],
+      HomeRealm.sand || HomeRealm.core => [],
       HomeRealm.valley => [
         for (final (x, k) in ValleyField.homeTrees(nearP))
           piece(FieldPiece.tree, x, scale: k),
@@ -626,13 +653,16 @@ enum HomeRealm {
       await homeDebugOn() || await settings.isArcanePortalUnlocked();
 
   /// The realms a home can be made in: the Arcane only once its portal is
-  /// open ([arcane]), and a realm the shop sells only once [bought].
+  /// open ([arcane]), a realm the shop sells only once [bought], and the
+  /// Core only once it is found ([core]).
   static List<HomeRealm> open({
     required bool arcane,
     Set<String> bought = const {},
+    bool core = false,
   }) => [
     for (final r in values)
       if ((r != HomeRealm.arcane || arcane) &&
+          (r != HomeRealm.core || core) &&
           (shopSceneOf(r.sceneId) == null || bought.contains(r.sceneId)))
         r,
   ];
@@ -646,6 +676,7 @@ enum HomeRealm {
       bought: debug
           ? {for (final s in kShopScenes) s.sceneId}
           : await ownedShopScenes(settings),
+      core: debug || coreOpens(await HomeSecrets.load(settings)),
     );
   }
 }
@@ -659,9 +690,15 @@ class HomeResident {
     this.lift,
     this.flip = false,
     this.beside,
+    this.since,
   });
 
   final String instanceId;
+
+  /// When it settled where it stands (ms since the epoch): the ground there
+  /// takes on its element the longer it stays (see [homeMarkStrength]).
+  /// Null until the home first sees it.
+  final int? since;
 
   /// The point it stands beside, sharing that one's ground (see
   /// [SpawnPoint.beside]); null for its own.
@@ -689,6 +726,7 @@ class HomeResident {
     double? Function()? lift,
     bool? flip,
     String? Function()? beside,
+    int? Function()? since,
   }) => HomeResident(
     instanceId: instanceId,
     depth: depth ?? this.depth,
@@ -696,6 +734,7 @@ class HomeResident {
     lift: lift != null ? lift() : this.lift,
     flip: flip ?? this.flip,
     beside: beside != null ? beside() : this.beside,
+    since: since != null ? since() : this.since,
   );
 
   Map<String, dynamic> toJson() => {
@@ -705,6 +744,7 @@ class HomeResident {
     if (lift != null) 'lift': double.parse(lift!.toStringAsFixed(4)),
     if (flip) 'flip': true,
     if (beside != null) 'beside': beside,
+    if (since != null) 'since': since,
   };
 
   static HomeResident? fromJson(Object? json) {
@@ -720,6 +760,145 @@ class HomeResident {
       lift: lift is num ? lift.toDouble().clamp(0.1, 0.92) : null,
       flip: json['flip'] == true,
       beside: json['beside'] is String ? json['beside'] as String : null,
+      since: json['since'] is num ? (json['since'] as num).toInt() : null,
+    );
+  }
+}
+
+// ── Marks ──────────────────────────────────────────────────────────────────
+
+const int _dayMs = 86400000;
+
+/// How far the ground where a resident has lived since [since] has taken
+/// on its element at [now] (both ms since the epoch): nothing the first
+/// hours, full after about a week.
+double homeMarkStrength(int since, int now) {
+  final days = (now - since) / _dayMs;
+  if (days <= 0.1) return 0;
+  if (days >= 6) return 1;
+  final t = (days - 0.1) / 5.9;
+  return t * t * (3 - 2 * t);
+}
+
+/// How many arrangements of each realm can be kept.
+const int kHomeArrangementSlots = 3;
+
+/// One arrangement of a realm, kept to come back to: who lives there and
+/// where, what stands there, and its mood.
+class HomeArrangement {
+  const HomeArrangement({
+    this.residents = const [],
+    this.pieces = const [],
+    this.mood,
+  });
+
+  final List<HomeResident> residents;
+  final List<HomePiece> pieces;
+  final String? mood;
+
+  Map<String, dynamic> toJson() => {
+    'residents': [for (final r in residents) r.toJson()],
+    'pieces': [for (final p in pieces) p.toJson()],
+    if (mood != null) 'mood': mood,
+  };
+
+  static HomeArrangement? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final rs = json['residents'], ps = json['pieces'];
+    return HomeArrangement(
+      residents: rs is List
+          ? [
+              for (final r in rs.map(HomeResident.fromJson))
+                if (r != null) r,
+            ].take(kHomeBiomeMaxResidents).toList()
+          : const [],
+      pieces: ps is List
+          ? [
+              for (final p in ps.map(HomePiece.fromJson))
+                if (p != null) p,
+            ]
+          : const [],
+      mood: json['mood'] is String ? json['mood'] as String : null,
+    );
+  }
+}
+
+/// A view of a realm the player framed: where along the field the camera
+/// is (a share of its width) and how far it is zoomed. Friends and the
+/// home screen's window open on it.
+class HomeFrame {
+  const HomeFrame(this.x, this.zoom);
+  final double x, zoom;
+
+  List<double> toJson() => [
+    double.parse(x.toStringAsFixed(4)),
+    double.parse(zoom.toStringAsFixed(3)),
+  ];
+
+  static HomeFrame? fromJson(Object? json) {
+    if (json is! List || json.length != 2) return null;
+    final x = json[0], z = json[1];
+    if (x is! num || z is! num) return null;
+    return HomeFrame(x.toDouble() % 1.0, z.toDouble().clamp(0.4, 2.0));
+  }
+}
+
+/// How long a mark takes to fade once its resident has gone.
+const int kHomeMarkFadeMs = 2 * _dayMs;
+
+/// What a resident left on the ground where it lived, fading since it
+/// moved or left.
+class HomeMark {
+  const HomeMark({
+    required this.realm,
+    required this.depth,
+    required this.x,
+    required this.element,
+    required this.strength,
+    required this.left,
+  });
+
+  /// The realm (by name), row and place along it (a share of its loop).
+  final String realm;
+  final HomeDepth depth;
+  final double x;
+
+  /// The element it took on (Title case, as a species' type).
+  final String element;
+
+  /// How strong it was when it was left, and when (ms since the epoch).
+  final double strength;
+  final int left;
+
+  /// How much of it shows at [now].
+  double strengthAt(int now) {
+    final f = (now - left) / kHomeMarkFadeMs;
+    if (f >= 1) return 0;
+    return strength * (1 - f.clamp(0.0, 1.0));
+  }
+
+  Map<String, dynamic> toJson() => {
+    'realm': realm,
+    ...depth.toJson(),
+    'x': double.parse(x.toStringAsFixed(4)),
+    'element': element,
+    's': double.parse(strength.toStringAsFixed(3)),
+    'left': left,
+  };
+
+  static HomeMark? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final realm = json['realm'], element = json['element'];
+    final x = json['x'], st = json['s'], left = json['left'];
+    if (realm is! String || element is! String) return null;
+    if (x is! num || st is! num || left is! num) return null;
+    return HomeMark(
+      realm: realm,
+      depth: HomeDepth.fromJson(json),
+      x: x.toDouble() % 1.0,
+      element: element,
+      strength: st.toDouble().clamp(0.0, 1.0),
+      left: left.toInt(),
     );
   }
 }
@@ -965,10 +1144,68 @@ class HomeBiomeLayout {
     Map<String, List<HomeResident>> households = const {},
     this.pieces = const {},
     this.seen = const {},
+    this.sky = const HomeSky(),
+    this.marks = const [],
+    this.arrangements = const {},
+    this.frames = const {},
   }) : _households = households;
 
   final HomeRealm realm;
   final HomeSandStyle sandStyle;
+
+  /// What the sky shows — the season, the planet, the constellations — and
+  /// whether the camera drifts when left alone. The same over every realm.
+  final HomeSky sky;
+
+  /// The marks residents left where they lived, fading (see [HomeMark]).
+  final List<HomeMark> marks;
+
+  /// Arrangements kept of each realm, by realm name: [kHomeArrangementSlots]
+  /// places, null where none is kept.
+  final Map<String, List<HomeArrangement?>> arrangements;
+
+  /// The view framed of each realm, by realm name.
+  final Map<String, HomeFrame> frames;
+
+  /// The current realm's kept arrangements, one per place.
+  List<HomeArrangement?> get arrangementsHere {
+    final kept = arrangements[realm.name] ?? const [];
+    return [
+      for (var i = 0; i < kHomeArrangementSlots; i++)
+        i < kept.length ? kept[i] : null,
+    ];
+  }
+
+  /// The current realm as it stands, kept in place [slot].
+  HomeBiomeLayout keepArrangement(int slot) {
+    final here = [...arrangementsHere];
+    here[slot] = HomeArrangement(
+      residents: [for (final r in residents) r.copyWith(since: () => null)],
+      pieces: [
+        for (final p in placed)
+          if (!p.trial) p,
+      ],
+      mood: moods[realm.name],
+    );
+    return copyWith(arrangements: {...arrangements, realm.name: here});
+  }
+
+  /// The current realm as it was kept in place [slot] (unchanged if none
+  /// is kept there).
+  HomeBiomeLayout takeArrangement(int slot) {
+    final a = arrangementsHere[slot];
+    if (a == null) return this;
+    return copyWith(
+      residents: a.residents,
+      moods: {
+        ...moods,
+        if (a.mood != null) realm.name: a.mood!,
+      },
+    ).withPlaced(a.pieces);
+  }
+
+  /// The view framed of the current realm, if one is.
+  HomeFrame? get frame => frames[realm.name];
 
   /// The mood picked for each realm, by realm name — each keeps its own, so
   /// going back to the Valley finds its rain still falling.
@@ -1028,6 +1265,10 @@ class HomeBiomeLayout {
     List<HomeResident>? residents,
     Map<String, List<HomePiece>>? pieces,
     Set<String>? seen,
+    HomeSky? sky,
+    List<HomeMark>? marks,
+    Map<String, List<HomeArrangement?>>? arrangements,
+    Map<String, HomeFrame>? frames,
   }) {
     final to = realm ?? this.realm;
     final all = households;
@@ -1040,8 +1281,94 @@ class HomeBiomeLayout {
       households: all,
       pieces: pieces ?? this.pieces,
       seen: seen ?? this.seen,
+      sky: sky ?? this.sky,
+      marks: marks ?? this.marks,
+      arrangements: arrangements ?? this.arrangements,
+      frames: frames ?? this.frames,
     );
   }
+
+  /// [this] after [before], with the ground's memory kept: whoever newly
+  /// came to a spot (arrived, moved, or took off) settles there from [now],
+  /// and the spot each one left keeps its mark, fading — [elementOf] says
+  /// which element each one's is. Faded marks are let go.
+  HomeBiomeLayout markedSince(
+    HomeBiomeLayout before,
+    int now,
+    String? Function(String instanceId) elementOf,
+  ) {
+    // Each realm keeps its own household, and one Alchemon may live in
+    // more than one: who is who is by realm and instance.
+    final was = {
+      for (final e in before.households.entries)
+        for (final r in e.value) '${e.key}|${r.instanceId}': (e.key, r),
+    };
+    final left = <HomeMark>[];
+    void leave(String realm, HomeResident r) {
+      final since = r.since;
+      final element = elementOf(r.instanceId);
+      if (since == null || element == null || r.lift != null) return;
+      final st = homeMarkStrength(since, now);
+      if (st < 0.02) return;
+      left.add(
+        HomeMark(
+          realm: realm,
+          depth: r.depth,
+          x: r.x,
+          element: element,
+          strength: st,
+          left: now,
+        ),
+      );
+    }
+
+    final seenNow = <String>{};
+    final houses = <String, List<HomeResident>>{};
+    for (final e in households.entries) {
+      houses[e.key] = [
+        for (final r in e.value)
+          () {
+            final key = '${e.key}|${r.instanceId}';
+            seenNow.add(key);
+            final old = was[key]?.$2;
+            if (old == null) return r.copyWith(since: () => r.since ?? now);
+            var d = (r.x - old.x).abs();
+            d = math.min(d, 1 - d);
+            final moved =
+                old.depth != r.depth ||
+                d > 0.02 ||
+                (old.lift == null) != (r.lift == null);
+            if (!moved) return r.copyWith(since: () => old.since ?? now);
+            leave(e.key, old);
+            return r.copyWith(since: () => now);
+          }(),
+      ];
+    }
+    for (final e in was.entries) {
+      if (!seenNow.contains(e.key)) leave(e.value.$1, e.value.$2);
+    }
+    final kept = [
+      for (final m in [...marks, ...left])
+        if (m.strengthAt(now) > 0.01) m,
+    ];
+    return HomeBiomeLayout(
+      realm: realm,
+      sandStyle: sandStyle,
+      moods: moods,
+      hour: hour,
+      residents: houses[realm.name] ?? const [],
+      households: houses,
+      pieces: pieces,
+      seen: seen,
+      sky: sky,
+      marks: kept.length > 24 ? kept.sublist(kept.length - 24) : kept,
+      arrangements: arrangements,
+      frames: frames,
+    );
+  }
+
+  /// The marks fading in the current realm.
+  Iterable<HomeMark> get marksHere => marks.where((m) => m.realm == realm.name);
 
   HomeBiomeLayout withMood(String id) =>
       copyWith(moods: {...moods, realm.name: id});
@@ -1789,6 +2116,15 @@ class HomeBiomeLayout {
           ],
       },
     if (seen.isNotEmpty) 'seen': seen.toList()..sort(),
+    if (!sky.isDefault) 'sky': sky.toJson(),
+    if (marks.isNotEmpty) 'marks': [for (final m in marks) m.toJson()],
+    if (arrangements.isNotEmpty)
+      'arrangements': {
+        for (final e in arrangements.entries)
+          e.key: [for (final a in e.value) a?.toJson()],
+      },
+    if (frames.isNotEmpty)
+      'frames': {for (final e in frames.entries) e.key: e.value.toJson()},
   };
 
   static HomeBiomeLayout fromJson(Object? json) {
@@ -1848,6 +2184,35 @@ class HomeBiomeLayout {
             }
           : const {},
       seen: seenRaw is List ? {...seenRaw.whereType<String>()} : const {},
+      sky: HomeSky.fromJson(json['sky']),
+      marks: json['marks'] is List
+          ? [
+              for (final m in (json['marks'] as List).map(HomeMark.fromJson))
+                if (m != null) m,
+            ]
+          : const [],
+      arrangements: json['arrangements'] is Map
+          ? {
+              for (final e in (json['arrangements'] as Map).entries)
+                if (e.key is String &&
+                    HomeRealm.values.any((r) => r.name == e.key) &&
+                    e.value is List)
+                  e.key as String: [
+                    for (final a in (e.value as List).take(
+                      kHomeArrangementSlots,
+                    ))
+                      HomeArrangement.fromJson(a),
+                  ],
+            }
+          : const {},
+      frames: json['frames'] is Map
+          ? {
+              for (final e in (json['frames'] as Map).entries)
+                if (e.key is String)
+                  if (HomeFrame.fromJson(e.value) case final f?)
+                    e.key as String: f,
+            }
+          : const {},
     );
   }
 

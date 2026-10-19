@@ -3,7 +3,9 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:alchemons/games/wilderness/field/field_art.dart';
+import 'package:alchemons/games/wilderness/field/home_sky_art.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
+import 'package:alchemons/models/home_sky.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
@@ -84,15 +86,102 @@ abstract class _GrainField extends FieldArt {
   static const _sunrise = 6.0, _sunset = 19.5;
   static const _moonrise = 20.0, _moonset = 5.5;
 
+  /// The season as the light last saw it (see [FieldArt.season]): which,
+  /// and how far in, to a 1/64.
+  int get _seasonKey =>
+      season == null ? -1 : season!.index * 100 + (seasonAmount * 64).round();
+  int _lastSeason = -1;
+
+  /// How far into [s] the land is (0 when it is another season or none).
+  double _inSeason(HomeSeason s) => season == s ? seasonAmount : 0;
+
+  /// [a] as the season has it: toward [spring], [autumn] or [winter] as
+  /// far as the land is into that season. A season with no color given
+  /// leaves [a] as it is.
+  Color _seasoned(Color a, {Color? spring, Color? autumn, Color? winter}) {
+    final sp = _inSeason(HomeSeason.spring);
+    final au = _inSeason(HomeSeason.autumn);
+    final wi = _inSeason(HomeSeason.winter);
+    if (spring != null && sp > 0) a = Color.lerp(a, spring, sp)!;
+    if (autumn != null && au > 0) a = Color.lerp(a, autumn, au)!;
+    if (winter != null && wi > 0) a = Color.lerp(a, winter, wi)!;
+    return a;
+  }
+
+  /// [l] as the season has the land's own light: the grass fresher in
+  /// spring, gone to gold in autumn, its tips frosted in winter under a
+  /// colder sky with no fireflies; the motes petals in spring.
+  _Light _seasonLight(_Light l) {
+    final sp = _inSeason(HomeSeason.spring);
+    final au = _inSeason(HomeSeason.autumn);
+    final wi = _inSeason(HomeSeason.winter);
+    if (sp + au + wi <= 0.001) return l;
+    const frost = Color(0xFFE6EEF6);
+    final tips = l.grass.length;
+    Color blade(Color c, int i) {
+      if (sp > 0) {
+        c = Color.lerp(
+          c,
+          Color.from(
+            alpha: 1,
+            red: c.r * 0.88,
+            green: math.min(1, c.g * 1.1),
+            blue: c.b * 0.92,
+          ),
+          sp,
+        )!;
+      }
+      if (au > 0) {
+        c = Color.lerp(
+          c,
+          Color.from(
+            alpha: 1,
+            red: math.min(1, c.g * 1.08 + 0.05),
+            green: c.g * 0.78,
+            blue: c.b * 0.42,
+          ),
+          0.8 * au,
+        )!;
+      }
+      if (wi > 0) {
+        final tip = math.pow(i / math.max(1, tips - 1), 2.2).toDouble();
+        c = Color.lerp(c, frost, tip * 0.8 * wi)!;
+      }
+      return c;
+    }
+
+    Color cold(Color c) => Color.lerp(
+      c,
+      Color.from(
+        alpha: 1,
+        red: c.r * 0.9,
+        green: c.g * 0.97,
+        blue: math.min(1, c.b * 1.06),
+      ),
+      wi,
+    )!;
+    return l.copyWith(
+      sky: wi > 0 ? [for (final c in l.sky) cold(c)] : null,
+      grass: [for (var i = 0; i < tips; i++) blade(l.grass[i], i)],
+      mote: sp > 0
+          ? Color.lerp(l.mote, const Color(0xFFF6D8E2), sp * (1 - l.firefly))!
+          : null,
+      firefly: wi > 0 ? l.firefly * (1 - wi) : null,
+    );
+  }
+
   @override
   void prepare(double hour, {double time = 0}) {
     final weather = _weatherKey;
+    final seasonKey = _seasonKey;
     if (_hour >= 0 &&
         (hour - _hour).abs() < 1 / 240 &&
-        weather == _lastWeather) {
+        weather == _lastWeather &&
+        seasonKey == _lastSeason) {
       return;
     }
     _lastWeather = weather;
+    _lastSeason = seasonKey;
     _hour = hour;
     _light = _weathered(_Light.at(hour, _keys));
 
@@ -104,17 +193,9 @@ abstract class _GrainField extends FieldArt {
         ((hour - _moonrise + 24) % 24) / ((_moonset - _moonrise + 24) % 24);
     _moonX = 0.16 + 0.68 * fm.clamp(0.0, 1.0);
     _moonUp = fm <= 1 ? math.sin(fm * math.pi) * 0.82 : -1;
-    _moonPhase = _lunarPhase(DateTime.now());
+    _moonPhase = lunarPhase(DateTime.now());
 
     _buildGrades(_light);
-  }
-
-  /// The moon's age through its cycle, 0 new → 0.5 full → 1 new.
-  static double _lunarPhase(DateTime now) {
-    final known = DateTime.utc(2000, 1, 6, 18, 14);
-    final days = now.toUtc().difference(known).inMinutes / 1440;
-    final p = (days / 29.530588853) % 1;
-    return p < 0 ? p + 1 : p;
   }
 
   @override
@@ -311,6 +392,38 @@ abstract class _GrainField extends FieldArt {
   Path? _moonLit;
   double _moonLitPhase = -1;
 
+  /// The home's sky, drawn while the field is a home ([homeSky] set).
+  HomeSkyArt? _skyArt;
+  HomeSkyArt? get _homeSky {
+    final look = homeSky;
+    if (look == null || look.isEmpty) return null;
+    return (_skyArt ??= HomeSkyArt())..look = look;
+  }
+
+  /// This frame's sky for the home's sky to draw into.
+  SkyFrame _skyFrame(Size screen, FieldView view, double drift) {
+    final z = view.zoom;
+    double skyY(double up) =>
+        view.screenY(view.height * (_horizon - up * 0.49));
+    return SkyFrame(
+      screen: screen,
+      time: view.time,
+      hour: view.hour,
+      horizon: skyY(0),
+      top: skyY(1),
+      night: _light.stars.clamp(0.0, 1.0),
+      glow: _light.glow.clamp(0.0, 1.0),
+      light: _light.rim,
+      sun: Offset(screen.width * _sunX - drift, skyY(_sunUp)),
+      sunUp: _sunUp,
+      moon: Offset(screen.width * _moonX - drift, skyY(_moonUp)),
+      moonUp: _moonUp,
+      veil: _veil,
+      scale: _u * z,
+      haze: _light.skyAt(_horizon - 0.04),
+    );
+  }
+
   // ── Sky ──────────────────────────────────────────────────────────────────
 
   @override
@@ -358,6 +471,11 @@ abstract class _GrainField extends FieldArt {
       }
     }
 
+    // The home's sky: what lies behind the sun and moon.
+    final home = _homeSky;
+    final frame = home == null ? null : _skyFrame(screen, view, drift);
+    if (home != null) home.paintBehind(canvas, frame!);
+
     // The sun's light: a wide glow wherever it is, even just set.
     final sun = Offset(screen.width * _sunX - drift, skyY(_sunUp));
     void glow(Offset at, double r, Color c, List<double> alphas) =>
@@ -403,11 +521,16 @@ abstract class _GrainField extends FieldArt {
       final moon = Offset(screen.width * _moonX - drift, skyY(_moonUp));
       final vis = l.stars.clamp(0.0, 1.0) * (1 - veil);
       final lit = (1 - math.cos(_moonPhase * 2 * math.pi)) / 2;
-      glow(moon, 120 * _u * z, const Color(0xFFB4C6F0), [
-        0.32 * vis * lit,
-        0.1 * vis * lit,
-      ]);
-      final r = 13 * _u * z;
+      // A blood moon over a home is the moon gone red, and larger.
+      final big = home?.moonSize ?? 1;
+      final beat = home?.bloodPulse(view.time) ?? 1;
+      glow(
+        moon,
+        120 * _u * z * big,
+        home?.moonGlow ?? const Color(0xFFB4C6F0),
+        [0.32 * vis * lit * beat, 0.1 * vis * lit * beat],
+      );
+      final r = 13 * _u * z * big;
       canvas.drawCircle(
         moon,
         r,
@@ -421,9 +544,15 @@ abstract class _GrainField extends FieldArt {
         ..save()
         ..translate(moon.dx, moon.dy)
         ..scale(r)
-        ..drawPath(_moonLit!, Paint()..color = _moonFace.withValues(alpha: vis))
+        ..drawPath(
+          _moonLit!,
+          Paint()..color = (home?.moonFace ?? _moonFace).withValues(alpha: vis),
+        )
         ..restore();
     }
+
+    // The home's sky: what lies in front of them.
+    if (home != null) home.paintFront(canvas, frame!);
   }
 
   /// The lit part of a unit moon at [phase]: lit on the right while waxing.
@@ -1354,6 +1483,32 @@ class _Light {
     this.seaTop,
     this.seaDeep,
   });
+
+  /// This light with some of its parts changed.
+  _Light copyWith({
+    List<Color>? sky,
+    Color? ambient,
+    List<Color>? grass,
+    Color? mote,
+    double? firefly,
+  }) => _Light(
+    sky: sky ?? this.sky,
+    ambient: ambient ?? this.ambient,
+    rim: rim,
+    rimStrength: rimStrength,
+    floor: floor,
+    glow: glow,
+    stars: stars,
+    cloudTop: cloudTop,
+    cloudBottom: cloudBottom,
+    cloudGlint: cloudGlint,
+    grass: grass ?? this.grass,
+    mote: mote ?? this.mote,
+    firefly: firefly ?? this.firefly,
+    stops: stops,
+    seaTop: seaTop,
+    seaDeep: seaDeep,
+  );
 
   /// Sky colors at [stops] of the layer height.
   final List<Color> sky;

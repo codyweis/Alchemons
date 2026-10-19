@@ -22,8 +22,9 @@ import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart' show AudioController;
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/screens/home_biome/home_sky_source.dart';
 import 'package:alchemons/screens/home_biome/home_biome_screen.dart'
-    show hydrateResident, standHomePieces;
+    show hydrateResident, showHomeMarks, standHomePieces;
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -63,15 +64,24 @@ const _palette = BracketPalette.dark;
 /// The field [home] shows, before anyone stands in it.
 SceneGame friendHomeGame(FriendHome home, HomeBiomeLayout layout) {
   final mood = layout.mood;
-  return SceneGame(scene: layout.scene(home.floats), showcase: true)
+  final game = SceneGame(scene: layout.scene(home.floats), showcase: true)
     ..fieldHourOverride = layout.hour
     ..fieldWeather = mood.weather
     ..fieldAftermath = mood.aftermath
     ..fieldStage = mood.stage
     ..lively = true
+    // Their sky — their planet, their constellations, their season.
+    ..homeSky = homeSkyLookOf(
+      layout.sky,
+      HomeSkySources(planet: home.planet, constellations: home.constellations),
+    )
+    ..fieldSeason = layout.sky.seasonAt(DateTime.now())
     // Their trails and their ambience, as they wear them.
     ..trailOf = ((id) => TrailStyle.byId(home.looks[id]?.trail))
     ..ambience = HomeAmbience.byId(home.ambience);
+  // What their residents have made of their ground.
+  showHomeMarks(game, layout);
+  return game;
 }
 
 /// Stands everyone and everything of [layout] in [game], once it has
@@ -85,6 +95,8 @@ Future<void> standFriendHome(
 ) async {
   await game.loaded;
   if (!alive()) return;
+  // The view they framed of it, if they framed one.
+  if (layout.frame case final f?) game.viewAt(f.x, f.zoom);
   for (final r in layout.residents) {
     final look = looks[r.instanceId];
     if (look == null) continue;
