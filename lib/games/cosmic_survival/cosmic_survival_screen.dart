@@ -338,10 +338,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   /// against the same one.
   int _draftWave = 1;
 
-  // Boss announcement
-  String? _bossAnnouncement;
-  String? _bossAnnouncementSubtitle;
-  Timer? _bossAnnouncementTimer;
   String? _waveAnnouncementTitle;
   String? _waveAnnouncementSubtitle;
   Timer? _waveAnnouncementTimer;
@@ -504,7 +500,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     _pad?.release();
     _soundController?.stopSoundOwner(this);
     _hudTimer?.cancel();
-    _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
     CinematicQualityService.qualityNotifier.removeListener(
       _handleQualityChanged,
@@ -1309,15 +1304,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       game.entranceCoreHidden = true;
     }
 
-    _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
     setState(() {
       _game = game;
       if (!carried) _phase = _Phase.playing;
       _gameOverRewardEntries = [];
       _powerUpChoices = [];
-      _bossAnnouncement = null;
-      _bossAnnouncementSubtitle = null;
       _waveAnnouncementTitle = null;
       _waveAnnouncementSubtitle = null;
       _pendingWaveAnnouncements.clear();
@@ -1502,24 +1494,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   void _handleBossSpawn(SurvivalBoss boss) {
     if (!mounted) return;
     context.sound(SoundCue.survivalBossArrive, owner: this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        _bossAnnouncement = boss.template.name;
-        _bossAnnouncementSubtitle =
-            '${CosmicSurvivalSpawner.bossDisciplineLabel(boss.discipline)}'
-            ' • ${CosmicSurvivalSpawner.bossDisciplineSummary(boss.discipline)}';
-      });
-      _bossAnnouncementTimer?.cancel();
-      _bossAnnouncementTimer = Timer(const Duration(seconds: 3), () {
-        if (mounted) {
-          setState(() {
-            _bossAnnouncement = null;
-            _bossAnnouncementSubtitle = null;
-          });
-        }
-      });
-    });
   }
 
   void _showWaveAnnouncementForWave(int wave) {
@@ -1895,7 +1869,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     _game = null;
     _mysticOverlayController.clear();
     _hudTimer?.cancel();
-    _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
     _showPauseMenu = false;
     if (party != null) {
@@ -1912,7 +1885,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     _party = null;
     _mysticOverlayController.clear();
     _hudTimer?.cancel();
-    _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
     _runLobbyClock(true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -1922,8 +1894,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       _phase = _Phase.lobby;
       _powerUpChoices = [];
       _showPauseMenu = false;
-      _bossAnnouncement = null;
-      _bossAnnouncementSubtitle = null;
       _waveAnnouncementTitle = null;
       _waveAnnouncementSubtitle = null;
       _pendingWaveAnnouncements.clear();
@@ -2026,7 +1996,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     _checkpoint = null;
     _mysticOverlayController.clear();
     _hudTimer?.cancel();
-    _bossAnnouncementTimer?.cancel();
     _waveAnnouncementTimer?.cancel();
     _runLobbyClock(true);
     setState(() {
@@ -2035,8 +2004,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       _suspendedBroken = false;
       _powerUpChoices = [];
       _showPauseMenu = false;
-      _bossAnnouncement = null;
-      _bossAnnouncementSubtitle = null;
       _waveAnnouncementTitle = null;
       _waveAnnouncementSubtitle = null;
       _pendingWaveAnnouncements.clear();
@@ -3066,78 +3033,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
 
           if (_showPauseMenu) _buildPauseOverlay(game),
 
-          // Boss announcement
-          if (_bossAnnouncement != null && !over)
-            Positioned.fill(
-              child: SafeArea(
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: EdgeInsets.only(top: 76 + _hudTopInset),
-                    child: _SurvivalPlate(
-                      accent: _C.danger,
-                      background: _C.bg0.withValues(alpha: 0.94),
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 18,
-                        vertical: 10,
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                AppIcons.warning_amber_rounded,
-                                color: _C.danger,
-                                size: 13,
-                              ),
-                              const SizedBox(width: 6),
-                              const Text(
-                                'BOSS INCOMING',
-                                style: TextStyle(
-                                  fontFamily: 'monospace',
-                                  color: _C.danger,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2.4,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            _bossAnnouncement!.toUpperCase(),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              color: _C.textPrimary,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.6,
-                            ),
-                          ),
-                          if (_bossAnnouncementSubtitle != null) ...[
-                            const SizedBox(height: 4),
-                            Text(
-                              _bossAnnouncementSubtitle!,
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                color: _C.textSecondary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 0.6,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           if (_waveAnnouncementTitle != null && !over)
             Positioned.fill(
               child: IgnorePointer(
@@ -3146,9 +3041,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                     alignment: Alignment.topCenter,
                     child: Padding(
                       padding: EdgeInsets.only(
-                        top:
-                            (_bossAnnouncement != null ? 168 : 76) +
-                            _hudTopInset,
+                        top: 76 + _hudTopInset,
                       ),
                       child: AnimatedOpacity(
                         opacity: _waveAnnouncementTitle == null ? 0 : 1,
@@ -3221,7 +3114,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
             _buildDetonationButton(game),
           _buildPartyRow(game),
           if (game.outbreak != null &&
-              _bossAnnouncement == null &&
               _waveAnnouncementTitle == null &&
               !_showPauseMenu &&
               _powerUpChoices.isEmpty &&

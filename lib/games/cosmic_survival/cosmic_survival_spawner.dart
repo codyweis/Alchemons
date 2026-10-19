@@ -1604,34 +1604,6 @@ class CosmicSurvivalSpawner {
     _advanceWave();
   }
 
-  static String bossDisciplineLabel(SurvivalBossDiscipline discipline) {
-    return switch (discipline) {
-      SurvivalBossDiscipline.artillery => 'Artillery',
-      SurvivalBossDiscipline.trickster => 'Trickster',
-      SurvivalBossDiscipline.duelist => 'Duelist',
-      SurvivalBossDiscipline.conductor => 'Conductor',
-      SurvivalBossDiscipline.siegebreaker => 'Siegebreaker',
-      SurvivalBossDiscipline.riftcaller => 'Riftcaller',
-      SurvivalBossDiscipline.standard => 'Vanguard',
-    };
-  }
-
-  static String bossDisciplineSummary(SurvivalBossDiscipline discipline) {
-    return switch (discipline) {
-      SurvivalBossDiscipline.artillery => 'Long-range salvos and lane denial.',
-      SurvivalBossDiscipline.trickster => 'Blink dives with flanking pouncers.',
-      SurvivalBossDiscipline.duelist =>
-        'High-tempo hunter pressure on your backline.',
-      SurvivalBossDiscipline.conductor => 'Orb siege with rotating escorts.',
-      SurvivalBossDiscipline.siegebreaker =>
-        'Heavy crushers forcing the orb line.',
-      SurvivalBossDiscipline.riftcaller =>
-        'Portal volleys and crossfire screens.',
-      SurvivalBossDiscipline.standard =>
-        'Classic boss patterns with light support.',
-    };
-  }
-
   List<BossType> _preferredBossTypesForDiscipline(
     SurvivalBossDiscipline discipline,
   ) {
