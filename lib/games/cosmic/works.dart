@@ -70,9 +70,11 @@ abstract final class WorkRules {
       );
   static int scavengerFind(double strength) =>
       (8 + 4 * strength.clamp(0.0, 20.0)).round();
+  /// Half of i / (i + 6): shards are scarce, so even a sharp scavenger
+  /// brings them back on fewer than two trips in five.
   static double scavengerShardOdds(double intelligence) {
     final i = intelligence.clamp(0.0, 20.0);
-    return i / (i + 6);
+    return 0.5 * i / (i + 6);
   }
 
   // Press.

@@ -894,10 +894,33 @@ class _WorksPanelState extends State<WorksPanel> {
                   title: 'THE WORKS',
                   trailing: Padding(
                     padding: const EdgeInsets.only(right: 8),
-                    child: Text(
-                      'SLOTS ${v.works.berthsUsed}/${v.berthCount}',
-                      key: const ValueKey('works.berths'),
-                      style: panelLabel(9.5, panelPalette.muted),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // What the Works are paid in, held to hand.
+                        Row(
+                          key: const ValueKey('works.silver'),
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CoinIcon(kind: CoinKind.silver, size: 13),
+                            const SizedBox(width: 4),
+                            Text(
+                              panelFmt(v.silver),
+                              style: panelLabel(
+                                11.5,
+                                coinColor(CoinKind.silver),
+                                spacing: 0.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 14),
+                        Text(
+                          'SLOTS ${v.works.berthsUsed}/${v.berthCount}',
+                          key: const ValueKey('works.berths'),
+                          style: panelLabel(9.5, panelPalette.muted),
+                        ),
+                      ],
                     ),
                   ),
                   onClose: close,
