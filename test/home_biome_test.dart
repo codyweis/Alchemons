@@ -34,8 +34,9 @@ void main() {
       HomeResident(instanceId: 'a', x: 0.05),
       HomeResident(instanceId: 'b', x: 0.20, flip: true),
       HomeResident(instanceId: 'c', x: 0.42),
-      HomeResident(instanceId: 'd', x: 0.12, back: true),
-      HomeResident(instanceId: 'e', x: 0.55, back: true),
+      HomeResident(instanceId: 'd', x: 0.12, depth: HomeDepth.back),
+      HomeResident(instanceId: 'e', x: 0.55, depth: HomeDepth.back),
+      HomeResident(instanceId: 'f', x: 0.40, depth: HomeDepth.mid),
       HomeResident(instanceId: 'wing', x: 0.30, lift: 0.34),
     ],
   );
@@ -45,9 +46,7 @@ void main() {
   // its residents, not about whose they are.
   final everywhere = HomeBiomeLayout(
     residents: household.residents,
-    households: {
-      for (final r in HomeRealm.values) r.name: household.residents,
-    },
+    households: {for (final r in HomeRealm.values) r.name: household.residents},
   );
 
   test('a layout survives the save', () {
@@ -62,7 +61,7 @@ void main() {
     for (var i = 0; i < back.residents.length; i++) {
       final a = household.residents[i], b = back.residents[i];
       expect(b.instanceId, a.instanceId);
-      expect(b.back, a.back);
+      expect(b.depth, a.depth);
       expect(b.x, closeTo(a.x, 1e-4));
       expect(b.lift, a.lift == null ? isNull : closeTo(a.lift!, 1e-4));
       expect(b.flip, a.flip);
@@ -239,7 +238,7 @@ void main() {
         expect(placed, lessThan(100));
       }
       expect(placed, greaterThanOrEqualTo(6), reason: realm.name);
-      final g = layout.gap(back: false);
+      final g = layout.gap(HomeDepth.front);
       final xs = [for (final r in layout.residents) r.x];
       for (var i = 0; i < xs.length; i++) {
         for (var j = i + 1; j < xs.length; j++) {
@@ -254,7 +253,7 @@ void main() {
       // The far row is still free, and a flyer can hover over anyone.
       expect(
         layout.freeSpotNear(
-          const HomeResident(instanceId: 'f', back: true),
+          const HomeResident(instanceId: 'f', depth: HomeDepth.back),
           0.5,
         ),
         0.5,
@@ -306,11 +305,11 @@ void main() {
         // Scenery is its own ground; only what stands needs some.
         if (p.aloft || p.piece != null) continue;
         final x = p.normalizedPos.dx * realm.period(p.anchor);
-        final ground = field.groundAt(p.anchor, x);
-        expect(ground, isNotNull, reason: '${realm.name} ${p.id}');
         // Its feet are on that ground (where the field seats it), not
-        // hanging over it.
+        // hanging over it — its own row's, where two share a layer.
         final feet = field.perchFor(p.id) ?? (p.normalizedPos.dy * h);
+        final ground = field.groundAt(p.anchor, x, toward: feet);
+        expect(ground, isNotNull, reason: '${realm.name} ${p.id}');
         expect(feet, lessThan(ground!.rest + p.size.y), reason: p.id);
       }
     });
@@ -419,8 +418,7 @@ void main() {
     game
       ..arranging = true
       ..onResidentPicked = ((id) => picked = id)
-      ..onResidentDropped = ((id, share, height) =>
-          dropped = (id, share, height));
+      ..onResidentDropped = ((id, at) => dropped = (id, at.share, at.height));
     await tester.pumpWidget(
       Directionality(
         textDirection: TextDirection.ltr,
@@ -578,7 +576,11 @@ void main() {
     );
     final period = realmSky.period(realmSky.near.layer);
     // Let go just right of the torch: beside it, on its ground.
-    final nest = layout.nestBeside('HOME_h', 0.30 + 40 / period, back: false);
+    final nest = layout.nestBeside(
+      'HOME_h',
+      0.30 + 40 / period,
+      depth: HomeDepth.front,
+    );
     expect(nest, isNotNull);
     expect(nest!.$1, 'PIECE_ember_torch#0');
     expect(nest.$2, greaterThan(0.30));
@@ -621,7 +623,7 @@ void main() {
         .copyWith(residents: [...layout.residents, other])
         .freeSpotNear(other, nest.$2);
     final gapToPair = (spot! - 0.30).abs();
-    expect(gapToPair, greaterThan(1.5 * layout.gap(back: false) / 2));
+    expect(gapToPair, greaterThan(1.5 * layout.gap(HomeDepth.front) / 2));
 
     // The torch moved, the resident goes with it.
     final moved = layout

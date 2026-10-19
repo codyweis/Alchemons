@@ -129,7 +129,11 @@ class ValleyField extends _GrainField {
   }
 
   @override
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) =>
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) =>
       switch (layer) {
         hills => (top: _hill(x) + 3 * _u, rest: _hill(x) + 16 * _u),
         meadow => (

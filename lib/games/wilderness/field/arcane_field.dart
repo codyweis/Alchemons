@@ -119,7 +119,11 @@ class ArcaneField extends _GrainField {
   // The glass is ground everywhere nearer than the band: anything that
   // cannot float and would hang over the band is stood on it instead.
   @override
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) {
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) {
     if (layer != near && layer != mid) return null;
     return (top: _h * _glassLine, rest: _h * (_glassLine + 0.06));
   }

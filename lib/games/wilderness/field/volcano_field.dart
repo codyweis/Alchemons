@@ -334,19 +334,37 @@ class VolcanoField extends _GrainField {
 
   /// The shelf over [x] on [layer], and [x] moved into that shelf's own
   /// loop.
-  (_Shelf, double)? _shelfAt(SceneLayer layer, double x, {double reach = 1}) {
+  /// Of two there, the one whose top is nearest [toward], if given.
+  (_Shelf, double)? _shelfAt(
+    SceneLayer layer,
+    double x, {
+    double reach = 1,
+    double? toward,
+  }) {
+    (_Shelf, double)? best;
+    var bestD = double.infinity;
     for (final s in _shelves[layer] ?? const <_Shelf>[]) {
       final d = _loopDelta(x, s.cx, layer);
-      if (d.abs() < s.hw * reach) return (s, s.cx + d);
+      if (d.abs() >= s.hw * reach) continue;
+      if (toward == null) return (s, s.cx + d);
+      final off = (_sStand(s, s.cx + d) - toward).abs();
+      if (off < bestD) {
+        bestD = off;
+        best = (s, s.cx + d);
+      }
     }
-    return null;
+    return best;
   }
 
   // On a shelf there is no deeper ground to stand in, and off one there is
   // only lava: anything over a shelf that cannot float is stood on its top.
   @override
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) {
-    final at = _shelfAt(layer, x, reach: 0.86);
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) {
+    final at = _shelfAt(layer, x, reach: 0.86, toward: toward);
     if (at == null) return null;
     final (s, lx) = at;
     return (top: double.infinity, rest: _sStand(s, lx) + 1 * _u);
@@ -467,7 +485,9 @@ class VolcanoField extends _GrainField {
           ),
         );
       }
-      return shelves;
+      // Two rows share a layer at home: the higher shelf is the farther
+      // one, drawn first.
+      return shelves..sort((a, b) => a.level.compareTo(b.level));
     }
     if (!back) {
       final w = _widths[layer] ?? _worldWidth;

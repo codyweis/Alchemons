@@ -77,7 +77,8 @@ class HomeMood {
   final int stage;
 }
 
-/// One row of a realm for residents: the near ground or the far one.
+/// One row of a realm for residents: the near ground, the far one, or the
+/// ground between them.
 class HomeRow {
   const HomeRow(this.layer, this.height, this.size);
 
@@ -89,6 +90,45 @@ class HomeRow {
 
   /// How big a resident is drawn on this row.
   final double size;
+
+  /// Where feet stand on this row, as a share of the height (at the
+  /// fields' reference height, as their own sizes are).
+  double get feet => height + 0.42 * size / 475;
+}
+
+/// How far back something stands in the home biome: on the near row, the
+/// far one, or the one between. The middle row shares the far row's layer
+/// (it pans with it) and stands lower down it, nearer, and bigger.
+enum HomeDepth {
+  front('FRONT'),
+  mid('MIDDLE'),
+  back('BACK');
+
+  const HomeDepth(this.label);
+
+  final String label;
+
+  /// Every depth, nearest to this one first: itself, then the row next to
+  /// it, then the far side.
+  List<HomeDepth> get byNearness => switch (this) {
+    HomeDepth.front => const [HomeDepth.front, HomeDepth.mid, HomeDepth.back],
+    HomeDepth.mid => const [HomeDepth.mid, HomeDepth.front, HomeDepth.back],
+    HomeDepth.back => const [HomeDepth.back, HomeDepth.mid, HomeDepth.front],
+  };
+
+  /// As saved: absent for the front.
+  static HomeDepth fromJson(Map json) => json['mid'] == true
+      ? HomeDepth.mid
+      : json['back'] == true
+      ? HomeDepth.back
+      : HomeDepth.front;
+
+  Map<String, bool> toJson() => switch (this) {
+    HomeDepth.front => const {},
+    HomeDepth.mid => const {'mid': true},
+    // As every build has saved the far row.
+    HomeDepth.back => const {'back': true},
+  };
 }
 
 enum HomeRealm {
@@ -97,6 +137,7 @@ enum HomeRealm {
     'plant',
     near: HomeRow(SceneLayer.layer4, 0.80, 100),
     far: HomeRow(SceneLayer.layer3, 0.65, 70),
+    mid: HomeRow(SceneLayer.layer3, 0.726, 84),
     moods: [
       HomeMood('clear', 'CLEAR'),
       HomeMood('rain', 'RAIN', weather: WeatherKind.rain),
@@ -109,6 +150,7 @@ enum HomeRealm {
     'air',
     near: HomeRow(SceneLayer.layer4, 0.60, 90),
     far: HomeRow(SceneLayer.layer3, 0.44, 65),
+    mid: HomeRow(SceneLayer.layer3, 0.52, 77),
     moods: [
       HomeMood('clear', 'CLEAR'),
       HomeMood('storm', 'STORM', weather: WeatherKind.storm),
@@ -119,6 +161,7 @@ enum HomeRealm {
     'mud',
     near: HomeRow(SceneLayer.layer4, 0.69, 92),
     far: HomeRow(SceneLayer.layer3, 0.57, 66),
+    mid: HomeRow(SceneLayer.layer3, 0.631, 78),
     moods: [
       HomeMood('wet', 'WET'),
       HomeMood('dry', 'DRY', weather: WeatherKind.dry),
@@ -129,6 +172,7 @@ enum HomeRealm {
     'fire',
     near: HomeRow(SceneLayer.layer4, 0.70, 86),
     far: HomeRow(SceneLayer.layer3, 0.57, 66),
+    mid: HomeRow(SceneLayer.layer3, 0.635, 76),
     moods: [
       HomeMood('still', 'STILL', stage: VolcanoField.still),
       HomeMood('smoking', 'SMOKING', stage: VolcanoField.smoking),
@@ -140,6 +184,7 @@ enum HomeRealm {
     'spirit',
     near: HomeRow(SceneLayer.layer4, 0.70, 80),
     far: HomeRow(SceneLayer.layer3, 0.575, 66),
+    mid: HomeRow(SceneLayer.layer3, 0.637, 73),
     moods: [
       HomeMood('clear', 'CLEAR'),
       HomeMood('meteors', 'METEORS', weather: WeatherKind.meteors),
@@ -152,6 +197,7 @@ enum HomeRealm {
     'dust',
     near: HomeRow(SceneLayer.layer4, 0.80, 100),
     far: HomeRow(SceneLayer.layer3, 0.63, 70),
+    mid: HomeRow(SceneLayer.layer3, 0.715, 85),
     moods: [
       HomeMood('clear', 'CLEAR'),
       HomeMood('sandstorm', 'SANDSTORM', weather: WeatherKind.sandstorm),
@@ -164,6 +210,7 @@ enum HomeRealm {
     'crystal',
     near: HomeRow(SceneLayer.layer4, 0.80, 100),
     far: HomeRow(SceneLayer.layer3, 0.63, 70),
+    mid: HomeRow(SceneLayer.layer3, 0.715, 85),
     moods: [
       HomeMood('clear', 'CLEAR'),
       HomeMood('frostfall', 'FROSTFALL', weather: WeatherKind.frostfall),
@@ -177,6 +224,7 @@ enum HomeRealm {
     'water',
     near: HomeRow(SceneLayer.layer4, 0.80, 100),
     far: HomeRow(SceneLayer.layer3, 0.62, 70),
+    mid: HomeRow(SceneLayer.layer3, 0.71, 85),
     moods: [
       HomeMood('clear', 'CLEAR'),
       HomeMood('fog', 'FOG', weather: WeatherKind.fog),
@@ -192,6 +240,7 @@ enum HomeRealm {
     'dust',
     near: HomeRow(SceneLayer.layer4, 0.80, 100),
     far: HomeRow(SceneLayer.layer3, 0.55, 70),
+    mid: HomeRow(SceneLayer.layer3, 0.675, 85),
     moods: [HomeMood('clear', 'CLEAR')],
   );
 
@@ -199,6 +248,7 @@ enum HomeRealm {
     this.title,
     this.portalElement, {
     required this.near,
+    required this.mid,
     required this.far,
     required this.moods,
   });
@@ -209,7 +259,7 @@ enum HomeRealm {
   /// wild map's entry into this realm uses.
   final String portalElement;
 
-  final HomeRow near, far;
+  final HomeRow near, mid, far;
   final List<HomeMood> moods;
 
   /// The scene id the wild uses for this realm (its music, its map).
@@ -228,7 +278,11 @@ enum HomeRealm {
     HomeRealm.sand => homeSandScene(),
   };
 
-  HomeRow row({required bool back}) => back ? far : near;
+  HomeRow row(HomeDepth depth) => switch (depth) {
+    HomeDepth.front => near,
+    HomeDepth.mid => mid,
+    HomeDepth.back => far,
+  };
 
   HomeMood mood(String? id) =>
       moods.where((m) => m.id == id).firstOrNull ?? moods.first;
@@ -456,7 +510,7 @@ enum HomeRealm {
     }) => HomePiece(
       id: '${name}_${kind}_${n++}',
       kind: kind,
-      back: back,
+      depth: back ? HomeDepth.back : HomeDepth.front,
       x: x % 1.0,
       y: y,
       scale: double.parse(scale.toStringAsFixed(3)),
@@ -600,7 +654,7 @@ enum HomeRealm {
 class HomeResident {
   const HomeResident({
     required this.instanceId,
-    this.back = false,
+    this.depth = HomeDepth.front,
     this.x = 0,
     this.lift,
     this.flip = false,
@@ -613,8 +667,9 @@ class HomeResident {
   /// [SpawnPoint.beside]); null for its own.
   final String? beside;
 
-  /// On the far row (the Valley's hills) rather than the near one.
-  final bool back;
+  /// Which row it stands on: the near one, the far one (the Valley's
+  /// hills), or the one between.
+  final HomeDepth depth;
 
   /// Where along its row, as a share of the row's loop.
   final double x;
@@ -629,14 +684,14 @@ class HomeResident {
   String get spawnId => 'HOME_$instanceId';
 
   HomeResident copyWith({
-    bool? back,
+    HomeDepth? depth,
     double? x,
     double? Function()? lift,
     bool? flip,
     String? Function()? beside,
   }) => HomeResident(
     instanceId: instanceId,
-    back: back ?? this.back,
+    depth: depth ?? this.depth,
     x: x ?? this.x,
     lift: lift != null ? lift() : this.lift,
     flip: flip ?? this.flip,
@@ -645,7 +700,7 @@ class HomeResident {
 
   Map<String, dynamic> toJson() => {
     'id': instanceId,
-    if (back) 'back': true,
+    ...depth.toJson(),
     'x': double.parse(x.toStringAsFixed(4)),
     if (lift != null) 'lift': double.parse(lift!.toStringAsFixed(4)),
     if (flip) 'flip': true,
@@ -660,7 +715,7 @@ class HomeResident {
     final lift = json['lift'];
     return HomeResident(
       instanceId: id,
-      back: json['back'] == true,
+      depth: HomeDepth.fromJson(json),
       x: x is num ? (x.toDouble() % 1.0) : 0,
       lift: lift is num ? lift.toDouble().clamp(0.1, 0.92) : null,
       flip: json['flip'] == true,
@@ -733,7 +788,7 @@ class HomePiece {
   const HomePiece({
     required this.id,
     required this.kind,
-    this.back = false,
+    this.depth = HomeDepth.front,
     this.x = 0,
     this.y,
     this.scale = 1,
@@ -764,8 +819,12 @@ class HomePiece {
   /// The scenery's [FieldPiece], or the keepsake's id.
   final String kind;
 
-  /// On the far row rather than the near one.
-  final bool back;
+  /// Which row it stands on. Scenery stands only on the near row or the
+  /// far one: the fields draw it at those two sizes.
+  final HomeDepth depth;
+
+  /// On the far row.
+  bool get back => depth == HomeDepth.back;
 
   /// Where along its row, as a share of the row's loop.
   final double x;
@@ -807,7 +866,7 @@ class HomePiece {
   };
 
   HomePiece copyWith({
-    bool? back,
+    HomeDepth? depth,
     double? x,
     double? Function()? y,
     double? scale,
@@ -819,7 +878,7 @@ class HomePiece {
     id: id ?? this.id,
     kind: kind,
     style: style ?? this.style,
-    back: back ?? this.back,
+    depth: depth ?? this.depth,
     x: x ?? this.x,
     y: y != null ? y() : this.y,
     scale: scale ?? this.scale,
@@ -830,7 +889,7 @@ class HomePiece {
   Map<String, dynamic> toJson() => {
     'id': id,
     'kind': kind,
-    if (back) 'back': true,
+    ...depth.toJson(),
     'x': double.parse(x.toStringAsFixed(4)),
     if (y != null) 'y': double.parse(y!.toStringAsFixed(4)),
     if (scale != 1) 'scale': scale,
@@ -846,10 +905,15 @@ class HomePiece {
       return null;
     }
     final x = json['x'], y = json['y'], scale = json['scale'];
+    var depth = HomeDepth.fromJson(json);
+    // Scenery has no middle row.
+    if (depth == HomeDepth.mid && _sceneryKinds.contains(kind)) {
+      depth = HomeDepth.front;
+    }
     return HomePiece(
       id: id,
       kind: kind,
-      back: json['back'] == true,
+      depth: depth,
       x: x is num ? x.toDouble() % 1.0 : 0,
       y: y is num ? y.toDouble().clamp(0.1, 0.95) : null,
       scale: scale is num ? scale.toDouble().clamp(0.5, 1.6) : 1,
@@ -858,6 +922,33 @@ class HomePiece {
       style: json['style'] is int ? json['style'] as int : 0,
     );
   }
+}
+
+/// How something let go came to stand where it does (see
+/// [HomeBiomeLayout.dropResident]).
+enum HomeLanding {
+  /// Where it was let go, or as near as makes no difference.
+  asked,
+
+  /// Beside what it was let go by, sharing its ground.
+  beside,
+
+  /// Further along its row: there was no room where it was let go.
+  along,
+
+  /// On another row: there was no room near there on its own.
+  otherRow,
+}
+
+/// Where something let go stands — its row, and where along it — and the
+/// layout with it there.
+class HomeDrop {
+  const HomeDrop(this.layout, this.depth, this.x, this.how);
+
+  final HomeBiomeLayout layout;
+  final HomeDepth depth;
+  final double x;
+  final HomeLanding how;
 }
 
 /// How many pieces of scenery one realm can hold.
@@ -1038,7 +1129,7 @@ class HomeBiomeLayout {
   ];
 
   SpawnPoint spawnPointFor(HomeResident r, {required bool floats}) {
-    final row = realm.row(back: r.back);
+    final row = realm.row(r.depth);
     final aloft = floats && r.lift != null;
     return SpawnPoint(
       id: r.spawnId,
@@ -1046,7 +1137,8 @@ class HomeBiomeLayout {
       anchor: row.layer,
       size: Vector2.all(row.size),
       perch: aloft ? SpawnPerch.air : SpawnPerch.ground,
-      beside: aloft ? null : hostOf(r.spawnId, r.beside, back: r.back),
+      beside: aloft ? null : hostOf(r.spawnId, r.beside, depth: r.depth),
+      depth: r.depth.index,
     );
   }
 
@@ -1054,7 +1146,7 @@ class HomeBiomeLayout {
   /// ground; scenery is the field's own piece, as big as it is. Null for
   /// scenery this realm does not have.
   SpawnPoint? pieceSpawnPoint(HomePiece p) {
-    final row = realm.row(back: p.back);
+    final row = realm.row(p.depth);
     if (p.isKeepsake) {
       final d = p.decor;
       // What hangs in the air is held there, on nothing.
@@ -1065,6 +1157,7 @@ class HomeBiomeLayout {
           anchor: row.layer,
           size: Vector2.all(row.size),
           perch: SpawnPerch.air,
+          depth: p.depth.index,
         );
       }
       // A Wonder stands on ground as wide as it is — wide only: the fields
@@ -1076,11 +1169,12 @@ class HomeBiomeLayout {
         normalizedPos: Offset(p.x, row.height),
         anchor: row.layer,
         size: Vector2(row.size * wide, row.size),
-        beside: hostOf(p.spawnId, p.beside, back: p.back),
+        beside: hostOf(p.spawnId, p.beside, depth: p.depth),
+        depth: p.depth.index,
       );
     }
     final kind = realm.sceneryOf(p.kind);
-    if (kind == null || (p.back && !kind.far)) return null;
+    if (kind == null || !sceneryCanStand(kind, p.depth)) return null;
     return SpawnPoint(
       id: p.spawnId,
       normalizedPos: Offset(
@@ -1093,82 +1187,128 @@ class HomeBiomeLayout {
         kind.height(back: p.back) * p.scale,
       ),
       piece: p.kind,
+      depth: p.depth.index,
     );
+  }
+
+  /// Whether scenery of [kind] can stand on [depth]'s row: the near one,
+  /// or the far one where it has a far size. The fields draw it at only
+  /// those two.
+  static bool sceneryCanStand(HomeScenery kind, HomeDepth depth) =>
+      switch (depth) {
+        HomeDepth.front => true,
+        HomeDepth.mid => false,
+        HomeDepth.back => kind.far,
+      };
+
+  /// The rows [spawnId] can stand on: every one for a resident or a
+  /// keepsake, the near and far for scenery.
+  List<HomeDepth> depthsFor(String spawnId) {
+    final p = piece(spawnId);
+    final kind = p == null || p.isKeepsake ? null : realm.sceneryOf(p.kind);
+    if (kind == null) return HomeDepth.values;
+    return [
+      for (final d in HomeDepth.values)
+        if (sceneryCanStand(kind, d)) d,
+    ];
   }
 
   // ── Room ─────────────────────────────────────────────────────────────────
 
-  /// [host] if it is something that stands on its own ground on [back]'s
+  /// [host] if it is something that stands on its own ground on [depth]'s
   /// row (a resident not in the air, a keepsake) and does not itself stand
   /// beside another — what [id] may stand beside; null otherwise.
-  String? hostOf(String id, String? host, {required bool back}) {
+  String? hostOf(String id, String? host, {required HomeDepth depth}) {
     if (host == null || host == id) return null;
     final r = resident(host);
     if (r != null) {
-      return r.back == back && r.lift == null && r.beside == null ? host : null;
+      return r.depth == depth && r.lift == null && r.beside == null
+          ? host
+          : null;
     }
     final p = piece(host);
     if (p != null &&
         p.isKeepsake &&
         !p.hangs &&
-        p.back == back &&
+        p.depth == depth &&
         p.beside == null) {
       return host;
     }
     return null;
   }
 
-  /// Everything standing on [back]'s row as (point id, place, reach either
+  /// Whether the scenery [p] of [kind] takes room on [depth]'s row. Only
+  /// what is ground in its own right does, and only on its own row — but an
+  /// isle set at a height takes room on whichever row of its layer has feet
+  /// about that high, and on none if it is up in the sky: what stands below
+  /// it is not in its way.
+  bool _solidOn(HomePiece p, HomeScenery kind, HomeDepth depth) {
+    if (!kind.solid) return false;
+    if (!kind.rises) return p.depth == depth;
+    final own = realm.row(p.depth), row = realm.row(depth);
+    if (own.layer != row.layer) return false;
+    final stand = p.y ?? (p.back ? kind.farY : kind.y) ?? own.height;
+    return (stand - row.feet).abs() < 0.08;
+  }
+
+  /// Everything standing on [depth]'s row as (point id, place, reach either
   /// side, what it stands beside), in shares of the loop.
-  List<(String, double, double, String?)> _standing({required bool back}) {
-    final row = realm.row(back: back);
+  List<(String, double, double, String?)> _standing(HomeDepth depth) {
+    final row = realm.row(depth);
     final period = realm.period(row.layer);
     final creature = row.size * 0.95 / period;
     return [
       for (final o in residents)
-        if (o.back == back && o.lift == null)
-          (o.spawnId, o.x, creature, hostOf(o.spawnId, o.beside, back: back)),
+        if (o.depth == depth && o.lift == null)
+          (
+            o.spawnId,
+            o.x,
+            creature,
+            hostOf(o.spawnId, o.beside, depth: depth),
+          ),
       for (final p in placed)
-        if (p.back == back && !p.hangs)
-          if (p.isKeepsake)
+        if (p.isKeepsake) ...[
+          if (p.depth == depth && !p.hangs)
             (
               p.spawnId,
               p.x,
               creature * (p.decor?.wide ?? 1),
-              hostOf(p.spawnId, p.beside, back: back),
-            )
-          else if (realm.sceneryOf(p.kind) case final k? when k.solid)
-            (
-              p.spawnId,
-              p.x,
-              k.reach(back: back, scale: p.scale) / period,
-              null,
+              hostOf(p.spawnId, p.beside, depth: depth),
             ),
+        ] else if (realm.sceneryOf(p.kind) case final k?
+            when _solidOn(p, k, depth))
+          (
+            p.spawnId,
+            p.x,
+            k.reach(back: p.back, scale: p.scale) /
+                realm.period(realm.row(p.depth).layer),
+            null,
+          ),
     ];
   }
 
-  /// What takes up room along [back]'s row, other than [except] and what
+  /// What takes up room along [depth]'s row, other than [except] and what
   /// stands beside it: each thing's middle and how far to either side it
   /// reaches, as shares of the loop — a pair sharing ground one stretch.
   /// What stands keeps clear of what stands; what flies of what flies
   /// ([aloft]) — a creature can hover over another's head, or over an
-  /// isle. Scenery that is not ground (a tree's crown) takes no room.
-  List<(double, double)> _taken({
-    required bool back,
+  /// isle. Scenery that is not ground (a tree's crown) takes no room, nor
+  /// does anything on another row.
+  List<(double, double)> _taken(
+    HomeDepth depth, {
     required bool aloft,
     String? except,
     Set<String> also = const {},
   }) {
     if (aloft) {
-      final row = realm.row(back: back);
-      final reach = row.size * 0.6 / realm.period(row.layer);
+      final reach = _reachOf(depth, aloft: true);
       return [
         for (final o in residents)
-          if (o.spawnId != except && o.back == back && o.lift != null)
+          if (o.spawnId != except && o.depth == depth && o.lift != null)
             (o.x, reach),
       ];
     }
-    final all = _standing(back: back);
+    final all = _standing(depth);
     final out = <(double, double)>[];
     bool excluded(String id) => id == except || also.contains(id);
     for (final (id, x, reach, host) in all) {
@@ -1188,18 +1328,18 @@ class HomeBiomeLayout {
 
   static double _wrap(double d) => d - (d + 0.5).floorToDouble();
 
-  /// How far to either side of it a resident on [back]'s row reaches, as a
-  /// share of the loop.
-  double _reachOf({required bool back, bool aloft = false}) {
-    final row = realm.row(back: back);
+  /// How far to either side of it a resident on [depth]'s row reaches, as
+  /// a share of the loop.
+  double _reachOf(HomeDepth depth, {bool aloft = false}) {
+    final row = realm.row(depth);
     return row.size * (aloft ? 0.6 : 0.95) / realm.period(row.layer);
   }
 
   /// How far apart two residents on one row must stand, as a share of the
   /// row's loop: room for each one's isle, bank or shelf — or, for two in
   /// the air ([aloft]), room for each one's wings.
-  double gap({required bool back, bool aloft = false}) =>
-      2 * _reachOf(back: back, aloft: aloft);
+  double gap(HomeDepth depth, {bool aloft = false}) =>
+      2 * _reachOf(depth, aloft: aloft);
 
   bool _freeAt(double at, double reach, List<(double, double)> taken) =>
       taken.every((o) {
@@ -1207,20 +1347,21 @@ class HomeBiomeLayout {
         return d >= reach + o.$2 - 1e-9;
       });
 
-  /// The free place nearest [x] on [back]'s row for something reaching
-  /// [reach] to either side (a share of the loop), or null if the row has
-  /// no room.
+  /// The free place nearest [x] on [depth]'s row for something reaching
+  /// [reach] to either side (a share of the loop), no further than
+  /// [within] from it, or null if there is none.
   double? _freeNear(
     double x, {
-    required bool back,
+    required HomeDepth depth,
     required bool aloft,
     required double reach,
     String? except,
     double? groupOrigin,
+    double within = 0.5,
   }) {
     var lo = -reach, hi = reach;
     if (groupOrigin != null && !aloft) {
-      for (final (_, x, memberReach, host) in _standing(back: back)) {
+      for (final (_, x, memberReach, host) in _standing(depth)) {
         if (host != except || host == null) continue;
         final offset = _wrap(x - groupOrigin);
         lo = math.min(lo, offset - memberReach);
@@ -1229,9 +1370,9 @@ class HomeBiomeLayout {
     }
     final center = (lo + hi) / 2;
     final groupReach = (hi - lo) / 2;
-    final taken = _taken(back: back, aloft: aloft, except: except);
+    final taken = _taken(depth, aloft: aloft, except: except);
     final step = reach / 3;
-    final tries = (1 / step).ceil();
+    final tries = (math.min(within, 0.5) / step).ceil();
     for (var i = 0; i <= tries; i++) {
       for (final s in i == 0 ? const [1] : const [1, -1]) {
         final at = (x + s * i * step) % 1.0;
@@ -1242,58 +1383,95 @@ class HomeBiomeLayout {
   }
 
   /// Where [r] can stand nearest [x] on its row without crowding anything
-  /// else there, or null if the row has no room.
-  double? freeSpotNear(HomeResident r, double x, {bool movingGroup = false}) {
+  /// else there — no further than [within] from it — or null if there is
+  /// no room.
+  double? freeSpotNear(
+    HomeResident r,
+    double x, {
+    bool movingGroup = false,
+    double within = 0.5,
+  }) {
     final aloft = r.lift != null;
     return _freeNear(
       x,
-      back: r.back,
+      depth: r.depth,
       aloft: aloft,
-      reach: _reachOf(back: r.back, aloft: aloft),
+      reach: _reachOf(r.depth, aloft: aloft),
       except: r.spawnId,
       groupOrigin: movingGroup ? resident(r.spawnId)?.x : null,
+      within: within,
     );
   }
 
-  /// Where [p] can stand nearest [x] on its row, or null if there is no
-  /// room. Scenery that is not ground can stand anywhere.
-  double? freeSpotForPiece(HomePiece p, double x, {bool movingGroup = false}) {
+  /// Where [p] can stand nearest [x] on its row — no further than [within]
+  /// from it — or null if there is no room. Scenery that is not ground can
+  /// stand anywhere it can stand at all.
+  double? freeSpotForPiece(
+    HomePiece p,
+    double x, {
+    bool movingGroup = false,
+    double within = 0.5,
+  }) {
     // What hangs in the air can hang anywhere.
     if (p.hangs) return x % 1.0;
     if (p.isKeepsake) {
       return _freeNear(
         x,
-        back: p.back,
+        depth: p.depth,
         aloft: false,
-        reach: _reachOf(back: p.back) * (p.decor?.wide ?? 1),
+        reach: _reachOf(p.depth) * (p.decor?.wide ?? 1),
         except: p.spawnId,
         groupOrigin: movingGroup ? piece(p.spawnId)?.x : null,
+        within: within,
       );
     }
     final k = realm.sceneryOf(p.kind);
-    if (k == null) return null;
-    if (!k.solid) return x % 1.0;
-    final period = realm.period(realm.row(back: p.back).layer);
-    return _freeNear(
-      x,
-      back: p.back,
-      aloft: false,
-      reach: k.reach(back: p.back, scale: p.scale) / period,
-      except: p.spawnId,
-    );
+    if (k == null || !sceneryCanStand(k, p.depth)) return null;
+    // Scenery that takes room on no row (a tree, an isle up in the sky)
+    // can stand anywhere.
+    if (!HomeDepth.values.any((d) => _solidOn(p, k, d))) return x % 1.0;
+    final period = realm.period(realm.row(p.depth).layer);
+    final reach = k.reach(back: p.back, scale: p.scale) / period;
+    // An isle at a height keeps clear of what stands on whichever row it
+    // is in the way of.
+    final rows = [
+      for (final d in HomeDepth.values)
+        if (_solidOn(p, k, d)) d,
+    ];
+    final step = reach / 3;
+    final tries = (math.min(within, 0.5) / step).ceil();
+    for (var i = 0; i <= tries; i++) {
+      for (final s in i == 0 ? const [1] : const [1, -1]) {
+        final at = (x + s * i * step) % 1.0;
+        if (rows.every(
+          (d) => _freeAt(
+            at,
+            reach,
+            _taken(d, aloft: false, except: p.spawnId),
+          ),
+        )) {
+          return at;
+        }
+      }
+    }
+    return null;
   }
 
-  /// Something standing [id] put down at [x] on [back]'s row close to what
-  /// already stands there — something on its own ground (a resident on the
-  /// ground, a keepsake) and whatever stands beside it — joins that group at
-  /// its end on the side it was let go (or the other side, if that one is
-  /// full or has no room), sharing its ground: what it would stand beside and
-  /// where, or null to stand on its own.
-  (String, double)? nestBeside(String id, double x, {required bool back}) {
-    final row = realm.row(back: back);
+  /// Something standing [id] put down at [x] on [depth]'s row close to
+  /// what already stands there — something on its own ground (a resident
+  /// on the ground, a keepsake) and whatever stands beside it — joins that
+  /// group at its end on the side it was let go (or the other side, if
+  /// that one is full or has no room), sharing its ground: what it would
+  /// stand beside and where, or null to stand on its own.
+  (String, double)? nestBeside(
+    String id,
+    double x, {
+    required HomeDepth depth,
+  }) {
+    final row = realm.row(depth);
     final period = realm.period(row.layer);
     final size = row.size / period;
-    final all = _standing(back: back);
+    final all = _standing(depth);
     // What already stands beside it moves with it; it cannot be put
     // beside one of its own.
     if (all.any((o) => o.$4 == id)) return null;
@@ -1303,7 +1481,7 @@ class HomeBiomeLayout {
     var bestD = double.infinity;
     for (final (hid, hx, _, hhost) in all) {
       if (hid == id || hhost != null) continue;
-      if (hostOf(id, hid, back: back) == null) continue;
+      if (hostOf(id, hid, depth: depth) == null) continue;
       // The group: the host where it stands, what stands beside it either
       // side of it.
       final beside = [
@@ -1342,7 +1520,7 @@ class HomeBiomeLayout {
           lo = math.min(lo, o - sreach);
           hi = math.max(hi, o + sreach);
         }
-        final rest = _taken(back: back, aloft: false, also: group);
+        final rest = _taken(depth, aloft: false, also: group);
         if (!_freeAt((hx + (lo + hi) / 2) % 1.0, (hi - lo) / 2, rest)) {
           continue;
         }
@@ -1362,13 +1540,13 @@ class HomeBiomeLayout {
     final hp = hr == null ? piece(hostId) : null;
     final hx = hr?.x ?? hp?.x;
     if (hx == null) return this;
-    final back = hr?.back ?? hp!.back;
-    final row = realm.row(back: back);
+    final depth = hr?.depth ?? hp!.depth;
+    final row = realm.row(depth);
     final size = row.size / realm.period(row.layer);
     final to = <String, double>{};
     for (final side in const [1.0, -1.0]) {
       final members = [
-        for (final (sid, sx, _, shost) in _standing(back: back))
+        for (final (sid, sx, _, shost) in _standing(depth))
           if (shost == hostId && _wrap(sx - hx).sign == side)
             (sid, _wrap(sx - hx).abs()),
       ]..sort((a, b) => a.$2.compareTo(b.$2));
@@ -1413,7 +1591,7 @@ class HomeBiomeLayout {
       ]);
 
   /// [layout] with nothing standing beside [hostId] any more — it went to
-  /// the other row, or away.
+  /// another row, or away.
   HomeBiomeLayout freeBeside(String hostId) =>
       copyWith(
         residents: [
@@ -1424,6 +1602,168 @@ class HomeBiomeLayout {
         for (final p in placed)
           p.beside == hostId ? p.copyWith(beside: () => null) : p,
       ]);
+
+  // ── Letting go ───────────────────────────────────────────────────────────
+
+  /// How near where it was let go something must stand to be where it was
+  /// put, as a share of [depth]'s loop: within about a creature.
+  double _nearby(HomeDepth depth) => _reachOf(depth) * 1.1;
+
+  /// Where [r] stands when it is let go on [depth]'s row, [xAt] saying
+  /// where along each row (a share of its loop) the finger let it go —
+  /// rows on different layers pan at different speeds. In the air ([lift])
+  /// it hovers there; on the ground, close by something it stands beside
+  /// that ([nestBeside]), else as near as there is room. With no room near
+  /// there, it goes to the same place on the nearest row that has room
+  /// (unless it must [stay] on that row), and only then further along.
+  /// Null when no row has room for it.
+  HomeDrop? dropResident(
+    HomeResident r,
+    HomeDepth depth,
+    double Function(HomeDepth depth) xAt, {
+    double? lift,
+    bool stay = false,
+  }) {
+    final aloft = lift != null;
+    HomeBiomeLayout put(HomeDepth d, double x, String? host) {
+      final moved = r.copyWith(
+        depth: d,
+        x: x,
+        lift: () => lift,
+        beside: () => host,
+      );
+      var out = replace(moved);
+      // What stood beside it goes with it — or stays where it was, now on
+      // its own, if it took to the air or went to another row.
+      out = aloft || d != r.depth || r.lift != null
+          ? out.freeBeside(r.spawnId)
+          : out.carryBeside(r.spawnId, x - r.x);
+      // The group it left closes up behind it.
+      final left = r.beside;
+      if (left != null && left != host) out = out.packBeside(left);
+      return out;
+    }
+
+    // Its own group moves with it along its row, not to another.
+    bool group(HomeDepth d) => !aloft && r.lift == null && d == r.depth;
+    double? spot(HomeDepth d, double within) => freeSpotNear(
+      r.copyWith(depth: d, lift: () => lift),
+      xAt(d),
+      movingGroup: group(d),
+      within: within,
+    );
+    return _land(
+      depth,
+      stay ? [depth] : depth.byNearness,
+      nest: aloft ? null : (d) => nestBeside(r.spawnId, xAt(d), depth: d),
+      spot: spot,
+      put: put,
+      asked: xAt,
+    );
+  }
+
+  /// Where [p] stands when it is let go on [depth]'s row (see
+  /// [dropResident]): a keepsake or decor as a resident does, scenery as
+  /// near as there is room on the near or far row. [y] is the height an
+  /// isle, or what hangs, is set at. With [nest] off, it does not join
+  /// what stands near (a piece just taken from a tray).
+  HomeDrop? dropPiece(
+    HomePiece p,
+    HomeDepth depth,
+    double Function(HomeDepth depth) xAt, {
+    double? Function()? y,
+    bool stay = false,
+    bool nest = true,
+  }) {
+    final allowed = depthsFor(p.spawnId).toSet();
+    // A piece new to the field is not in it yet: as it is.
+    if (piece(p.spawnId) == null && !p.isKeepsake) {
+      final k = realm.sceneryOf(p.kind);
+      allowed
+        ..clear()
+        ..addAll([
+          for (final d in HomeDepth.values)
+            if (k != null && sceneryCanStand(k, d)) d,
+        ]);
+    }
+    final rows = [
+      for (final d in stay ? [depth] : depth.byNearness)
+        if (allowed.contains(d)) d,
+    ];
+    if (rows.isEmpty) return null;
+    final known = piece(p.spawnId) != null;
+    HomeBiomeLayout put(HomeDepth d, double x, String? host) {
+      final moved = p.copyWith(depth: d, x: x, y: y, beside: () => host);
+      var out = known ? replacePiece(moved) : withPlaced([...placed, moved]);
+      if (known) {
+        out = d != p.depth
+            ? out.freeBeside(p.spawnId)
+            : out.carryBeside(p.spawnId, x - p.x);
+      }
+      final left = p.beside;
+      if (left != null && left != host) out = out.packBeside(left);
+      return out;
+    }
+
+    double? spot(HomeDepth d, double within) => freeSpotForPiece(
+      p.copyWith(depth: d, y: y),
+      xAt(d),
+      movingGroup: known && d == p.depth,
+      within: within,
+    );
+    return _land(
+      rows.first,
+      rows,
+      nest: nest && p.isKeepsake && !p.hangs
+          ? (d) => nestBeside(p.spawnId, xAt(d), depth: d)
+          : null,
+      spot: spot,
+      put: put,
+      asked: xAt,
+    );
+  }
+
+  /// Finds where something let go on [asked]'s first row stands: close by
+  /// on that row (beside something, or on its own), then close by on the
+  /// other [rows] nearest first, then anywhere on that row, then anywhere
+  /// on the others.
+  HomeDrop? _land(
+    HomeDepth depth,
+    List<HomeDepth> rows, {
+    required (String, double)? Function(HomeDepth depth)? nest,
+    required double? Function(HomeDepth depth, double within) spot,
+    required HomeBiomeLayout Function(HomeDepth d, double x, String? host)
+    put,
+    required double Function(HomeDepth depth) asked,
+  }) {
+    for (final far in const [false, true]) {
+      for (final d in rows) {
+        if (!far && nest != null) {
+          final n = nest(d);
+          if (n != null) {
+            return HomeDrop(
+              put(d, n.$2, n.$1),
+              d,
+              n.$2,
+              d == depth ? HomeLanding.beside : HomeLanding.otherRow,
+            );
+          }
+        }
+        final x = spot(d, far ? 0.5 : _nearby(d));
+        if (x == null) continue;
+        final moved = _wrap(x - asked(d)).abs() > _reachOf(d) * 1.2;
+        return HomeDrop(
+          put(d, x, null),
+          d,
+          x,
+          d != depth
+              ? HomeLanding.otherRow
+              : (moved ? HomeLanding.along : HomeLanding.asked),
+        );
+      }
+    }
+    return null;
+  }
 
   // ── Saving ───────────────────────────────────────────────────────────────
 

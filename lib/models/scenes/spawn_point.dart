@@ -71,7 +71,13 @@ class SpawnPoint {
     this.onlyIn,
     this.piece,
     this.beside,
+    this.depth = 0,
   });
+
+  /// How far back it stands among the points of its own layer, 0 nearest —
+  /// the home biome's rows, two of which share a layer. The nearer is drawn
+  /// over the farther, and what lives on one row keeps to it.
+  final int depth;
 
   /// The point this one stands beside, on that one's ground — the home
   /// biome's Alchemon put down next to a keepsake on its isle. The field

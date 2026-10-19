@@ -285,21 +285,39 @@ class SwampField extends _GrainField {
     return null;
   }
 
-  /// The bank over [x] on [layer], and [x] moved into that bank's own loop.
-  (_Bank, double)? _bankAt(SceneLayer layer, double x, {double reach = 1}) {
+  /// The bank over [x] on [layer], and [x] moved into that bank's own loop
+  /// — of two there, the one whose top is nearest [toward], if given.
+  (_Bank, double)? _bankAt(
+    SceneLayer layer,
+    double x, {
+    double reach = 1,
+    double? toward,
+  }) {
+    (_Bank, double)? best;
+    var bestD = double.infinity;
     for (final b in _banks[layer] ?? const <_Bank>[]) {
       final d = _loopDelta(x, b.cx, layer);
-      if (d.abs() < b.hw * reach) return (b, b.cx + d);
+      if (d.abs() >= b.hw * reach) continue;
+      if (toward == null) return (b, b.cx + d);
+      final off = (_bStand(b, b.cx + d) - toward).abs();
+      if (off < bestD) {
+        bestD = off;
+        best = (b, b.cx + d);
+      }
     }
-    return null;
+    return best;
   }
 
   // On a bank there is no deeper ground to stand in, and off one there is
   // only water: anything over a bank that cannot float is stood on its top.
   // When the Swamp has gone dry the floor between is ground as well.
   @override
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) {
-    final at = _bankAt(layer, x, reach: 0.86);
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) {
+    final at = _bankAt(layer, x, reach: 0.86, toward: toward);
     if (at != null) {
       final (b, lx) = at;
       return (top: double.infinity, rest: _bStand(b, lx) + 1 * _u);
@@ -458,7 +476,9 @@ class SwampField extends _GrainField {
           ),
         );
       }
-      return banks;
+      // Two rows share a layer at home: the higher bank is the farther
+      // one, drawn first.
+      return banks..sort((a, b) => a.level.compareTo(b.level));
     }
     if (back) {
       final w = _widths[layer] ?? _worldWidth;

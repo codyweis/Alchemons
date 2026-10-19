@@ -64,6 +64,23 @@ typedef WildVisualResolver =
 
 enum SceneMode { exploration, encounter }
 
+/// Something carried in a showcase field, where it is held or was let go:
+/// across the screen (px), where along its own layer's loop, how high its
+/// anchor is, and how high it rests at its own point (shares of the
+/// field's height).
+typedef FieldDrop = ({double screenX, double share, double height, double rest});
+
+/// Where something carried would land if let go now (see
+/// [SceneGame.landingOf]): on [layer], [share] along its loop, its anchor
+/// [height] up the field (a share of its height), drawn [scale] times as
+/// big as it is now.
+typedef FieldLanding = ({
+  SceneLayer layer,
+  double share,
+  double height,
+  double scale,
+});
+
 class SceneGame extends FlameGame with ScaleDetector {
   SceneGame({
     required SceneDefinition scene,
@@ -979,7 +996,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       final anchor = PositionComponent(
         position: Vector2(x, y),
         size: Vector2.all(1),
-        priority: 10,
+        priority: _restingPriority(p),
         anchor: Anchor.center,
       );
 
@@ -987,6 +1004,18 @@ class SceneGame extends FlameGame with ScaleDetector {
       _spawnPointComps[p.id] = anchor;
     }
   }
+
+  /// Where a point's anchor is drawn among the others on its layer: a
+  /// thing (a keepsake) under a creature, and in the home biome a nearer
+  /// row over a farther one that shares its layer — with room between rows
+  /// for what a thing draws over its visitors (its anchor's +6).
+  int _restingPriority(SpawnPoint p, {bool? thing}) {
+    final own = (thing ?? _things.containsKey(p.id)) ? 9 : 10;
+    return showcase ? own + 16 * (2 - p.depth.clamp(0, 2)) : own;
+  }
+
+  /// Above everything resting on any row while it is carried.
+  static const int _heldPriority = 64;
 
   /// How far below its centre the feet of the creature standing at each
   /// spawn are, so one on a perch is seated by its own sprite.
@@ -1011,8 +1040,18 @@ class SceneGame extends FlameGame with ScaleDetector {
     // under it.
     if (_things.containsKey(p.id) && p.aloft) return authored;
     if (_things.containsKey(p.id)) {
-      final g = _art?.groundAt(p.anchor, _spawnBaseX(p));
-      return g?.rest ?? authored + p.size.y * 0.42;
+      final feet = authored + p.size.y * 0.42;
+      final g = _art?.groundAt(p.anchor, _spawnBaseX(p), toward: feet);
+      if (g == null) return feet;
+      // Stood well down from its ground's own top — the home's middle row,
+      // down the slope in front of the far row's hills — it stands where
+      // its row does.
+      if (g.top.isFinite &&
+          g.rest >= g.top &&
+          feet > g.rest + 16 * _viewportH / 475) {
+        return feet;
+      }
+      return g.rest;
     }
     return authored;
   }
@@ -1546,11 +1585,24 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// A resident picked up to be moved, by its point's id.
   void Function(String spawnId)? onResidentPicked;
 
-  /// A resident put down after being moved: its point's id, where it now
-  /// stands as a share of its layer's loop, and how high as a share of the
-  /// field's height (the anchor's — its middle, not its feet). The owner
-  /// decides where it ends up and calls [relayout].
-  void Function(String spawnId, double share, double height)? onResidentDropped;
+  /// A resident put down after being moved: its point's id, and where it
+  /// was let go (see [FieldDrop]). The owner decides where it ends up and
+  /// calls [relayout].
+  void Function(String spawnId, FieldDrop at)? onResidentDropped;
+
+  /// How high (shares of the field's height) the anchor of what is carried
+  /// may be carried between, when it can be put down on other rows than
+  /// its own — from the far row's height to the near row's — given how
+  /// high it [rest]s at its own point. Null keeps it on its own row,
+  /// lifted a little in the hand.
+  ({double lo, double hi})? Function(String spawnId, double rest)? carryRange;
+
+  /// The field's height (layer units): what the shares of it are of.
+  double get fieldHeight => _viewportH;
+
+  /// Where what is carried would land if let go [at] now, shown on the
+  /// ground under it as it goes; null for nowhere.
+  FieldLanding? Function(String spawnId, FieldDrop at)? landingOf;
 
   /// Whether a resident can be picked up and moved with a finger. A drag
   /// that starts on nothing still pans the field.
@@ -1579,6 +1631,17 @@ class SceneGame extends FlameGame with ScaleDetector {
   String? _held;
   final Vector2 _heldFinger = Vector2.zero();
   final Vector2 _heldFrom = Vector2.zero();
+
+  /// How high the held anchor is, not counting the lift of the hand
+  /// (layer units).
+  double _heldY = 0;
+
+  /// Where what is carried would land, shown on its ground, and when and
+  /// where the finger was when that was last asked.
+  _LandingMark? _mark;
+  FieldLanding? _landing;
+  double _markAge = 0;
+  final Vector2 _markFinger = Vector2(-1e9, -1e9);
 
   /// What a finger has landed on while arranging and is waiting to take
   /// hold of, where it landed and where it is, and for how long.
@@ -1655,7 +1718,7 @@ class SceneGame extends FlameGame with ScaleDetector {
     // Behind the creatures on its row: they are what is looked at, and
     // what bathes in it or stands before it is in front of it. (What it
     // draws over its visitors has its own pass, _KeepsakeFront.)
-    anchor.priority = 9;
+    anchor.priority = _restingPriority(sp, thing: true);
     anchor.position.y = _anchorY(sp, sp.normalizedPos.dy * _viewportH);
     anchor.add(thing);
   }
@@ -1683,20 +1746,35 @@ class SceneGame extends FlameGame with ScaleDetector {
   }
 
   /// The residents whose anchors are within [reach] across of [anchor] on
-  /// its layer: where each one's anchor is from [anchor], and it.
+  /// its row: where each one's anchor is from [anchor], and it.
   List<(Offset, WildMonComponent)> residentsBeside(
     PositionComponent anchor,
     double reach,
-  ) => [
-    for (final e in _residents.entries)
-      if (_spawnPointComps[e.key] case final a?
-          when a.parent == anchor.parent &&
-              (a.position.x - anchor.position.x).abs() < reach)
-        (
-          Offset(a.position.x - anchor.position.x, a.position.y - anchor.position.y),
-          e.value,
-        ),
-  ];
+  ) {
+    final depth = _depthOfAnchor(anchor);
+    return [
+      for (final e in _residents.entries)
+        if (_spawnPointComps[e.key] case final a?
+            when a.parent == anchor.parent &&
+                (_pointOf(e.key)?.depth ?? 0) == depth &&
+                (a.position.x - anchor.position.x).abs() < reach)
+          (
+            Offset(
+              a.position.x - anchor.position.x,
+              a.position.y - anchor.position.y,
+            ),
+            e.value,
+          ),
+    ];
+  }
+
+  /// Which of the rows that share its layer the point at [anchor] is on.
+  int _depthOfAnchor(PositionComponent anchor) {
+    for (final e in _spawnPointComps.entries) {
+      if (identical(e.value, anchor)) return _pointOf(e.key)?.depth ?? 0;
+    }
+    return 0;
+  }
 
   /// How much of what stands on [layer] its ground gives back.
   double reflectionOn(SceneLayer layer) => _art?.reflectionAt(layer) ?? 0;
@@ -1845,7 +1923,10 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// Sends the resident at [spawnId] away: it comes apart into grains.
   void removeResident(String spawnId) {
     _residentLooks.remove(spawnId);
-    if (_held == spawnId) _held = null;
+    if (_held == spawnId) {
+      _held = null;
+      _endCarry(_spawnPointComps[spawnId]);
+    }
     _sendHome(_residents.remove(spawnId));
   }
 
@@ -1965,6 +2046,29 @@ class SceneGame extends FlameGame with ScaleDetector {
     return (anchor.position.x - view.left) * view.zoom;
   }
 
+  /// Where the anchor at [spawnId] is on the screen (px), for tests and
+  /// previews that put a finger on it.
+  @visibleForTesting
+  Offset? debugScreenOf(String spawnId) {
+    final anchor = _spawnPointComps[spawnId];
+    final container = anchor?.parent;
+    if (anchor == null || container is! PositionComponent) return null;
+    final view = _fieldViewFor(container.position.x);
+    return Offset(
+      (anchor.position.x - view.left) * view.zoom,
+      view.screenY(anchor.position.y),
+    );
+  }
+
+  /// The depth of the row the point at [spawnId] stands on, and its layer,
+  /// for tests.
+  @visibleForTesting
+  SpawnPoint? debugPointOf(String spawnId) => _pointOf(spawnId);
+
+  /// Where what is carried would land now, for tests and previews.
+  @visibleForTesting
+  FieldLanding? get debugLanding => _landing;
+
   /// Puts the scene's points where [spawns] says — the home biome after a
   /// resident comes, moves or goes. The field lays its ground out again
   /// under them, only the layers whose points changed are rebuilt, and
@@ -2026,20 +2130,21 @@ class SceneGame extends FlameGame with ScaleDetector {
       }
     }
 
-    // Every point an anchor, on its own layer.
+    // Every point an anchor, on its own layer, over the rows behind it.
     for (final p in spawns) {
       final parent = _layers[p.anchor]?.container ?? layersRoot;
       final anchor = _spawnPointComps[p.id];
       if (anchor == null) {
         final a = PositionComponent(
           size: Vector2.all(1),
-          priority: 10,
+          priority: _restingPriority(p),
           anchor: Anchor.center,
         );
         parent.add(a);
         _spawnPointComps[p.id] = a;
-      } else if (anchor.parent != parent) {
-        anchor.parent = parent;
+      } else {
+        if (anchor.parent != parent) anchor.parent = parent;
+        if (p.id != _held) anchor.priority = _restingPriority(p);
       }
     }
 
@@ -2126,13 +2231,14 @@ class SceneGame extends FlameGame with ScaleDetector {
     }
     final local = _fieldViewFor(container.position.x).local(at.x, at.y);
     _held = id;
+    _heldY = anchor.position.y;
     _heldFrom.setFrom(at);
     _heldFinger.setFrom(at);
     _heldGrip.setValues(
       local.dx - anchor.position.x,
       local.dy - anchor.position.y,
     );
-    anchor.priority = 40;
+    anchor.priority = _heldPriority;
     onResidentPicked?.call(id);
     return true;
   }
@@ -2179,28 +2285,111 @@ class SceneGame extends FlameGame with ScaleDetector {
       }
     }
     anchor.position.x = local.dx - _heldGrip.x;
-    // What cannot float stays on the ground, lifted a little in the hand.
-    anchor.position.y = _liftable(id)
-        ? (local.dy - _heldGrip.y).clamp(_viewportH * 0.1, _viewportH * 0.92)
-        : _anchorY(sp, sp.normalizedPos.dy * _viewportH) - 10;
+    // What cannot float stays on the ground, lifted a little in the hand —
+    // on its own row, or carried between rows where it may go to another.
+    final range = _liftable(id)
+        ? null
+        : carryRange?.call(
+            id,
+            _anchorY(sp, sp.normalizedPos.dy * _viewportH) / _viewportH,
+          );
+    if (_liftable(id)) {
+      _heldY = (local.dy - _heldGrip.y).clamp(
+        _viewportH * 0.1,
+        _viewportH * 0.92,
+      );
+      anchor.position.y = _heldY;
+    } else {
+      _heldY = range == null
+          ? _anchorY(sp, sp.normalizedPos.dy * _viewportH)
+          : (local.dy - _heldGrip.y).clamp(
+              range.lo * _viewportH,
+              range.hi * _viewportH,
+            );
+      anchor.position.y = _heldY - 10;
+    }
+    _askLanding(id, anchor, dt);
+    // Grown or shrunk toward the size it will be where it lands.
+    final k = _landing?.scale ?? 1;
+    final now = anchor.scale.x;
+    anchor.scale.setAll(now + (k - now) * math.min(1.0, dt * 10));
+  }
+
+  /// Where the held [id] is now (see [FieldDrop]).
+  FieldDrop? _heldAt(String id, PositionComponent anchor) {
+    final sp = _pointOf(id);
+    final container = anchor.parent;
+    if (sp == null || container is! PositionComponent) return null;
+    final view = _fieldViewFor(container.position.x);
+    final period = _loops ? _periodOf(sp.anchor) : scene.worldWidth.toDouble();
+    return (
+      screenX: (anchor.position.x - view.left) * view.zoom,
+      share: (anchor.position.x / period) % 1.0,
+      height: _heldY / _viewportH,
+      rest: _anchorY(sp, sp.normalizedPos.dy * _viewportH) / _viewportH,
+    );
+  }
+
+  /// Asks where the held [id] would land, when the finger has moved since
+  /// it was last asked (or a while has gone by), and shows it.
+  void _askLanding(String id, PositionComponent anchor, double dt) {
+    final ask = landingOf;
+    if (ask == null) return;
+    _markAge += dt;
+    if (_markFinger.distanceTo(_heldFinger) < 3 && _markAge < 0.3) return;
+    _markFinger.setFrom(_heldFinger);
+    _markAge = 0;
+    final at = _heldAt(id, anchor);
+    _landing = at == null ? null : ask(id, at);
+    final land = _landing;
+    final container = land == null ? null : _layers[land.layer]?.container;
+    if (land == null || container == null) {
+      _mark?.removeFromParent();
+      _mark = null;
+      return;
+    }
+    final mark = _mark ??= _LandingMark(this, id);
+    if (mark.parent != container) {
+      mark.removeFromParent();
+      container.add(mark);
+    }
+    final viewportW = size.x / (layersRoot.scale.x * cam.viewfinder.zoom);
+    final period = _loops ? _periodOf(land.layer) : scene.worldWidth.toDouble();
+    final base = land.share * period;
+    mark
+      ..scaleTo = land.scale
+      ..position.setValues(
+        _loops ? _nearestLoop(base, land.layer, viewportW) : base,
+        land.height * _viewportH + (_standDrop[id] ?? 0) * land.scale,
+      );
+  }
+
+  /// Done carrying: no landing shown, and back to its own size.
+  void _endCarry(PositionComponent? anchor) {
+    _mark?.removeFromParent();
+    _mark = null;
+    _landing = null;
+    _markAge = 0;
+    _markFinger.setValues(-1e9, -1e9);
+    anchor?.scale.setAll(1);
   }
 
   void _putDown() {
     final id = _held;
-    _held = null;
     final anchor = id == null ? null : _spawnPointComps[id];
     final sp = id == null
         ? null
         : scene.spawnPoints.where((s) => s.id == id).firstOrNull;
-    if (id == null || anchor == null || sp == null) return;
-    anchor.priority = _things.containsKey(id) ? 9 : 10;
+    final at = id == null || anchor == null ? null : _heldAt(id, anchor);
+    _held = null;
+    _endCarry(anchor);
+    if (id == null || anchor == null || sp == null || at == null) return;
+    anchor.priority = _restingPriority(sp);
     _ghost?.removeFromParent();
     _ghost = null;
     final wasHidden = _hidden.remove(id);
-    final period = _loops ? _periodOf(sp.anchor) : scene.worldWidth.toDouble();
-    final share = (anchor.position.x / period) % 1.0;
     final before = scene.spawnPoints;
-    onResidentDropped?.call(id, share, anchor.position.y / _viewportH);
+    onResidentDropped?.call(id, at);
     // Scenery set back where it was, when the owner kept it there.
     if (wasHidden && identical(before, scene.spawnPoints)) {
       _refreshArt({sp.anchor});

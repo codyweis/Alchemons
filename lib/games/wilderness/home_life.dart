@@ -372,7 +372,7 @@ class _HomeLife {
       for (final e in _livers.entries)
         if (e.value.trip == null && e.value.act != _Act.asleep)
           if (game._pointOf(e.key) case final sp?
-              when sp.anchor == at.anchor && !sp.aloft)
+              when _sameRow(sp, at) && !sp.aloft)
             (e.value, sp),
     ]..sort(
         (a, b) => game
@@ -464,7 +464,7 @@ class _HomeLife {
     final t = game._fieldTime;
     final size = sp.size.x;
     final slow = _night ? 0.55 : 1.0;
-    final vane = _thingsOfKind('four_winds', sp.anchor)
+    final vane = _thingsOfKind('four_winds', sp)
         .map((id) => game._loopDelta(id, sp.id))
         .where((d) => d.abs() < size * 2.2)
         .firstOrNull;
@@ -505,7 +505,7 @@ class _HomeLife {
       l.perchFor = 6 + _rng.nextDouble() * 8;
       if (_rng.nextDouble() > 0.45) return false;
       for (final kind in const ['flyer_perch', 'elder_tree', 'pomegranate_tree']) {
-        for (final t in _thingsOfKind(kind, sp.anchor)) {
+        for (final t in _thingsOfKind(kind, sp)) {
           final taken = _livers.values.any((o) => o != l && o.perch == t);
           if (taken || game._loopDelta(t, sp.id).abs() > size * 3.2) continue;
           id = t;
@@ -704,7 +704,7 @@ class _HomeLife {
       final kind = game._thingKind(id);
       if (kind == null || kind == kPortalThing || _ghost(id)) continue;
       final p = game._pointOf(id);
-      if (p == null || p.anchor != sp.anchor || p.aloft) continue;
+      if (p == null || !_sameRow(p, sp) || p.aloft) continue;
       final v = _visitOf(kind);
       if (v == null || !wants(v)) continue;
       if (v.seated && _seatFor(l, id, v) == null) continue;
@@ -1158,12 +1158,30 @@ class _HomeLife {
   /// How much higher or lower the ground is [dx] along from [sp]'s spot.
   double _groundShift(SpawnPoint sp, double dx) {
     if (dx == 0) return 0;
-    final art = game._art;
-    if (art == null) return 0;
     final x = game._spawnBaseX(sp);
-    final g0 = art.groundAt(sp.anchor, x), g1 = art.groundAt(sp.anchor, x + dx);
+    final g0 = _groundOf(sp, x), g1 = _groundOf(sp, x + dx);
     if (g0 == null || g1 == null) return 0;
     return g1.rest - g0.rest;
+  }
+
+  /// The ground under [sp]'s resident at [x] along its layer: its own row's
+  /// where two rows share the layer — and level, where it stands well down
+  /// from its ground's own top (the middle row, in front of the far row's
+  /// hills, whose crest it does not walk).
+  ({double top, double rest})? _groundOf(SpawnPoint sp, double x) {
+    final art = game._art;
+    if (art == null) return null;
+    final feet =
+        game._anchorY(sp, sp.normalizedPos.dy * game._viewportH) +
+        (game._standDrop[sp.id] ?? sp.size.y * 0.46);
+    final g = art.groundAt(sp.anchor, x, toward: feet);
+    if (g != null &&
+        g.top.isFinite &&
+        g.rest >= g.top &&
+        feet > g.rest + 16 * _u) {
+      return (top: feet - 3 * _u, rest: feet);
+    }
+    return g;
   }
 
   /// The ground [sp]'s resident can walk either side of its spot: as far
@@ -1175,7 +1193,7 @@ class _HomeLife {
     final size = sp.size.x;
     final x = game._spawnBaseX(sp);
     final perch = art.perchFor(sp.id);
-    final g0 = art.groundAt(sp.anchor, x);
+    final g0 = _groundOf(sp, x);
     if (g0 == null) return (0, 0);
     // On a rock above the grass (the Valley's boulders) it stays put: its
     // feet are over the ground's own top. (Where the ground is a perch all
@@ -1190,7 +1208,7 @@ class _HomeLife {
     double reach(int dir) {
       var at = 0.0;
       for (var d = step; d <= far; d += step) {
-        final g = art.groundAt(sp.anchor, x + dir * d);
+        final g = _groundOf(sp, x + dir * d);
         if (g == null || (g.rest - g0.rest).abs() > 9 * _u) break;
         // Up to halfway to a neighbour, who has the other half.
         final clash = others.any(
@@ -1210,16 +1228,20 @@ class _HomeLife {
     for (final id in game._residents.keys)
       if (id != sp.id)
         if (game._pointOf(id) case final o?
-            when o.anchor == sp.anchor && !o.aloft)
+            when _sameRow(o, sp) && !o.aloft)
           game._loopDelta(id, sp.id),
   ];
 
-  Iterable<String> _thingsOfKind(String kind, SceneLayer layer) => [
+  /// Whether [a] and [b] are on one row: one layer, and one of the rows
+  /// that share it.
+  static bool _sameRow(SpawnPoint a, SpawnPoint b) =>
+      a.anchor == b.anchor && a.depth == b.depth;
+
+  /// The keepsakes of [kind] on [sp]'s row.
+  Iterable<String> _thingsOfKind(String kind, SpawnPoint sp) => [
     for (final id in game._things.keys)
-      if (game._thingKind(id) == kind &&
-          game._pointOf(id)?.anchor == layer &&
-          !_ghost(id))
-        id,
+      if (game._thingKind(id) == kind && !_ghost(id))
+        if (game._pointOf(id) case final o? when _sameRow(o, sp)) id,
   ];
 
   double? _nearestNeighbour(SpawnPoint sp, double within) {
@@ -1235,7 +1257,7 @@ class _HomeLife {
   /// at the nearer — walked to if it can be reached, else it thins out at
   /// home and comes out of it — and out at the other.
   _Trip? _tripFor(_Liver l, SpawnPoint sp, (double, double) range) {
-    final portals = _thingsOfKind(kPortalThing, sp.anchor).toList();
+    final portals = _thingsOfKind(kPortalThing, sp).toList();
     if (portals.length < 2) return null;
     portals.sort(
       (a, b) => game
@@ -1427,6 +1449,49 @@ class _ChosenLight extends PositionComponent {
     // …and the light lies on that ground, a flat pool round its feet.
     final rx = w * 0.62 + 8;
     _pool(canvas, cx, foot, rx, rx * 0.22, 0.8 * breathe);
+  }
+}
+
+/// Where something carried would stand if let go now: light pooled on the
+/// ground there, as the chosen thing's light lies under it — so the row it
+/// is going to, and its place on it, show before the finger lifts. One
+/// gradient fill a frame, and only while something is carried.
+class _LandingMark extends PositionComponent {
+  _LandingMark(this.game, this.id) : super(priority: 8);
+
+  final SceneGame game;
+  final String id;
+
+  /// How big what lands here is drawn against how it is now.
+  double scaleTo = 1;
+  double _t = 0;
+
+  @override
+  void update(double dt) => _t += dt;
+
+  @override
+  void render(Canvas canvas) {
+    final box = game._chosenBox(id);
+    final w = math.max(box?.width ?? 60, 24.0) * scaleTo;
+    final fadeIn = math.min(1.0, _t / 0.2);
+    final a = (0.72 + 0.2 * math.sin(_t * 3.2)) * fadeIn;
+    final rx = w * 0.6 + 6;
+    final light = _ChosenLight._light
+      ..color = Color.fromRGBO(255, 255, 255, a);
+    canvas
+      ..save()
+      ..scale(rx, rx * 0.24)
+      ..drawCircle(Offset.zero, 1, light)
+      ..restore();
+    // A faint glow standing up off it, where it will stand.
+    light.color = Color.fromRGBO(255, 255, 255, a * 0.26);
+    final up = w * 0.7;
+    canvas
+      ..save()
+      ..translate(0, -up * 0.55)
+      ..scale(w * 0.42, up)
+      ..drawCircle(Offset.zero, 1, light)
+      ..restore();
   }
 }
 

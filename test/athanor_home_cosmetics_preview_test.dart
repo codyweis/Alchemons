@@ -116,10 +116,15 @@ void main() {
       HomeResident(instanceId: 'fire_horn', x: 0.02),
       HomeResident(instanceId: 'plant_let', x: 0.105, flip: true),
       HomeResident(instanceId: 'water_pip', x: 0.19),
-      HomeResident(instanceId: 'ice_mane', x: 0.035, back: true),
-      HomeResident(instanceId: 'earth_kin', x: 0.17, back: true, flip: true),
+      HomeResident(instanceId: 'ice_mane', x: 0.035, depth: HomeDepth.back),
+      HomeResident(
+        instanceId: 'earth_kin',
+        x: 0.17,
+        depth: HomeDepth.back,
+        flip: true,
+      ),
       HomeResident(instanceId: 'light_horn', x: 0.28),
-      HomeResident(instanceId: 'steam_let', x: 0.26, back: true),
+      HomeResident(instanceId: 'steam_let', x: 0.26, depth: HomeDepth.back),
     ];
 
     final key = GlobalKey();

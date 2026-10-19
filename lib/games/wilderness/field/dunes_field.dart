@@ -169,7 +169,11 @@ class DunesField extends _GrainField {
   }
 
   @override
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) {
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) {
     switch (layer) {
       case dunes:
         return (top: _dune(x) + 3 * _u, rest: _dune(x) + 16 * _u);

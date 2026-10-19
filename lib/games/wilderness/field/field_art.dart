@@ -165,7 +165,14 @@ abstract class FieldArt {
 
   /// The ground on [layer] at local [x], for a creature that cannot float:
   /// feet higher than [top] are in the air; [rest] is where to stand one.
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) => null;
+  /// Where grounds of two rows overlap there (the home biome's middle and
+  /// far rows share a layer, each with its own isles), the one whose [rest]
+  /// is nearest [toward] (layer-local y), if it is given.
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) => null;
 
   /// How much of a creature standing on [layer] its ground gives back, as
   /// an image upside down under its feet — 0 for none, as on most ground.

@@ -160,11 +160,13 @@ class KeepsakeComponent extends PositionComponent
     final layer = game.layerOf(this);
     reflection = layer == null ? 0 : game.reflectionOn(layer);
     // What it draws over its visitors goes in front of every creature on
-    // its layer, following it about.
+    // its row, following it about — and behind a nearer row on its layer.
     final anchor = parent;
     final layerBox = anchor?.parent;
     if (art.hasFront && anchor is PositionComponent && layerBox != null) {
-      layerBox.add(_front = _KeepsakeFront(this, anchor));
+      layerBox.add(
+        _front = _KeepsakeFront(this, anchor)..priority = anchor.priority + 6,
+      );
     }
   }
 
@@ -244,7 +246,7 @@ class KeepsakeComponent extends PositionComponent
 }
 
 /// What a keepsake draws over its visitors (the water round a bather, the
-/// near half of a ride), in front of every creature on its layer.
+/// near half of a ride), in front of every creature on its row.
 class _KeepsakeFront extends PositionComponent {
   _KeepsakeFront(this.thing, this.point) : super(priority: 15);
 

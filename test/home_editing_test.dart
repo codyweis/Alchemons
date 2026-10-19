@@ -69,7 +69,7 @@ void main() {
         'moving ${pieceHost ? 'a keepsake' : 'a resident'} and companion avoids neighbors${seam ? ' across the seam' : ''}',
         () {
           const base = HomeBiomeLayout(pieces: {'valley': []});
-          final gap = base.gap(back: false);
+          final gap = base.gap(HomeDepth.front);
           final origin = seam ? .99 : .2;
           final host = HomeResident(instanceId: 'host', x: origin);
           final piece = keepsake.copyWith(x: origin);
@@ -103,7 +103,7 @@ void main() {
           expect(distance.abs(), greaterThanOrEqualTo(gap - 1e-9));
           // Sending just the host to a different row must not reserve room
           // for companions that will stay behind.
-          final other = host.copyWith(back: true);
+          final other = host.copyWith(depth: HomeDepth.back);
           expect(
             layout.freeSpotNear(other, requested),
             closeTo(requested, 1e-9),

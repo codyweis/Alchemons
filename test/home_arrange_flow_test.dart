@@ -25,13 +25,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   group('standing beside', () {
     const realm = HomeRealm.valley;
-    final row = realm.row(back: false);
+    final row = realm.row(HomeDepth.front);
     final size = row.size / realm.period(row.layer);
     const post = HomePiece(id: 'lantern_post#0', kind: 'lantern_post', x: .5);
 
     HomeBiomeLayout put(HomeBiomeLayout layout, String id, double x) {
       final r = layout.resident('HOME_$id')!;
-      final nest = layout.nestBeside(r.spawnId, x, back: false);
+      final nest = layout.nestBeside(r.spawnId, x, depth: HomeDepth.front);
       expect(nest, isNotNull, reason: '$id let go at $x');
       return layout.replace(r.copyWith(x: nest!.$2, beside: () => nest.$1));
     }
@@ -85,7 +85,11 @@ void main() {
       layout = put(layout, 'a', .5 - size * 0.3);
       final a = layout.resident('HOME_a')!.x;
       // Further from the post than nesting beside it alone ever reached.
-      final nest = layout.nestBeside('HOME_b', a - size, back: false);
+      final nest = layout.nestBeside(
+        'HOME_b',
+        a - size,
+        depth: HomeDepth.front,
+      );
       expect(nest?.$1, post.spawnId);
       expect(nest!.$2, lessThan(a));
     });

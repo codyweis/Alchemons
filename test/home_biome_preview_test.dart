@@ -134,11 +134,16 @@ void main() {
       HomeResident(instanceId: 'fire_horn', x: 0.02),
       HomeResident(instanceId: 'plant_let', x: 0.105, flip: true),
       HomeResident(instanceId: 'water_pip', x: 0.19),
-      HomeResident(instanceId: 'ice_mane', x: 0.035, back: true),
-      HomeResident(instanceId: 'earth_kin', x: 0.17, back: true, flip: true),
+      HomeResident(instanceId: 'ice_mane', x: 0.035, depth: HomeDepth.back),
+      HomeResident(
+        instanceId: 'earth_kin',
+        x: 0.17,
+        depth: HomeDepth.back,
+        flip: true,
+      ),
       HomeResident(instanceId: 'air_wing', x: 0.13, lift: 0.3),
       HomeResident(instanceId: 'light_horn', x: 0.28),
-      HomeResident(instanceId: 'steam_let', x: 0.26, back: true),
+      HomeResident(instanceId: 'steam_let', x: 0.26, depth: HomeDepth.back),
     ];
 
     final key = GlobalKey();
@@ -238,6 +243,98 @@ void main() {
           base.copyWith(realm: realm, hour: () => hour).withMood(mood),
           seconds: mood == 'rainbow' ? 6 : 3.5,
         );
+      }
+    }
+    if (wants('rows')) {
+      // Front, middle and back: the household on all three rows, keepsakes
+      // and decor among them, in every realm.
+      const rows = [
+        HomeResident(instanceId: 'fire_horn', x: 0.02),
+        HomeResident(instanceId: 'plant_let', x: 0.12, flip: true),
+        HomeResident(instanceId: 'water_pip', x: 0.22),
+        HomeResident(instanceId: 'ice_mane', x: 0.055, depth: HomeDepth.mid),
+        HomeResident(
+          instanceId: 'earth_kin',
+          x: 0.17,
+          depth: HomeDepth.mid,
+          flip: true,
+        ),
+        HomeResident(instanceId: 'light_horn', x: 0.02, depth: HomeDepth.back),
+        HomeResident(instanceId: 'steam_let', x: 0.13, depth: HomeDepth.back),
+        HomeResident(instanceId: 'air_wing', x: 0.17, lift: 0.3),
+      ];
+      for (final realm in HomeRealm.values) {
+        await shoot(
+          'rows_${realm.name}',
+          base
+              .copyWith(realm: realm, hour: () => 12.5, residents: rows)
+              .withPlaced([
+                ...realm.defaultPieces,
+                const HomePiece(
+                  id: 'lantern_post#0',
+                  kind: 'lantern_post',
+                  x: 0.07,
+                ),
+                const HomePiece(
+                  id: 'ember_torch#0',
+                  kind: 'ember_torch',
+                  x: 0.11,
+                  depth: HomeDepth.mid,
+                ),
+                const HomePiece(
+                  id: 'rune_stone#0',
+                  kind: 'rune_stone',
+                  x: 0.075,
+                  depth: HomeDepth.back,
+                ),
+              ]),
+          seconds: 3,
+        );
+      }
+    }
+    if (wants('carry')) {
+      // Arranging: a lantern post chosen (its row lit among FRONT, MIDDLE,
+      // BACK), then carried up toward the middle row by a real finger —
+      // where it would land lit on the ground there.
+      for (final realm in const [HomeRealm.valley, HomeRealm.sky]) {
+        final layout = base
+            .copyWith(realm: realm, hour: () => 12.5)
+            .withPlaced([
+              ...realm.defaultPieces,
+              const HomePiece(
+                id: 'lantern_post#0',
+                kind: 'lantern_post',
+                x: 0.07,
+              ),
+            ]);
+        await shoot(
+          'carry_${realm.name}_chosen',
+          layout,
+          then: () async {
+            await tester.tap(find.text('Arrange'));
+            await settle(4);
+            game().onResidentTap!('PIECE_lantern_post#0');
+          },
+        );
+        TestGesture? finger;
+        await shoot(
+          'carry_${realm.name}_held',
+          layout,
+          then: () async {
+            await tester.tap(find.text('Arrange'));
+            await settle(4);
+            final at = game().debugScreenOf('PIECE_lantern_post#0')!;
+            finger = await tester.startGesture(at + const Offset(0, -30));
+            for (var i = 0; i < 24; i++) {
+              await tester.pump(const Duration(milliseconds: 16));
+            }
+            for (var i = 1; i <= 20; i++) {
+              await finger!.moveBy(const Offset(4, -3));
+              await settle(1, ms: 16);
+            }
+          },
+        );
+        await finger?.up();
       }
     }
     if (wants('arrange')) {
@@ -431,7 +528,12 @@ void main() {
         then: () async {
           await tester.tap(find.text('Arrange'));
           await settle(2);
-          game().onResidentDropped!('HOME_fire_horn', 0.36, 0.7);
+          game().onResidentDropped!('HOME_fire_horn', (
+            screenX: 0,
+            share: 0.36,
+            height: 0.7,
+            rest: 0.7,
+          ));
         },
       );
     }
@@ -468,7 +570,12 @@ void main() {
           layout = layout.withPlaced([
             ...realm.defaultPieces,
             for (final (id, x, back) in sets[i])
-              HomePiece(id: id, kind: id.split('#').first, x: x, back: back),
+              HomePiece(
+                id: id,
+                kind: id.split('#').first,
+                x: x,
+                depth: back ? HomeDepth.back : HomeDepth.front,
+              ),
           ]);
           await shoot('keepsakes_${realm.name}_$i', layout, seconds: 5);
         }
@@ -537,7 +644,7 @@ void main() {
               id: id,
               kind: id.split('#').first,
               x: x,
-              back: back,
+              depth: back ? HomeDepth.back : HomeDepth.front,
               y: y,
             ),
         ]);
@@ -602,7 +709,12 @@ void main() {
               .withPlaced([
                 ...HomeRealm.valley.defaultPieces,
                 for (final (id, x, back) in sets[i])
-                  HomePiece(id: id, kind: id.split('#').first, x: x, back: back),
+                  HomePiece(
+                    id: id,
+                    kind: id.split('#').first,
+                    x: x,
+                    depth: back ? HomeDepth.back : HomeDepth.front,
+                  ),
               ]);
           await shoot('athanor_${i}_${hour.round()}', layout, seconds: 8);
         }

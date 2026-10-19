@@ -127,7 +127,7 @@ void standHomePiece(
     game.setPieceBox(p.spawnId, homeSceneryBox(sp));
     return;
   }
-  final row = layout.realm.row(back: p.back);
+  final row = layout.realm.row(p.depth);
   final KeepsakeComponent comp;
   if (p.kind.startsWith('effigy:')) {
     final species = catalog.getCreatureById(p.kind.substring(7));
@@ -255,6 +255,10 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
   /// What is chosen while arranging, by its point's id: a resident or a
   /// placed piece.
   String? _selected;
+
+  /// The row what is being carried would land on now, lit among the row
+  /// chips while it is carried; null when nothing is.
+  HomeDepth? _carryingTo;
 
   /// The tray something chosen was just placed from, closed so it can be
   /// seen where it stands: open again once it is let go (OK, or a tap on
@@ -410,6 +414,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       ..onResidentTap = _onTap
       ..onResidentPicked = _onPicked
       ..onResidentDropped = _onDropped
+      ..carryRange = _carryRange
+      ..landingOf = _landingOf
       ..onEmptyTap = _onEmptyTap;
     // The Athanor's trails and this realm's ambience, if any are worn.
     final wear = context.read<CosmeticWearService?>();
@@ -517,8 +523,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   /// [layout] with everything spaced as its realm needs: a realm's rows are
   /// their own lengths, its creatures their own sizes, its isles and banks
-  /// where they are. What has no room on its row tries the other; a
-  /// keepsake with room on neither waits on the shelf.
+  /// where they are. What has no room on its row tries the others; a
+  /// keepsake with room on none waits on the shelf.
   HomeBiomeLayout _settle(HomeBiomeLayout layout) {
     // Scenery first, as it stands: the ground the rest is spaced against.
     var out = layout.copyWith(residents: const []).withPlaced([
@@ -531,13 +537,13 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     for (final pass in const [false, true]) {
       for (final p in layout.placed.where((p) => p.isKeepsake)) {
         if (beside(p.beside) != pass) continue;
-        if (pass && out.hostOf(p.spawnId, p.beside, back: p.back) != null) {
+        if (pass && out.hostOf(p.spawnId, p.beside, depth: p.depth) != null) {
           out = out.withPlaced([...out.placed, p]);
           continue;
         }
         HomePiece? placed;
-        for (final back in [p.back, !p.back]) {
-          final q = p.copyWith(back: back, beside: () => null);
+        for (final depth in p.depth.byNearness) {
+          final q = p.copyWith(depth: depth, beside: () => null);
           final x = out.freeSpotForPiece(q, p.x);
           if (x != null) {
             placed = q.copyWith(x: x);
@@ -548,18 +554,18 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       }
       for (final r in layout.residents) {
         if (beside(r.beside) != pass) continue;
-        if (pass && out.hostOf(r.spawnId, r.beside, back: r.back) != null) {
+        if (pass && out.hostOf(r.spawnId, r.beside, depth: r.depth) != null) {
           out = out.copyWith(residents: [...out.residents, r]);
           continue;
         }
         var placed = r.copyWith(beside: () => null);
-        final x = out.freeSpotNear(placed, r.x);
-        if (x != null) {
-          placed = placed.copyWith(x: x);
-        } else {
-          final other = placed.copyWith(back: !r.back);
-          final y = out.freeSpotNear(other, r.x);
-          if (y != null) placed = other.copyWith(x: y);
+        for (final depth in r.depth.byNearness) {
+          final q = placed.copyWith(depth: depth);
+          final x = out.freeSpotNear(q, r.x);
+          if (x != null) {
+            placed = q.copyWith(x: x);
+            break;
+          }
         }
         out = out.copyWith(residents: [...out.residents, placed]);
       }
@@ -772,7 +778,10 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   void _select(String? spawnId) {
     if (_selected == spawnId) return;
-    setState(() => _selected = spawnId);
+    setState(() {
+      _selected = spawnId;
+      _carryingTo = null;
+    });
     _game?.markChosen(spawnId);
   }
 
@@ -956,112 +965,208 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     _select(bought.spawnId);
   }
 
-  void _onDropped(String spawnId, double share, double height) {
+  /// Which row [spawnId] is on.
+  HomeDepth? _depthOf(String spawnId) =>
+      _layout.resident(spawnId)?.depth ?? _layout.piece(spawnId)?.depth;
+
+  /// How high [spawnId]'s anchor rests on [depth]'s row, as a share of the
+  /// field's height, as near as can be said without the field: a
+  /// resident's middle, a keepsake's feet, scenery's own point.
+  double _restOn(String spawnId, HomeDepth depth) {
+    final row = _layout.realm.row(depth);
+    final p = _layout.piece(spawnId);
+    if (p == null) return row.height;
+    if (p.isKeepsake) {
+      return row.height + 0.42 * row.size / (_game?.fieldHeight ?? 475);
+    }
+    final k = _layout.realm.sceneryOf(p.kind);
+    return (depth == HomeDepth.back ? k?.farY : k?.y) ?? row.height;
+  }
+
+  /// The rows [spawnId] can be put down on, and how high its anchor would
+  /// rest on each — going by [rest], where it really rests on its own.
+  List<(HomeDepth, double)> _restsFor(String spawnId, double rest) {
+    final own = _depthOf(spawnId);
+    if (own == null) return const [];
+    // In the air, it rests where it hovers: the rows are where they are.
+    final aloft = _layout.resident(spawnId)?.lift != null;
+    final off = aloft ? 0.0 : rest - _restOn(spawnId, own);
+    return [
+      for (final d in _layout.depthsFor(spawnId))
+        (d, _restOn(spawnId, d) + off),
+    ];
+  }
+
+  /// The row whose ground is nearest [height] — its [own] row a little
+  /// favoured, so a hand that drifts while carrying something along does
+  /// not send it to another.
+  HomeDepth _nearestRow(
+    List<(HomeDepth, double)> rests,
+    double height,
+    HomeDepth own,
+  ) {
+    double off((HomeDepth, double) r) =>
+        (height - r.$2).abs() * (r.$1 == own ? 0.6 : 1);
+    var best = rests.first;
+    for (final r in rests) {
+      if (off(r) < off(best)) best = r;
+    }
+    return best.$1;
+  }
+
+  /// How high what is carried may be carried, from the far row's ground to
+  /// the near row's: up and down the field it goes from row to row. Null
+  /// for what stands on only one row.
+  ({double lo, double hi})? _carryRange(String spawnId, double rest) {
+    final rests = _restsFor(spawnId, rest);
+    if (rests.length < 2) return null;
+    final ys = [for (final (_, y) in rests) y];
+    final lo = ys.reduce(math.min), hi = ys.reduce(math.max);
+    final pad = (hi - lo) * 0.2;
+    return (lo: lo - pad, hi: hi + pad);
+  }
+
+  /// Where [spawnId] lands if let go [at]: on the row nearest where it is
+  /// held, as near where it is held as there is room (see
+  /// [HomeBiomeLayout.dropResident]) — and which row it was let go over.
+  (HomeDrop, HomeDepth)? _resolveDrop(String spawnId, FieldDrop at) {
     final game = _game;
-    if (game == null) return;
+    final own = _depthOf(spawnId);
+    if (game == null || own == null) return null;
+    final realm = _layout.realm;
+    // Along its own layer, where it was let go on it; along another, under
+    // the same spot on the screen.
+    double xAt(HomeDepth d) => realm.row(d).layer == realm.row(own).layer
+        ? at.share
+        : game.shareAtScreen(realm.row(d).layer, at.screenX);
+    final rests = _restsFor(spawnId, at.rest);
     final r = _layout.resident(spawnId);
     if (r != null) {
-      _dropResident(game, r, share, height);
-      return;
+      // Something that can float, let go well above the far row's ground —
+      // more than half its own height, so a hand that drifts up a little
+      // while carrying it along still sets it down — stays up there, over
+      // its own row.
+      final far = realm.row(HomeDepth.back);
+      final farRest = rests.where((e) => e.$1 == HomeDepth.back).first.$2;
+      final aloft =
+          _floats(r.instanceId) && at.height < farRest - far.size / 475 * 0.55;
+      final depth = aloft ? own : _nearestRow(rests, at.height, own);
+      final row = realm.row(own);
+      final drop = _layout.dropResident(
+        r,
+        depth,
+        xAt,
+        lift: aloft ? at.height.clamp(0.12, row.height - 0.07) : null,
+      );
+      return drop == null ? null : (drop, depth);
     }
     final p = _layout.piece(spawnId);
-    if (p != null) _dropPiece(game, p, share, height);
+    if (p == null) return null;
+    // An isle, or what hangs, is set at whatever height it is let go, on
+    // its own row.
+    final rises = (realm.sceneryOf(p.kind)?.rises ?? false) || p.hangs;
+    final depth = rises ? own : _nearestRow(rests, at.height, own);
+    final drop = _layout.dropPiece(
+      p,
+      depth,
+      xAt,
+      y: rises ? () => at.height.clamp(0.14, p.back ? 0.62 : 0.8) : null,
+      stay: rises,
+    );
+    return drop == null ? null : (drop, depth);
   }
 
-  void _dropResident(
-    SceneGame game,
-    HomeResident r,
-    double share,
-    double height,
-  ) {
-    final row = _layout.realm.row(back: r.back);
-    // Something that can float, let go well above where it would stand —
-    // more than half its own height, so a hand that drifts up a little
-    // while carrying it along still sets it down — stays up there.
-    final lift =
-        _floats(r.instanceId) && height < row.height - row.size / 475 * 0.55
-        ? height.clamp(0.12, row.height - 0.07)
-        : null;
-    var moved = r.copyWith(x: share, lift: () => lift, beside: () => null);
-    // Put down close beside a keepsake or another resident, it shares
-    // that one's ground; otherwise it stands on its own.
-    final nest = lift == null
-        ? _layout.nestBeside(r.spawnId, share, back: r.back)
-        : null;
-    if (nest != null) {
-      moved = moved.copyWith(x: nest.$2, beside: () => nest.$1);
-    } else {
-      final x = _layout.freeSpotNear(moved, share, movingGroup: lift == null);
-      if (x == null) {
-        HapticFeedback.heavyImpact();
-        _say('No room on this row. Move something and try again.');
-        return;
-      }
-      _sayIfMoved(share, x, back: r.back);
-      moved = moved.copyWith(x: x);
+  /// Where what is carried lands if let go [at] now, shown under it on the
+  /// ground: nothing for what is held in the air.
+  FieldLanding? _landingOf(String spawnId, FieldDrop at) {
+    final resolved = _resolveDrop(spawnId, at);
+    final own = _depthOf(spawnId);
+    if (resolved == null || own == null) return null;
+    final (drop, _) = resolved;
+    if (_carryingTo != drop.depth && mounted) {
+      setState(() => _carryingTo = drop.depth);
     }
-    var layout = _layout.replace(moved);
-    // What stood beside it goes with it — or stays where it was, now on its
-    // own, if it took to the air.
-    layout = lift != null
-        ? layout.freeBeside(r.spawnId)
-        : layout.carryBeside(r.spawnId, moved.x - r.x);
-    // The group it left closes up behind it.
-    final left = r.beside;
-    if (left != null && left != moved.beside) layout = layout.packBeside(left);
-    _commit(layout);
-    game.relayout(_points);
-    _restandBeside(game, r.spawnId);
-    if (left != null) _restandBeside(game, left);
-    HapticFeedback.lightImpact();
-    _play(SoundCue.homeSet);
+    if (drop.layout.resident(spawnId)?.lift != null) return null;
+    final p = drop.layout.piece(spawnId);
+    final kind = p == null ? null : _layout.realm.sceneryOf(p.kind);
+    if (p != null && (p.hangs || (kind?.rises ?? false))) return null;
+    final rest = _restsFor(
+      spawnId,
+      at.rest,
+    ).where((e) => e.$1 == drop.depth).firstOrNull?.$2;
+    if (rest == null) return null;
+    final scale = kind != null
+        ? kind.width(back: drop.depth == HomeDepth.back) /
+              kind.width(back: own == HomeDepth.back)
+        : _layout.realm.row(drop.depth).size / _layout.realm.row(own).size;
+    return (
+      layer: _layout.realm.row(drop.depth).layer,
+      share: drop.x,
+      height: rest,
+      scale: scale,
+    );
   }
 
-  void _dropPiece(SceneGame game, HomePiece p, double share, double height) {
-    final kind = _layout.realm.sceneryOf(p.kind);
-    // An isle is set at whatever height it is let go.
-    final y = (kind?.rises ?? false) || p.hangs
-        ? () => height.clamp(0.14, p.back ? 0.62 : 0.8)
-        : null;
-    var moved = p.copyWith(x: share, y: y, beside: () => null);
-    final nest = p.isKeepsake
-        ? _layout.nestBeside(p.spawnId, share, back: p.back)
-        : null;
-    if (nest != null) {
-      moved = moved.copyWith(x: nest.$2, beside: () => nest.$1);
-    } else {
-      final x = _layout.freeSpotForPiece(moved, share, movingGroup: true);
-      if (x == null) {
-        HapticFeedback.heavyImpact();
-        _say('No room on this row. Move something and try again.');
-        return;
-      }
-      _sayIfMoved(share, x, back: p.back);
-      moved = moved.copyWith(x: x);
+  void _onDropped(String spawnId, FieldDrop at) {
+    final game = _game;
+    if (_carryingTo != null) setState(() => _carryingTo = null);
+    if (game == null) return;
+    // Taken hold of and let go where it was: it stays.
+    final was = _layout.resident(spawnId)?.x ?? _layout.piece(spawnId)?.x;
+    if (was == null) return;
+    if (((at.share - was + 0.5) % 1.0 - 0.5).abs() < 0.002 &&
+        (at.height - at.rest).abs() < 0.015) {
+      return;
     }
-    var layout = _layout
-        .replacePiece(moved)
-        .carryBeside(p.spawnId, moved.x - p.x);
-    // The group it left closes up behind it.
-    final left = p.beside;
-    if (left != null && left != moved.beside) layout = layout.packBeside(left);
-    _commit(layout);
-    game.relayout(_points);
-    _restand(game, moved);
-    _restandBeside(game, p.spawnId);
-    if (left != null) _restandBeside(game, left);
-    HapticFeedback.lightImpact();
+    final resolved = _resolveDrop(spawnId, at);
+    if (resolved == null) {
+      HapticFeedback.heavyImpact();
+      _say('No room for it anywhere. Move something and try again.');
+      return;
+    }
+    final (drop, asked) = resolved;
+    _land(game, drop, asked);
+    final scenery = _layout.piece(spawnId)?.isKeepsake == false;
     // Scenery carried in grains sets back into its piece; anything else is
     // set down on its ground.
-    _play(p.isKeepsake ? SoundCue.homeSet : SoundCue.homeSceneryGather);
+    _play(scenery ? SoundCue.homeSceneryGather : SoundCue.homeSet);
   }
 
-  /// Says why, when what was let go at [from] stands well away at [to]:
-  /// there was no room where the finger left it.
-  void _sayIfMoved(double from, double to, {required bool back}) {
-    final d = (to - from + 0.5) % 1.0 - 0.5;
-    if (d.abs() > _layout.gap(back: back) * 0.6) {
-      _say('No room there, so it went to the nearest open spot.');
+  /// Puts [drop] in place, and says why when it is not where it was asked
+  /// for — on [asked]'s row.
+  void _land(SceneGame game, HomeDrop drop, HomeDepth asked) {
+    final before = _layout;
+    _commit(drop.layout);
+    game.relayout(_points);
+    _restandMoved(game, before);
+    HapticFeedback.lightImpact();
+    switch (drop.how) {
+      case HomeLanding.otherRow:
+        _say(
+          'No room there in the ${asked.label.toLowerCase()} row, '
+          'so it went to the ${drop.depth.label.toLowerCase()} row.',
+        );
+      case HomeLanding.along:
+        _say('No room there, so it went to the nearest open spot.');
+      case HomeLanding.asked || HomeLanding.beside:
+        break;
+    }
+  }
+
+  /// Stands again whatever placed piece moved since [before]: a keepsake
+  /// seated on its new ground, scenery made something to take hold of
+  /// where it now is.
+  void _restandMoved(SceneGame game, HomeBiomeLayout before) {
+    for (final p in _layout.placed) {
+      final was = before.piece(p.spawnId);
+      if (was == null ||
+          was.x != p.x ||
+          was.depth != p.depth ||
+          was.y != p.y ||
+          was.scale != p.scale ||
+          was.beside != p.beside) {
+        _restand(game, p);
+      }
     }
   }
 
@@ -1078,61 +1183,38 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     _standPiece(game, p);
   }
 
-  /// Sends the chosen resident or piece to the other row, where it stood
+  /// Sends the chosen resident or piece to [depth]'s row, where it stood
   /// on screen.
-  void _swapRow() {
+  void _setDepth(HomeDepth depth) {
     final game = _game;
-    if (game == null) return;
+    final id = _selected;
+    if (game == null || id == null || _depthOf(id) == depth) return;
+    final screenX = game.screenXOf(id) ?? game.size.x / 2;
+    double xAt(HomeDepth d) =>
+        game.shareAtScreen(_layout.realm.row(d).layer, screenX);
     final r = _selectedResident;
-    if (r != null) {
-      final back = !r.back;
-      final row = _layout.realm.row(back: back);
-      final screenX = game.screenXOf(r.spawnId) ?? game.size.x / 2;
-      var moved = r.copyWith(
-        back: back,
-        x: game.shareAtScreen(row.layer, screenX),
-        lift: () => r.lift?.clamp(0.12, row.height - 0.07),
-        beside: () => null,
-      );
-      final x = _layout.freeSpotNear(moved, moved.x);
-      if (x == null) {
-        HapticFeedback.heavyImpact();
-        return;
-      }
-      moved = moved.copyWith(x: x);
-      HapticFeedback.selectionClick();
-      _commit(_closeUp(_layout.replace(moved).freeBeside(r.spawnId), r.beside));
-      game.relayout(_points);
-      _restandBeside(game, r.spawnId);
-      if (r.beside != null) _restandBeside(game, r.beside!);
-      return;
-    }
     final p = _selectedPiece;
-    if (p == null) return;
-    final back = !p.back;
-    final row = _layout.realm.row(back: back);
-    final screenX = game.screenXOf(p.spawnId) ?? game.size.x / 2;
-    var moved = p.copyWith(
-      back: back,
-      x: game.shareAtScreen(row.layer, screenX),
-      // Its height goes back to where its kind sits on that row.
-      y: () => null,
-      beside: () => null,
-    );
-    final x = _layout.freeSpotForPiece(moved, moved.x);
-    if (x == null) {
+    final row = _layout.realm.row(depth);
+    final drop = r != null
+        ? _layout.dropResident(
+            r,
+            depth,
+            xAt,
+            lift: r.lift?.clamp(0.12, row.height - 0.07),
+            stay: true,
+          )
+        : p != null
+        // Its height goes back to where its kind sits on that row.
+        ? _layout.dropPiece(p, depth, xAt, y: () => null, stay: true)
+        : null;
+    if (drop == null) {
       HapticFeedback.heavyImpact();
+      _say('No room in the ${depth.label.toLowerCase()} row. Move something first.');
       return;
     }
-    moved = moved.copyWith(x: x);
     HapticFeedback.selectionClick();
-    _commit(
-      _closeUp(_layout.replacePiece(moved).freeBeside(p.spawnId), p.beside),
-    );
-    game.relayout(_points);
-    _restand(game, moved);
-    _restandBeside(game, p.spawnId);
-    if (p.beside != null) _restandBeside(game, p.beside!);
+    _land(game, drop, depth);
+    _play(p != null && !p.isKeepsake ? SoundCue.homeSceneryGather : SoundCue.homeSet);
   }
 
   void _turn() {
@@ -1182,7 +1264,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     final game = _game;
     final r = _selectedResident;
     if (game == null || r == null || !_floats(r.instanceId)) return;
-    final row = _layout.realm.row(back: r.back);
+    final row = _layout.realm.row(r.depth);
     var moved = r.copyWith(
       lift: () => r.lift == null
           ? (row.height - 0.26).clamp(0.14, row.height - 0.07)
@@ -1256,7 +1338,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   /// Places a new [kind] — a piece of the realm's scenery, or one of the
   /// player's keepsakes — as near the middle of the screen as there is
-  /// room, on the near row or the far one.
+  /// room, in front, in the middle or at the back.
   void _place(String kind, {required bool keepsake}) {
     final game = _game;
     if (game == null) return;
@@ -1325,32 +1407,28 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       id = '${kind}_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}';
     }
     final mid = game.size.x / 2;
-    final scenery = _layout.realm.sceneryOf(kind);
-    HomePiece? placed;
-    for (final back in const [false, true]) {
-      if (back && scenery != null && !scenery.far) continue;
-      final row = _layout.realm.row(back: back);
-      final p = HomePiece(
+    // As near the middle of the screen as there is room: in front, else in
+    // the middle row, else at the back.
+    final drop = _layout.dropPiece(
+      HomePiece(
         id: id,
         kind: kind,
-        back: back,
         // What hangs in the air is put up above the ground.
-        y: (decor?.aloft ?? false) ? row.height - 0.32 : null,
-      );
-      final x = _layout.freeSpotForPiece(p, game.shareAtScreen(row.layer, mid));
-      if (x != null) {
-        placed = p.copyWith(x: x);
-        break;
-      }
-    }
-    if (placed == null) {
+        y: (decor?.aloft ?? false) ? _layout.realm.near.height - 0.32 : null,
+      ),
+      HomeDepth.front,
+      (d) => game.shareAtScreen(_layout.realm.row(d).layer, mid),
+      nest: false,
+    );
+    final placed = drop?.layout.piece('PIECE_$id');
+    if (drop == null || placed == null) {
       HapticFeedback.heavyImpact();
       _say('No free ground for it. Move something and try again.');
       return;
     }
     HapticFeedback.lightImpact();
     _play(SoundCue.homeAppear);
-    _commit(_layout.withPlaced([..._layout.placed, placed]));
+    _commit(drop.layout);
     game.relayout(_points);
     _standPiece(game, placed);
     _showChosen(game, placed.spawnId);
@@ -1460,7 +1538,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     if (gone.any((r) => r.spawnId == _selected)) _select(null);
 
     // Newcomers stand as near the middle of the screen as there is room:
-    // on the near row, or the far one once that is full.
+    // in front, else in the middle row, else at the back — and only then
+    // further along.
     final added = <HomeResident>[];
     final mid = game.size.x / 2;
     for (final inst in picked) {
@@ -1471,14 +1550,21 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       final creature = hydrateResident(inst, _catalog);
       if (creature == null) continue;
       HomeResident? placed;
-      for (final back in const [false, true]) {
-        final row = layout.realm.row(back: back);
-        final r = HomeResident(instanceId: inst.instanceId, back: back);
-        final x = layout.freeSpotNear(r, game.shareAtScreen(row.layer, mid));
-        if (x != null) {
-          placed = r.copyWith(x: x);
-          break;
+      for (final within in [layout.gap(HomeDepth.front), 0.5]) {
+        for (final depth in HomeDepth.values) {
+          final row = layout.realm.row(depth);
+          final r = HomeResident(instanceId: inst.instanceId, depth: depth);
+          final x = layout.freeSpotNear(
+            r,
+            game.shareAtScreen(row.layer, mid),
+            within: within,
+          );
+          if (x != null) {
+            placed = r.copyWith(x: x);
+            break;
+          }
         }
+        if (placed != null) break;
       }
       if (placed == null) continue;
       _looks[inst.instanceId] = (creature, inst);
@@ -1574,7 +1660,8 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
                   else if (_arranging && _selected != null)
                     _note(
                       context,
-                      'Hold it to move it. Tap OK when it is in place.',
+                      'Hold it to move it. Up or down changes its row. '
+                      'Tap OK when it is in place.',
                     )
                   else if (_arranging)
                     _note(
@@ -1835,12 +1922,31 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
         );
     }
 
+    // Which row it stands on, the one it is on lit: tapped, it goes to
+    // another where it stands on screen.
+    void depths(List<HomeDepth> rows, HomeDepth now) {
+      if (rows.length < 2) return;
+      chips.add(const SizedBox(width: 6));
+      for (final d in rows) {
+        if (d != rows.first) chips.add(const SizedBox(width: 2));
+        chips.add(
+          _Chip(
+            label: d.label,
+            icon: d == rows.first ? AppIcons.layers_rounded : null,
+            selected: d == now,
+            accent: _amber,
+            onTap: () => _setDepth(d),
+          ),
+        );
+      }
+    }
+
     if (r != null) {
       final look = _looks[r.instanceId];
       name = look?.$2.nickname?.isNotEmpty == true
           ? look!.$2.nickname!
           : (look?.$1.name ?? '');
-      chip(r.back ? 'TO FRONT' : 'TO BACK', AppIcons.layers_rounded, _swapRow);
+      depths(HomeDepth.values, _carryingTo ?? r.depth);
       chip('TURN', AppIcons.swap_horiz_rounded, _turn);
       if (_floats(r.instanceId)) {
         chip(
@@ -1862,13 +1968,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
           : p.isKeepsake
           ? (_ledger.byId(p.kind)?.title ?? '')
           : (scenery?.label ?? '');
-      if (p.isKeepsake || (scenery?.far ?? false)) {
-        chip(
-          p.back ? 'TO FRONT' : 'TO BACK',
-          AppIcons.layers_rounded,
-          _swapRow,
-        );
-      }
+      depths(_layout.depthsFor(p.spawnId), _carryingTo ?? p.depth);
       if (p.isKeepsake) {
         chip('TURN', AppIcons.swap_horiz_rounded, _turn);
       } else {

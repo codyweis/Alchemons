@@ -247,7 +247,11 @@ class GeodeField extends _GrainField {
   }
 
   @override
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) {
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) {
     switch (layer) {
       case mid:
         return (top: _ledge(x) + 3 * _u, rest: _ledge(x) + 14 * _u);

@@ -128,20 +128,38 @@ class SkyField extends _GrainField {
     return null;
   }
 
-  /// The isle over [x] on [layer], and [x] moved into that isle's own loop.
-  (_Isle, double)? _isleAt(SceneLayer layer, double x, {double reach = 1}) {
+  /// The isle over [x] on [layer], and [x] moved into that isle's own loop
+  /// — of two there, the one whose top is nearest [toward], if given.
+  (_Isle, double)? _isleAt(
+    SceneLayer layer,
+    double x, {
+    double reach = 1,
+    double? toward,
+  }) {
+    (_Isle, double)? best;
+    var bestD = double.infinity;
     for (final i in _isles[layer] ?? const <_Isle>[]) {
       final d = _loopDelta(x, i.cx, layer);
-      if (d.abs() < i.hw * reach) return (i, i.cx + d);
+      if (d.abs() >= i.hw * reach) continue;
+      if (toward == null) return (i, i.cx + d);
+      final off = (_stand(i, i.cx + d) - toward).abs();
+      if (off < bestD) {
+        bestD = off;
+        best = (i, i.cx + d);
+      }
     }
-    return null;
+    return best;
   }
 
   // On an isle there is no deeper ground to stand in: anything over it that
   // cannot float is stood on its top.
   @override
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) {
-    final at = _isleAt(layer, x, reach: 0.86);
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) {
+    final at = _isleAt(layer, x, reach: 0.86, toward: toward);
     if (at == null) return null;
     final (i, lx) = at;
     return (top: double.infinity, rest: _stand(i, lx) + 1 * _u);
@@ -269,7 +287,9 @@ class SkyField extends _GrainField {
           ),
         );
       }
-      return isles;
+      // Two rows share a layer at home: the higher isle is the farther
+      // one, drawn first.
+      return isles..sort((a, b) => a.level.compareTo(b.level));
     }
     for (final (fx, fy, fhw, tree, fall)
         in small ? _midScenery : _nearScenery) {

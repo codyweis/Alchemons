@@ -302,18 +302,31 @@ class TidalField extends _GrainField {
         ));
       }
     }
-    _platforms = out;
+    // Two rows share a layer at home: the higher column is the farther
+    // one, drawn first.
+    _platforms = _placed ? (out..sort((a, b) => a.top.compareTo(b.top))) : out;
   }
 
+  /// The column over [x] on [layer] — of two there, the one whose top is
+  /// nearest [toward], if given.
   ({String id, SceneLayer layer, double x, double top, double hw})? _platformAt(
     SceneLayer layer,
-    double x,
-  ) {
+    double x, {
+    double? toward,
+  }) {
+    ({String id, SceneLayer layer, double x, double top, double hw})? best;
+    var bestD = double.infinity;
     for (final p in _platforms) {
       if (p.layer != layer) continue;
-      if (_loopDelta(x, p.x, layer).abs() <= p.hw * 1.05) return p;
+      if (_loopDelta(x, p.x, layer).abs() > p.hw * 1.05) continue;
+      if (toward == null) return p;
+      final off = (p.top - toward).abs();
+      if (off < bestD) {
+        bestD = off;
+        best = p;
+      }
     }
-    return null;
+    return best;
   }
 
   @override
@@ -328,9 +341,13 @@ class TidalField extends _GrainField {
   }
 
   @override
-  ({double top, double rest})? groundAt(SceneLayer layer, double x) {
+  ({double top, double rest})? groundAt(
+    SceneLayer layer,
+    double x, {
+    double? toward,
+  }) {
     if (layer != reef && layer != shelf) return null;
-    final p = _platformAt(layer, x);
+    final p = _platformAt(layer, x, toward: toward);
     // On a column top: anything that cannot float is stood on it.
     if (p != null) return (top: double.infinity, rest: p.top);
     if (layer == reef) return null;

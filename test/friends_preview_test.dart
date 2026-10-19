@@ -205,7 +205,7 @@ void main() {
       HomeResident(instanceId: 'r1', x: 0.02),
       HomeResident(instanceId: 'r2', x: 0.105, flip: true),
       HomeResident(instanceId: 'r3', x: 0.19),
-      HomeResident(instanceId: 'r4', x: 0.035, back: true),
+      HomeResident(instanceId: 'r4', x: 0.035, depth: HomeDepth.back),
       HomeResident(instanceId: 'r5', x: 0.13, lift: 0.3),
     ];
     final home = FriendHome(
@@ -376,7 +376,6 @@ void main() {
 
     if (wants('panel')) {
       await panel('panel', const SurvivalBestRun(wave: 19, score: 35000));
-
     }
 
     if (wants('avatar')) {

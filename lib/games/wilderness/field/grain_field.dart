@@ -231,7 +231,7 @@ abstract class _GrainField extends FieldArt {
   /// Where the feet of [p], standing beside another on its ground, go: on
   /// that ground where it stands.
   double? _sharedPerch(SpawnPoint p) =>
-      groundAt(p.anchor, _spawnX(p))?.rest ?? _feet(p);
+      groundAt(p.anchor, _spawnX(p), toward: _feet(p))?.rest ?? _feet(p);
 
   /// The placed pieces of [kinds] on [layer].
   Iterable<SpawnPoint> _piecesOn(SceneLayer layer, Set<String> kinds) =>
