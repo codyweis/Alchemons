@@ -130,7 +130,7 @@ void main() {
   });
 
   group('what each creature earns its family', () {
-    // 39 waves cleared: a base of 99.
+    // 39 waves cleared: a base of 99, paid at half — 49.5.
     const waves = 39;
     FamilyMasteryRunCreature out(
       CreatureFamily family, {
@@ -147,8 +147,8 @@ void main() {
     FamilyMasteryRunCreature reserve(CreatureFamily family) =>
         FamilyMasteryRunCreature(family: family, deployed: false);
 
-    test('an average deployed creature earns one base; one alone earns what '
-        'a family used to', () {
+    test('an average deployed creature earns half a base, and so does one '
+        'alone', () {
       final team = [
         for (final f in const [
           CreatureFamily.horn,
@@ -158,15 +158,15 @@ void main() {
         ])
           out(f, damage: 1000, kills: 40),
       ];
-      expect(familyMasteryCreatureAwards(team, waves), [99, 99, 99, 99]);
+      expect(familyMasteryCreatureAwards(team, waves), [50, 50, 50, 50]);
       expect(familyMasteryCreatureAwards([out(CreatureFamily.horn)], waves), [
-        familyMasteryPointsForRun(waves),
+        (familyMasteryPointsForRun(waves) * kFamilyMasteryRate + 1e-9).round(),
       ]);
       expect(
         familyMasteryCreatureAwards([
           out(CreatureFamily.horn, damage: 5000, kills: 300),
         ], waves),
-        [99],
+        [50],
       );
     });
 
@@ -177,9 +177,9 @@ void main() {
         out(CreatureFamily.horn, damage: 500, kills: 20),
       ];
       final awards = familyMasteryCreatureAwards(team, waves);
-      expect(awards, [99, 99, 99]);
+      expect(awards, [50, 50, 50]);
       final sums = familyMasteryFamilySums(team, awards);
-      expect(sums, {CreatureFamily.horn: 198, CreatureFamily.pip: 99});
+      expect(sums, {CreatureFamily.horn: 100, CreatureFamily.pip: 50});
       // In the order the party first fields each, for the results.
       expect(sums.keys, [CreatureFamily.horn, CreatureFamily.pip]);
     });
@@ -192,14 +192,14 @@ void main() {
         reserve(CreatureFamily.kin),
       ];
       final awards = familyMasteryCreatureAwards(team, waves);
-      // 0.125 x 99 = 12.375.
-      expect(awards[2], 12);
+      // 0.125 x 49.5 = 6.1875.
+      expect(awards[2], 6);
       // The two that went out share as a team of two: 0.75 and 0.25.
-      expect(awards[0], (49.5 + 49.5 * 2 * 0.75).round());
-      expect(awards[1], (49.5 + 49.5 * 2 * 0.25).round());
+      expect(awards[0], (24.75 + 24.75 * 2 * 0.75).round());
+      expect(awards[1], (24.75 + 24.75 * 2 * 0.25).round());
       expect(
         familyMasteryCreatureAwards([reserve(CreatureFamily.kin)], waves),
-        [12],
+        [6],
       );
     });
 
@@ -211,15 +211,15 @@ void main() {
       // Horn: (0.9 + 0.9 + 0) / 3 = 0.6 of the team; Kin: (0.1 + 0.1 + 1)
       // / 3 = 0.4. Without the healing axis the Kin would hold 0.1.
       expect(familyMasteryCreatureAwards(team, waves), [
-        (49.5 + 99 * 0.6 + 1e-9).round(), // 108.9 -> 109
-        (49.5 + 99 * 0.4 + 1e-9).round(), // 89.1 -> 89
+        (24.75 + 49.5 * 0.6 + 1e-9).round(), // 54.45 -> 54
+        (24.75 + 49.5 * 0.4 + 1e-9).round(), // 44.55 -> 45
       ]);
       expect(
         familyMasteryCreatureAwards([
           out(CreatureFamily.horn, damage: 900, kills: 90),
           out(CreatureFamily.kin, damage: 100, kills: 10),
         ], waves)[1],
-        (49.5 + 99 * 0.1).round(),
+        (24.75 + 49.5 * 0.1).round(),
       );
     });
 
@@ -229,14 +229,14 @@ void main() {
         for (var i = 0; i < 4; i++) out(CreatureFamily.pip),
       ];
       final awards = familyMasteryCreatureAwards(team, waves);
-      // Uncapped it would be 49.5 + 49.5 x 5 = 297; the cap is 148.5.
-      expect(awards.first, 149);
-      expect(awards.skip(1), everyElement(50));
+      // Uncapped it would be 24.75 + 24.75 x 5 = 148.5; the cap is 74.25.
+      expect(awards.first, 74);
+      expect(awards.skip(1), everyElement(25));
     });
 
     test('points round to whole numbers; a deployed creature earns at least '
         'one, and a run that cleared nothing pays nothing', () {
-      // 19 waves: a base of 29. A reserve's 3.625 rounds up.
+      // 19 waves: a base of 29, paid 14.5. A reserve's 1.8125 rounds up.
       expect(
         familyMasteryCreatureAwards([
           out(CreatureFamily.horn),
@@ -244,10 +244,10 @@ void main() {
           out(CreatureFamily.let),
           reserve(CreatureFamily.kin),
         ], 19),
-        [29, 29, 29, 4],
+        [15, 15, 15, 2],
       );
-      // One wave: a base of 1. A reserve's eighth is nothing; anyone who
-      // went out has at least the point.
+      // One wave: a base of 1, paid a half. A reserve's eighth is nothing;
+      // anyone who went out has at least the point.
       expect(
         familyMasteryCreatureAwards([
           out(CreatureFamily.horn, damage: 10, kills: 1),
@@ -255,7 +255,7 @@ void main() {
           out(CreatureFamily.let),
           reserve(CreatureFamily.kin),
         ], 1),
-        [2, 1, 1, 0],
+        [1, 1, 1, 0],
       );
       final none = [out(CreatureFamily.horn), reserve(CreatureFamily.pip)];
       expect(familyMasteryCreatureAwards(none, 0), [0, 0]);
@@ -556,7 +556,7 @@ void main() {
     );
 
     test('a run pays each family its creatures\' sum, and keeps it', () async {
-      // Two Horns and a Mane, all out and level: each earns a base of 99.
+      // Two Horns and a Mane, all out and level: each earns 50.
       const team = [
         FamilyMasteryRunCreature(
           family: CreatureFamily.horn,
@@ -581,10 +581,10 @@ void main() {
         familyMasteryFamilySums(team, familyMasteryCreatureAwards(team, 39)),
       );
 
-      expect(earned, {CreatureFamily.horn: 198, CreatureFamily.mane: 99});
-      expect(service.pointsFor(CreatureFamily.horn), 198);
-      expect(service.lifetimePointsFor(CreatureFamily.horn), 198);
-      expect(service.pointsFor(CreatureFamily.mane), 1099);
+      expect(earned, {CreatureFamily.horn: 100, CreatureFamily.mane: 50});
+      expect(service.pointsFor(CreatureFamily.horn), 100);
+      expect(service.lifetimePointsFor(CreatureFamily.horn), 100);
+      expect(service.pointsFor(CreatureFamily.mane), 1050);
       // A family that was not fielded earns nothing.
       expect(service.pointsFor(CreatureFamily.kin), 0);
 
@@ -593,13 +593,13 @@ void main() {
         family: CreatureFamily.horn,
         nodeId: 'horn.bulwark.ironhead',
       );
-      expect(service.pointsFor(CreatureFamily.horn), 173);
-      expect(service.lifetimePointsFor(CreatureFamily.horn), 198);
+      expect(service.pointsFor(CreatureFamily.horn), 75);
+      expect(service.lifetimePointsFor(CreatureFamily.horn), 100);
 
       final stored = jsonDecode(
         (await db.settingsDao.getSetting(FamilyMasteryService.pointsKey))!,
       );
-      expect(stored['horn'], {'balance': 173, 'earned': 198});
+      expect(stored['horn'], {'balance': 75, 'earned': 100});
     });
 
     test('a run that cleared nothing pays nothing', () async {

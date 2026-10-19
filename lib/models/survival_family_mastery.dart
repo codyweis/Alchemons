@@ -14,7 +14,8 @@ int familyMasteryPointsForWave(int wave) => wave < 1 ? 0 : 1 + wave ~/ 10;
 
 /// A run's base mastery: every cleared wave's worth, added up. 19 waves is
 /// 29, 39 is 99, 59 is 209 and 79 is 359. An average deployed creature earns
-/// its family about this much ([familyMasteryCreatureAwards]).
+/// its family about [kFamilyMasteryRate] of this
+/// ([familyMasteryCreatureAwards]).
 int familyMasteryPointsForRun(int wavesCleared) {
   var total = 0;
   for (var wave = 1; wave <= wavesCleared; wave++) {
@@ -54,6 +55,11 @@ class FamilyMasteryRunCreature {
   final double healingDone;
 }
 
+/// How much of a run's base ([familyMasteryPointsForRun]) its creatures
+/// earn between them, as it is paid: mastery came twice as fast as a path
+/// should take at 1.
+const double kFamilyMasteryRate = 0.5;
+
 /// Of a run's base ([familyMasteryPointsForRun]): what a creature earns for
 /// being deployed at all, or for sitting in reserve the whole run.
 const double kFamilyMasteryDeployedShare = 0.5;
@@ -70,7 +76,7 @@ const double kFamilyMasteryCreatureCap = 1.5;
 /// What each of [creatures] (the run's party, in party order) earns its
 /// family for a run that cleared [wavesCleared] waves.
 ///
-/// With `base` the run's [familyMasteryPointsForRun]:
+/// With `base` the run's [familyMasteryPointsForRun] × [kFamilyMasteryRate]:
 /// - deployed: `0.5 × base` + `0.5 × base × N × c`, where N is how many were
 ///   deployed and c the creature's share of the team: the mean, over damage
 ///   dealt, kills and healing done (only the axes the team has any of), of
@@ -85,7 +91,7 @@ List<int> familyMasteryCreatureAwards(
   List<FamilyMasteryRunCreature> creatures,
   int wavesCleared,
 ) {
-  final base = familyMasteryPointsForRun(wavesCleared);
+  final base = familyMasteryPointsForRun(wavesCleared) * kFamilyMasteryRate;
   if (base <= 0) return List<int>.filled(creatures.length, 0);
 
   final deployed = [

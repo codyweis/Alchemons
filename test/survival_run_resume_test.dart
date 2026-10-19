@@ -865,11 +865,14 @@ void main() {
           ),
       ];
       final awards = familyMasteryCreatureAwards(creatures, 11);
-      final base = familyMasteryPointsForRun(11);
+      final base = familyMasteryPointsForRun(11) * kFamilyMasteryRate;
       // In reserve all run: an eighth of the base each.
-      expect(awards.skip(2), everyElement((base * 0.125).round()));
+      expect(awards.skip(2), everyElement((base * 0.125 + 1e-9).round()));
       // Out: half a base each at least, a base each on average.
-      expect(awards.take(2), everyElement(greaterThanOrEqualTo(base ~/ 2)));
+      expect(
+        awards.take(2),
+        everyElement(greaterThanOrEqualTo((base / 2).floor())),
+      );
       expect(awards[0] + awards[1], closeTo(2 * base, 1));
       final sums = familyMasteryFamilySums(creatures, awards);
       final earned = masteryEarned(save);
