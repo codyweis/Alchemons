@@ -428,6 +428,7 @@ class _AthanorScreenState extends State<AthanorScreen>
                   child: _Chrome(
                     shown: _shown,
                     passage: widget.revealed != null,
+                    rise: -8,
                     child: _header(shown),
                   ),
                 ),
@@ -447,6 +448,7 @@ class _AthanorScreenState extends State<AthanorScreen>
                       child: _Chrome(
                         shown: _shown,
                         passage: widget.revealed != null,
+                        rise: 14,
                         child: _loaded
                             ? _panel(svc, shown, pad)
                             : const SizedBox(),
@@ -759,9 +761,14 @@ class _Chrome extends StatelessWidget {
     required this.shown,
     required this.passage,
     required this.child,
+    this.rise = 0,
   });
 
   final bool shown;
+
+  /// Pixels it settles through as it comes up: the panel rises into place,
+  /// the header drops into it. A bare fade read as the screen just appearing.
+  final double rise;
 
   /// Came in through the emblem's passage (and so leaves through it).
   final bool passage;
@@ -772,11 +779,20 @@ class _Chrome extends StatelessWidget {
     // Held at a breath above nothing while hidden, never at nothing: at 0
     // its subtree is not painted, and its first paint (the piece art) would
     // land on the first frame it comes up instead of under the passage.
-    final faded = AnimatedOpacity(
-      opacity: shown ? 1 : 0.004,
+    final faded = TweenAnimationBuilder<double>(
+      tween: Tween(end: shown ? 1 : 0),
       duration: const Duration(milliseconds: 450),
-      curve: Curves.easeOut,
+      curve: Curves.easeOutCubic,
       child: child,
+      builder: (_, k, child) => Opacity(
+        opacity: k >= 1 ? 1 : 0.004 + 0.996 * k,
+        child: rise == 0
+            ? child
+            : Transform.translate(
+                offset: Offset(0, rise * (1 - k)),
+                child: child,
+              ),
+      ),
     );
     final anim = passage ? ModalRoute.of(context)?.animation : null;
     if (anim == null) return faded;

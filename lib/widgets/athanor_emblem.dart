@@ -44,7 +44,13 @@ void paintAthanorEmblem(
   bool back = true,
   bool front = true,
 }) {
-  final k = s.grow;
+  // The way in eases out: it moves off the tap at once and settles into
+  // the screen's furnace slowly. The shared ease-in-out held still for its
+  // first fifth, then rushed, so the furnace seemed to appear rather than
+  // grow. Going back keeps the shared gather.
+  final k = s.closing
+      ? s.grow
+      : Curves.fastOutSlowIn.transform(s.open.clamp(0.0, 1.0));
   // Until the Athanor is first opened it breathes on home: a warm light
   // swells under it and the furnace with it, so a new player finds it. It
   // has no label to say what it is. Opened, the breath eases out over the
@@ -52,6 +58,14 @@ void paintAthanorEmblem(
   final teachK = teach ? 1 - _smooth(0, 0.3, k) : 0.0;
   final pulse = teachK > 0
       ? (0.5 - 0.5 * math.cos(s.time * 2 * math.pi / _kTeachPeriod)) * teachK
+      : 0.0;
+  // The day's collect waiting: the fire roars and breathes, the crown warms
+  // and a warm light pools under it, so it reads from across home. It
+  // settles to the screen's lit fire as the furnace grows in, so the
+  // hand-off is still a cut between two identical furnaces.
+  final readyK = ready ? 1 - _smooth(0, 0.45, k) : 0.0;
+  final breath = readyK > 0
+      ? 0.5 - 0.5 * math.cos(s.time * 2 * math.pi / _kReadyPeriod)
       : 0.0;
   final home = AthanorFurnaceGeo.inBox(
     pulse > 0 ? _swell(s.box, 1 + 0.035 * pulse) : s.box,
@@ -97,6 +111,22 @@ void paintAthanorEmblem(
         ),
     );
   }
+  if (readyK > 0.01) {
+    // Wide enough to show round the furnace, not only behind it.
+    final c = Offset(g.base.dx, g.base.dy - g.s * 0.4);
+    final r = g.s * (1.3 + 0.12 * breath);
+    canvas
+      ..save()
+      ..translate(c.dx, c.dy)
+      ..scale(r);
+    canvas.drawCircle(
+      Offset.zero,
+      1,
+      _readyHalo
+        ..color = Color.fromRGBO(255, 255, 255, readyK * (0.7 + 0.3 * breath)),
+    );
+    canvas.restore();
+  }
   if (pulse > 0.01) {
     final c = Offset(g.base.dx, g.base.dy - g.s * 0.3);
     final r = g.s * (0.85 + 0.2 * pulse);
@@ -118,7 +148,10 @@ void paintAthanorEmblem(
     AthanorBurn(
       // Banked until the day's collect is back; while it teaches, the fire
       // breathes with it.
-      fire: ready ? 1 : 0.3 + (0.25 + 0.45 * pulse) * teachK,
+      fire: ready
+          ? 1 + readyK * (0.25 + 0.2 * breath)
+          : 0.3 + (0.25 + 0.45 * pulse) * teachK,
+      heat: readyK * (0.25 + 0.15 * breath),
     ),
     // Its shadow side comes in as the passage's dark does.
     shadow: s.ground,
@@ -141,6 +174,10 @@ const double kAthanorHomeSide = 78;
 /// Seconds for one breath of the teaching pulse: slow, so it reads as the
 /// furnace drawing air rather than a blinking button.
 const double _kTeachPeriod = 2.6;
+
+/// Seconds for one breath of the daily-ready glow: a little quicker than the
+/// teaching pulse, a fire that has been stoked.
+const double _kReadyPeriod = 2.2;
 
 /// [box] grown by [k] about its bottom centre, where the furnace stands.
 Rect _swell(Rect box, double k) => Rect.fromLTRB(
@@ -165,6 +202,21 @@ final Paint _teachPool = Paint()
     const [0.0, 0.38, 0.72, 1.0],
   );
 
+/// The daily-ready halo, at unit size: the fire's light thrown wide round
+/// the furnace. Strength rides the paint's alpha, as the teaching pool's.
+final Paint _readyHalo = Paint()
+  ..shader = ui.Gradient.radial(
+    Offset.zero,
+    1,
+    [
+      AthanorTone.fire[4].withValues(alpha: 0.58),
+      AthanorTone.ember.withValues(alpha: 0.34),
+      AthanorTone.fire[2].withValues(alpha: 0.12),
+      AthanorTone.fire[2].withValues(alpha: 0),
+    ],
+    const [0.0, 0.4, 0.74, 1.0],
+  );
+
 /// The way in through the emblem. [ready] is read as it plays, so coming
 /// back after the daily collect the furnace is banked as the screen left it.
 class AthanorPassageScene extends PassageScene {
@@ -183,14 +235,14 @@ class AthanorPassageScene extends PassageScene {
   final Listenable? listenable;
 
   @override
-  Duration get inward => const Duration(milliseconds: 620);
+  Duration get inward => const Duration(milliseconds: 480);
   @override
   Duration get outward => const Duration(milliseconds: 600);
 
   /// The hand-off is a cut; the landing only paces the screen's chrome
   /// coming up (it starts at half of it).
   @override
-  Duration get landing => const Duration(milliseconds: 220);
+  Duration get landing => const Duration(milliseconds: 180);
 
   /// Built once the furnace has arrived and stands at rest, so the screen's
   /// first build and paint stall nothing that moves.
