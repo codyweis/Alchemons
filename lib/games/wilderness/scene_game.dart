@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/constants/breed_constants.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart' show kCompanionSpeciesScale;
 import 'package:alchemons/games/cosmic/obsidian_kit.dart' show PointBatch, hash01;
 import 'package:alchemons/database/alchemons_db.dart' show CreatureInstance;
 import 'package:alchemons/games/wilderness/creature_feet.dart';
@@ -505,23 +506,18 @@ class SceneGame extends FlameGame with ScaleDetector {
     return math.min(zx, zy);
   }
 
+  /// How big [hydrated] is drawn at a point of [baseSize]: its family's
+  /// size as every mode has it ([kCompanionSpeciesScale] — space, survival,
+  /// the dungeons, the races, the fusion chamber), measured against a
+  /// Horn's, which a point's size is. Horns stand a tenth taller here: on
+  /// open ground among the others they read small.
   Vector2 _sizeForSpecies(Vector2 baseSize, Creature hydrated) {
-    // Example: use your own data/model here instead of hardcoding
-    const Map<String, double> speciesScale = {
-      'let': 0.7,
-      'pip': 0.9,
-      'mane': 0.9,
-      'horn': 1,
-      'wing': 1.1,
-      'kin': 1,
-    };
-
-    final scale =
-        speciesScale.containsKey(hydrated.mutationFamily!.toLowerCase())
-        ? speciesScale[hydrated.mutationFamily!.toLowerCase()]!
-        : 1.0;
-    return baseSize * scale;
+    final family = (hydrated.mutationFamily ?? '').toLowerCase();
+    final scale = (kCompanionSpeciesScale[family] ?? _hornScale) / _hornScale;
+    return baseSize * (family == 'horn' ? scale + 0.1 : scale);
   }
+
+  static final double _hornScale = kCompanionSpeciesScale['horn']!;
 
   /// Trigger a camera shake that eases out over [duration].
   /// [amplitude] is the pixel jitter at the start of the shake.
