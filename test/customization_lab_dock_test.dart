@@ -142,7 +142,7 @@ void main() {
       unlockedIds: {'skin_solar'},
       activeIds: {'skin_solar'},
     );
-    await tester.pumpWidget(_lab(calls, state: state));
+    await tester.pumpWidget(_lab(calls, state: state, tab: 1));
     await _settle(tester);
     await _tap(tester, 'lab.hull.standard');
     expect(find.text('EQUIP'), findsOneWidget);
@@ -175,7 +175,7 @@ void main() {
       _lab(
         calls,
         state: HomeCustomizationState(),
-        tab: 1,
+        tab: 0,
         planet: HomePlanet(
           position: Offset.zero,
           astralBank: 500,
@@ -195,13 +195,13 @@ void main() {
 
   testWidgets('the Lab keeps the looks; the ship\'s fittings are the '
       'Armory\'s', (tester) async {
-    await tester.pumpWidget(_lab(_Calls(), state: HomeCustomizationState()));
+    await tester.pumpWidget(_lab(_Calls(), state: HomeCustomizationState(), tab: 1));
     await _settle(tester);
     expect(find.byKey(const ValueKey('lab.hull.standard')), findsOneWidget);
     expect(find.byKey(const ValueKey('lab.armoryNote')), findsOneWidget);
     expect(find.byKey(const ValueKey('lab.recipe.storm_bolts')), findsNothing);
     await tester.pumpWidget(
-      _lab(_Calls(), state: HomeCustomizationState(), tab: 1),
+      _lab(_Calls(), state: HomeCustomizationState(), tab: 0),
     );
     await _settle(tester);
     expect(

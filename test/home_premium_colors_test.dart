@@ -31,7 +31,7 @@ Widget _lab({
       onUpgradeCargo: () {},
       onUpgradePowerUp: (_) {},
       onGarrison: () {},
-      initialTab: 1,
+      initialTab: 0,
     ),
   ),
 );

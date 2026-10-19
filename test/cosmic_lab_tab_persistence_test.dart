@@ -15,6 +15,8 @@ class _HostState extends State<_Host> {
   int labTab = 0;
   bool showLab = true;
 
+  void setLab(bool show) => setState(() => showLab = show);
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -71,27 +73,36 @@ void main() {
     await settle(tester);
 
     final host = tester.state<_HostState>(find.byType(_Host));
-    expect(host.labTab, 0, reason: 'starts on SHIP');
+    expect(host.labTab, 0, reason: 'starts on HOME');
 
-    // Switch to HOME.
-    await tester.tap(find.text('HOME'));
+    // Switch to SHIP.
+    await tester.tap(find.text('SHIP'));
     await settle(tester);
     expect(host.labTab, 1, reason: 'tab change must reach the host');
 
-    // PREVIEW: the whole overlay is destroyed.
+    // Close and reopen: the whole overlay is destroyed and rebuilt.
+    host.setLab(false);
+    await settle(tester);
+    expect(find.byType(CustomizationMenuOverlay), findsNothing);
+    host.setLab(true);
+    await settle(tester);
+
+    CustomizationMenuOverlayState lab() =>
+        tester.state<CustomizationMenuOverlayState>(
+          find.byType(CustomizationMenuOverlay),
+        );
+    // The rebuilt overlay must come back on SHIP, not snap to HOME.
+    expect(lab().activeTabForTest, 1);
+
+    // Back to HOME, then PREVIEW (also a full teardown) and END PREVIEW.
+    await tester.tap(find.text('HOME'));
+    await settle(tester);
+    expect(host.labTab, 0);
     await tester.tap(find.text('PREVIEW ON PLANET'));
     await settle(tester);
     expect(find.byType(CustomizationMenuOverlay), findsNothing);
-
-    // END PREVIEW: rebuilt from scratch.
     await tester.tap(find.text('END PREVIEW'));
     await settle(tester);
-
-    expect(host.labTab, 1, reason: 'the host kept the tab');
-    final state = tester.state<CustomizationMenuOverlayState>(
-      find.byType(CustomizationMenuOverlay),
-    );
-    // The rebuilt overlay must come back on HOME, not snap to SHIP.
-    expect(state.activeTabForTest, 1);
+    expect(lab().activeTabForTest, 0);
   });
 }

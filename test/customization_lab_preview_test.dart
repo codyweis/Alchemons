@@ -92,18 +92,18 @@ void main() {
   );
 
   for (final (name, tab, height, tapKey) in [
-    ('ship_phone', 0, 844.0, null),
-    ('home_phone', 1, 844.0, null),
-    ('ship_full', 0, 1500.0, null),
-    ('home_full', 1, 1900.0, null),
-    ('ship_dock_hull', 0, 844.0, 'lab.hull.skin_solar'),
+    ('ship_phone', 1, 844.0, null),
+    ('home_phone', 0, 844.0, null),
+    ('ship_full', 1, 1500.0, null),
+    ('home_full', 0, 1900.0, null),
+    ('ship_dock_hull', 1, 844.0, 'lab.hull.skin_solar'),
     // Tab 2: the Armory (the same overlay, armory mode).
     ('armory_phone', 2, 844.0, null),
     ('armory_full', 2, 1500.0, null),
     ('armory_dock_ammo', 2, 844.0, 'lab.recipe.storm_bolts'),
-    ('home_dock_effect', 1, 844.0, 'lab.recipe.planetary_rings'),
-    ('home_dock_locked', 1, 844.0, 'lab.recipe.black_hole'),
-    ('home_dock_color', 1, 844.0, 'lab.color.Void'),
+    ('home_dock_effect', 0, 844.0, 'lab.recipe.planetary_rings'),
+    ('home_dock_locked', 0, 844.0, 'lab.recipe.black_hole'),
+    ('home_dock_color', 0, 844.0, 'lab.color.Void'),
   ]) {
     testWidgets('lab preview $name', (tester) async {
       if (out == null) return;

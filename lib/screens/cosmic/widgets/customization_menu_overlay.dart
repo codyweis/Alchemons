@@ -83,7 +83,7 @@ class CustomizationMenuOverlay extends StatefulWidget {
   /// Hides the lab so the player can look at the planet itself.
   final VoidCallback? onPreview;
 
-  /// Which tab to open on: 0 = SHIP, 1 = HOME.
+  /// Which tab to open on: 0 = HOME, 1 = SHIP.
   ///
   /// Owned by the cosmic screen, not by this widget's State. Preview tears the
   /// whole overlay down and rebuilds it, so State-local tab memory does not
@@ -202,7 +202,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
   bool get _armory => widget.mode == LabMode.armory;
 
   /// The ship is on show: the Armory, or the Lab's SHIP tab.
-  bool get _onShip => _armory || _activeTab == 0;
+  bool get _onShip => _armory || _activeTab == 1;
 
   /// After any change the parent makes to the state objects it owns.
   void _after(VoidCallback act) {
@@ -233,7 +233,7 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: BracketTabs(
-                    labels: const ['SHIP', 'HOME'],
+                    labels: const ['HOME', 'SHIP'],
                     selected: _activeTab,
                     onSelect: _setTab,
                     palette: _palette,
@@ -248,8 +248,8 @@ class CustomizationMenuOverlayState extends State<CustomizationMenuOverlay> {
                   child: _armory
                       ? _armoryTab()
                       : _activeTab == 0
-                      ? _shipTab()
-                      : _homeTab(),
+                      ? _homeTab()
+                      : _shipTab(),
                 ),
               ),
               _pick == null ? _backDock() : _dock(_pick!, accent),
