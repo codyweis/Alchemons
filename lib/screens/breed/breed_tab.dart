@@ -19,7 +19,7 @@
 // refusals (resting, cross-family, Mystics, no room) that only came as
 // dialogs after INITIATE FUSION was pressed.
 
-import 'dart:async' show Completer, Timer;
+import 'dart:async' show Completer, StreamSubscription, Timer;
 import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
@@ -160,8 +160,10 @@ class _BreedingTabState extends State<BreedingTab>
   late final Stream<List<IncubatorSlot>> _slots;
   late final Stream<List<Egg>> _stored;
 
-  /// Cold storage's size: read once, and again after each fusion.
+  /// Cold storage's size, followed live: an upgrade bought while this tab
+  /// sits open (or after a fuse was refused for want of room) shows at once.
   int? _storageCapacity;
+  StreamSubscription<String?>? _capacitySub;
 
   /// Stamina as shown, per specimen, kept a while: a nature's extra bar is
   /// rolled each time it is worked out, and the cells should not flicker.
@@ -211,7 +213,7 @@ class _BreedingTabState extends State<BreedingTab>
     final db = context.read<AlchemonsDatabase>();
     _slots = db.incubatorDao.watchSlots();
     _stored = db.incubatorDao.watchInventory();
-    _loadStorageCapacity();
+    _followStorageCapacity(db);
 
     // THE MERGE, performed in the chamber itself, so the route that follows
     // never has to draw a copy of anything.
@@ -255,17 +257,22 @@ class _BreedingTabState extends State<BreedingTab>
     }
   }
 
-  Future<void> _loadStorageCapacity() async {
-    final capacity = await ColdStorageService.getCapacity(
-      context.read<AlchemonsDatabase>(),
-    );
-    if (mounted && capacity != _storageCapacity) {
-      setState(() => _storageCapacity = capacity);
-    }
+  void _followStorageCapacity(AlchemonsDatabase db) {
+    _capacitySub = db.settingsDao
+        .watchSetting(ColdStorageService.capacitySettingKey)
+        .listen((raw) {
+          final capacity = ColdStorageService.normalizeCapacity(
+            int.tryParse(raw ?? '') ?? ColdStorageService.baseCapacity,
+          );
+          if (mounted && capacity != _storageCapacity) {
+            setState(() => _storageCapacity = capacity);
+          }
+        });
   }
 
   @override
   void dispose() {
+    _capacitySub?.cancel();
     _restTimer?.cancel();
     _preCinematicFadeController.dispose();
     super.dispose();
@@ -1120,7 +1127,6 @@ class _BreedingTabState extends State<BreedingTab>
           _fusionField = null;
           _mergeSkip = null;
         });
-        _loadStorageCapacity();
       }
     }
   }
