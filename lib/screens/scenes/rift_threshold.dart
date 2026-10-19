@@ -11,6 +11,7 @@
 //
 // One ticker and one painter; the rift itself is RiftVortexField.
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
@@ -18,13 +19,19 @@ import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
+import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/inventory.dart' show InvKeys;
 import 'package:alchemons/models/wilderness.dart' show PartyMember;
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
+import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/shop_service.dart';
+import 'package:alchemons/services/wilderness_catch_service.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
+import 'package:alchemons/widgets/harvester_glyph.dart';
 import 'package:alchemons/widgets/portal_key_glyph.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -36,12 +43,26 @@ import 'package:provider/provider.dart';
 /// Opens [faction]'s threshold over the current screen, wired to the save:
 /// the player's keys and gold, and the Shop's key for this faction, so one
 /// can be bought on the spot. [onEnter] runs once the key is spent and the
-/// threshold has fallen to black, with the threshold's own context — pass
-/// it to [enterRift].
+/// threshold has fallen to black, with the threshold's own context and the
+/// species waiting inside — pass both to [enterRift].
+///
+/// Who waits inside is settled here, before the key turns: nothing in a
+/// rift can be fused, so the key only turns for a player holding a
+/// harvester that can catch it. [seed] names the rift, so opening the same
+/// one again finds the same species; without it each opening rolls anew.
+///
+/// With [from], the threshold grows out of the rift that was tapped, and
+/// stepping back shrinks it into that rift again; without, it fades in.
 Future<void> showRiftThreshold(
   BuildContext context, {
   required RiftFaction faction,
-  required Future<void> Function(BuildContext thresholdContext) onEnter,
+  required Future<void> Function(
+    BuildContext thresholdContext,
+    Creature? species,
+  )
+  onEnter,
+  RiftOrigin? from,
+  int? seed,
   String? closesIn,
   bool partyEnters = true,
 }) {
@@ -50,13 +71,20 @@ Future<void> showRiftThreshold(
   final keyId = InvKeys.portalKeyForFaction(faction.name);
   final offerId = 'key.portal.${faction.name}';
   final offer = ShopService.allOffers.where((o) => o.id == offerId).firstOrNull;
+  final species = pickRiftSpecies(
+    context.read<CreatureCatalog>(),
+    faction,
+    math.Random(seed),
+  );
+  final harvester = species == null
+      ? null
+      : _harvesterNeedFor(species, context.read<CatchService>(), shop, db);
   return Navigator.of(context).push(
-    PageRouteBuilder<void>(
-      opaque: true,
-      transitionDuration: const Duration(milliseconds: 420),
-      reverseTransitionDuration: const Duration(milliseconds: 220),
-      pageBuilder: (ctx, animation, secondary) => RiftThreshold(
+    riftThresholdRoute(
+      from: from,
+      builder: (ctx) => RiftThreshold(
         faction: faction,
+        from: from,
         closesIn: closesIn,
         partyEnters: partyEnters,
         loadKeys: () => db.inventoryDao.getItemQty(keyId),
@@ -71,17 +99,100 @@ Future<void> showRiftThreshold(
             (await db.currencyDao.getAllCurrencies())['gold'] ?? 0,
         keyPrice: offer == null ? null : shop.getEffectiveCost(offer)['gold'],
         buyKey: offer == null ? null : () => shop.purchase(offerId),
-        onEnter: () => onEnter(ctx),
-      ),
-      transitionsBuilder: (ctx, animation, secondary, child) => FadeTransition(
-        opacity: CurvedAnimation(
-          parent: animation,
-          curve: Curves.easeOutCubic,
-          reverseCurve: Curves.easeInCubic,
-        ),
-        child: child,
+        harvester: harvester,
+        onEnter: () => onEnter(ctx, species),
       ),
     ),
+  );
+}
+
+/// The route a threshold opens in. Grown out of the rift [from], it draws
+/// its own way in — the rift growing, the void spreading round it — and is
+/// opaque only once grown, so the screen behind shows round it meanwhile;
+/// stepping back shrinks it into that rift again. Without [from] it fades.
+PageRoute<void> riftThresholdRoute({
+  required RiftOrigin? from,
+  required WidgetBuilder builder,
+}) => PageRouteBuilder<void>(
+  opaque: true,
+  transitionDuration: Duration(milliseconds: from == null ? 420 : 950),
+  reverseTransitionDuration: Duration(milliseconds: from == null ? 220 : 650),
+  pageBuilder: (ctx, animation, secondary) => builder(ctx),
+  transitionsBuilder: (ctx, animation, secondary, child) => from != null
+      ? child
+      : FadeTransition(
+          opacity: CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          ),
+          child: child,
+        ),
+);
+
+/// A rift as it stands on the screen behind its threshold — the one that
+/// was tapped — so the threshold can grow out of it, step back into it, and
+/// the way out of the rift can open where it was.
+class RiftOrigin {
+  const RiftOrigin({
+    required this.centre,
+    required this.radius,
+    this.core = 0.27,
+    this.density = 0.3,
+    this.grain,
+    this.hide,
+  });
+
+  /// Its middle, global, and its disk's radius on the screen.
+  final Offset centre;
+  final double radius;
+
+  /// Its core, as a fraction of [radius].
+  final double core;
+
+  /// How many grains it draws against a threshold's.
+  final double density;
+
+  /// Its grains' diameter on the screen; null for the threshold's own.
+  final double? grain;
+
+  /// Hides it (true) while the threshold stands in for it, and shows it
+  /// again (false).
+  final void Function(bool hidden)? hide;
+}
+
+/// The harvester a rift asks for: any the player holds that can catch
+/// [species], and the Shop's harvester for its element to buy when there is
+/// none — the one the encounter's Harvest button would draw.
+RiftHarvesterNeed _harvesterNeedFor(
+  Creature species,
+  CatchService catches,
+  ShopService shop,
+  AlchemonsDatabase db,
+) {
+  final group = elementalGroupOf(species);
+  final biome = group == null ? universalHarvester : groupIdFrom(group);
+  final offerId = group == null
+      ? 'device.harvest.guaranteed'
+      : 'device.harvest.std.$biome';
+  final offer = ShopService.allOffers.where((o) => o.id == offerId).firstOrNull;
+  return RiftHarvesterNeed(
+    fitting: [
+      for (final device in CatchDeviceType.values)
+        if (catches.canUseDevice(device, species))
+          device.label.replaceAll(' Harvester', ''),
+    ],
+    biome: biome,
+    load: () async {
+      var held = 0;
+      for (final device in await catches.getUsableDevices(species)) {
+        held += await catches.getDeviceCount(device);
+      }
+      return held;
+    },
+    loadWallet: db.currencyDao.getAllCurrencies,
+    price: offer == null ? null : shop.getEffectiveCost(offer),
+    buy: offer == null ? null : () => shop.purchase(offerId),
   );
 }
 
@@ -93,28 +204,97 @@ Future<void> showRiftThreshold(
 ///
 /// [returnTo] is the orientation of the screen behind: from a portrait one
 /// the phone is turned to the rift's landscape while the screen is black.
+/// [species] is the one the threshold settled on.
+///
+/// The rift is left through black too: it goes dark and is popped under a
+/// black sheet, the phone is turned back while only black shows, and
+/// [onReturn] runs with the result while the screen behind is still hidden
+/// — clear a spent rift there, so it is gone before it can be seen. Then
+/// the black opens out from where the rift was ([from]).
 Future<bool?> enterRift(
   BuildContext thresholdContext, {
   required RiftFaction faction,
+  Creature? species,
   List<PartyMember> party = const [],
   required List<DeviceOrientation> returnTo,
-}) {
+  RiftOrigin? from,
+  FutureOr<void> Function(bool? result)? onReturn,
+}) async {
   final fromPortrait = returnTo.contains(DeviceOrientation.portraitUp);
-  return VoidPortal.replaceInBlack<bool>(
-    thresholdContext,
-    page: RiftPortalScreen(
-      faction: faction,
-      party: party,
-      returnOrientation: returnTo,
-    ),
-    orientation: fromPortrait
-        ? const [
-            DeviceOrientation.landscapeLeft,
-            DeviceOrientation.landscapeRight,
-          ]
-        : null,
-    returnOrientation: fromPortrait ? returnTo : null,
-  );
+  final exit = RiftExitSheet();
+  try {
+    final result = await VoidPortal.replaceInBlack<bool>(
+      thresholdContext,
+      page: RiftPortalScreen(
+        faction: faction,
+        party: party,
+        species: species,
+        returnOrientation: returnTo,
+        exit: exit,
+      ),
+      orientation: fromPortrait
+          ? const [
+              DeviceOrientation.landscapeLeft,
+              DeviceOrientation.landscapeRight,
+            ]
+          : null,
+      returnOrientation: fromPortrait ? returnTo : null,
+    );
+    if (exit.covering) {
+      // Turned back on black: wait for the window, then for the screen
+      // behind to lay itself out at its own size.
+      if (fromPortrait) await _awaitWindow(wide: false);
+      for (var i = 0; i < 3; i++) {
+        await SchedulerBinding.instance.endOfFrame;
+      }
+    }
+    await onReturn?.call(result);
+    unawaited(exit.open(at: from?.centre));
+    return result;
+  } catch (_) {
+    exit.remove();
+    rethrow;
+  }
+}
+
+/// Until the window is [wide] (or not), or plainly will not be.
+Future<void> _awaitWindow({required bool wide}) async {
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  bool isWide() => view.physicalSize.width > view.physicalSize.height;
+  final began = DateTime.now();
+  while (isWide() != wide &&
+      DateTime.now().difference(began) < const Duration(seconds: 1)) {
+    await SchedulerBinding.instance.endOfFrame;
+  }
+}
+
+/// What a rift asks of the kit besides its key: a harvester that can catch
+/// the Alchemon inside. Nothing in a rift can be fused, so a key turned
+/// without one would be spent for nothing.
+class RiftHarvesterNeed {
+  const RiftHarvesterNeed({
+    required this.fitting,
+    required this.biome,
+    required this.load,
+    this.loadWallet,
+    this.price,
+    this.buy,
+  });
+
+  /// The harvesters that can catch it, by name: "Volcanic", "Stabilized".
+  final List<String> fitting;
+
+  /// The harvester offered when none is held, as [HarvesterGlyph] takes it.
+  final String biome;
+
+  /// How many harvesters the player holds that can catch it.
+  final Future<int> Function() load;
+
+  /// The player's currencies, and that harvester's Shop price and purchase.
+  /// Without all three the screen does not offer one.
+  final Future<Map<String, int>> Function()? loadWallet;
+  final Map<String, int>? price;
+  final Future<bool> Function()? buy;
 }
 
 /// The rift's threshold: the rift, what is inside it, and the key.
@@ -128,11 +308,17 @@ class RiftThreshold extends StatefulWidget {
     this.loadGold,
     this.buyKey,
     this.keyPrice,
+    this.harvester,
+    this.from,
     this.closesIn,
     this.partyEnters = true,
   });
 
   final RiftFaction faction;
+
+  /// The rift that was tapped, which this one grows out of; null opens the
+  /// rift where it stands.
+  final RiftOrigin? from;
 
   /// How many of this faction's keys the player holds.
   final Future<int> Function() loadKeys;
@@ -148,6 +334,9 @@ class RiftThreshold extends StatefulWidget {
   final Future<int> Function()? loadGold;
   final Future<bool> Function()? buyKey;
   final int? keyPrice;
+
+  /// The harvester the key waits for; null asks for none.
+  final RiftHarvesterNeed? harvester;
 
   /// How long the rift stays open, e.g. "7h 12m".
   final String? closesIn;
@@ -175,6 +364,15 @@ class _RiftThresholdState extends State<RiftThreshold>
   bool _buying = false;
   String? _note;
 
+  /// Harvesters held that can catch what is inside, and the wallet to buy
+  /// one from; both stay null when the rift asks for none.
+  int? _harvesters;
+  Map<String, int>? _wallet;
+  bool _buyingHarvester = false;
+
+  /// The rift asks for a harvester the player does not have yet.
+  bool get _needsHarvester => widget.harvester != null && _harvesters == 0;
+
   /// How far the key has been turned, 0..1.
   final ValueNotifier<double> _turn = ValueNotifier(0);
   bool _holding = false;
@@ -185,32 +383,77 @@ class _RiftThresholdState extends State<RiftThreshold>
 
   /// The key is spent: until then it waits in place.
   bool _spent = false;
-  Offset? _keyFrom;
-  double _keyFlight = 0;
+
+  /// The key coming apart into grains where it stood when it turned,
+  /// [_keyT] of the way into the core.
+  RiftKeyGrains? _key;
+  double _keyT = 0;
 
   static const double _turnSeconds = 0.9;
-  static const double _flightSeconds = 0.55;
   static const double _diveSeconds = 1.0;
+
+  /// How far the key's grains are in when the fall begins: it overlaps
+  /// their last turns round the core.
+  static const double _diveFrom = 0.8;
+
+  /// The route's way in and out, which is the rift growing out of the one
+  /// tapped and shrinking back into it.
+  Animation<double>? _route;
+
+  /// 0 standing in for the tapped rift, 1 grown.
+  double get _grow {
+    final route = _route;
+    if (widget.from == null || route == null) return 1;
+    return Curves.easeInOutCubic.transform(route.value.clamp(0.0, 1.0));
+  }
 
   @override
   void initState() {
     super.initState();
+    // Grown out of a rift, it is open already; and the rift it grew out of
+    // gives way to it.
+    if (widget.from != null) {
+      _field.open = 1;
+      widget.from!.hide?.call(true);
+    }
     _ticker = createTicker(_tick)..start();
     _load();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context)?.animation;
+    if (!identical(route, _route)) {
+      _route?.removeStatusListener(_routeStatus);
+      _route = route?..addStatusListener(_routeStatus);
+    }
+  }
+
+  /// Stepped back all the way: the rift it grew out of shows again.
+  void _routeStatus(AnimationStatus status) {
+    if (status == AnimationStatus.dismissed) widget.from?.hide?.call(false);
   }
 
   Future<void> _load() async {
     final keys = await widget.loadKeys();
     final gold = await widget.loadGold?.call();
+    final need = widget.harvester;
+    final harvesters = await need?.load();
+    final wallet = harvesters == 0 ? await need?.loadWallet?.call() : null;
     if (!mounted) return;
     setState(() {
       _keys = keys;
       _gold = gold;
+      _harvesters = harvesters;
+      _wallet = wallet;
     });
   }
 
   @override
   void dispose() {
+    _route?.removeStatusListener(_routeStatus);
+    widget.from?.hide?.call(false);
     _ticker.dispose();
     _clock.dispose();
     _turn.dispose();
@@ -238,14 +481,19 @@ class _RiftThresholdState extends State<RiftThreshold>
       if (turn >= 1 && _holding) _commit();
     } else if (!_spent) {
       // Waiting on the spend; the rift keeps turning, the key holds.
-    } else if (_keyFlight < 1) {
-      _keyFlight = math.min(1, _keyFlight + dt / _flightSeconds);
-      if (_keyFlight >= 1) HapticFeedback.mediumImpact();
-    } else if (f.dive < 1) {
-      f.dive = math.min(1, f.dive + dt / _diveSeconds);
-      if (f.dive >= 1) {
-        _ticker.stop();
-        widget.onEnter();
+    } else {
+      if (_keyT < 1) {
+        final was = _keyT;
+        _keyT = math.min(1, _keyT + dt / RiftKeyGrains.seconds);
+        // As the first of it is swallowed.
+        if (was < 0.55 && _keyT >= 0.55) HapticFeedback.mediumImpact();
+      }
+      if ((_key == null || _keyT >= _diveFrom) && f.dive < 1) {
+        f.dive = math.min(1, f.dive + dt / _diveSeconds);
+        if (f.dive >= 1) {
+          _ticker.stop();
+          widget.onEnter();
+        }
       }
     }
     f.step(dt);
@@ -256,12 +504,21 @@ class _RiftThresholdState extends State<RiftThreshold>
     _holding = false;
     _committed = true;
     HapticFeedback.heavyImpact();
-    // Where the key starts its flight: the glyph in the panel.
+    // The key comes apart where it stands: the glyph in the panel, turned
+    // a quarter round.
     final glyph = _keyGlyph.currentContext?.findRenderObject() as RenderBox?;
     final stack = _stack.currentContext?.findRenderObject() as RenderBox?;
     if (glyph != null && stack != null && glyph.attached) {
-      _keyFrom = stack.globalToLocal(
+      final from = stack.globalToLocal(
         glyph.localToGlobal(glyph.size.center(Offset.zero)),
+      );
+      final color = _keyColor;
+      _key = RiftKeyGrains(
+        PortalKeyGlyph.grainsOf(_keySize, color, time: _field.time),
+        from: from,
+        color: color,
+        angle: math.pi / 2,
+        glyphSize: _keySize,
       );
     }
     setState(() {});
@@ -273,7 +530,8 @@ class _RiftThresholdState extends State<RiftThreshold>
       // start, with nothing spent.
       setState(() {
         _committed = false;
-        _keyFrom = null;
+        _key = null;
+        _keyT = 0;
         _turn.value = 0;
         _note = 'That key is gone. Buy another to enter.';
       });
@@ -297,12 +555,38 @@ class _RiftThresholdState extends State<RiftThreshold>
     await _load();
   }
 
+  Future<void> _buyHarvester() async {
+    final buy = widget.harvester?.buy;
+    if (buy == null || _buyingHarvester) return;
+    setState(() {
+      _buyingHarvester = true;
+      _note = null;
+    });
+    final ok = await buy();
+    if (!mounted) return;
+    setState(() {
+      _buyingHarvester = false;
+      if (!ok) _note = 'The purchase did not go through.';
+    });
+    await _load();
+  }
+
+  /// The key in hand: the Shop's, in the Shop's color.
+  static const double _keySize = 52;
+  Color get _keyColor =>
+      ElementResources.byBiomeId[widget.faction.name]?.color ??
+      widget.faction.primaryColor;
+
   @override
   Widget build(BuildContext context) {
+    final route = _route;
     return PopScope(
       canPop: !_committed,
       child: Scaffold(
-        backgroundColor: const Color(0xFF050507),
+        // Grown out of a rift, the rift draws its own void as it grows.
+        backgroundColor: widget.from == null
+            ? const Color(0xFF050507)
+            : Colors.transparent,
         body: LayoutBuilder(
           builder: (context, constraints) {
             final size = constraints.biggest;
@@ -331,46 +615,72 @@ class _RiftThresholdState extends State<RiftThreshold>
                     ),
                   ),
                 ),
-                SafeArea(
-                  child: wide
-                      ? Row(
-                          children: [
-                            SizedBox(width: size.width * 0.52),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  0,
-                                  12,
-                                  24,
-                                  12,
+                _PanelFade(
+                  route: widget.from == null ? null : route,
+                  child: SafeArea(
+                    child: wide
+                        ? Row(
+                            children: [
+                              SizedBox(width: size.width * 0.52),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    0,
+                                    12,
+                                    24,
+                                    12,
+                                  ),
+                                  child: panel,
                                 ),
-                                child: panel,
                               ),
-                            ),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            SizedBox(height: size.height * 0.55),
-                            Expanded(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  24,
-                                  0,
-                                  24,
-                                  16,
+                            ],
+                          )
+                        : Column(
+                            children: [
+                              SizedBox(height: size.height * 0.55),
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    24,
+                                    0,
+                                    24,
+                                    16,
+                                  ),
+                                  child: panel,
                                 ),
-                                child: panel,
                               ),
-                            ),
-                          ],
-                        ),
+                            ],
+                          ),
+                  ),
                 ),
               ],
             );
           },
         ),
       ),
+    );
+  }
+}
+
+/// The words come in once the rift has grown, and go first when it steps
+/// back.
+class _PanelFade extends StatelessWidget {
+  const _PanelFade({required this.route, required this.child});
+
+  final Animation<double>? route;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final route = this.route;
+    if (route == null) return child;
+    return FadeTransition(
+      opacity: CurvedAnimation(
+        parent: route,
+        curve: const Interval(0.55, 1, curve: Curves.easeOut),
+        reverseCurve: const Interval(0.6, 1, curve: Curves.easeIn),
+      ),
+      child: child,
     );
   }
 }
@@ -383,17 +693,43 @@ class _RiftPainter extends CustomPainter {
   final double radius;
 
   @override
-  void paint(Canvas canvas, Size size) => s._field.paint(
-    canvas,
-    size,
-    centre,
-    radius,
-    s._pal,
-    keyFrom: s._keyFrom,
-    keyFlight: s._keyFrom == null ? 0 : s._keyFlight,
-    // The shop's key, in the shop's color.
-    keyColor: ElementResources.byBiomeId[s.widget.faction.name]?.color,
-  );
+  void paint(Canvas canvas, Size size) {
+    final field = s._field;
+    final from = s.widget.from;
+    final g = s._grow;
+    if (from == null || g >= 1) {
+      field.paint(
+        canvas,
+        size,
+        centre,
+        radius,
+        s._pal,
+        key: s._key,
+        keyT: s._keyT,
+      );
+      return;
+    }
+    // Growing out of the rift that was tapped: drawn as that one was —
+    // where it stood, its size, its core, as few grains — and becoming this
+    // one, the void spreading round it.
+    final stack = s._stack.currentContext?.findRenderObject() as RenderBox?;
+    final at = stack != null && stack.attached
+        ? stack.globalToLocal(from.centre)
+        : from.centre;
+    double lerp(double a, double b) => a + (b - a) * g;
+    final ownGrain = math.max(1.25, radius * 0.011);
+    field.paint(
+      canvas,
+      size,
+      Offset.lerp(at, centre, g)!,
+      lerp(from.radius, radius),
+      s._pal,
+      fill: Curves.easeOut.transform((g / 0.8).clamp(0.0, 1.0)),
+      density: lerp(from.density, 1),
+      coreScale: lerp(from.core / field.core, 1),
+      grain: from.grain == null ? null : lerp(from.grain!, ownGrain),
+    );
+  }
 
   @override
   bool shouldRepaint(_RiftPainter old) =>
@@ -495,8 +831,12 @@ class _Panel extends StatelessWidget {
         const SizedBox(height: 16),
         if (keys == null)
           const SizedBox(height: 104)
-        else if (keys > 0 || s._committed)
+        // One need at a time, so the panel keeps its height on a landscape
+        // phone: the key, then a harvester for what is inside, then the turn.
+        else if (s._committed || (keys > 0 && !s._needsHarvester))
           _KeyAndTurn(state: s, keys: keys)
+        else if (keys > 0)
+          _NoHarvester(state: s)
         else
           _NoKey(state: s),
         if (s._note != null) ...[
@@ -576,7 +916,8 @@ class _KeyAndTurn extends StatelessWidget {
             ValueListenableBuilder<double>(
               valueListenable: s._turn,
               builder: (context, turn, child) => Opacity(
-                opacity: s._keyFrom != null ? 0 : 1,
+                // Once turned, the rift draws it, coming apart.
+                opacity: s._key != null ? 0 : 1,
                 child: Transform.rotate(
                   angle: Curves.easeInOut.transform(turn) * math.pi / 2,
                   child: child,
@@ -586,7 +927,7 @@ class _KeyAndTurn extends StatelessWidget {
               child: PortalKeyGlyph(
                 key: s._keyGlyph,
                 biomeId: s.widget.faction.name,
-                size: 52,
+                size: _RiftThresholdState._keySize,
               ),
             ),
             const SizedBox(width: 10),
@@ -814,5 +1155,166 @@ class _NoKey extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+/// A key in hand but no harvester that can catch what waits inside: the key
+/// will not turn until there is one, and the one for its element can be
+/// bought here.
+class _NoHarvester extends StatelessWidget {
+  const _NoHarvester({required this.state});
+
+  final _RiftThresholdState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = state;
+    final need = s.widget.harvester!;
+    final resource = ElementResources.byBiomeId[need.biome];
+    final color = resource?.color ?? s.widget.faction.primaryColor;
+    final price = need.price;
+    final wallet = s._wallet;
+    final canOffer = need.buy != null && price != null && wallet != null;
+    final canAfford =
+        canOffer && price.entries.every((e) => (wallet[e.key] ?? 0) >= e.value);
+    final fitting = need.fitting.length < 2
+        ? need.fitting.join()
+        : '${need.fitting.sublist(0, need.fitting.length - 1).join(', ')} '
+              'or ${need.fitting.last}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Opacity(
+              opacity: 0.5,
+              child: HarvesterGlyph(
+                biomeId: need.biome,
+                size: 52,
+                animate: false,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'NO HARVESTER',
+                    style: TextStyle(
+                      fontFamily: _mono,
+                      color: _parchment,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Only $fitting Harvesters can catch the Alchemon inside.',
+                    style: const TextStyle(color: _muted, fontSize: 11.5),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        if (canOffer)
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: canAfford && !s._buyingHarvester
+                ? context.soundAction(s._buyHarvester)
+                : null,
+            child: Container(
+              height: 48,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: const Color(0xFF0B0A0E),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(
+                  color: canAfford
+                      ? color.withValues(alpha: 0.8)
+                      : const Color(0xFF3A3530),
+                  width: 1.1,
+                ),
+              ),
+              child: s._buyingHarvester
+                  ? SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.8,
+                        valueColor: AlwaysStoppedAnimation(color),
+                      ),
+                    )
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          canAfford
+                              ? 'BUY ${resource?.biomeLabel.toUpperCase() ?? 'ONE'}  ·  '
+                              : 'NEEDS  ',
+                          style: TextStyle(
+                            fontFamily: _mono,
+                            color: canAfford
+                                ? Color.lerp(color, _parchment, 0.45)
+                                : _muted,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.6,
+                          ),
+                        ),
+                        for (final e in price.entries) ...[
+                          _CostIcon(currency: e.key),
+                          const SizedBox(width: 3),
+                          Text(
+                            '${e.value}',
+                            style: TextStyle(
+                              fontFamily: _mono,
+                              color: (wallet[e.key] ?? 0) >= e.value
+                                  ? (canAfford ? _parchment : _muted)
+                                  : const Color(0xFFE07A66),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          if (e.key != price.keys.last)
+                            const SizedBox(width: 8),
+                        ],
+                      ],
+                    ),
+            ),
+          )
+        else
+          const Text(
+            'Harvesters are sold in the Shop.',
+            style: TextStyle(color: _muted, fontSize: 11.5),
+          ),
+      ],
+    );
+  }
+}
+
+/// A price's currency: the gold and silver coins, or an element's glyph.
+class _CostIcon extends StatelessWidget {
+  const _CostIcon({required this.currency});
+
+  final String currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final resource = ElementResources.byKey[currency];
+    return switch (currency) {
+      'gold' => const CoinIcon.gold(size: 14),
+      'silver' => const CoinIcon.silver(size: 14),
+      _ when resource != null => ElementResourceGlyph.of(
+        resource,
+        size: 16,
+        animate: false,
+      ),
+      _ => const SizedBox.shrink(),
+    };
   }
 }

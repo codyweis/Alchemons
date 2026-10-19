@@ -373,6 +373,17 @@ class CosmicGame extends FlameGame with PanDetector {
   // Rift portals (5 permanent, one per faction)
   double _riftPulse = 0;
   final Map<String, RiftVortexField> _riftFields = {};
+
+  /// A rift out in space: its disk's radius (its core as wide as the old
+  /// dark disc), its core's share of that, its grains and their size, all
+  /// in world units — what its threshold starts out as.
+  static const double riftCore = 0.27;
+  static const double riftDiskRadius = 28 / riftCore;
+  static const int riftGrains = 520;
+  static const double riftGrain = 2.4;
+
+  /// Not drawn while its threshold stands in for it, growing out of it.
+  RiftPortal? hiddenRift;
   final Map<String, RiftPalette> _riftPalettes = {};
   final Map<String, double> _riftFieldTimes = {};
   RiftPortal? _nearestRift; // closest rift within interact range
@@ -5299,17 +5310,18 @@ class CosmicGame extends FlameGame with PanDetector {
     // so the rift you fly up to is the one that opens. Each steps only while
     // it is near enough to see.
     for (final rift in world_.riftPortals) {
+      if (identical(rift, hiddenRift)) continue;
       final rp = rift.position;
       if ((rp.dx - cx - screenW / 2).abs() < screenW * 1.5 &&
           (rp.dy - cy - screenH / 2).abs() < screenH * 1.5) {
         final field = _riftFields.putIfAbsent(
           rift.faction,
           () => RiftVortexField(
-            grains: 520,
+            grains: riftGrains,
             ringGrains: 120,
             motes: 30,
-            core: 0.27,
-            grainSize: 2.4,
+            core: riftCore,
+            grainSize: riftGrain,
           )..open = 1,
         );
         final last = _riftFieldTimes[rift.faction] ?? _riftPulse;
@@ -5319,8 +5331,7 @@ class CosmicGame extends FlameGame with PanDetector {
           canvas,
           Size.zero,
           rp,
-          // The core as wide as the old dark disc.
-          28 / field.core,
+          riftDiskRadius,
           _riftPalettes.putIfAbsent(
             rift.faction,
             () => RiftPalette(rift.color),

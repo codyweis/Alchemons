@@ -84,6 +84,9 @@ class CreatureSprite extends StatefulWidget {
   final double brightness; // V
   final double hueShift; // degrees
   final bool isPrismatic; // animated hue cycle
+
+  /// How long a prismatic sprite takes to turn once through every hue.
+  static const Duration prismaticCycle = Duration(seconds: 8);
   final Color? tint; // optional extra tint (usually null)
 
   // New: Alchemy effect
@@ -167,7 +170,7 @@ class _CreatureSpriteState extends State<CreatureSprite>
     // Start prismatic animation if enabled (prismatic trumps albino)
     if (widget.isPrismatic) {
       _hueController = AnimationController(
-        duration: const Duration(seconds: 8),
+        duration: CreatureSprite.prismaticCycle,
         vsync: this,
       )..repeat();
     }

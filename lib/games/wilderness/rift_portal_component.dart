@@ -108,6 +108,18 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
   );
   late final RiftPalette _palette = RiftPalette(faction.primaryColor);
 
+  /// Hidden while its threshold stands in for it, growing out of it.
+  bool hidden = false;
+
+  /// Its disk's radius and its core's share of it, and how many grains it
+  /// draws: what its threshold starts out as.
+  double get diskRadius => _coreRadius * 2.4;
+  double get core => _field.core;
+  int get grainCount => _field.grains;
+
+  /// Its grains' diameter, in its own units.
+  double get grainDiameter => max(1.25, diskRadius * 0.011);
+
   RiftPortalComponent({
     required Vector2 position,
     required this.faction,
@@ -136,6 +148,7 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
 
   @override
   void render(Canvas canvas) {
+    if (hidden) return;
     _field.paint(
       canvas,
       Size(size.x, size.y),
@@ -147,5 +160,7 @@ class RiftPortalComponent extends PositionComponent with TapCallbacks {
   }
 
   @override
-  void onTapDown(TapDownEvent event) => onTap();
+  void onTapDown(TapDownEvent event) {
+    if (!hidden) onTap();
+  }
 }

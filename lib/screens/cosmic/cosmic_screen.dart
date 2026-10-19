@@ -27,6 +27,7 @@ import 'package:alchemons/screens/cosmic/space_market_sheet.dart';
 import 'package:alchemons/screens/cosmic/cosmic_sell_sheet.dart';
 import 'package:alchemons/screens/cosmic/gold_conversion_sheet.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
+import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/widgets/game_snack.dart';
@@ -2299,23 +2300,40 @@ class _CosmicScreenState extends State<CosmicScreen>
       orElse: () => RiftFaction.arcane,
     );
 
-    // The same threshold as a wilderness rift: the key is shown, turned
-    // (or bought) there, and the glyph portal takes it in. Space has no
+    // The same threshold as a wilderness rift, grown out of this one: the
+    // key is shown, turned (or bought) there, and falls in. Space has no
     // party to bring, and its rifts never close.
+    final from = _riftOrigin(rift);
     await showRiftThreshold(
       context,
       faction: faction,
+      from: from,
       partyEnters: false,
-      onEnter: (threshold) async {
+      // A rift moves on once something is caught in it; until then it holds
+      // the same species however often it is opened.
+      seed:
+          faction.index * 1000003 +
+          rift.position.dx.round() * 7919 +
+          rift.position.dy.round(),
+      onEnter: (threshold, species) async {
         _playCosmicSfx(SoundCue.cosmicPortalOpen);
         unawaited(context.read<AudioController>().playPortalMusic());
-        final success = await enterRift(
+        await enterRift(
           threshold,
           faction: faction,
+          species: species,
           returnTo: const [
             DeviceOrientation.portraitUp,
             DeviceOrientation.portraitDown,
           ],
+          from: from,
+          // Moved on once something is caught in it — while the way out is
+          // still black, so it is gone before it can be seen.
+          onReturn: (success) {
+            if (success != true || !mounted) return;
+            _game?.relocateRift(rift);
+            setState(() => _isNearRift = false);
+          },
         );
         if (!mounted) return;
         unawaited(
@@ -2323,9 +2341,28 @@ class _CosmicScreenState extends State<CosmicScreen>
             cycle: false,
           ),
         );
-        if (success == true) {
-          _game?.relocateRift(rift);
-          setState(() => _isNearRift = false);
+      },
+    );
+  }
+
+  /// Where [rift] hangs on the screen: its threshold grows out of it, and
+  /// the way out of the rift opens on it.
+  RiftOrigin? _riftOrigin(RiftPortal rift) {
+    final game = _game;
+    final box = game?.buildContext?.findRenderObject();
+    if (game == null || box is! RenderBox || !box.attached) return null;
+    final zoom = game.cameraZoom;
+    return RiftOrigin(
+      centre: box.localToGlobal(game.worldToView(rift.position)),
+      radius: CosmicGame.riftDiskRadius * zoom,
+      core: CosmicGame.riftCore,
+      density: CosmicGame.riftGrains / RiftVortexField.defaultGrains,
+      grain: CosmicGame.riftGrain * zoom,
+      hide: (hidden) {
+        if (hidden) {
+          game.hiddenRift = rift;
+        } else if (identical(game.hiddenRift, rift)) {
+          game.hiddenRift = null;
         }
       },
     );

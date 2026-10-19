@@ -2,7 +2,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/constants/element_resources.dart';
-import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
+import 'package:alchemons/widgets/fx/fusion_particles.dart'
+    show GrainBatch, SpecimenGrains;
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -61,6 +62,13 @@ class PortalKeyGlyph extends StatefulWidget {
     time,
     fade: fade,
   );
+
+  /// The key at [size] read into grains round its centre, as [paintGlyph]
+  /// draws it at [time] in [color]: the lit body with its dark edge, the
+  /// essence in its bow and the little rift behind it — for a key that comes
+  /// apart.
+  static SpecimenGrains grainsOf(double size, Color color, {double time = 0}) =>
+      _PortalKeyPainter.grainsOf(size, color, time);
 
   @override
   State<PortalKeyGlyph> createState() => _PortalKeyGlyphState();
@@ -195,6 +203,82 @@ class _PortalKeyPainter extends CustomPainter {
     for (final rho in _diskRho) 0.9 / math.pow(rho / 0.3, 1.5).toDouble(),
   ];
   static final double _diskCos = math.cos(-0.42), _diskSin = math.sin(-0.42);
+
+  /// The key's body read into grains at one size: where each sits from the
+  /// glyph's centre, and its tone (see [grainsOf]). Laid out once per size.
+  static final Map<int, (Float32List, Float32List, Uint8List, double)> _bodies =
+      {};
+
+  static SpecimenGrains grainsOf(double s, Color color, double t) {
+    final (bx, by, bt, step) = _bodies.putIfAbsent(s.round(), () {
+      final key = _key(s);
+      final edge = key.shift(Offset(s * 0.013, s * 0.018));
+      final step = math.max(0.8, s * 0.016);
+      final rng = math.Random(9);
+      final xs = <double>[], ys = <double>[], tones = <int>[];
+      // The body's gradient runs from its upper left to its lower right.
+      const bx0 = 0.275, dx = 0.45, dy = 1.0;
+      const len2 = dx * dx + dy * dy;
+      for (var y = s * 0.14; y < s * 0.82; y += step) {
+        for (var x = s * 0.34; x < s * 0.68; x += step) {
+          final p = Offset(
+            x + (rng.nextDouble() - 0.5) * 0.7 * step,
+            y + (rng.nextDouble() - 0.5) * 0.7 * step,
+          );
+          final int tone;
+          if (key.contains(p)) {
+            final g = ((p.dx / s - bx0) * dx + (p.dy / s) * dy) / len2;
+            tone = g < 0.2 ? 4 : (g < 0.46 ? 3 : (g < 0.75 ? 2 : 1));
+          } else if (edge.contains(p)) {
+            tone = 0;
+          } else {
+            continue;
+          }
+          xs.add(p.dx - s / 2);
+          ys.add(p.dy - s / 2);
+          tones.add(tone);
+        }
+      }
+      // The essence glowing in the bow's eye.
+      final beadR = s * 0.056;
+      for (var y = -beadR; y <= beadR; y += step) {
+        for (var x = -beadR; x <= beadR; x += step) {
+          if (x * x + y * y > beadR * beadR) continue;
+          xs.add(x);
+          ys.add(y + s * (0.295 - 0.5));
+          tones.add(5);
+        }
+      }
+      return (
+        Float32List.fromList(xs),
+        Float32List.fromList(ys),
+        Uint8List.fromList(tones),
+        step,
+      );
+    });
+    // The little rift behind it, where its grains are at [t].
+    final hx = Float32List(bx.length + _diskN)..setAll(0, bx);
+    final hy = Float32List(by.length + _diskN)..setAll(0, by);
+    final tone = Uint8List(bt.length + _diskN)..setAll(0, bt);
+    for (var i = 0; i < _diskN; i++) {
+      final a = _diskA0[i] + t * _diskW[i];
+      final sn = math.sin(a);
+      final x0 = math.cos(a) * _diskRho[i] * s;
+      final y0 = sn * _diskRho[i] * s * 0.32;
+      hx[bx.length + i] = x0 * _diskCos - y0 * _diskSin;
+      hy[bx.length + i] = x0 * _diskSin + y0 * _diskCos;
+      tone[bx.length + i] = sn > 0 ? 2 : 1;
+    }
+    final bright = Color.lerp(color, Colors.white, 0.55)!;
+    return SpecimenGrains.points(hx, hy, tone, [
+      Color.lerp(color, Colors.black, 0.6)!,
+      Color.lerp(color, Colors.black, 0.32)!,
+      color,
+      Color.lerp(color, bright, 0.5)!,
+      bright,
+      Color.lerp(color, Colors.white, 0.75)!,
+    ], step);
+  }
 
   /// Grains: the little rift's far half, its near half, its near half lit,
   /// and the motes drawn in to the bow.

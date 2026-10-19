@@ -1,11 +1,13 @@
 @Tags(['preview'])
 library;
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
+import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
 import 'package:alchemons/screens/scenes/rift_threshold.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:flutter/material.dart';
@@ -71,6 +73,8 @@ void main() {
       RiftFaction faction, {
       int keys = 3,
       int gold = 40,
+      int? harvesters,
+      int essence = 80,
       Size size = const Size(860, 360),
     }) async {
       tester.view.physicalSize = size * 2;
@@ -99,6 +103,19 @@ void main() {
                 held++;
                 return true;
               },
+              harvester: harvesters == null
+                  ? null
+                  : RiftHarvesterNeed(
+                      fitting: const ['Volcanic', 'Stabilized'],
+                      biome: 'volcanic',
+                      load: () async => harvesters,
+                      loadWallet: () async => {
+                        'silver': 400,
+                        'res_volcanic': essence,
+                      },
+                      price: const {'silver': 250, 'res_volcanic': 50},
+                      buy: () async => true,
+                    ),
             ),
           ),
         ),
@@ -134,7 +151,19 @@ void main() {
       await mount(RiftFaction.volcanic, keys: 0, gold: 2, size: size);
       await frames(40);
       await shoot('${tag}_8_no_gold');
+      await mount(RiftFaction.volcanic, harvesters: 0, size: size);
+      await frames(40);
+      await shoot('${tag}_9_no_harvester');
     }
+
+    // The Fold's cover screen held sideways: the shortest landscape phone.
+    const fold = Size(882, 344);
+    await mount(RiftFaction.volcanic, size: fold);
+    await frames(40);
+    await shoot('fold_rest');
+    await mount(RiftFaction.volcanic, harvesters: 0, essence: 30, size: fold);
+    await frames(40);
+    await shoot('fold_no_harvester_short');
 
     for (final f in RiftFaction.values) {
       await mount(f);
@@ -237,6 +266,166 @@ void main() {
         ).writeAsBytesSync(bytes!.buffer.asUint8List());
       });
     }
+  });
+
+  // The way in and out over a stand-in scene: the threshold growing out
+  // of the rift that was tapped, the key coming apart into grains, stepping
+  // back into the rift, and the black the rift is left through opening on
+  // where it was.
+  testWidgets('rift passage preview', (tester) async {
+    if (outDir == null) return;
+    Directory(outDir).createSync(recursive: true);
+    tester.view.physicalSize = const Size(860, 360) * 2;
+    tester.view.devicePixelRatio = 2;
+
+    late List<ui.Image> layers;
+    await tester.runAsync(() async {
+      layers = [];
+      for (final n in ['sky', 'backhills', 'hills']) {
+        final f = File('assets/images/backgrounds/scenes/valley/$n.png');
+        if (!f.existsSync()) continue;
+        final codec = await ui.instantiateImageCodec(
+          f.readAsBytesSync(),
+          targetWidth: 900,
+        );
+        layers.add((await codec.getNextFrame()).image);
+      }
+    });
+
+    final shotKey = GlobalKey();
+    final nav = GlobalKey<NavigatorState>();
+    final scene = _StandInScene(layers: layers);
+    const at = Offset(600, 92);
+    final from = RiftOrigin(
+      centre: at,
+      radius: 72,
+      core: 0.27,
+      density: 460 / RiftVortexField.defaultGrains,
+      grain: 1.25,
+      hide: (hidden) => scene.hidden.value = hidden,
+    );
+
+    Future<void> shoot(String name) async {
+      await tester.runAsync(() async {
+        final boundary =
+            shotKey.currentContext!.findRenderObject()!
+                as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1.5);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        File(
+          '$outDir/passage_$name.png',
+        ).writeAsBytesSync(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+    }
+
+    Future<void> frames(int n) async {
+      for (var i = 0; i < n; i++) {
+        await tester.pump(const Duration(milliseconds: 1000 ~/ 30));
+      }
+    }
+
+    var held = 2;
+    Widget threshold() => RiftThreshold(
+      faction: RiftFaction.earthen,
+      from: from,
+      closesIn: '7h 12m',
+      loadKeys: () async => held,
+      spendKey: () async {
+        held--;
+        return true;
+      },
+      onEnter: () async {},
+    );
+
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: shotKey,
+        child: MaterialApp(
+          navigatorKey: nav,
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData.dark(),
+          home: scene,
+        ),
+      ),
+    );
+    await frames(20);
+    await shoot('0_scene');
+
+    // In: the threshold grows out of the rift.
+    unawaited(
+      nav.currentState!.push(
+        riftThresholdRoute(from: from, builder: (_) => threshold()),
+      ),
+    );
+    for (final (name, n) in const [
+      ('1_grow_10', 3),
+      ('2_grow_30', 6),
+      ('3_grow_50', 6),
+      ('4_grow_70', 6),
+      ('5_grow_90', 6),
+      ('6_grown', 10),
+    ]) {
+      await frames(n);
+      await shoot(name);
+    }
+
+    // Back: it shrinks into the rift again.
+    nav.currentState!.pop();
+    for (final (name, n) in const [
+      ('7_back_25', 5),
+      ('8_back_60', 7),
+      ('9_back_done', 12),
+    ]) {
+      await frames(n);
+      await shoot(name);
+    }
+
+    // In again, and the key turned: it comes apart into grains.
+    final again = riftThresholdRoute(from: from, builder: (_) => threshold());
+    unawaited(nav.currentState!.push(again));
+    await frames(40);
+    final hold = await tester.startGesture(
+      tester.getCenter(find.text('HOLD TO TURN THE KEY')),
+    );
+    await frames(28);
+    await hold.up();
+    for (final (name, n) in const [
+      ('k1_apart', 2),
+      ('k2_loosen', 4),
+      ('k3_stream', 6),
+      ('k4_stream', 6),
+      ('k5_swallow', 7),
+      ('k6_swallow', 7),
+      ('k7_fall', 8),
+    ]) {
+      await frames(n);
+      await shoot(name);
+    }
+    await frames(40);
+
+    // Out: the black the rift is left through, opening on where it was —
+    // on the rift still there, and on the sky where a spent one was. (The
+    // rift itself replaced the threshold; here it simply goes.)
+    for (final spent in [false, true]) {
+      final exit = RiftExitSheet()..cover(nav.currentState!);
+      if (spent) {
+        scene.hidden.value = true;
+      } else {
+        nav.currentState!.removeRoute(again);
+      }
+      await frames(3);
+      await shoot('x${spent ? 'spent' : ''}0_black');
+      unawaited(exit.open(at: at));
+      for (var k = 1; k <= 5; k++) {
+        await frames(6);
+        await shoot('x${spent ? 'spent' : ''}${k}_open');
+      }
+      await frames(14);
+      expect(exit.covering, isFalse);
+    }
+    await tester.pumpWidget(const SizedBox());
+    tester.view.reset();
   });
 
   testWidgets('rift interior, portrait threshold, space rift', (tester) async {
@@ -389,4 +578,81 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     tester.view.reset();
   });
+}
+
+/// A wilderness scene standing in for the real one: the valley's pictures
+/// and a rift in its sky, hidden while its threshold stands in for it.
+class _StandInScene extends StatefulWidget {
+  _StandInScene({required this.layers});
+
+  final List<ui.Image> layers;
+  final ValueNotifier<bool> hidden = ValueNotifier(false);
+
+  @override
+  State<_StandInScene> createState() => _StandInSceneState();
+}
+
+class _StandInSceneState extends State<_StandInScene>
+    with SingleTickerProviderStateMixin {
+  final RiftVortexField field = RiftVortexField(
+    grains: 460,
+    ringGrains: 110,
+    motes: 26,
+    core: 0.27,
+  )..open = 1;
+  final ValueNotifier<double> clock = ValueNotifier(0);
+  late final ticker = createTicker((_) {
+    field.step(1 / 30);
+    clock.value = field.time;
+  })..start();
+
+  @override
+  void initState() {
+    super.initState();
+    ticker;
+  }
+
+  @override
+  void dispose() {
+    ticker.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    size: Size.infinite,
+    painter: _StandInPainter(this),
+  );
+}
+
+class _StandInPainter extends CustomPainter {
+  _StandInPainter(this.s)
+    : super(repaint: Listenable.merge([s.clock, s.widget.hidden]));
+
+  final _StandInSceneState s;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF1B2433));
+    for (final img in s.widget.layers) {
+      canvas.drawImageRect(
+        img,
+        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height * 0.6),
+        Offset.zero & size,
+        Paint(),
+      );
+    }
+    if (s.widget.hidden.value) return;
+    s.field.paint(
+      canvas,
+      size,
+      const Offset(600, 92),
+      72,
+      RiftPalette(RiftFaction.earthen.primaryColor),
+      backdrop: false,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_StandInPainter old) => false;
 }

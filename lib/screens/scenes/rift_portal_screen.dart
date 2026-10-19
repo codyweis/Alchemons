@@ -1,5 +1,6 @@
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
+import 'dart:ui' as ui;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'dart:async';
 import 'package:alchemons/services/campaign_journal_service.dart';
@@ -27,6 +28,38 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 
+/// The species waiting in a [faction] rift, weighted by rarity. Mystic
+/// creatures stay out of rifts, as they do out of every encounter pool.
+///
+/// The threshold picks it before the key turns, so it can ask for a
+/// harvester that holds this one; a seeded [rng] keeps the same rift showing
+/// the same species however often it is opened.
+Creature? pickRiftSpecies(
+  CreatureCatalog repo,
+  RiftFaction faction,
+  Random rng,
+) {
+  // Select in one pass with weighted reservoir sampling. This avoids building
+  // both a filtered list and an expanded weighted list on the UI isolate.
+  final matchTypes = faction.matchingTypes;
+  Creature? picked;
+  var totalWeight = 0;
+  for (final creature in repo.creatures) {
+    if (creature.rarity.toLowerCase() == 'mystic' ||
+        !creature.types.any(matchTypes.contains)) {
+      continue;
+    }
+    final known = EncounterRarity.values.firstWhere(
+      (rarity) => rarity.label == creature.rarity.toLowerCase(),
+      orElse: () => EncounterRarity.rare,
+    );
+    final weight = (known.baseWeight / 5).round().clamp(1, 20);
+    totalWeight += weight;
+    if (rng.nextInt(totalWeight) < weight) picked = creature;
+  }
+  return picked;
+}
+
 class RiftPortalScreen extends StatefulWidget {
   final RiftFaction faction;
 
@@ -34,14 +67,24 @@ class RiftPortalScreen extends StatefulWidget {
   /// by [_RiftVoidPage] before navigating here).
   final List<PartyMember> party;
 
+  /// The species waiting inside, as the threshold picked it
+  /// ([pickRiftSpecies]); null picks one on arrival.
+  final Creature? species;
+
   /// The orientation to hand back on the way out. Portrait for space;
   /// a wilderness rift passes landscape, since the scene behind it is.
   final List<DeviceOrientation> returnOrientation;
+
+  /// The black the rift is left through ([enterRift] opens it again on the
+  /// screen behind); without it, leaving cuts straight back.
+  final RiftExitSheet? exit;
 
   const RiftPortalScreen({
     super.key,
     required this.faction,
     this.party = const [],
+    this.species,
+    this.exit,
     this.returnOrientation = const [
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -54,8 +97,6 @@ class RiftPortalScreen extends StatefulWidget {
 
 class _RiftPortalScreenState extends State<RiftPortalScreen>
     with TickerProviderStateMixin {
-  late AnimationController _bannerCtrl;
-
   /// The inside of the rift: the same vortex its threshold showed, seen
   /// huge now, with the waiting Alchemon in its black eye. Slower than the
   /// threshold's, since its rim is wider than the screen.
@@ -85,6 +126,36 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   final bool _encounterActive = true;
   Creature? _selectedPartyCreature;
 
+  /// The Alchemon pouring out of the disk into the core, [_pourT] of the
+  /// way. Its sprite stands nearly unseen ([_shown]) while it is read and
+  /// poured, then takes over from its grains once they are home.
+  RiftPour? _pour;
+  double _pourT = 0;
+
+  /// When (on the vortex's clock) the sprite was read: a prismatic one
+  /// goes on turning through its hues, and its grains turn with it.
+  double _readAt = 0;
+  final ValueNotifier<double> _shown = ValueNotifier(0);
+
+  /// The sprite has drawn (or will not): the pour is set going, or the
+  /// sprite simply fades in ([_plainIn]).
+  bool _sprited = false;
+  bool _plainIn = false;
+  Timer? _spriteWait;
+
+  /// Once it has arrived the encounter opens round it.
+  bool _arrived = false;
+
+  /// Leaving: the rift draws in and the screen goes black ([_dark]); on the
+  /// black frame it is popped with [_leaveWith].
+  bool _leaving = false;
+  bool _gone = false;
+  bool _leaveWith = false;
+  double _dark = 0;
+
+  static const double _handoverSeconds = 0.3;
+  static const double _darkSeconds = 0.6;
+
   @override
   void initState() {
     super.initState();
@@ -100,21 +171,92 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    _bannerCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    );
-    _vortexTicker = createTicker((elapsed) {
-      final dt = ((elapsed - _vortexLast).inMicroseconds / 1e6).clamp(
-        0.0,
-        0.05,
-      );
-      _vortexLast = elapsed;
-      // Tears open round the Alchemon as the glyph portal fades away.
-      _vortex.open = min(1.0, _vortex.open + dt / 1.6);
-      _vortex.step(dt);
-      _vortexClock.value = _vortex.time;
-    })..start();
+    _vortexTicker = createTicker(_tick)..start();
+  }
+
+  void _tick(Duration elapsed) {
+    final dt = ((elapsed - _vortexLast).inMicroseconds / 1e6).clamp(0.0, 0.05);
+    _vortexLast = elapsed;
+    // Tears open round the Alchemon out of the black the threshold fell
+    // into; leaving, it draws in on itself as the black comes back.
+    _vortex.open = _leaving
+        ? max(0.3, _vortex.open - dt / 0.8)
+        : min(1.0, _vortex.open + dt / 1.6);
+
+    if (_pour != null) {
+      _pourT += dt / RiftPour.seconds;
+      if (_pourT >= 1) {
+        if (!_arrived) _arrive();
+        _shown.value = min(1.0, _shown.value + dt / _handoverSeconds);
+        if (_shown.value >= 1) _pour = null;
+      }
+    } else if (_plainIn && _shown.value < 1) {
+      _shown.value = min(1.0, _shown.value + dt / 0.7);
+    }
+
+    if (_leaving && !_gone) {
+      _dark = min(1.0, _dark + dt / _darkSeconds);
+      if (_dark >= 1) {
+        _gone = true;
+        // Popped on the black frame, under the black it is left through.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          final navigator = Navigator.of(context);
+          widget.exit?.cover(navigator);
+          navigator.pop(_leaveWith);
+        });
+      }
+    }
+    _vortex.step(dt);
+    _vortexClock.value = _vortex.time;
+  }
+
+  /// The Alchemon is here: the encounter opens round it.
+  void _arrive() {
+    if (_arrived || !mounted) return;
+    setState(() => _arrived = true);
+  }
+
+  /// Its sprite has drawn its first frame: read it into grains and pour
+  /// them out of the disk. If it cannot be read, it fades in as it is.
+  Future<void> _onSpriteReady() async {
+    if (_sprited) return;
+    _sprited = true;
+    _spriteWait?.cancel();
+    await SchedulerBinding.instance.endOfFrame;
+    if (!mounted) return;
+    _readAt = _vortex.time;
+    SpecimenGrains? grains;
+    final box = _voidCaptureKey.currentContext?.findRenderObject();
+    if (box is RenderRepaintBoundary && box.attached) {
+      try {
+        grains = await SpecimenGrains.capture(
+          box,
+          pixelRatio: min(MediaQuery.devicePixelRatioOf(context), 2.5),
+        ).timeout(const Duration(milliseconds: 500));
+      } catch (_) {
+        grains = null;
+      }
+    }
+    if (!mounted) return;
+    if (grains == null) {
+      _plainIn = true;
+      _arrive();
+      return;
+    }
+    _pour = RiftPour(grains);
+    _pourT = 0;
+  }
+
+  /// Leave the rift with [result]: it draws in and goes black, and is popped
+  /// on that black (see [RiftPortalScreen.exit]).
+  void _leave(bool result) {
+    if (_leaving) return;
+    HapticFeedback.lightImpact();
+    setState(() {
+      _leaving = true;
+      _leaveWith = result;
+    });
   }
 
   @override
@@ -151,27 +293,8 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
 
   void _spawnVoidCreature() {
     final repo = context.read<CreatureCatalog>();
-    final rng = Random();
-
-    // Select in one pass with weighted reservoir sampling. This avoids building
-    // both a filtered list and an expanded weighted list on the UI isolate.
-    // Mystic creatures remain excluded from the standard encounter pool.
-    final matchTypes = widget.faction.matchingTypes;
-    Creature? picked;
-    var totalWeight = 0;
-    for (final creature in repo.creatures) {
-      if (creature.rarity.toLowerCase() == 'mystic' ||
-          !creature.types.any(matchTypes.contains)) {
-        continue;
-      }
-      final known = EncounterRarity.values.firstWhere(
-        (rarity) => rarity.label == creature.rarity.toLowerCase(),
-        orElse: () => EncounterRarity.rare,
-      );
-      final weight = (known.baseWeight / 5).round().clamp(1, 20);
-      totalWeight += weight;
-      if (rng.nextInt(totalWeight) < weight) picked = creature;
-    }
+    final picked =
+        widget.species ?? pickRiftSpecies(repo, widget.faction, Random());
 
     if (picked == null) {
       debugPrint('⚠️ No creatures match faction ${widget.faction.factionKey}');
@@ -180,7 +303,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
 
     // Derive encounter rarity from the creature's own rarity label.
     final rarity = EncounterRarity.values.firstWhere(
-      (e) => e.label == picked!.rarity.toLowerCase(),
+      (e) => e.label == picked.rarity.toLowerCase(),
       orElse: () => EncounterRarity.rare,
     );
 
@@ -196,7 +319,13 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
       _voidCreature = hydrated;
       _voidRarity = rarity;
     });
-    _bannerCtrl.forward();
+    // A sprite that never says it has drawn still arrives, plainly.
+    _spriteWait = Timer(const Duration(milliseconds: 1600), () {
+      if (_sprited || !mounted) return;
+      _sprited = true;
+      _plainIn = true;
+      _arrive();
+    });
   }
 
   @override
@@ -209,9 +338,10 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     // to a map that is portrait, because that is how it was being held) —
     // but landscape for the wilderness scene a rift was found in.
     SystemChrome.setPreferredOrientations(widget.returnOrientation);
+    _spriteWait?.cancel();
     _vortexTicker.dispose();
     _vortexClock.dispose();
-    _bannerCtrl.dispose();
+    _shown.dispose();
     super.dispose();
   }
 
@@ -232,7 +362,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     );
     if (leave && context.mounted) {
       // false: the portal is not cleared, matching the run-away path.
-      Navigator.of(context).pop(false);
+      _leave(false);
     }
   }
 
@@ -241,204 +371,360 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     final color = widget.faction.primaryColor;
     final factionName = widget.faction.displayName.toUpperCase();
 
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: Stack(
-        fit: StackFit.expand,
-        children: [
-          // ── The rift, from inside ─────────────────────────────────────────
-          Positioned.fill(
-            child: IgnorePointer(
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _RiftInteriorPainter(
-                    _vortex,
-                    _palette,
-                    repaint: _vortexClock,
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // ── Header: the rift's name top-left, the way out top-right ──────
-          Align(
-            alignment: Alignment.topCenter,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 16,
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'RIFT',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: color.withValues(alpha: 0.85),
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: 2.4,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '$factionName RIFT',
-                          style: const TextStyle(
-                            fontFamily: 'monospace',
-                            color: Color(0xFFE6E2DA),
-                            fontSize: 17,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: 1.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    // Without this the only exits are through the encounter
-                    // overlay, so a portal with no live encounter traps you.
-                    _ExitPortalButton(
-                      color: color,
-                      onExit: () => _confirmExit(context),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // ── Wild creature — centred over the portal ─────────────────────
-          if (_voidCreature != null)
-            Center(
-              child: AnimatedBuilder(
-                animation: _bannerCtrl,
-                builder: (context, child) {
-                  final t2 = Curves.easeOutCubic.transform(_bannerCtrl.value);
-                  return Opacity(opacity: t2.clamp(0.0, 1.0), child: child);
-                },
-                child: ClipRect(
-                  clipper: SpriteCrestClipper(
-                    _harvestCut ?? double.negativeInfinity,
-                  ),
-                  clipBehavior: _harvestCut == null ? Clip.none : Clip.hardEdge,
+    // The back gesture asks first too: the key is already spent.
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop && !_leaving) _confirmExit(context);
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: AbsorbPointer(
+          absorbing: _leaving,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // ── The rift, from inside, and the Alchemon pouring out of it ────
+              Positioned.fill(
+                child: IgnorePointer(
                   child: RepaintBoundary(
-                    key: _voidCaptureKey,
-                    // Room for a size gene over 1, which draws past 170.
-                    child: SizedBox.square(
-                      dimension: 240,
-                      child: Center(
-                        child: _VoidSprite(
-                          creature: _voidCreature!,
-                          size: 170,
-                          isPrismatic: true,
-                          flipHorizontal: false,
-                        ),
+                    child: CustomPaint(
+                      painter: _RiftInteriorPainter(
+                        this,
+                        repaint: _vortexClock,
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-          // ── Party creature — left side, flipped to face the wild ──────────
-          if (_selectedPartyCreature != null)
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: MediaQuery.of(context).size.width * 0.32,
-              child: Center(
-                child: _VoidSprite(
-                  creature: _selectedPartyCreature!,
-                  size: 140,
-                  isPrismatic: _selectedPartyCreature!.isPrismaticSkin == true,
-                  flipHorizontal: true, // face right → toward the wild
+              // ── Header: the rift's name top-left, the way out top-right ──────
+              Align(
+                alignment: Alignment.topCenter,
+                child: SafeArea(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'RIFT',
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                color: color.withValues(alpha: 0.85),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 2.4,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '$factionName RIFT',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                color: Color(0xFFE6E2DA),
+                                fontSize: 17,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.4,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        // Without this the only exits are through the encounter
+                        // overlay, so a portal with no live encounter traps you.
+                        _ExitPortalButton(
+                          color: color,
+                          onExit: () => _confirmExit(context),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
-            ),
 
-          // ── Encounter overlay (fuse / capture) ────────────────────────────
-          if (_voidCreature != null && _encounterActive)
-            EncounterOverlay(
-              encounter: WildEncounter(
-                wildBaseId: _voidCreature!.id,
-                baseBreedChance: breedChanceForRarity(_voidRarity),
-                rarity: _voidRarity.label,
-                voidBred: true, // guarantees prismatic offspring on fuse
-                source: 'rift_portal',
-              ),
-              hydratedWildCreature: _voidCreature!,
-              party: widget.party,
-              highlightPartyHUD: false,
-              isTutorial: false,
-              showFusionAction: false,
-              showMapAction: false,
-              warnOnRun: true,
-              onPreRollShake: () {},
-              // The rift is not a Flame scene, so it cannot hand the field
-              // to the world the way the wilderness does — but it can still
-              // avoid the duplicate. The apparatus plays transparently over
-              // the void creature already standing here, which is centred
-              // exactly where the field is.
-              onHarvestInScene: (accent, task, profile) async {
-                if (!mounted) return false;
-                return showHarvestCinematic(
-                  context: context,
-                  targetSprite: null,
-                  targetColor: accent,
-                  profile: profile,
-                  // And on a take, the void creature itself goes as grains.
-                  liveTarget: HarvestTarget(
-                    read: () async {
-                      final box = _voidCaptureKey.currentContext
-                          ?.findRenderObject();
-                      if (box is! RenderRepaintBoundary || !box.attached) {
-                        return null;
-                      }
-                      final centre = box.localToGlobal(
-                        box.size.center(Offset.zero),
-                      );
-                      final grains = await SpecimenGrains.capture(
-                        box,
-                        pixelRatio: min(
-                          MediaQuery.devicePixelRatioOf(context),
-                          2.5,
+              // ── Wild creature — centred over the portal ─────────────────────
+              if (_voidCreature != null)
+                Center(
+                  // Nearly unseen until its grains are home: at 0 it would not
+                  // be drawn, and could not be read.
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: _shown,
+                    builder: (context, shown, child) => Opacity(
+                      opacity: max(0.01, Curves.easeOut.transform(shown)),
+                      child: child,
+                    ),
+                    child: ClipRect(
+                      clipper: SpriteCrestClipper(
+                        _harvestCut ?? double.negativeInfinity,
+                      ),
+                      clipBehavior: _harvestCut == null
+                          ? Clip.none
+                          : Clip.hardEdge,
+                      child: RepaintBoundary(
+                        key: _voidCaptureKey,
+                        // Room for a size gene over 1, which draws past 170.
+                        child: SizedBox.square(
+                          dimension: 240,
+                          child: Center(
+                            child:
+                                NotificationListener<SpriteReadyNotification>(
+                                  onNotification: (_) {
+                                    _onSpriteReady();
+                                    return true;
+                                  },
+                                  child: _VoidSprite(
+                                    creature: _voidCreature!,
+                                    size: 170,
+                                    isPrismatic: true,
+                                    flipHorizontal: false,
+                                  ),
+                                ),
+                          ),
                         ),
-                      );
-                      return grains == null ? null : (grains, centre, 1.0);
-                    },
-                    onCut: (cut) {
-                      if (mounted) setState(() => _harvestCut = cut);
-                    },
+                      ),
+                    ),
                   ),
-                  task: task,
-                );
-              },
-              onPartyCreatureSelected: (c) {
-                setState(() => _selectedPartyCreature = c);
-              },
-              onClosedWithResult: (success) {
-                if (!mounted) return;
-                if (success) {
-                  // Breed or catch succeeded — pop and signal the scene to
-                  // clear the portal.
-                  Navigator.of(context).pop(true);
-                } else {
-                  // Ran away — return to scene without clearing the portal.
-                  Navigator.of(context).pop(false);
-                }
-              },
-            ),
-        ],
+                ),
+
+              // ── Party creature — left side, flipped to face the wild ──────────
+              if (_selectedPartyCreature != null)
+                Positioned(
+                  left: 0,
+                  top: 0,
+                  bottom: 0,
+                  width: MediaQuery.of(context).size.width * 0.32,
+                  child: Center(
+                    child: _VoidSprite(
+                      creature: _selectedPartyCreature!,
+                      size: 140,
+                      isPrismatic:
+                          _selectedPartyCreature!.isPrismaticSkin == true,
+                      flipHorizontal: true, // face right → toward the wild
+                    ),
+                  ),
+                ),
+
+              // ── Encounter overlay (fuse / capture) ────────────────────────────
+              if (_voidCreature != null && _encounterActive && _arrived)
+                EncounterOverlay(
+                  encounter: WildEncounter(
+                    wildBaseId: _voidCreature!.id,
+                    baseBreedChance: breedChanceForRarity(_voidRarity),
+                    rarity: _voidRarity.label,
+                    voidBred: true, // guarantees prismatic offspring on fuse
+                    source: 'rift_portal',
+                  ),
+                  hydratedWildCreature: _voidCreature!,
+                  party: widget.party,
+                  highlightPartyHUD: false,
+                  isTutorial: false,
+                  showFusionAction: false,
+                  showMapAction: false,
+                  warnOnRun: true,
+                  onPreRollShake: () {},
+                  // The rift is not a Flame scene, so it cannot hand the field
+                  // to the world the way the wilderness does — but it can still
+                  // avoid the duplicate. The apparatus plays transparently over
+                  // the void creature already standing here, which is centred
+                  // exactly where the field is.
+                  onHarvestInScene: (accent, task, profile) async {
+                    if (!mounted) return false;
+                    return showHarvestCinematic(
+                      context: context,
+                      targetSprite: null,
+                      targetColor: accent,
+                      profile: profile,
+                      // And on a take, the void creature itself goes as grains.
+                      liveTarget: HarvestTarget(
+                        read: () async {
+                          final box = _voidCaptureKey.currentContext
+                              ?.findRenderObject();
+                          if (box is! RenderRepaintBoundary || !box.attached) {
+                            return null;
+                          }
+                          final centre = box.localToGlobal(
+                            box.size.center(Offset.zero),
+                          );
+                          final grains = await SpecimenGrains.capture(
+                            box,
+                            pixelRatio: min(
+                              MediaQuery.devicePixelRatioOf(context),
+                              2.5,
+                            ),
+                          );
+                          return grains == null ? null : (grains, centre, 1.0);
+                        },
+                        onCut: (cut) {
+                          if (mounted) setState(() => _harvestCut = cut);
+                        },
+                      ),
+                      task: task,
+                    );
+                  },
+                  onPartyCreatureSelected: (c) {
+                    setState(() => _selectedPartyCreature = c);
+                  },
+                  onClosedWithResult: (success) {
+                    if (!mounted) return;
+                    // Caught: back with true, and the scene clears the rift.
+                    // Ran away: back with false, and the rift stays.
+                    _leave(success);
+                  },
+                ),
+
+              // ── Leaving: the black the rift is left through ──────────────────
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _DarkPainter(this, repaint: _vortexClock),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+/// The black coming over the rift as it is left.
+class _DarkPainter extends CustomPainter {
+  _DarkPainter(this.s, {required super.repaint});
+
+  final _RiftPortalScreenState s;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final d = s._dark;
+    if (d <= 0) return;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()
+        ..color = kRiftVoid.withValues(alpha: Curves.easeInOut.transform(d)),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_DarkPainter old) => old.s != s;
+}
+
+/// The void a rift is left through.
+const Color kRiftVoid = Color(0xFF050507);
+
+/// The black a rift is left through.
+///
+/// The rift goes black itself, lays this over everything ([cover]) and is
+/// popped under it. Whoever entered the rift then turns the phone back while
+/// only black shows, and [open]s it out from where the rift was on the
+/// screen behind.
+class RiftExitSheet {
+  RiftExitSheet();
+
+  OverlayEntry? _entry;
+  final ValueNotifier<double> _open = ValueNotifier(0);
+  Offset? _at;
+
+  /// Over everything, waiting to be opened.
+  bool get covering => _entry != null;
+
+  void cover(NavigatorState navigator) {
+    if (_entry != null) return;
+    final overlay = navigator.overlay;
+    if (overlay == null) return;
+    final entry = _entry = OverlayEntry(
+      builder: (_) => IgnorePointer(
+        child: CustomPaint(
+          size: Size.infinite,
+          painter: _ExitHolePainter(this),
+        ),
+      ),
+    );
+    overlay.insert(entry);
+  }
+
+  /// Opens the black out from [at] (global; the middle when null) past the
+  /// corners, then takes it away.
+  Future<void> open({
+    Offset? at,
+    Duration duration = const Duration(milliseconds: 1100),
+  }) async {
+    if (_entry == null) return;
+    _at = at;
+    final done = Completer<void>();
+    final ticker = Ticker((elapsed) {
+      final u = elapsed.inMicroseconds / duration.inMicroseconds;
+      _open.value = u.clamp(0.0, 1.0);
+      if (u >= 1 && !done.isCompleted) done.complete();
+    })..start();
+    await done.future;
+    ticker.dispose();
+    remove();
+  }
+
+  void remove() {
+    _entry?.remove();
+    _entry = null;
+  }
+}
+
+class _ExitHolePainter extends CustomPainter {
+  _ExitHolePainter(this.sheet) : super(repaint: sheet._open);
+
+  final RiftExitSheet sheet;
+  static final Paint _paint = Paint();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final e = Curves.easeInOut.transform(sheet._open.value);
+    final rect = Offset.zero & size;
+    if (e <= 0) {
+      canvas.drawRect(rect, _paint..color = kRiftVoid);
+      return;
+    }
+    final at = sheet._at ?? size.center(Offset.zero);
+    var far = 0.0;
+    for (final corner in [
+      Offset.zero,
+      Offset(size.width, 0),
+      Offset(0, size.height),
+      Offset(size.width, size.height),
+    ]) {
+      far = max(far, (corner - at).distance);
+    }
+    // A soft edge, widening as it goes, and clear past the farthest corner
+    // at the end. Plain dark: a lit rim reads as a hoop.
+    final feather = size.shortestSide * (0.3 + 0.4 * e);
+    final r = -feather + (far + 2 * feather) * e;
+    final reach = max(0.0, r) + feather;
+    final start = max(0.0, r) / reach;
+    final span = 1 - start;
+    _paint.shader = ui.Gradient.radial(
+      at,
+      reach,
+      [
+        const Color(0x00050507),
+        const Color(0x00050507),
+        kRiftVoid.withValues(alpha: 0.35),
+        kRiftVoid.withValues(alpha: 0.8),
+        kRiftVoid,
+      ],
+      [0, start, start + span * 0.35, start + span * 0.7, 1],
+    );
+    canvas.drawRect(rect, _paint);
+    _paint.shader = null;
+  }
+
+  @override
+  bool shouldRepaint(_ExitHolePainter old) => old.sheet != sheet;
 }
 
 // ── Bare sprite — no borders, no labels ──────────────────────────────────────
@@ -497,31 +783,64 @@ class _VoidSprite extends StatelessWidget {
 }
 
 /// The rift from inside: the vortex huge, its black core round the waiting
-/// Alchemon, so the light bent round the core haloes it.
+/// Alchemon, so the light bent round the core haloes it — and the Alchemon
+/// pouring out of its disk into that core.
 class _RiftInteriorPainter extends CustomPainter {
-  _RiftInteriorPainter(this.field, this.palette, {required super.repaint});
+  _RiftInteriorPainter(this.s, {required super.repaint});
 
-  final RiftVortexField field;
-  final RiftPalette palette;
+  final _RiftPortalScreenState s;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final field = s._vortex;
     // The core just wider than the sprite standing in it, so the light
     // bent round the core haloes it; any bigger and the Alchemon is lost in
     // the black.
     final coreR = min(100.0, size.shortestSide * 0.27);
-    field.paint(
+    final rr = coreR / field.core;
+    final c = size.center(Offset.zero);
+    field.paint(canvas, size, c, rr, s._palette);
+    final pour = s._pour;
+    if (pour == null) return;
+    // The rift's Alchemon is prismatic: its colors have turned since it was
+    // read, as the sprite's have.
+    final turned =
+        (field.time - s._readAt) /
+        (CreatureSprite.prismaticCycle.inMilliseconds / 1000) *
+        360;
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    // Out of the nearer part of the disk: its rim is off the screen.
+    pour.paint(
       canvas,
-      size,
-      size.center(Offset.zero),
-      coreR / field.core,
-      palette,
+      rr * 0.8,
+      field.core / 0.8,
+      s._pourT,
+      s._palette,
+      fade: 1 - s._shown.value,
+      colors: _turned(pour.specimen.tones, turned),
     );
+    canvas.restore();
+  }
+
+  /// [tones] turned [degrees] round the hue circle, the way a sprite's
+  /// hue filter turns them ([hueRotationMatrix]).
+  static List<Color> _turned(List<Color> tones, double degrees) {
+    final m = hueRotationMatrix(degrees % 360);
+    int ch(int row, Color c) => (m[row] * c.r * 255 +
+            m[row + 1] * c.g * 255 +
+            m[row + 2] * c.b * 255 +
+            m[row + 4])
+        .round()
+        .clamp(0, 255);
+    return [
+      for (final c in tones)
+        Color.fromARGB((c.a * 255).round(), ch(0, c), ch(5, c), ch(10, c)),
+    ];
   }
 
   @override
-  bool shouldRepaint(_RiftInteriorPainter old) =>
-      old.field != field || old.palette != palette;
+  bool shouldRepaint(_RiftInteriorPainter old) => old.s != s;
 }
 
 class _ExitPortalButton extends StatelessWidget {

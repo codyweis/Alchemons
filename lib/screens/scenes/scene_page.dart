@@ -24,6 +24,7 @@ import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
 import 'package:alchemons/widgets/background/daynight_filter.dart';
+import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
 import 'package:alchemons/widgets/wilderness/wilderness_controls.dart';
 import 'package:drift/drift.dart' hide Column;
@@ -32,6 +33,7 @@ import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:flame/components.dart' show Anchor;
 import 'package:flame/game.dart';
 
 import 'package:alchemons/models/inventory.dart' show InvKeys;
@@ -1020,42 +1022,77 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     final pending = await _loadPendingRift();
     if (!mounted) return;
     // The rift waits for a key to be fetched; say for how long.
-    final closesIn =
+    final ours =
         pending != null &&
             pending.factionName == faction.name &&
             pending.sceneId == widget.sceneId
-        ? pending.remainingLabel(DateTime.now().toUtc())
+        ? pending
         : null;
+    final from = _riftOrigin();
     await showRiftThreshold(
       context,
       faction: faction,
-      closesIn: closesIn,
-      onEnter: (threshold) => _enterRift(threshold, faction),
+      from: from,
+      closesIn: ours?.remainingLabel(DateTime.now().toUtc()),
+      // The same rift holds the same species, however often it is opened.
+      seed: ours?.spawnedUtc.millisecondsSinceEpoch,
+      onEnter: (threshold, species) =>
+          _enterRift(threshold, faction, species, from),
     );
   }
 
-  /// The key has turned and the threshold has fallen to black: the glyph
-  /// portal takes it into the rift, and leaving comes straight back here.
+  /// Where the rift stands on the screen: its threshold grows out of it, and
+  /// the way out of the rift opens on it.
+  RiftOrigin? _riftOrigin() {
+    final rift = _game.layersRoot.children
+        .whereType<RiftPortalComponent>()
+        .where((r) => r.isMounted)
+        .firstOrNull;
+    final box = _game.buildContext?.findRenderObject();
+    if (rift == null || box is! RenderBox || !box.attached) return null;
+    final c = _game.cam.localToGlobal(rift.absoluteCenter);
+    final edge = _game.cam.localToGlobal(
+      rift.absolutePositionOfAnchor(Anchor.centerRight),
+    );
+    // Its box is its disk's size and more; what a unit of it is on screen.
+    final scale = (edge - c).length / (rift.size.x / 2);
+    return RiftOrigin(
+      centre: box.localToGlobal(Offset(c.x, c.y)),
+      radius: rift.diskRadius * scale,
+      core: rift.core,
+      density: rift.grainCount / RiftVortexField.defaultGrains,
+      grain: rift.grainDiameter * scale,
+      hide: (hidden) => rift.hidden = hidden,
+    );
+  }
+
+  /// The key has turned and the threshold has fallen to black: it falls
+  /// into the rift, and leaving the rift comes back here through black that
+  /// opens on where the rift was.
   Future<void> _enterRift(
     BuildContext thresholdContext,
     RiftFaction faction,
+    Creature? species,
+    RiftOrigin? from,
   ) async {
     unawaited(context.read<AudioController>().playPortalMusic());
-    // Don't clear the rift yet — only clear it if the player successfully
-    // breeds or catches inside the void.
-    final success = await enterRift(
+    await enterRift(
       thresholdContext,
       faction: faction,
+      species: species,
       party: widget.party,
       // The scene behind is landscape.
       returnTo: const [
         DeviceOrientation.landscapeLeft,
         DeviceOrientation.landscapeRight,
       ],
+      from: from,
+      // Cleared only once something was bred or caught inside — and while
+      // the way out is still black, so it is gone before it can be seen.
+      onReturn: (success) async {
+        if (success == true) await _consumeRift();
+      },
     );
-    if (success == true) {
-      await _consumeRift();
-    }
     if (!mounted) return;
     if (_isCosmicPlanetMode) {
       unawaited(context.read<AudioController>().playPlanetMusic());
