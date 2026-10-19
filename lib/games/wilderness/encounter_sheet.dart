@@ -54,6 +54,7 @@ import 'package:alchemons/services/wild_breed_randomizer.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/breeding_engine.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/constants/design_tokens.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/constants/breed_constants.dart';
@@ -996,6 +997,8 @@ class _EncounterOverlayState extends State<EncounterOverlay>
             outcome.message,
           );
         }
+        // Browser build only: counts toward the every-so-many-fusions ad.
+        if (!widget.isTutorial) WebAds.tally('fusion');
         _hide(true);
       } else {
         HapticFeedback.lightImpact();

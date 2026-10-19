@@ -31,6 +31,16 @@ abstract final class WebAds {
     );
   }
 
+  /// [count] more fusions or extractions. Once enough have added up (`every`
+  /// in web/ads/config.js) the page plays a between-screens ad, so call this
+  /// at the pause after the result, never during a reveal. Fire-and-forget.
+  static void tally(String placement, {int count = 1}) {
+    if (!enabled || count <= 0) return;
+    unawaited(
+      bridge.tally(placement, count, _start, _end).catchError((Object _) {}),
+    );
+  }
+
   /// Plays a rewarded ad the player asked for. True only when the ad was
   /// watched to the end.
   static Future<bool> rewarded(String placement) async {

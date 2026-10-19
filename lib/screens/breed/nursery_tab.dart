@@ -7,6 +7,7 @@ import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/egg_hatching_service.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
@@ -445,6 +446,7 @@ class _NurseryTabState extends State<NurseryTab> {
       _releaseBackgroundAnimationPause();
     }
     if (!mounted || (completed ?? 0) <= 0) return;
+    WebAds.tally('extraction', count: completed!);
     widget.onHatchComplete();
     _showToast(
       '$completed specimen${completed == 1 ? '' : 's'} extracted',
@@ -1036,6 +1038,8 @@ class _NurseryTabState extends State<NurseryTab> {
     if (!mounted) return;
 
     if (result.success) {
+      // Browser build only: every so many extractions, a pause for an ad.
+      WebAds.tally('extraction');
       widget.onHatchComplete();
     } else if (result.message != null) {
       _showToast(result.message!, color: result.color ?? Colors.red.shade600);
@@ -1072,6 +1076,8 @@ class _NurseryTabState extends State<NurseryTab> {
 
     if (!mounted) return;
     if (result.success) {
+      // Browser build only: every so many extractions, a pause for an ad.
+      WebAds.tally('extraction');
       widget.onHatchComplete();
     } else if (result.message != null) {
       _showToast(result.message!, color: result.color ?? Colors.red.shade600);

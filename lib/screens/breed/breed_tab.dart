@@ -35,6 +35,7 @@ import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/stamina_service.dart';
+import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
@@ -105,6 +106,9 @@ class _BreedingTabState extends State<BreedingTab>
 
   // Outcome banner captured during the fusion cinematic, surfaced once after.
   _PendingToast? _pendingFusionToast;
+
+  // How many fusions the last cinematic made: FUSE ALL makes several.
+  int _fusionsMade = 0;
 
   // Remember last breeding pair for quick repeat
   String? _lastParent1InstanceId;
@@ -1301,6 +1305,7 @@ class _BreedingTabState extends State<BreedingTab>
       if (!mounted) return;
       // Resolved mid-cinematic so the climax matches what was actually bred.
       final outcomeNotifier = ValueNotifier<FusionRevealData?>(null);
+      _fusionsMade = 0;
       final didBreed = await showAlchemyFusionCinematic<bool>(
         context: context,
         leftSprite: leftSprite,
@@ -1347,6 +1352,7 @@ class _BreedingTabState extends State<BreedingTab>
             );
             return false;
           }
+          _fusionsMade = 1;
 
           // Tell the cinematic what was created so it can play the right reveal.
           outcomeNotifier.value = _buildRevealData(
@@ -1403,6 +1409,8 @@ class _BreedingTabState extends State<BreedingTab>
       await maybePlayFirstFusionStory(context);
       if (!mounted) return;
 
+      // Browser build only: every so many fusions, a natural pause for an ad.
+      WebAds.tally('fusion', count: _fusionsMade);
       widget.onBreedingComplete();
     } catch (e) {
       _showToast('Fusion failed: $e', color: Colors.red);
@@ -1493,6 +1501,7 @@ class _BreedingTabState extends State<BreedingTab>
       );
       return false;
     }
+    _fusionsMade = made;
     final parts = [
       'Fused $made ${made == 1 ? 'time' : 'times'}',
       if (stored > 0) '$stored to cold storage',

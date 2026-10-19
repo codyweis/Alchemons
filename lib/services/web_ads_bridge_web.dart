@@ -12,6 +12,12 @@ extension type _Ads._(JSObject _) implements JSObject {
     JSFunction onStart,
     JSFunction onEnd,
   );
+  external JSPromise<JSAny?> tally(
+    JSString placement,
+    JSNumber count,
+    JSFunction onStart,
+    JSFunction onEnd,
+  );
   external JSPromise<JSBoolean> rewarded(
     JSString placement,
     JSFunction onStart,
@@ -29,6 +35,19 @@ Future<void> interstitial(
   final ads = _ads;
   if (ads == null) return;
   await ads.interstitial(placement.toJS, onStart.toJS, onEnd.toJS).toDart;
+}
+
+Future<void> tally(
+  String placement,
+  int count,
+  void Function() onStart,
+  void Function() onEnd,
+) async {
+  final ads = _ads;
+  if (ads == null) return;
+  await ads
+      .tally(placement.toJS, count.toJS, onStart.toJS, onEnd.toJS)
+      .toDart;
 }
 
 Future<bool> rewarded(

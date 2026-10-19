@@ -7,10 +7,11 @@
   'use strict';
 
   const cfg = Object.assign(
-    { client: '', h5Games: false, slots: {}, interstitialGapSec: 90, startAd: true },
+    { client: '', h5Games: false, slots: {}, interstitialGapSec: 90, every: {}, startAd: true },
     window.ALCHEMONS_ADS || {},
   );
   cfg.slots = Object.assign({ railLeft: '', railRight: '', bottom: '' }, cfg.slots);
+  cfg.every = Object.assign({}, cfg.every);
   const params = new URLSearchParams(location.search);
   const test = params.has('adtest');
   const preview = params.has('adpreview');
@@ -79,11 +80,49 @@
     });
   }
 
-  function interstitial(placement, onStart, onEnd, type) {
+  /// Resolves with whether an ad played. One too soon after the last does not
+  /// try.
+  function nextBreak(placement, onStart, onEnd, type) {
     const gap = cfg.interstitialGapSec * 1000;
-    if (Date.now() - lastBreak < gap) return Promise.resolve(null);
+    if (Date.now() - lastBreak < gap) return Promise.resolve(false);
     return runBreak({ type: type || 'next', name: String(placement) }, onStart, onEnd, 5000)
-      .then(() => null);
+      .then((r) => r.played);
+  }
+
+  function interstitial(placement, onStart, onEnd, type) {
+    return nextBreak(placement, onStart, onEnd, type).then(() => null);
+  }
+
+  // ── Counted breaks ──────────────────────────────────────────────────────
+
+  const tallyKey = (placement) => 'alchemons.ads.tally.' + placement;
+
+  function readTally(placement) {
+    try {
+      return Number(localStorage.getItem(tallyKey(placement))) || 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  function writeTally(placement, n) {
+    try { localStorage.setItem(tallyKey(placement), String(n)); } catch (_) {}
+  }
+
+  /// [count] more of [placement] (fusions, extractions). Once cfg.every says
+  /// enough have added up, a between-screens ad; the count starts over only
+  /// when one actually played, so an ad turned away by the spacing is owed
+  /// at the next one.
+  function tally(placement, count, onStart, onEnd) {
+    const every = Number(cfg.every[placement]) || 0;
+    if (every <= 0 || !breaks()) return Promise.resolve(null);
+    const n = readTally(placement) + Math.max(1, Math.floor(Number(count) || 1));
+    writeTally(placement, n);
+    if (n < every) return Promise.resolve(null);
+    return nextBreak(placement, onStart, onEnd).then((played) => {
+      if (played) writeTally(placement, 0);
+      return null;
+    });
   }
 
   function rewarded(placement, onStart, onEnd) {
@@ -152,6 +191,7 @@
     get hasBottom() { return preview || (!!cfg.client && !!cfg.slots.bottom); },
     get hasRails() { return preview || (!!cfg.client && !!(cfg.slots.railLeft || cfg.slots.railRight)); },
     interstitial,
+    tally,
     rewarded,
     mountDisplay,
   };

@@ -8,6 +8,13 @@ Future<void> interstitial(
   void Function() onEnd,
 ) async {}
 
+Future<void> tally(
+  String placement,
+  int count,
+  void Function() onStart,
+  void Function() onEnd,
+) async {}
+
 Future<bool> rewarded(
   String placement,
   void Function() onStart,

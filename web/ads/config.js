@@ -29,6 +29,15 @@ window.ALCHEMONS_ADS = {
   // Google paces them on top of this.
   interstitialGapSec: 90,
 
+  // A between-screens ad once this many fusions or extractions have added up
+  // (FUSE ALL and EXTRACT ALL count each one). The count survives a reload,
+  // and starts over only once an ad has actually played. Leave one out, or
+  // 0, and that action never brings an ad.
+  every: {
+    fusion: 5,
+    extraction: 5,
+  },
+
   // An ad right after PLAY, before the game starts.
   startAd: true,
 };
