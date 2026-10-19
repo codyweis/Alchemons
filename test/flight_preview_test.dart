@@ -11,26 +11,61 @@ import 'package:alchemons/games/stadium/flight_rules.dart';
 import 'package:alchemons/games/stadium/flight_stage.dart';
 import 'package:alchemons/games/stadium/race_bodies.dart';
 import 'package:alchemons/games/stadium/race_rules.dart';
+import 'package:alchemons/screens/stadium/route_planner.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:flame/cache.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // The space course, frame by frame, with real sprites: the three come up,
 // the count, the forks parting them onto their own ways and bringing them
-// back, boosts, the gate.
+// back, wells slung round, gates fused through, boosts, the gate. And the
+// route planner before it, with real fonts.
 //
-//   FLIGHT_OUT=/tmp/flight [FLIGHT_COURSE=asteroids|nebula|stars] \
-//     [FLIGHT_SIZE=475x751] flutter test test/flight_preview_test.dart \
-//     --tags preview
+//   FLIGHT_OUT=/tmp/flight [FLIGHT_COURSE=asteroids|gravity|gates] \
+//     [FLIGHT_SIZE=475x751] [FLIGHT_EVERY=1.2] \
+//     flutter test test/flight_preview_test.dart --tags preview
+//
+// FLIGHT_PLANNER=1 shoots only the planner. FLIGHT_COST=1 prints the
+// painter's cost per frame.
 void main() {
-  final out = Platform.environment['FLIGHT_OUT'];
-  final place = Platform.environment['FLIGHT_COURSE'] ?? 'asteroids';
-  final sizeArg = Platform.environment['FLIGHT_SIZE'] ?? '475x751';
+  final env = Platform.environment;
+  final out = env['FLIGHT_OUT'];
+  final place = env['FLIGHT_COURSE'] ?? 'asteroids';
+  final sizeArg = env['FLIGHT_SIZE'] ?? '475x751';
   final size = Size(
     double.parse(sizeArg.split('x')[0]),
     double.parse(sizeArg.split('x')[1]),
   );
+
+  // Each course flown by three that show what it does.
+  final lineups = <String, List<(String, String, double)>>{
+    'asteroids': [
+      ('Water', 'pip', 4.6),
+      ('Air', 'wing', 4.5),
+      ('Earth', 'horn', 4.4),
+    ],
+    'gravity': [
+      ('Spirit', 'mask', 4.6),
+      ('Air', 'wing', 4.5),
+      ('Earth', 'horn', 4.4),
+    ],
+    'gates': [
+      ('Fire', 'pip', 4.6),
+      ('Poison', 'let', 4.5),
+      ('Light', 'wing', 4.5),
+    ],
+  };
+
+  Future<void> loadFont(String family, String path) async {
+    final file = File(path);
+    if (!file.existsSync()) return;
+    await (FontLoader(family)
+          ..addFont(Future.value(ByteData.view(file.readAsBytesSync().buffer))))
+        .load();
+  }
 
   testWidgets('flight preview', (tester) async {
     if (out == null) return;
@@ -70,30 +105,95 @@ void main() {
       return (racer, RaceBody(m));
     }
 
+    final course = kFlightCourses[place]!;
     final three = [
-      one('Water', 'pip', 4.6, player: true),
-      one('Air', 'wing', 4.5),
-      one('Earth', 'horn', 4.4),
+      for (final (e, f, v) in lineups[place] ?? lineups['asteroids']!)
+        one(
+          e,
+          f,
+          v,
+          player: e == (lineups[place] ?? lineups['asteroids']!).first.$1,
+        ),
     ];
+
+    if (env['FLIGHT_PLANNER'] != null) {
+      await tester.runAsync(() async {
+        await loadFont(
+          'Roboto',
+          '/System/Library/Fonts/Supplemental/Arial.ttf',
+        );
+      });
+      final key = GlobalKey();
+      final nav = GlobalKey<NavigatorState>();
+      tester.view.physicalSize = const Size(390 * 3, 844 * 3);
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          navigatorKey: nav,
+          debugShowCheckedModeBanner: false,
+          theme: ThemeData.dark(),
+          builder: (context, child) => RepaintBoundary(key: key, child: child!),
+          home: const Scaffold(backgroundColor: Color(0xFF09090B)),
+        ),
+      );
+      planFlightRoute(
+        nav.currentContext!,
+        title: place == 'gates'
+            ? 'Element Gates'
+            : (place == 'gravity' ? 'Gravity Chain' : 'Asteroid Run'),
+        subtitle: 'EMERALD CUP · PLAN YOUR ROUTE',
+        course: course,
+        racer: three.first.$1,
+      );
+      for (var q = 0; q < 30; q++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await tester.runAsync(() async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1.5);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$out/planner.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+      nav.currentState!.pop();
+      await tester.pump(const Duration(milliseconds: 400));
+      return;
+    }
+
+    final choices = [for (final (r, _) in three) bestFlightRoute(r, course)];
+    final fighters = [for (final (r, _) in three) r];
+    final bodies = [for (final (_, b) in three) b];
+    final forms = flightForms(catalog, fighters, bodies, course, choices);
     await tester.runAsync(() async {
-      for (final (_, b) in three) {
-        await b.load(images);
+      for (final m in forms) {
+        for (final b in m.values) {
+          if (b.ticker == null) await b.load(images);
+        }
       }
     });
-    final course = kFlightCourses[place]!;
     final stage = FlightStage(
       course: course,
-      choices: [for (final (r, _) in three) bestFlightRoute(r, course)],
-      fighters: [for (final (r, _) in three) r],
-      bodies: [for (final (_, b) in three) b],
+      choices: choices,
+      fighters: fighters,
+      bodies: bodies,
+      forms: forms,
       player: 0,
     );
+    // ignore: avoid_print
+    print(
+      'routes $choices elements ${[for (final l in stage.sim.legs) l.elements]}',
+    );
 
+    // One painter for the whole flight (it keeps its fusions' essences).
+    final painter = FlightPainter(stage);
+    final timed = <int>[];
     var frame = 0;
     Future<void> shoot(String name) async {
       await tester.runAsync(() async {
         final rec = ui.PictureRecorder();
-        FlightPainter(stage).paint(Canvas(rec)..scale(2), size);
+        painter.paint(Canvas(rec)..scale(2), size);
         final img = rec.endRecording().toImageSync(
           (size.width * 2).round(),
           (size.height * 2).round(),
@@ -108,10 +208,14 @@ void main() {
 
     const dt = 1 / 30;
     var taps = 0;
-    for (var t = 0.0; t < 70 && !stage.done; t += dt) {
+    final every = env['FLIGHT_EVERY'];
+    final step = every == null ? 1.2 : double.parse(every);
+    for (var t = 0.0; t < 90 && !stage.done; t += dt) {
       stage.advance(dt);
-      for (final b in stage.bodies) {
-        b.ticker?.update(dt);
+      for (final m in forms) {
+        for (final b in m.values) {
+          b.ticker?.update(dt);
+        }
       }
       // The player dashes three times, a few seconds apart.
       if (stage.flying &&
@@ -120,8 +224,13 @@ void main() {
           stage.act()) {
         taps++;
       }
-      final every = Platform.environment['FLIGHT_EVERY'];
-      final step = every == null ? 1.2 : double.parse(every);
+      if (env['FLIGHT_COST'] != null && stage.flying) {
+        final rec = ui.PictureRecorder();
+        final watch = Stopwatch()..start();
+        painter.paint(Canvas(rec), size);
+        timed.add(watch.elapsedMicroseconds);
+        rec.endRecording().dispose();
+      }
       if ((t / step).floor() != ((t - dt) / step).floor()) {
         await shoot(stage.flying ? 'fly' : 'other');
       }
@@ -131,5 +240,13 @@ void main() {
     print(
       'standings ${stage.standings} times ${[for (final st in stage.sim.states) st.finishTime]}',
     );
+    if (timed.isNotEmpty) {
+      timed.sort();
+      // ignore: avoid_print
+      print(
+        'paint µs: median ${timed[timed.length ~/ 2]} '
+        'p90 ${timed[timed.length * 9 ~/ 10]} max ${timed.last}',
+      );
+    }
   });
 }

@@ -874,9 +874,13 @@ class _StadiumScreenState extends State<StadiumScreen>
                     ? (_gem == 0
                           ? 'Win the Silver Cup to open the gem cups.'
                           : 'Win the ${kGemCups[_gem - 1].name} to open it.')
-                    : cup.event.line,
+                    : (bout.line.isNotEmpty ? bout.line : cup.event.line),
                 style: bracketText(context, 12.5, _ink.withValues(alpha: .8)),
               ),
+              // A sky that holds elements shows them before the pick, so
+              // the player can bring one that fuses with them.
+              if (!shut && cup.event == GemEvent.sky)
+                _skyElements(context, skyBoutOf(bout).elements),
             ],
           ),
         ),
@@ -923,6 +927,42 @@ class _StadiumScreenState extends State<StadiumScreen>
           ],
         ),
       ],
+    );
+  }
+
+  /// The elements a night's sky holds, round by round, each in its own
+  /// colour; nothing for a sky that holds none.
+  Widget _skyElements(BuildContext context, List<String> elements) {
+    if (elements.isEmpty) return const SizedBox.shrink();
+    final base = bracketText(
+      context,
+      10.5,
+      _muted,
+      weight: FontWeight.w800,
+      letterSpacing: 1.4,
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Text.rich(
+        TextSpan(
+          style: base,
+          children: [
+            const TextSpan(text: 'THE SKY HOLDS  '),
+            for (final (i, e) in elements.indexed) ...[
+              if (i > 0) const TextSpan(text: ' · '),
+              TextSpan(
+                text: e.toUpperCase(),
+                // Lifted a little, so Dark still reads on the dark hub.
+                style: base.copyWith(
+                  color: Color.lerp(elementColor(e), Colors.white, 0.3),
+                ),
+              ),
+            ],
+          ],
+        ),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
     );
   }
 
@@ -988,6 +1028,23 @@ class _StadiumScreenState extends State<StadiumScreen>
         for (final r in fighters.skip(1)) bestFlightRoute(r, course),
       ];
     }
+    // What the element gates make of each flyer on its route, to fly on
+    // as once it is through.
+    final forms = routes == null
+        ? null
+        : flightForms(
+            catalog,
+            fighters,
+            bodies,
+            flightCourseOf(cup.bouts[bout]),
+            routes,
+          );
+    for (final m in forms ?? const <Map<String, RaceBody>>[]) {
+      for (final b in m.values) {
+        if (b.ticker == null) await b.load(Flame.images);
+      }
+    }
+    if (!mounted) return;
     setState(() => _starting = false);
     await Navigator.of(context).push<RaceOutcome>(
       PageRouteBuilder(
@@ -1005,6 +1062,7 @@ class _StadiumScreenState extends State<StadiumScreen>
               bodies: bodies,
               player: 0,
               choices: routes!,
+              forms: forms,
             ),
             GemEvent.sky => SkyStage(
               bout: skyBoutOf(cup.bouts[bout]),

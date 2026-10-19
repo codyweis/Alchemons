@@ -117,6 +117,8 @@ class ContestCondition {
     this.lineageMul = 1,
     this.contrast = false,
     this.allMul = 1,
+    this.ground = 1,
+    this.strangers = 0,
   });
 
   /// What the arena calls it, and one line of what it is.
@@ -135,6 +137,36 @@ class ContestCondition {
 
   /// The finals: everything counts this much more.
   final double allMul;
+
+  /// How much the condition's own extras ([elementAdd], [familyAdd]) count:
+  /// deeper water, a wider gap. The Trials' harder legs and bouts set it,
+  /// so there the right element and family can beat a bigger stat.
+  final double ground;
+
+  /// What an element [elementAdd] does not name gets once the ground is
+  /// deeper than ordinary, for each step of [ground] past 1: deep mud is no
+  /// place for one not made for it, however strong.
+  final double strangers;
+
+  /// The same condition with its extras counting [by] times as much.
+  ContestCondition deeper(double by) => ContestCondition(
+    title: title,
+    line: line,
+    elementAdd: elementAdd,
+    familyAdd: familyAdd,
+    good: good,
+    bad: bad,
+    elementMul: elementMul,
+    familyMul: familyMul,
+    sizeMul: sizeMul,
+    lookMul: lookMul,
+    purityMul: purityMul,
+    lineageMul: lineageMul,
+    contrast: contrast,
+    allMul: allMul,
+    ground: ground * by,
+    strangers: strangers,
+  );
 }
 
 /// The condition at [trait]'s [level] (1–5).
@@ -198,6 +230,7 @@ const Map<CosmicContestTrait, List<ContestCondition>> _conditions = {
       good: 'glides in the wet',
       bad: 'bogs down in the wet',
       sizeMul: 1.5,
+      strangers: -0.15,
     ),
     ContestCondition(
       title: 'STORM LANE',
@@ -206,6 +239,7 @@ const Map<CosmicContestTrait, List<ContestCondition>> _conditions = {
       familyAdd: {'wing': 0.21},
       good: 'rides the storm',
       bad: 'grounded by the storm',
+      strangers: -0.15,
     ),
     ContestCondition(
       title: 'SWITCHBACK',
@@ -386,11 +420,16 @@ ElementalGroup? _groupOf(String element) {
   return null;
 }
 
-/// The most the bonuses can add or take away.
+/// The most the bonuses can add or take away (on an ordinary condition:
+/// [ContestCondition.allMul] and [ContestCondition.ground] widen it).
 const double kContestBonusFloor = -1.2, kContestBonusCeiling = 1.4;
 
-/// The highest a contest score can go.
-const double kContestScoreMax = 6.85;
+/// The highest a contest score can go. High enough that the bonuses still
+/// count for a fully grown Alchemon (the author, 2026-10-18: one Alchemon
+/// at Potential 90 and up won every Trial — at the old 6.85 it scored the
+/// most there is on every leg, so its element and family stopped
+/// mattering).
+const double kContestScoreMax = 9.5;
 
 /// Judges [e] at [trait]'s [level]. [rivalElement] is the rival's, for the
 /// contrast rounds.
@@ -416,7 +455,10 @@ ContestVerdict judgeEntrant(
 
   // Element: what the trait thinks of it, then the condition.
   final base = (kContestElementWeights[trait]![element] ?? 0) * c.elementMul;
-  final extra = c.elementAdd[element] ?? 0;
+  final named = c.elementAdd[element];
+  final extra = named != null
+      ? named * c.ground
+      : c.strangers * (c.ground - 1).clamp(0.0, double.infinity);
   if (extra != 0) {
     add(
       '${element.toUpperCase()} · ${extra > 0 ? c.good : c.bad}',
@@ -428,7 +470,7 @@ ContestVerdict judgeEntrant(
 
   // Family.
   final fBase = (kContestFamilyWeights[trait]![family] ?? 0) * c.familyMul;
-  final fExtra = c.familyAdd[family] ?? 0;
+  final fExtra = (c.familyAdd[family] ?? 0) * c.ground;
   final familyName = '${family.toUpperCase()} LINE';
   if (fExtra != 0 && (fExtra > 0 ? c.good : c.bad).isNotEmpty) {
     add('$familyName · ${fExtra > 0 ? c.good : c.bad}', fBase + fExtra);
@@ -514,9 +556,10 @@ ContestVerdict judgeEntrant(
     add('TRUE TO ITS KIND', 0.08 * c.purityMul);
   }
 
+  final reach = c.allMul * c.ground;
   final bonus = factors
       .fold<double>(0, (s, f) => s + f.delta)
-      .clamp(kContestBonusFloor, kContestBonusCeiling);
+      .clamp(kContestBonusFloor * reach, kContestBonusCeiling * reach);
   factors.sort((a, b) => b.delta.abs().compareTo(a.delta.abs()));
   return ContestVerdict(
     (e.statRating + bonus).clamp(0.0, kContestScoreMax).toDouble(),

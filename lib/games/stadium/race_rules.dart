@@ -40,7 +40,7 @@ const int kRaceTickRate = 60;
 const double kRaceBasePace = 120;
 
 /// How far the pace can move from a racer judged 3.
-const double kRacePaceFloor = 0.5, kRacePaceCeiling = 1.6;
+const double kRacePaceFloor = 0.5, kRacePaceCeiling = 1.9;
 
 /// How quickly a racer's speed settles to its leg's pace, per tick.
 const double kRacePaceEase = 0.08;
@@ -128,6 +128,7 @@ const Map<RaceLegKind, ContestCondition> _terrain = {
     familyAdd: {'pip': 0.3, 'horn': -0.15},
     good: 'swims well',
     bad: 'struggles in the water',
+    strangers: -0.25,
     sizeMul: 0.5,
   ),
   RaceLegKind.gap: ContestCondition(
@@ -146,6 +147,7 @@ const Map<RaceLegKind, ContestCondition> _terrain = {
     familyAdd: {'wing': 0.55, 'let': 0.1, 'horn': -0.2},
     good: 'glides across',
     bad: 'climbs down and out',
+    strangers: -0.25,
     sizeMul: 1.2,
   ),
   RaceLegKind.ice: ContestCondition(
@@ -153,15 +155,17 @@ const Map<RaceLegKind, ContestCondition> _terrain = {
     line: 'Slick ground.',
     elementAdd: {
       'Ice': 0.5,
-      'Crystal': 0.2,
-      'Water': 0.15,
+      'Crystal': 0.3,
+      'Water': 0.25,
+      'Steam': 0.1,
       'Plant': -0.1,
       'Fire': -0.25,
       'Lava': -0.3,
     },
-    familyAdd: {'let': 0.2, 'kin': -0.1},
+    familyAdd: {'let': 0.35, 'kin': -0.1, 'horn': -0.1},
     good: 'skates the ice',
     bad: 'slips on the ice',
+    strangers: -0.25,
   ),
   RaceLegKind.mud: ContestCondition(
     title: 'MUD',
@@ -178,6 +182,7 @@ const Map<RaceLegKind, ContestCondition> _terrain = {
     familyAdd: {'horn': 0.3, 'mane': 0.1, 'let': -0.2, 'wing': -0.15},
     good: 'ploughs through',
     bad: 'sinks in the mud',
+    strangers: -0.25,
     sizeMul: 1.5,
   ),
 };
@@ -218,9 +223,22 @@ const Map<RaceLegKind, List<(String, String)>> _legWords = {
   ],
 };
 
+/// A pond, a gap, ice and mud where the ground counts the most.
+const Map<RaceLegKind, (String, String)> _deepWords = {
+  RaceLegKind.pond: ('DEEP POND', 'A long swim.'),
+  RaceLegKind.gap: ('WIDE GAP', 'Only fliers cross it cleanly.'),
+  RaceLegKind.ice: ('BLACK ICE', 'Glassy ground.'),
+  RaceLegKind.mud: ('DEEP MUD', 'Thick, deep going.'),
+};
+
 class RaceLeg {
-  const RaceLeg(this.kind, this.length, {this.level = 1, this.element})
-    : assert((kind == RaceLegKind.fuse) == (element != null));
+  const RaceLeg(
+    this.kind,
+    this.length, {
+    this.level = 1,
+    this.element,
+    this.ground = 1,
+  }) : assert((kind == RaceLegKind.fuse) == (element != null));
   final RaceLegKind kind;
   final double length;
 
@@ -232,10 +250,26 @@ class RaceLeg {
   /// mud have one condition of their own and ignore it.
   final int level;
 
-  ContestCondition get condition =>
-      _terrain[kind] ?? contestCondition(kind.trait, level);
+  /// How much the leg's ground counts — its condition's element and family
+  /// extras, and a fusion station's recipe — over an ordinary one: deep
+  /// water, a wide gap. The later cups lean on it so that the right
+  /// Alchemon for a course beats a bigger stat (the author, 2026-10-18).
+  final double ground;
+
+  /// From this much [ground] on, a pond, a gap, ice and mud are named for
+  /// it (DEEP POND).
+  static const double deepGround = 1.8;
+
+  ContestCondition get condition {
+    final c = _terrain[kind] ?? contestCondition(kind.trait, level);
+    return ground == 1 ? c : c.deeper(ground);
+  }
 
   (String, String) get _words {
+    if (ground >= deepGround) {
+      final deep = _deepWords[kind];
+      if (deep != null) return deep;
+    }
     final list = _legWords[kind]!;
     return list[(level - 1).clamp(0, list.length - 1)];
   }
@@ -322,11 +356,11 @@ class Racer {
       leg.kind.trait,
       leg.level,
       entrant.withRating(ratings[leg.kind.trait] ?? 1, element: el),
-      condition: _terrain[leg.kind],
+      condition: leg.condition,
     );
     final station = leg.element;
     if (station == null) return v;
-    final f = fusionFactor(el, station);
+    final f = fusionFactor(el, station, ground: leg.ground);
     final factors = [...v.factors, f]
       ..sort((a, b) => b.delta.abs().compareTo(a.delta.abs()));
     return ContestVerdict(
@@ -362,13 +396,13 @@ String? raceFusion(String racer, String station) {
   return a == b ? a : heartRecipe(a, b);
 }
 
-/// What the judges count at a fusion station.
-ContestFactor fusionFactor(String racer, String station) {
+/// What the judges count at a fusion station, [ground] times over.
+ContestFactor fusionFactor(String racer, String station, {double ground = 1}) {
   final a = _cap(racer).toUpperCase(), b = _cap(station).toUpperCase();
   final made = raceFusion(racer, station);
   return made == null
-      ? ContestFactor('$a + $b · NO RECIPE', -0.4)
-      : ContestFactor('$a + $b → ${made.toUpperCase()}', 0.5);
+      ? ContestFactor('$a + $b · NO RECIPE', -0.4 * ground)
+      : ContestFactor('$a + $b → ${made.toUpperCase()}', 0.5 * ground);
 }
 
 String _cap(String s) =>

@@ -524,6 +524,21 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
         ? await loadSkyFigures(bodies)
         : null;
     final routes = room.needsPlan ? room.routes(fighters) : null;
+    // What the element gates make of each flyer on its route.
+    final forms = routes == null
+        ? null
+        : flightForms(
+            catalog,
+            fighters,
+            bodies,
+            flightCourseOf(cup.bouts[b]),
+            routes,
+          );
+    for (final m in forms ?? const <Map<String, RaceBody>>[]) {
+      for (final body in m.values) {
+        if (body.ticker == null) await body.load(Flame.images);
+      }
+    }
     final player = _lanes[me];
     if (!mounted || player == null) return;
     _tapsNow(room);
@@ -549,6 +564,7 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
               bodies: bodies,
               player: player,
               choices: routes!,
+              forms: forms,
               live: live,
             ),
             GemEvent.sky => SkyStage(

@@ -2,6 +2,7 @@
 library;
 
 import 'dart:io';
+import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/contest_judging.dart';
@@ -18,9 +19,10 @@ import 'package:flutter_test/flutter_test.dart';
 
 // The night sky, frame by frame, with real sprites: the three come up on
 // the ridge, their figures drawn in faint, the casts round by round, the
-// stars they light, the fullest figure burning brighter at the end.
+// stars they light, the fullest figure burning brighter at the end. Also
+// times the painter over every frame (recording only).
 //
-//   SKY_OUT=/tmp/sky [SKY_NIGHT=clear|newMoon|aurora] [SKY_SIZE=475x751] \
+//   SKY_OUT=/tmp/sky [SKY_NIGHT=clear|mirror|fusion] [SKY_SIZE=475x751] \
 //     [SKY_THREE=Water:pip,Fire:mane,Earth:horn] [SKY_EVERY=1.2] \
 //     flutter test test/sky_preview_test.dart --tags preview
 void main() {
@@ -118,10 +120,24 @@ void main() {
     const dt = 1 / 30;
     final every = Platform.environment['SKY_EVERY'];
     final step = every == null ? 1.2 : double.parse(every);
+    final watch = Stopwatch();
+    var painted = 0, worst = 0;
     for (var t = 0.0; t < 60 && !stage.done; t += dt) {
       stage.advance(dt);
       for (final b in stage.bodies) {
         b.ticker?.update(dt);
+      }
+      // What a frame costs to record.
+      final rec = ui.PictureRecorder();
+      final before = watch.elapsedMicroseconds;
+      watch.start();
+      SkyPainter(stage).paint(Canvas(rec), size);
+      watch.stop();
+      rec.endRecording().dispose();
+      if (painted++ < 30) {
+        watch.reset();
+      } else {
+        worst = max(worst, watch.elapsedMicroseconds - before);
       }
       if ((t / step).floor() != ((t - dt) / step).floor()) {
         await shoot(stage.phase.name);
@@ -132,7 +148,9 @@ void main() {
     print(
       'standings ${stage.standings} stars '
       '${[for (var i = 0; i < 3; i++) stage.contest.starsOf(i)]} '
-      'over at ${stage.clock.toStringAsFixed(1)} s',
+      'over at ${stage.clock.toStringAsFixed(1)} s · paint '
+      '${(watch.elapsedMicroseconds / max(1, painted - 30) / 1000).toStringAsFixed(3)}'
+      ' ms a frame (worst ${(worst / 1000).toStringAsFixed(2)} ms)',
     );
   });
 }

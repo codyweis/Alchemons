@@ -21,9 +21,12 @@ void main() {
     expect(r.beats('open', 37860), isTrue);
     expect(r.beats('open', 38100), isFalse);
     expect(r.beats('open', 39000), isFalse);
-    r = r.withRecord('new_moon', const TrialsRecord(value: 80, by: 'Icekin'));
-    expect(r.beats('new_moon', 81), isTrue);
-    expect(r.beats('new_moon', 79), isFalse);
+    r = r.withRecord(
+      'mirror_lake',
+      const TrialsRecord(value: 80, by: 'Icekin'),
+    );
+    expect(r.beats('mirror_lake', 81), isTrue);
+    expect(r.beats('mirror_lake', 79), isFalse);
     expect(r.beats('no_such_race', 1), isFalse);
     expect(trialsEvent('open')!.show(37860), '37.86s');
   });

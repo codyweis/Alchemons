@@ -3,8 +3,9 @@
 // Before an Emerald Cup flight (flight_rules.dart; the author, 2026-10-12:
 // routes picked "before the start"): the course from the start to the
 // gate, and at each fork its two ways side by side — each only by its name
-// and what fills it, moving. What a way asks of a flyer is never said (the
-// author: "the user should eventually figure out the tricks"); the flight's
+// and what fills it, moving; a gate only by its element and its veil. What
+// a way asks of a flyer is never said, nor what a gate makes (the author:
+// "the user should eventually figure out the tricks"); the flight's
 // results tell how long each way took. Pick one at every fork, then FLY.
 
 import 'package:alchemons/games/stadium/flight_rules.dart';
@@ -13,6 +14,7 @@ import 'package:alchemons/games/stadium/race_rules.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -32,6 +34,13 @@ Color flightTint(FlightKind k) => switch (k) {
   FlightKind.gravity => const Color(0xFFA48CFF),
   FlightKind.comets => const Color(0xFF9FDCFF),
   FlightKind.nebula => const Color(0xFFF08CC8),
+  FlightKind.gate => const Color(0xFFCDB07A),
+};
+
+/// A way's colour: its kind's, or a gate's element's own light.
+Color flightWayTint(FlightRoute r) => switch (r.element) {
+  final e? => essenceRamp(EssenceElement.of(e))[2],
+  null => flightTint(r.kind),
 };
 
 /// Asks for a route through [course] for [racer]; null if the player backs
@@ -242,10 +251,11 @@ class _PlannerState extends State<_Planner>
     );
   }
 
-  /// One way: its name in its colour over what fills it.
+  /// One way: its name in its colour over what fills it (a gate: its
+  /// element's name over its veil, nothing more).
   Widget _option(BuildContext context, int f, int k, FlightRoute r) {
     final picked = _picks[f] == k;
-    final tint = flightTint(r.kind);
+    final tint = flightWayTint(r);
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -265,7 +275,7 @@ class _PlannerState extends State<_Planner>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                r.kind.title,
+                r.title,
                 style: bracketText(
                   context,
                   11.5,
@@ -281,6 +291,7 @@ class _PlannerState extends State<_Planner>
                   width: double.infinity,
                   child: _WayPicture(
                     kind: r.kind,
+                    element: r.element,
                     seed: f * 7 + k,
                     clock: _clock,
                   ),
@@ -300,22 +311,26 @@ class _WayPicture extends StatelessWidget {
     required this.kind,
     required this.seed,
     required this.clock,
+    this.element,
   });
 
   final FlightKind kind;
+  final String? element;
   final int seed;
   final ValueListenable<double> clock;
 
   @override
   Widget build(BuildContext context) => RepaintBoundary(
-    child: CustomPaint(painter: _WayPainter(kind, seed, clock)),
+    child: CustomPaint(painter: _WayPainter(kind, element, seed, clock)),
   );
 }
 
 class _WayPainter extends CustomPainter {
-  _WayPainter(this.kind, this.seed, this.clock) : super(repaint: clock);
+  _WayPainter(this.kind, this.element, this.seed, this.clock)
+    : super(repaint: clock);
 
   final FlightKind kind;
+  final String? element;
   final int seed;
   final ValueListenable<double> clock;
 
@@ -332,9 +347,11 @@ class _WayPainter extends CustomPainter {
       clock.value,
       seed,
       k: 0.6,
+      element: element,
     );
   }
 
   @override
-  bool shouldRepaint(_WayPainter old) => old.kind != kind || old.seed != seed;
+  bool shouldRepaint(_WayPainter old) =>
+      old.kind != kind || old.element != element || old.seed != seed;
 }

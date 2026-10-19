@@ -64,6 +64,8 @@ void main() {
     required String progress,
     required String bout,
     required String tag,
+    String? shows,
+    List<String> ways = const ['ASTEROIDS', 'NEBULA'],
   }) async {
     SharedPreferences.setMockInitialValues({RaceProgress.prefsKey: progress});
     tester.view.physicalSize = size * 2;
@@ -168,6 +170,7 @@ void main() {
     await settle(12);
     expect(find.text(bout), findsWidgets);
     expect(find.text('START'), findsOneWidget);
+    if (shows != null) expect(find.textContaining(shows), findsOneWidget);
     await snap('gems');
 
     await tester.tap(find.text('START'));
@@ -183,7 +186,7 @@ void main() {
     // The space course asks for a route first.
     if (find.text('PICK EVERY FORK').evaluate().isNotEmpty) {
       await snap('plan');
-      for (final kind in ['ASTEROIDS', 'NEBULA']) {
+      for (final kind in ways) {
         await tester.tap(find.text(kind).first);
         await settle(2);
       }
@@ -236,6 +239,38 @@ void main() {
       progress: '{"copper":3,"silver":3,"ruby":3}',
       bout: 'CLEAR NIGHT',
       tag: 'sapphire',
+    );
+  });
+
+  testWidgets('Ruby: the Molten Heart fought to the end', (tester) async {
+    await play(
+      tester,
+      progress: '{"copper":3,"silver":3,"ruby":1}',
+      bout: 'MOLTEN HEART',
+      tag: 'molten',
+      shows: 'The island melts from its middle.',
+    );
+  });
+
+  testWidgets('Sapphire: the Fusion Sky shows its elements before the pick', (
+    tester,
+  ) async {
+    await play(
+      tester,
+      progress: '{"copper":3,"silver":3,"ruby":3,"sapphire":2}',
+      bout: 'FUSION SKY',
+      tag: 'fusion',
+      shows: 'THE SKY HOLDS',
+    );
+  });
+
+  testWidgets('Emerald: the Element Gates planned and flown', (tester) async {
+    await play(
+      tester,
+      progress: '{"copper":3,"silver":3,"ruby":3,"sapphire":3,"emerald":2}',
+      bout: 'ELEMENT GATES',
+      tag: 'gates',
+      ways: const ['FIRE', 'SPIRIT', 'MUD', 'PLANT'],
     );
   });
 

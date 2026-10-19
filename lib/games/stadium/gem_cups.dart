@@ -8,6 +8,17 @@
 // course (Emerald: a course through space, its route planned before the
 // start) — in three bouts, each against two of the cup's rivals.
 //
+// A cup's first bout is its event plain; the other two each turn it with a
+// rule of their own (the author, 2026-10-18: the cups were "too
+// repetitive", three of the same with new colours). Ruby: the Molten Heart
+// (the island melts from its middle, so the fight is on a ring) and the
+// Stepping Stones (three stones drift apart and back). Sapphire: the Mirror
+// Lake (a cast that stands apart from the others' colours lights twice) and
+// the Fusion Sky (each round's sky holds an element to fuse with). Emerald:
+// the Gravity Chain (each sling flings faster the cleaner the last) and the
+// Element Gates (the forks are gates to fuse through). Each favours its own
+// kind of Alchemon, so no one of them wins them all.
+//
 // Their wins are kept with the races' (RaceProgress, by cup id).
 
 import 'package:alchemons/games/cosmic/contest_judging.dart';
@@ -32,9 +43,14 @@ class GemBout {
     required this.place,
     required this.level,
     required this.rivals,
+    this.line = '',
   });
 
   final String id, name;
+
+  /// One plain line of what is different about it (the hub shows it in
+  /// place of the event's own line); empty for a cup's plain first bout.
+  final String line;
 
   /// Where it is fought, in the event's own terms (an island's kind).
   final String place;
@@ -80,7 +96,9 @@ const List<GemCup> kGemCups = [
     name: 'Ruby Cup',
     event: GemEvent.island,
     gold: [3, 4, 5],
-    rivalForm: [1.02, 0.98, 1.01],
+    // The Molten Heart's two go harder: the heat already tells against
+    // most of those who come (island_rules.dart).
+    rivalForm: [1.02, 1.16, 1.0],
     rivals: [
       RaceRival(
         name: 'Lavahorn',
@@ -103,13 +121,13 @@ const List<GemCup> kGemCups = [
         canny: true,
       ),
       RaceRival(
-        name: 'Icemane',
-        element: 'Ice',
-        family: 'mane',
-        speed: 5.1,
-        strength: 5.0,
-        intelligence: 4.8,
-        beauty: 5.0,
+        name: 'Spiritwing',
+        element: 'Spirit',
+        family: 'wing',
+        speed: 5.4,
+        strength: 4.6,
+        intelligence: 5.2,
+        beauty: 5.4,
         canny: true,
       ),
       RaceRival(
@@ -133,18 +151,20 @@ const List<GemCup> kGemCups = [
         rivals: [0, 1],
       ),
       GemBout(
-        id: 'ice_island',
-        name: 'Ice Island',
-        place: 'ice',
+        id: 'molten_heart',
+        name: 'Molten Heart',
+        place: 'molten',
         level: 2,
-        rivals: [2, 3],
+        line: 'The island melts from its middle.',
+        rivals: [0, 3],
       ),
       GemBout(
-        id: 'ember_island',
-        name: 'Ember Island',
-        place: 'ember',
+        id: 'stepping_stones',
+        name: 'Stepping Stones',
+        place: 'stones',
         level: 3,
-        rivals: [0, 3],
+        line: 'Three stones drift apart and back.',
+        rivals: [2, 3],
       ),
     ],
   ),
@@ -153,7 +173,10 @@ const List<GemCup> kGemCups = [
     name: 'Sapphire Cup',
     event: GemEvent.sky,
     gold: [4, 5, 6],
-    rivalForm: [1.0, 0.97, 0.985],
+    // The Clear Night as it was; the Mirror Lake's and the Fusion Sky's
+    // rivals strong enough that only the right kind beats them (test/
+    // sky_rules_test.dart 'catalog balance').
+    rivalForm: [0.985, 1.03, 1.295],
     rivals: [
       RaceRival(
         name: 'Lightningpip',
@@ -206,17 +229,19 @@ const List<GemCup> kGemCups = [
         rivals: [0, 3],
       ),
       GemBout(
-        id: 'new_moon',
-        name: 'New Moon',
-        place: 'newMoon',
+        id: 'mirror_lake',
+        name: 'Mirror Lake',
+        place: 'mirror',
         level: 2,
+        line: 'A still lake below shows the sky.',
         rivals: [1, 2],
       ),
       GemBout(
-        id: 'aurora',
-        name: 'Aurora',
-        place: 'aurora',
+        id: 'fusion_sky',
+        name: 'Fusion Sky',
+        place: 'fusion',
         level: 3,
+        line: 'Each round, the sky holds an element.',
         rivals: [0, 2],
       ),
     ],
@@ -226,7 +251,11 @@ const List<GemCup> kGemCups = [
     name: 'Emerald Cup',
     event: GemEvent.flight,
     gold: [5, 6, 8],
-    rivalForm: [0.9, 0.965, 0.93],
+    // The Gravity Chain's two sling as well as they fly, so they go easier;
+    // the Element Gates' two fuse one gate fewer than the right Alchemon
+    // can, so they go harder (test/flight_rules_test.dart 'catalog
+    // balance').
+    rivalForm: [0.9, 0.77, 1.0975],
     rivals: [
       RaceRival(
         name: 'Lightwing',
@@ -278,17 +307,19 @@ const List<GemCup> kGemCups = [
         rivals: [0, 3],
       ),
       GemBout(
-        id: 'nebula_run',
-        name: 'Nebula Run',
-        place: 'nebula',
+        id: 'gravity_chain',
+        name: 'Gravity Chain',
+        place: 'gravity',
         level: 2,
+        line: 'A gravity well at every fork.',
         rivals: [1, 2],
       ),
       GemBout(
-        id: 'star_run',
-        name: 'Star Run',
-        place: 'stars',
+        id: 'element_gates',
+        name: 'Element Gates',
+        place: 'gates',
         level: 3,
+        line: 'Every fork is a pair of element gates.',
         rivals: [0, 2],
       ),
     ],

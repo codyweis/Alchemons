@@ -4,50 +4,90 @@
 // measuring contest ... creative and beautiful", picked over a glass gauge
 // and a still lake; the player just watches). Three Alchemons stand on a
 // ridge under a dark sky, each with its own figure hung faint above it in
-// stars. Four rounds, one for each stat; in each, every one of the three
-// lets its special loose up into the sky — the same handful of grains for
-// all — and as many as the judges give it catch and light stars in its
-// figure. The rest drift on and go out. After the fourth round, the most
+// stars. Three rounds, each judged on one stat; in each, every one of the
+// three lets its special loose up into the sky — the same handful of grains
+// for all — and as many as the judges give it catch and light stars in its
+// figure. The rest drift on and go out. After the last round, the most
 // stars lit wins.
 //
+// Three nights (the author, 2026-10-18: the bouts were "too repetitive",
+// the same night re-coloured, four identical rounds each):
+//   · CLEAR NIGHT — the night plain.
+//   · MIRROR LAKE — the sky shows in a still lake below. A cast whose
+//     colours (its element's group) stand apart from the other two lights
+//     twice, in the sky and in the water; one that shares another's colours
+//     is drowned out, and lights only in the sky.
+//   · FUSION SKY — each round the sky holds an element, known before the
+//     start ([SkyBout.elements]). A cast that fuses with it by the recipe
+//     table lights brightly as what the two make (Fire into a Water sky
+//     burns as Steam); one with no recipe goes up dim. Judged as a race's
+//     fusion station is (fusionFactor), only harder.
+// Each twist wants its own kind of Alchemon, so no one of them wins all
+// three nights by its stats alone.
+//
 // Each cast is judged as the race judges a leg (judgeEntrant on the round's
-// stat, under the night's condition). Nothing is left to chance and there
-// is nothing to tap: the same three under the same sky light the same
-// stars.
+// stat). Nothing is left to chance and there is nothing to tap: the same
+// three under the same sky light the same stars.
 
 import 'package:alchemons/games/cosmic/contest_judging.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
 import 'package:alchemons/games/stadium/gem_cups.dart';
 import 'package:alchemons/games/stadium/race_rules.dart';
+import 'package:alchemons/models/elemental_group.dart';
 
 /// The grains every cast lets loose; the most stars one cast can light.
-const int kSkyCastGrains = 30;
+const int kSkyCastGrains = 40;
 
-/// Stars lit for each point the judges give a cast.
+/// Stars lit for each point the judges give a cast (the most a cast can be
+/// judged, kContestScoreMax, lights nearly all its grains).
 const double kSkyStarsPerPoint = 4.2;
 
-/// The rounds, in order: one for each stat.
-const List<CosmicContestTrait> kSkyRounds = [
-  CosmicContestTrait.speed,
-  CosmicContestTrait.strength,
-  CosmicContestTrait.intelligence,
-  CosmicContestTrait.beauty,
-];
+/// Rounds in a night.
+const int kSkyRoundCount = 3;
 
 /// The stars in each one's figure: every grain of every round.
-const int kSkyFigureStars = kSkyCastGrains * 4;
+const int kSkyFigureStars = kSkyCastGrains * kSkyRoundCount;
 
-/// What the night is like.
+/// How much the Fusion Sky's recipes count, as a race's fusion station's
+/// ground (a recipe +0.5 a time, none −0.4).
+const double kSkyFusionGround = 3.4;
+
+/// What the night is like: the stat each round is judged on, and what the
+/// sky holds in each.
 enum SkyNight {
-  /// Clear, with a moon: judged as usual.
-  clear,
+  /// The night plain.
+  clear([
+    CosmicContestTrait.speed,
+    CosmicContestTrait.strength,
+    CosmicContestTrait.beauty,
+  ]),
 
-  /// No moon: what shines by its own light shows best in the beauty round.
-  newMoon,
+  /// A still lake below that doubles a cast standing apart.
+  mirror([
+    CosmicContestTrait.speed,
+    CosmicContestTrait.intelligence,
+    CosmicContestTrait.beauty,
+  ]),
 
-  /// The sky moving with the lights: the quick ride them in the speed
-  /// round.
-  aurora,
+  /// A sky holding an element each round. Lightning, then Dark, then Light:
+  /// Earth fuses with the first and the last, Plant with the first two,
+  /// Dark and Light with the last two (Dark into Light burns as Blood), and
+  /// nothing fuses with all three.
+  fusion(
+    [
+      CosmicContestTrait.strength,
+      CosmicContestTrait.intelligence,
+      CosmicContestTrait.beauty,
+    ],
+    ['Lightning', 'Dark', 'Light'],
+  );
+
+  const SkyNight(this.rounds, [this.elements = const []]);
+
+  final List<CosmicContestTrait> rounds;
+
+  /// The sky's element in each round, in order (none on a plain night).
+  final List<String> elements;
 }
 
 /// The night a Sapphire Cup bout is held under.
@@ -63,66 +103,92 @@ class SkyBout {
   const SkyBout(this.night, this.level);
 
   final SkyNight night;
+
+  /// The bout's level. The judging is plain on every night — only the
+  /// night's own rule tilts it; how hard it is is the rivals' form.
   final int level;
 
+  /// The stat each round is judged on, in order.
+  List<CosmicContestTrait> get rounds => night.rounds;
+
+  /// The sky's element for each round in order: what to fuse with in the
+  /// Fusion Sky, shown before the pick. Empty on the other nights.
+  List<String> get elements => night.elements;
+
+  /// The sky's element in [round], if it holds one.
+  String? skyOf(int round) =>
+      round < night.elements.length ? night.elements[round] : null;
+
+  /// Whether the lake doubles a cast that stands apart.
+  bool get lake => night == SkyNight.mirror;
+
   ContestCondition condition(CosmicContestTrait trait) =>
-      switch ((night, trait)) {
-        (SkyNight.newMoon, CosmicContestTrait.beauty) => _noMoon,
-        (SkyNight.aurora, CosmicContestTrait.speed) => _aurora,
-        _ => contestCondition(trait, level),
-      };
+      contestCondition(trait, 1);
 }
 
-const _noMoon = ContestCondition(
-  title: 'NO MOON',
-  line: 'A night with no moon.',
-  elementAdd: {
-    'Light': 0.45,
-    'Fire': 0.3,
-    'Lightning': 0.3,
-    'Lava': 0.25,
-    'Spirit': 0.25,
-    'Crystal': 0.15,
-    'Dark': -0.3,
-    'Mud': -0.2,
-  },
-  good: 'shines in the dark',
-  bad: 'is lost in the dark',
-);
-
-const _aurora = ContestCondition(
-  title: 'AURORA',
-  line: 'The sky is moving.',
-  elementAdd: {
-    'Air': 0.4,
-    'Lightning': 0.4,
-    'Ice': 0.25,
-    'Light': 0.2,
-    'Mud': -0.3,
-    'Earth': -0.2,
-  },
-  familyAdd: {'wing': 0.25, 'horn': -0.15},
-  good: 'rides the lights',
-  bad: 'is left behind',
-);
+/// The colours an element shows: its group (Fire, Lava and Lightning are
+/// one; Air, Plant and Poison another).
+Object skyColoursOf(String element) {
+  final e = element.isEmpty
+      ? element
+      : element[0].toUpperCase() + element.substring(1).toLowerCase();
+  for (final g in ElementalGroup.values) {
+    if (g.elementTypes.contains(e)) return g;
+  }
+  return e;
+}
 
 /// One cast: who, in which round, how it was judged and the stars it lit.
 class SkyCast {
-  const SkyCast(this.fighter, this.round, this.verdict, this.stars);
+  const SkyCast(
+    this.fighter,
+    this.round,
+    this.verdict,
+    this.stars, {
+    this.water = 0,
+    this.sky,
+    this.made,
+  });
 
   final int fighter, round;
   final ContestVerdict verdict;
+
+  /// Stars lit in its figure in the sky.
   final int stars;
+
+  /// Stars its reflection lit in the lake (the Mirror Lake: as many again
+  /// for a cast standing apart, none for one drowned out).
+  final int water;
+
+  /// The round's element (the Fusion Sky), and what the cast made with it
+  /// (null: no recipe, it went up dim).
+  final String? sky, made;
+
+  int get total => stars + water;
 }
 
 /// A whole night, worked out at once.
 class SkyContest {
   SkyContest(this.bout, this.fighters, {this.last = 0})
     : assert(fighters.length >= 2) {
-    for (var r = 0; r < kSkyRounds.length; r++) {
+    for (var r = 0; r < bout.rounds.length; r++) {
+      final sky = bout.skyOf(r);
       for (final i in castOrder) {
         final v = judge(fighters[i], r);
-        casts.add(SkyCast(i, r, v, starsFor(v.score)));
+        final stars = starsFor(v.score);
+        casts.add(
+          SkyCast(
+            i,
+            r,
+            v,
+            stars,
+            water: bout.lake && apart(i) ? stars : 0,
+            sky: sky,
+            made: sky == null
+                ? null
+                : raceFusion(fighters[i].entrant.element, sky),
+          ),
+        );
       }
     }
   }
@@ -143,14 +209,34 @@ class SkyContest {
     last,
   ];
 
-  /// How [r] is judged in round [round].
+  /// Whether [i]'s colours stand apart from every other's (the Mirror
+  /// Lake: its cast lights again in the water).
+  bool apart(int i) {
+    final mine = skyColoursOf(fighters[i].entrant.element);
+    for (var j = 0; j < fighters.length; j++) {
+      if (j != i && skyColoursOf(fighters[j].entrant.element) == mine) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /// How [r] is judged in round [round]: on the round's stat, and in the
+  /// Fusion Sky on whether it fuses with the round's element.
   ContestVerdict judge(Racer r, int round) {
-    final trait = kSkyRounds[round];
-    return judgeEntrant(
+    final trait = bout.rounds[round];
+    final v = judgeEntrant(
       trait,
       bout.level,
       r.entrant.withRating(r.ratings[trait] ?? 1),
       condition: bout.condition(trait),
+    );
+    final sky = bout.skyOf(round);
+    if (sky == null) return v;
+    final f = fusionFactor(r.entrant.element, sky, ground: kSkyFusionGround);
+    return ContestVerdict(
+      (v.score + f.delta).clamp(0.0, kContestScoreMax).toDouble(),
+      [...v.factors, f]..sort((a, b) => b.delta.abs().compareTo(a.delta.abs())),
     );
   }
 
@@ -158,12 +244,13 @@ class SkyContest {
   static int starsFor(double score) =>
       (score * kSkyStarsPerPoint).round().clamp(0, kSkyCastGrains);
 
-  /// Stars [i] has lit after the first [castsDone] casts of the night.
+  /// Stars [i] has lit, sky and water, after the first [castsDone] casts of
+  /// the night.
   int starsOf(int i, [int? castsDone]) {
     var n = 0;
     final upTo = castsDone ?? casts.length;
     for (var k = 0; k < upTo && k < casts.length; k++) {
-      if (casts[k].fighter == i) n += casts[k].stars;
+      if (casts[k].fighter == i) n += casts[k].total;
     }
     return n;
   }

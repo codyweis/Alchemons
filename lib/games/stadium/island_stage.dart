@@ -9,7 +9,11 @@
 //
 // IslandPainter draws it, in grains on black like everything else: a sand
 // island floating among the stars, its rock hanging under it, the crowd's
-// lights in a ring far below.
+// lights in a ring far below. On the Molten Heart the lava wells in its
+// middle — molten grains under drifting crust, its heat lighting the sand
+// round it, the sand it takes glowing as it melts; on the Stepping Stones
+// the island is three stones, each with its own rock hanging under it,
+// and the dark drop between them.
 //
 // With friends ([BoutLive]) every phone fights the same bout: it keeps to
 // the shared gun, and the island is turned so each phone's own fighter
@@ -58,8 +62,8 @@ class IslandStage extends ChangeNotifier implements BoutStage {
     this.live,
   }) : sim = IslandSim(bout, fighters),
        // The player's start turned to the front (the bottom of the screen).
-       _turnC = cos(-player * 2 * pi / fighters.length),
-       _turnS = sin(-player * 2 * pi / fighters.length) {
+       _turnC = cos(-IslandSim.startTurn(bout.kind, player, fighters.length)),
+       _turnS = sin(-IslandSim.startTurn(bout.kind, player, fighters.length)) {
     final n = fighters.length;
     px = [for (final s in sim.states) _vx(s.x, s.y)];
     py = [for (final s in sim.states) _vy(s.x, s.y)];
@@ -359,14 +363,24 @@ class IslandStage extends ChangeNotifier implements BoutStage {
 /// How each island looks: its sand from dark to lit, its lit rim, the rock
 /// under it, and the colour of the sky behind.
 class _IslandLook {
-  const _IslandLook(this.sand, this.rim, this.rock, this.sky, {this.veins});
+  const _IslandLook(
+    this.sand,
+    this.rim,
+    this.rock,
+    this.sky, {
+    this.veins,
+    this.haze = 1,
+  });
 
   final List<Color> sand;
   final Color rim;
   final List<Color> rock;
   final Color sky;
 
-  /// Glowing cracks in the rock (the ember island).
+  /// How strong the sky's haze is.
+  final double haze;
+
+  /// Glowing cracks in the rock (the Molten Heart).
   final Color? veins;
 }
 
@@ -382,30 +396,38 @@ const Map<IslandKind, _IslandLook> _looks = {
     [Color(0xFF16130F), Color(0xFF272219), Color(0xFF3B3326)],
     Color(0xFF4A3B6E),
   ),
-  IslandKind.ice: _IslandLook(
+  // Scorched sand round the lava, warm light in the sky.
+  IslandKind.molten: _IslandLook(
     [
-      Color(0xFF141C25),
-      Color(0xFF2C4253),
-      Color(0xFF5F86A0),
-      Color(0xFFCBE4F2),
+      Color(0xFF1C1411),
+      Color(0xFF36281E),
+      Color(0xFF5F4632),
+      Color(0xFFA8835A),
     ],
-    Color(0xFFCFEFF8),
-    [Color(0xFF0D141B), Color(0xFF1A2733), Color(0xFF2E4659)],
-    Color(0xFF2E5A82),
-  ),
-  IslandKind.ember: _IslandLook(
-    [
-      Color(0xFF181010),
-      Color(0xFF2C1C17),
-      Color(0xFF4C2B1E),
-      Color(0xFFA8552A),
-    ],
-    Color(0xFFF5A060),
+    Color(0xFFF2B477),
     [Color(0xFF110A08), Color(0xFF21130E), Color(0xFF341D14)],
-    Color(0xFF6E2A1E),
+    Color(0xFF7A2C1C),
     veins: Color(0xFFFF8A3C),
+    haze: 1.5,
+  ),
+  // Paler, greyer stone-sand under a colder sky.
+  IslandKind.stones: _IslandLook(
+    [
+      Color(0xFF1D1C1A),
+      Color(0xFF3A362F),
+      Color(0xFF665F4F),
+      Color(0xFFB4AA8C),
+    ],
+    Color(0xFFE4DCC0),
+    [Color(0xFF131315), Color(0xFF232220), Color(0xFF36342F)],
+    Color(0xFF34477A),
   ),
 };
+
+/// The lava: its dark body, and its grains from crust to the hottest.
+const Color _lavaDeep = Color(0xFF2C0B06), _lavaCrust = Color(0xFF170B07);
+const Color _lavaRed = Color(0xFFB8361A), _lavaOrange = Color(0xFFF07A2A);
+const Color _lavaHot = Color(0xFFFFC36A);
 
 double _smooth(double x) {
   final t = x.clamp(0.0, 1.0);
@@ -425,9 +447,16 @@ class IslandPainter extends CustomPainter {
   static Float32List? _sandRho, _sandTone;
 
   /// Each grain's way out from the middle, and the bite of the edge there
-  /// (see [_edge]), worked out once.
-  static Float32List? _sandCos, _sandSin, _sandBite;
+  /// (see [_edge]), worked out once — and the lava's edge's, and each
+  /// stone's (a stone takes a share of the same grains).
+  static Float32List? _sandCos, _sandSin, _sandBite, _lavaBite;
+  static List<Float32List>? _stoneBite;
   static const int _sandN = 6200;
+
+  /// The lava's own grains: where each lies in the pool (a share of its
+  /// radius, and a turn).
+  static Float32List? _meltRho, _meltAng;
+  static const int _meltN = 1500;
 
   static void _laySand() {
     if (_sandRho != null) return;
@@ -453,12 +482,31 @@ class IslandPainter extends CustomPainter {
     _sandCos = Float32List.fromList([for (final a in ang) cos(a)]);
     _sandSin = Float32List.fromList([for (final a in ang) sin(a)]);
     _sandBite = Float32List.fromList([for (final a in ang) _bite(a)]);
+    _lavaBite = Float32List.fromList([for (final a in ang) _lavaEdge(a)]);
+    _stoneBite = [
+      for (var k = 0; k < 3; k++)
+        Float32List.fromList([for (final a in ang) _bite(a + _stoneTurn(k))]),
+    ];
+    final mr = Float32List(_meltN), ma = Float32List(_meltN);
+    for (var i = 0; i < _meltN; i++) {
+      mr[i] = sqrt(hash01(i, 341));
+      ma[i] = hash01(i, 342) * 2 * pi;
+    }
+    _meltRho = mr;
+    _meltAng = ma;
   }
 
   static double _bite(double a) =>
       2.2 * sin(a * 5 + 1.3) +
       1.4 * sin(a * 11 + 0.4) +
       0.9 * sin(a * 23 + 2.2);
+
+  /// The lava's edge isn't a circle either: it eats into the sand unevenly.
+  static double _lavaEdge(double a) => 0.8 * _bite(a + 2.4);
+
+  /// How each stone's edge is turned against the island's, so no two
+  /// break alike.
+  static double _stoneTurn(int k) => 1.3 + k * 2.1;
 
   /// The island's edge isn't a circle: bitten in and out where it breaks.
   static double _edge(double a, double r) => r + _bite(a) * _biteScale(r);
@@ -468,7 +516,9 @@ class IslandPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final s = stage;
-    final look = _looks[s.bout.kind]!;
+    final sim = s.sim;
+    final kind = s.bout.kind;
+    final look = _looks[kind]!;
     final t = s.clock;
     final w = size.width, h = size.height;
     canvas.drawRect(
@@ -478,30 +528,43 @@ class IslandPainter extends CustomPainter {
     _sky(canvas, size, look, t);
 
     // The island fills most of the width; the camera comes in a little as
-    // it crumbles, so the fight stays big.
-    final shrink = 1 - s.sim.radiusAt(s.sim.tick) / kIslandRadius;
-    final zoom = 1 + 0.7 * shrink;
-    final sx = w * 0.44 / kIslandRadius * zoom, sy = sx * 0.6;
+    // it crumbles, so the fight stays big. The stones are framed for as
+    // far apart as they drift (the two at the back as wide as they go:
+    // their middles cos 30° of the way out, (2r + gap) / √3 · √3/2).
+    final r = sim.radiusAt(sim.tick);
+    final zoom = kind == IslandKind.stones
+        ? 1.04 * kIslandRadius / ((2 * r + kStonesGapMax) / 2 + r)
+        : 1 + 0.7 * (1 - r / kIslandRadius);
+    final sx = w * 0.44 / kIslandRadius * zoom;
     final cx = w / 2, cy = h * 0.42;
-    Offset at(double ix, double iy) => Offset(cx + ix * sx, cy + iy * sy);
+    Offset at(double ix, double iy) => Offset(cx + ix * sx, cy + iy * sx * 0.6);
 
     _crowd(canvas, size, t);
     _debris(canvas, Offset(cx, cy), sx, look, t);
-    final r = s.sim.radiusAt(s.sim.tick);
-    _rock(canvas, at, r, sx, look, t);
-    _top(canvas, at, r, sx, look, t);
+    final stones = kind == IslandKind.stones;
+    if (stones) {
+      _stones(canvas, at, r, sx, look, t);
+    } else {
+      final lava = sim.lavaAt(sim.tick);
+      _rock(canvas, at, 0, 0, r, sx, look, t, lava: lava);
+      _sandTop(canvas, at, 0, 0, r, sx, look, lava: lava);
+      if (lava > 0) _heat(canvas, at, lava, sx, t);
+    }
 
     // The last one standing, in the light.
-    if (s.sim.over) _winnerLight(canvas, at, sx, t, back: true);
+    if (sim.over) _winnerLight(canvas, at, sx, t, back: true);
 
-    // The three, back to front.
-    final order = [for (var i = 0; i < s.x.length; i++) i]
-      ..sort((a, b) => s.y[a].compareTo(s.y[b]));
+    // The three, back to front (on the stones, those falling are drawn
+    // among the stones).
+    final order = [
+      for (var i = 0; i < s.x.length; i++)
+        if (!stones || s.fellAtClock[i] == null) i,
+    ]..sort((a, b) => s.y[a].compareTo(s.y[b]));
     for (final i in order) {
       _fighter(canvas, i, at, sx, t);
     }
     _bursts(canvas, at, sx, look);
-    if (s.sim.over) _winnerLight(canvas, at, sx, t, back: false);
+    if (sim.over) _winnerLight(canvas, at, sx, t, back: false);
     paintGrainCount(
       canvas,
       raceNumeralGrains,
@@ -531,8 +594,8 @@ class IslandPainter extends CustomPainter {
             o,
             w * r,
             [
-              look.sky.withValues(alpha: a),
-              look.sky.withValues(alpha: a * 0.35),
+              look.sky.withValues(alpha: a * look.haze),
+              look.sky.withValues(alpha: a * 0.35 * look.haze),
               look.sky.withValues(alpha: 0),
             ],
             const [0.0, 0.45, 1.0],
@@ -612,32 +675,44 @@ class IslandPainter extends CustomPainter {
 
   // ── the island ──
 
-  /// The rock hanging under the island: a dark mass that runs down into a
-  /// main point and two lesser ones, told by its strata in grains — lit
-  /// down its left flank, thinning to the points — and sand trickling off
-  /// its lip. Glowing cracks on the ember island.
+  /// The rock hanging under the island (or under one stone, at (ox, oy)
+  /// in island units, its points laid by [seed]): a dark mass that runs
+  /// down into a main point and two lesser ones, told by its strata in
+  /// grains — lit down its left flank, thinning to the points — and sand
+  /// trickling off its lip. On the Molten Heart its cracks glow, and the
+  /// lava drips through from its point.
   void _rock(
     Canvas c,
     Offset Function(double, double) at,
+    double ox,
+    double oy,
     double r,
     double sx,
     _IslandLook look,
-    double t,
-  ) {
-    final top = at(0, 0);
+    double t, {
+    int seed = 0,
+    double density = 1,
+    double lava = 0,
+  }) {
+    final top = at(ox, oy);
     final rx = r * sx;
     final ry = r * sx * 0.6;
     final lip = 7 * sx * (0.5 + 0.5 * r / kIslandRadius);
     final depth = r * sx * 1.0;
+    // Where its three points hang (a stone's are its own).
+    final mm = seed == 0 ? 0.1 : -0.25 + 0.5 * hash01(seed, 351);
+    final lm = seed == 0 ? -0.55 : -0.8 + 0.3 * hash01(seed, 352);
+    final rm = seed == 0 ? 0.66 : 0.45 + 0.35 * hash01(seed, 353);
+    final salt = seed * 7919;
     // How far down the rock reaches at x (a share of rx, -1..1): three
     // hanging points, the middle the longest.
     double reach(double u) {
-      final main = exp(-pow((u - 0.1) / 0.42, 2)) * 1.0;
-      final left = exp(-pow((u + 0.55) / 0.26, 2)) * 0.5;
-      final right = exp(-pow((u - 0.66) / 0.22, 2)) * 0.38;
+      final main = exp(-pow((u - mm) / 0.42, 2)) * 1.0;
+      final left = exp(-pow((u - lm) / 0.26, 2)) * 0.5;
+      final right = exp(-pow((u - rm) / 0.22, 2)) * 0.38;
       final base = sqrt(max(0.0, 1 - u * u)) * 0.3;
       return max(base, max(main, max(left, right))) *
-          (0.94 + 0.08 * sin(u * 23 + 1));
+          (0.94 + 0.08 * sin(u * 23 + 1 + seed));
     }
 
     final path = Path();
@@ -668,9 +743,10 @@ class IslandPainter extends CustomPainter {
     const rows = 30;
     for (var row = 0; row < rows; row++) {
       final d = row / rows;
-      final per = (80 * (1 - d * 0.6)).round();
+      final per = (80 * (1 - d * 0.6) * density).round();
       for (var g = 0; g < per; g++) {
-        final u = -1 + 2 * hash01(row * 97 + g, 305);
+        final key = row * 97 + g + salt;
+        final u = -1 + 2 * hash01(key, 305);
         final down = reach(u);
         if (d > down) continue;
         final rim = top.dy + sqrt(max(0.0, 1 - u * u)) * ry;
@@ -678,33 +754,54 @@ class IslandPainter extends CustomPainter {
             rim +
             lip +
             d * depth +
-            (hash01(row * 97 + g, 306) - 0.5) * depth / rows * 0.8 +
+            (hash01(key, 306) - 0.5) * depth / rows * 0.8 +
             sin(u * 9 + row) * 1.2;
         final x = top.dx + u * rx * (1 - 0.04 * d);
         // Thin out toward each point's end.
-        if (hash01(row * 97 + g, 307) > 1.15 - d / max(down, 0.05)) continue;
+        if (hash01(key, 307) > 1.15 - d / max(down, 0.05)) continue;
         final lit = u < -0.45 ? 2 : (u < 0.15 ? 1 : 0);
         b.add(d > 0.6 ? min(lit, 1) : lit, x, y);
-        if (look.veins != null && hash01(row * 97 + g, 308) < 0.07) {
+        if (look.veins != null && hash01(key, 308) < 0.07) {
           if (sin(t * 1.6 + row * 0.7 + g) > 0.2) b.add(3, x, y);
         }
       }
     }
     // The lip: the island's edge seen side on, a band of packed sand.
-    for (var g = 0; g < 260; g++) {
-      final u = -1 + 2 * hash01(g, 309);
+    for (var g = 0; g < (260 * density).round(); g++) {
+      final u = -1 + 2 * hash01(g + salt, 309);
       final rim = top.dy + sqrt(max(0.0, 1 - u * u)) * ry;
-      final y = rim + hash01(g, 310) * lip;
+      final y = rim + hash01(g + salt, 310) * lip;
       b.add(u < -0.3 ? 5 : 4, top.dx + u * rx, y);
     }
     // Sand trickling off it here and there.
-    for (var f = 0; f < 7; f++) {
-      final u = -0.85 + 1.7 * hash01(f, 311);
+    for (var f = 0; f < (7 * density).ceil(); f++) {
+      final u = -0.85 + 1.7 * hash01(f + salt, 311);
       final x0 = top.dx + u * rx;
       final y0 = top.dy + sqrt(max(0.0, 1 - u * u)) * ry + lip;
       for (var g = 0; g < 14; g++) {
-        final life = (t * (0.5 + 0.3 * hash01(f, 312)) + g / 14) % 1.0;
+        final life = (t * (0.5 + 0.3 * hash01(f + salt, 312)) + g / 14) % 1.0;
         b.add(6, x0 + sin(life * 3 + g) * 1.5, y0 + life * life * depth * 0.9);
+      }
+    }
+    // The lava finding its way down through the rock, and dripping from
+    // its point.
+    if (lava > 0) {
+      final x0 = top.dx + mm * rx;
+      final y0 =
+          top.dy + sqrt(max(0.0, 1 - mm * mm)) * ry + lip + reach(mm) * depth;
+      for (var f = 0; f < 3; f++) {
+        final fx = x0 + (hash01(f, 361) - 0.5) * rx * 0.14;
+        final fy = y0 - (0.06 + 0.1 * hash01(f, 364)) * depth;
+        for (var g = 0; g < 9; g++) {
+          final life =
+              (t * (0.22 + 0.08 * hash01(f, 362)) + g / 9 + hash01(f, 363)) %
+              1.0;
+          b.add(
+            life < 0.35 ? 7 : 8,
+            fx + sin(life * 4 + g) * 0.8,
+            fy + life * life * depth * 0.7,
+          );
+        }
       }
     }
     final gs = 1.5 * sx / 2.2;
@@ -715,33 +812,48 @@ class IslandPainter extends CustomPainter {
     b.draw(c, 5, gs + 0.2, look.sand[2].withValues(alpha: 0.9));
     b.draw(c, 6, gs * 0.8, look.sand[2].withValues(alpha: 0.55));
     if (look.veins != null) {
-      b.draw(c, 3, gs + 0.6, look.veins!.withValues(alpha: 0.85));
+      final glow = min(1.0, 0.35 + lava / 30);
+      b.draw(c, 3, gs + 0.6, look.veins!.withValues(alpha: 0.85 * glow));
+    }
+    if (lava > 0) {
+      final drip = min(1.0, lava / 20);
+      b.draw(c, 7, gs + 0.5, _lavaHot.withValues(alpha: 0.85 * drip));
+      b.draw(c, 8, gs + 0.2, _lavaRed.withValues(alpha: 0.55 * drip));
     }
   }
 
-  /// The island's top: a dark ground told by its sand, in drifts, lit from
-  /// the upper left; its edge bitten and catching a little more light at
-  /// the back; and what has just broken off falling away into the dark.
-  void _top(
+  /// A top of sand at (ox, oy) in island units, [r] across now: a dark
+  /// ground told by its sand, in drifts, lit from the upper left; its edge
+  /// bitten and catching a little more light at the back; and what has
+  /// just broken off falling away into the dark. The island's is the whole
+  /// of the sand; a stone's ([stone]) a share of it, smaller. On the
+  /// Molten Heart, the lava eats it from the middle: what it takes glows
+  /// as it melts, and the sand by it is lit.
+  void _sandTop(
     Canvas c,
     Offset Function(double, double) at,
+    double ox,
+    double oy,
     double r,
     double sx,
-    _IslandLook look,
-    double t,
-  ) {
+    _IslandLook look, {
+    double lava = 0,
+    int stone = -1,
+  }) {
     final s = stage;
+    final kind = s.bout.kind;
+    final turn = stone < 0 ? 0.0 : _stoneTurn(stone);
     final ground = Path();
-    const n = 72;
+    final n = stone < 0 ? 72 : 48;
     for (var q = 0; q <= n; q++) {
       final a = q / n * 2 * pi;
-      final e = _edge(a, r);
-      final p = at(cos(a) * e, sin(a) * e);
+      final e = r + _bite(a + turn) * _biteScale(r);
+      final p = at(ox + cos(a) * e, oy + sin(a) * e);
       q == 0 ? ground.moveTo(p.dx, p.dy) : ground.lineTo(p.dx, p.dy);
     }
     ground.close();
     // The ground under the sand: dark, a little lit toward the upper left.
-    final mid = at(0, 0);
+    final mid = at(ox, oy);
     c.drawPath(
       ground,
       Paint()
@@ -749,11 +861,10 @@ class IslandPainter extends CustomPainter {
           mid.translate(-r * sx * 0.35, -r * sx * 0.2),
           r * sx * 1.35,
           [
-            switch (s.bout.kind) {
-              // Ice is glassy: its ground holds more of the light.
-              IslandKind.ice => Color.lerp(look.sand[1], look.sand[2], 0.3)!,
-              IslandKind.ember => Color.lerp(look.sand[1], look.sand[2], 0.15)!,
+            switch (kind) {
               IslandKind.sand => Color.lerp(look.sand[0], look.sand[1], 0.45)!,
+              IslandKind.molten => Color.lerp(look.sand[0], look.sand[1], 0.6)!,
+              IslandKind.stones => Color.lerp(look.sand[0], look.sand[1], 0.5)!,
             },
             Color.lerp(look.sand[0], look.sand[1], 0.3)!,
             Color.lerp(look.rock[0], Colors.black, 0.2)!,
@@ -761,20 +872,51 @@ class IslandPainter extends CustomPainter {
           const [0.0, 0.55, 1.0],
         ),
     );
+    if (lava > 0) _lavaPool(c, at, lava, sx, s.clock);
 
     final b = _b..clear();
     final rho = _sandRho!, tone = _sandTone!;
-    final cs = _sandCos!, sn = _sandSin!, bite = _sandBite!;
+    final cs = _sandCos!, sn = _sandSin!;
+    final bite = stone < 0 ? _sandBite! : _stoneBite![stone];
+    final lb = _lavaBite!;
+    // A stone takes its own share of the island's grains, drawn in to its
+    // size.
+    final whole = stone < 0 ? kIslandRadius : kStoneRadius;
+    final shrink = whole / kIslandRadius;
+    final count = stone < 0 ? _sandN : (_sandN * shrink * shrink).round();
+    final from = stone < 0 ? 0 : stone * 2066;
     final crumble = s.bout.crumble;
     final since = s.fightClock;
     final scale = _biteScale(r);
-    final o = at(0, 0);
+    final lavaScale = 0.5 + 0.5 * min(1.0, lava / kMoltenMax);
     final syy = sx * 0.6;
-    for (var i = 0; i < _sandN; i++) {
-      final p = rho[i];
+    for (var j = 0; j < count; j++) {
+      final i = (from + j) % _sandN;
+      final p = rho[i] * shrink;
       final e = r + bite[i] * scale;
-      final qx = o.dx + cs[i] * p * sx, qy = o.dy + sn[i] * p * syy;
+      final qx = mid.dx + cs[i] * p * sx, qy = mid.dy + sn[i] * p * syy;
       if (p <= e) {
+        if (lava > 0) {
+          final le = lava + lb[i] * lavaScale;
+          if (p < le) {
+            // Taken by the lava: it glows as it melts, and goes under.
+            final went = kMoltenOpens + (p - lb[i] * lavaScale) / kMoltenRise;
+            final age = since - went;
+            if (age >= 0 && age < 1.3) {
+              b.add(
+                age < 0.35 ? 9 : (age < 0.8 ? 10 : 11),
+                qx,
+                qy + age * 3 * sx / 2.2,
+              );
+            }
+            continue;
+          }
+          if (p < le + 14) {
+            // Lit by the lava beside it, the more the nearer.
+            b.add(p < le + 5 ? 13 : 12, qx, qy);
+            continue;
+          }
+        }
         // Near the edge at the back, the sand catches the light.
         final rimLit = p > e - 5 && sn[i] < -0.2 ? 0.25 : 0.0;
         final lv = ((tone[i] + rimLit).clamp(0.0, 0.999) * 4).floor();
@@ -782,7 +924,7 @@ class IslandPainter extends CustomPainter {
         continue;
       }
       // Broken off: when the edge passed it, and how far it has fallen.
-      final went = 5 + (kIslandRadius * 1.04 - p) / crumble;
+      final went = 5 + (whole * 1.04 - p) / crumble;
       final age = since - went;
       if (age < 0 || age > 1.6) continue;
       final fall = 0.5 * 360 * age * age;
@@ -793,42 +935,189 @@ class IslandPainter extends CustomPainter {
       }
     }
     final g = 1.45 * sx / 2.2;
-    final ice = s.bout.kind == IslandKind.ice;
-    // Ice shows fewer, softer grains (its glints come and go below).
     final shades = [
       look.sand[1],
       Color.lerp(look.sand[1], look.sand[2], 0.6)!,
-      Color.lerp(look.sand[2], look.sand[3], ice ? 0.15 : 0.45)!,
-      ice ? Color.lerp(look.sand[2], look.sand[3], 0.5)! : look.sand[3],
+      Color.lerp(look.sand[2], look.sand[3], 0.45)!,
+      look.sand[3],
     ];
     for (var k = 0; k < 4; k++) {
-      b.draw(c, k, g + 0.2, shades[k].withValues(alpha: ice ? 0.55 : 0.85));
+      b.draw(c, k, g + 0.2, shades[k].withValues(alpha: 0.85));
     }
     b.draw(c, 5, g + 0.3, look.sand[3].withValues(alpha: 0.85));
     b.draw(c, 6, g, look.sand[2].withValues(alpha: 0.5));
     b.draw(c, 7, g, look.sand[2].withValues(alpha: 0.25));
-    // Embers rising off the hot island; frost glinting on the ice.
-    if (s.bout.kind != IslandKind.sand) {
-      final e = _b..clear();
-      for (var i = 0; i < 46; i++) {
-        final a = hash01(i, 421) * 2 * pi;
-        final p = sqrt(hash01(i, 422)) * r;
-        final q = at(cos(a) * p, sin(a) * p);
-        if (s.bout.kind == IslandKind.ember) {
-          final life =
-              (t * (0.3 + 0.2 * hash01(i, 423)) + hash01(i, 424)) % 1.0;
-          e.add(
-            life < 0.5 ? 0 : 2,
-            q.dx + sin(life * 6 + i) * 3,
-            q.dy - life * 40 * sx / 2.2,
-          );
-        } else if (sin(t * 1.7 + i * 2.3) > 0.9) {
-          e.add(1, q.dx, q.dy);
-        }
+    if (lava > 0) {
+      b.draw(
+        c,
+        12,
+        g + 0.2,
+        Color.lerp(look.sand[2], _lavaOrange, 0.42)!.withValues(alpha: 0.85),
+      );
+      b.draw(
+        c,
+        13,
+        g + 0.3,
+        Color.lerp(look.sand[3], _lavaHot, 0.6)!.withValues(alpha: 0.92),
+      );
+      b.draw(c, 9, g + 0.5, _lavaHot.withValues(alpha: 0.9));
+      b.draw(c, 10, g + 0.3, _lavaOrange.withValues(alpha: 0.7));
+      b.draw(c, 11, g, _lavaRed.withValues(alpha: 0.4));
+    }
+  }
+
+  /// The lava in the island's middle: a dark molten body told by its
+  /// grains — bright where it wells up, dull red as it cools, crusting dark
+  /// in plates — the whole of it turning slowly, faster in the middle, so
+  /// the crust shears and drifts.
+  void _lavaPool(
+    Canvas c,
+    Offset Function(double, double) at,
+    double lava,
+    double sx,
+    double t,
+  ) {
+    final o = at(0, 0);
+    final scale = 0.5 + 0.5 * min(1.0, lava / kMoltenMax);
+    final path = Path();
+    const n = 64;
+    for (var q = 0; q <= n; q++) {
+      final a = q / n * 2 * pi;
+      final e = lava + _lavaEdge(a) * scale;
+      final p = at(cos(a) * e, sin(a) * e);
+      q == 0 ? path.moveTo(p.dx, p.dy) : path.lineTo(p.dx, p.dy);
+    }
+    path.close();
+    c.drawPath(path, Paint()..color = _lavaDeep);
+
+    final b = _b..clear();
+    final mr = _meltRho!, ma = _meltAng!;
+    final full = lava / kMoltenMax;
+    final count = min(_meltN, (_meltN * full * full).round() + 80);
+    for (var i = 0; i < count; i++) {
+      final u = mr[i];
+      final a = ma[i] + t * (0.04 + 0.09 * (1 - u));
+      final ux = cos(a) * u, uy = sin(a) * u;
+      // How hot it is there: welling in slow cells, hotter in the middle.
+      final heat =
+          0.5 +
+          0.42 *
+              sin(ux * 5.3 + uy * 2.1 + t * 0.45) *
+              sin(uy * 4.7 - ux * 3.3 - t * 0.33) +
+          0.3 * (1 - u) -
+          0.04 * u;
+      final k = heat > 0.92
+          ? 3
+          : heat > 0.66
+          ? 2
+          : heat > 0.4
+          ? 1
+          : 0;
+      final rr = u * (lava + 2);
+      b.add(k, o.dx + cos(a) * rr * sx, o.dy + sin(a) * rr * sx * 0.6);
+    }
+    final g = 1.45 * sx / 2.2;
+    b.draw(c, 1, g + 0.3, _lavaRed.withValues(alpha: 0.75));
+    b.draw(c, 2, g + 0.4, _lavaOrange.withValues(alpha: 0.85));
+    b.draw(c, 3, g + 0.6, _lavaHot.withValues(alpha: 0.95));
+    b.draw(c, 0, g + 0.9, _lavaCrust.withValues(alpha: 0.92));
+  }
+
+  /// The lava's heat: its light spilling warm over the sand round it, and
+  /// embers rising off it, drifting and going out.
+  void _heat(
+    Canvas c,
+    Offset Function(double, double) at,
+    double lava,
+    double sx,
+    double t,
+  ) {
+    final o = at(0, 0);
+    final glow = min(1.0, lava / 24);
+    c.save();
+    c.translate(o.dx, o.dy);
+    c.scale(1, 0.6);
+    final rr = (lava + 14) * sx * 1.25;
+    c.drawCircle(
+      Offset.zero,
+      rr,
+      Paint()
+        ..blendMode = BlendMode.plus
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          rr,
+          [
+            _lavaOrange.withValues(alpha: 0.13 * glow),
+            _lavaOrange.withValues(alpha: 0.09 * glow),
+            _lavaRed.withValues(alpha: 0.04 * glow),
+            _lavaRed.withValues(alpha: 0),
+          ],
+          const [0.0, 0.55, 0.78, 1.0],
+        ),
+    );
+    c.restore();
+    final b = _b..clear();
+    final k = sx / 2.2;
+    for (var i = 0; i < 52; i++) {
+      final a = hash01(i, 421) * 2 * pi;
+      final p = sqrt(hash01(i, 422)) * lava;
+      final q = at(cos(a) * p, sin(a) * p);
+      final life = (t * (0.22 + 0.18 * hash01(i, 423)) + hash01(i, 424)) % 1.0;
+      b.add(
+        life < 0.3 ? 0 : (life < 0.65 ? 1 : 2),
+        q.dx + sin(life * 5 + i) * 4 * k,
+        q.dy - life * 52 * k,
+      );
+    }
+    b.draw(c, 0, 1.7, _lavaHot.withValues(alpha: 0.8 * glow));
+    b.draw(c, 1, 1.5, _lavaOrange.withValues(alpha: 0.55 * glow));
+    b.draw(c, 2, 1.2, _lavaRed.withValues(alpha: 0.3 * glow));
+  }
+
+  /// The Stepping Stones: three stones, each its own sand on its own
+  /// hanging rock, drawn back to front with the dark drop between them;
+  /// one falling between them goes down behind the stones in front.
+  void _stones(
+    Canvas c,
+    Offset Function(double, double) at,
+    double r,
+    double sx,
+    _IslandLook look,
+    double t,
+  ) {
+    final s = stage;
+    final sim = s.sim;
+    final d = sim.stoneDistAt(sim.tick);
+    final mid = [
+      for (var k = 0; k < 3; k++)
+        s.turn(IslandSim.stoneDirX[k] * d, IslandSim.stoneDirY[k] * d),
+    ];
+    final order = [0, 1, 2]..sort((a, b) => mid[a].dy.compareTo(mid[b].dy));
+    final falling = [
+      for (var i = 0; i < s.x.length; i++)
+        if (s.fellAtClock[i] != null) i,
+    ]..sort((a, b) => s.y[a].compareTo(s.y[b]));
+    var f = 0;
+    for (final k in order) {
+      while (f < falling.length && s.y[falling[f]] < mid[k].dy) {
+        _fighter(c, falling[f++], at, sx, t);
       }
-      e.draw(c, 0, 1.6, const Color(0xFFFFA060).withValues(alpha: 0.8));
-      e.draw(c, 2, 1.3, const Color(0xFFE0603A).withValues(alpha: 0.45));
-      e.draw(c, 1, 2.2, const Color(0xFFF2FCFF));
+      _rock(
+        c,
+        at,
+        mid[k].dx,
+        mid[k].dy,
+        r,
+        sx,
+        look,
+        t,
+        seed: k + 1,
+        density: 0.5,
+      );
+      _sandTop(c, at, mid[k].dx, mid[k].dy, r, sx, look, stone: k);
+    }
+    while (f < falling.length) {
+      _fighter(c, falling[f++], at, sx, t);
     }
   }
 
@@ -858,6 +1147,23 @@ class IslandPainter extends CustomPainter {
     c.restore();
   }
 
+  /// A soft light under one's feet, of [col].
+  void _pool(Canvas c, Offset feet, double r, Color col, double alpha) {
+    c.save();
+    c.translate(feet.dx, feet.dy + 1);
+    c.scale(1, 0.32);
+    c.drawCircle(
+      Offset.zero,
+      r,
+      Paint()
+        ..shader = ui.Gradient.radial(Offset.zero, r, [
+          col.withValues(alpha: alpha),
+          col.withValues(alpha: 0),
+        ]),
+    );
+    c.restore();
+  }
+
   void _fighter(
     Canvas c,
     int i,
@@ -866,7 +1172,8 @@ class IslandPainter extends CustomPainter {
     double t,
   ) {
     final s = stage;
-    final st = s.sim.states[i];
+    final sim = s.sim;
+    final st = sim.states[i];
     final body = s.bodies[i];
     final col = elementColor(body.member.element);
     final hot = Color.lerp(col, Colors.white, 0.5)!;
@@ -883,31 +1190,29 @@ class IslandPainter extends CustomPainter {
     }
 
     // Gone over: it drops away out of the light, its grains streaming up
-    // off it and going out.
+    // off it and going out (into the lava: it sinks, burning away).
     final fell = s.fellAtClock[i];
     if (fell != null) {
-      _falling(c, i, feet, col, s.clock - fell, k, t);
+      if (st.sank) {
+        _sinking(c, i, feet, col, s.clock - fell, k, t);
+      } else {
+        _falling(c, i, feet, col, s.clock - fell, k, t);
+      }
       return;
     }
 
-    // Its shadow, and the player's own light at its feet.
-    if (i == s.player) {
-      c.save();
-      c.translate(feet.dx, feet.dy + 1);
-      c.scale(1, 0.32);
-      final r = 22 * k;
-      c.drawCircle(
-        Offset.zero,
-        r,
-        Paint()
-          ..shader = ui.Gradient.radial(Offset.zero, r, [
-            const Color(0xFFE2C98F).withValues(alpha: 0.32),
-            const Color(0xFFE2C98F).withValues(alpha: 0),
-          ]),
-      );
-      c.restore();
+    // In the lava (one made for the heat) or over a gap (a glider): no
+    // ground under it to shadow.
+    final adrift = s.phase == IslandStagePhase.fight && sim.adrift(i);
+    final molten = s.bout.kind == IslandKind.molten;
+    if (i == s.player && !adrift) {
+      _pool(c, feet, 22 * k, const Color(0xFFE2C98F), 0.32);
     }
-    _shadow(c, feet, k);
+    if (adrift && molten) {
+      _pool(c, feet, 20 * k, _lavaOrange, 0.35);
+    } else if (!adrift) {
+      _shadow(c, feet, k);
+    }
 
     final b = _b..clear();
     final dir = st.target >= 0
@@ -915,14 +1220,17 @@ class IslandPainter extends CustomPainter {
         : s.turn(st.dx, st.dy);
     final len = dir.distance;
     final fx = len > 0 ? dir.dx / len : 1.0, fy = len > 0 ? dir.dy / len : 0.0;
+    // What its feet kick up: sand, or molten grains in the lava; nothing
+    // over a gap.
+    final kicks = !(adrift && !molten);
     if (st.phase == FighterPhase.windup) {
       // Digging in: sand kicked up behind it, and — for a charge of its
       // stamina — its own grains drawn out of it, trailing back.
-      final p = ((s.sim.tick - st.phaseFrom) / IslandSim.windupTicks).clamp(
+      final p = ((sim.tick - st.phaseFrom) / IslandSim.windupTicks).clamp(
         0.0,
         1.0,
       );
-      for (var g = 0; g < 18; g++) {
+      for (var g = 0; g < (kicks ? 18 : 0); g++) {
         final h1 = hash01(g, 431 + i), h2 = hash01(g, 432 + i);
         final life = (p * 1.6 + h1) % 1.0;
         final back = (4 + 16 * life) * k;
@@ -948,7 +1256,7 @@ class IslandPainter extends CustomPainter {
       }
     } else if (st.phase == FighterPhase.dash) {
       // A plume of sand along the ground behind it, settling.
-      for (var g = 0; g < 26; g++) {
+      for (var g = 0; g < (kicks ? 26 : 0); g++) {
         final h1 = hash01(g, 435), h2 = hash01(g, 436);
         final back = h1 * 34 * k;
         final side = (h2 - 0.5) * (4 + 14 * h1) * k;
@@ -965,14 +1273,58 @@ class IslandPainter extends CustomPainter {
         paintLightStreak(c, head, tail, 8 * k, col, 1);
       }
     }
-    b.draw(c, 0, 1.6 * k / 2, look.sand[2].withValues(alpha: 0.7));
+    if (adrift && st.phase != FighterPhase.dash) {
+      final spent = sim.spent(i);
+      if (molten) {
+        // Wading the lava: molten grains welling round its feet, and its
+        // own grains going up as embers, the more the longer it stays.
+        for (var g = 0; g < 16; g++) {
+          final a = hash01(g, 437) * 2 * pi + t * 0.8;
+          final bob = sin(t * 3 + g * 1.3);
+          b.add(
+            3,
+            feet.dx + cos(a) * (8 + 3 * bob) * k,
+            feet.dy + sin(a) * (3 + bob) * k * 0.6 - 1.5 * k,
+          );
+        }
+        for (var g = 0; g < 8 + (20 * spent).round(); g++) {
+          final life = (t * (0.5 + 0.4 * hash01(g, 438)) + hash01(g, 439)) % 1;
+          b.add(
+            4,
+            feet.dx + (hash01(g, 440) - 0.5) * 16 * k + sin(life * 6 + g) * 2,
+            feet.dy -
+                body.height * k * (0.2 + 0.6 * hash01(g, 441)) -
+                life * 26 * k,
+          );
+        }
+      } else {
+        // Gliding: its own grains streaming off beneath it and falling
+        // away into the drop, thinning as it tires.
+        final back = st.vx.abs() > 4 ? -st.vx.sign : 0.0;
+        for (var g = 0; g < 30; g++) {
+          if (hash01(g, 445) < spent * 0.7) continue;
+          final life = (t * (0.8 + 0.5 * hash01(g, 442)) + hash01(g, 443)) % 1;
+          final side = (hash01(g, 444) - 0.5) * 26 * k * (1 - 0.4 * life);
+          b.add(
+            life < 0.35 ? 2 : 1,
+            feet.dx + side + back * life * 14 * k,
+            feet.dy - 4 * k + life * life * 34 * k,
+          );
+        }
+      }
+    }
+    final kick = adrift && molten ? _lavaOrange : look.sand[2];
+    b.draw(c, 0, 1.6 * k / 2, kick.withValues(alpha: 0.7));
     b.draw(c, 1, 1.8 * k / 2, col.withValues(alpha: 0.75));
     b.draw(c, 2, 2.2 * k / 2, hot);
+    b.draw(c, 3, 1.9 * k / 2, _lavaHot.withValues(alpha: 0.8));
+    b.draw(c, 4, 1.6 * k / 2, _lavaOrange.withValues(alpha: 0.7));
 
-    // Reeling: a wobble; landing in the intro: a squash.
+    // Reeling: a wobble; landing in the intro: a squash; gliding: a slow
+    // rise and fall.
     var squash = 1.0;
     final reel = st.phase == FighterPhase.reel
-        ? sin((s.sim.tick - st.phaseFrom) * 0.6) * 0.18
+        ? sin((sim.tick - st.phaseFrom) * 0.6) * 0.18
         : 0.0;
     if (s.phase == IslandStagePhase.intro && arrive >= 1 && arrive < 1.4) {
       squash = 1 - 0.18 * sin(pi * (arrive - 1) / 0.4);
@@ -982,7 +1334,8 @@ class IslandPainter extends CustomPainter {
       FighterPhase.windup => st.target >= 0 ? s.x[st.target] >= s.x[i] : true,
       _ => s.x[i] < 0,
     };
-    final centre = feet.translate(0, -body.height * k * 0.5 * squash);
+    final lift = adrift && !molten ? (3 + 2 * sin(t * 2.4 + i)) * k : 0.0;
+    final centre = feet.translate(0, -body.height * k * 0.5 * squash - lift);
     paintRaceBody(
       c,
       body,
@@ -1053,6 +1406,72 @@ class IslandPainter extends CustomPainter {
       2.0 * k / 2,
       Color.lerp(col, Colors.white, 0.45)!.withValues(alpha: 0.9 * fade),
     );
+  }
+
+  /// One gone under the lava: it sinks where it stood, the lava closing
+  /// over it, its grains going up as embers and the lava welling bright
+  /// where it went down.
+  void _sinking(
+    Canvas c,
+    int i,
+    Offset feet,
+    Color col,
+    double age,
+    double k,
+    double t,
+  ) {
+    final body = stage.bodies[i];
+    final down = _smooth(age / 1.1);
+    final alpha = (1 - age / 1.2).clamp(0.0, 1.0);
+    if (alpha > 0) {
+      c.save();
+      // Only what is still above the lava shows.
+      c.clipRect(Rect.fromLTRB(-1e4, -1e4, 1e4, feet.dy + 1));
+      paintRaceBody(
+        c,
+        body,
+        feet.translate(0, -body.height * k * (0.5 - 0.95 * down)),
+        k,
+        t,
+        alpha: alpha,
+        lean: 0.03 + 0.25 * down,
+      );
+      c.restore();
+    }
+    final p = age / 1.8;
+    if (p >= 1) return;
+    final fade = 1 - _smooth(p);
+    final b = _b..clear();
+    // The lava welling where it went down, settling.
+    for (var g = 0; g < 22; g++) {
+      final a = hash01(g, 446) * 2 * pi;
+      final rr = (6 + 14 * _smooth(age / 0.8) * hash01(g, 447)) * k;
+      b.add(
+        age < 0.5 ? 0 : 1,
+        feet.dx + cos(a) * rr,
+        feet.dy + sin(a) * rr * 0.3,
+      );
+    }
+    // Its grains going up as embers.
+    for (var g = 0; g < 34; g++) {
+      final h1 = hash01(g, 448 + i), h2 = hash01(g, 449 + i);
+      final left = h1 * min(age, 1.0);
+      final since = age - left;
+      b.add(
+        since < 0.35 ? 2 : 3,
+        feet.dx + (h2 - 0.5) * 18 * k + sin(since * 4 + g) * 2 * k,
+        feet.dy - body.height * k * 0.3 * (1 - _smooth(left)) - since * 30 * k,
+      );
+    }
+    b.draw(c, 0, 2.0 * k / 2, _lavaHot.withValues(alpha: 0.85 * fade));
+    b.draw(c, 1, 1.6 * k / 2, _lavaOrange.withValues(alpha: 0.6 * fade));
+    b.draw(
+      c,
+      2,
+      2.0 * k / 2,
+      Color.lerp(col, _lavaHot, 0.4)!.withValues(alpha: 0.85 * fade),
+    );
+    b.draw(c, 3, 1.5 * k / 2, _lavaRed.withValues(alpha: 0.5 * fade));
   }
 
   /// A blow landing: sand thrown on along the blow, arcing and falling,

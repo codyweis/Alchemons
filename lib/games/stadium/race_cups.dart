@@ -208,7 +208,7 @@ const List<RaceCup> kRaceCups = [
     id: 'silver',
     name: 'Silver Cup',
     gold: [2, 3, 3],
-    rivalForm: [1, 1.18, 1.07],
+    rivalForm: [0.96, 1.18, 1.07],
     rivals: [
       RaceRival(
         name: 'Airwing',
@@ -267,13 +267,13 @@ const List<RaceCup> kRaceCups = [
         name: 'Storm Track',
         scene: RaceScene.cliffs,
         legs: [
-          RaceLeg(_s, 880, level: 3),
-          RaceLeg(_g, 300),
-          RaceLeg(_s, 760, level: 3),
+          RaceLeg(_s, 880, level: 3, ground: 1.5),
+          RaceLeg(_g, 300, ground: 2),
+          RaceLeg(_s, 760, level: 3, ground: 1.5),
           RaceLeg(_f, 360, element: 'Air', level: 2),
           RaceLeg(_h, 300, level: 3),
           RaceLeg(_c, 510, level: 3),
-          RaceLeg(_s, 880, level: 3),
+          RaceLeg(_s, 880, level: 3, ground: 1.5),
         ],
       ),
       RaceCourse(
@@ -286,7 +286,7 @@ const List<RaceCup> kRaceCups = [
           RaceLeg(_s, 700, level: 4),
           RaceLeg(_h, 300, level: 4),
           RaceLeg(_f, 360, element: 'Crystal', level: 3),
-          RaceLeg(_m, 280),
+          RaceLeg(_m, 280, ground: 2.2),
           RaceLeg(_s, 700, level: 4),
           RaceLeg(_c, 510),
           RaceLeg(_s, 600),
@@ -297,13 +297,13 @@ const List<RaceCup> kRaceCups = [
         name: 'Night Track',
         scene: RaceScene.forest,
         legs: [
-          RaceLeg(_s, 820, level: 2),
-          RaceLeg(_c, 600, level: 3),
+          RaceLeg(_s, 820, level: 2, ground: 1.5),
+          RaceLeg(_c, 600, level: 3, ground: 1.5),
           RaceLeg(_f, 360, element: 'Spirit', level: 3),
-          RaceLeg(_p, 400),
+          RaceLeg(_p, 400, ground: 2.2),
           RaceLeg(_s, 820, level: 3),
           RaceLeg(_h, 300, level: 2),
-          RaceLeg(_s, 900, level: 2),
+          RaceLeg(_s, 900, level: 2, ground: 1.5),
         ],
       ),
     ],
@@ -312,15 +312,17 @@ const List<RaceCup> kRaceCups = [
     id: 'gold',
     name: 'Gold Cup',
     gold: [4, 4, 5],
-    rivalForm: [1, 1.07, 1.05],
+    rivalForm: [1, 1, 1],
+    // Each course leans hard on its own ground — mud and hills, ice and
+    // rain, gaps and storm — and one of these five was born for each (the
+    // author, 2026-10-18: one Alchemon at Potential 90 and up won every
+    // race; here the right one for the course beats a bigger stat).
     rivals: [
       RaceRival(
         name: 'Lightningwing',
         element: 'Lightning',
         family: 'wing',
-        // Glides every gap: a shade slower than he was before there were
-        // gaps.
-        speed: 6.2,
+        speed: 7.2,
         strength: 4.2,
         intelligence: 4.75,
         beauty: 5.0,
@@ -328,11 +330,11 @@ const List<RaceCup> kRaceCups = [
         canny: true,
       ),
       RaceRival(
-        name: 'Earthkin',
+        name: 'Earthmane',
         element: 'Earth',
-        family: 'kin',
+        family: 'mane',
         speed: 5.4,
-        strength: 6.35,
+        strength: 5.85,
         intelligence: 4.75,
         beauty: 4.2,
         scale: 1.15,
@@ -349,15 +351,14 @@ const List<RaceCup> kRaceCups = [
         canny: true,
       ),
       RaceRival(
-        name: 'Steampip',
-        element: 'Steam',
+        name: 'Icepip',
+        element: 'Ice',
         family: 'pip',
-        speed: 6.05,
+        speed: 5.2,
         strength: 3.95,
         intelligence: 5.3,
         beauty: 5.0,
         scale: 0.9,
-        boosts: 4,
         canny: true,
       ),
       RaceRival(
@@ -375,51 +376,55 @@ const List<RaceCup> kRaceCups = [
       RaceCourse(
         id: 'long',
         name: 'Long Track',
-        // A bit of everything, across the downs.
+        // Across the downs: deep mud and steep hills, for the heavy and
+        // the earthbound.
         scene: RaceScene.hills,
         legs: [
-          RaceLeg(_s, 900, level: 5),
-          RaceLeg(_p, 400),
-          RaceLeg(_h, 360, level: 5),
-          RaceLeg(_g, 260),
-          RaceLeg(_f, 420, element: 'Light', level: 4),
-          RaceLeg(_m, 300),
-          RaceLeg(_s, 760, level: 5),
-          RaceLeg(_c, 510, level: 4),
-          RaceLeg(_s, 760, level: 5),
+          RaceLeg(_s, 500),
+          RaceLeg(_m, 420, ground: 4.4),
+          RaceLeg(_h, 380, level: 2, ground: 3),
+          RaceLeg(_m, 420, ground: 4.4),
+          RaceLeg(_f, 360, element: 'Earth', level: 4, ground: 2),
+          RaceLeg(_s, 460),
+          RaceLeg(_m, 420, ground: 4.4),
+          RaceLeg(_c, 360),
+          RaceLeg(_h, 400, level: 5),
+          RaceLeg(_s, 500),
         ],
       ),
       RaceCourse(
         id: 'crystal',
         name: 'Crystal Track',
+        // Wet caves and black ice, for the cold and the quick-footed.
         scene: RaceScene.caves,
         legs: [
-          RaceLeg(_s, 820, level: 4),
-          RaceLeg(_i, 520),
-          RaceLeg(_f, 360, element: 'Lightning', level: 3),
-          RaceLeg(_s, 800, level: 3),
-          RaceLeg(_f, 360, element: 'Water', level: 4),
-          RaceLeg(_h, 300, level: 4),
-          RaceLeg(_i, 480),
-          RaceLeg(_c, 510, level: 3),
-          RaceLeg(_s, 800, level: 4),
+          RaceLeg(_s, 780, level: 2, ground: 2.6),
+          RaceLeg(_i, 720, ground: 3.4),
+          RaceLeg(_s, 680, level: 2, ground: 2.6),
+          RaceLeg(_i, 720, ground: 3.4),
+          RaceLeg(_c, 520, level: 3, ground: 2),
+          RaceLeg(_i, 680, ground: 3.4),
+          RaceLeg(_f, 460, element: 'Water', level: 3, ground: 2),
+          RaceLeg(_s, 720, level: 2, ground: 2.6),
         ],
       ),
       RaceCourse(
         id: 'star',
         name: 'Star Track',
-        // Out among the stars: the track floats, so does everyone over its
-        // gap, and its ice is a comet's.
+        // Out among the stars: wide gaps and a storm on the track, for
+        // the ones that fly. The track floats, so does everyone over its
+        // gaps.
         scene: RaceScene.space,
         legs: [
-          RaceLeg(_s, 960, level: 5),
-          RaceLeg(_g, 280),
-          RaceLeg(_h, 480, level: 5),
-          RaceLeg(_f, 420, element: 'Dark', level: 5),
-          RaceLeg(_i, 360),
-          RaceLeg(_s, 820, level: 5),
-          RaceLeg(_c, 600, level: 5),
-          RaceLeg(_s, 860, level: 5),
+          RaceLeg(_s, 840, level: 3, ground: 3),
+          RaceLeg(_g, 460, ground: 4),
+          RaceLeg(_f, 520, element: 'Spirit', level: 5, ground: 2),
+          RaceLeg(_g, 460, ground: 4),
+          RaceLeg(_s, 720, level: 3, ground: 3),
+          RaceLeg(_h, 420, level: 5),
+          RaceLeg(_g, 460, ground: 4),
+          RaceLeg(_c, 520, level: 5),
+          RaceLeg(_s, 780, level: 3, ground: 3),
         ],
       ),
     ],

@@ -358,6 +358,10 @@ void main() {
   // the share that wins, and the least Potential any species wins it from.
   // Targets (the author, 2026-10-12): Copper ≈ level 10 P50, Silver
   // ≈ P70–80, Gold endgame (≈ P100, or the right Alchemon from P80–90).
+  // Gold is also run at P95 and P100 with every Enhancement rank (eN), and
+  // the species that win all three of its races are counted: no one
+  // Alchemon should (the author, 2026-10-18: one at Potential 90 and up
+  // won every race — now each course wants its own ground's Alchemon).
   //
   //   RACE_CATALOG=1 flutter test test/race_rules_test.dart \
   //     --plain-name 'catalog balance'
@@ -372,23 +376,24 @@ void main() {
       for (final c in json['creatures'] as List)
         Creature.fromJson(c as Map<String, dynamic>),
     ].where((c) => c.baseStats != null && c.types.isNotEmpty).toList();
-    double rate(int base, int p, int level) =>
+    double rate(int base, int p, int level, int enh) =>
         AlchemonStatSystem.legacyGameplayRating(
           AlchemonStatSystem.effectiveInternal(
             speciesBase: base,
             level: level,
             potential: p,
+            enhancementRank: enh,
           ),
         );
-    Racer racer(Creature c, int p, int level, RaceCourse course) {
+    Racer racer(Creature c, int p, int level, RaceCourse course, [int e = 0]) {
       final b = c.baseStats!;
       final r = _player(
         element: c.types.first,
         family: (c.mutationFamily ?? 'kin').toLowerCase(),
-        speed: rate(b.speed, p, level),
-        strength: rate(b.strength, p, level),
-        intelligence: rate(b.intelligence, p, level),
-        beauty: rate(b.beauty, p, level),
+        speed: rate(b.speed, p, level, e),
+        strength: rate(b.strength, p, level, e),
+        intelligence: rate(b.intelligence, p, level, e),
+        beauty: rate(b.beauty, p, level, e),
       );
       return Racer(
         id: r.id,
@@ -400,25 +405,32 @@ void main() {
       );
     }
 
-    bool wins(int cup, int race, Creature c, int p, int level) {
+    bool wins(int cup, int race, Creature c, int p, int level, [int e = 0]) {
       final course = kRaceCups[cup].courses[race];
-      final field = raceField(kRaceCups[cup], race, racer(c, p, level, course));
+      final field = raceField(
+        kRaceCups[cup],
+        race,
+        racer(c, p, level, course, e),
+      );
       return RaceSim.run(course, field).standings.indexOf(2) == 0;
     }
 
     const grid = [
-      [(7, 50), (10, 30), (10, 40), (10, 50), (10, 60), (10, 70)],
-      [(10, 50), (10, 60), (10, 70), (10, 80), (10, 90)],
-      [(10, 70), (10, 80), (10, 90), (10, 100)],
+      [(7, 50, 0), (10, 30, 0), (10, 40, 0), (10, 50, 0), (10, 60, 0)],
+      [(10, 50, 0), (10, 60, 0), (10, 70, 0), (10, 80, 0), (10, 90, 0)],
+      [(10, 80, 0), (10, 90, 0), (10, 90, 5), (10, 95, 10), (10, 100, 10)],
     ];
     for (var ci = 0; ci < kRaceCups.length; ci++) {
       for (var r = 0; r < kRaceCups[ci].courses.length; r++) {
         final line = StringBuffer(
           '${kRaceCups[ci].name} ${kRaceCups[ci].courses[r].name}:',
         );
-        for (final (level, p) in grid[ci]) {
-          final n = species.where((c) => wins(ci, r, c, p, level)).length;
-          line.write(' L${level}P$p ${(100 * n / species.length).round()}%');
+        for (final (level, p, e) in grid[ci]) {
+          final n = species.where((c) => wins(ci, r, c, p, level, e)).length;
+          line.write(
+            ' L${level}P$p${e > 0 ? 'e$e' : ''} '
+            '${(100 * n / species.length).round()}%',
+          );
         }
         String? best;
         for (var p = 20; p <= 100 && best == null; p += 5) {
@@ -428,6 +440,19 @@ void main() {
         // ignore: avoid_print
         print('$line  best: $best');
       }
+    }
+    final gold = kRaceCups.length - 1;
+    for (final (p, e) in [(95, 10), (100, 10)]) {
+      final all = [
+        for (final c in species)
+          if ([
+            for (var r = 0; r < kRaceCups[gold].courses.length; r++)
+              wins(gold, r, c, p, 10, e),
+          ].every((w) => w))
+            c.name,
+      ];
+      // ignore: avoid_print
+      print('Gold Cup won whole at P${p}e$e by ${all.length}: $all');
     }
   });
 
