@@ -115,6 +115,7 @@ class CosmicSurvivalBalance {
     // Strong breeding accelerates late-wave kills. Extend boss encounters
     // gradually after wave 10, keeping opening waves and orb damage intact.
     return base *
+        bossHealthStretch(wave) *
         (1.0 + max(0, wave - 10) * 0.018) *
         (titanic
             ? 3.2
@@ -122,6 +123,14 @@ class CosmicSurvivalBalance {
             ? 1.2
             : 1.0);
   }
+
+  /// Bosses died in 3–8 s to a P70–P100 team at any wave, and a titan in
+  /// 4–15 (test/survival_boss_ttk_report_test.dart). Twice the health
+  /// through wave 10, where a fresh team meets its first bosses, climbing
+  /// to four times by wave 25, so a team near its wall fights a boss for
+  /// 20–30 s.
+  static double bossHealthStretch(int wave) =>
+      2.0 + 2.0 * ((wave - 10) / 15).clamp(0.0, 1.0);
 
   /// The meter is budgeted per wave: a cleared ordinary wave fills it about
   /// once, so the upgrade draft opens roughly once a wave instead of every
