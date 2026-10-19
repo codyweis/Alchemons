@@ -59,6 +59,18 @@ class GeodeField extends _GrainField {
     _gRind: Color(0xFF7C7266),
   };
 
+  /// What each part of the Geode is, for the form its land takes.
+  static const _mats = <int, _Mat>{
+    _gWall: _Mat.rock,
+    _gRoof: _Mat.rock,
+    _gLedge: _Mat.rock,
+    _gFloor: _Mat.soil,
+    _gAmethyst: _Mat.crystal,
+    _gQuartz: _Mat.crystal,
+    _gIce: _Mat.crystal,
+    _gRind: _Mat.rock,
+  };
+
   /// The light crystals give of their own, by type, as a share of their
   /// color: how they show in the dark.
   static const _emit = <int, double>{
@@ -67,11 +79,33 @@ class GeodeField extends _GrainField {
     _gIce: 0.38,
   };
 
-  static const _glowColor = <int, Color>{
+  static const _glowColor0 = <int, Color>{
     _gAmethyst: Color(0xFFC6A2FF),
     _gQuartz: Color(0xFFE6EEFF),
     _gIce: Color(0xFFA8F0FF),
   };
+
+  /// The light crystals give of their own — in a form, the form's
+  /// (_formCrystalGlow).
+  Map<int, Color> get _glowColor {
+    final c = _cast;
+    final to = _formCrystalGlow[form];
+    if (c <= 0 || to == null) return _glowColor0;
+    final key = (c * 64).round() + 100 * _GrainField.formIndex(form);
+    if (key != _glowKey) {
+      _glowKey = key;
+      final k = (c * 64).round() / 64;
+      _glowNow = {
+        _gAmethyst: Color.lerp(_glowColor0[_gAmethyst], to.$1, k)!,
+        _gQuartz: Color.lerp(_glowColor0[_gQuartz], to.$2, k)!,
+        _gIce: Color.lerp(_glowColor0[_gIce], to.$3, k)!,
+      };
+    }
+    return _glowNow;
+  }
+
+  int _glowKey = -1;
+  Map<int, Color> _glowNow = _glowColor0;
 
   @override
   List<(double, _Light)> get _keys => _geodeKeys;
@@ -94,7 +128,7 @@ class GeodeField extends _GrainField {
     final rimed = rime;
     final hazeLow = Color.lerp(l.ambient, const Color(0xFF000000), 0.35)!;
     Color sil(int g) {
-      var a = _albedo[g]!;
+      var a = _inForm(_albedo[g]!, _mats[g]);
       if (rimed > 0 && g != _gAmethyst) {
         a = Color.lerp(a, const Color(0xFFDCE8F4), rimed * 0.85)!;
       }
@@ -131,14 +165,18 @@ class GeodeField extends _GrainField {
   /// moon's by night.
   Color get _shaftColor {
     final byMoon = _sunUp < -0.05;
+    final Color c;
     if (!byMoon) {
-      return Color.lerp(
+      c = Color.lerp(
         const Color(0xFFFFF4E0),
         _light.rim,
         0.6 * (1 - _sunUp.clamp(0.0, 1.0)),
       )!;
+    } else {
+      c = const Color(0xFFB8CCF4);
     }
-    return const Color(0xFFB8CCF4);
+    // In a form the light coming down is the form's.
+    return _formTo(c, _formShaft, _cast);
   }
 
   /// How strong the shafts are: full under a high sun, faint and blue under
@@ -149,7 +187,10 @@ class GeodeField extends _GrainField {
     final moon = _sunUp < -0.05
         ? (_moonUp * 2).clamp(0.0, 1.0) * lit * 0.4
         : 0.0;
-    return math.max(sun, moon) * (1 - 0.45 * frost);
+    // Dark's form eclipses the sun over the cracks: a little light gets in.
+    return math.max(sun, moon) *
+        (1 - 0.45 * frost) *
+        (1 - 0.6 * _formDeep('Dark'));
   }
 
   /// How far the shafts lean from straight down, as run over drop: away
@@ -2084,7 +2125,8 @@ class GeodeField extends _GrainField {
     final x = _cracks.first.$1;
     final tipY = _ledge(x) - 50 * _u;
     final d = (_shaftX(x, tipY) - x) / (36 * _u);
-    return _shaftStrength * math.exp(-d * d);
+    // No rainbow from an eclipsed sun.
+    return _shaftStrength * math.exp(-d * d) * (1 - _formDeep('Dark'));
   }
 
   /// The colors the prism splits the light into.

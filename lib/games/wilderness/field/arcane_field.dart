@@ -45,6 +45,9 @@ class ArcaneField extends _GrainField {
     _gStone: Color(0xFF17121F),
   };
 
+  /// What each part of the Arcane is, for the form its land takes.
+  static const _mats = <int, _Mat>{_gFar: _Mat.far, _gStone: _Mat.rock};
+
   /// Where the glass meets the dust band, as a share of the height.
   static const _glassLine = 0.565;
 
@@ -94,7 +97,7 @@ class ArcaneField extends _GrainField {
       0.25,
     )!;
     for (final g in [_gFar, _gStone]) {
-      final s = _sil(_albedo[g]!, l);
+      final s = _sil(_inForm(_albedo[g]!, _mats[g]), l);
       _grades[g] = fieldGrade(
         base: s,
         r: fieldDiff(band, s),
@@ -260,7 +263,14 @@ class ArcaneField extends _GrainField {
       screen.width * _moonX,
       view.screenY(view.height * (_horizon - _moonUp * 0.49)),
     );
-    return (at, 19 * _u * view.zoom, vis);
+    // In Dark's form the hole has grown, and shows whatever the stars; in
+    // Light's it has shrunk.
+    final d = _formDeep('Dark'), lt = _formDeep('Light');
+    return (
+      at,
+      19 * _u * view.zoom * (1 + 0.9 * d - 0.5 * lt),
+      math.max(vis, d),
+    );
   }
 
   @override

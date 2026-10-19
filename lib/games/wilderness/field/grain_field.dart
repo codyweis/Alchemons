@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 part 'arcane_field.dart';
 part 'dunes_field.dart';
 part 'geode_field.dart';
+part 'home_forms.dart';
 part 'tidal_field.dart';
 part 'sky_field.dart';
 part 'swamp_field.dart';
@@ -89,11 +90,123 @@ abstract class _GrainField extends FieldArt {
   /// The season as the light last saw it (see [FieldArt.season]): which,
   /// and how far in, to a 1/64.
   int get _seasonKey =>
-      season == null ? -1 : season!.index * 100 + (seasonAmount * 64).round();
+      (season == null ? -1 : season!.index * 100 + (seasonAmount * 64).round()) +
+      (form == null
+          ? 0
+          : 1000 * (1 + (formCast * 32).round() + 40 * (formDeep * 32).round()) +
+                10000000 * formIndex(form));
   int _lastSeason = -1;
 
   /// How far into [s] the land is (0 when it is another season or none).
   double _inSeason(HomeSeason s) => season == s ? seasonAmount : 0;
+
+  /// How far the land has turned into form [e]'s (see [FieldArt.form]).
+  double _formDeep(String e) => form == e ? formCast * formDeep : 0;
+
+  /// Which of the forms [f] is (0 for none), for keys.
+  static int formIndex(String? f) => switch (f) {
+    'Volcanic' => 1,
+    'Oceanic' => 2,
+    'Earthen' => 3,
+    'Verdant' => 4,
+    'Dark' => 5,
+    'Light' => 6,
+    'Blood' => 7,
+    _ => 0,
+  };
+
+  /// Whether the land has taken any form.
+  double get _cast => form == null ? 0 : formCast;
+  double get _deepNow => form == null ? 0 : formCast * formDeep;
+
+  /// [a] — a part of the land that is a [mat] — as its form has it, as far
+  /// as the land has taken it.
+  Color _inForm(Color a, _Mat? mat) {
+    final c = _cast;
+    if (mat == null || c <= 0) return a;
+    final to = _formPalette[form]?[mat];
+    if (to == null) return a;
+    return Color.lerp(a, to, c * (0.75 + 0.25 * formDeep))!;
+  }
+
+  /// [base] toward what [byForm] gives the land's form, by [k].
+  Color _formTo(Color base, Map<String, Color> byForm, double k) {
+    final to = byForm[form];
+    if (to == null || k <= 0) return base;
+    return Color.lerp(base, to, k)!;
+  }
+
+  /// [l] as the land takes its form (see [_formLights]): the sky toward
+  /// the form's, the light and its rim its color, the grass and the motes
+  /// its own; in its form, the sky further, the sun's glow and the stars
+  /// as the form has them, the motes lights.
+  _Light _formLight(_Light l) {
+    final f = _formLights[form];
+    final c = _cast, d = _deepNow;
+    if (f == null || c <= 0.001) return l;
+    Color shade(Color x, double k) => Color.lerp(
+      x,
+      Color.lerp(f.skyLo, f.skyHi, math.sqrt(x.computeLuminance()))!,
+      k,
+    )!;
+    final k = f.skyCast * c + f.skyDeep * d;
+    final tips = l.grass.length;
+    final (ar, ag, ab) = f.ambient;
+    var ambient = Color.lerp(
+      l.ambient,
+      Color.from(
+        alpha: 1,
+        red: math.min(1, l.ambient.r * ar),
+        green: math.min(1, l.ambient.g * ag),
+        blue: math.min(1, l.ambient.b * ab),
+      ),
+      f.ambientCast * c + f.ambientDeep * d,
+    )!;
+    final floor = f.floor;
+    if (floor != null && d > 0) {
+      ambient = Color.from(
+        alpha: 1,
+        red: math.max(ambient.r, floor.r * d),
+        green: math.max(ambient.g, floor.g * d),
+        blue: math.max(ambient.b, floor.b * d),
+      );
+    }
+    final glow = f.glow * (c + d);
+    return l.copyWith(
+      sky: [for (final s in l.sky) shade(s, k)],
+      ambient: ambient,
+      rim: Color.lerp(l.rim, f.rim, 0.6 * c),
+      rimStrength: l.rimStrength * (1 - 0.15 * c),
+      glow: math.max(0, l.glow * (1 + glow) + math.max(0, glow) * 0.2),
+      stars: math.max(
+        l.stars * (1 - f.starsDim * (0.5 * c + 0.5 * d)),
+        f.starsUp * (0.3 * c + d),
+      ),
+      cloudTop: shade(l.cloudTop, 0.35 * c + 0.5 * d),
+      cloudBottom: shade(l.cloudBottom, 0.45 * c + 0.45 * d),
+      cloudGlint: Color.lerp(l.cloudGlint, f.rim, c),
+      grass: [
+        for (var i = 0; i < tips; i++)
+          Color.lerp(
+            l.grass[i],
+            Color.lerp(
+              f.grassLo,
+              f.grassHi,
+              math.pow(i / math.max(1, tips - 1), 2).toDouble(),
+            ),
+            0.65 * c,
+          )!,
+      ],
+      mote: Color.lerp(l.mote, f.mote, c),
+      firefly: math.max(l.firefly, f.firefly * d),
+      seaTop: l.seaTop == null ? null : shade(l.seaTop!, 0.45 * c + 0.45 * d),
+      seaDeep: l.seaDeep == null ? null : shade(l.seaDeep!, 0.5 * c + 0.4 * d),
+    );
+  }
+
+  /// Dark's form over the sun: eclipsed — a black disc with its light
+  /// broken round one side.
+  EclipseArt? _eclipseArt;
 
   /// [a] as the season has it: toward [spring], [autumn] or [winter] as
   /// far as the land is into that season. A season with no color given
@@ -183,7 +296,7 @@ abstract class _GrainField extends FieldArt {
     _lastWeather = weather;
     _lastSeason = seasonKey;
     _hour = hour;
-    _light = _weathered(_Light.at(hour, _keys));
+    _light = _formLight(_weathered(_Light.at(hour, _keys)));
 
     final f = (hour - _sunrise) / (_sunset - _sunrise);
     _sunX = 0.18 + 0.64 * f.clamp(-0.1, 1.1);
@@ -395,10 +508,31 @@ abstract class _GrainField extends FieldArt {
   /// The home's sky, drawn while the field is a home ([homeSky] set).
   HomeSkyArt? _skyArt;
   HomeSkyArt? get _homeSky {
-    final look = homeSky;
+    var look = homeSky;
+    // A land in its form shows the form's sign in the sky too.
+    final sign = _deepNow > 0.5 ? _formSky[form] : null;
+    if (sign != null) {
+      final base = look ?? HomeSkyLook.none;
+      if (!identical(base, _signFor) || form != _signForm) {
+        _signFor = base;
+        _signForm = form;
+        _signed = HomeSkyLook(
+          color: base.color,
+          tint: base.tint,
+          wearing: {...base.wearing, ...sign},
+          options: base.options,
+          stars: base.stars,
+          links: base.links,
+        );
+      }
+      look = _signed;
+    }
     if (look == null || look.isEmpty) return null;
     return (_skyArt ??= HomeSkyArt())..look = look;
   }
+
+  HomeSkyLook? _signFor, _signed;
+  String? _signForm;
 
   /// This frame's sky for the home's sky to draw into.
   SkyFrame _skyFrame(Size screen, FieldView view, double drift) {
@@ -514,6 +648,16 @@ abstract class _GrainField extends FieldArt {
         17 * _u * z,
         Paint()..color = disc.withValues(alpha: soft),
       );
+      final eclipse = _formDeep('Dark');
+      if (eclipse > 0.01) {
+        (_eclipseArt ??= EclipseArt()).paint(
+          canvas,
+          sun,
+          17 * _u * z,
+          eclipse * soft,
+          view.time,
+        );
+      }
     }
 
     // The moon, in tonight's phase.
@@ -1488,26 +1632,35 @@ class _Light {
   _Light copyWith({
     List<Color>? sky,
     Color? ambient,
+    Color? rim,
+    double? rimStrength,
+    double? glow,
+    double? stars,
+    Color? cloudTop,
+    Color? cloudBottom,
+    Color? cloudGlint,
     List<Color>? grass,
     Color? mote,
     double? firefly,
+    Color? seaTop,
+    Color? seaDeep,
   }) => _Light(
     sky: sky ?? this.sky,
     ambient: ambient ?? this.ambient,
-    rim: rim,
-    rimStrength: rimStrength,
+    rim: rim ?? this.rim,
+    rimStrength: rimStrength ?? this.rimStrength,
     floor: floor,
-    glow: glow,
-    stars: stars,
-    cloudTop: cloudTop,
-    cloudBottom: cloudBottom,
-    cloudGlint: cloudGlint,
+    glow: glow ?? this.glow,
+    stars: stars ?? this.stars,
+    cloudTop: cloudTop ?? this.cloudTop,
+    cloudBottom: cloudBottom ?? this.cloudBottom,
+    cloudGlint: cloudGlint ?? this.cloudGlint,
     grass: grass ?? this.grass,
     mote: mote ?? this.mote,
     firefly: firefly ?? this.firefly,
     stops: stops,
-    seaTop: seaTop,
-    seaDeep: seaDeep,
+    seaTop: seaTop ?? this.seaTop,
+    seaDeep: seaDeep ?? this.seaDeep,
   );
 
   /// Sky colors at [stops] of the layer height.

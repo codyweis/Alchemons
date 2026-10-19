@@ -91,6 +91,53 @@ class SkyFrame {
   double yAt(double up) => horizon + (top - horizon) * up;
 }
 
+/// A sun eclipsed (a home realm in Dark's form): a black disc over it,
+/// its light leaking round one side, broken, and a few stars drawn out
+/// round it. Never a full ring.
+class EclipseArt {
+  final CosmeticAtlas _light = CosmeticAtlas(80);
+  final Paint _disc = Paint();
+
+  void paint(Canvas canvas, Offset sun, double r, double amount, double t) {
+    if (amount <= 0.01) return;
+    // The light it leaks, on one side only, in two broken pieces.
+    for (final (a, len, k) in const [(2.5, 3.2, 1.0), (3.6, 1.6, 0.5)]) {
+      final at = sun + Offset(math.cos(a), math.sin(a)) * r * 1.05;
+      _light.add(
+        AtlasCell.pool,
+        at.dx,
+        at.dy,
+        r * len,
+        atlasArgb(const Color(0xFFB89AFF), 0.55 * k * amount),
+        rot: a + math.pi / 2,
+      );
+    }
+    _light.add(
+      AtlasCell.dot,
+      sun.dx,
+      sun.dy,
+      r * 7,
+      atlasArgb(const Color(0xFF5A3E9C), 0.22 * amount),
+    );
+    for (var i = 0; i < 12; i++) {
+      final a = hash01(i, 950) * math.pi * 2 + t * 0.01;
+      final rr = r * (1.8 + 1.6 * hash01(i, 951));
+      final p = sun + Offset(math.cos(a), math.sin(a)) * rr;
+      _light.add(
+        AtlasCell.plume,
+        p.dx,
+        p.dy,
+        r * 0.18,
+        atlasArgb(const Color(0xFFE8ECFF), 0.4 * amount * hash01(i, 952)),
+        rot: a,
+      );
+    }
+    _light.draw(canvas, blend: BlendMode.plus);
+    _disc.color = const Color(0xFF040208).withValues(alpha: amount);
+    canvas.drawCircle(sun, r * 1.02, _disc);
+  }
+}
+
 /// Draws a [HomeSkyLook] into a field's sky.
 class HomeSkyArt {
   HomeSkyLook look = HomeSkyLook.none;

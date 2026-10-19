@@ -10,8 +10,13 @@
 //              ground between them. Found ones are listed in the journal.
 //   VISITORS   on nights when exactly the right things are true, someone
 //              comes (home_visitors.dart).
-//   BURIED     each realm hides one thing under its ground, and shows it
-//              only to those who read the place (home_buried.dart).
+//   BURIED     each realm hides a Core Shard under its ground, and shows
+//              it only to those who read the place.
+//   FORMS      a realm filled with Alchemons of one division's elements
+//              (or all Dark, all Light, all Blood) takes that at once, and
+//              after a week turns into its form —
+//              each realm its own way; once it has, the form is one of the
+//              realm's moods for good.
 //
 // Found is kept, not derived: a harmony seen once stays found when the pair
 // is parted. One Settings row; it travels with the save.
@@ -154,6 +159,7 @@ class HomeSecrets {
     this.harmonies = const {},
     this.visitors = const {},
     this.buried = const {},
+    this.forms = const {},
   });
 
   /// Harmonies found, by key ('Fire+Water').
@@ -165,20 +171,33 @@ class HomeSecrets {
   /// Buried things found, by realm name.
   final Set<String> buried;
 
+  /// Forms realms have taken ('valley:Dark'): each is a mood of its realm
+  /// from then on.
+  final Set<String> forms;
+
+  /// The forms [realm] has taken, as its moods.
+  List<HomeMood> formsOf(HomeRealm realm) => [
+    for (final e in kHomeForms)
+      if (forms.contains('${realm.name}:$e')) HomeMood.formOf(e),
+  ];
+
   HomeSecrets copyWith({
     Set<String>? harmonies,
     Set<String>? visitors,
     Set<String>? buried,
+    Set<String>? forms,
   }) => HomeSecrets(
     harmonies: harmonies ?? this.harmonies,
     visitors: visitors ?? this.visitors,
     buried: buried ?? this.buried,
+    forms: forms ?? this.forms,
   );
 
   Map<String, dynamic> toJson() => {
     if (harmonies.isNotEmpty) 'harmonies': harmonies.toList()..sort(),
     if (visitors.isNotEmpty) 'visitors': visitors.toList()..sort(),
     if (buried.isNotEmpty) 'buried': buried.toList()..sort(),
+    if (forms.isNotEmpty) 'forms': forms.toList()..sort(),
   };
 
   static HomeSecrets fromJson(Object? json) {
@@ -192,6 +211,7 @@ class HomeSecrets {
       },
       visitors: set(json['visitors']),
       buried: set(json['buried']),
+      forms: set(json['forms']),
     );
   }
 

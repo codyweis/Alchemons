@@ -137,6 +137,40 @@ void showHomeMarks(
     ];
 }
 
+/// Where [layout]'s realm shows the form its land has turned into: on its
+/// near row — on an isle there in the Sky (a placed one, or a resident's),
+/// elsewhere at the realm's own place for it.
+FormSite homeFormSite(HomeBiomeLayout layout) {
+  final realm = layout.realm;
+  final row = realm.row(HomeDepth.front);
+  final period = realm.period(row.layer);
+  var share = (buriedAt(realm) + 0.31) % 1.0;
+  // Where the ground is only under what stands on it — the Sky's isles,
+  // the Swamp's banks, the Volcano's shelves — it is beside one of them.
+  if (realm == HomeRealm.sky ||
+      realm == HomeRealm.swamp ||
+      realm == HomeRealm.volcano) {
+    final isle = realm == HomeRealm.sky
+        ? layout.scenery
+              .where((p) => p.depth == HomeDepth.front)
+              .map((p) => p.x)
+              .firstOrNull
+        : null;
+    final someone = layout.residents
+        .where((r) => r.depth == HomeDepth.front && r.lift == null)
+        .map((r) => r.x)
+        .firstOrNull;
+    share = isle ?? someone ?? share;
+  }
+  return FormSite(
+    layer: row.layer,
+    x: share * period,
+    period: period,
+    feet: row.feet,
+    size: row.size,
+  );
+}
+
 /// Stands every piece of [layout]'s realm in [game]: each keepsake drawn
 /// at its point, each piece of scenery (which the field draws) given room
 /// to be taken hold of. For anything that shows the home biome — the screen
@@ -457,9 +491,43 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       showHomeMarks(game, marked, full: _debug);
       _showHarmonies(game);
       _showBuried(game);
+      _showForm(game);
       unawaited(_syncVisitor());
     }
   }
+
+  /// The element the realm's land has taken, and how far into its form:
+  /// shown, and — the first time the form is reached by a week of it,
+  /// not by the developer tools — kept as one of the realm's moods.
+  void _showForm(SceneGame game) {
+    final (form, deep) = homeFormOf(_layout, _now, full: _debug);
+    game
+      ..fieldForm = form
+      ..fieldFormDeep = deep
+      ..formSite = form == null ? null : homeFormSite(_layout);
+    // With the developer tools the form is there at once: its reveal plays
+    // the first time it shows in a visit.
+    if (_debug && form != null && deep >= 1 && !_revealedHere) {
+      _revealedHere = true;
+      game.revealForm();
+    }
+    final hold = _layout.hold;
+    if (hold == null || homeFormDeep(hold.since, _now) < 1) return;
+    final key = '${_layout.realm.name}:${hold.element}';
+    if (_secrets.forms.contains(key)) return;
+    // The week is out: the land turns, and shows what it has become —
+    // now, or the first time the player is here to see it.
+    _secrets = _secrets.copyWith(forms: {..._secrets.forms, key});
+    unawaited(_secrets.save(_db.settingsDao));
+    if (!_revealedHere) {
+      _revealedHere = true;
+      game.revealForm();
+    }
+    if (mounted) setState(() {});
+  }
+
+  /// Whether the form's reveal has played in this field.
+  bool _revealedHere = false;
 
   /// Where this realm's shard lies, while the place shows it — until it is
   /// found. Tapped there, it rises out of the ground.
@@ -518,7 +586,14 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     );
     _formed = formed;
     game.harmonies = [for (final h in formed) (h.a, h.b, h.makes)];
-    final found = {for (final h in formed) h.key};
+    // Only what has truly formed is kept as found — not what the
+    // developer tools form at once.
+    final found = {
+      for (final h in _debug
+          ? formedHarmonies(_layout, _now, _elementOf)
+          : formed)
+        h.key,
+    };
     if (found.difference(_secrets.harmonies).isEmpty) return;
     _secrets = _secrets.copyWith(
       harmonies: {..._secrets.harmonies, ...found},
@@ -554,6 +629,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
 
   void _buildGame() {
     _visitor = null;
+    _revealedHere = false;
     final mood = _layout.mood;
     final game = SceneGame(scene: _layout.scene(_floats), showcase: true)
       ..fieldHourOverride = _layout.hour
@@ -585,6 +661,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
     showHomeMarks(game, _layout, full: _debug);
     _showHarmonies(game);
     _showBuried(game);
+    _showForm(game);
     setState(() {
       _game = game;
       _gameKey++;
@@ -649,6 +726,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       if (game == null || !mounted) return;
       _showHarmonies(game);
       _showBuried(game);
+      _showForm(game);
       unawaited(_syncVisitor());
     });
   }
@@ -2063,7 +2141,11 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
               onTap: () => _openTray(_Tray.sandSettings),
             ),
           ] else ...[
-            for (final m in _layout.realm.moods) ...[
+            for (final m in [
+              ..._layout.realm.moods,
+              // The forms this realm has taken: its moods for good.
+              ..._secrets.formsOf(_layout.realm),
+            ]) ...[
               _Chip(
                 label: m.label,
                 selected: m.id == mood.id,
@@ -2739,6 +2821,12 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       gather: true,
     );
     if (!mounted || _secrets.visitors.contains(come.id)) return;
+    // The developer tools bring visitors on the harmony alone: those are
+    // not met.
+    final truly = formedHarmonies(_layout, _now, _elementOf);
+    if (!come.comesAt(momentOf(_layout, now, game.fieldHour, truly))) {
+      return;
+    }
     _secrets = _secrets.copyWith(visitors: {..._secrets.visitors, come.id});
     await _secrets.save(_db.settingsDao);
     final ledger = await KeepsakeLedger.load(_db, _speciesName);

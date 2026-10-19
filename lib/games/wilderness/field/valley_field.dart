@@ -62,6 +62,16 @@ class ValleyField extends _GrainField {
     _gTree: Color(0xFF6E3E1A),
   };
 
+  /// What each part of the Valley is, for the form its land takes.
+  static const _mats = <int, _Mat>{
+    _gRanges: _Mat.far,
+    _gHillFar: _Mat.far,
+    _gHill: _Mat.cover,
+    _gGround: _Mat.cover,
+    _gTree: _Mat.foliage,
+    _gRock: _Mat.rock,
+  };
+
   /// How deep the snow lies: falling now, or lying for the winter.
   double get _lying => math.max(snow, _inSeason(HomeSeason.winter) * 0.8);
 
@@ -80,10 +90,13 @@ class ValleyField extends _GrainField {
     final hazeHigh = l.skyAt(0.44), hazeLow = l.skyAt(0.585);
     final cover = _lying;
     Color sil(int g) {
-      var a = _seasoned(
-        _albedo[g]!,
-        spring: _springAlbedo[g],
-        autumn: _autumnAlbedo[g],
+      var a = _inForm(
+        _seasoned(
+          _albedo[g]!,
+          spring: _springAlbedo[g],
+          autumn: _autumnAlbedo[g],
+        ),
+        _mats[g],
       );
       // Snow lying on it: the far ranges whitest, the trees least.
       if (cover > 0) {

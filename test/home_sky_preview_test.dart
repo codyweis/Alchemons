@@ -8,6 +8,9 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/wilderness/field/home_sky_art.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
+import 'package:alchemons/screens/home_biome/home_biome_screen.dart'
+    show homeFormSite;
+import 'package:alchemons/widgets/fx/cosmetics/form_feature_art.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/models/constellation/constellation_layout.dart';
 import 'package:alchemons/models/home_biome.dart';
@@ -65,8 +68,16 @@ void main() {
       SceneDefinition? inScene,
       int stage = 0,
       BuriedCue? cue,
+      String? form,
+      double formDeep = 0,
+      FormSite? site,
+      double? clock,
+      double? reveal,
     }) async {
       final game = SceneGame(scene: inScene ?? scene, showcase: true)
+        ..fieldForm = form
+        ..fieldFormDeep = formDeep
+        ..formSite = site
         ..fieldHourOverride = hour
         ..homeSky = look
         ..fieldSeason = season
@@ -91,6 +102,10 @@ void main() {
           () => Future<void>.delayed(const Duration(milliseconds: 50)),
         );
         await tester.pump();
+      }
+      // The form's clock is where it is asked to be when the shot is taken.
+      if (clock != null || reveal != null) {
+        game.debugForm(clock: clock == null ? null : clock - t, reveal: reveal);
       }
       const dt = 1 / 30;
       for (var clock = 0.0; clock < t; clock += dt) {
@@ -221,6 +236,77 @@ void main() {
       }
     }
 
+    // A realm all of one form: as it was, taken at once, and turned into
+    // its form after the week — by day and by night. SKY_FORMS picks which
+    // (Dark by default).
+    final forms = (Platform.environment['SKY_FORMS'] ?? 'Dark').split(',');
+    for (final h in const [13.0, 23.0]) {
+      await add('form', 'form_0none_${h.round()}', () => shoot(hour: h));
+      for (final f in forms) {
+        await add(
+          'form',
+          'form_${f}_1cast_${h.round()}',
+          () => shoot(hour: h, form: f),
+        );
+        await add(
+          'form',
+          'form_${f}_2form_${h.round()}',
+          () => shoot(hour: h, form: f, formDeep: 1),
+        );
+      }
+    }
+
+    // Each form's features: its site being revealed, revealed, one of its
+    // events under way, and at night.
+    // The realm's own place for it, brought into the first screen.
+    final realSite = homeFormSite(home);
+    final site = FormSite(
+      layer: realSite.layer,
+      x: 380,
+      period: realSite.period,
+      feet: realSite.feet,
+      size: realSite.size,
+    );
+    double mid(FormEventKind e) => e.startOf(1) + e.duration * 0.45;
+    final events = <String, (FormEventKind, double)>{
+      'Dark': (kShadowSweep, 13),
+      'Light': (kLightFlare, 13),
+      'Blood': (kBloodRain, 23),
+      'Volcanic': (kEruption, 21),
+      'Oceanic': (kShower, 13),
+      'Earthen': (kTremor, 13),
+      'Verdant': (kSeedGust, 13),
+    };
+    for (final f in (Platform.environment['SKY_FEATS'] ?? kHomeForms.join(','))
+        .split(',')) {
+      Future<ui.Image> at({
+        required double hour,
+        required double clock,
+        double reveal = 1,
+      }) => shoot(
+        hour: hour,
+        form: f,
+        formDeep: 1,
+        site: site,
+        clock: clock,
+        reveal: reveal,
+      );
+      await add('feat', 'feat_${f}_a_reveal', () => at(hour: 13, clock: 8, reveal: 0.5));
+      await add('feat', 'feat_${f}_b_site', () => at(hour: 13, clock: 8));
+      final (e, h) = events[f]!;
+      await add('feat', 'feat_${f}_c_event', () => at(hour: h, clock: mid(e)));
+      // At night — after an eruption or a gust, what they left.
+      final after = e.startOf(1) + e.duration + 6;
+      await add(
+        'feat',
+        'feat_${f}_d_night',
+        () => at(
+          hour: 23,
+          clock: f == 'Volcanic' || f == 'Verdant' ? after : 8,
+        ),
+      );
+    }
+
     // The Core: still and beating, under planets of three colors.
     final core = const HomeBiomeLayout(realm: HomeRealm.core).scene((_) => false);
     for (final c in const [null, 'Crystal', 'Fire', 'Void']) {
@@ -269,7 +355,11 @@ void main() {
         }
         // A sheet of the set, two across.
         final cw = screen.width / 2, ch = screen.height / 2;
-        final cols = e.key == 'color' ? 3 : 2;
+        final cols = e.key == 'color' || e.key == 'form'
+            ? 3
+            : e.key == 'feat'
+            ? 4
+            : 2;
         final rows = (frames.length / cols).ceil();
         final rec = ui.PictureRecorder();
         final c = Canvas(rec);

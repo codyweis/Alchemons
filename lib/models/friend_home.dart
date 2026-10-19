@@ -256,6 +256,7 @@ class FriendHome {
       sky: layout.sky,
       marks: [...layout.marksHere],
       frames: {if (layout.frame case final f?) realm.name: f},
+      holds: {if (layout.hold case final h?) realm.name: h},
     );
   }
 

@@ -84,6 +84,15 @@ class _HomeBiomeWindowState extends State<HomeBiomeWindow> {
     final debug = await homeDebugOn();
     if (!mounted) return;
     showHomeMarks(game, layout, full: debug);
+    final (form, deep) = homeFormOf(
+      layout,
+      DateTime.now().millisecondsSinceEpoch,
+      full: debug,
+    );
+    game
+      ..fieldForm = form
+      ..fieldFormDeep = deep
+      ..formSite = form == null ? null : homeFormSite(layout);
     game.harmonies = [
       for (final h in formedHarmonies(
         layout,

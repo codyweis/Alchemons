@@ -8,11 +8,14 @@ import 'package:alchemons/games/cosmic/obsidian_kit.dart' show PointBatch, hash0
 import 'package:alchemons/database/alchemons_db.dart' show CreatureInstance;
 import 'package:alchemons/games/wilderness/creature_feet.dart';
 import 'package:alchemons/games/wilderness/field/field_art.dart';
+import 'package:alchemons/games/wilderness/field/home_core_field.dart';
+import 'package:alchemons/games/wilderness/field/home_sand_field.dart';
 import 'package:alchemons/games/wilderness/field_essence.dart';
 import 'package:alchemons/games/wilderness/harvest_field.dart';
 import 'package:alchemons/games/wilderness/particle_fusion_effect.dart';
 import 'package:alchemons/games/wilderness/wild_summon.dart';
 import 'package:alchemons/widgets/fx/cosmetics/cosmetic_atlas.dart';
+import 'package:alchemons/widgets/fx/cosmetics/form_feature_art.dart';
 import 'package:alchemons/widgets/fx/cosmetics/ground_mark_art.dart';
 import 'package:alchemons/widgets/fx/cosmetics/home_ambience_art.dart';
 import 'package:alchemons/widgets/fx/cosmetics/season_drift_art.dart';
@@ -83,6 +86,23 @@ typedef FieldLanding = ({
   double height,
   double scale,
 });
+
+/// Where a home realm's form shows itself (see [SceneGame.formSite]): on
+/// [layer] at [x] (layer units, within one loop of [period]), on the row
+/// whose feet are at [feet] (a share of the height), whose creatures are
+/// [size] across.
+class FormSite {
+  const FormSite({
+    required this.layer,
+    required this.x,
+    required this.period,
+    required this.feet,
+    required this.size,
+  });
+
+  final SceneLayer layer;
+  final double x, period, feet, size;
+}
 
 /// Where something lies buried under a home realm (see [SceneGame.buried]):
 /// on [layer] at [x] (layer units, within one loop of [period]), on the row
@@ -231,6 +251,16 @@ class SceneGame extends FlameGame with ScaleDetector {
   HomeSeason? _seasonShowing;
   double _season = 0;
   bool _seasonPrimed = false;
+
+  /// The element the home realm's land has taken (see [FieldArt.form]),
+  /// and how far it has turned into its form (0–1). The land takes a new
+  /// element over a few seconds, after the old one has let go; the first
+  /// is simply there.
+  String? fieldForm;
+  double fieldFormDeep = 0;
+  String? _formShowing;
+  double _formCast = 0, _formDeep = 0;
+  bool _formPrimed = false;
 
   /// The field drawn in code, if this scene has one — for previews.
   @visibleForTesting
@@ -1845,6 +1875,73 @@ class SceneGame extends FlameGame with ScaleDetector {
   late final _SeasonDrift _drift = _SeasonDrift(this);
   late final _HomeMarks _marks = _HomeMarks(this);
   late final _IdleTour _tour = _IdleTour(this);
+  late final _FormFeatures _features = _FormFeatures(this);
+
+  /// Where the home realm's form shows itself once the land has turned
+  /// into it (form_feature_art.dart); null for none.
+  FormSite? formSite;
+
+  /// The form's own clock, and how far its site has been revealed (it is
+  /// revealed once, slowly, when [revealForm] is called; otherwise it is
+  /// simply there).
+  double _formClock = 0, _formReveal = 1;
+  bool _formRevealing = false;
+
+  /// Reveals the form's site, from nothing — the camera gliding to it, so
+  /// it is seen.
+  void revealForm() {
+    _formReveal = 0;
+    _formRevealing = true;
+    final site = formSite;
+    if (site != null) lookAtLayerX(site.layer, site.x);
+  }
+
+  /// Glides the camera along until [x] on [layer] is in the middle of the
+  /// screen (its nearest loop).
+  void lookAtLayerX(SceneLayer layer, double x) {
+    final pf = _periodOf(layer) / scene.worldWidth - 1;
+    final viewportW = size.x / (layersRoot.scale.x * cam.viewfinder.zoom);
+    final at = _loops ? _nearestLoop(x, layer, viewportW) : x;
+    _targetCameraX = _clampCamX(
+      (at - viewportW / 2) / (1 + pf),
+      _maxCamXExploration,
+    );
+  }
+
+  /// The form's site and its events, for previews: its clock and how far
+  /// it is revealed.
+  @visibleForTesting
+  void debugForm({double? clock, double? reveal}) {
+    if (clock != null) _formClock = clock;
+    if (reveal != null) {
+      _formReveal = reveal;
+      _formRevealing = false;
+    }
+  }
+
+  /// How much of the land's form shows its features: only once it has
+  /// all but fully turned into it.
+  double get formFeatures {
+    final art = _art;
+    if (art == null || art.form == null || formSite == null) return 0;
+    final d = art.formCast * art.formDeep;
+    if (d <= 0.85) return 0;
+    if (d >= 1) return 1;
+    final t = (d - 0.85) / 0.15;
+    return t * t * (3 - 2 * t);
+  }
+
+  /// Rain falling now from the land's form (the residents shelter).
+  bool get formRaining {
+    final art = _art;
+    if (art == null || formFeatures < 0.5) return false;
+    final p = lunarPhase(DateTime.now());
+    return formRainingAt(
+      art.form,
+      _formClock,
+      fullMoonNight: (p - 0.5).abs() < 0.04 && nightAt(fieldHour) > 0.5,
+    );
+  }
 
   /// Left alone this many seconds, the camera drifts from one resident to
   /// another until a finger touches the field; 0 for never.
@@ -1970,6 +2067,15 @@ class SceneGame extends FlameGame with ScaleDetector {
   /// anywhere.
   @visibleForTesting
   Offset? debugLifeOffset(String spawnId) => _life.offsetOf(spawnId);
+
+  /// Starts a chase by the Horn at [spawnId], if one can (see home life).
+  @visibleForTesting
+  bool debugChase(String spawnId) => _life.debugChase(spawnId);
+
+  /// The chase [spawnId] is in, if any: its stage and passes run.
+  @visibleForTesting
+  ({int stage, int passes})? debugChaseOf(String spawnId) =>
+      _life.debugChaseOf(spawnId);
 
   /// How solid a resident is drawn (going through a portal, it thins out).
   @visibleForTesting
@@ -2628,11 +2734,32 @@ class SceneGame extends FlameGame with ScaleDetector {
       } else {
         _season = ease(_season, fieldSeason != null, 0.9);
       }
+      if (!_formPrimed) {
+        _formPrimed = true;
+        _formShowing = fieldForm;
+        _formCast = fieldForm == null ? 0 : 1;
+        _formDeep = fieldFormDeep;
+      } else if (fieldForm != _formShowing) {
+        _formCast = max(0, _formCast - dt / 1.5);
+        if (_formCast <= 0) {
+          _formShowing = fieldForm;
+          _formDeep = fieldFormDeep;
+        }
+      } else {
+        _formCast = ease(_formCast, fieldForm != null, 1.1);
+        _formDeep += (fieldFormDeep - _formDeep) * (1 - exp(-dt / 1.4));
+        if ((_formDeep - fieldFormDeep).abs() < 1e-3) {
+          _formDeep = fieldFormDeep;
+        }
+      }
       art
         ..weatherKind = fieldWeather ?? art.weatherKind
         ..weather = _weather
         ..aftermath = _aftermath
         ..stage = fieldStage
+        ..form = _formShowing
+        ..formCast = _formCast
+        ..formDeep = _formDeep
         ..homeSky = homeSky
         ..season = _seasonShowing
         ..seasonAmount = _season
@@ -2737,6 +2864,7 @@ class SceneGame extends FlameGame with ScaleDetector {
       _drift.update();
       _marks.update();
       _tour.update(dt);
+      _features.update(dt);
       if (_digging && buried != null) {
         _buriedRise = math.min(1, _buriedRise + dt / 1.8);
         if (_buriedRise >= 1) {

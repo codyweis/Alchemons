@@ -47,6 +47,16 @@ class TidalField extends _GrainField {
     _gReef: Color(0xFF42454E),
   };
 
+  /// What each part of the Tidal Shelf is, for the form its land takes.
+  static const _mats = <int, _Mat>{
+    _gSea: _Mat.water,
+    _gSeaNear: _Mat.water,
+    _gStack: _Mat.rock,
+    _gBasalt: _Mat.rock,
+    _gFlat: _Mat.sand,
+    _gReef: _Mat.rock,
+  };
+
   @override
   List<(double, _Light)> get _keys => _valleyKeys;
 
@@ -156,7 +166,11 @@ class TidalField extends _GrainField {
       _sheen = const Color(0xFF000000),
       _seaNear = const Color(0xFF000000),
       _hazeLow = const Color(0xFF000000);
-  static const _glow = Color(0xFF6CF2FF);
+  static const _glow0 = Color(0xFF6CF2FF);
+
+  /// The light breaking waves give off at night — the form's own color,
+  /// in a form.
+  Color get _glow => _formTo(_glow0, _formWaveGlow, _deepNow);
 
   @override
   void _buildGrades(_Light l) {
@@ -167,7 +181,7 @@ class TidalField extends _GrainField {
     final hazeHigh = l.skyAt(0.5), hazeLow = l.skyAt(0.585);
     final f = fog;
     Color sil(int g) {
-      final a = _albedo[g]!;
+      final a = _inForm(_albedo[g]!, _mats[g]);
       var s = Color.from(
         alpha: 1,
         red: a.r * l.ambient.r,

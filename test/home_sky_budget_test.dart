@@ -14,6 +14,7 @@ import 'package:alchemons/models/constellation/constellation_catalog.dart';
 import 'package:alchemons/models/constellation/constellation_layout.dart';
 import 'package:alchemons/models/home_biome.dart';
 import 'package:alchemons/models/home_sky.dart';
+import 'package:alchemons/widgets/fx/cosmetics/form_feature_art.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -76,6 +77,15 @@ void main() {
               ..fieldHourOverride = hour
               ..homeSky = everything
               ..fieldSeason = HomeSeason.autumn
+          ..fieldForm = 'Dark'
+          ..fieldFormDeep = 1
+          ..formSite = FormSite(
+            layer: row.layer,
+            x: 400,
+            period: period,
+            feet: row.feet,
+            size: row.size,
+          )
               ..fadingMarks = [
                 for (final (i, e) in const [
                   'Fire',
@@ -120,6 +130,11 @@ void main() {
           );
           await tester.pump();
         }
+        // Its shadow crossing, over its rift.
+        game.debugForm(
+          clock: kShadowSweep.startOf(1) + kShadowSweep.duration * 0.4,
+          reveal: 1,
+        );
         var worst = _CensusCanvas();
         for (var f = 0; f < 45; f++) {
           game.update(1 / 30);

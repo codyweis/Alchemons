@@ -103,13 +103,30 @@ class SwampField extends _GrainField {
     _gStone: Color(0xFFB8C0C6),
   };
 
+  /// What each part of the Swamp is, for the form its land takes.
+  static const _mats = <int, _Mat>{
+    _gFar: _Mat.far,
+    _gMid: _Mat.foliage,
+    _gBark: _Mat.wood,
+    _gLeaf: _Mat.foliage,
+    _gMoss: _Mat.cover,
+    _gPeat: _Mat.soil,
+    _gStone: _Mat.rock,
+    _gTurf: _Mat.cover,
+    _gWater: _Mat.water,
+    _gMud: _Mat.soil,
+  };
+
   /// Grade [g]'s daylight color, as dry as the Swamp is, in its season.
   Color _albedoOf(int g) {
-    final a = _seasoned(
-      _albedo[g]!,
-      spring: _springAlbedo[g],
-      autumn: _autumnAlbedo[g],
-      winter: _winterAlbedo[g],
+    final a = _inForm(
+      _seasoned(
+        _albedo[g]!,
+        spring: _springAlbedo[g],
+        autumn: _autumnAlbedo[g],
+        winter: _winterAlbedo[g],
+      ),
+      _mats[g],
     );
     final d = dry;
     final to = _dried[g];

@@ -17,6 +17,12 @@ part of 'scene_game.dart';
 // Tapping a keepsake (not arranging) calls the nearest resident that can
 // reach it.
 //
+// Now and then a Horn on the same stretch of ground as a Let lowers its
+// head and charges it: the Let hops away ahead of it, leaps back over it
+// when it runs out of ground, and away again — a few passes — until the
+// Horn gives up and both go home. Only where the ground runs unbroken
+// between them, by day, and not often.
+//
 // Nothing here is saved: a resident's place is where the player put it,
 // and it always comes back there. Arranging, everyone stands still at their
 // own spots so they can be taken hold of.
@@ -273,6 +279,47 @@ class _Liver {
   String? perch;
   double perchFor = 0;
   bool landed = false;
+
+  /// A chase under way, as the Horn or the Let in it.
+  _Chase? chase;
+
+  /// On its way to bed down by the fissure (Volcanic's form) first.
+  bool toWarmth = false;
+}
+
+/// A Horn chasing a Let along the ground they share, the Horn's step
+/// driving both. Distances are from the Horn's own spot (layer units).
+class _Chase {
+  _Chase(
+    this.hunter,
+    this.quarry, {
+    required this.lo,
+    required this.hi,
+    required this.gap,
+  });
+
+  /// Their spawn ids.
+  final String hunter, quarry;
+
+  /// The unbroken ground they run along.
+  final double lo, hi;
+
+  /// Where the Let's own spot is.
+  final double gap;
+
+  /// 0 the Horn lowering its head, 1 running, 2 the Let leaping back over
+  /// it, 3 over.
+  int stage = 0;
+  double time = 0;
+
+  /// Passes run, and which end the Let is making for.
+  int passes = 0;
+  double toward = 0;
+
+  /// Where the Let is along the ground, and where its leap set off from
+  /// and lands.
+  double at = 0;
+  double leapFrom = 0, leapTo = 0;
 }
 
 enum _Act { idle, stroll, look, asleep }
@@ -341,6 +388,7 @@ class _HomeLife {
         ..range = null
         ..trip = null
         ..call = null
+        ..chase = null
         ..sleepsThere = false
         ..target = 0;
     }
@@ -386,11 +434,44 @@ class _HomeLife {
     return false;
   }
 
-  /// Where [spawnId] is held from its spot this frame, if anywhere.
+  /// Where [spawnId] is held from its spot this frame, if anywhere — a
+  /// tremor of the land's form shaking it too.
   Offset? offsetOf(String spawnId) {
     final l = _livers[spawnId];
-    if (l == null || (l.dx == 0 && l.dy == 0 && l.lift == 0)) return null;
-    return Offset(l.dx, l.dy - l.lift);
+    final shake = l == null ? 0.0 : _shake(l);
+    if (l == null || (l.dx == 0 && l.dy == 0 && l.lift == 0 && shake == 0)) {
+      return null;
+    }
+    return Offset(l.dx, l.dy - l.lift - shake);
+  }
+
+  /// How far the land's tremor (Earthen's form) throws [l] up this frame:
+  /// little hops, all of them at once, while it lasts.
+  double _shake(_Liver l) {
+    if (game._art?.form != 'Earthen' || game.formFeatures < 0.5) return 0;
+    if (game.arranging || l.act == _Act.asleep || l.trip != null) return 0;
+    final e = kTremor.at(game._formClock);
+    if (e == null || game._formReveal < 1) return 0;
+    final sp = game._pointOf(l.id);
+    if (sp == null || sp.aloft) return 0;
+    return (math.sin(game._formClock * 18 + l.seed)).abs() *
+        sp.size.x *
+        0.07 *
+        math.sin(e.$2 * math.pi);
+  }
+
+  /// Where the land's form shows itself, from [sp]'s spot (layer units),
+  /// if it does, on [sp]'s row.
+  double? _siteFrom(SpawnPoint sp) {
+    final site = game.formSite;
+    if (site == null || game.formFeatures < 0.5 || site.layer != sp.anchor) {
+      return null;
+    }
+    if (sp.depth != 0) return null;
+    final x = game._spawnBaseX(sp);
+    var d = site.x - x;
+    if (site.period > 0) d -= site.period * (d / site.period).roundToDouble();
+    return d;
   }
 
   bool get _night {
@@ -448,6 +529,8 @@ class _HomeLife {
       ..bedded = false
       ..sleepsThere = false
       ..perch = null
+      ..chase = null
+      ..toWarmth = false
       ..act = _Act.idle
       ..wait = 1 + _rng.nextDouble() * 3;
     if (l.fade != 1) {
@@ -563,6 +646,15 @@ class _HomeLife {
     double dt,
   ) {
     final size = sp.size.x;
+    final chase = l.chase;
+    if (chase != null) {
+      if (_night || !_chaseHolds(chase)) {
+        _endChase(chase);
+      } else {
+        if (chase.hunter == l.id) _hunt(l, comp, sp, chase, dt);
+        return;
+      }
+    }
     final trip = l.trip;
     if (trip != null) {
       _travel(l, comp, sp, trip, dt);
@@ -582,7 +674,28 @@ class _HomeLife {
       if (!l.bedded && l.call == null) {
         l.bedded = true;
         final night = _reachable(l, sp, (v) => v.night);
-        if (night != null) _visit(l, sp, night);
+        if (night != null) {
+          _visit(l, sp, night);
+        } else if (game._art?.form == 'Volcanic') {
+          // No torch: it beds down as near the fissure's warmth as it can.
+          final site = _siteFrom(sp);
+          final range = l.range ??= _rangeOf(sp);
+          if (site != null) {
+            final side = site > 0 ? -1.0 : 1.0;
+            l
+              ..target = (site + side * size * 1.1).clamp(range.$1, range.$2)
+              ..toWarmth = true;
+          }
+        }
+      }
+      if (l.toWarmth && l.call == null) {
+        if ((l.target - l.dx).abs() > 0.5) {
+          _walk(l, comp, sp, dt, size);
+          return;
+        }
+        l.toWarmth = false;
+        final site = _siteFrom(sp);
+        if (site != null) comp.face(site > l.dx ? -1 : 1);
       }
       final call = l.call;
       if (call != null) {
@@ -595,6 +708,7 @@ class _HomeLife {
     if (l.act == _Act.asleep || l.bedded) {
       l
         ..act = _Act.idle
+        ..toWarmth = false
         ..bedded = false
         ..sleepsThere = false
         ..wait = 1 + _rng.nextDouble() * 3;
@@ -611,6 +725,19 @@ class _HomeLife {
     if (_heed(l, comp, dt)) {
       _walk(l, comp, sp, dt, size);
       return;
+    }
+
+    // Dark's wave of shadow going over: everyone stops, and watches it
+    // come.
+    if (game._art?.form == 'Dark' && game.formFeatures > 0.5) {
+      final e = kShadowSweep.at(game._formClock);
+      if (e != null && game._formReveal >= 1) {
+        final from = hash01(e.$1, 710) < 0.5 ? -1.0 : 1.0;
+        comp.face(from < 0 ? 1 : -1);
+        l.target = l.dx;
+        _walk(l, comp, sp, dt, size);
+        return;
+      }
     }
 
     l.wait -= dt;
@@ -659,6 +786,27 @@ class _HomeLife {
     final roll = _rng.nextDouble();
     l.act = _Act.idle;
     l.wait = 2.5 + _rng.nextDouble() * 5;
+
+    // A Horn with a Let on its ground: now and then, it charges.
+    if (roll < 0.08 && _startChase(l, sp)) return;
+
+    // To where the land's form shows itself, as near as its ground goes:
+    // to peer into the rift, stand in the light, look at the pool, warm
+    // itself at the fissure, look at the crystals, the blooms.
+    final site = _siteFrom(sp);
+    if (site != null && roll > 0.82) {
+      final form = game._art?.form;
+      // In Light's column it stands in the light itself, by day.
+      final inIt = form == 'Light' && !_night;
+      final side = site > l.dx ? -1.0 : 1.0;
+      final to = inIt ? site : site + side * size * 1.15;
+      l
+        ..act = _Act.look
+        ..target = to.clamp(range.$1, range.$2)
+        ..wait = 6 + _rng.nextDouble() * 6;
+      if (!inIt) comp.face(site > l.dx ? -1 : 1);
+      return;
+    }
 
     // Through the portals, now and then.
     if (roll < 0.12) {
@@ -833,13 +981,15 @@ class _HomeLife {
   }
 
   /// Whether the weather is the kind to shelter from.
-  bool get _wet => switch (game.fieldWeather) {
-    WeatherKind.rain ||
-    WeatherKind.snow ||
-    WeatherKind.storm ||
-    WeatherKind.sandstorm => true,
-    _ => false,
-  };
+  bool get _wet =>
+      game.formRaining ||
+      switch (game.fieldWeather) {
+        WeatherKind.rain ||
+        WeatherKind.snow ||
+        WeatherKind.storm ||
+        WeatherKind.sandstorm => true,
+        _ => false,
+      };
 
   /// One step of a visit to a keepsake.
   void _attend(
@@ -1368,6 +1518,208 @@ class _HomeLife {
     final home = game._anchorY(sp, sp.normalizedPos.dy * game._viewportH);
     final drop = game._standDrop[sp.id] ?? size * 0.46;
     l.dy = at.position.y - drop - home;
+  }
+
+  // ── The chase ───────────────────────────────────────────────────────────
+
+  /// When the last chase ended (field seconds): none again for a while.
+  double _chasedAt = -1e9;
+
+  /// How long between chases, at least.
+  static const double _chaseRest = 75;
+
+  String? _familyOf(String spawnId) {
+    final id = game._residentLooks[spawnId]?.$1.id;
+    return id == null || id.length < 3 ? null : id.substring(0, 3);
+  }
+
+  /// Whether [l] (a Horn, at [sp]) can start a chase now: a Let awake on
+  /// its row, near, on unbroken ground with room to run. Starts it if so.
+  bool _startChase(_Liver l, SpawnPoint sp, {bool force = false}) {
+    if (!force && game._fieldTime - _chasedAt < _chaseRest) return false;
+    if (_familyOf(l.id) != 'HOR' || sp.aloft) return false;
+    final size = sp.size.x;
+    for (final e in _livers.entries) {
+      final q = e.value;
+      if (q == l || q.chase != null || q.trip != null || q.call != null) {
+        continue;
+      }
+      if (q.act == _Act.asleep || _familyOf(q.id) != 'LET') continue;
+      final qp = game._pointOf(q.id);
+      if (qp == null || qp.aloft || !_sameRow(qp, sp)) continue;
+      final gap = game._loopDelta(q.id, sp.id);
+      if (gap.abs() > size * 3.2) continue;
+      final (lo, hi) = _openGround(sp, size * 2.8);
+      final qAt = gap + q.dx;
+      // Room for the Let to run on, away from the Horn.
+      final away = qAt >= l.dx ? hi - qAt : qAt - lo;
+      if (qAt < lo || qAt > hi || away < qp.size.x * 0.8) continue;
+      final c = _Chase(l.id, q.id, lo: lo, hi: hi, gap: gap)
+        ..at = qAt
+        ..toward = qAt >= l.dx ? hi : lo;
+      l
+        ..chase = c
+        ..call = null
+        ..act = _Act.idle;
+      q
+        ..chase = c
+        ..act = _Act.idle;
+      return true;
+    }
+    return false;
+  }
+
+  /// The ground either side of [sp]'s spot that runs on unbroken, as far
+  /// as [far]: a slope is fine, a drop or a gap (between isles) is not.
+  (double, double) _openGround(SpawnPoint sp, double far) {
+    final x = game._spawnBaseX(sp);
+    final step = 3 * _u;
+    double reach(int dir) {
+      var last = _groundOf(sp, x)?.rest;
+      if (last == null) return 0;
+      var at = 0.0;
+      for (var d = step; d <= far; d += step) {
+        final g = _groundOf(sp, x + dir * d);
+        if (g == null || (g.rest - last!).abs() > 5 * _u) break;
+        last = g.rest;
+        at = d;
+      }
+      return at;
+    }
+
+    return (-reach(-1), reach(1));
+  }
+
+  bool _chaseHolds(_Chase c) =>
+      _livers.containsKey(c.hunter) &&
+      _livers.containsKey(c.quarry) &&
+      game._residents.containsKey(c.hunter) &&
+      game._residents.containsKey(c.quarry);
+
+  void _endChase(_Chase c) {
+    _chasedAt = game._fieldTime;
+    for (final id in [c.hunter, c.quarry]) {
+      final l = _livers[id];
+      if (l == null || l.chase != c) continue;
+      l
+        ..chase = null
+        ..lift = 0
+        ..act = _Act.idle
+        ..target = 0
+        ..wait = 2 + _rng.nextDouble() * 3;
+      game._residents[id]?.scale.setValues(1, 1);
+    }
+  }
+
+  /// The Horn's step of the chase, moving both: it lowers its head, then
+  /// runs at the Let, which hops away ahead of it to the end of the
+  /// ground, leaps back over it, and runs the other way; three passes and
+  /// the Horn gives up.
+  void _hunt(
+    _Liver l,
+    WildMonComponent comp,
+    SpawnPoint sp,
+    _Chase c,
+    double dt,
+  ) {
+    final q = _livers[c.quarry]!;
+    final qComp = game._residents[c.quarry]!;
+    final qp = game._pointOf(c.quarry);
+    if (qp == null) {
+      _endChase(c);
+      return;
+    }
+    final size = sp.size.x, qSize = qp.size.x;
+    c.time += dt;
+    void faceTo(WildMonComponent who, double dir) => who.face(dir > 0 ? -1 : 1);
+    // Its lift is its own (a hop, the leap): the ground under it is dy.
+    void placeLet() {
+      q.dx = c.at - c.gap;
+      q.dy = _groundShift(qp, q.dx);
+    }
+
+    switch (c.stage) {
+      case 0:
+        // Head down, weight back; the Let startles.
+        faceTo(comp, c.at - l.dx);
+        faceTo(qComp, l.dx - c.at);
+        final k = math.min(1.0, c.time / 0.55);
+        comp.scale.setValues(1 + 0.08 * k, 1 - 0.1 * k);
+        q.lift = math.sin(math.min(1.0, c.time / 0.3) * math.pi) * qSize * 0.12;
+        placeLet();
+        if (c.time >= 0.55) {
+          c
+            ..stage = 1
+            ..time = 0;
+          comp.scale.setValues(1, 1);
+          q.lift = 0;
+        }
+      case 1:
+        // The Let hops away to the end of the ground; the Horn runs at it.
+        final dir = (c.toward - c.at).sign;
+        final run = qSize * 1.7 * dt;
+        c.at += dir * math.min(run, (c.toward - c.at).abs());
+        q.stride += run / (qSize * 0.3);
+        q.lift = (math.sin(q.stride * math.pi)).abs() * qSize * 0.1;
+        faceTo(qComp, dir);
+        placeLet();
+        final chase = c.at - l.dx;
+        final step = math.min(chase.abs(), size * 1.25 * dt);
+        if (chase.abs() > qSize * 0.5) {
+          l.dx = (l.dx + chase.sign * step).clamp(c.lo, c.hi);
+          l.stride += step / (size * 0.16);
+        }
+        faceTo(comp, chase);
+        l.dy = _groundShift(sp, l.dx) -
+            (math.sin(l.stride * math.pi)).abs() * 3.5 * _u;
+        // Cornered: over the Horn's head, and away the other way.
+        if ((c.toward - c.at).abs() < 1 && chase.abs() < size * 1.1) {
+          final back = c.toward == c.hi ? c.lo : c.hi;
+          c
+            ..stage = 2
+            ..time = 0
+            ..leapFrom = c.at
+            ..leapTo = (l.dx + (back - l.dx) * 0.55).clamp(c.lo, c.hi)
+            ..toward = back;
+          if (game.isOnScreen(game._spawnPointComps[c.quarry]!)) {
+            game.onSound?.call(SoundCue.homeStep);
+          }
+        }
+      case 2:
+        // The leap: up over the Horn in an arc, which skids and turns.
+        final f = math.min(1.0, c.time / 0.75);
+        c.at = c.leapFrom + (c.leapTo - c.leapFrom) * f;
+        q.lift = math.sin(f * math.pi) * (size * 0.85);
+        faceTo(qComp, c.leapTo - c.leapFrom);
+        placeLet();
+        final skid = 1 - f;
+        comp.scale.setValues(1 - 0.06 * skid, 1 + 0.04 * skid);
+        if (f >= 1) {
+          q.lift = 0;
+          comp.scale.setValues(1, 1);
+          c
+            ..passes += 1
+            ..time = 0
+            ..stage = c.passes >= 3 ? 3 : 1;
+        }
+      default:
+        // It gives up: a shake of the head, and both go home.
+        _endChase(c);
+    }
+  }
+
+  /// Starts a chase by the Horn at [spawnId], if one can — for tests.
+  bool debugChase(String spawnId) {
+    final sp = game._pointOf(spawnId);
+    final l = _livers[spawnId];
+    if (sp == null || l == null) return false;
+    return _startChase(l, sp, force: true);
+  }
+
+  /// Whether [spawnId] is in a chase now, and how far along it is.
+  ({int stage, int passes})? debugChaseOf(String spawnId) {
+    final c = _livers[spawnId]?.chase;
+    return c == null ? null : (stage: c.stage, passes: c.passes);
   }
 
   void _comeHome(_Liver l, WildMonComponent comp) {

@@ -70,6 +70,15 @@ class VolcanoField extends _GrainField {
     _gAshTop: Color(0xFF8E8078),
   };
 
+  /// What each part of the Volcano is, for the form its land takes.
+  static const _mats = <int, _Mat>{
+    _gRange: _Mat.far,
+    _gCone: _Mat.rock,
+    _gHill: _Mat.soil,
+    _gRock: _Mat.rock,
+    _gAshTop: _Mat.sand,
+  };
+
   /// Snow on the far range in winter (it never lies near the lava).
   static const _winterAlbedo = <int, Color>{_gRange: Color(0xFFB8BEC8)};
 
@@ -78,7 +87,20 @@ class VolcanoField extends _GrainField {
 
   /// The lava's crust, and the colors its heat runs through.
   static const _crust = Color(0xFF2E2526);
-  static const _lavaOrange = Color(0xFFF05A1C), _lavaHot = Color(0xFFFFCC52);
+  static const _lavaOrange0 = Color(0xFFF05A1C), _lavaHot0 = Color(0xFFFFCC52);
+
+  /// The lava's colors — turned, in a form, to the form's own fire (a
+  /// violet one in Dark, white-gold in Light, blue in Oceanic, a poison
+  /// green in Verdant…).
+  Color get _lavaOrange {
+    final d = _deepNow, to = _formLava[form];
+    return d <= 0 || to == null ? _lavaOrange0 : Color.lerp(_lavaOrange0, to.$1, d)!;
+  }
+
+  Color get _lavaHot {
+    final d = _deepNow, to = _formLava[form];
+    return d <= 0 || to == null ? _lavaHot0 : Color.lerp(_lavaHot0, to.$2, d)!;
+  }
 
   /// The lava's light on what stands over it, from dull to warm.
   static const _glowDeep = Color(0xFFA02C14), _glowWarm = Color(0xFFFF7C30);
@@ -228,8 +250,13 @@ class VolcanoField extends _GrainField {
   void _buildGrades(_Light l) {
     final hazeHigh = l.skyAt(0.42), hazeLow = l.skyAt(0.585);
     // Winter snow lies only on the far range, high above the heat.
-    Color sil(int g) =>
-        _sil(_seasoned(_albedo[g]!, winter: _winterAlbedo[g]), l);
+    Color sil(int g) => _sil(
+      _inForm(
+        _seasoned(_albedo[g]!, winter: _winterAlbedo[g]),
+        _mats[g],
+      ),
+      l,
+    );
     (double, double, double) fleck(Color s, double k) => (
       s.r * 0.9 + l.rim.r * l.rimStrength * k,
       s.g * 0.9 + l.rim.g * l.rimStrength * k,

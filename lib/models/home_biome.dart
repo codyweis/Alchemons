@@ -67,11 +67,20 @@ class HomeMood {
     this.weather,
     this.aftermath = false,
     this.stage = 0,
+    this.form,
   });
 
   final String id;
   final String label;
   final WeatherKind? weather;
+
+  /// The element the realm's land has taken, fully: a form earned by
+  /// filling it with one element for a week (see [HomeHold]).
+  final String? form;
+
+  /// The mood that is [element]'s form, earned.
+  static HomeMood formOf(String element) =>
+      HomeMood('form:$element', element.toUpperCase(), form: element);
 
   /// What the weather leaves behind is showing (the Valley's rainbow).
   final bool aftermath;
@@ -311,8 +320,13 @@ enum HomeRealm {
     HomeDepth.back => far,
   };
 
-  HomeMood mood(String? id) =>
-      moods.where((m) => m.id == id).firstOrNull ?? moods.first;
+  HomeMood mood(String? id) {
+    if (id != null && id.startsWith('form:')) {
+      final e = id.substring(5);
+      if (kHomeForms.contains(e)) return HomeMood.formOf(e);
+    }
+    return moods.where((m) => m.id == id).firstOrNull ?? moods.first;
+  }
 
   /// How far [layer] runs before it repeats, in its own units.
   double period(SceneLayer layer) {
@@ -780,6 +794,79 @@ double homeMarkStrength(int since, int now) {
   return t * t * (3 - 2 * t);
 }
 
+// ── Forms ──────────────────────────────────────────────────────────────────
+
+/// The forms the realms can take, each realm its own way: one for each
+/// division's elements (as the harvest biomes group them), and Dark, Light
+/// and Blood on their own.
+const List<String> kHomeForms = [
+  'Volcanic',
+  'Oceanic',
+  'Earthen',
+  'Verdant',
+  'Dark',
+  'Light',
+  'Blood',
+];
+
+/// The form an Alchemon of [element] brings a realm toward, or null
+/// (Spirit has none).
+String? homeFormOfElement(String? element) => switch (element) {
+  'Fire' || 'Lava' || 'Lightning' => 'Volcanic',
+  'Water' || 'Ice' || 'Steam' => 'Oceanic',
+  'Earth' || 'Mud' || 'Dust' || 'Crystal' => 'Earthen',
+  'Air' || 'Plant' || 'Poison' => 'Verdant',
+  'Dark' => 'Dark',
+  'Light' => 'Light',
+  'Blood' => 'Blood',
+  _ => null,
+};
+
+/// A realm filled with Alchemons of one form's elements — every place
+/// taken by one — since [since] (ms since the epoch). [element] is the
+/// form ('Volcanic', 'Dark'…). The land takes it at once, and after a week
+/// turns into its form.
+class HomeHold {
+  const HomeHold(this.element, this.since);
+  final String element;
+  final int since;
+
+  List<Object> toJson() => [element, since];
+
+  static HomeHold? fromJson(Object? json) {
+    if (json is! List || json.length != 2) return null;
+    final e = json[0], t = json[1];
+    if (e is! String || t is! num) return null;
+    return HomeHold(e, t.toInt());
+  }
+}
+
+/// How far a realm held since [since] has turned into its form at [now]:
+/// nothing for six days, then over the seventh.
+double homeFormDeep(int since, int now) {
+  final days = (now - since) / _dayMs;
+  if (days <= 6) return 0;
+  if (days >= 7) return 1;
+  final t = days - 6;
+  return t * t * (3 - 2 * t);
+}
+
+/// The element [layout]'s realm has taken and how far into its form it is
+/// at [now]: a form chosen as its mood (earned), fully; else the element
+/// it is held by, turning over its week — or at once with [full] (the
+/// developer tools). Nothing when neither.
+(String?, double) homeFormOf(
+  HomeBiomeLayout layout,
+  int now, {
+  bool full = false,
+}) {
+  final chosen = layout.mood.form;
+  if (chosen != null) return (chosen, 1);
+  final h = layout.hold;
+  if (h == null) return (null, 0);
+  return (h.element, full ? 1 : homeFormDeep(h.since, now));
+}
+
 /// How many arrangements of each realm can be kept.
 const int kHomeArrangementSlots = 3;
 
@@ -1148,6 +1235,7 @@ class HomeBiomeLayout {
     this.marks = const [],
     this.arrangements = const {},
     this.frames = const {},
+    this.holds = const {},
   }) : _households = households;
 
   final HomeRealm realm;
@@ -1166,6 +1254,12 @@ class HomeBiomeLayout {
 
   /// The view framed of each realm, by realm name.
   final Map<String, HomeFrame> frames;
+
+  /// The realms filled with one element, by realm name (see [HomeHold]).
+  final Map<String, HomeHold> holds;
+
+  /// The current realm's hold, if it is held.
+  HomeHold? get hold => holds[realm.name];
 
   /// The current realm's kept arrangements, one per place.
   List<HomeArrangement?> get arrangementsHere {
@@ -1269,6 +1363,7 @@ class HomeBiomeLayout {
     List<HomeMark>? marks,
     Map<String, List<HomeArrangement?>>? arrangements,
     Map<String, HomeFrame>? frames,
+    Map<String, HomeHold>? holds,
   }) {
     final to = realm ?? this.realm;
     final all = households;
@@ -1285,6 +1380,7 @@ class HomeBiomeLayout {
       marks: marks ?? this.marks,
       arrangements: arrangements ?? this.arrangements,
       frames: frames ?? this.frames,
+      holds: holds ?? this.holds,
     );
   }
 
@@ -1351,6 +1447,24 @@ class HomeBiomeLayout {
       for (final m in [...marks, ...left])
         if (m.strengthAt(now) > 0.01) m,
     ];
+    // A realm whose every place is one form's elements is held from when
+    // it first was; a realm whose residents' elements are not all known here
+    // is left as it was.
+    final held = <String, HomeHold>{};
+    for (final r in HomeRealm.values) {
+      final house = houses[r.name] ?? const [];
+      final elements = [for (final h in house) elementOf(h.instanceId)];
+      if (elements.any((e) => e == null) && house.isNotEmpty) {
+        if (holds[r.name] case final h?) held[r.name] = h;
+        continue;
+      }
+      final full = house.length >= kHomeBiomeMaxResidents;
+      final one = {for (final e in elements) homeFormOfElement(e)};
+      if (!full || one.length != 1 || one.first == null) continue;
+      final e = one.first!;
+      final was = holds[r.name] ?? before.holds[r.name];
+      held[r.name] = was != null && was.element == e ? was : HomeHold(e, now);
+    }
     return HomeBiomeLayout(
       realm: realm,
       sandStyle: sandStyle,
@@ -1364,6 +1478,7 @@ class HomeBiomeLayout {
       marks: kept.length > 24 ? kept.sublist(kept.length - 24) : kept,
       arrangements: arrangements,
       frames: frames,
+      holds: held,
     );
   }
 
@@ -2125,6 +2240,8 @@ class HomeBiomeLayout {
       },
     if (frames.isNotEmpty)
       'frames': {for (final e in frames.entries) e.key: e.value.toJson()},
+    if (holds.isNotEmpty)
+      'holds': {for (final e in holds.entries) e.key: e.value.toJson()},
   };
 
   static HomeBiomeLayout fromJson(Object? json) {
@@ -2211,6 +2328,14 @@ class HomeBiomeLayout {
                 if (e.key is String)
                   if (HomeFrame.fromJson(e.value) case final f?)
                     e.key as String: f,
+            }
+          : const {},
+      holds: json['holds'] is Map
+          ? {
+              for (final e in (json['holds'] as Map).entries)
+                if (e.key is String)
+                  if (HomeHold.fromJson(e.value) case final h?)
+                    e.key as String: h,
             }
           : const {},
     );

@@ -47,6 +47,17 @@ class DunesField extends _GrainField {
     _gLip: Color(0xFFC89C6C),
   };
 
+  /// What each part of the Dunes is, for the form its land takes.
+  static const _mats = <int, _Mat>{
+    _gButtes: _Mat.rock,
+    _gFarSand: _Mat.far,
+    _gSand: _Mat.sand,
+    _gFloor: _Mat.sand,
+    _gStone: _Mat.rock,
+    _gRock: _Mat.rock,
+    _gLip: _Mat.sand,
+  };
+
   /// How deep the sandstorm's dust buries each grade, at its thickest.
   static const _stormBury = <int, double>{
     _gButtes: 0.95,
@@ -87,7 +98,7 @@ class DunesField extends _GrainField {
     final hazeHigh = l.skyAt(0.44), hazeLow = l.skyAt(0.585);
     final st = storm;
     Color sil(int g) {
-      final a = _albedo[g]!;
+      final a = _inForm(_albedo[g]!, _mats[g]);
       var s = Color.from(
         alpha: 1,
         red: a.r * l.ambient.r,

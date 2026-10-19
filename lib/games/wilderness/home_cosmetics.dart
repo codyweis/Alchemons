@@ -578,3 +578,110 @@ class _HarmonyLayer extends Component with HasGameReference<SceneGame> {
     _light.draw(canvas, blend: BlendMode.plus);
   }
 }
+
+/// The land's form showing itself (form_feature_art.dart): its site on the
+/// near row's ground and what happens there, under the residents and over
+/// them; its clock running, its reveal playing.
+class _FormFeatures {
+  _FormFeatures(this.game);
+
+  final SceneGame game;
+  SceneLayer? _mountedOn;
+  bool _frontMounted = false;
+
+  void update(double dt) {
+    final site = game.formSite;
+    if (site == null || game.formFeatures <= 0) return;
+    game._formClock += dt;
+    if (game._formRevealing) {
+      game._formReveal = math.min(1, game._formReveal + dt / 6);
+      if (game._formReveal >= 1) game._formRevealing = false;
+    }
+    if (_mountedOn != site.layer) {
+      final container = game._layers[site.layer]?.container;
+      if (container != null) {
+        _mountedOn = site.layer;
+        container.add(_FormLayer(front: false)..priority = 8);
+      }
+    }
+    if (!_frontMounted) {
+      final container = game._layers[site.layer]?.container;
+      if (container != null) {
+        _frontMounted = true;
+        container.add(_FormLayer(front: true)..priority = 66);
+      }
+    }
+  }
+}
+
+class _FormLayer extends Component with HasGameReference<SceneGame> {
+  _FormLayer({required this.front});
+
+  final bool front;
+  final CosmeticAtlas _over = CosmeticAtlas(2000);
+  final CosmeticAtlas _light = CosmeticAtlas(1600);
+
+  @override
+  void render(Canvas canvas) {
+    final site = game.formSite;
+    final art = game._art;
+    final amount = game.formFeatures;
+    final form = art?.form;
+    if (site == null || art == null || form == null || amount <= 0) return;
+    final container = parent;
+    if (container is! PositionComponent) return;
+    final layer = site.layer;
+    final view = game._fieldViewFor(container.position.x);
+    final mid = (view.left + view.right) / 2;
+    final x = site.period > 0
+        ? site.x + site.period * ((mid - site.x) / site.period).roundToDouble()
+        : site.x;
+    final feet = site.feet * view.height;
+    double? ground(double gx) {
+      final g = art.groundAt(layer, gx, toward: feet)?.rest;
+      if (g != null && g.isFinite) return g;
+      // A field with no ground to give (Living Sands, the Core) lays it
+      // on the row's own feet.
+      return art is HomeSandField || art is HomeCoreField ? feet : null;
+    }
+
+    final residents = [
+      for (final e in game._residents.entries)
+        if (game._pointOf(e.key) case final sp?
+            when sp.anchor == layer && !sp.aloft)
+          if (game._spawnPointComps[e.key] case final a?)
+            FormFoot(
+              a.position.x,
+              a.position.y + (game._standDrop[e.key] ?? sp.size.x * 0.46),
+              sp.size.x,
+              e.key.hashCode & 0xFFFF,
+            ),
+    ];
+    final p = lunarPhase(DateTime.now());
+    final v = FormView(
+      form: form,
+      left: view.left,
+      right: view.right,
+      top: view.top,
+      bottom: view.bottom,
+      height: view.height,
+      time: game._formClock,
+      ground: ground,
+      siteX: x,
+      siteY: ground(x) ?? feet,
+      size: site.size,
+      reveal: game._formReveal,
+      amount: amount,
+      night: nightAt(game.fieldHour),
+      feet: residents,
+      fullMoon: (p - 0.5).abs() < 0.04,
+    );
+    if (front) {
+      paintFormFront(v, canvas, _over, _light);
+    } else {
+      paintFormBack(v, canvas, _over, _light);
+    }
+    _over.draw(canvas);
+    _light.draw(canvas, blend: BlendMode.plus);
+  }
+}

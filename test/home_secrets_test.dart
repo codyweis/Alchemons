@@ -322,6 +322,95 @@ void main() {
     });
   });
 
+  group('forms', () {
+    test('a realm all of one element is held, and turns over its week', () {
+      String? dark(String _) => 'Dark';
+      final twelve = [
+        for (var i = 0; i < kHomeBiomeMaxResidents; i++)
+          HomeResident(instanceId: 'd$i', x: i / 12),
+      ];
+      final full = HomeBiomeLayout(
+        residents: twelve,
+      ).markedSince(const HomeBiomeLayout(), 1000, dark);
+      expect(full.hold?.element, 'Dark');
+      expect(full.hold?.since, 1000);
+      // Moving them about does not start it again.
+      final moved = full
+          .replace(full.residents.first.copyWith(x: 0.5))
+          .markedSince(full, 5000, dark);
+      expect(moved.hold?.since, 1000);
+      // One of another element and it is not held.
+      final broken = moved.markedSince(
+        moved,
+        6000,
+        (id) => id == 'd3' ? 'Fire' : 'Dark',
+      );
+      expect(broken.hold, isNull);
+      // Eleven is not every place.
+      final eleven = full
+          .copyWith(residents: twelve.take(11).toList())
+          .markedSince(full, 7000, dark);
+      expect(eleven.hold, isNull);
+      // Elements not known here (a realm not entered yet): left as it was.
+      expect(full.markedSince(full, 8000, (_) => null).hold?.since, 1000);
+      expect(HomeBiomeLayout.fromJson(full.toJson()).hold?.element, 'Dark');
+    });
+
+    test('a division\'s elements together hold it; Dark, Light and Blood '
+        'alone; Spirit nothing', () {
+      HomeBiomeLayout of(List<String> elements) {
+        final rs = [
+          for (var i = 0; i < kHomeBiomeMaxResidents; i++)
+            HomeResident(instanceId: 'r$i', x: i / 12),
+        ];
+        return HomeBiomeLayout(residents: rs).markedSince(
+          const HomeBiomeLayout(),
+          0,
+          (id) => elements[int.parse(id.substring(1)) % elements.length],
+        );
+      }
+
+      expect(of(['Fire', 'Lava', 'Lightning']).hold?.element, 'Volcanic');
+      expect(of(['Water', 'Ice', 'Steam']).hold?.element, 'Oceanic');
+      expect(of(['Earth', 'Mud', 'Dust', 'Crystal']).hold?.element, 'Earthen');
+      expect(of(['Air', 'Plant', 'Poison']).hold?.element, 'Verdant');
+      expect(of(['Light']).hold?.element, 'Light');
+      expect(of(['Blood']).hold?.element, 'Blood');
+      expect(of(['Fire', 'Water']).hold, isNull);
+      expect(of(['Dark', 'Light']).hold, isNull);
+      expect(of(['Spirit']).hold, isNull);
+      expect(kHomeForms, hasLength(7));
+      for (final f in kHomeForms) {
+        expect(HomeRealm.valley.mood('form:$f').form, f);
+      }
+    });
+
+    test('nothing for six days, then over the seventh', () {
+      expect(homeFormDeep(0, 5 * _day), 0);
+      expect(homeFormDeep(0, 6 * _day + _day ~/ 2), closeTo(0.5, 1e-9));
+      expect(homeFormDeep(0, 7 * _day), 1);
+    });
+
+    test('a form earned is a mood of its realm, and shows fully', () {
+      final mood = HomeRealm.valley.mood('form:Dark');
+      expect(mood.form, 'Dark');
+      expect(mood.label, 'DARK');
+      expect(HomeRealm.valley.mood('form:Cheese').id, 'clear');
+      const s = HomeSecrets(forms: {'valley:Dark'});
+      expect(s.formsOf(HomeRealm.valley).single.id, 'form:Dark');
+      expect(s.formsOf(HomeRealm.sky), isEmpty);
+      expect(HomeSecrets.fromJson(s.toJson()).forms, {'valley:Dark'});
+      final chosen = const HomeBiomeLayout().withMood('form:Dark');
+      expect(homeFormOf(chosen, 0), ('Dark', 1.0));
+      final held = const HomeBiomeLayout().copyWith(
+        holds: {'valley': const HomeHold('Dark', 0)},
+      );
+      expect(homeFormOf(held, 3 * _day), ('Dark', 0.0));
+      expect(homeFormOf(held, 3 * _day, full: true), ('Dark', 1.0));
+      expect(homeFormOf(const HomeBiomeLayout(), 0), (null, 0.0));
+    });
+  });
+
   group('layouts and a framed view', () {
     test('a realm kept, changed, and taken back', () {
       const first = HomeBiomeLayout(

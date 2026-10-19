@@ -24,7 +24,7 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/home_biome/home_sky_source.dart';
 import 'package:alchemons/screens/home_biome/home_biome_screen.dart'
-    show hydrateResident, showHomeMarks, standHomePieces;
+    show homeFormSite, hydrateResident, showHomeMarks, standHomePieces;
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -79,8 +79,16 @@ SceneGame friendHomeGame(FriendHome home, HomeBiomeLayout layout) {
     // Their trails and their ambience, as they wear them.
     ..trailOf = ((id) => TrailStyle.byId(home.looks[id]?.trail))
     ..ambience = HomeAmbience.byId(home.ambience);
-  // What their residents have made of their ground.
+  // What their residents have made of their ground, and of the land.
   showHomeMarks(game, layout);
+  final (form, deep) = homeFormOf(
+    layout,
+    DateTime.now().millisecondsSinceEpoch,
+  );
+  game
+    ..fieldForm = form
+    ..fieldFormDeep = deep
+    ..formSite = form == null ? null : homeFormSite(layout);
   return game;
 }
 

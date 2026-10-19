@@ -215,6 +215,14 @@ abstract class FieldArt {
   HomeSeason? season;
   double seasonAmount = 0;
 
+  /// The element a home realm's land has taken (its residents all of one
+  /// element), how far it has taken it ([formCast], 0–1, at once), and how
+  /// far it has turned into its form ([formDeep], 0–1, over a week). Each
+  /// field draws only the forms it has; null in the wild.
+  String? form;
+  double formCast = 0;
+  double formDeep = 0;
+
   /// Whether this land has trees to shed into the air in a season — leaves
   /// in autumn, petals in spring.
   bool get shedsInSeason => false;

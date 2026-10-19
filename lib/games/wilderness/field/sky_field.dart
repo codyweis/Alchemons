@@ -59,6 +59,12 @@ class SkyField extends _GrainField {
     _gTurf: Color(0xFF7A7238),
     _gTree: Color(0xFF7A4A22),
   };
+  /// What each part of the isles is, for the form their land takes.
+  static const _mats = <int, _Mat>{
+    _gRock: _Mat.rock,
+    _gTurf: _Mat.cover,
+    _gTree: _Mat.foliage,
+  };
   static const _winterAlbedo = <int, Color>{
     _gTurf: Color(0xFFC2CCD6),
     _gRock: Color(0xFFCAD2DC),
@@ -94,11 +100,14 @@ class SkyField extends _GrainField {
   void _buildGrades(_Light l) {
     final hazeIsle = l.skyAt(0.5), hazeLow = l.skyAt(0.6);
     Color sil(int g) {
-      final a = _seasoned(
-        _albedo[g]!,
-        spring: _springAlbedo[g],
-        autumn: _autumnAlbedo[g],
-        winter: _winterAlbedo[g],
+      final a = _inForm(
+        _seasoned(
+          _albedo[g]!,
+          spring: _springAlbedo[g],
+          autumn: _autumnAlbedo[g],
+          winter: _winterAlbedo[g],
+        ),
+        _mats[g],
       );
       return Color.from(
         alpha: 1,
