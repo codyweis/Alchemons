@@ -240,21 +240,18 @@ class _FakeStore extends ChangeNotifier implements MobileStoreService {
     GoldPackDefinition(
       productId: 'alchemons_gold_small',
       title: 'Pouch',
-      subtitle: 'A little gold.',
       goldAmount: 20,
       badge: '',
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_popular',
       title: 'Coffer',
-      subtitle: 'The usual.',
       goldAmount: 120,
       badge: 'POPULAR',
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_celestial',
       title: 'Celestial',
-      subtitle: 'Heavy stockpile.',
       goldAmount: 500,
       badge: 'PREMIUM',
     ),

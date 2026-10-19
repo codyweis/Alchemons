@@ -58,36 +58,32 @@ void main() {
     const prices = [
       ('\$0.99', 0.99),
       ('\$2.99', 2.99),
-      ('\$5.99', 5.99),
-      ('\$12.99', 12.99),
+      ('\$4.99', 4.99),
+      ('\$9.99', 9.99),
     ];
     final packs = const [
       GoldPackDefinition(
         productId: 'alchemons_gold_cache',
         title: 'Gold Cache',
-        subtitle: 'Quick refill for portal keys and summons.',
-        goldAmount: 25,
+        goldAmount: 50,
         badge: 'STARTER',
       ),
       GoldPackDefinition(
         productId: 'alchemons_gold_stash',
         title: 'Gold Stash',
-        subtitle: 'Balanced pack for regular premium play.',
-        goldAmount: 75,
+        goldAmount: 250,
         badge: 'POPULAR',
       ),
       GoldPackDefinition(
         productId: 'alchemons_gold_vault',
         title: 'Gold Vault',
-        subtitle: 'Big injection for cosmetics and unlocks.',
-        goldAmount: 200,
+        goldAmount: 500,
         badge: 'VALUE',
       ),
       GoldPackDefinition(
         productId: 'alchemons_gold_celestial',
         title: 'Celestial',
-        subtitle: 'Heavy stockpile for long-form progression.',
-        goldAmount: 500,
+        goldAmount: 2000,
         badge: 'PREMIUM',
       ),
     ];
@@ -167,7 +163,7 @@ void main() {
       }
       await shoot(key, '${w}_1_open_popular');
 
-      await tester.tap(find.text('500').first);
+      await tester.tap(find.text('2000').first);
       for (var i = 0; i < 8; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
@@ -177,7 +173,7 @@ void main() {
       }
       await shoot(key, '${w}_3_celestial');
 
-      await tester.tap(find.text('25').first);
+      await tester.tap(find.text('50').first);
       for (var i = 0; i < 15; i++) {
         await tester.pump(const Duration(milliseconds: 50));
       }
@@ -187,7 +183,7 @@ void main() {
       }
       await shoot(key, '${w}_4_cache');
 
-      await tester.tap(find.text('200').first);
+      await tester.tap(find.text('500').first);
       state.value = (offers(), true);
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 50));

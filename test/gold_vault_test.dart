@@ -7,21 +7,18 @@ const _packs = [
   GoldPackDefinition(
     productId: 'cache',
     title: 'Gold Cache',
-    subtitle: 'a',
     goldAmount: 25,
     badge: 'STARTER',
   ),
   GoldPackDefinition(
     productId: 'stash',
     title: 'Gold Stash',
-    subtitle: 'b',
     goldAmount: 75,
     badge: 'POPULAR',
   ),
   GoldPackDefinition(
     productId: 'vault',
     title: 'Gold Vault',
-    subtitle: 'c',
     goldAmount: 200,
     badge: 'VALUE',
   ),

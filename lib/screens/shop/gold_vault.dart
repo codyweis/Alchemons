@@ -993,28 +993,7 @@ class _Hero extends StatelessWidget {
             const CoinIcon.gold(size: 20),
           ],
         ),
-        const SizedBox(height: 4),
-        Expanded(
-          child: AnimatedSwitcher(
-            duration: const Duration(milliseconds: 220),
-            layoutBuilder: (current, previous) => Stack(
-              alignment: Alignment.topLeft,
-              children: [...previous, ?current],
-            ),
-            child: Text(
-              pack.subtitle,
-              key: ValueKey(pack.productId),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: _V.muted,
-                fontSize: 11.5,
-                height: 1.35,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ),
+        const Spacer(),
         _BuyButton(
           offer: offer,
           needsAccount: needsAccount,

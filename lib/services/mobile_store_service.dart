@@ -12,14 +12,12 @@ import 'package:shared_preferences/shared_preferences.dart';
 class GoldPackDefinition {
   final String productId;
   final String title;
-  final String subtitle;
   final int goldAmount;
   final String badge;
 
   const GoldPackDefinition({
     required this.productId,
     required this.title,
-    required this.subtitle,
     required this.goldAmount,
     required this.badge,
   });
@@ -112,29 +110,25 @@ class MobileStoreService extends ChangeNotifier {
     GoldPackDefinition(
       productId: 'alchemons_gold_cache',
       title: 'Gold Cache',
-      subtitle: 'Quick refill for portal keys and summons.',
       goldAmount: 50,
       badge: 'STARTER',
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_stash',
       title: 'Gold Stash',
-      subtitle: 'Balanced pack for regular premium play.',
-      goldAmount: 150,
+      goldAmount: 250,
       badge: 'POPULAR',
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_vault',
       title: 'Gold Vault',
-      subtitle: 'Big injection for cosmetics and unlocks.',
       goldAmount: 500,
       badge: 'VALUE',
     ),
     GoldPackDefinition(
       productId: 'alchemons_gold_celestial',
       title: 'Celestial',
-      subtitle: 'Heavy stockpile for long-form progression.',
-      goldAmount: 1000,
+      goldAmount: 2000,
       badge: 'PREMIUM',
     ),
   ];
