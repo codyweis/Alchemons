@@ -13,7 +13,14 @@
 // middle — molten grains under drifting crust, its heat lighting the sand
 // round it, the sand it takes glowing as it melts; on the Stepping Stones
 // the island is three stones, each with its own rock hanging under it,
-// and the dark drop between them.
+// and the dark drop between them. The Ice Island is a lighter, glassy
+// ground, its grains fewer and softer, frost glinting on it. By the Black
+// Hole (implied, never drawn: the author, 2026-09-25, on the Dark planet's
+// sky — no disc, no ring, no hoop) the island's middle is an empty patch
+// that widens; the sand round it streams in towards it on spiral paths,
+// quicker the nearer, lit on one side only by a dim, broken glow; a few
+// stars seen through it are smeared along its edge; and those near it
+// lean against the pull.
 //
 // With friends ([BoutLive]) every phone fights the same bout: it keeps to
 // the shared gun, and the island is turned so each phone's own fighter
@@ -40,7 +47,9 @@ enum IslandStagePhase { intro, countdown, fight, done }
 
 /// The island for a Ruby Cup bout.
 IslandBout islandBoutOf(GemBout bout) => IslandBout(
-  IslandKind.values.asNameMap()[bout.place] ?? IslandKind.sand,
+  bout.place == 'black_hole'
+      ? IslandKind.blackHole
+      : IslandKind.values.asNameMap()[bout.place] ?? IslandKind.sand,
   bout.level,
 );
 
@@ -422,12 +431,45 @@ const Map<IslandKind, _IslandLook> _looks = {
     [Color(0xFF131315), Color(0xFF232220), Color(0xFF36342F)],
     Color(0xFF34477A),
   ),
+  // Sheet ice: a lighter, glassy ground under a cold blue sky.
+  IslandKind.ice: _IslandLook(
+    [
+      Color(0xFF141C25),
+      Color(0xFF2C4253),
+      Color(0xFF5F86A0),
+      Color(0xFFCBE4F2),
+    ],
+    Color(0xFFCFEFF8),
+    [Color(0xFF0D141B), Color(0xFF1A2733), Color(0xFF2E4659)],
+    Color(0xFF2E5A82),
+  ),
+  // Ashen sand by the hole, under a dim violet sky.
+  IslandKind.blackHole: _IslandLook(
+    [
+      Color(0xFF1F1B1B),
+      Color(0xFF3D3633),
+      Color(0xFF6A5F53),
+      Color(0xFFB5A790),
+    ],
+    Color(0xFFDCCFB6),
+    [Color(0xFF141214), Color(0xFF242021), Color(0xFF38322F)],
+    Color(0xFF3C2F62),
+  ),
 };
 
 /// The lava: its dark body, and its grains from crust to the hottest.
 const Color _lavaDeep = Color(0xFF2C0B06), _lavaCrust = Color(0xFF170B07);
 const Color _lavaRed = Color(0xFFB8361A), _lavaOrange = Color(0xFFF07A2A);
 const Color _lavaHot = Color(0xFFFFC36A);
+
+/// The black hole's light: the dim, cool glow on its one lit side, the
+/// warmer light nearest its heart, and the stars seen through it.
+const Color _holeViolet = Color(0xFF7C6CB4), _holeWarm = Color(0xFFDDB38C);
+const Color _holeStar = Color(0xFFE4E8F6);
+
+/// The side the black hole's glow comes from (a turn on the island as
+/// drawn: towards the front and the left), its cosine and sine.
+const double _holeLitC = -0.8, _holeLitS = 0.6;
 
 double _smooth(double x) {
   final t = x.clamp(0.0, 1.0);
@@ -457,6 +499,12 @@ class IslandPainter extends CustomPainter {
   /// radius, and a turn).
   static Float32List? _meltRho, _meltAng;
   static const int _meltN = 1500;
+
+  /// The sand streaming into the black hole: where each grain is in its
+  /// fall when the clock reads none, how many falls it makes a second, and
+  /// how far off its lane's line it runs.
+  static Float32List? _streamPhase, _streamPace, _streamSpread, _streamSlip;
+  static const int _streamN = 1050;
 
   static void _laySand() {
     if (_sandRho != null) return;
@@ -494,7 +542,27 @@ class IslandPainter extends CustomPainter {
     }
     _meltRho = mr;
     _meltAng = ma;
+    _streamPhase = Float32List.fromList([
+      for (var g = 0; g < _streamN; g++) hash01(g, 371),
+    ]);
+    _streamPace = Float32List.fromList([
+      for (var g = 0; g < _streamN; g++) 0.14 + 0.12 * hash01(g, 372),
+    ]);
+    _streamSpread = Float32List.fromList([
+      for (var g = 0; g < _streamN; g++) (hash01(g, 373) - 0.5) * 1.5,
+    ]);
+    _streamSlip = Float32List.fromList([
+      for (var g = 0; g < _streamN; g++) hash01(g, 374) - 0.5,
+    ]);
   }
+
+  /// How far the sand turns as it falls into the black hole: a log spiral,
+  /// as the space course's wells draw theirs.
+  static const double _holeTwist = 1.3;
+
+  /// Where the streams leave the sand, round the hole: three, unevenly
+  /// apart (the first takes 9 grains in 20, the next 7, the last 4).
+  static const List<double> _streamFrom = [0.3, 2.6, 4.4];
 
   static double _bite(double a) =>
       2.2 * sin(a * 5 + 1.3) +
@@ -547,7 +615,17 @@ class IslandPainter extends CustomPainter {
     } else {
       final lava = sim.lavaAt(sim.tick);
       _rock(canvas, at, 0, 0, r, sx, look, t, lava: lava);
-      _sandTop(canvas, at, 0, 0, r, sx, look, lava: lava);
+      _sandTop(
+        canvas,
+        at,
+        0,
+        0,
+        r,
+        sx,
+        look,
+        lava: lava,
+        hole: sim.holeAt(sim.tick),
+      );
       if (lava > 0) _heat(canvas, at, lava, sx, t);
     }
 
@@ -828,7 +906,9 @@ class IslandPainter extends CustomPainter {
   /// just broken off falling away into the dark. The island's is the whole
   /// of the sand; a stone's ([stone]) a share of it, smaller. On the
   /// Molten Heart, the lava eats it from the middle: what it takes glows
-  /// as it melts, and the sand by it is lit.
+  /// as it melts, and the sand by it is lit. On the ice, fewer and softer
+  /// grains, and frost glinting. By the Black Hole, its [hole] eats the
+  /// middle and the sand round it streams in.
   void _sandTop(
     Canvas c,
     Offset Function(double, double) at,
@@ -838,6 +918,7 @@ class IslandPainter extends CustomPainter {
     double sx,
     _IslandLook look, {
     double lava = 0,
+    double hole = 0,
     int stone = -1,
   }) {
     final s = stage;
@@ -865,6 +946,13 @@ class IslandPainter extends CustomPainter {
               IslandKind.sand => Color.lerp(look.sand[0], look.sand[1], 0.45)!,
               IslandKind.molten => Color.lerp(look.sand[0], look.sand[1], 0.6)!,
               IslandKind.stones => Color.lerp(look.sand[0], look.sand[1], 0.5)!,
+              // Ice is glassy: its ground holds more of the light.
+              IslandKind.ice => Color.lerp(look.sand[1], look.sand[2], 0.3)!,
+              IslandKind.blackHole => Color.lerp(
+                look.sand[0],
+                look.sand[1],
+                0.45,
+              )!,
             },
             Color.lerp(look.sand[0], look.sand[1], 0.3)!,
             Color.lerp(look.rock[0], Colors.black, 0.2)!,
@@ -873,6 +961,11 @@ class IslandPainter extends CustomPainter {
         ),
     );
     if (lava > 0) _lavaPool(c, at, lava, sx, s.clock);
+    // How far out round the hole the sand is streaming in: the wider the
+    // harder it pulls.
+    final pull = s.sim.holePullAt(s.sim.tick);
+    final flowW = 10.0 + 30.0 * min(1.0, pull / 300);
+    if (hole > 0) _holeHeart(c, at, hole, flowW, sx);
 
     final b = _b..clear();
     final rho = _sandRho!, tone = _sandTone!;
@@ -889,6 +982,8 @@ class IslandPainter extends CustomPainter {
     final since = s.fightClock;
     final scale = _biteScale(r);
     final lavaScale = 0.5 + 0.5 * min(1.0, lava / kMoltenMax);
+    final holeScale = 0.5 + 0.5 * min(1.0, hole / kHoleMax);
+    final t = s.clock;
     final syy = sx * 0.6;
     for (var j = 0; j < count; j++) {
       final i = (from + j) % _sandN;
@@ -896,6 +991,23 @@ class IslandPainter extends CustomPainter {
       final e = r + bite[i] * scale;
       final qx = mid.dx + cs[i] * p * sx, qy = mid.dy + sn[i] * p * syy;
       if (p <= e) {
+        if (hole > 0) {
+          final he = hole + lb[i] * holeScale;
+          // Gone into the heart.
+          if (p < he) continue;
+          final lit = 0.5 + 0.5 * (cs[i] * _holeLitC + sn[i] * _holeLitS);
+          final band = flowW * (0.65 + 0.7 * lit);
+          if (p < he + band) {
+            // Drawn off into the streams: the nearer the hole, the less of
+            // the sand is left lying.
+            final left = (p - he) / band;
+            if ((i * 0.6180339887) % 1.0 > 0.3 + 0.7 * left) continue;
+            if (left < 0.35 && lit > 0.6) {
+              b.add(left < 0.15 ? 12 : 11, qx, qy);
+              continue;
+            }
+          }
+        }
         if (lava > 0) {
           final le = lava + lb[i] * lavaScale;
           if (p < le) {
@@ -935,14 +1047,16 @@ class IslandPainter extends CustomPainter {
       }
     }
     final g = 1.45 * sx / 2.2;
+    final ice = kind == IslandKind.ice;
+    // Ice shows fewer, softer grains (its glints come and go below).
     final shades = [
       look.sand[1],
       Color.lerp(look.sand[1], look.sand[2], 0.6)!,
-      Color.lerp(look.sand[2], look.sand[3], 0.45)!,
-      look.sand[3],
+      Color.lerp(look.sand[2], look.sand[3], ice ? 0.15 : 0.45)!,
+      ice ? Color.lerp(look.sand[2], look.sand[3], 0.5)! : look.sand[3],
     ];
     for (var k = 0; k < 4; k++) {
-      b.draw(c, k, g + 0.2, shades[k].withValues(alpha: 0.85));
+      b.draw(c, k, g + 0.2, shades[k].withValues(alpha: ice ? 0.55 : 0.85));
     }
     b.draw(c, 5, g + 0.3, look.sand[3].withValues(alpha: 0.85));
     b.draw(c, 6, g, look.sand[2].withValues(alpha: 0.5));
@@ -964,6 +1078,205 @@ class IslandPainter extends CustomPainter {
       b.draw(c, 10, g + 0.3, _lavaOrange.withValues(alpha: 0.7));
       b.draw(c, 11, g, _lavaRed.withValues(alpha: 0.4));
     }
+    if (hole > 0) {
+      _streams(b, mid, hole, flowW, sx, t);
+      b.draw(c, 9, g, look.sand[1].withValues(alpha: 0.4));
+      b.draw(c, 14, g, look.sand[2].withValues(alpha: 0.4));
+      b.draw(
+        c,
+        10,
+        g + 0.2,
+        Color.lerp(look.sand[1], look.sand[2], 0.7)!.withValues(alpha: 0.85),
+      );
+      b.draw(
+        c,
+        15,
+        g + 0.3,
+        Color.lerp(look.sand[2], look.sand[3], 0.4)!.withValues(alpha: 0.9),
+      );
+      b.draw(
+        c,
+        13,
+        g,
+        Color.lerp(look.sand[2], _holeViolet, 0.5)!.withValues(alpha: 0.4),
+      );
+      b.draw(
+        c,
+        11,
+        g + 0.2,
+        Color.lerp(look.sand[2], _holeViolet, 0.4)!.withValues(alpha: 0.85),
+      );
+      b.draw(
+        c,
+        12,
+        g + 0.3,
+        Color.lerp(look.sand[3], _holeWarm, 0.55)!.withValues(alpha: 0.9),
+      );
+      _holeStars(c, at, hole, sx, t);
+    }
+    if (ice) {
+      // Frost glinting here and there on the ice, coming and going.
+      final e = _b..clear();
+      for (var i = 0; i < 46; i++) {
+        if (sin(t * 1.7 + i * 2.3) <= 0.9) continue;
+        final a = hash01(i, 421) * 2 * pi;
+        final p = sqrt(hash01(i, 422)) * r;
+        final q = at(ox + cos(a) * p, oy + sin(a) * p);
+        e.add(0, q.dx, q.dy);
+      }
+      e.draw(c, 0, 2.2 * sx / 2.2, const Color(0xFFF2FCFF));
+    }
+  }
+
+  /// The sand streaming into the black hole, into [b]: drawn off the
+  /// island in three uneven lanes, wound round the hole as they fall (slow
+  /// where they leave the sand, quick at the end), smeared along their way
+  /// as they near it, lit on its one side and dim on the other, and gone
+  /// over its edge.
+  void _streams(
+    GrainBatch b,
+    Offset mid,
+    double hole,
+    double flowW,
+    double sx,
+    double t,
+  ) {
+    final ph = _streamPhase!, pa = _streamPace!, sp = _streamSpread!;
+    final sl = _streamSlip!;
+    final outer = hole + flowW;
+    final n = (_streamN * min(1.0, hole / 6)).round();
+    final syy = sx * 0.6;
+    for (var g = 0; g < n; g++) {
+      final life = (ph[g] + t * pa[g]) % 1.0;
+      final off0 = 1 - pow(life, 1.5).toDouble();
+      // A little off its line in and out as well, so no stream runs as an
+      // even band.
+      final rr = hole * 0.8 + (outer - hole * 0.8) * off0 + sl[g] * 6 * off0;
+      final off = ((rr - hole) / flowW).clamp(0.0, 1.0);
+      final lane = g % 20;
+      final base = _streamFrom[lane < 9 ? 0 : (lane < 16 ? 1 : 2)];
+      final a =
+          base +
+          _holeTwist * log(outer / max(rr, 1.0)) +
+          sp[g] * (0.6 + 0.4 * off) +
+          t * 0.08;
+      final ca = cos(a), sa = sin(a);
+      final x = mid.dx + ca * rr * sx, y = mid.dy + sa * rr * syy;
+      if (rr < hole) {
+        if (rr > hole * 0.86) b.add(9, x, y);
+        continue;
+      }
+      final near = 1 - off;
+      final lit = 0.5 + 0.5 * (ca * _holeLitC + sa * _holeLitS);
+      final k = lit > 0.62
+          ? (near > 0.6 ? 12 : 11)
+          : lit < 0.3
+          ? (near > 0.6 ? 14 : 10)
+          : (near > 0.6 ? 15 : 10);
+      b.add(k, x, y);
+      if (near > 0.5) {
+        // Smeared along its way, the more the nearer.
+        for (var m = 1; m <= (near > 0.8 ? 2 : 1); m++) {
+          final q = max(0.0, life - 0.018 * m);
+          final o2 = 1 - pow(q, 1.5).toDouble();
+          final r2 = hole * 0.8 + (outer - hole * 0.8) * o2 + sl[g] * 6 * o2;
+          final a2 = a - _holeTwist * log(r2 / max(rr, 1.0));
+          b.add(
+            k == 12 || k == 11 ? 13 : 14,
+            mid.dx + cos(a2) * r2 * sx,
+            mid.dy + sin(a2) * r2 * syy,
+          );
+        }
+      }
+    }
+  }
+
+  /// The black hole's heart, under the sand that streams into it: the
+  /// faint bruise of its light on the one side, and in the middle nothing
+  /// — a soft edge, never a line.
+  void _holeHeart(
+    Canvas c,
+    Offset Function(double, double) at,
+    double hole,
+    double flowW,
+    double sx,
+  ) {
+    final o = at(0, 0);
+    final open = min(1.0, hole / 6);
+    c.save();
+    c.translate(o.dx, o.dy);
+    c.scale(1, 0.6);
+    final reach = (hole + flowW) * sx;
+    final lit = Offset(_holeLitC, _holeLitS) * reach * 0.4;
+    c.drawCircle(
+      lit,
+      reach * 1.15,
+      Paint()
+        ..blendMode = BlendMode.plus
+        ..shader = ui.Gradient.radial(
+          lit,
+          reach * 1.15,
+          [
+            _holeViolet.withValues(alpha: 0.11 * open),
+            _holeViolet.withValues(alpha: 0.05 * open),
+            _holeViolet.withValues(alpha: 0),
+          ],
+          const [0.0, 0.5, 1.0],
+        ),
+    );
+    final rr = hole * 1.25 * sx;
+    c.drawCircle(
+      Offset.zero,
+      rr,
+      Paint()
+        ..shader = ui.Gradient.radial(
+          Offset.zero,
+          rr,
+          [
+            Colors.black,
+            Colors.black,
+            Colors.black.withValues(alpha: 0.55),
+            Colors.black.withValues(alpha: 0),
+          ],
+          const [0.0, 0.62, 0.8, 1.0],
+        ),
+    );
+    c.restore();
+  }
+
+  /// A few stars seen through the black hole, near its edge, their light
+  /// bent round it: each a short streak along the edge, brighter at its
+  /// head, slowly going round.
+  void _holeStars(
+    Canvas c,
+    Offset Function(double, double) at,
+    double hole,
+    double sx,
+    double t,
+  ) {
+    final b = _b..clear();
+    for (var k = 0; k < 6; k++) {
+      final tw = 0.5 + 0.5 * sin(t * (0.5 + 0.6 * hash01(k, 384)) + k * 2.1);
+      if (tw < 0.55) continue;
+      final out = 0.35 + 0.5 * hash01(k, 383);
+      final rho = hole * out;
+      // Crowded on the side away from the glow, never all the way round.
+      final head =
+          -0.6 +
+          (hash01(k, 381) - 0.5) * 1.8 +
+          t * (0.1 + 0.12 * hash01(k, 382));
+      // The nearer the edge, the longer the smear.
+      final len = 0.1 + 0.5 * (out - 0.35);
+      for (var g = 0; g < 6; g++) {
+        final a = head - g * len / 6;
+        final q = at(cos(a) * rho, sin(a) * rho);
+        b.add(g < 2 ? (tw > 0.8 ? 0 : 1) : 2, q.dx, q.dy);
+      }
+    }
+    final g = sx / 2.2;
+    b.draw(c, 2, 1.1 * g, _holeStar.withValues(alpha: 0.2));
+    b.draw(c, 1, 1.3 * g, _holeStar.withValues(alpha: 0.4));
+    b.draw(c, 0, 1.6 * g, _holeStar.withValues(alpha: 0.65));
   }
 
   /// The lava in the island's middle: a dark molten body told by its
@@ -1190,10 +1503,13 @@ class IslandPainter extends CustomPainter {
     }
 
     // Gone over: it drops away out of the light, its grains streaming up
-    // off it and going out (into the lava: it sinks, burning away).
+    // off it and going out (into the lava: it sinks, burning away; into
+    // the black hole: it is drawn in).
     final fell = s.fellAtClock[i];
     if (fell != null) {
-      if (st.sank) {
+      if (st.sank && s.bout.kind == IslandKind.blackHole) {
+        _drawnIn(c, i, feet, at(0, 0), col, s.clock - fell, k, t);
+      } else if (st.sank) {
         _sinking(c, i, feet, col, s.clock - fell, k, t);
       } else {
         _falling(c, i, feet, col, s.clock - fell, k, t);
@@ -1202,15 +1518,18 @@ class IslandPainter extends CustomPainter {
     }
 
     // In the lava (one made for the heat) or over a gap (a glider): no
-    // ground under it to shadow.
+    // ground under it to shadow. Caught in the black hole's pull, it still
+    // stands on sand.
     final adrift = s.phase == IslandStagePhase.fight && sim.adrift(i);
     final molten = s.bout.kind == IslandKind.molten;
-    if (i == s.player && !adrift) {
+    final holed = s.bout.kind == IslandKind.blackHole;
+    final glide = adrift && s.bout.kind == IslandKind.stones;
+    if (i == s.player && (!adrift || holed)) {
       _pool(c, feet, 22 * k, const Color(0xFFE2C98F), 0.32);
     }
     if (adrift && molten) {
       _pool(c, feet, 20 * k, _lavaOrange, 0.35);
-    } else if (!adrift) {
+    } else if (!adrift || holed) {
       _shadow(c, feet, k);
     }
 
@@ -1222,7 +1541,7 @@ class IslandPainter extends CustomPainter {
     final fx = len > 0 ? dir.dx / len : 1.0, fy = len > 0 ? dir.dy / len : 0.0;
     // What its feet kick up: sand, or molten grains in the lava; nothing
     // over a gap.
-    final kicks = !(adrift && !molten);
+    final kicks = !glide;
     if (st.phase == FighterPhase.windup) {
       // Digging in: sand kicked up behind it, and — for a charge of its
       // stamina — its own grains drawn out of it, trailing back.
@@ -1273,7 +1592,51 @@ class IslandPainter extends CustomPainter {
         paintLightStreak(c, head, tail, 8 * k, col, 1);
       }
     }
-    if (adrift && st.phase != FighterPhase.dash) {
+    // By the black hole: the way to its heart, and how hard it pulls here
+    // against what this one can walk against.
+    final toHole = at(0, 0) - feet;
+    final hl = toHole.distance;
+    final hx = hl > 0 ? toHole.dx / hl : 0.0,
+        hy = hl > 0 ? toHole.dy / hl : 0.0;
+    final share = holed && s.phase == IslandStagePhase.fight
+        ? sim.pullShare(i)
+        : 0.0;
+    if (share > 0.35 && st.phase != FighterPhase.dash) {
+      // The sand at its feet streaming off towards the hole, and — once
+      // the pull is more than it can stand — its own grains with it,
+      // the more the less grace it has left.
+      final strong = ((share - 0.35) / 0.65).clamp(0.0, 1.0);
+      for (var g = 0; g < (6 + 14 * strong).round(); g++) {
+        final life = (t * (0.7 + 0.5 * hash01(g, 446)) + hash01(g, 447)) % 1;
+        final side = (hash01(g, 448) - 0.5) * 14 * k;
+        final run = life * (10 + 22 * strong) * k;
+        b.add(
+          5,
+          feet.dx + hx * run - hy * side * (1 - life),
+          feet.dy + hy * run * 0.6 + hx * side * 0.3 * (1 - life),
+        );
+      }
+      if (adrift) {
+        final spent = sim.spent(i);
+        final n = sim.grace[i] > 0 ? (8 + 22 * spent).round() : 26;
+        for (var g = 0; g < n; g++) {
+          final life = (t * (0.6 + 0.5 * hash01(g, 449)) + hash01(g, 450)) % 1;
+          final from = feet.translate(
+            (hash01(g, 451) - 0.5) * 14 * k,
+            -body.height * k * (0.15 + 0.6 * hash01(g, 452)),
+          );
+          final run = life * life * 40 * k;
+          // Winding as it goes, not straight in.
+          final wind = sin(life * 3 + g) * 4 * k * life;
+          b.add(
+            life < 0.4 ? 2 : 1,
+            from.dx + hx * run - hy * wind,
+            from.dy + hy * run * 0.7 + hx * wind,
+          );
+        }
+      }
+    }
+    if (adrift && !holed && st.phase != FighterPhase.dash) {
       final spent = sim.spent(i);
       if (molten) {
         // Wading the lava: molten grains welling round its feet, and its
@@ -1319,6 +1682,7 @@ class IslandPainter extends CustomPainter {
     b.draw(c, 2, 2.2 * k / 2, hot);
     b.draw(c, 3, 1.9 * k / 2, _lavaHot.withValues(alpha: 0.8));
     b.draw(c, 4, 1.6 * k / 2, _lavaOrange.withValues(alpha: 0.7));
+    b.draw(c, 5, 1.8 * k / 2, look.sand[3].withValues(alpha: 0.75));
 
     // Reeling: a wobble; landing in the intro: a squash; gliding: a slow
     // rise and fall.
@@ -1334,8 +1698,17 @@ class IslandPainter extends CustomPainter {
       FighterPhase.windup => st.target >= 0 ? s.x[st.target] >= s.x[i] : true,
       _ => s.x[i] < 0,
     };
-    final lift = adrift && !molten ? (3 + 2 * sin(t * 2.4 + i)) * k : 0.0;
+    final lift = glide ? (3 + 2 * sin(t * 2.4 + i)) * k : 0.0;
     final centre = feet.translate(0, -body.height * k * 0.5 * squash - lift);
+    // Against the black hole's pull: leaning away from it, the harder the
+    // more it pulls — and, once it is more than it can stand, tipping in.
+    var tilt = 0.0;
+    if (share > 0.2) {
+      final away = -hx.sign * 0.3 * ((share - 0.2) / 0.8).clamp(0.0, 1.0);
+      tilt = adrift
+          ? hx.sign * (0.12 + 0.05 * sin(t * 5 + i))
+          : away * (0.85 + 0.15 * sin(t * 3 + i));
+    }
     paintRaceBody(
       c,
       body,
@@ -1343,8 +1716,79 @@ class IslandPainter extends CustomPainter {
       k,
       t,
       squash: squash,
-      lean: 0.03 + reel,
+      lean: 0.03 + reel + (faceRight ? tilt : -tilt),
       faceRight: faceRight,
+    );
+  }
+
+  /// One gone into the black hole: drawn along a spiral into its heart,
+  /// growing small and dim as it goes, its own grains stripped off it and
+  /// wound in ahead of it.
+  void _drawnIn(
+    Canvas c,
+    int i,
+    Offset feet,
+    Offset heart,
+    Color col,
+    double age,
+    double k,
+    double t,
+  ) {
+    final body = stage.bodies[i];
+    final d = feet - heart;
+    final p = _smooth(age / 0.9);
+    // Round and in: a quarter turn and more, the last of it quickest.
+    Offset along(double q) {
+      final a = q * q * 1.9;
+      final ca = cos(a), sa = sin(a);
+      final rr = 1 - q;
+      return heart +
+          Offset(
+            (d.dx * ca - d.dy / 0.6 * sa) * rr,
+            (d.dy * ca + d.dx * 0.6 * sa) * rr,
+          );
+    }
+
+    final alpha = (1 - age / 0.8).clamp(0.0, 1.0);
+    if (alpha > 0) {
+      final at = along(p);
+      final shrink = 1 - 0.75 * p;
+      paintRaceBody(
+        c,
+        body,
+        at.translate(0, -body.height * k * 0.5 * shrink),
+        k * shrink,
+        t,
+        alpha: alpha,
+        squash: 1 - 0.3 * p,
+        lean: 0.03 + p * 1.2 * (d.dx >= 0 ? -1 : 1),
+      );
+    }
+    final q = age / 1.4;
+    if (q >= 1) return;
+    final fade = 1 - _smooth(q);
+    final b = _b..clear();
+    for (var g = 0; g < 40; g++) {
+      final h1 = hash01(g, 453 + i), h2 = hash01(g, 454 + i);
+      // Each left it at its own moment, and runs on in after it.
+      final left = h1 * 0.5;
+      final run = ((age - left) / 0.7).clamp(0.0, 1.0);
+      if (age < left) continue;
+      final from = along(_smooth(left / 0.9));
+      final at = Offset.lerp(from, heart, run * run)!;
+      final wind = sin(run * 4 + g) * (1 - run) * 6 * k;
+      b.add(
+        run < 0.5 ? 0 : 1,
+        at.dx + wind * (h2 - 0.5),
+        at.dy - body.height * k * 0.3 * (1 - run) + wind * 0.3,
+      );
+    }
+    b.draw(c, 1, 1.5 * k / 2, col.withValues(alpha: 0.4 * fade));
+    b.draw(
+      c,
+      0,
+      2.0 * k / 2,
+      Color.lerp(col, Colors.white, 0.45)!.withValues(alpha: 0.85 * fade),
     );
   }
 

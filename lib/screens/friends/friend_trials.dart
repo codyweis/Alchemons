@@ -254,9 +254,7 @@ class _RecordsSheet extends StatelessWidget {
         theirs != null && (mine == null || e.better(theirs, mine));
     final mineBetter =
         mine != null && (theirs == null || e.better(mine, theirs));
-    String show(int? v) => v == null
-        ? '—'
-        : (e.mark == TrialsMark.stars ? '${e.show(v)} STARS' : e.show(v));
+    String show(int? v) => v == null ? '—' : e.show(v);
     Widget cell(int? v, bool lit) => SizedBox(
       width: _col,
       child: Text(

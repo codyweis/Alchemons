@@ -100,6 +100,8 @@ void main() {
   group('the twists', () {
     const molten = IslandBout(IslandKind.molten, 2);
     const stones = IslandBout(IslandKind.stones, 3);
+    const ice = IslandBout(IslandKind.ice, 3);
+    const hole = IslandBout(IslandKind.blackHole, 3);
     List<Racer> three() => [
       _f('a', player: true, v: 4),
       _f('b', element: 'Water', family: 'pip', v: 4, canny: true),
@@ -107,7 +109,7 @@ void main() {
     ];
 
     test('each ends with one left standing, in good time', () {
-      for (final bout in [molten, stones]) {
+      for (final bout in [molten, stones, ice, hole]) {
         final sim = IslandSim.run(bout, three(), {
           0: [200, 700, 1300],
         });
@@ -134,8 +136,112 @@ void main() {
       expect(sky.grace[0], greaterThan(sky.grace[1]));
       expect(sky.grace[1], greaterThan(0));
       expect(sky.grace[2], 0);
+      // On the ice the knack is footing, not grace.
+      final cold = IslandSim(ice, [
+        _f('ice', element: 'Ice', family: 'pip', v: 2),
+        _f('crystal', element: 'Crystal', family: 'kin', v: 2),
+        _f('fire', element: 'Fire', family: 'mane', v: 6),
+      ]);
+      expect(cold.footing[0], greaterThan(0.5));
+      expect(cold.footing[1], greaterThan(0.5));
+      expect(cold.footing[2], 0);
+      expect(cold.grace, everyElement(0));
+      // By the hole: the dark and the spirit hold, however weak.
+      final dark = IslandSim(hole, [
+        _f('dark', element: 'Dark', family: 'mask', v: 2),
+        _f('spirit', element: 'Spirit', family: 'wing', v: 2),
+        _f('earth', element: 'Earth', family: 'horn', v: 6, scale: 1.3),
+      ]);
+      expect(dark.grace[0], greaterThan(dark.grace[1]));
+      expect(dark.grace[1], greaterThan(1));
+      expect(dark.grace[2], 0);
+      expect(
+        IslandSim(hole, [
+          _f('a', element: 'Dark', family: 'mask', v: 6),
+          _f('b', v: 4),
+        ]).grace[0],
+        dark.grace[0],
+      );
       // On plain sand there is none.
       expect(IslandSim(sand, three()).grace, everyElement(0));
+      expect(IslandSim(sand, three()).footing, everyElement(0));
+    });
+
+    test('on the ice a blow carries further, but not one made for it', () {
+      // How far one is carried by a blow's worth of speed in 20 ticks,
+      // nobody thinking.
+      double carried(IslandBout bout, Racer who) {
+        final sim = IslandSim(bout, [who, _f('b', v: 3), _f('c', v: 3)]);
+        for (final s in sim.states) {
+          s.nextThink = 1 << 30;
+        }
+        final s = sim.states[0]
+          ..x = 0
+          ..y = 0
+          ..vx = 90
+          ..vy = 0
+          ..phase = FighterPhase.reel;
+        for (var k = 0; k < 20; k++) {
+          sim.step();
+        }
+        return s.x;
+      }
+
+      final fire = _f('fire', element: 'Fire', v: 4);
+      final cold = _f('ice', element: 'Ice', family: 'pip', v: 4);
+      expect(carried(ice, fire), greaterThan(carried(sand, fire) * 1.4));
+      expect(carried(ice, cold), lessThan(carried(ice, fire) * 0.85));
+      expect(carried(ice, cold), greaterThan(carried(sand, cold)));
+      // A charge that finds no one slides on.
+      expect(ice.pullUp, greaterThan(sand.pullUp * 2));
+    });
+
+    test('the black hole opens a few seconds in and pulls ever harder', () {
+      final sim = IslandSim(hole, three());
+      expect(sim.holeAt(0), 0);
+      expect(sim.holePullAt(2 * kIslandTickRate), 0);
+      expect(sim.holeAt(5 * kIslandTickRate), greaterThan(0));
+      expect(sim.holeAt(30 * kIslandTickRate), kHoleMax);
+      expect(
+        sim.holePullAt(25 * kIslandTickRate),
+        greaterThan(sim.holePullAt(10 * kIslandTickRate) * 1.8),
+      );
+      // Nowhere else.
+      expect(IslandSim(sand, three()).holePullAt(20 * kIslandTickRate), 0);
+      expect(IslandSim(molten, three()).holeAt(20 * kIslandTickRate), 0);
+    });
+
+    test('left alone, all are drawn in at last; the strong and the dark '
+        'hold longest', () {
+      // Nobody charges: only the pull.
+      IslandSim alone(List<Racer> three) {
+        final sim = IslandSim(hole, three);
+        for (final s in sim.states) {
+          s.nextThink = 1 << 30;
+        }
+        while (!sim.over) {
+          sim.step();
+        }
+        return sim;
+      }
+
+      final strong = alone([
+        _f('weak', v: 3),
+        _f('strong', v: 6, scale: 1.3),
+        _f('middling', v: 4.5),
+      ]);
+      expect(strong.tick, lessThan(kIslandMaxTicks));
+      expect(strong.standings, [1, 2, 0]);
+      for (final i in [0, 2]) {
+        expect(strong.states[i].sank, isTrue, reason: 'into the hole');
+      }
+      final dark = alone([
+        _f('fire', v: 4),
+        _f('dark', element: 'Dark', family: 'mask', v: 4),
+        _f('water', element: 'Water', family: 'pip', v: 4),
+      ]);
+      expect(dark.standings.first, 1);
+      expect(dark.states.where((s) => s.sank).length, 2);
     });
 
     test('the lava opens in the middle; the stones part and come back', () {
@@ -159,7 +265,7 @@ void main() {
     });
 
     test('two phones agree, one hearing the other a second late', () {
-      for (final bout in [molten, stones]) {
+      for (final bout in [molten, stones, ice, hole]) {
         final fighters = [
           _f('cpu', element: 'Lava', family: 'horn', v: 4.4, canny: true),
           _f('a', element: 'Fire', family: 'mane', v: 4.6, player: true),
@@ -251,12 +357,15 @@ void main() {
 
   // Who can win each Ruby bout: every catalog species at level 10, all
   // four Potentials alike (and, for the last three columns, Enhanced),
-  // charging three times a few seconds apart (eight ways). For the two twists, how its
-  // own kind (heat: Fire and Lava; the leap: Air, Spirit, Lightning, Light
-  // and the wing line) fares against everyone else.
+  // charging three times a few seconds apart (eight ways). For the twists,
+  // how its own kind (heat: Fire and Lava; the leap: Air, Spirit,
+  // Lightning, Light and the wing line; the ice: Ice, Water and Crystal;
+  // the hole: Dark and Spirit) fares against everyone else.
   //
-  //   ISLAND_CATALOG=1 flutter test test/island_rules_test.dart \
-  //     --plain-name 'catalog balance'
+  //   ISLAND_CATALOG=1 [ISLAND_ONLY=3,4] flutter test \
+  //     test/island_rules_test.dart --plain-name 'catalog balance'
+  //
+  // ISLAND_ONLY runs only those bouts (by their place in the cup).
   test('catalog balance', () {
     if (Platform.environment['ISLAND_CATALOG'] == null) return;
     final json =
@@ -306,6 +415,8 @@ void main() {
         'stones' =>
           const ['Air', 'Spirit', 'Lightning', 'Light'].contains(el) ||
               fam == 'wing',
+        'ice' => const ['Ice', 'Water', 'Crystal'].contains(el),
+        'black_hole' => el == 'Dark' || el == 'Spirit',
         _ => false,
       };
     }
@@ -316,7 +427,9 @@ void main() {
     );
     // ISLAND_FORM=1.02,0.98,1.01 tries other rival forms.
     final forms = Platform.environment['ISLAND_FORM']?.split(',');
+    final only = Platform.environment['ISLAND_ONLY']?.split(',').map(int.parse);
     for (var b = 0; b < cup.bouts.length; b++) {
+      if (only != null && !only.contains(b)) continue;
       final bout = islandBoutOf(cup.bouts[b]);
       final form = forms == null ? cup.rivalForm[b] : double.parse(forms[b]);
       final all = <String>[], own = <String>[], rest = <String>[];

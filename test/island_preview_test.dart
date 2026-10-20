@@ -18,19 +18,21 @@ import 'package:flutter_test/flutter_test.dart';
 
 // The island, frame by frame, with real sprites: the three set down, the
 // count, charges, blows, the edge crumbling (the lava widening, the stones
-// drifting apart), falls, the last one standing. A Ruby Cup bout, against
-// its own two rivals.
+// drifting apart, the black hole opening), falls, the last one standing. A
+// Ruby Cup bout, against its own two rivals.
 //
-//   ISLAND_OUT=/tmp/island [ISLAND_KIND=sand|molten|stones] \
+//   ISLAND_OUT=/tmp/island \
+//     [ISLAND_KIND=sand|molten|stones|ice|black_hole] \
 //     [ISLAND_PLAYER=Fire:mane] [ISLAND_V=4.6] [ISLAND_ME=0] \
 //     [ISLAND_SIZE=475x751] [ISLAND_EVERY=1.2] [ISLAND_ADRIFT=1] \
 //     flutter test test/island_preview_test.dart --tags preview
 //
 // ISLAND_PLAYER is the player's element and family (by default one made
 // for the bout: a Water pip on sand, a Fire mane by the lava, an Air wing
-// on the stones), ISLAND_V its ratings, ISLAND_ME its place in the three;
-// ISLAND_ADRIFT=1 adds a frame whenever one goes into the lava or out over
-// a gap.
+// on the stones, an Ice pip on the ice, a Dark mask by the black hole),
+// ISLAND_V its ratings, ISLAND_ME its place in the three; ISLAND_ADRIFT=1
+// adds a frame whenever one goes into the lava, out over a gap, or into
+// the black hole's pull.
 void main() {
   final env = Platform.environment;
   final out = env['ISLAND_OUT'];
@@ -68,6 +70,8 @@ void main() {
       _ => switch (place) {
         'molten' => ('Fire', 'mane'),
         'stones' => ('Air', 'wing'),
+        'ice' => ('Ice', 'pip'),
+        'black_hole' => ('Dark', 'mask'),
         _ => ('Water', 'pip'),
       },
     };
@@ -172,7 +176,7 @@ void main() {
       for (final st in stage.sim.states)
         st.fellAt == null
             ? 'stood'
-            : '${st.sank ? 'lava' : 'fell'} '
+            : '${st.sank ? (place == 'black_hole' ? 'hole' : 'lava') : 'fell'} '
                   '${(st.fellAt! / 60).toStringAsFixed(1)} s',
     ];
     // ignore: avoid_print

@@ -207,7 +207,7 @@ void main() {
     for (final place in ['gravity', 'gates']) {
       final course = kFlightCourses[place]!;
       final fighters = [
-        gemRivalRacer(kGemCups[2].rivals[1], 0.9),
+        gemRivalRacer(kGemCups[1].rivals[1], 0.9),
         _f('a', player: true, element: 'Spirit', family: 'mask', intel: 4.6),
         _f('b', player: true, element: 'Air', family: 'wing', spd: 4.8),
       ];
@@ -274,7 +274,7 @@ void main() {
     expect(x.states[0].finishTime, y.states[0].finishTime);
   });
 
-  // Who can win each Emerald course: every catalog species at level 10, at
+  // Who can win each Sapphire course: every catalog species at level 10, at
   // a Potential and Enhancement rank, flying the way that suits it best,
   // boosting as it enters its three slowest stretches. Each twist bout also
   // splits the field into its "right kind" (see [_kindOf]) and the rest.
@@ -314,7 +314,7 @@ void main() {
       (100, 10),
     ];
     final forms = env['FLIGHT_FORM']?.split(',').map(double.parse).toList();
-    final cup = kGemCups[2];
+    final cup = kGemCups[1];
     for (var b = 0; b < cup.bouts.length; b++) {
       final course = flightCourseOf(cup.bouts[b]);
       final form = forms?[b] ?? cup.rivalForm[b];

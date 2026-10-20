@@ -4,9 +4,9 @@
 // times records, and then we can show them on our home planet friends
 // area"): the best the player has done at every race and every gem bout,
 // and the Alchemon that did it. A race and a space course keep the fastest
-// time over the line, an island the quickest win, the night sky the most
-// stars. Kept in prefs, and published to friends (friend_service.dart) so
-// their planet page can set theirs against yours.
+// time over the line, an island and a battle the quickest win. Kept in
+// prefs, and published to friends (friend_service.dart) so their planet
+// page can set theirs against yours.
 //
 // Also here: what a race or bout reports when it ends (its place and its
 // mark), what its end paid, and what each first win pays besides its gold —
@@ -24,9 +24,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 enum TrialsMark {
   /// Seconds, the fewer the better (kept as milliseconds).
   time,
-
-  /// Stars lit, the more the better.
-  stars,
 }
 
 /// One race or bout that keeps a record.
@@ -36,14 +33,15 @@ class TrialsEvent {
   final String id, name, cupId;
   final TrialsMark mark;
 
-  /// [value] as it is shown: a time to the hundredth, or stars.
+  /// [value] as it is shown: a time to the hundredth.
   String show(int value) => switch (mark) {
     TrialsMark.time => '${(value / 1000).toStringAsFixed(2)}s',
-    TrialsMark.stars => '$value',
   };
 
   /// Whether [a] is better than [b].
-  bool better(int a, int b) => mark == TrialsMark.time ? a < b : a > b;
+  bool better(int a, int b) => switch (mark) {
+    TrialsMark.time => a < b,
+  };
 }
 
 /// Every event that keeps a record, in the order they are shown: the
@@ -54,12 +52,7 @@ final List<TrialsEvent> kTrialsEvents = [
       TrialsEvent(course.id, course.name, cup.id, TrialsMark.time),
   for (final cup in kGemCups)
     for (final bout in cup.bouts)
-      TrialsEvent(
-        bout.id,
-        bout.name,
-        cup.id,
-        cup.event == GemEvent.sky ? TrialsMark.stars : TrialsMark.time,
-      ),
+      TrialsEvent(bout.id, bout.name, cup.id, TrialsMark.time),
 ];
 
 TrialsEvent? trialsEvent(String id) {
@@ -182,23 +175,24 @@ class TrialsPayout {
 
 /// What each first win pays besides its gold — shards for the home bank
 /// and tincture for the Athanor — by cup id and race or bout. About what
-/// the space contests paid in all (1,080 shards, 120 tincture).
+/// the space contests paid in all (1,080 shards, 120 tincture); the gem
+/// cups' five bouts share what their three used to pay.
 const Map<String, List<int>> kTrialsFirstWinShards = {
   'copper': [20, 25, 30],
   'silver': [40, 45, 50],
   'gold': [60, 70, 80],
-  'ruby': [50, 60, 70],
-  'sapphire': [60, 70, 80],
-  'emerald': [80, 95, 110],
+  'ruby': [30, 35, 40, 45, 50],
+  'sapphire': [35, 40, 45, 50, 60],
+  'emerald': [45, 50, 60, 70, 85],
 };
 
 const Map<String, int> kTrialsFirstWinTincture = {
   'copper': 2,
   'silver': 4,
   'gold': 6,
-  'ruby': 8,
-  'sapphire': 10,
-  'emerald': 10,
+  'ruby': 5,
+  'sapphire': 6,
+  'emerald': 7,
 };
 
 /// Shards a first win has paid that the home bank has not taken yet. The

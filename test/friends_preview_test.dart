@@ -431,7 +431,7 @@ void main() {
             'open': TrialsRecord(value: 38100, by: 'Firemane'),
             'rain': TrialsRecord(value: 40550, by: 'Firemane'),
             'storm': TrialsRecord(value: 47200, by: 'Airwing'),
-            'clear_night': TrialsRecord(value: 88, by: 'Icekin'),
+            'horns_and_kin': TrialsRecord(value: 41200, by: 'Icekin'),
           }).serialise(),
         );
       });

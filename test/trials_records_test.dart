@@ -7,14 +7,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 void main() {
   test('every race and bout keeps a record, each once', () {
     final ids = [for (final e in kTrialsEvents) e.id];
-    expect(ids.length, 18);
+    // Three races in each race cup, five bouts in each gem cup.
+    expect(ids.length, 24);
     expect(ids.toSet().length, ids.length);
     expect(trialsEvent('open')!.mark, TrialsMark.time);
-    expect(trialsEvent('clear_night')!.mark, TrialsMark.stars);
     expect(trialsEvent('asteroid_run')!.mark, TrialsMark.time);
+    expect(trialsEvent('horns_and_kin')!.mark, TrialsMark.time);
   });
 
-  test('a time beats a slower one, stars beat fewer', () {
+  test('a time beats a slower one', () {
     var r = const TrialsRecords();
     expect(r.beats('open', 38100), isTrue);
     r = r.withRecord('open', const TrialsRecord(value: 38100, by: 'Firemane'));
@@ -22,11 +23,11 @@ void main() {
     expect(r.beats('open', 38100), isFalse);
     expect(r.beats('open', 39000), isFalse);
     r = r.withRecord(
-      'mirror_lake',
-      const TrialsRecord(value: 80, by: 'Icekin'),
+      'horns_and_kin',
+      const TrialsRecord(value: 41200, by: 'Icekin'),
     );
-    expect(r.beats('mirror_lake', 81), isTrue);
-    expect(r.beats('mirror_lake', 79), isFalse);
+    expect(r.beats('horns_and_kin', 39800), isTrue);
+    expect(r.beats('horns_and_kin', 43000), isFalse);
     expect(r.beats('no_such_race', 1), isFalse);
     expect(trialsEvent('open')!.show(37860), '37.86s');
   });
@@ -53,7 +54,7 @@ void main() {
   test("a friend's Trials read back as published, bounded", () {
     const card = TrialsCard(
       won: {'copper': 3, 'silver': 1},
-      best: {'open': 37860, 'clear_night': 92},
+      best: {'open': 37860, 'horns_and_kin': 41200},
     );
     final back = TrialsCard.fromJson(card.toJson())!;
     expect(back.won, card.won);
@@ -90,7 +91,9 @@ void main() {
     expect(gold.owns('titan_anvil'), isFalse);
     // The gem cups each bring theirs.
     final gems = ledger(
-      races: '{"copper":3,"silver":3,"ruby":3,"sapphire":3,"emerald":3}',
+      races:
+          '{"copper":3,"silver":3,"ruby":5,"sapphire_course":5,'
+          '"emerald_battle":5}',
     );
     expect(gems.owns('titan_anvil'), isTrue);
     expect(gems.owns('crown_mirror'), isTrue);

@@ -96,7 +96,7 @@ void main() {
   });
 
   test('a gem cup gives the same: its spotlight, title and keepsake', () async {
-    final progress = RaceProgress({'copper': 3, 'silver': 3, 'ruby': 3});
+    final progress = RaceProgress({'copper': 3, 'silver': 3, 'ruby': 5});
     final given = await giveCupRewards(db, progress);
     expect(given.map((r) => r.cupId), ['copper', 'silver', 'ruby']);
     expect(await db.inventoryDao.getItemQty(InvKeys.alchemyRubySpotlight), 1);

@@ -1,25 +1,22 @@
 // lib/games/stadium/gem_cups.dart
 //
-// The Trials' gem cups (the author, 2026-10-12): Ruby, Sapphire and
-// Emerald, opened by winning the Silver Cup, one after another. Each is its
-// own event, fought one against two — the island (Ruby: the last one
-// standing on a crumbling island), the night sky (Sapphire: each lets its
-// special loose into the sky, and the most stars lit wins) and the space
-// course (Emerald: a course through space, its route planned before the
-// start) — in three bouts, each against two of the cup's rivals.
+// The Trials' gem cups: Ruby, Sapphire and Emerald, all three opened by
+// winning the Silver Cup, each won on its own, five rounds each (the
+// author, 2026-10-20). Ruby is the island (the last one standing on a
+// crumbling island), Sapphire the space course (a course through space,
+// its route planned before the start) and Emerald the battle ladder (two
+// at a time from four, against five set teams that grow stronger). The
+// night sky that Sapphire used to hold is gone.
 //
-// A cup's first bout is its event plain; the other two each turn it with a
-// rule of their own (the author, 2026-10-18: the cups were "too
-// repetitive", three of the same with new colours). Ruby: the Molten Heart
-// (the island melts from its middle, so the fight is on a ring) and the
-// Stepping Stones (three stones drift apart and back). Sapphire: the Mirror
-// Lake (a cast that stands apart from the others' colours lights twice) and
-// the Fusion Sky (each round's sky holds an element to fuse with). Emerald:
-// the Gravity Chain (each sling flings faster the cleaner the last) and the
-// Element Gates (the forks are gates to fuse through). Each favours its own
-// kind of Alchemon, so no one of them wins them all.
+// A cup's first round is its event plain; the rest each turn it with a
+// rule of their own or a harder go at one (the author, 2026-10-18: the
+// cups were "too repetitive", three of the same with new colours). Ruby:
+// the Molten Heart, the Stepping Stones, the Ice Island and the Black
+// Hole. Sapphire: the Gravity Chain and the Element Gates, then each again
+// longer and against stronger rivals. Emerald: a team of each kind — Horns
+// and Kin, Wings and Lets, two Kin, Manes and Pips — then the last four.
 //
-// Their wins are kept with the races' (RaceProgress, by cup id).
+// Their wins are kept with the races' (RaceProgress, by [GemCup.progressId]).
 
 import 'package:alchemons/games/cosmic/contest_judging.dart';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
@@ -29,8 +26,8 @@ import 'package:alchemons/games/stadium/race_rules.dart';
 /// What a gem cup's bouts are.
 enum GemEvent {
   island('THE ISLAND', 'Last one standing on a crumbling island.'),
-  sky('THE NIGHT SKY', 'Light the most stars.'),
-  flight('THE SPACE COURSE', 'Plan a route through space, then fly it.');
+  flight('THE SPACE COURSE', 'Plan a route through space, then fly it.'),
+  battle('THE BATTLE', 'Two at a time from four, against a set team.');
 
   const GemEvent(this.title, this.line);
   final String title, line;
@@ -42,8 +39,11 @@ class GemBout {
     required this.name,
     required this.place,
     required this.level,
-    required this.rivals,
+    this.rivals = const [],
     this.line = '',
+    this.team = const [],
+    this.potential = 50,
+    this.enhancement = 0,
   });
 
   final String id, name;
@@ -52,14 +52,23 @@ class GemBout {
   /// place of the event's own line); empty for a cup's plain first bout.
   final String line;
 
-  /// Where it is fought, in the event's own terms (an island's kind).
+  /// Where it is fought, in the event's own terms (an island's kind, a
+  /// course, a battle arena).
   final String place;
 
   /// How hard it is judged, 1..3.
   final int level;
 
-  /// The two of the cup's rivals it is fought against.
+  /// The two of the cup's rivals it is fought against (the island, the
+  /// course).
   final List<int> rivals;
+
+  /// A battle round's team of four, by family and element (catalog
+  /// species), at [potential] in every stat, level 10, enhanced
+  /// [enhancement] ranks: bred about as well as a team must be to beat it.
+  final List<(String, String)> team;
+  final int potential;
+  final int enhancement;
 }
 
 class GemCup {
@@ -70,10 +79,19 @@ class GemCup {
     required this.rivals,
     required this.bouts,
     required this.gold,
-    this.rivalForm = const [1, 1, 1],
-  });
+    this.rivalForm = const [1, 1, 1, 1, 1],
+    String? progressId,
+  }) : _progressId = progressId;
 
   final String id, name;
+
+  final String? _progressId;
+
+  /// The key its wins are kept under: its id, unless its rounds changed
+  /// under it (Sapphire's night sky became the space course, Emerald's
+  /// course became the battle ladder; 2026-10-20), when a new key starts
+  /// it over.
+  String get progressId => _progressId ?? id;
   final GemEvent event;
   final List<RaceRival> rivals;
   final List<GemBout> bouts;
@@ -95,10 +113,13 @@ const List<GemCup> kGemCups = [
     id: 'ruby',
     name: 'Ruby Cup',
     event: GemEvent.island,
-    gold: [3, 4, 5],
+    gold: [3, 4, 5, 6, 8],
     // The Molten Heart's two go harder: the heat already tells against
-    // most of those who come (island_rules.dart).
-    rivalForm: [1.02, 1.16, 1.0],
+    // most of those who come (island_rules.dart). The Ice Island's and the
+    // Black Hole's are set from the catalog probe (test/island_rules_test
+    // 'catalog balance'): the right kind bred to P95 and enhanced ten ranks
+    // wins about three in four, any other about one in eight.
+    rivalForm: [1.02, 1.16, 1.0, 1.03, 1.03],
     rivals: [
       RaceRival(
         name: 'Lavahorn',
@@ -141,6 +162,28 @@ const List<GemCup> kGemCups = [
         scale: 1.1,
         canny: true,
       ),
+      RaceRival(
+        name: 'Icehorn',
+        element: 'Ice',
+        family: 'horn',
+        speed: 4.8,
+        strength: 6.0,
+        intelligence: 4.6,
+        beauty: 4.6,
+        scale: 1.12,
+        canny: true,
+      ),
+      RaceRival(
+        name: 'Darkhorn',
+        element: 'Dark',
+        family: 'horn',
+        speed: 4.8,
+        strength: 6.2,
+        intelligence: 5.0,
+        beauty: 4.4,
+        scale: 1.15,
+        canny: true,
+      ),
     ],
     bouts: [
       GemBout(
@@ -166,96 +209,37 @@ const List<GemCup> kGemCups = [
         line: 'Three stones drift apart and back.',
         rivals: [2, 3],
       ),
+      GemBout(
+        id: 'ice_island',
+        name: 'Ice Island',
+        place: 'ice',
+        level: 3,
+        line: 'Sheet ice: fast, and hard to stop.',
+        rivals: [4, 1],
+      ),
+      GemBout(
+        id: 'black_hole',
+        name: 'Black Hole',
+        place: 'black_hole',
+        level: 3,
+        line: 'A black hole at its heart pulls everyone in.',
+        rivals: [5, 2],
+      ),
     ],
   ),
   GemCup(
     id: 'sapphire',
     name: 'Sapphire Cup',
-    event: GemEvent.sky,
-    gold: [4, 5, 6],
-    // The Clear Night as it was; the Mirror Lake's and the Fusion Sky's
-    // rivals strong enough that only the right kind beats them (test/
-    // sky_rules_test.dart 'catalog balance').
-    rivalForm: [0.985, 1.03, 1.295],
-    rivals: [
-      RaceRival(
-        name: 'Lightningpip',
-        element: 'Lightning',
-        family: 'pip',
-        speed: 6.0,
-        strength: 4.4,
-        intelligence: 5.2,
-        beauty: 4.8,
-        canny: true,
-      ),
-      RaceRival(
-        name: 'Airmask',
-        element: 'Air',
-        family: 'mask',
-        speed: 5.8,
-        strength: 4.2,
-        intelligence: 5.6,
-        beauty: 5.0,
-        canny: true,
-      ),
-      RaceRival(
-        name: 'Spiritlet',
-        element: 'Spirit',
-        family: 'let',
-        speed: 5.4,
-        strength: 4.6,
-        intelligence: 6.0,
-        beauty: 5.6,
-        canny: true,
-      ),
-      RaceRival(
-        name: 'Steamhorn',
-        element: 'Steam',
-        family: 'horn',
-        speed: 5.0,
-        strength: 6.0,
-        intelligence: 4.8,
-        beauty: 4.6,
-        scale: 1.1,
-        canny: true,
-      ),
-    ],
-    bouts: [
-      GemBout(
-        id: 'clear_night',
-        name: 'Clear Night',
-        place: 'clear',
-        level: 1,
-        rivals: [0, 3],
-      ),
-      GemBout(
-        id: 'mirror_lake',
-        name: 'Mirror Lake',
-        place: 'mirror',
-        level: 2,
-        line: 'A still lake below shows the sky.',
-        rivals: [1, 2],
-      ),
-      GemBout(
-        id: 'fusion_sky',
-        name: 'Fusion Sky',
-        place: 'fusion',
-        level: 3,
-        line: 'Each round, the sky holds an element.',
-        rivals: [0, 2],
-      ),
-    ],
-  ),
-  GemCup(
-    id: 'emerald',
-    name: 'Emerald Cup',
     event: GemEvent.flight,
-    gold: [5, 6, 8],
+    progressId: 'sapphire_course',
+    gold: [4, 5, 6, 7, 9],
     // The Gravity Chain's two sling as well as they fly, so they go easier;
     // the Element Gates' two fuse one gate fewer than the right Alchemon
     // can, so they go harder (test/flight_rules_test.dart 'catalog
-    // balance').
-    rivalForm: [0.9, 0.77, 1.0975],
+    // balance'). Rounds 4 and 5 are the two again, longer: the right
+    // Alchemon bred to P95 and enhanced ten ranks wins about two in three
+    // (round 3 four in five), one at P90 about one in four.
+    rivalForm: [0.9, 0.77, 1.0975, 0.74, 1.08],
     rivals: [
       RaceRival(
         name: 'Lightwing',
@@ -322,21 +306,124 @@ const List<GemCup> kGemCups = [
         line: 'Every fork is a pair of element gates.',
         rivals: [0, 2],
       ),
+      GemBout(
+        id: 'deep_gravity',
+        name: 'Deep Gravity',
+        place: 'gravity_deep',
+        level: 3,
+        line: 'The Gravity Chain again: longer, deeper wells.',
+        rivals: [1, 3],
+      ),
+      GemBout(
+        id: 'gate_run',
+        name: 'Gate Run',
+        place: 'gates_long',
+        level: 3,
+        line: 'The Element Gates again: six forks.',
+        rivals: [2, 0],
+      ),
+    ],
+  ),
+  GemCup(
+    id: 'emerald',
+    name: 'Emerald Cup',
+    event: GemEvent.battle,
+    progressId: 'emerald_battle',
+    gold: [5, 6, 8, 10, 12],
+    rivals: [],
+    // Five set teams, each harder than the last, each in an arena of its
+    // own (models/battle_arenas.dart). Tuned with test/
+    // gem_battle_ladder_test.dart so that four drawn at random from the
+    // catalog win about half the time bred to P50, P65, P78 (2 ranks),
+    // P88 (5 ranks) and P95 (10 ranks), round by round; a team picked for
+    // the fight does better. How well a set team is bred is only half of
+    // it: Kin and Horns hold, Wings hit hard.
+    bouts: [
+      GemBout(
+        id: 'horns_and_kin',
+        name: 'Horns and Kin',
+        place: 'obsidian',
+        level: 1,
+        line: 'Two Horns hold the front, with a Kin behind them.',
+        team: [
+          ('Horn', 'Mud'),
+          ('Kin', 'Lightning'),
+          ('Horn', 'Earth'),
+          ('Mane', 'Water'),
+        ],
+        potential: 40,
+      ),
+      GemBout(
+        id: 'wings_and_lets',
+        name: 'Wings and Lets',
+        place: 'garden',
+        level: 1,
+        line: 'Wings and Lets that hit from far off.',
+        team: [
+          ('Wing', 'Air'),
+          ('Let', 'Ice'),
+          ('Wing', 'Fire'),
+          ('Let', 'Lightning'),
+        ],
+        potential: 78,
+      ),
+      GemBout(
+        id: 'two_kin',
+        name: 'Two Kin',
+        place: 'tidal',
+        level: 1,
+        line: 'Two Kin keep the others standing.',
+        team: [
+          ('Kin', 'Water'),
+          ('Horn', 'Crystal'),
+          ('Kin', 'Light'),
+          ('Mask', 'Plant'),
+        ],
+        potential: 72,
+      ),
+      GemBout(
+        id: 'manes_and_pips',
+        name: 'Manes and Pips',
+        place: 'orrery',
+        level: 1,
+        line: 'Fast Manes and Pips that swarm.',
+        team: [
+          ('Mane', 'Lava'),
+          ('Pip', 'Lightning'),
+          ('Mane', 'Air'),
+          ('Pip', 'Fire'),
+        ],
+        potential: 95,
+        enhancement: 8,
+      ),
+      GemBout(
+        id: 'the_last_four',
+        name: 'The Last Four',
+        place: 'obsidian',
+        level: 1,
+        line: 'The strongest four in the Trials, bred perfectly.',
+        team: [
+          ('Wing', 'Air'),
+          ('Kin', 'Blood'),
+          ('Horn', 'Crystal'),
+          ('Let', 'Spirit'),
+        ],
+        potential: 100,
+        enhancement: 10,
+      ),
     ],
   ),
 ];
 
 /// The gem cups' wins, kept with the races'.
 extension GemProgress on RaceProgress {
-  int wonInGem(GemCup cup) => (won[cup.id] ?? 0).clamp(0, cup.bouts.length);
+  int wonInGem(GemCup cup) =>
+      (won[cup.progressId] ?? 0).clamp(0, cup.bouts.length);
 
   bool gemDone(GemCup cup) => wonInGem(cup) >= cup.bouts.length;
 
-  /// The first gem cup opens with the Silver Cup won; each of the rest
-  /// with the one before it.
-  bool gemOpen(int index) =>
-      allOpen ||
-      (index == 0 ? cupDone(kRaceCups[1]) : gemDone(kGemCups[index - 1]));
+  /// All three gem cups open together, with the Silver Cup won.
+  bool gemOpen(int index) => allOpen || cupDone(kRaceCups[1]);
 
   /// A bout is open once the one before it in its cup is won.
   bool boutOpen(GemCup cup, int bout) => allOpen || bout <= wonInGem(cup);
@@ -346,7 +433,7 @@ extension GemProgress on RaceProgress {
   (RaceProgress, bool) afterGemWin(GemCup cup, int bout) {
     final first = bout == wonInGem(cup);
     if (!first) return (this, false);
-    return (RaceProgress({...won, cup.id: bout + 1}, allOpen), true);
+    return (RaceProgress({...won, cup.progressId: bout + 1}, allOpen), true);
   }
 }
 

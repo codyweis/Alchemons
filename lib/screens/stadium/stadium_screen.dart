@@ -34,10 +34,14 @@ import 'package:alchemons/screens/stadium/cup_won_dialog.dart';
 import 'package:alchemons/games/stadium/flight_rules.dart';
 import 'package:alchemons/games/stadium/flight_stage.dart';
 import 'package:alchemons/games/stadium/island_stage.dart';
-import 'package:alchemons/games/stadium/sky_rules.dart';
-import 'package:alchemons/games/stadium/sky_stage.dart';
+import 'package:alchemons/games/stadium/battle_ladder.dart';
 import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/screens/stadium/bout_screen.dart';
+import 'package:alchemons/screens/battle/battle_hub_screen.dart'
+    show BattleCase, BattleEmptyCase, loadBattleTeam, pickBattleTeam;
+import 'package:alchemons/screens/battle/battle_screen.dart';
+import 'package:alchemons/models/battle_arenas.dart';
+import 'package:alchemons/games/cosmic/cosmic_game.dart' show kBattleTeamSize;
 import 'package:alchemons/screens/stadium/cup_shelf.dart';
 import 'package:alchemons/screens/stadium/race_lobby_screen.dart';
 import 'package:alchemons/screens/stadium/race_screen.dart';
@@ -239,6 +243,11 @@ class _StadiumScreenState extends State<StadiumScreen>
   bool _gems = false;
   int _gem = 0, _bout = 0;
 
+  /// The four the Emerald Cup's battle ladder is fought with (the battle
+  /// hub's), and each round's set team, built once.
+  List<CosmicPartyMember> _battleTeam = const [];
+  final Map<String, List<CosmicPartyMember>> _ladderTeams = {};
+
   /// Whether a change of cup or race comes up gently: only once the
   /// player has chosen one (the screen opens straight on its own).
   bool _chosen = false;
@@ -285,6 +294,8 @@ class _StadiumScreenState extends State<StadiumScreen>
         await (widget.preload ?? loadTrialsStart(context, party: widget.party));
     final records = await TrialsRecords.load();
     if (!mounted) return;
+    final battleTeam = await loadBattleTeam(context);
+    if (!mounted) return;
     // A cup won before cups gave anything gives it now.
     final db = context.read<AlchemonsDatabase?>();
     if (db != null) _toAnnounce.addAll(await giveCupRewards(db, p));
@@ -297,15 +308,17 @@ class _StadiumScreenState extends State<StadiumScreen>
       _progress = p;
       _records = records;
       _racer = racer;
+      _battleTeam = battleTeam;
       _loaded = true;
       // Open on the cup racing for now (the one home's trophy shows), at
       // its first race not yet won.
       _cup = TrophyLook.currentCup(p);
       _race = _firstOpenRace(_cup);
-      // The gem cup being fought for: the last open one not yet done.
+      // The gem cup being fought for: the first open one not yet done (all
+      // three open together, each with its own five).
       _gem = 0;
-      for (var g = 0; g < kGemCups.length; g++) {
-        if (p.gemOpen(g)) _gem = g;
+      for (var g = kGemCups.length - 1; g >= 0; g--) {
+        if (p.gemOpen(g) && !p.gemDone(kGemCups[g])) _gem = g;
       }
       _bout = _firstOpenBout(_gem);
     });
@@ -499,13 +512,15 @@ class _StadiumScreenState extends State<StadiumScreen>
 
   /// Keeps [mark] as the record at [id] if it beats the one kept, set by
   /// the racer that ran it; whether it did.
-  Future<bool> _keepRecord(String id, double? mark) async {
+  Future<bool> _keepRecord(
+    String id,
+    double? mark, {
+    CosmicPartyMember? by,
+  }) async {
     final event = trialsEvent(id);
-    final me = _racer;
+    final me = by ?? _racer;
     if (event == null || mark == null || me == null) return false;
-    final value = event.mark == TrialsMark.time
-        ? (mark * 1000).round()
-        : mark.round();
+    final value = (mark * 1000).round();
     if (value <= 0 || !_records.beats(id, value)) return false;
     final next = _records.withRecord(
       id,
@@ -533,9 +548,7 @@ class _StadiumScreenState extends State<StadiumScreen>
     final r = _records.best[id];
     final e = trialsEvent(id);
     if (r == null || e == null) return null;
-    return e.mark == TrialsMark.stars
-        ? 'BEST ${e.show(r.value)} STARS'
-        : 'BEST ${e.show(r.value)}';
+    return 'BEST ${e.show(r.value)}';
   }
 
   @override
@@ -749,23 +762,24 @@ class _StadiumScreenState extends State<StadiumScreen>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  cup.bouts[r].name.toUpperCase(),
-                  maxLines: 1,
-                  style: bracketText(
-                    context,
-                    11,
-                    !open
-                        ? _muted.withValues(alpha: .5)
-                        : (selected ? _brassHot : _ink),
-                    weight: FontWeight.w800,
-                    letterSpacing: 1.4,
-                  ),
-                ),
+              // Five to a row: a name of two words takes two lines rather
+              // than shrinking out of reading.
+              Text(
+                cup.bouts[r].name.toUpperCase(),
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+                style: bracketText(
+                  context,
+                  9,
+                  !open
+                      ? _muted.withValues(alpha: .5)
+                      : (selected ? _brassHot : _ink),
+                  weight: FontWeight.w800,
+                  letterSpacing: 1.0,
+                ).copyWith(height: 1.05),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               if (won)
                 Text(
                   'WON',
@@ -806,6 +820,7 @@ class _StadiumScreenState extends State<StadiumScreen>
     final open = _boutOpen;
     final won = _bout < _progress.wonInGem(cup);
     final shut = !_progress.gemOpen(_gem);
+    final battle = cup.event == GemEvent.battle;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -856,8 +871,8 @@ class _StadiumScreenState extends State<StadiumScreen>
                 ],
               ),
               Text(
-                '${cup.name.toUpperCase()} · BOUT ${_bout + 1} OF '
-                '${cup.bouts.length} · ${cup.event.title}',
+                '${cup.name.toUpperCase()} · ${battle ? 'ROUND' : 'BOUT'} '
+                '${_bout + 1} OF ${cup.bouts.length} · ${cup.event.title}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: bracketText(
@@ -871,34 +886,31 @@ class _StadiumScreenState extends State<StadiumScreen>
               const SizedBox(height: 8),
               Text(
                 shut
-                    ? (_gem == 0
-                          ? 'Win the Silver Cup to open the gem cups.'
-                          : 'Win the ${kGemCups[_gem - 1].name} to open it.')
+                    ? 'Win the Silver Cup to open the gem cups.'
                     : (bout.line.isNotEmpty ? bout.line : cup.event.line),
                 style: bracketText(context, 12.5, _ink.withValues(alpha: .8)),
               ),
-              // A sky that holds elements shows them before the pick, so
-              // the player can bring one that fuses with them.
-              if (!shut && cup.event == GemEvent.sky)
-                _skyElements(context, skyBoutOf(bout).elements),
             ],
           ),
         ),
         const SizedBox(height: 6),
         Expanded(
-          child: RacerGate(
-            racer: _racer,
-            rivals: cup.rivalsOf(_bout),
-            onChoose: _chooseRacer,
-            flying: _flying,
-            landings: _landings,
-          ),
+          child: battle
+              ? _changing('gem$_gem/$_bout', _ladderGate(context, bout))
+              : RacerGate(
+                  racer: _racer,
+                  rivals: cup.rivalsOf(_bout),
+                  onChoose: _chooseRacer,
+                  flying: _flying,
+                  landings: _landings,
+                ),
         ),
         const SizedBox(height: 8),
         Row(
           children: [
-            // The bout with friends, for a player who can.
-            if (rooms != null && rooms.available) ...[
+            // The bout with friends, for a player who can (not the battle
+            // ladder yet).
+            if (!battle && rooms != null && rooms.available) ...[
               Expanded(
                 child: BracketButton(
                   label: 'WITH FRIENDS',
@@ -920,7 +932,10 @@ class _StadiumScreenState extends State<StadiumScreen>
                 palette: BracketPalette.dark,
                 accent: _brass,
                 height: 42,
-                enabled: open && !_starting && _racer != null,
+                enabled:
+                    open &&
+                    !_starting &&
+                    (battle ? _battleTeam.isNotEmpty : _racer != null),
                 onTap: _startGem,
               ),
             ),
@@ -930,52 +945,109 @@ class _StadiumScreenState extends State<StadiumScreen>
     );
   }
 
-  /// The elements a night's sky holds, round by round, each in its own
-  /// colour; nothing for a sky that holds none.
-  Widget _skyElements(BuildContext context, List<String> elements) {
-    if (elements.isEmpty) return const SizedBox.shrink();
-    final base = bracketText(
-      context,
-      10.5,
-      _muted,
-      weight: FontWeight.w800,
-      letterSpacing: 1.4,
-    );
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Text.rich(
-        TextSpan(
-          style: base,
-          children: [
-            const TextSpan(text: 'THE SKY HOLDS  '),
-            for (final (i, e) in elements.indexed) ...[
-              if (i > 0) const TextSpan(text: ' · '),
-              TextSpan(
-                text: e.toUpperCase(),
-                // Lifted a little, so Dark still reads on the dark hub.
-                style: base.copyWith(
-                  color: Color.lerp(elementColor(e), Colors.white, 0.3),
-                ),
+  /// A ladder round's two fours: the player's (tap to change them) and
+  /// the round's set team, with the arena it is fought in.
+  Widget _ladderGate(BuildContext context, GemBout bout) {
+    final rival = _ladderTeam(bout);
+    Widget label(String text, String trailing, {VoidCallback? onTap}) {
+      final style = bracketText(
+        context,
+        10,
+        _muted,
+        weight: FontWeight.w800,
+        letterSpacing: 1.6,
+      );
+      return Row(
+        children: [
+          Text(text, style: style),
+          const Spacer(),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Text(
+                trailing,
+                style: style.copyWith(color: onTap == null ? _muted : _brass),
               ),
-            ],
-          ],
-        ),
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-      ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    Widget row(
+      List<CosmicPartyMember> team,
+      double height, {
+      bool rival = false,
+    }) => Row(
+      children: [
+        for (var i = 0; i < kBattleTeamSize; i++) ...[
+          if (i > 0) const SizedBox(width: 8),
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: rival ? null : _changeBattleTeam,
+              child: i < team.length
+                  ? BattleCase(member: team[i], height: height, rival: rival)
+                  : BattleEmptyCase(height: height),
+            ),
+          ),
+        ],
+      ],
     );
+
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Two rows of cases and their labels, the player's a little taller.
+        final h = ((box.maxHeight - 66) / 1.9).clamp(64.0, 118.0);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            label('YOUR FOUR', 'CHANGE', onTap: _changeBattleTeam),
+            const SizedBox(height: 4),
+            row(_battleTeam, h),
+            const Spacer(),
+            label(
+              'THEIR FOUR',
+              battleArenaOf(bout.place).title.toUpperCase(),
+            ),
+            const SizedBox(height: 4),
+            row(rival, h * 0.9, rival: true),
+          ],
+        );
+      },
+    );
+  }
+
+  /// [bout]'s set team, as it fights.
+  List<CosmicPartyMember> _ladderTeam(GemBout bout) => _ladderTeams
+      .putIfAbsent(
+        bout.id,
+        () => ladderTeamFor(context.read<CreatureCatalog>(), bout),
+      );
+
+  Future<void> _changeBattleTeam() async {
+    if (_starting) return;
+    HapticFeedback.selectionClick();
+    final team = await pickBattleTeam(context, _battleTeam);
+    if (team == null || !mounted) return;
+    setState(() => _battleTeam = team);
   }
 
   /// A room for the bout on show, to ask friends into.
   Future<void> _fightFriends() async {
     if (_starting || _leaving || !_boutOpen) return;
+    if (_gemDef.event == GemEvent.battle) return;
     HapticFeedback.selectionClick();
     await RaceLobbyScreen.host(context, cup: _gem, race: _bout, gem: true);
   }
 
-  /// A gem cup's bout: the three set down on the island or under the night
-  /// sky, or flown up the space course on the route the player plans.
+  /// A gem cup's bout: the three set down on the island, or flown up the
+  /// space course on the route the player plans; or a round of the battle
+  /// ladder.
   Future<void> _startGem() async {
+    if (_gemDef.event == GemEvent.battle) return _startLadder();
     final member = _racer;
     if (_starting || member == null || !_boutOpen) return;
     final cup = _gemDef;
@@ -999,10 +1071,6 @@ class _StadiumScreenState extends State<StadiumScreen>
     for (final b in bodies) {
       if (b.ticker == null) await b.load(Flame.images);
     }
-    // The night sky hangs each one's figure, read finely off its sprite.
-    final figures = cup.event == GemEvent.sky
-        ? await loadSkyFigures(bodies)
-        : null;
     if (!mounted) return;
     // The space course: the player plans a way through first; the rivals
     // fly the ways that suit them.
@@ -1064,13 +1132,6 @@ class _StadiumScreenState extends State<StadiumScreen>
               choices: routes!,
               forms: forms,
             ),
-            GemEvent.sky => SkyStage(
-              bout: skyBoutOf(cup.bouts[bout]),
-              figures: figures,
-              fighters: fighters,
-              bodies: bodies,
-              player: 0,
-            ),
             _ => IslandStage(
               bout: islandBoutOf(cup.bouts[bout]),
               fighters: fighters,
@@ -1087,14 +1148,51 @@ class _StadiumScreenState extends State<StadiumScreen>
       ),
     );
     if (!mounted) return;
+    await _afterGem(gemIndex, bout, frontier);
+  }
+
+  /// Back from a gem bout: the cups won shown, and a first win moves on to
+  /// the cup's next bout (each cup keeps its own five).
+  Future<void> _afterGem(int gemIndex, int bout, bool frontier) async {
     await _announce();
-    if (!mounted || !frontier || _progress.wonInGem(cup) <= bout) return;
-    setState(() {
-      if (_progress.gemDone(cup) && gemIndex + 1 < kGemCups.length) {
-        _gem = gemIndex + 1;
-      }
-      _bout = _firstOpenBout(_gem);
-    });
+    if (!mounted || !frontier || _gem != gemIndex) return;
+    if (_progress.wonInGem(kGemCups[gemIndex]) <= bout) return;
+    setState(() => _bout = _firstOpenBout(gemIndex));
+  }
+
+  /// A round of the Emerald Cup's battle ladder: the player's four against
+  /// the round's set team, in the round's own arena. Each fight's end is
+  /// paid like any bout's: a win opens the next round, and its first pays.
+  Future<void> _startLadder() async {
+    if (_starting || _battleTeam.isEmpty || !_boutOpen) return;
+    final cup = _gemDef;
+    final gemIndex = _gem, bout = _bout;
+    final frontier = bout == _progress.wonInGem(cup);
+    final round = cup.bouts[bout];
+    HapticFeedback.mediumImpact();
+    await Navigator.of(context).push(
+      BattleScreen.route(
+        BattleScreen(
+          team: _battleTeam,
+          rival: _ladderTeam(round),
+          rivalName: round.name.toUpperCase(),
+          arena: round.place,
+          leaveLabel: 'BACK TO THE TRIALS',
+          onFinished: (winner, at) async {
+            await _payGem(
+              cup,
+              bout,
+              TrialsFinish(winner == 0 ? 1 : 2, winner == 0 ? at : null),
+              by: _battleTeam.first,
+            );
+          },
+        ),
+      ),
+    );
+    if (!mounted) return;
+    // The battle played its own music.
+    unawaited(context.read<AudioController?>()?.playStadiumMusic());
+    await _afterGem(gemIndex, bout, frontier);
   }
 
   /// A gem bout's end: any can set its record; a win opens the next, and
@@ -1102,9 +1200,10 @@ class _StadiumScreenState extends State<StadiumScreen>
   Future<TrialsPayout> _payGem(
     GemCup cup,
     int bout,
-    TrialsFinish finish,
-  ) async {
-    final record = await _keepRecord(cup.bouts[bout].id, finish.mark);
+    TrialsFinish finish, {
+    CosmicPartyMember? by,
+  }) async {
+    final record = await _keepRecord(cup.bouts[bout].id, finish.mark, by: by);
     if (finish.place != 1) return TrialsPayout(record: record);
     final (next, first) = _progress.afterGemWin(cup, bout);
     if (!first || !mounted) return TrialsPayout(record: record);

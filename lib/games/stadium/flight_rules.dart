@@ -1,16 +1,18 @@
 // lib/games/stadium/flight_rules.dart
 //
-// THE SPACE COURSE (the Emerald Cup; the author, 2026-10-12: "another
-// cosmic obstacle course type cosmic thing", routes picked before the
-// start). Three fly up a course through space that splits at forks; at
-// each, one way is one kind of trouble and the other another — asteroids
-// to smash through (Strength), a gravity well to sling round
-// (Intelligence), comet tails to ride (Speed), a nebula whose glow lights
-// up the beautiful (Beauty). Each picks its whole route before the start;
-// the first through the gate wins.
+// THE SPACE COURSE (the Sapphire Cup, the Emerald's until 2026-10-20; the
+// author, 2026-10-12: "another cosmic obstacle course type cosmic thing",
+// routes picked before the start). Three fly up a course through space
+// that splits at forks; at each, one way is one kind of trouble and the
+// other another — asteroids to smash through (Strength), a gravity well to
+// sling round (Intelligence), comet tails to ride (Speed), a nebula whose
+// glow lights up the beautiful (Beauty). Each picks its whole route before
+// the start; the first through the gate wins.
 //
-// The cup's three bouts each fly it by their own rule (the author,
-// 2026-10-18: the gem cups were "too repetitive"):
+// The cup's first three bouts each fly it by their own rule (the author,
+// 2026-10-18: the gem cups were "too repetitive"); its last two are the
+// Gravity Chain and the Element Gates again, longer, against rivals going
+// harder:
 //
 //  * The plain course: pick the way that suits you at every fork.
 //  * The Gravity Chain: wells line the course, and each sling flings you
@@ -568,7 +570,8 @@ const _t = FlightKind.gate;
 FlightCourse flightCourseOf(GemBout bout) =>
     kFlightCourses[bout.place] ?? kFlightCourses.values.first;
 
-/// The Emerald Cup's courses, by their bouts' places. Each way through a
+/// The Sapphire Cup's courses (the Emerald Cup's until 2026-10-20), by
+/// their bouts' places. Each way through a
 /// fork takes about as long for a flyer judged 3, so which is the quicker
 /// is down to who flies it.
 const Map<String, FlightCourse> kFlightCourses = {
@@ -621,5 +624,58 @@ const Map<String, FlightCourse> kFlightCourses = {
       FlightRoute(_t, 460, level: 3, element: 'Lava'),
     ],
     [FlightRoute(_o, 480, level: 3)],
+  ]),
+  // Deep Gravity: the Gravity Chain again, longer — six wells, deeper,
+  // run-outs a little shorter, so a chain once broken costs more.
+  'gravity_deep': FlightCourse(chain: true, [
+    [FlightRoute(_o, 560, level: 3)],
+    [FlightRoute(_g, 480, level: 3, ground: 3.0), FlightRoute(_a, 430, level: 3)],
+    [FlightRoute(_o, 280, level: 3)],
+    [FlightRoute(_g, 480, level: 3, ground: 3.0), FlightRoute(_c, 860, level: 3)],
+    [FlightRoute(_o, 280, level: 3)],
+    [FlightRoute(_g, 480, level: 3, ground: 3.0), FlightRoute(_n, 620, level: 3)],
+    [FlightRoute(_o, 280, level: 3)],
+    [FlightRoute(_g, 480, level: 3, ground: 3.0), FlightRoute(_a, 430, level: 3)],
+    [FlightRoute(_o, 280, level: 3)],
+    [FlightRoute(_g, 480, level: 3, ground: 3.0), FlightRoute(_c, 860, level: 3)],
+    [FlightRoute(_o, 280, level: 3)],
+    [FlightRoute(_g, 480, level: 3, ground: 3.0), FlightRoute(_n, 620, level: 3)],
+    [FlightRoute(_o, 460, level: 3)],
+  ]),
+  // The Gate Run: the Element Gates again, six forks — the four pairs,
+  // then Water or Earth and Air or Dark — so a flyer has to plan two
+  // chains of fusion, not one.
+  'gates_long': FlightCourse([
+    [FlightRoute(_o, 480, level: 3)],
+    [
+      FlightRoute(_t, 440, level: 3, element: 'Fire'),
+      FlightRoute(_t, 440, level: 3, element: 'Ice'),
+    ],
+    [FlightRoute(_o, 260, level: 3)],
+    [
+      FlightRoute(_t, 440, level: 3, element: 'Spirit'),
+      FlightRoute(_t, 440, level: 3, element: 'Lightning'),
+    ],
+    [FlightRoute(_o, 260, level: 3)],
+    [
+      FlightRoute(_t, 440, level: 3, element: 'Mud'),
+      FlightRoute(_t, 440, level: 3, element: 'Poison'),
+    ],
+    [FlightRoute(_o, 260, level: 3)],
+    [
+      FlightRoute(_t, 440, level: 3, element: 'Plant'),
+      FlightRoute(_t, 440, level: 3, element: 'Lava'),
+    ],
+    [FlightRoute(_o, 260, level: 3)],
+    [
+      FlightRoute(_t, 440, level: 3, element: 'Water'),
+      FlightRoute(_t, 440, level: 3, element: 'Earth'),
+    ],
+    [FlightRoute(_o, 260, level: 3)],
+    [
+      FlightRoute(_t, 440, level: 3, element: 'Air'),
+      FlightRoute(_t, 440, level: 3, element: 'Dark'),
+    ],
+    [FlightRoute(_o, 460, level: 3)],
   ]),
 };

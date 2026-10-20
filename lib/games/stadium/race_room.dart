@@ -10,9 +10,10 @@
 // need not agree on to the last bit), so only the taps go between them.
 //
 // A room races the ladder's courses, or fights a gem cup's bout (the
-// island, the night sky, the space course: three to a bout, the bout's two
-// rivals filling in), each phone running the same bout the same way; for
-// the space course each player's route goes in with their READY.
+// island, the space course: three to a bout, the bout's two rivals filling
+// in), each phone running the same bout the same way; for the space course
+// each player's route goes in with their READY. (The Emerald Cup's battle
+// ladder is not fought with friends yet.)
 
 import 'dart:math';
 

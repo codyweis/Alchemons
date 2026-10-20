@@ -23,8 +23,8 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // The gem cups from the Trials, each one's event played to its end — an
-// island bout (Ruby), a night sky watched (Sapphire), a planned flight
-// (Emerald) — and back to the Trials.
+// island bout (Ruby), a planned flight (Sapphire) — and back to the Trials.
+// (The Emerald Cup's battle ladder: gem_battle_ladder_test.dart.)
 //
 //   GEM_HUB_OUT=/tmp/gh flutter test test/gem_cups_hub_test.dart
 // also writes frames.
@@ -233,15 +233,6 @@ void main() {
     );
   });
 
-  testWidgets('Sapphire: a night sky watched to the end', (tester) async {
-    await play(
-      tester,
-      progress: '{"copper":3,"silver":3,"ruby":3}',
-      bout: 'CLEAR NIGHT',
-      tag: 'sapphire',
-    );
-  });
-
   testWidgets('Ruby: the Molten Heart fought to the end', (tester) async {
     await play(
       tester,
@@ -252,36 +243,24 @@ void main() {
     );
   });
 
-  testWidgets('Sapphire: the Fusion Sky shows its elements before the pick', (
-    tester,
-  ) async {
+  testWidgets('Sapphire: the Element Gates planned and flown', (tester) async {
     await play(
       tester,
-      progress: '{"copper":3,"silver":3,"ruby":3,"sapphire":2}',
-      bout: 'FUSION SKY',
-      tag: 'fusion',
-      shows: 'THE SKY HOLDS',
-    );
-  });
-
-  testWidgets('Emerald: the Element Gates planned and flown', (tester) async {
-    await play(
-      tester,
-      progress: '{"copper":3,"silver":3,"ruby":3,"sapphire":3,"emerald":2}',
+      progress: '{"copper":3,"silver":3,"ruby":5,"sapphire_course":2}',
       bout: 'ELEMENT GATES',
       tag: 'gates',
       ways: const ['FIRE', 'SPIRIT', 'MUD', 'PLANT'],
     );
   });
 
-  testWidgets('Emerald: a route planned, then flown to the gate', (
+  testWidgets('Sapphire: a route planned, then flown to the gate', (
     tester,
   ) async {
     await play(
       tester,
-      progress: '{"copper":3,"silver":3,"ruby":3,"sapphire":3}',
+      progress: '{"copper":3,"silver":3,"ruby":5}',
       bout: 'ASTEROID RUN',
-      tag: 'emerald',
+      tag: 'sapphire',
     );
   });
 }

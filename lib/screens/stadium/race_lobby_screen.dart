@@ -25,8 +25,6 @@ import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/stadium/race_painter.dart';
 import 'package:alchemons/games/stadium/race_room.dart';
 import 'package:alchemons/games/stadium/race_scenes.dart';
-import 'package:alchemons/games/stadium/sky_rules.dart';
-import 'package:alchemons/games/stadium/sky_stage.dart';
 import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/navigation/world_transition.dart';
@@ -291,10 +289,11 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
           if (_progress.raceOpen(kRaceCups[c], r)) (c, r),
   ];
 
-  /// The gem cups' bouts the host has opened, in order.
+  /// The gem cups' bouts the host has opened, in order (not the battle
+  /// ladder's, which is not fought with friends yet).
   List<(int, int)> get _bouts => [
     for (var g = 0; g < kGemCups.length; g++)
-      if (_progress.gemOpen(g))
+      if (_progress.gemOpen(g) && kGemCups[g].event != GemEvent.battle)
         for (var b = 0; b < kGemCups[g].bouts.length; b++)
           if (_progress.boutOpen(kGemCups[g], b)) (g, b),
   ];
@@ -520,9 +519,6 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
     for (final body in bodies) {
       if (body.ticker == null) await body.load(Flame.images);
     }
-    final figures = cup.event == GemEvent.sky
-        ? await loadSkyFigures(bodies)
-        : null;
     final routes = room.needsPlan ? room.routes(fighters) : null;
     // What the element gates make of each flyer on its route.
     final forms = routes == null
@@ -567,15 +563,8 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
               forms: forms,
               live: live,
             ),
-            GemEvent.sky => SkyStage(
-              bout: skyBoutOf(cup.bouts[b]),
-              figures: figures,
-              fighters: fighters,
-              bodies: bodies,
-              player: player,
-              live: live,
-            ),
-            GemEvent.island => IslandStage(
+            // (The battle is not fought with friends yet.)
+            _ => IslandStage(
               bout: islandBoutOf(cup.bouts[b]),
               fighters: fighters,
               bodies: bodies,

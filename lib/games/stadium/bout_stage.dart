@@ -1,11 +1,11 @@
 // lib/games/stadium/bout_stage.dart
 //
 // What a gem cup's bout shows its screen (bout_screen.dart), whatever the
-// event: the island (island_stage.dart), the night sky (sky_stage.dart),
-// the space course (flight_stage.dart). The screen ticks it, puts the
-// player's taps in, plays what it asks to hear, and lays the same HUD over
-// each: the three by name, what is under way, the action with a pip per
-// stamina bar (when there is one), and the places when it is over.
+// event: the island (island_stage.dart), the space course
+// (flight_stage.dart). The screen ticks it, puts the player's taps in,
+// plays what it asks to hear, and lays the same HUD over each: the three
+// by name, what is under way, the action with a pip per stamina bar (when
+// there is one), and the places when it is over.
 //
 // A bout with friends (race_room.dart) runs on every phone at once: each
 // keeps to the shared gun ([BoutLive]), sends its own player's taps, and

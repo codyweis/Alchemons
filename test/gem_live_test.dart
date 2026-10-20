@@ -1,6 +1,6 @@
 // The gem cups with friends: the island's own sine, two phones fighting the
 // same bout when one hears the other's taps late (the island, the space
-// course, the night sky), and a gem room's three, routes and READY.
+// course), and a gem room's three, routes and READY.
 
 import 'dart:math' as math;
 
@@ -15,8 +15,6 @@ import 'package:alchemons/games/stadium/island_rules.dart';
 import 'package:alchemons/games/stadium/island_stage.dart';
 import 'package:alchemons/games/stadium/race_bodies.dart';
 import 'package:alchemons/games/stadium/race_room.dart';
-import 'package:alchemons/games/stadium/sky_rules.dart';
-import 'package:alchemons/games/stadium/sky_stage.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -162,20 +160,20 @@ void main() {
     });
 
     test('the space course: READY needs a route planned here', () {
-      final key = _room(cup: 2).placeKey;
+      final key = _room(cup: 1).placeKey;
       final plan = {
         'run': 1,
         'at': key,
         'r': [1, 0],
       };
-      expect(_room(cup: 2, ready: {'b': 1}).isReady('b'), isFalse);
-      final r = _room(cup: 2, ready: {'b': 1}, plans: {'b': plan});
+      expect(_room(cup: 1, ready: {'b': 1}).isReady('b'), isFalse);
+      final r = _room(cup: 1, ready: {'b': 1}, plans: {'b': plan});
       expect(r.isReady('b'), isTrue);
       expect(r.planOf('b'), [1, 0]);
       // Planned for another bout, or a race already run: no plan.
       expect(
         _room(
-          cup: 2,
+          cup: 1,
           bout: 1,
           ready: {'b': 1},
           plans: {'b': plan},
@@ -184,7 +182,7 @@ void main() {
       );
       expect(
         _room(
-          cup: 2,
+          cup: 1,
           ready: {'b': 1},
           plans: {
             'b': {
@@ -243,7 +241,7 @@ void main() {
     });
 
     test('the space course', () {
-      final r = _room(cup: 2, invited: ['a', 'b']);
+      final r = _room(cup: 1, invited: ['a', 'b']);
       final fighters = r.fighters();
       final course = flightCourseOf(r.bout);
       final routes = [
@@ -278,27 +276,6 @@ void main() {
           [for (final st in whole.states) st.finishTime],
         );
       }
-    });
-
-    test('the night sky', () {
-      final r = _room(cup: 1, invited: ['a', 'b']);
-      final fighters = r.fighters();
-      final bout = skyBoutOf(kGemCups[1].bouts[0]);
-      SkyStage stage(int me) => SkyStage(
-        bout: bout,
-        fighters: fighters,
-        bodies: _bodies(3),
-        player: me,
-        live: BoutLive(gunAt: 10, wall: () => 0),
-      );
-      final a = stage(1), b = stage(2);
-      expect(a.standings, b.standings);
-      for (var i = 0; i < 3; i++) {
-        expect(a.contest.starsOf(i), b.contest.starsOf(i));
-      }
-      // Each watches its own cast last.
-      expect(a.contest.castOrder.last, 1);
-      expect(b.contest.castOrder.last, 2);
     });
   });
 }

@@ -677,8 +677,8 @@ final campaignAchievements = <CampaignAchievement>[
   ),
   CampaignAchievement(
     'beauty_win',
-    'The judges approve',
-    'Win a night sky bout in the Trials.',
+    'A battle won',
+    'Win a battle round in the Trials.',
     'beauty',
     1,
     2,
@@ -912,9 +912,11 @@ class CampaignJournalService {
         CosmicContestTrait.speed => [
           for (final c in kRaceCups) races.wonIn(c),
         ].fold(0, (a, b) => a + b),
+        // Ruby the island, Sapphire the space course, Emerald the battle
+        // ladder.
         CosmicContestTrait.strength => races.wonInGem(kGemCups[0]),
-        CosmicContestTrait.beauty => races.wonInGem(kGemCups[1]),
-        CosmicContestTrait.intelligence => races.wonInGem(kGemCups[2]),
+        CosmicContestTrait.intelligence => races.wonInGem(kGemCups[1]),
+        CosmicContestTrait.beauty => races.wonInGem(kGemCups[2]),
       };
 
   Future<void> record(String id) => db.transaction(() async {
@@ -1014,7 +1016,7 @@ class CampaignJournalService {
           (int.tryParse(settings['campaign_weekly_rites_v1'] ?? '') ?? 0),
       // The stats' achievements count the Trials now (the space contests
       // that counted once are retired; what they counted still does): a
-      // race for Speed, an island for Strength, the night sky for Beauty,
+      // race for Speed, an island for Strength, a battle round for Beauty,
       // the space course for Intelligence, and all six cups for the last.
       for (final t in CosmicContestTrait.values)
         t.name: max(contests.completedLevels(t), _trialsWins(races, t)),

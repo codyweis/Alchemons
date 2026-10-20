@@ -1,7 +1,7 @@
 // lib/screens/stadium/bout_screen.dart
 //
 // A gem cup's bout as the player watches it, whatever the event (a
-// BoutStage: the island, the night sky, the space course): the bout drawn
+// BoutStage: the island, the space course): the bout drawn
 // full screen under a light HUD — the bout, the three by name with how each
 // is doing, what is under way, and the action (CHARGE, BOOST) with a pip
 // for each stamina bar when there is one. Upright, like the Trials, so

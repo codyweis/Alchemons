@@ -21,8 +21,8 @@
 // Every one of the three fights on its own; the player's taps are charges
 // of their own — harder ones — one for each stamina bar.
 //
-// The cup's first bout is the island plain; the other two each turn it
-// (the author, 2026-10-18: the bouts were "too repetitive"):
+// The cup's first bout is the island plain; the others each turn it (the
+// author, 2026-10-18: the bouts were "too repetitive"):
 //   · the Molten Heart — the island melts from its middle outward, so the
 //     fight is on a ring of sand round a pool of lava. Into the lava is out,
 //     as over the edge is, but for those made for the heat (Fire, Lava),
@@ -36,9 +36,20 @@
 //     glide (Air, Spirit, Lightning, Light, the wing line), when it glides
 //     on to the nearest stone in its reach. Where one stands when they part
 //     matters: a clever one never leaps what it cannot cross.
+//   · the Ice Island — sheet ice: a charge that finds no one slides on, a
+//     blow carries one further, and stopping is hard. Those made for the
+//     cold (Ice, Water, Crystal) keep their feet on it; the rest slide.
+//   · the Black Hole (the author, 2026-10-20) — a black hole opens in the
+//     island's middle and draws everyone in towards it, the harder the
+//     longer the bout goes on. Into its heart is out, as over the edge is.
+//     The stronger and the heavier stand against the pull best, and those
+//     made for the dark (Dark, Spirit) can hold a while where it is more
+//     than they can walk against. A blow towards the hole is the danger:
+//     the fight is holding one's ground, and shoving the others in.
 // Each judges its own kind by a condition of its own, as the race does a
 // pond or a gap, and the twist's knack — how long one stands the lava, how
-// far it glides — comes from that kind alone, never from a bigger stat.
+// far it glides, how well it keeps its feet on the ice, how long it holds
+// against the hole — comes from that kind alone, never from a bigger stat.
 //
 // Deterministic and stepped at [kIslandTickRate], like the race: the same
 // three with the same taps make the same bout — on every phone, too (a bout
@@ -103,6 +114,30 @@ const double kMoltenWear = 0.03;
 /// widest the gaps between them open.
 const double kStoneRadius = 56, kStonesCycle = 12, kStonesGapMax = 34;
 
+/// The Ice Island: how much a step keeps its speed on the ice, a tick (on
+/// sand, [IslandBout.grip]), how much of its speed a charge that finds no
+/// one keeps there, and how much of the slide a full knack for the cold
+/// takes out of both.
+const double kIceGrip = 0.986, kIcePullUp = 0.6, kIceFooting = 0.8;
+
+/// The Black Hole: when it opens (seconds in), how fast the empty heart it
+/// leaves in the island's middle widens (units a second), and the widest
+/// it grows.
+const double kHoleOpens = 3, kHoleRise = 2, kHoleMax = 14;
+
+/// How hard the black hole pulls at its heart's edge: as it opens, and how
+/// much harder each second after (units a second, a second); how far out
+/// the pull carries — [kHoleReach] out from the heart the part of it that
+/// falls away is a quarter as strong, twice that a ninth — and the share of
+/// it that never falls away, so the whole island leans towards the hole.
+const double kHolePull = 60, kHolePullRise = 14, kHoleReach = 40;
+const double kHoleFloor = 0.15;
+
+/// How much of what it can walk against the pull takes from one with its
+/// grace left (the Black Hole's knack): while it lasts, it can always walk
+/// out.
+const double kHoleHold = 0.3;
+
 /// What a bout is fought on.
 enum IslandKind {
   /// Plain sand, its edge crumbling.
@@ -114,6 +149,16 @@ enum IslandKind {
 
   /// The Stepping Stones: three stones drifting apart and back together.
   stones,
+
+  /// The Ice Island: sheet ice, its edge crumbling; charges slide on, and
+  /// stopping is hard.
+  ice,
+
+  /// The Black Hole: a hole opens in the middle and draws everyone in.
+  blackHole;
+
+  /// Whether it is one island with nothing in its middle: sand, or ice.
+  bool get plain => this == sand || this == ice;
 }
 
 /// One bout: its island, and how hard it is judged (1..3).
@@ -129,6 +174,8 @@ class IslandBout {
     IslandKind.sand => 1,
     IslandKind.molten => 2.0,
     IslandKind.stones => 2.5,
+    IslandKind.ice => 2.0,
+    IslandKind.blackHole => 2.0,
   };
 
   /// How each trait is judged on it.
@@ -149,12 +196,26 @@ class IslandBout {
       trait,
       1,
     ),
+    // Standing firm on the ice is the twist; skating on it, as ever.
+    (IslandKind.ice, CosmicContestTrait.strength) => _footingOnIce.deeper(
+      twistGround,
+    ),
+    (IslandKind.ice, CosmicContestTrait.speed) => _onIce,
+    (IslandKind.blackHole, CosmicContestTrait.strength) => _thePull.deeper(
+      twistGround,
+    ),
+    // No wet lane by a black hole: the pull is the bout's one twist.
+    (IslandKind.blackHole, CosmicContestTrait.speed) => contestCondition(
+      trait,
+      1,
+    ),
     _ => contestCondition(trait, level),
   };
 
-  /// The twist's knack — standing the lava, gliding a gap — and the trait
-  /// it is judged under. Judged on the fighter's kind alone (its element,
-  /// its line, its frame), never its stat; none on plain sand.
+  /// The twist's knack — standing the lava, gliding a gap, keeping its
+  /// feet on the ice, holding against the hole — and the trait it is
+  /// judged under. Judged on the fighter's kind alone (its element, its
+  /// line, its frame), never its stat; none on plain sand.
   (CosmicContestTrait, ContestCondition)? get knack => switch (kind) {
     IslandKind.sand => null,
     IslandKind.molten => (
@@ -169,35 +230,52 @@ class IslandBout {
         ground: twistGround,
       ),
     ),
+    IslandKind.ice => (
+      CosmicContestTrait.strength,
+      _knackOf(_footingOnIce, sizeMul: 0, ground: twistGround),
+    ),
+    IslandKind.blackHole => (
+      CosmicContestTrait.strength,
+      _knackOf(_thePull, sizeMul: 0, ground: twistGround),
+    ),
   };
 
   /// Seconds of grace each point of knack gives: how long one stands in
-  /// the lava, or stays up over a gap.
+  /// the lava, stays up over a gap, or holds where the hole's pull is more
+  /// than it can walk against. None on the ice, where the knack is the
+  /// footing itself ([IslandSim.footing]).
   double get gracePerKnack => switch (kind) {
     IslandKind.sand => 0,
     IslandKind.molten => 1.6,
     IslandKind.stones => 0.75,
+    IslandKind.ice => 0,
+    IslandKind.blackHole => 1.8,
   };
 
-  /// How much a charge keeps its speed, per tick.
-  double get grip => 0.93;
+  /// How much a step or a blow keeps its speed, per tick (on the ice, for
+  /// one with no knack for it).
+  double get grip => kind == IslandKind.ice ? kIceGrip : 0.93;
 
-  /// How much of its speed a charge that finds no one keeps.
-  double get pullUp => 0.2;
+  /// How much of its speed a charge that finds no one keeps (on the ice,
+  /// it slides on).
+  double get pullUp => kind == IslandKind.ice ? kIcePullUp : 0.2;
 
   /// How fast the edge crumbles, in units a second once it starts.
   double get crumble => switch (kind) {
     IslandKind.sand => 2.4,
     IslandKind.molten => 0.8,
     IslandKind.stones => 1.2,
+    IslandKind.ice => 2.0,
+    IslandKind.blackHole => 0.6,
   };
 
-  /// The least the island — on the Molten Heart its outer edge, on the
-  /// Stepping Stones each stone — crumbles to.
+  /// The least the island — on the Molten Heart and the Black Hole its
+  /// outer edge, on the Stepping Stones each stone — crumbles to.
   double get minRadius => switch (kind) {
-    IslandKind.sand => kIslandMinRadius,
+    IslandKind.sand || IslandKind.ice => kIslandMinRadius,
     IslandKind.molten => 76,
     IslandKind.stones => 22,
+    IslandKind.blackHole => 82,
   };
 }
 
@@ -238,6 +316,60 @@ const _overTheGaps = ContestCondition(
   bad: 'falls short',
   strangers: -0.25,
   sizeMul: 1.2,
+);
+
+/// The Ice Island's pace: sheet ice, fast for those who skate it.
+const _onIce = ContestCondition(
+  title: 'ICE',
+  line: 'Sheet ice: fast and hard to stop.',
+  elementAdd: {
+    'Ice': 0.5,
+    'Water': 0.3,
+    'Crystal': 0.1,
+    'Air': 0.15,
+    'Fire': -0.25,
+    'Lava': -0.25,
+  },
+  familyAdd: {'let': 0.2, 'horn': -0.15},
+  good: 'skates',
+  bad: 'slips',
+);
+
+/// The Ice Island's twist: keeping one's feet on it — the knack, and the
+/// shove (a charge from firm feet lands harder, and one standing firm is
+/// harder to move).
+const _footingOnIce = ContestCondition(
+  title: 'FOOTING',
+  line: 'Standing firm on ice.',
+  elementAdd: {
+    'Ice': 0.5,
+    'Crystal': 0.4,
+    'Water': 0.35,
+    'Earth': 0.1,
+    'Fire': -0.25,
+    'Lava': -0.3,
+  },
+  familyAdd: {'horn': 0.15, 'wing': -0.2},
+  good: 'stands firm',
+  bad: 'skids',
+  strangers: -0.2,
+);
+
+/// The Black Hole's condition: the pull, and those made for the dark who
+/// hold against it.
+const _thePull = ContestCondition(
+  title: 'PULL',
+  line: 'A black hole in the middle.',
+  elementAdd: {
+    'Dark': 0.5,
+    'Spirit': 0.45,
+    'Air': -0.3,
+    'Light': -0.25,
+    'Dust': -0.2,
+  },
+  good: 'holds against the pull',
+  bad: 'is drawn in',
+  strangers: -0.3,
 );
 
 /// [c]'s own extras alone (no trait weights, no purity), as deep as a
@@ -291,15 +423,17 @@ class IslandFighter {
   /// How many times it has thought: what its pauses are drawn from.
   int thinks = 0;
 
-  /// Seconds of its grace used up — in the lava, or over a gap — and
-  /// coming back as fast on firm ground.
+  /// Seconds of its grace used up — in the lava, over a gap, or caught in
+  /// the hole's pull — and coming back as fast on firm ground.
   double burn = 0;
 
-  /// Whom it is making its way round the ring to (the Molten Heart), with
-  /// no straight way to them that it can stand; -1 for none.
+  /// Whom it is making its way round the ring to (the Molten Heart, the
+  /// Black Hole), with no straight way to them that it can stand; -1 for
+  /// none.
   int stalk = -1;
 
-  /// Whether it went into the lava rather than over the edge.
+  /// Whether it went into the lava, or the black hole, rather than over
+  /// the edge.
   bool sank = false;
 
   /// The tick it went over the edge, and was gone.
@@ -347,6 +481,20 @@ class IslandSim {
     }
     grace = [for (final k in knack) k * bout.gracePerKnack];
     _wilts = [for (final k in knack) 1 - k.clamp(0.0, 1.0)];
+    footing = [
+      for (final k in knack)
+        bout.kind == IslandKind.ice ? k.clamp(0.0, 1.0).toDouble() : 0.0,
+    ];
+    _grip = [
+      for (final f in footing) bout.grip + (0.93 - bout.grip) * kIceFooting * f,
+    ];
+    _pullUp = [
+      for (final f in footing)
+        bout.pullUp + (0.2 - bout.pullUp) * kIceFooting * f,
+    ];
+    _heft = [
+      for (var i = 0; i < n; i++) math.sqrt(mass(i)) * (0.5 + 0.1 * push[i]),
+    ];
     _arena(0);
   }
 
@@ -389,14 +537,27 @@ class IslandSim {
   final List<double> push, pace, wits, poise;
 
   /// Each one's knack for the bout's twist (none on plain sand), and the
-  /// seconds of grace it gives — in the lava, or over a gap — before it
-  /// is gone.
+  /// seconds of grace it gives — in the lava, over a gap, or caught in the
+  /// hole's pull — before it is gone.
   final List<double> knack;
   late final List<double> grace;
 
   /// How much the heat wears each one down (the Molten Heart): fully for
   /// one with no knack for it, not at all for one made for it.
   late final List<double> _wilts;
+
+  /// How well each keeps its feet on the ice, 0..1 (the Ice Island; none
+  /// elsewhere): one made for the cold takes that much of the slide out
+  /// of its steps, the blows it takes and the charges it misses.
+  late final List<double> footing;
+
+  /// How much each one's speed keeps a tick ([IslandBout.grip], less its
+  /// footing), and how much a charge of its that finds no one keeps.
+  late final List<double> _grip, _pullUp;
+
+  /// How well each stands against the black hole's pull: its frame, and
+  /// its strength. The pull on it is divided by this.
+  late final List<double> _heft;
   final List<IslandFighter> states;
   int tick = 0;
 
@@ -446,6 +607,25 @@ class IslandSim {
     return math.min(kMoltenRise * since, kMoltenMax);
   }
 
+  /// The black hole's empty heart at tick [t] (the Black Hole; none
+  /// elsewhere): none at first, then widening.
+  double holeAt(int t) {
+    if (bout.kind != IslandKind.blackHole) return 0;
+    final since = (t - kHoleOpens * kIslandTickRate) / kIslandTickRate;
+    if (since <= 0) return 0;
+    return math.min(kHoleRise * since, kHoleMax);
+  }
+
+  /// How hard the black hole pulls at its heart's edge at tick [t] (units
+  /// a second, a second; none elsewhere): coming on over its first two
+  /// seconds, and harder every second after, so in the end nobody holds.
+  double holePullAt(int t) {
+    if (bout.kind != IslandKind.blackHole) return 0;
+    final since = (t - kHoleOpens * kIslandTickRate) / kIslandTickRate;
+    if (since <= 0) return 0;
+    return kHolePull * math.min(1.0, since / 2) + kHolePullRise * since;
+  }
+
   /// The way out to each stone's middle from the island's: the first at
   /// the front, the others round from it.
   static const List<double> stoneDirX = [
@@ -472,9 +652,9 @@ class IslandSim {
   static const double _sqrt3 = 1.7320508075688772;
 
   // The arena this tick, set as each step begins: the island's radius
-  // (each stone's), the lava's, each stone's middle, and how far each
-  // stone drifts by the next tick.
-  double _r = kIslandRadius, _lava = 0;
+  // (each stone's), the lava's, the black hole's heart and its pull, each
+  // stone's middle, and how far each stone drifts by the next tick.
+  double _r = kIslandRadius, _lava = 0, _hole = 0, _pull = 0;
   final List<double> _sx = [0, 0, 0], _sy = [0, 0, 0];
   final List<double> _mx = [0, 0, 0], _my = [0, 0, 0];
 
@@ -482,7 +662,11 @@ class IslandSim {
     _r = radiusAt(t);
     switch (bout.kind) {
       case IslandKind.sand:
+      case IslandKind.ice:
         break;
+      case IslandKind.blackHole:
+        _hole = holeAt(t);
+        _pull = holePullAt(t);
       case IslandKind.molten:
         _lava = lavaAt(t);
       case IslandKind.stones:
@@ -531,19 +715,65 @@ class IslandSim {
   }
 
   /// Whether fighter [i] has firm ground under it: not in the lava, not
-  /// over a gap.
+  /// over a gap, not caught in the hole's pull.
   bool _footed(int i) {
     final s = states[i];
     return switch (bout.kind) {
-      IslandKind.sand => true,
+      IslandKind.sand || IslandKind.ice => true,
       IslandKind.molten =>
         math.sqrt(s.x * s.x + s.y * s.y) >= _lava - size(i) * 0.3,
       IslandKind.stones => _onStone(s.x, s.y, size(i) * 0.3),
+      IslandKind.blackHole => !_caught(i),
     };
   }
 
-  /// Whether fighter [i] is in the lava, or over a gap (as last stepped).
+  /// Whether fighter [i] is in the lava, over a gap, or caught in the
+  /// hole's pull (as last stepped).
   bool adrift(int i) => states[i].standing && !_footed(i);
+
+  /// How hard the black hole pulls fighter [i] where it stands (units a
+  /// second, a second), as the arena was last set: hardest at its heart's
+  /// edge and falling away from it, but never below [kHoleFloor] of that;
+  /// the less, the heavier and the stronger it is.
+  double pullOn(int i) {
+    if (_pull <= 0) return 0;
+    final s = states[i];
+    final d = math.max(0.0, math.sqrt(s.x * s.x + s.y * s.y) - _hole);
+    final q = 1 + d / kHoleReach;
+    return _pull * (kHoleFloor + (1 - kHoleFloor) / (q * q)) / _heft[i];
+  }
+
+  /// How hard fighter [i]'s own steps can turn it, a second: what it can
+  /// walk against.
+  double _stride(int i) => 46 + 12 * pace[i];
+
+  /// How much of what fighter [i] can walk against the black hole's pull
+  /// takes where it stands (past 1, it is drawn in).
+  double pullShare(int i) => _pull <= 0 ? 0 : pullOn(i) / _stride(i);
+
+  /// Whether the black hole pulls fighter [i] harder than it can walk
+  /// against.
+  bool _caught(int i) => pullOn(i) > _stride(i);
+
+  /// How far out from the middle the black hole's pull is more than
+  /// fighter [i] can walk against (the heart's own edge, where it is not).
+  double _caughtWithin(int i) => _pullReaches(i, 1);
+
+  /// The black hole's heart as it will be two seconds on: what a fighter
+  /// keeps clear of, before it has even opened.
+  double get _heartSoon => holeAt(tick + 2 * kIslandTickRate);
+
+  /// How far out from the middle the black hole pulls fighter [i] as hard
+  /// as [share] of what it can walk against: the heart's edge, where it
+  /// nowhere does; the island's, where it does everywhere.
+  double _pullReaches(int i, double share) {
+    if (_pull <= 0) return 0;
+    final under = _heft[i] * _stride(i) * share / _pull;
+    if (under >= 1) return _hole;
+    if (under <= kHoleFloor) return _r;
+    final q = math.sqrt((1 - kHoleFloor) / (under - kHoleFloor));
+    return math.min(_r, _hole + kHoleReach * (q - 1));
+  }
 
   /// How much of fighter [i]'s grace is spent, 0..1.
   double spent(int i) =>
@@ -620,25 +850,35 @@ class IslandSim {
 
   /// How near a blow along (ux, uy) would put fighter [j] out, 0..1: how
   /// far it is that way to ground it cannot stand on (the edge, the lava,
-  /// the end of its stone), past what its grace would bring it back from.
+  /// the end of its stone, where the hole's pull is more than it can walk
+  /// against), past what its grace would bring it back from.
   double _danger(int j, double ux, double uy) {
     final o = states[j];
     final room = switch (bout.kind) {
-      IslandKind.sand => _exit(o.x, o.y, ux, uy, 0, 0, _r),
+      IslandKind.sand || IslandKind.ice => _exit(o.x, o.y, ux, uy, 0, 0, _r),
       IslandKind.molten => math.min(
         _exit(o.x, o.y, ux, uy, 0, 0, _r),
         _entry(o.x, o.y, ux, uy, _lava) + grace[j] * _graceRoom,
       ),
       IslandKind.stones => _offStones(o.x, o.y, ux, uy) + grace[j] * _graceRoom,
+      IslandKind.blackHole => math.min(
+        _exit(o.x, o.y, ux, uy, 0, 0, _r),
+        _entry(o.x, o.y, ux, uy, _caughtWithin(j)) + grace[j] * _holdRoom,
+      ),
     };
     return 1 - (room / 70).clamp(0.0, 1.0);
   }
 
+  /// How far a second of grace carries one back out of the hole's pull:
+  /// slower than out of the lava, against what is left of the pull.
+  static const double _holdRoom = 14;
+
   /// Whether fighter [i] can charge [j] and come down on ground it can
-  /// stand: never through more lava than it stands, nor short over a gap.
+  /// stand: never through more lava than it stands, nor short over a gap,
+  /// nor across the black hole's heart or into its pull past its grace.
   /// A dim one misjudges it a little, for the better.
   bool _reachable(int i, int j) {
-    if (bout.kind == IslandKind.sand) return true;
+    if (bout.kind.plain) return true;
     final me = states[i], o = states[j];
     final ox = o.x - me.x, oy = o.y - me.y;
     final d = math.sqrt(ox * ox + oy * oy);
@@ -652,7 +892,29 @@ class IslandSim {
     final care = 1 - ((wits[i] - 2) / 3).clamp(0.0, 1.0);
     switch (bout.kind) {
       case IslandKind.sand:
+      case IslandKind.ice:
         return true;
+      case IslandKind.blackHole:
+        final er = math.sqrt(ex * ex + ey * ey);
+        if (er > _r - size(i) * 0.5 + 6 * care) return false;
+        // The nearest the charge comes to the heart, as it will be in a
+        // moment (before it opens, too): a charge across it is a charge
+        // into it.
+        final heart = _heartSoon;
+        final along = (-(me.x * ux + me.y * uy)).clamp(0.0, run);
+        final nx = me.x + ux * along, ny = me.y + uy * along;
+        if (heart > 0 &&
+            math.sqrt(nx * nx + ny * ny) <
+                heart + size(i) * 0.5 + 4 - 6 * care) {
+          return false;
+        }
+        // Where it comes down, the pull no more than it can walk against
+        // — or, for one made for the dark, no deeper than its grace
+        // brings it back from.
+        return er >=
+            math.max(heart + size(i), _caughtWithin(i) + size(i) * 0.5) -
+                (grace[i] - me.burn) * _holdRoom -
+                6 * care;
       case IslandKind.molten:
         if (math.sqrt(ex * ex + ey * ey) > _r - size(i) * 0.5 + 6 * care) {
           return false;
@@ -711,7 +973,7 @@ class IslandSim {
   /// lined up with it, for a clever one; the nearest, for one that is not.
   /// On the twists, one it can reach before one it cannot.
   int _pick(int i) {
-    if (bout.kind == IslandKind.sand) return _pickOnSand(i);
+    if (bout.kind.plain) return _pickOnSand(i);
     final me = states[i];
     final clever = ((wits[i] - 2) / 3).clamp(0.0, 1.0);
     var best = -1;
@@ -823,7 +1085,7 @@ class IslandSim {
     }
     if (s.phase != FighterPhase.stand || tick < s.nextThink) return;
     final r = fighters[i];
-    if (bout.kind == IslandKind.sand) {
+    if (bout.kind.plain) {
       // A computer one spends its stamina on a charge that can finish
       // someone (canny), or on its first ones (green).
       var boosted = false;
@@ -849,7 +1111,11 @@ class IslandSim {
         // No way to anyone it can stand: round the ring towards them, or
         // (on a stone) wait for the stones to come together.
         s
-          ..stalk = bout.kind == IslandKind.molten ? t : -1
+          ..stalk =
+              bout.kind == IslandKind.molten ||
+                  bout.kind == IslandKind.blackHole
+              ? t
+              : -1
           ..nextThink = tick + 12;
         return;
       }
@@ -873,8 +1139,9 @@ class IslandSim {
   /// Where fighter [i] would rather stand: well inside the edge, and away
   /// from the others ((ax, ay), [al] long), so there is room to charge — a
   /// clever one keeps nearer the middle; one that is not wanders. On the
-  /// Molten Heart, the middle of the ring; on the Stepping Stones, the
-  /// middle of its stone.
+  /// Molten Heart, the middle of the ring; on the Black Hole, the middle of
+  /// the ring between the edge and where the pull would have it; on the
+  /// Stepping Stones, the middle of its stone.
   (double, double) _home(
     int i,
     double clever,
@@ -887,6 +1154,7 @@ class IslandSim {
     final a = tick * 0.012 + i * 2.1;
     switch (bout.kind) {
       case IslandKind.sand:
+      case IslandKind.ice:
         final keep = (0.22 + 0.18 * (1 - clever)) * r;
         final wander = (1 - clever) * 0.18 * r;
         return (
@@ -894,11 +1162,16 @@ class IslandSim {
           (al < 1e-9 ? 0 : ay / al * keep) + islandSin(a) * wander,
         );
       case IslandKind.molten:
+      case IslandKind.blackHole:
+        final molten = bout.kind == IslandKind.molten;
         final rr = math.sqrt(s.x * s.x + s.y * s.y);
         var hx = rr > 1e-6 ? s.x / rr : 0.0, hy = rr > 1e-6 ? s.y / rr : 1.0;
-        if (rr < _lava) {
-          // In the lava: out, the nearest way.
-          final out = _lava + size(i) + 4;
+        // What it cannot stand inside: the lava, or the pull.
+        final inner = molten ? _lava : math.max(_heartSoon, _caughtWithin(i));
+        if (rr < inner) {
+          // In the lava, or caught in the pull: out, the nearest way (but
+          // never over the edge).
+          final out = math.min(inner + size(i) + 4, r - size(i));
           return (hx * out, hy * out);
         }
         final stalk = s.stalk;
@@ -915,6 +1188,21 @@ class IslandSim {
           hy += ay / al * 0.5;
         }
         final hl = math.sqrt(hx * hx + hy * hy);
+        if (!molten) {
+          // Out where the pull takes no more than half its steps, and on
+          // from there: a clever one, which knows the pull will grow,
+          // further (as near the middle as on sand while there is none);
+          // a dim one nearer, and wandering.
+          // Never out past the edge, though the pull be everywhere.
+          final edge = r - size(i);
+          final from = math.min(edge, inner + size(i) + 4);
+          final room = math.max(0.0, edge - from);
+          final at =
+              from +
+              (0.3 + 0.2 * clever) * room +
+              islandSin(a) * (1 - clever) * 0.15 * room;
+          return hl < 1e-9 ? (0.0, at) : (hx / hl * at, hy / hl * at);
+        }
         // How far out on the ring: one made for the heat hugs the lava,
         // as far from the edge as it can be; one that is not keeps a
         // step back from the lava as well.
@@ -974,10 +1262,10 @@ class IslandSim {
           ..vx = s.dx * speed
           ..vy = s.dy * speed;
         if (tick - s.phaseFrom >= dashTicks(i)) {
-          // A charge that finds no one pulls up.
+          // A charge that finds no one pulls up (on the ice, it slides on).
           s
-            ..vx *= bout.pullUp
-            ..vy *= bout.pullUp
+            ..vx *= _pullUp[i]
+            ..vy *= _pullUp[i]
             ..phase = FighterPhase.stand
             ..phaseFrom = tick;
         }
@@ -1004,14 +1292,14 @@ class IslandSim {
         final d = math.sqrt(ox * ox + oy * oy);
         final cap = 30 + 7 * pace[i];
         // Steps towards that spot, easing in as it nears it rather than
-        // running past: what it would be doing, and as much of a turn
-        // towards that as its pace allows in a tick.
+        // running past (on the ice especially): what it would be doing, and
+        // as much of a turn towards that as its pace allows in a tick.
         final want = math.min(cap, d * 4);
         final wx = d > 1e-6 ? ox / d * want : 0.0;
         final wy = d > 1e-6 ? oy / d * want : 0.0;
         final ex = wx - s.vx, ey = wy - s.vy;
         final el = math.sqrt(ex * ex + ey * ey);
-        final acc = (46 + 12 * pace[i]) * dt;
+        final acc = _stride(i) * dt;
         if (el > acc) {
           s
             ..vx += ex / el * acc
@@ -1034,11 +1322,11 @@ class IslandSim {
     }
     if (s.phase != FighterPhase.dash) {
       s
-        ..vx *= bout.grip
-        ..vy *= bout.grip;
+        ..vx *= _grip[i]
+        ..vy *= _grip[i];
     }
     if (s.standing) {
-      if (bout.kind == IslandKind.sand) {
+      if (bout.kind.plain) {
         // The crumbling edge slopes away: near it, the sand slides
         // outward. The crowd steadies its favourite at the brink: what
         // carries it out is checked a little, the more so the more
@@ -1063,6 +1351,7 @@ class IslandSim {
       } else {
         _brink(i, dt);
       }
+      if (bout.kind == IslandKind.blackHole) _drawIn(i, dt);
     }
     s
       ..x += s.vx * dt
@@ -1080,15 +1369,38 @@ class IslandSim {
     }
   }
 
+  /// The black hole draws fighter [i] in towards its heart, as hard as
+  /// [pullOn] says — except that one with its grace left, where the pull
+  /// is more than it can walk against, holds against the worst of it.
+  void _drawIn(int i, double dt) {
+    if (_pull <= 0) return;
+    final s = states[i];
+    final rr = math.sqrt(s.x * s.x + s.y * s.y);
+    if (rr < 1e-6) return;
+    var a = pullOn(i);
+    final stride = _stride(i);
+    if (a > stride && s.burn < grace[i]) a = kHoleHold * stride;
+    s
+      ..vx -= s.x / rr * a * dt
+      ..vy -= s.y / rr * a * dt;
+  }
+
   /// The twists' brinks, as the sand's edge: the ground slopes away to
   /// them, and the crowd steadies its favourite there. The ring has two —
   /// its edge, and the lava's; a stone has its own edge (but not where it
-  /// lies against another).
+  /// lies against another). By the black hole there is only the edge: its
+  /// pull is its own ([_drawIn]).
   void _brink(int i, double dt) {
     final s = states[i];
     switch (bout.kind) {
       case IslandKind.sand:
+      case IslandKind.ice:
         break;
+      case IslandKind.blackHole:
+        final rr = math.sqrt(s.x * s.x + s.y * s.y);
+        if (rr < 1e-6) return;
+        final band = math.min(0.28 * _r, 0.3 * (_r - _hole));
+        _slope(s, s.x / rr, s.y / rr, _r - rr, band, poise[i], dt);
       case IslandKind.molten:
         final rr = math.sqrt(s.x * s.x + s.y * s.y);
         if (rr < 1e-6) return;
@@ -1204,7 +1516,8 @@ class IslandSim {
   /// Whether fighter [i] still has ground under it: over the edge is out;
   /// so is into the lava, or off every stone, once its grace is spent (at
   /// once, for one with none). A charge in flight over a gap is a leap,
-  /// and not yet a fall.
+  /// and not yet a fall. Into the black hole's heart is out at once; its
+  /// grace is spent in the pull round it ([_drawIn]).
   void _ground(int i, double r) {
     final s = states[i];
     if (s.outAt != null) return;
@@ -1213,7 +1526,21 @@ class IslandSim {
       var gone = false;
       switch (bout.kind) {
         case IslandKind.sand:
+        case IslandKind.ice:
           gone = math.sqrt(s.x * s.x + s.y * s.y) > r + size(i) * 0.3;
+        case IslandKind.blackHole:
+          final rr = math.sqrt(s.x * s.x + s.y * s.y);
+          if (rr > _r + size(i) * 0.3) {
+            gone = true;
+          } else if (_hole > 0 && rr < _hole) {
+            // Its feet over the heart: taken.
+            gone = true;
+            s.sank = true;
+          } else if (_caught(i)) {
+            s.burn += dt;
+          } else {
+            s.burn = math.max(0.0, s.burn - dt);
+          }
         case IslandKind.molten:
           final rr = math.sqrt(s.x * s.x + s.y * s.y);
           if (rr > _r + size(i) * 0.3) {
@@ -1254,16 +1581,19 @@ class IslandSim {
   }
 
   /// How far fighter [i] is from going out, as it stands: from the edge
-  /// on sand; from the nearer of the edge and the lava on the ring; from
-  /// its stone's edge on the stones.
+  /// on sand and ice; from the nearer of the edge and the lava (or the
+  /// hole's heart) on the ring; from its stone's edge on the stones.
   double _safety(int i) {
     final s = states[i];
     final rr = math.sqrt(s.x * s.x + s.y * s.y);
     switch (bout.kind) {
       case IslandKind.sand:
+      case IslandKind.ice:
         return _r - rr;
       case IslandKind.molten:
         return math.min(_r - rr, rr - _lava);
+      case IslandKind.blackHole:
+        return math.min(_r - rr, rr - _hole);
       case IslandKind.stones:
         return -_nearestStone(s.x, s.y).$1;
     }
@@ -1277,7 +1607,7 @@ class IslandSim {
     double rank(int i) {
       final s = states[i];
       if (s.fellAt == null) {
-        if (bout.kind != IslandKind.sand) return 1e9 + _safety(i);
+        if (!bout.kind.plain) return 1e9 + _safety(i);
         final rr = math.sqrt(s.x * s.x + s.y * s.y);
         return 1e9 - rr;
       }
