@@ -819,9 +819,11 @@ extension CosmicKin on CosmicGame {
   /// the companions it fights, and at 80% a frame it swallowed every shot
   /// they fired from inside it, which left the duel unwinnable.
   void _screenFoeShots() {
-    if (!wildDuelActive) return;
+    if (!wildDuelActive && _battle == null) return;
+    // On a side's turn, the other side's shots; on the party's, the wild
+    // Alchemon's.
     final foes = _onWildSideNow
-        ? _wildSide.foeProjectiles
+        ? (_sideNow ?? _wildSide).foeProjectiles
         : duelOpponentProjectiles;
     if (foes == null || foes.isEmpty) return;
     List<Projectile>? reflectors;
@@ -1034,7 +1036,9 @@ extension CosmicKin on CosmicGame {
 
   /// World-space Kin art: the Blood pact's threads between the party, the
   /// lasers (both sides'), and the garden flowers (both sides').
-  void _renderKinWorld(Canvas canvas) {
+  /// [lasers] false draws a side's threads alone: a battle draws each
+  /// side's threads on its own side, the lasers (one list) once.
+  void _renderKinWorld(Canvas canvas, {bool lasers = true}) {
     if (_openKinBloodPactActive) {
       drawKinBloodThreads(
         canvas: canvas,
@@ -1045,6 +1049,7 @@ extension CosmicKin on CosmicGame {
         time: _elapsed,
       );
     }
+    if (!lasers) return;
     for (final beam in _kinLaserBeams) {
       if (beam.dead) continue;
       drawKinLaser(

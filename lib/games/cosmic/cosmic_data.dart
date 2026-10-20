@@ -12941,6 +12941,19 @@ class CosmicCompanion with HasEffects, KinSupportFields {
   /// abilities did to it (a slow, a root, a freeze). 1 is unhindered.
   double ccMoveFactor = 1.0;
 
+  /// A throw still to be travelled (a battle: an Air Mane's gust, a Water
+  /// Mane's drag). Abilities move a body in one step; a battle glides the
+  /// creature there instead, so a shove reads as a throw, not a jump.
+  Offset shoveGlide = Offset.zero;
+
+  /// The part of a point of overtime healing not yet given back
+  /// (cosmic_game_battle.dart): HP is whole and a heal's share is not.
+  double overtimeHealCarry = 0;
+
+  /// Which way its sprite faces when something holds it (a battle, where a
+  /// foe straight ahead would flip it every frame); null faces its aim.
+  bool? faceRight;
+
   /// Damage that always lands, grace window or not — an instant kill's heavy
   /// hit. A shield still takes it first.
   void takeAbilityDamage(int dmg) {

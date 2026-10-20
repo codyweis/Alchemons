@@ -41,6 +41,7 @@ class PartyPickerScreen extends StatefulWidget {
     this.showDeployConfirm = true,
     this.enforceUniqueSpecies = true,
     this.enforceUniqueFamily = false,
+    this.allowMystics = true,
     this.maxSelections,
     this.teamStorageKey = 'saved_teams_party_picker',
     this.initialSelection,
@@ -60,6 +61,10 @@ class PartyPickerScreen extends StatefulWidget {
   /// generalised to every family, which is what forces a raid roster to be
   /// broad instead of three copies of your best build.
   final bool enforceUniqueFamily;
+
+  /// False where Mystics cannot be taken at all (a battle: their special is
+  /// their world, which only Survival runs).
+  final bool allowMystics;
 
   /// Override max team size. When null, uses the default from SelectedPartyNotifier.
   final int? maxSelections;
@@ -392,6 +397,10 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
 
     final family = species?.mutationFamily;
     final isMystic = family == 'Mystic';
+    if (isMystic && !widget.allowMystics) {
+      showGameSnack(ctx, 'Mystics cannot battle.');
+      return;
+    }
     // Mystic is always unique. Under [enforceUniqueFamily] so is every other
     // family, so the general rule subsumes the Mystic one.
     final clashingFamily =

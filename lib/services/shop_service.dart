@@ -21,6 +21,7 @@ import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:alchemons/models/battle_arenas.dart';
 import 'package:alchemons/models/shop_scenes.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -515,6 +516,19 @@ class ShopService extends ChangeNotifier {
         rewardType: 'boost',
         limit: PurchaseLimit.once,
       ),
+    // ── Battle arenas (models/battle_arenas.dart): looks only ──
+    for (final a in kBattleArenas)
+      if (!a.free)
+        ShopOffer(
+          id: a.offerId,
+          name: a.title,
+          description: a.line,
+          icon: AppIcons.home_rounded,
+          cost: {'gold': a.gold},
+          reward: const {},
+          rewardType: 'boost',
+          limit: PurchaseLimit.once,
+        ),
     // ── Dock sets (models/dock_sets.dart): sold only in their faction;
     // the Athanor's are never sold ──
     for (final s in kDockSets)
@@ -1628,6 +1642,11 @@ class ShopService extends ChangeNotifier {
     // A dock set: owned, and on the dock.
     if (DockSet.byOffer(offerId) case final set?) {
       await _factions.grantDockSet(set);
+      return true;
+    }
+    // A battle arena: owned, to choose on the battle hub.
+    if (battleArenaByOffer(offerId) case final arena?) {
+      await _db.settingsDao.setSetting(arena.settingKey, '1');
       return true;
     }
     // A scene: its realm opens in the wild and at home.

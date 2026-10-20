@@ -1,6 +1,7 @@
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
+import 'package:alchemons/models/battle_arenas.dart';
 import 'package:alchemons/models/home_decor.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/shop_scenes.dart';
@@ -206,5 +207,33 @@ void main() {
     expect(shop.canPurchase(scene.offerId), isFalse);
     expect(await shop.purchase(scene.offerId), isFalse);
     expect((await db.currencyDao.getAllCurrencies())['gold'], 100);
+  });
+
+  test('a battle arena is bought once, for gold, and can then be hosted in', () async {
+    final arena = battleArenaOf('orrery');
+    expect(arena.free, isFalse);
+    expect(
+      ShopService.allOffers.where((o) => o.id == arena.offerId),
+      hasLength(1),
+    );
+    // The free floor is never sold.
+    expect(
+      ShopService.allOffers.where((o) => o.id == battleArenaOf('obsidian').offerId),
+      isEmpty,
+    );
+    expect(await ownedBattleArenas(db.settingsDao), {'obsidian'});
+    expect(await shop.purchase(arena.offerId), isFalse);
+
+    await db.settingsDao.setSetting('wallet_gold', '400');
+    expect(await shop.purchase(arena.offerId), isTrue);
+    expect((await db.currencyDao.getAllCurrencies())['gold'], 400 - arena.gold);
+    expect(await ownedBattleArenas(db.settingsDao), {'obsidian', 'orrery'});
+    expect(shop.canPurchase(arena.offerId), isFalse);
+
+    // Chosen, it is the one hosted in; a choice not owned falls back.
+    await chooseBattleArena(db.settingsDao, 'orrery');
+    expect(await chosenBattleArena(db.settingsDao), 'orrery');
+    await chooseBattleArena(db.settingsDao, 'tidal');
+    expect(await chosenBattleArena(db.settingsDao), 'obsidian');
   });
 }

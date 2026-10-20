@@ -691,8 +691,10 @@ extension CosmicMaskRuntime on CosmicGame {
 
   /// Contact echoes over the traps, then the Spirit wisps on both sides of a
   /// duel. Drawn after the ability projectiles, as Survival draws them.
-  void _renderMaskOverlays(Canvas canvas, Rect viewport) {
-    _maskTrapVisuals.render(canvas, viewport: viewport);
+  /// [traps] false draws a side's wisps alone: a battle draws each side's
+  /// wisps on its own side, the traps (one set of visuals) once.
+  void _renderMaskOverlays(Canvas canvas, Rect viewport, {bool traps = true}) {
+    if (traps) _maskTrapVisuals.render(canvas, viewport: viewport);
     final visible = viewport.inflate(50);
     void wisps(List<MaskSpiritWisp> list) {
       for (final wisp in list) {

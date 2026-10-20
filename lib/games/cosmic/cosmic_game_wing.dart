@@ -788,7 +788,10 @@ extension CosmicWing on CosmicGame {
   /// beams (as survival does), then the short-lived pieces in the beam list
   /// (Lightning's blast, a charge's sparks), then the party's Fire and
   /// Poison rings.
-  void _renderOpenWingBeams(Canvas canvas) {
+  /// [fx] false leaves out the faded segments (one list, whichever side
+  /// laid them): a battle draws each side's beams on its own side and the
+  /// segments once.
+  void _renderOpenWingBeams(Canvas canvas, {bool fx = true}) {
     final view = _wingView;
     for (final beams in [_activeWingBeams, _wildSide.wingBeams]) {
       for (final beam in beams) {
@@ -821,7 +824,7 @@ extension CosmicWing on CosmicGame {
         );
       }
     }
-    for (final fx in _beamFx) {
+    for (final fx in fx ? _beamFx : const <_BeamFx>[]) {
       final alpha = fx.alpha;
       if (alpha <= 0) continue;
       final mid = Offset(

@@ -37,6 +37,7 @@ import 'package:alchemons/models/scenes/volcano/volcano_scene.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/providers/audio_provider.dart';
+import 'package:alchemons/screens/battle/battle_screen.dart';
 import 'package:alchemons/screens/stadium/stadium_screen.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
@@ -618,6 +619,14 @@ class _ProfileScreenState extends State<ProfileScreen>
       title: 'The Trials',
       element: 'Light',
     );
+    if (!mounted) return;
+    unawaited(context.read<AudioController>().playHomeMusic());
+  }
+
+  /// A battle against the computer; home's music again after.
+  Future<void> _openBattle() async {
+    HapticFeedback.mediumImpact();
+    await openBattleAgainstComputer(context);
     if (!mounted) return;
     unawaited(context.read<AudioController>().playHomeMusic());
   }
@@ -1908,6 +1917,13 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   List<_DebugAction> _debugActions() => [
+    _DebugAction(
+      'BATTLE',
+      'Fight the computer, two at a time from four: tap specials, call in '
+          'the bench, two swaps',
+      'OPEN',
+      _openBattle,
+    ),
     _DebugAction(
       'TRIALS',
       'Open the Trials with your space party, without flying there',

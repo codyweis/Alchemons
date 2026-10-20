@@ -92,6 +92,21 @@ extension CosmicGameCompanions on CosmicGame {
     _loadCompanionSprite(member, slotIndex);
   }
 
+  /// The creature drawn from [slot]'s sprite: the party's companion there,
+  /// or in a battle the Alchemon of either side casting from it.
+  CosmicCompanion? _companionInSlot(int slot) {
+    final b = _battle;
+    if (b != null && slot >= kBattleSlotBase) {
+      for (final side in b.sides) {
+        for (final c in side.creatures) {
+          if (c.member.slotIndex == slot) return c.body;
+        }
+      }
+      return null;
+    }
+    return activeCompanions[slot];
+  }
+
   Future<void> _loadCompanionSprite(
     CosmicPartyMember member,
     int slotIndex,
@@ -105,7 +120,7 @@ extension CosmicGameCompanions on CosmicGame {
 
     try {
       final image = await loadCreatureSheet(images, sheet.path);
-      final current = activeCompanions[slotIndex];
+      final current = _companionInSlot(slotIndex);
       if (current == null || current.member.instanceId != member.instanceId) {
         return;
       }
@@ -131,7 +146,7 @@ extension CosmicGameCompanions on CosmicGame {
       const desiredSize = CosmicGame.spriteBox;
       final sx = desiredSize / sheet.frameSize.x;
       final sy = desiredSize / sheet.frameSize.y;
-      final specScale = activeCompanions[slotIndex]?.speciesScale ?? 1.3;
+      final specScale = _companionInSlot(slotIndex)?.speciesScale ?? 1.3;
       _companionSpriteScales[slotIndex] =
           min(sx, sy) * (visuals?.scale ?? 1.0) * specScale;
       _readCompanionGrains(
@@ -186,7 +201,7 @@ extension CosmicGameCompanions on CosmicGame {
         tones: 12,
       );
       if (grains.length < 40) return;
-      final current = activeCompanions[slotIndex];
+      final current = _companionInSlot(slotIndex);
       if (current == null || current.member.instanceId != member.instanceId) {
         return;
       }

@@ -305,7 +305,13 @@ class SilentAudio extends ChangeNotifier implements AudioController {
   Future<void> playSurvivalMusic() async {}
 
   @override
+  Future<void> playBossBattleMusic() async {}
+
+  @override
   Future<void> playHomeMusic() async {}
+
+  @override
+  Future<void> playStadiumMusic() async {}
 
   @override
   int soundEventSerial = 0;

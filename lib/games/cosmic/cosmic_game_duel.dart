@@ -222,6 +222,7 @@ extension CosmicDuel on CosmicGame {
     final hit = taken > 0
         ? taken *
               CosmicGame._duelDamageMultiplier *
+              (_battle?.damageNow ?? 1.0) *
               100 /
               (100 + comp.elemDef * CosmicGame._duelDefenseScale)
         : 0.0;
@@ -237,7 +238,12 @@ extension CosmicDuel on CosmicGame {
       final whole = cb.damageCarry.floor();
       if (whole > 0) {
         cb.damageCarry -= whole;
-        comp.takeDamage(whole);
+        // A battle has no horde to guard against: every hit counts.
+        if (_battle?.hitGrace == false) {
+          comp.takeAbilityDamage(whole);
+        } else {
+          comp.takeDamage(whole);
+        }
       }
     }
     // An instant kill is the cast's big moment and always lands.
@@ -252,7 +258,13 @@ extension CosmicDuel on CosmicGame {
     if (shove.distance > _kCombatBodyMaxShove) {
       shove = shove / shove.distance * _kCombatBodyMaxShove;
     }
-    comp.position += shove;
+    // A battle glides it there (cosmic_game_battle.dart); a duel sets it
+    // down, as it always has.
+    if (_battle != null) {
+      comp.shoveGlide += shove;
+    } else {
+      comp.position += shove;
+    }
     body.position = comp.position;
     cb.from = comp.position;
   }
@@ -299,7 +311,16 @@ extension CosmicDuel on CosmicGame {
     }
   }
 
-  void _tickCombatBody(_CombatBody cb, CosmicCompanion? host, double dt) {
+  /// [trailInto] is where a Pip Mud mark's trail goes, the projectiles of
+  /// the side that marked it, when that is neither the party nor the wild
+  /// Alchemon (a battle, cosmic_game_battle.dart); [trailSlot] casts it.
+  void _tickCombatBody(
+    _CombatBody cb,
+    CosmicCompanion? host,
+    double dt, {
+    List<Projectile>? trailInto,
+    int? trailSlot,
+  }) {
     final body = cb.body;
     var v = body.knockbackVelocity;
     if (v.distance > _kCombatBodyMaxKnockSpeed) {
@@ -331,7 +352,9 @@ extension CosmicDuel on CosmicGame {
       if (cb.mudTrailTimer <= 0) {
         cb.mudTrailTimer = 0.42;
         final puff = _pipMudTrailPuff(host?.position ?? ship.pos);
-        if (identical(cb, _wildBody)) {
+        if (trailInto != null) {
+          trailInto.add(puff..sourceSlotIndex = trailSlot ?? kWildCasterSlot);
+        } else if (identical(cb, _wildBody)) {
           companionProjectiles.add(puff);
         } else {
           duelOpponentProjectiles.add(puff..sourceSlotIndex = kWildCasterSlot);
@@ -378,7 +401,46 @@ extension CosmicDuel on CosmicGame {
   void _onWildSide(CosmicCompanion opp, void Function() turn) {
     final side = _wildSide;
     final bodies = _standUpPartyBodies();
+    side.companions
+      ..clear()
+      ..[kWildCasterSlot] = opp;
+    _runAsSide(
+      side,
+      companions: side.companions,
+      bodies: bodies,
+      projectiles: duelOpponentProjectiles,
+      foeProjectiles: companionProjectiles,
+      standInAt: opp.position,
+      standInAngle: opp.angle,
+      turn: turn,
+    );
 
+    for (final entry in _partyBodies.entries) {
+      final host = entry.key;
+      if (host is CosmicCompanion) {
+        if (host.isAlive) _settleOnCompanion(entry.value, host);
+      } else {
+        _settleOnShip(entry.value);
+      }
+    }
+  }
+
+  /// Runs [turn] as [side]: [bodies] are the enemies its abilities touch,
+  /// [companions] are the only companions, what is in flight is
+  /// [projectiles], and the ship its abilities defend and orbit stands in at
+  /// [standInAt]. The wild Alchemon's turn and both sides of a battle
+  /// (cosmic_game_battle.dart) take theirs here. Everything the game holds
+  /// for the party is put back afterwards.
+  void _runAsSide(
+    _WildSide side, {
+    required Map<int, CosmicCompanion> companions,
+    required List<CosmicEnemy> bodies,
+    required List<Projectile> projectiles,
+    required List<Projectile> foeProjectiles,
+    required Offset standInAt,
+    required double standInAngle,
+    required void Function() turn,
+  }) {
     final partyEnemies = enemies;
     final partyProjectiles = companionProjectiles;
     final partyCompanions = activeCompanions;
@@ -399,12 +461,9 @@ extension CosmicDuel on CosmicGame {
     final partyKinPrevShipHealth = _openKinPrevShipHealth;
     final partyKinLastShipDamage = _openKinLastShipDamage;
 
-    side.companions
-      ..clear()
-      ..[kWildCasterSlot] = opp;
     enemies = bodies;
-    companionProjectiles = duelOpponentProjectiles;
-    activeCompanions = side.companions;
+    companionProjectiles = projectiles;
+    activeCompanions = companions;
     _garrison = side.garrison;
     _activeWingBeams = side.wingBeams;
     _pendingWingBeams = side.pendingWingBeams;
@@ -417,17 +476,19 @@ extension CosmicDuel on CosmicGame {
     _kinFlowers = side.kinFlowers;
     _openKinPrevShipHealth = side.kinPrevShipHealth;
     _openKinLastShipDamage = side.kinLastShipDamage;
-    side.foeProjectiles = partyProjectiles;
+    side.foeProjectiles = foeProjectiles;
     ship = side.standIn
-      ..pos = opp.position
-      ..angle = opp.angle;
+      ..pos = standInAt
+      ..angle = standInAngle;
     // Its side has no ship of its own to shield, heal or hurt.
     _shipDead = true;
     activeBoss = null;
     _onWildSideNow = true;
+    _sideNow = side;
     try {
       turn();
     } finally {
+      _sideNow = null;
       side.bloodTimer = _maskBloodTimer;
       side.bloodHealing = _maskBloodHealing;
       side.kinPrevShipHealth = _openKinPrevShipHealth;
@@ -453,15 +514,6 @@ extension CosmicDuel on CosmicGame {
       _shipDead = partyShipDead;
       activeBoss = partyBoss;
       _onWildSideNow = false;
-    }
-
-    for (final entry in _partyBodies.entries) {
-      final host = entry.key;
-      if (host is CosmicCompanion) {
-        if (host.isAlive) _settleOnCompanion(entry.value, host);
-      } else {
-        _settleOnShip(entry.value);
-      }
     }
   }
 

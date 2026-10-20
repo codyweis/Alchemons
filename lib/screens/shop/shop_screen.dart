@@ -9,8 +9,10 @@
 
 import 'package:alchemons/models/dock_sets.dart';
 import 'package:alchemons/models/home_decor.dart';
+import 'package:alchemons/models/battle_arenas.dart';
 import 'package:alchemons/models/shop_scenes.dart';
 import 'package:alchemons/screens/shop/shop_scene_card.dart';
+import 'package:alchemons/screens/shop/battle_arena_shop_card.dart';
 import 'package:alchemons/services/wilderness_spawn_service.dart';
 import 'package:alchemons/models/faction.dart';
 import 'dart:async';
@@ -807,6 +809,54 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                                   canAfford,
                                 ),
                         ),
+                      ),
+                    ),
+                  );
+                }(),
+              // Battle arenas: floors to fight on and to host in.
+              const SizedBox(height: 4),
+              _buildSectionHeader('BATTLE ARENAS', coin: CoinKind.gold),
+              const SizedBox(height: 12),
+              for (final arena in kBattleArenas.where((a) => !a.free))
+                () {
+                  final offer = ShopService.allOffers.firstWhere(
+                    (o) => o.id == arena.offerId,
+                  );
+                  final owned = !shopService.canPurchase(offer.id);
+                  final cost = shopService.getEffectiveCost(offer);
+                  final canAfford = cost.entries.every(
+                    (e) => (allCurrencies[e.key] ?? 0) >= e.value,
+                  );
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: BattleArenaShopCard(
+                      key: ValueKey('arena-${arena.id}'),
+                      arena: arena,
+                      theme: theme,
+                      owned: owned,
+                      live: _tab == 2 && _routeIsCurrent,
+                      costWidgets: [
+                        for (final e in cost.entries)
+                          CostChip(
+                            currencyType: e.key,
+                            amount: e.value,
+                            available: allCurrencies[e.key] ?? 0,
+                          ),
+                      ],
+                      onTap: context.soundTap(
+                        () => owned
+                            ? _showDetails(
+                                context,
+                                offer,
+                                allCurrencies,
+                                canAfford,
+                              )
+                            : _handlePurchase(
+                                context,
+                                offer,
+                                allCurrencies,
+                                canAfford,
+                              ),
                       ),
                     ),
                   );
@@ -1851,6 +1901,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     final isDecor = HomeDecor.byOffer(offer.id) != null;
     final isDockSet = DockSet.byOffer(offer.id) != null;
     final scene = shopSceneByOffer(offer.id);
+    final arena = battleArenaByOffer(offer.id);
     // A realm opens with Alchemons already waiting in it.
     if (success && scene != null && !scene.homeOnly) {
       await context.read<WildernessSpawnService>().scheduleNextSpawnTime(
@@ -1872,6 +1923,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
           ? '${offer.name} on the dock'
           : scene != null
           ? '${scene.title} unlocked'
+          : arena != null
+          ? '${arena.title} unlocked'
           : '${offer.name} × $qty',
       icon: success ? AppIcons.check_rounded : AppIcons.error_rounded,
       color: success ? t.success : t.danger,

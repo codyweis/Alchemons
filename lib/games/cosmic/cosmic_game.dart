@@ -47,6 +47,7 @@ import 'works.dart';
 import 'works_art.dart';
 import 'package:alchemons/games/stadium/stadium_space_art.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
+import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
 import 'package:alchemons/systems/effects/effect_loader.dart';
@@ -61,6 +62,7 @@ import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart'
     show GrainBatch, SpecimenGrains;
 import 'package:alchemons/widgets/fx/variant_look.dart';
+import 'battle_arena_art.dart';
 
 part 'cosmic_game_helpers.dart';
 part 'cosmic_game_components.dart';
@@ -75,6 +77,7 @@ part 'cosmic_game_ability_render.dart';
 part 'cosmic_game_combat_actions.dart';
 part 'cosmic_game_ability_pass.dart';
 part 'cosmic_game_duel.dart';
+part 'cosmic_game_battle.dart';
 part 'cosmic_game_wing.dart';
 part 'cosmic_game_horn.dart';
 part 'cosmic_game_kin.dart';
@@ -415,6 +418,13 @@ class CosmicGame extends FlameGame with PanDetector {
   final Map<CosmicEnemy, _CombatBody> _combatBodies = {};
   _CombatBody? _wildBody;
   final Map<Object, _CombatBody> _partyBodies = {};
+
+  /// The side whose turn is running ([_runAsSide]), or null on the party's.
+  _WildSide? _sideNow;
+
+  /// The player-against-player fight this game is running, if it is one
+  /// (cosmic_game_battle.dart). While it runs the open world stands still.
+  CosmicBattle? _battle;
   bool _onWildSideNow = false;
 
   // Wild Alchemons drifting in space — see cosmic_game_wild.dart.
@@ -898,6 +908,8 @@ class CosmicGame extends FlameGame with PanDetector {
   /// The zoom the world is drawn at: the player's preset, pushed in further
   /// while a portal tear plays.
   double get cameraZoom {
+    // A battle frames its whole floor (cosmic_game_battle.dart).
+    if (_battle != null) return _battleZoom;
     var z = _currentZoom * _camZoomMul * _travelZoom;
     if (_bloodFrame > 0) {
       // The ritual frames the whole crown and the light round it.
@@ -940,8 +952,12 @@ class CosmicGame extends FlameGame with PanDetector {
     _zoomAnimComplete = false;
   }
 
-  double get camX => ship.pos.dx + _camPan.dx - size.x / (2 * cameraZoom);
-  double get camY => ship.pos.dy + _camPan.dy - size.y / (2 * cameraZoom);
+  double get camX => _battle != null
+      ? _battleCamera.dx
+      : ship.pos.dx + _camPan.dx - size.x / (2 * cameraZoom);
+  double get camY => _battle != null
+      ? _battleCamera.dy
+      : ship.pos.dy + _camPan.dy - size.y / (2 * cameraZoom);
 
   // ── lifecycle ──────────────────────────────────────────
 
@@ -2298,6 +2314,10 @@ class CosmicGame extends FlameGame with PanDetector {
   @override
   void update(double dt) {
     super.update(dt);
+    if (_battle != null) {
+      _updateBattle(dt);
+      return;
+    }
     if (_tearWild != null || _tearCloseT >= 0) dt = _tickPortalTear(dt);
     _elapsed += dt;
     _updateWorks(dt);
@@ -4806,6 +4826,10 @@ class CosmicGame extends FlameGame with PanDetector {
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+    if (_battle != null) {
+      _renderBattle(canvas);
+      return;
+    }
 
     // Pocket dimension takes over all rendering
     if (inNexusPocket) {
@@ -5934,272 +5958,8 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // ── companions ──
     for (final entry in activeCompanions.entries) {
-      final slotIndex = entry.key;
-      final comp = entry.value;
-      if (!comp.isAlive) continue;
-      final companionTicker = _companionTickers[slotIndex];
-      final companionVisuals = _companionVisualsBySlot[slotIndex];
-      final companionSpriteScale = _companionSpriteScales[slotIndex] ?? 1.0;
-      final compPos = comp.position;
-      final eColor = elementColor(comp.member.element);
-
-      // Animation timing
-      const summonDur = 0.9; // summon animation duration
-      const retreatDur = 0.6;
-      final isSummoning = comp.life < summonDur && !comp.returning;
-      final summonT = isSummoning
-          ? (comp.life / summonDur).clamp(0.0, 1.0)
-          : 1.0;
-      final retreatT = comp.returning
-          ? (comp.returnTimer / retreatDur).clamp(0.0, 1.0)
-          : 1.0;
-
-      // It gathers out of grains of itself where it will stand, and comes
-      // apart into them and streams back into the ship when recalled —
-      // the particle language of the fusion and the harvest. Until its
-      // grains have been read it steps out of a tear of its element, as it
-      // used to.
-      final grainEntry = _companionGrains[slotIndex];
-      final assembly =
-          grainEntry != null && grainEntry.$1 == comp.member.instanceId
-          ? grainEntry.$2
-          : null;
-      final emerge = isSummoning && assembly == null
-          ? Curves.easeOutBack.transform(
-              ((summonT - 0.18) / 0.55).clamp(0.0, 1.0),
-            )
-          : 1.0;
-      final summonScale = 0.25 + 0.75 * emerge;
-      final retreatScale = comp.returning && assembly == null
-          ? Curves.easeInBack.transform(retreatT)
-          : 1.0;
-      final animScale = summonScale * retreatScale;
-      final opacity = comp.returning
-          ? (assembly != null
-                ? GrainAssembly.spriteOpacityScattering(1 - retreatT)
-                : retreatT)
-          : isSummoning
-          ? (assembly != null
-                ? GrainAssembly.spriteOpacityGathering(summonT)
-                : ((summonT - 0.15) / 0.3).clamp(0.0, 1.0))
-          : 1.0;
-
-      canvas.save();
-      canvas.translate(compPos.dx, compPos.dy);
-
-      final tearHeight = 74.88 * comp.speciesScale * 1.35;
-      if (assembly != null) {
-        // Its element's light, where it gathers or comes apart.
-        final k = isSummoning
-            ? sin(pi * summonT)
-            : comp.returning
-            ? sin(pi * (1 - retreatT))
-            : 0.0;
-        if (k > 0) {
-          paintSoftCircle(
-            canvas,
-            Offset.zero,
-            assembly.reach * 1.6,
-            eColor.withValues(alpha: 0.28 * k),
-            14,
-          );
-        }
-      } else if (isSummoning) {
-        paintSummonTear(
-          canvas,
-          centre: Offset.zero,
-          height: tearHeight,
-          t: summonT,
-          color: eColor,
-        );
-      } else if (comp.returning) {
-        paintSummonTear(
-          canvas,
-          centre: Offset.zero,
-          height: tearHeight,
-          t: 1 - retreatT,
-          color: eColor,
-        );
-      }
-
-      // Outer aura glow
-      final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
-      paintSoftCircle(
-        canvas,
-        Offset.zero,
-        33.6 * animScale,
-        eColor.withValues(alpha: auraPulse * 0.3 * opacity),
-        14,
-      );
-
-      // A Kin's running support, its laser gathering — and a raised Lava
-      // plate on everyone else (cosmic_game_kin.dart).
-      _renderKinOverlay(
-        canvas,
-        comp,
-        comp.member,
-        position: compPos,
-        lavaTeam: _openKinLavaPlateActive,
-      );
-      // Horn Poison's reach, a shield, a ram's wake — worn by the wild
-      // Alchemon it fights as well (cosmic_game_horn.dart).
-      _renderCasterOverlay(canvas, comp, scale: animScale);
-
-      // ── Blessing aura (Kin healing) ──
-      if (comp.isBlessing) {
-        drawAdvancedBlessingAura(
-          canvas: canvas,
-          time: _elapsed,
-          scale: animScale,
-          opacity: opacity,
-        );
-      }
-
-      // Render sprite if loaded, otherwise fallback to circles
-      if (companionTicker != null) {
-        final sprite = companionTicker.getSprite();
-        final paint = Paint()
-          ..color = Colors.white.withValues(alpha: opacity)
-          ..filterQuality = ui.FilterQuality.high;
-
-        // Apply genetics color filter if visuals available
-        if (companionVisuals != null) {
-          final v = companionVisuals;
-          paint.colorFilter = _creatureFilter(v);
-        }
-        _applyCasterHitFlash(paint, comp);
-
-        // Simple canvas-based effect overlays for companion (behind sprite)
-        if (companionVisuals?.alchemyEffect != null) {
-          final companionScale = companionSpriteScale * animScale;
-          _drawAlchemyEffectCanvas(
-            canvas: canvas,
-            effect: companionVisuals!.alchemyEffect!,
-            spriteScale: companionScale,
-            baseSpriteSize: 48.0,
-            auraElement: companionVisuals.auraElement,
-            elapsed: _elapsed,
-            opacity: opacity,
-          );
-        }
-
-        // Flip sprite horizontally to face shooting direction
-        // Default sprites face left; flip when target is to the right
-        final facingRight = cos(comp.angle) > 0;
-        final totalScale = companionSpriteScale * animScale;
-        canvas.save();
-        if (facingRight) {
-          canvas.scale(-totalScale, totalScale);
-        } else {
-          canvas.scale(totalScale);
-        }
-        _drawDarkletRing(
-          canvas,
-          sprite,
-          companionTicker.currentIndex,
-          _elapsed,
-          opacity,
-          front: false,
-        );
-        sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
-        _drawCostumeOnSprite(
-          canvas,
-          companionVisuals?.costumes,
-          sprite,
-          companionTicker.currentIndex,
-          _elapsed,
-          opacity,
-        );
-        _drawDarkletRing(
-          canvas,
-          sprite,
-          companionTicker.currentIndex,
-          _elapsed,
-          opacity,
-          front: true,
-        );
-        canvas.restore();
-        if (companionVisuals?.alchemyEffect != null) {
-          _drawAlchemyEffectCanvas(
-            canvas: canvas,
-            effect: companionVisuals!.alchemyEffect!,
-            spriteScale: companionSpriteScale * animScale,
-            baseSpriteSize: 48.0,
-            auraElement: companionVisuals.auraElement,
-            elapsed: _elapsed,
-            opacity: opacity,
-            front: true,
-          );
-        }
-        if (assembly != null && isSummoning) {
-          assembly.paintGather(
-            canvas,
-            Offset.zero,
-            summonT,
-            mirror: facingRight,
-          );
-        } else if (assembly != null && comp.returning) {
-          assembly.paintScatter(
-            canvas,
-            Offset.zero,
-            1 - retreatT,
-            to: ship.pos - compPos,
-            mirror: facingRight,
-          );
-        }
-      } else {
-        // Fallback: colored circle
-        canvas.drawCircle(
-          Offset.zero,
-          16.8 * animScale,
-          Paint()..color = eColor.withValues(alpha: 0.85 * opacity),
-        );
-        canvas.drawCircle(
-          Offset.zero,
-          7.2 * animScale,
-          Paint()..color = Colors.white.withValues(alpha: 0.9 * opacity),
-        );
-      }
-
-      // Health bar above companion (only show after summon animation).
-      if (!isSummoning) {
-        final hpW = 30.0;
-        final hpH = 3.0;
-        final hpX = -hpW / 2;
-        final hpY = -30.0;
-        // BG
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(hpX, hpY, hpW, hpH),
-            const Radius.circular(2),
-          ),
-          Paint()..color = Colors.black.withValues(alpha: 0.5 * opacity),
-        );
-        // Fill
-        final hpFill = comp.hpPercent.clamp(0.0, 1.0);
-        final hpColor = hpFill > 0.5
-            ? Color.lerp(Colors.yellow, Colors.green, (hpFill - 0.5) * 2)!
-            : Color.lerp(Colors.red, Colors.yellow, hpFill * 2)!;
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(hpX, hpY, hpW * hpFill, hpH),
-            const Radius.circular(2),
-          ),
-          Paint()..color = hpColor.withValues(alpha: opacity),
-        );
-      }
-
-      // Invincibility flash overlay
-      if (comp.invincibleTimer > 0 && !isSummoning) {
-        final flash = sin(_elapsed * 20) > 0 ? 0.4 : 0.0;
-        canvas.drawCircle(
-          Offset.zero,
-          14 * animScale,
-          Paint()..color = Colors.white.withValues(alpha: flash * opacity),
-        );
-      }
-
-      canvas.restore();
+      if (!entry.value.isAlive) continue;
+      _renderCompanion(canvas, entry.key, entry.value);
     }
 
     // ── duel opponent (a fought wild Alchemon) ──
@@ -6473,47 +6233,322 @@ class CosmicGame extends FlameGame with PanDetector {
     _renderKinWorld(canvas);
     _renderMaskSpiritNukeFlash(canvas, Rect.fromLTWH(cx, cy, screenW, screenH));
 
-    // ── VFX particles ──
-    _abilityVfx.render(canvas);
-    for (final p in vfxParticles) {
-      final a = p.alpha;
-      final sz = p.size * a;
-      if (sz <= 0) continue;
-      // Glow
-      paintSoftCircle(
-        canvas,
-        Offset(p.x, p.y),
-        sz * 2,
-        p.color.withValues(alpha: a * 0.3),
-        sz * 2,
-      );
-      // Core
-      canvas.drawCircle(
-        Offset(p.x, p.y),
-        sz,
-        Paint()..color = p.color.withValues(alpha: a),
-      );
-    }
-
-    // ── VFX shock rings ──
-    for (final ring in vfxRings) {
-      final strokeW = 3.0 * ring.alpha;
-      if (strokeW <= 0) continue;
-      canvas.drawCircle(
-        Offset(ring.x, ring.y),
-        ring.radius,
-        Paint()
-          ..color = ring.color.withValues(alpha: ring.alpha * 0.7)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = strokeW,
-      );
-    }
+    _renderVfxParticles(canvas);
 
     // Fog is tracked for the mini-map only — no overlay on the live view.
 
     canvas.restore();
 
     _renderPortalTear(canvas);
+  }
+
+  /// One companion where it stands, in [slotIndex]'s sprite and grains: its
+  /// summoning or recall, aura, worn ability overlays, sprite and health
+  /// bar. The party's, and both sides of a battle (cosmic_game_battle.dart).
+  void _renderCompanion(Canvas canvas, int slotIndex, CosmicCompanion comp) {
+    final companionTicker = _companionTickers[slotIndex];
+    final companionVisuals = _companionVisualsBySlot[slotIndex];
+    final companionSpriteScale = _companionSpriteScales[slotIndex] ?? 1.0;
+    final compPos = comp.position;
+    final eColor = elementColor(comp.member.element);
+
+    // Animation timing
+    const summonDur = 0.9; // summon animation duration
+    const retreatDur = 0.6;
+    final isSummoning = comp.life < summonDur && !comp.returning;
+    final summonT = isSummoning
+        ? (comp.life / summonDur).clamp(0.0, 1.0)
+        : 1.0;
+    final retreatT = comp.returning
+        ? (comp.returnTimer / retreatDur).clamp(0.0, 1.0)
+        : 1.0;
+
+    // It gathers out of grains of itself where it will stand, and comes
+    // apart into them and streams back into the ship when recalled —
+    // the particle language of the fusion and the harvest. Until its
+    // grains have been read it steps out of a tear of its element, as it
+    // used to.
+    final grainEntry = _companionGrains[slotIndex];
+    final assembly =
+        grainEntry != null && grainEntry.$1 == comp.member.instanceId
+        ? grainEntry.$2
+        : null;
+    final emerge = isSummoning && assembly == null
+        ? Curves.easeOutBack.transform(
+            ((summonT - 0.18) / 0.55).clamp(0.0, 1.0),
+          )
+        : 1.0;
+    final summonScale = 0.25 + 0.75 * emerge;
+    final retreatScale = comp.returning && assembly == null
+        ? Curves.easeInBack.transform(retreatT)
+        : 1.0;
+    final animScale = summonScale * retreatScale;
+    final opacity = comp.returning
+        ? (assembly != null
+              ? GrainAssembly.spriteOpacityScattering(1 - retreatT)
+              : retreatT)
+        : isSummoning
+        ? (assembly != null
+              ? GrainAssembly.spriteOpacityGathering(summonT)
+              : ((summonT - 0.15) / 0.3).clamp(0.0, 1.0))
+        : 1.0;
+
+    canvas.save();
+    canvas.translate(compPos.dx, compPos.dy);
+
+    final tearHeight = 74.88 * comp.speciesScale * 1.35;
+    if (assembly != null) {
+      // Its element's light, where it gathers or comes apart.
+      final k = isSummoning
+          ? sin(pi * summonT)
+          : comp.returning
+          ? sin(pi * (1 - retreatT))
+          : 0.0;
+      if (k > 0) {
+        paintSoftCircle(
+          canvas,
+          Offset.zero,
+          assembly.reach * 1.6,
+          eColor.withValues(alpha: 0.28 * k),
+          14,
+        );
+      }
+    } else if (isSummoning) {
+      paintSummonTear(
+        canvas,
+        centre: Offset.zero,
+        height: tearHeight,
+        t: summonT,
+        color: eColor,
+      );
+    } else if (comp.returning) {
+      paintSummonTear(
+        canvas,
+        centre: Offset.zero,
+        height: tearHeight,
+        t: 1 - retreatT,
+        color: eColor,
+      );
+    }
+
+    // Outer aura glow
+    final auraPulse = 0.5 + 0.3 * sin(_elapsed * 3.0);
+    paintSoftCircle(
+      canvas,
+      Offset.zero,
+      33.6 * animScale,
+      eColor.withValues(alpha: auraPulse * 0.3 * opacity),
+      14,
+    );
+
+    // A Kin's running support, its laser gathering — and a raised Lava
+    // plate on everyone else (cosmic_game_kin.dart).
+    _renderKinOverlay(
+      canvas,
+      comp,
+      comp.member,
+      position: compPos,
+      lavaTeam: _openKinLavaPlateActive,
+    );
+    // Horn Poison's reach, a shield, a ram's wake — worn by the wild
+    // Alchemon it fights as well (cosmic_game_horn.dart).
+    _renderCasterOverlay(canvas, comp, scale: animScale);
+
+    // ── Blessing aura (Kin healing) ──
+    if (comp.isBlessing) {
+      drawAdvancedBlessingAura(
+        canvas: canvas,
+        time: _elapsed,
+        scale: animScale,
+        opacity: opacity,
+      );
+    }
+
+    // Render sprite if loaded, otherwise fallback to circles
+    if (companionTicker != null) {
+      final sprite = companionTicker.getSprite();
+      final paint = Paint()
+        ..color = Colors.white.withValues(alpha: opacity)
+        ..filterQuality = ui.FilterQuality.high;
+
+      // Apply genetics color filter if visuals available
+      if (companionVisuals != null) {
+        final v = companionVisuals;
+        paint.colorFilter = _creatureFilter(v);
+      }
+      _applyCasterHitFlash(paint, comp);
+
+      // Simple canvas-based effect overlays for companion (behind sprite)
+      if (companionVisuals?.alchemyEffect != null) {
+        final companionScale = companionSpriteScale * animScale;
+        _drawAlchemyEffectCanvas(
+          canvas: canvas,
+          effect: companionVisuals!.alchemyEffect!,
+          spriteScale: companionScale,
+          baseSpriteSize: 48.0,
+          auraElement: companionVisuals.auraElement,
+          elapsed: _elapsed,
+          opacity: opacity,
+        );
+      }
+
+      // Flip sprite horizontally to face shooting direction
+      // Default sprites face left; flip when target is to the right
+      final facingRight = comp.faceRight ?? cos(comp.angle) > 0;
+      final totalScale = companionSpriteScale * animScale;
+      canvas.save();
+      if (facingRight) {
+        canvas.scale(-totalScale, totalScale);
+      } else {
+        canvas.scale(totalScale);
+      }
+      _drawDarkletRing(
+        canvas,
+        sprite,
+        companionTicker.currentIndex,
+        _elapsed,
+        opacity,
+        front: false,
+      );
+      sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+      _drawCostumeOnSprite(
+        canvas,
+        companionVisuals?.costumes,
+        sprite,
+        companionTicker.currentIndex,
+        _elapsed,
+        opacity,
+      );
+      _drawDarkletRing(
+        canvas,
+        sprite,
+        companionTicker.currentIndex,
+        _elapsed,
+        opacity,
+        front: true,
+      );
+      canvas.restore();
+      if (companionVisuals?.alchemyEffect != null) {
+        _drawAlchemyEffectCanvas(
+          canvas: canvas,
+          effect: companionVisuals!.alchemyEffect!,
+          spriteScale: companionSpriteScale * animScale,
+          baseSpriteSize: 48.0,
+          auraElement: companionVisuals.auraElement,
+          elapsed: _elapsed,
+          opacity: opacity,
+          front: true,
+        );
+      }
+      if (assembly != null && isSummoning) {
+        assembly.paintGather(
+          canvas,
+          Offset.zero,
+          summonT,
+          mirror: facingRight,
+        );
+      } else if (assembly != null && comp.returning) {
+        assembly.paintScatter(
+          canvas,
+          Offset.zero,
+          1 - retreatT,
+          to: ship.pos - compPos,
+          mirror: facingRight,
+        );
+      }
+    } else {
+      // Fallback: colored circle
+      canvas.drawCircle(
+        Offset.zero,
+        16.8 * animScale,
+        Paint()..color = eColor.withValues(alpha: 0.85 * opacity),
+      );
+      canvas.drawCircle(
+        Offset.zero,
+        7.2 * animScale,
+        Paint()..color = Colors.white.withValues(alpha: 0.9 * opacity),
+      );
+    }
+
+    // Health bar above companion (only show after summon animation).
+    if (!isSummoning) {
+      final hpW = 30.0;
+      final hpH = 3.0;
+      final hpX = -hpW / 2;
+      final hpY = -30.0;
+      // BG
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(hpX, hpY, hpW, hpH),
+          const Radius.circular(2),
+        ),
+        Paint()..color = Colors.black.withValues(alpha: 0.5 * opacity),
+      );
+      // Fill
+      final hpFill = comp.hpPercent.clamp(0.0, 1.0);
+      final hpColor = hpFill > 0.5
+          ? Color.lerp(Colors.yellow, Colors.green, (hpFill - 0.5) * 2)!
+          : Color.lerp(Colors.red, Colors.yellow, hpFill * 2)!;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(hpX, hpY, hpW * hpFill, hpH),
+          const Radius.circular(2),
+        ),
+        Paint()..color = hpColor.withValues(alpha: opacity),
+      );
+    }
+
+    // Invincibility flash overlay
+    if (comp.invincibleTimer > 0 && !isSummoning) {
+      final flash = sin(_elapsed * 20) > 0 ? 0.4 : 0.0;
+      canvas.drawCircle(
+        Offset.zero,
+        14 * animScale,
+        Paint()..color = Colors.white.withValues(alpha: flash * opacity),
+      );
+    }
+
+    canvas.restore();
+  }
+
+  /// The ability VFX pool, the hit and kill particles and the shock rings,
+  /// over everything else in the world.
+  void _renderVfxParticles(Canvas canvas) {
+  // ── VFX particles ──
+  _abilityVfx.render(canvas);
+  for (final p in vfxParticles) {
+    final a = p.alpha;
+    final sz = p.size * a;
+    if (sz <= 0) continue;
+    // Glow
+    paintSoftCircle(
+      canvas,
+      Offset(p.x, p.y),
+      sz * 2,
+      p.color.withValues(alpha: a * 0.3),
+      sz * 2,
+    );
+    // Core
+    canvas.drawCircle(
+      Offset(p.x, p.y),
+      sz,
+      Paint()..color = p.color.withValues(alpha: a),
+    );
+  }
+
+  // ── VFX shock rings ──
+  for (final ring in vfxRings) {
+    final strokeW = 3.0 * ring.alpha;
+    if (strokeW <= 0) continue;
+    canvas.drawCircle(
+      Offset(ring.x, ring.y),
+      ring.radius,
+      Paint()
+        ..color = ring.color.withValues(alpha: ring.alpha * 0.7)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeW,
+    );
+  }
   }
 
   /// World-space bounds for a layer that fades the whole ship: the hull
