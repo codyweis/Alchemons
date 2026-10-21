@@ -71,14 +71,18 @@ class PipTuning {
   static const double tightDartFraction = 0.32;
 
   /// Pin Cushion: a full volley on one body banks a Pin.
+  ///
+  /// 3% a Pin, and Pluck 55%, until the 2026-10-21 mastery sweep: the whole
+  /// path was worth a point of a Pip's party share on a boss wave and
+  /// nothing in a horde.
   static const int maxPins = 5;
-  static const double pinDamagePerStack = 0.03;
+  static const double pinDamagePerStack = 0.05;
 
   /// How long a body keeps its Pins without being hit again.
   static const double pinLifetime = 6.0;
 
   /// Pluck the Pins: a full-Pin body loses them for a burst.
-  static const double pluckFraction = 0.55;
+  static const double pluckFraction = 0.80;
 
   /// A boss keeps this many, so the pattern can restart against one.
   static const int pluckBossResidue = 2;
@@ -110,10 +114,15 @@ class PipTuning {
   static const int salvoDartsPerNode = 1;
 
   /// Those extra darts are lighter than the ones the ability authored...
-  static const double salvoExtraFraction = 0.70;
+  static const double salvoExtraFraction = 0.60;
 
-  /// ...until the capstone, which brings them up to full and adds a fourth.
-  static const double salvoPerfectFraction = 1.0;
+  /// ...until the capstone, which adds a fourth and brings them all to this.
+  ///
+  /// Full strength until the 2026-10-21 mastery sweep (and the extras 70%
+  /// before it): four extras as hard as the authored darts, on a special of
+  /// about three, carried a Salvo Pip to 40-41% of its party's damage at
+  /// Potential 80 and 100 (30-31% without it).
+  static const double salvoPerfectFraction = 0.75;
 
   /// Pip Dark throws no special: its ability is the black hole an auto kill
   /// opens. Salvo loads that hole instead, which spits its extra darts at the
@@ -139,6 +148,42 @@ class PipMasteryState {
   // ── Scattershot ──
   /// Scheduled attacks since the last storm.
   int castsSinceStorm = 0;
+
+  /// Three Fronts: the volley whose bodies are being counted, and the first
+  /// two it reached with what each took, held until a third is reached.
+  /// Fixed fields rather than a list, so the hit path allocates nothing.
+  int frontsCastId = 0;
+  int heldFronts = 0;
+  Object? _front0;
+  Object? _front1;
+  double _frontDamage0 = 0;
+  double _frontDamage1 = 0;
+
+  void startFronts(int castId) {
+    frontsCastId = castId;
+    clearFronts();
+  }
+
+  void holdFront(Object? body, double damage) {
+    if (body == null || heldFronts >= 2) return;
+    if (heldFronts == 0) {
+      _front0 = body;
+      _frontDamage0 = damage;
+    } else {
+      _front1 = body;
+      _frontDamage1 = damage;
+    }
+    heldFronts++;
+  }
+
+  Object? frontBody(int i) => i == 0 ? _front0 : _front1;
+  double frontDamage(int i) => i == 0 ? _frontDamage0 : _frontDamage1;
+
+  void clearFronts() {
+    heldFronts = 0;
+    _front0 = null;
+    _front1 = null;
+  }
 
   /// Handoff between the two halves of launching a volley: the shape pass
   /// decides what this cast is before the cast exists to be tagged.

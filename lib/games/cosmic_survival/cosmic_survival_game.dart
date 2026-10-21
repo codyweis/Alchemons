@@ -156,6 +156,10 @@ class CosmicSurvivalCompanion {
   /// Fractional blessing healing not yet worth a whole HP. See the blessing
   /// tick in the companion update for why this has to be carried.
   double blessingCarry = 0;
+
+  /// This blessing is a Kin's, shared by Communion, not one this companion
+  /// cast: it heals the companion and is not echoed into the orb again.
+  bool blessingShared = false;
   double basicHasteTimer;
   double basicHasteMultiplier;
 
@@ -2477,6 +2481,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _pipMastery.clear();
     _pipBonusVolleys.clear();
     _letMastery.clear();
+    _hornMastery.clear();
+    _maskMastery.clear();
+    _maskRearmQueue.clear();
+    _wingMastery.clear();
+    _kinMastery.clear();
+    _unbrokenKin.clear();
+    _mysticMastery.clear();
+    _masteryEchoes.clear();
+    _shipBlessingTimer = 0;
+    _shipBlessingPerSecond = 0;
     _startZoomAnimation(_zoomPresets[_zoomLevelIndex]);
     spawner.startFirstWave();
     _checkpointDue = true;
@@ -2738,6 +2752,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateMaskMastery(dt);
     _updateWingMastery(dt);
     _updateMysticMastery(dt);
+    _updateShipBlessing(dt);
     _updateMasteryEchoes(dt);
     updatePersistentAbilityEffects(dt);
     _updateLetVines();
@@ -3716,10 +3731,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final before = comp.currentHp;
         comp.currentHp = min(comp.maxHp, comp.currentHp + blessingHeal);
         _recordHeal((comp.currentHp - before).toDouble(), target: 0);
-        _healOrb(blessingHeal * 0.5);
+        // A blessing echoes into the orb once, from its caster. Shared by
+        // Communion, every ally's copy echoed as well, so the orb's mending
+        // went up with the party, five-fold in a full one (2026-10-21
+        // mastery sweep; KinTuning.communionShare). The allies still get
+        // theirs.
+        if (!comp.blessingShared) _healOrb(blessingHeal * 0.5);
       }
-    } else if (comp.blessingCarry != 0) {
+    } else {
       comp.blessingCarry = 0;
+      comp.blessingShared = false;
     }
 
     // Haste timer
@@ -3972,6 +3993,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             cue: SoundCue.combatProjectile,
             silent: comp.member.family.toLowerCase() == 'wing',
           );
+          _noteMaskPlacedLives(slotIndex, result2.projectiles);
         }
         _activateWingBeamEffects(
           result2.beams,
@@ -4365,6 +4387,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           )) {
             // Silent: the family's own cast cue above already marks it.
             _appendCompanionProjectiles(specialProjectiles, silent: true);
+            _noteMaskPlacedLives(slotIndex, specialProjectiles);
           }
           // Kin support-path cast intercepts. Most kin supports don't
           // produce projectiles directly — they flip companion-side
@@ -6771,6 +6794,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           action.radius,
           action.amount,
           sourceSlotIndex: slotIndex,
+          masterySource: MasteryDamageSource.mastery,
         );
 
       case PayloadEffect.zone:
@@ -7515,6 +7539,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
+  /// Sighted on whatever else a Let deals to a body it Sighted: "your
+  /// meteors deal +20% damage to them", the special's crater included. It
+  /// was the auto-attack meteor's alone, about a fifteenth of a Let's damage
+  /// since the 2026-10-20 rebuild put it in the special, so Ground Zero's
+  /// opening node was worth about 1% to the Let (2026-10-21 mastery sweep).
+  double _letSightedBonus(int slotIndex, MasteryPayloadStatuses body) {
+    if (!body.isLetSighted || body.letSightSlot != slotIndex) return 0;
+    if (!mastery.hasNode(slotIndex, LetNodes.sighted)) return 0;
+    return LetTuning.sightedBonus;
+  }
+
   /// Records damage, crediting the parts Let mastery is responsible for.
   ///
   /// [letUplift] is the share the dealer's own auto-attack bonus added;
@@ -7644,18 +7679,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   /// Pin Cushion: "each Pin makes your darts deal +3% damage to it". What a
-  /// Pip's auto-attack darts add on a body it has pinned, as a fraction. The
-  /// Pins were banked and spent and never read, so the per-Pin bonus did
-  /// nothing (2026-10-20 audit). Its darts only: the Pluck burst and the
-  /// special are not the volley the Pins were earned with.
+  /// Pip's darts add on a body it has pinned, as a fraction. The Pins were
+  /// banked and spent and never read, so the per-Pin bonus did nothing
+  /// (2026-10-20 audit). Its darts: the auto-attack's, and since the
+  /// 2026-10-21 mastery sweep the special's as well, which past Potential 50
+  /// are most of what a Pip throws (an auto-attack-only Pin was worth about
+  /// 1% of a Pip's damage at Potential 80). Not the Pluck burst.
   double _pipPinBonus(
     int? slotIndex,
     int targetId, {
     required bool autoAttack,
+    int castId = 0,
   }) {
-    if (!autoAttack || slotIndex == null) return 0;
+    if (slotIndex == null) return 0;
     final state = _pipMastery[slotIndex];
     if (state == null || !mastery.hasNode(slotIndex, PipNodes.pinCushion)) {
+      return 0;
+    }
+    if (!autoAttack && mastery.cast(castId)?.kind != MasteryCastKind.special) {
       return 0;
     }
     return state.pinsOn(targetId) * PipTuning.pinDamagePerStack;
@@ -7836,7 +7877,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ),
           angle: a,
           damage: seed.damage * salvo.fraction,
-        )..masteryGenerated = true,
+        )
+          ..masteryGenerated = true
+          // Lighter, and spent sooner by the same share. In a crowd a Pip
+          // dart kills as it goes and carries on, to its contact ceiling
+          // ([PipRicochet.maxContacts]), so how many bodies it may thread is
+          // what it is worth there: at three-quarters of the damage, and
+          // with its flight cut too, the full path still carried a Pip to
+          // 41% of its party's damage at P100 E10 (2026-10-21 mastery sweep).
+          ..pipContacts =
+              ((1 - salvo.fraction) * PipRicochet.maxContacts).round(),
       );
     }
     return loaded;
@@ -7909,25 +7959,50 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     // ── Scattershot ──
-    if (has(PipNodes.threeFronts) &&
-        hit.cast.targetsHit >= 3 &&
-        mastery.claimPayloadTarget(hit.cast.id, hit.targetId)) {
-      final bonus = hit.damage * PipTuning.threeFrontsBonus;
-      if (enemy != null) {
-        _damageEnemy(
-          enemy,
-          bonus,
-          sourceSlotIndex: slotIndex,
-          masterySource: MasteryDamageSource.mastery,
-        );
-      } else if (boss != null) {
-        damageBoss(
-          bonus,
-          sourceSlotIndex: slotIndex,
-          target: boss,
-          masterySource: MasteryDamageSource.mastery,
-        );
+    // Three Fronts: "when your 3 darts hit 3 different enemies, each one
+    // deals +20%". It paid only the dart that reached the third body (and
+    // any after it), so two of the three it named went unpaid; the first
+    // two bodies are now held until the third is reached, then paid
+    // (2026-10-21 mastery sweep).
+    if (has(PipNodes.threeFronts)) {
+      final cast = hit.cast;
+      if (state.frontsCastId != cast.id) state.startFronts(cast.id);
+      if (cast.targetsHit < 3) {
+        if (hit.isFirstHitOnTarget) state.holdFront(enemy ?? boss, hit.damage);
+      } else {
+        for (var i = 0; i < state.heldFronts; i++) {
+          final body = state.frontBody(i);
+          if (!mastery.claimPayloadTarget(cast.id, identityHashCode(body))) {
+            continue;
+          }
+          _payPipFront(slotIndex, body, state.frontDamage(i));
+        }
+        state.clearFronts();
+        if (mastery.claimPayloadTarget(cast.id, hit.targetId)) {
+          _payPipFront(slotIndex, enemy ?? boss, hit.damage);
+        }
       }
+    }
+  }
+
+  /// One Three Fronts bonus, on a body that is still standing.
+  void _payPipFront(int slotIndex, Object? body, double hitDamage) {
+    final bonus = hitDamage * PipTuning.threeFrontsBonus;
+    if (bonus <= 0) return;
+    if (body is CosmicSurvivalEnemy && !body.isDead) {
+      _damageEnemy(
+        body,
+        bonus,
+        sourceSlotIndex: slotIndex,
+        masterySource: MasteryDamageSource.mastery,
+      );
+    } else if (body is SurvivalBoss && !body.isDead) {
+      damageBoss(
+        bonus,
+        sourceSlotIndex: slotIndex,
+        target: body,
+        masterySource: MasteryDamageSource.mastery,
+      );
     }
   }
 
@@ -8162,18 +8237,48 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     comp.kinMudShipEnchantTimer *= d;
   }
 
-  /// Communion: a blessing the whole team receives, not only its caster.
+  /// Communion: a blessing the whole team receives, not only its caster —
+  /// "every ally and the ship". The ship's share is the same part of its
+  /// hull the caster's blessing is of the caster; it used to get nothing
+  /// (2026-10-21 mastery sweep).
   void _shareKinBlessing(int slotIndex, CosmicSurvivalCompanion caster) {
     if (_kinBenedictionFor(slotIndex).allyRange <= 0) return;
     if (caster.blessingTimer <= 0) return;
+    final shared = caster.blessingHealPerTick * KinTuning.communionShare;
     for (final ally in activeCompanions.values) {
       if (ally.isDead || identical(ally, caster)) continue;
+      if (ally.blessingTimer <= 0 || shared >= ally.blessingHealPerTick) {
+        ally.blessingShared = true;
+      }
       ally.blessingTimer = max(ally.blessingTimer, caster.blessingTimer);
-      ally.blessingHealPerTick = max(
-        ally.blessingHealPerTick,
-        caster.blessingHealPerTick,
-      );
+      ally.blessingHealPerTick = max(ally.blessingHealPerTick, shared);
     }
+    _shipBlessingTimer = max(_shipBlessingTimer, caster.blessingTimer);
+    _shipBlessingPerSecond = max(
+      _shipBlessingPerSecond,
+      shared / max(1, caster.maxHp) * ship.maxHp,
+    );
+  }
+
+  /// Communion's blessing on the ship: seconds left, and hull a second.
+  double _shipBlessingTimer = 0;
+  double _shipBlessingPerSecond = 0;
+
+  void _updateShipBlessing(double dt) {
+    if (_shipBlessingTimer <= 0) return;
+    _shipBlessingTimer -= dt;
+    if (_shipBlessingTimer <= 0) {
+      _shipBlessingTimer = 0;
+      _shipBlessingPerSecond = 0;
+      return;
+    }
+    if (ship.isDead || ship.currentHp >= ship.maxHp) return;
+    final before = ship.currentHp;
+    ship.currentHp = min(
+      ship.maxHp,
+      ship.currentHp + _shipBlessingPerSecond * dt,
+    );
+    _recordHeal(ship.currentHp - before, target: 1);
   }
 
   /// Benediction: what the equipped path does to a support ability.
@@ -8203,19 +8308,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return equipped != null && equipped.family == CreatureFamily.wing;
   }
 
-  /// Burn Through: what the beam has earned on a body it has been held on.
-  double _wingBoreMultiplier(int slotIndex, CosmicSurvivalEnemy enemy) {
+  /// Burn Through: what the beam has earned on a body (or boss) it has been
+  /// held on.
+  double _wingBoreMultiplier(int slotIndex, MasteryPayloadStatuses body) {
     if (!_isMasteryWing(slotIndex)) return 1.0;
-    if (enemy.wingBeamDwellSlot != slotIndex) return 1.0;
+    if (body.wingBeamDwellSlot != slotIndex) return 1.0;
     return wingBoreMultiplier(
       hasNode: (id) => mastery.hasNode(slotIndex, id),
-      dwell: enemy.wingBeamDwell,
+      dwell: body.wingBeamDwell,
     );
   }
 
   /// Longshot: what the distance between a Wing and its target is worth.
   double _wingLongshotMultiplier(int slotIndex, Offset targetPos) {
     if (!_isMasteryWing(slotIndex)) return 1.0;
+    if (!mastery.hasNode(slotIndex, WingNodes.rangefinder)) return 1.0;
     final comp = activeCompanions[slotIndex];
     if (comp == null) return 1.0;
     final range = comp.attackRange * _masteryAttackRangeMultiplier(slotIndex);
@@ -8224,21 +8331,39 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           hasNode: (id) => mastery.hasNode(slotIndex, id),
           distance: (targetPos - comp.position).distance,
           range: range,
-          nearestEnemyDistance: _nearestEnemyDistanceTo(comp.position),
+          nearestEnemyDistance:
+              mastery.hasNode(slotIndex, WingNodes.standoff)
+              ? _wingStandoffNearest(
+                  slotIndex,
+                  comp.position,
+                  range * WingTuning.standoffThreshold,
+                )
+              : double.infinity,
         );
   }
 
-  /// How far the closest living body is. Standoff reads it to decide whether
-  /// the Wing has actually kept its distance or merely aimed far.
-  double _nearestEnemyDistanceTo(Offset pos) {
-    var nearest = double.infinity;
-    for (final enemy in enemies) {
-      if (enemy.isDead) continue;
-      final d = (enemy.position - pos).distance;
-      if (d < nearest) nearest = d;
+  /// How far the closest body inside [radius] of a Wing is, or infinity for
+  /// none, worked out once a frame per Wing. Standoff reads it to decide
+  /// whether the Wing has actually kept its distance or merely aimed far,
+  /// and only asks about [radius]: a grid query, where the walk over every
+  /// body on the field it replaced ran on every hit any mastery Wing landed.
+  double _wingStandoffNearest(int slotIndex, Offset pos, double radius) {
+    if (_wingStandoffClock != mastery.clock) {
+      _wingStandoffClock = mastery.clock;
+      _wingStandoffCache.clear();
     }
-    return nearest;
+    final cached = _wingStandoffCache[slotIndex];
+    if (cached != null) return cached;
+    final nearest = _nearestEnemyTo(pos, radius);
+    final distance = nearest == null
+        ? double.infinity
+        : (nearest.position - pos).distance;
+    _wingStandoffCache[slotIndex] = distance;
+    return distance;
   }
+
+  final Map<int, double> _wingStandoffCache = {};
+  double _wingStandoffClock = -1;
 
   /// Wing's reaction to one of its shots landing: Tracer, "each attack that
   /// lands". Paid once per attack, on the first of its shots to reach a body
@@ -8287,18 +8412,32 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _updateWingMastery(double dt) {
     if (!mastery.enabled || _wingMastery.isEmpty) return;
     for (final enemy in enemies) {
-      if (enemy.isDead || enemy.wingBeamDwell <= 0) continue;
-      final slotIndex = enemy.wingBeamDwellSlot;
-      if (slotIndex == null) continue;
-      if (enemy.wingBeamTouchedThisFrame) {
-        enemy.wingBeamTouchedThisFrame = false;
-        continue;
-      }
-      enemy.decayWingBeamDwell(
-        dt,
-        wingBoreCurve(hasNode: (id) => mastery.hasNode(slotIndex, id)).fade,
-      );
+      if (enemy.isDead) continue;
+      _decayWingDwell(enemy, dt);
     }
+    for (final boss in allLivingBosses) {
+      _decayWingDwell(boss, dt);
+    }
+  }
+
+  /// A beam ticks every 0.12-0.28 s, so a body it holds is untouched on the
+  /// frames between two ticks: the dwell decays only once a whole tick has
+  /// gone by without one ([MasteryPayloadStatuses.wingBeamHold]). It used to
+  /// decay on every frame the beam had not ticked, which without No Reprieve
+  /// dropped the ramp to nothing between ticks, so Bore and Deeper never
+  /// held more than one tick's worth (2026-10-21 mastery sweep).
+  void _decayWingDwell(MasteryPayloadStatuses body, double dt) {
+    if (body.wingBeamDwell <= 0) return;
+    final slotIndex = body.wingBeamDwellSlot;
+    if (slotIndex == null) return;
+    if (body.wingBeamHold > 0) {
+      body.wingBeamHold -= dt;
+      return;
+    }
+    body.decayWingBeamDwell(
+      dt,
+      wingBoreCurve(hasNode: (id) => mastery.hasNode(slotIndex, id)).fade,
+    );
   }
 
   /// Carry Through: a body that dies at a full ramp hands it to the next
@@ -8427,8 +8566,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
       _appendCompanionProjectile(grave);
       state.addGrave(identityHashCode(grave));
+      _noteMaskPlacedLives(slotIndex, [grave]);
       return null;
     }, orElse: null);
+  }
+
+  /// Hair Trigger: "re-arming no longer shortens how long it lasts". A trap
+  /// came back for a flat 6 s whatever it was placed for (8-30 s by
+  /// element), so the second half of the node did nothing; the life each
+  /// fixture was placed with is kept here for it to come back with
+  /// (2026-10-21 mastery sweep).
+  void _noteMaskPlacedLives(int slotIndex, List<Projectile> placed) {
+    if (!_isMasteryMask(slotIndex)) return;
+    if (!mastery.hasNode(slotIndex, MaskNodes.hairTrigger)) return;
+    final state = _maskStateFor(slotIndex);
+    for (final p in placed) {
+      if (p.abilityFamily != 'mask' || !p.stationary || p.life <= 0) continue;
+      state.notePlacedLife(identityHashCode(p), p.life);
+    }
   }
 
   /// Rearm: a Mask fixture that has run out comes back instead of being gone.
@@ -8448,6 +8603,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       fixtureId,
       hasHeldGround: mastery.hasNode(slotIndex, MaskNodes.heldGround),
     );
+    final placedLife = state.placedLifeOf(fixtureId);
     state.dropFixture(fixtureId);
     if (_maskRearmQueue.length >= MaskTuning.graveCap * 2) return;
 
@@ -8460,6 +8616,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         // expiring, so it comes back with a life nothing will run out.
         lifeScale: held ? 1000.0 : 1.0,
         triggers: state.triggersOn(fixtureId),
+        placedLife: placedLife,
       ),
     );
   }
@@ -8478,9 +8635,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
       final t = entry.template;
       final snapShut = mastery.hasNode(entry.slotIndex, MaskNodes.snapShut);
+      // Spring Again brings a trap back for [MaskTuning.rearmLife]; Hair
+      // Trigger for the life it was placed with.
+      final hairTrigger = mastery.hasNode(
+        entry.slotIndex,
+        MaskNodes.hairTrigger,
+      );
+      final life = hairTrigger && entry.placedLife > 0
+          ? entry.placedLife
+          : MaskTuning.rearmLife;
       final revived = copyProjectile(
         t,
-        life: t.life <= 0 ? 6.0 * entry.lifeScale : t.life * entry.lifeScale,
+        life: life * entry.lifeScale,
         // Snap Shut: a re-armed trap catches everything in reach at once
         // rather than the first body to touch it.
         piercing: snapShut ? true : t.piercing,
@@ -8488,6 +8654,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _appendCompanionProjectile(revived);
       final state = _maskStateFor(entry.slotIndex);
       state.triggers[identityHashCode(revived)] = entry.triggers;
+      if (entry.placedLife > 0) {
+        state.notePlacedLife(identityHashCode(revived), entry.placedLife);
+      }
     }
   }
 
@@ -8642,6 +8811,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         comp.abilityAtk * MaskTuning.plagueDamage,
         sourceSlotIndex: slotIndex,
         exclude: enemy,
+        masterySource: MasteryDamageSource.mastery,
       );
       _spawnHitSpark(enemy.position, elementColor(comp.member.element));
       final nextGeneration = enemy.maskInfectionGeneration + 1;
@@ -8703,6 +8873,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       maxHp: comp.maxHp.toDouble(),
       currentHp: comp.currentHp.toDouble(),
       isSpecial: isSpecial,
+      specialStrikes: hornSpecialStrikes(comp.member.element),
     );
   }
 
@@ -8730,6 +8901,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         damage,
         sourceSlotIndex: slotIndex,
         exclude: enemy,
+        masterySource: MasteryDamageSource.mastery,
       );
       _spawnHitSpark(enemy.position, elementColor(comp.member.element));
       return null;
@@ -8831,6 +9003,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         HornTuning.lastStandRadius,
         shieldSpent * HornTuning.lastStandDamageScale,
         sourceSlotIndex: slotIndex,
+        masterySource: MasteryDamageSource.mastery,
       );
       _spawnHitSpark(comp.position, elementColor(comp.member.element));
       return null;
@@ -8962,6 +9135,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             HornTuning.passivePulseRadius * run.coverage,
             comp.abilityAtk * run.power,
             sourceSlotIndex: slotIndex,
+            masterySource: MasteryDamageSource.mastery,
           );
           _spawnHitSpark(comp.position, elementColor(comp.member.element));
           return null;
@@ -9281,6 +9455,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? atan2(toCaster.dy, toCaster.dx)
         : 0.0;
     projectile
+      ..damage = projectile.damage * ManeTuning.circuitDamageScale
       ..orbitCenter = centre
       ..orbitRadius = _arenaRadius * ManeTuning.circuitRadiusFraction
       ..orbitAngle = startAngle
@@ -9291,12 +9466,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // the arena, not the Mane.
       ..followSourceCompanion = false
       ..masteryNoLifetime = true
-      // The family's ordinary per-body ceiling, cleared once a lap (see the
-      // orbit update). Unlimited was wrong in both directions: a body the
-      // head overlaps is billed every frame it touches — four times a pass at
+      // A per-body ceiling, cleared once a lap (see the orbit update); one
+      // strike a lap since 2026-10-21. Unlimited was wrong in both
+      // directions: a body the head overlaps is billed every frame it
+      // touches — four times a pass at
       // the old speed, eight at the halved one — while a flat ceiling with no
       // reset would retire the head against anything that survived one pass.
-      ..maxHitsPerEnemy = kManeSpecialMaxHitsPerEnemy
+      ..maxHitsPerEnemy = ManeTuning.circuitHitsPerLap
       ..masteryCircuit = true
       // The slash is drawn eight units per point of visual scale to either
       // side of its position, but collides as a circle a fifth of that. On a
@@ -9567,6 +9743,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     bool fromShip = false,
     int masteryCastId = 0,
     MasteryDamageSource? masterySource,
+
+    /// The share of this hit a mastery multiplier added, filed as mastery.
+    double masteryUplift = 0,
   }) {
     damage *= outbreak?.damageMultiplier(enemy) ?? 1.0;
     // Payload statuses that make a body take more: Dark's expose and Light's
@@ -9576,7 +9755,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Let: the auto-attack meteor's own bonuses, and Called Shot for anyone.
     // Pip: Pin Cushion. Either is the share of the hit the source's own
     // mastery earned; one slot is never both families.
-    var ownUplift = 0.0;
+    var ownUplift = masteryUplift;
     int? calledShotSlot;
     if (mastery.enabled) {
       final letBonus = _letAutoAttackBonus(
@@ -9599,10 +9778,20 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         sourceSlotIndex,
         identityHashCode(enemy),
         autoAttack: autoAttack,
+        castId: masteryCastId,
       );
       if (pinBonus > 0) {
         damage *= 1 + pinBonus;
         ownUplift = pipUpliftFraction(1 + pinBonus);
+      }
+    }
+    // Sighted, for the rest of what a Let throws: its auto-attack meteor
+    // reads it in _letAutoAttackBonus.
+    if (mastery.enabled && sourceSlotIndex != null && !autoAttack) {
+      final sight = _letSightedBonus(sourceSlotIndex, enemy);
+      if (sight > 0) {
+        damage *= 1 + sight;
+        ownUplift = letUpliftFraction(sight);
       }
     }
     // Bulwark: a Horn's own bulk, added to its auto-attacks. The special
@@ -9611,12 +9800,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Longshot: what a Wing earns for the distance it kept. Applied to its
     // auto-attacks here; the beam applies its own at the tick site.
     int? sanctumSlot;
+    if (mastery.enabled && sourceSlotIndex != null) {
+      damage *= _homeGroundPower(sourceSlotIndex, autoAttack: autoAttack);
+      // Longshot: "everything you do to an enemy past 60% of your range",
+      // the special included. It was read for auto-attacks and the beam
+      // only, and a Wing's special is most of what it deals (2026-10-21
+      // mastery sweep).
+      final longshot = _wingLongshotMultiplier(sourceSlotIndex, enemy.position);
+      if (longshot > 1) {
+        damage *= longshot;
+        ownUplift = 1 - (1 - ownUplift) / longshot;
+      }
+    }
     if (mastery.enabled && sourceSlotIndex != null && autoAttack) {
-      damage *= _wingLongshotMultiplier(sourceSlotIndex, enemy.position);
-      // Home Ground: anyone fighting inside a Mystic's world hits harder,
-      // whoever's world it is.
-      final shooter = activeCompanions[sourceSlotIndex];
-      if (shooter != null) damage *= _firmamentPower(shooter.position);
       sanctumSlot = _sanctumFor(sourceSlotIndex);
     }
     // Weight of Heaven: applied here rather than at seventeen bespoke world
@@ -9640,6 +9836,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (bonus > 0) {
           damage += bonus;
           hornWeighted = true;
+          // The weight's part of the hit is the path's, for telemetry.
+          ownUplift = bonus / damage;
         }
       }
     }
@@ -11429,11 +11627,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     bool fromShip = false,
     int masteryCastId = 0,
     MasteryDamageSource? masterySource,
+
+    /// The share of this hit a mastery multiplier added, filed as mastery.
+    double masteryUplift = 0,
   }) {
     final boss = target ?? activeBoss;
     if (boss == null || boss.isDead) return;
     if (mastery.enabled) damage *= boss.masteryDamageTakenMultiplier;
-    var ownUplift = 0.0;
+    var ownUplift = masteryUplift;
     int? calledShotSlot;
     int? sanctumSlot;
     if (mastery.enabled) {
@@ -11457,6 +11658,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         sourceSlotIndex,
         identityHashCode(boss),
         autoAttack: autoAttack,
+        castId: masteryCastId,
       );
       if (pinBonus > 0) {
         damage *= 1 + pinBonus;
@@ -11464,6 +11666,38 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
       if (sourceSlotIndex != null && autoAttack) {
         sanctumSlot = _sanctumFor(sourceSlotIndex);
+      }
+    }
+    // What [_damageEnemy] gives a hit for who threw it, given on a boss too.
+    // Each of these reached bodies only, so a boss wave took four paths away
+    // (2026-10-21 mastery sweep): Home Ground for standing in a Mystic's
+    // world, Longshot for the distance a Wing kept, Bulwark's weight on a
+    // Horn's auto-attacks, and Weight of Heaven on a lit world's output.
+    if (mastery.enabled && sourceSlotIndex != null) {
+      damage *= _homeGroundPower(sourceSlotIndex, autoAttack: autoAttack);
+      final longshot = _wingLongshotMultiplier(sourceSlotIndex, boss.position);
+      if (longshot > 1) {
+        damage *= longshot;
+        ownUplift = 1 - (1 - ownUplift) / longshot;
+      }
+      if (autoAttack) {
+        final horn = activeCompanions[sourceSlotIndex];
+        final weight = horn == null
+            ? 0.0
+            : _hornBulwarkBonusFor(sourceSlotIndex, horn, isSpecial: false);
+        if (weight > 0) {
+          damage += weight;
+          ownUplift = weight / damage;
+        }
+      } else if (_mysticSpentSlots.contains(sourceSlotIndex)) {
+        damage *= _mysticWorldDamageMultiplier(sourceSlotIndex);
+      }
+    }
+    if (mastery.enabled && sourceSlotIndex != null && !autoAttack) {
+      final sight = _letSightedBonus(sourceSlotIndex, boss);
+      if (sight > 0) {
+        damage *= 1 + sight;
+        ownUplift = letUpliftFraction(sight);
       }
     }
     // A Blood world tithes from bosses as well. Taken off the incoming figure
@@ -12572,8 +12806,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   );
 
   @visibleForTesting
-  void debugAbilityDamage(CosmicSurvivalEnemy enemy, double damage) =>
-      _damageEnemy(enemy, damage);
+  void debugAbilityDamage(
+    CosmicSurvivalEnemy enemy,
+    double damage, {
+    int? sourceSlotIndex,
+  }) => _damageEnemy(enemy, damage, sourceSlotIndex: sourceSlotIndex);
+
+  /// Hands [slotIndex] the support half of a special as a cast would: its
+  /// shield, heals and blessing.
+  @visibleForTesting
+  void debugApplySpecialSupport(int slotIndex, CosmicSpecialResult result) {
+    final comp = activeCompanions[slotIndex];
+    if (comp != null) _applyCompanionSpecialSupportEffects(comp, result);
+  }
 
   /// Damage the way the SHIP deals it.
   @visibleForTesting
@@ -12821,6 +13066,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final slot = _firmamentCovering(pos);
     if (slot == null) return 1.0;
     return mysticFirmament(hasNode: (id) => mastery.hasNode(slot, id)).power;
+  }
+
+  /// Home Ground on one hit from [slot]: "they deal 15% more while they
+  /// stand in it", whatever they deal it with, on a body or a boss. It was
+  /// read for auto-attacks on bodies only (2026-10-21 mastery sweep). A lit
+  /// world's own output is Weight of Heaven's, so the world is not lifted
+  /// by the shelter it is.
+  double _homeGroundPower(int slot, {required bool autoAttack}) {
+    if (_mysticSpentSlots.isEmpty) return 1.0;
+    if (!autoAttack && _mysticSpentSlots.contains(slot)) return 1.0;
+    final shooter = activeCompanions[slot];
+    if (shooter == null) return 1.0;
+    return _firmamentPower(shooter.position);
   }
 
   /// Sanctum: the Mystic whose world lends its element to an attack from
@@ -13800,6 +14058,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// Whether a Lava world's crack breaks under [enemy]: a brute, a colossus or
   /// an elite of any size. A plague root never walks, so it never crosses one.
   static bool _breaksMysticFissure(CosmicSurvivalEnemy enemy) =>
+      _isHeavyBody(enemy);
+
+  /// A brute, a colossus or an elite (not a plague root): what breaks a
+  /// Lava fissure and what a Light Mask's void waits for.
+  static bool _isHeavyBody(CosmicSurvivalEnemy enemy) =>
       !enemy.isPlagueCore && (enemy.hasHeavyBody || enemy.isElite);
 
   /// The first heavy body standing on [fissure], or null.
@@ -15770,7 +16033,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           sourceSlotIndex: slotIndex,
           autoAttack: true,
           masteryCastId: castId,
-          masterySource: deep > 1.0 ? MasteryDamageSource.mastery : null,
+          masteryUplift: kinUpliftFraction(deep),
         );
         _spawnHitSpark(enemy.position, elementColor(comp.member.element));
         if (grounding && !enemy.isDead) {
@@ -15814,7 +16077,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           target: boss,
           autoAttack: true,
           masteryCastId: castId,
-          masterySource: deep > 1.0 ? MasteryDamageSource.mastery : null,
+          masteryUplift: kinUpliftFraction(deep),
         );
         _spawnHitSpark(boss.position, elementColor(comp.member.element));
         if (grounding && !boss.isDead) {
@@ -16046,11 +16309,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         comp.kinSteamStackCarry = boiler.carry;
         comp.kinSteamStackDecayTimer = boiler.decayTimer;
         // Apply the AS buff to every active companion. Beauty
-        // scales per-stack potency (5% base → 7% at high stat).
-        final mult = KinSupport.steamHasteMultiplier(
+        // scales per-stack potency (5% base → 7% at high stat), and Deep
+        // Reserves deepens it by its power.
+        final boiled = KinSupport.steamHasteMultiplier(
           comp.kinSteamBoilerStacks,
           _effectiveBeauty(entry.key),
         );
+        final mult =
+            1 - (1 - boiled) * _kinBenedictionFor(entry.key).power;
         for (final other in activeCompanions.values) {
           other.kinSteamHasteMultiplier = min(
             other.kinSteamHasteMultiplier,
@@ -17262,11 +17528,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     String? attackElement,
     SurvivalBoss? excludeBoss,
     bool includeBosses = true,
+    MasteryDamageSource? masterySource,
   }) {
     _visitEnemiesNear(center, radius, (enemy) {
       if (exclude != null && identical(enemy, exclude)) return false;
       if (!_withinRange(center, enemy.position, radius)) return false;
-      _damageEnemy(enemy, damage, sourceSlotIndex: sourceSlotIndex);
+      _damageEnemy(
+        enemy,
+        damage,
+        sourceSlotIndex: sourceSlotIndex,
+        masterySource: masterySource,
+      );
       return false;
     });
     if (includeBosses) {
@@ -17277,6 +17549,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         sourceSlotIndex: sourceSlotIndex,
         attackElement: attackElement,
         exclude: excludeBoss,
+        masterySource: masterySource,
       );
     }
   }
@@ -18606,18 +18879,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             enemy.wingBeamDwell = carried;
           }
           enemy.noteWingBeamDwell(beam.sourceSlotIndex, d.tickInterval);
-          beamMastery =
-              _wingBoreMultiplier(beam.sourceSlotIndex, enemy) *
-              _wingLongshotMultiplier(beam.sourceSlotIndex, enemy.position);
+          beamMastery = _wingBoreMultiplier(beam.sourceSlotIndex, enemy);
         }
         final beforeBeamHp = enemy.hp;
         _damageEnemy(
           enemy,
           _beamDamageForEnemy(d, enemy, share) * plantBonus * beamMastery,
           sourceSlotIndex: beam.sourceSlotIndex,
-          masterySource: beamMastery > 1.0
-              ? MasteryDamageSource.mastery
-              : MasteryDamageSource.special,
+          masterySource: MasteryDamageSource.special,
+          masteryUplift: wingUpliftFraction(beamMastery),
         );
         if (beforeBeamHp > 0 && enemy.hp <= 0) {
           _noteWingBeamKill(beam.sourceSlotIndex, enemy);
@@ -18673,11 +18943,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           : _distanceToSegment(boss.position, beam.origin, end) <=
                 boss.radius + WingBeamRules.hitRadius(d);
       if (hitsBoss) {
+        // Burn Through on a boss, as on a body: a boss is the one enemy a
+        // beam is held on longest, and the ramp reached bodies only
+        // (2026-10-21 mastery sweep). The focus heat stays the bodies'.
+        var beamMastery = 1.0;
+        if (mastery.enabled && _isMasteryWing(beam.sourceSlotIndex)) {
+          boss.noteWingBeamDwell(beam.sourceSlotIndex, d.tickInterval);
+          beamMastery = _wingBoreMultiplier(beam.sourceSlotIndex, boss);
+        }
         damageBoss(
-          d.damagePerTick,
+          d.damagePerTick * beamMastery,
           attackElement: d.element,
           sourceSlotIndex: beam.sourceSlotIndex,
           target: boss,
+          masterySource: MasteryDamageSource.special,
+          masteryUplift: wingUpliftFraction(beamMastery),
         );
         if (d.element == 'Ice') _frostBoss(boss, d);
       }
@@ -20308,6 +20588,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         )) {
           return false;
         }
+        // A Light void lets the small walk over it and waits for something
+        // heavy (user, 2026-10-21, choosing it over more voids: the first
+        // wisps to arrive used to spend every void a cast laid).
+        if (p.stationary &&
+            p.abilityFamily == 'mask' &&
+            p.element == 'Light' &&
+            !_isHeavyBody(enemy)) {
+          return false;
+        }
         final enemyId = identityHashCode(enemy);
         // A capped cast (a Tempest Ring) refuses its own surplus hits here,
         // before damage: a cap counted after the fact is not a cap.
@@ -21850,9 +22139,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     CosmicSpecialResult result, {
     double scale = 1.0,
   }) {
-    final shieldHp = (result.shieldHp * scale).round();
-    final selfHeal = (result.selfHeal * scale).round();
-    final shipHeal = (result.shipHeal * scale).round();
+    final benediction = comp.slotIndex >= 0
+        ? _kinBenedictionFor(comp.slotIndex)
+        : (duration: 1.0, power: 1.0, survivesDeath: false, allyRange: 0.0);
+    // Deep Reserves: "its healing, shielding and buffs are 25% stronger".
+    // Only the blessing was, so a Kin's self-heal, ship heal and shield were
+    // untouched (2026-10-21 mastery sweep). The Steam boiler's haste is the
+    // buff ([_updateKinSupportTick]).
+    final support = scale * benediction.power;
+    final shieldHp = (result.shieldHp * support).round();
+    final selfHeal = (result.selfHeal * support).round();
+    final shipHeal = (result.shipHeal * support).round();
     // A companion's shield stays on the companion. It used to be copied onto
     // the orb as well (70%, capped at 45% of the orb), which with any Horn or
     // Kin on the team became a second health bar that refilled on every cast:
@@ -21898,9 +22195,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
     if (result.blessingTimer > 0) {
-      final benediction = comp.slotIndex >= 0
-          ? _kinBenedictionFor(comp.slotIndex)
-          : (duration: 1.0, power: 1.0, survivesDeath: false, allyRange: 0.0);
       comp.blessingTimer = max(
         comp.blessingTimer,
         result.blessingTimer * benediction.duration,
@@ -21909,6 +22203,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         comp.blessingHealPerTick,
         result.blessingHealPerTick * benediction.power * scale,
       );
+      comp.blessingShared = false;
       _shareKinBlessing(comp.slotIndex, comp);
     }
   }
@@ -24028,6 +24323,7 @@ class _MaskRearmEntry {
     required this.timer,
     required this.lifeScale,
     required this.triggers,
+    this.placedLife = 0,
   });
 
   final int slotIndex;
@@ -24035,4 +24331,7 @@ class _MaskRearmEntry {
   double timer;
   final double lifeScale;
   final int triggers;
+
+  /// The life the fixture was placed with, for Hair Trigger; 0 when unknown.
+  final double placedLife;
 }

@@ -381,7 +381,7 @@ void main() {
       expect(
         beforeCapstone.first,
         lessThan(authored.first),
-        reason: 'Before the capstone the extras hit at 70%.',
+        reason: 'Before the capstone the extras hit at 60%.',
       );
 
       final (four, fourTarget) = await arena(
@@ -399,8 +399,8 @@ void main() {
           .toList();
       expect(
         afterCapstone.first,
-        closeTo(authoredAfter.first, 0.01),
-        reason: 'The capstone brings every extra up to full strength.',
+        closeTo(authoredAfter.first * PipTuning.salvoPerfectFraction, 0.01),
+        reason: 'The capstone brings every extra up to 75%.',
       );
     });
 

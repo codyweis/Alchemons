@@ -8,6 +8,7 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
@@ -35,6 +36,11 @@ import 'family_frame_trials.dart';
 ///
 /// FAMILY_MASTERY=1 equips each family's path below, every node bought;
 /// FAMILY_MASTERY=horn.bulwark,pip.salvo swaps those families' paths.
+/// FAMILY_MASTERY_ONLY=1 equips only the paths FAMILY_MASTERY names, so one
+/// path is measured against the same parties with no mastery anywhere else;
+/// FAMILY_MASTERY_TIER=2 buys only each path's first two nodes.
+/// With any mastery on, each family's line also gives the part of its damage
+/// mastery dealt, and its healing and shielding per party.
 ///
 /// FAMILY_ELEMENTS=Kin:Dark,Horn:Air gives every party those families'
 /// species of that element, the rest of each party unchanged, so one
@@ -61,11 +67,18 @@ const _masteryPaths = <CreatureFamily, String>{
   CreatureFamily.kin: 'kin.longline',
 };
 
+/// How far down each path FAMILY_MASTERY buys (FAMILY_MASTERY_TIER, 4 when
+/// unset), so a path can be measured node by node.
+final _masteryTier =
+    int.tryParse(Platform.environment['FAMILY_MASTERY_TIER'] ?? '') ?? 4;
+
 /// [party] with each one's family path fully bought, or null for none.
 SurvivalFamilyMasterySnapshot? _masteryFor(List<CosmicPartyMember> party) {
   final raw = Platform.environment['FAMILY_MASTERY'];
   if (raw == null || raw.isEmpty) return null;
-  final paths = Map.of(_masteryPaths);
+  final paths = Platform.environment['FAMILY_MASTERY_ONLY'] == '1'
+      ? <CreatureFamily, String>{}
+      : Map.of(_masteryPaths);
   if (raw != '1') {
     for (final id in raw.split(',')) {
       final fam = creatureFamilyFromStorage(id.split('.').first);
@@ -80,10 +93,9 @@ SurvivalFamilyMasterySnapshot? _masteryFor(List<CosmicPartyMember> party) {
             instanceId: party[i].instanceId,
             family: fam,
             pathId: pathId,
-            activeNodeIds: FamilyMasteryCatalog.pathFor(
-              fam,
-              pathId,
-            )!.nodes.map((n) => n.id),
+            activeNodeIds: FamilyMasteryCatalog.pathFor(fam, pathId)!.nodes
+                .where((n) => n.tier <= _masteryTier)
+                .map((n) => n.id),
           ),
   });
 }
@@ -184,6 +196,14 @@ void main() {
     final arrivals = <String, List<double>>{};
     var mysticParties = 0, unlit = 0;
     final species = <String, List<double>>{};
+    // With mastery on: what mastery dealt of each family's damage, and its
+    // healing and shielding, summed over the parties it was in.
+    final masteryDealt = {for (final f in families) f: 0.0};
+    final basicDealt = {for (final f in families) f: 0.0};
+    final ownDealt = {for (final f in families) f: 0.0};
+    final healed = {for (final f in families) f: 0.0};
+    final shielded = {for (final f in families) f: 0.0};
+    final capstones = {for (final f in families) f: 0};
     var held = 0, died = 0;
     var shipDown = 0.0;
     for (var p = 0; p < parties; p++) {
@@ -231,6 +251,18 @@ void main() {
       }
       final total = damage.fold(0.0, (s, d) => s + d);
       final totalKills = kills.fold(0, (s, k) => s + k);
+      for (var i = 0; i < party.length && i < _lastTelemetry.length; i++) {
+        final f = party[i].family;
+        final t = _lastTelemetry[i];
+        masteryDealt[f] = masteryDealt[f]! + t.masteryDamage;
+        basicDealt[f] = basicDealt[f]! + t.basicDamage;
+        // What it removed in all, whichever bucket mastery filed it under:
+        // a special that lands through a shared helper files as neither.
+        ownDealt[f] = ownDealt[f]! + damage[i];
+        healed[f] = healed[f]! + _lastHealing[i];
+        shielded[f] = shielded[f]! + t.shielding;
+        capstones[f] = capstones[f]! + t.capstoneActivations;
+      }
       for (var i = 0; i < party.length; i++) {
         final f = party[i].family;
         final s = total > 0 ? damage[i] / total : 0.0;
@@ -292,14 +324,20 @@ void main() {
     }
     final order = List.of(families)
       ..sort((a, b) => mean(share[b]!).compareTo(mean(share[a]!)));
+    final masteryOn = (env['FAMILY_MASTERY'] ?? '').isNotEmpty;
     for (final f in order) {
       String rate(int n, int of) => of == 0 ? '—' : '${(100 * n / of).round()}%';
+      final n = max(1, with_[f]!);
       // ignore: avoid_print
       print(
         '${f.padRight(5)} damage ${(100 * mean(share[f]!)).round()}%  '
         'kills ${(100 * mean(killShare[f]!)).round()}%  '
         'held with ${rate(heldWith[f]!, with_[f]!)} · '
-        'without ${rate(heldWithout[f]!, without[f]!)}',
+        'without ${rate(heldWithout[f]!, without[f]!)}  '
+        'basic ${ownDealt[f]! <= 0 ? 0 : (100 * basicDealt[f]! / ownDealt[f]!).round()}%'
+        '${!masteryOn ? '' : '  mastery ${ownDealt[f]! <= 0 ? 0 : (100 * masteryDealt[f]! / ownDealt[f]!).round()}% of its damage · '
+                  'heal ${(healed[f]! / n).round()} · shield ${(shielded[f]! / n).round()} · '
+                  'capstones ${(capstones[f]! / n).toStringAsFixed(1)} a party'}',
       );
     }
   }, timeout: const Timeout(Duration(hours: 3)));
@@ -317,6 +355,10 @@ double? _lastMysticArrival;
 
 /// How long the last [_hold] ran, in game seconds.
 var _lastElapsed = 0.0;
+
+/// Each slot's mastery telemetry and healing from the last [_hold].
+var _lastTelemetry = <MasterySlotTelemetry>[];
+var _lastHealing = <double>[];
 
 /// [party] at [wave] from a cold start, as the stat-wall report plays it:
 /// whether it held, and each one's damage and kills.
@@ -417,6 +459,13 @@ Future<(bool, List<double>, List<int>)> _hold(
   }
   _lastShipDown = elapsed > 0 ? shipDown / elapsed : 0;
   _lastElapsed = elapsed;
+  _lastTelemetry = [
+    for (var i = 0; i < party.length; i++) game.mastery.telemetryFor(i),
+  ];
+  _lastHealing = [
+    for (var i = 0; i < party.length; i++)
+      game.companionRunStats[i]?.healingDone ?? 0,
+  ];
   final ok = !game.isGameOver && game.spawner.currentWave > wave;
   _lastDied = game.isGameOver;
   return (

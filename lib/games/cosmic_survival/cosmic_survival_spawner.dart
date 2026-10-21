@@ -127,19 +127,21 @@ mixin MasteryPayloadStatuses {
   double wingBeamDwell = 0;
   int? wingBeamDwellSlot;
 
-  /// Set by the beam as it ticks and cleared by the frame that reads it,
-  /// so decay only runs on bodies no beam is currently holding.
-  bool wingBeamTouchedThisFrame = false;
+  /// Seconds the beam's last tick still holds this body: one tick interval
+  /// and a frame's slack, so the dwell decays only once a whole tick has
+  /// gone by with no beam on it, not on the frames between two ticks.
+  double wingBeamHold = 0;
 
-  /// Counts a tick of beam held on this body. A beam from a different Wing
-  /// starts the dwell over, because the ramp belongs to whoever is aiming.
+  /// Counts a tick of beam held on this body, [dt] being the beam's tick
+  /// interval. A beam from a different Wing starts the dwell over, because
+  /// the ramp belongs to whoever is aiming.
   void noteWingBeamDwell(int slotIndex, double dt) {
     if (wingBeamDwellSlot != slotIndex) {
       wingBeamDwellSlot = slotIndex;
       wingBeamDwell = 0;
     }
     wingBeamDwell += dt;
-    wingBeamTouchedThisFrame = true;
+    wingBeamHold = dt + 1 / 30;
   }
 
   /// Lets the dwell fall away once the beam is off. [fade] of zero drops it

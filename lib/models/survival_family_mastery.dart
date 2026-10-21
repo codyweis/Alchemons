@@ -325,19 +325,19 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
       _path('mane.assault', 'Twin Fang', 'Burst down single enemies', [
         (
           'Honed Pair',
-          "Slashes fly 35% closer together and each deals 70% damage (up from 65%), making it easier to land both.",
+          "Slashes fly 35% closer together and each deals 80% damage (up from 65%), making it easier to land both.",
         ),
         (
           'Crosscut',
-          "When both slashes hit the same enemy, deal +20% bonus damage and apply your element's effect.",
+          "When both slashes hit the same enemy, deal +40% bonus damage and apply your element's effect.",
         ),
         (
           'Predator Step',
-          "After a kill, your next attack within 3s tracks its target better and deals +25% damage.",
+          "After a kill, your next attack within 3s tracks its target better and deals +40% damage.",
         ),
         (
           'Blade Dance',
-          "Casting your special makes your next 5 attacks boomerang back, hitting again for 35% damage.",
+          "Casting your special makes your next 5 attacks boomerang back, hitting again for 60% damage.",
         ),
       ]),
       _path('mane.resonance', 'War Rhythm', 'Build Rhythm and spend it on cadence', [
@@ -418,7 +418,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
       _path('let.ground_zero', 'Ground Zero', 'Your special meteor marks targets', [
         (
           'Sighted',
-          "Enemies hit by your special meteor are Sighted for 6s. Your auto-attack meteors deal +20% damage to them.",
+          "Enemies hit by your special meteor are Sighted for 6s. Your meteors deal +20% damage to them.",
         ),
         (
           'Walking Fire',
@@ -446,11 +446,11 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         ),
         (
           'Pin Cushion',
-          "Landing all 3 darts on one enemy adds a Pin (max 5). Each Pin makes your darts deal +3% damage to it.",
+          "Landing all 3 darts on one enemy adds a Pin (max 5). Each Pin makes your darts deal +5% damage to it.",
         ),
         (
           'Pluck the Pins',
-          "Hitting an enemy that has 5 Pins rips them out for a 55% damage burst. Bosses keep 2 Pins.",
+          "Hitting an enemy that has 5 Pins rips them out for an 80% damage burst. Bosses keep 2 Pins.",
         ),
         (
           'Thousand Cuts',
@@ -475,19 +475,19 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
       _path('pip.salvo', 'Salvo', 'Load more darts into every special', [
         (
           'Spare Needle',
-          "Your special throws 1 more dart, at 70% of a normal dart's damage.",
+          "Your special throws 1 more dart, at 60% of a normal dart's damage and reach.",
         ),
         (
           'Double Load',
-          "Your special throws another dart, also at 70% damage.",
+          "Your special throws another dart, also at 60%.",
         ),
         (
           'Full Quiver',
-          "Your special throws another dart, also at 70% damage.",
+          "Your special throws another dart, also at 60%.",
         ),
         (
           'Perfect Salvo',
-          "Your special throws a 4th extra dart, and every extra dart now hits as hard as the rest.",
+          "Your special throws a 4th extra dart, and every extra dart now hits and reaches at 75%.",
         ),
       ]),
     ],
@@ -540,7 +540,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         ),
         (
           'Virulence',
-          "Infection ticks your element's effect on whatever is carrying it.",
+          "Infection eats at whatever is carrying it, every half second.",
         ),
         (
           'Plague',
@@ -560,7 +560,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         ),
         (
           'Weight Behind It',
-          "Your special carries the same weight, at 60% — including passive and channelled Horns.",
+          "Your special carries the same weight, at 60%. A Horn whose special strikes no blow of its own carries it on its attacks instead.",
         ),
         (
           'Braced',
@@ -620,9 +620,9 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         [
           (
             'Bore',
-            "Your beam hits harder the longer it stays on one enemy, up to +45%. Moving off drops it.",
+            "Your beam hits harder the longer it stays on one enemy, up to +60%. Moving off drops it.",
           ),
-          ('Deeper', "It builds twice as fast and reaches +80%."),
+          ('Deeper', "It builds twice as fast and reaches +120%."),
           (
             'No Reprieve',
             "Moving off no longer drops it at once — it fades over 2s, so switching targets costs little.",
@@ -678,11 +678,11 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
       _path('kin.longline', 'Longline', 'Reach further down the line', [
         (
           'Extended Coil',
-          "Your laser runs 35% longer, and stops being cut short at close range.",
+          "Your laser runs 35% longer, and its longest reach grows by a quarter.",
         ),
         (
           'Full Span',
-          "It always fires its whole length instead of stopping just past your target.",
+          "It stops being cut short just past your target: every shot runs at least 60% of its longest reach.",
         ),
         (
           'Deep Line',
@@ -690,13 +690,13 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         ),
         (
           'Crossfire',
-          "Your laser also fires straight back through you, covering the full width of the field.",
+          "Your laser also fires straight back through you at half strength, covering the full width of the field.",
         ),
       ]),
       _path('kin.conduction', 'Conduction', 'The line carries help, not just harm', [
         (
           'Live Current',
-          "Allies your laser passes through gain a shield worth 20% of the damage it dealt.",
+          "Allies your laser passes through gain a shield worth 30% of the damage it dealt.",
         ),
         (
           'Lifeline',
@@ -727,7 +727,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           ),
           (
             'Communion',
-            "It reaches every ally and the ship, however far apart you are standing.",
+            "It reaches every ally and the ship at half strength, however far apart you are standing.",
           ),
         ],
       ),

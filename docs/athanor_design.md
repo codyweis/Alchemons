@@ -24,7 +24,7 @@ The furnace on home where a pour draws a cosmetic. It replaces the Daily Treasur
 
 | Where | Tincture | Notes |
 | --- | --- | --- |
-| Survival, run end (death) | waves cleared ÷ 5 (floor) | w10 → 2, w30 → 6, w50 → 10. Quitting pays nothing, like the rest of the run's rewards. Gets its own results row. |
+| Survival, run end (death) | waves cleared ÷ 50 (floor) | w49 → 0, w50 → 1, w100 → 2 (÷ 5 until 2026-10-21, when the user cut it by 90%). Quitting pays nothing, like the rest of the run's rewards. Gets its own results row. |
 | Raid victory | L1 3, L2 5, L3 8 | In `grantRaidRewards`, plus a reward line |
 | Dungeon star, first time | 3 per star | 51 stars in all, in `grantStarReward`, plus a reward line |
 | Achievement claim | 1 each (3 until 2026-10-11; achievements already pay gold and silver) | In `CampaignJournalService.claim`, inside its transaction, plus the toast |

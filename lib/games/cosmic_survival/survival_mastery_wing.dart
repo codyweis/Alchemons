@@ -62,8 +62,12 @@ class WingTuning {
 
   // ── Burn Through ──
   /// Bore, then Deeper: how far the ramp climbs and how fast it gets there.
-  static const double boreMax = 0.45;
-  static const double deeperMax = 0.80;
+  /// +45% and +80% until the 2026-10-21 mastery sweep, which also found the
+  /// ramp falling away between the beam's ticks: a beam is one part of what
+  /// a Wing deals, and the held body is one of many, so the whole path was
+  /// about 3% of a Wing's damage in a horde and 8% on a boss wave.
+  static const double boreMax = 0.60;
+  static const double deeperMax = 1.20;
   static const double boreRampSeconds = 3.0;
   static const double deeperRampSeconds = 1.5;
 

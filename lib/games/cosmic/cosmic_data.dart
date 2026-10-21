@@ -10475,7 +10475,10 @@ double _kinElementHealPercent(String e) => switch (e) {
   'Fire' => 0.18,
   'Lightning' => 0.18,
   'Lava' => 0.15,
-  'Dark' => 0.12,
+  // The thinnest kit of any Kin left its parties holding under the rest;
+  // raised to the middle of the family (user, 2026-10-21: "Dark Kin: heal
+  // and blessing up").
+  'Dark' => 0.22,
   'Dust' => 0.18,
   _ => 0.25,
 };
@@ -10496,7 +10499,7 @@ double _kinElementBlessingDuration(String e) => switch (e) {
   'Lightning' => 3.5,
   'Air' => 4.0,
   'Lava' => 3.5,
-  'Dark' => 3.0,
+  'Dark' => 4.5,
   'Dust' => 4.0,
   _ => 4.0,
 };
@@ -10506,7 +10509,6 @@ double _kinElementBlessingTick(String e) => switch (e) {
   'Water' => 0.032,
   'Plant' => 0.031,
   'Blood' => 0.028,
-  'Dark' => 0.018,
   _ => 0.025,
 };
 

@@ -221,17 +221,26 @@ class HornMasteryState {
 ///
 /// [isSpecial] covers the charge, the channel and a passive's own damage —
 /// everything that is not an auto-attack.
+///
+/// [specialStrikes] is false for a Horn whose special lands no blow of its
+/// own — Air's wind, Mud's sludge, Light's barrier. Weight Behind It puts its
+/// share into that Horn's auto-attacks instead, so the node is not bought for
+/// nothing by three of seventeen (2026-10-21 mastery sweep).
 double hornBulwarkBonus({
   required bool Function(String nodeId) hasNode,
   required double maxHp,
   required double currentHp,
   required bool isSpecial,
+  bool specialStrikes = true,
 }) {
   if (!hasNode(HornNodes.ironhead)) return 0;
   if (isSpecial && !hasNode(HornNodes.weightBehindIt)) return 0;
 
   var bonus = maxHp * HornTuning.ironheadMaxHpFraction;
   if (isSpecial) bonus *= HornTuning.specialWeightScale;
+  if (!isSpecial && !specialStrikes && hasNode(HornNodes.weightBehindIt)) {
+    bonus *= 1 + HornTuning.specialWeightScale;
+  }
 
   if (hasNode(HornNodes.braced)) {
     final health = maxHp <= 0 ? 0.0 : (currentHp / maxHp).clamp(0.0, 1.0);
@@ -241,6 +250,12 @@ double hornBulwarkBonus({
   }
   return bonus;
 }
+
+/// Whether a Horn of [element]'s special strikes anything itself. Air's wind
+/// pushes, Mud's sludge slows and Light's barrier shelters; none of the three
+/// deals a blow for Bulwark's weight to ride.
+bool hornSpecialStrikes(String element) =>
+    element != 'Air' && element != 'Mud' && element != 'Light';
 
 /// What one Bastion attack banks, and the ceiling it banks toward.
 ({double perShot, double cap}) hornGuardShield({

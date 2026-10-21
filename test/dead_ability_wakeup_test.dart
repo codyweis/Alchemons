@@ -417,6 +417,70 @@ void main() {
       }
     });
 
+    test('a void lets the small walk over it and waits for a heavy body', () async {
+      // User, 2026-10-21, choosing it: the first wisps to arrive spent every
+      // void a cast laid.
+      final game = CosmicSurvivalGame(
+        party: [
+          CosmicPartyMember(
+            instanceId: 'mask-light',
+            baseId: 'MSK01',
+            displayName: 'Mask Light',
+            family: 'Mask',
+            element: 'Light',
+            level: 10,
+            slotIndex: 0,
+            statSpeed: 4,
+            statIntelligence: 4,
+            statStrength: 4,
+            statBeauty: 4,
+            staminaBars: 5,
+            staminaMax: 5,
+          ),
+        ],
+        onGameOver: () {},
+        random: Random(5),
+      );
+      game.onGameResize(Vector2(900, 700));
+      await game.onLoad();
+      game.startGame();
+      game.summonCompanion(0);
+      game.activeCompanions[0]!.specialCooldown = 99999;
+      game.activeCompanions[0]!.basicCooldown = 99999;
+      game.enemies.clear();
+      game.companionProjectiles.clear();
+
+      final lightVoid = lightVoids(beauty: 2.0).first;
+      final at = game.orb.position + const Offset(420, 0);
+      lightVoid.position = at;
+      game.companionProjectiles.add(lightVoid);
+      final small = [
+        body(at),
+        body(at, tier: EnemyTier.drone),
+        body(at, tier: EnemyTier.sentinel),
+      ];
+      game.enemies.addAll(small);
+      void hold(List<CosmicSurvivalEnemy> bodies, int frames) {
+        for (var f = 0; f < frames; f++) {
+          for (final b in bodies) {
+            if (!b.isDead) b.position = at;
+          }
+          keepAlive(game);
+          game.update(1 / 60);
+        }
+      }
+
+      hold(small, 30);
+      expect(small.where((b) => b.isDead), isEmpty);
+      expect(game.companionProjectiles, contains(lightVoid));
+
+      final brute = body(at, tier: EnemyTier.brute);
+      game.enemies.add(brute);
+      hold([...small, brute], 30);
+      expect(brute.isDead, isTrue, reason: 'the heavy body it waited for');
+      expect(small.where((b) => b.isDead), isEmpty);
+    });
+
     test('each void kills one body and is spent', () async {
       final game = CosmicSurvivalGame(
         party: [

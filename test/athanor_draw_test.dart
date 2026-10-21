@@ -125,12 +125,12 @@ void main() {
   });
 
   group('earning tincture', () {
-    test('survival pays waves cleared ÷ 5', () {
+    test('survival pays waves cleared ÷ 50', () {
       expect(athanorSurvivalTincture(0), 0);
-      expect(athanorSurvivalTincture(4), 0);
-      expect(athanorSurvivalTincture(10), 2);
-      expect(athanorSurvivalTincture(30), 6);
-      expect(athanorSurvivalTincture(50), 10);
+      expect(athanorSurvivalTincture(49), 0);
+      expect(athanorSurvivalTincture(50), 1);
+      expect(athanorSurvivalTincture(99), 1);
+      expect(athanorSurvivalTincture(100), 2);
       expect(athanorSurvivalTincture(-3), 0);
     });
 

@@ -75,23 +75,28 @@ class ManeTuning {
   static const double baseSpread = 0.08;
 
   // ── Twin Fang ──
-  /// Honed Pair: 35% closer together, 70% physical each.
+  /// Honed Pair: 35% closer together, 80% physical each (70% until the
+  /// 2026-10-21 mastery sweep, when the whole path moved a Mane's party
+  /// share by a point at most).
   static const double honedPairSpreadScale = 0.65;
-  static const double honedPairSlashFraction = 0.70;
+  static const double honedPairSlashFraction = 0.80;
 
-  /// Crosscut: a dual hit adds 20% physical and fires one payload per cast.
-  static const double crosscutBonusFraction = 0.20;
+  /// Crosscut: a dual hit adds 40% physical and fires one payload per cast.
+  /// 20% until the 2026-10-21 mastery sweep: a Mane's slashes are about a
+  /// seventh of what it deals, and the whole path moved its party share by
+  /// nothing at Potential 50 or 80.
+  static const double crosscutBonusFraction = 0.40;
   static const double crosscutPayloadStrength = 1.0;
 
   /// Predator Step: a basic kill empowers the next cast inside this window.
   static const double predatorStepWindow = 3.0;
-  static const double predatorStepDamageBonus = 0.25;
+  static const double predatorStepDamageBonus = 0.40;
   static const double predatorStepHoming = 3.2;
 
   /// Blade Dance: a special empowers this many basic casts, whose slashes
   /// return for this fraction of their outgoing damage.
   static const int bladeDanceCasts = 5;
-  static const double bladeDanceReturnFraction = 0.35;
+  static const double bladeDanceReturnFraction = 0.60;
 
   // ── Limitless ──
   /// Far Throw: the special's projectiles carry 45% further before fading.
@@ -106,6 +111,21 @@ class ManeTuning {
   /// Endless Circuit: the first projectile of each cast sweeps out to this
   /// fraction of the arena radius and circles it.
   static const double circuitRadiusFraction = 0.72;
+
+  /// ...striking at this share of the shot it was, once a lap per body
+  /// ([circuitHitsPerLap]). It struck at full, twice a lap, until the
+  /// 2026-10-21 mastery sweep, and that one blade was the whole of the
+  /// path's outlier: Far Throw, Overdraw and No Horizon together moved a
+  /// Mane's party share by a point, the circuit on top of them took it from
+  /// 35% to 51% at Potential 50 (31% to 44% at 80). A horde crosses the rim
+  /// on its way in, so the blade meets most of a wave; it cuts what crosses
+  /// rather than throwing a second special at it. At a quarter of the shot
+  /// it still carried a Mane to 46%.
+  static const double circuitDamageScale = 0.15;
+
+  /// How many times a lap the circuit may strike one body: once, where it
+  /// was the family's two until 2026-10-21 ([circuitDamageScale]).
+  static const int circuitHitsPerLap = 1;
 
   /// Radians per second around the rim — one lap in about eleven seconds.
   /// Halved from 1.15 (2026-09-17): at roughly 940 units a second the head

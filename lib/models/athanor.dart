@@ -209,9 +209,11 @@ AthanorPiece? athanorDraw(AthanorBatch batch, Set<String> drawn, Random rng) {
 // ── Earning tincture (docs/athanor_design.md) ──────────────────────────────
 // Each is granted inside the flow that already pays that reward.
 
-/// Survival, at run end: one for every five waves cleared.
+/// Survival, at run end: one for every fifty waves cleared. It was one for
+/// every five (user, 2026-10-21: "cut the spark rewards from survival by
+/// 90%").
 int athanorSurvivalTincture(int wavesCleared) =>
-    wavesCleared <= 0 ? 0 : wavesCleared ~/ 5;
+    wavesCleared <= 0 ? 0 : wavesCleared ~/ 50;
 
 /// A raid victory, by raid level (1–3).
 int athanorRaidTincture(int raidLevel) => switch (raidLevel.clamp(1, 3)) {

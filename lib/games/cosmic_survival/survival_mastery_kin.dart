@@ -69,24 +69,42 @@ class KinTuning {
   // ── Longline ──
   /// Extended Coil: how much longer the line runs, and the new ceiling on a
   /// length the chassis otherwise clamps to 720.
+  ///
+  /// 1,100 until the 2026-10-21 mastery sweep. Kin is the support family
+  /// and the path is its reach, but the whole path took a Kin from 7% of
+  /// its party's damage to 32% at Potential 50 (5% to 21% at 80): Full Span
+  /// alone, a line of at least 1,012 every shot into the thick of the horde
+  /// at the rim, was 8% to 22%, and Crossfire's full-strength second line
+  /// most of the rest. With this ceiling and the back line
+  /// ([crossfireStrength]) cut it was still 27%, because the gain was never
+  /// the longest line, it was every short one run out to it
+  /// ([fullSpanMinimum]).
   static const double extendedCoilScale = 1.35;
-  static const double extendedCoilCap = 1100.0;
+  static const double extendedCoilCap = 900.0;
 
-  /// Full Span: the line stops being cut to "just past the target".
-  static const double fullSpanMinimum = 0.92;
+  /// Full Span: the line stops being cut to "just past the target", and
+  /// runs at least this share of its longest reach (0.92 until 2026-10-21,
+  /// [extendedCoilCap]).
+  static const double fullSpanMinimum = 0.6;
 
   /// Deep Line: a body at the far end takes this much more than one at the
   /// muzzle, scaled by how far along the line it stands.
   static const double deepLineBonus = 0.40;
 
-  /// Crossfire: the backward line, as a share of the forward one.
-  static const double crossfireStrength = 1.0;
+  /// Crossfire: the backward line, as a share of the forward one. Full
+  /// strength until the 2026-10-21 mastery sweep ([extendedCoilCap]).
+  static const double crossfireStrength = 0.5;
 
   // ── Conduction ──
   /// Live Current: an ally on the line is shielded for this share of what the
   /// laser dealt, and no single shot may shield more than this.
-  static const double conductionShieldShare = 0.20;
-  static const double conductionShieldCapFraction = 0.12;
+  ///
+  /// 20% and 12% until the 2026-10-21 mastery sweep, when the whole path
+  /// moved neither its party's hold rate nor anything else measurable: the
+  /// line crosses an ally now and then, and a shield worth a few hits was
+  /// all it left.
+  static const double conductionShieldShare = 0.30;
+  static const double conductionShieldCapFraction = 0.18;
 
   /// Lifeline: below this much health an ally is healed instead, for this
   /// much more than the shield would have been.
@@ -100,7 +118,7 @@ class KinTuning {
 
   /// Transfusion: worth this much more, and reaching this far off the line.
   static const double transfusionScale = 1.5;
-  static const double transfusionRadius = 70.0;
+  static const double transfusionRadius = 120.0;
 
   // ── Benediction ──
   /// Devotion: how much longer a support runs.
@@ -112,6 +130,16 @@ class KinTuning {
   /// Communion: an ally this far away is still reached. Large enough to mean
   /// "anywhere", without being infinite in a way that breaks a distance sort.
   static const double communionRange = 100000.0;
+
+  /// ...and what reaches it, as a share of the Kin's own blessing. Full until
+  /// the 2026-10-21 mastery sweep: a Kin's blessing is a fortieth of its own
+  /// large health a second, near-constant under Devotion, and copied whole
+  /// to every ally it kept the whole party alive. Parties with a Communion
+  /// Kin held 91% of Potential 50 waves against 51% without the path; with
+  /// the shared copies no longer echoing into the orb, still 85%, and 76%
+  /// with them at half (at a third, 76% as well — about where the other
+  /// strongest paths now leave their parties).
+  static const double communionShare = 0.5;
 }
 
 /// One Kin companion's mastery state for the length of a run.

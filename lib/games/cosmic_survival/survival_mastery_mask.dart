@@ -101,6 +101,10 @@ class MaskTuning {
   static const double rearmDelay = 2.5;
   static const double hairTriggerDelay = 1.2;
 
+  /// What a re-armed trap comes back for under Spring Again alone. Hair
+  /// Trigger brings it back for the life it was placed with instead.
+  static const double rearmLife = 6.0;
+
   /// Held Ground: a trap that has gone off this many times stops expiring.
   static const int heldGroundTriggers = 3;
 
@@ -135,18 +139,29 @@ class MaskTuning {
   /// before 2026-10-20, when the ceiling never applied; four with it.)
   static const int maxGenerations = 4;
 
-  /// The most bodies one Mask's infection holds at once, about a fifth of
-  /// a late horde wave's field. A body already carrying it can be
-  /// re-infected (its clock refreshes); a new one waits for a carrier to die
-  /// or recover.
-  static const int carrierCap = 320;
+  /// The most bodies one Mask's infection holds at once, about a sixth of a
+  /// late horde wave's field. A body already carrying it can be re-infected
+  /// (its clock refreshes); a new one waits for a carrier to die or recover.
+  ///
+  /// 320 until the 2026-10-21 mastery sweep, with [plagueRadius] 130: alone,
+  /// with no other family's path bought, a Contagion Mask took 40% of its
+  /// party's damage at Potential 50 (23% without it); the 2026-10-20 cap
+  /// had been read with every family's path on. Virulence and Plague each
+  /// added about eight points, and cutting their damage by a third moved
+  /// neither: what they touch is chaff that dies to any of it. Plague's
+  /// burst is the real spread — it infects everything it reaches, past
+  /// [spreadPerCarrier] — so how far it reaches, and how many bodies one
+  /// Mask's infection may hold, are what its share grows with.
+  static const int carrierCap = 160;
 
-  /// Virulence: the element effect an infection ticks, relative to a trap's.
+  /// Virulence: what an infection eats from its carrier, as a share of the
+  /// Mask's ability attack a second (half of it each half second).
   static const double virulenceStrength = 0.45;
 
-  /// Plague: what an infected body's death burst does.
+  /// Plague: what an infected body's death burst does, and how far it
+  /// reaches ([carrierCap]; 130 until 2026-10-21).
   static const double plagueDamage = 0.60;
-  static const double plagueRadius = 130.0;
+  static const double plagueRadius = 90.0;
 }
 
 /// One Mask companion's mastery state for the length of a run.
@@ -157,6 +172,18 @@ class MaskMasteryState {
 
   /// Trigger counts per fixture, for Held Ground.
   final Map<int, int> triggers = {};
+
+  /// The life each fixture was placed with, for Hair Trigger. Dropped with
+  /// the fixture, and cleared outright if fixtures leave some other way and
+  /// it ever grows past what one Mask can have on the field.
+  final Map<int, double> placedLives = {};
+
+  void notePlacedLife(int fixtureId, double life) {
+    if (placedLives.length >= 96) placedLives.clear();
+    placedLives[fixtureId] = life;
+  }
+
+  double placedLifeOf(int fixtureId) => placedLives[fixtureId] ?? 0;
 
   /// Bodies carrying this Mask's infection: counted afresh each frame, and
   /// raised as new bodies catch it in between, so it never reads low.
@@ -185,6 +212,7 @@ class MaskMasteryState {
   void dropFixture(int fixtureId) {
     graves.remove(fixtureId);
     triggers.remove(fixtureId);
+    placedLives.remove(fixtureId);
   }
 
   @override

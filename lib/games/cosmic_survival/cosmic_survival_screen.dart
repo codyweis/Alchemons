@@ -1708,7 +1708,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       );
     }
 
-    // Tincture for the Athanor: one for every five waves cleared.
+    // Sparks for the Athanor: one for every fifty waves cleared.
     final tincture = athanorSurvivalTincture(wavesCleared);
     if (tincture > 0) {
       await db.inventoryDao.addItemQty(InvKeys.athanorTincture, tincture);
@@ -1935,7 +1935,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     HapticFeedback.selectionClick();
   }
 
-  void _toggleAutopilot() {
+  /// The zoom key's one cycle (user, 2026-10-21: "tapping the zoom icon
+  /// allows me to go in out, tapping it again locks it"): the camera is
+  /// freed (the ship flies itself; drag pans, pinch zooms), then that zoom
+  /// is locked and the ship is the player's again, then back to the run's
+  /// own zoom.
+  void _cycleCamera() {
     final game = _game;
     if (game == null ||
         !game.isLoaded ||
@@ -1945,7 +1950,14 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       return;
     }
     HapticFeedback.selectionClick();
-    game.setAutopilot(!game.autopilot);
+    if (game.autopilot) {
+      game.setZoomLock(true);
+      game.setAutopilot(false);
+    } else if (game.zoomLocked) {
+      game.setZoomLock(false);
+    } else {
+      game.setAutopilot(true);
+    }
   }
 
   void _closePauseMenu() {
@@ -2966,109 +2978,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
               );
             },
           ),
-          // Flying with a locked zoom: a reminder, and the way back. Up top,
-          // clear of the joystick's lower-left area.
-          if (!cameraMode && !over)
-            Positioned(
-              top: 76 + _hudTopInset,
-              left: 12,
-              child: SafeArea(
-                child: ValueListenableBuilder<bool>(
-                  valueListenable: game.zoomLockState,
-                  builder: (_, locked, __) => !locked
-                      ? const SizedBox.shrink()
-                      : GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () {
-                            HapticFeedback.selectionClick();
-                            game.setZoomLock(false);
-                          },
-                          child: HudGlass(
-                            accent: HudInk.amber.withValues(alpha: 0.8),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 7,
-                            ),
-                            child: Text(
-                              'ZOOM LOCKED · TAP TO UNLOCK',
-                              style: hudMono(8.5, HudInk.amber, spacing: 0.8),
-                            ),
-                          ),
-                        ),
-                ),
-              ),
-            ),
-          if (cameraMode && !over)
-            Positioned(
-              bottom: 20 + _partyRowHeight() + 10,
-              left: 12,
-              child: SafeArea(
-                child: HudGlass(
-                  accent: HudInk.amber.withValues(alpha: 0.8),
-                  padding: const EdgeInsets.all(10),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('CAMERA', style: hudMono(10.5, HudInk.amber)),
-                      const SizedBox(height: 4),
-                      Text(
-                        'DRAG TO PAN · PINCH TO ZOOM\nTHE SHIP FLIES ITSELF',
-                        style: hudMono(8.5, HudInk.muted, spacing: 0.8),
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          SizedBox(
-                            width: 104,
-                            child: BracketButton(
-                              label: 'FOLLOW SHIP',
-                              height: 34,
-                              palette: BracketPalette.dark,
-                              accent: HudInk.amber,
-                              primary: false,
-                              onTap: game.recenterCamera,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          SizedBox(
-                            width: 74,
-                            child: BracketButton(
-                              label: 'EXIT',
-                              height: 34,
-                              palette: BracketPalette.dark,
-                              accent: HudInk.amber,
-                              onTap: _toggleAutopilot,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      // Keep this zoom for flying: EXIT then flies the ship
-                      // with the camera out here.
-                      ValueListenableBuilder<bool>(
-                        valueListenable: game.zoomLockState,
-                        builder: (_, locked, __) => SizedBox(
-                          width: 184,
-                          child: BracketButton(
-                            label: locked ? 'UNLOCK ZOOM' : 'LOCK ZOOM',
-                            height: 34,
-                            palette: BracketPalette.dark,
-                            accent: HudInk.amber,
-                            primary: false,
-                            onTap: () {
-                              HapticFeedback.selectionClick();
-                              game.setZoomLock(!locked);
-                            },
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
           // Power-up selection overlay
           if (_powerUpChoices.isNotEmpty)
             PowerUpSelectionOverlay(
@@ -3268,12 +3177,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       top: 0,
       bottom: 0,
       child: IgnorePointer(
+        // Small and see-through: the fight goes on under it (user,
+        // 2026-10-21: "the ship destroyed and countdown is too big and we
+        // should make it more transparent").
         child: Center(
           child: HudGlass(
-            accent: HudInk.ship.withValues(alpha: 0.6),
-            alpha: 0.6,
-            bracket: 9,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            accent: HudInk.ship.withValues(alpha: 0.35),
+            alpha: 0.3,
+            bracket: 6,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -3282,24 +3194,24 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontFamily: 'monospace',
-                    color: HudInk.ship.withValues(alpha: 0.8),
-                    fontSize: 13,
+                    color: HudInk.ship.withValues(alpha: 0.6),
+                    fontSize: 9.5,
                     fontWeight: FontWeight.w900,
-                    letterSpacing: 2,
+                    letterSpacing: 1.6,
                   ),
                 ),
                 if (game.shipRespawnRemaining > 0)
                   Padding(
-                    padding: const EdgeInsets.only(top: 6),
+                    padding: const EdgeInsets.only(top: 3),
                     child: Text(
                       'RESPAWN IN ${game.shipRespawnRemaining.ceil()}s',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: _C.textPrimary.withValues(alpha: 0.58),
-                        fontSize: 15,
+                        color: _C.textPrimary.withValues(alpha: 0.42),
+                        fontSize: 10,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 1.6,
+                        letterSpacing: 1.2,
                       ),
                     ),
                   ),
@@ -3368,7 +3280,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                   ),
                   SurvivalCameraButton(
                     cameraMode: game.autopilotState,
-                    onToggle: context.soundTap(_toggleAutopilot),
+                    zoomLocked: game.zoomLockState,
+                    onToggle: context.soundTap(_cycleCamera),
                   ),
                   // Fast forward: 1.5x. Two was too fast to read a front.
                   HudKey(
@@ -3981,7 +3894,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
       case GamepadButton.start:
         context.soundTap(_togglePauseMenu)();
       case GamepadButton.back:
-        _toggleAutopilot();
+        _cycleCamera();
       case GamepadButton.a:
         if (game.detonationUnlocked && game.detonationReadyNotifier.value) {
           context.soundAction(game.triggerDetonation)?.call();
