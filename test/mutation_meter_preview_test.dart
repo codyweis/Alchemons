@@ -23,6 +23,7 @@ import 'package:provider/provider.dart';
 //     test/mutation_meter_preview_test.dart --tags preview
 //
 // METER_BG is any landscape screenshot of a field (optional; black without).
+// METER_SIZE=882x344 picks the screen (logical px; the Fold's cover screen).
 void main() {
   final out = Platform.environment['METER_OUT'];
   final bg = Platform.environment['METER_BG'];
@@ -31,7 +32,11 @@ void main() {
     if (out == null) return;
     Directory(out).createSync(recursive: true);
     driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
-    tester.view.physicalSize = const Size(751, 475) * 2;
+    final dims = (Platform.environment['METER_SIZE'] ?? '751x475')
+        .split('x')
+        .map(double.parse)
+        .toList();
+    tester.view.physicalSize = Size(dims[0], dims[1]) * 2;
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
 

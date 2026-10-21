@@ -2,11 +2,11 @@
 //
 // THE MUTATION METER, in the wild.
 //
-// A slim glass on the left edge, between Exit and Items, holding a column of
-// lit grains: one notch for every wilderness fusion since the last mutation
+// A short glass vial tucked under Exit, holding a column of lit grains: one notch for every wilderness fusion since the last mutation
 // (constellation node "Mutation Meter"; the count is a Settings row). The
 // fuller it is, the likelier the next fusion mutates; full, it is certain,
-// and the glass breathes.
+// and the glass breathes. It stays dim until it is nearly full: a charm at
+// the edge of the view, not a bar down it.
 //
 // It never moves under a fusion. The encounter tells it through
 // [MutationMeterBus] when a fusion starts and where it landed: a notch then
@@ -40,6 +40,10 @@ const List<Color> kMutagenColors = [
   Color(0xFFEEEAF6),
   Color(0xFFA9C1FF),
 ];
+
+/// The vial's grains: [kMeterPerRow] across, a row every [kMeterRowStep].
+const int kMeterPerRow = 2;
+const double kMeterRowStep = 2.3;
 
 /// How often a grain is one of the spectrum's, not one of [kMutagenColors].
 const double kMutagenSpectrumShare = 0.28;
@@ -205,33 +209,35 @@ class _MutationMeterHudState extends State<MutationMeterHud>
   // ── layout ─────────────────────────────────────────────────────────────
 
   Rect _glassIn(Size size, EdgeInsets pad) {
-    // Centred under Exit (66 wide, 54 tall, 8 in), clear of Items below it.
-    const w = 14.0, gap = 12.0;
+    // A short vial centred under Exit (66 wide, 54 tall, 8 in), never
+    // reaching Items below it.
+    const w = 9.0, h = 64.0, gap = 10.0;
     final cx = pad.left + 8 + 33;
     final top = pad.top + 8 + 54 + gap;
-    final bottom = size.height - pad.bottom - 8 - 54 - gap;
-    return Rect.fromLTRB(cx - w / 2, top, cx + w / 2, math.max(top + 40, bottom));
+    final room = size.height - pad.bottom - 8 - 54 - gap - top;
+    return Rect.fromLTWH(cx - w / 2, top, w, math.max(28, math.min(h, room)));
   }
 
-  static const _perRow = 3;
+  static const _perRow = kMeterPerRow;
   Rect _glass = Rect.zero;
-  int get _capacity => _perRow * math.max(8, ((_glass.height - 10) / 2.9).floor());
+  int get _capacity =>
+      _perRow * math.max(6, ((_glass.height - 8) / kMeterRowStep).floor());
   int _countFor(int notches) =>
       (_capacity * (notches.clamp(0, kMutationMeterNotches) / kMutationMeterNotches))
           .round();
 
   Offset _slot(int i) {
     final row = i ~/ _perRow, c = i % _perRow;
-    final iw = _glass.width - 5;
-    final jx = math.sin(i * 12.9898) * 0.6, jy = math.cos(i * 78.233) * 0.5;
+    final iw = _glass.width - 3;
+    final jx = math.sin(i * 12.9898) * 0.35, jy = math.cos(i * 78.233) * 0.3;
     final rows = _capacity / _perRow;
     return Offset(
-      _glass.left + 2.5 + (c + 0.5) * (iw / _perRow) + jx + (row.isOdd ? 0.6 : -0.6),
-      _glass.bottom - 5 - row * (_glass.height - 10) / rows + jy,
+      _glass.left + 1.5 + (c + 0.5) * (iw / _perRow) + jx + (row.isOdd ? 0.4 : -0.4),
+      _glass.bottom - 4 - row * (_glass.height - 8) / rows + jy,
     );
   }
 
-  Offset get _cap => Offset(_glass.center.dx, _glass.top - 7);
+  Offset get _cap => Offset(_glass.center.dx, _glass.top - 5);
 
   _Grain _newGrain(int i) => _Grain(
     i: i,
@@ -318,6 +324,7 @@ class _MutationMeterHudState extends State<MutationMeterHud>
                     grains: _grains,
                     fliers: _fliers,
                     slot: _slot,
+                    capacity: _capacity,
                     t: _t,
                     full: notches >= kMutationMeterNotches,
                     appear: _bornAt < 0 ? 0 : ((_t - _bornAt) / 0.7).clamp(0.0, 1.0),
@@ -327,7 +334,7 @@ class _MutationMeterHudState extends State<MutationMeterHud>
               ),
             ),
             Positioned.fromRect(
-              rect: glass.inflate(10),
+              rect: glass.inflate(14),
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: _showHint,
@@ -335,7 +342,7 @@ class _MutationMeterHudState extends State<MutationMeterHud>
             ),
             if (hint > 0)
               Positioned(
-                left: glass.right + 10,
+                left: glass.right + 8,
                 top: glass.top - 4,
                 child: IgnorePointer(
                   child: Opacity(
@@ -450,6 +457,7 @@ class _MeterPainter extends CustomPainter {
     required this.grains,
     required this.fliers,
     required this.slot,
+    required this.capacity,
     required this.t,
     required this.full,
     required this.appear,
@@ -461,6 +469,7 @@ class _MeterPainter extends CustomPainter {
   final List<_Grain> grains;
   final List<_Flier> fliers;
   final Offset Function(int) slot;
+  final int capacity;
   final double t;
   final bool full;
   final double appear;
@@ -486,15 +495,22 @@ class _MeterPainter extends CustomPainter {
     final r = glass.width / 2;
     final rrect = RRect.fromRectAndRadius(glass, Radius.circular(r));
 
+    // Quiet until the last quarter: then it brightens toward full.
+    final settledGuess = grains.where((g) => g.arrive == null).length;
+    final near = _ease(((settledGuess / math.max(1, capacity)) - 0.75) / 0.25);
+
     // The glass: a brass rim as a slightly larger fill under dark glass.
-    canvas.saveLayer(null, Paint()..color = Color.fromRGBO(0, 0, 0, appear));
+    canvas.saveLayer(
+      null,
+      Paint()..color = Color.fromRGBO(0, 0, 0, appear * (0.78 + 0.22 * near)),
+    );
     canvas.drawRRect(
-      rrect.inflate(1.4),
+      rrect.inflate(1.1),
       Paint()
         ..shader = ui.Gradient.linear(
           glass.centerLeft,
           glass.centerRight,
-          const [Color(0x1ACDB07A), Color(0x4DCDB07A), Color(0x24CDB07A)],
+          const [Color(0x10CDB07A), Color(0x38CDB07A), Color(0x18CDB07A)],
           const [0, 0.75, 1],
         ),
     );
@@ -542,40 +558,40 @@ class _MeterPainter extends CustomPainter {
     }
     final shownFill = grains.isEmpty
         ? 0.0
-        : (settled / math.max(1, _capacityGuess())).clamp(0.0, 1.0);
+        : (settled / math.max(1, capacity)).clamp(0.0, 1.0);
     onDrawn(shownFill);
 
-    final topRow = settled ~/ 3;
+    final topRow = settled ~/ kMeterPerRow;
     final breath = full ? 0.5 + 0.5 * math.sin(t * 1.6) : 0.0;
     for (final g in grains) {
       if (g.arrive != null) continue;
       final s = slot(g.i);
-      final row = g.i ~/ 3;
-      final surface = math.max(0.0, 1 - (topRow - row) / 6);
-      final amp = 0.25 + (0.35 + 1.1 * shownFill + (full ? 0.5 : 0)) * surface;
+      final row = g.i ~/ kMeterPerRow;
+      final surface = math.max(0.0, 1 - (topRow - row) / 5);
+      final amp = 0.15 + (0.2 + 0.6 * shownFill + (full ? 0.35 : 0)) * surface;
       final p = Offset(
-        s.dx + math.sin(t * 1.3 + g.phase * 40) * amp,
+        s.dx + math.sin(t * 1.3 + g.phase * 40) * amp * 0.6,
         s.dy + math.cos(t * 1.1 + g.phase * 23) * amp * 0.8 -
-            surface * (full ? (math.sin(t * 2 + g.phase * 9)).abs() * 1.2 : 0),
+            surface * (full ? (math.sin(t * 2 + g.phase * 9)).abs() * 0.9 : 0),
       );
       final tw = 0.55 + 0.45 * math.sin(t * 2.1 + g.phase * 31);
-      _add(_colourOf(g.colour, g.phase), 0.45 + 0.5 * tw, p);
+      _add(_colourOf(g.colour, g.phase), 0.35 + 0.4 * tw + 0.2 * near, p);
     }
 
-    // Light held by the grains, rising with the fill.
-    if (shownFill > 0) {
+    // Light held by the grains: only as it nears full.
+    if (near > 0) {
       canvas.save();
       canvas.clipRRect(rrect);
       final top = glass.bottom - shownFill * glass.height;
       canvas.drawRect(
-        Rect.fromLTRB(glass.left, top - 24, glass.right, glass.bottom),
+        Rect.fromLTRB(glass.left, top - 12, glass.right, glass.bottom),
         Paint()
           ..blendMode = BlendMode.plus
           ..shader = ui.Gradient.linear(
             Offset(0, glass.bottom),
-            Offset(0, top - 24),
+            Offset(0, top - 12),
             [
-              Color.fromRGBO(226, 201, 143, 0.10 + 0.14 * shownFill + 0.10 * breath),
+              Color.fromRGBO(226, 201, 143, 0.18 * near + 0.10 * breath),
               const Color(0x00E2C98F),
             ],
           ),
@@ -586,12 +602,12 @@ class _MeterPainter extends CustomPainter {
     canvas.save();
     canvas.clipRRect(rrect);
     canvas.drawRect(
-      Rect.fromLTWH(glass.left, glass.top, 4, glass.height),
+      Rect.fromLTWH(glass.left, glass.top, 3, glass.height),
       Paint()
         ..shader = ui.Gradient.linear(
           glass.topLeft,
-          glass.topLeft + const Offset(4, 0),
-          const [Color(0x12FFFFFF), Color(0x00FFFFFF)],
+          glass.topLeft + const Offset(3, 0),
+          const [Color(0x0EFFFFFF), Color(0x00FFFFFF)],
         ),
     );
     canvas.restore();
@@ -610,8 +626,8 @@ class _MeterPainter extends CustomPainter {
       if (f.lift) {
         final s = slot(f.grain!.i);
         p = Offset(
-          s.dx + math.sin(f.phase * 20 + u * 3) * 4 * u,
-          s.dy - (s.dy - glass.top + 30) * _ease(u),
+          s.dx + math.sin(f.phase * 20 + u * 3) * 3 * u,
+          s.dy - (s.dy - glass.top + 18) * _ease(u),
         );
         a = 1 - u;
       } else {
@@ -636,8 +652,8 @@ class _MeterPainter extends CustomPainter {
         ui.PointMode.points,
         pts,
         Paint()
-          ..color = colour.withValues(alpha: 0.10 * band / 3)
-          ..strokeWidth = 4.2
+          ..color = colour.withValues(alpha: 0.08 * band / 3)
+          ..strokeWidth = 2.8
           ..strokeCap = StrokeCap.round,
       );
       canvas.drawRawPoints(
@@ -645,32 +661,33 @@ class _MeterPainter extends CustomPainter {
         pts,
         Paint()
           ..color = colour.withValues(alpha: band / 3)
-          ..strokeWidth = 1.7
+          ..strokeWidth = 1.3
           ..strokeCap = StrokeCap.round,
       );
     }
 
     // The bead at the top: brightens as it fills, breathes when full.
-    final b = 0.35 + 0.65 * shownFill;
-    if (shownFill > 0.05) {
+    final b = 0.25 + 0.35 * shownFill + 0.4 * near;
+    if (near > 0 || breath > 0) {
+      final halo = 6 + 6 * near + 5 * breath;
       canvas.drawCircle(
         cap,
-        10 + 10 * shownFill + 8 * breath,
+        halo,
         Paint()
           ..blendMode = BlendMode.plus
-          ..shader = ui.Gradient.radial(cap, 10 + 10 * shownFill + 8 * breath, [
-            Color.fromRGBO(226, 201, 143, 0.12 + 0.25 * shownFill + 0.2 * breath),
+          ..shader = ui.Gradient.radial(cap, halo, [
+            Color.fromRGBO(226, 201, 143, 0.2 * near + 0.2 * breath),
             const Color(0x00E2C98F),
           ]),
       );
     }
     canvas.drawCircle(
       cap,
-      4,
+      2.6,
       Paint()
         ..shader = ui.Gradient.radial(
-          cap - const Offset(1, 1.4),
-          4.4,
+          cap - const Offset(0.7, 0.9),
+          2.9,
           [
             Color.fromRGBO(255, 244, 214, 0.45 + 0.55 * b),
             Color.fromRGBO(205, 176, 122, 0.55 + 0.4 * b),
@@ -681,8 +698,6 @@ class _MeterPainter extends CustomPainter {
     );
     canvas.restore();
   }
-
-  int _capacityGuess() => 3 * math.max(8, ((glass.height - 10) / 2.9).floor());
 
   @override
   bool shouldRepaint(_MeterPainter old) => true;

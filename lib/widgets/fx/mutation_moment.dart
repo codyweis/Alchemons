@@ -140,15 +140,17 @@ class _MutationMomentState extends State<_MutationMoment>
 
     if (glass != null) {
       // The meter's grains, from where they stood (filled from the foot).
-      final count = (fill * glass.height / 2.9 * 3).round();
+      const across = kMeterPerRow;
+      final count = (fill * (glass.height - 8) / kMeterRowStep * across).round();
       for (var i = 0; i < count; i++) {
-        final row = i ~/ 3;
-        final y = glass.bottom - 5 - row * 2.9;
-        final x = glass.left + 2.5 + ((i % 3) + 0.5) * (glass.width - 5) / 3;
+        final row = i ~/ across;
+        final y = glass.bottom - 4 - row * kMeterRowStep;
+        final x =
+            glass.left + 1.5 + ((i % across) + 0.5) * (glass.width - 3) / across;
         add(Offset(x, y), 0.3 + (1 - i / math.max(1, count)) * 0.5, fromGlass: true);
       }
       // More of its light behind them, so even a near-empty meter pours.
-      final cap = Offset(glass.center.dx, glass.top - 7);
+      final cap = Offset(glass.center.dx, glass.top - 5);
       for (var i = 0; i < 140; i++) {
         add(
           cap + Offset(_rng.nextDouble() * 6 - 3, _rng.nextDouble() * 10),
