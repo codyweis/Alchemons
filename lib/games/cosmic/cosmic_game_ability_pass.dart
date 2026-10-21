@@ -23,6 +23,13 @@ extension CosmicAbilityPass on CosmicGame {
       if (effect == AbilityEffectKind.none || enemy.dead) return;
       final from = origin ?? projectile.position;
       final power = CosmicAbilityRuntime.projectileEffectPower(projectile);
+      // A battle's (cosmic_game_battle_status.dart): a burn lingers, and a
+      // poison's harm comes over time rather than now.
+      if (effect == AbilityEffectKind.burn) _battleBurn(enemy);
+      if (effect == AbilityEffectKind.poison &&
+          _battlePoison(enemy, power, projectile.sourceSlotIndex)) {
+        return;
+      }
       final radius = CosmicAbilityRuntime.projectileEffectRadius(
         projectile,
         fallbackRadius: 90.0,
@@ -628,7 +635,14 @@ extension CosmicAbilityPass on CosmicGame {
       switch (element) {
         case 'Poison':
           enemy.applySlow(0.72, 2.2);
-          enemy.health -= projectile.damage * 0.20;
+          // A battle's poison comes over time.
+          if (!_battlePoison(
+            enemy,
+            projectile.damage * 0.20,
+            projectile.sourceSlotIndex,
+          )) {
+            enemy.health -= projectile.damage * 0.20;
+          }
           break;
         case 'Earth':
           healCompanionOrShip(projectile.damage * 0.26);
@@ -1342,6 +1356,8 @@ extension CosmicAbilityPass on CosmicGame {
           final wasAlive = enemy.health > 0 && !enemy.dead;
           final healthBefore = enemy.health;
           enemy.health -= p.damage;
+          // A battle's: a Fire or Lava ability (not a basic) burns.
+          if (p.abilityFamily.isNotEmpty) _battleAbilityHit(enemy, p.element);
           final killedByBase = wasAlive && enemy.health <= 0;
           resolveAbilityHit(p, enemy, killed: killedByBase);
           if (p.piercing) resolveAbilityPierce(p, enemy);

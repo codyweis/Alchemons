@@ -5289,6 +5289,14 @@ const Map<String, double> kSpecialBalanceTrim = {
   'mane/Earth': 0.88, // 3.6x → 2.7x (boss)
 };
 
+/// The scatter a cast draws while it is built ([createCosmicSpecialAbility]'s
+/// `rng`): a live battle's guest builds the host's cast again from the
+/// host's seed, so its shards and traps land where the host's did.
+Random? _specialCastRng;
+
+/// [_specialCastRng], or a fresh scatter.
+Random _castScatter() => _specialCastRng ?? Random();
+
 CosmicSpecialResult createCosmicSpecialAbility({
   required Offset origin,
   required double baseAngle,
@@ -5306,6 +5314,45 @@ CosmicSpecialResult createCosmicSpecialAbility({
   /// which keep climbing past 95.
   double casterBeautyPotential = 50,
   Offset? targetPos,
+
+  /// Where the cast's scatter comes from; null is a fresh one.
+  Random? rng,
+}) {
+  final was = _specialCastRng;
+  _specialCastRng = rng;
+  try {
+    return _buildCosmicSpecialAbility(
+      origin: origin,
+      baseAngle: baseAngle,
+      family: family,
+      element: element,
+      damage: damage,
+      maxHp: maxHp,
+      casterPower: casterPower,
+      casterBeauty: casterBeauty,
+      casterIntelligence: casterIntelligence,
+      casterStrength: casterStrength,
+      casterBeautyPotential: casterBeautyPotential,
+      targetPos: targetPos,
+    );
+  } finally {
+    _specialCastRng = was;
+  }
+}
+
+CosmicSpecialResult _buildCosmicSpecialAbility({
+  required Offset origin,
+  required double baseAngle,
+  required String family,
+  required String element,
+  required double damage,
+  required int maxHp,
+  required double casterPower,
+  required double casterBeauty,
+  required double casterIntelligence,
+  required double casterStrength,
+  required double casterBeautyPotential,
+  required Offset? targetPos,
 }) {
   damage *= kSpecialBalanceTrim['${family.toLowerCase()}/$element'] ?? 1.0;
   CosmicSpecialResult rawResult;
@@ -7323,7 +7370,7 @@ CosmicSpecialResult _wingSpecial(
 
     case 'Dust':
       // Sandblast: 9 fast scattered shards
-      final rng = Random();
+      final rng = _castScatter();
       for (var i = 0; i < scaledCount(9, min: 6, max: 11); i++) {
         final a = baseAngle + (rng.nextDouble() - 0.5) * 1.1;
         projs.add(
@@ -9753,7 +9800,7 @@ CosmicSpecialResult _maskSpecial(
   // elements (Spirit collectible-wisps, Plant growing-vine, etc.)
   // require survival-side custom hooks; those are spawned here
   // with the right shape and consumed by the survival update loop.
-  final rng = Random();
+  final rng = _castScatter();
   final projs = <Projectile>[];
 
   // How many fixtures hit the floor is Mask's coverage, so Beauty owns it

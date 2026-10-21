@@ -1,8 +1,9 @@
 // Free battles from the Trials: the header's BATTLE beside RACES and GEMS
 // opens the battle hub's page (the arena live, your four, the computer's
-// four, the record, BATTLE), locked until the Silver Cup is won as the gem
-// cups are. The first time a battle is opened — there, in the debug hub or
-// at the Emerald Cup's ladder — the rules come up once, and never again.
+// four, the record, BATTLE). It shows only with the developer tools on
+// (the author, 2026-10-21). The first time a battle is opened — there, in
+// the debug hub or at the Emerald Cup's ladder — the rules come up once,
+// and never again.
 
 import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/providers/audio_provider.dart';
@@ -10,6 +11,7 @@ import 'package:alchemons/providers/selected_party.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/battle/battle_hub_screen.dart';
 import 'package:alchemons/screens/stadium/stadium_screen.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
@@ -46,12 +48,15 @@ void main() {
     WidgetTester tester, {
     required String progress,
     Widget home = const StadiumScreen(),
+    bool debug = true,
   }) async {
     tester.view.physicalSize = kLobbyPhysical;
     tester.view.devicePixelRatio = kLobbyDpr;
     addTearDown(tester.view.reset);
     final save = await LobbySave.create(tester);
     SharedPreferences.setMockInitialValues({RaceProgress.prefsKey: progress});
+    await tester.runAsync(() => DebugSettingsService().setEnabled(debug));
+    addTearDown(() => DebugSettingsService().setEnabled(false));
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -78,18 +83,27 @@ void main() {
   Future<bool> seen(WidgetTester tester, LobbySave save) async =>
       (await tester.runAsync(save.db.settingsDao.hasSeenBattleHowTo))!;
 
-  testWidgets('BATTLE waits for the Silver Cup, and says so', (tester) async {
-    final save = await open(tester, progress: '{"copper":3,"silver":1}');
+  testWidgets('BATTLE shows only with the developer tools on', (tester) async {
+    final save = await open(
+      tester,
+      progress: '{"copper":3,"silver":3}',
+      debug: false,
+    );
     expect(find.text('RACES'), findsOneWidget);
     expect(find.text('GEMS'), findsOneWidget);
+    expect(find.text('BATTLE'), findsNothing);
+    // Turned on: there at once.
+    await tester.runAsync(() => DebugSettingsService().setEnabled(true));
+    await settleLobby(tester, 4);
     await tester.tap(find.text('BATTLE'));
     await settleLobby(tester, 16);
-    expect(find.text('Win the Silver Cup to open battles.'), findsOneWidget);
-    expect(find.text('LOCKED'), findsOneWidget);
-    expect(find.text('YOUR FOUR'), findsOneWidget);
-    // Nothing to fight yet, so no rules either.
-    expect(_rulesShown(), isFalse);
-    expect(await seen(tester, save), isFalse);
+    if (_rulesShown()) await _readRules(tester);
+    expect(find.text('AGAINST THE COMPUTER'), findsOneWidget);
+    // Turned off while on it: back to the cups, and BATTLE gone.
+    await tester.runAsync(() => DebugSettingsService().setEnabled(false));
+    await settleLobby(tester, 16);
+    expect(find.text('BATTLE'), findsNothing);
+    expect(find.text('AGAINST THE COMPUTER'), findsNothing);
     await save.dispose(tester);
   });
 

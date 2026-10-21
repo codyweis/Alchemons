@@ -488,15 +488,23 @@ class RealmAir {
   }
 
   /// Sends realm [realm]'s grains, starting at [at] (the air's clock),
-  /// each to a point [target] picks for it.
-  void gather(int realm, double at, Offset Function(math.Random) target) {
+  /// each to a point [target] picks for it: each sets off within [spread]
+  /// seconds and takes [duration] to [duration] + [durationSpread].
+  void gather(
+    int realm,
+    double at,
+    Offset Function(math.Random) target, {
+    double spread = 0.9,
+    double duration = 1.9,
+    double durationSpread = 0.8,
+  }) {
     for (var i = 0; i < _n; i++) {
       if (_realm[i] != realm || _go[i] >= 0) continue;
       final p = target(_rng);
       _tx[i] = p.dx;
       _ty[i] = p.dy;
-      _go[i] = at + 0.9 * _rng.nextDouble();
-      _dur[i] = 1.9 + 0.8 * _rng.nextDouble();
+      _go[i] = at + spread * _rng.nextDouble();
+      _dur[i] = duration + durationSpread * _rng.nextDouble();
       _curl[i] = (0.25 + 0.5 * _rng.nextDouble());
     }
   }

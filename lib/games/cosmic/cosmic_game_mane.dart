@@ -71,9 +71,9 @@ extension CosmicMane on CosmicGame {
           scatterCenter: ship.pos,
           scatterRadius: max(
             220.0,
-            min(520.0, max(size.x, size.y) / max(0.7, _currentZoom) * 0.42),
+            min(520.0, _maneLightningScatterView * 0.42),
           ),
-          rng: _rng,
+          rng: _castRng ?? _rng,
           clamp: (p) => Offset(
             p.dx.clamp(64.0, world_.worldSize.width - 64.0).toDouble(),
             p.dy.clamp(64.0, world_.worldSize.height - 64.0).toDouble(),
@@ -85,6 +85,13 @@ extension CosmicMane on CosmicGame {
           ..addAll(orbs);
     }
   }
+
+  /// How much of the world the screen shows, which sets how far a
+  /// Lightning cast scatters its orbs. A battle's is fixed, so the scatter
+  /// is the same on every phone and at every zoom.
+  double get _maneLightningScatterView => _battle != null
+      ? kBattleFixedView
+      : max(size.x, size.y) / max(0.7, _currentZoom);
 
   /// A Lightning orb flying to its landing point, where it blooms into a
   /// shock field. True while it is one (it takes no other movement).

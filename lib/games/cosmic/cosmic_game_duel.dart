@@ -74,6 +74,13 @@ class _CombatBody {
   double passHealth = _kCombatBodyHealth;
 
   double mudTrailTimer = 0;
+
+  /// A battle's, for the pass: a Fire or Lava ability landed (its creature
+  /// burns), and the poison it was dealt, which comes over time, and from
+  /// whom (cosmic_game_battle_status.dart).
+  bool burned = false;
+  double poisoned = 0;
+  int? poisonedBy;
 }
 
 /// The wild Alchemon's side of the fight: what it has in flight and the
@@ -243,9 +250,12 @@ extension CosmicDuel on CosmicGame {
     _CombatBody cb,
     CosmicCompanion comp, {
     List<Projectile>? pool,
+
+    /// A battle's matchup: how much harder the blows land, by element.
+    double scale = 1,
   }) {
     final body = cb.body;
-    final taken = _takenBy(cb);
+    final taken = _takenBy(cb) * scale;
     body
       ..health = _kCombatBodyHealth
       ..dead = false;

@@ -28,6 +28,7 @@ import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/stadium/gem_cups.dart' show GemProgress;
 import 'package:alchemons/games/stadium/race_cups.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart' show premiumHomeColor;
 import 'package:alchemons/models/faction.dart';
@@ -38,12 +39,14 @@ import 'package:alchemons/screens/friends/friend_best_run.dart';
 import 'package:alchemons/screens/friends/friend_home_screen.dart';
 import 'package:alchemons/screens/friends/friend_trials.dart';
 import 'package:alchemons/screens/friends/trade_screen.dart';
+import 'package:alchemons/screens/battle/battle_lobby_screen.dart';
 import 'package:alchemons/screens/stadium/race_lobby_screen.dart';
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/services/battle_room_service.dart';
 import 'package:alchemons/services/race_room_service.dart';
 import 'package:alchemons/services/trade_service.dart';
 import 'package:alchemons/utils/app_scaffold_messenger.dart';
@@ -563,14 +566,7 @@ class _FriendPlanetScreenState extends State<FriendPlanetScreen> {
                         const SizedBox(height: 12),
                       ],
                       FriendTrialsRow(friend: friend),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _TradeButton(friend: friend, accent: accent),
-                          ),
-                          _RaceButton(friend: friend, accent: accent),
-                        ],
-                      ),
+                      _FriendActions(friend: friend, accent: accent),
                       const SizedBox(height: 12),
                       AnimatedSwitcher(
                         duration: const Duration(milliseconds: 300),
@@ -692,11 +688,124 @@ class _FeaturedAlchemon extends StatelessWidget {
 /// RACE: a race with this friend — for a player who has found the
 /// Trials. Opens a lobby with them asked in, on the course this player is
 /// racing for.
-class _RaceButton extends StatefulWidget {
-  const _RaceButton({required this.friend, required this.accent});
+/// TRADE · FUSE and RACE in a row; once battles are open (the Silver Cup
+/// won), TRADE · FUSE over RACE and BATTLE side by side.
+class _FriendActions extends StatefulWidget {
+  const _FriendActions({required this.friend, required this.accent});
 
   final FriendCard friend;
   final Color accent;
+
+  @override
+  State<_FriendActions> createState() => _FriendActionsState();
+}
+
+class _FriendActionsState extends State<_FriendActions> {
+  bool _battlesOpen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_read());
+  }
+
+  Future<void> _read() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final progress = RaceProgress.deserialise(
+        prefs.getString(RaceProgress.prefsKey),
+      );
+      final open =
+          progress.gemOpen(0) || await DebugSettingsService().isEnabled();
+      if (mounted && open) setState(() => _battlesOpen = true);
+    } catch (_) {}
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final battles = context.watch<BattleRoomService?>();
+    final trade = _TradeButton(friend: widget.friend, accent: widget.accent);
+    if (!_battlesOpen || battles == null || !battles.available) {
+      return Row(
+        children: [
+          Expanded(child: trade),
+          _RaceButton(friend: widget.friend, accent: widget.accent),
+        ],
+      );
+    }
+    return Column(
+      children: [
+        trade,
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _RaceButton(
+                friend: widget.friend,
+                accent: widget.accent,
+                wide: true,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _BattleButton(
+                friend: widget.friend,
+                accent: widget.accent,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// BATTLE: a room in this player's arena with the friend asked in.
+class _BattleButton extends StatefulWidget {
+  const _BattleButton({required this.friend, required this.accent});
+
+  final FriendCard friend;
+  final Color accent;
+
+  @override
+  State<_BattleButton> createState() => _BattleButtonState();
+}
+
+class _BattleButtonState extends State<_BattleButton> {
+  bool _opening = false;
+
+  Future<void> _battle() async {
+    if (_opening) return;
+    setState(() => _opening = true);
+    HapticFeedback.selectionClick();
+    await BattleLobbyScreen.host(context, invite: widget.friend);
+    if (mounted) setState(() => _opening = false);
+  }
+
+  @override
+  Widget build(BuildContext context) => BracketButton(
+    key: const ValueKey('friend.battle'),
+    label: 'BATTLE',
+    height: 42,
+    palette: _palette,
+    accent: widget.accent,
+    enabled: !_opening,
+    onTap: _battle,
+  );
+}
+
+class _RaceButton extends StatefulWidget {
+  const _RaceButton({
+    required this.friend,
+    required this.accent,
+    this.wide = false,
+  });
+
+  final FriendCard friend;
+  final Color accent;
+
+  /// Filling its place (beside BATTLE), not a set width beside TRADE.
+  final bool wide;
 
   @override
   State<_RaceButton> createState() => _RaceButtonState();
@@ -755,19 +864,18 @@ class _RaceButtonState extends State<_RaceButton> {
     }
     // Always open (the author, 2026-10-13: it "looks disabled"): a friend
     // away finds the invitation waiting on their Trials when they come in.
+    final button = BracketButton(
+      label: 'RACE',
+      height: 42,
+      palette: _palette,
+      accent: widget.accent,
+      enabled: !_opening,
+      onTap: _race,
+    );
+    if (widget.wide) return button;
     return Padding(
       padding: const EdgeInsets.only(left: 10),
-      child: SizedBox(
-        width: 130,
-        child: BracketButton(
-          label: 'RACE',
-          height: 42,
-          palette: _palette,
-          accent: widget.accent,
-          enabled: !_opening,
-          onTap: _race,
-        ),
-      ),
+      child: SizedBox(width: 130, child: button),
     );
   }
 }

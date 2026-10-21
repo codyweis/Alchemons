@@ -47,6 +47,8 @@ import 'works.dart';
 import 'works_art.dart';
 import 'package:alchemons/games/stadium/stadium_space_art.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
+import 'package:alchemons/games/shared/battle_typing.dart';
+import 'package:alchemons/games/shared/burn_healing.dart';
 import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 import 'package:alchemons/systems/effects/effect.dart';
@@ -63,6 +65,7 @@ import 'package:alchemons/widgets/fx/fusion_particles.dart'
     show GrainBatch, SpecimenGrains;
 import 'package:alchemons/widgets/fx/variant_look.dart';
 import 'battle_arena_art.dart';
+import 'battle_wire.dart';
 
 part 'cosmic_game_helpers.dart';
 part 'cosmic_game_components.dart';
@@ -78,6 +81,8 @@ part 'cosmic_game_combat_actions.dart';
 part 'cosmic_game_ability_pass.dart';
 part 'cosmic_game_duel.dart';
 part 'cosmic_game_battle.dart';
+part 'cosmic_game_battle_live.dart';
+part 'cosmic_game_battle_status.dart';
 part 'cosmic_game_wing.dart';
 part 'cosmic_game_horn.dart';
 part 'cosmic_game_kin.dart';
@@ -425,6 +430,11 @@ class CosmicGame extends FlameGame with PanDetector {
   /// The player-against-player fight this game is running, if it is one
   /// (cosmic_game_battle.dart). While it runs the open world stands still.
   CosmicBattle? _battle;
+
+  /// A battle cast's own scatter while it is cast: seeded by the host, so
+  /// a live battle's guest casts it again the same (cosmic_game_battle_live
+  /// .dart). Null everywhere else.
+  Random? _castRng;
   bool _onWildSideNow = false;
 
   // Wild Alchemons drifting in space — see cosmic_game_wild.dart.
@@ -2179,9 +2189,14 @@ class CosmicGame extends FlameGame with PanDetector {
     double damage, {
     String? element,
     int? sourceSlot,
+
+    /// False for a basic attack (a Kin's laser): it does not burn.
+    bool ability = true,
   }) {
     if (enemy.dead) return false;
     final standIn = _combatBodies[enemy];
+    // A battle's: a Fire or Lava ability burns what it lands on.
+    if (ability && sourceSlot != null) _battleAbilityHit(enemy, element);
     if (standIn != null && standIn.carriesHealth) {
       // A battle's body: it can fall, but no one hit takes more than an
       // instant kill would (cosmic_game_duel.dart).
@@ -2245,9 +2260,17 @@ class CosmicGame extends FlameGame with PanDetector {
     Offset origin,
     double power,
     double radius,
-    double duration,
-  ) {
+    double duration, {
+    int? slot,
+  }) {
     if (effect == AbilityEffectKind.none || enemy.dead) return;
+    // A battle's (cosmic_game_battle_status.dart): a burn lingers, and a
+    // poison's harm comes over time rather than now.
+    if (effect == AbilityEffectKind.burn) _battleBurn(enemy);
+    if (effect == AbilityEffectKind.poison &&
+        _battlePoison(enemy, power, slot)) {
+      return;
+    }
     switch (effect) {
       case AbilityEffectKind.knockback:
         _knockOpenEnemy(

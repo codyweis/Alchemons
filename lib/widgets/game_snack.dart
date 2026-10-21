@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:alchemons/utils/app_scaffold_messenger.dart';
 import 'package:alchemons/widgets/creature_detail/forge_tokens.dart';
 import 'package:flutter/material.dart';
 
@@ -34,6 +35,16 @@ const double kSnackTopGap = 12;
 /// stays generous: too small clips them off the screen, too large only sits
 /// them lower.
 const double kSnackHeight = 140;
+
+/// [message] wherever the player is by now: for what comes back after the
+/// screen that started it has gone (a write the server refused, while the
+/// player had already moved on — screens never wait on the network).
+void showGameSnackAnywhere(String message, {Color? accent}) {
+  final nav = rootNavigatorKey.currentState;
+  final overlay = nav?.overlay;
+  if (nav == null || overlay == null) return;
+  showGameSnack(nav.context, message, overlay: overlay, accent: accent);
+}
 
 void showGameSnack(
   BuildContext context,

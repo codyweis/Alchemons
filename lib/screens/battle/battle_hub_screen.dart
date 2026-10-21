@@ -7,13 +7,16 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/models/battle_arenas.dart';
 import 'package:alchemons/models/battle_record.dart';
+import 'package:alchemons/models/battle_room.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/screens/battle/battle_how_to.dart';
+import 'package:alchemons/screens/battle/battle_lobby_screen.dart';
 import 'package:alchemons/screens/battle/battle_screen.dart';
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/screens/stadium/racer_gate.dart' show stadiumSprite;
 import 'package:alchemons/screens/stadium/stadium_screen.dart'
     show stadiumMemberOf;
+import 'package:alchemons/services/battle_room_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -34,7 +37,8 @@ import 'package:provider/provider.dart';
 //
 //  Where a battle is set up: the arena you host in, shown live (the free
 //  one or any bought; one not yet owned can be bought here), the four you
-//  bring, the four the computer brings to match them, your record, BATTLE.
+//  bring, the four the computer brings to match them, your record, BATTLE —
+//  or WITH A FRIEND, live (battle_lobby_screen.dart).
 //  The page is [BattleHubPanel]: the Trials show it under their BATTLE, the
 //  developer tools under this screen's header.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -363,6 +367,11 @@ class _BattleHubPanelState extends State<BattleHubPanel> {
     final size = MediaQuery.sizeOf(context);
     final arena = battleArenaOf(_arena);
     final shut = widget.shut;
+    // Battling a friend, live: for a player signed in with friends.
+    final rooms = context.watch<BattleRoomService?>();
+    final withFriends = shut == null && rooms != null && rooms.available;
+    final invites = withFriends ? rooms.invites : const <BattleRoom>[];
+    final invite = invites.isEmpty ? null : invites.first;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -403,21 +412,131 @@ class _BattleHubPanelState extends State<BattleHubPanel> {
               style: bracketText(context, 12.5, _ink.withValues(alpha: .8)),
             ),
           ),
+        if (invite != null && rooms != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: _inviteSlip(context, rooms, invite),
+          ),
         Padding(
           padding: widget.buttonPadding,
-          child: BracketButton(
-            key: const ValueKey('battle.start'),
-            label: shut != null ? 'LOCKED' : 'BATTLE',
-            enabled: _team.isNotEmpty && shut == null,
-            onTap: _battle,
-            palette: BracketPalette.dark,
-            accent: kBattleBrass,
-            height: widget.buttonHeight,
+          child: Row(
+            children: [
+              if (withFriends) ...[
+                Expanded(
+                  child: BracketButton(
+                    key: const ValueKey('battle.friend'),
+                    label: 'WITH A FRIEND',
+                    enabled: !_starting,
+                    onTap: _withFriend,
+                    palette: BracketPalette.dark,
+                    accent: kBattleBrass,
+                    primary: false,
+                    height: widget.buttonHeight,
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: BracketButton(
+                  key: const ValueKey('battle.start'),
+                  label: shut != null ? 'LOCKED' : 'BATTLE',
+                  enabled: _team.isNotEmpty && shut == null,
+                  onTap: _battle,
+                  palette: BracketPalette.dark,
+                  accent: kBattleBrass,
+                  height: widget.buttonHeight,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
+
+  /// WITH A FRIEND: a room in your arena, and its lobby (INVITE there).
+  Future<void> _withFriend() async {
+    if (_starting) return;
+    _starting = true;
+    try {
+      HapticFeedback.selectionClick();
+      await BattleLobbyScreen.host(context);
+      if (mounted) {
+        widget.afterBattle?.call();
+        await _load();
+      }
+    } finally {
+      _starting = false;
+    }
+  }
+
+  /// A friend's invitation to battle, waiting: JOIN or DECLINE.
+  Widget _inviteSlip(
+    BuildContext context,
+    BattleRoomService rooms,
+    BattleRoom room,
+  ) => CustomPaint(
+    foregroundPainter: BracketFramePainter(
+      color: kBattleBrass.withValues(alpha: 0.6),
+    ),
+    child: Container(
+      color: _bg1,
+      padding: const EdgeInsets.fromLTRB(12, 4, 4, 4),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              '${room.nameOf(room.host).toUpperCase()} ASKS YOU TO BATTLE',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: bracketText(
+                context,
+                10,
+                _ink,
+                weight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          for (final (label, join) in const [
+            ('DECLINE', false),
+            ('JOIN', true),
+          ])
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () async {
+                HapticFeedback.selectionClick();
+                if (!join) {
+                  await rooms.decline(room);
+                  return;
+                }
+                await BattleLobbyScreen.open(context, room.id);
+                if (mounted) {
+                  widget.afterBattle?.call();
+                  await _load();
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                child: Text(
+                  label,
+                  style: bracketText(
+                    context,
+                    10,
+                    join ? kBattleBrass : _muted,
+                    weight: FontWeight.w800,
+                    letterSpacing: 1.6,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    ),
+  );
 
   Widget _label(
     BuildContext context,

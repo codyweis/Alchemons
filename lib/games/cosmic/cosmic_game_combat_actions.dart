@@ -119,6 +119,7 @@ extension CosmicCombatActions on CosmicGame {
       casterStrength: comp.member.statStrength.toDouble(),
       casterBeautyPotential: comp.member.statBeautyPotential,
       targetPos: targetPos,
+      rng: _castRng,
     );
     _tagSource(result.projectiles, comp.member.slotIndex);
     if (comp.member.family.toLowerCase() == 'horn') {

@@ -793,7 +793,13 @@ extension CosmicKin on CosmicGame {
           enemy.radius + KinLaser.lateral) {
         continue;
       }
-      _damageOpenEnemy(enemy, damage, element: element, sourceSlot: sourceSlot);
+      _damageOpenEnemy(
+        enemy,
+        damage,
+        element: element,
+        sourceSlot: sourceSlot,
+        ability: false,
+      );
       _spawnHitSpark(enemy.position, color);
       if (!enemy.dead &&
           !enemy.provoked &&

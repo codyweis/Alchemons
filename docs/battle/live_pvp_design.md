@@ -1,6 +1,47 @@
 # Live friend PvP battle — design (2026-10-21)
 
-Research only when written; no PvP code exists yet.
+**Phase 1 built 2026-10-21, not yet played on two phones.** The defaults
+below were confirmed by the user. Where the build differs from this design:
+
+- **Mirroring** happens at the link (`BattlePacket.mirrored()`). The random
+  scatter at cast time (Mask traps, Dust Wing shards, Lightning Mane orbs) is
+  laid out by angle from the cast, so a seed plus the mirrored angle lands in
+  the same place.
+- **The playback timeline is the host's real clock.** Each sample carries the
+  fight clock and the slow-motion factor, so the end's slow motion plays out on
+  the guest too.
+- **Snapshots own the replica every frame.** Health, shields, positions,
+  cooldowns and life are written back after the replica's local step, so
+  local hits and heals can't flicker.
+- **The guest's roster comes from the snapshots**, not from events: who
+  stands where, falls and swaps. Events draw specials and the phoenix, and
+  carry the end (with the DETAILS breakdown).
+- **Leaving the room mid-fight** counts as leaving the fight. A guest who
+  leaves the room concedes, and if the host closes the room the guest wins.
+  The room's `result` backs up the stream's end event.
+
+Where the code is:
+
+- Wire format, tape and playback: `lib/games/cosmic/battle_wire.dart`
+- Links (away, waiting, no contest): `lib/games/cosmic/battle_link.dart`
+- Host and replica hooks: `cosmic_game_battle_live.dart`
+- Room model: `lib/models/battle_room.dart`
+- Room service: `lib/services/battle_room_service.dart`
+- Screen link: `lib/screens/battle/battle_live.dart`
+- Lobby: `lib/screens/battle/battle_lobby_screen.dart`
+- Rules: `battle_rooms` in `firestore.rules`, not deployed yet. Their test is
+  `functions/test/battle_rooms_rules.test.cjs`, which needs the emulator.
+- Tests: `test/battle_live_test.dart`, `battle_room_test.dart` and
+  `battle_lobby_test.dart`
+- Film: `test/battle_live_preview_test.dart` →
+  `docs/battle/live_two_phones.mp4`
+
+On the fake network (150–450 ms delay), the guest stood 0.05 px from the
+host's positions typically and 1.0 px at the 95th percentile. With 20% of
+packets lost it was 2.1 px. Health matched exactly, and every special was
+redrawn.
+
+The rest of this file is the design as written before the build.
 
 **Line numbers are at `39e2dc71`, before the battle-readiness work.** That
 work has since landed: the Trials have a BATTLE tab (gated after Silver), a

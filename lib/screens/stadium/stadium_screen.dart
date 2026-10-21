@@ -254,10 +254,13 @@ class _StadiumScreenState extends State<StadiumScreen>
   bool _gems = false;
   int _gem = 0, _bout = 0;
 
-  /// Showing BATTLE: free battles against the computer, the battle hub's
-  /// page (battle_hub_screen.dart), open once the Silver Cup is won, as the
-  /// gem cups are.
+  /// Showing BATTLE: free battles against the computer and with a friend,
+  /// the battle hub's page (battle_hub_screen.dart). Only with the
+  /// developer tools on (the author, 2026-10-21); players battle in the
+  /// Emerald Cup and from a friend's page.
   bool _battle = false;
+
+  bool get _battleShown => DebugSettingsService.toolsVisible;
 
   /// The four the Emerald Cup's battle ladder is fought with (the battle
   /// hub's), and each round's set team, built once.
@@ -293,16 +296,26 @@ class _StadiumScreenState extends State<StadiumScreen>
     super.initState();
     _ticker = createTicker((e) => _clock.value = e.inMicroseconds / 1e6)
       ..start();
+    DebugSettingsService.enabledNotifier.addListener(_debugChanged);
     _load();
     unawaited(context.read<AudioController?>()?.playStadiumMusic());
   }
 
   @override
   void dispose() {
+    DebugSettingsService.enabledNotifier.removeListener(_debugChanged);
     _ticker.dispose();
     _clock.dispose();
     _flying.dispose();
     super.dispose();
+  }
+
+  /// The developer tools turned on or off: BATTLE shows, or goes.
+  void _debugChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (!_battleShown) _battle = false;
+    });
   }
 
   Future<void> _load() async {
@@ -605,7 +618,7 @@ class _StadiumScreenState extends State<StadiumScreen>
                           fit: StackFit.expand,
                           children: [...previous, ?current],
                         ),
-                        child: _battle
+                        child: _battle && _battleShown
                             ? KeyedSubtree(
                                 key: const ValueKey('trials.battle'),
                                 child: _battlePage(context, size),
@@ -808,8 +821,9 @@ class _StadiumScreenState extends State<StadiumScreen>
       children: [
         side('RACES', false),
         side('GEMS', true),
-        // Battles need a save to keep the four and the record in.
-        if (context.read<AlchemonsDatabase?>() != null)
+        // Battles need a save to keep the four and the record in, and show
+        // here only with the developer tools on.
+        if (_battleShown && context.read<AlchemonsDatabase?>() != null)
           side('BATTLE', _gems, battle: true),
       ],
     );

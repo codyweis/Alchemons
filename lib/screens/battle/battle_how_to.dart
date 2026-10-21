@@ -8,13 +8,15 @@
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart'
     show kBattleOvertime, kBattleSwaps, kBattleTimeLimit;
+import 'package:alchemons/games/shared/battle_typing.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-/// The rules, a page each: the field, the bench, the clock.
+/// The rules, a page each: the field, the bench, the elements, the clock.
 List<StoryBeat> get battleHowToBeats {
   final overtime = (kBattleTimeLimit - kBattleOvertime.at).round();
+  final harder = ((kBattleTypeStrong - 1) * 100).round();
   return [
     const StoryBeat(
       title: 'BATTLE',
@@ -31,6 +33,17 @@ List<StoryBeat> get battleHowToBeats {
           'You have $kBattleSwaps swaps a fight.\n\n'
           'When one of yours falls, the healthiest on the bench takes its '
           'place. If both on your field are down at once, you lose.',
+    ),
+    StoryBeat(
+      title: 'ELEMENTS',
+      message:
+          'An element hits the ones it is strong against $harder% harder, '
+          'and the ones it is weak against softer. Each element\'s page in '
+          'the Codex says which.\n\n'
+          'Fire and Lava burn: a burning Alchemon gets half of every heal. '
+          'Poison hurts over time. A freeze holds back a special. Horns draw '
+          'attacks to them unless you have picked a target. Swapping out '
+          'ends a burn or a poison.',
     ),
     StoryBeat(
       title: 'OVERTIME',

@@ -25,6 +25,10 @@ extension CosmicMaskRuntime on CosmicGame {
   Offset get _maskFieldCenter => ship.pos;
 
   double get _maskFieldRadius {
+    // A battle's is fixed, so it is the same on every phone and zoom.
+    if (_battle != null) {
+      return (kBattleFixedView * 0.54).clamp(1140.0, 1660.0).toDouble();
+    }
     if (!hasLayout) return 1140.0;
     final view = max(size.x, size.y) / _currentZoom * 0.54;
     return view.clamp(1140.0, 1660.0).toDouble();

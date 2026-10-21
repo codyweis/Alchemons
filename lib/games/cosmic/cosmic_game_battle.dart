@@ -110,6 +110,12 @@ const double kBattleThrowRate = 14.0;
 const double kBattleLunge = 150.0;
 const double kBattleRecoil = 55.0;
 
+/// How much of the world a battle counts as on screen, for the rules that
+/// read the screen in open space (how far a Mask's field and a Lightning
+/// Mane's scatter reach): about what an upright phone shows of the floor,
+/// fixed so every phone and zoom fights the same fight.
+const double kBattleFixedView = 1240.0;
+
 /// Where the two sides start, either side of the middle.
 const double kBattleStartDepth = 330.0;
 const double kBattleSpotGap = 110.0;
@@ -166,6 +172,26 @@ class BattleCreature {
   double damageTaken = 0;
   double healing = 0;
 
+  // What lingers on it (cosmic_game_battle_status.dart).
+
+  /// Seconds it still burns: every heal it gets lands at half.
+  double burnFor = 0;
+
+  /// A poison's harm still to come: for so long, at so much a second, and
+  /// from whom (the other side's creature, by index).
+  double poisonFor = 0;
+  double poisonDps = 0;
+  double poisonCarry = 0;
+  int? poisonBy;
+
+  /// Seconds before a freeze or stun can push its special back again, and
+  /// the battle clock when one last did (for the HUD).
+  double interruptGap = 0;
+  double interruptedAt = -1;
+
+  bool get burning => burnFor > 0;
+  bool get poisoned => poisonFor > 0;
+
   /// The creature itself, while it is on the field.
   CosmicCompanion? body;
 
@@ -182,15 +208,33 @@ class BattleCreature {
 enum BattleEventKind { summon, swap, fall, phoenix, special }
 
 class BattleEvent {
-  const BattleEvent(this.at, this.side, this.kind, this.creature);
+  const BattleEvent(
+    this.at,
+    this.side,
+    this.kind,
+    this.creature, {
+    this.real = 0,
+    this.data = const [],
+  });
 
   final double at;
   final int side;
   final BattleEventKind kind;
   final int creature;
+
+  /// Real seconds since the fight began (slow motion runs the fight's
+  /// clock, [at], slower): a live battle's timeline (battle_wire.dart).
+  final double real;
+
+  /// What a live battle's guest needs to see it again: a special's
+  /// [BattleCast], a phoenix's fallen one.
+  final List<int> data;
 }
 
-enum BattleEnd { fieldEmpty, timeUp }
+/// How a fight ended: a side with nobody left on the field, the time
+/// limit, or, live (cosmic_game_battle_live.dart), a player leaving it or
+/// the host lost.
+enum BattleEnd { fieldEmpty, timeUp, conceded, noContest }
 
 class BattleResult {
   const BattleResult({required this.winner, required this.end, required this.at});
@@ -246,6 +290,10 @@ class BattleSide {
 
   /// Alchemons on their way back to the bench, drawn coming apart.
   final List<CosmicCompanion> _leaving = [];
+
+  /// A live battle's guest: the host's specials waiting for their caster's
+  /// turn, by creature (cosmic_game_battle_live.dart).
+  final Map<int, _ReplicaCast> _replicaCasts = {};
 
   /// The creature in field place [spot], if one stands there.
   BattleCreature? at(int spot) {
@@ -348,6 +396,45 @@ class CosmicBattle {
   final List<BattleEvent> log = [];
   int _frame = 0;
 
+  /// The seeds of the specials' scatter, one a cast: a live battle's guest
+  /// casts each again from its seed.
+  final Random _castSeeds = Random();
+
+  // ── live (cosmic_game_battle_live.dart) ───────────────────────────────
+
+  /// The host's: samples and events going to the guest.
+  BattleTape? tape;
+  int _logTaped = 0;
+  bool _endTaped = false;
+
+  /// How many of the guest's inputs the host has taken in.
+  int remoteApplied = 0;
+
+  /// The guest's: the host's fight played back. While it is set this
+  /// battle is a replica: it shows the host's fight and decides nothing.
+  BattlePlayback? playback;
+
+  /// A replica: what the host had taken in of this phone's inputs, as of
+  /// the fight on screen.
+  int replicaApplied = 0;
+
+  /// A replica: the host's specials cast again here.
+  int replayedCasts = 0;
+
+  /// A replica: this phone's own focus, shown at once, until the fight on
+  /// screen has the input that set it ([_predictedFor]).
+  int? _predictedFocus;
+  int _predictedFor = -1;
+
+  /// A replica: each creature's health and shield last frame, for the
+  /// floor's ripples.
+  final Map<int, int> _replicaHealth = {};
+
+  /// A replica: the step the playback last took (null before the first).
+  BattlePlaybackStep? lastStep;
+
+  bool get isReplica => playback != null;
+
   // ── who did what (the result card's breakdown) ──────────────────────────
   //
   // A side's abilities land on the other side's stand-in bodies over its
@@ -394,6 +481,12 @@ class CosmicBattle {
   /// evenly across the side that dealt it. Kept for the tests.
   double unattributed = 0;
 
+  /// How often the strategy rules came into it (cosmic_game_battle_status
+  /// .dart), for the harness and the tests: burns set, poison's harm dealt,
+  /// heals a burn cut away, interrupts, seconds an Alchemon was drawn by a
+  /// taunt, and the blows' health shifted by typing (up and down).
+  final BattleStrategyCount counts = BattleStrategyCount();
+
   bool get over => result != null;
 
   /// The bench end of [side]'s half: where a swapped-out Alchemon goes.
@@ -425,6 +518,8 @@ extension CosmicGameBattle on CosmicGame {
     bool hitGrace = false,
     String arena = 'obsidian',
     BattleOvertime overtime = kBattleOvertime,
+    BattleTape? tape,
+    BattlePlayback? replica,
   }) {
     for (final team in [home, away]) {
       if (team.isEmpty || team.length > kBattleTeamSize) {
@@ -456,6 +551,9 @@ extension CosmicGameBattle on CosmicGame {
         BattleSide._(1, away, auto: awayAuto),
       ],
     );
+    b
+      ..tape = tape
+      ..playback = replica;
     _battle = b;
     for (final side in b.sides) {
       for (var spot = 0; spot < kBattleFieldSpots; spot++) {
@@ -515,7 +613,15 @@ extension CosmicGameBattle on CosmicGame {
         : (s.spots[spot] == null ? spot : -1);
     if (empty >= 0) {
       _enterBattle(s, empty, creature);
-      b.log.add(BattleEvent(b.clock, side, BattleEventKind.summon, creature));
+      b.log.add(
+        BattleEvent(
+          b.clock,
+          side,
+          BattleEventKind.summon,
+          creature,
+          real: b._real,
+        ),
+      );
       return true;
     }
     if (spot == null || s.swapsLeft <= 0) return false;
@@ -526,7 +632,9 @@ extension CosmicGameBattle on CosmicGame {
     _leaveBattle(s, spot);
     _enterBattle(s, spot, creature);
     s.swapsLeft--;
-    b.log.add(BattleEvent(b.clock, side, BattleEventKind.swap, creature));
+    b.log.add(
+      BattleEvent(b.clock, side, BattleEventKind.swap, creature, real: b._real),
+    );
     return true;
   }
 
@@ -594,6 +702,8 @@ extension CosmicGameBattle on CosmicGame {
     c.body = null;
     side.spots[spot] = null;
     _unfocus(side, i);
+    // The bench is the cure: a burn and a poison end as it goes.
+    _clearBattleStatus(c);
   }
 
   /// The other side stops going for [side]'s creature [i]: it has left.
@@ -620,6 +730,10 @@ extension CosmicGameBattle on CosmicGame {
 
   void _updateBattle(double dt) {
     final b = _battle!;
+    if (b.isReplica) {
+      _updateReplica(b, dt);
+      return;
+    }
     dt = _battleSlowMotion(b, dt);
     _elapsed += dt;
     for (final side in b.sides) {
@@ -668,6 +782,8 @@ extension CosmicGameBattle on CosmicGame {
           );
         }
       }
+      // Poisons hurt; burns and interrupts' gaps run down.
+      _tickBattleStatus(b, dt);
       final first = b._frame.isEven ? 0 : 1;
       b._frame++;
       for (final i in [first, 1 - first]) {
@@ -686,9 +802,14 @@ extension CosmicGameBattle on CosmicGame {
       }
       _judgeBattle(b);
     }
+    _tapeBattle(b);
     _frameBattle(dt);
     _tellBattleFloor(b, dt);
-    // What is only drawn ages whoever laid it.
+    _ageBattleFx(dt);
+  }
+
+  /// What is only drawn ages, whoever laid it.
+  void _ageBattleFx(double dt) {
     _ageBeamFx(dt);
     _updateMaskVisuals(dt);
     _updateWingFlowers(dt);
@@ -714,29 +835,35 @@ extension CosmicGameBattle on CosmicGame {
   /// their shields and Kins healing (the harness, 2026-10-19).
   void _battleTurnHealed(BattleSide side, BattleSide foe, double dt) {
     final b = _battle!;
-    final share = b.healNow;
-    if (share >= 1) {
+    // A burning one's heals land at half (cosmic_game_battle_status.dart).
+    if (b.healNow >= 1 && !side.onField.any((c) => c.burning)) {
       _battleTurn(side, foe, dt);
       return;
     }
-    final before = <CosmicCompanion, (int, int)>{
+    final before = <BattleCreature, (int, int)>{
       for (final c in side.onField)
-        c.body!: (c.body!.currentHp, c.body!.shieldHp),
+        c: (c.body!.currentHp, c.body!.shieldHp),
     };
     _battleTurn(side, foe, dt);
     for (final entry in before.entries) {
-      final comp = entry.key;
+      final comp = entry.key.body;
+      if (comp == null) continue;
       final (hp, shield) = entry.value;
+      final share = _battleHealShare(entry.key);
       final gained = comp.currentHp - hp;
-      if (gained > 0) {
+      if (gained > 0 && share < 1) {
+        if (entry.key.burning) {
+          b.counts.healCut += gained * b.healNow * (1 - kBurnHealingMultiplier);
+        }
         final carry = comp.overtimeHealCarry + gained * share;
         final kept = carry.floor();
         comp.overtimeHealCarry = carry - kept;
         comp.currentHp = hp + kept;
       }
+      // Overtime trims shields too; a burn does not (a shield is no heal).
       final shielded = comp.shieldHp - shield;
-      if (shielded > 0) {
-        comp.shieldHp = shield + (shielded * share).round();
+      if (shielded > 0 && b.healNow < 1) {
+        comp.shieldHp = shield + (shielded * b.healNow).round();
       }
     }
   }
@@ -874,9 +1001,10 @@ extension CosmicGameBattle on CosmicGame {
       final hp = comp.currentHp.toDouble();
       final gained = hp - b._healFrom[i];
       if (gained > 0) {
-        // Overtime trims it once the turn is over (_battleTurnHealed).
+        // Overtime and a burn trim it once the turn is over
+        // (_battleTurnHealed).
         side.creatures[by < kBattleTeamSize ? by : i].healing +=
-            gained * b.healNow;
+            gained * _battleHealShare(side.creatures[i]);
       }
       b._healFrom[i] = hp;
     }
@@ -959,12 +1087,26 @@ extension CosmicGameBattle on CosmicGame {
     CosmicCompanion comp,
   ) {
     final focus = side.focus;
+    CosmicCompanion? focused;
     if (focus != null) {
       final body = foe.creatures[focus].body;
-      if (body != null && body.isAlive && _battleArrived(body)) {
-        side._targets[comp] = body;
-        return body;
-      }
+      if (body != null && body.isAlive && _battleArrived(body)) focused = body;
+    }
+    // A player's own pick always holds; the computer's pick, and the
+    // nearest, give way to a taunt (cosmic_game_battle_status.dart).
+    if (focused != null && !side.auto) {
+      side._targets[comp] = focused;
+      return focused;
+    }
+    final taunter = _battleTaunter(foe, comp);
+    if (taunter != null) {
+      side._targets[comp] = taunter;
+      _battle!.counts.tauntSeconds += 1 / 60;
+      return taunter;
+    }
+    if (focused != null) {
+      side._targets[comp] = focused;
+      return focused;
     }
     final held = side._targets[comp];
     CosmicCompanion? best;
@@ -995,13 +1137,20 @@ extension CosmicGameBattle on CosmicGame {
     CosmicCompanion comp,
     double dt,
   ) {
+    final b = _battle!;
+    final replica = b.isReplica;
+    // A replica casts only what the host cast, when it comes due.
+    if (replica) _replayDueCast(side, comp);
     final target = _battleTargetFor(side, foe, comp);
     if (target == null) return;
     final family = comp.member.family.toLowerCase();
 
     // A Horn special holding it (a ram, a wind-up, a brew, a Light
     // barrier), a Wing's charging beam or a Kin's gather holds it here too.
-    if (!comp.hornHoldsBody &&
+    // A replica's stand where the host's do.
+    if (replica) {
+      comp.velocity = Offset.zero;
+    } else if (!comp.hornHoldsBody &&
         !_hornLightChanneling(comp) &&
         !_heldByWingCharge(comp) &&
         !_kinHoldsBody(comp, comp.member)) {
@@ -1045,17 +1194,40 @@ extension CosmicGameBattle on CosmicGame {
           : Offset.zero;
       comp.velocity += dir * (close ? kBattleLunge : -kBattleRecoil);
     }
-    if (_companionSpecialReady(comp) && reach <= comp.specialAbilityRange) {
-      _castCompanionSpecial(comp, target.position);
+    if (!replica &&
+        _companionSpecialReady(comp) &&
+        reach <= comp.specialAbilityRange) {
+      // Its scatter from a seed of its own, so a live battle's guest casts
+      // the same (cosmic_game_battle_live.dart).
+      final cast = BattleCast(
+        origin: comp.position - b.center,
+        angle: comp.angle,
+        target: target.position - b.center,
+        seed: b._castSeeds.nextInt(1 << 30),
+      );
+      _castRng = Random(cast.seed);
+      try {
+        _castCompanionSpecial(comp, target.position);
+      } finally {
+        _castRng = null;
+      }
       final index = comp.member.slotIndex - battleSlotFor(side.index, 0);
-      final b = _battle!;
       side.creatures[index].lastSpecialAt = b.clock;
       b.floor.special(
         target.position - b.center,
         elementColor(comp.member.element),
         _elapsed,
       );
-      b.log.add(BattleEvent(b.clock, side.index, BattleEventKind.special, index));
+      b.log.add(
+        BattleEvent(
+          b.clock,
+          side.index,
+          BattleEventKind.special,
+          index,
+          real: b._real,
+          data: cast.data,
+        ),
+      );
     }
   }
 
@@ -1135,18 +1307,42 @@ extension CosmicGameBattle on CosmicGame {
     return d > 1 ? b.center + from / d : p;
   }
 
-  /// What [side]'s bodies took on the other side's turn, onto its Alchemons.
+  /// What [side]'s bodies took on the other side's turn, onto its Alchemons:
+  /// each blow as hard as its giver's element is against this one's
+  /// (cosmic_game_battle_status.dart), and what lingers.
   void _settleBattleBodies(BattleSide side) {
     final b = _battle!;
     final by = b.sides[1 - side.index];
     for (final entry in side._bodies.entries) {
       final comp = entry.key;
       if (comp.isAlive && _battleArrived(comp)) {
-        final before = comp.currentHp + comp.shieldHp;
-        _settleOnCompanion(entry.value, comp, pool: side.projectiles);
-        final lost = before - (comp.currentHp + comp.shieldHp);
         final index = comp.member.slotIndex - battleSlotFor(side.index, 0);
-        if (index >= 0 && index < side.creatures.length) {
+        final known = index >= 0 && index < side.creatures.length;
+        final before = comp.currentHp + comp.shieldHp;
+        final type = known
+            ? _battleTypeFactor(by, index, comp.member.element)
+            : 1.0;
+        _settleOnCompanion(
+          entry.value,
+          comp,
+          pool: side.projectiles,
+          scale: type,
+        );
+        final lost = before - (comp.currentHp + comp.shieldHp);
+        if (type > 1) b.counts.typeUp += lost * (1 - 1 / type);
+        if (type < 1) b.counts.typeDown += lost * (1 / type - 1);
+        if (known) {
+          _battleCarryStatus(
+            side,
+            by,
+            side.creatures[index],
+            comp,
+            entry.value,
+            CosmicGame._duelDamageMultiplier *
+                b.damageNow *
+                100 /
+                (100 + comp.elemDef * CosmicGame._duelDefenseScale),
+          );
           _tallyBattleLoss(by, side, index, lost.toDouble());
         }
         // The floor feels a blow worth seeing.
@@ -1169,26 +1365,44 @@ extension CosmicGameBattle on CosmicGame {
     for (var spot = 0; spot < kBattleFieldSpots; spot++) {
       final i = side.spots[spot];
       if (i == null) continue;
-      final c = side.creatures[i];
-      final comp = c.body!;
+      final comp = side.creatures[i].body!;
       if (comp.currentHp > 0) continue;
       if (_battlePhoenix(side, comp)) continue;
-      _spawnKillVfx(comp.position, elementColor(comp.member.element), 12, false);
-      b.floor.hit(
-        comp.position - b.center,
-        elementColor(comp.member.element),
-        1,
-        _elapsed,
+      _battleFall(side, spot);
+      b.log.add(
+        BattleEvent(
+          b.clock,
+          side.index,
+          BattleEventKind.fall,
+          i,
+          real: b._real,
+        ),
       );
-      _dropBattleBody(side, comp);
-      c
-        ..fallen = true
-        ..hpFraction = 0
-        ..body = null;
-      side.spots[spot] = null;
-      _unfocus(side, i);
-      b.log.add(BattleEvent(b.clock, side.index, BattleEventKind.fall, i));
     }
+  }
+
+  /// The Alchemon in [side]'s [spot] falls: it comes apart where it stood,
+  /// and its place is left empty.
+  void _battleFall(BattleSide side, int spot) {
+    final b = _battle!;
+    final i = side.spots[spot]!;
+    final c = side.creatures[i];
+    final comp = c.body!;
+    _spawnKillVfx(comp.position, elementColor(comp.member.element), 12, false);
+    b.floor.hit(
+      comp.position - b.center,
+      elementColor(comp.member.element),
+      1,
+      _elapsed,
+    );
+    _dropBattleBody(side, comp);
+    c
+      ..fallen = true
+      ..hpFraction = 0
+      ..body = null;
+    side.spots[spot] = null;
+    _unfocus(side, i);
+    _clearBattleStatus(c);
   }
 
   /// A Fire kin on the field whose phoenix has not fired catches [fallen]
@@ -1210,7 +1424,16 @@ extension CosmicGameBattle on CosmicGame {
       c.healing += fallen.currentHp - from;
       _awakenOpenPhoenix(_KinCaster.companion(kin), fallen.position);
       final b = _battle!;
-      b.log.add(BattleEvent(b.clock, side.index, BattleEventKind.phoenix, i));
+      b.log.add(
+        BattleEvent(
+          b.clock,
+          side.index,
+          BattleEventKind.phoenix,
+          i,
+          real: b._real,
+          data: [side.creatures.indexWhere((c) => identical(c.body, fallen))],
+        ),
+      );
       return true;
     }
     return false;
@@ -1749,6 +1972,8 @@ extension CosmicGameBattle on CosmicGame {
         _renderKinWorld(canvas, lasers: side.index == 0);
       });
     }
+    // A burn's embers and a poison's drops on those they linger on.
+    _paintBattleStatus(canvas);
     _renderMaskSpiritNukeFlash(canvas, view);
     _renderVfxParticles(canvas);
     canvas.restore();

@@ -3,11 +3,14 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/battle_arena_art.dart';
+import 'package:alchemons/games/cosmic/battle_wire.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_hud.dart' show HudGlass, HudInk, HudTubePainter, hudMono;
 import 'package:alchemons/screens/battle/battle_hub_screen.dart';
+import 'package:alchemons/screens/battle/battle_journey.dart';
+import 'package:alchemons/screens/battle/battle_live.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart' show CaseLightPainter, elementLight;
 import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/screens/stadium/racer_gate.dart' show stadiumSprite;
@@ -21,6 +24,7 @@ import 'package:alchemons/widgets/battle/battle_arena_preview.dart'
     show battleArenaPreviewSideways, battleArenaPreviewZoom;
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:alchemons/widgets/fx/grain_assembly.dart';
+import 'package:alchemons/widgets/fx/realm_sift.dart' show RealmPicture;
 import 'package:flame/game.dart' show GameWidget;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
@@ -36,6 +40,13 @@ import 'package:provider/provider.dart';
 //  bench (tap one, then the field card it replaces: one of your two swaps)
 //  and your swaps left. Tap an enemy, on the floor or in the strip, to
 //  make it your side's focus.
+//
+//  Live with a friend ([BattleScreen.live], battle_live.dart), the host's
+//  phone runs the fight as against the computer, and the guest's shows it:
+//  the guest's taps go to the host, their focus drawn at once, a swap
+//  marked until the host has made it. The first fight in a room comes in
+//  by the host's planet and home ([BattleScreen.journey],
+//  battle_journey.dart); a rematch comes straight onto the floor.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Color _ink = Color(0xFFE6E2DA);
@@ -123,6 +134,8 @@ class BattleScreen extends StatefulWidget {
     this.leaveLabel = 'BACK TO THE HUB',
     this.onFinished,
     this.fromRect,
+    this.live,
+    this.journey,
   });
 
   final List<CosmicPartyMember> team;
@@ -145,12 +158,28 @@ class BattleScreen extends StatefulWidget {
   /// Null fades in from dark.
   final Rect? fromRect;
 
+  /// A fight with a friend, live: started on the room's start time, the
+  /// guest's taps sent to the host, REMATCH on the card.
+  final BattleLive? live;
+
+  /// Live: the host's place, for the way in (their planet, their home, the
+  /// floor) and the way out. Null comes straight onto the floor.
+  final BattleJourneyArt? journey;
+
   /// The way in from the hub: the hub stays under it while the floor flies.
   static Route<void> route(BattleScreen screen) => PageRouteBuilder<void>(
     opaque: false,
     transitionDuration: Duration.zero,
     reverseTransitionDuration: Duration.zero,
     pageBuilder: (_, _, _) => screen,
+  );
+
+  /// The way in from a live battle's lobby: it fades in from dark, and the
+  /// lobby (its live arena) is neither drawn nor ticking under the fight.
+  static Route<void> liveRoute(BattleScreen screen) => PageRouteBuilder<void>(
+    transitionDuration: Duration.zero,
+    reverseTransitionDuration: Duration.zero,
+    pageBuilder: (_, _, _) => ColoredBox(color: _bg, child: screen),
   );
 
   @override
@@ -176,11 +205,12 @@ class _BattleScreenState extends State<BattleScreen>
     value: widget.fromRect == null ? 1 : 0,
   );
 
-  /// The flying floor over the game (1), or the game itself (0).
+  /// The flying floor over the game (1), or the game itself (0). Live, the
+  /// way in (or the floor waiting for the start).
   late final AnimationController _cover = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 300),
-    value: widget.fromRect == null ? 0 : 1,
+    value: widget.fromRect == null && widget.live == null ? 0 : 1,
   );
 
   /// The HUD slid in (1) or out (0).
@@ -193,8 +223,30 @@ class _BattleScreenState extends State<BattleScreen>
   late final AnimationController _dark = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 340),
-    value: widget.fromRect == null ? 1 : 0,
+    value: widget.fromRect == null && _journeyAt == null ? 1 : 0,
   );
+
+  /// Live: how far into the way in this phone came in, in seconds (the
+  /// room's start time less [kBattleJourneySeconds] is its start); null
+  /// with no way in, or one too far gone to show.
+  late final double? _journeyAt = () {
+    final live = widget.live, art = widget.journey;
+    if (live == null || art == null) return null;
+    final from = live.startAtMs - kBattleJourneySeconds * 1000;
+    final at = max(0.0, live.nowMs() - from) / 1000;
+    return at > kBattleJourneySeconds - 0.6 ? null : at;
+  }();
+  BattleJourneyScene? _journeyScene;
+
+  /// Live, the way out, as it plays.
+  late final AnimationController _out = AnimationController(
+    vsync: this,
+    duration: Duration(milliseconds: (kBattleJourneyOutSeconds * 1000).round()),
+  );
+  BattleJourneyExit? _exit;
+
+  /// Where the floor's middle is as the fight first frames it.
+  Offset _floorMiddle = Offset.zero;
 
   /// The result card coming up, 0..1, its parts in turn.
   late final AnimationController _card = AnimationController(
@@ -220,6 +272,17 @@ class _BattleScreenState extends State<BattleScreen>
   /// The result's word, read into grains to gather.
   GrainAssembly? _word;
 
+  /// Live, the guest: a swap (or a bench one called in) waiting on the
+  /// host, by field place, as the input's number.
+  final Map<int, int> _pending = {};
+
+  /// Live: the start time's wait, and whether it has been waited.
+  Timer? _gunTimer;
+  bool _gunWaited = false;
+
+  /// Live, and this phone only shows the host's fight.
+  bool get _replica => widget.live != null && !widget.live!.hosting;
+
   @override
   void initState() {
     super.initState();
@@ -227,10 +290,16 @@ class _BattleScreenState extends State<BattleScreen>
       _frame.value++;
       _time.value = elapsed.inMicroseconds / 1e6;
       final b = _battle;
+      final game = _game;
+      if (b != null && game != null && widget.live != null) {
+        widget.live!.tick(game);
+        _pending.removeWhere((_, i) => b.replicaApplied > i || b.over);
+      }
       if (b != null && b.over && !_reported) {
         _reported = true;
         unawaited(widget.onFinished?.call(b.result!.winner, b.result!.at));
-        unawaited(_readWord(b.result!.winner));
+        unawaited(widget.live?.finished(b));
+        unawaited(_readWord(b.result!));
         // The last fall, slowed, and the light rising off the winners'
         // half first; then the card.
         _cardTimer = Timer(const Duration(milliseconds: 1700), () {
@@ -244,6 +313,17 @@ class _BattleScreenState extends State<BattleScreen>
     unawaited(_start());
     unawaited(context.read<AudioController>().playBossBattleMusic());
     if (widget.fromRect != null) unawaited(_flight.forward());
+    // Live with no way in to show: the floor comes up out of the dark and
+    // waits for the start.
+    if (widget.live != null && _journeyAt == null) {
+      unawaited(
+        _dark.animateTo(
+          0,
+          duration: const Duration(milliseconds: 800),
+          curve: Curves.easeInOut,
+        ),
+      );
+    }
   }
 
   Future<void> _start() async {
@@ -259,9 +339,22 @@ class _BattleScreenState extends State<BattleScreen>
     _maybeBegin();
   }
 
-  /// The fight starts once the floor has landed and the game is ready.
+  /// The fight starts once the floor has landed and the game is ready (and,
+  /// live, at the room's start time).
   void _maybeBegin() {
     if (!_loaded || _battle != null || _flight.value < 1 || _leaving) return;
+    final live = widget.live;
+    if (live != null && !_gunWaited) {
+      final wait = live.startAtMs - live.nowMs();
+      if (wait > 0) {
+        _gunTimer?.cancel();
+        _gunTimer = Timer(Duration(milliseconds: wait), () {
+          _gunWaited = true;
+          if (mounted) _maybeBegin();
+        });
+        return;
+      }
+    }
     _begin();
   }
 
@@ -271,12 +364,21 @@ class _BattleScreenState extends State<BattleScreen>
     _card.value = 0;
     _reported = false;
     _word = null;
-    final b = game.startBattle(
-      home: widget.team,
-      away: widget.rival,
-      center: game.ship.pos,
-      arena: widget.arena,
-    );
+    _pending.clear();
+    final live = widget.live;
+    final b = live != null
+        ? live.begin(
+            game,
+            team: widget.team,
+            rival: widget.rival,
+            arena: widget.arena,
+          )
+        : game.startBattle(
+            home: widget.team,
+            away: widget.rival,
+            center: game.ship.pos,
+            arena: widget.arena,
+          );
     setState(() {
       _battle = b;
       _swapIn = null;
@@ -298,6 +400,13 @@ class _BattleScreenState extends State<BattleScreen>
 
   Future<void> _again() async {
     HapticFeedback.mediumImpact();
+    // Live: back to the lobby, ready for the next (quickly: the way out
+    // is for leaving).
+    if (widget.live case final live?) {
+      live.rematch();
+      await _back(quick: true);
+      return;
+    }
     unawaited(_clearCard());
     await _dark.forward();
     if (!mounted) return;
@@ -306,14 +415,49 @@ class _BattleScreenState extends State<BattleScreen>
   }
 
   /// Back to the hub: the HUD slides away and the floor flies back into the
-  /// hub's stage (or the screen goes dark), then the page goes.
-  Future<void> _back() async {
+  /// hub's stage (or the screen goes dark), then the page goes. Live, the
+  /// way out: the floor comes apart onto the host's home, which draws in to
+  /// their planet ([quick]: the dark).
+  Future<void> _back({bool quick = false}) async {
     if (_leaving) return;
     _leaving = true;
     _cardTimer?.cancel();
     unawaited(_hud.reverse());
     await _clearCard();
     if (!mounted) return;
+    final art = widget.journey, game = _game;
+    if (!quick && widget.live != null && art != null && game != null) {
+      final view = MediaQuery.of(context);
+      RealmPicture? floor;
+      try {
+        floor = await RealmPicture.record(
+          'floor',
+          view.size,
+          min(2.0, view.devicePixelRatio),
+          game.render,
+        );
+      } catch (e) {
+        debugPrint('BattleScreen: the floor was not pictured: $e');
+      }
+      if (!mounted) {
+        floor?.dispose();
+        return;
+      }
+      if (floor != null) {
+        setState(() {
+          _exit = BattleJourneyExit(
+            art: art,
+            size: view.size,
+            floor: floor!,
+            floorCentre: _floorMiddle,
+          );
+          _gameHidden = true;
+        });
+        await _out.forward(from: 0);
+        if (mounted) Navigator.of(context).pop();
+        return;
+      }
+    }
     if (widget.fromRect != null) {
       await _cover.forward();
       // The flying floor covers it now: the game goes, so what the floor
@@ -333,17 +477,8 @@ class _BattleScreenState extends State<BattleScreen>
   }
 
   /// The result's word in grains, for the card to gather.
-  Future<void> _readWord(int? winner) async {
-    final word = switch (winner) {
-      0 => 'VICTORY',
-      1 => 'DEFEAT',
-      _ => 'DRAW',
-    };
-    final color = switch (winner) {
-      0 => kBattleBrass,
-      1 => kBattleSilver,
-      _ => _ink,
-    };
+  Future<void> _readWord(BattleResult result) async {
+    final (word, color) = _resultWord(result);
     final style = bracketText(
       context,
       26,
@@ -360,11 +495,15 @@ class _BattleScreenState extends State<BattleScreen>
   void dispose() {
     _ticker.dispose();
     _cardTimer?.cancel();
+    _gunTimer?.cancel();
+    widget.live?.dispose();
     _frame.dispose();
     _time.dispose();
-    for (final c in [_flight, _cover, _hud, _dark, _card]) {
+    for (final c in [_flight, _cover, _hud, _dark, _card, _out]) {
       c.dispose();
     }
+    _journeyScene?.dispose();
+    _exit?.dispose();
     _flightFloor.dispose();
     _game?.endBattle();
     super.dispose();
@@ -372,17 +511,22 @@ class _BattleScreenState extends State<BattleScreen>
 
   Future<void> _leave() async {
     final b = _battle;
+    final live = widget.live;
     if (b != null && !b.over) {
       final ok = await showBracketConfirm(
         context,
         palette: BracketPalette.dark,
         accent: kLeaveQuietAccent,
         title: 'LEAVE THE BATTLE?',
-        message: 'The fight ends here. Nothing is lost.',
+        message: live == null
+            ? 'The fight ends here. Nothing is lost.'
+            : 'Leaving gives the fight to ${live.friendName}.',
         confirmLabel: 'LEAVE',
         cancelLabel: 'STAY',
       );
       if (!ok || !mounted) return;
+      final game = _game;
+      if (live != null && game != null) live.concede(game);
     }
     await _back();
   }
@@ -397,6 +541,10 @@ class _BattleScreenState extends State<BattleScreen>
     final swapIn = _swapIn;
     if (swapIn != null) {
       setState(() => _swapIn = null);
+      if (_replica) {
+        _askHost(swapIn, spot);
+        return;
+      }
       if (game.battleSummon(0, swapIn, spot: spot)) {
         HapticFeedback.mediumImpact();
       } else if (side.at(spot) != null) {
@@ -421,7 +569,41 @@ class _BattleScreenState extends State<BattleScreen>
   void _focus(int creature) {
     final game = _game;
     if (game == null) return;
+    final b = _battle;
+    // Live, the guest: drawn at once here, made so by the host.
+    if (_replica && b != null) {
+      if (b.over || !b.sides[1].creatures[creature].onField) return;
+      final want = b.sides[0].focus == creature ? null : creature;
+      game.predictBattleFocus(want, widget.live!.send(BattleInput.focus(want)));
+      HapticFeedback.selectionClick();
+      return;
+    }
     if (game.focusBattleTarget(0, creature)) HapticFeedback.selectionClick();
+  }
+
+  /// Live, the guest: bench [creature] into field place [spot] (empty, or
+  /// in place of the one there), asked of the host. The place is marked
+  /// until the host has made it so.
+  void _askHost(int creature, int spot) {
+    final b = _battle;
+    if (b == null || b.over || _pending.containsKey(spot)) return;
+    final side = b.sides[0];
+    final out = side.at(spot)?.body;
+    if (out != null && out.life < kBattleArrival) {
+      showGameSnack(context, 'It has only just arrived.');
+      return;
+    }
+    if (out != null && side.swapsLeft <= 0) {
+      showGameSnack(context, 'No swaps left.');
+      return;
+    }
+    final i = widget.live!.send(
+      out == null
+          ? BattleInput.fill(creature)
+          : BattleInput.swap(creature, spot),
+    );
+    HapticFeedback.mediumImpact();
+    setState(() => _pending[spot] = i);
   }
 
   void _tapBench(int creature) {
@@ -432,6 +614,10 @@ class _BattleScreenState extends State<BattleScreen>
     final c = side.creatures[creature];
     if (c.fallen || c.onField) return;
     if (side.spots.contains(null)) {
+      if (_replica) {
+        _askHost(creature, side.spots.indexOf(null));
+        return;
+      }
       if (game.battleSummon(0, creature)) HapticFeedback.mediumImpact();
       return;
     }
@@ -454,6 +640,20 @@ class _BattleScreenState extends State<BattleScreen>
     final band = Rect.fromLTRB(0, insets.top, size.width, size.height - insets.bottom);
     final b = _battle;
     if (b != null) b.viewInsets = insets;
+    final opening = _openingFloor(band);
+    _floorMiddle = opening.$1;
+    final journeyAt = _journeyAt;
+    final art = widget.journey;
+    if (journeyAt != null && art != null) {
+      _journeyScene ??= BattleJourneyScene(
+        art: art,
+        size: size,
+        floorCentre: opening.$1,
+        floorRx: kBattleFloorHalfWidth * opening.$2,
+        floorRy: kBattleFloorHalfHeight * opening.$2,
+      );
+    }
+    final journey = _journeyScene;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -490,13 +690,27 @@ class _BattleScreenState extends State<BattleScreen>
                       : Opacity(
                           opacity: _cover.value,
                           child: CustomPaint(
-                            painter: _FlightPainter(
-                              floor: _flightFloor,
-                              t: Curves.easeInOutCubic.transform(_flight.value),
-                              from: widget.fromRect,
-                              band: band,
-                              time: _time.value,
-                            ),
+                            painter: journey != null && journeyAt != null
+                                ? _JourneyPainter(
+                                    journey,
+                                    journeyAt + _time.value,
+                                    _FlightPainter(
+                                      floor: _flightFloor,
+                                      t: 1,
+                                      from: null,
+                                      band: band,
+                                      time: _time.value,
+                                    ),
+                                  )
+                                : _FlightPainter(
+                                    floor: _flightFloor,
+                                    t: Curves.easeInOutCubic.transform(
+                                      _flight.value,
+                                    ),
+                                    from: widget.fromRect,
+                                    band: band,
+                                    time: _time.value,
+                                  ),
                             child: const SizedBox.expand(),
                           ),
                         ),
@@ -543,6 +757,7 @@ class _BattleScreenState extends State<BattleScreen>
                             child: _Hand(
                               battle: b,
                               swapIn: _swapIn,
+                              pending: _pending.keys.toSet(),
                               padBottom: pad.bottom,
                               onField: _tapField,
                               onBench: _tapBench,
@@ -550,6 +765,31 @@ class _BattleScreenState extends State<BattleScreen>
                           ),
                         ),
                       ),
+                      if (_liveNote(b) case final note?)
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          top: pad.top + _kTopBand + 4,
+                          child: IgnorePointer(
+                            child: Opacity(
+                              opacity: h * dim,
+                              child: Center(
+                                child: HudGlass(
+                                  accent: HudInk.amber,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  child: Text(
+                                    note,
+                                    textAlign: TextAlign.center,
+                                    style: hudMono(9, HudInk.amber),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   );
                 },
@@ -566,6 +806,7 @@ class _BattleScreenState extends State<BattleScreen>
                           word: _word,
                           onAgain: _again,
                           onLeave: _back,
+                          againLabel: widget.live == null ? 'AGAIN' : 'REMATCH',
                           leaveLabel: widget.leaveLabel,
                           details: _details,
                           onDetails: () {
@@ -573,6 +814,22 @@ class _BattleScreenState extends State<BattleScreen>
                             setState(() => _details = !_details);
                           },
                         ),
+                ),
+              ),
+            // Live, the way out.
+            if (_exit case final exit?)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: AnimatedBuilder(
+                    animation: _out,
+                    builder: (context, _) => CustomPaint(
+                      painter: _ExitPainter(
+                        exit,
+                        _out.value * kBattleJourneyOutSeconds,
+                      ),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
                 ),
               ),
             // Dark over all of it, for the way in without a stage and for
@@ -596,6 +853,87 @@ class _BattleScreenState extends State<BattleScreen>
       ),
     );
   }
+}
+
+/// What a fight's end is called on the card, and in what colour.
+(String, Color) _resultWord(BattleResult r) => switch ((r.end, r.winner)) {
+  (BattleEnd.noContest, _) => ('NO CONTEST', _ink),
+  (_, 0) => ('VICTORY', kBattleBrass),
+  (_, 1) => ('DEFEAT', kBattleSilver),
+  _ => ('DRAW', _ink),
+};
+
+extension on _BattleScreenState {
+  /// Live: what is going on with the link, over the floor; null for
+  /// nothing.
+  String? _liveNote(CosmicBattle b) {
+    final live = widget.live;
+    if (live == null || b.over) return null;
+    final name = live.friendName.toUpperCase();
+    if (live.waiting) return 'WAITING FOR $name…';
+    if (live.friendAway) {
+      return '$name IS AWAY · THE COMPUTER PLAYS THEIR SIDE';
+    }
+    if (!live.hosting && b.sides[0].auto) {
+      return 'YOU WERE AWAY · THE COMPUTER PLAYED YOUR SIDE';
+    }
+    return null;
+  }
+}
+
+/// Where the floor's middle is on the screen as the fight first frames it
+/// (the whole floor in [band], upright), and at what zoom: the flight's
+/// end, and the way in's.
+(Offset, double) _openingFloor(Rect band) {
+  final aspect = band.width / band.height;
+  final widest = max(
+    kBattleFloorHalfHeight * 2 + 80,
+    (kBattleFloorHalfWidth * 2 + 80) / aspect,
+  );
+  return (band.center, band.height / widest);
+}
+
+/// The way into a live battle ([BattleJourneyScene]) at [t] seconds, the
+/// floor drawn as the flight's end draws it.
+class _JourneyPainter extends CustomPainter {
+  _JourneyPainter(this.scene, this.t, this.floor);
+
+  final BattleJourneyScene scene;
+  final double t;
+  final _FlightPainter floor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    scene.paint(
+      canvas,
+      t,
+      floor: (canvas, alpha) {
+        canvas.saveLayer(
+          Offset.zero & size,
+          Paint()..color = Color.fromRGBO(0, 0, 0, alpha),
+        );
+        floor.paint(canvas, size);
+        canvas.restore();
+      },
+    );
+  }
+
+  @override
+  bool shouldRepaint(_JourneyPainter old) => old.t != t;
+}
+
+/// The way out of a live battle at [t] seconds.
+class _ExitPainter extends CustomPainter {
+  _ExitPainter(this.exit, this.t);
+
+  final BattleJourneyExit exit;
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) => exit.paint(canvas, t);
+
+  @override
+  bool shouldRepaint(_ExitPainter old) => old.t != t;
 }
 
 /// The floor in flight: from the hub's stage (on its side, at the stage's
@@ -940,6 +1278,7 @@ class _Hand extends StatelessWidget {
   const _Hand({
     required this.battle,
     required this.swapIn,
+    this.pending = const {},
     required this.padBottom,
     required this.onField,
     required this.onBench,
@@ -947,6 +1286,9 @@ class _Hand extends StatelessWidget {
 
   final CosmicBattle battle;
   final int? swapIn;
+
+  /// Field places with a swap asked of the host (live, the guest).
+  final Set<int> pending;
   final double padBottom;
   final void Function(int spot) onField;
   final void Function(int creature) onBench;
@@ -994,6 +1336,7 @@ class _Hand extends StatelessWidget {
                             side: side,
                             spot: spot,
                             swapping: swapIn != null,
+                            asked: pending.contains(spot),
                             theirFocus: battle.sides[1].focus,
                             now: battle.clock,
                             onTap: () => onField(spot),
@@ -1087,6 +1430,7 @@ class _FieldCard extends StatelessWidget {
     required this.side,
     required this.spot,
     required this.swapping,
+    this.asked = false,
     required this.theirFocus,
     required this.now,
     required this.onTap,
@@ -1095,6 +1439,9 @@ class _FieldCard extends StatelessWidget {
   final BattleSide side;
   final int spot;
   final bool swapping;
+
+  /// A swap into this place asked of the host, not yet made.
+  final bool asked;
 
   /// The creature (by index) the other side is going for.
   final int? theirFocus;
@@ -1108,7 +1455,7 @@ class _FieldCard extends StatelessWidget {
     final creature = side.at(spot);
     final comp = creature?.body;
     if (creature == null || comp == null) {
-      final coming = side.bench.isNotEmpty;
+      final coming = side.bench.isNotEmpty || asked;
       return Container(
         color: _bg1,
         alignment: Alignment.center,
@@ -1136,9 +1483,18 @@ class _FieldCard extends StatelessWidget {
     final cast =
         creature.lastSpecialAt >= 0 && now - creature.lastSpecialAt < 0.9;
     final targeted = theirFocus == index;
+    // A freeze or stun just pushed its special back.
+    final interrupted =
+        creature.interruptedAt >= 0 && now - creature.interruptedAt < 0.9;
     final String status;
     final Color statusColor;
-    if (swapping) {
+    if (interrupted) {
+      status = 'INTERRUPTED';
+      statusColor = const Color(0xFFBFE8FF);
+    } else if (asked) {
+      status = 'SWAPPING…';
+      statusColor = kBattleBrass;
+    } else if (swapping) {
       status = 'SWAP OUT';
       statusColor = kBattleBrass;
     } else if (arriving) {
@@ -1218,17 +1574,29 @@ class _FieldCard extends StatelessWidget {
                       height: 5,
                     ),
                     const SizedBox(height: 6),
-                    Text(
-                      status,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: bracketText(
-                        context,
-                        9,
-                        statusColor,
-                        weight: FontWeight.w800,
-                        letterSpacing: 1.3,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            status,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: bracketText(
+                              context,
+                              9,
+                              statusColor,
+                              weight: FontWeight.w800,
+                              letterSpacing: 1.3,
+                            ),
+                          ),
+                        ),
+                        // What lingers on it: a burn halves its heals, a
+                        // poison hurts over time. The bench cures both.
+                        if (creature.burning)
+                          _Linger('BURN', const Color(0xFFFFB347)),
+                        if (creature.poisoned)
+                          _Linger('POISON', const Color(0xFF8FD26A)),
+                      ],
                     ),
                   ],
                 ),
@@ -1239,6 +1607,29 @@ class _FieldCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// A word for what lingers on a field card's Alchemon.
+class _Linger extends StatelessWidget {
+  const _Linger(this.word, this.color);
+
+  final String word;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(left: 6),
+    child: Text(
+      word,
+      style: bracketText(
+        context,
+        8,
+        color,
+        weight: FontWeight.w800,
+        letterSpacing: 1.2,
+      ),
+    ),
+  );
 }
 
 /// [word] in [style] read into grains, for a title that gathers out of
@@ -1290,6 +1681,7 @@ class _ResultCard extends StatelessWidget {
     required this.word,
     required this.onAgain,
     required this.onLeave,
+    this.againLabel = 'AGAIN',
     required this.leaveLabel,
     required this.details,
     required this.onDetails,
@@ -1300,6 +1692,7 @@ class _ResultCard extends StatelessWidget {
   final GrainAssembly? word;
   final VoidCallback onAgain;
   final VoidCallback onLeave;
+  final String againLabel;
   final String leaveLabel;
   final bool details;
   final VoidCallback onDetails;
@@ -1307,11 +1700,7 @@ class _ResultCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = battle.result!;
-    final (text, color) = switch (r.winner) {
-      0 => ('VICTORY', kBattleBrass),
-      1 => ('DEFEAT', kBattleSilver),
-      _ => ('DRAW', _ink),
-    };
+    final (text, color) = _resultWord(r);
     final rise = _span(t, 0, 0.3);
     final gather = ((t - 0.08) / 0.54).clamp(0.0, 1.0);
     Widget arriving(double k, Widget child) => Opacity(
@@ -1461,7 +1850,7 @@ class _ResultCard extends StatelessWidget {
                           Column(
                             children: [
                               BracketButton(
-                                label: 'AGAIN',
+                                label: againLabel,
                                 onTap: onAgain,
                                 palette: BracketPalette.dark,
                                 accent: kBattleBrass,

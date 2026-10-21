@@ -12,11 +12,17 @@
 //   SPECIES   the eight families the same way, shown by a creature of each.
 //   NATURES   the behaviour log, once a Gene Analyzer is built.
 //
+// An element's sheet, and a family's where it has one, also says how it
+// counts IN BATTLE: what it is strong and weak against, and what its
+// abilities leave behind (games/shared/battle_typing.dart).
+//
 // After a hatch that found something new, the Codex opens on it and plays
 // the formula that made it (see [AlchemicalEncyclopediaScreen.unlockShowcase]).
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/shared/battle_typing.dart';
+import 'package:alchemons/games/shared/burn_healing.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/nature.dart';
@@ -1261,12 +1267,63 @@ class _CodexSheetState extends State<_CodexSheet> {
                   palette: palette,
                   count: uses.where((r) => !_data.isDiscovered(r)).length,
                 ),
+                if (_battleLines(name) case final lines
+                    when lines.isNotEmpty) ...[
+                  const SizedBox(height: 18),
+                  _SectionTitle(
+                    palette: palette,
+                    title: 'IN BATTLE',
+                    found: 0,
+                    total: 0,
+                  ),
+                  for (final line in lines)
+                    _BattleLine(palette: palette, text: line),
+                ],
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  /// How [name] counts in a battle, in plain lines: an element's typing and
+  /// what its abilities leave behind; a family's own rule, if it has one.
+  List<String> _battleLines(String name) {
+    String list(List<String> v) => v.join(', ');
+    final harder = ((kBattleTypeStrong - 1) * 100).round();
+    final softer = ((1 - kBattleTypeWeak) * 100).round();
+    if (!_isElement) {
+      return switch (name) {
+        'Horn' => [
+          'Its taunts draw the other side\'s Alchemons to it, unless their '
+              'player has picked a target with a tap.',
+        ],
+        _ => const [],
+      };
+    }
+    final strong = battleStrongAgainst(name);
+    final weak = battleWeakAgainst(name);
+    return [
+      if (strong.isNotEmpty)
+        'Strong against ${list(strong)}: its blows land $harder% harder on '
+            'them, and theirs land $softer% softer on it.',
+      if (weak.isNotEmpty)
+        'Weak against ${list(weak)}: its blows land $softer% softer on '
+            'them, and theirs land $harder% harder on it.',
+      if (battleBurns(name))
+        'Its abilities burn. A burning Alchemon gets half of every heal for '
+            '${kBurnSeconds.round()} seconds after the last burn. Swapping it '
+            'out puts the burn out.',
+      if (name == 'Poison')
+        'Its poison hurts over ${kBattlePoisonSeconds.round()} seconds '
+            'rather than all at once, and more poison adds to it. Swapping '
+            'out ends it.',
+      if (name == 'Ice')
+        'A freeze holds back the frozen Alchemon\'s special by '
+            '${kBattleInterruptSeconds.round()} second, at most once every '
+            '${kBattleInterruptGap.round()} seconds.',
+    ];
   }
 
   String _subtitle(String name, bool known) {
@@ -1465,6 +1522,23 @@ class _SectionTitle extends StatelessWidget {
         Text('$found / $total FOUND', style: _mono(10, palette.muted)),
       ],
     ],
+  );
+}
+
+/// One plain line of how something counts in a battle.
+class _BattleLine extends StatelessWidget {
+  const _BattleLine({required this.palette, required this.text});
+
+  final BracketPalette palette;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 10),
+    child: Text(
+      text,
+      style: TextStyle(color: palette.ink, fontSize: 12.5, height: 1.35),
+    ),
   );
 }
 

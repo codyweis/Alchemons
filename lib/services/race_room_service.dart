@@ -9,6 +9,12 @@
 // The server's clock: a seat is written with the server's time, read back,
 // and the difference from this phone's clock (about the round trip's
 // middle) kept — so a gun time means the same moment on every phone.
+//
+// Screens never wait on these writes (the author, 2026-10-21, of the
+// battle lobby's LEAVE: it "froze for a bit"). Firestore has a write on
+// this phone at once, which the room's snapshots show, and sends it when it
+// can: a screen starts one with [later] (a room with [hostNow]) and goes
+// on, and only a refusal comes back, as a notice.
 
 import 'dart:async';
 
@@ -16,13 +22,17 @@ import 'package:alchemons/games/stadium/race_room.dart';
 import 'package:alchemons/models/friend_home.dart';
 import 'package:alchemons/services/account_service.dart';
 import 'package:alchemons/services/friend_service.dart';
+import 'package:alchemons/widgets/game_snack.dart' show showGameSnackAnywhere;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class RaceRoomException implements Exception {
-  const RaceRoomException(this.message);
+  const RaceRoomException(this.message, {this.offline = false});
   final String message;
+
+  /// Only not sent yet: Firestore still has it, and sends it when it can.
+  final bool offline;
 
   @override
   String toString() => message;
@@ -181,17 +191,47 @@ class RaceRoomService extends ChangeNotifier {
       name.length > 24 ? name.substring(0, 24) : name;
 
   /// Makes a room for [cup]'s race [race] (with [gem], a gem cup's bout)
-  /// with [invite] asked in; returns its id.
+  /// with [invite] asked in; returns its id once the server has it.
   Future<String> host({
     required int cup,
     required int race,
     bool gem = false,
     List<FriendCard> invite = const [],
   }) async {
+    final doc = _rooms.doc();
+    await _hostInto(doc, cup: cup, race: race, gem: gem, invite: invite);
+    return doc.id;
+  }
+
+  /// [host], not waited on: the room's id at once, for its lobby to open on
+  /// (it shows on this phone straight away); only a refusal is told,
+  /// [onFailed]. Throws at once when not signed in.
+  String hostNow({
+    required int cup,
+    required int race,
+    bool gem = false,
+    List<FriendCard> invite = const [],
+    void Function(String message)? onFailed,
+  }) {
+    _me;
+    final doc = _rooms.doc();
+    later(
+      _hostInto(doc, cup: cup, race: race, gem: gem, invite: invite),
+      onFailed: onFailed,
+    );
+    return doc.id;
+  }
+
+  Future<void> _hostInto(
+    DocumentReference<Map<String, dynamic>> doc, {
+    required int cup,
+    required int race,
+    required bool gem,
+    required List<FriendCard> invite,
+  }) {
     final me = _me;
     final asked = invite.where((f) => f.uid != me).take(kRaceRoomSeats - 1);
-    final doc = _rooms.doc();
-    await _run(
+    return _run(
       () => doc.set({
         'host': me,
         'invited': [me, for (final f in asked) f.uid],
@@ -209,7 +249,6 @@ class RaceRoomService extends ChangeNotifier {
         'updatedAt': FieldValue.serverTimestamp(),
       }),
     );
-    return doc.id;
   }
 
   /// Asks [friend] into [room] (the host only), while there is a lane.
@@ -423,6 +462,22 @@ class RaceRoomService extends ChangeNotifier {
 
   static const Duration _wait = Duration(seconds: 20);
 
+  /// [write], not waited on by whoever started it: only a refusal is told
+  /// ([onFailed]; by default a notice wherever the player is). Offline is
+  /// not one — Firestore keeps the write and sends it later.
+  void later(Future<void> write, {void Function(String message)? onFailed}) {
+    unawaited(
+      write.then<void>(
+        (_) {},
+        onError: (Object e) {
+          debugPrint('RaceRoomService: a write was not made: $e');
+          if (e is! RaceRoomException || e.offline) return;
+          (onFailed ?? showGameSnackAnywhere)(e.message);
+        },
+      ),
+    );
+  }
+
   Future<void> _run(Future<void> Function() write) async {
     try {
       await write().timeout(_wait);
@@ -432,9 +487,9 @@ class RaceRoomService extends ChangeNotifier {
         'permission-denied' => 'That is not allowed.',
         'not-found' => 'That race is over.',
         _ => 'Something went wrong (${e.code}).',
-      });
+      }, offline: e.code == 'unavailable');
     } on TimeoutException {
-      throw const RaceRoomException('You are offline.');
+      throw const RaceRoomException('You are offline.', offline: true);
     }
   }
 

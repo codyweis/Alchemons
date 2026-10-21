@@ -20,6 +20,7 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/stadium/battle_ladder.dart';
+import 'package:alchemons/games/shared/battle_typing.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -129,6 +130,16 @@ Future<_Fight> _fight(
           }
         : null,
   );
+  final c = b.counts;
+  _strategy
+    ..burns += c.burns
+    ..poisonHarm += c.poisonHarm
+    ..healCut += c.healCut
+    ..interrupts += c.interrupts
+    ..tauntSeconds += c.tauntSeconds
+    ..typeUp += c.typeUp
+    ..typeDown += c.typeDown;
+  _strategyFights++;
   String side(int i) => [
     for (final c in b.sides[i].onField)
       '${c.member.element} ${c.member.family} '
@@ -143,6 +154,11 @@ Future<_Fight> _fight(
     standing: '${side(0)}  vs  ${side(1)}',
   );
 }
+
+/// How often the strategy rules came into the fights since the last reset
+/// (cosmic_game_battle_status.dart).
+var _strategy = BattleStrategyCount();
+var _strategyFights = 0;
 
 /// BATTLE_OT=at,heal,damage tries an overtime (e.g. 60,0.5,1.6).
 BattleOvertime get _overtime {
@@ -319,9 +335,64 @@ void main() {
   );
 
   test(
+    'matchups: one element against another, the same four families',
+    () async {
+      if (!report || !_only('matchups')) return;
+      // BATTLE_MATCHUPS=Water:Fire,Fire:Plant,... ; BATTLE_R fights each.
+      final pairs = (Platform.environment['BATTLE_MATCHUPS'] ??
+              'Water:Fire,Fire:Plant,Earth:Lightning,Dark:Light,Water:Water')
+          .split(',');
+      final rounds =
+          int.tryParse(Platform.environment['BATTLE_R'] ?? '') ?? 30;
+      // BATTLE_TYPING=0: the same fights with typing off, to compare.
+      battleTypingOn = Platform.environment['BATTLE_TYPING'] != '0';
+      final four = (Platform.environment['BATTLE_FOUR'] ?? 'Horn,Wing,Kin,Pip')
+          .split(',');
+      stdout.writeln(
+        'matchups (scale $_scale, $rounds fights each way, families $four):',
+      );
+      for (final pair in pairs) {
+        final [a, c] = pair.split(':');
+        var aWins = 0.0;
+        for (var r = 0; r < rounds; r++) {
+          // Each team on each side half the time.
+          final flip = r.isOdd;
+          // A little spread in stats, so the fights are not all one fight.
+          final rng = Random(r * 31 + pair.hashCode);
+          double stat() => 3.6 + rng.nextDouble() * 0.8;
+          final teamA = [
+            for (final (i, f) in four.indexed)
+              battleMember(f, a, stat: stat(), id: 'a$i$f$r'),
+          ];
+          final teamC = [
+            for (final (i, f) in four.indexed)
+              battleMember(f, c, stat: stat(), id: 'c$i$f$r'),
+          ];
+          final f = await _fight(
+            flip ? teamC : teamA,
+            flip ? teamA : teamC,
+            scale: _scale,
+          );
+          final w = f.result.winner;
+          final aSide = flip ? 1 : 0;
+          if (w == aSide) aWins += 1;
+          if (w == null) aWins += 0.5;
+        }
+        stdout.writeln(
+          '  $a vs $c: $a wins ${_pct(aWins / rounds)}',
+        );
+      }
+      battleTypingOn = true;
+    },
+    timeout: const Timeout(Duration(minutes: 20)),
+  );
+
+  test(
     'mixed: random teams of four, with the bench and swaps',
     () async {
       if (!_only('mixed')) return;
+      _strategy = BattleStrategyCount();
+      _strategyFights = 0;
       final rng = Random(23);
       List<CosmicPartyMember> team(String tag) => [
         for (var i = 0; i < 4; i++)
@@ -386,6 +457,16 @@ void main() {
         'bench summons ${(benchUsed / n).toStringAsFixed(1)}, '
         'swaps ${(swaps / n).toStringAsFixed(2)}, '
         'phoenix ${(phoenix / n).toStringAsFixed(2)}',
+      );
+      final per = max(1, _strategyFights);
+      stdout.writeln(
+        '  strategy per fight: burns ${(_strategy.burns / per).toStringAsFixed(1)}, '
+        'heal cut ${(_strategy.healCut / per).round()} hp, '
+        'poison harm ${(_strategy.poisonHarm / per).round()} hp, '
+        'interrupts ${(_strategy.interrupts / per).toStringAsFixed(1)}, '
+        'taunted ${(_strategy.tauntSeconds / per).toStringAsFixed(1)} s, '
+        'typing +${(_strategy.typeUp / per).round()} / '
+        '-${(_strategy.typeDown / per).round()} hp',
       );
     },
     skip: report ? false : 'BATTLE_REPORT=1 prints the mixed-team table',

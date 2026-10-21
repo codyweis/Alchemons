@@ -765,7 +765,15 @@ extension CosmicWing on CosmicGame {
         // heal on every tick.
         break;
       default:
-        _applyOpenWingEffect(effect, enemy, origin, power, radius, duration);
+        _applyOpenWingEffect(
+          effect,
+          enemy,
+          origin,
+          power,
+          radius,
+          duration,
+          slot: beam.caster.member.slotIndex,
+        );
     }
   }
 

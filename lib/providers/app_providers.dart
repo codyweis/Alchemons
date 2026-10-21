@@ -24,6 +24,7 @@ import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/services/friend_fusion_lab.dart';
 import 'package:alchemons/services/friend_service.dart';
 import 'package:alchemons/services/trade_service.dart';
+import 'package:alchemons/services/battle_room_service.dart';
 import 'package:alchemons/services/race_room_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
 import 'package:alchemons/services/inventory_service.dart';
@@ -267,6 +268,14 @@ class AppProviders extends StatelessWidget {
         ChangeNotifierProvider<RaceRoomService>(
           lazy: false,
           create: (ctx) => RaceRoomService(
+            account: ctx.read<AccountService>(),
+            friends: ctx.read<FriendService>(),
+          ),
+        ),
+        // Battling a friend live, likewise: an invitation shows anywhere.
+        ChangeNotifierProvider<BattleRoomService>(
+          lazy: false,
+          create: (ctx) => BattleRoomService(
             account: ctx.read<AccountService>(),
             friends: ctx.read<FriendService>(),
           ),

@@ -89,17 +89,16 @@ class RaceLobbyScreen extends StatefulWidget {
     List<FriendCard> invite = const [],
   }) async {
     final rooms = context.read<RaceRoomService>();
+    // Opened at once: the room shows on this phone before the server has
+    // it, and nothing here waits on the server.
+    final String id;
     try {
-      final id = await rooms.host(
-        cup: cup,
-        race: race,
-        gem: gem,
-        invite: invite,
-      );
-      if (context.mounted) await open(context, id);
+      id = rooms.hostNow(cup: cup, race: race, gem: gem, invite: invite);
     } on RaceRoomException catch (e) {
-      if (context.mounted) showGameSnack(context, e.message);
+      showGameSnack(context, e.message);
+      return;
     }
+    await open(context, id);
   }
 
   @override
@@ -366,22 +365,18 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
       if (!go || !mounted) return;
     }
     HapticFeedback.selectionClick();
-    try {
-      await _rooms.remove(_room ?? room, uid);
-    } on RaceRoomException catch (e) {
-      if (mounted) showGameSnack(context, e.message);
-    }
+    _rooms.later(_rooms.remove(_room ?? room, uid));
   }
 
   /// The computer's racers in the lanes left: [count] of them.
   Future<void> _computers(RaceRoom room, int count) async {
     HapticFeedback.selectionClick();
-    try {
-      await _rooms.setComputers(room, count);
-    } on RaceRoomException catch (e) {
-      if (mounted) showGameSnack(context, e.message);
-    }
+    _rooms.later(_rooms.setComputers(room, count));
   }
+
+  /// The run START was last pressed for: once a race, however quickly the
+  /// button is pressed again before the room says it has begun.
+  int _startedFor = -1;
 
   Future<void> _start() async {
     final room = _room, me = _me;
@@ -390,20 +385,13 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
     if (room.needsPlan && room.planOf(me) == null) {
       final plan = await _planRoute(room);
       if (plan == null || !mounted) return;
-      try {
-        await _rooms.setPlan(_room ?? room, plan);
-      } on RaceRoomException catch (e) {
-        if (mounted) showGameSnack(context, e.message);
-      }
+      _rooms.later(_rooms.setPlan(_room ?? room, plan));
       return;
     }
-    if (!room.canStart) return;
+    if (!room.canStart || _startedFor == room.run) return;
+    _startedFor = room.run;
     HapticFeedback.mediumImpact();
-    try {
-      await _rooms.start(room);
-    } on RaceRoomException catch (e) {
-      if (mounted) showGameSnack(context, e.message);
-    }
+    _rooms.later(_rooms.start(room));
   }
 
   // ── The race ────────────────────────────────────────────────────────────
@@ -585,24 +573,25 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
 
   // ── A player ────────────────────────────────────────────────────────────
 
+  /// The route being planned for READY: one at a time.
   bool _readying = false;
 
-  /// READY (or not); on the space course, READY plans the route first.
+  /// READY (or not); on the space course, READY plans the route first. The
+  /// button turns at once, as the room on this phone does; the server hears
+  /// it when it can.
   Future<void> _setReady(RaceRoom room, bool ready) async {
     if (_readying) return;
     List<int>? plan;
     if (ready && room.needsPlan) {
-      plan = await _planRoute(room);
+      _readying = true;
+      try {
+        plan = await _planRoute(room);
+      } finally {
+        _readying = false;
+      }
       if (plan == null || !mounted) return;
     }
-    setState(() => _readying = true);
-    try {
-      await _rooms.setReady(_room ?? room, ready, plan: plan);
-    } on RaceRoomException catch (e) {
-      if (mounted) showGameSnack(context, e.message);
-    } finally {
-      if (mounted) setState(() => _readying = false);
-    }
+    _rooms.later(_rooms.setReady(_room ?? room, ready, plan: plan));
   }
 
   Future<void> _leave() async {
@@ -622,14 +611,9 @@ class _RaceLobbyScreenState extends State<RaceLobbyScreen>
     }
     _leaving = true;
     HapticFeedback.selectionClick();
-    if (room != null) {
-      try {
-        await _rooms.leave(room);
-      } on RaceRoomException catch (e) {
-        debugPrint('RaceLobby: not left cleanly: $e');
-      }
-    }
+    // Gone at once; the room hears it when it can.
     if (mounted) Navigator.of(context).pop();
+    if (room != null) _rooms.later(_rooms.leave(room));
   }
 
   // ── The screen ──────────────────────────────────────────────────────────
@@ -1347,16 +1331,11 @@ class _InviteSheetState extends State<_InviteSheet> {
       behavior: HitTestBehavior.opaque,
       onTap: room == null || asked || full || _asking.contains(f.uid)
           ? null
-          : () async {
+          : () {
+              // ASKED at once, as the room on this phone has it.
               HapticFeedback.selectionClick();
               setState(() => _asking.add(f.uid));
-              try {
-                await widget.rooms.invite(room, f);
-              } on RaceRoomException catch (e) {
-                if (context.mounted) showGameSnack(context, e.message);
-              } finally {
-                if (mounted) setState(() => _asking.remove(f.uid));
-              }
+              widget.rooms.later(widget.rooms.invite(room, f));
             },
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),

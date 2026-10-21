@@ -721,6 +721,150 @@ service cloud.firestore {
       allow delete: if isSignedIn() && request.auth.uid == resource.data.host;
     }
 
+    // Battles with a friend, live (battle_room_service.dart). The host makes
+    // a room and asks one friend into it (only a friend), picks the arena,
+    // starts each fight and writes how it ended; the friend writes only
+    // their own seat and READY (between fights) and their inputs (during
+    // one). The host's phone sends the fight into the room's stream.
+    function isBattleRoomShape(d) {
+      return d.keys().hasOnly(['host', 'guest', 'players', 'names', 'arena',
+              'state', 'run', 'seats', 'ready', 'inputs', 'result',
+              'startAt', 'createdAt', 'updatedAt']) &&
+          d.host is string &&
+          d.players is list && d.players.size() >= 1 &&
+          d.players.size() <= 2 && d.players[0] == d.host &&
+          ((d.get('guest', null) == null && d.players.size() == 1) ||
+           (d.guest is string && d.guest != d.host &&
+            d.players.size() == 2 && d.players[1] == d.guest)) &&
+          d.names is map && d.names.size() <= 8 &&
+          d.arena is string && d.arena.size() <= 24 &&
+          d.state in ['lobby', 'fighting'] &&
+          d.run is int && d.run >= 0 &&
+          d.seats is map && d.seats.size() <= 2 &&
+          d.ready is map && d.ready.size() <= 1 &&
+          (!('inputs' in d) || isBattleInputs(d.inputs)) &&
+          (!('result' in d) || (d.result is map && d.result.size() <= 3)) &&
+          (d.startAt == null || d.startAt is int) &&
+          d.updatedAt == request.time;
+    }
+
+    function isBattleSeat(s) {
+      return s is map &&
+          s.keys().hasOnly(['player', 'team', 'v', 'at']) &&
+          s.player is string && s.player.size() <= 40 &&
+          s.team is list && s.team.size() >= 1 && s.team.size() <= 4 &&
+          s.v is int &&
+          s.at == request.time;
+    }
+
+    function isBattleInputs(i) {
+      return i is map && i.keys().hasOnly(['run', 'b', 'l']) &&
+          i.run is int && i.b is int && i.l is list && i.l.size() <= 180;
+    }
+
+    // The friend asked (if any) has the asker among their friends.
+    function battleAsksFriend(d) {
+      return d.get('guest', null) == null ||
+          exists(/databases/$(database)/documents/players/$(d.guest)/friends/$(request.auth.uid));
+    }
+
+    // Which of the room's keys an update touches.
+    function battleChanged(d, r) {
+      return d.diff(r).affectedKeys();
+    }
+
+    // The friend asked: their own seat and READY between fights, their
+    // inputs during one, and leaving (the room is the host's alone again).
+    function battleGuestUpdateOk(d, r) {
+      let me = request.auth.uid;
+      return me == r.get('guest', null) &&
+          battleChanged(d, r).hasOnly(['seats', 'ready', 'inputs', 'guest',
+              'players', 'updatedAt']) &&
+          onlyMine(d.seats, r.seats) &&
+          onlyMine(d.ready, r.ready) &&
+          (!d.seats.diff(r.seats).affectedKeys().hasAny([me]) ||
+           (r.state == 'lobby' &&
+            (!(me in d.seats) || isBattleSeat(d.seats[me])))) &&
+          (!d.ready.diff(r.ready).affectedKeys().hasAny([me]) ||
+           (r.state == 'lobby' && (!(me in d.ready) || d.ready[me] == r.run))) &&
+          (!battleChanged(d, r).hasAny(['inputs']) ||
+           (r.state == 'fighting' && 'inputs' in d && d.inputs.run == r.run)) &&
+          (!battleChanged(d, r).hasAny(['guest', 'players']) ||
+           (d.get('guest', null) == null && d.players == [r.host]));
+    }
+
+    // The host: asking a friend in (while nobody is) or taking them out,
+    // the arena, their own seat (between fights), starting a fight (which
+    // clears the inputs) and ending one with how it went.
+    function battleHostUpdateOk(d, r) {
+      let me = request.auth.uid;
+      let was = r.get('guest', null);
+      return me == r.host &&
+          battleChanged(d, r).hasOnly(['guest', 'players', 'names', 'arena',
+              'state', 'run', 'startAt', 'inputs', 'result', 'seats',
+              'ready', 'updatedAt']) &&
+          // Their own seat between fights; the friend's only taken away.
+          d.seats.diff(r.seats).addedKeys().hasOnly([me]) &&
+          d.seats.diff(r.seats).changedKeys().hasOnly([me]) &&
+          (!d.seats.diff(r.seats).affectedKeys().hasAny([me]) ||
+           (r.state == 'lobby' &&
+            (!(me in d.seats) || isBattleSeat(d.seats[me])))) &&
+          d.ready.diff(r.ready).addedKeys().size() == 0 &&
+          d.ready.diff(r.ready).changedKeys().size() == 0 &&
+          (!battleChanged(d, r).hasAny(['inputs']) || !('inputs' in d)) &&
+          (!battleChanged(d, r).hasAny(['guest', 'players']) ||
+           (was == null && battleAsksFriend(d)) ||
+           (r.state == 'lobby' && d.get('guest', null) == null)) &&
+          (!battleChanged(d, r).hasAny(['state', 'run']) ||
+           (r.state == 'lobby' && d.state == 'fighting' && d.run == r.run + 1) ||
+           (r.state == 'fighting' && d.state == 'lobby' && d.run == r.run));
+    }
+
+    match /battle_rooms/{roomId} {
+      // A room gone reads as missing to anyone (it says nothing).
+      allow get: if isSignedIn() &&
+          (resource == null || request.auth.uid in resource.data.players);
+      allow list: if isSignedIn() && request.auth.uid in resource.data.players;
+      allow create: if isSignedIn() &&
+          isBattleRoomShape(request.resource.data) &&
+          request.resource.data.host == request.auth.uid &&
+          request.resource.data.state == 'lobby' &&
+          request.resource.data.run == 0 &&
+          request.resource.data.seats.size() == 0 &&
+          request.resource.data.ready.size() == 0 &&
+          !('inputs' in request.resource.data) &&
+          request.resource.data.createdAt == request.time &&
+          battleAsksFriend(request.resource.data);
+      allow update: if isSignedIn() &&
+          request.auth.uid in resource.data.players &&
+          isBattleRoomShape(request.resource.data) &&
+          request.resource.data.host == resource.data.host &&
+          request.resource.data.createdAt == resource.data.createdAt &&
+          (battleGuestUpdateOk(request.resource.data, resource.data) ||
+           battleHostUpdateOk(request.resource.data, resource.data));
+      allow delete: if isSignedIn() && request.auth.uid == resource.data.host;
+
+      // The fight as the host's phone sends it: eight documents written in
+      // turn, while a fight is on, by the host alone; read by the two.
+      function battleRoom() {
+        return get(/databases/$(database)/documents/battle_rooms/$(roomId)).data;
+      }
+
+      match /stream/{slot} {
+        allow read: if isSignedIn() && request.auth.uid in battleRoom().players;
+        allow create, update: if isSignedIn() &&
+            slot in ['0', '1', '2', '3', '4', '5', '6', '7'] &&
+            request.auth.uid == battleRoom().host &&
+            battleRoom().state == 'fighting' &&
+            request.resource.data.keys().hasOnly(['run', 'seq', 'p']) &&
+            request.resource.data.run == battleRoom().run &&
+            request.resource.data.seq is int &&
+            request.resource.data.p is list &&
+            request.resource.data.p.size() <= 2400;
+        allow delete: if isSignedIn() && request.auth.uid == battleRoom().host;
+      }
+    }
+
     // Reports about a player, kept for review in the console. Write-only.
     match /reports/{reportId} {
       allow create: if isSignedIn() &&
