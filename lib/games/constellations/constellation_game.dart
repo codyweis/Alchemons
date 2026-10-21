@@ -20,13 +20,24 @@ const Map<ConstellationTree, List<String>> kTreeStoryBeats = {
     'the moment marking\nflesh and life,',
   ],
   ConstellationTree.combat: [],
-  ConstellationTree.extraction: [
-    'The loneliness of the night.',
-    'Stands before me.',
-    'Silence is the only thing.',
-    'To be heard.',
-  ],
 };
+
+/// The Explorer key's verse, written over its shaft a line a stone as the
+/// shaft is bought ([kExtractionShaftSkillIds]); it goes on inside the bow
+/// ([kTreeCodaSegments]).
+const List<String> kExtractionShaftLines = [
+  'The loneliness of the night.',
+  'Stands before me.',
+  'Silence is the only thing.',
+  'To be heard.',
+];
+
+const List<String> kExtractionShaftSkillIds = [
+  'extraction_marketplace_insight',
+  'extraction_resource_alchemy',
+  'extraction_wilderness_preview',
+  'extraction_instant_reload',
+];
 
 const Map<ConstellationTree, List<String>> kTreeCodaSegments = {
   ConstellationTree.breeder: [
@@ -52,15 +63,6 @@ const Map<ConstellationTree, List<String>> kTreeCodaProgressionSkillIds = {
     'breeder_harvesting_wilderness_specimens2',
     'breeder_harvesting_wilderness_specimens3',
   ],
-  ConstellationTree.extraction: [
-    'extraction_all_day_market',
-    'extraction_sale_boost_1',
-    'extraction_sale_boost_2',
-    'extraction_sale_boost_3',
-    'exraction_xp_boost_1',
-    'exraction_xp_boost_2',
-    'exraction_xp_boost_3',
-  ],
 };
 
 const List<List<String>> kExtractionCodaRevealPairs = [
@@ -69,12 +71,8 @@ const List<List<String>> kExtractionCodaRevealPairs = [
   ['extraction_sale_boost_3', 'exraction_xp_boost_3'],
 ];
 
-const List<String> kExtractionCodaStoryIds = [
-  'extraction_coda_0',
-  'extraction_coda_1',
-  'extraction_coda_2',
-  'extraction_coda_3',
-];
+const String kExtractionShaftStoryId = 'extraction_shaft';
+const String kExtractionBowStoryId = 'extraction_bow';
 
 const List<String> kBreederCodaStoryIds = [
   'breeder_coda_0',
@@ -223,11 +221,19 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   /// [rect] (in world units) moved just far enough to sit wholly in the part
   /// of the screen the chrome leaves clear, so a verse is never cut off by
   /// the screen's edge or hidden under the header. Null when it is nowhere
-  /// near the screen, so another tree's verse is never dragged in.
-  Rect? keepOnChart(Rect rect) {
+  /// near the screen. Only [selectedTree]'s verse is moved: another tree's
+  /// is shown where it stands, by its own stones, and only when all of it is
+  /// on screen, so a line from a tree off to the side is never dragged in
+  /// over the one being read, nor left cut in half at the edge.
+  Rect? keepOnChart(Rect rect, ConstellationTree tree) {
     final view = _visibleWorld;
     if (view.isEmpty) return rect;
     if (!rect.overlaps(view)) return null;
+    if (tree != selectedTree) {
+      return view.contains(rect.topLeft) && view.contains(rect.bottomRight)
+          ? rect
+          : null;
+    }
     final zoom = camera.viewfinder.zoom;
     final clear = Rect.fromLTRB(
       view.left + (chartInsets.left + 10) / zoom,
@@ -250,10 +256,9 @@ class ConstellationGame extends FlameGame with ScaleDetector {
   };
 
   double _baseScaleForGesture = 1.0;
-  // Was 0.2, which clipped the combat tree: its horizontal arms span ~2100
-  // world units with padding, needing ~0.15 to fit the narrowest phone. A
-  // floor above the framing zoom would also mean the view the screen opens on
-  // is one the player could never pinch back out to.
+  // Well under the framing floor: a floor above the framing zoom would mean
+  // the view the screen opens on is one the player could never pinch back
+  // out to.
   static const double _minScale = 0.15;
   static const double _maxScale = 2.0;
 
@@ -266,10 +271,10 @@ class ConstellationGame extends FlameGame with ScaleDetector {
 
   /// Framing never goes below this, even when the tree does not fit.
   ///
-  /// Combat is a cross whose horizontal arms are about three times breeder's
-  /// width; fitting them whole put it at 0.17, where the nodes are specks.
-  /// Better to open it readable and let the arms run off the sides — they are
-  /// a straight line of nodes, and panning along them is easy.
+  /// Combat's star is the widest tree: fitting it with its padding wants
+  /// about 0.25, where the nodes are specks. Better to open it readable and
+  /// give up the padding — the star itself still fits a phone as wide as the
+  /// Fold's cover screen.
   static const double _minFramingZoom = 0.34;
 
   /// The pinch-out limit, exposed so the default framing can be asserted to
@@ -628,30 +633,25 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     }
 
     if (tree == ConstellationTree.extraction) {
-      // Between the rows, like breeder's: the first beside the trunk, the
-      // rest in the gap between the two columns.
-      final tierYs = <double>[
-        baseY - (5.5 * 180.0),
-        baseY - (6.5 * 180.0),
-        baseY - (7.5 * 180.0),
-        baseY - (8.5 * 180.0),
-      ];
-
-      for (int i = 0; i < coda.length && i < tierYs.length; i++) {
-        final xOffset = i == 0 ? -120.0 : 0.0;
+      // One plate over the key's shaft, one inside its bow.
+      final spots = explorerKeyVerseSpots();
+      for (final (id, lines, at) in [
+        (kExtractionShaftStoryId, kExtractionShaftLines, spots.shaft),
+        (kExtractionBowStoryId, coda, spots.bow),
+      ]) {
+        final written = _extractionLinesWritten(id, _unlockedSkills);
         final block = TreeStoryBlock(
-          storyId: kExtractionCodaStoryIds[i],
+          storyId: id,
           tree: tree,
-          position: treeOffset + Vector2(xOffset, tierYs[i]),
+          position: treeOffset + Vector2(at.dx, at.dy),
           isTreeVisible: _visibleTrees.contains(tree),
           primaryColor: primaryColor,
-          text: coda[i],
-          maxWidth: 150,
+          text: '',
+          progressiveLines: lines,
+          revealedLineCount: written,
+          maxWidth: 210,
           alignment: TextAlign.center,
-          revealUnlocked: _isExtractionStoryBlockUnlocked(
-            kExtractionCodaStoryIds[i],
-            _unlockedSkills,
-          ),
+          revealUnlocked: written > 0,
         );
         _storyBlocks.add(block);
         await world.add(block);
@@ -693,15 +693,6 @@ class ConstellationGame extends FlameGame with ScaleDetector {
       return tree == ConstellationTree.combat ? kCombatStoryLines.length : 0;
     }
 
-    if (tree == ConstellationTree.extraction) {
-      return kExtractionCodaRevealPairs
-          .where(
-            (pair) => pair.every((skillId) => unlockedSkills.contains(skillId)),
-          )
-          .length
-          .clamp(0, lines.length);
-    }
-
     final skillIds = kTreeCodaProgressionSkillIds[tree];
     if (skillIds == null || skillIds.isEmpty) {
       return 0;
@@ -716,22 +707,18 @@ class ConstellationGame extends FlameGame with ScaleDetector {
     );
   }
 
-  bool _isExtractionStoryBlockUnlocked(
-    String storyId,
-    Set<String> unlockedSkills,
-  ) {
-    switch (storyId) {
-      case 'extraction_coda_0':
-        return unlockedSkills.contains('extraction_all_day_market');
-      case 'extraction_coda_1':
-        return kExtractionCodaRevealPairs[0].every(unlockedSkills.contains);
-      case 'extraction_coda_2':
-        return kExtractionCodaRevealPairs[1].every(unlockedSkills.contains);
-      case 'extraction_coda_3':
-        return kExtractionCodaRevealPairs[2].every(unlockedSkills.contains);
-      default:
-        return false;
+  /// How many lines of an Explorer verse plate are written: the shaft's a
+  /// line a stone, the bow's a line as it opens, then one for each round of
+  /// it bought on both sides.
+  int _extractionLinesWritten(String storyId, Set<String> unlockedSkills) {
+    if (storyId == kExtractionShaftStoryId) {
+      return kExtractionShaftSkillIds.where(unlockedSkills.contains).length;
     }
+    if (!unlockedSkills.contains('extraction_all_day_market')) return 0;
+    return 1 +
+        kExtractionCodaRevealPairs
+            .where((pair) => pair.every(unlockedSkills.contains))
+            .length;
   }
 
   bool _isBreederStoryBlockUnlocked(
@@ -978,9 +965,12 @@ class ConstellationGame extends FlameGame with ScaleDetector {
         );
       } else if (block.tree == ConstellationTree.extraction &&
           block.storyId != null) {
-        block.updateRevealState(
-          _isExtractionStoryBlockUnlocked(block.storyId!, _unlockedSkills),
+        final written = _extractionLinesWritten(
+          block.storyId!,
+          _unlockedSkills,
         );
+        block.updateRevealState(written > 0);
+        block.updateRevealedLineCount(written);
       } else {
         final revealedLineCount = _treeCodaRevealedLineCount(
           block.tree,
@@ -1301,7 +1291,7 @@ class TreeStoryBlock extends PositionComponent
       width: tp.width + 34.0,
       height: tp.height + 28.0,
     );
-    final rect = game.keepOnChart(local.shift(position.toOffset()));
+    final rect = game.keepOnChart(local.shift(position.toOffset()), tree);
     if (rect == null) return;
     final drawn = rect.shift(-position.toOffset());
     final fade = game.storyEntrance;
@@ -1768,6 +1758,7 @@ class ConnectionLine extends Component
         width: tp.width + 32.0,
         height: tp.height + 24.0,
       ),
+      tree,
     );
     if (rect == null) return;
     _StoryPlate.paint(canvas, rect, opacity, treeLight(tree).essence);

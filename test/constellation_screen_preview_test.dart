@@ -42,6 +42,12 @@ void main() {
       'monospace',
       '/System/Library/Fonts/Supplemental/Andale Mono.ttf',
     );
+    // The verse's face is fetched at run time in the game; a near serif
+    // stands in so the verse reads as words here.
+    await loadFont(
+      'IMFellGreatPrimer_regular',
+      '/System/Library/Fonts/Supplemental/Georgia.ttf',
+    );
     final home =
         Platform.environment['PUB_CACHE'] ??
         '${Platform.environment['HOME']}/.pub-cache';
@@ -75,7 +81,7 @@ void main() {
       service = ConstellationService(db);
     });
 
-    for (final tree in const ['breeder', 'combat', 'sheet']) {
+    for (final tree in const ['breeder', 'combat', 'extraction', 'sheet']) {
       tester.view.physicalSize = const Size(1248, 1972);
       tester.view.devicePixelRatio = 1248 / 412;
       final key = GlobalKey();
@@ -117,8 +123,8 @@ void main() {
           await tester.pump(const Duration(milliseconds: 33));
         }
       }
-      if (tree == 'combat') {
-        await tester.tap(find.text('COMBAT'));
+      if (tree == 'combat' || tree == 'extraction') {
+        await tester.tap(find.text(tree == 'combat' ? 'COMBAT' : 'EXPLORER'));
         for (var i = 0; i < 40; i++) {
           await tester.pump(const Duration(milliseconds: 33));
         }

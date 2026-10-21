@@ -1,7 +1,8 @@
 // The star chart's behaviour as the 2026-10 redesign left it: an unlock is a
 // pour of grains down the link that ignites the stone when it lands, the
-// chart's verse is kept on screen and out from under the chrome, and every
-// skill wears an inked glyph rather than a font icon.
+// chart's verse is kept on screen and out from under the chrome (the tree
+// being read's, not another's), and every skill wears an inked glyph rather
+// than a font icon.
 //
 // Behaviour, not looks — test/constellation_preview_test.dart renders it.
 
@@ -94,7 +95,7 @@ void main() {
         width: 200,
         height: 60,
       );
-      final kept = game.keepOnChart(plate)!;
+      final kept = game.keepOnChart(plate, ConstellationTree.breeder)!;
       expect(kept.size, plate.size);
       expect(kept.right, lessThanOrEqualTo(view.right));
       expect(
@@ -114,7 +115,32 @@ void main() {
         width: 200,
         height: 60,
       );
-      expect(game.keepOnChart(far), isNull);
+      expect(game.keepOnChart(far, ConstellationTree.combat), isNull);
+    });
+
+    testWidgets("another tree's verse is shown where it stands, or not", (
+      tester,
+    ) async {
+      final game = await _boot(tester, const {});
+      final view = game.camera.visibleWorldRect;
+      // Half off the right edge: breeder's own verse would be moved in, but
+      // another tree's is not dragged over it, nor drawn cut in half.
+      final edge = Rect.fromCenter(
+        center: Offset(view.right, view.center.dy),
+        width: 200,
+        height: 60,
+      );
+      expect(
+        game.keepOnChart(edge, ConstellationTree.breeder)!.right,
+        lessThanOrEqualTo(view.right),
+      );
+      expect(game.keepOnChart(edge, ConstellationTree.extraction), isNull);
+      final inside = Rect.fromCenter(
+        center: view.center,
+        width: 200,
+        height: 60,
+      );
+      expect(game.keepOnChart(inside, ConstellationTree.extraction), inside);
     });
   });
 

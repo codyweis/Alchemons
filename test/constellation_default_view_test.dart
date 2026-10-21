@@ -1,12 +1,11 @@
 // The screen used to open at zoom 1.0 positioned on the selected tree, which
 // drops the camera into the middle of a branch.
 //
-// It now frames the tree's own nodes, with a readability floor. The branches
-// are very different sizes: breeder fits whole at 0.51, extraction at 0.40,
-// but combat's arms are three times breeder's width and fitting them needs
-// 0.17 — where the nodes are specks. So a very wide tree is floored and its
-// arms run off the sides instead, which is fine: they are a straight line of
-// nodes and panning along them is easy.
+// It now frames the tree's own nodes, with a readability floor. The trees
+// are different sizes: breeder is narrow, but combat's star and explorer's
+// key are wide, and fitting them with their padding goes below the floor,
+// where the nodes are specks. So a wide tree is floored instead and gives up
+// its padding.
 
 import 'package:alchemons/games/constellations/constellation_game.dart';
 import 'package:alchemons/models/constellation/constellation_catalog.dart';
@@ -119,8 +118,8 @@ void main() {
   testWidgets('a wide tree frames further out than a narrow one', (
     tester,
   ) async {
-    // combat's arms span roughly three times breeder's width, so a single
-    // constant cannot serve both.
+    // combat's star is far wider than breeder's rows, so a single constant
+    // cannot serve both.
     final breeder = await _boot(tester, selected: ConstellationTree.breeder);
     final breederZoom = breeder.camera.viewfinder.zoom;
     final combat = await _boot(tester, selected: ConstellationTree.combat);

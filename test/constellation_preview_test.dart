@@ -35,6 +35,12 @@ void main() {
       'monospace',
       '/System/Library/Fonts/Supplemental/Andale Mono.ttf',
     );
+    // The verse's face is fetched at run time in the game; a near serif
+    // stands in so the verse reads as words here.
+    await loadFont(
+      'IMFellGreatPrimer_regular',
+      '/System/Library/Fonts/Supplemental/Georgia.ttf',
+    );
     await loadFont(
       'MaterialIcons',
       '/Users/codyweisenberger/Documents/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
@@ -117,12 +123,17 @@ void main() {
         frames: frames,
       );
     }
-    await shoot(
-      tester,
-      'full_extraction',
+    for (final tree in [
+      ConstellationTree.combat,
       ConstellationTree.extraction,
-      unlocked: {for (final s in ConstellationCatalog.allSkills) s.id},
-    );
+    ]) {
+      await shoot(
+        tester,
+        'full_${tree.name}',
+        tree,
+        unlocked: {for (final s in ConstellationCatalog.allSkills) s.id},
+      );
+    }
     await shoot(
       tester,
       'fresh_breeder',
