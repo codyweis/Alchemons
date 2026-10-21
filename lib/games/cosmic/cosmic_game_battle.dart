@@ -155,6 +155,17 @@ class BattleCreature {
 
   bool fallen = false;
 
+  /// Whether it has been out on the field at all this fight.
+  bool wasOnField = false;
+
+  /// What it did this fight, for the result card's breakdown: the health it
+  /// took off the other side, the health it lost to them, and the health it
+  /// gave back to its own side (itself included). All in the creatures' own
+  /// health points; shields count where they soaked a blow.
+  double damageDealt = 0;
+  double damageTaken = 0;
+  double healing = 0;
+
   /// The creature itself, while it is on the field.
   CosmicCompanion? body;
 
@@ -337,6 +348,52 @@ class CosmicBattle {
   final List<BattleEvent> log = [];
   int _frame = 0;
 
+  // ── who did what (the result card's breakdown) ──────────────────────────
+  //
+  // A side's abilities land on the other side's stand-in bodies over its
+  // turn, and what the bodies lost is settled onto the creatures after it
+  // (cosmic_game_duel.dart). So the turn is marked off as it runs: each
+  // stretch belongs to one of the side's creatures — its own frame, a shot
+  // it fired, a beam it holds, its Kin support — and what the bodies lost
+  // over that stretch is that creature's. A stretch nobody owns is the
+  // side's. At the settle, what each creature lost is split between the
+  // other side's by those shares, so what one side dealt is always what the
+  // other side lost.
+
+  /// The side whose turn it is, and the slot its current stretch is
+  /// credited to (null: the side's).
+  BattleSide? _turnSide;
+  int? _source;
+
+  /// The other side's bodies standing this turn, by creature, and their
+  /// health when the stretch began.
+  final List<_CombatBody?> _turnBodies = List<_CombatBody?>.filled(
+    kBattleTeamSize,
+    null,
+  );
+  final List<double> _turnFrom = List<double>.filled(kBattleTeamSize, 0);
+
+  /// What each of the other side's bodies lost this turn (in the bodies'
+  /// own units), by who: one of the side's creatures, or the side
+  /// ([kBattleTeamSize]).
+  final List<List<double>> _turnCredit = [
+    for (var i = 0; i < kBattleTeamSize; i++)
+      List<double>.filled(kBattleTeamSize + 1, 0),
+  ];
+
+  /// The turn's own side's health when the stretch began, by creature.
+  final List<double> _healFrom = List<double>.filled(kBattleTeamSize, 0);
+
+  /// Shots that name no caster though one made them — thrown back by a
+  /// reflector (a Horn's wall), a decoy's burst — by the slot the tally
+  /// credits them to. Giving them the caster itself would set off its kill
+  /// effects, which those shots never have.
+  final Expando<int> _shotOwner = Expando<int>();
+
+  /// Health lost that no one creature could be credited with, shared out
+  /// evenly across the side that dealt it. Kept for the tests.
+  double unattributed = 0;
+
   bool get over => result != null;
 
   /// The bench end of [side]'s half: where a swapped-out Alchemon goes.
@@ -507,6 +564,7 @@ extension CosmicGameBattle on CosmicGame {
     // Facing the other side.
     comp.angle = side.index == 0 ? -pi / 2 : pi / 2;
     c.body = comp;
+    c.wasOnField = true;
     side.spots[spot] = index;
     // Its sprite and grains are kept by its slot, so they load once a fight.
     if (!_companionTickers.containsKey(member.slotIndex)) {
@@ -685,9 +743,12 @@ extension CosmicGameBattle on CosmicGame {
 
   /// [foe]'s arrived Alchemons as bodies [side]'s abilities can touch.
   List<CosmicEnemy> _standUpBattleBodies(BattleSide foe) {
+    final b = _battle!;
     final bodies = <CosmicEnemy>[];
-    for (final c in foe.onField) {
-      final comp = c.body!;
+    b._turnBodies.fillRange(0, kBattleTeamSize, null);
+    for (final i in foe.spots) {
+      if (i == null) continue;
+      final comp = foe.creatures[i].body!;
       if (!_battleArrived(comp) || !comp.isAlive) continue;
       final cb = foe._bodies[comp] ??= _newCombatBody(
         comp.member.element,
@@ -696,6 +757,10 @@ extension CosmicGameBattle on CosmicGame {
       _standUp(cb, comp.position);
       _carryHealthOf(cb, comp);
       bodies.add(cb.body);
+      // The tally starts from the health it stands with.
+      b._turnBodies[i] = cb;
+      b._turnFrom[i] = cb.body.health;
+      b._turnCredit[i].fillRange(0, kBattleTeamSize + 1, 0);
     }
     return bodies;
   }
@@ -712,13 +777,23 @@ extension CosmicGameBattle on CosmicGame {
       }
     }
     final bodies = _standUpBattleBodies(foe);
-    var standIn = _battle!.center;
+    final b = _battle!;
+    var standIn = b.center;
     if (side._acting.isNotEmpty) {
       var sum = Offset.zero;
       for (final comp in side._acting.values) {
         sum += comp.position;
       }
       standIn = sum / side._acting.length.toDouble();
+    }
+    // The tally marks the turn off stretch by stretch (see CosmicBattle):
+    // the shared passes credit each beam, shot and Kin support to its
+    // caster as they go, and the stretches between to whoever owns them.
+    b._turnSide = side;
+    b._source = null;
+    for (var i = 0; i < side.creatures.length; i++) {
+      final comp = side.creatures[i].body;
+      if (comp != null) b._healFrom[i] = comp.currentHp.toDouble();
     }
     _runAsSide(
       side._state,
@@ -730,16 +805,150 @@ extension CosmicGameBattle on CosmicGame {
       standInAngle: side.index == 0 ? -pi / 2 : pi / 2,
       turn: () {
         _updateOpenWingBeams(dt);
+        _battleCredit(null);
         updateAttachedAbilityPieces();
+        // A Blood mask's marks bleed, a Spirit mask's wisps come home.
+        _battleCredit(
+          _battleSlotOf(side, 'mask', element: 'Blood') ??
+              _battleSlotOf(side, 'mask'),
+        );
         updateMaskRuntime(dt);
         for (final comp in side._acting.values.toList(growable: false)) {
-          if (comp.isAlive) _battlerTurn(side, foe, comp, dt);
+          if (!comp.isAlive) continue;
+          _battleCredit(comp.member.slotIndex);
+          _battlerTurn(side, foe, comp, dt);
         }
+        _battleCredit(null);
         _updateOpenKinSupports(dt);
+        // A Plant kin's flowers.
+        _battleCredit(_battleSlotOf(side, 'kin', element: 'Plant'));
         _updateKinFlowers(dt);
+        _battleCredit(null);
         _updateAbilityProjectiles(dt);
       },
     );
+    _battleCredit(null);
+    b._turnSide = null;
+  }
+
+  /// The slot of [side]'s [family] Alchemon (of [element], if given): the
+  /// one on the field first, else one on the bench or fallen, whose marks
+  /// and flowers may outlast it there. Null if it brought none.
+  int? _battleSlotOf(BattleSide side, String family, {String? element}) {
+    int? found;
+    for (final c in side.creatures) {
+      final m = c.member;
+      if (m.family.toLowerCase() != family) continue;
+      if (element != null && m.element != element) continue;
+      if (c.onField) return m.slotIndex;
+      found ??= m.slotIndex;
+    }
+    return found;
+  }
+
+  /// Closes the stretch of the turn credited so far and opens one credited
+  /// to [slot] (null: the side's). What the other side's bodies lost over
+  /// the stretch goes to the one it was credited to; what the side's own
+  /// Alchemons gained goes to it as healing (a heal nobody owns, to the one
+  /// healed). Returns the slot the stretch was credited to. Does nothing
+  /// outside a battle's turn.
+  int? _battleCredit(int? slot) {
+    final b = _battle;
+    if (b == null) return null;
+    final side = b._turnSide;
+    if (side == null) return null;
+    final was = b._source;
+    b._source = slot;
+    final by = _battleCreditIndex(side, was);
+    for (var i = 0; i < kBattleTeamSize; i++) {
+      final cb = b._turnBodies[i];
+      if (cb == null) continue;
+      final health = cb.body.health;
+      final lost = b._turnFrom[i] - health;
+      if (lost > 0) b._turnCredit[i][by] += lost;
+      b._turnFrom[i] = health;
+    }
+    for (var i = 0; i < side.creatures.length; i++) {
+      final comp = side.creatures[i].body;
+      if (comp == null) continue;
+      final hp = comp.currentHp.toDouble();
+      final gained = hp - b._healFrom[i];
+      if (gained > 0) {
+        // Overtime trims it once the turn is over (_battleTurnHealed).
+        side.creatures[by < kBattleTeamSize ? by : i].healing +=
+            gained * b.healNow;
+      }
+      b._healFrom[i] = hp;
+    }
+    return was;
+  }
+
+  /// [shot], which names no caster (thrown back by [slot]'s reflector, or
+  /// its decoy's burst), is [slot]'s in the tally.
+  void _battleNoteShotOwner(Projectile shot, int? slot) {
+    final b = _battle;
+    if (b == null || slot == null) return;
+    b._shotOwner[shot] = slot;
+  }
+
+  /// Who the tally credits [shot] to when it names no caster, in a battle.
+  int? _battleShotOwner(Projectile shot) => _battle?._shotOwner[shot];
+
+  /// [slot]'s creature on [side], or [kBattleTeamSize] for the side itself
+  /// (no slot, or one that is not a creature of the side's).
+  int _battleCreditIndex(BattleSide side, int? slot) {
+    if (slot == null) return kBattleTeamSize;
+    final i = slot - battleSlotFor(side.index, 0);
+    return i >= 0 && i < side.creatures.length ? i : kBattleTeamSize;
+  }
+
+  /// [on]'s creature [i] lost [lost] to [by] in [by]'s turn: it is [i]'s
+  /// damage taken and, by the turn's shares, the dealers' damage dealt.
+  void _tallyBattleLoss(BattleSide by, BattleSide on, int i, double lost) {
+    final b = _battle!;
+    final credit = b._turnCredit[i];
+    if (lost > 0) {
+      on.creatures[i].damageTaken += lost;
+      var all = 0.0;
+      for (final share in credit) {
+        all += share;
+      }
+      if (all > 0) {
+        for (var a = 0; a < by.creatures.length; a++) {
+          if (credit[a] > 0) {
+            by.creatures[a].damageDealt += lost * credit[a] / all;
+          }
+        }
+      }
+      final unknown = all > 0 ? lost * credit[kBattleTeamSize] / all : lost;
+      if (unknown > 0) _shareBattleLoss(by, unknown);
+    }
+    credit.fillRange(0, kBattleTeamSize + 1, 0);
+  }
+
+  /// [amount] dealt by [by] that no one creature can be credited with,
+  /// shared evenly by those on its field (or, with none there, by all it
+  /// brought that still stand, or all of them).
+  void _shareBattleLoss(BattleSide by, double amount) {
+    _battle!.unattributed += amount;
+    var n = 0;
+    for (final c in by.creatures) {
+      if (c.onField) n++;
+    }
+    if (n > 0) {
+      for (final c in by.creatures) {
+        if (c.onField) c.damageDealt += amount / n;
+      }
+      return;
+    }
+    for (final c in by.creatures) {
+      if (!c.fallen) n++;
+    }
+    for (final c in by.creatures) {
+      if (n == 0 || !c.fallen) {
+        c.damageDealt += amount / (n == 0 ? by.creatures.length : n);
+      }
+    }
   }
 
   /// The foe [comp] fights: the nearest, held until another is clearly
@@ -929,12 +1138,17 @@ extension CosmicGameBattle on CosmicGame {
   /// What [side]'s bodies took on the other side's turn, onto its Alchemons.
   void _settleBattleBodies(BattleSide side) {
     final b = _battle!;
+    final by = b.sides[1 - side.index];
     for (final entry in side._bodies.entries) {
       final comp = entry.key;
       if (comp.isAlive && _battleArrived(comp)) {
         final before = comp.currentHp + comp.shieldHp;
         _settleOnCompanion(entry.value, comp, pool: side.projectiles);
         final lost = before - (comp.currentHp + comp.shieldHp);
+        final index = comp.member.slotIndex - battleSlotFor(side.index, 0);
+        if (index >= 0 && index < side.creatures.length) {
+          _tallyBattleLoss(by, side, index, lost.toDouble());
+        }
         // The floor feels a blow worth seeing.
         if (lost > comp.maxHp * 0.02) {
           b.floor.hit(
@@ -987,10 +1201,13 @@ extension CosmicGameBattle on CosmicGame {
       if (!_isKinMember(kin.member) || kin.member.element != 'Fire') continue;
       if (!identical(kin, fallen) && !kin.isAlive) continue;
       c.phoenixSpent = true;
+      final from = max(0, fallen.currentHp);
       fallen.currentHp = max(
         1,
         (fallen.maxHp * KinSupport.phoenixRestoreFraction).round(),
       );
+      // The kin's healing: what it gave back to the one it caught.
+      c.healing += fallen.currentHp - from;
       _awakenOpenPhoenix(_KinCaster.companion(kin), fallen.position);
       final b = _battle!;
       b.log.add(BattleEvent(b.clock, side.index, BattleEventKind.phoenix, i));

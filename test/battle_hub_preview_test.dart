@@ -14,7 +14,8 @@ import 'package:provider/provider.dart';
 import 'survival_lobby_harness.dart';
 
 // The battle hub on the phone: the arena live, the arena row, your four,
-// the computer's four, BATTLE.
+// the computer's four, the record and RULES, BATTLE; and the rules it shows
+// the first time (rules_1..3.png).
 //
 //   HUB_OUT=/tmp/hub flutter test test/battle_hub_preview_test.dart \
 //     --tags preview
@@ -33,6 +34,8 @@ void main() {
     tester.view.devicePixelRatio = kLobbyDpr;
     addTearDown(tester.view.reset);
     final save = await LobbySave.create(tester);
+    // The rules were read before ('battle rules' shoots them).
+    await tester.runAsync(save.db.settingsDao.setBattleHowToSeen);
     final key = GlobalKey();
     await tester.pumpWidget(
       ChangeNotifierProvider<AudioController>.value(
@@ -55,6 +58,42 @@ void main() {
     await save.dispose(tester);
   });
 
+  // The first time the hub opens: the rules, a page each.
+  testWidgets('battle rules', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    tester.view.physicalSize = kLobbyPhysical;
+    tester.view.devicePixelRatio = kLobbyDpr;
+    addTearDown(tester.view.reset);
+    final save = await LobbySave.create(tester);
+    final key = GlobalKey();
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AudioController>.value(
+        value: SilentAudio(),
+        child: save.app(shot: key, home: const BattleHubScreen()),
+      ),
+    );
+    await settleLobby(tester, 30);
+    await precacheLobbyImages(tester);
+    for (var page = 1; page <= 3; page++) {
+      await settleLobby(tester, 10);
+      tester.takeException();
+      await tester.runAsync(() async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1.5);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$out/rules_$page.png').writeAsBytesSync(
+          bytes!.buffer.asUint8List(),
+        );
+        image.dispose();
+      });
+      final next = find.text(page < 3 ? 'NEXT' : 'OK');
+      if (next.evaluate().isNotEmpty) await tester.tap(next);
+    }
+    await save.dispose(tester);
+  });
+
   testWidgets('battle flow from the hub', (tester) async {
     if (out == null || Platform.environment['HUB_FLOW'] != '1') return;
     Directory('$out/flow').createSync(recursive: true);
@@ -62,6 +101,7 @@ void main() {
     tester.view.devicePixelRatio = kLobbyDpr;
     addTearDown(tester.view.reset);
     final save = await LobbySave.create(tester);
+    await tester.runAsync(save.db.settingsDao.setBattleHowToSeen);
     final key = GlobalKey();
     await tester.pumpWidget(
       ChangeNotifierProvider<AudioController>.value(

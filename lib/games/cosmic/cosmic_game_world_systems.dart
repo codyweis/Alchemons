@@ -2981,19 +2981,20 @@ extension CosmicGameWorldSystems on CosmicGame {
     // Spawn damage projectiles in a ring
     for (var i = 0; i < count; i++) {
       final a = i * (pi * 2 / count);
-      companionProjectiles.add(
-        Projectile(
-          position: Offset(pos.dx + cos(a) * 8, pos.dy + sin(a) * 8),
-          angle: a,
-          element: decoy.element,
-          damage: dmg,
-          life: 1.5,
-          speedMultiplier: 0.8,
-          radiusMultiplier: decoy.deathExplosionRadius,
-          piercing: true,
-          visualScale: 1.3,
-        ),
+      final burst = Projectile(
+        position: Offset(pos.dx + cos(a) * 8, pos.dy + sin(a) * 8),
+        angle: a,
+        element: decoy.element,
+        damage: dmg,
+        life: 1.5,
+        speedMultiplier: 0.8,
+        radiusMultiplier: decoy.deathExplosionRadius,
+        piercing: true,
+        visualScale: 1.3,
       );
+      // A battle's tally: the burst is the decoy's caster's.
+      _battleNoteShotOwner(burst, decoy.sourceSlotIndex);
+      companionProjectiles.add(burst);
     }
   }
 

@@ -2192,7 +2192,12 @@ class CosmicGame extends FlameGame with PanDetector {
       return false;
     }
     final wasAlive = enemy.health > 0;
+    // A battle's tally (cosmic_game_battle.dart): a blow that names its
+    // caster is the caster's, whatever stretch of the turn it lands in.
+    final credited = sourceSlot != null && (standIn?.carriesHealth ?? false);
+    final was = credited ? _battleCredit(sourceSlot) : null;
     enemy.health -= damage;
+    if (credited) _battleCredit(was);
     final killed = wasAlive && enemy.health <= 0;
     if (killed) {
       enemy.dead = true;

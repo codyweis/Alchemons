@@ -325,6 +325,8 @@ extension CosmicWing on CosmicGame {
   /// Survival's `_updateBeamEffects`, beam for beam.
   void _updateOpenWingBeams(double dt) {
     for (final beam in _activeWingBeams) {
+      // A battle's tally: what this beam does is its caster's.
+      _battleCredit(beam.caster.member.slotIndex);
       final d = beam.descriptor;
       beam.life -= dt;
       switch (beam.anchor) {

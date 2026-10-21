@@ -34,7 +34,7 @@ import 'package:provider/provider.dart';
 //  other side's strip at the top and your hand at the bottom: your two on
 //  the field (their health and specials, which fire on their own), your
 //  bench (tap one, then the field card it replaces: one of your two swaps)
-//  and your swaps left. Tap one of theirs, on the floor or in the strip, to
+//  and your swaps left. Tap an enemy, on the floor or in the strip, to
 //  make it your side's focus.
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -213,6 +213,10 @@ class _BattleScreenState extends State<BattleScreen>
   bool _leaving = false;
   bool _gameHidden = false;
 
+  /// The result card shows who did what (DETAILS) in place of the two
+  /// fours.
+  bool _details = false;
+
   /// The result's word, read into grains to gather.
   GrainAssembly? _word;
 
@@ -276,6 +280,7 @@ class _BattleScreenState extends State<BattleScreen>
     setState(() {
       _battle = b;
       _swapIn = null;
+      _details = false;
     });
     // The game takes over from the flying floor, the HUD slides in, and
     // the two sides gather out of grains on their places.
@@ -562,6 +567,11 @@ class _BattleScreenState extends State<BattleScreen>
                           onAgain: _again,
                           onLeave: _back,
                           leaveLabel: widget.leaveLabel,
+                          details: _details,
+                          onDetails: () {
+                            HapticFeedback.selectionClick();
+                            setState(() => _details = !_details);
+                          },
                         ),
                 ),
               ),
@@ -1271,7 +1281,8 @@ double _span(double t, double a, double b) =>
 /// How it ended, coming up in turn over [t] 0..1: the card rises, the word
 /// gathers out of grains, then both sides' four as they finished (yours,
 /// then theirs), then again or back to the hub. No line under the word
-/// (user 2026-10-20: the subtext read as cheesy).
+/// (user 2026-10-20: the subtext read as cheesy). DETAILS puts who did what
+/// in the fours' place: plain numbers, nothing said about them.
 class _ResultCard extends StatelessWidget {
   const _ResultCard({
     required this.battle,
@@ -1280,6 +1291,8 @@ class _ResultCard extends StatelessWidget {
     required this.onAgain,
     required this.onLeave,
     required this.leaveLabel,
+    required this.details,
+    required this.onDetails,
   });
 
   final CosmicBattle battle;
@@ -1288,6 +1301,8 @@ class _ResultCard extends StatelessWidget {
   final VoidCallback onAgain;
   final VoidCallback onLeave;
   final String leaveLabel;
+  final bool details;
+  final VoidCallback onDetails;
 
   @override
   Widget build(BuildContext context) {
@@ -1372,13 +1387,73 @@ class _ResultCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      arriving(_span(t, 0.55, 0.78), team(0, 'YOU', kBattleBrass)),
-                      const SizedBox(height: 8),
-                      arriving(
-                        _span(t, 0.65, 0.88),
-                        team(1, 'THEM', kBattleSilver),
+                      // The two fours as they finished, or (DETAILS) what
+                      // each of them did: the card grows or shrinks to it.
+                      Flexible(
+                        child: AnimatedSize(
+                          duration: const Duration(milliseconds: 320),
+                          curve: Curves.easeOutCubic,
+                          alignment: Alignment.topCenter,
+                          child: AnimatedSwitcher(
+                            duration: const Duration(milliseconds: 260),
+                            switchInCurve: Curves.easeOut,
+                            switchOutCurve: Curves.easeIn,
+                            layoutBuilder: (current, previous) => Stack(
+                              alignment: Alignment.topCenter,
+                              children: [...previous, ?current],
+                            ),
+                            child: details
+                                ? SingleChildScrollView(
+                                    key: const ValueKey('battle.details'),
+                                    child: _Breakdown(battle: battle),
+                                  )
+                                : Column(
+                                    key: const ValueKey('battle.fours'),
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      arriving(
+                                        _span(t, 0.55, 0.78),
+                                        team(0, 'YOU', kBattleBrass),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      arriving(
+                                        _span(t, 0.65, 0.88),
+                                        team(1, 'THEM', kBattleSilver),
+                                      ),
+                                    ],
+                                  ),
+                          ),
+                        ),
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 6),
+                      IgnorePointer(
+                        ignoring: t < 0.85,
+                        child: arriving(
+                          _span(t, 0.72, 0.92),
+                          GestureDetector(
+                            key: const ValueKey('battle.detailsToggle'),
+                            behavior: HitTestBehavior.opaque,
+                            onTap: onDetails,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              child: Text(
+                                details ? 'HIDE DETAILS' : 'DETAILS',
+                                style: bracketText(
+                                  context,
+                                  10,
+                                  kBattleBrass,
+                                  weight: FontWeight.w800,
+                                  letterSpacing: 1.8,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       IgnorePointer(
                         ignoring: t < 0.85,
                         child: arriving(
@@ -1412,6 +1487,138 @@ class _ResultCard extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// Who did what, both sides: each Alchemon in its case with the health it
+/// finished on, then the health it took off the other side, the health it
+/// lost, and the health it gave back to its own (in the creatures' own
+/// points). Each side's most damage is lit in its colour; one kept on the
+/// bench all fight says so.
+class _Breakdown extends StatelessWidget {
+  const _Breakdown({required this.battle});
+
+  final CosmicBattle battle;
+
+  static const double _column = 50;
+
+  @override
+  Widget build(BuildContext context) {
+    Widget figure(String text, Color color, {double size = 10.5}) => SizedBox(
+      width: _column,
+      child: Text(
+        text,
+        textAlign: TextAlign.right,
+        maxLines: 1,
+        style: bracketText(
+          context,
+          size,
+          color,
+          weight: FontWeight.w800,
+          letterSpacing: 0.4,
+        ),
+      ),
+    );
+    String amount(double v) => v < 0.5 ? '—' : v.round().toString();
+
+    Widget head(String label, Color tone) => Row(
+      children: [
+        Expanded(
+          child: Text(
+            label,
+            style: bracketText(
+              context,
+              9,
+              tone,
+              weight: FontWeight.w800,
+              letterSpacing: 1.4,
+            ),
+          ),
+        ),
+        for (final word in const ['DEALT', 'TAKEN', 'HEALED'])
+          figure(word, _muted, size: 8),
+      ],
+    );
+
+    Widget line(BattleCreature c, Color tone, {required bool best}) {
+      final m = c.member;
+      return SizedBox(
+        height: 30,
+        child: Row(
+          children: [
+            _Case(creature: c, width: 28, height: 26, strength: 0.8),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    m.displayName.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: bracketText(
+                      context,
+                      9,
+                      c.wasOnField ? _ink : _muted,
+                      weight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  FractionallySizedBox(
+                    widthFactor: 0.7,
+                    child: _Tube(share: c.healthShare, color: tone, height: 3),
+                  ),
+                ],
+              ),
+            ),
+            if (!c.wasOnField)
+              SizedBox(
+                width: _column * 3,
+                child: Text(
+                  'BENCHED',
+                  textAlign: TextAlign.right,
+                  style: bracketText(
+                    context,
+                    9,
+                    _muted,
+                    weight: FontWeight.w800,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+              )
+            else ...[
+              figure(amount(c.damageDealt), best ? tone : _ink),
+              figure(amount(c.damageTaken), _ink),
+              figure(amount(c.healing), _ink),
+            ],
+          ],
+        ),
+      );
+    }
+
+    final rows = <Widget>[];
+    for (final (i, label, tone) in [
+      (0, 'YOU', kBattleBrass),
+      (1, 'THEM', kBattleSilver),
+    ]) {
+      final side = battle.sides[i];
+      BattleCreature? best;
+      for (final c in side.creatures) {
+        if (c.damageDealt >= 0.5 &&
+            (best == null || c.damageDealt > best.damageDealt)) {
+          best = c;
+        }
+      }
+      if (i > 0) rows.add(const SizedBox(height: 12));
+      rows.add(head(label, tone));
+      rows.add(const SizedBox(height: 4));
+      for (final c in side.creatures) {
+        rows.add(line(c, tone, best: identical(c, best)));
+      }
+    }
+    return Column(mainAxisSize: MainAxisSize.min, children: rows);
   }
 }
 

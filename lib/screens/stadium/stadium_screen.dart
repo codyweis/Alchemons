@@ -13,6 +13,11 @@
 //
 // Entered from home's cup (stadium_passage.dart), the way in ends on the
 // cup racing for now, and leaving goes back the same way.
+//
+// The header's switch shows the races' cups, the GEMS cups, or BATTLE:
+// free battles against the computer, the battle hub's page
+// (battle_hub_screen.dart), open with the gem cups once the Silver Cup is
+// won (user 2026-10-21: "make battle ready for real players").
 
 import 'dart:async';
 import 'dart:ui' as ui;
@@ -38,7 +43,13 @@ import 'package:alchemons/games/stadium/battle_ladder.dart';
 import 'package:alchemons/games/stadium/trials_records.dart';
 import 'package:alchemons/screens/stadium/bout_screen.dart';
 import 'package:alchemons/screens/battle/battle_hub_screen.dart'
-    show BattleCase, BattleEmptyCase, loadBattleTeam, pickBattleTeam;
+    show
+        BattleCase,
+        BattleEmptyCase,
+        BattleHubPanel,
+        loadBattleTeam,
+        pickBattleTeam;
+import 'package:alchemons/screens/battle/battle_how_to.dart';
 import 'package:alchemons/screens/battle/battle_screen.dart';
 import 'package:alchemons/models/battle_arenas.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart' show kBattleTeamSize;
@@ -243,6 +254,11 @@ class _StadiumScreenState extends State<StadiumScreen>
   bool _gems = false;
   int _gem = 0, _bout = 0;
 
+  /// Showing BATTLE: free battles against the computer, the battle hub's
+  /// page (battle_hub_screen.dart), open once the Silver Cup is won, as the
+  /// gem cups are.
+  bool _battle = false;
+
   /// The four the Emerald Cup's battle ladder is fought with (the battle
   /// hub's), and each round's set team, built once.
   List<CosmicPartyMember> _battleTeam = const [];
@@ -397,8 +413,11 @@ class _StadiumScreenState extends State<StadiumScreen>
     HapticFeedback.selectionClick();
     if (passage != null) {
       // Home's cup is one of the races': back to their shelf to leave.
-      if (_gems) {
-        setState(() => _gems = false);
+      if (_gems || _battle) {
+        setState(() {
+          _gems = false;
+          _battle = false;
+        });
         await Future<void>.delayed(const Duration(milliseconds: 380));
         if (!mounted) return;
       }
@@ -577,67 +596,25 @@ class _StadiumScreenState extends State<StadiumScreen>
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _header(context),
-                    SizedBox(
-                      height: trialsShelfHeight(size),
-                      child: !_loaded
-                          ? const SizedBox.shrink()
-                          : AnimatedSwitcher(
-                              duration: const Duration(milliseconds: 360),
-                              child: _gems
-                                  ? CupShelf(
-                                      key: const ValueKey('gems'),
-                                      cups: ShelfCup.gems(_progress),
-                                      selected: _gem,
-                                      onSelect: (g) => setState(() {
-                                        _chosen = true;
-                                        _gem = g;
-                                        _bout = _firstOpenBout(g);
-                                      }),
-                                    )
-                                  : CupShelf(
-                                      key: const ValueKey('races'),
-                                      cups: ShelfCup.races(_progress),
-                                      selected: _cup,
-                                      passage: widget.passage,
-                                      onSelect: (c) => setState(() {
-                                        _chosen = true;
-                                        _cup = c;
-                                        _race = _firstOpenRace(c);
-                                      }),
-                                    ),
-                            ),
-                    ),
-                    const SizedBox(height: 4),
-                    SizedBox(
-                      height: 46,
-                      // Another cup's races come up as the light reaches
-                      // it on the shelf.
-                      child: _changing(
-                        _gems ? 'gem$_gem' : 'race$_cup',
-                        Row(
-                          children: [
-                            for (
-                              var r = 0;
-                              r <
-                                  (_gems
-                                      ? _gemDef.bouts.length
-                                      : _cupDef.courses.length);
-                              r++
-                            ) ...[
-                              if (r > 0) const SizedBox(width: 6),
-                              Expanded(
-                                child: _gems
-                                    ? _boutTile(context, r)
-                                    : _raceTile(context, r),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
                     Expanded(
-                      child: _gems ? _gemDetail(context) : _detail(context),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 360),
+                        switchInCurve: Curves.easeOutCubic,
+                        switchOutCurve: Curves.easeIn,
+                        layoutBuilder: (current, previous) => Stack(
+                          fit: StackFit.expand,
+                          children: [...previous, ?current],
+                        ),
+                        child: _battle
+                            ? KeyedSubtree(
+                                key: const ValueKey('trials.battle'),
+                                child: _battlePage(context, size),
+                              )
+                            : KeyedSubtree(
+                                key: const ValueKey('trials.cups'),
+                                child: _cups(context, size),
+                              ),
+                      ),
                     ),
                   ],
                 ),
@@ -647,6 +624,104 @@ class _StadiumScreenState extends State<StadiumScreen>
         ),
       ),
     );
+  }
+
+  /// The cups on their shelf, the chosen cup's races or bouts, and the
+  /// chosen one.
+  Widget _cups(BuildContext context, Size size) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      SizedBox(
+        height: trialsShelfHeight(size),
+        child: !_loaded
+            ? const SizedBox.shrink()
+            : AnimatedSwitcher(
+                duration: const Duration(milliseconds: 360),
+                child: _gems
+                    ? CupShelf(
+                        key: const ValueKey('gems'),
+                        cups: ShelfCup.gems(_progress),
+                        selected: _gem,
+                        onSelect: (g) {
+                          setState(() {
+                            _chosen = true;
+                            _gem = g;
+                            _bout = _firstOpenBout(g);
+                          });
+                          _maybeLadderHowTo();
+                        },
+                      )
+                    : CupShelf(
+                        key: const ValueKey('races'),
+                        cups: ShelfCup.races(_progress),
+                        selected: _cup,
+                        passage: widget.passage,
+                        onSelect: (c) => setState(() {
+                          _chosen = true;
+                          _cup = c;
+                          _race = _firstOpenRace(c);
+                        }),
+                      ),
+              ),
+      ),
+      const SizedBox(height: 4),
+      SizedBox(
+        height: 46,
+        // Another cup's races come up as the light reaches
+        // it on the shelf.
+        child: _changing(
+          _gems ? 'gem$_gem' : 'race$_cup',
+          Row(
+            children: [
+              for (
+                var r = 0;
+                r <
+                    (_gems
+                        ? _gemDef.bouts.length
+                        : _cupDef.courses.length);
+                r++
+              ) ...[
+                if (r > 0) const SizedBox(width: 6),
+                Expanded(
+                  child: _gems
+                      ? _boutTile(context, r)
+                      : _raceTile(context, r),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      const SizedBox(height: 14),
+      Expanded(
+        child: _gems ? _gemDetail(context) : _detail(context),
+      ),
+    ],
+  );
+
+  /// BATTLE: the battle hub's page, the live arena where the shelf stands.
+  /// Locked until the Silver Cup is won.
+  Widget _battlePage(BuildContext context, Size size) => BattleHubPanel(
+    stageHeight: trialsShelfHeight(size),
+    shut: _progress.gemOpen(0) ? null : 'Win the Silver Cup to open battles.',
+    leaveLabel: 'BACK TO THE TRIALS',
+    onTeam: (team) {
+      if (mounted) setState(() => _battleTeam = team);
+    },
+    // The battle played its own music.
+    afterBattle: () =>
+        unawaited(context.read<AudioController?>()?.playStadiumMusic()),
+    contentPadding: const EdgeInsets.only(top: 2, bottom: 12),
+    buttonPadding: const EdgeInsets.only(top: 8),
+    buttonHeight: 42,
+  );
+
+  /// The first time the Emerald Cup's battle ladder is on show, open: how
+  /// a battle works.
+  void _maybeLadderHowTo() {
+    if (!_gems || _battle || !_progress.gemOpen(_gem)) return;
+    if (_gemDef.event != GemEvent.battle) return;
+    unawaited(maybeShowBattleHowTo(context));
   }
 
   Widget _header(BuildContext context) {
@@ -684,10 +759,10 @@ class _StadiumScreenState extends State<StadiumScreen>
     );
   }
 
-  /// RACES · GEMS: which cups the shelf shows.
+  /// RACES · GEMS · BATTLE: which cups the shelf shows, or the battles.
   Widget _ladderSwitch(BuildContext context) {
-    Widget side(String label, bool gems) {
-      final on = _gems == gems;
+    Widget side(String label, bool gems, {bool battle = false}) {
+      final on = battle ? _battle : !_battle && _gems == gems;
       return GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: () {
@@ -695,8 +770,10 @@ class _StadiumScreenState extends State<StadiumScreen>
           HapticFeedback.selectionClick();
           setState(() {
             _chosen = true;
-            _gems = gems;
+            _battle = battle;
+            if (!battle) _gems = gems;
           });
+          _maybeLadderHowTo();
         },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -728,7 +805,13 @@ class _StadiumScreenState extends State<StadiumScreen>
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      children: [side('RACES', false), side('GEMS', true)],
+      children: [
+        side('RACES', false),
+        side('GEMS', true),
+        // Battles need a save to keep the four and the record in.
+        if (context.read<AlchemonsDatabase?>() != null)
+          side('BATTLE', _gems, battle: true),
+      ],
     );
   }
 
@@ -1170,6 +1253,9 @@ class _StadiumScreenState extends State<StadiumScreen>
     final frontier = bout == _progress.wonInGem(cup);
     final round = cup.bouts[bout];
     HapticFeedback.mediumImpact();
+    // Not seen yet: how a battle works, first.
+    await maybeShowBattleHowTo(context);
+    if (!mounted) return;
     await Navigator.of(context).push(
       BattleScreen.route(
         BattleScreen(

@@ -942,6 +942,9 @@ extension CosmicAbilityPass on CosmicGame {
 
     for (var i = companionProjectiles.length - 1; i >= 0; i--) {
       final p = companionProjectiles[i];
+      // A battle's tally: what this shot does is its caster's (a shot
+      // thrown back is the thrower's).
+      _battleCredit(p.sourceSlotIndex ?? _battleShotOwner(p));
       var transferringToShip = false;
 
       // Let meteors fall. A descending meteor takes no collisions, lays no

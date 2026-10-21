@@ -393,7 +393,10 @@ extension CosmicMaskRuntime on CosmicGame {
     final bank = (_maskSpiritBank[slot] ?? 0) + 1;
     if (bank >= wisp.clearAt) {
       _maskSpiritBank[slot] = 0;
+      // A battle's tally: the clear is the caster's.
+      final was = _battleCredit(slot);
       _fireMaskSpiritNuke(casterAt);
+      _battleCredit(was);
     } else {
       _maskSpiritBank[slot] = bank;
     }

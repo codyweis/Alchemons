@@ -19,7 +19,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'survival_lobby_harness.dart';
 
 // The Emerald Cup's battle ladder from the Trials: the GEMS shelf on
-// Emerald, the round's two fours, START, the fight, and back.
+// Emerald, the round's two fours, START, the fight, and back; and the
+// Trials' BATTLE, locked and open (trials_battle*.png).
 //
 //   LADDER_OUT=/tmp/ladder flutter test test/gem_ladder_preview_test.dart \
 //     --tags preview
@@ -33,10 +34,79 @@ class _PlainFont extends ThemeNotifier {
       (t) => t;
 }
 
+/// Pages through the battle rules to their OK.
+Future<void> readRules(WidgetTester tester) async {
+  for (var i = 0; i < 4 && find.text('NEXT').evaluate().isNotEmpty; i++) {
+    await tester.tap(find.text('NEXT'));
+    await settleLobby(tester, 4);
+  }
+  if (find.text('OK').evaluate().isNotEmpty) await tester.tap(find.text('OK'));
+  await settleLobby(tester, 8);
+}
+
 void main() {
   final out = Platform.environment['LADDER_OUT'];
 
   setUpAll(loadLobbyFonts);
+
+  // The Trials' BATTLE: locked before the Silver Cup, then the battle hub's
+  // page (and the rules, the first time).
+  testWidgets('the battle tab from the Trials', (tester) async {
+    if (out == null) return;
+    Directory(out).createSync(recursive: true);
+    tester.view.physicalSize = kLobbyPhysical;
+    tester.view.devicePixelRatio = kLobbyDpr;
+    addTearDown(tester.view.reset);
+    final save = await LobbySave.create(tester);
+    final key = GlobalKey();
+    Future<void> shot(String name) async {
+      tester.takeException();
+      await tester.runAsync(() async {
+        final boundary =
+            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await boundary.toImage(pixelRatio: 1.2);
+        final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+        File('$out/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+        image.dispose();
+      });
+    }
+
+    for (final (progress, name) in const [
+      ('{"copper":3,"silver":1}', 'trials_battle_locked'),
+      ('{"copper":3,"silver":3}', 'trials_battle'),
+    ]) {
+      SharedPreferences.setMockInitialValues({RaceProgress.prefsKey: progress});
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AudioController>.value(value: SilentAudio()),
+            ChangeNotifierProvider<SelectedPartyNotifier>(
+              create: (_) => SelectedPartyNotifier(),
+            ),
+            ChangeNotifierProvider<ThemeNotifier>(
+              create: (_) => _PlainFont(save.db),
+            ),
+          ],
+          child: save.app(shot: key, home: StadiumScreen(key: ValueKey(name))),
+        ),
+      );
+      await settleLobby(tester, 30);
+      for (var i = 0; i < 4 && find.text('CONTINUE').evaluate().isNotEmpty; i++) {
+        await tester.tap(find.text('CONTINUE'));
+        await settleLobby(tester, 8);
+      }
+      await tester.tap(find.text('BATTLE').first);
+      await settleLobby(tester, 20);
+      await precacheLobbyImages(tester);
+      await settleLobby(tester, 8);
+      if (find.text('NEXT').evaluate().isNotEmpty) {
+        await shot('${name}_rules');
+        await readRules(tester);
+      }
+      await shot(name);
+    }
+    await save.dispose(tester);
+  });
 
   testWidgets('the ladder from the Trials', (tester) async {
     if (out == null) return;
@@ -88,6 +158,11 @@ void main() {
     await settleLobby(tester, 16);
     await precacheLobbyImages(tester);
     await settleLobby(tester, 8);
+    // The first battle opened: the rules, once.
+    if (find.text('NEXT').evaluate().isNotEmpty) {
+      await shot('emerald_rules');
+      await readRules(tester);
+    }
     expect(find.text('HORNS AND KIN'), findsWidgets);
     expect(find.text('YOUR FOUR'), findsOneWidget);
     expect(find.text('THEIR FOUR'), findsOneWidget);

@@ -155,11 +155,28 @@ void main() {
       }
       if (game().battle?.over ?? false) break;
     }
-    for (var i = 0; i < 60; i++) {
+    // The last fall slowed, then the card rising (its word is read into
+    // grains on the real clock).
+    for (var i = 0; i < 150; i++) {
       await tester.pump(const Duration(milliseconds: 33));
+      if (i % 10 == 0) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 10)),
+        );
+      }
     }
     tester.takeException();
     await shoot(tester, key, 'battle_result');
+    // Who did what, in the fours' place.
+    final details = find.byKey(const ValueKey('battle.detailsToggle'));
+    if (details.evaluate().isNotEmpty) {
+      await tester.tap(details);
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 33));
+      }
+      tester.takeException();
+      await shoot(tester, key, 'battle_result_details');
+    }
     await save.dispose(tester);
   });
 }

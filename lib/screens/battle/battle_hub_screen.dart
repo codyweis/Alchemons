@@ -8,6 +8,7 @@ import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/models/battle_arenas.dart';
 import 'package:alchemons/models/battle_record.dart';
 import 'package:alchemons/models/wilderness.dart';
+import 'package:alchemons/screens/battle/battle_how_to.dart';
 import 'package:alchemons/screens/battle/battle_screen.dart';
 import 'package:alchemons/screens/party_picker/party_picker.dart';
 import 'package:alchemons/screens/stadium/racer_gate.dart' show stadiumSprite;
@@ -34,6 +35,8 @@ import 'package:provider/provider.dart';
 //  Where a battle is set up: the arena you host in, shown live (the free
 //  one or any bought; one not yet owned can be bought here), the four you
 //  bring, the four the computer brings to match them, your record, BATTLE.
+//  The page is [BattleHubPanel]: the Trials show it under their BATTLE, the
+//  developer tools under this screen's header.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const Color _ink = Color(0xFFE6E2DA);
@@ -104,14 +107,119 @@ Future<List<CosmicPartyMember>?> pickBattleTeam(
   return loadBattleTeam(context);
 }
 
-class BattleHubScreen extends StatefulWidget {
+class BattleHubScreen extends StatelessWidget {
   const BattleHubScreen({super.key});
 
   @override
-  State<BattleHubScreen> createState() => _BattleHubScreenState();
+  Widget build(BuildContext context) {
+    final pad = MediaQuery.paddingOf(context);
+    return Scaffold(
+      backgroundColor: _bg,
+      body: Column(
+        children: [
+          SizedBox(height: pad.top + 6),
+          _header(context),
+          Expanded(
+            child: BattleHubPanel(
+              buttonPadding: EdgeInsets.fromLTRB(14, 10, 14, pad.bottom + 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 14),
+    child: SizedBox(
+      height: 56,
+      child: Row(
+        children: [
+          BracketIconButton(
+            icon: AppIcons.arrow_back,
+            onTap: () => Navigator.of(context).pop(),
+            palette: BracketPalette.dark,
+            size: 36,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  'BATTLE',
+                  style: bracketText(
+                    context,
+                    16,
+                    _brassHot,
+                    weight: FontWeight.w800,
+                    letterSpacing: 3,
+                  ),
+                ),
+                Text(
+                  'TWO AT A TIME FROM FOUR',
+                  style: bracketText(
+                    context,
+                    9.5,
+                    _muted,
+                    weight: FontWeight.w700,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const CurrencyDisplayWidget(palette: BracketPalette.dark),
+        ],
+      ),
+    ),
+  );
 }
 
-class _BattleHubScreenState extends State<BattleHubScreen> {
+/// The hub's page under its header, which the Trials' BATTLE shows too:
+/// the arena live under your record and RULES, the arena row (one not yet
+/// owned is bought from it), your four, the computer's four, and BATTLE.
+class BattleHubPanel extends StatefulWidget {
+  const BattleHubPanel({
+    super.key,
+    this.stageHeight,
+    this.shut,
+    this.leaveLabel = 'BACK TO THE HUB',
+    this.onTeam,
+    this.afterBattle,
+    this.contentPadding = const EdgeInsets.fromLTRB(14, 6, 14, 16),
+    this.buttonPadding = const EdgeInsets.fromLTRB(14, 10, 14, 12),
+    this.buttonHeight = 52,
+  });
+
+  /// How tall the live arena stands; null is about a quarter of the
+  /// screen.
+  final double? stageHeight;
+
+  /// Why a battle cannot be started yet (the Trials open battles with the
+  /// gem cups), or null when it can.
+  final String? shut;
+
+  /// The result card's way out.
+  final String leaveLabel;
+
+  /// Told the four whenever they change: the Trials' ladder fights with
+  /// the same four.
+  final ValueChanged<List<CosmicPartyMember>>? onTeam;
+
+  /// After each fight, back on the page (the Trials put their music back).
+  final VoidCallback? afterBattle;
+
+  final EdgeInsets contentPadding;
+  final EdgeInsets buttonPadding;
+  final double buttonHeight;
+
+  @override
+  State<BattleHubPanel> createState() => _BattleHubPanelState();
+}
+
+class _BattleHubPanelState extends State<BattleHubPanel> {
   List<CosmicPartyMember> _team = const [];
   List<CosmicPartyMember> _rival = const [];
   int _rivalSeed = Random().nextInt(1 << 30);
@@ -119,16 +227,17 @@ class _BattleHubScreenState extends State<BattleHubScreen> {
   Set<String> _owned = {kDefaultBattleArena};
   BattleRecord _record = const BattleRecord();
   bool _loading = true;
+  bool _starting = false;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_load());
+    unawaited(_load(first: true));
   }
 
   AlchemonsDatabase get _db => context.read<AlchemonsDatabase>();
 
-  Future<void> _load() async {
+  Future<void> _load({bool first = false}) async {
     final settings = _db.settingsDao;
     final team = await loadBattleTeam(context);
     final arena = await chosenBattleArena(settings);
@@ -143,6 +252,12 @@ class _BattleHubScreenState extends State<BattleHubScreen> {
       _rival = _rollRival();
       _loading = false;
     });
+    widget.onTeam?.call(team);
+    // The first time a battle is opened, once the page is up: the rules.
+    if (first && widget.shut == null) {
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) await maybeShowBattleHowTo(context);
+    }
   }
 
   List<CosmicPartyMember> _rollRival() => _team.isEmpty
@@ -154,6 +269,7 @@ class _BattleHubScreenState extends State<BattleHubScreen> {
         );
 
   Future<void> _changeTeam() async {
+    if (_starting) return;
     final picked = await pickBattleTeam(context, _team);
     if (picked == null || !mounted) return;
     await _load();
@@ -203,24 +319,34 @@ class _BattleHubScreenState extends State<BattleHubScreen> {
   }
 
   Future<void> _battle() async {
-    if (_team.isEmpty) return;
-    HapticFeedback.mediumImpact();
-    // The arena on the stage flies into the fight, and back after.
-    final box = _stageKey.currentContext?.findRenderObject() as RenderBox?;
-    final from = box == null || !box.hasSize
-        ? null
-        : box.localToGlobal(Offset.zero) & box.size;
-    await Navigator.of(context).push(
-      BattleScreen.route(
-        BattleScreen(
-          team: _team,
-          rival: _rival,
-          arena: _arena,
-          onFinished: _recordResult,
-          fromRect: from,
+    if (_team.isEmpty || _starting || widget.shut != null) return;
+    _starting = true;
+    try {
+      HapticFeedback.mediumImpact();
+      // Not seen yet (the page opened before it could ask): the rules first.
+      await maybeShowBattleHowTo(context);
+      if (!mounted) return;
+      // The arena on the stage flies into the fight, and back after.
+      final box = _stageKey.currentContext?.findRenderObject() as RenderBox?;
+      final from = box == null || !box.hasSize
+          ? null
+          : box.localToGlobal(Offset.zero) & box.size;
+      await Navigator.of(context).push(
+        BattleScreen.route(
+          BattleScreen(
+            team: _team,
+            rival: _rival,
+            arena: _arena,
+            leaveLabel: widget.leaveLabel,
+            onFinished: _recordResult,
+            fromRect: from,
+          ),
         ),
-      ),
-    );
+      );
+      if (mounted) widget.afterBattle?.call();
+    } finally {
+      _starting = false;
+    }
   }
 
   final GlobalKey _stageKey = GlobalKey();
@@ -233,115 +359,65 @@ class _BattleHubScreenState extends State<BattleHubScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final pad = MediaQuery.paddingOf(context);
+    if (_loading) return const SizedBox.expand();
     final size = MediaQuery.sizeOf(context);
     final arena = battleArenaOf(_arena);
-    return Scaffold(
-      backgroundColor: _bg,
-      body: _loading
-          ? const SizedBox.expand()
-          : Column(
+    final shut = widget.shut;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            padding: widget.contentPadding,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                SizedBox(height: pad.top + 6),
-                _header(context),
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(14, 6, 14, 16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _stage(context, arena, size),
-                        const SizedBox(height: 14),
-                        _label(context, 'ARENA', trailing: 'YOU HOST IN IT'),
-                        const SizedBox(height: 8),
-                        _arenaRow(context),
-                        const SizedBox(height: 18),
-                        _label(
-                          context,
-                          'YOUR FOUR',
-                          action: ('CHANGE', _changeTeam),
-                        ),
-                        const SizedBox(height: 8),
-                        _teamRow(context),
-                        const SizedBox(height: 18),
-                        _label(
-                          context,
-                          'AGAINST THE COMPUTER',
-                          action: ('NEW RIVAL', _newRival),
-                        ),
-                        const SizedBox(height: 8),
-                        _rivalRow(context),
-                      ],
-                    ),
-                  ),
+                _stage(context, arena, size),
+                const SizedBox(height: 14),
+                _label(context, 'ARENA', trailing: 'YOU HOST IN IT'),
+                const SizedBox(height: 8),
+                _arenaRow(context),
+                const SizedBox(height: 18),
+                _label(context, 'YOUR FOUR', action: ('CHANGE', _changeTeam)),
+                const SizedBox(height: 8),
+                _teamRow(context),
+                const SizedBox(height: 18),
+                _label(
+                  context,
+                  'AGAINST THE COMPUTER',
+                  action: ('NEW RIVAL', _newRival),
                 ),
-                Container(
-                  padding: EdgeInsets.fromLTRB(14, 10, 14, pad.bottom + 12),
-                  color: _bg,
-                  child: BracketButton(
-                    key: const ValueKey('battle.start'),
-                    label: 'BATTLE',
-                    enabled: _team.isNotEmpty,
-                    onTap: _battle,
-                    palette: BracketPalette.dark,
-                    accent: kBattleBrass,
-                    height: 52,
-                  ),
-                ),
+                const SizedBox(height: 8),
+                _rivalRow(context),
               ],
             ),
+          ),
+        ),
+        // Why not yet, over the button that says so.
+        if (shut != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              shut,
+              textAlign: TextAlign.center,
+              style: bracketText(context, 12.5, _ink.withValues(alpha: .8)),
+            ),
+          ),
+        Padding(
+          padding: widget.buttonPadding,
+          child: BracketButton(
+            key: const ValueKey('battle.start'),
+            label: shut != null ? 'LOCKED' : 'BATTLE',
+            enabled: _team.isNotEmpty && shut == null,
+            onTap: _battle,
+            palette: BracketPalette.dark,
+            accent: kBattleBrass,
+            height: widget.buttonHeight,
+          ),
+        ),
+      ],
     );
   }
-
-  Widget _header(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 14),
-    child: SizedBox(
-      height: 56,
-      child: Row(
-        children: [
-          BracketIconButton(
-            icon: AppIcons.arrow_back,
-            onTap: () => Navigator.of(context).pop(),
-            palette: BracketPalette.dark,
-            size: 36,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'BATTLE',
-                  style: bracketText(
-                    context,
-                    16,
-                    _brassHot,
-                    weight: FontWeight.w800,
-                    letterSpacing: 3,
-                  ),
-                ),
-                Text(
-                  _record.played == 0
-                      ? 'TWO AT A TIME FROM FOUR'
-                      : 'WON ${_record.wins} · LOST ${_record.losses}'
-                            '${_record.draws > 0 ? ' · DRAWN ${_record.draws}' : ''}',
-                  style: bracketText(
-                    context,
-                    9.5,
-                    _muted,
-                    weight: FontWeight.w700,
-                    letterSpacing: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const CurrencyDisplayWidget(palette: BracketPalette.dark),
-        ],
-      ),
-    ),
-  );
 
   Widget _label(
     BuildContext context,
@@ -393,9 +469,10 @@ class _BattleHubScreenState extends State<BattleHubScreen> {
     ],
   );
 
-  /// The chosen arena, live, with its name over it.
+  /// The chosen arena, live, with its name over it; the record and RULES
+  /// along its top.
   Widget _stage(BuildContext context, BattleArena arena, Size size) {
-    final h = (size.height * 0.26).clamp(150.0, 260.0);
+    final h = widget.stageHeight ?? (size.height * 0.26).clamp(150.0, 260.0);
     return SizedBox(
       height: h,
       child: CustomPaint(
@@ -406,6 +483,49 @@ class _BattleHubScreenState extends State<BattleHubScreen> {
           fit: StackFit.expand,
           children: [
             BattleArenaPreview(key: _stageKey, arena: arena.id),
+            Positioned(
+              left: 12,
+              right: 2,
+              top: 2,
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _record.played == 0
+                          ? 'NO BATTLES YET'
+                          : 'WON ${_record.wins} · LOST ${_record.losses}'
+                                '${_record.draws > 0 ? ' · DRAWN ${_record.draws}' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(
+                        context,
+                        9.5,
+                        _muted,
+                        weight: FontWeight.w800,
+                        letterSpacing: 1.4,
+                      ),
+                    ),
+                  ),
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => showBattleHowTo(context),
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Text(
+                        'RULES',
+                        style: bracketText(
+                          context,
+                          10,
+                          kBattleBrass,
+                          weight: FontWeight.w800,
+                          letterSpacing: 1.6,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
             Positioned(
               left: 12,
               right: 12,

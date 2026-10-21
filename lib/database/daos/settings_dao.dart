@@ -301,6 +301,17 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
     await setSetting('survival_menu_story_intro_seen_v2', '1');
   }
 
+  /// The battle's rules, shown the first time a battle is opened
+  /// (screens/battle/battle_how_to.dart).
+  Future<bool> hasSeenBattleHowTo() async {
+    final v = await getSetting('battle_how_to_seen_v1');
+    return v == '1';
+  }
+
+  Future<void> setBattleHowToSeen() async {
+    await setSetting('battle_how_to_seen_v1', '1');
+  }
+
   // =================== COSMIC SURVIVAL PORTAL ===================
 
   bool _isTruthySetting(String? value) {

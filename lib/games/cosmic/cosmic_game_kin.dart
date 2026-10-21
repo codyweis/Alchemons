@@ -386,6 +386,8 @@ extension CosmicKin on CosmicGame {
     _openKinLastShipDamage = shipDelta;
     for (final comp in activeCompanions.values.toList(growable: false)) {
       if (!comp.isAlive || !_isKinMember(comp.member)) continue;
+      // A battle's tally: what this support does is its Kin's.
+      _battleCredit(comp.member.slotIndex);
       _tickOpenKinSupport(_KinCaster.companion(comp), shipDelta, dt);
     }
   }
@@ -889,6 +891,8 @@ extension CosmicKin on CosmicGame {
           ? atan2(to.dy, to.dx)
           : shot.angle + pi;
       shot.sourceSlotIndex = null;
+      // A battle's tally keeps who threw it back.
+      _battleNoteShotOwner(shot, fixture.sourceSlotIndex);
       companionProjectiles.add(shot);
       _spawnHitSpark(fixture.position, const Color(0xFFE5F4FF));
       return true;
