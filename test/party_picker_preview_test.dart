@@ -258,6 +258,47 @@ void main() {
     if (tester.takeException() case final e?) overflows.add('9: $e');
     await shoot('9_wild_deploy');
 
+    // Cosmic space is landscape: the raid squad, the ship crew, the garrison.
+    const landscape = Size(844, 390);
+    await show(
+      '10_cosmic_raid',
+      landscape,
+      const PartyPickerScreen(
+        key: ValueKey('d'),
+        showDeployConfirm: false,
+        maxSelections: 5,
+        initialSelection: ['i5', 'i8'],
+      ),
+    );
+    await show(
+      '11_cosmic_crew',
+      landscape,
+      const PartyPickerScreen(
+        key: ValueKey('e'),
+        title: 'SHIP CREW',
+        confirmLabel: 'Set Crew',
+        allowEmptyTeam: true,
+        showDeployConfirm: false,
+        enforceUniqueSpecies: false,
+        maxSelections: 3,
+        initialSelection: ['i5', 'i8'],
+      ),
+    );
+    await show(
+      '12_cosmic_garrison',
+      landscape,
+      const PartyPickerScreen(
+        key: ValueKey('f'),
+        title: 'HOME GARRISON',
+        confirmLabel: 'Station',
+        allowEmptyTeam: true,
+        showDeployConfirm: false,
+        enforceUniqueSpecies: false,
+        maxSelections: 9,
+        initialSelection: ['i5', 'i8', 'i13', 'i0'],
+      ),
+    );
+
     await tester.pumpWidget(const SizedBox());
     await settle(4);
     tester.view.reset();

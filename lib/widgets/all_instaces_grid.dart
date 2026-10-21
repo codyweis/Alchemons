@@ -28,7 +28,6 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
-import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -618,49 +617,35 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     return {for (final type in sorted) type: type};
   }
 
-  void _openOrSelect(
-    CreatureInstance inst,
-    Creature creature,
-    List<CreatureInstance> siblings,
-  ) {
+  /// A tap picks in a picker; anywhere else it opens the details. One
+  /// details view: the quick-look card that once sat in front of them only
+  /// said the same things again.
+  void _openOrSelect(CreatureInstance inst, Creature creature) {
     if (widget.selectionMode) {
       _handleInstanceTap(inst);
     } else if (widget.onTap != null) {
       widget.onTap!(inst);
     } else {
-      showQuickInstanceDialog(
-        context: context,
-        theme: widget.theme,
-        creature: creature,
-        instance: inst,
-        siblings: siblings,
-      );
+      _openDetails(inst, creature);
     }
   }
 
-  void _longPress(
-    CreatureInstance inst,
-    Creature creature,
-    List<CreatureInstance> siblings,
-  ) {
+  /// A long press opens the details, in a picker too.
+  void _longPress(CreatureInstance inst, Creature creature) {
     if (widget.selectionMode) {
       widget.onLongPress?.call();
-    } else if (widget.onTap != null) {
-      showQuickInstanceDialog(
-        context: context,
-        theme: widget.theme,
-        creature: creature,
-        instance: inst,
-        siblings: siblings,
-      );
     } else {
-      CreatureDetailsDialog.show(
-        context,
-        creature,
-        true,
-        instanceId: inst.instanceId,
-      );
+      _openDetails(inst, creature);
     }
+  }
+
+  void _openDetails(CreatureInstance inst, Creature creature) {
+    CreatureDetailsDialog.show(
+      context,
+      creature,
+      true,
+      instanceId: inst.instanceId,
+    );
   }
 
   /// A stat sort lit in its stat's color, as on the detail cards.
@@ -1231,10 +1216,8 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                               inst,
                               creature,
                             ),
-                            onTap: () =>
-                                _openOrSelect(inst, creature, instances),
-                            onLongPress: () =>
-                                _longPress(inst, creature, instances),
+                            onTap: () => _openOrSelect(inst, creature),
+                            onLongPress: () => _longPress(inst, creature),
                           );
                           return wrap == null ? kase : wrap(inst, kase);
                         }
@@ -1253,10 +1236,8 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                               inst,
                               creature,
                             ),
-                            onTap: () =>
-                                _openOrSelect(inst, creature, instances),
-                            onLongPress: () =>
-                                _longPress(inst, creature, instances),
+                            onTap: () => _openOrSelect(inst, creature),
+                            onLongPress: () => _longPress(inst, creature),
                           ),
                         );
                       },

@@ -38,7 +38,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/infusion_discovery.dart';
 import 'package:alchemons/services/onboarding_tasks.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/show_quick_instance_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/all_instaces_grid.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
@@ -1080,11 +1080,11 @@ class _FeedingScreenState extends State<FeedingScreen>
                       duration: const Duration(milliseconds: 140),
                       scale: hovering ? 1.05 : 1.0,
                       child: GestureDetector(
-                        onLongPress: () => showQuickInstanceDialog(
-                          context: context,
-                          theme: context.read<FactionTheme>(),
-                          creature: creature,
-                          instance: inst,
+                        onLongPress: () => CreatureDetailsDialog.show(
+                          context,
+                          creature,
+                          true,
+                          instanceId: inst.instanceId,
                         ),
                         child: RepaintBoundary(
                           key: _bodyKey,

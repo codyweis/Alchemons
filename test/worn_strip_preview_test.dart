@@ -13,7 +13,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
 import 'package:alchemons/utils/alchemy_effect_apply.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/utils/show_quick_instance_dialog.dart';
+import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
@@ -189,7 +189,7 @@ void main() {
     Navigator.of(tester.element(find.text('COLOR').first)).pop();
     await settle();
 
-    // 4. The quick look, wearing them.
+    // 4. The details, wearing them.
     await tester.pumpWidget(
       host(
         Builder(
@@ -197,11 +197,11 @@ void main() {
             backgroundColor: const Color(0xFF0B0A10),
             body: Center(
               child: TextButton(
-                onPressed: () => showQuickInstanceDialog(
-                  context: context,
-                  theme: theme,
-                  creature: catalog.getCreatureById('HOR01')!,
-                  instance: dressed,
+                onPressed: () => CreatureDetailsDialog.show(
+                  context,
+                  catalog.getCreatureById('HOR01')!,
+                  true,
+                  instanceId: dressed.instanceId,
                 ),
                 child: const Text('open'),
               ),
@@ -216,7 +216,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 33));
     }
     await settle();
-    await shoot('3_quick_look');
+    await shoot('3_details');
 
     await tester.pumpWidget(const SizedBox());
     for (var i = 0; i < 4; i++) {

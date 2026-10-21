@@ -35,6 +35,21 @@ import 'package:provider/provider.dart';
 import 'party_picker_dialogs.dart';
 import 'team_builder_dialog.dart';
 
+/// A picked team laid onto numbered slots (a ship crew, a garrison): who
+/// stays keeps their slot, newcomers fill the empty ones in the order they
+/// were picked, and the rest are left empty.
+List<String?> teamIntoSlots(List<String?> slots, List<String> picked) {
+  final next = [
+    for (final id in slots)
+      if (id != null && picked.contains(id)) id else null,
+  ];
+  final newcomers = picked.where((id) => !next.contains(id)).iterator;
+  for (var i = 0; i < next.length; i++) {
+    if (next[i] == null && newcomers.moveNext()) next[i] = newcomers.current;
+  }
+  return next;
+}
+
 class PartyPickerScreen extends StatefulWidget {
   const PartyPickerScreen({
     super.key,
@@ -48,6 +63,9 @@ class PartyPickerScreen extends StatefulWidget {
     this.confirmLabel,
     this.onConfirm,
     this.teamCaseWrapper,
+    this.title = 'CHOOSE A TEAM',
+    this.allowEmptyTeam = false,
+    this.unavailableReason,
   });
 
   /// When false the "Deploy Team?" confirmation dialog is skipped.
@@ -92,6 +110,17 @@ class PartyPickerScreen extends StatefulWidget {
   final Widget Function(int slot, String instanceId, Widget teamCase)?
   teamCaseWrapper;
 
+  /// The heading beside the back button.
+  final String title;
+
+  /// Whether confirming no one at all is allowed — emptying a ship crew or
+  /// a garrison is a choice, sending out an empty team is not.
+  final bool allowEmptyTeam;
+
+  /// Why an Alchemon cannot join this team (it is busy elsewhere), or null
+  /// when it can. Tapping one that cannot says why instead of picking it.
+  final String? Function(String instanceId)? unavailableReason;
+
   @override
   State<PartyPickerScreen> createState() => _PartyPickerScreenState();
 }
@@ -133,6 +162,12 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     final palette = BracketPalette.fromTheme(theme);
     final accent = bracketReadableAccent(theme);
 
+    // A landscape phone (cosmic space) has no height for the team above the
+    // grid: the team takes a rail down the left instead, and the search
+    // moves up beside the title.
+    final size = MediaQuery.sizeOf(context);
+    final landscape = size.width > size.height && size.height < 600;
+
     Widget body = Scaffold(
       backgroundColor: palette.bg1,
       body: SafeArea(
@@ -142,72 +177,121 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
             final allInstances = snap.data ?? [];
             return Consumer<SelectedPartyNotifier>(
               builder: (ctx2, party, _) {
+                final search = SpecimenSearchBar(
+                  palette: palette,
+                  accent: accent,
+                  controller: _searchController,
+                  hint: 'Search your specimens',
+                  onChanged: _onQueryChanged,
+                  showReset: _hasResettableState,
+                  onReset: () {
+                    _debounce?.cancel();
+                    _searchController.clear();
+                    setState(() {
+                      _searchText = '';
+                      _clearVersion++;
+                    });
+                  },
+                );
+                final grid = AllCreatureInstances(
+                  theme: theme,
+                  caseCards: true,
+                  prefsScopeKey: 'party_picker_all_instances',
+                  searchTextOverride: _searchText,
+                  showInternalSearchBar: false,
+                  clearVersion: _clearVersion,
+                  onResettableStateChanged: (hasResettableState) {
+                    if (_hasResettableState == hasResettableState) {
+                      return;
+                    }
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted) return;
+                      setState(() => _hasResettableState = hasResettableState);
+                    });
+                  },
+                  selectedInstanceIds: party.members
+                      .map((m) => m.instanceId)
+                      .toList(),
+                  onTap: (inst) =>
+                      _handleCardTap(ctx2, inst, party, allInstances),
+                );
+                final team = _TeamRow(
+                  party: party,
+                  allInstances: allInstances,
+                  palette: palette,
+                  caseWrapper: widget.teamCaseWrapper,
+                  fitHeight: landscape,
+                );
+                final footer = _buildFooter(
+                  ctx2,
+                  party,
+                  theme,
+                  palette,
+                  accent,
+                  allInstances,
+                );
+
+                if (landscape) {
+                  final rail = (size.width * 0.3).clamp(220.0, 300.0);
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _buildHeader(
+                        ctx2,
+                        theme,
+                        palette,
+                        accent,
+                        party,
+                        search: search,
+                      ),
+                      const SizedBox(height: 8),
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            SizedBox(
+                              width: rail,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: Padding(
+                                      padding: const EdgeInsets.fromLTRB(
+                                        14,
+                                        4,
+                                        14,
+                                        8,
+                                      ),
+                                      child: team,
+                                    ),
+                                  ),
+                                  footer,
+                                ],
+                              ),
+                            ),
+                            Container(width: 1, color: palette.lineSoft),
+                            Expanded(child: grid),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                }
+
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _buildHeader(ctx2, theme, palette, accent, party),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-                      child: SpecimenSearchBar(
-                        palette: palette,
-                        accent: accent,
-                        controller: _searchController,
-                        hint: 'Search your specimens',
-                        onChanged: _onQueryChanged,
-                        showReset: _hasResettableState,
-                        onReset: () {
-                          _debounce?.cancel();
-                          _searchController.clear();
-                          setState(() {
-                            _searchText = '';
-                            _clearVersion++;
-                          });
-                        },
-                      ),
+                      child: search,
                     ),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(14, 16, 14, 2),
-                      child: _TeamRow(
-                        party: party,
-                        allInstances: allInstances,
-                        palette: palette,
-                        caseWrapper: widget.teamCaseWrapper,
-                      ),
+                      child: team,
                     ),
-                    Expanded(
-                      child: AllCreatureInstances(
-                        theme: theme,
-                        caseCards: true,
-                        prefsScopeKey: 'party_picker_all_instances',
-                        searchTextOverride: _searchText,
-                        showInternalSearchBar: false,
-                        clearVersion: _clearVersion,
-                        onResettableStateChanged: (hasResettableState) {
-                          if (_hasResettableState == hasResettableState) {
-                            return;
-                          }
-                          WidgetsBinding.instance.addPostFrameCallback((_) {
-                            if (!mounted) return;
-                            setState(
-                              () => _hasResettableState = hasResettableState,
-                            );
-                          });
-                        },
-                        selectedInstanceIds: party.members
-                            .map((m) => m.instanceId)
-                            .toList(),
-                        onTap: (inst) =>
-                            _handleCardTap(ctx2, inst, party, allInstances),
-                      ),
-                    ),
-                    _buildFooter(
-                      ctx2,
-                      party,
-                      theme,
-                      palette,
-                      accent,
-                      allInstances,
-                    ),
+                    Expanded(child: grid),
+                    footer,
                   ],
                 );
               },
@@ -247,8 +331,15 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     FactionTheme theme,
     BracketPalette palette,
     Color accent,
-    SelectedPartyNotifier party,
-  ) {
+    SelectedPartyNotifier party, {
+    Widget? search,
+  }) {
+    final title = Text(
+      widget.title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: caseMono(13, palette.ink, spacing: 1.6),
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
       child: Row(
@@ -261,14 +352,16 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
           const SizedBox(width: 12),
           // Shrinks rather than running into SAVED on a narrow phone with
           // large text.
-          Expanded(
-            child: Text(
-              'CHOOSE A TEAM',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: caseMono(13, palette.ink, spacing: 1.6),
+          if (search == null)
+            Expanded(child: title)
+          else ...[
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 200),
+              child: title,
             ),
-          ),
+            const SizedBox(width: 14),
+            Expanded(child: search),
+          ],
           const SizedBox(width: 10),
           // The quiet fill alone vanishes on the page's bg1.
           Container(
@@ -291,9 +384,24 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
                   activeMemberIds: party.members
                       .map((m) => m.instanceId)
                       .toList(),
-                  onApply: (ids) => party.setMembers([
-                    for (final id in ids) PartyMember(instanceId: id),
-                  ]),
+                  onApply: (ids) {
+                    final free = [
+                      for (final id in ids)
+                        if (widget.unavailableReason?.call(id) == null) id,
+                    ];
+                    party.setMembers([
+                      for (final id in free) PartyMember(instanceId: id),
+                    ]);
+                    final busy = ids.length - free.length;
+                    if (busy > 0) {
+                      showGameSnack(
+                        ctx,
+                        busy == 1
+                            ? 'One of them is busy elsewhere and was left out.'
+                            : '$busy of them are busy elsewhere and were left out.',
+                      );
+                    }
+                  },
                 ),
               ),
             ),
@@ -316,7 +424,7 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
     List<CreatureInstance> allInstances,
   ) {
     final count = party.members.length;
-    final canDeploy = count > 0;
+    final canDeploy = count > 0 || widget.allowEmptyTeam;
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -372,6 +480,10 @@ class _PartyPickerScreenState extends State<PartyPickerScreen> {
   ) {
     if (party.contains(inst.instanceId)) {
       party.toggle(inst.instanceId);
+      return;
+    }
+    if (widget.unavailableReason?.call(inst.instanceId) case final why?) {
+      showGameSnack(ctx, why);
       return;
     }
 
@@ -441,6 +553,7 @@ class _TeamRow extends StatelessWidget {
     required this.allInstances,
     required this.palette,
     this.caseWrapper,
+    this.fitHeight = false,
   });
 
   final SelectedPartyNotifier party;
@@ -449,10 +562,16 @@ class _TeamRow extends StatelessWidget {
   final Widget Function(int slot, String instanceId, Widget teamCase)?
   caseWrapper;
 
+  /// Fill the height it is given (the landscape rail): the slots take
+  /// however many a row lets them be largest and still fit. Otherwise
+  /// five a row, at whatever height that comes to.
+  final bool fitHeight;
+
   /// The widest a slot grows, so a four-slot team on a wide phone does not
   /// push the grid down with cases bigger than the grid's own.
   static const double _maxSlot = 76;
   static const double _gap = 6;
+  static const double _rowGap = 8;
   static const int _perRow = 5;
 
   @override
@@ -473,6 +592,45 @@ class _TeamRow extends StatelessWidget {
           return inst == null || species == null ? null : (inst, species);
         }(),
     ];
+
+    final slots = LayoutBuilder(
+      builder: (context, box) {
+        double across(int perRow) =>
+            ((box.maxWidth - _gap * (perRow - 1)) / perRow).clamp(
+              0.0,
+              _maxSlot,
+            );
+        if (!fitHeight || !box.hasBoundedHeight) {
+          final perRow = maxSize < _perRow ? maxSize : _perRow;
+          return _slots(filled, perRow, across(perRow));
+        }
+        // Each layout's slots as large as the width and the height both
+        // allow. Within a little of the largest, the fewest rows win, then
+        // the most even ones (three rows of three over four, four and one).
+        int rowsOf(int perRow) => (maxSize / perRow).ceil();
+        double fitted(int perRow) {
+          final rows = rowsOf(perRow);
+          final down =
+              (box.maxHeight - _rowGap * (rows - 1)) / rows -
+              _lineGap -
+              _lineHeight;
+          return down < across(perRow)
+              ? down.clamp(0.0, _maxSlot)
+              : across(perRow);
+        }
+
+        final layouts = [for (var n = 1; n <= maxSize; n++) n];
+        final largest = layouts.map(fitted).reduce((a, b) => a > b ? a : b);
+        final good = layouts.where((n) => fitted(n) >= largest * 0.85).toList()
+          ..sort(
+            (a, b) => rowsOf(a) != rowsOf(b)
+                ? rowsOf(a).compareTo(rowsOf(b))
+                : a.compareTo(b),
+          );
+        final perRow = good.first;
+        return _slots(filled, perRow, fitted(perRow));
+      },
+    );
 
     // One height whatever the team: the grid under it must not jump when
     // the first one is picked, nor when the last is taken out.
@@ -510,54 +668,56 @@ class _TeamRow extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 6),
-        LayoutBuilder(
-          builder: (context, box) {
-            final perRow = maxSize < _perRow ? maxSize : _perRow;
-            final slot = ((box.maxWidth - _gap * (perRow - 1)) / perRow).clamp(
-              0.0,
-              _maxSlot,
-            );
-            final rows = (maxSize / _perRow).ceil();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var r = 0; r < rows; r++) ...[
-                  if (r > 0) const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      for (
-                        var i = r * _perRow;
-                        i < maxSize && i < (r + 1) * _perRow;
-                        i++
-                      ) ...[
-                        if (i > r * _perRow) const SizedBox(width: _gap),
-                        SizedBox(
-                          width: slot,
-                          child: i < filled.length
-                              ? _TeamSlot(
-                                  entry: filled[i],
-                                  number: i + 1,
-                                  palette: palette,
-                                  wrapCase: caseWrapper == null
-                                      ? null
-                                      : (c) => caseWrapper!(
-                                          i,
-                                          party.members[i].instanceId,
-                                          c,
-                                        ),
-                                  onRemove: () =>
-                                      party.toggle(party.members[i].instanceId),
-                                )
-                              : _EmptySlot(palette: palette),
-                        ),
-                      ],
-                    ],
-                  ),
-                ],
+        if (fitHeight) Expanded(child: slots) else slots,
+      ],
+    );
+  }
+
+  /// The slots, [perRow] to a row, each [slot] wide.
+  Widget _slots(
+    List<(CreatureInstance, Creature)?> filled,
+    int perRow,
+    double slot,
+  ) {
+    final maxSize = party.maxSize;
+    final rows = (maxSize / perRow).ceil();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var r = 0; r < rows; r++) ...[
+          if (r > 0) const SizedBox(height: _rowGap),
+          Row(
+            children: [
+              for (
+                var i = r * perRow;
+                i < maxSize && i < (r + 1) * perRow;
+                i++
+              ) ...[
+                if (i > r * perRow) const SizedBox(width: _gap),
+                SizedBox(
+                  width: slot,
+                  child: i < filled.length
+                      ? _TeamSlot(
+                          entry: filled[i],
+                          number: i + 1,
+                          palette: palette,
+                          wrapCase: caseWrapper == null
+                              ? null
+                              : (c) => caseWrapper!(
+                                  i,
+                                  party.members[i].instanceId,
+                                  c,
+                                ),
+                          onRemove: () =>
+                              party.toggle(party.members[i].instanceId),
+                        )
+                      : _EmptySlot(palette: palette),
+                ),
               ],
-            );
-          },
-        ),
+            ],
+          ),
+        ],
       ],
     );
   }

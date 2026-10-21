@@ -357,8 +357,6 @@ class _CosmicScreenState extends State<CosmicScreen>
   bool _showSandboxPanel = false;
   bool _sandboxMode = false;
   bool _showHomeMenu = false;
-  bool _showPartyPicker = false;
-  bool _showGarrisonPicker = false;
   bool _runningCosmicIntro = false;
   bool _runningSurvivalIntro = false;
   bool _awaitingShipMenuTap = false;
@@ -414,8 +412,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showSettingsMenu ||
       _showSandboxPanel ||
       _showHomeMenu ||
-      _showPartyPicker ||
-      _showGarrisonPicker ||
       _cacheReward != null ||
       _cacheUnsealing ||
       // Preview hides the HUD so the planet is actually visible; the END
@@ -430,9 +426,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showCustomizationMenu ||
       _showShipMenu ||
       _showSettingsMenu ||
-      _showHomeMenu ||
-      _showPartyPicker ||
-      _showGarrisonPicker;
+      _showHomeMenu;
 
   /// A screen or dialog has been pushed over this one (Survival, the Nexus
   /// encounter, a dungeon, a picker). Flame's loop is a raw Ticker that
@@ -1246,36 +1240,51 @@ class _CosmicScreenState extends State<CosmicScreen>
     });
   }
 
-  Future<void> _handleAssignPartySlot(int slotIndex, String instanceId) async {
-    if (!mounted) return;
-    // Block if already stationed in garrison
-    if (_garrisonMembers.any((m) => m?.instanceId == instanceId)) {
-      _showQuote('Already stationed at your home base!');
-      return;
-    }
-    if (_works.workerIds.contains(instanceId)) {
-      _showQuote('That Alchemon is at work in the Works.');
-      return;
-    }
-    // If the slot being replaced has an active companion, return it first
-    if (_activeCompanionSlots.contains(slotIndex)) {
-      _handleReturnCompanion(slotIndex);
-    }
-    final db = context.read<AlchemonsDatabase>();
-    // Clear the old instance from the slot first, then assign the new one
-    await db.settingsDao.setCosmicPartySlotInstance(slotIndex, null);
-    await db.settingsDao.setCosmicPartySlotInstance(slotIndex, instanceId);
-    await _initCosmicParty();
+  /// The ship's crew, picked on the same team picker as survival and raids.
+  Future<void> _openCrewPicker() async {
+    final slots = _cosmicPartySlotsUnlocked;
+    if (slots <= 0) return;
+    final current = [
+      for (var i = 0; i < slots; i++)
+        i < _partyMembers.length ? _partyMembers[i]?.instanceId : null,
+    ];
+    final stationed = {
+      for (final m in _garrisonMembers.whereType<CosmicPartyMember>())
+        m.instanceId,
+    };
+    await Navigator.of(context).push<List<dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => PartyPickerScreen(
+          title: 'SHIP CREW',
+          confirmLabel: 'Set Crew',
+          showDeployConfirm: false,
+          enforceUniqueSpecies: false,
+          allowEmptyTeam: true,
+          maxSelections: slots,
+          initialSelection: current.whereType<String>().toList(),
+          teamStorageKey: 'saved_teams_cosmic_crew',
+          unavailableReason: (id) => stationed.contains(id)
+              ? 'Stationed at your home base.'
+              : _works.workerIds.contains(id)
+              ? 'At work in the Works.'
+              : null,
+          onConfirm: (members) =>
+              _setCrew(current, [for (final m in members) m.instanceId]),
+        ),
+      ),
+    );
   }
 
-  Future<void> _handleClearPartySlot(int slotIndex) async {
+  Future<void> _setCrew(List<String?> current, List<String> picked) async {
     if (!mounted) return;
-    // If the summoned companion is from this slot, return it first
-    if (_activeCompanionSlots.contains(slotIndex)) {
-      _handleReturnCompanion(slotIndex);
-    }
+    final next = teamIntoSlots(current, picked);
     final db = context.read<AlchemonsDatabase>();
-    await db.settingsDao.setCosmicPartySlotInstance(slotIndex, null);
+    for (var i = 0; i < next.length; i++) {
+      if (next[i] == current[i]) continue;
+      // A summoned companion goes home before its slot changes hands.
+      if (_activeCompanionSlots.contains(i)) _handleReturnCompanion(i);
+      await db.settingsDao.setCosmicPartySlotInstance(i, next[i]);
+    }
     await _initCosmicParty();
   }
 
@@ -1288,7 +1297,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       _showQuote('Return home to manage your party.');
       return;
     }
-    _openSubPanel(_CosmicPanel.none, () => _showPartyPicker = true);
+    _openCrewPicker();
   }
 
   Future<void> _handlePartySlotLongPress(int slotIndex) async {
@@ -2005,38 +2014,49 @@ class _CosmicScreenState extends State<CosmicScreen>
     _game?.spawnGarrison(filled);
   }
 
-  Future<void> _handleAssignGarrisonSlot(
-    int slotIndex,
-    String instanceId,
-  ) async {
-    if (!mounted) return;
-    // Block if already in ship party
-    if (_partyMembers.any((m) => m?.instanceId == instanceId)) {
-      _showQuote('Already assigned to your ship party!');
-      return;
-    }
-    if (_works.workerIds.contains(instanceId)) {
-      _showQuote('That Alchemon is at work in the Works.');
-      return;
-    }
-    final alreadyGarrisonedElsewhere = _garrisonMembers.asMap().entries.any(
-      (entry) =>
-          entry.key != slotIndex && entry.value?.instanceId == instanceId,
+  /// The home garrison, on the same team picker as the ship's crew.
+  Future<void> _openGarrisonPicker() async {
+    final slots = _garrisonSlots;
+    if (slots <= 0) return;
+    final current = [
+      for (var i = 0; i < slots; i++)
+        i < _garrisonMembers.length ? _garrisonMembers[i]?.instanceId : null,
+    ];
+    final crew = {
+      for (final m in _partyMembers.whereType<CosmicPartyMember>())
+        m.instanceId,
+    };
+    await Navigator.of(context).push<List<dynamic>>(
+      MaterialPageRoute(
+        builder: (_) => PartyPickerScreen(
+          title: 'HOME GARRISON',
+          confirmLabel: 'Station',
+          showDeployConfirm: false,
+          enforceUniqueSpecies: false,
+          allowEmptyTeam: true,
+          maxSelections: slots,
+          initialSelection: current.whereType<String>().toList(),
+          teamStorageKey: 'saved_teams_cosmic_garrison',
+          unavailableReason: (id) => crew.contains(id)
+              ? 'In your ship crew.'
+              : _works.workerIds.contains(id)
+              ? 'At work in the Works.'
+              : null,
+          onConfirm: (members) =>
+              _setGarrison(current, [for (final m in members) m.instanceId]),
+        ),
+      ),
     );
-    if (alreadyGarrisonedElsewhere) {
-      _showQuote('Already stationed in another garrison slot!');
-      return;
-    }
-    final db = context.read<AlchemonsDatabase>();
-    await db.settingsDao.setCosmicGarrisonSlotInstance(slotIndex, null);
-    await db.settingsDao.setCosmicGarrisonSlotInstance(slotIndex, instanceId);
-    await _initGarrison();
   }
 
-  Future<void> _handleClearGarrisonSlot(int slotIndex) async {
+  Future<void> _setGarrison(List<String?> current, List<String> picked) async {
     if (!mounted) return;
+    final next = teamIntoSlots(current, picked);
     final db = context.read<AlchemonsDatabase>();
-    await db.settingsDao.setCosmicGarrisonSlotInstance(slotIndex, null);
+    for (var i = 0; i < next.length; i++) {
+      if (next[i] == current[i]) continue;
+      await db.settingsDao.setCosmicGarrisonSlotInstance(i, next[i]);
+    }
     await _initGarrison();
   }
 
@@ -5378,8 +5398,6 @@ class _CosmicScreenState extends State<CosmicScreen>
     _panelStack.clear();
     setState(() {
       _showCustomizationMenu = false;
-      _showGarrisonPicker = false;
-      _showPartyPicker = false;
       _showHomeMenu = false;
       _showShipMenu = false;
       _homePreviewDirty = false;
@@ -5393,8 +5411,6 @@ class _CosmicScreenState extends State<CosmicScreen>
         : _panelStack.removeLast();
     setState(() {
       _showCustomizationMenu = false;
-      _showGarrisonPicker = false;
-      _showPartyPicker = false;
       _homePreviewDirty = false;
       switch (parent) {
         case _CosmicPanel.home:
@@ -7303,7 +7319,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     // System back goes through the same path as the BACK button, so it
     // returns to the parent panel too and never leaves a stale entry on the
     // return stack.
-    if (_showGarrisonPicker || _showPartyPicker || _showCustomizationMenu) {
+    if (_showCustomizationMenu) {
       _closeSubPanel();
       return true;
     }
@@ -8190,10 +8206,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                       if (mounted) setState(() {});
                     },
                     onUpgradePowerUp: _handleUpgradePowerUp,
-                    onGarrison: () => _openSubPanel(_CosmicPanel.lab, () {
-                      _showCustomizationMenu = false;
-                      _showGarrisonPicker = true;
-                    }),
+                    onGarrison: _openGarrisonPicker,
                     garrisonStationed: _garrisonMembers
                         .whereType<CosmicPartyMember>()
                         .length,
@@ -8203,62 +8216,6 @@ class _CosmicScreenState extends State<CosmicScreen>
                     paintHome: _game?.paintHomeShowcase,
                     mode: _labMode,
                     armoryTier: _works.armory.tier,
-                  ),
-                ),
-
-              // ── Party picker overlay ──
-              if (showCosmicHud && _showPartyPicker)
-                Positioned.fill(
-                  child: CosmicPartyPickerOverlay(
-                    slotsUnlocked: _cosmicPartySlotsUnlocked,
-                    partyMembers: _partyMembers,
-                    activeSlot: _activeCompanionSlots.isEmpty
-                        ? null
-                        : _activeCompanionSlots.first,
-                    onAssign: _handleAssignPartySlot,
-                    onClear: _handleClearPartySlot,
-                    onSummon: _handleSummonCompanion,
-                    onReturn: () {
-                      if (_activeCompanionSlots.isNotEmpty) {
-                        _handleReturnCompanion(_activeCompanionSlots.first);
-                      }
-                    },
-                    onClose: _dismissPanels,
-                    onBack: _closeSubPanel,
-                    hintText:
-                        'Pick a slot, then tap an Alchemon to assign it. '
-                        'Summon crew from the HUD to fight beside your ship.',
-                    excludeInstanceIds: {
-                      ..._garrisonMembers.whereType<CosmicPartyMember>().map(
-                        (m) => m.instanceId,
-                      ),
-                      ..._works.workerIds,
-                    },
-                  ),
-                ),
-
-              // ── Garrison picker overlay ──
-              if (showCosmicHud && _showGarrisonPicker)
-                Positioned.fill(
-                  child: CosmicPartyPickerOverlay(
-                    title: 'HOME GARRISON',
-                    subtitle: 'HOME BASE DEFENDERS',
-                    maxSlots: kHomeGarrisonMaxSlots,
-                    slotsUnlocked: _garrisonSlots,
-                    partyMembers: _garrisonMembers,
-                    onAssign: _handleAssignGarrisonSlot,
-                    onClear: _handleClearGarrisonSlot,
-                    onClose: _dismissPanels,
-                    onBack: _closeSubPanel,
-                    hintText:
-                        'Pick a slot, then tap an Alchemon to station it. '
-                        'Garrison size grows with planet tier.',
-                    excludeInstanceIds: {
-                      ..._partyMembers.whereType<CosmicPartyMember>().map(
-                        (m) => m.instanceId,
-                      ),
-                      ..._works.workerIds,
-                    },
                   ),
                 ),
 
@@ -9128,10 +9085,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                   tutorialBuildHomeMode:
                       _awaitingBuildHomeTap && _homePlanet == null,
                   hasParty: _cosmicPartySlotsUnlocked > 0,
-                  onParty: () => _openSubPanel(_CosmicPanel.ship, () {
-                    _showShipMenu = false;
-                    _showPartyPicker = true;
-                  }),
+                  onParty: _openCrewPicker,
                 ),
 
               // ── Settings overlay ──

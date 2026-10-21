@@ -141,11 +141,11 @@ extension _TrayPages on _FeedingScreenState {
                     ]
                   : null,
               onTap: () => _toggleKin(k.instanceId),
-              onLongPress: () => showQuickInstanceDialog(
-                context: context,
-                theme: context.read<FactionTheme>(),
-                creature: creature,
-                instance: k,
+              onLongPress: () => CreatureDetailsDialog.show(
+                context,
+                creature,
+                true,
+                instanceId: k.instanceId,
               ),
             ),
           );

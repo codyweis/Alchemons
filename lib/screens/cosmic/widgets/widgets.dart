@@ -11,5 +11,4 @@ export 'ship_menu_overlay.dart';
 export 'ship_inventory_overlay.dart';
 export 'forge_bar.dart';
 export 'virtual_joystick.dart';
-export 'cosmic_party_picker_overlay.dart';
 export 'raid_badge.dart';
