@@ -17,6 +17,7 @@ import 'package:alchemons/models/encounters/pools/valley_pool.dart';
 import 'package:alchemons/models/encounters/pools/volcano_pool.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
+import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/screens/scenes/rift_threshold.dart';
 import 'package:alchemons/services/opening_wilderness_service.dart';
@@ -26,6 +27,7 @@ import 'package:alchemons/widgets/background/alchemical_particle_background.dart
 import 'package:alchemons/widgets/background/daynight_filter.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/nav_bar.dart';
+import 'package:alchemons/widgets/wilderness/mutation_meter.dart';
 import 'package:alchemons/widgets/wilderness/wilderness_controls.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:alchemons/services/cosmic_memory_tutorial_service.dart';
@@ -317,6 +319,14 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
             await _showCaptureTutorialDialog();
           }
 
+          // The mutation meter, the first time the field is entered with it.
+          if (!widget.isTutorial &&
+              !_isCaptureTutorialScene &&
+              !_isCosmicPlanetMode &&
+              mounted) {
+            await _maybeRevealMutationMeter();
+          }
+
           if (!widget.isTutorial &&
               !_isCaptureTutorialScene &&
               !_riftSpawned &&
@@ -395,6 +405,28 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
   /// The first Field entry: the portal's story line, then what to do here,
   /// as two pages of one dialog.
+  /// Once, after the Mutation Meter node is unlocked: what the meter on the
+  /// left edge is.
+  Future<void> _maybeRevealMutationMeter() async {
+    if (!context.read<ConstellationEffectsService>().hasMutationMeter()) return;
+    if (await _db.settingsDao.hasSeenMutationMeterReveal()) return;
+    await _db.settingsDao.setMutationMeterRevealSeen();
+    if (!mounted) return;
+    await showStoryDialog(
+      context,
+      primaryLabel: 'UNDERSTOOD',
+      beats: const [
+        StoryBeat(
+          title: 'Mutation meter',
+          message:
+              'The mutation meter has been revealed. After each successful '
+              'fuse, the meter fills and increases the chance of a '
+              "mutation. When it's full, the next fuse mutates.",
+        ),
+      ],
+    );
+  }
+
   Future<void> _showFieldTutorialDialog() async {
     if (!mounted) return;
     await showStoryDialog(
@@ -1503,6 +1535,12 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       }
                     },
                   ),
+                // The mutation meter, on the left edge between Exit and
+                // Items. Wilderness only, like mutations.
+                if (!widget.isTutorial &&
+                    !_isCaptureTutorialScene &&
+                    !_isCosmicPlanetMode)
+                  const Positioned.fill(child: MutationMeterHud()),
                 // Back / leave button - hidden in tutorial and cosmic planets.
                 if (!widget.isTutorial &&
                     !_isCaptureTutorialScene &&

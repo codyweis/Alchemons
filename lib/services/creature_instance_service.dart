@@ -6,6 +6,7 @@ import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/potential_soul.dart';
 import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
@@ -422,16 +423,13 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     required db.CreatureInstance fodder,
     required CreatureCatalog repo,
   }) {
-    // XP is based purely on the fodder's level (and prismatic)
+    // XP is based purely on the fodder's level
     const baseXp = 25.0;
 
     // Level factor: +200% per level beyond 1
     final levelFactor = 1.0 + 2 * (fodder.level - 1);
 
-    // Prismatic bonus
-    final prismaticMult = fodder.isPrismaticSkin ? 1.5 : 1.0;
-
-    return (baseXp * levelFactor * prismaticMult).round();
+    return (baseXp * levelFactor).round();
   }
 
   /// Base XP for a single fodder AFTER same-species / same-family multipliers,
@@ -468,7 +466,7 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     return total;
   }
 
-  /// Overall XP multiplier from nature + constellation.
+  /// Overall XP multiplier from nature, constellation and a Starlit's own.
   static double _computeXpMultiplier({
     required db.CreatureInstance target,
     ConstellationEffectsService? constellationEffects,
@@ -484,7 +482,10 @@ extension CreatureInstanceServiceFeeding on CreatureInstanceService {
     }
     final constellationMult =
         constellationEffects?.getXpBoostMultiplier() ?? 1.0;
-    return natureMult * constellationMult;
+    final starlitMult = target.mutation == AlchemonMutation.starlit.id
+        ? kStarlitXpMultiplier
+        : 1.0;
+    return natureMult * constellationMult * starlitMult;
   }
 
   static EnhancementTransferProfile analyzeEnhancementMaterial(

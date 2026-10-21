@@ -255,12 +255,6 @@ class BreedingLikelihoodAnalyzer {
       surprisesOut: surprises,
     );
 
-    _maybeAppendPrismatic(
-      baby: baby,
-      specialsOut: specials,
-      surprisesOut: surprises,
-    );
-
     _maybeAppendVariantFaction(
       baby: baby,
       specialsOut: specials,
@@ -382,11 +376,6 @@ class BreedingLikelihoodAnalyzer {
     );
 
     // SPECIAL COSMETICS (prismatic)
-    _maybeAppendPrismatic(
-      baby: baby,
-      specialsOut: specials,
-      surprisesOut: surprises,
-    );
 
     _maybeAppendVariantFaction(
       baby: baby,
@@ -481,11 +470,6 @@ class BreedingLikelihoodAnalyzer {
     );
 
     // PRISMATIC
-    _maybeAppendPrismatic(
-      baby: baby,
-      specialsOut: specials,
-      surprisesOut: surprises,
-    );
 
     _maybeAppendVariantFaction(
       baby: baby,
@@ -709,27 +693,6 @@ class BreedingLikelihoodAnalyzer {
       if (pct < 20.0) {
         surprisesOut.add('Unexpected nature outcome');
       }
-    }
-  }
-
-  void _maybeAppendPrismatic({
-    required Creature baby,
-    required List<InheritanceMechanic> specialsOut,
-    required List<String> surprisesOut,
-  }) {
-    if (baby.isPrismaticSkin == true) {
-      final prismaticPct = tuning.prismaticSkinChance * 100.0;
-      specialsOut.add(
-        InheritanceMechanic(
-          category: 'Cosmetic Mutation',
-          result: 'Prismatic Skin',
-          mechanism:
-              '${prismaticPct.toStringAsFixed(1)}% spontaneous visual mutation',
-          percentage: prismaticPct,
-          likelihood: _likelihoodFor(prismaticPct),
-        ),
-      );
-      surprisesOut.add('Prismatic skin mutation');
     }
   }
 

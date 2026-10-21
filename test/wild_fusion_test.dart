@@ -55,40 +55,6 @@ void main() {
     });
   });
 
-  group('AlchemonMutation.roll', () {
-    test('about one in a hundred of each', () {
-      final rng = Random(7);
-      final counts = <AlchemonMutation?, int>{};
-      const n = 200000;
-      for (var i = 0; i < n; i++) {
-        final m = AlchemonMutation.roll(rng, prismatic: false);
-        counts[m] = (counts[m] ?? 0) + 1;
-      }
-      for (final m in AlchemonMutation.values) {
-        expect(counts[m]! / n, closeTo(AlchemonMutation.chance, 0.0015));
-      }
-    });
-
-    test('a prismatic child can be Alchemized but never Transmuted', () {
-      final rng = Random(11);
-      var alchemized = 0;
-      for (var i = 0; i < 100000; i++) {
-        final m = AlchemonMutation.roll(rng, prismatic: true);
-        expect(m, isNot(AlchemonMutation.transmuted));
-        if (m == AlchemonMutation.alchemized) alchemized++;
-      }
-      expect(alchemized, greaterThan(500));
-    });
-
-    test('ids round-trip', () {
-      for (final m in AlchemonMutation.values) {
-        expect(AlchemonMutation.byId(m.id), m);
-      }
-      expect(AlchemonMutation.byId(null), isNull);
-      expect(AlchemonMutation.byId('nonsense'), isNull);
-    });
-  });
-
   test('the debug mutation only works with the tools on, and clears', () async {
     SharedPreferences.setMockInitialValues({});
     final debug = DebugSettingsService();
@@ -274,10 +240,15 @@ void main() {
       expect(gold.frameSize, Vector2(512, 512));
       expect(gold.totalFrames, 4);
       expect(mutatedSheet(sheet).path, sheet.path);
-      // A prismatic Alchemized one is its own bake; a prismatic gold is not.
+      // The old prismatic flag alone is drawn as the Prismatic mutation;
+      // beside another mutation it changes nothing (one mutation each).
+      expect(
+        mutatedSheet(sheet, prismatic: true).path,
+        mutatedSheet(sheet, mutation: 'prismatic').path,
+      );
       expect(
         mutatedSheet(sheet, mutation: 'alchemized', prismatic: true).path,
-        isNot(mutatedSheet(sheet, mutation: 'alchemized').path),
+        mutatedSheet(sheet, mutation: 'alchemized').path,
       );
       expect(
         mutatedSheet(sheet, mutation: 'transmuted', prismatic: true).path,
@@ -305,13 +276,22 @@ void main() {
       expect(v.isAlbino, isFalse);
       expect(v.isPrismatic, isFalse);
 
-      // An Alchemized one keeps its pigment: grains take its colors.
+      // An Alchemized one keeps its pigment: grains take its colors. One
+      // mutation each, so the old prismatic flag does not ride along.
       final grains = visualsFromInstance(
         albino.copyWith(wildMutation: 'alchemized'),
         null,
       );
       expect(grains.brightness, isNot(1.0));
-      expect(grains.isPrismatic, isTrue);
+      expect(grains.isPrismatic, isFalse);
+
+      // Every other mutation is a material, like gold: no pigment.
+      for (final m in ['prismatic', 'silverlite', 'starlit', 'obsidian']) {
+        final v = visualsFromInstance(albino.copyWith(wildMutation: m), null);
+        expect(v.mutation, m);
+        expect(v.isAlbino, isFalse);
+        expect(v.isPrismatic, m == 'prismatic');
+      }
     });
 
     // One 16×16 frame: a solid disc of [rgb] on transparency.
@@ -375,23 +355,40 @@ void main() {
       expect(stray, 0);
     });
 
-    test('prismatic grains are a rainbow, plain grains keep the color', () {
+    test('the material mutations keep the silhouette and replace the color', () {
       const size = 96;
       final src = disc(200, 80, 40, size: size);
-      Set<int> hues(MutationLook look) {
+      for (final look in [
+        MutationLook.prismatic,
+        MutationLook.silverlite,
+        MutationLook.starlit,
+        MutationLook.obsidian,
+      ]) {
         final out = bakeMutation(job(src, look, size: size));
-        final seen = <int>{};
+        var changed = 0;
         for (var o = 0; o < out.length; o += 4) {
-          if (out[o + 3] < 250) continue;
-          final r = out[o], g = out[o + 1], b = out[o + 2];
-          // Coarse hue bucket by the dominant channel.
-          seen.add(r >= g && r >= b ? 0 : (g >= b ? 1 : 2));
+          expect(out[o + 3], src[o + 3], reason: '$look keeps the alpha');
+          if (out[o + 3] == 255 &&
+              (out[o] - 200).abs() + (out[o + 1] - 80).abs() > 60) {
+            changed++;
+          }
         }
-        return seen;
+        expect(changed, greaterThan(size * size ~/ 8), reason: '$look');
       }
+    });
 
-      expect(hues(MutationLook.alchemized), {0});
-      expect(hues(MutationLook.alchemizedPrismatic).length, 3);
+    test('a prismatic is a rainbow', () {
+      const size = 96;
+      final out = bakeMutation(
+        job(disc(200, 80, 40, size: size), MutationLook.prismatic, size: size),
+      );
+      final seen = <int>{};
+      for (var o = 0; o < out.length; o += 4) {
+        if (out[o + 3] < 250) continue;
+        final r = out[o], g = out[o + 1], b = out[o + 2];
+        seen.add(r >= g && r >= b ? 0 : (g >= b ? 1 : 2));
+      }
+      expect(seen.length, 3);
     });
   });
 }

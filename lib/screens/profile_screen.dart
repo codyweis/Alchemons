@@ -1916,7 +1916,30 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
+  /// 99 → full → empty → 99: the meter's three useful states, in turn.
+  Future<void> _cycleMutationMeter() async {
+    final dao = context.read<AlchemonsDatabase>().settingsDao;
+    final now = await dao.getMutationMeter();
+    final next = now >= kMutationMeterNotches
+        ? 0
+        : now == kMutationMeterNotches - 1
+        ? kMutationMeterNotches
+        : kMutationMeterNotches - 1;
+    await dao.setMutationMeter(next);
+    if (!mounted) return;
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+      SnackBar(content: Text('Mutation meter: $next / $kMutationMeterNotches')),
+    );
+  }
+
   List<_DebugAction> _debugActions() => [
+    _DebugAction(
+      'MUTATION METER',
+      'Set the meter to one short of full, so the next wild fusion has 10%; '
+          'tap again to fill it, then to empty it. Needs its node',
+      'CYCLE',
+      _cycleMutationMeter,
+    ),
     _DebugAction(
       'BATTLE',
       'Fight the computer, two at a time from four: tap specials, call in '

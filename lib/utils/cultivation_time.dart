@@ -1,3 +1,4 @@
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/utils/nature_utils.dart';
 
@@ -15,13 +16,20 @@ Duration cultivationDuration({
   double gestationReduction = 0,
   double fireMultiplier = 1.0,
   bool halfCultivation = false,
+  // An Obsidian parent halves its egg's extraction time.
+  bool obsidianParent = false,
 }) {
   // Nature can push either way; everything else only ever shortens.
   final natureMult = hatchMultForNatures(natureId, nature2Id);
   final boostMult = halfCultivation
       ? TimedBoostService.halfCultivationMultiplier
       : 1.0;
+  final obsidianMult = obsidianParent ? kObsidianCultivationMultiplier : 1.0;
   final totalMult =
-      natureMult * (1.0 - gestationReduction) * fireMultiplier * boostMult;
+      natureMult *
+      (1.0 - gestationReduction) *
+      fireMultiplier *
+      boostMult *
+      obsidianMult;
   return Duration(milliseconds: (base.inMilliseconds * totalMult).round());
 }

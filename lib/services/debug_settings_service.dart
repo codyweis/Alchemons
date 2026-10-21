@@ -117,7 +117,7 @@ class DebugSettingsService {
   static const String _forcedMutationKey = 'debug.force_wild_mutation';
   static bool _forcedMutationHydrated = false;
 
-  /// The mutation id ('alchemized', 'transmuted') the next successful
+  /// The mutation id ([AlchemonMutation.id]) the next successful
   /// wilderness fusion is forced to, or null. One-shot: spent by that fusion,
   /// so a debug choice never quietly mutates everything after it.
   static final ValueNotifier<String?> forcedWildMutationNotifier =

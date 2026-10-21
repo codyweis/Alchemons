@@ -18,20 +18,20 @@ class BlackMarketConstants {
   // Level multiplier: each level adds 5% to base value
   static double levelMultiplier(int level) => 1.0 + (level - 1) * 0.05;
 
-  // Prismatic bonus: +1000% value
-  static const double prismaticBonus = 10;
-
   static const Map<String, double> tintMultipliers = {'vibrant': 1.5};
 
   /// What a Transmuted specimen sells for, in gold. Fixed: it ignores rarity,
   /// level and the sale boosts.
-  static const int transmutedGoldValue = 100;
+  static const int transmutedGoldValue = 50;
+
+  /// What a Silverlite specimen sells for, in silver. Fixed, like
+  /// Transmuted's gold.
+  static const int silverliteSilverValue = 10000;
 
   // Calculate total sell price
   static int calculateSellPrice({
     required String rarity,
     required int level,
-    required bool isPrismatic,
     String? natureId,
     String? natureId2,
     String? tintId,
@@ -39,14 +39,12 @@ class BlackMarketConstants {
   }) {
     final base = baseValues[rarity.toLowerCase()] ?? baseValues['common']!;
     final levelMult = levelMultiplier(level);
-    final prismaMult = isPrismatic ? prismaticBonus : 1.0;
     final tintMult = tintId != null ? (tintMultipliers[tintId] ?? 1.0) : 1.0;
     final natureMult = natureValueMultiplier(natureId, natureId2);
     final potentialMult = potentialValueMultiplier(averagePotential);
 
     return (base *
             levelMult *
-            prismaMult *
             tintMult *
             natureMult *
             potentialMult)

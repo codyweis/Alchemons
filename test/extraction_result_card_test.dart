@@ -233,15 +233,12 @@ void main() {
       for (var i = 0; i < 40; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
-      // The marks are engraved at the foot of the stage, one line.
-      for (final mark in const [
-        'NEW DISCOVERY',
-        'TRANSMUTED',
-        'PRISMATIC',
-        'BLOODBORN',
-      ]) {
+      // The marks are engraved at the foot of the stage, one line. One
+      // mutation each: the old prismatic flag gives way to Transmuted.
+      for (final mark in const ['NEW DISCOVERY', 'TRANSMUTED', 'BLOODBORN']) {
         expect(find.text(mark), findsOneWidget, reason: mark);
       }
+      expect(find.text('PRISMATIC'), findsNothing);
       // No analyzers unlocked in a fresh save: no Potential, no Dominants.
       // GENETICS is the first tab, so it is what shows.
       expect(_potentials(), findsNothing);
@@ -253,6 +250,25 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
       }
       expect(find.text('Mystic'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await drain(tester);
+    }
+  });
+
+  testWidgets('a Prismatic is marked once, as its mutation', (tester) async {
+    late CreatureInstance inst;
+    await tester.runAsync(
+      () async => inst = await insert('p', 'HOR01', prismatic: true),
+    );
+    try {
+      expect(inst.mutation, 'prismatic');
+      await tester.pumpWidget(host(FactionTheme.scorchForge(), firehorn, inst));
+      await tester.tap(find.text('open'));
+      for (var i = 0; i < 40; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(find.text('PRISMATIC'), findsOneWidget);
       expect(tester.takeException(), isNull);
     } finally {
       await drain(tester);

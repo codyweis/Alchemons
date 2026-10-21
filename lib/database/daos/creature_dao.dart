@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:drift/drift.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/database/schema_tables.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
 import 'package:alchemons/models/stat_system.dart';
 
@@ -566,8 +567,15 @@ class CreatureDao extends DatabaseAccessor<AlchemonsDatabase>
         xp: Value(xp),
         locked: Value(locked),
         nickname: Value(nickname),
-        isPrismaticSkin: Value(isPrismaticSkin),
-        mutation: Value(mutation),
+        // Prismatic is a mutation; the flag only mirrors it, for the many
+        // readers that ask. The flag alone (a cultivation started before, a
+        // rift's Alchemon) becomes the mutation.
+        isPrismaticSkin: Value(prismaticMutation(isPrismaticSkin, mutation)),
+        mutation: Value(
+          prismaticMutation(isPrismaticSkin, mutation)
+              ? AlchemonMutation.prismatic.id
+              : mutation,
+        ),
         natureId: Value(natureId),
         natureId2: Value(natureId2),
         source: Value(source),

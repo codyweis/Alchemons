@@ -2205,7 +2205,6 @@ class _HomeScreenState extends State<HomeScreen>
     final mutation = AlchemonMutation.byId(pick.mutation);
     final finalSubtitle = [
       if (mutation != null) mutation.label.toUpperCase(),
-      if (pick.isPrismaticSkin) 'PRISMATIC VARIANT',
       subtitleLine,
     ].join(' • ');
 

@@ -1,19 +1,18 @@
 // lib/screens/cosmic/cosmic_sell_sheet.dart
 //
-// The Cosmic Market station: sell Alchemons summoned from planets, and
-// prismatic ones. A full panel in the station-screen kit — the market on its
+// The Cosmic Market station: sell Alchemons summoned from planets. A full
+// panel in the station-screen kit — the market on its
 // stage (a capsule lit for the one you are looking at), what it pays today,
 // your sellable Alchemons, and one SELL at the foot.
 //
 // What a specimen fetches, in "gold base" units:
 //   rarity (common 5, uncommon 10, rare 15, mythic/mystic/legendary 20,
-//   variant 25), +10 if prismatic, ×1.5 if planet-summoned, × its nature
+//   variant 25), ×1.5 if planet-summoned, × its nature
 //   and potential multipliers, × a 0.8–1.2 market swing that is fixed for a
 //   specimen for the day, clamped to 1–999. Today's species pays double.
-// Paid as:
-//   prismatic → gold, ceil(base / 12) clamped 1–6, ×5;
-//   otherwise → silver, base × 50; or astral shards, base × 5, into the
-//   hold (offered only when the hold has room).
+// Paid as silver, base × 50; or astral shards, base × 5, into the hold
+// (offered only when the hold has room). A Prismatic is a mutation now and
+// sells at the exchange like any other.
 //
 // Alchemons that are locked, out with the party or stationed at home are
 // never offered.
@@ -99,7 +98,6 @@ class _Sellable {
   final int basePrice;
   final bool doubled;
 
-  bool get prismatic => instance.isPrismaticSkin;
   String get name => (instance.nickname?.isNotEmpty ?? false)
       ? instance.nickname!
       : creature.name;
@@ -114,7 +112,7 @@ class CosmicSellSheet extends StatefulWidget {
   });
 
   /// The hold, for paying in shards. Without [addShards] the market pays
-  /// silver (and gold, for prismatics) only.
+  /// silver only.
   final int carriedShards;
   final int shardCapacity;
   final void Function(int amount)? addShards;
@@ -143,7 +141,6 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
   List<_Sellable> _all = [];
   bool _loading = true;
   _Pay _pay = _Pay.silver;
-  bool _prismaticOnly = false;
   String? _planet;
   String? _selectedId;
   Creature? _todaysSpecies;
@@ -168,7 +165,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
 
     final eligible = [
       for (final i in instances)
-        if ((i.source == 'planet_summon' || i.isPrismaticSkin) &&
+        if (i.source == 'planet_summon' &&
             !i.locked &&
             !away.contains(i.instanceId) &&
             repo.getCreatureById(i.baseId) != null)
@@ -185,7 +182,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
     for (final inst in eligible) {
       final base = repo.getCreatureById(inst.baseId)!;
       final raw =
-          ((_baseGoldForRarity(base.rarity) + (inst.isPrismaticSkin ? 10 : 0)) *
+          (_baseGoldForRarity(base.rarity) *
                   (inst.source == 'planet_summon' ? 1.5 : 1.0) *
                   BlackMarketConstants.natureValueMultiplier(
                     inst.natureId,
@@ -231,20 +228,13 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
 
   List<_Sellable> get _shown => [
     for (final s in _all)
-      if ((!_prismaticOnly || s.prismatic) &&
-          (_planet == null ||
-              s.creature.types.contains(_kPlanetElement[_planet])))
+      if (_planet == null ||
+          s.creature.types.contains(_kPlanetElement[_planet]))
         s,
   ];
 
   /// What [s] pays, and in what.
   (String, int) _payout(_Sellable s) {
-    if (s.prismatic) {
-      return (
-        'gold',
-        (s.basePrice / 12).ceil().clamp(1, 6) * _kSellRewardMultiplier,
-      );
-    }
     return _pay == _Pay.silver
         ? ('silver', s.basePrice * 10 * _kSellRewardMultiplier)
         : ('shards', s.basePrice * 5);
@@ -266,10 +256,8 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                 'into the hold.'
           : 'It leaves your collection for good.',
       amounts: [
-        if (currency == 'gold') (CoinKind.gold, amount),
         if (currency == 'silver') (CoinKind.silver, amount),
       ],
-      warning: s.prismatic ? 'This one is prismatic.' : null,
       confirmLabel: 'SELL',
     );
     if (!ok || !mounted) return;
@@ -277,8 +265,6 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
     final db = context.read<AlchemonsDatabase>();
     await db.creatureDao.deleteInstances([s.instance.instanceId]);
     switch (currency) {
-      case 'gold':
-        await db.currencyDao.addGold(amount);
       case 'silver':
         await db.currencyDao.addSilver(amount);
       default:
@@ -342,11 +328,9 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                     const PanelSectionHeader('TODAY'),
                     StationNote(
                       _todaysSpecies == null
-                          ? 'The market buys Alchemons summoned from planets, '
-                                'and prismatic ones. Prismatics pay in gold.'
+                          ? 'The market buys Alchemons summoned from planets.'
                           : 'The market pays double for '
-                                '${_todaysSpecies!.name} today. Prismatics '
-                                'always pay in gold.',
+                                '${_todaysSpecies!.name} today.',
                     ),
                     if (widget.addShards != null) ...[
                       const SizedBox(height: 6),
@@ -366,9 +350,9 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                     if (_all.isNotEmpty) _filters(),
                     if (_all.isEmpty)
                       const StationNote(
-                        'Nothing to sell. Alchemons summoned from planets, '
-                        'and prismatic ones, can be sold here once they are '
-                        'not locked, out with your party or stationed at home.',
+                        'Nothing to sell. Alchemons summoned from planets can '
+                        'be sold here once they are not locked, out with your '
+                        'party or stationed at home.',
                       )
                     else if (shown.isEmpty)
                       const StationNote('Nothing matches this filter.')
@@ -414,7 +398,6 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
       for (final e in _kPlanetElement.entries)
         if (_all.any((s) => s.creature.types.contains(e.value))) e.key,
     ];
-    final anyPrismatic = _all.any((s) => s.prismatic);
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Wrap(
@@ -423,18 +406,9 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
         children: [
           _chip(
             'ALL',
-            !_prismaticOnly && _planet == null,
-            () => setState(() {
-              _prismaticOnly = false;
-              _planet = null;
-            }),
+            _planet == null,
+            () => setState(() => _planet = null),
           ),
-          if (anyPrismatic)
-            _chip(
-              'PRISMATIC',
-              _prismaticOnly,
-              () => setState(() => _prismaticOnly = !_prismaticOnly),
-            ),
           for (final p in planets)
             _chip(
               p.toUpperCase(),
@@ -452,7 +426,6 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
     final tags = [
       'LV ${s.instance.level}',
       s.creature.rarity.toUpperCase(),
-      if (s.prismatic) 'PRISMATIC',
       if (s.doubled) 'DOUBLE TODAY',
     ];
     return GestureDetector(
@@ -495,7 +468,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
                     tags.join('   '),
                     style: panelLabel(
                       9.5,
-                      s.doubled || s.prismatic
+                      s.doubled
                           ? CosmicScreenStyles.success
                           : panelPalette.muted,
                       spacing: 0.8,

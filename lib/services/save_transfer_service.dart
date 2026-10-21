@@ -283,6 +283,9 @@ class SaveTransferService {
         if (sourceSchemaVersion < 43) {
           await db.moveCostumesOutOfEffects();
         }
+        if (sourceSchemaVersion < 46) {
+          await db.movePrismaticToMutation();
+        }
         await db.settingsDao.setSetting(
           SaveGenerationService.settingKey,
           '$generation',

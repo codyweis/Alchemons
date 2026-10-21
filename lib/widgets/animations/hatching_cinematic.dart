@@ -706,9 +706,8 @@ class _HatchingCeremonyViewState extends State<HatchingCeremonyView>
                               t: t,
                               clock: shellClock,
                               tint:
-                                  widget.mutation == AlchemonMutation.transmuted
-                                  ? ShellMutationLook.gold
-                                  : widget.paletteMain,
+                                  mutationShellTint(widget.mutation) ??
+                                  widget.paletteMain,
                               accent: widget.mutation != null
                                   ? mutationAccent(widget.mutation!)
                                   : widget.variantColor ??
@@ -1010,20 +1009,15 @@ class _SilhouetteReveal extends StatelessWidget {
       );
     }
 
-    // Gold replaces the color, as it does on the sheet.
-    if (mutation == AlchemonMutation.transmuted) {
+    // A material replaces the color, as it does on the sheet.
+    final material = _mutationSilhouette(mutation);
+    if (material != null) {
       child = ShaderMask(
-        shaderCallback: (bounds) => const LinearGradient(
+        shaderCallback: (bounds) => LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            ShellMutationLook.bronze,
-            ShellMutationLook.gold,
-            ShellMutationLook.paleGold,
-            ShellMutationLook.gold,
-            ShellMutationLook.bronze,
-          ],
-          stops: [0.0, 0.35, 0.5, 0.65, 1.0],
+          colors: material,
+          stops: const [0.0, 0.35, 0.5, 0.65, 1.0],
         ).createShader(bounds),
         blendMode: BlendMode.srcATop,
         child: Image(
@@ -1454,3 +1448,48 @@ class _SilhouetteGrainsPainter extends CustomPainter {
 class _SandFrame extends ChangeNotifier {
   void tick() => notifyListeners();
 }
+
+/// The color a mutated cultivation's shell glows in: its material's.
+/// Null for a mutation that keeps the elements' (Prismatic, Alchemized).
+Color? mutationShellTint(AlchemonMutation? m) => switch (m) {
+  AlchemonMutation.transmuted => ShellMutationLook.gold,
+  AlchemonMutation.silverlite => const Color(0xFFC9D2E0),
+  AlchemonMutation.starlit => const Color(0xFF4A52B0),
+  AlchemonMutation.obsidian => const Color(0xFF8A5A3C),
+  _ => null,
+};
+
+/// The newborn's silhouette in its material, across it top-left to
+/// bottom-right (five stops); null where the elements' or the prismatic's
+/// own treatment shows instead.
+List<Color>? _mutationSilhouette(AlchemonMutation? m) => switch (m) {
+  AlchemonMutation.transmuted => const [
+    ShellMutationLook.bronze,
+    ShellMutationLook.gold,
+    ShellMutationLook.paleGold,
+    ShellMutationLook.gold,
+    ShellMutationLook.bronze,
+  ],
+  AlchemonMutation.silverlite => const [
+    Color(0xFF3C424E),
+    Color(0xFFC8D0DC),
+    Color(0xFF6E7684),
+    Color(0xFFECF0F8),
+    Color(0xFF282C36),
+  ],
+  AlchemonMutation.starlit => const [
+    Color(0xFF0A0C24),
+    Color(0xFF2A2E78),
+    Color(0xFF8EA6FF),
+    Color(0xFF2A2E78),
+    Color(0xFF0A0C24),
+  ],
+  AlchemonMutation.obsidian => const [
+    Color(0xFF0E0E14),
+    Color(0xFF26222C),
+    Color(0xFFE0A070),
+    Color(0xFF26222C),
+    Color(0xFF0E0E14),
+  ],
+  _ => null,
+};

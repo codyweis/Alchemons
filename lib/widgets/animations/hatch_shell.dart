@@ -528,6 +528,47 @@ class ShellMutationLook {
   /// How long the polish takes to cross the shell, and the gap before the
   /// next pass, in the shell's own seconds.
   static const double sweepPeriod = 2.2;
+
+  /// Silverlite, Starlit and Obsidian re-read the shell into their own
+  /// material the way Transmuted reads it into gold: by lightness onto a
+  /// ramp ([dark], [mid], [light]), with its accent strands as [lit]. No
+  /// polish crosses them. Null for a mutation with no material of its own.
+  static Color Function(Color c, bool accent, double shade)? materialOf(
+    AlchemonMutation? m,
+  ) {
+    final ramp = switch (m) {
+      AlchemonMutation.silverlite => const (
+        Color(0xFF3C424E),
+        Color(0xFFAEB7C6),
+        Color(0xFFF4F6FA),
+        Color(0xFFFFFFFF),
+      ),
+      AlchemonMutation.starlit => const (
+        Color(0xFF14183C),
+        Color(0xFF3A44A0),
+        Color(0xFF8EA6FF),
+        Color(0xFFFFF6E0),
+      ),
+      AlchemonMutation.obsidian => const (
+        Color(0xFF121016),
+        Color(0xFF26222C),
+        Color(0xFF4A4452),
+        Color(0xFFE0A070),
+      ),
+      _ => null,
+    };
+    if (ramp == null) return null;
+    final (dark, mid, light, lit) = ramp;
+    return (c, accent, shade) {
+      if (accent) return lit;
+      final l = (0.299 * c.r + 0.587 * c.g + 0.114 * c.b + (shade - 0.5) * 0.7)
+          .clamp(0.0, 1.0);
+      final v = 0.15 + 0.6 * l;
+      return v < 0.5
+          ? Color.lerp(dark, mid, v / 0.5)!
+          : Color.lerp(mid, light, (v - 0.5) / 0.5)!;
+    };
+  }
 }
 
 // ===========================================================================
@@ -872,6 +913,7 @@ class HatchShellPainter extends CustomPainter {
         : HatchShellTuning.accentMix;
 
     final gilded = mutation == AlchemonMutation.transmuted;
+    final material = ShellMutationLook.materialOf(mutation);
     final beaded = mutation == AlchemonMutation.alchemized;
     if (beaded) _beads.clear();
     // The polish: a diagonal band crossing the shell, then a rest before the
@@ -1050,6 +1092,8 @@ class HatchShellPainter extends CustomPainter {
       }
       if (gilded) {
         c = ShellMutationLook.gilt(c, accent: isAcc, shade: st.accent);
+      } else if (material != null) {
+        c = material(c, isAcc, st.accent);
       }
 
       final flick = b.flick > 0
@@ -1323,7 +1367,11 @@ class HatchShellPainter extends CustomPainter {
       Color node(Color c0, Color c1) {
         final c = Color.lerp(c0, c1, 0.5)!;
         return Color.lerp(
-          gilded ? ShellMutationLook.gilt(c) : c,
+          gilded
+              ? ShellMutationLook.gilt(c)
+              : material != null
+              ? material(c, false, 0.5)
+              : c,
           Colors.white,
           0.45,
         )!;

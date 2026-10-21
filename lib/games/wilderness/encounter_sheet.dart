@@ -39,7 +39,9 @@ import 'package:alchemons/widgets/fx/harvest_cinematic.dart';
 import 'package:alchemons/widgets/fx/harvest_particles.dart';
 import 'package:alchemons/widgets/fx/harvester_profile.dart';
 import 'package:alchemons/games/wilderness/encounter_top_hud.dart';
+import 'package:alchemons/widgets/fx/mutation_moment.dart';
 import 'package:alchemons/widgets/harvester_glyph.dart';
+import 'package:alchemons/widgets/wilderness/mutation_meter.dart';
 import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart'; // 🆕 Import highlight widget
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -179,7 +181,7 @@ class EncounterOverlay extends StatefulWidget {
 
 /// What a wild fusion came to: the line the result notice carries, whether it
 /// landed or not.
-typedef _FusionOutcome = ({bool ok, String message});
+typedef _FusionOutcome = ({bool ok, String message, AlchemonMutation? mutation});
 
 class _EncounterOverlayState extends State<EncounterOverlay>
     with TickerProviderStateMixin {
@@ -868,6 +870,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       }
       if (mounted) setState(() => _wildFusionQty = max(0, _wildFusionQty - 1));
 
+      // The mutation meter holds still until this fusion is over.
+      if (widget.fieldMutations) MutationMeterBus.instance.beginFusion();
+
       widget.onPreRollShake?.call();
       widget.onFusionCalibrating?.call();
       HapticFeedback.mediumImpact();
@@ -981,6 +986,22 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         }
         if (!mounted || !ctx.mounted) return;
 
+        // A mutation: the meter pours into the new egg, which shows THAT it
+        // mutated, never which (the extraction says). Otherwise the meter
+        // takes its notch from where the pair met.
+        final landed = handoff?.at.center;
+        if (outcome.mutation != null && widget.fieldMutations) {
+          final size = MediaQuery.sizeOf(ctx);
+          await showMutationMoment(
+            ctx,
+            at: landed ?? Offset(size.width / 2, size.height * 0.55),
+          );
+          MutationMeterBus.instance.fusionEnded();
+          if (!mounted || !ctx.mounted) return;
+        } else if (widget.fieldMutations) {
+          MutationMeterBus.instance.fusionEnded(at: landed);
+        }
+
         // The first time two become one, the older presence remembers it —
         // before the encounter closes and the field tutorial moves on.
         await maybePlayFirstFusionStory(ctx);
@@ -1029,6 +1050,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       _mergeSkippable = false;
       if (mounted && _mergeSkipPortal.isShowing) _mergeSkipPortal.hide();
       if (mounted) setState(() => _busy = false);
+      // Failed, or left early: the meter is free again either way.
+      final bus = MutationMeterBus.instance;
+      if (bus.fusing) bus.fusionEnded();
     }
   }
 
@@ -1178,7 +1202,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     BreedingServiceV2 breedingService,
   ) async {
     if (wildCreature == null) {
-      return (ok: false, message: 'Wild record lookup failed.');
+      return (ok: false, message: 'Wild record lookup failed.', mutation: null);
     }
 
     // The debug tools can force this fusion's mutation (one-shot).
@@ -1204,7 +1228,11 @@ class _EncounterOverlayState extends State<EncounterOverlay>
     }
 
     if (!result.success) {
-      return (ok: false, message: result.message ?? 'The fusion did not take.');
+      return (
+        ok: false,
+        message: result.message ?? 'The fusion did not take.',
+        mutation: null,
+      );
     }
 
     return (
@@ -1212,6 +1240,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
       message: result.placement == EggPlacement.storage
           ? 'Cultivation chambers were full — the specimen was moved to cold storage.'
           : 'The new specimen was sent to a cultivation chamber.',
+      mutation: result.mutation,
     );
   }
 

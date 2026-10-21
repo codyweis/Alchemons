@@ -155,7 +155,7 @@ class Creature {
   final String? costumes;
   final String? variantFaction;
 
-  /// The individual's wild-fusion mutation id ('alchemized', 'transmuted'),
+  /// The individual's wild-fusion mutation id ([AlchemonMutation.id]),
   /// carried on a creature hydrated from an instance so it draws right where
   /// only the [Creature] travels. Not the species-level [mutationFamily], and
   /// never serialised: the instance's `mutation` column is the record.

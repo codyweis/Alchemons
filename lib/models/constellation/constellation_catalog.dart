@@ -145,6 +145,21 @@ class ConstellationCatalog {
     tier: 5,
   );
 
+  /// Puts the mutation meter in the wild: each wilderness fusion that
+  /// doesn't mutate raises the chance that the next one does.
+  static const mutationMeter = ConstellationSkill(
+    id: 'breeder_mutation_meter',
+    name: 'Mutation Meter',
+    description:
+        'Reveal the mutation meter in the wild. Each successful wild fusion '
+        'fills it and raises the chance of a mutation; when it is full, the '
+        'next one mutates',
+    tree: ConstellationTree.breeder,
+    pointsCost: 10,
+    prerequisites: ['breeder_wild_potential_analyzer'],
+    tier: 6,
+  );
+
   // path 1 – Accelerated Gestation
   static const acceleratedGestation = ConstellationSkill(
     id: 'breeder_accelerated_gestation',
@@ -578,6 +593,7 @@ class ConstellationCatalog {
     potentialAnalyzer,
     dominantAnalyzer,
     wildPotentialAnalyzer,
+    mutationMeter,
     acceleratedGestation,
     acceleratedGestation2,
     acceleratedGestation3,

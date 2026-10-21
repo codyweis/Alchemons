@@ -516,17 +516,12 @@ List<TraitRow> specimenTraitRows(
         value: variantDisplay,
         color: FactionColors.of(variantDisplay),
       ),
-    if (instance.isPrismaticSkin == true)
-      const TraitRow(
-        label: 'SKIN',
-        value: 'Prismatic',
-        color: Color(0xFFE879F9),
-      ),
     if (mutation != null)
       TraitRow(
         label: 'MUTATION',
         value: mutation.label,
         color: mutationAccent(mutation),
+        note: mutation.perk,
       ),
   ];
 }

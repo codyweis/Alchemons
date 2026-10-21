@@ -153,7 +153,6 @@ void main() {
         BlackMarketConstants.calculateSellPrice(
           rarity: rarity,
           level: level,
-          isPrismatic: false,
         );
 
     expect(value('common'), 125);
@@ -171,25 +170,21 @@ void main() {
     final baseline = BlackMarketConstants.calculateSellPrice(
       rarity: 'common',
       level: 1,
-      isPrismatic: false,
       averagePotential: 20,
     );
     final highPotential = BlackMarketConstants.calculateSellPrice(
       rarity: 'common',
       level: 1,
-      isPrismatic: false,
       averagePotential: 90,
     );
     final coveted = BlackMarketConstants.calculateSellPrice(
       rarity: 'common',
       level: 1,
-      isPrismatic: false,
       natureId: 'Coveted',
     );
     final combined = BlackMarketConstants.calculateSellPrice(
       rarity: 'common',
       level: 1,
-      isPrismatic: false,
       natureId: 'Coveted',
       averagePotential: 90,
     );
@@ -206,7 +201,6 @@ void main() {
       (_) => BlackMarketConstants.calculateSellPrice(
         rarity: 'common',
         level: 1,
-        isPrismatic: false,
       ),
     );
 
@@ -217,12 +211,10 @@ void main() {
     final commonLevel1 = BlackMarketConstants.calculateSellPrice(
       rarity: 'common',
       level: 1,
-      isPrismatic: false,
     );
     final mysticLevel10 = BlackMarketConstants.calculateSellPrice(
       rarity: 'Mystic',
       level: 10,
-      isPrismatic: false,
     );
     final firstSoulCost = AlchemonStatSystem.potentialSoulSilverCost(1);
 

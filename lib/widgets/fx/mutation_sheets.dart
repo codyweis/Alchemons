@@ -14,8 +14,15 @@
 //     creature's tint is not applied on top: gold replaces the color.
 //   • Alchemized — the sheet re-read as grains, frame by frame: the summoning's
 //     particles, at rest but never settling back into a sprite. Grains keep the
-//     creature's colors, so tints still show; a prismatic one is read in
-//     rainbow, and the usual prismatic hue cycle then sets it flowing.
+//     creature's colors, so tints still show.
+//   • Prismatic — a rainbow carried by the sheet's height and shading, a
+//     quarter of its own color kept; the prismatic hue cycle sets it flowing.
+//   • Silverlite — liquid silver: chrome bands from the shading, its lines
+//     kept dark so the face still reads.
+//   • Starlit — a night sky inside the body: deep indigo, a nebula in the
+//     creature's own main color, stars, its lines in faint blue.
+//   • Obsidian — black glass: its element's light where its lines are drawn,
+//     a faint gloss on its brightest parts and a cool rim. Nothing moves.
 //
 // An albino is baked the same way, though it is a pigment and not a
 // mutation: its ivory body and red eyes (albino_look.dart). So is a faction
@@ -42,10 +49,14 @@ import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/foundation.dart' show compute, debugPrint;
 
 /// The color a mutation is named in: gold for Transmuted, the pale violet of
-/// loose grains for Alchemized.
+/// loose grains for Alchemized, the ember in Obsidian's lines.
 ui.Color mutationAccent(AlchemonMutation mutation) => switch (mutation) {
   AlchemonMutation.transmuted => const ui.Color(0xFFE4C16A),
   AlchemonMutation.alchemized => const ui.Color(0xFFB9A7F5),
+  AlchemonMutation.prismatic => const ui.Color(0xFFE879F9),
+  AlchemonMutation.silverlite => const ui.Color(0xFFD5DCE8),
+  AlchemonMutation.starlit => const ui.Color(0xFF8EA6FF),
+  AlchemonMutation.obsidian => const ui.Color(0xFFE0A070),
 };
 
 /// The largest frame a mutated sheet is baked at, in sheet pixels.
@@ -55,7 +66,10 @@ const int kMutationMaxFrame = 512;
 enum MutationLook {
   transmuted('transmuted'),
   alchemized('alchemized'),
-  alchemizedPrismatic('alchemized-prismatic'),
+  prismatic('prismatic'),
+  silverlite('silverlite'),
+  starlit('starlit'),
+  obsidian('obsidian'),
   albino('albino'),
   variantVolcanic('variant-volcanic', 'Volcanic'),
   variantOceanic('variant-oceanic', 'Oceanic'),
@@ -74,21 +88,25 @@ enum MutationLook {
       .where((l) => l.faction != null && l.faction == faction)
       .firstOrNull;
 
-  static MutationLook? of(
-    AlchemonMutation? mutation, {
-    bool prismatic = false,
-  }) {
-    switch (mutation) {
-      case AlchemonMutation.transmuted:
-        return MutationLook.transmuted;
-      case AlchemonMutation.alchemized:
-        return prismatic
-            ? MutationLook.alchemizedPrismatic
-            : MutationLook.alchemized;
-      case null:
-        return null;
-    }
-  }
+  static MutationLook? of(AlchemonMutation? mutation) => switch (mutation) {
+    AlchemonMutation.transmuted => MutationLook.transmuted,
+    AlchemonMutation.alchemized => MutationLook.alchemized,
+    AlchemonMutation.prismatic => MutationLook.prismatic,
+    AlchemonMutation.silverlite => MutationLook.silverlite,
+    AlchemonMutation.starlit => MutationLook.starlit,
+    AlchemonMutation.obsidian => MutationLook.obsidian,
+    null => null,
+  };
+
+  /// A look whose eyes are kept from the sheet (or, for the albino, painted
+  /// over it) by the species' eye overlay.
+  bool get keepsEyes =>
+      this == MutationLook.albino ||
+      faction != null ||
+      this == MutationLook.prismatic ||
+      this == MutationLook.silverlite ||
+      this == MutationLook.starlit ||
+      this == MutationLook.obsidian;
 }
 
 /// The frame a sheet with [width]×[height] frames is baked at: no bigger than
@@ -142,9 +160,11 @@ SpriteSheetDef mutatedSheet(
   String? variant,
 }) {
   if (_specs.containsKey(sheet.path)) return sheet;
-  final pale = albino && !prismatic;
+  // The old prismatic flag, on a creature not yet given the mutation.
+  mutation ??= prismatic ? AlchemonMutation.prismatic.id : null;
+  final pale = albino && mutation == null;
   final look =
-      MutationLook.of(AlchemonMutation.byId(mutation), prismatic: prismatic) ??
+      MutationLook.of(AlchemonMutation.byId(mutation)) ??
       (albinoBakes(albino: pale, mutation: mutation)
           ? MutationLook.albino
           : MutationLook.variant(
@@ -168,10 +188,9 @@ SpriteSheetDef mutatedSheet(
     cols: cols,
     rowCount: rows,
     frames: sheet.totalFrames,
-    // An albino's eyes are painted red from it; a variant's kept as drawn.
-    eyes: look == MutationLook.albino || look.faction != null
-        ? albinoEyesPath(sheet.path)
-        : null,
+    // An albino's eyes are painted red from it; a variant's or a material
+    // mutation's kept as drawn.
+    eyes: look.keepsEyes ? albinoEyesPath(sheet.path) : null,
   );
   return SpriteSheetDef(
     path: key,
@@ -327,8 +346,11 @@ class MutationBakeJob {
 /// Bakes [job] into premultiplied RGBA of the same size.
 Uint8List bakeMutation(MutationBakeJob job) => switch (job.look) {
   MutationLook.transmuted => transmuteRgba(job),
-  MutationLook.alchemized => alchemizeRgba(job, rainbow: false),
-  MutationLook.alchemizedPrismatic => alchemizeRgba(job, rainbow: true),
+  MutationLook.alchemized => alchemizeRgba(job),
+  MutationLook.prismatic => prismaticRgba(job),
+  MutationLook.silverlite => silverliteRgba(job),
+  MutationLook.starlit => starlitRgba(job),
+  MutationLook.obsidian => obsidianRgba(job),
   MutationLook.albino => albinoRgba(job),
   MutationLook.variantVolcanic ||
   MutationLook.variantOceanic ||
@@ -727,6 +749,380 @@ Uint8List variantRgba(MutationBakeJob job) {
   return out;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// The material mutations: Prismatic, Silverlite, Starlit, Obsidian. Each
+// replaces the creature's color with a material read from its own light and
+// shade ([_Material]): where its lines are drawn, where its silhouette's edge
+// is, and its main color. Sizes are given for a 320px frame and scaled.
+// ─────────────────────────────────────────────────────────────────────────
+
+/// What every material look reads from a sheet once.
+class _Material {
+  _Material(this.job) {
+    final src = job.rgba;
+    final w = job.width, h = job.height, n = w * h;
+    k = job.frameW / 320.0;
+    lum = Float32List(n);
+    final alpha = Float32List(n);
+    for (var i = 0; i < n; i++) {
+      final o = i * 4;
+      alpha[i] = src[o + 3] / 255.0;
+      if (src[o + 3] > 0) lum[i] = _lum(src, o);
+    }
+    // The edge: how near the silhouette's rim a solid pixel is.
+    final eroded = _minFilter(alpha, w, h, math.max(1, (4 * k).round()));
+    final r = math.max(1, (2.5 * k).round());
+    final soft = _boxBlur(_boxBlur(eroded, w, h, r), w, h, r);
+    edge = Float32List(n);
+    for (var i = 0; i < n; i++) {
+      if (alpha[i] > 0) edge[i] = (1 - soft[i]).clamp(0.0, 1.0);
+    }
+    // The lines: darker than the neighbourhood around them.
+    final lr = math.max(1, (2 * k).round());
+    final around = _boxBlur(_boxBlur(lum, w, h, lr), w, h, lr);
+    lines = Float32List(n);
+    for (var i = 0; i < n; i++) {
+      if (alpha[i] > 0) lines[i] = _smoothstep(0.02, 0.14, around[i] - lum[i]);
+    }
+    main = _mainColor(src, n);
+  }
+
+  final MutationBakeJob job;
+  late final double k;
+  late final Float32List lum, edge, lines;
+
+  /// The creature's main color, lit: what its nebula or its glow is made of.
+  late final (double, double, double) main;
+
+  /// How much of [o]'s pixel is eye (0–1), from the overlay.
+  double eye(int o) {
+    final e = job.eyes;
+    return e == null ? 0 : e[o + 3] / 255.0;
+  }
+
+  /// (x, y) of sheet pixel [i] within its frame, 0–1.
+  (double, double) local(int i) {
+    final x = i % job.width, y = i ~/ job.width;
+    return (
+      (x % job.frameW) / job.frameW,
+      (y % job.frameH) / job.frameH,
+    );
+  }
+}
+
+/// The color most of a creature's saturated pixels are, as a lit color.
+(double, double, double) _mainColor(Uint8List src, int n) {
+  var wr = 0.0, wg = 0.0, wb = 0.0, wt = 0.0;
+  for (var i = 0; i < n; i++) {
+    final o = i * 4;
+    if (src[o + 3] < 128) continue;
+    final r = src[o], g = src[o + 1], b = src[o + 2];
+    final c = (math.max(r, math.max(g, b)) - math.min(r, math.min(g, b))) / 255;
+    if (c < 0.2) continue;
+    final wgt = c * c;
+    wr += r * wgt;
+    wg += g * wgt;
+    wb += b * wgt;
+    wt += wgt;
+  }
+  if (wt < 1) return (150.0, 200.0, 215.0);
+  final (h, sat, _) = _toHsl(wr / wt, wg / wt, wb / wt);
+  return _hsl(h, math.max(sat, 0.65), 0.6);
+}
+
+Uint8List prismaticRgba(MutationBakeJob job) {
+  final m = _Material(job);
+  final src = job.rgba;
+  final out = Uint8List(src.length);
+  for (var i = 0; i < job.width * job.height; i++) {
+    final o = i * 4;
+    final a = src[o + 3];
+    if (a == 0) continue;
+    final l = m.lum[i];
+    final (_, fy) = m.local(i);
+    final (pr, pg, pb) = _hsl((fy * 0.9 + l * 0.35) % 1.0, 0.85, 0.25 + 0.6 * l);
+    var r = pr * 0.75 + src[o] * 0.25;
+    var g = pg * 0.75 + src[o + 1] * 0.25;
+    var b = pb * 0.75 + src[o + 2] * 0.25;
+    final e = m.edge[i] * 0.25;
+    r += (255 - r) * e;
+    g += (255 - g) * e;
+    b += (255 - b) * e;
+    final eye = m.eye(o);
+    r += (src[o] - r) * eye;
+    g += (src[o + 1] - g) * eye;
+    b += (src[o + 2] - b) * eye;
+    _put(out, o, r, g, b, a);
+  }
+  return out;
+}
+
+/// Chrome: dark and bright bands from the shading, so it reads as a mirror.
+const List<(double, int)> _chromeRamp = [
+  (0.00, 0x12141A),
+  (0.18, 0x3C424E),
+  (0.32, 0xC8D0DC),
+  (0.42, 0x6E7684),
+  (0.58, 0x282C36),
+  (0.74, 0xAAB2C0),
+  (0.88, 0xECF0F8),
+  (1.00, 0xFFFFFF),
+];
+
+Uint8List silverliteRgba(MutationBakeJob job) {
+  final m = _Material(job);
+  final src = job.rgba;
+  final out = Uint8List(src.length);
+  final (er, eg, eb) = m.main;
+  for (var i = 0; i < job.width * job.height; i++) {
+    final o = i * 4;
+    final a = src[o + 3];
+    if (a == 0) continue;
+    final l = m.lum[i];
+    final (fx, fy) = m.local(i);
+    final u =
+        (0.15 + l * 0.6 + 0.22 * math.sin((fx * 1.3 + fy * 0.6) * 2 * math.pi))
+            .clamp(0.0, 1.0);
+    final c = _rampOf(_chromeRamp, u);
+    var r = ((c >> 16) & 0xFF).toDouble(),
+        g = ((c >> 8) & 0xFF).toDouble(),
+        b = (c & 0xFF).toDouble();
+    final tint = 0.10 * (1 - l);
+    r += (er - r) * tint;
+    g += (eg - g) * tint;
+    b += (eb - b) * tint;
+    final e = m.edge[i] * 0.35;
+    r += (255 - r) * e;
+    g += (255 - g) * e;
+    b += (255 - b) * e;
+    final ln = m.lines[i] * 0.7;
+    r += (24 - r) * ln;
+    g += (26 - g) * ln;
+    b += (34 - b) * ln;
+    final eye = m.eye(o);
+    r += (src[o] - r) * eye;
+    g += (src[o + 1] - g) * eye;
+    b += (src[o + 2] - b) * eye;
+    _put(out, o, r, g, b, a);
+  }
+  return out;
+}
+
+Uint8List starlitRgba(MutationBakeJob job) {
+  final m = _Material(job);
+  final src = job.rgba;
+  final w = job.width, h = job.height;
+  final out = Uint8List(src.length);
+  final (mh, ms, _) = _toHsl(m.main.$1, m.main.$2, m.main.$3);
+  final (nr, ng, nb) = _hsl(mh, math.min(1.0, ms * 1.1), 0.42);
+  final rimR = (nr + 255) / 2, rimG = (ng + 255) / 2, rimB = (nb + 255) / 2;
+
+  // The stars: the same sky in every frame, so they hold still as it moves.
+  final stars = Float32List(w * h);
+  final perFrame = (260 * (job.frameW * job.frameH) / (320 * 320)).round();
+  for (var f = 0; f < job.frames; f++) {
+    final cx = (f % job.cols) * job.frameW, cy = (f ~/ job.cols) * job.frameH;
+    final rng = math.Random(7);
+    for (var s = 0; s < perFrame; s++) {
+      final sx = cx + rng.nextDouble() * job.frameW;
+      final sy = cy + rng.nextDouble() * job.frameH;
+      final bright = rng.nextDouble();
+      final level = 0.45 + 0.55 * rng.nextDouble();
+      final rad = (bright > 0.85 ? 1.6 : 1.0) * m.k + 0.6;
+      final x0 = math.max(0, (sx - rad - 1).floor());
+      final x1 = math.min(w - 1, (sx + rad + 1).ceil());
+      final y0 = math.max(0, (sy - rad - 1).floor());
+      final y1 = math.min(h - 1, (sy + rad + 1).ceil());
+      for (var py = y0; py <= y1; py++) {
+        for (var px = x0; px <= x1; px++) {
+          final d = math.sqrt((px - sx) * (px - sx) + (py - sy) * (py - sy));
+          final v = math.max(0.0, 1 - d / rad) * level * (0.5 + 0.5 * bright);
+          final i = py * w + px;
+          if (v > stars[i]) stars[i] = v;
+        }
+      }
+    }
+  }
+
+  for (var i = 0; i < w * h; i++) {
+    final o = i * 4;
+    final a = src[o + 3];
+    if (a == 0) continue;
+    final l = m.lum[i];
+    final (fx, fy) = m.local(i);
+    final x = fx * 320, y = fy * 320;
+    var n =
+        0.5 +
+        0.5 *
+            math.sin(x / 23 + 1.3 * math.sin(y / 31)) *
+            math.cos(y / 19 - x / 47);
+    n = _smoothstep(0.35, 1.0, n);
+    var r = 8 + (nr - 8) * 0.40 * n,
+        g = 10 + (ng - 10) * 0.40 * n,
+        b = 28 + (nb - 28) * 0.40 * n;
+    final violet = 0.30 * (1 - n);
+    r += (52 - r) * violet;
+    g += (30 - g) * violet;
+    b += (96 - b) * violet;
+    final shade = 0.75 + 0.6 * l;
+    r *= shade;
+    g *= shade;
+    b *= shade;
+    final ln = m.lines[i] * 0.35;
+    r += (150 - r) * ln;
+    g += (170 - g) * ln;
+    b += (230 - b) * ln;
+    final st = stars[i];
+    r += (255 - r) * st;
+    g += (250 - g) * st;
+    b += (235 - b) * st;
+    final e = m.edge[i] * 0.6;
+    r += (rimR - r) * e;
+    g += (rimG - g) * e;
+    b += (rimB - b) * e;
+    final eye = m.eye(o);
+    r += (255 - r) * eye;
+    g += (244 - g) * eye;
+    b += (214 - b) * eye;
+    _put(out, o, r, g, b, a);
+  }
+  return out;
+}
+
+Uint8List obsidianRgba(MutationBakeJob job) {
+  final m = _Material(job);
+  final src = job.rgba;
+  final w = job.width, h = job.height;
+  final out = Uint8List(src.length);
+  final (er, eg, eb) = m.main;
+  final hr = er + (255 - er) * 0.35,
+      hg = eg + (255 - eg) * 0.35,
+      hb = eb + (255 - eb) * 0.35;
+  final gr = math.max(1, (2.5 * m.k).round());
+  final glow = _boxBlur(_boxBlur(m.lines, w, h, gr), w, h, gr);
+  for (var i = 0; i < w * h; i++) {
+    final o = i * 4;
+    final a = src[o + 3];
+    if (a == 0) continue;
+    final l = m.lum[i];
+    var r = 12 + 28 * l, g = 12 + 28 * l, b = 17 + 34 * l;
+    final halo = math.min(1.0, glow[i] * 1.6) * 0.6 * 0.85;
+    r += (er - r) * halo;
+    g += (eg - g) * halo;
+    b += (eb - b) * halo;
+    final ln = m.lines[i] * 0.95 * 0.85;
+    r += (hr - r) * ln;
+    g += (hg - g) * ln;
+    b += (hb - b) * ln;
+    final gloss = _smoothstep(0.80, 0.98, l) * 0.3;
+    r += (150 - r) * gloss;
+    g += (154 - g) * gloss;
+    b += (170 - b) * gloss;
+    final e = m.edge[i] * 0.55;
+    r += (118 - r) * e;
+    g += (122 - g) * e;
+    b += (146 - b) * e;
+    final eye = m.eye(o);
+    r += (hr - r) * eye;
+    g += (hg - g) * eye;
+    b += (hb - b) * eye;
+    _put(out, o, r, g, b, a);
+  }
+  return out;
+}
+
+/// Straight [r], [g], [b] at alpha [a], premultiplied into [out] at [o].
+void _put(Uint8List out, int o, double r, double g, double b, int a) {
+  final k = a / 255.0;
+  out[o] = (r.clamp(0.0, 255.0) * k).round();
+  out[o + 1] = (g.clamp(0.0, 255.0) * k).round();
+  out[o + 2] = (b.clamp(0.0, 255.0) * k).round();
+  out[o + 3] = a;
+}
+
+double _smoothstep(double e0, double e1, double x) {
+  final t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+  return t * t * (3 - 2 * t);
+}
+
+/// A box blur of radius [r], edges clamped: twice is near enough a gaussian.
+Float32List _boxBlur(Float32List src, int w, int h, int r) {
+  final tmp = Float32List(w * h), out = Float32List(w * h);
+  final span = 2 * r + 1;
+  for (var y = 0; y < h; y++) {
+    final row = y * w;
+    var acc = 0.0;
+    for (var x = -r; x <= r; x++) {
+      acc += src[row + x.clamp(0, w - 1)];
+    }
+    for (var x = 0; x < w; x++) {
+      tmp[row + x] = acc / span;
+      acc += src[row + (x + r + 1).clamp(0, w - 1)] -
+          src[row + (x - r).clamp(0, w - 1)];
+    }
+  }
+  for (var x = 0; x < w; x++) {
+    var acc = 0.0;
+    for (var y = -r; y <= r; y++) {
+      acc += tmp[y.clamp(0, h - 1) * w + x];
+    }
+    for (var y = 0; y < h; y++) {
+      out[y * w + x] = acc / span;
+      acc += tmp[(y + r + 1).clamp(0, h - 1) * w + x] -
+          tmp[(y - r).clamp(0, h - 1) * w + x];
+    }
+  }
+  return out;
+}
+
+/// The smallest value within [r] of each pixel (a square), edges clamped.
+Float32List _minFilter(Float32List src, int w, int h, int r) {
+  final tmp = Float32List(w * h), out = Float32List(w * h);
+  for (var y = 0; y < h; y++) {
+    final row = y * w;
+    for (var x = 0; x < w; x++) {
+      var v = 1e9;
+      for (var d = -r; d <= r; d++) {
+        final s = src[row + (x + d).clamp(0, w - 1)];
+        if (s < v) v = s;
+      }
+      tmp[row + x] = v;
+    }
+  }
+  for (var x = 0; x < w; x++) {
+    for (var y = 0; y < h; y++) {
+      var v = 1e9;
+      for (var d = -r; d <= r; d++) {
+        final s = tmp[(y + d).clamp(0, h - 1) * w + x];
+        if (s < v) v = s;
+      }
+      out[y * w + x] = v;
+    }
+  }
+  return out;
+}
+
+/// [r], [g], [b] (0–255) as hue (0–1), saturation and lightness.
+(double, double, double) _toHsl(double r, double g, double b) {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  final mx = math.max(r, math.max(g, b)), mn = math.min(r, math.min(g, b));
+  final l = (mx + mn) / 2;
+  if (mx == mn) return (0.0, 0.0, l);
+  final d = mx - mn;
+  final s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+  final double h;
+  if (mx == r) {
+    h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  } else if (mx == g) {
+    h = ((b - r) / d + 2) / 6;
+  } else {
+    h = ((r - g) / d + 4) / 6;
+  }
+  return (h, s, l);
+}
+
 double _cbrt(double x) => x <= 0 ? 0 : math.pow(x, 1 / 3).toDouble();
 
 /// Each frame's solid bounding box, in sheet pixels; null for an empty frame.
@@ -758,7 +1154,7 @@ List<(int, int, int, int)?> _frameBoxes(MutationBakeJob job) {
 /// reading as particles.
 const int kAlchemizedGrains = 1000;
 
-Uint8List alchemizeRgba(MutationBakeJob job, {required bool rainbow}) {
+Uint8List alchemizeRgba(MutationBakeJob job) {
   final src = job.rgba;
   final w = job.width, h = job.height;
   final out = Uint8List(w * h * 4);
@@ -825,20 +1221,6 @@ Uint8List alchemizeRgba(MutationBakeJob job, {required bool rainbow}) {
         r /= a;
         g /= a;
         b /= a;
-
-        if (rainbow) {
-          // Hue runs across the body; each grain keeps its own lightness,
-          // so eyes and markings survive the rainbow.
-          final lx = (jx - cx) / job.frameW, ly = (jy - cy) / job.frameH;
-          final hue = ((lx * 0.6 + ly * 0.9) / 1.5 * 1.6) % 1.0;
-          final own =
-              (math.max(r, math.max(g, b)) + math.min(r, math.min(g, b))) /
-              510.0;
-          final rgb = _hsl(hue, 0.6, 0.28 + 0.52 * own);
-          r = rgb.$1;
-          g = rgb.$2;
-          b = rgb.$3;
-        }
 
         // A few catch the light, and not the same few each frame.
         var rad = radius;

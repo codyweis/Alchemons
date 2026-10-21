@@ -72,7 +72,7 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
   AlchemonsDatabase(super.e);
 
   @override
-  int get schemaVersion => 45;
+  int get schemaVersion => 46;
 
   // This helper is used *only* during migration/seeding
   Future<void> _setSetting(String key, String value) async {
@@ -357,8 +357,34 @@ class AlchemonsDatabase extends _$AlchemonsDatabase {
           );
         }
       }
+      if (from < 46) {
+        final columns = await customSelect(
+          "PRAGMA table_info('creature_instances')",
+        ).get();
+        if (columns.any((c) => c.read<String>('name') == 'mutation')) {
+          await movePrismaticToMutation();
+        }
+      }
     },
   );
+
+  /// Prismatic was a skin flag; it is a mutation now, and the flag only
+  /// mirrors it. A prismatic that is already mutated (an Alchemized one)
+  /// keeps that mutation and loses the flag: one mutation each. Also run on
+  /// a cloud restore of a save from before.
+  Future<void> movePrismaticToMutation() => customUpdate('''
+    UPDATE creature_instances SET
+      mutation = CASE
+        WHEN mutation IS NULL OR mutation = '' THEN 'prismatic'
+        ELSE mutation
+      END,
+      is_prismatic_skin = CASE
+        WHEN mutation IS NULL OR mutation = '' OR mutation = 'prismatic'
+          THEN 1
+        ELSE 0
+      END
+    WHERE is_prismatic_skin = 1
+  ''', updates: {creatureInstances});
 
   /// Costumes were worn in the effect slot, as `celebration.<species>` with
   /// an optional `#RRGGBB` — the family said which (a Wing's hat, a Pip's

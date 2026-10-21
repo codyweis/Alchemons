@@ -147,6 +147,9 @@ class BreedingServiceV2 {
       offspring,
       payload,
       bothParentsFire: bothParentsFire,
+      obsidianParent:
+          parent1.mutation == AlchemonMutation.obsidian.id ||
+          parent2.mutation == AlchemonMutation.obsidian.id,
       pureBreedingInfo: pureBreedingInfo,
       enforceStorageCapacity: false,
     );
@@ -178,6 +181,7 @@ class BreedingServiceV2 {
   Future<EggCreationResult> placeFriendVial(
     EggPayload payload, {
     bool bothParentsFire = false,
+    bool obsidianParent = false,
   }) async {
     final species = repository.getCreatureById(payload.baseId);
     if (species == null) {
@@ -187,6 +191,7 @@ class BreedingServiceV2 {
       species,
       payload,
       bothParentsFire: bothParentsFire,
+      obsidianParent: obsidianParent,
       enforceStorageCapacity: false,
       naturesFromPayload: true,
     );
@@ -229,12 +234,9 @@ class BreedingServiceV2 {
       arcaneBoostUnlocked: arcaneBoostUnlocked,
     );
 
-    // Breed using the randomized wild
-    final result = engine.breedInstanceWithCreature(
-      ownedParent,
-      randomizedWild,
-      forcePrismatic: forcePrismatic,
-    );
+    // Breed using the randomized wild. Prismatic is a mutation now, decided
+    // below, so the engine never paints it.
+    final result = engine.breedInstanceWithCreature(ownedParent, randomizedWild);
 
     if (!result.success || result.creature == null) {
       return EggCreationResult.failure('Genetic incompatibility');
@@ -258,21 +260,24 @@ class BreedingServiceV2 {
     );
 
     // Rolled here, not in the engine: it is the wilderness's, not breeding's,
-    // and nothing downstream inherits it. Kept secret until the hatch.
-    // [forcedMutation] (the debug tools) still obeys the rules: wilderness
-    // only, and never gold over a prismatic.
-    final forcedAllowed =
-        forcedMutation != null &&
-        !(forcedMutation == AlchemonMutation.transmuted &&
-            offspring.isPrismaticSkin);
-    final mutation = !fieldMutations
-        ? null
-        : forcedAllowed
-        ? forcedMutation
-        : AlchemonMutation.roll(
-            mutationRng ?? Random(),
-            prismatic: offspring.isPrismaticSkin,
-          );
+    // and nothing downstream inherits it. Kept secret until the extraction.
+    // With the mutation meter's node, the chance rises with each wilderness
+    // fusion that doesn't mutate and the meter empties on one that does.
+    // [forcePrismatic] (a void-bred fusion: the Nexus, the prologue) always
+    // makes a Prismatic, wherever it happens. [forcedMutation] (the debug
+    // tools) still obeys the wilderness-only rule.
+    final meterOn = fieldMutations && constellation.hasMutationMeter();
+    final notches = meterOn ? await db.settingsDao.getMutationMeter() : 0;
+    final AlchemonMutation? mutation;
+    if (forcePrismatic) {
+      mutation = AlchemonMutation.prismatic;
+    } else if (!fieldMutations) {
+      mutation = null;
+    } else {
+      mutation =
+          forcedMutation ??
+          AlchemonMutation.roll(mutationRng ?? Random(), notches: notches);
+    }
     if (mutation != null) {
       debugPrint('[Breeding] wild fusion mutation: ${mutation.id}');
     }
@@ -292,14 +297,21 @@ class BreedingServiceV2 {
         ownedBase.types.contains('Fire') &&
         randomizedWild.types.contains('Fire');
 
-    return _createEgg(
+    final created = await _createEgg(
       offspring,
       payload,
       customHatchDuration: customHatchDuration,
       bothParentsFire: bothParentsFire,
+      obsidianParent: ownedParent.mutation == AlchemonMutation.obsidian.id,
       pureBreedingInfo: pureBreedingInfo,
       enforceStorageCapacity: false,
     );
+    if (created.success && meterOn) {
+      await db.settingsDao.setMutationMeter(
+        mutation != null ? 0 : min(kMutationMeterNotches, notches + 1),
+      );
+    }
+    return created.withMutation(created.success ? mutation : null);
   }
 
   /// Create starter egg (starters have no RNG/analysis)
@@ -388,6 +400,7 @@ class BreedingServiceV2 {
     EggPayload payload, {
     Duration? customHatchDuration,
     bool bothParentsFire = false,
+    bool obsidianParent = false,
     PureBreedingInfo? pureBreedingInfo,
     bool enforceStorageCapacity = true,
     // [creature] is the species only, so the natures are the payload's.
@@ -405,6 +418,7 @@ class BreedingServiceV2 {
       natureId: naturesFromPayload ? payload.natureId : creature.nature?.id,
       nature2Id: naturesFromPayload ? payload.natureId2 : creature.nature2?.id,
       bothParentsFire: bothParentsFire,
+      obsidianParent: obsidianParent,
     );
 
     final eggId = _generateEggId(payload.source);
@@ -572,6 +586,7 @@ class BreedingServiceV2 {
     String? natureId,
     String? nature2Id,
     bool bothParentsFire = false,
+    bool obsidianParent = false,
   }) {
     // FactionService internally checks current faction == Volcanic, perk1
     // active and bothParentsFire, and does the 50% RNG. Returns 1.0 or 0.5.
@@ -584,6 +599,7 @@ class BreedingServiceV2 {
         bothParentsFire: bothParentsFire,
       ),
       halfCultivation: boosts.halfCultivationActive,
+      obsidianParent: obsidianParent,
     );
   }
 
@@ -618,6 +634,10 @@ class EggCreationResult {
   final EggPlacement placement;
   final PureBreedingInfo? pureBreedingInfo;
 
+  /// The egg's mutation, from a wilderness fusion: for the fusion's own
+  /// moment, which shows that it mutated but never which.
+  final AlchemonMutation? mutation;
+
   EggCreationResult._({
     required this.success,
     this.eggId,
@@ -626,7 +646,19 @@ class EggCreationResult {
     this.message,
     required this.placement,
     this.pureBreedingInfo,
+    this.mutation,
   });
+
+  EggCreationResult withMutation(AlchemonMutation? m) => EggCreationResult._(
+    success: success,
+    eggId: eggId,
+    creatureId: creatureId,
+    slotId: slotId,
+    message: message,
+    placement: placement,
+    pureBreedingInfo: pureBreedingInfo,
+    mutation: m,
+  );
 
   factory EggCreationResult.incubating({
     required String eggId,

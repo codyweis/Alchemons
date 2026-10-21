@@ -421,4 +421,26 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
   Future<void> setCosmicPrismaticRewardClaimed(bool claimed) async {
     await setSetting('cosmic_prismatic_reward', claimed ? '1' : '0');
   }
+
+  // =================== MUTATION METER ===================
+
+  static const String mutationMeterKey = 'mutation_meter_v1';
+  static const String mutationMeterRevealedKey = 'mutation_meter_revealed_v1';
+
+  /// Notches in the mutation meter: wilderness fusions since the last
+  /// mutation, while the meter's node is unlocked.
+  Future<int> getMutationMeter() async =>
+      _intSetting(await getSetting(mutationMeterKey));
+
+  Future<void> setMutationMeter(int notches) =>
+      setSetting(mutationMeterKey, '$notches');
+
+  Stream<int> watchMutationMeter() =>
+      watchSetting(mutationMeterKey).map(_intSetting);
+
+  Future<bool> hasSeenMutationMeterReveal() async =>
+      _isTruthySetting(await getSetting(mutationMeterRevealedKey));
+
+  Future<void> setMutationMeterRevealSeen() =>
+      setSetting(mutationMeterRevealedKey, '1');
 }

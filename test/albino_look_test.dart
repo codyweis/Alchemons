@@ -39,9 +39,10 @@ void main() {
     });
 
     test('a prismatic or mutated albino is not baked albino', () {
+      // Prismatic is a mutation: its own bake, never the albino's.
       expect(
         mutatedSheet(sheet, albino: true, prismatic: true).path,
-        sheet.path,
+        mutatedSheet(sheet, mutation: 'prismatic').path,
       );
       expect(
         mutatedSheet(sheet, albino: true, mutation: 'alchemized').path,
@@ -71,9 +72,9 @@ void main() {
       );
       expect(sheetForVisuals(sheet, grains)!.path, isNot(contains('albino')));
       expect(creatureGeneticsFilter(grains, 0), kAlbinoFilter);
-      // A prismatic one is no albino at all.
+      // A prismatic one is no albino at all: the Prismatic bake.
       const prismatic = SpriteVisuals(brightness: 1.45, isPrismatic: true);
-      expect(sheetForVisuals(sheet, prismatic)!.path, sheet.path);
+      expect(sheetForVisuals(sheet, prismatic)!.path, contains('prismatic'));
       expect(creatureGeneticsFilter(prismatic, 0), isNotNull);
     });
   });

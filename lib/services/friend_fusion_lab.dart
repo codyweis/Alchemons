@@ -12,6 +12,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/models/trade.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/breeding_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
@@ -95,6 +96,9 @@ class FriendFusionLab {
         'provenance': TradeProvenance(const [], fused: origin).encode(),
       }),
       bothParentsFire: fire(mineSpecies) && fire(theirSpecies),
+      obsidianParent:
+          mine?.mutation == AlchemonMutation.obsidian.id ||
+          theirs.mutation == AlchemonMutation.obsidian.id,
     );
     if (placed.success && mine != null) {
       await stamina.spendForBreeding(

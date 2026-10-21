@@ -250,7 +250,7 @@ class _ExtractionResultCardState extends State<ExtractionResultCard> {
   RimColor _rimColor(AlchemonMutation? mutation) =>
       mutation == AlchemonMutation.transmuted
       ? RimColor.gilded
-      : _instance.isPrismaticSkin == true
+      : mutation == AlchemonMutation.prismatic
       ? RimColor.prismatic
       : RimColor.element;
 
@@ -612,9 +612,8 @@ class _Reading {
           _MarkData(
             mutation.label.toUpperCase(),
             tokens.readableAccent(mutationAccent(mutation)),
+            prismatic: mutation == AlchemonMutation.prismatic,
           ),
-        if (instance.isPrismaticSkin == true)
-          const _MarkData('PRISMATIC', Color(0xFFE879F9), prismatic: true),
         if (variant != null)
           _MarkData(
             variant.toUpperCase(),
@@ -1320,12 +1319,8 @@ String? _displayVariant(String? faction) {
   return trimmed[0].toUpperCase() + trimmed.substring(1);
 }
 
-/// What a mutated specimen reads as: the name, and what it means to look at.
-String _mutationReading(AlchemonMutation m) => switch (m) {
-  AlchemonMutation.alchemized => 'Alchemized: made of grains that never settle',
-  AlchemonMutation.transmuted =>
-    'Transmuted: turned to gold. Can be sold for a high price',
-};
+/// What a mutated specimen reads as: its name and what it does.
+String _mutationReading(AlchemonMutation m) => '${m.label}: ${m.perk}';
 
 Color _purityColor(InstancePurityStatus purity) {
   if (purity.isPure) return const Color(0xFF4ADE80);

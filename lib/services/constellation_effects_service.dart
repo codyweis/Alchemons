@@ -3,6 +3,9 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:flutter/foundation.dart';
 
 /// Service for applying constellation skill effects throughout the game
+/// The node that reveals the mutation meter.
+const String kMutationMeterSkillId = 'breeder_mutation_meter';
+
 class ConstellationEffectsService extends ChangeNotifier {
   final AlchemonsDatabase _db;
   Set<String> _unlockedSkillIds = {};
@@ -119,6 +122,12 @@ class ConstellationEffectsService extends ChangeNotifier {
   /// Check if Potential ratings are visible during wild encounters.
   bool hasWildPotentialAnalyzer() {
     return _unlockedSkillIds.contains('breeder_wild_potential_analyzer');
+  }
+
+  /// The mutation meter: shown in the wild, and raising the chance of a
+  /// mutation with each wilderness fusion.
+  bool hasMutationMeter() {
+    return _unlockedSkillIds.contains(kMutationMeterSkillId);
   }
 
   /// Get total gestation time reduction (percentage)

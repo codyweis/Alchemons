@@ -403,11 +403,10 @@ class BreedingEngine {
       nature2: childNatures.length > 1 ? childNatures[1] : null,
     );
 
-    // Prismatic cosmetic roll (or guaranteed when forcePrismatic is set)
-    if (forcePrismatic || _random.nextDouble() < tuning.prismaticSkinChance) {
-      _log(
-        '[Breeding] prismatic skin applied${forcePrismatic ? " (void-forced)" : ""}',
-      );
+    // Prismatic is a wilderness mutation now, never a breeding roll; a
+    // void-bred child is still forced to it (stored as the mutation).
+    if (forcePrismatic) {
+      _log('[Breeding] prismatic (void-forced)');
       child = child.copyWith(isPrismaticSkin: true);
     }
 

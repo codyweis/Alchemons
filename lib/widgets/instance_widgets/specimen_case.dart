@@ -454,7 +454,6 @@ Widget _caseGenetics(CreatureInstance i, double maxWidth) {
   final variant = i.variantFaction?.trim() ?? '';
   final mutation = AlchemonMutation.byId(i.mutation);
   final lines = <(String, Color)>[
-    if (i.isPrismaticSkin == true) ('PRISMATIC', const Color(0xFFE040FB)),
     if (mutation != null)
       (mutation.label.toUpperCase(), mutationAccent(mutation)),
     if (variant.isNotEmpty) (variant.toUpperCase(), kCaseGilt),

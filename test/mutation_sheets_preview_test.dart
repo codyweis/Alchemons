@@ -6,6 +6,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
@@ -15,8 +16,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-// Real sheets through the real bake: each species plain, Transmuted,
-// Alchemized and prismatic Alchemized, every frame, as PNG sheets.
+// Real sheets through the real bake: each species plain and in every
+// mutation, every frame, as PNG sheets.
 //
 //   MUTATION_OUT=/tmp/mutations flutter test \
 //     test/mutation_sheets_preview_test.dart --tags preview
@@ -52,16 +53,9 @@ void main() {
               .writeAsBytesSync(png!.buffer.asUint8List());
         }
 
-        for (final (name, mutation, prismatic) in [
-          ('transmuted', 'transmuted', false),
-          ('alchemized', 'alchemized', false),
-          ('alchemized_prismatic', 'alchemized', true),
-        ]) {
-          final def = mutatedSheet(
-            sheet,
-            mutation: mutation,
-            prismatic: prismatic,
-          );
+        for (final m in AlchemonMutation.values) {
+          final name = m.id;
+          final def = mutatedSheet(sheet, mutation: m.id);
           final sw = Stopwatch()..start();
           final image = await loadCreatureSheet(images, def.path);
           // ignore: avoid_print
@@ -93,7 +87,7 @@ void main() {
     final c = all.firstWhere((c) => c.id == 'HOR01');
     final sheet = sheetFromCreature(c);
     final key = GlobalKey();
-    tester.view.physicalSize = const Size(1000, 520) * 2;
+    tester.view.physicalSize = const Size(1700, 520) * 2;
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
 
@@ -110,11 +104,10 @@ void main() {
         mutation: mutation,
       ),
     );
-    const looks = [
+    final looks = [
       (null, false),
-      ('transmuted', false),
-      ('alchemized', false),
-      ('alchemized', true),
+      for (final m in AlchemonMutation.values)
+        (m.id, m == AlchemonMutation.prismatic),
     ];
     await tester.pumpWidget(
       MaterialApp(

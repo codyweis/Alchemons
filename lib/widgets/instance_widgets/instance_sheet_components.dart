@@ -843,10 +843,6 @@ class _GeneticsBlock extends StatelessWidget {
           _ParentChip(selectionNumber: selectionNumber!),
           const SizedBox(height: 3),
         ],
-        if (instance.isPrismaticSkin == true) ...[
-          const _PrismaticChip(),
-          const SizedBox(height: 3),
-        ],
         if (AlchemonMutation.byId(instance.mutation) case final m?) ...[
           _MutationChip(mutation: m),
           const SizedBox(height: 3),
@@ -919,10 +915,6 @@ class _HarvestBlock extends StatelessWidget {
         const SizedBox(height: 4),
         if (isSelected && selectionNumber != null) ...[
           _ParentChip(selectionNumber: selectionNumber!),
-          const SizedBox(height: 3),
-        ],
-        if (instance.isPrismaticSkin == true) ...[
-          const _PrismaticChip(),
           const SizedBox(height: 3),
         ],
         if (AlchemonMutation.byId(instance.mutation) case final m?) ...[
@@ -1048,34 +1040,8 @@ class _ParentChip extends StatelessWidget {
   }
 }
 
-class _PrismaticChip extends StatelessWidget {
-  const _PrismaticChip();
-
-  @override
-  Widget build(BuildContext context) {
-    const c = Color(0xFFE879F9);
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: c.withValues(alpha: 0.14),
-        border: Border(left: BorderSide(color: c, width: 2)),
-      ),
-      child: Text(
-        'Prismatic',
-        style: bracketText(
-          context,
-          11,
-          c,
-          weight: FontWeight.w700,
-          letterSpacing: 0.4,
-        ),
-      ),
-    );
-  }
-}
-
-/// A wild-fusion mutation, in the color of what it made the creature:
-/// gold for Transmuted, the pale violet of loose grains for Alchemized.
+/// A wild-fusion mutation, in the color of what it made the creature
+/// ([mutationAccent]).
 class _MutationChip extends StatelessWidget {
   const _MutationChip({required this.mutation});
 

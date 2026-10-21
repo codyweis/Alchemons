@@ -3,28 +3,25 @@ import 'dart:convert';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 
-/// The SPECIAL chip: one cycle over the rare looks an individual can carry.
+/// The SPECIAL chip: one cycle over the mutations an individual can carry.
 enum InstanceSpecialFilter {
   any,
   prismatic,
   transmuted,
-  alchemized;
+  alchemized,
+  silverlite,
+  starlit,
+  obsidian;
 
   InstanceSpecialFilter next() => values[(index + 1) % values.length];
 
-  String? get chipValueText => switch (this) {
-    InstanceSpecialFilter.any => null,
-    InstanceSpecialFilter.prismatic => 'PRISMATIC',
-    InstanceSpecialFilter.transmuted => 'TRANSMUTED',
-    InstanceSpecialFilter.alchemized => 'ALCHEMIZED',
-  };
+  String? get chipValueText =>
+      this == InstanceSpecialFilter.any ? null : name.toUpperCase();
 
-  bool matches(CreatureInstance inst) => switch (this) {
-    InstanceSpecialFilter.any => true,
-    InstanceSpecialFilter.prismatic => inst.isPrismaticSkin == true,
-    InstanceSpecialFilter.transmuted => inst.mutation == 'transmuted',
-    InstanceSpecialFilter.alchemized => inst.mutation == 'alchemized',
-  };
+  bool matches(CreatureInstance inst) =>
+      this == InstanceSpecialFilter.any ||
+      inst.mutation == name ||
+      (this == InstanceSpecialFilter.prismatic && inst.isPrismaticSkin);
 }
 
 enum InstancePurityFilter {

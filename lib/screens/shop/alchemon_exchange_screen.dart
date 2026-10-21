@@ -11,7 +11,6 @@ import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/black_market_constants.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/economy_balance.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
@@ -30,6 +29,7 @@ import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart';
 import 'package:flutter/material.dart';
@@ -74,12 +74,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
 
   // ── prices ────────────────────────────────────────────────────────────
 
-  int _silverToGoldValue(int silverValue) =>
-      (silverValue / EconomyBalance.silverPerGoldPayout).ceil().clamp(
-        1,
-        999999,
-      );
-
   int _silverValueForVialRarity(VialRarity rarity) {
     switch (rarity) {
       case VialRarity.common:
@@ -104,7 +98,6 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
     final basePrice = BlackMarketConstants.calculateSellPrice(
       rarity: species?.rarity ?? 'common',
       level: inst.level,
-      isPrismatic: inst.isPrismaticSkin,
       natureId: inst.natureId,
       natureId2: inst.natureId2,
       tintId: decodeGenetics(inst.geneticsJson)?.tinting,
@@ -126,7 +119,8 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   /// What a specimen actually fetches, with the constellation sale boost:
   /// the figure shown on its row, in the grid and in the total alike (the
   /// rows used to leave the boost out, so they did not add up to it). A
-  /// prismatic one is paid in gold, and a Transmuted one a flat 100 gold.
+  /// Transmuted one is a flat 50 gold and a Silverlite one a flat 10,000
+  /// silver.
   (CoinKind, int) _priceOf(
     CreatureInstance inst,
     Creature? species,
@@ -136,11 +130,13 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
     if (inst.mutation == AlchemonMutation.transmuted.id) {
       return (CoinKind.gold, BlackMarketConstants.transmutedGoldValue);
     }
-    final silver = (_baseSilverPrice(inst, species, factions) * saleMult)
-        .round();
-    return inst.isPrismaticSkin
-        ? (CoinKind.gold, _silverToGoldValue(silver))
-        : (CoinKind.silver, silver);
+    if (inst.mutation == AlchemonMutation.silverlite.id) {
+      return (CoinKind.silver, BlackMarketConstants.silverliteSilverValue);
+    }
+    return (
+      CoinKind.silver,
+      (_baseSilverPrice(inst, species, factions) * saleMult).round(),
+    );
   }
 
   /// Silver and gold for everything on the counter.
@@ -1056,13 +1052,14 @@ class _SpecimenLot extends StatelessWidget {
                           letterSpacing: 1,
                         ),
                       ),
-                      if (instance.isPrismaticSkin) ...[
+                      if (AlchemonMutation.byId(instance.mutation)
+                          case final m?) ...[
                         const SizedBox(width: 8),
-                        const Text(
-                          'PRISMATIC',
+                        Text(
+                          m.label.toUpperCase(),
                           style: TextStyle(
                             fontFamily: 'monospace',
-                            color: Color(0xFFE879F9),
+                            color: mutationAccent(m),
                             fontSize: 10,
                             fontWeight: FontWeight.w800,
                             letterSpacing: 1,

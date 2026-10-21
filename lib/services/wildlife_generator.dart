@@ -9,10 +9,12 @@ import 'package:alchemons/services/creature_repository.dart';
 
 /// Tunables for wild spawns (kept close to BreedingTuning defaults)
 class WildlifeTuning {
-  final double prismaticSkinChance; // e.g. 0.01
+  /// 1.0 for a rift's or the Nexus's prismatic Alchemon; never by chance
+  /// otherwise: prismatic is a mutation, made by fusing in the wilderness.
+  final double prismaticSkinChance;
   final bool excludeParentageSnapshot; // true for wild spawns
   const WildlifeTuning({
-    this.prismaticSkinChance = 0.01,
+    this.prismaticSkinChance = 0.0,
     this.excludeParentageSnapshot = true,
   });
 }
@@ -48,8 +50,10 @@ class WildlifeGenerator {
     final isElite = rarityKey == 'legendary' || rarityKey == 'mythic';
     final natures = NatureCatalogWeighted.rollWildSlots(_rng, elite: isElite);
 
-    // 3) prismatic cosmetic flag
-    final bool prism = _rng.nextDouble() < tuning.prismaticSkinChance;
+    // 3) prismatic: only where it is promised (a rift, the Nexus)
+    final bool prism =
+        tuning.prismaticSkinChance > 0 &&
+        _rng.nextDouble() < tuning.prismaticSkinChance;
 
     // 4) no parentage for wild
     return base.copyWith(

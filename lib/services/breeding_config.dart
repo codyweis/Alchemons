@@ -135,7 +135,6 @@ class BreedingTuning {
   sameFamilyMutationChancePct; // % chance to pop to a new family when same-family parents
   final Set<String> variantBlockedTypes; // still honored if you want to block
   final int inheritNatureChance; // % chance to inherit nature from one parent
-  final double prismaticSkinChance; // ~0.1% chance to be prismatic
   final int
   sameNatureLockInChance; // % chance to lock in nature if both parents share it
   final int
@@ -152,7 +151,6 @@ class BreedingTuning {
     this.inheritNatureChance =
         60, // 60% chance to inherit nature from one parent
     this.parentRepeatChance = 15,
-    this.prismaticSkinChance = 0.001, // ~0.1% chance to be prismatic
     this.variantChanceOnPure = 0, // not used now
     this.variantChanceCross = 20, // tweak
     this.sameFamilyMutationChancePct = 5, // tweak

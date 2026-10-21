@@ -9,7 +9,8 @@
 //   • The wild parent's highest Potential always reaches the child.
 //   • A fusion in the wilderness can, rarely, mutate the child into something
 //     no chamber produces. Mutations belong to the individual: they are never
-//     inherited.
+//     inherited. The mutation meter (a constellation node) makes each
+//     fusion that doesn't mutate raise the chance of the next.
 
 import 'dart:math' as math;
 
@@ -35,6 +36,20 @@ import 'package:alchemons/models/potential_genetics.dart';
   return (stat: best.$1, value: best.$2);
 }
 
+/// Notches in the mutation meter: a full meter makes the next wilderness
+/// fusion mutate.
+const int kMutationMeterNotches = 100;
+
+/// The chance that a wilderness fusion mutates, with [notches] in the
+/// mutation meter: 0.5% empty, about 2% half full, 10% one short of full,
+/// certain when full. Without the meter (its constellation node not yet
+/// unlocked) every fusion rolls at the empty rate.
+double mutationChance(int notches) {
+  if (notches >= kMutationMeterNotches) return 1.0;
+  final n = notches.clamp(0, kMutationMeterNotches - 1);
+  return 0.005 + 0.095 * math.pow(n / (kMutationMeterNotches - 1), 2.7);
+}
+
 /// A rare change to one individual, from a fusion in the wilderness.
 enum AlchemonMutation {
   /// Made of grains, permanently: the summoning's particles, never settling
@@ -42,7 +57,19 @@ enum AlchemonMutation {
   alchemized('alchemized', 'Alchemized'),
 
   /// Turned to gold.
-  transmuted('transmuted', 'Transmuted');
+  transmuted('transmuted', 'Transmuted'),
+
+  /// A rainbow running down the body. Also what a rift's Alchemon carries.
+  prismatic('prismatic', 'Prismatic'),
+
+  /// Liquid silver.
+  silverlite('silverlite', 'Silverlite'),
+
+  /// A night sky inside the body.
+  starlit('starlit', 'Starlit'),
+
+  /// Black glass, its element's light in its lines.
+  obsidian('obsidian', 'Obsidian');
 
   const AlchemonMutation(this.id, this.label);
 
@@ -58,18 +85,36 @@ enum AlchemonMutation {
     return null;
   }
 
-  /// The chance of each, per wilderness fusion.
-  static const double chance = 0.01;
+  /// What it does that no other Alchemon does, in one line.
+  String get perk => switch (this) {
+    alchemized => 'Harvests 60 a minute at any level.',
+    transmuted => 'Sells for 50 gold.',
+    prismatic => '+1% to all four stats.',
+    silverlite => 'Sells for 10,000 silver.',
+    starlit => 'Levels up three times as fast.',
+    obsidian => 'Eggs it fuses extract in half the time.',
+  };
 
-  /// Rolls the mutation for a child of a wilderness fusion, or none.
-  ///
-  /// At most one: a single roll is split between them. A prismatic child can
-  /// be Alchemized (its grains go rainbow) but never Transmuted — gold would
-  /// cover the prismatic, and a prismatic is never thrown away.
-  static AlchemonMutation? roll(math.Random rng, {required bool prismatic}) {
-    final r = rng.nextDouble();
-    if (r < chance) return alchemized;
-    if (r < chance * 2 && !prismatic) return transmuted;
-    return null;
+  /// Rolls the mutation for a child of a wilderness fusion, or none, with
+  /// [notches] in the mutation meter. Which one is an even pick.
+  static AlchemonMutation? roll(math.Random rng, {int notches = 0}) {
+    if (rng.nextDouble() >= mutationChance(notches)) return null;
+    return values[rng.nextInt(values.length)];
   }
 }
+
+/// Whether a creature with the old prismatic flag [flag] and [mutation] is a
+/// Prismatic: the mutation says so, or the flag does and nothing else holds
+/// the mutation slot.
+bool prismaticMutation(bool flag, String? mutation) =>
+    mutation == AlchemonMutation.prismatic.id ||
+    (flag && (mutation == null || mutation.isEmpty));
+
+/// What a Prismatic adds to each of its four stats.
+const double kPrismaticStatBonus = 0.01;
+
+/// How much faster a Starlit gains XP.
+const double kStarlitXpMultiplier = 3.0;
+
+/// What an Obsidian parent does to its egg's extraction time.
+const double kObsidianCultivationMultiplier = 0.5;

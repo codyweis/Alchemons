@@ -97,14 +97,24 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
   final bri = briFromGenes(g);
   final tint = deriveLineageTint(inst);
 
-  final mutation = inst?.mutation ?? creature?.wildMutation;
+  // Prismatic is a mutation; a creature that still carries the old flag (a
+  // rift's or the Nexus's wild Alchemon) is drawn as one.
+  final legacyPrismatic =
+      inst?.isPrismaticSkin ?? creature?.isPrismaticSkin ?? false;
+  final mutation =
+      inst?.mutation ??
+      creature?.wildMutation ??
+      (legacyPrismatic ? AlchemonMutation.prismatic.id : null);
 
-  // Gold replaces the color: a Transmuted creature shows no tint, pigment
-  // (so no variant faction either — its aura takes its own element), albino
-  // or prismatic (it is never rolled prismatic; this keeps it so).
-  if (mutation == AlchemonMutation.transmuted.id) {
+  // A material replaces the color: a Transmuted, Prismatic, Silverlite,
+  // Starlit or Obsidian creature shows no tint, pigment (so no variant
+  // faction either — its aura takes its own element) or albino. Only
+  // Alchemized keeps the creature's own colors, in its grains. A Prismatic's
+  // rainbow flows by the prismatic hue cycle.
+  if (mutation != null && mutation != AlchemonMutation.alchemized.id) {
     return SpriteVisuals(
       scale: scale,
+      isPrismatic: mutation == AlchemonMutation.prismatic.id,
       alchemyEffect: inst?.alchemyEffect?.isNotEmpty == true
           ? inst!.alchemyEffect
           : creature?.alchemyEffect,
@@ -113,13 +123,12 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
           ? creature!.types.first
           : null,
       mutation: mutation,
+      speciesId: creature?.id ?? inst?.baseId,
     );
   }
 
-  final isPrismatic = inst?.isPrismaticSkin ?? creature!.isPrismaticSkin;
-
-  // Special case: albino rendering (high brightness, no prismatic)
-  final isAlbino = (bri == 1.45) && !isPrismatic;
+  // Special case: albino rendering (high brightness)
+  final isAlbino = bri == 1.45;
 
   // Improved fallback logic for alchemyEffect and variantFaction
   final alchemyEffect = inst?.alchemyEffect?.isNotEmpty == true
@@ -135,7 +144,6 @@ SpriteVisuals visualsFromInstance(Creature? creature, CreatureInstance? inst) {
     saturation: sat,
     brightness: bri,
     hueShiftDeg: hue,
-    isPrismatic: isPrismatic,
     tint: tint,
     isAlbino: isAlbino,
     alchemyEffect: alchemyEffect,
