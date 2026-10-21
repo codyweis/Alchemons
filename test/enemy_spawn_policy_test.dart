@@ -29,6 +29,10 @@ void main() {
 
       expect(byTrait.keys, isNotEmpty, reason: 'no traits rolled at all');
       for (final entry in byTrait.entries) {
+        // A mender is placed, not rolled: an archetype like artillery, on the
+        // same body every time so it is known by sight. What it does reads
+        // the trait alone, so any body could carry it.
+        if (entry.key == EnemyTrait.mender) continue;
         expect(
           entry.value.length,
           greaterThan(1),

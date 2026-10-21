@@ -115,6 +115,36 @@ class CosmicSurvivalBalance {
   static const double broodInterval = 3.4;
   static const int broodBurst = 4;
 
+  /// Menders per wave: one from wave 12, one more every ten waves, four at
+  /// most. They walk in spread through the wave, not all with its first band.
+  static int menderCountForWave(int wave) =>
+      wave < 12 ? 0 : (1 + (wave - 12) ~/ 10).clamp(1, 4);
+
+  /// How far from the orb a mender stops: behind the front, inside the ring
+  /// the Manes and Masks patrol, so something has to go out and get it.
+  static const double menderHoldRange = 440;
+
+  /// A mender's health, as a share of its phantom body's. The same as
+  /// artillery's: a target to pick, not a wall.
+  static const double menderHp = 1.5;
+
+  /// Seconds between a mender's pulses.
+  static const double menderPulseInterval = 2.5;
+
+  /// How far a mender reaches the wounded.
+  static const double menderHealRange = 260;
+
+  /// The most wounded a pulse mends.
+  static const int menderTargetsPerPulse = 3;
+
+  /// What one pulse gives a wounded body, as a share of its own maximum
+  /// health. Half while it burns (games/shared/burn_healing.dart).
+  static const double menderHealShare = 0.12;
+
+  /// Seconds the mend takes to flow from the mender into the body; the heal
+  /// lands when it arrives.
+  static const double menderMendTravel = 0.8;
+
   /// How far past the arena rim a walking body appears.
   static const double hordeSpawnBeyondRim = 70;
 

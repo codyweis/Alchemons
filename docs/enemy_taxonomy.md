@@ -162,6 +162,20 @@ and let them apply to any body:
 | `summoner` | periodically spawns wisps while alive | survival variant |
 | `splitter` | bursts into fast drones on death | survival variant |
 | `breaker` | prioritises and heavily damages structures/orb | orbBreaker |
+| `mender` | heals the wounded near it on a pulse; never itself or another mender | *(new, 2026-10-21)* |
+
+`mender` is survival's healer. It is placed by the spawner as an archetype
+(a phantom with `siege` conduct, parked at `menderHoldRange`, 440 from the
+orb), not rolled, so it is known by sight; what it does reads the trait
+alone. One from wave 12, one more every ten waves, four at most, spread
+through the wave. A pulse every 2.5 s mends the three bodies within 260
+missing the most health, by 12% of each one's maximum, landing when its flow
+of grains arrives (0.8 s). A body mended cannot be mended again for 2.25 s
+by any mender, so a pack of them spreads its heals rather than stacking them.
+**Burn** (`shared/burn_healing.dart`) halves every heal a body receives for
+4 s after the last Fire or Lava ability hit or burn effect on it, a mender's
+and a vampiric elite's alike. Tests: `test/survival_mender_test.dart`; look:
+`test/survival_mender_preview_test.dart` (`MENDER_OUT=dir`, preview tag).
 
 Removed as redundant: `crusher` (= brute/colossus body + charge conduct),
 `pouncer` (= drone/phantom body + stalk conduct), `siegeShooter`
@@ -229,8 +243,8 @@ Everything above that line is shared.
 
 Landed:
 
-- `lib/games/shared/enemy_taxonomy.dart` — `EnemyConduct` (8), `EnemyTrait` (3),
-  `EliteAffix` (5).
+- `lib/games/shared/enemy_taxonomy.dart` — `EnemyConduct` (8), `EnemyTrait` (4,
+  `mender` added 2026-10-21), `EliteAffix` (5).
 - `EliteAffix` renamed off the `Survival` prefix; the duplicate declaration in
   the spawner is gone. Both modes can use it.
 - `lib/games/shared/enemy_movement.dart` — movement extracted out of the

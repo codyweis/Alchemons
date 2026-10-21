@@ -69,6 +69,10 @@ enum EnemyTrait {
 
   /// Prioritises and heavily damages the orb / structures. Was `orbBreaker`.
   breaker,
+
+  /// Heals the wounded around it on a pulse. Never itself, and never another
+  /// mender, so killing it first always works. A burning body takes half.
+  mender,
 }
 
 /// Rare elite modifier. Orthogonal to everything above, and already the most

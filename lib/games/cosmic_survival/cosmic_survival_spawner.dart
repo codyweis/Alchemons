@@ -15,6 +15,7 @@ import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/enemy_body_art.dart' show kDroneForms;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
+import 'package:alchemons/games/shared/burn_healing.dart';
 import 'package:alchemons/games/shared/enemy_facing.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
 
@@ -321,6 +322,17 @@ class CosmicSurvivalEnemy with MasteryPayloadStatuses {
   double frostGrace = 0;
   // Summoner-variant cooldown. >0 means "ready to summon in X seconds".
   double summonCooldown;
+
+  /// Seconds of burn left (games/shared/burn_healing.dart). A Fire or Lava
+  /// burn sets it; while it runs, every heal this body receives is halved.
+  double burnTimer = 0;
+
+  /// A mender's own clock: seconds to its next pulse.
+  double menderPulseTimer = 0;
+
+  /// Seconds until a mender may mend this body again. Shared across menders,
+  /// so a pack of them spreads its heals instead of stacking them on one.
+  double mendLock = 0;
   // Mask+Blood permanent drain: enemies that pass through the blood
   // blob are tagged here with the source slot. Per-frame drain pulls
   // HP from them and splits it as healing across all allies until the
@@ -417,11 +429,18 @@ class CosmicSurvivalEnemy with MasteryPayloadStatuses {
         (isRelentless ? max(0.78, slowMultiplier) : slowMultiplier);
   }
 
+  /// A mender holds back like artillery, but its pulse is its only attack.
+  bool get isMender => trait == EnemyTrait.mender;
+
   bool get isShooter =>
-      conduct == EnemyConduct.standoff || conduct == EnemyConduct.siege;
+      (conduct == EnemyConduct.standoff || conduct == EnemyConduct.siege) &&
+      !isMender;
 
   /// Artillery: holds past companion reach and shells the orb.
-  bool get isSiegeArtillery => conduct == EnemyConduct.siege;
+  bool get isSiegeArtillery => conduct == EnemyConduct.siege && !isMender;
+
+  /// Healing as this body receives it: half while it burns.
+  double healingReceived(double amount) => healingAfterBurn(amount, burnTimer);
   bool get hasBulwark => eliteAffix == EliteAffix.bulwarked;
   bool get isVolatile => eliteAffix == EliteAffix.volatile;
   bool get isVampiric => eliteAffix == EliteAffix.vampiric;
@@ -835,6 +854,7 @@ class CosmicSurvivalSpawner {
   String _knotElement = 'Fire';
   int _knotLeft = 0;
   int _broodThisWave = 0;
+  int _menderThisWave = 0;
   int _targetCountThisWave = 0;
   bool _waveActive = false;
   bool _waitingForClear = false;
@@ -888,6 +908,7 @@ class CosmicSurvivalSpawner {
     _knotLeft = 0;
     _knotAt = null;
     _broodThisWave = 0;
+    _menderThisWave = 0;
     _targetCountThisWave = _enemyCountForWave(currentWave);
     _spawnTimer = 0;
     _waveActive = true;
@@ -1174,6 +1195,20 @@ class CosmicSurvivalSpawner {
         _rng.nextDouble() < 0.10;
     if (wantsArtillery) _artilleryThisWave++;
     if (wantsBrood) _broodThisWave++;
+    // Menders walk in spread through the wave, the k-th of n once the wave
+    // is k/(n+1) sent. Decided without the main stream, which still rolls
+    // this body below and then hands its place to the mender, so every other
+    // body in a seeded wave comes out as it did.
+    final menders = isBossWave
+        ? 0
+        : CosmicSurvivalBalance.menderCountForWave(currentWave);
+    final wantsMender =
+        !wantsArtillery &&
+        !wantsBrood &&
+        _menderThisWave < menders &&
+        _spawnedThisWave >=
+            _targetCountThisWave * (_menderThisWave + 1) / (menders + 1);
+    if (wantsMender) _menderThisWave++;
     // Keep a minority of authored threats among the slow advancing bodies.
     final hordeBody =
         !isBossWave &&
@@ -1349,6 +1384,7 @@ class CosmicSurvivalSpawner {
       EnemyTrait.breaker => 1.22,
       EnemyTrait.summoner => 1.15,
       EnemyTrait.splitter => 1.05,
+      EnemyTrait.mender => 1.0,
       null => 1.0,
     };
     final conductHp = switch (conduct) {
@@ -1363,6 +1399,7 @@ class CosmicSurvivalSpawner {
       EnemyTrait.breaker => 0.84,
       EnemyTrait.summoner => 0.78,
       EnemyTrait.splitter => 0.82,
+      EnemyTrait.mender => 1.0,
       null => 1.0,
     };
     final conductSpeed = switch (conduct) {
@@ -1377,6 +1414,7 @@ class CosmicSurvivalSpawner {
       EnemyTrait.breaker => 1.2,
       EnemyTrait.summoner => 1.0,
       EnemyTrait.splitter => 1.18,
+      EnemyTrait.mender => 1.0,
       null => 1.0,
     };
     final conductDamage = switch (conduct) {
@@ -1403,6 +1441,7 @@ class CosmicSurvivalSpawner {
         : hordeBody
         ? CosmicSurvivalBalance.hordeBodySpeedMultiplier
         : 1.0;
+    if (wantsMender) return _mender(pos, angle + pi);
     return CosmicSurvivalEnemy(
       position: pos,
       angle: angle + pi,
@@ -1422,6 +1461,39 @@ class CosmicSurvivalSpawner {
           ? 5.0 + _rng.nextDouble() * 2.0
           : 0,
     );
+  }
+
+  /// A mender: a phantom that holds back at [CosmicSurvivalBalance.menderHoldRange]
+  /// and mends the wounded around it. Never elite and never anything else:
+  /// the pulse is the one thing it does, so it is plain what to do about it.
+  CosmicSurvivalEnemy _mender(Offset pos, double angle) {
+    const tier = EnemyTier.phantom;
+    final hp =
+        tierBaseHp(tier) *
+        CosmicSurvivalBalance.openingBodyHp(currentWave) *
+        CosmicSurvivalBalance.enemyWaveHpScale(currentWave) *
+        CosmicSurvivalBalance.menderHp *
+        (currentMutator == SurvivalWaveMutator.fortified ? 1.12 : 1.0) *
+        (currentMutator == SurvivalWaveMutator.shatteredSpace ? 0.88 : 1.0);
+    return CosmicSurvivalEnemy(
+      position: pos,
+      angle: angle,
+      hp: hp,
+      maxHp: hp,
+      speed:
+          tierBaseSpeed(tier) *
+          CosmicSurvivalBalance.enemyWaveSpeedScale(currentWave) *
+          0.7,
+      damage:
+          tierBaseDamage(tier) *
+          CosmicSurvivalBalance.enemyWaveDamageScale(currentWave),
+      radius: tierRadius(tier),
+      tier: tier,
+      element: waveElement,
+      conduct: EnemyConduct.siege,
+      trait: EnemyTrait.mender,
+      target: CosmicEnemyTarget.orb,
+    )..menderPulseTimer = CosmicSurvivalBalance.menderPulseInterval;
   }
 
   /// Spawn the small swarm a summoner produces. Returned enemies should be
@@ -1928,6 +2000,7 @@ class CosmicSurvivalSpawner {
             EnemyTrait.breaker => 1.22,
             EnemyTrait.summoner => 1.15,
             EnemyTrait.splitter => 1.05,
+            EnemyTrait.mender => 1.0,
             null => 1.0,
           }) *
           (switch (conduct) {
@@ -1941,6 +2014,7 @@ class CosmicSurvivalSpawner {
             EnemyTrait.breaker => 0.84,
             EnemyTrait.summoner => 0.78,
             EnemyTrait.splitter => 0.82,
+            EnemyTrait.mender => 1.0,
             null => 1.0,
           }) *
           (switch (conduct) {
@@ -1954,6 +2028,7 @@ class CosmicSurvivalSpawner {
             EnemyTrait.breaker => 1.2,
             EnemyTrait.summoner => 1.0,
             EnemyTrait.splitter => 1.18,
+            EnemyTrait.mender => 1.0,
             null => 1.0,
           }) *
           (switch (conduct) {

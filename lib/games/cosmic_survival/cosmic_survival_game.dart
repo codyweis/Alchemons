@@ -36,6 +36,8 @@ import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/surge_grains.dart';
+import 'package:alchemons/games/cosmic_survival/survival_mender_vfx.dart';
+import 'package:alchemons/games/shared/burn_healing.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
@@ -617,6 +619,14 @@ class RunHealingStats {
   double toOrb = 0;
 
   double get total => toMons + toShip + toOrb;
+}
+
+/// A mender's heal on its way to [body]: [amount] lands when [eta] runs out.
+class _Mend {
+  _Mend(this.body, this.amount, this.eta);
+  final CosmicSurvivalEnemy body;
+  final double amount;
+  double eta;
 }
 
 // ---------------------------------------------------------------------------
@@ -5823,6 +5833,139 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  // == Menders =============================================================
+  //
+  // EnemyTrait.mender: a body that holds back and mends the wounded around
+  // it. Each pulse sends a flow of its grains into the most wounded bodies
+  // near it, and the heal lands when the flow arrives. It never mends itself
+  // or another mender, and a body it mended cannot be mended again until a
+  // pulse later, so a pack of them spreads its heals rather than stacking
+  // them and killing one always pays. A burning body takes half.
+
+  final List<_Mend> _mends = [];
+  final List<CosmicSurvivalEnemy> _menderPicks = [];
+
+  /// The menders on the field as of this frame's update, for the painter.
+  final List<CosmicSurvivalEnemy> _livingMenders = [];
+  final MenderFlows _menderFlows = MenderFlows();
+
+  void _tickMender(CosmicSurvivalEnemy mender, double dt) {
+    mender.menderPulseTimer -= dt;
+    if (mender.menderPulseTimer > 0) return;
+    // Nothing near it is hurt: it stays charged and looks again shortly.
+    mender.menderPulseTimer = _menderPulse(mender) > 0
+        ? CosmicSurvivalBalance.menderPulseInterval
+        : 0.3;
+  }
+
+  /// Sends one pulse; returns how many bodies it is mending.
+  int _menderPulse(CosmicSurvivalEnemy mender) {
+    const range = CosmicSurvivalBalance.menderHealRange;
+    final picks = _menderPicks..clear();
+    _visitEnemiesNear(mender.position, range, (other) {
+      if (other.isMender || other.isPlagueCore || other.mendLock > 0) {
+        return false;
+      }
+      if (other.hpFraction >= 0.98 ||
+          !_withinRange(mender.position, other.position, range)) {
+        return false;
+      }
+      picks.add(other);
+      return false;
+    }, exclude: mender);
+    if (picks.isEmpty) return 0;
+    // The most health missing first: what a heal is worth most to, which is
+    // the heavy body the team has been working on, not a scratched wisp.
+    picks.sort((a, b) => (b.maxHp - b.hp).compareTo(a.maxHp - a.hp));
+    final count = min(
+      picks.length,
+      CosmicSurvivalBalance.menderTargetsPerPulse,
+    );
+    final color = elementColor(mender.element);
+    for (var i = 0; i < count; i++) {
+      final body = picks[i];
+      // A beat short of a whole pulse, so a lone mender working one body
+      // is not a frame late for it every time.
+      body.mendLock = CosmicSurvivalBalance.menderPulseInterval - 0.25;
+      _mends.add(
+        _Mend(
+          body,
+          body.maxHp * CosmicSurvivalBalance.menderHealShare,
+          CosmicSurvivalBalance.menderMendTravel,
+        ),
+      );
+      _menderFlows.send(
+        mender,
+        body,
+        color,
+        CosmicSurvivalBalance.menderMendTravel,
+      );
+    }
+    picks.clear();
+    return count;
+  }
+
+  /// Lands the mends whose flow has arrived.
+  void _updateMends(double dt) {
+    _menderFlows.update(dt);
+    if (_mends.isEmpty) return;
+    for (final mend in _mends) {
+      mend.eta -= dt;
+      if (mend.eta <= 0) _healEnemy(mend.body, mend.amount);
+    }
+    _mends.removeWhere((mend) => mend.eta <= 0);
+  }
+
+  /// Every heal a survival body receives comes through here, a mender's and
+  /// a vampiric elite's alike, so Burn halves all of them. Returns what
+  /// landed.
+  double _healEnemy(CosmicSurvivalEnemy enemy, double amount) {
+    if (amount <= 0 || enemy.isDead) return 0;
+    final before = enemy.hp;
+    enemy.hp = min(enemy.maxHp, enemy.hp + enemy.healingReceived(amount));
+    return enemy.hp - before;
+  }
+
+  /// A Fire or Lava burn landed: the body burns for [kBurnSeconds] from now.
+  void _burnEnemy(CosmicSurvivalEnemy enemy) {
+    enemy.burnTimer = kBurnSeconds;
+  }
+
+  /// Whether the abilities of the Alchemon in [slot] burn: Fire and Lava.
+  bool _burnsWhatItHits(int? slot) {
+    if (slot == null || slot < 0 || slot >= party.length) return false;
+    final element = party[slot].element;
+    return element == 'Fire' || element == 'Lava';
+  }
+
+  /// Lands [effect] on [enemy] as an ability would from [origin].
+  @visibleForTesting
+  void debugApplyAbilityEffect(
+    AbilityEffectKind effect,
+    CosmicSurvivalEnemy enemy, {
+    double power = 1,
+    Offset? origin,
+  }) => _applyAbilityEffectToEnemy(
+    effect,
+    enemy,
+    origin ?? enemy.position,
+    power,
+    0,
+    0,
+  );
+
+  /// Heals [enemy] through the one heal path, as a mender or a vampiric elite
+  /// would. Returns what landed.
+  @visibleForTesting
+  double debugHealEnemy(CosmicSurvivalEnemy enemy, double amount) =>
+      _healEnemy(enemy, amount);
+
+  @visibleForTesting
+  int get debugMendsInFlight => _mends.length;
+
+  @visibleForTesting
+  MenderFlows get debugMenderFlows => _menderFlows;
+
   // == Enemies =============================================================
 
   void _updateEnemies(double dt, _ProjectileControlBuckets controlBuckets) {
@@ -5835,10 +5978,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Cached once per frame: any active Horn+Light barrier center+radius.
     // Enemies touching the perimeter get bounced back out.
     final lightBarrier = _activeHornLightBarrier();
+    _updateMends(dt);
+    _livingMenders.clear();
     // Variants can append enemies while the current wave is being updated.
     // Iterate a snapshot so new spawns join cleanly on the next frame.
     for (final enemy in List<CosmicSurvivalEnemy>.of(enemies)) {
       if (enemy.isDead) continue;
+      if (enemy.burnTimer > 0) enemy.burnTimer = max(0, enemy.burnTimer - dt);
+      if (enemy.mendLock > 0) enemy.mendLock = max(0, enemy.mendLock - dt);
 
       // Horn+Light barrier: bounce enemies away from the perimeter.
       // Per design "enemies bounce off of it" — anyone inside the
@@ -5917,6 +6064,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // Flash + sparkle so the player sees what happened.
           _spawnHitSpark(enemy.position, elementColor(enemy.element));
         }
+      }
+      if (enemy.isMender) {
+        _livingMenders.add(enemy);
+        _tickMender(enemy, dt);
       }
       // Mane+Plant root tag fades after pierce.
       if (enemy.maneRootTimer > 0) {
@@ -6124,9 +6275,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ship.currentHp -=
               enemy.damage * 0.6 * damageMultiplier * _shipBodyDamageTaken;
           ship.hitFlash = 1.0;
-          if (enemy.isVampiric) {
-            enemy.hp = min(enemy.maxHp, enemy.hp + enemy.damage * 0.24);
-          }
+          if (enemy.isVampiric) _healEnemy(enemy, enemy.damage * 0.24);
           if (ship.currentHp <= 0) {
             ship.isDead = true;
             _shipRespawnTimer = 0;
@@ -6164,7 +6313,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 dist: dist,
                 norm: norm,
                 tangent: tangent,
-                siegeHold: CosmicSurvivalBalance.artilleryHoldRange,
+                siegeHold: enemy.isMender
+                    ? CosmicSurvivalBalance.menderHoldRange
+                    : CosmicSurvivalBalance.artilleryHoldRange,
               );
         enemy.position = Offset(
           enemy.position.dx +
@@ -6491,9 +6642,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           enemy.target != CosmicEnemyTarget.orb) {
         ship.currentHp -= enemy.damage * dt * 0.75 * _shipBodyDamageTaken;
         ship.hitFlash = 1.0;
-        if (enemy.isVampiric) {
-          enemy.hp = min(enemy.maxHp, enemy.hp + enemy.damage * dt * 0.4);
-        }
+        if (enemy.isVampiric) _healEnemy(enemy, enemy.damage * dt * 0.4);
         if (ship.currentHp <= 0) {
           ship.isDead = true;
           _shipRespawnTimer = 0;
@@ -6507,9 +6656,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           enemy.target == CosmicEnemyTarget.companion) {
         _applyCompanionIncomingDamage(comp, enemy.damage);
         comp.hitFlash = 1.0;
-        if (enemy.isVampiric) {
-          enemy.hp = min(enemy.maxHp, enemy.hp + enemy.damage * 0.18);
-        }
+        if (enemy.isVampiric) _healEnemy(enemy, enemy.damage * 0.18);
         if (comp.currentHp <= 0) comp.isDead = true;
       }
     }
@@ -6530,6 +6677,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       EnemyTrait.breaker => 1.55,
       EnemyTrait.splitter => 1.15,
       EnemyTrait.summoner => 1.0,
+      EnemyTrait.mender => 1.0,
       null => 1.0,
     };
     final conductMult = switch (enemy.conduct) {
@@ -9874,6 +10022,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     final dealt = hpBefore - max(enemy.hp, 0.0);
+    // Burn: whatever shape a Fire or Lava Alchemon's ability takes (a ram, a
+    // crater, a trap, a world), what it hits burns. Most of them never pass
+    // through AbilityEffectKind.burn, so it is marked here, by who dealt it.
+    if (dealt > 0 &&
+        !autoAttack &&
+        enemy.hp > 0 &&
+        _burnsWhatItHits(sourceSlotIndex)) {
+      _burnEnemy(enemy);
+    }
     if (sourceSlotIndex != null && dealt > 0) {
       _runStatsFor(sourceSlotIndex).damageDealt += dealt;
     } else if (dealt > 0) {
@@ -18278,6 +18435,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       case AbilityEffectKind.poison:
       case AbilityEffectKind.zoneDamage:
       case AbilityEffectKind.geyser:
+        // A burning body takes half of every heal (games/shared/burn_healing).
+        if (effect == AbilityEffectKind.burn) _burnEnemy(enemy);
         _damageEnemy(enemy, effectPower, sourceSlotIndex: sourceSlotIndex);
         if (effect == AbilityEffectKind.geyser) {
           // Away from the orb, whichever side of it the geyser stands.
@@ -21853,7 +22012,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               if (!enemy.isDead &&
                   !enemy.isPlagueCore &&
                   event.contains(core, enemy.position)) {
-                enemy.hp = min(enemy.maxHp, enemy.hp + enemy.maxHp * 0.06);
+                _healEnemy(enemy, enemy.maxHp * 0.06);
               }
             }
           }
@@ -22561,6 +22720,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _renderEnemy(canvas, enemy);
     }
     _swarmBatch.flush(canvas, stats.timeElapsed);
+    // Menders: the grains they gather, and the heal flowing out of them.
+    paintMenderMantles(canvas, _livingMenders, view, stats.timeElapsed);
+    _menderFlows.paint(canvas, view);
     _surgeGrains.paint(canvas, view);
 
     // Beams and shockwaves sit above the bodies that threw them.
@@ -23452,7 +23614,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _updateEnemyAction(CosmicSurvivalEnemy enemy, double dt) {
     final def = kEnemyActions[enemy.tier];
-    if (enemy.isPlagueCore || def == null) return; // wisps fight by contact
+    // Wisps fight by contact; a mender's pulse is its only act.
+    if (enemy.isPlagueCore || enemy.isMender || def == null) return;
     final a = enemy.action;
 
     if (a.phase == EnemyActionPhase.idle) {
