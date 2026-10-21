@@ -11565,8 +11565,8 @@ String cosmicSpecialAbilityName(String family, String element) {
 //
 //   * a median species at potential 50 lands near 4.25 — the average creature
 //   * a strong species at potential 80 lands near 7.2
-//   * a top species at potential 100 lands near 11.75, and Enhancement can
-//     push it past 15
+//   * a top species at potential 100 lands near 11.3, and Enhancement can
+//     push it past 14.5
 //
 // An ability that scales off a stat should visibly change across that band.
 // The old count scaler moved a total of 0.72x to 1.34x, which is not

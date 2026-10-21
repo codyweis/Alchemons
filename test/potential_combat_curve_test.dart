@@ -14,7 +14,7 @@ void main() {
       80: 1.8,
       90: 2.1,
       95: 2.3,
-      100: 2.5,
+      100: 2.4,
     }.entries) {
       expect(
         AlchemonStatSystem.potentialMultiplier(entry.key),
@@ -29,7 +29,7 @@ void main() {
       expect(gain, lessThanOrEqualTo(0.040000001));
     }
     expect(AlchemonStatSystem.potentialMultiplier(-1), 0.85);
-    expect(AlchemonStatSystem.potentialMultiplier(101), 2.5);
+    expect(AlchemonStatSystem.potentialMultiplier(101), closeTo(2.4, 1e-9));
     expect(
       AlchemonStatSystem.potentialMultiplier(95) /
           AlchemonStatSystem.potentialMultiplier(50),

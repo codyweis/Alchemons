@@ -87,7 +87,9 @@ abstract final class AlchemonStatSystem {
 
   /// Breeding is the primary progression after level 10. Interpolate each
   /// stat independently; species, Nature, and Enhancement keep their roles.
-  /// Below P20, continue gently down to 0.85 at P1.
+  /// Below P20, continue gently down to 0.85 at P1. The last five points
+  /// climb at half the pace of the five before them, so a P90 with a rare
+  /// +15% Nature stands level with a P100 that has none.
   static double potentialMultiplier(num potential) {
     final value = normalizePotential(potential);
     const anchors = <(int, double)>[
@@ -98,7 +100,7 @@ abstract final class AlchemonStatSystem {
       (80, 1.80),
       (90, 2.10),
       (95, 2.30),
-      (100, 2.50),
+      (100, 2.40),
     ];
     for (var i = 1; i < anchors.length; i++) {
       final (upper, high) = anchors[i];
