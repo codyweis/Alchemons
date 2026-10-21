@@ -21,7 +21,7 @@ String formatNatureEffectSummary(NatureEffect effect) {
       case 'stamina_regen_mult':
         effects.add('Stamina recovery ${_multiplierDelta(value)}');
       case 'harvest_rate_mult':
-        effects.add('Harvest rate ${_multiplierDelta(value)}');
+        effects.add('Essence rate ${_multiplierDelta(value)}');
       case 'breed_same_species_chance_mult':
         effects.add('Same-species breeding ${_multiplierDelta(value)}');
       case 'breed_same_type_chance_mult':

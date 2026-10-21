@@ -273,7 +273,7 @@ class _BatchExtractionCeremonyState extends State<BatchExtractionCeremony> {
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
           child: Text(
-            'CONSTELLATION EXTRACTION  ·  $n CHAMBERS',
+            'EXTRACT ALL  ·  $n SPECIMENS',
             textAlign: TextAlign.center,
             style: TextStyle(
               color: t.amber,

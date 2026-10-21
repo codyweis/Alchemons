@@ -115,13 +115,13 @@ class _FieldScreenState extends State<FieldScreen>
                         floatPhase: _floatCtrl.value,
                       ),
                       _FieldActionCard(
-                        title: 'Resource Harvesting',
-                        subtitle: 'Gather field materials & samples',
+                        title: 'Essence Collection',
+                        subtitle: 'Collect elemental essence from your Alchemons',
                         color: Colors.greenAccent.shade400.withValues(
                           alpha: 0.8,
                         ),
                         pillA: 'Open',
-                        pillB: 'Extract',
+                        pillB: 'Essence',
                         onTap: context.soundTap(_goHarvest),
                         floatPhase: (_floatCtrl.value + 0.33) % 1.0,
                       ),

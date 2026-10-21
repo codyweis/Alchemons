@@ -173,7 +173,7 @@ class SideDockFloating extends StatelessWidget {
           child: _FloatingSideButton(
             theme: theme,
             size: 70,
-            label: 'Harvest',
+            label: 'Essence',
             iconBuilder: (size) => _emblem(
               harvestKey,
               harvestLifted,

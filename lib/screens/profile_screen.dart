@@ -1404,7 +1404,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             title: 'VISUAL EFFECTS',
                             description:
                                 'Performance trims the fusion, hatch and '
-                                'harvest cinematics for slower phones',
+                                'essence cinematics for slower phones',
                             palette: palette,
                             below: Opacity(
                               opacity: _cinematicQualityLoaded ? 1 : 0.45,
@@ -1496,8 +1496,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                             accent: accent,
                           ),
                           BracketToggleRow(
-                            title: 'EXTRACTIONS',
-                            description: 'When a biome harvest finishes',
+                            title: 'ESSENCE',
+                            description: 'When a chamber of essence is full',
                             value: _extractionsEnabled,
                             enabled: _notificationPrefsLoaded,
                             onChanged: _toggleExtractions,

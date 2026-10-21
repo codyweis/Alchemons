@@ -87,7 +87,7 @@ enum AlchemonMutation {
 
   /// What it does that no other Alchemon does, in one line.
   String get perk => switch (this) {
-    alchemized => 'Harvests 60 a minute at any level.',
+    alchemized => 'Collects 60 essence a minute at any level.',
     transmuted => 'Sells for 50 gold.',
     prismatic => '+1% to all four stats.',
     silverlite => 'Sells for 10,000 silver.',

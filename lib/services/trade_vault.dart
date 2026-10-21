@@ -56,7 +56,7 @@ class TradeVault {
     final jobs = await (db.select(
       db.biomeJobs,
     )..where((t) => t.creatureInstanceId.equals(id))).get();
-    if (jobs.isNotEmpty) return 'It is harvesting.';
+    if (jobs.isNotEmpty) return 'It is in an essence chamber.';
     final s = db.settingsDao;
     if ((await s.getCosmicPartySlots()).contains(id)) {
       return "It is in your ship's party.";

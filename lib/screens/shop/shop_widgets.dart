@@ -1675,7 +1675,7 @@ class FarmUnlockSection extends StatelessWidget {
     final farmOffer = ShopOffer(
       id: 'farm.${biome.name}',
       name: '$label Farm',
-      description: 'Unlock this biome to harvest its resources.',
+      description: 'Unlock this biome to collect its essence.',
       icon: icon,
       cost: cost,
       reward: const {},
@@ -1814,7 +1814,7 @@ Future<bool> showBiomeUnlockConfirmationDialog({
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'Unlock this biome to harvest its resources.',
+                    'Unlock this biome to collect its essence.',
                     style: TextStyle(
                       color: t.textSecondary,
                       fontSize: 12,

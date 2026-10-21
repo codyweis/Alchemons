@@ -371,7 +371,7 @@ void main() {
       }
 
       await step('field', () => openAndBack('FIELD', '12_field_map'));
-      await step('harvest', () => openAndBack('HARVEST', '13_harvest'));
+      await step('harvest', () => openAndBack('ESSENCE', '13_essence'));
       await step('upgrade', () => openAndBack('UPGRADE', '14_upgrade'));
       await step(
         'achievements',

@@ -492,8 +492,9 @@ class ConstellationCatalog {
 
   static const instantReload = ConstellationSkill(
     id: 'extraction_instant_reload',
-    name: 'Instant Chamber Reload',
-    description: 'Extraction chambers reload instantly',
+    name: 'Essence Reload',
+    description:
+        'After you collect essence, put the same Alchemon straight back in its chamber for another run',
     tree: ConstellationTree.extraction,
     pointsCost: 14,
     prerequisites: ['extraction_wilderness_preview'],
@@ -502,9 +503,8 @@ class ConstellationCatalog {
 
   static const batchExtraction = ConstellationSkill(
     id: 'extraction_batch_extraction',
-    name: 'Constellation Extraction',
-    description:
-        'Extract every ready chamber in one staged constellation ceremony',
+    name: 'Extract All',
+    description: 'Extract every ready specimen in Cultivations at once',
     tree: ConstellationTree.extraction,
     pointsCost: 18,
     prerequisites: ['extraction_instant_reload'],

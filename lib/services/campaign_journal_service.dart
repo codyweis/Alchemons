@@ -409,7 +409,7 @@ final campaignAchievements = <CampaignAchievement>[
   CampaignAchievement(
     'biome_harvest_1',
     'The chambers pay out',
-    'Collect a harvest from a biome extractor.',
+    'Collect essence from a chamber.',
     'biomeHarvest',
     1,
     1,

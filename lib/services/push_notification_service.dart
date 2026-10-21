@@ -570,8 +570,8 @@ class PushNotificationService {
 
     await _notifications.zonedSchedule(
       harvestScheduledId,
-      'Harvest Ready!',
-      'Your alchemical harvest is ready for collection',
+      'Essence Ready',
+      'A chamber of essence is full. Tap to collect.',
       scheduledDate,
       _notificationDetails(
         channelId: 'harvest_ready',
@@ -601,10 +601,10 @@ class PushNotificationService {
 
     await _notifications.show(
       harvestConsolidatedId,
-      '${count > 1 ? '$count Harvests' : 'Harvest'} Ready!',
+      count > 1 ? 'Essence Ready in $count Chambers' : 'Essence Ready',
       count > 1
-          ? 'You have $count harvests ready for collection'
-          : 'Your alchemical harvest is ready for collection',
+          ? '$count chambers of essence are full. Tap to collect.'
+          : 'A chamber of essence is full. Tap to collect.',
       _notificationDetails(
         channelId: 'harvest_ready',
         channelName: 'Harvest Ready',

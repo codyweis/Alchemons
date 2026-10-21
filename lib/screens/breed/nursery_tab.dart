@@ -422,8 +422,8 @@ class _NurseryTabState extends State<NurseryTab> {
   Future<void> _extractAllReady(List<IncubatorSlot> readySlots) async {
     if (readySlots.length < 2 || !mounted) return;
     final confirmed = await _showConfirmDialog(
-      'CONSTELLATION EXTRACTION',
-      'Extract all ${readySlots.length} ready chambers in one ceremony? Each specimen will still be revealed and analyzed individually.',
+      'EXTRACT ALL',
+      'Extract all ${readySlots.length} ready specimens at once? Each one is still revealed and analyzed on its own.',
       confirmLabel: 'EXTRACT ALL',
       accent: const Color(0xFF67E8F9),
     );

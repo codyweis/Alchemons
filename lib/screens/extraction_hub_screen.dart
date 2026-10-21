@@ -1156,7 +1156,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
 String _modeWord(VesselMode mode) => switch (mode) {
   VesselMode.locked => 'LOCKED',
   VesselMode.empty => 'EMPTY',
-  VesselMode.running => 'EXTRACTING',
+  VesselMode.running => 'FILLING',
   VesselMode.ready => 'FULL',
 };
 
@@ -1265,7 +1265,7 @@ class _ChamberPanel extends StatelessWidget {
     final job = farm.activeJob;
     final (String line, Color lineColor) = switch (mode) {
       VesselMode.locked => (
-        'Unlock this chamber to extract ${farm.biome.label.toLowerCase()} essence',
+        'Unlock this chamber to collect ${farm.biome.label.toLowerCase()} essence',
         _kPalette.muted,
       ),
       VesselMode.empty => (
@@ -1488,7 +1488,7 @@ class _HarvestTutorialDialog extends StatelessWidget {
     );
     return _BracketDialog(
       accent: amber,
-      title: 'HARVEST',
+      title: 'ESSENCE',
       children: [
         step(
           '1',
@@ -1683,7 +1683,7 @@ class _HarvestHeader extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const Text(
-                  'HARVEST',
+                  'ESSENCE',
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: Color(0xFFFFB74D),

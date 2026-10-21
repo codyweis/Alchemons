@@ -89,7 +89,7 @@ void main() {
         ),
         NotificationBanner(
           type: NotificationBannerType.harvestReady,
-          title: 'Harvest ready',
+          title: 'Essence ready',
           subtitle: 'Tap to collect',
           stateKey: 'biomes:volcanic',
           onTap: () {},

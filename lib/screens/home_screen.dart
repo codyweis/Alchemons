@@ -2037,8 +2037,8 @@ class _HomeScreenState extends State<HomeScreen>
         NotificationBanner(
           type: NotificationBannerType.harvestReady,
           title: readyHarvests > 1
-              ? '$readyHarvests harvests ready'
-              : 'Harvest ready',
+              ? 'Essence ready in $readyHarvests chambers'
+              : 'Essence ready',
           subtitle: 'Tap to collect',
           count: readyHarvests,
           stateKey: stateKey,
