@@ -619,9 +619,13 @@ void main() {
           'about what a wisp takes, the scaling is not doing its job',
     );
 
-    // Every tier in between is heavier than the one before it.
+    // Every tier in between is heavier than the one before it — by size, not
+    // by its place in EnemyTier, which is not a size order (a drone used to
+    // weigh more than a brute, 2026-10-20).
+    final bySize = [...EnemyTier.values]
+      ..sort((a, b) => tierBaseHp(a).compareTo(tierBaseHp(b)));
     var previous = 0.0;
-    for (final tier in EnemyTier.values) {
+    for (final tier in bySize) {
       final w = game.debugWeightMultiplier(tier);
       expect(
         w,
@@ -865,9 +869,10 @@ void main() {
 
     final crack = game.mysticFissurePointNear(0)!;
 
-    // Ordinary bodies walk over a crack and nothing happens. The brief is
-    // explicit that it opens for a BOSS, and that gate is the whole balance of
-    // the world — every enemy triggering it would be a permanent meteor storm.
+    // Ordinary bodies walk over a crack and nothing happens. It opens for
+    // something heavy — a boss, and since 2026-10-20 a brute, a colossus or an
+    // elite (dead_ability_wakeup_test) — and that gate is the whole balance of
+    // the world: every enemy triggering it would be a permanent meteor storm.
     final grunt = game.enemies.firstWhere((e) => !e.isDead)
       ..hp = 1e9
       ..isDead = false;

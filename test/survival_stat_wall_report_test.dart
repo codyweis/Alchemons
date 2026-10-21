@@ -42,7 +42,7 @@ void main() {
           'P50,P70,P80,P90,P100,P100E10')
       .split(',');
   final waves = (Platform.environment['WALL_WAVES'] ??
-          '31,36,41,46,51,56,61,66,71,76,81,86,91')
+          '31,36,41,46,51,56,61,66,71,76,81,86,91,96,101')
       .split(',')
       .map(int.parse)
       .toList();

@@ -66,11 +66,18 @@ const BattleOvertime kBattleOvertime = BattleOvertime(
   damage: 2.6,
 );
 
+/// What a Wing beam's heal (Crystal's and Light's lifesteal, meant for the
+/// orb) gives back to the caster in a battle.
+const double kBattleBeamSelfHealShare = 0.3;
+
 /// Creature-on-creature damage in a battle, on top of the duel's own scale:
-/// set so a fight lasts a median of about 47 s (user 2026-10-20 asked for
-/// 10–20% longer than the 42 s at 1.0; the harness, 400 mixed fights: +12%,
-/// every family's win share unchanged, time-ups 2% → 4.5%).
-const double kBattleDamageScale = 0.85;
+/// set so a fight lasts about 47 s (user 2026-10-20 asked for 10–20% longer
+/// than the 42 s fights were then). Raised from 0.85 the same day, after the
+/// family rebuild (Wing bolts one hit per body, focus beams) left fights
+/// 30% longer and a quarter of them timing out: real catalog species, 500
+/// mixed fights, average 45 s at P50 and 49 s at P80, time-ups 5% and 10%
+/// (test/gem_battle_ladder_test.dart 'species balance', LADDER_SCALE).
+const double kBattleDamageScale = 1.3;
 
 /// How long a fallen Alchemon's place stays empty before the bench fills it,
 /// so the fall is seen.
@@ -687,6 +694,7 @@ extension CosmicGameBattle on CosmicGame {
         _companionBodyRadius(comp),
       );
       _standUp(cb, comp.position);
+      _carryHealthOf(cb, comp);
       bodies.add(cb.body);
     }
     return bodies;

@@ -71,11 +71,14 @@ void main() {
       'Fire': 5, // "5-15 fire balls"
       'Steam': 3, // "mini geysers around the field"
       'Water': 3, // "throws out traps"
+      // The board draws "a light void"; one a cast was one kill every half
+      // minute against a horde, so it throws three to seven, each still one
+      // instant kill (user, 2026-10-20: "everything can have a niche").
+      'Light': 3,
     };
     const singles = {
       'Plant', // "places a small vine" — grows by being fed, not by count
       'Blood', // "a blood blob"
-      'Light', // "a light void"
       'Lightning', // "a lightning field" — grows with each enemy that hits it
       'Dark', // "a void hole"
       'Ice', // "a giant ice pillar"

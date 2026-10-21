@@ -64,10 +64,9 @@ Map<AlchemonCombatOutput, double> _outputs(
 void main() {
   // Start points above the cadence floor (kAbilityStatLow: Speed and the
   // recharge stats count from 250). Some feeds act in only part of the range
-  // — Strength speeds auto attacks until P-ATK 41; a Mystic's SPECIAL brings
-  // its recharge down until 36 and its recharge stats count from 350 and only
-  // while SPECIAL is short of that — so a stat must move a number from one of
-  // these points, or from none.
+  // — Strength speeds auto attacks until P-ATK 41; a Mystic waits a flat
+  // minute for its world whatever its stats — so a stat must move a number
+  // from one of these points, or from none.
   const profiles = [
     {
       AlchemonStat.strength: 3.0,

@@ -144,15 +144,39 @@ abstract final class CasterPieces {
     };
   }
 
+  /// A Plant Let's vines wait up to 30 s for a body, and a Let throws every
+  /// two or three seconds, so they keep the last four casts' worth: up to
+  /// twenty vines a Let rather than a ring per throw for half a minute.
+  static const int letVineCastWindow = 4;
+
+  /// A Mask's traps keep its last three casts: a trap outlives two recasts.
+  ///
+  /// The traps are the family's whole special, authored to live 8-22 s and
+  /// wait for the wave to walk into them, and a bred Mask recasts every 5-10
+  /// s. On two casts Air's 25 s pads lived 18.6 s at Potential 80 and 10.5 s
+  /// at 100 + Enhancement 10 (2026-10-20 audit); on three, every zone but
+  /// Air's lives its authored life through Potential 80.
+  static const int maskCastWindow = 3;
+
   /// How many casts' worth an ability keeps: [castWindow], [kinCastWindow]
-  /// for the Kin supports, 1 for Pip Poison (its web lasts until the next
-  /// cast, per the board), or null for Kin Dust, whose clouds piling up cast
-  /// after cast to their own cap (KinSupport.dustCloudCap) is the ability.
+  /// for the Kin supports, [maskCastWindow] for Mask traps, 1 for Pip Poison
+  /// (its web lasts until the next cast, per the board), [letVineCastWindow]
+  /// for a Plant Let's vines, or null for Kin Dust, whose clouds piling up
+  /// cast after cast to their own cap (KinSupport.dustCloudCap) is the
+  /// ability, and for the other Lets.
+  ///
+  /// A Let's ground lives a few seconds (Lava's 4.2 to Steam's 9) and is
+  /// laid only where a meteor landed, so it never piles up; on a two-cast
+  /// window a Let throwing every two or three seconds cut every pool and
+  /// vent short (2026-10-20 audit).
   static int? windowFor(String family, String? element) =>
       switch ((family, element)) {
         ('kin', 'Dust') => null,
         ('kin', _) => kinCastWindow,
+        ('mask', _) => maskCastWindow,
         ('pip', 'Poison') => 1,
+        ('let', 'Plant') => letVineCastWindow,
+        ('let', _) => null,
         _ => castWindow,
       };
 
@@ -207,8 +231,22 @@ class CosmicAbilityRuntime {
     EnemyTier.colossus => 0.60,
   };
 
-  /// A geyser throws what it scalds upward.
-  static const Offset geyserKnockback = Offset(0, -140);
+  /// How hard a geyser throws what it scalds, px/s added each tick.
+  static const double geyserKnockbackSpeed = 140;
+
+  /// A geyser throws what it scalds away from [from]: in survival the orb,
+  /// the point the party defends; in open space and the battle the geyser's
+  /// own centre. It used to throw everything up the screen, which under the
+  /// orb was straight at it (2026-10-20 audit). A body standing exactly on
+  /// [from] still goes up.
+  static Offset geyserKnockbackFrom(Offset from, Offset body) {
+    final dx = body.dx - from.dx;
+    final dy = body.dy - from.dy;
+    final d = sqrt(dx * dx + dy * dy);
+    if (d < 0.01) return const Offset(0, -geyserKnockbackSpeed);
+    final s = geyserKnockbackSpeed / d;
+    return Offset(dx * s, dy * s);
+  }
 
   /// A leech hit feeds the objective (survival's orb; open space's ship)
   /// this share of its power, and the caster the whole of it.
@@ -480,6 +518,118 @@ class CosmicAbilityRuntime {
         atPerfect: 5,
       );
 
+  /// Where a Dark Let's follow-ups fall: spread by angle round the kill at
+  /// [centre], one to each of [count] equal slices of the circle (turned by
+  /// [startAngle]). A slice's follow-up takes the body in [bodies] nearest the
+  /// kill in it that stands at least [minDistance] out (the parent's crater,
+  /// just cleared) and at least [spacing] from the aims already chosen, or
+  /// failing that the nearest that keeps the spacing. A slice with no such
+  /// body takes the one furthest from every aim so far, if it keeps the
+  /// spacing, and otherwise open ground along the slice's middle, past the
+  /// parent's crater ([fallbackDistance] at least).
+  ///
+  /// The follow-ups used to take the first bodies the enemy grid visited,
+  /// and it visits west to east, so the whole bombardment came down on one
+  /// side of the kill (2026-10-20 audit). In slice order, so the staggered
+  /// barrage rolls round the kill.
+  static List<Offset> darkLetFollowupAims({
+    required Offset centre,
+    required List<Offset> bodies,
+    required int count,
+    required double startAngle,
+    required double spacing,
+    double minDistance = 0,
+    double fallbackDistance = 180.0,
+  }) {
+    if (count <= 0) return const [];
+    final slice = 2 * pi / count;
+    final minSq = minDistance * minDistance;
+    final spacingSq = spacing * spacing;
+    final aims = List<Offset?>.filled(count, null);
+    final taken = <int>{};
+    bool spaced(Offset at) {
+      for (final aim in aims) {
+        if (aim == null) continue;
+        final d = at - aim;
+        if (d.dx * d.dx + d.dy * d.dy < spacingSq) return false;
+      }
+      return true;
+    }
+
+    int sliceOf(Offset at) {
+      final d = at - centre;
+      final a = (atan2(d.dy, d.dx) - startAngle) % (2 * pi);
+      return min(count - 1, (a / slice).floor());
+    }
+
+    for (var k = 0; k < count; k++) {
+      var best = -1;
+      var bestSq = double.infinity;
+      var near = -1;
+      var nearSq = double.infinity;
+      for (var i = 0; i < bodies.length; i++) {
+        if (taken.contains(i) || sliceOf(bodies[i]) != k) continue;
+        if (!spaced(bodies[i])) continue;
+        final d = bodies[i] - centre;
+        final dSq = d.dx * d.dx + d.dy * d.dy;
+        if (dSq >= minSq && dSq < bestSq) {
+          bestSq = dSq;
+          best = i;
+        }
+        if (dSq < nearSq) {
+          nearSq = dSq;
+          near = i;
+        }
+      }
+      final pick = best >= 0 ? best : near;
+      if (pick < 0) continue;
+      aims[k] = bodies[pick];
+      taken.add(pick);
+    }
+    for (var k = 0; k < count; k++) {
+      if (aims[k] != null) continue;
+      var pick = -1;
+      var pickSq = -1.0;
+      for (var i = 0; i < bodies.length; i++) {
+        if (taken.contains(i)) continue;
+        var nearestSq = double.infinity;
+        for (final aim in aims) {
+          if (aim == null) continue;
+          final d = bodies[i] - aim;
+          nearestSq = min(nearestSq, d.dx * d.dx + d.dy * d.dy);
+        }
+        if (nearestSq > pickSq) {
+          pickSq = nearestSq;
+          pick = i;
+        }
+      }
+      if (pick >= 0 && pickSq >= spacingSq) {
+        aims[k] = bodies[pick];
+        taken.add(pick);
+      } else {
+        final mid = startAngle + (k + 0.5) * slice;
+        aims[k] =
+            centre +
+            Offset(cos(mid), sin(mid)) * max(fallbackDistance, minDistance);
+      }
+    }
+    return [for (final aim in aims) aim!];
+  }
+
+  /// How far past its crater a Let's contact and kill effects reach, as a
+  /// multiple of the crater ([letRimReach]).
+  ///
+  /// The crater kills what it lands on, so an effect that acted only inside
+  /// it — Ice's freeze, Spirit's execute, Lightning's chain, Water's splash,
+  /// the Earth and Crystal sweeps, Blood's drain, Air's shove once the crater
+  /// outgrew it — fell on bodies already dead (2026-10-20 audit). They act
+  /// out to here now: the crater's survivors and the ring just outside it.
+  static const double kLetRimReach = 1.3;
+
+  /// [kLetRimReach] of [meteor]'s crater.
+  static double letRimReach(Projectile meteor) =>
+      letSkyfallBlastRadius(meteor) * kLetRimReach;
+
   /// A follow-up lands this much bigger than the meteor that called it down.
   /// The board says twice as big; at twice, five of them covered the wave
   /// around every kill and Dark measured up to 4.5x the median special.
@@ -715,6 +865,51 @@ class CosmicAbilityRuntime {
   /// How an ejected body is held as it lands, so it walks the long way back.
   static const double ejectSlowMultiplier = 0.4;
   static const double ejectSlowDuration = 1.5;
+
+  /// How fast a Mask Dark hole draws in a body [distance] from it, in px/s,
+  /// for a hole whose suction reaches [radius]: [voidPullRimSpeed] at the
+  /// edge, rising to [voidPullCoreSpeed] at the mouth.
+  ///
+  /// The board: "the hole's suction radius scales with stats". The pull was
+  /// a step of min(16, 340 / distance) a tick, a few px/s across most of the
+  /// radius, so a body walking past at 50-90 px/s never noticed it and the
+  /// radius the stats paid for was dead; only bodies that walked into the
+  /// mouth were thrown out (2026-10-20 audit). The rim speed is a little
+  /// under a horde wisp's walk, so a body crossing the edge is bent in, and
+  /// one inside half the radius cannot walk out.
+  static double voidPullSpeed(double distance, double radius) {
+    final t = radius > 0 ? (1.0 - distance / radius).clamp(0.0, 1.0) : 0.0;
+    return voidPullRimSpeed + (voidPullCoreSpeed - voidPullRimSpeed) * t;
+  }
+
+  static const double voidPullRimSpeed = 70.0;
+  static const double voidPullCoreSpeed = 230.0;
+
+  /// The knockback impulse that carries a body [voidPullSpeed] for one zone
+  /// tick of [tick] seconds as the shove dies away ([knockbackDamping]), so
+  /// the hole pulls smoothly between its ticks instead of teleporting bodies
+  /// a step at a time.
+  static double voidPullImpulse(
+    double distance,
+    double radius, {
+    double tick = 0.35,
+  }) {
+    final carried = (1.0 - exp(-knockbackDamping * tick)) / knockbackDamping;
+    return voidPullSpeed(distance, radius) * tick / carried;
+  }
+
+  /// The shove a Mask Air pad gives the body that touches it, from its
+  /// power (360 authored, × the caster's impact scale).
+  ///
+  /// It went through [knockbackImpulse], whose 520 ceiling a power of 360
+  /// passes forty times over, so every pad shoved the same whatever its
+  /// caster (2026-10-20 audit). This keeps the authored pad at about the old
+  /// 520 and lets a stronger caster's pads throw up to [maskAirImpulseCeiling]
+  /// (about 100 px against 70).
+  static double maskAirImpulse(double power) =>
+      (power * 1.45).clamp(300.0, maskAirImpulseCeiling).toDouble();
+
+  static const double maskAirImpulseCeiling = 760.0;
 }
 
 /// Wing's beam rules — pure arithmetic, one copy for every game.
@@ -747,35 +942,146 @@ abstract final class WingBeamRules {
   static double lineEffectRadius(WingBeamEffect d) => hitRadius(d) * 6;
 
   /// A line beam's hit on one body: Blood's execute below its threshold,
-  /// Lightning's charged multiplier, otherwise the flat tick.
+  /// Lightning's charged multiplier, otherwise the tick — each at [heat] of
+  /// its strength ([heatAt] for the body the beam is held on, [lineShare] for
+  /// one it only crosses). An execute still kills whatever the heat.
   static double tickDamage(
     WingBeamEffect d, {
     required double hp,
     required double hpFraction,
+    double heat = 1.0,
   }) {
+    final tick = d.damagePerTick * heat;
     if (d.executeThreshold > 0 && hpFraction <= d.executeThreshold) {
-      return max(d.damagePerTick, hp + 1);
+      return max(tick, hp + 1);
     }
     if (d.tickEffect == AbilityEffectKind.chargeBlast) {
       return CosmicAbilityRuntime.directDamageForEffect(
         d.tickEffect,
-        power: d.damagePerTick,
+        power: tick,
         targetHp: hp,
         targetHpFraction: hpFraction,
       );
     }
-    return d.damagePerTick;
+    return tick;
   }
+
+  // ── Focus ──
+  // "maybe wings have really low damage but the longer they are in a target
+  // it gets stronger" (the user, 2026-10-20, for every Wing). A line beam
+  // starts cold and heats while it stays on one body: its tick on that body
+  // climbs from [heatFloor] to [heatPeak] of the authored tick over
+  // [heatRampSeconds] of contact, and falls back to the floor the moment the
+  // beam's target changes or dies. A P80 beam held on one body the whole way
+  // (the PvP battle's case) deals 0.84 of the old flat tick over its twelve
+  // ticks; one jumping from body to body in a horde stays cold, and the line
+  // it runs on past its body (see [sweeps]) only chips what it crosses. The
+  // user's sketch was 0.25 to 1.4; against the family probe
+  // (family_balance_survival_test) that left a P20 Wing a point under its
+  // band, so the floor came up a little and the peak down to keep the held
+  // beam at 0.84 (wing_focus_test), 2026-10-20.
+
+  /// The tick on a body the beam has only just reached, as a share of the
+  /// authored tick.
+  static const double heatFloor = 0.3;
+
+  /// The tick on a body held for [heatRampSeconds] or longer.
+  static const double heatPeak = 1.35;
+
+  /// Seconds of contact from [heatFloor] to [heatPeak].
+  static const double heatRampSeconds = 2.0;
+
+  /// What a body takes that the beam only crosses on its way to the one it
+  /// is held on: the unheated tick.
+  static const double lineShare = heatFloor;
+
+  /// The share of the authored tick a body takes after [held] seconds under
+  /// the beam: a straight climb from the floor to the peak.
+  static double heatAt(double held) =>
+      heatFloor +
+      (heatPeak - heatFloor) * (held / heatRampSeconds).clamp(0.0, 1.0);
+
+  /// How hot a beam reads, 0 (just landed) to 1 (white-hot), for the art.
+  static double heatGlow(double heat) =>
+      ((heat - heatFloor) / (heatPeak - heatFloor)).clamp(0.0, 1.0);
+
+  /// Whether [d] heats. Every line beam does; the Fire and Poison rings burn
+  /// round the Wing at their authored strength, and Lightning's charged
+  /// blast is one hit, so neither has anything to hold.
+  static bool heats(WingBeamEffect d) =>
+      d.targetPolicy != WingBeamTargetPolicy.ring && d.chargeTime <= 0;
+
+  /// Whether [d] runs on through the body it aims at to its full range, so
+  /// the line cuts through the crowd behind it. The beams that aim at the
+  /// nearest body do; Blood's ends on the body it has locked, Water's on its
+  /// ally, and the rings have no line.
+  static bool sweeps(WingBeamEffect d) =>
+      d.targetPolicy == WingBeamTargetPolicy.nearestEnemy;
+
+  /// Where a sweeping beam from [origin] aimed at [target] ends: on through
+  /// it to [range]. A target on top of the origin keeps [angle].
+  static Offset sweepEnd(
+    Offset origin,
+    Offset target,
+    double range,
+    double angle,
+  ) {
+    final dx = target.dx - origin.dx;
+    final dy = target.dy - origin.dy;
+    final dist = sqrt(dx * dx + dy * dy);
+    if (dist < 0.5) {
+      return origin + Offset(cos(angle), sin(angle)) * range;
+    }
+    final reach = max(range, dist);
+    return Offset(origin.dx + dx / dist * reach, origin.dy + dy / dist * reach);
+  }
+
+  /// Whether a beam's rider [effect] scales with the hit it rides on: the
+  /// ones that deal damage or heal from it (Lava's burn, Poison's, Blood's
+  /// execute, Light's refraction, Steam's geyser, Crystal's lifesteal). The
+  /// control riders — Air's shove, Dust's disorient, the slows, Spirit's
+  /// haste — land whole on every body the beam touches.
+  static bool riderScales(AbilityEffectKind effect) => switch (effect) {
+    AbilityEffectKind.burn ||
+    AbilityEffectKind.poison ||
+    AbilityEffectKind.zoneDamage ||
+    AbilityEffectKind.geyser ||
+    AbilityEffectKind.execute ||
+    AbilityEffectKind.refraction ||
+    AbilityEffectKind.leech => true,
+    _ => false,
+  };
 
   /// A healing beam's tick heals the ship and the caster by its full heal,
   /// and survival's orb by this share of it.
   static const double orbHealShare = 0.55;
 
+  // ── Water ──
+  /// What one tick of a Water beam mends on the ally or ship it is aimed at,
+  /// as a share of that one's own maximum — the board's "heals % of max HP".
+  /// Beauty buys more. Over an average beam (about 2.4 s of 0.2 s ticks) that
+  /// is roughly a sixth of a health bar for an average Wing. Survival's.
+  static double waterHealShare(double beauty) => scaledAbilityValue(
+    beauty,
+    atLow: 0.010,
+    atAverage: 0.014,
+    atPerfect: 0.022,
+  );
+
   // ── Ice ──
-  /// Frost each tick adds; full (1.0) snaps the body into a freeze.
-  static const double frostPerTick = 0.14;
+  /// Frost each tick adds; full (1.0) snaps the body into a freeze. Six
+  /// ticks held — a little over a second on a bred Wing, about one and a half
+  /// on a plain one — so a beam held on one body freezes it, as the board
+  /// says ("if held on long enough enemies freeze").
+  static const double frostPerTick = 0.17;
   static const double freezeHold = 2.6;
   static const double freezeSlow = 0.05;
+
+  /// How long frost holds after a tick before it starts to thaw. The thaw
+  /// used to run every frame, beam or no beam, and took back more than the
+  /// ticks laid down, so the freeze was out of reach (2026-10-20 audit). Now
+  /// a body only thaws once no beam has touched it for longer than a tick.
+  static double frostGrace(WingBeamEffect d) => d.tickInterval + 0.12;
 
   // ── Lightning ──
   /// The blast is this many ticks' damage in one hit...
@@ -966,6 +1272,156 @@ abstract final class WingBeamRules {
       flower.dx + norm.dx * speed * dt,
       flower.dy + norm.dy * speed * dt,
     );
+  }
+}
+
+/// One Wing beam's heat ([WingBeamRules.heatAt]): the body it is held on and
+/// how long it has been there. Every game's beam keeps one and asks it once a
+/// tick, so survival, open space and the battle heat alike.
+class WingBeamHeat {
+  Object? _on;
+  double _held = 0;
+  double _last = WingBeamRules.heatFloor;
+
+  /// The body the beam is held on, or null.
+  Object? get on => _on;
+
+  /// The heat of the beam's last tick, for the art.
+  double get current => _last;
+
+  /// The heat this tick lands at on [focus], the body the beam is aimed at
+  /// (null for none). A new body, or none, starts over from the floor; the
+  /// same body is held [interval] longer by the next tick.
+  double tick(Object? focus, double interval) {
+    if (focus == null || !identical(focus, _on)) {
+      _on = focus;
+      _held = 0;
+    }
+    _last = WingBeamRules.heatAt(_held);
+    if (focus != null) _held += interval;
+    return _last;
+  }
+}
+
+/// What one contact did to a Pip special dart ([PipRicochet.settle]).
+enum PipDartStep {
+  /// It killed, and carries what the body did not need on to the next one.
+  carry,
+
+  /// The body survived: a bounce is spent and the dart turns to the next.
+  bounce,
+
+  /// The body survived and the dart, out of bounces, passes through it.
+  pierce,
+
+  /// The dart is done.
+  spent,
+}
+
+/// Pip's ricochet, one rule for every mode: survival, open space (and the
+/// battle, which runs on it) and the dungeons.
+///
+/// Pip is the late bloomer (the 2026-10-20 rebuild, user-approved: weak
+/// early, threading crowds late). A special dart that kills keeps the damage
+/// the body did not need and carries it to its next body: the kill spends no
+/// bounce and sheds nothing. A body that survives the hit costs a bounce and
+/// the falloff, as the ricochet always has; a piercing dart out of bounces
+/// passes through [kPipMaxPierceHits] survivors before the next one stops it;
+/// and a boss is always a survivor, so a dart that reaches one bounces on
+/// instead of being spent on it. A dart strikes no body twice.
+///
+/// At Potential 20 a dart barely kills what it hits, so little carries; a
+/// bred one threads a crowd. Every element's own hit and kill effect still
+/// lands on each body the dart touches.
+abstract final class PipRicochet {
+  /// Most bodies one dart may touch: the bound on its cost in a dense horde.
+  static const int maxContacts = 24;
+
+  /// How far from the body it struck a dart looks for the next one.
+  static const double nextReach = 110;
+
+  /// A dart lays its element's kill piece (Fire's pool, Dust's cloud,
+  /// Crystal's beacon) on its first kill and every this many kills after,
+  /// not on every body of a long thread: the pieces share the capped
+  /// projectile list with every other placement in the game.
+  static const int killsPerPiece = 4;
+
+  /// Carried damage below this is nothing left to carry.
+  static const double minCarry = 1.0;
+
+  static bool isSpecialDart(Projectile p) =>
+      p.abilityFamily == 'pip' &&
+      p.visualStyle == ProjectileVisualStyle.dart &&
+      !p.stationary;
+
+  /// The damage a dart keeps through a body that survives it. Lightning is
+  /// the board's "double the ricochet" and sheds less.
+  static double falloff(Projectile p) =>
+      p.element == 'Lightning' ? 0.85 : 0.70;
+
+  /// The share of a killing hit the body did not need: its overkill over
+  /// the damage the hit dealt, from its health before and after.
+  static double carriedShare(double hpBefore, double hpAfter) {
+    if (hpAfter >= 0 || hpBefore <= 0) return 0;
+    final dealt = hpBefore - hpAfter;
+    return dealt > 0 ? (-hpAfter / dealt).clamp(0.0, 1.0) : 0;
+  }
+
+  /// Whether the kill [p] is about to make lays its element's piece.
+  static bool laysPiece(Projectile p) => p.pipKills % killsPerPiece == 0;
+
+  /// Whether the kill [p] is about to make pays its kill effect. Every one
+  /// does but Earth's cooldown refund, which only a dart's first kill pays:
+  /// a dart used to make one kill and stop, and on a twenty-body thread the
+  /// refund on every body had the special ready again as it went off.
+  static bool paysKillEffect(Projectile p) =>
+      p.killEffect != AbilityEffectKind.cooldownRefund ||
+      !isSpecialDart(p) ||
+      p.pipKills == 0;
+
+  /// Settles one contact: [killed] with [carried] of the hit left over
+  /// ([carriedShare]), or a body (a boss always) that survived.
+  static PipDartStep settle(
+    Projectile p, {
+    required bool killed,
+    double carried = 0,
+  }) {
+    p.pipContacts++;
+    final full = p.pipContacts >= maxContacts;
+    if (killed) {
+      p.pipKills++;
+      p.damage *= carried;
+      return full || p.damage < minCarry ? PipDartStep.spent : PipDartStep.carry;
+    }
+    final PipDartStep step;
+    if (p.bounceCount > 0) {
+      p.bounceCount--;
+      step = PipDartStep.bounce;
+    } else if (p.piercing && p.pierceCount < kPipMaxPierceHits) {
+      p.pierceCount++;
+      step = PipDartStep.pierce;
+    } else {
+      return PipDartStep.spent;
+    }
+    if (full) return PipDartStep.spent;
+    p.damage *= falloff(p);
+    // Slight speed bleed so chained shots feel weighty.
+    p.speedMultiplier = max(0.6, p.speedMultiplier * 0.92);
+    return step;
+  }
+
+  /// Sends a dart that lives on after a contact toward [next], or on along
+  /// its heading for its homing to find a body it has not struck when there
+  /// is none. Either way it has [kPipRicochetPostHitLife] to reach it.
+  static void turn(Projectile p, Offset? next) {
+    if (next != null) {
+      p.angle = atan2(next.dy - p.position.dy, next.dx - p.position.dx);
+    }
+    // The homing cache still held the body just struck, so a homing dart
+    // curled back toward it after every bounce.
+    p.cachedHomingTarget = next;
+    p.homingRescanTimer = next == null ? 0 : 0.15;
+    p.life = min(max(p.life, 0.18), kPipRicochetPostHitLife);
   }
 }
 

@@ -228,16 +228,19 @@ extension CosmicMaskRuntime on CosmicGame {
     }
   }
 
-  double get maskShipDamageAmp =>
-      companionProjectiles.any(
-        (p) =>
-            p.life > 0 &&
-            p.abilityFamily == 'mask' &&
-            p.element == 'Ice' &&
-            (ship.pos - p.position).distance <= p.effectRadius,
-      )
-      ? 2.4
-      : 1.0;
+  /// The strongest Mask Ice pillar the ship stands by ([maskIceAmpOf]), or 1.
+  double get maskShipDamageAmp {
+    var amp = 1.0;
+    for (final p in companionProjectiles) {
+      if (p.life > 0 &&
+          p.abilityFamily == 'mask' &&
+          p.element == 'Ice' &&
+          (ship.pos - p.position).distance <= p.effectRadius) {
+        amp = max(amp, maskIceAmpOf(p));
+      }
+    }
+    return amp;
+  }
 
   void _healMaskAllies(double amount, {Projectile? pool}) {
     bool near(Offset position) =>
@@ -507,13 +510,16 @@ extension CosmicMaskRuntime on CosmicGame {
         if ((comp.position - p.position).distance > radius) continue;
         if (comp.damageAmpTimer <= 0) comp.damageAmpMultiplier = 1;
         comp.damageAmpTimer = max(comp.damageAmpTimer, 0.5);
-        comp.damageAmpMultiplier = max(comp.damageAmpMultiplier, 2.4);
+        comp.damageAmpMultiplier = max(
+          comp.damageAmpMultiplier,
+          maskIceAmpOf(p),
+        );
       }
       for (final g in _garrison) {
         if (g.hp <= 0 || (g.position - p.position).distance > radius) continue;
         if (g.damageAmpTimer <= 0) g.damageAmpMultiplier = 1;
         g.damageAmpTimer = max(g.damageAmpTimer, 0.5);
-        g.damageAmpMultiplier = max(g.damageAmpMultiplier, 2.4);
+        g.damageAmpMultiplier = max(g.damageAmpMultiplier, maskIceAmpOf(p));
       }
       return true;
     }
@@ -571,7 +577,10 @@ extension CosmicMaskRuntime on CosmicGame {
               element: p.element,
               sourceSlot: p.sourceSlotIndex,
             );
-            enemy.knockbackVelocity += CosmicAbilityRuntime.geyserKnockback;
+            enemy.knockbackVelocity += CosmicAbilityRuntime.geyserKnockbackFrom(
+              p.position,
+              enemy.position,
+            );
           default:
             _damageOpenEnemy(
               enemy,

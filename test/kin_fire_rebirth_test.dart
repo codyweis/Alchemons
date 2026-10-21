@@ -77,22 +77,23 @@ void main() {
     final comp = game.activeCompanions[0]!;
     _killOrb(game);
 
-    // The buff is permanent, so the windows the rest of the game buffs
-    // through are simply held open.
+    // The buff is permanent. It is the kin's own, read alongside the shared
+    // windows rather than written into them, so it cannot hold another
+    // source's buff open (test/survival_family_audit_fixes_2_test.dart).
     expect(comp.kinFireRebirthDamageAmp, greaterThan(1.0));
     expect(comp.kinFireRebirthHaste, lessThan(1.0));
-    expect(comp.damageAmpTimer, greaterThan(0));
-    expect(comp.basicHasteTimer, greaterThan(0));
+    expect(comp.damageAmp, closeTo(comp.kinFireRebirthDamageAmp, 1e-9));
+    expect(comp.basicHaste, closeTo(comp.kinFireRebirthHaste, 1e-9));
 
     for (var i = 0; i < 120; i++) {
       game.update(1 / 60);
     }
     expect(
-      comp.damageAmpTimer,
-      greaterThan(0),
+      comp.damageAmp,
+      closeTo(comp.kinFireRebirthDamageAmp, 1e-9),
       reason: 'the rebirth buff must not expire',
     );
-    expect(comp.basicHasteMultiplier, lessThan(1.0));
+    expect(comp.basicHaste, lessThan(1.0));
   });
 
   test('Beauty decides how wide the reborn flame burns', () async {

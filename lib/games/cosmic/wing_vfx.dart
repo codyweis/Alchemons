@@ -107,7 +107,17 @@ final VfxMaterial _wingLightning = () {
   );
 }();
 
+const ui.Color _white = ui.Color(0xFFFFFFFF);
+
 /// One Wing beam from [start] to [end], [width] being the gameplay width.
+///
+/// [heat] is a focus beam's (`WingBeamRules.heatGlow`): 0 just landed, 1
+/// held long enough to be at its hottest. A cold beam is pale — dimmer
+/// light, a thin core; a hot one is white-hot — brighter light, a thick
+/// whitening core and a crowd of hot grains running down it to [focus], the
+/// body it is held on, where its light pools. Null draws the beam as it has
+/// always been (dungeons, previews, beams that do not heat). The colours that
+/// key cached gradients stay fixed per element, so heat costs no new shader.
 void drawWingBeam({
   required ui.Canvas canvas,
   required ui.Offset start,
@@ -116,6 +126,8 @@ void drawWingBeam({
   required double width,
   required double alpha,
   required double time,
+  double? heat,
+  ui.Offset? focus,
 }) {
   final len = (end - start).distance;
   if (len < 0.5 || alpha <= 0) return;
@@ -129,11 +141,37 @@ void drawWingBeam({
   // the glowing elements so they don't go to pale wires, less for the rest.
   // (It was 70% raw Material accent colour: every beam went neon.)
   final tint = wingBeamTint(element);
+  final g = heat?.clamp(0.0, 1.0);
+  // How brightly it is lit and how thick its core runs, against the beam
+  // with no heat (1, 1): pale 0.62 and 0.65 just landed, 1.22 and 1.6 at
+  // its hottest.
+  final lit = g == null ? 1.0 : 0.62 + 0.6 * g;
+  final coreScale = g == null ? 1.0 : 0.65 + 0.95 * g;
+  // A held beam's heat pools on the body it is on. A sweep runs on past
+  // that body, so its far end is only where the light runs out.
+  final f = focus;
+  final pooled =
+      g != null && f != null && (f - end).distanceSquared > w * w * 4;
 
   // Light where it lands and where it leaves — drawn in world space so the
   // pools stay round whatever the angle.
-  vfxSpill(canvas, end, w * 3.0, isDark ? m.light : tint, 0.4 * a * flicker);
+  vfxSpill(
+    canvas,
+    end,
+    w * 3.0,
+    isDark ? m.light : tint,
+    (pooled ? 0.18 : 0.4 * lit) * a * flicker,
+  );
   vfxSpill(canvas, start, w * 2.2, isDark ? m.light : tint, 0.45 * a);
+  if (g != null && g > 0.02 && f != null) {
+    vfxSpill(
+      canvas,
+      f,
+      w * (1.5 + 2.5 * g),
+      isDark ? m.light : ui.Color.lerp(tint, _white, 0.55)!,
+      (0.15 + 0.55 * g) * a * flicker,
+    );
+  }
 
   canvas.save();
   canvas.translate(start.dx, start.dy);
@@ -147,7 +185,7 @@ void drawWingBeam({
     glowH / 2,
     isDark ? m.light : tint,
     isDark ? m.light : tint,
-    (isDark ? 0.5 : 0.36) * a,
+    (isDark ? 0.5 : 0.36) * a * lit,
     plateau: 0.15,
   );
   final bodyH = w * 1.1;
@@ -166,7 +204,12 @@ void drawWingBeam({
   );
   if (isDark) {
     // A genuinely black interior with light only at its rim.
-    vfxFillPath(canvas, vfxLens(len, w * 0.72, w * 1.4, w), m.ink, 0.97 * a);
+    vfxFillPath(
+      canvas,
+      vfxLens(len, w * 0.72 * coreScale, w * 1.4, w),
+      m.ink,
+      0.97 * a,
+    );
   } else {
     vfxFillPath(
       canvas,
@@ -174,17 +217,36 @@ void drawWingBeam({
         len,
         max(
           1.4,
-          w * (dense && element != 'Earth' && element != 'Mud' ? 0.24 : 0.34),
+          w *
+              (dense && element != 'Earth' && element != 'Mud' ? 0.24 : 0.34) *
+              coreScale,
         ),
         w * 1.2,
         w * 0.8,
       ),
-      m.glint,
-      0.92 * a * flicker,
+      g == null ? m.glint : ui.Color.lerp(m.glint, _white, 0.75 * g)!,
+      min(1.0, 0.92 * lit) * a * flicker,
     );
   }
 
   _drawMaterial(canvas, element, m, len, w, time, a);
+  if (g != null && g > 0.05) {
+    // Hot grains crowding down the core to the body the beam is held on:
+    // more of them, brighter and a little bigger the hotter it runs.
+    final reach = f == null ? len : min(len, (f - start).distance);
+    final n = (g * 9).round();
+    final grain = isDark ? m.glint : ui.Color.lerp(m.glint, _white, 0.6 * g)!;
+    for (var i = 0; i < n; i++) {
+      final t = (time * (1.4 + 0.3 * vfxHash(i * 2.9)) + i / n) % 1.0;
+      _dot(
+        canvas,
+        ui.Offset(reach * t, (vfxHash(i * 4.3) - 0.5) * w * 0.5),
+        w * (0.14 + 0.1 * vfxHash(i * 1.9)) * (0.8 + 0.5 * g),
+        grain,
+        (0.45 + 0.5 * g) * sin(t * pi).abs() * a,
+      );
+    }
+  }
   canvas.restore();
 
   // Where it leaves the wing: a small hot bead of the material's light.
@@ -888,6 +950,10 @@ final ui.Color _healCoreTint = kWingHealCoreColor.withValues(alpha: 0.85);
 /// The particles a live beam sheds this frame, so it reads as a living
 /// stream rather than a flat line. The caller checks its pool against
 /// [kWingBeamParticleBudget] first.
+///
+/// [end] is where the beam is held (a sweep's focus, not its tip); [heat] a
+/// focus beam's glow (`WingBeamRules.heatGlow`), which throws more sparks
+/// there as it heats.
 void emitWingBeamParticles({
   required WingBeamEffect descriptor,
   required ui.Offset origin,
@@ -896,6 +962,7 @@ void emitWingBeamParticles({
   required double beamLife,
   required Random rng,
   required WingParticleEmit emit,
+  double heat = 0,
 }) {
   final element = descriptor.element;
   final base = elementColor(element);
@@ -941,8 +1008,9 @@ void emitWingBeamParticles({
   if (dist < 1) return;
   final unit = ui.Offset(dir.dx / dist, dir.dy / dist);
   final perp = ui.Offset(-unit.dy, unit.dx);
-  // Sparks bursting from the hit point.
-  for (var i = 0; i < 2; i++) {
+  // Sparks bursting from the hit point, more of them as the beam heats.
+  final sparks = 2 + (heat.clamp(0.0, 1.0) * 2).round();
+  for (var i = 0; i < sparks; i++) {
     final a = rng.nextDouble() * 2 * pi;
     final spd = 30 + rng.nextDouble() * 50;
     emit(

@@ -28,7 +28,6 @@ extension CosmicMane on CosmicGame {
             max(0.5, member.statBeauty.toDouble()),
             potential: member.statBeautyPotential,
           ),
-          growth: currentStack,
           casterPos: origin,
           casterAngle: angle,
           template: template,

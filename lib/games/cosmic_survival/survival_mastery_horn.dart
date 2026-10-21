@@ -168,6 +168,10 @@ class HornMasteryState {
   /// once rather than on every subsequent hit.
   double lastStandCooldownTimer = 0;
 
+  /// Bodyguard's share of the orb's hits below one hit point, carried to the
+  /// next hit so chaff chipping the orb is not rounded away.
+  double bodyguardCarry = 0;
+
   /// Arms the second run. Ignored if one is already pending or if the cast
   /// that just finished *was* the second run.
   bool armSecondRun() {

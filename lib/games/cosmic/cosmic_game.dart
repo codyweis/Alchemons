@@ -1695,7 +1695,7 @@ class CosmicGame extends FlameGame with PanDetector {
       );
 
   double _openGarrisonDamageAmp(_GarrisonCreature g) => g.damageAmpTimer > 0
-      ? g.damageAmpMultiplier.clamp(1.0, 4.0).toDouble()
+      ? g.damageAmpMultiplier.clamp(1.0, kCompanionDamageAmpCeiling).toDouble()
       : 1.0;
 
   void _tickOpenCompanionIdentity(CosmicCompanion comp, double dt) {
@@ -1811,9 +1811,10 @@ class CosmicGame extends FlameGame with PanDetector {
     // placements come from the special's kills; Dark is the passive that
     // fires on AUTO-attack kills — a basic carries no ability family. (It
     // read "every other kill", so a hole's own execute opened the next.)
+    // A dart threading a crowd lays its piece on its first kill and every
+    // few after ([PipRicochet.killsPerPiece]), as in survival.
     final fromPipSpecial =
-        source.abilityFamily == 'pip' &&
-        source.visualStyle == ProjectileVisualStyle.dart;
+        PipRicochet.isSpecialDart(source) && PipRicochet.laysPiece(source);
     final allowedBySource = switch (member.element) {
       'Dark' => source.abilityFamily.isEmpty,
       'Fire' || 'Dust' || 'Crystal' => fromPipSpecial,
@@ -1952,11 +1953,13 @@ class CosmicGame extends FlameGame with PanDetector {
         }
       }
       // The ricochet's final hit only: a basic never bounces, so it used to
-      // erupt on every basic kill too (survival's note).
+      // erupt on every basic kill too (survival's note). Once a dart, since a
+      // kill no longer ends one.
       if (member.element == 'Water' &&
-          source.abilityFamily == 'pip' &&
-          source.visualStyle == ProjectileVisualStyle.dart &&
-          source.bounceCount <= 0) {
+          PipRicochet.isSpecialDart(source) &&
+          source.bounceCount <= 0 &&
+          !source.pipSplashed) {
+        source.pipSplashed = true;
         for (final target in enemies) {
           if (target.dead || identical(target, enemy)) continue;
           if ((target.position - enemy.position).distance <= 160) {
@@ -2178,26 +2181,36 @@ class CosmicGame extends FlameGame with PanDetector {
     int? sourceSlot,
   }) {
     if (enemy.dead) return false;
-    // An Alchemon standing in as a body is never killed by an ability; the
-    // instant kill is booked as a heavy hit (cosmic_game_duel.dart).
-    if (damage >= enemy.health && _bookExecute(enemy)) return false;
+    final standIn = _combatBodies[enemy];
+    if (standIn != null && standIn.carriesHealth) {
+      // A battle's body: it can fall, but no one hit takes more than an
+      // instant kill would (cosmic_game_duel.dart).
+      damage = min(damage, enemy.maxHealth * _kExecuteShare);
+    } else if (damage >= enemy.health && _bookExecute(enemy)) {
+      // The wild duel's body is never killed by an ability; the instant
+      // kill is booked as a heavy hit.
+      return false;
+    }
     final wasAlive = enemy.health > 0;
     enemy.health -= damage;
     final killed = wasAlive && enemy.health <= 0;
     if (killed) {
       enemy.dead = true;
-      _spawnKillVfx(
-        enemy.position,
-        elementColor(element ?? enemy.element),
-        enemy.radius,
-        false,
-      );
-      _spawnLootDrops(
-        enemy.position,
-        enemy.element,
-        enemy.shardDrop,
-        enemy.particleDrop,
-      );
+      // A battle body's fall is the battle's to show, and drops nothing.
+      if (standIn == null) {
+        _spawnKillVfx(
+          enemy.position,
+          elementColor(element ?? enemy.element),
+          enemy.radius,
+          false,
+        );
+        _spawnLootDrops(
+          enemy.position,
+          enemy.element,
+          enemy.shardDrop,
+          enemy.particleDrop,
+        );
+      }
       if (sourceSlot != null) _onOpenKill(sourceSlot, enemy);
     }
     return killed;

@@ -111,7 +111,8 @@ List<CosmicAbilityDescriptionLine> _specialScalingLines(String family) {
     CosmicAbilityDescriptionLine(
       label: 'Recharge',
       body: switch (f) {
-        'mystic' => '$recharge. A stronger SPECIAL brings it down toward 60s.',
+        'mystic' => 'Its world comes a minute after it is deployed, whatever '
+            'its stats.',
         _ => '$recharge. A stronger SPECIAL also comes back sooner.',
       },
     ),
@@ -942,7 +943,7 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Earth' =>
           'Creates earth pools that heal the ship and alchemons standing inside.',
         'Light' =>
-          'Plants a light void that holds for a while, longer with Intelligence. The first enemy to touch it is instantly killed.',
+          'Lays light voids across the approach, more with Beauty, that hold for a while, longer with Intelligence. Each instantly kills the first enemy to touch it, then is spent.',
         'Spirit' =>
           'Scatters spirit wisps for the ship to collect. Collecting about one and a half casts\' worth wipes all non-boss enemies on the field.',
         'Crystal' =>
@@ -1022,11 +1023,11 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         ),
         'Lava' => (
           'The Fissures • Strength scales the break',
-          'Glowing cracks split the arena. When something as heavy as a BOSS '
-              'steps over one it breaks further, and untargeted meteors rain '
-              'across that ground. Holds while this Mystic is alive and '
-              'deployed.',
-          ['WORLD', 'TERRAIN', 'ANTI-BOSS'],
+          'Glowing cracks split the arena. When something heavy — a brute, a '
+              'colossus, an elite or a boss — steps over one it breaks '
+              'further, and untargeted meteors rain across that ground. Holds '
+              'while this Mystic is alive and deployed.',
+          ['WORLD', 'TERRAIN', 'ANTI-HEAVY'],
         ),
         'Lightning' => (
           'The Storm • Intelligence scales the bolt',
@@ -1076,15 +1077,17 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
         'Dust' => (
           'The Haze • Intelligence scales the grit',
           'The air fills with grit. Enemy shooters choke on it — their rounds '
-              'go off in their own faces instead of leaving the barrel. Holds '
-              'while this Mystic is alive and deployed.',
-          ['WORLD', 'MISFIRE', 'SELF-HARM'],
+              'go off in their own faces instead of leaving the barrel — and '
+              'enemies walking in lose their way and wander off course for a '
+              'moment. Holds while this Mystic is alive and deployed.',
+          ['WORLD', 'MISFIRE', 'CONFUSE'],
         ),
         'Crystal' => (
           'The Vein • Beauty scales the yield',
           'The dead crystallise. Enemies may leave shards behind; the ship '
-              'draws them in, and each one feeds the alchemical meter. Holds '
-              'while this Mystic is alive and deployed.',
+              'draws them in, and each one feeds the alchemical meter and '
+              'shatters, cutting the enemies round the ship. Holds while this '
+              'Mystic is alive and deployed.',
           ['WORLD', 'PICKUP', 'SURGE'],
         ),
         'Air' => (

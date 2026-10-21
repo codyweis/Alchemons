@@ -1945,25 +1945,40 @@ void emitHornSpiritSwarm(
 
 /// Air: two wisps blown from the still middle out to the rim, tracing the
 /// push. The caller keeps the [HornRules.airParticleInterval] cadence and
-/// gates on its pool (130).
+/// gates on its pool (130). With [awayFrom] (survival's orb, which the push
+/// runs away from) each wisp travels the way the bodies there are pushed.
 void emitHornAirWind(
   ui.Offset center,
   double inner,
   double outer,
   Random rng,
-  ZoneVfxEmit emit,
-) {
+  ZoneVfxEmit emit, {
+  ui.Offset? awayFrom,
+}) {
   const travelSpeed = 140.0;
   final travelLife = (outer - inner) / travelSpeed;
   final airColor = elementColor('Air');
   for (var i = 0; i < 2; i++) {
     final a = rng.nextDouble() * 2 * pi;
     final startR = inner + rng.nextDouble() * 6.0;
+    final x = center.dx + cos(a) * startR;
+    final y = center.dy + sin(a) * startR;
+    var vx = cos(a);
+    var vy = sin(a);
+    if (awayFrom != null) {
+      final ox = x - awayFrom.dx;
+      final oy = y - awayFrom.dy;
+      final d = sqrt(ox * ox + oy * oy);
+      if (d > 0.01) {
+        vx = ox / d;
+        vy = oy / d;
+      }
+    }
     emit(
-      center.dx + cos(a) * startR,
-      center.dy + sin(a) * startR,
-      cos(a) * travelSpeed,
-      sin(a) * travelSpeed,
+      x,
+      y,
+      vx * travelSpeed,
+      vy * travelSpeed,
       1.3 + rng.nextDouble() * 0.8,
       travelLife,
       airColor.withValues(alpha: 0.55),

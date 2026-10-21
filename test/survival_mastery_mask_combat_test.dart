@@ -4,6 +4,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mask.dart';
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:flame/components.dart';
@@ -175,6 +176,41 @@ void main() {
         );
       }
     });
+  });
+
+  test('an infection that kills a splitter does not trip over its shards', () async {
+    // The infection walks the enemy list and damages as it goes; a splitter
+    // it kills adds shards to that list mid-walk (2026-10-20: a real run
+    // threw "concurrent modification during iteration" here).
+    final game = await arena(
+      snapshot: equip(MaskNodes.contagionPath, throughTier: 4),
+    );
+    final at = game.enemies.firstWhere((e) => !e.isDead).position;
+    final splitters = [
+      for (var i = 0; i < 6; i++)
+        CosmicSurvivalEnemy(
+          position: at + Offset(i * 4.0, 0),
+          hp: 1,
+          maxHp: 1,
+          speed: 0,
+          damage: 0,
+          radius: 11,
+          tier: EnemyTier.drone,
+          element: 'Ice',
+          target: CosmicEnemyTarget.orb,
+          conduct: EnemyConduct.stalk,
+          trait: EnemyTrait.splitter,
+        ),
+    ];
+    game.enemies.addAll(splitters);
+    expect(game.enemies.length, lessThan(220));
+    for (final e in splitters) {
+      game.debugInfect(0, e);
+    }
+    for (var i = 0; i < 120; i++) {
+      game.update(1 / 60);
+    }
+    expect(splitters.every((e) => e.isDead), isTrue);
   });
 
   group('the chain that cost 2.2 seconds cannot come back', () {

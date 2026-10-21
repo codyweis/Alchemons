@@ -54,6 +54,10 @@ class _WingCaster {
   bool identifies(Object who) =>
       identical(who, companion) || identical(who, garrison);
 
+  /// Whether [other] was cast by the same creature, however many casts apart.
+  bool sameAs(_WingCaster other) =>
+      identical(other.companion ?? other.garrison, companion ?? garrison);
+
   int get killStacks =>
       companion?.abilityKillStacks ?? garrison!.abilityKillStacks;
 
@@ -98,11 +102,15 @@ class _ActiveWingBeam {
     required this.origin,
     required this.angle,
     this.anchor = _WingAnchor.caster,
+    this.refractedFrom,
+    this.huntTarget,
   }) : life = anchor == _WingAnchor.caster
            ? descriptor.duration
            : WingBeamRules.coBeamLife(descriptor),
        tickTimer = descriptor.tickInterval,
-       chargeTimer = descriptor.chargeTime;
+       chargeTimer = descriptor.chargeTime,
+       // A refraction never refracts again.
+       refractionsDone = refractedFrom != null ? 1 : 0;
 
   final WingBeamEffect descriptor;
   final _WingCaster caster;
@@ -112,7 +120,7 @@ class _ActiveWingBeam {
   double life;
   double tickTimer;
   double chargeTimer;
-  int refractionsDone = 0;
+  int refractionsDone;
 
   /// Steam executes the first body it touches, once.
   bool steamKillUsed = false;
@@ -121,7 +129,31 @@ class _ActiveWingBeam {
   /// it from (null until it has fired). Visual only.
   Offset? drawEnd;
 
+  /// Light: the beam this one refracted out of, or null for a beam the Wing
+  /// cast. A refraction hunts a body of its own ([huntTarget]) rather than
+  /// the nearest one, which is the body its parent is already on.
+  final _ActiveWingBeam? refractedFrom;
+  CosmicEnemy? huntTarget;
+
+  /// The body this beam aimed at on its last update.
+  CosmicEnemy? aimedAt;
+
+  /// Water: the ally (or the ship) its beam was on at its last update.
+  Object? aimedAlly;
+
+  /// Where the body (or boss) it is aimed at stood on its last update, for
+  /// the art: a sweeping beam runs on past it, and its heat pools there.
+  Offset? focusAt;
+
+  /// Focus: how long the beam has been held on [aimedAt], and so how hot its
+  /// tick there is (WingBeamRules.heatAt). Survival's rule.
+  final WingBeamHeat heat = WingBeamHeat();
+
   bool get dead => life <= 0;
+  bool get isRefraction => refractedFrom != null;
+
+  /// Earth's and Spirit's second beams, fired from the ship.
+  bool get isCoBeam => anchor != _WingAnchor.caster;
 }
 
 /// A flower a Wing+Plant beam kill leaves, waiting for the ship.
@@ -151,6 +183,10 @@ typedef WingBeamView = ({
   double damagePerTick,
   double width,
   CosmicCompanion? caster,
+  Offset? end,
+  Object? heldOn,
+  Offset? focus,
+  double heat,
 });
 
 extension CosmicWing on CosmicGame {
@@ -169,14 +205,13 @@ extension CosmicWing on CosmicGame {
       SoundCue.forWingBeam(beams.first.element, beams.first.duration),
     );
     for (final d in beams) {
-      _addWingBeam(
-        _ActiveWingBeam(
-          descriptor: d,
-          caster: caster,
-          origin: caster.position,
-          angle: angle,
-        ),
+      final own = _ActiveWingBeam(
+        descriptor: d,
+        caster: caster,
+        origin: caster.position,
+        angle: angle,
       );
+      if (!_addWingBeam(own)) continue;
       if (d.element == 'Earth') {
         _addWingBeam(
           _ActiveWingBeam(
@@ -186,6 +221,7 @@ extension CosmicWing on CosmicGame {
             angle: angle,
             anchor: _WingAnchor.core,
           ),
+          keep: own,
         );
       }
       if (d.element == 'Spirit' && !_shipDead) {
@@ -197,16 +233,37 @@ extension CosmicWing on CosmicGame {
             angle: angle,
             anchor: _WingAnchor.ship,
           ),
+          keep: own,
         );
       }
     }
   }
 
-  void _addWingBeam(_ActiveWingBeam beam) {
+  /// Survival's `_addWingBeam`: adds [beam] under the cap, making room by
+  /// giving up its caster's own oldest beam, never another Wing's, never a
+  /// co-fired one and never [keep], the beam this one belongs with. The cap
+  /// used to drop whatever was first in the list, so a Light Wing splitting
+  /// on its kills pushed every other Wing's beam off the field (2026-10-20
+  /// audit). When the caster has nothing of its own to give up, the new beam
+  /// is the one that does not fire.
+  bool _addWingBeam(_ActiveWingBeam beam, {_ActiveWingBeam? keep}) {
     if (_activeWingBeams.length >= WingBeamRules.beamCap) {
-      _activeWingBeams.removeAt(0);
+      var evict = -1;
+      for (var i = 0; i < _activeWingBeams.length; i++) {
+        final b = _activeWingBeams[i];
+        if (!b.caster.sameAs(beam.caster) ||
+            b.isCoBeam ||
+            identical(b, keep)) {
+          continue;
+        }
+        evict = i;
+        break;
+      }
+      if (evict < 0) return false;
+      _activeWingBeams.removeAt(evict);
     }
     _activeWingBeams.add(beam);
+    return true;
   }
 
   /// The caster is still in the fight: a companion still out and standing,
@@ -284,8 +341,9 @@ extension CosmicWing on CosmicGame {
           }
       }
       // Face the current target, so a charge and the line both track it.
+      Offset? endNow;
       if (d.targetPolicy != WingBeamTargetPolicy.ring) {
-        final endNow = _wingBeamEndpoint(beam);
+        endNow = _wingBeamEndpoint(beam);
         final dir = endNow - beam.origin;
         if (dir.distanceSquared > 0.5) beam.angle = atan2(dir.dy, dir.dx);
       }
@@ -314,19 +372,21 @@ extension CosmicWing on CosmicGame {
         continue;
       }
 
-      final end = _wingBeamEndpoint(beam);
+      final end = endNow ?? _wingBeamEndpoint(beam);
       // The render pass paints the beam once a frame from here (see
       // _renderOpenWingBeams), as survival does; nothing goes into _beamFx.
+      // Its sparks burst where it is held, not where a sweep runs out.
       beam.drawEnd = end;
       if (_abilityVfx.length < kWingBeamParticleBudget) {
         emitWingBeamParticles(
           descriptor: d,
           origin: beam.origin,
-          end: end,
+          end: beam.focusAt ?? end,
           tetherTo: ship.pos,
           beamLife: beam.life,
           rng: _rng,
           emit: _abilityVfx.add,
+          heat: WingBeamRules.heatGlow(beam.heat.current),
         );
       }
 
@@ -337,7 +397,7 @@ extension CosmicWing on CosmicGame {
     }
     if (_pendingWingBeams.isNotEmpty) {
       for (final beam in _pendingWingBeams) {
-        _addWingBeam(beam);
+        _addWingBeam(beam, keep: beam.refractedFrom);
       }
       _pendingWingBeams.clear();
     }
@@ -346,13 +406,16 @@ extension CosmicWing on CosmicGame {
 
   /// Where a beam lands this frame. Water finds the most hurt ally (the ship
   /// first), never an enemy; Blood the most hurt enemy; the rest the
-  /// nearest; then a boss in range; else straight on at full range.
+  /// nearest; then a boss in range; else straight on at full range. A beam
+  /// aimed at the nearest body runs on through it to full range (survival's
+  /// sweep).
   Offset _wingBeamEndpoint(_ActiveWingBeam beam) {
     final d = beam.descriptor;
     final fallback =
         beam.origin + Offset(cos(beam.angle), sin(beam.angle)) * d.range;
     if (d.targetPolicy == WingBeamTargetPolicy.lowestHealthAllyOrShip) {
       Offset? bestPos;
+      Object? best;
       var bestFraction = double.infinity;
       if (!_shipDead && CosmicGame.shipMaxHealth > 0) {
         if ((ship.pos - beam.origin).distance <= d.range) {
@@ -360,6 +423,7 @@ extension CosmicWing on CosmicGame {
           if (f < bestFraction) {
             bestFraction = f;
             bestPos = ship.pos;
+            best = ship;
           }
         }
       }
@@ -371,12 +435,16 @@ extension CosmicWing on CosmicGame {
         if (f < bestFraction) {
           bestFraction = f;
           bestPos = c.position;
+          best = c;
         }
       }
+      beam.aimedAlly = best;
       return bestPos ?? fallback;
     }
     CosmicEnemy? target;
-    if (d.targetPolicy == WingBeamTargetPolicy.lowestHealthEnemy) {
+    if (beam.isRefraction) {
+      target = _wingRefractionTarget(beam);
+    } else if (d.targetPolicy == WingBeamTargetPolicy.lowestHealthEnemy) {
       for (final enemy in enemies) {
         if (enemy.dead) continue;
         if ((enemy.position - beam.origin).distance > d.range) continue;
@@ -388,14 +456,21 @@ extension CosmicWing on CosmicGame {
     } else {
       target = _nearestOpenEnemy(beam.origin, d.range);
     }
-    if (target != null) return target.position;
+    beam.aimedAt = target;
+    var aim = target?.position;
     final boss = activeBoss;
-    if (boss != null &&
+    if (aim == null &&
+        boss != null &&
         !boss.dead &&
         (boss.position - beam.origin).distance <= d.range) {
-      return boss.position;
+      aim = boss.position;
     }
-    return fallback;
+    beam.focusAt = aim;
+    if (aim == null) return fallback;
+    if (WingBeamRules.sweeps(d) || beam.anchor == _WingAnchor.ship) {
+      return WingBeamRules.sweepEnd(beam.origin, aim, d.range, beam.angle);
+    }
+    return aim;
   }
 
   /// A zone a beam leaves, under survival's ceiling on companion projectiles.
@@ -408,12 +483,27 @@ extension CosmicWing on CosmicGame {
   void _resolveWingBeamTick(_ActiveWingBeam beam, Offset end) {
     final d = beam.descriptor;
     final caster = beam.caster;
-    // Lava carves a glowing scar at its tip every tick.
+    // Focus, survival's rule: the body the beam is held on takes the beam's
+    // heat, every other body on the line the unheated tick. The rings and
+    // Lightning's blast have no heat. Water heats on the ally it is held on,
+    // and every body it crosses takes that heat.
+    final heats = WingBeamRules.heats(d);
+    final onAlly = d.targetPolicy == WingBeamTargetPolicy.lowestHealthAllyOrShip;
+    final focus = heats && !onAlly ? beam.aimedAt : null;
+    final heat = heats
+        ? beam.heat.tick(onAlly ? beam.aimedAlly : focus, d.tickInterval)
+        : 1.0;
+    final lineShare = !heats
+        ? 1.0
+        : onAlly
+        ? heat
+        : WingBeamRules.lineShare;
+    // Lava carves a glowing scar where it is held every tick.
     if (d.element == 'Lava') {
       _appendWingZone(
         WingBeamRules.lavaScar(
           d,
-          end,
+          beam.focusAt ?? end,
           beauty: caster.beauty,
           intelligence: caster.intelligence,
           sourceSlotIndex: caster.member.slotIndex,
@@ -421,12 +511,20 @@ extension CosmicWing on CosmicGame {
       );
     }
     if (d.healPerTick > 0) {
+      // Water's heal is its own; Crystal's and Light's are the beam's damage
+      // coming back, at its heat.
+      final heal = d.targetPolicy == WingBeamTargetPolicy.lowestHealthAllyOrShip
+          ? d.healPerTick
+          : d.healPerTick * heat;
       if (!_shipDead) {
-        shipHealth = min(CosmicGame.shipMaxHealth, shipHealth + d.healPerTick);
+        shipHealth = min(CosmicGame.shipMaxHealth, shipHealth + heal);
       }
       // Survival's orb share (WingBeamRules.orbHealShare) has no open-space
-      // objective beyond the ship, which has just taken the full heal.
-      if (_wingCasterLive(caster)) caster.heal(d.healPerTick.round());
+      // objective beyond the ship, which has just taken the full heal. A
+      // battle has no orb either: the caster keeps only a share.
+      if (_wingCasterLive(caster)) {
+        caster.heal((heal * _wingBeamSelfHealShare).round());
+      }
     }
 
     if (d.targetPolicy == WingBeamTargetPolicy.ring && d.radius > 0) {
@@ -452,6 +550,7 @@ extension CosmicWing on CosmicGame {
       }
     } else {
       final radius = WingBeamRules.hitRadius(d);
+      final riderScales = WingBeamRules.riderScales(d.tickEffect);
       for (final enemy in enemies) {
         if (enemy.dead) continue;
         if (_distanceToSegment(enemy.position, beam.origin, end) >
@@ -459,8 +558,10 @@ extension CosmicWing on CosmicGame {
           continue;
         }
         // Steam executes the first body it touches and erupts a field of
-        // clouds where it stood.
-        if (d.element == 'Steam' && !beam.steamKillUsed) {
+        // clouds where it stood: the one it is held on, the line running on.
+        if (d.element == 'Steam' &&
+            !beam.steamKillUsed &&
+            (focus == null || identical(enemy, focus))) {
           beam.steamKillUsed = true;
           final killPos = enemy.position;
           _damageOpenEnemy(
@@ -482,6 +583,7 @@ extension CosmicWing on CosmicGame {
           continue;
         }
         final wasDead = enemy.dead;
+        final share = identical(enemy, focus) ? heat : lineShare;
         // The flowers it has collected grow a Plant wing's beam — while the
         // wing is still out, as survival reads it off the live companion.
         final plantBonus =
@@ -496,6 +598,7 @@ extension CosmicWing on CosmicGame {
                 d,
                 hp: enemy.health,
                 hpFraction: enemy.health / enemy.maxHealth,
+                heat: share,
               ) *
               plantBonus,
           element: d.element,
@@ -506,12 +609,14 @@ extension CosmicWing on CosmicGame {
           d.tickEffect,
           enemy,
           beam.origin,
-          d.effectPower,
+          riderScales ? d.effectPower * share : d.effectPower,
           WingBeamRules.lineEffectRadius(d),
           d.effectDuration,
         );
-        // Ice ramps a frost that snaps into a hard freeze once full.
+        // Ice ramps a frost that snaps into a hard freeze once full. It
+        // holds while the beam is on the body and thaws once it moves off.
         if (d.element == 'Ice' && !enemy.dead) {
+          enemy.frostGrace = WingBeamRules.frostGrace(d);
           enemy.frostBuildup = min(
             1.0,
             enemy.frostBuildup + WingBeamRules.frostPerTick,
@@ -525,7 +630,7 @@ extension CosmicWing on CosmicGame {
         }
         // A Light kill refracts the beam into smaller hunting beams.
         if (!wasDead && enemy.dead && d.element == 'Light') {
-          _spawnWingLightSplit(beam);
+          _spawnWingLightSplit(beam, enemy.position);
         }
         // A Plant kill leaves a flower for the ship to collect.
         if (!wasDead && enemy.dead && d.element == 'Plant') {
@@ -534,6 +639,8 @@ extension CosmicWing on CosmicGame {
       }
     }
 
+    // A boss takes the authored tick wherever the line crosses it, as in
+    // survival. Open space's bosses have no crowd control to chill with.
     final boss = activeBoss;
     if (boss != null && !boss.dead) {
       final hitsBoss = d.targetPolicy == WingBeamTargetPolicy.ring
@@ -604,7 +711,11 @@ extension CosmicWing on CosmicGame {
           effectPower,
           sourceSlot: beam.caster.member.slotIndex,
         );
-        enemy.knockbackVelocity += CosmicAbilityRuntime.geyserKnockback;
+        // Away from the wing that casts the beam.
+        enemy.knockbackVelocity += CosmicAbilityRuntime.geyserKnockbackFrom(
+          origin,
+          enemy.position,
+        );
       case AbilityEffectKind.execute:
       case AbilityEffectKind.refraction:
       case AbilityEffectKind.chargeBlast:
@@ -632,7 +743,7 @@ extension CosmicWing on CosmicGame {
           ),
         );
         if (_wingCasterLive(caster)) {
-          caster.heal(effectPower.round());
+          caster.heal((effectPower * _wingBeamSelfHealShare).round());
         } else if (!_shipDead) {
           shipHealth = min(CosmicGame.shipMaxHealth, shipHealth + effectPower);
         }
@@ -657,6 +768,13 @@ extension CosmicWing on CosmicGame {
   }
 
   /// Survival's `_healOrb`; the ship is open space's objective.
+  /// What of a beam's heal the caster keeps for itself: all of it in open
+  /// space, [kBattleBeamSelfHealShare] in a battle, where the heal meant for
+  /// the orb otherwise made a Crystal Wing outlast anything (the harness,
+  /// 2026-10-20: 92% of its fights).
+  double get _wingBeamSelfHealShare =>
+      _battle == null ? 1.0 : kBattleBeamSelfHealShare;
+
   void _feedWingObjective(double amount) {
     if (amount <= 0 || _shipDead) return;
     shipHealth = min(CosmicGame.shipMaxHealth, shipHealth + amount);
@@ -708,28 +826,121 @@ extension CosmicWing on CosmicGame {
     _spawnHitSpark(end, elementColor('Lightning'));
   }
 
-  /// Survival's `_spawnLightSplitBeams`. Only a child is marked refracted, so
-  /// a parent may refract on each kill it makes, as in survival.
-  void _spawnWingLightSplit(_ActiveWingBeam parent) {
-    if (parent.refractionsDone > 0) return;
+  /// Survival's `_spawnLightSplitBeams`. A beam refracts once: the parent is
+  /// marked as well as its children. Only the children used to be, so a
+  /// parent split again on every kill it made (2026-10-20 audit). And the
+  /// children used to re-aim every frame at the nearest body, which is the
+  /// body the parent was already on; the board says they target nearby
+  /// enemies, so each one hunts a body of its own near [killedAt].
+  void _spawnWingLightSplit(_ActiveWingBeam parent, Offset killedAt) {
+    if (parent.refractionsDone > 0 || parent.isRefraction) return;
     final remaining = parent.life;
     if (remaining < WingBeamRules.lightSplitMinRemaining) return;
+    parent.refractionsDone = 1;
     final beauty = parent.caster.beauty;
     final child = WingBeamRules.lightSplitChild(
       parent.descriptor,
       remaining: remaining,
       beauty: beauty,
     );
-    for (final offset in WingBeamRules.lightSplitOffsets(beauty)) {
+    final offsets = WingBeamRules.lightSplitOffsets(beauty);
+    // Where the parent goes next, so no child doubles it.
+    parent.aimedAt = _nearestOpenEnemy(parent.origin, parent.descriptor.range);
+    final prey = _wingRefractionPrey(
+      killedAt,
+      origin: parent.origin,
+      reach: child.range,
+      count: offsets.length,
+      avoid: parent.aimedAt,
+    );
+    for (var i = 0; i < offsets.length; i++) {
+      final hunted = i < prey.length ? prey[i] : null;
+      final dir = hunted == null ? null : hunted.position - parent.origin;
       _pendingWingBeams.add(
         _ActiveWingBeam(
           descriptor: child,
           caster: parent.caster,
           origin: parent.origin,
-          angle: parent.angle + offset,
-        )..refractionsDone = 1,
+          angle: dir != null && dir.distanceSquared > 0.5
+              ? atan2(dir.dy, dir.dx)
+              : parent.angle + offsets[i],
+          refractedFrom: parent,
+          huntTarget: hunted,
+        ),
       );
     }
+  }
+
+  /// Survival's `_refractionPrey`: up to [count] distinct living bodies
+  /// nearest [from] and within [reach] of [origin], other than [avoid],
+  /// nearest first. Open space holds few enough bodies to walk the list.
+  List<CosmicEnemy> _wingRefractionPrey(
+    Offset from, {
+    required Offset origin,
+    required double reach,
+    required int count,
+    CosmicEnemy? avoid,
+  }) {
+    final picked = <CosmicEnemy>[];
+    final distSq = <double>[];
+    final reachSq = reach * reach;
+    for (final enemy in enemies) {
+      if (enemy.dead || identical(enemy, avoid)) continue;
+      if ((enemy.position - origin).distanceSquared > reachSq) continue;
+      final dSq = (enemy.position - from).distanceSquared;
+      if (picked.length == count && dSq >= distSq.last) continue;
+      var at = picked.length;
+      while (at > 0 && distSq[at - 1] > dSq) {
+        at--;
+      }
+      picked.insert(at, enemy);
+      distSq.insert(at, dSq);
+      if (picked.length > count) {
+        picked.removeLast();
+        distSq.removeLast();
+      }
+    }
+    return picked;
+  }
+
+  /// Survival's `_refractionTarget`: the body a refraction was given while it
+  /// lives and stays in reach, then the nearest to where that one fell that
+  /// neither its parent nor a sibling is on. With nothing like that left it
+  /// takes the nearest body at all, so it never idles.
+  CosmicEnemy? _wingRefractionTarget(_ActiveWingBeam beam) {
+    final range = beam.descriptor.range;
+    final held = beam.huntTarget;
+    if (held != null &&
+        !held.dead &&
+        (held.position - beam.origin).distance <= range) {
+      return held;
+    }
+    final parent = beam.refractedFrom;
+    final from = held?.position ?? beam.origin;
+    final rangeSq = range * range;
+    CosmicEnemy? best;
+    var bestSq = double.infinity;
+    for (final enemy in enemies) {
+      if (enemy.dead) continue;
+      if ((enemy.position - beam.origin).distanceSquared > rangeSq) continue;
+      final dSq = (enemy.position - from).distanceSquared;
+      if (dSq >= bestSq) continue;
+      if (identical(enemy, parent?.aimedAt)) continue;
+      var sibling = false;
+      for (final other in _activeWingBeams) {
+        if (!identical(other, beam) &&
+            identical(other.refractedFrom, parent) &&
+            identical(other.huntTarget, enemy)) {
+          sibling = true;
+          break;
+        }
+      }
+      if (sibling) continue;
+      bestSq = dSq;
+      best = enemy;
+    }
+    beam.huntTarget = best;
+    return best ?? _nearestOpenEnemy(beam.origin, range);
   }
 
   // ── Plant's flowers ─────────────────────────────────────────────────────
@@ -798,6 +1009,10 @@ extension CosmicWing on CosmicGame {
         final end = beam.drawEnd;
         if (beam.dead || beam.chargeTimer > 0 || end == null) continue;
         final fade = wingBeamFade(beam.life);
+        // Focus: drawn as hot as it is, its heat pooled where it is held.
+        final glow = WingBeamRules.heats(beam.descriptor)
+            ? WingBeamRules.heatGlow(beam.heat.current)
+            : null;
         emitWingBeamSegments(
           descriptor: beam.descriptor,
           origin: beam.origin,
@@ -819,6 +1034,8 @@ extension CosmicWing on CosmicGame {
               width: width,
               alpha: fade,
               time: _elapsed,
+              heat: glow,
+              focus: segEnd == end ? beam.focusAt : null,
             );
           },
         );
@@ -902,8 +1119,22 @@ extension CosmicWing on CosmicGame {
         damagePerTick: b.descriptor.damagePerTick,
         width: b.descriptor.width,
         caster: b.caster.companion,
+        end: b.drawEnd,
+        heldOn: b.heat.on,
+        focus: b.focusAt,
+        heat: b.heat.current,
       ),
   ];
+
+  /// Opens [beam] for [caster] the way its special does, so a test can hold
+  /// one beam of known numbers.
+  @visibleForTesting
+  void debugCastWingBeam(CosmicCompanion caster, WingBeamEffect beam) =>
+      _activateWingBeamEffects(
+        [beam],
+        caster: _WingCaster.companion(caster),
+        angle: 0,
+      );
 
   /// Where the Plant flowers waiting for the ship lie.
   @visibleForTesting

@@ -166,9 +166,13 @@ mixin MasteryPayloadStatuses {
     required double duration,
     required int generation,
   }) {
+    // Read before the clock is set: asked after, every body was already
+    // carrying it, so a fresh carrier kept the default generation 0 and the
+    // generation ceiling never held (2026-10-20).
+    final wasInfected = isMaskInfected;
     if (duration > maskInfectionTimer) maskInfectionTimer = duration;
     maskInfectionSlot = slotIndex;
-    if (!isMaskInfected || generation < maskInfectionGeneration) {
+    if (!wasInfected || generation < maskInfectionGeneration) {
       maskInfectionGeneration = generation;
     }
   }
@@ -309,6 +313,10 @@ class CosmicSurvivalEnemy with MasteryPayloadStatuses {
   // Wing+Ice frost buildup: a sustained ice beam ramps this from 0→1;
   // at 1 the enemy snaps into a hard freeze and it resets.
   double frostBuildup;
+
+  /// How long the last frost tick holds before the frost starts to thaw
+  /// (WingBeamRules.frostGrace): it thaws only while no beam is on it.
+  double frostGrace = 0;
   // Summoner-variant cooldown. >0 means "ready to summon in X seconds".
   double summonCooldown;
   // Mask+Blood permanent drain: enemies that pass through the blood
@@ -323,6 +331,12 @@ class CosmicSurvivalEnemy with MasteryPayloadStatuses {
   /// swallow one. The world is weather, not an effect competing with effects —
   /// it multiplies whatever else is already happening.
   double blizzardMultiplier = 1.0;
+
+  /// Dust Mystic's haze: while this runs, a body that walks to its target has
+  /// lost it in the grit and walks [mysticHazeHeading] radians off its true
+  /// heading.
+  double mysticHazeLostTimer = 0;
+  double mysticHazeHeading = 0;
 
   // Shared hover/dive steering state (lazily created by whichever mode is
   // driving this enemy). See games/shared/enemy_flight_steering.dart.
@@ -439,6 +453,11 @@ class SurvivalBoss with MasteryPayloadStatuses {
   /// dashes and strafes, and cannot fight anything.
   double chillTimer = 0;
   double chillMultiplier = 1.0;
+
+  /// Wing+Ice frost, as a body carries it. Full, a boss is chilled rather
+  /// than frozen: a hard freeze would end the fight it is the centre of.
+  double frostBuildup = 0;
+  double frostGrace = 0;
   final double radius;
   final Color color;
   bool isDead;
@@ -902,7 +921,8 @@ class CosmicSurvivalSpawner {
 
   double _spawnInterval(int wave) {
     if (isBossWave) return CosmicSurvivalBalance.bossEscortInterval(wave);
-    // Past wave 40 the spawn rate tightens at half pace, like health.
+    // The spawn rate reads the same pressure as health: ahead of the wave
+    // count from wave 25, at half pace past 40.
     final base = (0.85 - CosmicSurvivalBalance.latePressure(wave) * 0.012)
         .clamp(0.28, 0.85);
     final patternInterval = switch (currentPattern) {

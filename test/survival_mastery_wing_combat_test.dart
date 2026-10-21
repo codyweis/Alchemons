@@ -4,6 +4,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_wing.dart';
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:flame/components.dart';
@@ -130,14 +131,42 @@ void main() {
         snapshot: equip(WingNodes.tracerPath, throughTier: 2),
       );
       final comp = game.activeCompanions[0]!;
+      // Tracer pays for shots that land (2026-10-20), so hold one body in
+      // reach to land on, and nothing else. The open arena gave the Wing one
+      // shot in ten seconds, which only counted while the shave was paid as
+      // the shot left.
+      final at = comp.position;
+      // Toward the orb, which keeps it inside the arena from a rim lane.
+      final toOrb = game.orb.position - at;
+      final reach = at + toOrb / toOrb.distance * 150;
+      final target = CosmicSurvivalEnemy(
+        position: reach,
+        hp: 1e6,
+        maxHp: 1e6,
+        speed: 0,
+        damage: 0,
+        radius: 11,
+        tier: EnemyTier.drone,
+        element: 'Ice',
+        target: CosmicEnemyTarget.orb,
+        conduct: EnemyConduct.stalk,
+      );
+      game.enemies.add(target);
       // Hold the special out of reach so only Tracer moves the cooldown.
       comp.specialCooldown = 30;
       var banked = 0.0;
       for (var i = 0; i < 60 * 10; i++) {
+        for (final e in game.enemies) {
+          if (!identical(e, target)) e.isDead = true;
+        }
+        comp.position = at;
+        target.position = reach;
+        game.orb.currentHp = game.orb.maxHp;
         game.update(1 / 60);
         banked = max(banked, game.wingMasteryFor(0)?.bankedBeamTime ?? 0);
       }
-      expect(comp.specialCooldown, lessThan(30));
+      // Ten seconds pass on their own; anything below that was shaved.
+      expect(comp.specialCooldown, lessThan(20 - WingTuning.tracerShave));
       expect(banked, greaterThan(0));
       expect(banked, lessThanOrEqualTo(WingTuning.rangingCap + 0.001));
     });

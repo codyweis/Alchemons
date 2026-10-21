@@ -87,15 +87,43 @@ void main() {
       );
     });
 
-    test('late pressure leaves waves 1-40 alone, then climbs at half pace', () {
-      for (var wave = 1; wave <= 40; wave++) {
+    test('pressure leaves waves 1-25 alone, leads by 11 at wave 40, then '
+        'climbs at half pace', () {
+      // The lead came with the 2026-10-20 family rebuild
+      // (docs/survival_stat_walls.md). Before it, waves 1-40 read their own
+      // number and wave 60 pressed like 50.
+      for (var wave = 1; wave <= 25; wave++) {
         expect(CosmicSurvivalBalance.latePressure(wave), wave.toDouble());
       }
-      expect(CosmicSurvivalBalance.latePressure(60), 50);
-      expect(CosmicSurvivalBalance.latePressure(80), 60);
+      expect(CosmicSurvivalBalance.latePressure(40), 51);
+      expect(CosmicSurvivalBalance.latePressure(60), 61);
+      expect(CosmicSurvivalBalance.latePressure(80), 71);
+      var last = 0.0;
+      for (var wave = 1; wave <= 160; wave++) {
+        final pressure = CosmicSurvivalBalance.latePressure(wave);
+        expect(pressure, greaterThan(last), reason: 'wave $wave');
+        last = pressure;
+      }
       expect(
         CosmicSurvivalBalance.enemyWaveHpScale(41),
         greaterThan(CosmicSurvivalBalance.enemyWaveHpScale(40)),
+      );
+    });
+
+    test('waves past 25 send more bodies, 1.8x from wave 33', () {
+      for (var wave = 1; wave <= 25; wave++) {
+        expect(CosmicSurvivalBalance.hordeDensity(wave), 1.0);
+      }
+      for (var wave = 33; wave <= 160; wave++) {
+        expect(CosmicSurvivalBalance.hordeDensity(wave), closeTo(1.8, 1e-9));
+      }
+      // Wave 40 sent 1,548 before the density.
+      expect(CosmicSurvivalBalance.hordeCountForWave(40), 2786);
+      // The ceiling grew with it, so a wave near the perfect team's wall is
+      // not capped short.
+      expect(
+        CosmicSurvivalBalance.hordeCountForWave(100),
+        lessThan(CosmicSurvivalBalance.hordeWaveTotalCeiling),
       );
     });
 
@@ -149,14 +177,16 @@ void main() {
         CosmicSurvivalBalance.enemyWaveHpScale(15),
         inInclusiveRange(1.5, 1.8),
       );
-      // Wave 50 sits past the late-pressure turn, so it presses like 45.
+      // Wave 50 sits past the late-pressure turn, with the lead, so it
+      // presses like 56 (x4.5 each; it pressed like 45, x3.7, before the
+      // 2026-10-20 lead).
       expect(
         CosmicSurvivalBalance.enemyWaveHpScale(50),
-        inInclusiveRange(3.4, 4.0),
+        inInclusiveRange(4.2, 4.8),
       );
       expect(
         CosmicSurvivalBalance.enemyWaveDamageScale(50),
-        inInclusiveRange(3.4, 4.0),
+        inInclusiveRange(4.2, 4.8),
       );
       // Neither runs away from the other, in either direction.
       final hp = CosmicSurvivalBalance.enemyWaveHpScale(50);

@@ -324,9 +324,15 @@ void main() {
     for (var f = 0; f < 60 && target.health == hp0; f++) {
       _step(game, keep);
     }
+    // The first tick on a fresh body is cold: focus heats it from the floor.
     expect(
       hp0 - target.health,
-      closeTo(second.damagePerTick * WingBeamRules.plantStackBonus(1, 3), 1e-6),
+      closeTo(
+        second.damagePerTick *
+            WingBeamRules.plantStackBonus(1, 3) *
+            WingBeamRules.heatFloor,
+        1e-6,
+      ),
     );
   });
 
@@ -415,7 +421,8 @@ void main() {
     for (var f = 0; f < 60 && target.health == hp0; f++) {
       _step(game, keep);
     }
-    final dpt = beam.damagePerTick;
+    // The first tick on a fresh body is cold, its rider with it.
+    final dpt = beam.damagePerTick * WingBeamRules.heatFloor;
     expect(hp0 - target.health, closeTo(dpt + dpt * 0.5 * 1.35, 1e-6));
   });
 
@@ -434,7 +441,11 @@ void main() {
       for (var f = 0; f < 60 && target.health == hp0; f++) {
         _step(game, keep);
       }
-      expect(hp0 - target.health, closeTo(beam.damagePerTick, 1e-9));
+      // The first tick on a fresh body is cold (focus).
+      expect(
+        hp0 - target.health,
+        closeTo(beam.damagePerTick * WingBeamRules.heatFloor, 1e-9),
+      );
       expect(game.shipHealth, greaterThan(20));
       expect(comp.currentHp, greaterThan(hpBefore));
     },

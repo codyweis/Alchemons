@@ -3825,8 +3825,10 @@ class CosmicEnemy {
   double slowMultiplier = 0.5;
 
   /// Wing Ice's frost, 0→1; full, the body freezes and it starts again.
-  /// Thaws while no beam feeds it.
+  /// Thaws while no beam feeds it: [frostGrace] is how long the last tick
+  /// holds it before the thaw starts (WingBeamRules.frostGrace).
   double frostBuildup = 0;
+  double frostGrace = 0;
 
   /// Horn Plant's root, for the vine wrap. The hold itself is a zero slow.
   double hornPlantRootTimer = 0;
@@ -3846,7 +3848,11 @@ class CosmicEnemy {
   void tickSlow(double dt) {
     if (slowTimer > 0) slowTimer = max(0.0, slowTimer - dt);
     if (slowTimer <= 0 && maneRootTimer <= 0) slowMultiplier = 0.5;
-    if (frostBuildup > 0) frostBuildup = max(0.0, frostBuildup - dt * 0.35);
+    if (frostGrace > 0) {
+      frostGrace = max(0.0, frostGrace - dt);
+    } else if (frostBuildup > 0) {
+      frostBuildup = max(0.0, frostBuildup - dt * 0.35);
+    }
   }
 
   /// Shared hover/dive steering state (lazily created when this enemy
@@ -3894,14 +3900,21 @@ class CosmicEnemy {
 
   /// Spawn HP — derived from the canonical enemyBaseHealth table and the
   /// variant modifier (matching the spawn formula) so the health-bar
-  /// fraction is always accurate.
+  /// fraction is always accurate. A battle's stand-in for an Alchemon
+  /// carries that Alchemon's instead ([standInMaxHealth]).
   double get maxHealth =>
+      standInMaxHealth ??
       CosmicBalance.enemyBaseHealth(tier) *
-      switch (variant) {
-        CosmicEnemyVariant.crusher => 1.45,
-        CosmicEnemyVariant.pouncer => 0.84,
-        CosmicEnemyVariant.standard => 1.0,
-      };
+          switch (variant) {
+            CosmicEnemyVariant.crusher => 1.45,
+            CosmicEnemyVariant.pouncer => 0.84,
+            CosmicEnemyVariant.standard => 1.0,
+          };
+
+  /// The whole health of the Alchemon a battle body stands in for, in the
+  /// units the other side's abilities deal (cosmic_game_duel.dart); null
+  /// for every real enemy.
+  double? standInMaxHealth;
 
   /// Astral Shards dropped on kill.
   int get shardDrop => switch (tier) {
@@ -4595,6 +4608,13 @@ class Projectile {
   /// Number of enemies already hit (for piercing damage falloff).
   int pierceCount = 0;
 
+  /// Most bodies a piercing projectile passes through before it is spent,
+  /// 0 for no limit. Counted in [pierceCount].
+  int maxPierce = 0;
+
+  /// Whether this piercing projectile has used up its [maxPierce].
+  bool get pierceSpent => maxPierce > 0 && pierceCount >= maxPierce;
+
   /// Most times this projectile may damage any one body, 0 for no limit.
   ///
   /// Contact is re-tested every frame and a piercing projectile is not
@@ -4672,6 +4692,10 @@ class Projectile {
 
   /// Whether this projectile already hit the active boss (prevents multi-hit).
   bool hitBoss = false;
+
+  /// For a projectile that may strike a boss again (survival's Mane+Light
+  /// ward rings), the run time from which it may. Read only by survival.
+  double bossRehitAt = 0;
 
   /// If true, projectile homes toward the nearest enemy each frame.
   final bool homing;
@@ -4775,6 +4799,18 @@ class Projectile {
 
   /// Number of remaining bounces to other enemies on hit.
   int bounceCount;
+
+  /// A Pip special dart's ricochet ledger (`PipRicochet`): bodies it has
+  /// touched, bodies it has killed, and whether Water's last-hit splash has
+  /// gone off. A copy starts its own.
+  int pipContacts = 0;
+  int pipKills = 0;
+  bool pipSplashed = false;
+
+  /// What survival multiplied this Pip dart's damage by for the crowd it
+  /// threads (its `pipSurvivalPayload`); a boss and the element's own
+  /// riders read the damage without it. 1 everywhere else.
+  double pipPayload = 1.0;
 
   // ── Trail fields (Wing residue) ──
 
@@ -5305,6 +5341,7 @@ CosmicSpecialResult createCosmicSpecialAbility({
         targetPos,
         casterBeauty,
         casterIntelligence,
+        casterStrength,
       );
       break;
     case 'pip':
@@ -5315,6 +5352,7 @@ CosmicSpecialResult createCosmicSpecialAbility({
         damage,
         casterBeauty,
         casterIntelligence,
+        casterBeautyPotential,
       );
       break;
     case 'mane':
@@ -5612,6 +5650,7 @@ Projectile copyProjectile(
     effectHitIds: effectHitIds ?? Set<int>.of(p.effectHitIds),
   );
   clone.pierceCount = p.pierceCount;
+  clone.maxPierce = p.maxPierce;
   clone.trailTimer = p.trailTimer;
   clone.turretTimer = p.turretTimer;
   clone.clustered = p.clustered;
@@ -5673,12 +5712,22 @@ double elementalSpecialCooldownMultiplierSurvival(
       'Spirit' => 1.95,
       'Blood' || 'Light' || 'Ice' => 1.85,
       // Crystal Let per design has its CD halved (weaker dmg in
-      // exchange) — see _scaleLetProjectile crystalDamageMul = 0.58.
-      'Crystal' => 0.55,
+      // exchange) — see _scaleLetProjectile crystalDamageMul = 0.58. Half
+      // the family's middle (1.42), not the 0.55 it was: at that it threw
+      // two and a half times as often as a middling Let and led the family
+      // at every band once every Let aimed at the crowd (2026-10-20).
+      'Crystal' => 0.70,
       'Plant' || 'Lightning' => 1.55,
-      'Lava' || 'Earth' || 'Mud' || 'Steam' => 1.42,
+      // Earth's moon drop and Fire's kill blast were the two Lets far ahead
+      // of the family once every Let threw at the crowd every few seconds
+      // (Earth about twice the family's share at every band): Earth recharges
+      // with the heaviest now (1.42 before), Fire a step slower (1.15 before;
+      // 2026-10-20).
+      'Earth' => 1.85,
+      'Lava' || 'Mud' || 'Steam' => 1.42,
       'Water' || 'Poison' => 1.25,
-      'Fire' || 'Dust' || 'Air' => 1.15,
+      'Fire' => 1.30,
+      'Dust' || 'Air' => 1.15,
       _ => 1.30,
     },
     'pip' => switch (element) {
@@ -5808,17 +5857,61 @@ double _specialTrapPersistenceScale(
   );
 }
 
+/// The blend of a Let's stats that pays for its meteor: its SPECIAL's own
+/// weights ([cosmicFamilyAbilityStatWeights]), about 2.9 at Potential 20, 5
+/// at Potential 80 and 9 at Potential 100 + Enhancement 10.
+double letImpactStat({required double strength, required double beauty}) {
+  final w = cosmicFamilyAbilityStatWeights('let');
+  return strength * w.strength + beauty * w.beauty;
+}
+
+/// [letImpactStat] at the Potential 20 band, where a Let's meteor lands at
+/// its authored size.
+const double kLetImpactReferenceStat = 2.9;
+
+/// How far a Let's impact falls behind its SPECIAL as the creature is bred:
+/// the meteor's damage is multiplied by (reference / stat) to this power.
+///
+/// The opening act (user, 2026-10-20: "make lets strong at p20-p50 but scale
+/// weaker into the p80-100"). SPECIAL alone grew a Let's meteor about four
+/// times from Potential 20 to 100 + Enhancement 10, and the old impact scale
+/// added half again (about 200 to 1,450 on the survival benchmark). Now the
+/// rock grows about a seventh, to about 285 by Potential 80, and stops there;
+/// the crater and the cadence still grow a little. The waves it lands on keep
+/// getting tougher, so by Potential 80 the other families have overtaken it.
+const double kLetImpactDamping = 1.2;
+
+/// A weak creature's meteor is not inflated past this.
+const double kLetImpactScaleCeiling = 1.15;
+
+/// What a Let's meteor damage is multiplied by at [stat] ([letImpactStat]).
+double letImpactScale(double stat) => min(
+  kLetImpactScaleCeiling,
+  pow(kLetImpactReferenceStat / max(0.5, stat), kLetImpactDamping).toDouble(),
+);
+
+/// How wide a Let's crater opens, by Beauty, as a multiple of the authored
+/// rock: big from the first wave and growing slowly — about 175 px at
+/// Potential 20 to about 195 px at Potential 100 + Enhancement 10 (it was
+/// 132 to 220 on the survival benchmark). A crater that was small early
+/// missed the crowd it fell on; one that kept widening made a bred Let the
+/// whole wave's answer. Earth's rock is the larger one, so its crater runs
+/// about 250 to 280.
+double letCraterScale(double beauty) =>
+    scaledAbilityReach(beauty, atLow: 1.12, atAverage: 1.18, atPerfect: 1.30);
+
 Projectile _scaleLetProjectile(
   Projectile p, {
   required double beauty,
   required double intelligence,
+  required double strength,
   required bool isMeteorCore,
 }) {
-  final impactScale = _specialStatScaleFromBaseline(
-    beauty,
-    perPoint: 0.12,
-    min: 0.78,
-    max: 1.28,
+  // The opening act: strong from the first wave, falling behind with
+  // breeding ([letImpactScale]). It read Beauty on the shared scaler and
+  // grew 0.78x to 1.28x on top of SPECIAL.
+  final impactScale = letImpactScale(
+    letImpactStat(strength: strength, beauty: beauty),
   );
   // How big the rock is, on the anchored curve. Size is Let's signature
   // quantity the way ricochets are Pip's, and it used to move a total of
@@ -5831,9 +5924,8 @@ Projectile _scaleLetProjectile(
     atAverage: 1.0,
     atPerfect: 1.75,
   );
-  // A reach: held to the ceiling past perfect, so the blast (and Earth's
-  // crater and Dark's twice-as-big follow-ups, which are built from it) stops
-  // widening on the log tail.
+  // A reach: held to the ceiling past perfect, so the effect radii stop
+  // widening on the log tail. The crater itself is [letCraterScale]'s.
   final radiusScaleMul = scaledAbilityReach(
     beauty,
     atLow: 0.74,
@@ -5872,7 +5964,11 @@ Projectile _scaleLetProjectile(
     damage: p.damage * impactScale * (isMeteorCore ? 1.05 : 1.0),
     life: p.life * durationScale * trapPersistenceScale,
     speedMultiplier: p.speedMultiplier * (p.stationary ? 1.0 : guidanceScale),
-    radiusMultiplier: p.radiusMultiplier * radiusScaleMul,
+    // The meteor's crater ([letSkyfallBlastRadius]) is built from this, so
+    // it rides its own slow curve; the effect reaches below keep the old one.
+    radiusMultiplier:
+        p.radiusMultiplier *
+        (isMeteorCore ? letCraterScale(beauty) : radiusScaleMul),
     homingStrength: p.homing
         ? p.homingStrength * guidanceScale
         : p.homingStrength,
@@ -7387,8 +7483,16 @@ CosmicSpecialResult _wingSpecial(
       break;
   }
 
+  // A moving piercing shot strikes each body once. With no ceiling it
+  // re-hit whatever it overlapped on the 60 Hz contact clock, so a Wing's
+  // special was worth how slowly its bolt crossed a body: at P80 the primary
+  // and its piercing secondaries were three quarters of a Wing's damage in
+  // the PvP battle, where bodies are big and stand still, and the beam was
+  // a tenth (2026-10-20). Focus is the beam's: the bolts pass through.
   final scaledProjectiles = List.generate(projs.length, (i) {
-    return scaleWingProjectile(projs[i], isPrimaryBeam: i == 0);
+    final p = scaleWingProjectile(projs[i], isPrimaryBeam: i == 0);
+    if (p.piercing && !p.stationary) p.maxHitsPerEnemy = 1;
+    return p;
   });
 
   return CosmicSpecialResult(
@@ -7712,7 +7816,26 @@ const double kLetSkyfallLean = 0.46;
 /// is strictly weaker than what it replaced. This is roughly the width of the
 /// corridor the old one used to clear.
 double letSkyfallBlastRadius(Projectile p) =>
-    max(132.0, Projectile.radius * p.radiusMultiplier * 7.4);
+    letSkyfallBlastRadiusFor(p.radiusMultiplier);
+
+/// [letSkyfallBlastRadius] for a rock of [radiusMultiplier].
+double letSkyfallBlastRadiusFor(double radiusMultiplier) =>
+    max(132.0, Projectile.radius * radiusMultiplier * 7.4);
+
+/// The authored size of a Let special's rock, before [letCraterScale]:
+/// Earth's moon drop is the heavier one.
+double letMeteorRadiusMultiplier(String element) =>
+    element == 'Earth' ? 10.0 : 7.0;
+
+/// The crater a Let special of [element] opens at [beauty], before it is
+/// thrown — what a caster aims it with (survival's crowd aim). The same
+/// number [letSkyfallBlastRadius] reads off the meteor once it is built.
+double letMeteorCraterRadius({
+  required String element,
+  required double beauty,
+}) => letSkyfallBlastRadiusFor(
+  letMeteorRadiusMultiplier(element) * letCraterScale(beauty),
+);
 
 /// What fraction of the meteor's damage the rest of the crater takes. The body
 /// it actually lands on takes all of it.
@@ -7756,6 +7879,7 @@ CosmicSpecialResult _letSpecial(
   Offset? targetPos,
   double casterBeauty,
   double casterIntelligence,
+  double casterStrength,
 ) {
   final target =
       targetPos ??
@@ -7800,7 +7924,7 @@ CosmicSpecialResult _letSpecial(
     life: descentTime + 0.4,
     // Unused while descending — the drop is parametric, not velocity-driven.
     speedMultiplier: 0,
-    radiusMultiplier: isEarth ? 10.0 : 7.0,
+    radiusMultiplier: letMeteorRadiusMultiplier(element),
     visualScale: isEarth ? 8.0 : 6.0,
     visualStyle: ProjectileVisualStyle.meteor,
     skyfallDuration: descentTime,
@@ -7834,6 +7958,7 @@ CosmicSpecialResult _letSpecial(
     meteor,
     beauty: casterBeauty,
     intelligence: casterIntelligence,
+    strength: casterStrength,
     isMeteorCore: true,
   );
 
@@ -7875,8 +8000,26 @@ CosmicSpecialResult _letSpecial(
 // Design: Fast homing chains, bouncy, fun to watch
 // ─────────────────────────────────────────────────────────
 const double kPipSpecialMaxProjectileLife = 2.65;
+
+/// Pip's special darts fly at this share of their authored pace, and live
+/// that much longer so they keep their reach (user, 2026-10-21: "make the
+/// pips abilities 20% slower so we can actually see them moving around").
+const double kPipDartPace = 0.8;
 const double kPipRicochetPostHitLife = 0.42;
+
+/// Survivors a piercing special dart passes through once its bounces are
+/// spent; the next survivor stops it. (Bounces used to count against this
+/// too, so a bouncing dart reached it on its last bounce and pierce never
+/// added a body.)
 const int kPipMaxPierceHits = 2;
+
+/// The Beauty at which a Pip's volley is full: every element's most darts
+/// and most bounces. About Potential 80 on a Pip's bases (Beauty 60-72), so
+/// the volley grows between Potential 50 and 80 — the late bloomer's climb —
+/// rather than at the shared count curve's perfect anchor (12), which only an
+/// Enhanced Potential 100 reaches; it moved a P80 Pip about a fifth of the
+/// way and left the rest to the Potential-95 step.
+const double kPipVolleyFullBeauty = 6.0;
 
 CosmicSpecialResult _pipSpecial(
   Offset origin,
@@ -7885,6 +8028,7 @@ CosmicSpecialResult _pipSpecial(
   double damage,
   double casterBeauty,
   double casterIntelligence,
+  double casterBeautyPotential,
 ) {
   Projectile dart({
     required Offset position,
@@ -7930,35 +8074,50 @@ CosmicSpecialResult _pipSpecial(
     );
   }
 
-  int scaledCount(int base, {int min = 3, int max = 18}) {
-    final scale = _specialCountScaleFromBaseline(
-      casterBeauty,
-      casterIntelligence,
-      beautyPerPoint: 0.06,
-      intelligencePerPoint: 0.10,
-      min: 0.76,
-      max: 1.24,
-    );
-    return (base * scale).round().clamp(min, max);
+  /// A count that grows with breeding: [atLow] at a weak Beauty, [atAverage]
+  /// at an average one, and [atPerfect] from [kPipVolleyFullBeauty] — and at
+  /// Potential 95 ([kAbilityFinalStepPotential]) whatever the species' base.
+  int grownCount(double atLow, int atAverage, int atPerfect) {
+    if (casterBeautyPotential >= kAbilityFinalStepPotential) return atPerfect;
+    final beauty = casterBeauty.isFinite ? casterBeauty : kAbilityStatAverage;
+    final double value;
+    if (beauty <= kAbilityStatAverage) {
+      value = scaledAbilityValue(
+        beauty,
+        atLow: atLow,
+        atAverage: atAverage.toDouble(),
+        atPerfect: atPerfect.toDouble(),
+      );
+    } else {
+      final t =
+          ((beauty - kAbilityStatAverage) /
+                  (kPipVolleyFullBeauty - kAbilityStatAverage))
+              .clamp(0.0, 1.0);
+      value = atAverage + (atPerfect - atAverage) * t;
+    }
+    return value.round().clamp(atLow.round(), atPerfect);
   }
 
-  /// How many times a dart ricochets.
+  /// How many darts a cast throws: [base] for an average Pip and up to
+  /// [max] as it is bred, by Beauty. Pip is the late bloomer (2026-10-20
+  /// rebuild): a weak one throws the authored volley, never fewer. The old
+  /// scaler read the compressed legacy rating clamped to 0.76x-1.24x, so
+  /// every element gained at most one dart from Potential 20 to 100 and none
+  /// reached its own ceiling.
+  int scaledCount(int base, {required int min, required int max}) =>
+      grownCount(base.toDouble(), base, max).clamp(min, max);
+
+  /// How many times a dart ricochets off a body that survives it.
   ///
   /// Beauty, on the anchored curve — the family's signature quantity should
-  /// sit on the family's quantity stat. It used to read Intelligence through
-  /// a scaler spanning 0.74x to 1.26x, which meant the thing a Pip is *for*
-  /// barely moved across the whole stat band, and moved off the wrong stat
-  /// when it did. A weak Pip now bounces about half as often as a perfected
-  /// one rather than a quarter less.
+  /// sit on the family's quantity stat. A weak Pip bounces about 0.6x the
+  /// authored figure, a perfected one about 1.9x (eight at most, Lightning's
+  /// "double the ricochet"), and Potential 95 reaches the top. Kills cost no
+  /// bounce at all (`PipRicochet`).
   int scaledBounce(int base, {int max = 8}) {
     if (base <= 0) return 0;
-    final scaled = scaledAbilityValue(
-      casterBeauty,
-      atLow: base * 0.6,
-      atAverage: base.toDouble(),
-      atPerfect: base * 1.9,
-    ).round();
-    return scaled.clamp(1, max);
+    final top = (base * 1.9).round().clamp(1, max);
+    return grownCount(base * 0.6, base, top).clamp(1, max);
   }
 
   Projectile scalePipProjectile(Projectile p) {
@@ -7991,8 +8150,10 @@ CosmicSpecialResult _pipSpecial(
     return copyProjectile(
       p,
       damage: p.damage * impactScale * 0.86,
-      life: min(p.life * durationScale, kPipSpecialMaxProjectileLife),
-      speedMultiplier: p.speedMultiplier * guidanceScale,
+      life:
+          min(p.life * durationScale, kPipSpecialMaxProjectileLife) /
+          kPipDartPace,
+      speedMultiplier: p.speedMultiplier * guidanceScale * kPipDartPace,
       radiusMultiplier: p.radiusMultiplier * visualScaleMul,
       homingStrength: p.homingStrength * guidanceScale,
       visualScale: p.visualScale * visualScaleMul,
@@ -8034,31 +8195,12 @@ CosmicSpecialResult _pipSpecial(
       effectCount: p.effectCount > 0
           ? p.effectCount
           : max(1, scaledBounce(p.bounceCount)),
-    );
+    )
+      // A dart never strikes the same body twice: it bounced back and forth
+      // between two survivors (A, B, A) when only the body just hit was
+      // excluded. Every copy (a Salvo dart) inherits the rule.
+      ..maxHitsPerEnemy = 1;
   }
-
-  final count = scaledCount(_pipElementCount(element));
-  // Unscaled here: scalePipProjectile buys bounces with Beauty, once.
-  final bounces = _pipElementBounce(element);
-  List<Projectile> genericVolley() => List.generate(count, (i) {
-    final offset = (i - (count - 1) / 2) * 0.20;
-    final a = baseAngle + offset;
-    return scalePipProjectile(
-      dart(
-        position: Offset(
-          origin.dx + cos(a) * (12 + i * 4),
-          origin.dy + sin(a) * (12 + i * 4),
-        ),
-        angle: a,
-        damageMultiplier: _pipElementDamageMultiplier(element),
-        life: _pipElementLife(element),
-        speed: _pipElementSpeed(element),
-        homingStrength: _pipElementHoming(element),
-        piercing: element == 'Lightning' || element == 'Crystal',
-        bounceCount: bounces,
-      ),
-    );
-  });
 
   switch (element) {
     case 'Fire':
@@ -8393,7 +8535,10 @@ CosmicSpecialResult _pipSpecial(
                 center.dy + sin(lane) * side * 20 + sin(baseAngle) * tier * 8,
               ),
               angle: a + pi,
-              damageMultiplier: 1.80,
+              // Every kill splashes, and a dart now kills its way through a
+              // crowd rather than stopping at its bounces: at 1.80 Water led
+              // the family by half again (2026-10-20).
+              damageMultiplier: 1.5,
               life: 2.6,
               speed: 1.25,
               homingStrength: 2.4,
@@ -8448,7 +8593,12 @@ CosmicSpecialResult _pipSpecial(
                     sin(baseAngle + pi / 2) * lane,
               ),
               angle: baseAngle + (i - (localCount - 1) / 2) * 0.08,
-              damageMultiplier: 2.95,
+              // Heavy because an Earth dart never bounces: it used to make
+              // one hit and stop. It carries on through every body it kills
+              // now (PipRicochet), and at 2.95 with Earth's basic-shaved
+              // cadence it was half of a Potential-80 party's damage
+              // (2026-10-20).
+              damageMultiplier: 1.8,
               life: 2.4,
               speed: 1.05,
               homingStrength: 2.0,
@@ -8514,134 +8664,11 @@ CosmicSpecialResult _pipSpecial(
         }),
       );
     default:
-      return CosmicSpecialResult(projectiles: genericVolley());
+      // The seventeen elements each have their own volley above; there is
+      // no Pip outside them to throw one.
+      return CosmicSpecialResult();
   }
 }
-
-int _pipElementBounce(String e) => switch (e) {
-  'Crystal' => 5,
-  'Lightning' => 4,
-  'Air' => 4,
-  'Light' => 3,
-  'Fire' => 3,
-  'Water' => 3,
-  'Ice' => 3,
-  'Dust' => 2,
-  _ => 0,
-};
-
-int _pipElementCount(String e) => switch (e) {
-  // Counts tuned for the "ricochet salvo" identity — pips are fast
-  // bouncing darts, not screen-fill swarms. Lightning gets the most
-  // (its design is "double the ricochet"). Heavy elements (Lava,
-  // Blood, Dark, Earth) compensate with higher per-dart damage.
-  'Lightning' => 6,
-  'Dust' => 5,
-  'Crystal' => 4,
-  'Air' => 4,
-  'Fire' => 3,
-  'Water' => 3,
-  'Ice' => 3,
-  'Steam' => 3,
-  'Light' => 4,
-  'Blood' => 3,
-  'Lava' => 2,
-  'Earth' => 3,
-  'Mud' => 5,
-  'Plant' => 6,
-  'Poison' => 5,
-  'Spirit' => 4,
-  'Dark' => 5,
-  _ => 6,
-};
-
-double _pipElementDamageMultiplier(String e) => switch (e) {
-  'Blood' => 3.0,
-  'Dark' => 2.8,
-  'Lava' => 2.5,
-  'Earth' => 2.5,
-  'Spirit' => 2.2,
-  'Crystal' => 1.8,
-  'Fire' => 1.8,
-  'Ice' => 1.8,
-  'Water' => 1.6,
-  'Mud' => 1.6,
-  'Plant' => 1.6,
-  'Poison' => 1.4,
-  'Steam' => 1.4,
-  'Lightning' => 1.4,
-  'Air' => 1.2,
-  'Light' => 1.4,
-  'Dust' => 0.9,
-  _ => 1.8,
-};
-
-double _pipElementLife(String e) => switch (e) {
-  'Blood' => 3.5,
-  'Spirit' => 4.0,
-  'Poison' => 3.5,
-  'Plant' => 3.0,
-  'Mud' => 3.0,
-  'Water' => 3.0,
-  'Lava' => 2.5,
-  'Ice' => 2.8,
-  'Steam' => 2.5,
-  'Earth' => 2.5,
-  'Crystal' => 2.5,
-  'Dark' => 2.5,
-  'Fire' => 2.2,
-  'Lightning' => 1.8,
-  'Dust' => 1.8,
-  'Air' => 1.8,
-  'Light' => 3.0,
-  _ => 2.5,
-};
-
-double _pipElementSpeed(String e) => switch (e) {
-  'Lightning' => 2.3,
-  'Air' => 2.0,
-  'Dust' => 1.8,
-  'Fire' => 1.6,
-  'Light' => 1.5,
-  'Crystal' => 1.4,
-  'Dark' => 1.5,
-  'Water' => 1.2,
-  'Steam' => 1.2,
-  'Ice' => 1.1,
-  'Plant' => 1.1,
-  'Earth' => 1.0,
-  'Lava' => 0.9,
-  'Mud' => 0.9,
-  'Poison' => 1.0,
-  'Spirit' => 0.9,
-  'Blood' => 0.8,
-  _ => 1.4,
-};
-
-double _pipElementHoming(String e) => switch (e) {
-  // Pips are ricochet shots — they bounce. Homing was too strong
-  // (5–6 felt like guided missiles tracking enemies across the
-  // whole field). Pulled the whole table down so darts now ricochet
-  // toward enemies but don't *hunt* them around obstacles.
-  'Spirit' => 3.2,
-  'Blood' => 3.0,
-  'Dark' => 2.8,
-  'Plant' => 2.6,
-  'Poison' => 2.6,
-  'Crystal' => 2.4,
-  'Mud' => 2.2,
-  'Lava' => 2.0,
-  'Ice' => 2.2,
-  'Water' => 2.4,
-  'Earth' => 2.0,
-  'Fire' => 2.0,
-  'Lightning' => 1.8,
-  'Air' => 1.0,
-  'Steam' => 1.0,
-  'Light' => 1.6,
-  'Dust' => 1.4,
-  _ => 2.2,
-};
 
 // ─────────────────────────────────────────────────────────
 // MANE — Barrage Volley
@@ -8811,37 +8838,58 @@ CosmicSpecialResult _maneSpecial(
     // pierce legible. Lifetime below is doubled to match, so every element
     // keeps the reach it had — the shot takes twice as long to get there, it
     // does not stop short.
+    // The board's two slow catapults: Earth "slowly moves" and Dark's bolt
+    // "moves slowly through the field". The crawl's clamp bound for every
+    // element at every stat, so both flew at the same 174 px/s as the rest
+    // (2026-10-20 audit); each now keeps its authored heft against the
+    // family's 0.60 throw (Earth about 0.63 of the crawl, Dark 0.70).
+    final heft = (p.speedMultiplier / kManeCatapultAuthoredSpeed)
+        .clamp(0.5, 1.0)
+        .toDouble();
     final catapultSpeed = p.stationary || p.holdOrbit
         ? 0.0
         : p.element == 'Air'
         ? rawSpeed.clamp(0.75, 1.4).toDouble()
         : p.element == 'Fire'
         ? rawSpeed.clamp(0.5, 0.8).toDouble()
-        : rawSpeed.clamp(0.12, 0.29).toDouble();
+        : rawSpeed.clamp(0.12, kManeCatapultSpeed).toDouble() * heft;
     // Light deliberately begins as a tiny ward and grows on contact. Giving
     // it the normal authored-size restoration would erase that identity.
     final authoredSize = p.element == 'Light' ? 1.0 : 1.12;
+    // How much wider than authored the shot is drawn and hits. Beauty's
+    // coverage, the girth curve and the authored-size restoration multiplied
+    // to 1.15x at Potential 20 and 2.34x at 100 + Enhancement 10, so a bred
+    // catapult's hitbox was a corridor (2026-10-20 audit); the hitbox is held
+    // to [kManeHitboxInflationMax] and the art keeps its 1.18 inside it.
+    final hitboxScale = min(
+      visualScaleMul * coverageScale * 1.18 * authoredSize,
+      kManeHitboxInflationMax,
+    );
     return copyProjectile(
       p,
       damage: p.damage * impactScale * earthForceScale * 1.65,
-      // 3.1 rather than 1.55 because the catapult now flies at half speed:
-      // the same distance takes twice the time.
-      life: p.life * durationScale * (p.stationary ? 1.0 : 3.1),
+      // The catapult flies at half speed, so its life was tripled to keep
+      // the reach; at 3.1 a shot from the middle ring crossed the orb and
+      // flew on past the far rim for 11-19 s, so it is
+      // [kManeCatapultLifeScale] now. Light's ward does not fly and keeps the
+      // life it was built around.
+      life:
+          p.life *
+          durationScale *
+          (p.stationary
+              ? 1.0
+              : p.holdOrbit
+              ? 3.1
+              : kManeCatapultLifeScale),
       speedMultiplier: catapultSpeed,
-      radiusMultiplier:
-          p.radiusMultiplier *
-          visualScaleMul *
-          coverageScale *
-          1.18 *
-          authoredSize,
+      radiusMultiplier: p.radiusMultiplier * hitboxScale,
       piercing: true,
       homing: false,
       homingStrength: p.homingStrength * controlScale,
       // The removed generic stat-tier wrapper used to add roughly this much
       // authored size at ordinary Mane ratings. Keep that silhouette here,
       // where it belongs, without bringing back hidden unlock thresholds.
-      visualScale:
-          p.visualScale * visualScaleMul * coverageScale * authoredSize,
+      visualScale: p.visualScale * hitboxScale / 1.18,
       trailDamage: p.trailDamage * impactScale,
       trailLife: p.trailLife * durationScale,
       turretInterval: p.turretInterval > 0
@@ -9655,6 +9703,33 @@ double maskContactReach(double beauty) => scaledAbilityReach(
   atPerfect: 1.52 * kMaskContactReachAtAverage,
 );
 
+/// The damage amp a Mask Ice pillar gives whoever stands by it: the board's
+/// "~2×–5× damage buff", by the caster's Beauty (the stat that pays for every
+/// Mask trap's power).
+///
+/// It was a flat 2.4 in every mode and the pillar's authored power was never
+/// read (2026-10-20 audit). Now the power is the amp: 2.0 from a weak caster,
+/// the old 2.4 at an average one, about 3.0 at Potential 80 and 4.4 at 100 +
+/// Enhancement 10, never past [kMaskIceAmpMax].
+double maskIceAmp(double beauty) => scaledAbilityValue(
+  beauty,
+  atLow: kMaskIceAmpMin,
+  atAverage: 2.4,
+  atPerfect: 4.6,
+).clamp(kMaskIceAmpMin, kMaskIceAmpMax).toDouble();
+
+const double kMaskIceAmpMin = 2.0;
+const double kMaskIceAmpMax = 5.0;
+
+/// The amp [pillar] gives, read off its power ([maskIceAmp]); a pillar
+/// without one gives the board's floor.
+double maskIceAmpOf(Projectile pillar) =>
+    pillar.effectPower.clamp(kMaskIceAmpMin, kMaskIceAmpMax).toDouble();
+
+/// Every temporary damage amp a creature can carry is held to this. It was
+/// 4, under the top of Mask Ice's own 2-5x.
+const double kCompanionDamageAmpCeiling = kMaskIceAmpMax;
+
 // ─────────────────────────────────────────────────────────
 // MASK — Mine Field / Decoy Assault
 // COMPLETE REWORK: Decoys now ACTIVELY SEEK enemies on spawn.
@@ -9736,7 +9811,11 @@ CosmicSpecialResult _maskSpecial(
       decoyHp: p.decoy ? p.decoyHp * impactScale : p.decoyHp,
       deathExplosionDamage: p.deathExplosionDamage * impactScale,
       deathExplosionRadius: p.deathExplosionRadius * visualScaleMul,
-      effectPower: p.effectPower * impactScale,
+      // The Ice pillar's power is its amp, already set from Beauty on the
+      // board's 2-5x curve; scaling it again would leave the curve.
+      effectPower: p.tickEffect == AbilityEffectKind.buff
+          ? p.effectPower
+          : p.effectPower * impactScale,
       effectRadius: p.effectRadius * radScale,
       effectDuration: p.effectDuration * durationScale,
       abilityFamily: 'mask',
@@ -9993,20 +10072,28 @@ CosmicSpecialResult _maskSpecial(
       break;
 
     case 'Light':
-      // ONE light void. Persists until enemy collision → instant kill.
-      projs.add(
-        trap(
-          pos: trapAnchor,
-          dmgMul: 0.0,
-          life: 18.0,
-          hitEffect: AbilityEffectKind.execute,
-          effectPower: 1.0,
-          effectRadius: 70,
-          effectDuration: 18.0,
-          radius: 2.0,
-          vs: 2.2,
-        ),
-      );
+      // Light voids. Each persists until an enemy collides → instant kill,
+      // and is spent. It was ONE void a cast, which against a horde was one
+      // kill every half minute (2026-10-20 audit; user, the same day:
+      // "everything can have a niche"): three at a low stat, four at an
+      // average one, seven at Potential 95, laid across the orb's approach
+      // like the family's other fields.
+      final count = scaledCount(4, min: 3, max: 7);
+      for (final p in scatterPositions(trapAnchor, count, baseSpread: 160)) {
+        projs.add(
+          trap(
+            pos: p,
+            dmgMul: 0.0,
+            life: 18.0,
+            hitEffect: AbilityEffectKind.execute,
+            effectPower: 1.0,
+            effectRadius: 70,
+            effectDuration: 18.0,
+            radius: 2.0,
+            vs: 2.2,
+          ),
+        );
+      }
       break;
 
     case 'Spirit':
@@ -10153,14 +10240,15 @@ CosmicSpecialResult _maskSpecial(
 
     case 'Ice':
       // ONE giant ice pillar. Ship/alchemons near it get a strength
-      // buff (~2–5×). Ally-buff aura is wired survival-side.
+      // buff (~2–5×). Ally-buff aura is wired survival-side; the pillar's
+      // power IS the amp ([maskIceAmp]), and every mode reads it from there.
       projs.add(
         trap(
           pos: trapAnchor,
           dmgMul: 0.0,
           life: 14.0,
           tickEffect: AbilityEffectKind.buff,
-          effectPower: 2.0,
+          effectPower: maskIceAmp(casterBeauty),
           effectRadius: 180,
           effectDuration: 14.0,
           radius: 2.4,
@@ -11636,6 +11724,38 @@ int scaledAbilityCount(
 /// design; it was the frame rate.
 const int kManeSpecialMaxHitsPerEnemy = 2;
 
+/// A Mane catapult's crawl, as a speed multiplier (about 174 px/s): every
+/// shot but Air's and Fire's flies no faster than this.
+const double kManeCatapultSpeed = 0.29;
+
+/// The authored speed of the family's ordinary throw. A catapult authored
+/// slower than this (Earth 0.38, Dark 0.42) crawls slower than
+/// [kManeCatapultSpeed] by the same share.
+const double kManeCatapultAuthoredSpeed = 0.60;
+
+/// How much longer than authored a catapult lives, for the half-speed crawl.
+///
+/// 3.1 until the 2026-10-20 rebuild ("shorten catapult flight (life x3.1 to
+/// about x2)"). Measured at x2 the family's share did not move at all (38% at
+/// Potential 20, 40% at 80): a shot from the middle ring still flew 1,200-
+/// 2,100 px, out past the spawn ring. At x1.5 it ends a little past the rim
+/// (about 900-1,500 px), which took about 3 points off at Potential 20.
+const double kManeCatapultLifeScale = 1.5;
+
+/// The most a Mane shot's hitbox grows past its authored size, whatever its
+/// Beauty ("cap the hitbox inflation", 2026-10-20 rebuild).
+const double kManeHitboxInflationMax = 1.6;
+
+/// How many bodies a Mask's dart passes through before it is spent.
+///
+/// The dart was a 936 px piercing line with no end, and in a horde it, not
+/// the traps, was most of what a Mask did: 75% of a Mask's damage at
+/// Potential 20 and 54% at 80, threading 9 bodies a throw at 20 and 14 at 80
+/// (2026-10-20 family probe). Mask is the gatekeeper; its traps are the
+/// family. Six keeps a dart that passes through a line of chaff without
+/// being the family's whole share.
+const int kMaskDartPierce = 6;
+
 /// The fixed clock unbounded re-hitters test contact on — see
 /// [Projectile.takeContactTick]. 60 Hz, the rate everything was tuned at.
 const double kContactTickSeconds = 1 / 60;
@@ -11769,7 +11889,10 @@ List<Projectile> _familyBasicShots({
           piercing: true,
           life: 1.2,
           visualStyle: ProjectileVisualStyle.dart,
-        )..maxHitsPerEnemy = 1,
+        )
+          // One hit per body, and no more than [kMaskDartPierce] bodies.
+          ..maxHitsPerEnemy = 1
+          ..maxPierce = kMaskDartPierce,
       ];
     case 'wing':
       return [
@@ -12897,8 +13020,9 @@ class CosmicCompanion with HasEffects, KinSupportFields {
     ),
   );
 
-  double get damageAmp =>
-      damageAmpTimer > 0 ? damageAmpMultiplier.clamp(1.0, 4.0) : 1.0;
+  double get damageAmp => damageAmpTimer > 0
+      ? damageAmpMultiplier.clamp(1.0, kCompanionDamageAmpCeiling)
+      : 1.0;
 
   /// Seconds between specials — the shared rule in alchemon_combat_stats.dart.
   double get effectiveSpecialCooldown => alchemonSpecialInterval(

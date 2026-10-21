@@ -26,6 +26,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'battle_test.dart' show battleArena, runBattle;
+import 'family_frame_trials.dart';
 
 CreatureCatalog _catalog() {
   final json =
@@ -175,6 +176,7 @@ void main() {
     final env = Platform.environment;
     final at = env['LADDER_SPECIES'];
     if (at == null) return;
+    final tried = applyFamilyTrials();
     final pe = at.split(':').map(int.parse).toList();
     final n = int.tryParse(env['LADDER_N'] ?? '') ?? 400;
     final pool = catalog.creatures
@@ -211,6 +213,7 @@ void main() {
     final won = <String, double>{}, played = <String, int>{};
     final famWon = <String, double>{}, famPlayed = <String, int>{};
     var lengths = 0.0;
+    var timeUps = 0;
     for (var i = 0; i < n; i++) {
       final home = four('h'), away = four('a');
       final (game, center) = await battleArena();
@@ -219,8 +222,12 @@ void main() {
         away: away,
         homeAuto: true,
         center: center,
+        // LADDER_SCALE=1.0 tries another battle damage scale.
+        damageScale:
+            double.tryParse(env['LADDER_SCALE'] ?? '') ?? kBattleDamageScale,
       );
       runBattle(game);
+      if (b.result?.end == BattleEnd.timeUp) timeUps++;
       lengths += b.result?.at ?? 0;
       final w = b.result?.winner;
       for (final (side, team) in [(0, home), (1, away)]) {
@@ -236,7 +243,8 @@ void main() {
     }
     stdout.writeln(
       'P${pe[0]}e${pe.length > 1 ? pe[1] : 0}: $n fights, '
-      'avg ${(lengths / n).toStringAsFixed(0)} s',
+      'avg ${(lengths / n).toStringAsFixed(0)} s, $timeUps time-ups'
+      '${tried.isEmpty ? '' : '  (tried $tried)'}',
     );
     final fams = famWon.keys.toList()
       ..sort((a, b) => (famWon[b]! / famPlayed[b]!).compareTo(
@@ -260,6 +268,18 @@ void main() {
       stdout.writeln(
         '  ${k.padRight(18)} ${(100 * won[k]! / played[k]!).round()}%'
         '  of ${played[k]}',
+      );
+    }
+    // LADDER_FAMILY=Wing: every element of that family, best to worst.
+    final family = env['LADDER_FAMILY'];
+    if (family != null) {
+      final mine = won.keys.where((k) => k.endsWith(' $family')).toList()
+        ..sort(
+          (a, b) => (won[b]! / played[b]!).compareTo(won[a]! / played[a]!),
+        );
+      stdout.writeln(
+        '  $family: ${mine.map((k) => '${k.split(' ').first} '
+            '${(100 * won[k]! / played[k]!).round()}%(${played[k]})').join(' ')}',
       );
     }
   }, timeout: const Timeout(Duration(minutes: 40)));

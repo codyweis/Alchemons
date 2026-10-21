@@ -469,9 +469,11 @@ void main() {
       expect(result.projectiles, isNotEmpty);
       expect(result.projectiles.any((p) => p.homing), isTrue);
       expect(result.projectiles.any((p) => p.bounceCount > 0), isTrue);
+      // Fast, at the pace the user slowed them to so they can be seen
+      // (kPipDartPace, 2026-10-21).
       expect(
         result.projectiles.map((p) => p.speedMultiplier).reduce(max),
-        greaterThanOrEqualTo(2.2),
+        greaterThanOrEqualTo(2.2 * kPipDartPace),
       );
       expect(
         result.projectiles.every(
@@ -520,9 +522,11 @@ void main() {
           continue;
         }
 
+        // The ceiling, stretched only as far as the slower pace needs to
+        // keep the darts' reach (kPipDartPace).
         expect(
           result.projectiles.every(
-            (p) => p.life <= kPipSpecialMaxProjectileLife,
+            (p) => p.life <= kPipSpecialMaxProjectileLife / kPipDartPace,
           ),
           isTrue,
           reason: '$element Pip special should not leave endless darts',

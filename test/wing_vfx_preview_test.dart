@@ -117,6 +117,65 @@ void main() {
     });
   }
 
+  // Focus (2026-10-20): a line beam from just landed to white-hot, swept on
+  // past the body it is held on (the bead at 40% along), beside the beam with
+  // no heat as the dungeons still draw it.
+  test('Wing focus heat, cold to white-hot', () async {
+    const elements = [
+      'Dark',
+      'Ice',
+      'Earth',
+      'Light',
+      'Lava',
+      'Air',
+      'Crystal',
+      'Water',
+    ];
+    const heats = <double?>[null, 0, 0.5, 1];
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawColor(const Color(0xFF090E1C), BlendMode.src);
+    for (var row = 0; row < elements.length; row++) {
+      final element = elements[row];
+      for (var col = 0; col < heats.length; col++) {
+        canvas.save();
+        canvas.translate(30 + col * 300.0, 60 + row * 90.0);
+        const focus = Offset(104, 0);
+        canvas.drawCircle(
+          focus,
+          9,
+          Paint()..color = const Color(0xFF3A4257),
+        );
+        drawAdvancedAbilityBeam(
+          canvas: canvas,
+          start: Offset.zero,
+          end: const Offset(260, 0),
+          color: elementColor(element),
+          width: 10,
+          alpha: 1,
+          time: 0.6,
+          wingElement: element,
+          heat: heats[col],
+          focus: heats[col] == null ? null : focus,
+        );
+        canvas.restore();
+      }
+    }
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(1220, 60 + elements.length * 90);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+    expect(bytes, isNotNull);
+    final output = Platform.environment['WING_VFX_OUT'];
+    if (output != null) {
+      await Directory(output).create(recursive: true);
+      await File(
+        '$output/wing-focus-heat.png',
+      ).writeAsBytes(bytes!.buffer.asUint8List());
+    }
+    image.dispose();
+    picture.dispose();
+  });
+
   // The live-beam pieces shared with survival: Lightning's brewing storm as
   // its particles and micro-arcs build, and Plant's flower as it wilts.
   test('Wing Lightning brew and Plant flower', () async {

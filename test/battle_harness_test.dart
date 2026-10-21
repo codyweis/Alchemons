@@ -6,20 +6,43 @@
 //     [BATTLE_GRACE=1]     keep open space's hit grace window
 //     [BATTLE_OT=60,0.5,1.6] overtime: from, heal share, damage at the end
 //     [BATTLE_N=200]       fights in the mixed table
-//     [BATTLE_ONLY=trace|families|stats]
+//     [BATTLE_ONLY=trace|families|stats|output]
+//     [BATTLE_STAT=6]      every stat of the output table's pairs (3 is
+//                          about P50 on an average species, 6 about P80)
+//     [FAMILY_TRY=...]     family numbers tried (family_frame_trials.dart)
 //
 // Not a gate: with no BATTLE_REPORT it runs one fight and checks it ends.
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
+import 'package:alchemons/games/stadium/battle_ladder.dart';
+import 'package:alchemons/models/creature.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'battle_test.dart' show battleArena, battleMember, runBattle;
+import 'family_frame_trials.dart';
 
 const _families = ['Horn', 'Wing', 'Let', 'Pip', 'Mane', 'Mask', 'Kin'];
+
+/// The catalog's species by family (no Mystics), for BATTLE_P.
+Map<String, List<Creature>> _catalogSpecies() {
+  final json =
+      jsonDecode(File('assets/data/alchemons_creatures.json').readAsStringSync())
+          as Map<String, dynamic>;
+  final out = <String, List<Creature>>{};
+  for (final c in json['creatures'] as List) {
+    final s = Creature.fromJson(c as Map<String, dynamic>);
+    final f = s.mutationFamily;
+    if (f == null || !_families.contains(f) || s.baseStats == null) continue;
+    if (s.types.isEmpty) continue;
+    out.putIfAbsent(f, () => []).add(s);
+  }
+  return out;
+}
 const _elements = [
   'Fire', 'Water', 'Earth', 'Air', 'Plant', 'Ice', 'Lightning', 'Poison',
   'Steam', 'Lava', 'Mud', 'Dust', 'Crystal', 'Spirit', 'Dark', 'Light',
@@ -170,15 +193,41 @@ void main() {
     'family pairs: every family pair against every other',
     () async {
       if (!_only('families')) return;
+      final tried = applyFamilyTrials();
       // Pairs of one family (two elements), so a family's own shape shows.
+      // BATTLE_P=80 draws real catalog species bred to it instead of even
+      // stats; BATTLE_R the fights per pairing (2).
       final rng = Random(7);
+      final bred = int.tryParse(Platform.environment['BATTLE_P'] ?? '');
+      final species = bred == null ? null : _catalogSpecies();
       List<CosmicPartyMember> pair(String family) {
+        if (species != null) {
+          final pool = species[family]!;
+          final a = pool[rng.nextInt(pool.length)];
+          var b = pool[rng.nextInt(pool.length)];
+          while (b == a && pool.length > 1) {
+            b = pool[rng.nextInt(pool.length)];
+          }
+          return [
+            for (final (i, c) in [a, b].indexed)
+              ladderMember(
+                c,
+                potential: bred!,
+                id: '$family-$i-${c.id}',
+                slot: i,
+                sprites: false,
+              ),
+          ];
+        }
         final e = List.of(_elements)..shuffle(rng);
         return [
           battleMember(family, e[0], id: '$family-a-${e[0]}'),
           battleMember(family, e[1], id: '$family-b-${e[1]}'),
         ];
       }
+
+      final rounds =
+          int.tryParse(Platform.environment['BATTLE_R'] ?? '') ?? 2;
 
       final wins = {for (final f in _families) f: 0.0};
       final games = {for (final f in _families) f: 0};
@@ -188,7 +237,7 @@ void main() {
       for (final a in _families) {
         for (final c in _families) {
           if (a == c) continue;
-          for (var r = 0; r < 2; r++) {
+          for (var r = 0; r < rounds; r++) {
             final f = await _fight(pair(a), pair(c), scale: _scale);
             n++;
             lengths.add(f.result.at);
@@ -211,7 +260,11 @@ void main() {
         }
       }
       lengths.sort();
-      stdout.writeln('families (scale $_scale, $n fights, 2v2, no bench):');
+      stdout.writeln(
+        'families (scale $_scale, $n fights, 2v2, no bench'
+        '${bred == null ? '' : ', species at P$bred'})'
+        '${tried.isEmpty ? '' : ' tried $tried'}:',
+      );
       for (final f in _families) {
         stdout.writeln('  ${f.padRight(5)} ${_pct(wins[f]! / games[f]!)}');
       }
@@ -438,10 +491,16 @@ void main() {
     'output: what each family deals and takes against a fixed pair',
     () async {
       if (!_only('output')) return;
+      final tried = applyFamilyTrials();
+      final stat =
+          double.tryParse(Platform.environment['BATTLE_STAT'] ?? '') ?? 3;
       // Each family pair against two Earth Horns that never cast and are
       // healed to full every frame, so nothing dies, no shield soaks a hit,
       // and the numbers are rates.
-      stdout.writeln('output (scale $_scale, per second over 20 s, vs 2 Horns that never cast):');
+      stdout.writeln(
+        'output (scale $_scale, stat $stat, per second over 20 s, vs 2 '
+        'Horns that never cast)${tried.isEmpty ? '' : ' tried $tried'}:',
+      );
       stdout.writeln('  family   deals  takes   specials  (per element pair)');
       for (final family in _families) {
         final deals = <double>[];
@@ -453,12 +512,12 @@ void main() {
           final (game, center) = await battleArena();
           final b = game.startBattle(
             home: [
-              battleMember(family, e1, id: '$family-$e1-a'),
-              battleMember(family, e2, id: '$family-$e2-b'),
+              battleMember(family, e1, stat: stat, id: '$family-$e1-a'),
+              battleMember(family, e2, stat: stat, id: '$family-$e2-b'),
             ],
             away: [
-              battleMember('Horn', 'Earth', id: 'ref-a'),
-              battleMember('Horn', 'Earth', id: 'ref-b'),
+              battleMember('Horn', 'Earth', stat: stat, id: 'ref-a'),
+              battleMember('Horn', 'Earth', stat: stat, id: 'ref-b'),
             ],
             // BATTLE_NO_SPECIALS=1: auto attacks only, to see what the
             // specials add.

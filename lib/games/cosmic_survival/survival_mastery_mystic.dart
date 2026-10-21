@@ -80,6 +80,12 @@ class MysticTuning {
   static const double tendedHealPerSecond = 0.012;
   static const double tendedInterval = 1.0;
 
+  /// Sanctum: an ally's attack from inside the world lands the world's
+  /// element (the Mystic's own payload, at this strength) at most once per
+  /// body in this many seconds, however many allies are firing at it.
+  static const double sanctumStrength = 0.5;
+  static const double sanctumCooldown = 0.5;
+
   /// How close to the caster counts as inside, before the world's own
   /// footprint is taken into account.
   static const double insideRadius = 260.0;

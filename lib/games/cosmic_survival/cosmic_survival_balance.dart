@@ -9,10 +9,31 @@ class CosmicSurvivalBalance {
 
   /// Most extra bodies are slow chaff. Progression adds density, not sponges.
   static int hordeCountForWave(int wave) =>
-      (16 + wave * 6 + pow(max(0, wave - 4), 1.55) * 5).round().clamp(
-        24,
-        hordeWaveTotalCeiling,
-      );
+      ((16 + wave * 6 + pow(max(0, wave - 4), 1.55) * 5) *
+              hordeDensity(wave))
+          .round()
+          .clamp(24, hordeWaveTotalCeiling);
+
+  /// How many more bodies a wave sends than it did before the 2026-10-20
+  /// family rebuild: none through wave [hordeDensityWave], then a growing
+  /// share, 80% more ([hordeDensityGain]) from wave 33 on.
+  ///
+  /// The rebuild's gains were mostly bodies per cast and a front held off
+  /// the orb (Wing's focus beams, Mane's longer catapults, Mask traps on the
+  /// orb's approach). A team at its wall now got through about twice the
+  /// horde health a wave it used to: P70 held to wave 61, P90 to 76, a
+  /// perfect team past 110. More bodies answer most of that without making
+  /// each one a sponge, so every family meets the bodies it was balanced
+  /// against; [pressureLead] does the rest. The meter's capacity follows
+  /// the count, so the draft still opens about once a wave. The field holds
+  /// what it held, so a wall wave runs longer instead of fuller: 50–85 s for
+  /// a team near its wall, about 40 s before the rebuild.
+  static const int hordeDensityWave = 25;
+  static const double hordeDensityGain = 0.8;
+
+  static double hordeDensity(int wave) =>
+      1.0 + hordeDensityGain * ((wave - hordeDensityWave) / 8).clamp(0.0, 1.0);
+
   static int hordeBatchSize(int wave) => (6 + wave).clamp(6, 48);
 
   /// Plain horde bodies move at this share of their tier speed: a wisp takes
@@ -97,8 +118,12 @@ class CosmicSurvivalBalance {
   /// How far past the arena rim a walking body appears.
   static const double hordeSpawnBeyondRim = 70;
 
-  /// Most bodies one wave can send in total.
-  static const int hordeWaveTotalCeiling = 9000;
+  /// Most bodies one wave can send in total. It was 9,000, reached around
+  /// wave 125; with [hordeDensity] it would bite from wave 85, where the
+  /// perfect team's wall is measured, so it grew with the density. The field
+  /// itself stays at [hordeActiveCeilingForWave]: a bigger wave lasts longer,
+  /// it never puts more bodies on screen.
+  static const int hordeWaveTotalCeiling = 16000;
 
   /// Encounter budgets belong to the wave, not to each independently rolled boss.
   static int bossCountForWave(int wave) {
@@ -173,11 +198,11 @@ class CosmicSurvivalBalance {
   static const int hordeLateActiveCeiling = 3000;
 
   ///
-  /// The climb reads [latePressure], so it starts at wave 60 and reaches
-  /// 3,000 at wave 160. Wave 100 holds 1,800, under the 2,000 measured as
-  /// sustainable on the Fold.
+  /// The climb reads [_fieldCeilingPressure], so it starts at wave 60 and
+  /// reaches 3,000 at wave 160. Wave 100 holds 1,800, under the 2,000
+  /// measured as sustainable on the Fold.
   static int hordeActiveCeilingForWave(int wave) {
-    final w = latePressure(wave);
+    final w = _fieldCeilingPressure(wave);
     return w <= 50
         ? hordeActiveCeiling
         : (hordeActiveCeiling +
@@ -265,7 +290,8 @@ class CosmicSurvivalBalance {
   /// halved. The danger is moved onto the damage curve instead, where it can
   /// actually be felt.
   ///
-  /// Past [latePressureWave] it climbs at half pace — see [latePressure].
+  /// It reads [latePressure]: ahead of the wave count from wave 25, at half
+  /// pace past wave 40.
   static double enemyWaveHpScale(int wave) {
     if (wave <= 1) return 1.0;
     final w = latePressure(wave);
@@ -275,20 +301,51 @@ class CosmicSurvivalBalance {
 
   /// Where the run turns into the grinder's endgame.
   ///
-  /// Until here the curves are what they always were, and a decent team
-  /// (about Potential 70) meets its wall around this wave. Beyond it, every
-  /// wave a team survives is paid for by its stats: breeding and Enhancement
-  /// are the only way further. Measured on the benchmark party
-  /// (docs/survival_stat_walls.md): with the wave curves at full pace past
-  /// here, P90 walled at wave 48 and a perfect team at 63. At half pace the
-  /// walls spread toward roughly P90 60, P100 70, perfect 80.
+  /// A decent team (about Potential 70) meets its wall around this wave.
+  /// Beyond it, every wave a team survives is paid for by its stats: breeding
+  /// and Enhancement are the only way further. Measured on the benchmark
+  /// party (docs/survival_stat_walls.md): with the wave curves at full pace
+  /// past here, P90 walled at wave 48 and a perfect team at 63. At half pace
+  /// the walls spread toward roughly P90 60, P100 70, perfect 80.
   static const int latePressureWave = 40;
   static const double latePressureRate = 0.5;
 
-  /// The wave number the pressure curves read: the real wave up to
-  /// [latePressureWave], then half a wave for every wave past it. Wave 80
-  /// presses like wave 60 used to.
-  static double latePressure(int wave) => wave <= latePressureWave
+  /// From here to [latePressureWave] the world presses ahead of the wave
+  /// count, [pressureLead] waves ahead by wave 40.
+  ///
+  /// Half of the answer to the 2026-10-20 family rebuild, with
+  /// [hordeDensity]: the bodies themselves are a little tougher and hit a
+  /// little harder (x1.25 at wave 40, x1.18 at 80), so health and damage
+  /// keep climbing together. Alone it is a weak lever (health grows about 2%
+  /// a pressure wave near wave 50): an eleven-wave lead moved P90's wall
+  /// only from 76 to 71. With the density the walls are back on their targets
+  /// (docs/survival_stat_walls.md). Waves 1–25, where a fresh team meets its
+  /// limit, are untouched.
+  static const int pressureLeadWave = 25;
+  static const double pressureLead = 11;
+
+  /// The wave number the pressure curves read: the real wave through
+  /// [pressureLeadWave], then gaining on it until it is [pressureLead] ahead
+  /// at [latePressureWave], then half a wave for every wave past that. Wave
+  /// 30 presses like 33.7, wave 40 like 51 and wave 80 like 71 (before the
+  /// lead they pressed like 30, 40 and 60).
+  static double latePressure(int wave) {
+    if (wave <= pressureLeadWave) return wave.toDouble();
+    if (wave <= latePressureWave) {
+      return wave +
+          pressureLead *
+              (wave - pressureLeadWave) /
+              (latePressureWave - pressureLeadWave);
+    }
+    return latePressureWave +
+        pressureLead +
+        (wave - latePressureWave) * latePressureRate;
+  }
+
+  /// The pressure the field's ceiling climbs by: [latePressure] without the
+  /// lead. The ceiling is a frame budget measured on the Fold, not a
+  /// difficulty knob, so it keeps the climb it was measured against.
+  static double _fieldCeilingPressure(int wave) => wave <= latePressureWave
       ? wave.toDouble()
       : latePressureWave + (wave - latePressureWave) * latePressureRate;
 
@@ -304,8 +361,7 @@ class CosmicSurvivalBalance {
   /// body is the honest lever for that: it costs the player something when one
   /// gets through, without spawning more of them.
   ///
-  /// Past [latePressureWave] it climbs at half pace, with health, so the two
-  /// keep rising together.
+  /// It reads [latePressure], with health, so the two keep rising together.
   static double enemyWaveDamageScale(int wave) {
     if (wave <= 1) return 1.0;
     return 1.0 + pow(latePressure(wave) - 1, 1.22).toDouble() * 0.026;
@@ -319,10 +375,11 @@ class CosmicSurvivalBalance {
   /// benchmark it was worth about 7 waves at P50 and 10 at P100 + E10. With
   /// the copy gone the orb hardens as the run goes on instead: every point
   /// lands through wave [orbHardeningWave], where a weak team falls, then a
-  /// falling share: 0.88 at wave 12, 0.59 at 20, 0.42 at 30, 0.32 at 40, 0.22
-  /// at 80 (it reads [latePressure]). That puts the level-10 walls back
-  /// within a wave or two of where they were (docs/survival_stat_walls.md)
-  /// and leaves the opening waves alone.
+  /// falling share: 0.88 at wave 12, 0.59 at 20, 0.38 at 30, 0.26 at 40, 0.19
+  /// at 80 (it reads [latePressure], so it hardens with the pressure lead and
+  /// a hit at a given wave costs the orb about what it did before). That
+  /// put the level-10 walls back within a wave or two of where they were
+  /// (docs/survival_stat_walls.md) and leaves the opening waves alone.
   static const int orbHardeningWave = 10;
   static const double orbHardeningRate = 0.07;
 

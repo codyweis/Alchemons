@@ -280,7 +280,6 @@ void main() {
       final avg = ManeLightWard.cast(
         rings: const [],
         ringCap: 3,
-        growth: 0,
         casterPos: Offset.zero,
         casterAngle: 0,
         template: template(1.0),
@@ -291,7 +290,6 @@ void main() {
       final wide = ManeLightWard.cast(
         rings: const [],
         ringCap: 3,
-        growth: 0,
         casterPos: Offset.zero,
         casterAngle: 0,
         template: template(1.2),
@@ -304,7 +302,6 @@ void main() {
       final fed = ManeLightWard.cast(
         rings: [wide],
         ringCap: 1,
-        growth: 0,
         casterPos: Offset.zero,
         casterAngle: 0,
         template: template(1.2),
@@ -460,7 +457,12 @@ void main() {
             for (var i = 0; i < 12; i++) piece(family: 'mask', element: 'Air'),
           ]);
         }
-        expect(field.length, 12 * CasterPieces.castWindow);
+        // Three casts' worth (2026-10-20): a trap outlives two recasts.
+        expect(
+          CasterPieces.windowFor('mask', 'Air'),
+          CasterPieces.maskCastWindow,
+        );
+        expect(field.length, 12 * CasterPieces.maskCastWindow);
       },
     );
 

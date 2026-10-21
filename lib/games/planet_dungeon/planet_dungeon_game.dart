@@ -5533,7 +5533,11 @@ class PlanetDungeonGame extends FlameGame {
         }
       }
       if (p.homing) {
-        final target = _nearestEnemyPosition(p.position);
+        // A Pip dart hunts only bodies it has not struck (PipRicochet), as
+        // in survival and space.
+        final target = PipRicochet.isSpecialDart(p)
+            ? _nextDungeonPipDartTarget(p, p.position, double.infinity)
+            : _nearestEnemyPosition(p.position);
         if (target != null) {
           final desired = atan2(
             target.dy - p.position.dy,
@@ -5715,14 +5719,15 @@ class PlanetDungeonGame extends FlameGame {
           _resolveAbilityPierce(p, enemy);
         }
         final wasDead = enemy.isDead;
-        final isPipSpecialDart =
-            p.abilityFamily == 'pip' &&
-            p.visualStyle == ProjectileVisualStyle.dart;
+        final isPipSpecialDart = PipRicochet.isSpecialDart(p);
+        final hpBefore = enemy.hp;
         _damageEnemyDirect(
           enemy,
           p.damage,
           sourceSlot: p.sourceSlotIndex,
-          fromPipSpecial: isPipSpecialDart,
+          // A dart threading a crowd lays its piece on its first kill and
+          // every few after ([PipRicochet.killsPerPiece]), as in survival.
+          fromPipSpecial: isPipSpecialDart && PipRicochet.laysPiece(p),
           // Basic attacks carry no ability family; every special stamps one.
           fromAutoAttack: p.abilityFamily.isEmpty,
         );
@@ -5742,11 +5747,14 @@ class PlanetDungeonGame extends FlameGame {
         // Pip+Water: a kill on the dart's final hit erupts a huge splash
         // scaled by the caster's Beauty.
         // The special dart only — a basic never bounces (survival's note).
+        // Once a dart, since a kill no longer ends one.
         if (killed &&
             isPipSpecialDart &&
             p.element == 'Water' &&
             p.bounceCount <= 0 &&
+            !p.pipSplashed &&
             p.sourceSlotIndex != null) {
+          p.pipSplashed = true;
           final src = _combatCompanionForSlot(p.sourceSlotIndex!);
           if (src != null && src.member.family.toLowerCase() == 'pip') {
             final effectiveBeauty = AlchemonStatSystem.legacyGameplayRating(
@@ -5862,12 +5870,35 @@ class PlanetDungeonGame extends FlameGame {
           );
         }
 
-        // Ricochet (pip): bounce to the nearest clustered target, shedding
-        // damage per hop (Lightning sheds less — its ricochet identity).
-        final isPipSpecialProjectile = p.abilityFamily == 'pip';
-        if (p.bounceCount > 0) {
+        // Ricochet (Pip), as survival chains it (PipRicochet): a kill
+        // carries what the body did not need on to the next body and costs
+        // nothing; a survivor (a boss always) costs a bounce and the falloff
+        // (Lightning sheds less — its ricochet identity). The next body is
+        // the nearest within reach that the dart has not struck.
+        if (isPipSpecialDart) {
+          final step = PipRicochet.settle(
+            p,
+            killed: killed && !boss,
+            carried: killed && !boss
+                ? PipRicochet.carriedShare(hpBefore, enemy.hp)
+                : 0,
+          );
+          if (step == PipDartStep.spent) {
+            consumed = true;
+          } else {
+            final next = step == PipDartStep.pierce
+                ? null
+                : _nextDungeonPipDartTarget(
+                    p,
+                    enemy.position,
+                    PipRicochet.nextReach + (boss ? enemy.radius : 0),
+                    struck: enemy,
+                  );
+            if (next != null) _cue(SoundCue.specialPipRicochet);
+            PipRicochet.turn(p, next);
+          }
+        } else if (p.bounceCount > 0) {
           p.bounceCount--;
-          if (isPipSpecialProjectile) p.pierceCount++;
           CosmicSurvivalEnemy? next;
           var bestD = 110.0;
           for (final other in combatEnemies) {
@@ -5879,28 +5910,20 @@ class PlanetDungeonGame extends FlameGame {
             }
           }
           if (next != null) {
-            if (isPipSpecialProjectile) _cue(SoundCue.specialPipRicochet);
             p.angle = atan2(
               next.position.dy - p.position.dy,
               next.position.dx - p.position.dx,
             );
-            p.life = isPipSpecialProjectile
-                ? min(max(p.life, 0.18), kPipRicochetPostHitLife)
-                : max(p.life, 0.45);
-            final falloff = (p.element == 'Lightning') ? 0.85 : 0.70;
-            p.damage = p.damage * falloff;
+            p.life = max(p.life, 0.45);
+            p.damage *= p.element == 'Lightning' ? 0.85 : 0.70;
             p.speedMultiplier = max(0.6, p.speedMultiplier * 0.92);
           } else {
             p.bounceCount = 0;
-            if (isPipSpecialProjectile) consumed = true;
           }
         } else if (!p.piercing) {
           consumed = true;
         } else {
           p.pierceCount++;
-          if (isPipSpecialProjectile && p.pierceCount >= kPipMaxPierceHits) {
-            consumed = true;
-          }
         }
         if (consumed) break;
       }
@@ -6154,6 +6177,30 @@ class PlanetDungeonGame extends FlameGame {
     return (point - closest).distance;
   }
 
+  /// Where a Pip special dart turns after a contact at [from]: the nearest
+  /// body within [maxRange] that it has not struck yet (a boss once).
+  Offset? _nextDungeonPipDartTarget(
+    Projectile dart,
+    Offset from,
+    double maxRange, {
+    CosmicSurvivalEnemy? struck,
+  }) {
+    Offset? best;
+    var bestSq = maxRange * maxRange;
+    for (final enemy in combatEnemies) {
+      if (enemy.isDead) continue;
+      // Never back onto the body just struck, hit memory or not.
+      if (identical(enemy, struck)) continue;
+      final dSq = (enemy.position - from).distanceSquared;
+      if (dSq >= bestSq) continue;
+      if (dart.hitBoss && _isBossBody(enemy)) continue;
+      if (!dart.canHitEnemy(identityHashCode(enemy))) continue;
+      bestSq = dSq;
+      best = enemy.position;
+    }
+    return best;
+  }
+
   Offset? _nearestEnemyPosition(
     Offset from, {
     double maxRange = double.infinity,
@@ -6248,7 +6295,10 @@ class PlanetDungeonGame extends FlameGame {
         final dist = dir.distance;
         if (dist > 0.01) {
           enemy.knockbackVelocity +=
-              (dir / dist) * (160.0 + effectPower * 8.0).clamp(120.0, 520.0);
+              (dir / dist) *
+              (projectile.abilityFamily == 'mask'
+                  ? CosmicAbilityRuntime.maskAirImpulse(effectPower)
+                  : CosmicAbilityRuntime.knockbackImpulse(effectPower));
         }
         break;
       case AbilityEffectKind.slow:
@@ -6308,7 +6358,12 @@ class PlanetDungeonGame extends FlameGame {
       case AbilityEffectKind.geyser:
         _damageEnemyDirect(enemy, effectPower, sourceSlot: slot);
         if (effect == AbilityEffectKind.geyser && !boss) {
-          enemy.knockbackVelocity += const Offset(0, -140);
+          // Away from the geyser, as open space throws it; it threw
+          // everything up the screen.
+          enemy.knockbackVelocity += CosmicAbilityRuntime.geyserKnockbackFrom(
+            origin,
+            enemy.position,
+          );
         }
         break;
       case AbilityEffectKind.execute:
@@ -6384,7 +6439,10 @@ class PlanetDungeonGame extends FlameGame {
                 continue;
               }
               ally.damageAmpTimer = max(ally.damageAmpTimer, effectDuration);
-              ally.damageAmpMultiplier = max(ally.damageAmpMultiplier, 2.4);
+              ally.damageAmpMultiplier = max(
+                ally.damageAmpMultiplier,
+                maskIceAmpOf(projectile),
+              );
             }
           }
         }
@@ -7475,7 +7533,6 @@ class PlanetDungeonGame extends FlameGame {
           max(0.5, comp.member.statBeauty.toDouble()),
           potential: comp.member.statBeautyPotential,
         ),
-        growth: comp.abilityKillStacks,
         casterPos: creature.position,
         casterAngle: angle,
         template: specialProjectiles.first,
@@ -8982,6 +9039,7 @@ class PlanetDungeonGame extends FlameGame {
       );
       return;
     }
+    if (!PipRicochet.paysKillEffect(projectile)) return;
     _applyProjectileEffect(projectile, enemy, projectile.killEffect);
   }
 

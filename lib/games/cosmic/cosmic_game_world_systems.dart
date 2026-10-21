@@ -2760,7 +2760,8 @@ extension CosmicGameWorldSystems on CosmicGame {
     int shardAmount,
     double particleAmount,
   ) {
-    if (sandboxMode) return;
+    // A battle's bodies are Alchemons, and drop nothing when they fall.
+    if (sandboxMode || _battle != null) return;
     final rng = Random();
 
     // Astral Shards — 1-3 individual crystal drops
@@ -3207,7 +3208,8 @@ extension CosmicGameWorldSystems on CosmicGame {
       // A Kin Crystal refractor turns what it took into a beam at the nearest
       // foe (cosmic_game_kin.dart).
       _refractOpenKinShot(orb);
-      if (orb.interceptCharges <= 0) {
+      // A Pip Light dart blocks the shot and flies on, as in survival.
+      if (orb.interceptCharges <= 0 && !PipRicochet.isSpecialDart(orb)) {
         companionProjectiles.removeAt(i);
       }
       return true;

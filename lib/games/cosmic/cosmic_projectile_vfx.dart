@@ -168,9 +168,12 @@ void drawAdvancedAbilityBeam({
   required double alpha,
   double time = 0,
   String? wingElement,
+  double? heat,
+  ui.Offset? focus,
 }) {
   // Wing beams have their own art (wing_vfx.dart), always with their
-  // material: the material is what tells the elements apart.
+  // material: the material is what tells the elements apart. [heat] and
+  // [focus] are a focus beam's (see drawWingBeam).
   if (wingElement != null) {
     drawWingBeam(
       canvas: canvas,
@@ -180,6 +183,8 @@ void drawAdvancedAbilityBeam({
       width: width,
       alpha: alpha,
       time: time,
+      heat: heat,
+      focus: focus,
     );
     return;
   }

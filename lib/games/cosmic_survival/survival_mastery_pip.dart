@@ -114,6 +114,15 @@ class PipTuning {
 
   /// ...until the capstone, which brings them up to full and adds a fourth.
   static const double salvoPerfectFraction = 1.0;
+
+  /// Pip Dark throws no special: its ability is the black hole an auto kill
+  /// opens. Salvo loads that hole instead, which spits its extra darts at the
+  /// bodies round it, at most once per special interval so it pays what
+  /// Salvo pays any other Pip. A dart there is the special dart Pip Dark would
+  /// have thrown: the authored ordinary multiplier (1.8) after the scaler's
+  /// 0.86, of the special's damage.
+  static const double darkSalvoDartScale = 1.8 * 0.86;
+  static const double darkSalvoDartLife = 1.4;
 }
 
 /// One Pip companion's mastery state for the length of a run.

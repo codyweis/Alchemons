@@ -93,6 +93,11 @@ class KinTuning {
   static const double lifelineThreshold = 0.5;
   static const double lifelineScale = 1.5;
 
+  /// Grounding: the element's payload on every body down the line, at this
+  /// strength. Once per body per shot, so a shot is worth what a Mane's
+  /// payload hit is worth on each body it crosses.
+  static const double groundingStrength = 1.0;
+
   /// Transfusion: worth this much more, and reaching this far off the line.
   static const double transfusionScale = 1.5;
   static const double transfusionRadius = 70.0;
@@ -190,6 +195,22 @@ double kinDeepLineMultiplier({
     return (shield: 0, heal: amount * KinTuning.lifelineScale, radius: radius);
   }
   return (shield: amount, heal: 0, radius: radius);
+}
+
+/// The most shield Conduction keeps on one ally, however many shots cross it:
+/// the most a single shot may give. The line tops a shield up to this and
+/// gives back only what the ally has lost; it used to add every gift on top
+/// of the last with no ceiling and no decay, so an ally the Kin kept crossing
+/// banked a second health bar (2026-10-20 audit). A shield from anywhere else
+/// that already stands higher is left as it is.
+double kinConductionShieldCeiling({
+  required bool Function(String nodeId) hasNode,
+  required double allyMaxHp,
+}) {
+  final ceiling = allyMaxHp * KinTuning.conductionShieldCapFraction;
+  return hasNode(KinNodes.transfusion)
+      ? ceiling * KinTuning.transfusionScale
+      : ceiling;
 }
 
 /// What Benediction does to the support ability itself.

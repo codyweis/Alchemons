@@ -29,10 +29,21 @@ extension CosmicAbilityPass on CosmicGame {
       );
       switch (effect) {
         case AbilityEffectKind.knockback:
+          // A Pip Air dart pushes back what survives it: away from the Pip
+          // (survival's is away from the orb). Along its flight, a dart
+          // coming back from a ricochet shoved its survivors at the Pip.
+          final pip = projectile.abilityFamily == 'pip'
+              ? _sourcePosition(projectile)
+              : null;
+          final away = pip == null ? null : enemy.position - pip;
           _knockOpenEnemy(
             enemy,
-            enemy.position - projectile.position,
-            CosmicAbilityRuntime.knockbackImpulse(projectile.effectPower),
+            away != null && away.distanceSquared > 0.0001
+                ? away
+                : enemy.position - projectile.position,
+            projectile.abilityFamily == 'mask'
+                ? CosmicAbilityRuntime.maskAirImpulse(projectile.effectPower)
+                : CosmicAbilityRuntime.knockbackImpulse(projectile.effectPower),
           );
           break;
         case AbilityEffectKind.pull:
@@ -90,9 +101,14 @@ extension CosmicAbilityPass on CosmicGame {
             targetHp: enemy.health,
             targetHpFraction: enemy.health / enemy.maxHealth,
           );
-          // A geyser pushes as well as scalds.
+          // A geyser pushes as well as scalds, away from its own centre: a
+          // zone's middle, or the geyser shot itself for a pierce (whose
+          // origin is the body).
           if (effect == AbilityEffectKind.geyser) {
-            enemy.knockbackVelocity += CosmicAbilityRuntime.geyserKnockback;
+            enemy.knockbackVelocity += CosmicAbilityRuntime.geyserKnockbackFrom(
+              projectile.position,
+              enemy.position,
+            );
           }
           break;
         case AbilityEffectKind.splash:
@@ -183,7 +199,10 @@ extension CosmicAbilityPass on CosmicGame {
                 continue;
               }
               comp.damageAmpTimer = max(comp.damageAmpTimer, ampDuration);
-              comp.damageAmpMultiplier = max(comp.damageAmpMultiplier, 2.4);
+              comp.damageAmpMultiplier = max(
+                comp.damageAmpMultiplier,
+                maskIceAmpOf(projectile),
+              );
             }
             for (final g in _garrison) {
               if (g.hp <= 0) continue;
@@ -191,7 +210,10 @@ extension CosmicAbilityPass on CosmicGame {
                 continue;
               }
               g.damageAmpTimer = max(g.damageAmpTimer, ampDuration);
-              g.damageAmpMultiplier = max(g.damageAmpMultiplier, 2.4);
+              g.damageAmpMultiplier = max(
+                g.damageAmpMultiplier,
+                maskIceAmpOf(projectile),
+              );
             }
           }
           // Survival's buff: its caster's basic attack hastes for the
@@ -239,26 +261,35 @@ extension CosmicAbilityPass on CosmicGame {
       final count = CosmicAbilityRuntime.darkLetFollowupCount(
         source.letCasterIntelligence,
       );
-      final targets = enemies
-          .where(
-            (enemy) =>
-                !enemy.dead &&
+      final reach = max(420.0, source.effectRadius * 3.0);
+      // Spread by angle round the kill, as survival's are
+      // ([CosmicAbilityRuntime.darkLetFollowupAims]); they used to take the
+      // first bodies in the list.
+      final aims = CosmicAbilityRuntime.darkLetFollowupAims(
+        centre: center,
+        bodies: [
+          for (final enemy in enemies)
+            if (!enemy.dead &&
                 enemy.health > 0 &&
-                (enemy.position - center).distance <=
-                    max(420.0, source.effectRadius * 3.0),
-          )
-          .take(count)
-          .toList(growable: false);
-      for (var mi = 0; mi < count; mi++) {
-        final target = mi < targets.length ? targets[mi].position : null;
-        final a = target != null
-            ? atan2(target.dy - center.dy, target.dx - center.dx)
-            : source.angle + (mi - 2) * 0.42;
+                (enemy.position - center).distance <= reach)
+              enemy.position,
+        ],
+        count: count,
+        startAngle: source.angle,
+        spacing:
+            letSkyfallBlastRadiusFor(
+              CosmicAbilityRuntime.darkLetFollowupRadius(source),
+            ) *
+            0.75,
+        minDistance: letSkyfallBlastRadius(source),
+      );
+      for (var mi = 0; mi < aims.length; mi++) {
+        final aim = aims[mi];
+        final a = atan2(aim.dy - center.dy, aim.dx - center.dx);
         // The follow-ups fall too. Per design this is a bombardment, and a
         // volley of sideways meteors next to a parent that dropped from the
         // sky would look like two different abilities. Staggered so they
         // arrive as a rolling barrage rather than one simultaneous thud.
-        final aim = target ?? center + Offset(cos(a), sin(a)) * 180.0;
         final drop = letSkyfallDrop(aim, a, timeScale: 0.72 + mi * 0.16);
         companionProjectiles.add(
           Projectile(
@@ -705,12 +736,14 @@ extension CosmicAbilityPass on CosmicGame {
         );
         return;
       }
-      resolveAbilityEffect(
-        projectile.killEffect,
-        projectile,
-        enemy,
-        origin: enemy.position,
-      );
+      if (PipRicochet.paysKillEffect(projectile)) {
+        resolveAbilityEffect(
+          projectile.killEffect,
+          projectile,
+          enemy,
+          origin: enemy.position,
+        );
+      }
       _applyOpenKillIdentityHooks(projectile, enemy);
     }
 
@@ -981,15 +1014,19 @@ extension CosmicAbilityPass on CosmicGame {
       if (p.homing) {
         double bestDist = double.infinity;
         Offset? bestTarget;
+        // A Pip dart hunts only bodies it has not struck (PipRicochet), as
+        // in survival.
+        final pipDart = PipRicochet.isSpecialDart(p);
         for (final e in enemies) {
           if (e.dead) continue;
           final d = (e.position - p.position).distance;
           if (d < bestDist) {
+            if (pipDart && !p.canHitEnemy(identityHashCode(e))) continue;
             bestDist = d;
             bestTarget = e.position;
           }
         }
-        if (activeBoss != null) {
+        if (activeBoss != null && !(pipDart && p.hitBoss)) {
           final bd = (activeBoss!.position - p.position).distance;
           if (bd < bestDist) {
             bestTarget = activeBoss!.position;
@@ -1300,6 +1337,7 @@ extension CosmicAbilityPass on CosmicGame {
               p.piercing && p.abilityFamily == 'mane' && p.element == 'Plant';
           if (preRootForPlantKill) resolveAbilityPierce(p, enemy);
           final wasAlive = enemy.health > 0 && !enemy.dead;
+          final healthBefore = enemy.health;
           enemy.health -= p.damage;
           final killedByBase = wasAlive && enemy.health <= 0;
           resolveAbilityHit(p, enemy, killed: killedByBase);
@@ -1338,15 +1376,35 @@ extension CosmicAbilityPass on CosmicGame {
             );
           }
           // Ricochet (Pip), as Survival chains it: the next body within 110
-          // of the struck one, never one across the screen; each bounce sheds
-          // damage and a little speed. Only the moving dart is spent by
-          // running out — Pip's parked puffs, pools and lines are not darts.
-          final isPipSpecialProjectile =
-              p.abilityFamily == 'pip' &&
-              p.visualStyle == ProjectileVisualStyle.dart;
-          if (!consumed && p.bounceCount > 0) {
+          // of the struck one that the dart has not struck, never one across
+          // the screen. A kill carries what the body did not need on and
+          // costs nothing; a survivor costs a bounce and the falloff
+          // (PipRicochet). Only the moving dart is spent by running out —
+          // Pip's parked puffs, pools and lines are not darts.
+          if (!consumed && PipRicochet.isSpecialDart(p)) {
+            final step = PipRicochet.settle(
+              p,
+              killed: killedByBase,
+              carried: killedByBase
+                  ? PipRicochet.carriedShare(healthBefore, enemy.health)
+                  : 0,
+            );
+            if (step == PipDartStep.spent) {
+              consumed = true;
+            } else {
+              final next = step == PipDartStep.pierce
+                  ? null
+                  : _nextOpenPipDartTarget(
+                      p,
+                      enemy.position,
+                      0,
+                      struck: enemy,
+                    );
+              if (next != null) onSound?.call(SoundCue.specialPipRicochet);
+              PipRicochet.turn(p, next);
+            }
+          } else if (!consumed && p.bounceCount > 0) {
             p.bounceCount--;
-            if (isPipSpecialProjectile) p.pierceCount++;
             CosmicEnemy? next;
             var bestSq = 110.0 * 110.0;
             for (final other in enemies) {
@@ -1359,29 +1417,21 @@ extension CosmicAbilityPass on CosmicGame {
               }
             }
             if (next != null) {
-              if (isPipSpecialProjectile) {
-                onSound?.call(SoundCue.specialPipRicochet);
-              }
               p.angle = atan2(
                 next.position.dy - p.position.dy,
                 next.position.dx - p.position.dx,
               );
-              p.life = isPipSpecialProjectile
-                  ? min(max(p.life, 0.18), kPipRicochetPostHitLife)
-                  : max(p.life, 0.45);
+              p.life = max(p.life, 0.45);
               p.damage *= p.element == 'Lightning' ? 0.85 : 0.70;
               p.speedMultiplier = max(0.6, p.speedMultiplier * 0.92);
             } else {
               p.bounceCount = 0;
-              if (isPipSpecialProjectile) consumed = true;
             }
           } else if (!consumed && !p.piercing) {
             consumed = true;
           } else if (!consumed) {
             p.pierceCount++;
-            if (isPipSpecialProjectile && p.pierceCount >= kPipMaxPierceHits) {
-              consumed = true;
-            }
+            if (p.pierceSpent) consumed = true;
           }
           if (enemy.health <= 0 && !enemy.dead) {
             enemy.dead = true;
@@ -1425,10 +1475,15 @@ extension CosmicAbilityPass on CosmicGame {
             // bodies it has already touched, as Survival's do.
             final isCrystalmaneBossHit =
                 cp.abilityFamily == 'mane' && cp.element == 'Crystal';
+            // A heavy hit and the burst round it, as in survival. It used to
+            // deal the boss's whole health (2026-10-20 audit).
             if (isCrystalmaneBossHit) {
               onSound?.call(SoundCue.specialManeShatter);
-              boss.shieldUp = false;
-              boss.shieldHealth = 0;
+              if (boss.shieldUp) {
+                boss.shieldUp = false;
+                boss.shieldHealth = 0;
+                boss.shieldTimer = CosmicBoss.shieldCooldown;
+              }
               _damageOpenFoesNear(
                 boss.position,
                 ManeRuntime.crystalBossBlastRadius,
@@ -1436,7 +1491,10 @@ extension CosmicAbilityPass on CosmicGame {
                 sourceSlot: cp.sourceSlotIndex,
                 element: 'Crystal',
               );
-              _damageOpenBoss(boss.health + 1, element: 'Crystal');
+              _damageOpenBoss(
+                cp.damage * ManeRuntime.crystalBossHitShare,
+                element: 'Crystal',
+              );
               _spawnHitSpark(boss.position, elementColor('Crystal'));
               companionProjectiles.removeAt(i);
               continue;
@@ -1471,7 +1529,22 @@ extension CosmicAbilityPass on CosmicGame {
                 _handleBossKill(boss);
               }
             }
-            if (cp.piercing && cp.abilityFamily != 'pip') {
+            if (PipRicochet.isSpecialDart(cp)) {
+              // A boss is a body that survives the dart: a bounce, the
+              // falloff, and on to the crowd round it, as in survival. It
+              // used to be spent on the boss.
+              cp.hitBoss = true;
+              final step = PipRicochet.settle(cp, killed: false);
+              if (step == PipDartStep.spent) {
+                companionProjectiles.removeAt(i);
+              } else {
+                final next = step == PipDartStep.pierce
+                    ? null
+                    : _nextOpenPipDartTarget(cp, boss.position, boss.radius);
+                if (next != null) onSound?.call(SoundCue.specialPipRicochet);
+                PipRicochet.turn(cp, next);
+              }
+            } else if (cp.piercing && cp.abilityFamily != 'pip') {
               cp.pierceCount++;
               cp.hitBoss = true;
             } else {
@@ -1481,5 +1554,31 @@ extension CosmicAbilityPass on CosmicGame {
         }
       }
     }
+  }
+
+  /// Where a Pip special dart turns after a contact at [from]: the nearest
+  /// body within [PipRicochet.nextReach] (plus [extraReach], a boss's girth)
+  /// that it has not struck yet.
+  Offset? _nextOpenPipDartTarget(
+    Projectile dart,
+    Offset from,
+    double extraReach, {
+    CosmicEnemy? struck,
+  }) {
+    Offset? best;
+    final reach = PipRicochet.nextReach + extraReach;
+    var bestSq = reach * reach;
+    for (final other in enemies) {
+      if (other.dead || other.health <= 0) continue;
+      // Never back onto the body just struck, hit memory or not.
+      if (identical(other, struck)) continue;
+      final d = other.position - from;
+      final dSq = d.dx * d.dx + d.dy * d.dy;
+      if (dSq >= bestSq) continue;
+      if (!dart.canHitEnemy(identityHashCode(other))) continue;
+      bestSq = dSq;
+      best = other.position;
+    }
+    return best;
   }
 }

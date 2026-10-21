@@ -13,9 +13,9 @@
 /// Two constraints shaped all of it.
 ///
 /// **Placement counts swing wildly by element** — Air scatters 3 to 25, Lava
-/// and Fire 5 to 15, Crystal 3 to 7, Earth 2 to 5, but Light, Dark, Ice,
+/// and Fire 5 to 15, Crystal and Light 3 to 7, Earth 2 to 5, but Dark, Ice,
 /// Lightning, Blood, Plant and Mud each place exactly one. A path keyed to
-/// "your many traps" would be thin for seven of seventeen, which is the trap
+/// "your many traps" would be thin for six of seventeen, which is the trap
 /// Horn's draft tree fell into. Nothing here counts fixtures.
 ///
 /// **A Mask trap chain has already brought this game to its knees once** — a
@@ -105,6 +105,21 @@ class MaskTuning {
   static const int heldGroundTriggers = 3;
 
   // ── Contagion ──
+  //
+  // Capped 2026-10-20. A Contagion Mask of any element took 63-84% of its
+  // party's damage at Potential 80 (69% on average, every other family's
+  // path bought too); the spec: "cap it so a Contagion Mask lands near
+  // 30-35% of party damage". Nothing held it: every carrier infected every
+  // body within reach each second, a body infected that same frame passed
+  // it on in that frame, and a fresh carrier never took its generation
+  // (CosmicSurvivalEnemy.applyMaskInfection read the clock it had just
+  // set), so the three-generation ceiling never applied and one trap
+  // contact took the whole lane. Now a carrier passes it to at most
+  // [spreadPerCarrier] bodies a second, a second after it caught it, the
+  // generations hold, and one Mask's carriers are counted ([carrierCap]).
+  // With those holding, the strengths are the path's own again, and a
+  // Contagion Mask measures about 30% at Potential 80.
+
   /// Carrier: how long an enemy that escapes a trap stays infected.
   static const double infectionDuration = 6.0;
 
@@ -112,9 +127,19 @@ class MaskTuning {
   static const double spreadInterval = 1.0;
   static const double spreadRadius = 110.0;
 
+  /// And no more than this many of them a spread.
+  static const int spreadPerCarrier = 5;
+
   /// Infection can only ever be this many generations from a trap, so a
-  /// crowd cannot sustain it forever after the traps are gone.
-  static const int maxGenerations = 3;
+  /// crowd cannot sustain it forever after the traps are gone. (Three
+  /// before 2026-10-20, when the ceiling never applied; four with it.)
+  static const int maxGenerations = 4;
+
+  /// The most bodies one Mask's infection holds at once, about a fifth of
+  /// a late horde wave's field. A body already carrying it can be
+  /// re-infected (its clock refreshes); a new one waits for a carrier to die
+  /// or recover.
+  static const int carrierCap = 320;
 
   /// Virulence: the element effect an infection ticks, relative to a trap's.
   static const double virulenceStrength = 0.45;
@@ -132,6 +157,13 @@ class MaskMasteryState {
 
   /// Trigger counts per fixture, for Held Ground.
   final Map<int, int> triggers = {};
+
+  /// Bodies carrying this Mask's infection: counted afresh each frame, and
+  /// raised as new bodies catch it in between, so it never reads low.
+  int carriers = 0;
+
+  /// Whether one more body may catch the infection ([MaskTuning.carrierCap]).
+  bool get canInfectAnother => carriers < MaskTuning.carrierCap;
 
   int triggersOn(int fixtureId) => triggers[fixtureId] ?? 0;
 

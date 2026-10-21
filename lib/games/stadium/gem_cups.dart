@@ -337,7 +337,8 @@ const List<GemCup> kGemCups = [
     // catalog win about half the time bred to P50, P65, P78 (2 ranks),
     // P88 (5 ranks) and P95 (10 ranks), round by round; a team picked for
     // the fight does better. How well a set team is bred is only half of
-    // it: Kin and Horns hold, Wings hit hard.
+    // it: Kin and Horns hold, Wings hit hard. Re-tuned the same day after
+    // the family rebuild and the battle damage scale moved them.
     bouts: [
       GemBout(
         id: 'horns_and_kin',
@@ -351,7 +352,7 @@ const List<GemCup> kGemCups = [
           ('Horn', 'Earth'),
           ('Mane', 'Water'),
         ],
-        potential: 40,
+        potential: 32,
       ),
       GemBout(
         id: 'wings_and_lets',
@@ -365,7 +366,7 @@ const List<GemCup> kGemCups = [
           ('Wing', 'Fire'),
           ('Let', 'Lightning'),
         ],
-        potential: 78,
+        potential: 74,
       ),
       GemBout(
         id: 'two_kin',
@@ -393,23 +394,23 @@ const List<GemCup> kGemCups = [
           ('Mane', 'Air'),
           ('Pip', 'Fire'),
         ],
-        potential: 95,
-        enhancement: 8,
+        potential: 92,
+        enhancement: 5,
       ),
       GemBout(
         id: 'the_last_four',
         name: 'The Last Four',
         place: 'obsidian',
         level: 1,
-        line: 'The strongest four in the Trials, bred perfectly.',
+        line: 'The strongest four in the Trials.',
         team: [
           ('Wing', 'Air'),
           ('Kin', 'Blood'),
           ('Horn', 'Crystal'),
           ('Let', 'Spirit'),
         ],
-        potential: 100,
-        enhancement: 10,
+        potential: 95,
+        enhancement: 5,
       ),
     ],
   ),

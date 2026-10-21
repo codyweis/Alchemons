@@ -6,6 +6,7 @@ import 'package:alchemons/games/cosmic/kin_support_runtime.dart'
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/models/survival_upgrades.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  ALCHEMON POWER — the one place a creature's stats become combat numbers
@@ -196,8 +197,27 @@ const Map<String, AlchemonFamilyFrame> kAlchemonFamilyFrames = {
   ),
 };
 
-AlchemonFamilyFrame alchemonFamilyFrame(String family) =>
-    kAlchemonFamilyFrames[family.toLowerCase()] ?? const AlchemonFamilyFrame();
+AlchemonFamilyFrame alchemonFamilyFrame(String family) {
+  final f = family.toLowerCase();
+  return alchemonFamilyFrameTrials[f] ??
+      kAlchemonFamilyFrames[f] ??
+      const AlchemonFamilyFrame();
+}
+
+/// Frames tried in place of the table's, by family: the balance probes'
+/// (test/family_frame_trials.dart). Empty in the game.
+@visibleForTesting
+final Map<String, AlchemonFamilyFrame> alchemonFamilyFrameTrials = {};
+
+/// How much faster Wing+Dark pulses, auto attacks and laser both (below 1
+/// is faster).
+const double kDarkWingRate = 0.5;
+
+/// [kDarkWingRate] as a balance probe tries it; null in the game.
+@visibleForTesting
+double? alchemonDarkWingRateTrial;
+
+double get _darkWingRate => alchemonDarkWingRateTrial ?? kDarkWingRate;
 
 /// Auto and special reach before the family frame, from Intelligence.
 double alchemonBaseRange(double intelligence) =>
@@ -312,6 +332,30 @@ const double kMaskBaseSpecialCooldown = 22.5;
 /// waits — and it still waits longer than any other family.
 const int kMaskReferenceSpecial = 61;
 
+/// A Let is the opening act (user, 2026-10-20: "make lets strong at p20-p50
+/// but scale weaker into the p80-100"): its meteor comes round often from the
+/// first wave and gains little more from breeding. It runs on its own base,
+/// set so a Let of a middling element (×1.42 in the element table) throws
+/// about every 3 s at Potential 20, and its SPECIAL and recharge stats
+/// shorten the wait far less than they do any other family's
+/// ([kLetSpecialPowerDamping], [kLetRechargeDamping]): about 2.9 s at
+/// Potential 50, 2.7 s at 80 and 2.4 s at 100 + Enhancement 10. On the shared
+/// rule it was 8.6 s at Potential 20 and 2.4 s at the top, so a weak Let
+/// threw about one meteor a wave.
+const double kLetBaseSpecialCooldown = 1.95;
+
+/// The SPECIAL a Let's cadence is measured from: a Let's SPECIAL at the
+/// Potential 20 band (level 10).
+const int kLetReferenceSpecial = 38;
+
+/// How much of [alchemonSpecialPowerFactor]'s speed-up a Let's SPECIAL buys,
+/// as a power of it: a twentieth.
+const double kLetSpecialPowerDamping = 0.05;
+
+/// How much of its recharge stats' speed-up (the special cooldown reduction)
+/// a Let's cadence takes, as a power of it: about half.
+const double kLetRechargeDamping = 0.5;
+
 /// A Mystic's special is its world, which only Survival runs. Everywhere
 /// else — open space, the planet dungeons — a Mystic fights with its auto
 /// attack and has no special to cast (user ruling, 2026-10-02).
@@ -356,7 +400,7 @@ double alchemonBasicAttackInterval({
       alchemonBasicAttackPowerFactor(physAtk) *
       frame.basicCooldown *
       speedUp *
-      (isDarkWing(family, element) ? 0.5 : 1.0);
+      (isDarkWing(family, element) ? _darkWingRate : 1.0);
 }
 
 /// The Pip element passive that drives attack speed at this moment, or null.
@@ -380,12 +424,18 @@ double? pipElementBasicPassive({
   return null;
 }
 
+/// How long every Mystic waits for its world: a flat minute, whatever its
+/// element or breeding (user, 2026-10-21: "maybe we just make it a flat 60
+/// seconds for all mystics", after a per-element wait left low-bred
+/// Mystics casting their world too late to matter).
+const double kMysticWorldWait = 60.0;
+
 /// Seconds between specials.
 ///
 /// The family's recharge stats set the rhythm ([specialCooldownReduction]);
 /// a stronger special comes back sooner ([alchemonSpecialPowerFactor]); the
 /// family frame and the element table shape it. Mystics run their own rule:
-/// every one descends toward 60s as its power grows.
+/// every one waits [kMysticWorldWait].
 double alchemonSpecialInterval({
   required String family,
   required String element,
@@ -407,25 +457,19 @@ double alchemonSpecialInterval({
         alchemonSpecialPowerFactor(kMaskReferenceSpecial) /
         alchemonSpecialPowerFactor(abilityAtk);
   }
-  if (f == 'mystic') {
-    // 0 at baseline, 1 once SPECIAL saturates (36) or recharge upgrades
-    // stack a full 100%.
-    final atkProgress = (abilityAtk / 36.0).clamp(0.0, 1.0);
-    final cdrProgress = (specialCooldownReduction - 1.0).clamp(0.0, 1.0);
-    final statProgress = (atkProgress + cdrProgress).clamp(0.0, 1.0);
-    // Per-element "starting gap" above the 60s target. Bigger gap = slower at
-    // low stats. All elements meet at 60s when statProgress reaches 1.
-    final lowStatBonus = switch (element) {
-      'Air' || 'Dust' => 20.0,
-      'Poison' || 'Mud' || 'Water' => 35.0,
-      'Lightning' || 'Ice' || 'Steam' => 50.0,
-      'Blood' || 'Plant' || 'Fire' => 65.0,
-      'Lava' || 'Crystal' || 'Earth' => 80.0,
-      'Dark' || 'Light' || 'Spirit' => 100.0,
-      _ => 50.0,
-    };
-    return 60.0 + lowStatBonus * (1.0 - statProgress);
+  if (f == 'let') {
+    // Short from the start and flat with breeding (kLetBaseSpecialCooldown).
+    return kLetBaseSpecialCooldown /
+        pow(specialCooldownReduction, kLetRechargeDamping) *
+        pow(
+          alchemonSpecialPowerFactor(kLetReferenceSpecial) /
+              alchemonSpecialPowerFactor(abilityAtk),
+          kLetSpecialPowerDamping,
+        ) *
+        alchemonFamilyFrame(family).specialCooldown *
+        elementMultiplier;
   }
+  if (f == 'mystic') return kMysticWorldWait;
   // Wing+Dark's doubled rate applies to the LASER as well as the basic, per
   // the design board: "both the laser and the dark wing's auto-attacks fire
   // twice as fast". Measured, it is the strongest wing by a distance; what it
@@ -436,7 +480,7 @@ double alchemonSpecialInterval({
       alchemonSpecialPowerFactor(abilityAtk) *
       alchemonFamilyFrame(family).specialCooldown *
       elementMultiplier *
-      (isDarkWing(family, element) ? 0.5 : 1.0);
+      (isDarkWing(family, element) ? _darkWingRate : 1.0);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -574,7 +618,8 @@ enum AlchemonCombatOutput {
 /// null: it works through P-ATK and stops at P-ATK 41
 /// ([alchemonBasicAttackPowerFactor]). The special's power stats likewise
 /// speed its recharge through SPECIAL, in every family — a Mask's too since
-/// 2026-10-10 ([kMaskReferenceSpecial]).
+/// 2026-10-10 ([kMaskReferenceSpecial]) — but a Mystic's, which waits a flat
+/// [kMysticWorldWait] whatever its stats.
 Map<AlchemonCombatOutput, Map<AlchemonStat, double?>> alchemonStatFeeds(
   String family,
 ) {
@@ -616,10 +661,12 @@ Map<AlchemonCombatOutput, Map<AlchemonStat, double?>> alchemonStatFeeds(
       AlchemonStat.speed: 1.0,
       AlchemonStat.strength: null,
     },
-    AlchemonCombatOutput.specialInterval: {
-      ...specialRecharge,
-      for (final stat in specialPower.keys)
-        if (!specialRecharge.containsKey(stat)) stat: null,
-    },
+    AlchemonCombatOutput.specialInterval: f == 'mystic'
+        ? const {}
+        : {
+            ...specialRecharge,
+            for (final stat in specialPower.keys)
+              if (!specialRecharge.containsKey(stat)) stat: null,
+          },
   };
 }

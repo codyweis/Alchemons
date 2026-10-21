@@ -1201,8 +1201,10 @@ void main() {
         beauty: 4.25,
       );
       final pretty = await cast(strength: 4.25, intelligence: 4.25, beauty: 9);
-      // Ice is a single shot, so Beauty's coverage is the ball getting wider.
-      expect(pretty.radius, greaterThan(average.radius * 1.2));
+      // Ice is a single shot, so Beauty's coverage is the ball getting wider,
+      // up to the hitbox cap (kManeHitboxInflationMax, 2026-10-20): at Beauty
+      // 9 the uncapped ball was half again an average one's.
+      expect(pretty.radius, greaterThan(average.radius * 1.1));
       expect(pretty.projectiles, average.projectiles);
       // Wider means more coverage, not a hidden damage multiplier. Against a
       // fixed six-body ring both casts catch the same targets, so the totals

@@ -61,6 +61,18 @@ abstract final class KinSupport {
       7.0 *
       abilityHookScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.50);
 
+  /// Survival's veil turns the bodies that came for the orb onto the ship,
+  /// and shrouds the ship it turns them onto: while the veil draws them, the
+  /// ship takes this share of what bodies deal it. Unshrouded, a hundred-
+  /// point ship died to the crowd in about a second and the veil stood
+  /// inert through the 30 s respawn, every cast (2026-10-20 audit).
+  static const double darkVeilShipDamageTaken = 0.3;
+
+  /// The veil lifts when the ship falls under this share of its hull: the
+  /// bodies it drew go back to the orb rather than kill the decoy, and the
+  /// next cast draws them again.
+  static const double darkVeilLiftFraction = 0.35;
+
   static double bloodPactDuration(double intelligence) =>
       9.0 *
       abilityHookScale(intelligence, perPoint: 0.10, min: 0.85, max: 1.50);

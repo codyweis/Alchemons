@@ -9,6 +9,11 @@ import 'cosmic_data.dart';
 ///
 /// Survival's placement, shared so every mode lays the same field. A mode
 /// without an arena passes a centre and radius that never clamp.
+///
+/// [guard] is the one thing the field stands in front of. Survival passes its
+/// orb, with [target] on the orb's busiest approach ([MaskApproachLane]), so
+/// the field is centred across that lane. Without one the field reaches from
+/// [target] toward the nearest defended body, which can be the caster itself.
 void placeMaskTraps({
   required List<Projectile> traps,
   required Offset caster,
@@ -17,6 +22,7 @@ void placeMaskTraps({
   required Offset target,
   required Offset arenaCenter,
   required double arenaRadius,
+  Offset? guard,
 }) {
   if (traps.isEmpty || traps.first.abilityFamily != 'mask') return;
   final element = traps.first.element;
@@ -108,20 +114,32 @@ void placeMaskTraps({
     return;
   }
 
-  // One trap always covers the selected enemy. The rest form a compact
-  // field on its approach toward the nearest defended body. Count increases
-  // density; it does not multiply the scatter radius and waste upgraded casts.
-  final defended = [ship, ...allies, arenaCenter]
-    ..sort(
-      (a, b) => (a - aim).distanceSquared.compareTo((b - aim).distanceSquared),
-    );
-  final delta = defended.first - aim;
+  // One trap always covers the selected spot. The rest form a compact field
+  // on its approach toward what it guards: the [guard], or else the nearest
+  // defended body. Count increases density; it does not multiply the scatter
+  // radius and waste upgraded casts.
+  final Offset toward;
+  if (guard != null) {
+    toward = guard;
+  } else {
+    final defended = [ship, ...allies, arenaCenter]
+      ..sort(
+        (a, b) =>
+            (a - aim).distanceSquared.compareTo((b - aim).distanceSquared),
+      );
+    toward = defended.first;
+  }
+  final delta = toward - aim;
   final direction = delta.distance > 0.01
       ? delta / delta.distance
       : const Offset(1, 0);
   final side = Offset(-direction.dy, direction.dx);
   final spread = (80.0 + footprint(traps.first) * 0.45).clamp(90.0, 155.0);
-  final center = inside(aim + direction * (spread * 0.65), spread);
+  // A guarded field is centred on its spot, so it sits across the lane
+  // rather than reaching from it into the orb.
+  final center = guard != null
+      ? inside(aim, spread)
+      : inside(aim + direction * (spread * 0.65), spread);
   traps.first.position = aim;
   for (var i = 1; i < traps.length; i++) {
     final fraction = (i - 0.5) / (traps.length - 1);
@@ -132,6 +150,100 @@ void placeMaskTraps({
         direction * (cos(angle) * radius) +
         side * (sin(angle) * radius * 0.75);
   }
+}
+
+/// How near the orb a Mask field on its approach may be centred.
+const double kMaskApproachNear = 380.0;
+
+/// And how far: with the field's own spread (at most 155 px) the traps lie
+/// about 300-650 px out, in front of the inner ring and behind the rim.
+const double kMaskApproachFar = 570.0;
+
+/// The bodies within this of the orb make up its approaches.
+const double kMaskApproachScan = 1100.0;
+
+/// Finds the orb's busiest approach, for a Mask field to stand across.
+///
+/// User-approved spec (2026-10-20), "Mask — gatekeeper": traps went down at
+/// the Mask's own target and reached toward the nearest defended body, which
+/// was usually the Mask itself, so they sat in the middle ring in front of
+/// the Mask, on bodies Wing and Mane were already shooting, and never on the
+/// orb's approach. Now the bodies round the orb are counted into
+/// [sectors] bearings, a body nearer the orb counting up to twice; the
+/// busiest bearing (with half of each neighbour, so a lane split between two
+/// bearings is still one lane) is the lane, and the field is centred on it
+/// between [kMaskApproachNear] and [kMaskApproachFar] from the orb — a little
+/// over halfway out to where that lane's bodies stand on average.
+///
+/// One per game, reset each cast; adding a body allocates nothing.
+class MaskApproachLane {
+  MaskApproachLane({this.sectors = 16})
+    : _weight = List<double>.filled(sectors, 0),
+      _sumX = List<double>.filled(sectors, 0),
+      _sumY = List<double>.filled(sectors, 0),
+      _sumR = List<double>.filled(sectors, 0);
+
+  final int sectors;
+  final List<double> _weight;
+  final List<double> _sumX;
+  final List<double> _sumY;
+  final List<double> _sumR;
+
+  void reset() {
+    for (var i = 0; i < sectors; i++) {
+      _weight[i] = 0;
+      _sumX[i] = 0;
+      _sumY[i] = 0;
+      _sumR[i] = 0;
+    }
+  }
+
+  /// A body at [fromOrb] from the orb; a boss passes a heavier [weight].
+  void add(Offset fromOrb, {double weight = 1.0}) {
+    final r = fromOrb.distance;
+    if (r < 60 || r > kMaskApproachScan) return;
+    final w = weight * (2.0 - r / kMaskApproachScan);
+    final bearing = atan2(fromOrb.dy, fromOrb.dx);
+    final s = ((bearing + pi) / (2 * pi) * sectors).floor() % sectors;
+    _weight[s] += w;
+    _sumX[s] += fromOrb.dx / r * w;
+    _sumY[s] += fromOrb.dy / r * w;
+    _sumR[s] += r * w;
+  }
+
+  /// The spot on the busiest approach round [orb], or null with nobody near.
+  Offset? aim(Offset orb) {
+    var best = -1;
+    var bestScore = 0.0;
+    for (var s = 0; s < sectors; s++) {
+      final score =
+          _weight[s] +
+          0.5 *
+              (_weight[(s + sectors - 1) % sectors] +
+                  _weight[(s + 1) % sectors]);
+      if (_weight[s] > 0 && score > bestScore) {
+        bestScore = score;
+        best = s;
+      }
+    }
+    if (best < 0) return null;
+    final dir = Offset(_sumX[best], _sumY[best]);
+    final len = dir.distance;
+    if (len <= 1e-6) return null;
+    final meanR = _sumR[best] / _weight[best];
+    final reach = (meanR * 0.6).clamp(kMaskApproachNear, kMaskApproachFar);
+    return orb + dir / len * reach;
+  }
+}
+
+/// The spot a Mask field guarding [orb] goes when the approach is empty:
+/// toward [target], at the approach's distance.
+Offset maskApproachFallback(Offset orb, Offset target) {
+  final delta = target - orb;
+  final d = delta.distance;
+  final dir = d > 1 ? delta / d : const Offset(1, 0);
+  return orb +
+      dir * d.clamp(kMaskApproachNear, kMaskApproachFar).toDouble();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -316,22 +428,29 @@ class MaskSpiritWisp {
 /// Wisps a field holds at most.
 const int kMaskSpiritWispCap = 120;
 
-/// How many casts' worth of wisps one clear takes.
+/// How many banked wisps set off a clear: a cast and a half of an average
+/// caster's eight.
 ///
 /// It was a flat six wisps, under the eight a single average cast scatters,
 /// so every cast cleared the field on its own and Spirit measured 5.5-7x the
 /// median special at every band, with nothing building. Banking across casts
 /// is the ability's ramp ("faster progressed": it grows inside a run) — the
-/// first cast of a deployment only fills the bank, and from then on a clear
-/// lands every cast and a half. Counting in casts rather than wisps keeps that
-/// rhythm the same for a weak caster's four wisps and a perfect one's
-/// fourteen (ability pass, final balance, 2026-10-10).
-const double kMaskSpiritCastsPerClear = 1.5;
+/// first cast of a deployment only fills the bank (ability pass, final
+/// balance, 2026-10-10).
+///
+/// That pass then counted the clear in casts (1.5 × the cast's own wisps),
+/// which made the count the board scales by stats cosmetic: four wisps or
+/// fourteen, a clear every cast and a half (2026-10-20 audit). Counted in
+/// wisps, the count is the ramp's speed: a weak caster's six take two casts,
+/// an average eight a cast and a half, ten at Potential 80 a cast and a
+/// fifth, and a perfect fourteen clear every cast — never more often, since
+/// a clear never needs fewer wisps than one cast throws.
+const int kMaskSpiritClearWisps = 12;
 
 /// Wisps banked by one caster that set off its clear, for a cast that
 /// scattered [castSize] of them.
 int maskSpiritClearThreshold(int castSize) =>
-    max(2, (kMaskSpiritCastsPerClear * max(1, castSize)).round());
+    max(kMaskSpiritClearWisps, castSize);
 
 const double kMaskSpiritCollectRadius = 56.0;
 const double kMaskSpiritMagnetRadius = 200.0;

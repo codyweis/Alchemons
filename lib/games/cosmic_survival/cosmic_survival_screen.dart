@@ -2966,6 +2966,38 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
               );
             },
           ),
+          // Flying with a locked zoom: a reminder, and the way back. Up top,
+          // clear of the joystick's lower-left area.
+          if (!cameraMode && !over)
+            Positioned(
+              top: 76 + _hudTopInset,
+              left: 12,
+              child: SafeArea(
+                child: ValueListenableBuilder<bool>(
+                  valueListenable: game.zoomLockState,
+                  builder: (_, locked, __) => !locked
+                      ? const SizedBox.shrink()
+                      : GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            game.setZoomLock(false);
+                          },
+                          child: HudGlass(
+                            accent: HudInk.amber.withValues(alpha: 0.8),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 7,
+                            ),
+                            child: Text(
+                              'ZOOM LOCKED · TAP TO UNLOCK',
+                              style: hudMono(8.5, HudInk.amber, spacing: 0.8),
+                            ),
+                          ),
+                        ),
+                ),
+              ),
+            ),
           if (cameraMode && !over)
             Positioned(
               bottom: 20 + _partyRowHeight() + 10,
@@ -3012,6 +3044,26 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                           ),
                         ],
                       ),
+                      const SizedBox(height: 6),
+                      // Keep this zoom for flying: EXIT then flies the ship
+                      // with the camera out here.
+                      ValueListenableBuilder<bool>(
+                        valueListenable: game.zoomLockState,
+                        builder: (_, locked, __) => SizedBox(
+                          width: 184,
+                          child: BracketButton(
+                            label: locked ? 'UNLOCK ZOOM' : 'LOCK ZOOM',
+                            height: 34,
+                            palette: BracketPalette.dark,
+                            accent: HudInk.amber,
+                            primary: false,
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              game.setZoomLock(!locked);
+                            },
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -3047,12 +3099,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                         opacity: _waveAnnouncementTitle == null ? 0 : 1,
                         duration: const Duration(milliseconds: 420),
                         curve: Curves.easeOut,
+                        // Small, so it names the wave without covering the
+                        // field (user, 2026-10-21: "make the wave text a lot
+                        // smaller").
                         child: _SurvivalPlate(
                           accent: _C.amber,
                           background: _C.bg0.withValues(alpha: 0.94),
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 26,
-                            vertical: 13,
+                            horizontal: 14,
+                            vertical: 7,
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -3063,22 +3118,22 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                                 style: const TextStyle(
                                   fontFamily: 'monospace',
                                   color: _C.amberBright,
-                                  fontSize: 20,
+                                  fontSize: 12,
                                   fontWeight: FontWeight.w900,
-                                  letterSpacing: 3.4,
+                                  letterSpacing: 2.2,
                                 ),
                               ),
                               if (_waveAnnouncementSubtitle != null) ...[
-                                const SizedBox(height: 7),
+                                const SizedBox(height: 4),
                                 Text(
                                   _waveAnnouncementSubtitle!.toUpperCase(),
                                   textAlign: TextAlign.center,
                                   style: const TextStyle(
                                     fontFamily: 'monospace',
                                     color: _C.textSecondary,
-                                    fontSize: 11,
+                                    fontSize: 8,
                                     fontWeight: FontWeight.w700,
-                                    letterSpacing: 1.8,
+                                    letterSpacing: 1.4,
                                   ),
                                 ),
                               ],

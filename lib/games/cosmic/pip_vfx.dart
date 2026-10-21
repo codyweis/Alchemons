@@ -112,6 +112,14 @@ ui.Shader _trailShader(String element, VfxMaterial m, ui.Color tint) {
   );
 }
 
+/// How hot a Pip special dart carrying [damage] burns, 0 to 1: about 0 for
+/// a weak Pip's dart, 1 for a bred one's fresh off the cast, falling as the
+/// dart spends what it carries through a crowd (PipRicochet). On a log
+/// curve, so the glow reads the same step from 100 to 200 as from 400 to
+/// 800.
+double pipDartHeat(double damage) =>
+    damage <= 90 ? 0.0 : (log(damage / 90) / log(12)).clamp(0.0, 1.0);
+
 /// One pip dart at [position]. [special] darts get the long trail and the
 /// bounce notches; basics share the silhouette but stay light.
 void drawPipDart({
@@ -133,6 +141,9 @@ void drawPipDart({
   final vs = projectile.visualScale.clamp(0.72, 2.3).toDouble();
   final head = _headFor(element);
   final pulse = 0.85 + 0.15 * sin(time * 6.5 + projectile.life * 2.5);
+  // A special dart burns brighter the more it carries: fresh off a bred
+  // Pip it is white-hot, and it cools as it spends itself through a crowd.
+  final heat = special ? pipDartHeat(projectile.damage) : 0.0;
 
   canvas.save();
   canvas.translate(position.dx, position.dy);
@@ -148,7 +159,13 @@ void drawPipDart({
   if (special) {
     canvas.save();
     canvas.scale(2.6, 1);
-    vfxSpill(canvas, const ui.Offset(-2.5, 0), 8.5 * vs, tint, 0.42 * pulse);
+    vfxSpill(
+      canvas,
+      const ui.Offset(-2.5, 0),
+      8.5 * vs * (1 + 0.35 * heat),
+      ui.Color.lerp(tint, m.glint, 0.45 * heat)!,
+      (0.42 + 0.3 * heat) * pulse,
+    );
     canvas.restore();
   }
 
@@ -160,7 +177,9 @@ void drawPipDart({
   canvas.save();
   canvas.scale(trailLen);
   _paint
-    ..color = const ui.Color(0xFFFFFFFF).withValues(alpha: pulse)
+    ..color = const ui.Color(
+      0xFFFFFFFF,
+    ).withValues(alpha: min(1.0, pulse * (1 + 0.25 * heat)))
     ..shader = _trailShader(element, m, tint);
   canvas.drawPath(_trailPaths[(special ? 2 : 0) + (heavy ? 1 : 0)], _paint);
   _paint.shader = null;
@@ -176,6 +195,7 @@ void drawPipDart({
       vs,
       time,
       projectile.life,
+      heat,
     );
     // How much ricochet is left: filled notches behind the head, one per
     // banked bounce, spent as it chains.
@@ -380,6 +400,7 @@ void _drawTrailMaterial(
   double vs,
   double time,
   double life,
+  double heat,
 ) {
   if (element == 'Lightning') {
     // Two arcs streaming off the needle. Their bends ease from one hashed
@@ -407,18 +428,24 @@ void _drawTrailMaterial(
     vfxCurveSpine(corners, perSegment: 3, into: arc..clear());
     vfxLensRibbon(arc, 5.0 * vs, taper: 0.15, taperEnd: 0.6, into: glow);
     vfxLensRibbon(arc, 1.9 * vs, taper: 0.15, taperEnd: 0.6, into: core);
-    vfxFillPath(canvas, glow, m.light, 0.26);
-    vfxFillPath(canvas, core, ui.Color.lerp(m.glint, tint, 0.35)!, 0.8);
+    vfxFillPath(canvas, glow, m.light, 0.26 + 0.2 * heat);
+    vfxFillPath(
+      canvas,
+      core,
+      ui.Color.lerp(m.glint, tint, 0.35 * (1 - heat))!,
+      0.8 + 0.2 * heat,
+    );
     return;
   }
-  const n = 5;
+  // A hot dart sheds more of its material, and brighter: up to eight pieces.
+  final n = 5 + (3 * heat).round();
   for (var i = 0; i < n; i++) {
     final t = (time * 2.2 + i / n + life * 0.37) % 1.0;
     final side = i.isEven ? 1.0 : -1.0;
     final x = -(6.0 * vs + trailLen * 0.85 * t);
     final y = side * vs * (1.0 + 4.5 * t) * (0.5 + 0.5 * vfxHash(i * 1.3));
     final p = ui.Offset(x, y);
-    final f = 1 - t;
+    final f = min(1.0, (1 - t) * (1 + 0.35 * heat));
     final s = vs * (0.8 + 0.5 * f);
     switch (element) {
       case 'Fire':

@@ -436,12 +436,17 @@ abstract final class ManeRuntime {
   /// burst hits everything round it for this share of the shot.
   static const double crystalBossBlastRadius = 240.0;
   static const double crystalBossBlastShare = 3.0;
+
+  /// What the boss it shattered on takes: the shot itself plus the burst it
+  /// stands in the middle of. A heavy hit, not an execute — it used to be the
+  /// boss's whole remaining health (2026-10-20 audit).
+  static const double crystalBossHitShare = 1.0 + crystalBossBlastShare;
 }
 
 /// Mane+Light: the ward. Nothing is thrown — the cast hangs a ring round the
 /// caster, then another, up to what its Beauty holds, and every cast after
 /// that feeds one ring a rung up its size ladder, cycling outermost first,
-/// for up to [kManeLightMaxGrowth] feedings.
+/// for up to [kManeLightMaxGrowth] feedings across the rings still standing.
 abstract final class ManeLightWard {
   /// [slot]'s live rings, outermost first.
   static List<Projectile> rings(Iterable<Projectile> projectiles, int? slot) {
@@ -463,14 +468,49 @@ abstract final class ManeLightWard {
     return rings;
   }
 
+  /// How far a ward has been fed: the rungs its standing rings have climbed.
+  ///
+  /// Read off the rings rather than kept on the caster. A counter on the
+  /// caster never came down, so once a ward had been fed ten times no later
+  /// ring was ever fed again, and the rings that replaced expired ones sat at
+  /// their first rung for the rest of the run (2026-10-20 audit). A ring that
+  /// expires now takes its feedings with it.
+  static int fedLevels(Iterable<Projectile> rings) {
+    var total = 0;
+    for (final ring in rings) {
+      total += max(0, ring.effectStacks);
+    }
+    return total;
+  }
+
+  /// The orbit a new ring takes: the first of the ward's own orbits (outer,
+  /// middle, inner, then the Beauty ring outside them all) that no standing
+  /// ring is on. It used to take the orbit numbered by how many rings were
+  /// left, so a ring hung after the outer one expired doubled up on the
+  /// inner orbit.
+  static int freeOrbit(List<Projectile> rings, int ringCap) {
+    final cap = min(ringCap, kManeLightOrbitRadii.length);
+    for (var i = 0; i < cap; i++) {
+      final radius = kManeLightOrbitRadii[i];
+      var taken = false;
+      for (final ring in rings) {
+        if ((ring.orbitRadius - radius).abs() < 0.5) {
+          taken = true;
+          break;
+        }
+      }
+      if (!taken) return i;
+    }
+    return min(rings.length, kManeLightOrbitRadii.length - 1);
+  }
+
   /// One cast. Returns the ring to hang (the host adds it and sparks the
   /// caster), or the ring it fed in place and the burst radius to play
-  /// there, and the caster's growth count after the cast.
+  /// there, and how far the ward has been fed after the cast ([fedLevels]).
   static ({Projectile? hung, Projectile? fed, double burstRadius, int growth})
   cast({
     required List<Projectile> rings,
     required int ringCap,
-    required int growth,
     required Offset casterPos,
     required double casterAngle,
     required Projectile template,
@@ -482,9 +522,10 @@ abstract final class ManeLightWard {
     final reach = (template.effectRadius / kManeLightWardEffectRadius)
         .clamp(1.0, kAbilityReachCeiling)
         .toDouble();
+    final growth = fedLevels(rings);
     if (rings.length < ringCap) {
       // Every ring is born at level 0 however far along the ward is.
-      final index = rings.length;
+      final index = freeOrbit(rings, ringCap);
       return (
         hung: Projectile(
           position:
@@ -523,14 +564,20 @@ abstract final class ManeLightWard {
     if (growth >= kManeLightMaxGrowth || rings.isEmpty) {
       return (hung: null, fed: null, burstRadius: 0.0, growth: growth);
     }
-    // Which ring eats this cast, cycling outward-in over the rings this ward
-    // actually has.
-    final turn = growth % rings.length;
-    final ring = rings[turn];
-    final level = (ring.effectStacks + 1).clamp(
-      0,
-      kManeLightVisualByLevel.length - 1,
-    );
+    // Which ring eats this cast: the least fed, outermost first among equals,
+    // which cycles outer, middle, inner over a ward built from scratch and
+    // brings a fresh ring up to the others.
+    final top = kManeLightVisualByLevel.length - 1;
+    Projectile? hungry;
+    for (final r in rings) {
+      if (r.effectStacks >= top) continue;
+      if (hungry == null || r.effectStacks < hungry.effectStacks) hungry = r;
+    }
+    if (hungry == null) {
+      return (hung: null, fed: null, burstRadius: 0.0, growth: growth);
+    }
+    final ring = hungry;
+    final level = (ring.effectStacks + 1).clamp(0, top);
     // The ring keeps the reach it was hung with: its size over its rung.
     final ringReach =
         ring.radiusMultiplier /

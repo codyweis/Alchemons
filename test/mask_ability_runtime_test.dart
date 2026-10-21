@@ -136,7 +136,7 @@ void main() {
     }
     test('Light consumes only one victim', () {
       final game = openArena();
-      final p = cast('Light').single;
+      final p = cast('Light').first;
       final a = openEnemy(p.position), b = openEnemy(p.position);
       game.enemies.addAll([a, b]);
       game.resolveMaskContact(p, a);
@@ -185,8 +185,9 @@ void main() {
         final p = cast('Ice').single..position = Offset.zero;
         game.companionProjectiles.add(p);
         game.tickMaskPlacement(p);
-        expect(game.activeCompanions[0]!.damageAmp, 2.4);
-        expect(game.maskShipDamageAmp, 2.4);
+        expect(game.activeCompanions[0]!.damageAmp, maskIceAmpOf(p));
+        expect(game.maskShipDamageAmp, maskIceAmpOf(p));
+        expect(maskIceAmpOf(p), inInclusiveRange(kMaskIceAmpMin, 2.4));
         game.ship.pos = const Offset(1000, 0);
         expect(game.maskShipDamageAmp, 1);
         final comp = game.activeCompanions[0]!;
@@ -294,17 +295,18 @@ void main() {
       expect(casts, 2, reason: 'the clear should take the second cast');
       expect(game.debugMaskSpiritNukeFlash, 1.0);
     });
-    test('the Spirit clear threshold counts in casts, not wisps', () {
-      // A weak caster's four wisps, an average eight, a perfect fourteen:
-      // every one takes a cast and a half to clear.
-      expect(kMaskSpiritCastsPerClear, 1.5);
-      expect(maskSpiritClearThreshold(4), 6);
+    test('the Spirit clear threshold counts in wisps, at most one a cast', () {
+      // A weak caster's four wisps take three casts, an average eight a cast
+      // and a half, a perfect fourteen one (2026-10-20: in casts, the count
+      // the board scales by stats did nothing).
+      expect(kMaskSpiritClearWisps, 12);
+      expect(maskSpiritClearThreshold(4), 12);
       expect(maskSpiritClearThreshold(8), 12);
-      expect(maskSpiritClearThreshold(14), 21);
-      expect(maskSpiritClearThreshold(1), 2, reason: 'never a one-wisp clear');
-      expect(maskSpiritClearThreshold(0), 2);
+      expect(maskSpiritClearThreshold(14), 14);
+      expect(maskSpiritClearThreshold(1), 12, reason: 'never a one-wisp clear');
+      expect(maskSpiritClearThreshold(0), 12);
       for (var n = 1; n <= 20; n++) {
-        expect(maskSpiritClearThreshold(n), greaterThan(n));
+        expect(maskSpiritClearThreshold(n), greaterThanOrEqualTo(n));
       }
     });
     for (final element in [
@@ -366,7 +368,8 @@ void main() {
       game.activeBoss = boss;
       final enemy = openEnemy(const Offset(300, 0));
       game.enemies.add(enemy);
-      for (var i = 0; i < 6; i++) {
+      // One wisp a cast, so a clear takes kMaskSpiritClearWisps casts.
+      for (var i = 0; i < kMaskSpiritClearWisps; i++) {
         game.activateMaskPlacements([cast('Spirit').first]);
         game.debugMaskSpiritWisps.single.position = Offset.zero;
         game.updateMaskRuntime(0.01);
@@ -374,7 +377,7 @@ void main() {
       expect(enemy.dead, isTrue, reason: 'the clear did go off');
       expect(boss.health, 1000);
       expect(boss.dead, isFalse);
-      game.tickMaskPlacement(cast('Light').single);
+      game.tickMaskPlacement(cast('Light').first);
       expect(boss.health, 1000);
     });
     test('Spirit wisps swoop to the ship inside 200 and are taken at 56', () {
@@ -399,7 +402,8 @@ void main() {
       final inField = openEnemy(Offset(game.debugMaskFieldRadius - 20, 0));
       final outside = openEnemy(Offset(game.debugMaskFieldRadius + 200, 0));
       game.enemies.addAll([inField, outside]);
-      for (var i = 0; i < 6; i++) {
+      // One wisp a cast, so a clear takes kMaskSpiritClearWisps casts.
+      for (var i = 0; i < kMaskSpiritClearWisps; i++) {
         game.activateMaskPlacements([cast('Spirit').first]);
         game.debugMaskSpiritWisps.single.position = game.ship.pos;
         game.updateMaskRuntime(0.01);
@@ -413,7 +417,8 @@ void main() {
       final enemy = openEnemy(const Offset(300, 0));
       game.enemies.add(enemy);
       game.activeCompanions.clear();
-      for (var i = 0; i < 6; i++) {
+      // One wisp a cast, so a clear takes kMaskSpiritClearWisps casts.
+      for (var i = 0; i < kMaskSpiritClearWisps; i++) {
         game.activateMaskPlacements([cast('Spirit').first]);
         game.debugMaskSpiritWisps.single.position = game.ship.pos;
         game.updateMaskRuntime(0.01);
@@ -516,14 +521,16 @@ void main() {
       expect(enemy.moveSpeed, closeTo(80 * 0.45, 0.001));
       expect(enemy.health, 1000, reason: 'Mud only slows');
     });
-    test('Steam geysers throw what they scald upward', () {
+    test('Steam geysers throw what they scald away from themselves', () {
+      // Up the screen, they threw a body below the orb at it (2026-10-20).
       final game = openArena();
       final geyser = cast('Steam').first..position = Offset.zero;
       final enemy = openEnemy(const Offset(100, 0));
       game.enemies.add(enemy);
       game.tickMaskPlacement(geyser);
       expect(enemy.health, lessThan(1000));
-      expect(enemy.knockbackVelocity.dy, lessThan(0));
+      expect(enemy.knockbackVelocity.dx, greaterThan(0));
+      expect(enemy.knockbackVelocity.dy, closeTo(0, 1e-9));
     });
     test('Dark throws a body out of the fight, never back into the hole', () {
       final game = openArena();
@@ -823,7 +830,7 @@ void main() {
     }
     test('Light kills an armored enemy but cannot consume a second', () async {
       final game = await survivalArena('Light');
-      final p = cast('Light').single;
+      final p = cast('Light').first;
       final a = survivalEnemy(p.position, affix: EliteAffix.bulwarked);
       final b = survivalEnemy(p.position);
       game.enemies.addAll([a, b]);
@@ -848,10 +855,10 @@ void main() {
       final ice = cast('Ice').single..position = comp.position;
       game.companionProjectiles.add(ice);
       game.updatePersistentAbilityEffects(0.35);
-      expect(comp.damageAmp, 2.4);
+      expect(comp.damageAmp, maskIceAmpOf(ice));
       expect(game.maskShipDamageAmp, 1);
       ice.position = game.ship.position;
-      expect(game.maskShipDamageAmp, 2.4);
+      expect(game.maskShipDamageAmp, maskIceAmpOf(ice));
     });
     test(
       'Lightning damages a lone enemy in the field on repeated ticks',

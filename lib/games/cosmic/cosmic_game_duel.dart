@@ -67,6 +67,12 @@ class _CombatBody {
   /// Instant kills taken this pass.
   int executes = 0;
 
+  /// A battle's body carries its Alchemon's health ([CosmicDuel.
+  /// _carryHealthOf]) and the health it began the pass with; the wild
+  /// duel's stays a wall of health that never falls.
+  bool carriesHealth = false;
+  double passHealth = _kCombatBodyHealth;
+
   double mudTrailTimer = 0;
 }
 
@@ -165,9 +171,32 @@ extension CosmicDuel on CosmicGame {
     cb.body
       ..position = at
       ..health = _kCombatBodyHealth
+      ..standInMaxHealth = null
       ..dead = false;
     cb.from = at;
     cb.executes = 0;
+    cb.carriesHealth = false;
+    cb.passHealth = _kCombatBodyHealth;
+  }
+
+  /// [cb] stood up for a battle: it carries [comp]'s health (shield and
+  /// all) in the units the other side's abilities deal, so what reads a
+  /// target's health — a share of it, a finishing blow below a line, the
+  /// most hurt — reads the Alchemon's, and a pass that empties it sets off
+  /// what a kill does. No one hit takes more than an instant kill would
+  /// ([_kExecuteShare]): a horde's one-shots are a heavy hit here.
+  void _carryHealthOf(_CombatBody cb, CosmicCompanion comp) {
+    final perPoint =
+        CosmicGame._duelDamageMultiplier *
+        (_battle?.damageNow ?? 1.0) *
+        100 /
+        (100 + comp.elemDef * CosmicGame._duelDefenseScale);
+    final health = max(1, comp.currentHp + comp.shieldHp) / perPoint;
+    cb.carriesHealth = true;
+    cb.passHealth = health;
+    cb.body
+      ..standInMaxHealth = max(comp.maxHp / perPoint, health)
+      ..health = health;
   }
 
   // ── the party's abilities reaching the wild Alchemon ────────────────────
@@ -200,6 +229,7 @@ extension CosmicDuel on CosmicGame {
   /// What the pass took from [cb]'s health. A pass that emptied it outright
   /// ran an instant kill on it, whichever path did so; that is booked as one.
   double _takenBy(_CombatBody cb) {
+    if (cb.carriesHealth) return max(0.0, cb.passHealth - cb.body.health);
     final taken = max(0.0, _kCombatBodyHealth - cb.body.health);
     if (taken < _kCombatBodyHealth * 0.5) return taken;
     cb.executes++;
