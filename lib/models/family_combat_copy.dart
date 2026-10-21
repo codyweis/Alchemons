@@ -48,7 +48,7 @@ class FamilyCombatCopy {
 const Map<CreatureFamily, FamilyCombatCopy> kFamilyCombatCopy = {
   CreatureFamily.let: FamilyCombatCopy(
     role: 'Siege Caster',
-    attack: 'Throws one big, slow rock.',
+    attack: 'Throws one heavy rock. It hits hard, but not often.',
     special:
         'Calls a meteor down onto its target. The crater carries the element\'s own effect.',
     targets: 'The enemy with the most health, bosses first.',
@@ -56,7 +56,8 @@ const Map<CreatureFamily, FamilyCombatCopy> kFamilyCombatCopy = {
   ),
   CreatureFamily.pip: FamilyCombatCopy(
     role: 'Tempo Carry',
-    attack: 'Fires three quick darts in a fan.',
+    attack:
+        'Fires three small darts in a narrow fan. Each hits lightly, but it attacks quickly.',
     special:
         'Fires darts that ricochet from enemy to enemy, each element adding its own twist.',
     targets: 'The weakest enemy.',
@@ -64,14 +65,14 @@ const Map<CreatureFamily, FamilyCombatCopy> kFamilyCombatCopy = {
   ),
   CreatureFamily.mane: FamilyCombatCopy(
     role: 'Barrage Bruiser',
-    attack: 'Throws two blades side by side. Land both for full damage.',
+    attack: 'Throws two slow blades side by side.',
     special: 'Hurls one huge blade through every enemy in a line.',
     targets: 'The nearest enemy.',
     position: 'Holds the middle ring around the orb.',
   ),
   CreatureFamily.horn: FamilyCombatCopy(
     role: 'Frontline Bastion',
-    attack: 'Fires one big, slow, heavy shot.',
+    attack: 'Fires one large, slow shot at close range. Each shot hits hard.',
     special:
         'A heavy defensive move: a charge, a slam, a wall or an aura, by element.',
     targets: 'Whatever is closest to the orb.',
@@ -79,30 +80,33 @@ const Map<CreatureFamily, FamilyCombatCopy> kFamilyCombatCopy = {
   ),
   CreatureFamily.mask: FamilyCombatCopy(
     role: 'Control Trapper',
-    attack: 'Fires one fast dart that passes through enemies.',
+    attack: 'Fires one quick dart that passes through up to 6 enemies.',
     special:
-        'Scatters traps that catch, lure or punish whatever walks into them.',
+        'Lays traps in the enemies\' path. Each element\'s traps work differently.',
     targets: 'The nearest enemy.',
     position: 'Holds the middle ring around the orb.',
   ),
   CreatureFamily.wing: FamilyCombatCopy(
     role: 'Beam Hunter',
-    attack: 'Fires two quick shots, one right behind the other.',
-    special: 'Fires a long beam down a lane of the arena.',
+    attack:
+        'Fires two quick shots, one right behind the other, from long range.',
+    special:
+        'Fires a beam that hits harder the longer it stays on one enemy, with a burst of shots.',
     targets: 'The enemy farthest from the orb.',
     position: 'Patrols the edge of the arena.',
   ),
   CreatureFamily.kin: FamilyCombatCopy(
     role: 'Guardian Support',
-    attack: 'Charges up, then fires a laser.',
+    attack:
+        'Stops for a moment to charge, then fires a laser that hits every enemy along its line.',
     special:
-        'Heals and blesses the team, plus a support piece unique to its element.',
+        'Each cast heals this Kin and the orb a little, plus a support effect set by its element.',
     targets: 'The nearest enemy.',
     position: 'Stays close to the orb.',
   ),
   CreatureFamily.mystic: FamilyCombatCopy(
     role: 'World Shaper',
-    attack: 'Fires three spell bolts in a fan.',
+    attack: 'Fires three small bolts in a narrow fan.',
     special:
         'Turns the arena into its element\'s world until the Mystic falls.',
     targets: 'The nearest enemy.',

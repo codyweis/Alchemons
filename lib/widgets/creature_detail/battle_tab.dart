@@ -90,37 +90,63 @@ String _feedSource(Map<AlchemonStat, double?> feeds) {
   return stats.map(_statAbbrev).join('·');
 }
 
-/// 'Strength 80% · Intelligence 20%', from the stats a blend names a share for.
+/// 'Strength (80%) and Intelligence (20%)', from the stats a blend names a
+/// share for. A lone stat goes without its 100%.
 String _shareLine(Map<AlchemonStat, double?> feeds) {
   final parts = feeds.entries.where((e) => e.value != null).toList()
     ..sort((a, b) => b.value!.compareTo(a.value!));
-  return parts
-      .map((e) => '${_statName(e.key)} ${(e.value! * 100).round()}%')
-      .join(' · ');
+  if (parts.isEmpty) return '';
+  if (parts.length == 1) return _statName(parts.single.key);
+  final named = parts
+      .map((e) => '${_statName(e.key)} (${(e.value! * 100).round()}%)')
+      .toList();
+  return '${named.sublist(0, named.length - 1).join(', ')} and ${named.last}';
 }
 
 /// How the family's special scales: what powers it and what brings it back.
 /// Read from the same contract the game runs on (alchemon_combat_stats.dart).
-List<CosmicAbilityDescriptionLine> _specialScalingLines(String family) {
+/// Then what every cast in the family does besides its element's effect.
+List<CosmicAbilityDescriptionLine> _specialScalingLines(
+  String family,
+  String element,
+) {
   final feeds = alchemonStatFeeds(family);
   final power = _shareLine(feeds[AlchemonCombatOutput.special]!);
   final recharge = _shareLine(feeds[AlchemonCombatOutput.specialInterval]!);
   final f = family.toLowerCase();
+  final passive = isPassiveOnlyCosmicAbility(family, element);
+  final also = switch (f) {
+    'horn' when !passive => 'Every cast also shields this Horn, more with '
+        'Beauty.',
+    'wing' when !const {'Fire', 'Poison', 'Lightning'}.contains(element) =>
+      'The beam starts weak and hits harder the longer it stays on one '
+          'enemy.',
+    'kin' when !passive => 'Every cast also heals this Kin, and the orb a '
+        'little.',
+    'mystic' => 'The world lasts while this Mystic is alive and deployed.',
+    _ => null,
+  };
   return [
-    CosmicAbilityDescriptionLine(label: 'Power', body: 'SPECIAL, from $power.'),
     CosmicAbilityDescriptionLine(
-      label: 'Recharge',
-      body: switch (f) {
-        'mystic' => 'Its world comes a minute after it is deployed, whatever '
-            'its stats.',
-        _ => '$recharge. A stronger SPECIAL also comes back sooner.',
-      },
+      label: 'Power',
+      body: 'Stronger with $power.',
     ),
+    if (!passive)
+      CosmicAbilityDescriptionLine(
+        label: 'Recharge',
+        body: switch (f) {
+          'mystic' => 'About a minute after it is deployed, whatever its '
+              'stats. Each auto attack brings it a little sooner.',
+          _ => 'Faster with $recharge. A stronger special also comes back '
+              'sooner.',
+        },
+      ),
+    if (also != null) CosmicAbilityDescriptionLine(label: 'Also', body: also),
     if (f == 'mystic')
       const CosmicAbilityDescriptionLine(
         label: 'Elsewhere',
         body:
-            'Its world is a Survival ability: in Cosmic Space and the planet dungeons a Mystic fights with its auto attack.',
+            'Survival only. In Cosmic Space and the planet dungeons a Mystic fights with its auto attack.',
       ),
   ];
 }
@@ -500,71 +526,26 @@ class _CosmicBasicInfo {
 }
 
 _CosmicBasicInfo _cosmicFamilyBasicInfo(String family, String element) {
-  switch (family) {
-    case 'Mane':
-      return _CosmicBasicInfo(
-        name: "$element Twin Blades",
-        description:
-            "Throws two $element blades side by side. The damage is in landing both on the same enemy.",
-        icon: AppIcons.waves,
-      );
-    case 'Horn':
-      return _CosmicBasicInfo(
-        name: "$element Ram Shot",
-        description:
-            "Fires one large, slow $element shot with a wide hitbox. Enemies can see it coming.",
-        icon: AppIcons.shield,
-      );
-    case 'Mask':
-      return _CosmicBasicInfo(
-        name: "$element Needle",
-        description:
-            "Fires one quick $element dart that keeps going through every enemy in its path.",
-        icon: AppIcons.warning_amber,
-      );
-    case 'Wing':
-      return _CosmicBasicInfo(
-        name: "$element Feather Pair",
-        description:
-            "Fires two quick $element shots, one right behind the other, from long range.",
-        icon: AppIcons.arrow_forward,
-      );
-    case 'Kin':
-      return _CosmicBasicInfo(
-        name: "$element Charged Beam",
-        description:
-            "Charges in place, then fires a $element laser at its target.",
-        icon: AppIcons.favorite,
-      );
-    case 'Mystic':
-      return _CosmicBasicInfo(
-        name: "$element Arcane Triad",
-        description: "Fires three small $element bolts in a fan.",
-        icon: AppIcons.auto_awesome,
-      );
-    case 'Pip':
-      return _CosmicBasicInfo(
-        name: "$element Dart Burst",
-        description:
-            "Fires three quick $element darts in a fan. Light hits, but Pips attack more often than anyone.",
-        icon: AppIcons.bolt,
-      );
-    case 'Let':
-      return _CosmicBasicInfo(
-        name: "$element Meteor Stone",
-        description:
-            "Throws one big, slow $element rock that takes a moment to arrive.",
-        icon: AppIcons.south,
-      );
-    default:
-      return _CosmicBasicInfo(
-        name: '$element Bolt',
-        description:
-            'Fires a $element projectile at the nearest enemy within range. '
-            'Damage is based on Strength. Attack speed scales with Speed stat.',
-        icon: AppIcons.gps_fixed,
-      );
-  }
+  // What the attack does comes from the family's combat copy, the same line
+  // the survival roster and mastery tree show.
+  final (name, icon) = switch (family) {
+    'Mane' => ('$element Twin Blades', AppIcons.waves),
+    'Horn' => ('$element Ram Shot', AppIcons.shield),
+    'Mask' => ('$element Needle', AppIcons.warning_amber),
+    'Wing' => ('$element Feather Pair', AppIcons.arrow_forward),
+    'Kin' => ('$element Charged Beam', AppIcons.favorite),
+    'Mystic' => ('$element Arcane Triad', AppIcons.auto_awesome),
+    'Pip' => ('$element Dart Burst', AppIcons.bolt),
+    'Let' => ('$element Meteor Stone', AppIcons.south),
+    _ => ('$element Bolt', AppIcons.gps_fixed),
+  };
+  return _CosmicBasicInfo(
+    name: name,
+    description:
+        FamilyCombatCopy.forName(family)?.attack ??
+        'Fires a $element shot at the nearest enemy in range.',
+    icon: icon,
+  );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -628,59 +609,51 @@ List<CosmicAbilityDescriptionLine> cosmicAbilityDescriptionLines(
 CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
   switch (family) {
     case 'Horn':
-      // Per-element shape varies under the new "bulky defense tank"
-      // theme — some elements charge, some wind up before dashing,
-      // some are pure passives, Light is a stationary channel.
-      final isPassive = ['Air', 'Mud'].contains(element);
-      final hasWindUp = ['Dark', 'Crystal', 'Spirit'].contains(element);
-      final isChannel = element == 'Light';
-      final isCustomPath = ['Water', 'Ice'].contains(element);
       final description = switch (element) {
         'Fire' =>
-          'Charges through enemies, leaving a burning trail that damages and taunts enemies.',
+          'Charges through enemies and leaves a trail of fire. Enemies are drawn into the flames and burn while they stand in them.',
         'Lava' =>
-          'Slow heavy charge with a glowing build-up telegraph. Enemies killed by the slam explode into homing flames that seek nearby targets.',
+          'A slow, heavy charge that hits hard. Each enemy it kills bursts into flames that chase nearby enemies, more with Beauty.',
         'Lightning' =>
-          'Quick dash to the target, then a 3-second storm brews around the horn (movement locked). Damage taken during the dash + brew is absorbed, then released as a chain shockwave whose size scales with the absorbed total.',
+          'Dashes in, then holds still for 3 seconds while a storm builds and lightning strikes the enemies around it. Damage it takes during the dash makes the lightning stronger.',
         'Water' =>
-          'Charges in a circular sweep around the cast point, then drops a whirlpool at the center that pulls and slows trapped enemies.',
+          'Charges in a full circle, hitting every enemy it passes. A whirlpool then forms in the middle that pulls enemies in and slows them.',
         'Ice' =>
-          'Dashes sideways perpendicular to the enemy direction, painting an ice wall segment-by-segment along the path. Wall taunts, slows, and reflects enemy projectiles.',
+          'Dashes sideways and leaves a wall of ice along its path. The wall draws enemies to it, slows them and turns enemy shots back at other enemies.',
         'Steam' =>
-          'Slams down a steam geyser. A kill resets the special cooldown and creates another geyser at the kill site.',
+          'Charges and leaves a geyser that draws enemies in and throws them back. If the charge kills an enemy, the special is ready again and another geyser rises there.',
         'Earth' =>
-          'Impact leaves a high-HP substitute clone that taunts enemies and pulses periodic mini-earthquakes around it.',
+          'Charges and leaves a stone decoy where it lands. Nearby enemies attack the decoy instead, and it shakes the ground to hurt them. It bursts into shards when broken.',
         'Mud' =>
-          'Passive: No active cast. Drops slowing mud sludge wherever the horn walks. Trail rate scales with intelligence. Disabled while magnet-recalled to the ship.',
+          'Leaves patches of mud behind it as it moves, slowing enemies that walk through. More patches with Intelligence.',
         'Dust' =>
-          'Impact creates a dust cyclone that pulls nearby enemies inward and disorients shooter-enemies (they fire at each other).',
+          'Charges and leaves a dust whirlwind where it lands. It pulls nearby enemies in and holds them there, slowed, for a few seconds.',
         'Crystal' =>
-          'Wind-up gathers six crystal shards orbiting the horn, then dashes. Shards keep orbiting the moving horn, intercept enemy projectiles, and shatter into shrapnel when they expire.',
+          'Gathers crystal for a moment, then charges. Where it lands, 5 to 7 crystal shards start circling it, each blocking two enemy shots.',
         'Air' =>
-          'Passive: No active cast. Enemies near the horn are continuously blown back toward the arena edge. An inner dead zone leaves close targets in auto-attack range; the outer aura pushes everything else away.',
+          'A steady wind pushes nearby enemies away from the orb. Enemies right beside it are left alone so it can still hit them. Reaches farther with Intelligence.',
         'Plant' =>
-          'Charges through enemies. Each surviving enemy hit gets a personal root status — immobilized for a few seconds and wrapped in vines.',
+          'Charges through enemies. Every enemy it hits and doesn\'t kill is held in place by vines for a few seconds, longer with Intelligence.',
         'Poison' =>
-          'Special ability: Charges through enemies and applies a heavy poison effect. Passive: An always-on toxic aura damages nearby enemies.',
+          'Special ability: Charges through enemies, poisoning each one it hits for extra damage. Passive: A poison cloud around it hurts nearby enemies, reaching farther with Intelligence.',
         'Spirit' =>
-          'Two-second wind-up where phantoms swarm the horn (60% damage reduction throughout wind-up + dash). On dash, six mobile phantom wisps release in a ring, drifting outward and taunting enemies.',
+          'Holds still for 2 seconds while spirits gather, then charges, taking 60% less damage the whole time. Where it lands, ghosts drift outward and enemies chase them instead.',
         'Dark' =>
-          'Five-second void-suck wind-up drags nearby enemies toward the horn. Then a long fast dash carries the captured cluster to the map edge, teleporting them with the horn and slamming them for impact damage on arrival.',
+          'Holds still for 5 seconds while a void pulls nearby enemies in. Then it dashes far ahead, carrying the caught enemies along and slamming them where it stops. A black hole there finishes off the weakest.',
         'Light' =>
-          'Stops moving and channels a light barrier for about 5 seconds. It reflects projectiles, repels enemies, and reduces damage to allies inside by 70%.',
+          'Stops and raises a dome of light for about 5 seconds, longer with Intelligence. Enemies are pushed out, their shots bounce back, and Alchemons inside take 70% less damage.',
         'Blood' =>
-          'Sacrifices a chunk of current HP to amplify the impact damage. Every kill during a short post-cast window heals the horn back.',
-        _ => 'Element decides the cast pattern and effect.',
+          'Gives up some of its own health to hit harder with its charge. Each enemy it kills in the next few seconds heals it back a little.',
+        _ => 'Charges through enemies.',
       };
-      final subtitle = isPassive
-          ? 'Passive Aura • Constant battlefield pressure'
-          : isChannel
-          ? 'Channeled Barrier • Stationary defense zone'
-          : hasWindUp
-          ? 'Wind-up + Dash • Telegraphed heavy impact'
-          : isCustomPath
-          ? 'Path Dash • Custom-route slam'
-          : 'Heavy Charge • Bulky frontline impact';
+      final subtitle = switch (element) {
+        'Air' || 'Mud' => 'Passive',
+        'Light' => 'Barrier',
+        'Crystal' || 'Spirit' || 'Dark' => 'Wind-up charge',
+        'Water' => 'Circling charge',
+        'Ice' => 'Sideways charge',
+        _ => 'Charge',
+      };
       return CosmicSpecialInfo(
         subtitle: subtitle,
         description: description,
@@ -689,53 +662,48 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
     case 'Wing':
       final description = switch (element) {
         'Fire' =>
-          'Sweeps the beam in a circle around the map perimeter, hitting everything in the ring for big damage.',
+          'Throws a fan of fireballs, then burns every enemy in a wide circle around the Wing for a few seconds. The circle grows with Intelligence.',
         'Lava' =>
-          'The beam carves a glowing scar across the ground — enemies passing through the scar take burn damage over time.',
+          'Throws slow chunks of magma and fires a beam. The ground under the beam burns and hurts enemies standing on it.',
         'Lightning' =>
-          'Charges briefly, then unleashes a sustained high-damage beam down the lane.',
+          'Throws a fan of fast bolts, then holds still for 3 seconds to charge and fires one big blast that hits every enemy in a line.',
         'Water' =>
-          'Beam locks onto the lowest-HP ally or the ship and heals them; enemies along the beam path still take damage.',
+          'Throws homing water bolts and fires a beam at your most hurt Alchemon or the ship, healing it. Enemies the beam crosses take damage.',
         'Ice' =>
-          'Beam contact builds frost on the target — held on long enough, the enemy snaps into a hard freeze.',
+          'Fires ice shards and a beam that slows every enemy it touches. An enemy kept in the beam for about a second freezes solid.',
         'Steam' =>
-          'Executes the first enemy touched, then creates 5–13 lingering steam clouds (more with Beauty) that damage enemies over time.',
+          'Fires steam shots and a beam that kills the first enemy it reaches, except bosses. 5 to 13 steam clouds then burst there and burn enemies inside, more with Beauty.',
         'Earth' =>
-          'Standard piercing beam — the orb also fires a mirror beam alongside the wing for half as long.',
-        'Mud' => 'Slows every enemy the beam touches for 60 seconds.',
+          'Throws heavy boulders and fires a beam. The orb fires a second beam at the enemy nearest it, for half as long.',
+        'Mud' =>
+          'Fires mud shots and a beam. Every enemy the beam touches is slowed for a full minute.',
         'Dust' =>
-          'Beam contact surrounds the enemy with disorienting dust — shooter-enemies start firing at each other instead of the ship.',
+          'Fires a spray of dust and a beam. Enemies it touches turn their shots on other enemies for a few seconds.',
         'Air' =>
-          'Beam contact knocks enemies back hard, holding them off the line.',
+          'Fires fast wind shots and a beam that knocks back every enemy it touches.',
         'Crystal' =>
-          'Converts part of the beam damage into healing for the orb.',
+          'Fires homing crystal shards that block enemy shots, and a beam whose damage heals the Wing, the ship and the orb.',
         'Plant' =>
-          'Enemies killed by the beam turn into flower pickups. Fly the ship near a flower to collect it; each one stacks about +4% beam damage, more with Beauty (up to 50 flowers).',
+          'Fires homing vines and a beam. Enemies the beam kills leave flowers for the ship to collect; each one makes this Wing\'s beam stronger, more with Beauty, up to 50.',
         'Poison' =>
-          'Fires a poison-ring beam around the map perimeter instead of a straight line, contaminating the outer ring.',
+          'Fires poison shots, then poisons every enemy in a wide circle around the Wing for a few seconds.',
         'Spirit' =>
-          'Beam tethers through the ship — the ship then fires its own laser at the nearest enemies.',
+          'Fires homing spirits and a beam. The ship fires a beam of its own at the nearest enemy, and the Wing attacks faster while its beam is hitting.',
         'Dark' =>
-          'Passive: Dark wing pulses its beam and auto-attacks at twice the normal rate. No active cast.',
+          'Fires dark lances and a beam. It uses its special and its auto attack twice as often as other Wings.',
         'Light' =>
-          'If the beam kills an enemy, it refracts into two smaller beams hunting nearby enemies for the rest of the original beam\'s duration.',
+          'Fires light orbs and a beam that heals the Wing, the ship and the orb a little. Its first kill splits the beam into two smaller beams that hunt other enemies, three with high Beauty.',
         'Blood' =>
-          'Beam locks onto the lowest-HP enemy and executes any enemy below ~18% HP outright.',
-        _ => 'The element changes the beam\'s target and effect.',
+          'Fires homing blood bolts and a beam that locks onto the weakest enemy in range. Any enemy it hits below a fifth of its health dies.',
+        _ => 'Fires a long beam through enemies.',
       };
-      final subtitle = element == 'Dark'
-          ? 'Dark Beam • Doubled-tempo passive'
-          : element == 'Fire' || element == 'Poison'
-          ? 'Ring Beam • Perimeter sweep'
-          : element == 'Spirit'
-          ? 'Tether Beam • Ship relay'
-          : element == 'Water'
-          ? 'Heal Beam • Ally targeting'
-          : element == 'Blood'
-          ? 'Execute Beam • Lowest-HP lock'
-          : element == 'Lightning'
-          ? 'Charged Beam • Telegraphed blast'
-          : 'Piercing Beam • Long-range line';
+      final subtitle = switch (element) {
+        'Fire' => 'Fire ring',
+        'Poison' => 'Poison ring',
+        'Lightning' => 'Charged blast',
+        'Water' => 'Healing beam',
+        _ => 'Beam',
+      };
       return CosmicSpecialInfo(
         subtitle: subtitle,
         description: description,
@@ -744,418 +712,337 @@ CosmicSpecialInfo cosmicFamilySpecialInfo(String family, String element) {
     case 'Let':
       final description = switch (element) {
         'Air' =>
-          'If the meteor kills an enemy on impact, blow back every nearby enemy from the impact point.',
+          'Drops a meteor on the biggest group of enemies. When it lands on enemies, it blows back everything around the crater.',
         'Dust' =>
-          'On collision, drops a dust cloud at the impact site that slows enemies caught inside.',
+          'Drops a meteor on the biggest group of enemies and leaves a dust cloud that slows enemies inside.',
         'Lava' =>
-          'On impact, sears the ground and damages enemies inside the burning area over time.',
+          'Drops a meteor on the biggest group of enemies and leaves burning ground that hurts enemies standing in it.',
         'Poison' =>
-          'On collision, poisons the struck enemy and leaves a toxic pool that poisons others nearby.',
+          'Drops a meteor on the biggest group of enemies and leaves a poison pool that hurts enemies inside. The enemy it lands on is slowed.',
         'Plant' =>
-          'If the meteor kills an enemy, vines grow from the ground that persist and damage enemies who walk through them.',
+          'Drops a meteor on the biggest group of enemies. If it kills, 5 vines grow around the crater, and each strikes the first enemy to come close.',
         'Blood' =>
-          'If the meteor kills an enemy, drains HP from nearby enemies and splits the drained HP as healing to every alchemon and the ship.',
+          'Drops a meteor on the biggest group of enemies and heals this Let. If it kills, it drains the enemies around the crater and heals your team, the ship and the orb.',
         'Earth' =>
-          'On impact, converts part of the damage dealt into healing for the lowest-health Alchemon or the ship.',
+          'Drops a bigger, slower meteor that also hits enemies around the crater. It heals your most hurt Alchemon or the ship and leaves rubble that stops enemies.',
         'Light' =>
-          'If the meteor kills an enemy, creates a pool of light that heals nearby allies and the ship.',
+          'Drops a meteor on the biggest group of enemies and heals the ship. If it kills, a pool of light keeps healing your most hurt Alchemon or the ship.',
         'Spirit' =>
-          'Has a 20% chance to defeat its target instantly. The chance increases with stats.',
+          'Drops a meteor on the biggest group of enemies. Each enemy in or near the crater may die outright, more often with Intelligence, and badly hurt ones always do.',
         'Crystal' =>
-          'Half the cooldown of the other lets, weaker damage, but any enemy hit is slowed by 90% on impact.',
+          'Drops a weaker meteor about twice as often as other Lets. The enemy it lands on is slowed almost to a stop.',
         'Fire' =>
-          'If the meteor kills an enemy, detonates a big explosion that damages every enemy nearby.',
+          'Drops a meteor on the biggest group of enemies. If it kills, a second blast hits everything around the crater.',
         'Lightning' =>
-          'On impact, if there are enemies nearby, chain-lightning arcs jump between them for splash damage.',
+          'Drops a meteor on the biggest group of enemies. Lightning jumps from the enemy it lands on to up to 3 more.',
         'Steam' =>
-          'If the meteor kills an enemy, creates a long-lasting geyser that pushes enemies upward.',
+          'Drops a meteor on the biggest group of enemies. If it kills, a geyser stays for 9 seconds, hurting enemies and pushing them away from the orb.',
         'Dark' =>
-          'If the meteor kills an enemy, immediately launches 2–5 follow-up meteors (more with Intelligence), each bigger than the original, at surrounding enemies.',
-        'Ice' => 'On collision, freezes the struck enemy for a short window.',
+          'Drops a meteor on the biggest group of enemies. If it kills, 2 to 5 larger meteors fall on the enemies around it, more with Intelligence.',
+        'Ice' =>
+          'Drops a meteor on the biggest group of enemies and freezes every enemy in and just around the crater for about 3 seconds.',
         'Mud' =>
-          'If the meteor kills an enemy, creates a mud pool that stuns enemies caught inside.',
+          'Drops a meteor on the biggest group of enemies. If it kills, it leaves a mud pool that stops enemies inside.',
         'Water' =>
-          'On impact, deals a large burst of area damage to nearby enemies.',
-        _ => 'Element changes the meteor impact behavior.',
+          'Drops a meteor on the biggest group of enemies. A splash also hits enemies just past the crater, and each cast heals the ship a little.',
+        _ => 'Drops a meteor on the biggest group of enemies.',
       };
       return CosmicSpecialInfo(
-        subtitle: 'Meteor Strike • Impact-triggered siege',
+        subtitle: 'Meteor',
         description: description,
         icon: AppIcons.south,
       );
     case 'Pip':
-      final followThrough = switch (element) {
+      final description = switch (element) {
         'Fire' =>
-          'Either attack: Kills create a fire pool that burns enemies inside it.',
-        'Lightning' => 'Doubles the amount of ricochets.',
-        'Air' => 'Ricochet darts push enemies back on hit.',
+          'Fires darts that bounce between enemies, more with Beauty. Kills leave fire pools that burn enemies standing in them.',
+        'Lightning' =>
+          'Fires darts that pierce and bounce more times than any other Pip\'s, losing less damage with each bounce. More darts with Beauty.',
+        'Air' =>
+          'Fires darts outward in every direction, more with Beauty. They bounce between enemies and push each one they hit away from the orb.',
         'Dust' =>
-          'Either attack: Kills create a dust cloud that slows enemies inside it.',
+          'Fires darts that bounce between enemies, more with Beauty. Kills leave dust clouds that slow enemies inside.',
         'Crystal' =>
-          'Either attack: Kills create a taunting crystal. Special darts also pierce and ricochet.',
-        'Light' => 'Darts can intercept threats. Enemies killed heal the orb.',
+          'Fires darts that bounce and pierce, more with Beauty. Kills leave a crystal that draws nearby enemies to it until they break it or it fades.',
+        'Light' =>
+          'Fires a ring of darts that pierce and bounce, more with Beauty. Each dart can block one enemy shot, and kills heal the orb.',
         'Water' =>
-          'Either attack: Kills splash nearby enemies. The special\'s final ricochet creates a larger splash.',
-        'Ice' => 'Darts freeze and slow enemies they hit.',
+          'Fires darts that bounce between enemies, more with Beauty. Each kill splashes nearby enemies, and a kill on a dart\'s last bounce makes a bigger splash.',
+        'Ice' =>
+          'Fires darts that bounce between enemies, more with Beauty, freezing each one they hit for a moment.',
         'Mud' =>
-          'Auto attack: Hits permanently mark enemies, causing them to leave slowing mud trails. Special ability: Darts slow on hit.',
-        'Plant' => 'Either attack: Kills grant 50% extra alchemy meter.',
+          'Auto attack: Enemies it hits drip mud for the rest of their lives, slowing other enemies. Special ability: Fires darts that bounce between enemies and slow them, more with Beauty.',
+        'Plant' =>
+          'Fires darts that bounce and pierce, more with Beauty. In Survival, every kill this Pip makes fills the surge meter 50% more.',
         'Poison' =>
-          'Auto attack: Hits draw poison lines between enemies. Special ability: Darts poison and slow enemies.',
+          'Fires darts that pierce enemies for extra poison damage, more with Beauty. Poison lines form between the enemies they hit and hurt anything that crosses them.',
         'Earth' =>
-          'Auto attack: Hits reduce the special cooldown. Special ability: Kills refund extra cooldown.',
-        'Lava' => 'Darts pierce and burn enemies they hit.',
+          'Auto attack: Each shot brings its special a little sooner. Special ability: Fires heavy darts that jump to a new enemy after each kill. A dart\'s first kill brings the next special sooner.',
+        'Lava' =>
+          'Fires heavy darts that pierce enemies and jump on after kills, more with Beauty. Each enemy hit takes extra burn damage.',
         'Dark' =>
-          'Passive: Auto-attack kills create a black hole that pulls enemies inward.',
-        'Blood' => 'Enemies killed heal this Pip itself.',
+          'No special. Each enemy its auto attacks kill leaves a black hole for a few seconds that pulls nearby enemies in and finishes off nearly dead ones.',
+        'Blood' =>
+          'Fires heavy darts that pierce enemies and jump on after kills, more with Beauty. Each kill heals this Pip.',
         'Spirit' =>
-          'Either attack: Kills build Spirit stacks. Enough stacks grant a temporary auto-attack speed boost.',
+          'Fires darts that bounce and pierce, more with Beauty. After enough kills, fewer with Intelligence, its auto attacks fire about ten times as fast for a few seconds.',
         'Steam' =>
-          'Passive: A steam cloud temporarily increases auto-attack speed. Special ability: Kills can trigger extra haste.',
-        _ => 'Element changes the dart effect.',
+          'Passive: A steam cloud around it speeds up its auto attacks, from 1.5 to 4 times as fast over 9 seconds, then starts over. Special ability: Fires darts that pierce and bounce, more with Beauty.',
+        _ => 'Fires darts that bounce between enemies.',
       };
-      if (element == 'Dark') {
-        return CosmicSpecialInfo(
-          subtitle: 'No active special • Auto-kill passive',
-          description:
-              'Passive: This Pip has no active special. Auto-attack kills create a black hole that pulls enemies inward.',
-          icon: AppIcons.bolt,
-        );
-      }
+      final subtitle = switch (element) {
+        'Dark' => 'Passive',
+        'Lava' || 'Blood' => 'Piercing darts',
+        'Earth' => 'Heavy darts',
+        _ => 'Ricochet darts',
+      };
       return CosmicSpecialInfo(
-        subtitle: 'Ricochet Salvo • Active special',
-        description:
-            'Special ability: Fires a short-lived elemental dart salvo; ricochet elements hop between nearby enemies. '
-            '$followThrough',
+        subtitle: subtitle,
+        description: description,
         icon: AppIcons.bolt,
       );
     case 'Mane':
-      final maneInfo = switch (element) {
+      final (subtitle, description, icon) = switch (element) {
         'Air' => (
-          'Gale Pierce • Fast push-through catapult',
-          'Projectile travels at 2× speed and shoves every enemy it pierces along the shot path.',
+          'Piercing shot',
+          'Fires a fast gust through enemies, carrying each one along with it and slowing it briefly.',
           AppIcons.air,
         ),
         'Dust' => (
-          'Dustwake Fan • Projectile silence',
-          'Leaves a dust-cloud trail along its path. Enemies inside the trail can no longer shoot projectiles.',
+          'Piercing shot',
+          'Throws a big dust cloud through enemies and leaves a dust trail behind it. Enemy shooters it touches, or that cross the trail, fire at other enemies for a while.',
           AppIcons.cloud,
         ),
         'Lava' => (
-          'Molten Cleave • Burning residue',
-          'Drops lava at the first four enemies each shot hits, damaging anything that steps into it over time.',
+          'Piercing shot',
+          'Throws a slow ball of lava through enemies. It leaves a lava puddle under the first 4 enemies it hits, burning anything that stands in it.',
           AppIcons.local_fire_department,
         ),
         'Poison' => (
-          'Venom Edge • Stacking toxin',
-          'Each hit adds another poison stack, increasing its damage over time.',
+          'Piercing shot',
+          'Throws a slow poison ball through enemies. Each time the same enemy is poisoned again it takes more damage, up to 8 times.',
           AppIcons.biotech,
         ),
         'Blood' => (
-          'Bloodedge Rush • Orb lifesteal',
-          'Every enemy pierced restores HP back to the orb, up to a limit each second.',
+          'Piercing shot',
+          'Throws a slow blood ball through enemies. Each enemy it passes through heals the orb and this Alchemon, up to a limit each second.',
           AppIcons.bloodtype,
         ),
         'Earth' => (
-          'Fault Slab • Grinding quake path',
-          'Starts huge, slowly grinds forward, breaks apart as it travels, and shoots quake-bursts out as it breaks down.',
+          'Piercing shot',
+          'Throws a huge, slow stone slab that shrinks as it travels and leaves small quakes behind it. The quakes hurt and slow nearby enemies.',
           AppIcons.terrain,
         ),
         'Light' => (
-          'Radiant Ward • Orbiting rings',
-          'Casts hang light in orbit instead of throwing it. The first casts set two to four rings turning around you, more with Beauty; every cast after that feeds one of them, outermost first, up to ten times in all, growing it toward half again the size of an Earth catapult.',
+          'Orbiting rings',
+          'Each cast adds a light ring that circles this Alchemon and hits enemies, up to 2 to 4 rings, more with Beauty. Later casts make the rings bigger, up to 10 times.',
           AppIcons.wb_sunny,
         ),
         'Spirit' => (
-          'Phaseblade Rush • Ramping stream',
-          'Starts at 1 projectile. Each cast adds another shot up to 10, then resets back to 1.',
+          'Shot stream',
+          'Fires a line of shots: 1 on the first cast, one more each cast up to 10, then back to 1.',
           AppIcons.auto_awesome,
         ),
         'Crystal' => (
-          'Prism Edge • Boss shatter',
-          'Hitting a boss triggers a massive crystal burst that defeats the boss and damages everything nearby.',
+          'Piercing shot',
+          'Throws a large crystal through enemies. If it hits a boss it shatters, dealing heavy damage to the boss and everything around it.',
           AppIcons.diamond,
         ),
         'Fire' => (
-          'Fireball Rush • Dense fire spread',
-          'Throws 4–6 fast fireballs in a forward wave, more with Beauty.',
+          'Fireballs',
+          'Throws 4 to 6 fast fireballs in a wide fan, more with Beauty. Each one passes through every enemy in its way.',
           AppIcons.whatshot,
         ),
         'Lightning' => (
-          'Storm Orb Field • Remote zaps',
-          'Places 5–10 stationary lightning orbs on the map that shock enemies who come near.',
+          'Shock fields',
+          'Drops 5 to 10 orbs around the ship, more with Beauty. Each one becomes a small field that shocks enemies inside it for 4 seconds.',
           AppIcons.flash_on,
         ),
         'Steam' => (
-          'Pressure Geyser • Traveling vent',
-          'Big geyser projectile travels through the lane and periodically releases steam pulses as it goes.',
+          'Piercing shot',
+          'Fires a slow geyser through enemies that lets off bursts of steam as it goes. The steam hurts enemies and pushes them away from the orb.',
           AppIcons.blur_on,
         ),
         'Dark' => (
-          'Voidcut Drive • Pull and consume',
-          'One slow void bolt that constantly pulls nearby enemies toward it as it travels, executing any low-HP enemy caught in its path.',
+          'Piercing shot',
+          'Fires a slow dark bolt that pulls nearby enemies toward it. Enemies with little health left die when it reaches them.',
           AppIcons.dark_mode,
         ),
         'Ice' => (
-          'Frostguard Cleave • Contact freeze',
-          'Freezes everything it touches as it travels through the lane.',
+          'Piercing shot',
+          'Throws a slow ball of ice through enemies, freezing each one for about 2 seconds. Bosses are only slowed.',
           AppIcons.ac_unit,
         ),
         'Mud' => (
-          'Bogbreaker Split • Ten-way burst',
-          'First enemy hit, the projectile breaks apart and splits into 10 smaller mud shards firing outward.',
+          'Splitting shot',
+          'Throws a mud ball that bursts into 10 shards on the first enemy it hits. The shards fly out in every direction and slow what they hit.',
           AppIcons.grain,
         ),
         'Plant' => (
-          'Vine Lariat • Feeding growth',
-          'Throws a thin vine that roots enemies and grows wider and stronger with each hit, up to a cap. Defeated rooted enemies burst, damaging nearby targets.',
+          'Piercing shot',
+          'Throws a vine that holds each enemy it passes through in place, growing thicker with each one. An enemy that dies while held bursts, hurting and holding the enemies beside it.',
           AppIcons.local_florist,
         ),
         'Water' => (
-          'Tidewall Crash • Carrying wave',
-          'Fires a massive wall of water that drags enemies along with it as it travels.',
+          'Piercing shot',
+          'Sends a wide, slow wave through enemies. Enemies it hits are carried along with it and slowed.',
           AppIcons.water,
         ),
         _ => (
-          'Barrage Volley • Piercing technique',
-          'Element changes the piercing technique.',
+          'Piercing shot',
+          'Throws one big shot through every enemy in a line.',
           AppIcons.waves,
         ),
       };
       return CosmicSpecialInfo(
-        subtitle: maneInfo.$1,
-        description: maneInfo.$2,
-        icon: maneInfo.$3,
+        subtitle: subtitle,
+        description: description,
+        icon: icon,
       );
     case 'Mask':
       final description = switch (element) {
         'Air' =>
-          'Scatters air pads across the field. Each pad blows back enemies that touch it.',
+          'Lays 7 to 21 air pads in the enemies\' path, more with Beauty. An enemy that touches a pad is hit and knocked away.',
         'Dust' =>
-          'Wraps each alchemon in a dust shield that follows them around — absorbs incoming projectiles and damages enemies who collide.',
-        'Lava' => 'Drops lava pools that burn any enemy standing in them.',
+          'Wraps the ship and each of your Alchemons in a dust shield. Each shield blocks 5 enemy shots and hurts enemies that get close.',
+        'Lava' =>
+          'Lays 5 to 15 lava pools in the enemies\' path, more with Beauty. Enemies standing in them burn.',
         'Poison' =>
-          'Scatters poison clouds. Enemies inside take damage over time.',
+          'Lays 4 to 12 poison clouds in the enemies\' path, more with Beauty. Enemies inside take damage.',
         'Plant' =>
-          'Plants a single vine that never dies. Each cast feeds it — the vine grows larger and meaner, sprouting a new attacking tendril every 10 feeds (up to 10 tendrils at 100 feeds).',
+          'Plants one vine that grows with every cast, up to 100 casts. Enemies within its reach are held in place and take damage.',
         'Blood' =>
-          'Places a blood blob. Enemies that pass through it are permanently drained — life leaches to all alchemons until that enemy dies.',
+          'Places a blood pool in the enemies\' path. Enemies that touch it bleed until they die, and part of what they lose heals your team and the ship.',
         'Earth' =>
-          'Creates earth pools that heal the ship and alchemons standing inside.',
+          'Places 2 to 5 healing pools under your most hurt Alchemons and the ship, more with Beauty. Anyone standing in one heals.',
         'Light' =>
-          'Lays light voids across the approach, more with Beauty, that hold for a while, longer with Intelligence. Each instantly kills the first enemy to touch it, then is spent.',
+          'Lays 3 to 7 light traps, more with Beauty. In Survival, small enemies walk over them and the first large or elite enemy to touch one dies; elsewhere, any enemy. Bosses are never affected.',
         'Spirit' =>
-          'Scatters spirit wisps for the ship to collect. Collecting about one and a half casts\' worth wipes all non-boss enemies on the field.',
+          'Scatters 4 to 14 wisps around the ship, more with Beauty. Once the ship collects 12, every enemy on the field except bosses is destroyed.',
         'Crystal' =>
-          'Throws large crystals. On contact each shatters into 3 smaller crystals that deal damage.',
+          'Lays 3 to 7 large crystals, more with Beauty. When an enemy touches one it breaks into 3 small crystals that hit nearby enemies.',
         'Fire' =>
-          'Throws fire balls. When a ball strikes an enemy it leaves a burning pool behind.',
+          'Lays 5 to 15 fire traps in the enemies\' path, more with Beauty. The first enemy to touch one sets it off, leaving a pool that burns enemies inside.',
         'Lightning' =>
-          'Plants a lightning field. Each enemy it hits expands the field; damage ticks while enemies are inside.',
+          'Places one lightning field that hurts enemies inside it. Each new enemy it hits makes it bigger and last longer.',
         'Steam' =>
-          'Scatters mini geysers around the field that turret-fire at nearby enemies.',
+          'Places 3 to 8 small geysers, more with Beauty. Each shoots steam at the nearest enemy and scalds enemies around it, pushing them away from the orb.',
         'Dark' =>
-          'Opens a void hole that pulls enemies in and throws them out of the area. Its radius scales with stats.',
+          'Opens a hole that pulls nearby enemies in, from farther with Intelligence. Enemies that reach it are thrown out past the edge of the arena.',
         'Ice' =>
-          'Raises a giant ice pillar. Nearby allies gain roughly 2–5× attack strength.',
-        'Mud' => 'Lays a mud pool that heavily slows enemies inside it.',
+          'Raises an ice pillar near your team. Alchemons and the ship close to it deal 2 to 5 times their damage, more with Beauty.',
+        'Mud' =>
+          'Lays 2 to 5 mud pools in the enemies\' path, more with Beauty. Enemies that walk through are slowed, and stay slowed for a while after.',
         'Water' =>
-          'Scatters splash traps. Each enemy contact triggers area damage to nearby enemies.',
-        _ =>
-          'Scatters element-tuned traps. Each placement triggers on enemy contact or aura.',
+          'Lays 3 to 10 water traps in the enemies\' path, more with Beauty. An enemy that touches one sets off a splash that hits the enemies around it.',
+        _ => 'Lays traps in the enemies\' path.',
+      };
+      final subtitle = switch (element) {
+        'Lightning' => 'Shock field',
+        'Steam' => 'Geysers',
+        'Dark' => 'Black hole',
+        'Plant' => 'Growing vine',
+        'Dust' => 'Shields',
+        'Earth' => 'Healing pools',
+        'Ice' => 'Ice pillar',
+        'Spirit' => 'Wisps',
+        _ => 'Traps',
       };
       return CosmicSpecialInfo(
-        subtitle: 'Trap Scatter • Field control',
+        subtitle: subtitle,
         description: description,
         icon: AppIcons.gps_fixed,
       );
     case 'Kin':
       final description = switch (element) {
         'Light' =>
-          'Heal escort orbs orbit the caster, then migrate to the ship, intercepting projectiles and pulsing heals along their path.',
+          'Sends 2 to 5 light orbs, more with Intelligence, that circle this Kin and then guard the ship. They heal your most hurt Alchemon or the ship, hurt enemies they pass through, and each blocks one enemy shot.',
         'Water' =>
-          'A rain cloud follows the ship, dripping healing onto allies under it.',
+          'A rain cloud follows the ship for a while, steadily healing your most hurt Alchemon or the ship, and the orb a little.',
         'Air' =>
-          'An updraft column travels with the ship — enemies that try to close are lifted up and flung away.',
+          'An updraft follows the ship for a while and pushes away enemies that get close. Wider with Beauty.',
         'Earth' =>
-          'Plants a row of indestructible stone wall segments. Enemies bumping into them are shoved back; the wall times out instead of being destroyed.',
+          'Raises an arc of stone around the orb on the side this Kin faces. Enemies that touch it are pushed back, and enemy shots bounce off it. Longer with Beauty.',
         'Plant' =>
-          'Grows a healing garden at your feet. Allies inside are healed over time, and the garden periodically drops collectible HP flowers nearby.',
+          'Grows a garden at this Kin\'s feet that keeps healing your most hurt Alchemon or the ship. Every 5 seconds it drops a flower; fly the ship over it to heal your whole team.',
         'Poison' =>
-          'Fires a radial swirl of homing poison darts that seek nearby enemies, applying stacking poison on hit.',
+          'Fires 8 to 16 homing poison darts in all directions, more with Intelligence. Each one flies to an enemy and hits it with extra poison damage.',
         'Crystal' =>
-          'Equips the ship with orbiting refractor shards. Each absorbs an enemy projectile and refracts a damaging beam back at a nearby enemy.',
+          'Sends 2 to 4 crystal shards, more with Intelligence, that circle this Kin and then guard the ship. Each blocks up to 4 enemy shots and fires a beam at a nearby enemy for each one.',
         'Fire' =>
-          'Passive — no active cast. While deployed, the first time the orb dies it instantly revives at 25% HP, and from that point on the fire kin has a permanent orbiting flame aura that damages nearby enemies for the rest of the run.',
+          'The first time the orb falls while this Kin is out, the orb comes back at 25% health. From then on this Kin burns nearby enemies and attacks faster and harder.',
         'Lava' =>
-          'Coats the team in reactive molten plate. Incoming hits splash burning lava back at nearby enemies.',
+          'For about 9 seconds, whenever the orb, the ship or one of your Alchemons is hit, lava splashes the nearest enemy and those around it. Lasts longer with Intelligence.',
         'Ice' =>
-          'Charges briefly, then releases an all-direction frost burst that slows enemies by 90%. Range scales with Beauty — at max stats it covers a wide area around the kin.',
+          'Stands still for a few seconds to charge, then releases frost that slows nearby enemies by 90%. Reaches farther with Beauty and lasts longer with Intelligence. Bosses are not slowed.',
         'Steam' =>
-          'Engages the boiler. Damage taken by the team converts into stacking companion attack speed (up to 10 stacks). Stress becomes tempo.',
+          'For about 10 seconds, every hit on the orb, the ship or your Alchemons adds a stack, up to 10. Each stack makes your Alchemons attack faster, up to twice as fast.',
         'Lightning' =>
-          'Channels a tesla coil. While the kin actively charges, every companion auto-attack chains lightning to a nearby enemy. Charge time equals buff time — hold longer for sustained chains.',
+          'Stands still for about 10 seconds, longer with Intelligence. Meanwhile your other Alchemons\' auto attacks jump to up to 3 more enemies.',
         'Dust' =>
-          'Plants a persistent dust cloud at the target. Each cast adds another (up to 10); enemy projectiles passing through any cloud have a high chance to miss.',
+          'Places a dust cloud on the enemy it is attacking. Enemies inside are slowed, and enemy shots that enter it are almost always stopped. Up to 10 clouds at once, each lasting about 30 seconds.',
         'Mud' =>
-          'Slings mud onto the ship. The ship gains a temporary enchant that drops slowing mud patches behind it as it moves.',
+          'For about 5 seconds, the ship leaves a mud trail that slows enemies who walk through it. Lasts longer with Intelligence.',
         'Spirit' =>
-          'Releases a wisp that orbits the kin. Enemies killed by the spirit kin tier the wisp up — it gains taunting, then an attack of its own, then at max tier each kill heals the kin.',
+          'A wisp circles this Kin and grows as the Kin defeats enemies. After 5 it draws enemies to it, after 15 it attacks them, and after 30 each defeat heals this Kin.',
         'Dark' =>
-          'Cloaks every companion in void — enemies cannot target them and retarget to the ship or orb instead.',
+          'For about 7 seconds, enemies cannot see your Alchemons or the orb and go after the ship instead. The ship takes 70% less damage, until it falls below about a third of its health.',
         'Blood' =>
-          'Seals a blood pact. While active, a portion of damage taken by any alchemon OR the ship is converted into healing shared across every other living member of the team.',
-        _ => 'Element changes the support utility.',
+          'For about 9 seconds, 60% of the damage your Alchemons and the ship take is healed back, shared evenly among them. Your Alchemons also take part of the orb\'s damage, never enough to down them.',
+        _ => 'Supports your team in a way set by its element.',
       };
       return CosmicSpecialInfo(
-        subtitle: 'Support Ability • Elemental team utility',
+        subtitle: element == 'Fire' ? 'Passive' : 'Support',
         description: description,
         icon: AppIcons.favorite,
       );
     case 'Mystic':
-      final (subtitle, desc, _) = switch (element) {
-        'Fire' => (
-          'The Ember Season • Beauty and Intelligence scale the field',
-          'Lights a drifting ember field across the whole arena; anything that '
-              'walks into an ember catches fire. It burns for as long as this '
-              'Mystic is alive and deployed, and is cast once per deployment.',
-          ['WORLD', 'PERSISTENT', 'BURN'],
-        ),
-        'Lava' => (
-          'The Fissures • Strength scales the break',
-          'Glowing cracks split the arena. When something heavy — a brute, a '
-              'colossus, an elite or a boss — steps over one it breaks '
-              'further, and untargeted meteors rain across that ground. Holds '
-              'while this Mystic is alive and deployed.',
-          ['WORLD', 'TERRAIN', 'ANTI-HEAVY'],
-        ),
-        'Lightning' => (
-          'The Storm • Intelligence scales the bolt',
-          'The sky turns over. Every two seconds or so a bolt falls on someone '
-              'at random, faster with a stronger SPECIAL; one that lands on a '
-              'boss stuns it for a second. Holds '
-              'while this Mystic is alive and deployed.',
-          ['WORLD', 'STRIKE', 'BOSS STUN'],
-        ),
-        'Water' => (
-          'The Maelstrom • Beauty and Intelligence scale the pull',
-          'A vast whirlpool turns on the orb. Everything caught in it stops '
-              'advancing and is carried slowly around the eye, grinding as it '
-              'goes. Holds while this Mystic is alive and deployed.',
-          ['WORLD', 'HOLD', 'GRIND'],
-        ),
-        'Ice' => (
-          'The Blizzard • Intelligence scales the cold',
-          'The whole arena freezes over: every enemy on the field is slowed for '
-              'as long as the world holds, and it stacks on top of any other '
-              'slow in play. Holds while this Mystic is alive and deployed.',
-          ['WORLD', 'ARENA-WIDE', 'STACKS'],
-        ),
-        'Steam' => (
-          'The Pressure • Intelligence scales the blast',
-          'The arena builds pressure and vents it every eight seconds, throwing '
-              'every enemy outward from the orb — hardest on whatever had got '
-              'closest. It hurts nothing; it buys room. Holds while this Mystic '
-              'is alive and deployed.',
-          ['WORLD', 'DISPLACE', 'NO DAMAGE'],
-        ),
-        'Earth' => (
-          'The Quaking • Strength scales the shock',
-          'The ground will not hold still. About every half minute a quake '
-              'runs the whole arena, hurting every enemy and knocking them off '
-              'their feet; a stronger SPECIAL brings it sooner. Holds while '
-              'this Mystic is alive and deployed.',
-          ['WORLD', 'ARENA-WIDE', 'STUN'],
-        ),
-        'Mud' => (
-          'The Weight • Strength and Intelligence scale the drag',
-          'Mud cakes everything on the field and it all takes more damage — '
-              'barely anything on a wisp, far more on a brute, most of all on '
-              'a boss. Holds while this Mystic is alive and deployed.',
-          ['WORLD', 'AMPLIFY', 'ANTI-HEAVY'],
-        ),
-        'Dust' => (
-          'The Haze • Intelligence scales the grit',
-          'The air fills with grit. Enemy shooters choke on it — their rounds '
-              'go off in their own faces instead of leaving the barrel — and '
-              'enemies walking in lose their way and wander off course for a '
-              'moment. Holds while this Mystic is alive and deployed.',
-          ['WORLD', 'MISFIRE', 'CONFUSE'],
-        ),
-        'Crystal' => (
-          'The Vein • Beauty scales the yield',
-          'The dead crystallise. Enemies may leave shards behind; the ship '
-              'draws them in, and each one feeds the alchemical meter and '
-              'shatters, cutting the enemies round the ship. Holds while this '
-              'Mystic is alive and deployed.',
-          ['WORLD', 'PICKUP', 'SURGE'],
-        ),
-        'Air' => (
-          'The Tornado • Intelligence scales the funnel',
-          'A tornado walks a circuit around the arena. Anything it passes over '
-              'is lifted off the ground, hauled into the funnel and ground '
-              'down — then left wherever it ends up. Holds while this Mystic '
-              'is alive and deployed.',
-          ['WORLD', 'ROAMING', 'LIFT'],
-        ),
-        'Plant' => (
-          'The Grove • Strength scales reach',
-          'Grows two huge vines flanking the orb: one lashes everything that '
-              'closes, one spits homing thorns at everything that does not. '
-              'They stand while this Mystic is alive and deployed.',
-          ['WORLD', 'MELEE', 'TURRET'],
-        ),
-        'Poison' => (
-          'The Miasma • Intelligence and Beauty scale the spill',
-          'The ship leaves poison wherever it flies, so the shape of the world '
-              'is whatever the player draws with it. Holds while this Mystic '
-              'is alive and deployed.',
-          ['WORLD', 'SHIP TRAIL', 'POISON'],
-        ),
-        'Spirit' => (
-          'The Turning • Intelligence scales the host',
-          'Small enemies that die anywhere on the map get back up on your side '
-              'as glowing revenants and hunt their own. The world holds while '
-              'this Mystic is alive and deployed.',
-          ['WORLD', 'PERSISTENT', 'RAISE'],
-        ),
-        'Dark' => (
-          'The Maw • Strength scales the pull',
-          'Tears a black hole open in the north of the arena that drags enemies '
-              'in and spits them back out at the rim, hurt and reeling. It holds '
-              'while this Mystic is alive and deployed.',
-          ['WORLD', 'DISPLACE', 'CONTROL'],
-        ),
-        'Light' => (
-          'The Dawn • Beauty scales the rising',
-          'A star rises outside the arena and slowly brightens. When it breaks, '
-              'everything you own — orb, ship and alchemons — is restored to '
-              'full. Then it rises again. Holds while this Mystic is alive.',
-          ['WORLD', 'FULL HEAL', 'SLOW BURN'],
-        ),
-        'Blood' => (
-          'The Crimson Tithe • Strength and Beauty scale the draw',
-          'A passive world: every auto attack that lands — the whole party\'s '
-              'and the ship\'s — drains life back into the orb and into this '
-              'Mystic. It holds while this Mystic is alive and deployed.',
-          ['WORLD', 'PASSIVE', 'LIFESTEAL'],
-        ),
-        _ => (
-          'Guardian Ultimate • Single-slot impact',
-          'Element changes the ultimate into a collapse, zone, sentinel ring, trap, turret lane, heavy projectile, or hunter swarm.',
-          <String>['GUARDIAN', 'ULTIMATE'],
-        ),
+      final description = switch (element) {
+        'Fire' =>
+          'Dozens of embers drift across the arena, more with Beauty and Intelligence. An enemy that touches one takes fire damage.',
+        'Lava' =>
+          '5 to 9 cracks open across the arena, more with Strength. When a brute, colossus, elite or boss steps on one, meteors fall around that spot.',
+        'Lightning' =>
+          'About every 2 seconds a bolt strikes near a random enemy, hurting everything close by. A boss it hits is stunned for 1 second. Strikes come faster with a stronger special.',
+        'Water' =>
+          'A large whirlpool opens partway out from the orb. Enemies inside stop advancing, are carried around it and take steady damage. Bosses are only slowed. Bigger with Beauty and Intelligence.',
+        'Ice' =>
+          'Every enemy except bosses moves 30% to 55% slower, more with Intelligence. This adds to any other slow.',
+        'Steam' =>
+          'Every 8 seconds all enemies are pushed outward from the orb, the closest ones hardest. It does no damage; bosses are stunned for a moment instead. Pushes harder with Intelligence.',
+        'Earth' =>
+          'About every 30 seconds a quake hurts every enemy in the arena, bosses included, and stops them for a moment. Comes sooner with a stronger special and hits harder with Strength.',
+        'Mud' =>
+          'Every enemy takes extra damage from everything: a little on the smallest, far more on the biggest. More with Strength and Intelligence.',
+        'Dust' =>
+          'Enemy shooters sometimes misfire and hurt themselves, and walking enemies sometimes wander off course for a moment. Happens more often with Intelligence.',
+        'Crystal' =>
+          'Enemies that die sometimes leave a crystal shard, more often with Beauty. When the ship picks one up it fills the alchemical meter and bursts, hurting enemies around the ship.',
+        'Air' =>
+          'A tornado circles the orb about halfway out. Enemies it passes over are caught, spun and damaged, then dropped. Bosses are only slowed. Bigger with Intelligence.',
+        'Plant' =>
+          'Two vines grow on either side of the orb. One whips nearby enemies and knocks them back; the other shoots homing thorns at enemies farther away. Longer reach with Strength.',
+        'Poison' =>
+          'The ship leaves poison patches as it flies that hurt enemies standing in them. Bigger and longer-lasting with Intelligence and Beauty.',
+        'Spirit' =>
+          'Small enemies that die get back up on your side for a short time and attack other enemies. More at once with Intelligence.',
+        'Dark' =>
+          'A black hole opens above the orb and pulls enemies in. Enemies that reach it are put back outside the arena edge, unhurt but slowed. Bosses are not pulled. Wider pull with Strength.',
+        'Light' =>
+          'About every 40 seconds, sooner with Beauty, a star outside the arena flares and heals the orb, the ship and all your Alchemons to full.',
+        'Blood' =>
+          'Every auto attack that hits, from your Alchemons and the ship, heals the orb and this Mystic for part of the damage. More with Strength and Beauty.',
+        _ => 'Changes the whole arena while this Mystic is out.',
       };
       return CosmicSpecialInfo(
-        subtitle: subtitle,
-        description: desc,
+        subtitle: 'World',
+        description: description,
         icon: AppIcons.auto_awesome,
       );
     default:
       return const CosmicSpecialInfo(
-        subtitle: '30s cooldown',
-        description:
-            'Special ability: Unleashes a burst of elemental energy. Its cooldown decreases with Speed.',
+        subtitle: 'Special',
+        description: 'Releases a burst of elemental energy.',
         icon: AppIcons.auto_awesome,
       );
   }

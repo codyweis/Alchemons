@@ -181,11 +181,11 @@ void main() {
     // Picking an attack explains it in the same dock.
     await tester.tap(find.text('AUTO ATTACK'));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('P-ATK per hit, from Strength.'), findsOneWidget);
+    expect(find.text('Hits harder with Strength.'), findsOneWidget);
     await tester.tap(find.text('SPECIAL').first);
     await tester.pump(const Duration(milliseconds: 300));
     expect(
-      find.text('SPECIAL, from Strength 55% · Beauty 45%.'),
+      find.text('Stronger with Strength (55%) and Beauty (45%).'),
       findsOneWidget,
     );
 
@@ -209,7 +209,7 @@ void main() {
     await tester.tap(find.text('SPECIAL').first);
     await tester.pump(const Duration(milliseconds: 300));
     expect(
-      find.text('SPECIAL, from Strength 80% · Intelligence 20%.'),
+      find.text('Stronger with Strength (80%) and Intelligence (20%).'),
       findsOneWidget,
     );
   });
@@ -238,7 +238,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(
       find.textContaining(
-        'in Cosmic Space and the planet dungeons a Mystic fights with its '
+        'In Cosmic Space and the planet dungeons a Mystic fights with its '
         'auto attack',
       ),
       findsOneWidget,

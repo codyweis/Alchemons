@@ -506,11 +506,13 @@ class _BattleSheetState extends State<_BattleSheet> {
                 extraLines: const [
                   CosmicAbilityDescriptionLine(
                     label: 'Power',
-                    body: 'P-ATK per hit, from Strength.',
+                    body: 'Hits harder with Strength.',
                   ),
                   CosmicAbilityDescriptionLine(
                     label: 'Rate',
-                    body: 'Speed; Strength too, until P-ATK reaches 41.',
+                    body:
+                        'Faster with Speed. Strength helps too, until P-ATK '
+                        'reaches 41.',
                   ),
                 ],
                 accent: readable,
@@ -521,7 +523,7 @@ class _BattleSheetState extends State<_BattleSheet> {
                     ? special.subtitle
                     : '${special.subtitle} · every ${_seconds(specialEvery)}',
                 description: special.description,
-                extraLines: _specialScalingLines(family),
+                extraLines: _specialScalingLines(family, element),
                 accent: readable,
               ),
             },
