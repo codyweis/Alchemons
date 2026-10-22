@@ -4,8 +4,12 @@
 // gives off astral shards. Two trades:
 //
 //   • gold into something — 5 gold makes 50 astral shards (into the hold)
-//     or 500 of one elemental matter (into home storage);
-//   • matter for silver — 1 silver a unit, 5 for today's matter.
+//     or 500 of one essence (into home storage);
+//   • essence for silver — 1 silver a unit, 5 for today's essence.
+//
+// Essence, not matter: these are the five the Essence chambers collect at
+// home, and in space "matter" is what the ship gathers from nebulas
+// (user 2026-10-22: the panel should say what it actually does).
 //
 // A full panel in the station-screen kit. The amounts are held to what the
 // wallet, the hold and the store can actually cover.
@@ -26,21 +30,24 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-int goldConversionDailyElementIndex(DateTime dateUtc) {
-  final daySeed = dateUtc.toUtc().millisecondsSinceEpoch ~/ 86400000;
+/// Today's essence, the one that sells for 5 silver: it turns over on
+/// [date]'s own calendar day, so a phone's "today" ends at its midnight.
+int goldConversionDailyElementIndex(DateTime date) {
+  final daySeed =
+      DateTime.utc(date.year, date.month, date.day).millisecondsSinceEpoch ~/
+      86400000;
   return daySeed % ElementResources.all.length;
 }
 
-ElementResource goldConversionDailyElement(DateTime dateUtc) =>
-    ElementResources.all[goldConversionDailyElementIndex(dateUtc)];
+ElementResource goldConversionDailyElement(DateTime date) =>
+    ElementResources.all[goldConversionDailyElementIndex(date)];
 
 int goldConversionSilverPayout({
   required String resourceBiomeId,
   required int quantity,
-  required DateTime dateUtc,
+  required DateTime date,
 }) {
-  final isDaily =
-      goldConversionDailyElement(dateUtc).biomeId == resourceBiomeId;
+  final isDaily = goldConversionDailyElement(date).biomeId == resourceBiomeId;
   final rate = isDaily ? 5 : 1;
   return quantity * rate;
 }
@@ -78,15 +85,19 @@ class GoldConversionSheet extends StatefulWidget {
 class _GoldConversionSheetState extends State<GoldConversionSheet> {
   static const _accent = Color(0xFFFFD34A);
   static const _goldPer = 5; // gold per step
-  static const _matterPer = 500; // matter per step
+  static const _essencePer = 500; // essence per step
   static const _shardsPer = 50; // shards per step
 
   late int _carriedShards = widget.carriedShards;
-  final ElementResource _daily = goldConversionDailyElement(DateTime.now());
+
+  /// The day the panel was opened on: what it shows as today's essence is
+  /// what a sale pays, even past midnight.
+  final DateTime _today = DateTime.now();
+  late final ElementResource _daily = goldConversionDailyElement(_today);
 
   int _tab = 0;
 
-  /// What the gold becomes: null for shards, else a matter's biome id.
+  /// What the gold becomes: null for shards, else an essence's biome id.
   String? _into;
   int _steps = 1;
 
@@ -108,6 +119,11 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     return m < 0 ? 0 : m;
   }
 
+  /// Whether the hold, not the gold, is what caps the shards made.
+  bool _holdCaps(int gold) =>
+      _into == null &&
+      (widget.shardCapacity - _carriedShards) ~/ _shardsPer < gold ~/ _goldPer;
+
   String _blocked(int gold) {
     if (gold < _goldPer) return 'NEED $_goldPer GOLD';
     if (_into == null && widget.shardCapacity - _carriedShards < _shardsPer) {
@@ -120,18 +136,18 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     if (_busy || steps <= 0) return;
     final db = context.read<AlchemonsDatabase>();
     final gold = steps * _goldPer;
-    final out = steps * (_into == null ? _shardsPer : _matterPer);
+    final out = steps * (_into == null ? _shardsPer : _essencePer);
     final what = _into == null
         ? 'astral shards'
-        : '${_res(_into!).biomeLabel.toLowerCase()} matter';
+        : '${_res(_into!).biomeLabel.toLowerCase()} essence';
     final ok = await showBracketConfirm(
       context,
       palette: panelPalette,
       accent: _accent,
-      title: 'TRANSMUTE $gold GOLD?',
+      title: 'TRANSMUTE ${formatCoins(gold)} GOLD?',
       message: _into == null
-          ? 'You get $out astral shards, into the hold.'
-          : 'You get $out $what, into home storage.',
+          ? 'You get ${formatCoins(out)} astral shards, into the hold.'
+          : 'You get ${formatCoins(out)} $what, into home storage.',
       amounts: [(CoinKind.gold, gold)],
       amountsLabel: 'YOU PAY',
       confirmLabel: 'TRANSMUTE',
@@ -165,12 +181,12 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     });
     showGameSnack(
       context,
-      'Transmuted $gold gold into $out $what.',
+      'Transmuted ${formatCoins(gold)} gold into ${formatCoins(out)} $what.',
       accent: CosmicScreenStyles.success,
     );
   }
 
-  // ── matter for silver ──
+  // ── essence for silver ──
 
   Future<void> _sell(int qty) async {
     if (_busy || qty <= 0) return;
@@ -179,15 +195,17 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     final payout = goldConversionSilverPayout(
       resourceBiomeId: _sellId,
       quantity: qty,
-      dateUtc: DateTime.now(),
+      date: _today,
     );
     final ok = await showBracketConfirm(
       context,
       palette: panelPalette,
       accent: _accent,
-      title: 'SELL $qty ${res.biomeLabel.toUpperCase()} MATTER?',
+      title:
+          'SELL ${formatCoins(qty)} ${res.biomeLabel.toUpperCase()} ESSENCE?',
       message: res.biomeId == _daily.biomeId
-          ? '${res.biomeLabel} is today’s matter: 5 silver a unit.'
+          ? '${res.biomeLabel} is today’s essence: 5 silver a unit, from '
+                'home storage.'
           : 'It comes out of home storage at 1 silver a unit.',
       amounts: [(CoinKind.silver, payout)],
       confirmLabel: 'SELL',
@@ -200,7 +218,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         setState(() => _busy = false);
         showGameSnack(
           context,
-          'Not enough ${res.biomeLabel.toLowerCase()} matter.',
+          'Not enough ${res.biomeLabel.toLowerCase()} essence.',
           accent: CosmicScreenStyles.danger,
         );
       }
@@ -213,7 +231,8 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     setState(() => _busy = false);
     showGameSnack(
       context,
-      'Sold $qty ${res.biomeLabel.toLowerCase()} matter for $payout silver.',
+      'Sold ${formatCoins(qty)} ${res.biomeLabel.toLowerCase()} essence for '
+      '${formatCoins(payout)} silver.',
       accent: CosmicScreenStyles.success,
     );
   }
@@ -235,7 +254,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             return StationPanel(
               kind: StationKind.goldConversion,
               caption:
-                  'TODAY’S MATTER · ${_daily.biomeLabel.toUpperCase()} · 5 SILVER A UNIT',
+                  'TODAY · ${_daily.biomeLabel.toUpperCase()} · 5 SILVER A UNIT',
               body: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
                 children: [
@@ -247,7 +266,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
                   ),
                   const SizedBox(height: 12),
                   BracketTabs(
-                    labels: const ['GOLD INTO…', 'MATTER FOR SILVER'],
+                    labels: const ['SPEND GOLD', 'SELL ESSENCE'],
                     selected: _tab,
                     onSelect: (i) => setState(() => _tab = i),
                     palette: panelPalette,
@@ -282,15 +301,23 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     );
   }
 
-  /// One choice in a grid of tiles: what it is, and a line under it.
+  /// One choice in a grid of tiles: what it is, and a line under it. Each
+  /// stays on one line, drawn smaller on a narrow phone rather than wrapped
+  /// or cut, so the tiles in a row stay level.
   Widget _tile({
     required String? id,
     required String name,
     required String note,
     required bool selected,
     required VoidCallback onTap,
+    String? tag,
     Color? noteColor,
   }) {
+    Widget line(Widget text) => FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: text,
+    );
     return StationRow(
       accent: _accent,
       selected: selected,
@@ -307,16 +334,30 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(name, style: panelLabel(11, panelPalette.ink, spacing: 1)),
+                line(
+                  Text.rich(
+                    TextSpan(
+                      text: name,
+                      children: [
+                        if (tag != null)
+                          TextSpan(
+                            text: ' $tag',
+                            style: panelLabel(11, _accent, spacing: 1),
+                          ),
+                      ],
+                    ),
+                    style: panelLabel(11, panelPalette.ink, spacing: 1),
+                  ),
+                ),
                 const SizedBox(height: 3),
-                Text(
-                  note,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: panelLabel(
-                    9.5,
-                    noteColor ?? panelPalette.muted,
-                    spacing: 0.6,
+                line(
+                  Text(
+                    note,
+                    style: panelLabel(
+                      9.5,
+                      noteColor ?? panelPalette.muted,
+                      spacing: 0.6,
+                    ),
                   ),
                 ),
               ],
@@ -346,7 +387,10 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     final max = _maxSteps(gold);
     final steps = max == 0 ? 0 : _steps.clamp(1, max);
     return [
-      const PanelSectionHeader('MAKE'),
+      PanelSectionHeader(
+        'MAKE',
+        trailing: _into == null ? 'INTO THE HOLD' : 'TO HOME STORAGE',
+      ),
       _grid([
         _tile(
           id: null,
@@ -361,7 +405,7 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
         for (final r in ElementResources.all)
           _tile(
             id: r.biomeId,
-            name: '${r.biomeLabel.toUpperCase()} MATTER',
+            name: r.biomeLabel.toUpperCase(),
             note: '500 FOR 5 GOLD',
             selected: _into == r.biomeId,
             onTap: () => setState(() {
@@ -373,10 +417,14 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
       const SizedBox(height: 14),
       PanelSectionHeader(
         'GOLD',
-        trailing: max == 0 ? null : 'UP TO ${max * _goldPer}',
+        trailing: max == 0
+            ? null
+            : _holdCaps(gold)
+            ? 'UP TO ${formatCoins(max * _goldPer)} · HOLD LIMIT'
+            : 'UP TO ${formatCoins(max * _goldPer)}',
       ),
       _stepper(
-        value: '${steps * _goldPer}',
+        value: formatCoins(steps * _goldPer),
         unit: 'GOLD',
         canDown: steps > 1,
         canUp: steps < max,
@@ -396,19 +444,22 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
   Widget _intoDock(int gold) {
     final max = _maxSteps(gold);
     final steps = max == 0 ? 0 : _steps.clamp(1, max);
-    final out = steps * (_into == null ? _shardsPer : _matterPer);
+    final out = steps * (_into == null ? _shardsPer : _essencePer);
     final what = _into == null
         ? 'SHARDS'
         : _res(_into!).biomeLabel.toUpperCase();
     final blocked = max == 0 ? _blocked(gold) : '';
+    // What it makes on the button, what it costs after it: the whole trade
+    // fits on a phone's width.
     return BracketButton(
       key: const ValueKey('station.transmute'),
-      label: blocked.isNotEmpty
-          ? blocked
-          : 'TRANSMUTE ${steps * _goldPer} GOLD → $out $what',
+      label: blocked.isNotEmpty ? blocked : 'MAKE ${formatCoins(out)} $what',
       palette: panelPalette,
       accent: _accent,
       enabled: blocked.isEmpty && !_busy,
+      trailing: blocked.isEmpty
+          ? CoinAmount(kind: CoinKind.gold, amount: steps * _goldPer, size: 11)
+          : null,
       onTap: () => _transmute(steps),
     );
   }
@@ -423,9 +474,8 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
           _tile(
             id: r.biomeId,
             name: r.biomeLabel.toUpperCase(),
-            note: r.biomeId == _daily.biomeId
-                ? '${formatCoins(store[r.settingsKey] ?? 0)} HELD · TODAY ×5'
-                : '${formatCoins(store[r.settingsKey] ?? 0)} HELD',
+            tag: r.biomeId == _daily.biomeId ? '×5' : null,
+            note: '${formatCoins(store[r.settingsKey] ?? 0)} HELD',
             noteColor: r.biomeId == _daily.biomeId ? _accent : null,
             selected: _sellId == r.biomeId,
             onTap: () => setState(() => _sellId = r.biomeId),
@@ -457,12 +507,12 @@ class _GoldConversionSheetState extends State<GoldConversionSheet> {
     final payout = goldConversionSilverPayout(
       resourceBiomeId: _sellId,
       quantity: qty,
-      dateUtc: DateTime.now(),
+      date: _today,
     );
     return BracketButton(
       key: const ValueKey('station.sellMatter'),
       label: held <= 0
-          ? 'NO ${res.biomeLabel.toUpperCase()} MATTER IN STORAGE'
+          ? 'NO ${res.biomeLabel.toUpperCase()} ESSENCE AT HOME'
           : 'SELL ${formatCoins(qty)} ${res.biomeLabel.toUpperCase()}',
       palette: panelPalette,
       accent: _accent,

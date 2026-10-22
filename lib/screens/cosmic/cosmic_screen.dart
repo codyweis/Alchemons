@@ -7688,7 +7688,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                         'OPEN MARKET',
                       ),
                       StationKind.goldConversion => (
-                        'Gold into shards or matter, matter into silver.',
+                        'Gold into shards or essence, essence into silver.',
                         'CONVERT',
                       ),
                       StationKind.starDustScanner =>

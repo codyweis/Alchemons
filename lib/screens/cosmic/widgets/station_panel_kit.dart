@@ -286,7 +286,7 @@ class StationWallet extends StatelessWidget {
         leading: const CoinIcon(kind: CoinKind.silver, size: 15),
       ),
       PanelReadout(
-        label: 'SHARDS IN THE HOLD',
+        label: 'SHARDS',
         value: shardCapacity == null
             ? formatCoins(shards)
             : '${formatCoins(shards)}/${formatCoins(shardCapacity!)}',
