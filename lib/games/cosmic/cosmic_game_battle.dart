@@ -97,6 +97,10 @@ const double kBattleArenaRy = kBattleFloorHalfHeight;
 /// of it.
 const double kBattleCloseFrame = 640.0;
 
+/// How long the camera holds the whole floor when a fight begins: the
+/// screen's fade from the way in (or the flight) to the game.
+const double kBattleCameraHold = 0.32;
+
 /// How quickly an Alchemon changes pace or direction (u/s²): the dungeon's
 /// eased stop and start.
 const double kBattleAcceleration = 900.0;
@@ -378,6 +382,9 @@ class CosmicBattle {
   /// eased after the fight; null until the first frame frames it.
   Offset? _camAt;
   double _camHeight = 0;
+
+  /// How long this phone's camera has been on the fight, on its own clock.
+  double _camAge = 0;
 
   double clock = 0;
   BattleResult? result;
@@ -1721,8 +1728,8 @@ extension CosmicGameBattle on CosmicGame {
 
   /// Eases the camera toward framing everyone on the field with room round
   /// them: in close when they fight close, out when they spread, never
-  /// closer than [kBattleCloseFrame] nor wider than the floor. [dt] 0 frames
-  /// at once.
+  /// closer than [kBattleCloseFrame] nor wider than the floor. The first
+  /// call frames the whole floor.
   void _frameBattle(double dt) {
     final b = _battle!;
     final band = _battleBand;
@@ -1762,12 +1769,15 @@ extension CosmicGameBattle on CosmicGame {
       b._camHeight = widest;
       return;
     }
-    if (dt <= 0) {
-      b._camAt = at;
-      b._camHeight = height;
-      return;
-    }
-    final k = 1 - exp(-dt * 1.8);
+    // A step of no time moves nothing. (It used to frame at once, and the
+    // game's first tick after a start is such a step, so every fight
+    // opened with the floor jumping in on the fight.)
+    if (dt <= 0) return;
+    // Still while the floor that brought the fight in fades off over it,
+    // so the two never stand apart, then in gently rather than at once.
+    b._camAge += dt;
+    final hold = ((b._camAge - kBattleCameraHold) / 0.8).clamp(0.0, 1.0);
+    final k = (1 - exp(-dt * 1.8)) * hold * hold * (3 - 2 * hold);
     b._camAt = cam + (at - cam) * k;
     b._camHeight += (height - b._camHeight) * k;
   }

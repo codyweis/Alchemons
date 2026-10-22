@@ -14,7 +14,8 @@
 //                  settling, the realm they last left with its residents
 //                  where they were left; their name on it
 //   the arena      the home opens from the floor's middle outward on a soft,
-//                  uneven edge, and the arena's floor is under it; the
+//                  uneven edge, rushing past as the camera drops through
+//                  it, and the arena's floor comes up under it; the
 //                  edge sheds lights of the home's own colours that are
 //                  drawn in onto the floor's rim — ending as the fight's
 //                  own first frame, the whole floor, where the two sides
@@ -272,7 +273,8 @@ class _BattleJourneyPrepState extends State<BattleJourneyPrep> {
 }
 
 /// The way in, painted at [t] seconds of [kBattleJourneySeconds]; [floor]
-/// paints the arena's floor as the fight first frames it, at an opacity.
+/// paints the arena's floor as the fight first frames it, scaled about its
+/// middle.
 class BattleJourneyScene {
   BattleJourneyScene({
     required this.art,
@@ -293,14 +295,20 @@ class BattleJourneyScene {
   /// When the home is up (at once, with no planet to dive into).
   final double homeAt;
 
-  /// When the home opens onto the floor, and how long the opening takes to
-  /// pass the screen's far corner.
-  static const double siftAt = 3.2;
-  static const double openFor = 1.0;
+  /// When the home opens onto the floor, and how long the opening takes. It
+  /// passes the screen's corners about two thirds of the way through, so
+  /// the floor stands whole only for the moment its lights land on its rim
+  /// before the fight.
+  static const double siftAt = 3.5;
+  static const double openFor = 1.2;
 
-  /// When the floor starts to rise, under the home, so the home comes
-  /// apart onto it rather than onto the dark.
-  static const double floorAt = 2.7;
+  /// How far the home rushes past as it opens: the camera drops through it
+  /// rather than a hole being eaten in it.
+  static const double _homePush = 0.24;
+
+  /// How small the floor starts under the opening, coming up to the
+  /// fight's own frame as the home clears.
+  static const double _floorLow = 0.93;
 
   RealmAir? _air;
   final math.Random _spawn = math.Random(19);
@@ -315,25 +323,41 @@ class BattleJourneyScene {
   void paint(
     Canvas canvas,
     double t, {
-    required void Function(Canvas canvas, double alpha) floor,
+    required void Function(Canvas canvas, double scale) floor,
   }) {
     final dt = _step(t);
     canvas.drawRect(Offset.zero & size, Paint()..color = _kSpace);
     final planet = art.planet;
     final home = art.home;
+    final up = home == null
+        ? 0.0
+        : homeAt <= 0
+        ? _smooth(0, 0.6, t)
+        : _smooth(homeAt - 0.15, homeAt + 0.6, t);
+    final reach = _openingReach(size, floorCentre);
+    final through = _clamp01((t - siftAt) / openFor);
+    final open = t < siftAt ? 0.0 : reach * _ease(through);
 
     // The floor rising out of the dark, under whatever is still above it.
-    final double floorUp;
-    if (home == null && planet == null) {
-      floorUp = _smooth(0, 1.2, t);
-    } else if (home == null) {
-      // Out of the planet's air straight onto the floor.
-      floorUp = _smooth(homeAt - 0.2, homeAt + 1.4, t);
-    } else {
-      // Up in full under the home by the time it opens.
-      floorUp = _smooth(floorAt, siftAt, t);
+    // Never drawn where it cannot be seen: under the whole home it is not
+    // drawn at all.
+    if (home == null) {
+      final floorUp = planet == null
+          ? _smooth(0, 1.2, t)
+          // Out of the planet's air straight onto the floor.
+          : _smooth(homeAt - 0.2, homeAt + 1.4, t);
+      if (floorUp > 0.004) _paintFloor(canvas, floor, floorUp, 1);
+    } else if (open > 0) {
+      // Seen only through the opening, lit (a dim floor there reads as ink
+      // eating the home), a little low at first and coming up to the
+      // fight's own frame as the home clears.
+      _paintFloor(
+        canvas,
+        floor,
+        1,
+        _floorLow + (1 - _floorLow) * _ease(through),
+      );
     }
-    if (floorUp > 0.004) floor(canvas, floorUp);
 
     // Their planet, and the dive into it.
     if (planet != null && t < homeAt + 0.8) {
@@ -341,21 +365,21 @@ class BattleJourneyScene {
     }
 
     // Their home: up under the thinning air, whole while it is held, then
-    // coming apart from the floor's middle outward.
+    // coming apart from the floor's middle outward as it rushes past.
     if (home != null) {
-      final up = homeAt <= 0
-          ? _smooth(0, 0.6, t)
-          : _smooth(homeAt - 0.15, homeAt + 0.6, t);
-      final reach = _openingReach(size, floorCentre);
-      final open = t < siftAt ? 0.0 : reach * _ease((t - siftAt) / openFor);
       if (up > 0.004 && open < reach) {
-        canvas.saveLayer(Offset.zero & size, Paint());
-        _paintHome(canvas, home, t, up);
-        if (open > 0) eraseOpening(canvas, floorCentre, open, t, 5);
-        canvas.restore();
-        // Its edge lit, as the home portal's hole is: grains of light along
-        // it, so the home opens on light, not on ink.
-        if (open > 0) paintOpeningRim(canvas, floorCentre, open, t, 5);
+        if (open > 0) {
+          // A layer only while there is an opening to take out of it.
+          canvas.saveLayer(Offset.zero & size, Paint());
+          _paintHome(canvas, home, t, up, 1 + _homePush * _ease(through));
+          eraseOpening(canvas, floorCentre, open, t, 5);
+          canvas.restore();
+          // Its edge lit, as the home portal's hole is: grains of light
+          // along it, so the home opens on light, not on ink.
+          paintOpeningRim(canvas, floorCentre, open, t, 5);
+        } else {
+          _paintHome(canvas, home, t, up, 1);
+        }
       }
       if (t >= siftAt) {
         final air = _air ??= RealmAir(1200);
@@ -395,6 +419,25 @@ class BattleJourneyScene {
           _smooth(homeAt + 0.45, homeAt + 0.9, t) *
           (1 - _smooth(siftAt - 0.15, siftAt + 0.2, t));
       if (named > 0.01) _paintCaption(canvas, named);
+    }
+  }
+
+  /// The floor at [scale] about its middle, brought up out of the dark to
+  /// [alpha]. The floor is opaque and the dark under it is plain space, so
+  /// a veil of that space over it is the same as drawing it faded, and
+  /// needs no layer.
+  void _paintFloor(
+    Canvas canvas,
+    void Function(Canvas canvas, double scale) floor,
+    double alpha,
+    double scale,
+  ) {
+    floor(canvas, scale);
+    if (alpha < 0.999) {
+      canvas.drawRect(
+        Offset.zero & size,
+        Paint()..color = _kSpace.withValues(alpha: 1 - alpha),
+      );
     }
   }
 
@@ -471,7 +514,10 @@ class BattleJourneyScene {
     if (air > 0.004) _paintAir(canvas, color, air);
 
     final planetAlpha = 1 - _smooth(0.36, 0.66, u);
-    if (planetAlpha > 0.004) {
+    if (planetAlpha >= 0.999) {
+      paintPlanetLook(canvas, c, pr, 4 + t, look);
+    } else if (planetAlpha > 0.004) {
+      // A layer only while it fades, so its parts fade as one.
       canvas.saveLayer(
         Offset.zero & size,
         Paint()..color = Color.fromRGBO(0, 0, 0, planetAlpha),
@@ -577,12 +623,26 @@ class BattleJourneyScene {
   }
 
   /// The home, settling as it comes up: a little large at first, then the
-  /// screen's own size by the time it comes apart.
-  void _paintHome(Canvas canvas, RealmPicture home, double t, double up) {
+  /// screen's own size, and drifting in a little while it is held so it is
+  /// never a still; [push] carries it past the camera as it opens.
+  void _paintHome(
+    Canvas canvas,
+    RealmPicture home,
+    double t,
+    double up,
+    double push,
+  ) {
     final settle = homeAt <= 0
         ? _smooth(0, 1.0, t)
         : _smooth(homeAt - 0.15, homeAt + 0.9, t);
-    final scale = 1.1 - 0.1 * settle;
+    final drift = _smooth(homeAt, siftAt + openFor, t);
+    final scale = 1.1 - 0.1 * settle + 0.03 * drift;
+    if (push != 1) {
+      canvas.save();
+      canvas.translate(floorCentre.dx, floorCentre.dy);
+      canvas.scale(push);
+      canvas.translate(-floorCentre.dx, -floorCentre.dy);
+    }
     final image = home.image;
     final src = Rect.fromLTWH(
       0,
@@ -603,6 +663,7 @@ class BattleJourneyScene {
         ..filterQuality = FilterQuality.medium
         ..color = Color.fromRGBO(255, 255, 255, up),
     );
+    if (push != 1) canvas.restore();
   }
 
   void _paintCaption(Canvas canvas, double alpha) {
@@ -797,12 +858,16 @@ class BattleJourneyExit {
         );
         canvas.restore();
         if (k > 0 && radius < size.longestSide) {
-          canvas.saveLayer(
-            Offset.zero & size,
-            Paint()..color = Color.fromRGBO(0, 0, 0, up),
-          );
+          // A layer only while the rim fades with the home.
+          final fading = up < 0.999;
+          if (fading) {
+            canvas.saveLayer(
+              Offset.zero & size,
+              Paint()..color = Color.fromRGBO(0, 0, 0, up),
+            );
+          }
           paintOpeningRim(canvas, at, radius, t, 3);
-          canvas.restore();
+          if (fading) canvas.restore();
         }
       }
     }
@@ -811,12 +876,15 @@ class BattleJourneyExit {
       if (shown > 0.004) {
         // Falling away: smaller as it goes.
         final r = r0 * (1 - 0.35 * _smooth(1.6, kBattleJourneyOutSeconds, t));
-        canvas.saveLayer(
-          Offset.zero & size,
-          Paint()..color = Color.fromRGBO(0, 0, 0, shown),
-        );
+        final fading = shown < 0.999;
+        if (fading) {
+          canvas.saveLayer(
+            Offset.zero & size,
+            Paint()..color = Color.fromRGBO(0, 0, 0, shown),
+          );
+        }
         paintPlanetLook(canvas, centre, r, 4 + t, planet);
-        canvas.restore();
+        if (fading) canvas.restore();
       }
     }
     // Over it all at first, the fight's last frame, opening from the

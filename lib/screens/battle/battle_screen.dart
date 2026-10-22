@@ -327,14 +327,19 @@ class _BattleScreenState extends State<BattleScreen>
   }
 
   Future<void> _start() async {
+    // Held still until the fight begins: none of the open world is seen
+    // behind the way in or the flight, so none of it need run there.
     final game = CosmicGame(
       world_: CosmicWorld.generate(seed: 5),
       onMeterChanged: () {},
       onSound: _sound,
-    );
+    )..pauseEngine();
     setState(() => _game = game);
     await game.loaded;
     if (!mounted) return;
+    // One still step mounts what loading added, so the fight's first frame
+    // has it all.
+    game.stepEngine(stepTime: 0);
     _loaded = true;
     _maybeBegin();
   }
@@ -360,6 +365,7 @@ class _BattleScreenState extends State<BattleScreen>
 
   void _begin() {
     final game = _game!;
+    if (game.paused) game.resumeEngine();
     _cardTimer?.cancel();
     _card.value = 0;
     _reported = false;
@@ -694,13 +700,9 @@ class _BattleScreenState extends State<BattleScreen>
                                 ? _JourneyPainter(
                                     journey,
                                     journeyAt + _time.value,
-                                    _FlightPainter(
-                                      floor: _flightFloor,
-                                      t: 1,
-                                      from: null,
-                                      band: band,
-                                      time: _time.value,
-                                    ),
+                                    floor: _flightFloor,
+                                    band: band,
+                                    time: _time.value,
                                   )
                                 : _FlightPainter(
                                     floor: _flightFloor,
@@ -894,25 +896,41 @@ extension on _BattleScreenState {
 }
 
 /// The way into a live battle ([BattleJourneyScene]) at [t] seconds, the
-/// floor drawn as the flight's end draws it.
+/// floor drawn as the fight first frames it (the flight's end), scaled
+/// about its middle as the scene asks.
 class _JourneyPainter extends CustomPainter {
-  _JourneyPainter(this.scene, this.t, this.floor);
+  _JourneyPainter(
+    this.scene,
+    this.t, {
+    required this.floor,
+    required this.band,
+    required this.time,
+  });
 
   final BattleJourneyScene scene;
   final double t;
-  final _FlightPainter floor;
+  final BattleFloor floor;
+  final Rect band;
+  final double time;
 
   @override
   void paint(Canvas canvas, Size size) {
+    final (middle, zoom) = _openingFloor(band);
     scene.paint(
       canvas,
       t,
-      floor: (canvas, alpha) {
-        canvas.saveLayer(
-          Offset.zero & size,
-          Paint()..color = Color.fromRGBO(0, 0, 0, alpha),
+      floor: (canvas, scale) {
+        canvas.save();
+        canvas.translate(middle.dx, middle.dy);
+        canvas.scale(zoom * scale);
+        // The floor fills all it is given, so scaled down it still covers
+        // the screen.
+        floor.paint(
+          canvas,
+          Offset.zero,
+          time,
+          Rect.fromCenter(center: Offset.zero, width: 2e4, height: 2e4),
         );
-        floor.paint(canvas, size);
         canvas.restore();
       },
     );
