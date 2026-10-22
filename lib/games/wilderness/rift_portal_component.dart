@@ -2,6 +2,7 @@
 import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/events.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:flutter/material.dart';
 
@@ -42,14 +43,18 @@ extension RiftFactionExt on RiftFaction {
     RiftFaction.arcane => 'Arcane',
   };
 
-  /// Creature base types that count as compatible with this rift.
-  Set<String> get matchingTypes => switch (this) {
-    RiftFaction.volcanic => {'Fire', 'Lava', 'Steam', 'Blood'},
-    RiftFaction.oceanic => {'Water', 'Ice'},
-    RiftFaction.verdant => {'Air', 'Plant', 'Light'},
-    RiftFaction.earthen => {'Earth', 'Mud', 'Crystal', 'Dust'},
-    RiftFaction.arcane => {'Dark', 'Spirit', 'Lightning', 'Poison'},
+  /// The elemental group this rift opens onto.
+  ElementalGroup get group => switch (this) {
+    RiftFaction.volcanic => ElementalGroup.volcanic,
+    RiftFaction.oceanic => ElementalGroup.oceanic,
+    RiftFaction.verdant => ElementalGroup.verdant,
+    RiftFaction.earthen => ElementalGroup.earthen,
+    RiftFaction.arcane => ElementalGroup.arcane,
   };
+
+  /// Creature base types that count as compatible with this rift: its
+  /// group's elements, as harvesting and the home forms group them.
+  Set<String> get matchingTypes => group.elementTypes.toSet();
 
   /// Factions that may spawn in a given scene.
   /// Each faction is locked to its matching biome.
