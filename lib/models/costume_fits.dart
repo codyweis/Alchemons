@@ -9,7 +9,7 @@ part of 'celebration_costume.dart';
 /// (the point between the eyes x, y, the distance from eye to eye).
 const _placements = <FamilyCostume, Map<String, (double, double, double)>>{
   FamilyCostume.partyHat: {
-    'WNG01': (0.44, 0.335, 0.23),
+    'WNG01': (0.44, 0.335, 0.2),
     'WNG02': (0.37, 0.31, 0.19),
     'WNG03': (0.375, 0.33, 0.25),
     'WNG04': (0.37, 0.315, 0.2),
