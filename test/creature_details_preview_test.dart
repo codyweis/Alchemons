@@ -7,9 +7,12 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/owned_cosmetics.dart';
 import 'package:alchemons/helpers/genetics_loader.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
+import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/stamina_service.dart';
@@ -25,12 +28,16 @@ import 'package:provider/provider.dart';
 // The full details dialog on a phone, every tab scrolled flat onto one tall
 // page: a fused Lavahorn with no analyzers (a) and all of them (b), a wild
 // founder (c), the species alone from the catalog (d), and a line through
-// fifteen elements (e).
+// fifteen elements (e). A case and a trail are owned, so their squares show.
 //
-//   DETAILS_OUT=/tmp/details flutter test \
+//   DETAILS_OUT=/tmp/details [DETAILS_SIZE=360x740] flutter test \
 //     test/creature_details_preview_test.dart --tags preview
 void main() {
   final out = Platform.environment['DETAILS_OUT'];
+  final size = (Platform.environment['DETAILS_SIZE'] ?? '390x844')
+      .split('x')
+      .map(double.parse)
+      .toList();
 
   Future<void> loadFont(String family, String path) async {
     final file = File(path);
@@ -86,6 +93,7 @@ void main() {
       Directory(out).createSync(recursive: true);
       final db = AlchemonsDatabase(NativeDatabase.memory());
       final catalog = CreatureCatalog();
+      final wear = CosmeticWearService(db);
       await tester.runAsync(() async {
         await catalog.load();
         await loadNatures();
@@ -100,6 +108,9 @@ void main() {
             await db.constellationDao.unlockSkill(s, 0);
           }
         }
+        await OwnedCosmetics.grant(db, AthanorPieceKind.caseStyle, 'gilt');
+        await OwnedCosmetics.grant(db, AthanorPieceKind.trail, 'gilt_steps');
+        await wear.load();
         final fire = catalog.getCreatureById('HOR01')!;
         final earth = catalog.getCreatureById('HOR03')!;
         await db.creatureDao.insertInstance(
@@ -194,7 +205,7 @@ void main() {
         () => Future<void>.delayed(const Duration(milliseconds: 200)),
       );
 
-      tester.view.physicalSize = const Size(390 * 2, 844 * 2);
+      tester.view.physicalSize = Size(size[0] * 2, size[1] * 2);
       tester.view.devicePixelRatio = 2;
       addTearDown(tester.view.reset);
       final key = GlobalKey();
@@ -217,7 +228,8 @@ void main() {
               (e.renderObject as RenderBox).hasSize &&
               (e.renderObject as RenderBox).localToGlobal(Offset.zero).dx >=
                   0 &&
-              (e.renderObject as RenderBox).localToGlobal(Offset.zero).dx < 390;
+              (e.renderObject as RenderBox).localToGlobal(Offset.zero).dx <
+                  size[0];
         }).toList();
         final pos = scrollables.isEmpty
             ? null
@@ -264,6 +276,7 @@ void main() {
             ChangeNotifierProvider<FactionService>.value(
               value: FactionService(db),
             ),
+            ChangeNotifierProvider<CosmeticWearService>.value(value: wear),
           ],
           child: MaterialApp(
             debugShowCheckedModeBanner: false,

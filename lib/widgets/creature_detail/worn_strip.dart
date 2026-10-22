@@ -1,11 +1,13 @@
 // lib/widgets/creature_detail/worn_strip.dart
 //
-// WHAT IT WEARS: one row on both details views — its alchemy effect, drawn
-// and named and lit from below while worn, then one plus that opens the
-// costumes it fits (worn costumes show on the sprite itself).
+// WHAT IT WEARS: one short row of plus squares on its details, each lit
+// from below while one of its kind is worn: its alchemy effect, the costumes
+// it fits, and whatever the host puts after them (the case and trail). The
+// sprite shows what is worn; each square's sheet names it.
 //
 // It replaced two text rows ("Effect · None · none owned ›", "Costumes · …")
-// that said the same thing in words and showed nothing.
+// that said the same thing in words and showed nothing. It is one row, not
+// two, so the attributes under it are in view when the details open.
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -30,7 +32,8 @@ class WornStrip extends StatelessWidget {
     required this.instance,
     required this.creatureName,
     this.onChanged,
-    this.height = 54,
+    this.trailing = const [],
+    this.height = 44,
   });
 
   final CreatureInstance instance;
@@ -39,6 +42,9 @@ class WornStrip extends StatelessWidget {
   /// After something goes on or comes off, for a host that holds its own
   /// copy of the instance rather than watching it.
   final VoidCallback? onChanged;
+
+  /// More squares after the costumes'.
+  final List<WornSquare> trailing;
 
   final double height;
 
@@ -73,35 +79,37 @@ class WornStrip extends StatelessWidget {
             if (!c.athanorOnly || worn.wears(c) || (owned[c.itemKey] ?? 0) > 0)
               c,
         ];
+        final squares = [
+          _EffectTile(
+            instance: instance,
+            creatureName: creatureName,
+            owned: effects,
+            palette: palette,
+            accent: accent,
+            onChanged: onChanged,
+          ),
+          if (fitted.isNotEmpty)
+            _CostumesTile(
+              instance: instance,
+              creatureName: creatureName,
+              fitted: fitted,
+              worn: worn,
+              owned: {for (final c in fitted) c: owned[c.itemKey] ?? 0},
+              palette: palette,
+              accent: accent,
+              onChanged: onChanged,
+            ),
+          ...trailing,
+        ];
+        // All alike, across the whole row.
         return SizedBox(
           height: height,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: _EffectTile(
-                  instance: instance,
-                  creatureName: creatureName,
-                  owned: effects,
-                  palette: palette,
-                  accent: accent,
-                  onChanged: onChanged,
-                ),
-              ),
-              if (fitted.isNotEmpty) ...[
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _CostumesTile(
-                    instance: instance,
-                    creatureName: creatureName,
-                    fitted: fitted,
-                    worn: worn,
-                    owned: {for (final c in fitted) c: owned[c.itemKey] ?? 0},
-                    palette: palette,
-                    accent: accent,
-                    onChanged: onChanged,
-                  ),
-                ),
+              for (var i = 0; i < squares.length; i++) ...[
+                if (i > 0) const SizedBox(width: 6),
+                Expanded(child: squares[i]),
               ],
             ],
           ),
@@ -153,6 +161,59 @@ class _Slot extends StatelessWidget {
   }
 }
 
+/// A square on the strip: a plus over its kind, lit while one is worn.
+class WornSquare extends StatelessWidget {
+  const WornSquare({
+    super.key,
+    required this.label,
+    required this.lit,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool lit;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = BracketPalette.of(context);
+    final accent = bracketReadableAccent(context.read<FactionTheme>());
+    return _Slot(
+      lit: lit,
+      palette: palette,
+      accent: accent,
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
+        child: Column(
+          children: [
+            Expanded(
+              child: Icon(
+                AppIcons.add_rounded,
+                size: 18,
+                color: lit ? palette.ink : palette.muted,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.clip,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                color: lit ? palette.ink : palette.muted,
+                fontSize: 8,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 0.6,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 // ── The effect ──────────────────────────────────────────────────────────────
 
 class _EffectTile extends StatelessWidget {
@@ -177,78 +238,18 @@ class _EffectTile extends StatelessWidget {
     final registry = buildInventoryRegistry(context.read<AlchemonsDatabase>());
     final wornKey = InvKeys.alchemyItemFor(instance.alchemyEffect);
     final wornName = wornKey == null ? null : registry[wornKey]?.name;
-    final count = owned.fold(0, (a, e) => a + e.value);
     // A worn effect can always be opened, to swap it or take it off.
     final canPick = owned.isNotEmpty || wornKey != null;
-    return LayoutBuilder(
-      builder: (context, box) {
-        final art = box.maxHeight - 12;
-        return _Slot(
-          lit: wornKey != null,
-          palette: palette,
-          accent: accent,
-          onTap: canPick
-              ? () => _pick(context, registry, wornKey, wornName)
-              : () => showGameSnack(
-                  context,
-                  'No effects owned. The shop sells them under Cosmetics.',
-                ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Row(
-              children: [
-                // Nothing owned: no empty box, the words say it.
-                if (wornKey != null || owned.isNotEmpty) ...[
-                  SizedBox.square(
-                    dimension: art,
-                    child: wornKey != null
-                        ? InventoryItemArtwork(inventoryKey: wornKey, size: art)
-                        : Icon(
-                            AppIcons.add_rounded,
-                            size: 20,
-                            color: palette.muted,
-                          ),
-                  ),
-                  const SizedBox(width: 8),
-                ] else
-                  const SizedBox(width: 6),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        count > 0 ? 'EFFECT · $count OWNED' : 'EFFECT',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: palette.muted,
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.1,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        wornName ?? (owned.isEmpty ? 'None owned' : 'None'),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: bracketText(
-                          context,
-                          13,
-                          wornName != null ? palette.ink : palette.muted,
-                          weight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+    // Lit while one is worn; the aura shows which, and the sheet names it.
+    return WornSquare(
+      label: 'EFFECT',
+      lit: wornKey != null,
+      onTap: canPick
+          ? () => _pick(context, registry, wornKey, wornName)
+          : () => showGameSnack(
+              context,
+              'No effects owned. The shop sells them under Cosmetics.',
             ),
-          ),
-        );
-      },
     );
   }
 
@@ -466,63 +467,16 @@ class _CostumesTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final wearing = fitted.any(worn.wears);
     final any = wearing || owned.values.any((n) => n > 0);
-    return _Slot(
+    // Lit while any is worn; the sprite shows which.
+    return WornSquare(
+      label: 'COSTUME',
       lit: wearing,
-      palette: palette,
-      accent: accent,
       onTap: any
           ? () => _open(context)
           : () => showGameSnack(
               context,
               'No costumes owned. The shop sells them under Cosmetics.',
             ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Row(
-          children: [
-            Icon(
-              AppIcons.add_rounded,
-              size: 20,
-              color: wearing ? palette.ink : palette.muted,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'COSTUMES',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: palette.muted,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    wearing
-                        ? '${fitted.where(worn.wears).length} worn'
-                        : (any ? 'None' : 'None owned'),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: bracketText(
-                      context,
-                      13,
-                      wearing ? palette.ink : palette.muted,
-                      weight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 

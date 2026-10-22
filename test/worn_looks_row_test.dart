@@ -9,6 +9,7 @@ import 'package:alchemons/models/owned_cosmetics.dart';
 import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/creature_detail/worn_looks_row.dart';
+import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +26,26 @@ void main() {
   });
   tearDown(() => db.close());
 
+  Widget squares(String key, CreatureInstance inst, String name, Color light) =>
+      SizedBox(
+        key: ValueKey(key),
+        height: 44,
+        child: Builder(
+          builder: (context) => Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (final s in wornLookSquares(
+                context,
+                instance: inst,
+                creatureName: name,
+                light: light,
+              ))
+                SizedBox(width: 72, child: s),
+            ],
+          ),
+        ),
+      );
+
   Future<void> pump(WidgetTester tester) async {
     await tester.pumpWidget(
       MultiProvider(
@@ -36,21 +57,13 @@ void main() {
         child: MaterialApp(
           theme: ThemeData.dark(),
           home: Scaffold(
+            // Squares at the end of a strip, as on the details.
             body: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                WornLooksRow(
-                  key: const ValueKey('a'),
-                  instance: a,
-                  creatureName: 'Firehorn',
-                  light: const Color(0xFFFF7A1A),
-                ),
+                squares('a', a, 'Firehorn', const Color(0xFFFF7A1A)),
                 const SizedBox(height: 20),
-                WornLooksRow(
-                  key: const ValueKey('b'),
-                  instance: b,
-                  creatureName: 'Waterlet',
-                  light: const Color(0xFF2E8BD0),
-                ),
+                squares('b', b, 'Waterlet', const Color(0xFF2E8BD0)),
               ],
             ),
           ),
@@ -59,6 +72,16 @@ void main() {
     );
     await tester.pump();
   }
+
+  // Whether the case square on [creature]'s row shows one worn.
+  bool caseLit(WidgetTester tester, String creature) => tester
+      .widget<WornSquare>(
+        find.descendant(
+          of: find.byKey(ValueKey(creature)),
+          matching: find.byKey(const ValueKey('worn-case')),
+        ),
+      )
+      .lit;
 
   Future<void> setUpCreatures(WidgetTester tester) => tester.runAsync(() async {
     await db.creatureDao.insertInstance(
@@ -95,7 +118,8 @@ void main() {
     // Cases owned, no trail: only the case square.
     expect(find.text('CASE'), findsNWidgets(2));
     expect(find.text('TRAIL'), findsNothing);
-    expect(find.text('Plain'), findsNWidgets(2));
+    expect(caseLit(tester, 'a'), isFalse);
+    expect(caseLit(tester, 'b'), isFalse);
 
     await tester.tap(find.text('CASE').first);
     await tester.pumpAndSettle();
@@ -116,8 +140,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(wear.caseOf('a'), CaseStyle.gilt);
     expect(wear.caseOf('b'), isNull);
-    expect(find.text('Gold Case'), findsOneWidget);
-    expect(find.text('Plain'), findsOneWidget);
+    expect(caseLit(tester, 'a'), isTrue);
+    expect(caseLit(tester, 'b'), isFalse);
 
     // It survives a reload.
     final again = CosmeticWearService(db);

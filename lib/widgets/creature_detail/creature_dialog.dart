@@ -1217,70 +1217,96 @@ class _OverviewTab extends StatelessWidget {
             inst,
             natureEffects: effects.hasGeneAnalyzer(),
           );
-    return SingleChildScrollView(
-      physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _Stage(
-            creature: creature,
+    return LayoutBuilder(
+      builder: (context, box) => SingleChildScrollView(
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(14, 16, 14, 24),
+        child: _content(context, effects, inst, traits, box.maxHeight),
+      ),
+    );
+  }
+
+  /// What sits under a specimen's stage down to the end of its attributes,
+  /// with the page's top padding: vitals, what it wears, and the stat tiles.
+  static const double _underStage = 320;
+
+  Widget _content(
+    BuildContext context,
+    ConstellationEffectsService effects,
+    CreatureInstance? inst,
+    List<TraitRow> traits,
+    double viewport,
+  ) {
+    // On a short screen the stage gives up height so the attributes are in
+    // view when the details open.
+    final stageHeight = inst == null
+        ? _Stage.fullHeight
+        : (viewport - _underStage).clamp(176.0, _Stage.fullHeight);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _Stage(
+          creature: creature,
+          instance: inst,
+          bgOption: bgOption,
+          onLongPress: onSpriteLongPress,
+          reveal: reveal,
+          spriteLoading: spriteLoading,
+          height: stageHeight,
+        ),
+        if (inst != null) ...[
+          const SizedBox(height: 10),
+          _VitalsRow(instance: inst, creatureName: creature.name),
+          const SizedBox(height: 10),
+          WornStrip(
             instance: inst,
-            bgOption: bgOption,
-            onLongPress: onSpriteLongPress,
-            reveal: reveal,
-            spriteLoading: spriteLoading,
-          ),
-          if (inst != null) ...[
-            const SizedBox(height: 10),
-            _VitalsRow(instance: inst, creatureName: creature.name),
-            const SizedBox(height: 10),
-            WornStrip(instance: inst, creatureName: creature.name),
-            WornLooksRow(
+            creatureName: creature.name,
+            trailing: wornLookSquares(
+              context,
               instance: inst,
               creatureName: creature.name,
               light: caseElementLight(creature),
             ),
-            const SizedBox(height: 16),
-            _Highlighted(
-              sectionKey: attributesKey,
-              target: CreatureDetailsTutorialTarget.potentialAnalyzer,
-              highlightedTargets: highlightedTargets,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const BracketSectionDivider(label: 'ATTRIBUTES'),
-                  const SizedBox(height: 8),
-                  StatTileGrid(
-                    stats: statTilesFor(
-                      inst,
-                      showPotential: effects.hasPotentialAnalyzer(),
-                      showDominants: effects.hasDominantAnalyzer(),
-                    ),
+          ),
+          const SizedBox(height: 16),
+          _Highlighted(
+            sectionKey: attributesKey,
+            target: CreatureDetailsTutorialTarget.potentialAnalyzer,
+            highlightedTargets: highlightedTargets,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const BracketSectionDivider(label: 'ATTRIBUTES'),
+                const SizedBox(height: 8),
+                StatTileGrid(
+                  stats: statTilesFor(
+                    inst,
+                    showPotential: effects.hasPotentialAnalyzer(),
+                    showDominants: effects.hasDominantAnalyzer(),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-          if (traits.isNotEmpty) ...[
-            const SizedBox(height: 16),
-            _Highlighted(
-              sectionKey: traitsKey,
-              target: CreatureDetailsTutorialTarget.geneAnalyzer,
-              highlightedTargets: highlightedTargets,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const BracketSectionDivider(label: 'TRAITS'),
-                  const SizedBox(height: 4),
-                  ...traits,
-                ],
-              ),
-            ),
-          ],
-          if (!spriteLoading) _AboutBlock(creature: creature, instance: inst),
+          ),
         ],
-      ),
+        if (traits.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _Highlighted(
+            sectionKey: traitsKey,
+            target: CreatureDetailsTutorialTarget.geneAnalyzer,
+            highlightedTargets: highlightedTargets,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const BracketSectionDivider(label: 'TRAITS'),
+                const SizedBox(height: 4),
+                ...traits,
+              ],
+            ),
+          ),
+        ],
+        if (!spriteLoading) _AboutBlock(creature: creature, instance: inst),
+      ],
     );
   }
 }
@@ -1295,6 +1321,11 @@ class _Stage extends StatelessWidget {
   final EssenceReveal? reveal;
   final bool spriteLoading;
 
+  /// [fullHeight] unless the screen is short; the creature scales with it.
+  final double height;
+
+  static const double fullHeight = 240;
+
   const _Stage({
     required this.creature,
     required this.instance,
@@ -1302,6 +1333,7 @@ class _Stage extends StatelessWidget {
     required this.onLongPress,
     required this.reveal,
     required this.spriteLoading,
+    this.height = fullHeight,
   });
 
   @override
@@ -1318,6 +1350,7 @@ class _Stage extends StatelessWidget {
         bg.color.computeLuminance() > 0.35;
     final variant = (inst?.variantFaction ?? '').trim();
     final prismatic = creature.isPrismaticSkin == true;
+    final k = height / fullHeight;
 
     return CustomPaint(
       foregroundPainter: BracketFramePainter(
@@ -1327,7 +1360,7 @@ class _Stage extends StatelessWidget {
       ),
       child: ClipRect(
         child: SizedBox(
-          height: 240,
+          height: height,
           child: Stack(
             children: [
               Positioned.fill(
@@ -1338,8 +1371,8 @@ class _Stage extends StatelessWidget {
               Center(
                 child: IgnorePointer(
                   child: Container(
-                    width: 220,
-                    height: 220,
+                    width: 220 * k,
+                    height: 220 * k,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       gradient: RadialGradient(
@@ -1356,8 +1389,8 @@ class _Stage extends StatelessWidget {
               ),
               Center(
                 child: SizedBox(
-                  width: 200,
-                  height: 200,
+                  width: 200 * k,
+                  height: 200 * k,
                   child: spriteLoading
                       ? null
                       : ElementalEssence(
@@ -1371,13 +1404,13 @@ class _Stage extends StatelessWidget {
                           child: Center(
                             child: inst == null
                                 ? SizedBox.square(
-                                    dimension: 186,
+                                    dimension: 186 * k,
                                     child: _speciesSprite(creature),
                                   )
                                 : InstanceSprite(
                                     creature: creature,
                                     instance: inst,
-                                    size: 186,
+                                    size: 186 * k,
                                   ),
                           ),
                         ),

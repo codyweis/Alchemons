@@ -174,7 +174,7 @@ void main() {
     await shoot('0_strips');
 
     // 2. The effect sheet.
-    await tester.tap(find.text('Volcanic Aura').first);
+    await tester.tap(find.text('EFFECT').first);
     await settle(10);
     await shoot('1_effect_sheet');
     Navigator.of(tester.element(find.text('TAKE OFF'))).pop();

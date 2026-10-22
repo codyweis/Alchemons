@@ -1,9 +1,13 @@
 // lib/widgets/creature_detail/worn_looks_row.dart
 //
-// The case it stands in and the trail it leaves (the Athanor's), under
-// WHAT IT WEARS on its details: one square each, shown only once one of
-// that kind is owned. Each opens the ones owned, and the plain look.
-// What is chosen is kept per creature by CosmeticWearService.
+// The case it stands in and the trail it leaves (the Athanor's), at the end
+// of WHAT IT WEARS on its details (WornStrip's trailing): one plus square
+// each, lit while one is worn, shown only once one of that kind is owned.
+// Each opens the ones owned, and the plain look, drawn. What is chosen is
+// kept per creature by CosmeticWearService.
+//
+// Squares, not a row of their own, so the strip spaces all its squares
+// alike.
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -11,6 +15,7 @@ import 'package:alchemons/models/cosmetic_wear.dart';
 import 'package:alchemons/services/cosmetic_wear_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
 import 'package:alchemons/widgets/fx/cosmetics/cosmetic_previews.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
@@ -20,13 +25,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
-class WornLooksRow extends StatelessWidget {
-  const WornLooksRow({
-    super.key,
+/// The case and trail squares for [instance], each only once one of its
+/// kind is owned. Watches [CosmeticWearService] through [context].
+List<WornSquare> wornLookSquares(
+  BuildContext context, {
+  required CreatureInstance instance,
+  required String creatureName,
+  required Color light,
+}) {
+  final wear = context.watch<CosmeticWearService?>();
+  if (wear == null) return const [];
+  return _WornLooks(
+    instance: instance,
+    creatureName: creatureName,
+    light: light,
+  ).squares(context, wear);
+}
+
+class _WornLooks {
+  const _WornLooks({
     required this.instance,
     required this.creatureName,
     required this.light,
-    this.height = 54,
   });
 
   final CreatureInstance instance;
@@ -34,62 +54,32 @@ class WornLooksRow extends StatelessWidget {
 
   /// Its element's light, as its case shows it.
   final Color light;
-  final double height;
 
-  @override
-  Widget build(BuildContext context) {
-    final wear = context.watch<CosmeticWearService?>();
-    if (wear == null) return const SizedBox.shrink();
+  List<WornSquare> squares(BuildContext context, CosmeticWearService wear) {
     final cases = wear.ownedCases;
     final trails = wear.ownedTrails;
-    if (cases.isEmpty && trails.isEmpty) return const SizedBox.shrink();
     final palette = BracketPalette.of(context);
     final accent = bracketReadableAccent(context.read<FactionTheme>());
     final id = instance.instanceId;
     final worn = wear.caseOf(id);
     final trail = wear.trailOf(id);
-    return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: SizedBox(
-        height: height,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (cases.isNotEmpty)
-              Expanded(
-                child: _LookTile(
-                  key: const ValueKey('worn-case'),
-                  label: 'CASE',
-                  name: worn?.title ?? 'Plain',
-                  lit: worn != null,
-                  palette: palette,
-                  accent: accent,
-                  art: (box) => _CaseArt(style: worn, light: light),
-                  onTap: () =>
-                      _pickCase(context, wear, cases, worn, palette, accent),
-                ),
-              ),
-            if (cases.isNotEmpty && trails.isNotEmpty) const SizedBox(width: 6),
-            if (trails.isNotEmpty)
-              Expanded(
-                child: _LookTile(
-                  key: const ValueKey('worn-trail'),
-                  label: 'TRAIL',
-                  name: trail?.title ?? 'None',
-                  lit: trail != null,
-                  palette: palette,
-                  accent: accent,
-                  art: (box) => trail == null
-                      ? const SizedBox.shrink()
-                      : _TrailArt(style: trail),
-                  onTap: () =>
-                      _pickTrail(context, wear, trails, trail, palette, accent),
-                ),
-              ),
-          ],
+    return [
+      if (cases.isNotEmpty)
+        WornSquare(
+          key: const ValueKey('worn-case'),
+          label: 'CASE',
+          lit: worn != null,
+          onTap: () => _pickCase(context, wear, cases, worn, palette, accent),
         ),
-      ),
-    );
+      if (trails.isNotEmpty)
+        WornSquare(
+          key: const ValueKey('worn-trail'),
+          label: 'TRAIL',
+          lit: trail != null,
+          onTap: () =>
+              _pickTrail(context, wear, trails, trail, palette, accent),
+        ),
+    ];
   }
 
   Future<void> _pickCase(
@@ -233,81 +223,6 @@ class WornLooksRow extends StatelessWidget {
                   ],
                 );
               },
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-}
-
-/// One square: the look on its left, its kind and name beside it.
-class _LookTile extends StatelessWidget {
-  const _LookTile({
-    super.key,
-    required this.label,
-    required this.name,
-    required this.lit,
-    required this.palette,
-    required this.accent,
-    required this.art,
-    required this.onTap,
-  });
-
-  final String label, name;
-  final bool lit;
-  final BracketPalette palette;
-  final Color accent;
-  final Widget Function(BoxConstraints) art;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, box) => _Slot(
-      lit: lit,
-      palette: palette,
-      accent: accent,
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        child: Row(
-          children: [
-            SizedBox(
-              width: box.maxHeight - 8,
-              height: box.maxHeight - 8,
-              child: art(box),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    maxLines: 1,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: palette.muted,
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: bracketText(
-                      context,
-                      13,
-                      lit ? palette.ink : palette.muted,
-                      weight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
             ),
           ],
         ),
