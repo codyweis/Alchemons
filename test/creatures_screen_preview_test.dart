@@ -28,9 +28,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
 // The Creatures tab on a phone, in both themes, a few weeks into a save:
-// the specimen cases it opens on, the catalog as shelves and as a table
-// (and searched), a species picked from it, the milestones list, and a new
-// species landing in the catalog.
+// the specimen cases it opens on, the catalog's shelves (and searched), a
+// species picked from it, the milestones list, and a new species landing in
+// the catalog.
 //
 //   CREATURES_OUT=/tmp/creatures flutter test \
 //     test/creatures_screen_preview_test.dart --tags preview
@@ -218,15 +218,10 @@ void main() {
       await settle(40);
       await shoot('2_catalog_shelves');
 
-      await tester.tap(find.text('TABLE'));
-      await settle(30);
-      await shoot('3_catalog_table');
-
       await tester.enterText(find.byType(TextField).first, 'fire');
       await settle(20);
       await shoot('4_catalog_search');
       await tester.enterText(find.byType(TextField).first, '');
-      await tester.tap(find.text('SHELVES'));
       await settle(20);
 
       // Pick a found species: the specimens, filtered, under its plate.

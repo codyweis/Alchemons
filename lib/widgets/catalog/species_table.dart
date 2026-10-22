@@ -1,10 +1,6 @@
 // lib/widgets/catalog/species_table.dart
 //
-// The species catalog, in either of two layouts the player toggles between:
-//
-//   SHELVES  one shelf per family, six across in element order.
-//   TABLE    elements down (grouped by realm), families across — split into
-//            two tables of four families, so the cells stay big on a phone.
+// The species catalog: one shelf per family, six across in element order.
 //
 // A found species is a glass cell with its portrait and a thin rarity edge;
 // an unknown one is the Codex's still grain shadow. Progress is the catalog
@@ -28,8 +24,6 @@ import 'package:alchemons/widgets/fx/discovery_filing.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart';
 import 'package:flutter/material.dart';
 
-enum CatalogLayout { shelves, table }
-
 class SpeciesTable extends StatelessWidget {
   const SpeciesTable({
     super.key,
@@ -38,8 +32,6 @@ class SpeciesTable extends StatelessWidget {
     required this.palette,
     required this.accent,
     required this.onTap,
-    this.layout = CatalogLayout.shelves,
-    this.onLayoutChanged,
     this.query = '',
     this.revealCreatureId,
     this.controller,
@@ -54,8 +46,6 @@ class SpeciesTable extends StatelessWidget {
   final BracketPalette palette;
   final Color accent;
   final void Function(Creature species, bool discovered) onTap;
-  final CatalogLayout layout;
-  final ValueChanged<CatalogLayout>? onLayoutChanged;
 
   /// Found species that do not match fade back; unknowns never match.
   final String query;
@@ -66,7 +56,6 @@ class SpeciesTable extends StatelessWidget {
   /// Extra room under the last row, for a dock the table runs down behind.
   final double bottomInset;
 
-  static const double _rowHead = 62;
   static const int _shelfColumns = 6;
 
   /// Wider screens get a centred catalog rather than huge cells.
@@ -95,7 +84,7 @@ class SpeciesTable extends StatelessWidget {
           c.types.any((t) => t.toLowerCase().contains(q));
     }
 
-    Widget cell(CreatureEntry entry, {bool showElement = false}) {
+    Widget cell(CreatureEntry entry) {
       final c = entry.creature;
       final built = _Cell(
         key: ValueKey('species:${c.id}'),
@@ -103,7 +92,6 @@ class SpeciesTable extends StatelessWidget {
         count: counts[c.id] ?? 0,
         palette: palette,
         faded: !matches(entry),
-        showElement: showElement,
         onTap: () => onTap(c, entry.player.discovered),
       );
       if (c.id != revealCreatureId) return built;
@@ -119,17 +107,12 @@ class SpeciesTable extends StatelessWidget {
           count: 0,
           palette: palette,
           faded: false,
-          showElement: showElement,
           shadowed: true,
           onTap: () {},
         ),
         found: built,
       );
     }
-
-    final body = layout == CatalogLayout.shelves
-        ? _shelves(cell)
-        : _table(cell);
 
     return SingleChildScrollView(
       controller: controller,
@@ -148,11 +131,9 @@ class SpeciesTable extends StatelessWidget {
                 accent: accent,
                 found: found,
                 total: entries.length,
-                layout: layout,
-                onLayoutChanged: onLayoutChanged,
                 onOpenMilestones: onOpenMilestones,
               ),
-              ...body,
+              ..._shelves(cell),
             ],
           ),
         ),
@@ -162,9 +143,7 @@ class SpeciesTable extends StatelessWidget {
 
   // ── SHELVES ────────────────────────────────────────────────────────────────
 
-  List<Widget> _shelves(
-    Widget Function(CreatureEntry, {bool showElement}) cell,
-  ) {
+  List<Widget> _shelves(Widget Function(CreatureEntry) cell) {
     final out = <Widget>[];
     for (final family in CreatureFamily.values) {
       final list =
@@ -200,7 +179,7 @@ class SpeciesTable extends StatelessWidget {
                   if (j > 0) const SizedBox(width: 4),
                   Expanded(
                     child: i + j < list.length
-                        ? cell(list[i + j], showElement: true)
+                        ? cell(list[i + j])
                         : const SizedBox(),
                   ),
                 ],
@@ -208,105 +187,6 @@ class SpeciesTable extends StatelessWidget {
             ),
           ),
         );
-      }
-    }
-    return out;
-  }
-
-  // ── TABLE ──────────────────────────────────────────────────────────────────
-
-  List<Widget> _table(Widget Function(CreatureEntry, {bool showElement}) cell) {
-    // Slot every species by (element, family). A slot holding more than one
-    // (the Mask family's second Bloodmask) spills into an extra row beneath
-    // its element.
-    final slots = <String, Map<CreatureFamily, List<CreatureEntry>>>{};
-    for (final e in entries) {
-      final c = e.creature;
-      if (c.types.isEmpty) continue;
-      final family = _familyOf(c);
-      if (family == null) continue;
-      ((slots[c.types.first] ??= {})[family] ??= []).add(e);
-    }
-
-    final out = <Widget>[];
-    const families = CreatureFamily.values;
-    for (final half in [families.sublist(0, 4), families.sublist(4)]) {
-      out
-        ..add(const SizedBox(height: 14))
-        ..add(
-          Row(
-            children: [
-              const SizedBox(width: _rowHead),
-              for (final f in half)
-                Expanded(
-                  child: Center(
-                    child: Text(
-                      f.displayName.toUpperCase(),
-                      style: caseMono(9.5, palette.muted, spacing: 0.8),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        );
-      for (final group in ElementalGroup.values) {
-        final inGroup = entries
-            .where(
-              (e) =>
-                  half.contains(_familyOf(e.creature)) &&
-                  e.creature.types.isNotEmpty &&
-                  group.elementTypes.contains(e.creature.types.first),
-            )
-            .toList();
-        out
-          ..add(const SizedBox(height: 8))
-          ..add(
-            _GroupHead(
-              palette: palette,
-              title: group.displayName.toUpperCase(),
-              color: group.color,
-              have: inGroup.where((e) => e.player.discovered).length,
-              total: inGroup.length,
-            ),
-          );
-        for (final element in group.elementTypes) {
-          final bySlot = slots[element] ?? const {};
-          var depth = 1;
-          for (final f in half) {
-            final n = bySlot[f]?.length ?? 0;
-            if (n > depth) depth = n;
-          }
-          for (var layer = 0; layer < depth; layer++) {
-            out.add(
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Row(
-                  children: [
-                    SizedBox(
-                      width: _rowHead,
-                      child: layer == 0
-                          ? _ElementHead(element: element, palette: palette)
-                          : const SizedBox(),
-                    ),
-                    for (final f in half)
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          child: () {
-                            final list = bySlot[f];
-                            if (list == null || layer >= list.length) {
-                              return const AspectRatio(aspectRatio: 0.92);
-                            }
-                            return cell(list[layer]);
-                          }(),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            );
-          }
-        }
       }
     }
     return out;
@@ -331,16 +211,12 @@ class _Tally extends StatelessWidget {
     required this.accent,
     required this.found,
     required this.total,
-    required this.layout,
-    this.onLayoutChanged,
     this.onOpenMilestones,
   });
 
   final BracketPalette palette;
   final Color accent;
   final int found, total;
-  final CatalogLayout layout;
-  final ValueChanged<CatalogLayout>? onLayoutChanged;
   final VoidCallback? onOpenMilestones;
 
   @override
@@ -356,46 +232,25 @@ class _Tally extends StatelessWidget {
         ),
       ),
     );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              '$found',
-              style: caseMono(
-                15,
-                palette.ink,
-                weight: FontWeight.w900,
-                spacing: 0.5,
-              ),
-            ),
-            Text(
-              ' / $total  SPECIES',
-              style: caseMono(10.5, palette.muted, weight: FontWeight.w700),
-            ),
-            const Spacer(),
-            if (onOpenMilestones != null)
-              word('MILESTONES ›', false, onOpenMilestones),
-          ],
-        ),
-        if (onLayoutChanged != null)
-          Row(
-            children: [
-              word(
-                'SHELVES',
-                layout == CatalogLayout.shelves,
-                () => onLayoutChanged!(CatalogLayout.shelves),
-              ),
-              Text('·', style: caseMono(10, palette.muted)),
-              word(
-                'TABLE',
-                layout == CatalogLayout.table,
-                () => onLayoutChanged!(CatalogLayout.table),
-              ),
-            ],
+        Text(
+          '$found',
+          style: caseMono(
+            15,
+            palette.ink,
+            weight: FontWeight.w900,
+            spacing: 0.5,
           ),
+        ),
+        Text(
+          ' / $total  SPECIES',
+          style: caseMono(10.5, palette.muted, weight: FontWeight.w700),
+        ),
+        const Spacer(),
+        if (onOpenMilestones != null)
+          word('MILESTONES ›', false, onOpenMilestones),
       ],
     );
   }
@@ -445,29 +300,6 @@ class _GroupHead extends StatelessWidget {
   }
 }
 
-class _ElementHead extends StatelessWidget {
-  const _ElementHead({required this.element, required this.palette});
-
-  final String element;
-  final BracketPalette palette;
-
-  @override
-  Widget build(BuildContext context) => Row(
-    children: [
-      MarkDiamond(color: elementLight(element), size: 5),
-      const SizedBox(width: 5),
-      Flexible(
-        child: Text(
-          element.toUpperCase(),
-          maxLines: 1,
-          overflow: TextOverflow.clip,
-          style: caseMono(8, palette.muted, spacing: 0.3),
-        ),
-      ),
-    ],
-  );
-}
-
 class _Cell extends StatelessWidget {
   const _Cell({
     super.key,
@@ -476,7 +308,6 @@ class _Cell extends StatelessWidget {
     required this.palette,
     required this.faded,
     required this.onTap,
-    this.showElement = false,
     this.shadowed = false,
   });
 
@@ -485,9 +316,6 @@ class _Cell extends StatelessWidget {
   final BracketPalette palette;
   final bool faded;
   final VoidCallback onTap;
-
-  /// A small element mark in the corner — the shelves have no element rows.
-  final bool showElement;
 
   /// Drawn as its shadow even though it is found: a new species, before its
   /// sand has settled.
@@ -557,22 +385,21 @@ class _Cell extends StatelessWidget {
         child: _Shadow(species: c, dark: palette.isDark),
       );
     }
-    if (showElement) {
-      cell = Stack(
-        fit: StackFit.expand,
-        children: [
-          cell,
-          Positioned(
-            left: 5,
-            top: 5,
-            child: MarkDiamond(
-              color: caseElementLight(c).withValues(alpha: known ? 1 : 0.55),
-              size: 4.5,
-            ),
+    // A small element mark in the corner: the shelves have no element rows.
+    cell = Stack(
+      fit: StackFit.expand,
+      children: [
+        cell,
+        Positioned(
+          left: 5,
+          top: 5,
+          child: MarkDiamond(
+            color: caseElementLight(c).withValues(alpha: known ? 1 : 0.55),
+            size: 4.5,
           ),
-        ],
-      );
-    }
+        ),
+      ],
+    );
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(onTap),

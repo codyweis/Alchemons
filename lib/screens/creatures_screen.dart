@@ -68,9 +68,6 @@ class CreaturesScreenState extends State<CreaturesScreen> {
   /// The species the specimens are filtered to, picked in the catalog.
   String? _speciesFilter;
 
-  CatalogLayout _layout = CatalogLayout.shelves;
-  static const _layoutKey = 'creatures_catalog_layout';
-
   /// Bumped to clear the specimens' sort, filters and search together.
   int _clearVersion = 0;
   bool _specimensResettable = false;
@@ -94,14 +91,8 @@ class CreaturesScreenState extends State<CreaturesScreen> {
     super.didChangeDependencies();
     _settings = context.read<AlchemonsDatabase>().settingsDao;
     _bindInstanceCounts();
-    if (!_layoutRead) {
-      _layoutRead = true;
-      () async {
-        final raw = await _settings.getSetting(_layoutKey);
-        if (!mounted || raw == null) return;
-        final saved = CatalogLayout.values.where((l) => l.name == raw);
-        if (saved.isNotEmpty) setState(() => _layout = saved.first);
-      }();
+    if (!_condensedRead) {
+      _condensedRead = true;
       () async {
         final raw = await _settings.getSetting(_condensedKey);
         if (!mounted || raw == null) return;
@@ -110,7 +101,7 @@ class CreaturesScreenState extends State<CreaturesScreen> {
     }
   }
 
-  bool _layoutRead = false;
+  bool _condensedRead = false;
 
   /// Four specimens per row instead of three.
   bool _condensed = true;
@@ -119,11 +110,6 @@ class CreaturesScreenState extends State<CreaturesScreen> {
   void _toggleCondensed() {
     setState(() => _condensed = !_condensed);
     _settings.setSetting(_condensedKey, _condensed ? '1' : '0');
-  }
-
-  void _setLayout(CatalogLayout layout) {
-    setState(() => _layout = layout);
-    _settings.setSetting(_layoutKey, layout.name);
   }
 
   /// The specimens tab, filtered to [speciesId].
@@ -377,8 +363,6 @@ class CreaturesScreenState extends State<CreaturesScreen> {
                                 counts: _instanceCounts,
                                 palette: palette,
                                 accent: accent,
-                                layout: _layout,
-                                onLayoutChanged: _setLayout,
                                 query: _query,
                                 revealCreatureId: _revealCreatureId,
                                 controller: _catalogScrollCtl,
