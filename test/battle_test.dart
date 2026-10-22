@@ -193,7 +193,7 @@ void main() {
     expect(side.spots[0], 3);
   });
 
-  test('nobody left on the field loses, bench or no bench', () async {
+  test('a double fall brings the bench out; the last fall loses', () async {
     final (game, home) = await battleArena();
     final b = game.startBattle(
       home: [
@@ -206,14 +206,31 @@ void main() {
       center: home,
     );
     runBattle(game, limit: 1.0);
-    for (final c in b.sides[0].onField.toList()) {
+    final side = b.sides[0];
+    for (final c in side.onField.toList()) {
+      c.body!.currentHp = 0;
+    }
+    game.update(1 / 60);
+    expect(side.anyOnField, isFalse);
+    expect(b.over, isFalse, reason: 'the bench is still to come out');
+
+    // Both places are filled together, a moment later.
+    for (var i = 0; i < 60 && side.spots.contains(null); i++) {
+      game.update(1 / 60);
+    }
+    expect(b.over, isFalse);
+    expect(side.spots.toSet(), {2, 3});
+    expect(side.bench, isEmpty);
+
+    // The last two down: now it is over.
+    runBattle(game, limit: 1.0);
+    for (final c in side.onField.toList()) {
       c.body!.currentHp = 0;
     }
     game.update(1 / 60);
     expect(b.over, isTrue);
     expect(b.result!.winner, 1);
     expect(b.result!.end, BattleEnd.fieldEmpty);
-    expect(b.sides[0].bench.length, 2);
   });
 
   test("a Fire kin's phoenix catches its teammate, once", () async {

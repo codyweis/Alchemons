@@ -10,12 +10,14 @@ part of 'cosmic_game.dart';
 //    ready and in reach (user, later the same day: tapping them meant "too
 //    busy trying to tap it as fast as I can and not paying attention").
 //  • A fallen Alchemon's place is filled from the bench on its own, a
-//    moment after it falls, by the healthiest one there.
+//    moment after it falls, by the healthiest one there. Both falling at
+//    once brings two out together.
 //  • A player decides who their side goes for (a focus) and when to swap a
 //    living one out for one on the bench: [kBattleSwaps] a fight. It goes
 //    back with the health and special charge it had, as in survival.
-//  • A side with nobody left on the field has lost, bench or no bench: both
-//    falling at once, or the bench run out.
+//  • A side has lost when every one it brought has fallen. Both on the
+//    field falling at once no longer ends it while the bench can come out
+//    (user 2026-10-22).
 //  • Overtime, the last 30 seconds ([kBattleOvertime]): heals and shields
 //    land at less than half, and blows grow harder to the end, so two sides
 //    that cannot finish each other still do. At the limit, the side with
@@ -235,7 +237,7 @@ class BattleEvent {
   final List<int> data;
 }
 
-/// How a fight ended: a side with nobody left on the field, the time
+/// How a fight ended: a side with nobody left, field or bench, the time
 /// limit, or, live (cosmic_game_battle_live.dart), a player leaving it or
 /// the host lost.
 enum BattleEnd { fieldEmpty, timeUp, conceded, noContest }
@@ -285,7 +287,10 @@ class BattleSide {
   double _focusT = 0;
 
   double _thinkT = 0;
-  double _replaceT = 0;
+
+  /// How long each field place has stood empty with the bench able to fill
+  /// it.
+  final List<double> _emptyFor = List<double>.filled(kBattleFieldSpots, 0);
   final _WildSide _state = _WildSide();
   final List<Projectile> projectiles = CappedProjectileList();
   final Map<CosmicCompanion, _CombatBody> _bodies = {};
@@ -320,6 +325,9 @@ class BattleSide {
   }
 
   bool get anyOnField => spots.any((s) => s != null);
+
+  /// Whether anyone is left to fight, on the field or on the bench.
+  bool get anyLeft => anyOnField || bench.isNotEmpty;
 
   /// The side's health, as a share of all it brought.
   double get healthShare =>
@@ -1571,18 +1579,20 @@ extension CosmicGameBattle on CosmicGame {
   }
 
   /// Either side: a place left empty by a fall is filled from the bench a
-  /// moment later, by the healthiest one there.
+  /// moment later, by the healthiest one there. Each place keeps its own
+  /// moment, so two falling at once are both filled at once.
   void _battleReplace(BattleSide side, double dt) {
-    final empty = side.spots.indexOf(null);
-    final best = _healthiestOnBench(side);
-    if (empty < 0 || best == null) {
-      side._replaceT = 0;
-      return;
+    for (var spot = 0; spot < kBattleFieldSpots; spot++) {
+      final best = _healthiestOnBench(side);
+      if (side.spots[spot] != null || best == null) {
+        side._emptyFor[spot] = 0;
+        continue;
+      }
+      side._emptyFor[spot] += dt;
+      if (side._emptyFor[spot] < kBattleReplaceDelay) continue;
+      side._emptyFor[spot] = 0;
+      battleSummon(side.index, best, spot: spot);
     }
-    side._replaceT += dt;
-    if (side._replaceT < kBattleReplaceDelay) return;
-    side._replaceT = 0;
-    battleSummon(side.index, best, spot: empty);
   }
 
   /// The computer's side: pick a focus, and pull out a badly hurt Alchemon
@@ -1640,8 +1650,8 @@ extension CosmicGameBattle on CosmicGame {
   }
 
   void _judgeBattle(CosmicBattle b) {
-    final home = b.sides[0].anyOnField;
-    final away = b.sides[1].anyOnField;
+    final home = b.sides[0].anyLeft;
+    final away = b.sides[1].anyLeft;
     if (!home || !away) {
       b.result = BattleResult(
         winner: home ? 0 : (away ? 1 : null),

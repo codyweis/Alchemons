@@ -32,7 +32,8 @@ List<StoryBeat> get battleHowToBeats {
           'To swap, tap one on your bench, then the field card it replaces. '
           'You have $kBattleSwaps swaps a fight.\n\n'
           'When one of yours falls, the healthiest on the bench takes its '
-          'place. If both on your field are down at once, you lose.',
+          'place. If both on your field fall at once, the bench comes out. '
+          'You lose when all of yours are down.',
     ),
     StoryBeat(
       title: 'ELEMENTS',
