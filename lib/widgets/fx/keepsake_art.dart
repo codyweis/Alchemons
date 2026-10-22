@@ -18,11 +18,13 @@ import 'dart:ui' as ui;
 import 'package:alchemons/games/cosmic/obsidian_kit.dart';
 import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
+import 'package:alchemons/widgets/fx/liquid_metal.dart';
 import 'package:alchemons/widgets/stadium_trophy.dart';
 import 'package:flutter/painting.dart';
 
 part 'decor_art.dart';
 part 'athanor_decor_art.dart';
+part 'decor_silverlite_art.dart';
 
 /// What a keepsake's living part is drawn with this frame.
 class KeepsakeTime {

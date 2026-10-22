@@ -507,6 +507,8 @@ enum SoundCue {
       'crown_mirror' ||
       'prism_orrery' ||
       'reflecting_pool' => homeGlass,
+      'twin_drops' => homeGlass,
+      'silverlite_fountain' => homeWater,
       _ => null,
     };
   }

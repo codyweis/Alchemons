@@ -37,7 +37,9 @@ import 'package:provider/provider.dart';
 //
 // HOME_BIOME_SIZE=915x412 picks the screen (logical px), HOME_BIOME_ONLY=
 // valley,sky,… a subset of the sets (valley, sky, swamp, volcano, arcane,
-// weather, arrange, essence, moved).
+// weather, arrange, essence, moved, decor, athanor, silverlite).
+// HOME_BIOME_FILM=n also films the silverlite set: n frames at 1/20 s, into
+// a folder per shot.
 void main() {
   final out = Platform.environment['HOME_BIOME_OUT'];
 
@@ -167,6 +169,7 @@ void main() {
       HomeBiomeLayout layout, {
       double seconds = 2.5,
       Future<void> Function()? then,
+      int film = 0,
     }) async {
       await tester.runAsync(() => layout.save(db.settingsDao));
       await tester.pumpWidget(
@@ -199,14 +202,22 @@ void main() {
         await then();
         await settle(14);
       }
-      await tester.runAsync(() async {
+      Future<void> grab(String path) => tester.runAsync(() async {
         final boundary =
             key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
         final image = await boundary.toImage(pixelRatio: 2);
         final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
-        File('$out/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+        File(path).writeAsBytesSync(bytes!.buffer.asUint8List());
         image.dispose();
       });
+      await grab('$out/$name.png');
+      if (film > 0) {
+        Directory('$out/$name').createSync(recursive: true);
+        for (var f = 0; f < film; f++) {
+          await settle(1, ms: 50);
+          await grab('$out/$name/f${f.toString().padLeft(4, '0')}.png');
+        }
+      }
       await tester.pumpWidget(const SizedBox());
       await settle(2);
     }
@@ -652,6 +663,54 @@ void main() {
           'decor_${i}_${realm.name}_${hour.round()}${wx ?? ''}',
           layout,
           seconds: 6,
+        );
+      }
+    }
+
+    if (wants('silverlite')) {
+      // The Silverlite decor stood about the household: a drop either
+      // side, the twin drops, and the fountain — at dusk and by night.
+      const pieces = <(String, double, bool)>[
+        ('silverlite_drop#0', 0.03, false),
+        ('silverlite_fountain#0', 0.115, false),
+        ('twin_drops#0', 0.21, false),
+        ('silverlite_drop#1', 0.29, false),
+        ('twin_drops#1', 0.16, true),
+      ];
+      const resting = [
+        HomeResident(instanceId: 'fire_horn', x: 0.07),
+        HomeResident(instanceId: 'water_pip', x: 0.25, flip: true),
+        HomeResident(
+          instanceId: 'plant_let',
+          x: 0.08,
+          depth: HomeDepth.back,
+        ),
+        HomeResident(instanceId: 'air_wing', x: 0.18, lift: 0.3),
+      ];
+      final film =
+          int.tryParse(Platform.environment['HOME_BIOME_FILM'] ?? '') ?? 0;
+      for (final (realm, hour) in const [
+        (HomeRealm.valley, 18.8),
+        (HomeRealm.valley, 22.5),
+        (HomeRealm.arcane, 23.0),
+      ]) {
+        final layout = base
+            .copyWith(realm: realm, hour: () => hour, residents: resting)
+            .withPlaced([
+              ...realm.defaultPieces,
+              for (final (id, x, back) in pieces)
+                HomePiece(
+                  id: id,
+                  kind: id.split('#').first,
+                  x: x,
+                  depth: back ? HomeDepth.back : HomeDepth.front,
+                ),
+            ]);
+        await shoot(
+          'silverlite_${realm.name}_${hour.round()}',
+          layout,
+          seconds: 6,
+          film: film,
         );
       }
     }

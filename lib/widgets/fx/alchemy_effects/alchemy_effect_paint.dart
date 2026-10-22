@@ -23,6 +23,7 @@ import 'package:alchemons/models/celebration_costume.dart';
 import 'package:alchemons/widgets/fx/costume_paint.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
+import 'package:alchemons/widgets/fx/liquid_metal.dart';
 import 'package:flutter/painting.dart';
 
 part 'alchemy_glow.dart';

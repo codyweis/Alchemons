@@ -157,6 +157,19 @@ class HomeDecor {
       aloft: true,
       styles: ['AMBER', 'ROSE', 'FROST'],
     ),
+    // Silverlite: liquid metal, as the Quicksilver aura is (user
+    // 2026-10-22: "i really like the animation of the quicksilver blobs";
+    // "change it to silverlite as the name"). 25 gold where several can be
+    // had, a Wonder's 150 where one can.
+    HomeDecor(
+      'silverlite_drop',
+      'Silverlite Drop',
+      'A ball of liquid silver over a dark dish. It drips, and the drops rise '
+          'back into it.',
+      tier: DecorTier.curio,
+      gold: 25,
+      max: 4,
+    ),
     // ── Living Pieces ──
     HomeDecor(
       'wind_chimes',
@@ -215,6 +228,15 @@ class HomeDecor {
       gold: 10,
       max: 3,
     ),
+    HomeDecor(
+      'twin_drops',
+      'Twin Drops',
+      'Two balls of liquid silver that drift together, become one and part '
+          'again. Alchemons look at themselves in them.',
+      tier: DecorTier.living,
+      gold: 25,
+      max: 2,
+    ),
     // ── Wonders ──
     HomeDecor(
       'hot_spring',
@@ -253,6 +275,15 @@ class HomeDecor {
       'reflecting_pool',
       'Reflecting Pool',
       'Still water. An Alchemon who looks in sees itself.',
+      tier: DecorTier.wonder,
+      gold: 150,
+      wide: 1.6,
+    ),
+    HomeDecor(
+      'silverlite_fountain',
+      'Silverlite Fountain',
+      'A basin of liquid silver. A column of it rises, swells into a ball and '
+          'falls back in drops. Alchemons gather to watch.',
       tier: DecorTier.wonder,
       gold: 150,
       wide: 1.6,

@@ -13,49 +13,9 @@ part of 'alchemy_effect_paint.dart';
 /// a cool drip ball animation instead"; then "a little more liquidy
 /// looking".)
 ///
-/// The ball's skin is laid each frame (48 points, closest at the drip) and
-/// filled with unit shaders moved onto it; the beads and grains are atlas
-/// sprites.
+/// The ball is liquid metal (liquid_metal.dart), shared with the home's
+/// Silverlite decor; the beads and grains are atlas sprites.
 abstract final class _Quicksilver {
-  /// Liquid chrome on the unit disc, as a ball of mirror gives the world
-  /// back: the sky dim overhead and brightest just above a hard horizon,
-  /// the horizon bowed round the ball (the gradient's middle is far above
-  /// it), the dark ground under it, and that ground's light along the
-  /// underside.
-  static final Shader _chrome = ui.Gradient.radial(
-    const Offset(0, -2.6),
-    3.6,
-    const [
-      Color(0xFF4A5362),
-      Color(0xFF5E6878),
-      Color(0xFFDCE3EC),
-      Color(0xFFEEF2F7),
-      Color(0xFF151920),
-      Color(0xFF20252C),
-      Color(0xFF8D99A9),
-      Color(0xFFB9C4D2),
-    ],
-    const [0.0, 0.444, 0.7, 0.728, 0.738, 0.85, 0.96, 1.0],
-  );
-
-  /// Its roundness: the mirror darkening toward the edge, where it turns
-  /// away.
-  static final Shader _depth = ui.Gradient.radial(
-    Offset.zero,
-    1,
-    const [
-      Color(0x00101318),
-      Color(0x00101318),
-      Color(0x30101318),
-      Color(0x70101318),
-    ],
-    const [0.0, 0.55, 0.85, 1.0],
-  );
-
-  static final Paint _paint = Paint()..isAntiAlias = true;
-  static final Path _unit = Path()
-    ..addOval(Rect.fromCircle(center: Offset.zero, radius: 1));
-
   /// Seconds between drips.
   static const double _period = 3.0;
 
@@ -68,127 +28,6 @@ abstract final class _Quicksilver {
   /// How far below the ball's middle the bulb hangs as it lets go, and how
   /// big it is then, in the ball's radii.
   static const double _letGo = 1.85, _drop = 0.3;
-
-  static const int _n = 48;
-  static final Float64List _ux = Float64List(_n), _uy = Float64List(_n);
-  static final Float64List _ex = Float64List(_n), _ey = Float64List(_n);
-  static final Path _plain = Path(), _seen = Path();
-
-  /// Where the skin's points sit round it, laid once: each one's angle, and
-  /// how far that is from straight down (the drip), crowding toward it.
-  static final Float64List _dist = Float64List.fromList([
-    for (var i = 0; i < _n; i++)
-      math.pi * math.pow((-1 + 2 * i / _n).abs(), 1.6).toDouble(),
-  ]);
-  static final Float64List _angle = Float64List.fromList([
-    for (var i = 0; i < _n; i++)
-      math.pi / 2 + (2 * i < _n ? -_dist[i] : _dist[i]),
-  ]);
-
-  /// [xs], [ys] joined into a smooth closed outline in [path].
-  static Path _close(Path path, Float64List xs, Float64List ys) {
-    final n = xs.length;
-    path.moveTo((xs[n - 1] + xs[0]) / 2, (ys[n - 1] + ys[0]) / 2);
-    for (var i = 0; i < n; i++) {
-      final j = (i + 1) % n;
-      path.quadraticBezierTo(
-        xs[i],
-        ys[i],
-        (xs[i] + xs[j]) / 2,
-        (ys[i] + ys[j]) / 2,
-      );
-    }
-    return path..close();
-  }
-
-  /// The ball's skin at [t] on the unit disc: waves running round it, the
-  /// drip [sag]ging out of its underside [width] round (radians), and a
-  /// [shake] that squashes it wide or tall. Laid twice: as it is
-  /// ([_plain]), and as its mirror sees it, turned back by [tilt] and
-  /// lowered by [lift] ([_seen]), so the reflection can slosh while the
-  /// skin stays put. The points crowd toward the drip, so a thin neck is
-  /// still smooth.
-  static void _skin(
-    double t,
-    double sag,
-    double width,
-    double shake,
-    double tilt,
-    double lift,
-  ) {
-    final ct = math.cos(tilt), st = math.sin(tilt);
-    for (var i = 0; i < _n; i++) {
-      final d = _dist[i], a = _angle[i];
-      var rr =
-          1 +
-          0.045 * math.sin(2 * a + t * 1.7) +
-          0.03 * math.sin(3 * a - t * 2.3 + 1) +
-          0.018 * math.sin(5 * a + t * 3.1 + 2) +
-          shake * math.cos(2 * a);
-      if (d < width) {
-        final q = 1 - (d / width) * (d / width);
-        rr += sag * q * q;
-      }
-      final x = math.cos(a) * rr, y = math.sin(a) * rr;
-      _ux[i] = x;
-      _uy[i] = y;
-      _ex[i] = x * ct + y * st;
-      _ey[i] = -x * st + y * ct - lift;
-    }
-    _close(_plain..reset(), _ux, _uy);
-    _close(_seen..reset(), _ex, _ey);
-  }
-
-  /// Liquid metal [rad] round at ([x], [y]): [seen] in the chrome, its
-  /// reflection turned [tilt] and raised [lift], [plain] darkened toward
-  /// its edge, and the sky's highlight riding on it.
-  static void _metal(
-    Canvas c,
-    double x,
-    double y,
-    double rad,
-    Path plain,
-    Path seen,
-    double tilt,
-    double lift,
-    double o,
-  ) {
-    if (rad <= 0.3) return;
-    c.save();
-    c.translate(x, y);
-    c.scale(rad, rad);
-    c.save();
-    c.rotate(tilt);
-    c.translate(0, lift);
-    _paint
-      ..shader = _chrome
-      ..color = Color.fromRGBO(0, 0, 0, o);
-    c.drawPath(seen, _paint);
-    c.restore();
-    _paint.shader = _depth;
-    c.drawPath(plain, _paint);
-    c.restore();
-    // The sky's highlight, high on the lit side, moving as the metal does.
-    final hx = -0.36 + 0.12 * tilt, hy = -0.46 - 0.3 * lift;
-    _pool(
-      c,
-      x + rad * hx,
-      y + rad * hy,
-      rad * 0.4,
-      rad * 0.24,
-      const Color(0xFFFFFFFF),
-      0.55 * o,
-    );
-    _pool(
-      c,
-      x + rad * hx,
-      y + rad * hy,
-      rad * 0.15,
-      rad * 0.09,
-      const Color(0xFFFFFFFF),
-      0.9 * o,
-    );
-  }
 
   /// A bead [br] in radius resting on the ground at ([x], [y]).
   static void _bead(double x, double y, double br, double o) {
@@ -321,9 +160,31 @@ abstract final class _Quicksilver {
 
     // The bulb first, so the neck runs into it, then the ball.
     if (bulb > 0) {
-      _metal(c, bx, by + br * bulbAt, br * bulb, _unit, _unit, tilt, 0, o);
+      LiquidMetal.sphere(
+        c,
+        Offset(bx, by + br * bulbAt),
+        br * bulb,
+        tilt: tilt,
+        opacity: o,
+      );
     }
-    _skin(t, sag, width, shake, tilt, lift);
-    _metal(c, bx, by, br, _plain, _seen, tilt, lift, o);
+    LiquidMetal.skin(
+      t,
+      sag: sag,
+      width: width,
+      shake: shake,
+      tilt: tilt,
+      lift: lift,
+    );
+    LiquidMetal.paint(
+      c,
+      Offset(bx, by),
+      br,
+      LiquidMetal.plain,
+      LiquidMetal.seen,
+      tilt: tilt,
+      lift: lift,
+      opacity: o,
+    );
   }
 }

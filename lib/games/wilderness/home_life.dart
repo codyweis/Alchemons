@@ -182,6 +182,10 @@ const _visits = <String, _Visit>{
   'stage': _Visit(_Do.perform, seconds: 9, beat: 0.7),
   'orrery': _Visit(_Do.climb, seconds: 13, elements: {'Crystal', 'Light'}),
   'reflecting_pool': _Visit(_Do.preen, seconds: 7, elements: {'Water', 'Dark'}),
+  // Silverlite: they look at themselves in the twin drops, and gather to
+  // watch the fountain.
+  'twin_drops': _Visit(_Do.preen, seconds: 6, elements: {'Water', 'Crystal'}),
+  'silverlite_fountain': _Visit(_Do.look, seconds: 9, elements: {'Water', 'Crystal'}),
   // Drawn at the Athanor (HomeDecor.athanor). Its Curios are only to look at.
   'ash_brazier': _Visit(_Do.warm, seconds: 9, night: true, elements: {'Dark', 'Poison'}),
   'nightbloom_bed': _Visit(_Do.climb, seconds: 6, night: true, bed: true, elements: {'Dark', 'Poison', 'Spirit'}),
@@ -206,6 +210,7 @@ const _stillDecor = {
   'banner',
   'planter',
   'sky_lanterns',
+  'silverlite_drop',
   'flyer_perch',
   'moth_lantern',
   'inkcap_cluster',

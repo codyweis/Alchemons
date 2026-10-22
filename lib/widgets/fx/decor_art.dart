@@ -12,6 +12,7 @@ KeepsakeArt? _decorArt(String id, int style) => switch (id) {
   'banner' => _Banner(style),
   'planter' => _Planter(style),
   'sky_lanterns' => _SkyLanterns(style),
+  'silverlite_drop' => _SilverliteDrop(),
   'wind_chimes' => _WindChimes(),
   'fountain' => _Fountain(),
   'rest_nest' => _RestNest(),
@@ -19,11 +20,13 @@ KeepsakeArt? _decorArt(String id, int style) => switch (id) {
   'swing' => _Swing(),
   'canopy' => _Canopy(),
   'mushroom_ring' => _MushroomRing(),
+  'twin_drops' => _TwinDrops(),
   'hot_spring' => _HotSpring(),
   'elder_tree' => _ElderTree(),
   'stage' => _Stage(),
   'orrery' => _Orrery(),
   'reflecting_pool' => _ReflectingPool(),
+  'silverlite_fountain' => _SilverliteFountain(),
   _ => null,
 };
 
