@@ -185,7 +185,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'white.quicksilver',
         name: 'Quicksilver',
         description:
-            'An Alchemon stands in a pool of liquid silver, with beads of it rolling around.',
+            'A ball of liquid silver hangs beside an Alchemon and drips. The drops break into beads that rise back into it.',
         kind: AthanorPieceKind.alchemyEffect,
         rarity: AthanorRarity.rare,
         grantRef: InvKeys.alchemyQuicksilver,
@@ -450,7 +450,7 @@ const List<AthanorBatch> kAthanorBatches = [
       id: 'red.red_king_crown',
       name: 'Garnet Crown',
       description:
-          'A crown of dark gold and garnets over a velvet cap. Worn in place of the party hat.',
+          'A crown of dark gold and garnets over a velvet cap.',
       kind: AthanorPieceKind.costume,
       rarity: AthanorRarity.epic,
       grantRef: InvKeys.alchemyRedKingCrown,
@@ -541,7 +541,7 @@ const List<AthanorBatch> kAthanorBatches = [
         id: 'still.brass_monocle',
         name: 'Brass Monocle',
         description:
-            'A brass monocle on a chain of brass beads. Worn in place of the sunglasses.',
+            'A brass monocle on a chain of brass beads.',
         kind: AthanorPieceKind.costume,
         rarity: AthanorRarity.epic,
         grantRef: InvKeys.alchemyBrassMonocle,

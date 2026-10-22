@@ -1,55 +1,94 @@
 part of 'alchemy_effect_paint.dart';
 
-/// QUICKSILVER (the Athanor, the White Work) — the creature stands in a
-/// pool of liquid silver. Its far edge gives back the sky, its body is dark
-/// mirror, and a highlight slides slowly over it; beads of it roll in from
-/// round the pool and are taken back into it, and now and then a drop
-/// lifts off the surface, hangs, and falls back with a ripple. Mercury is
-/// known by its beads, so they lead: a few big ones only shiver where they
-/// lie.
+/// QUICKSILVER (the Athanor, the White Work) — a ball of liquid silver
+/// hangs at the creature's shoulder, bobbing. It is never quite round:
+/// waves run round its skin, and the sky, a hard horizon and the dark
+/// ground it gives back slosh inside it. A drip sags out of its underside,
+/// draws out into a neck with a bulb on the end and pinches off, and the
+/// ball jiggles back round; the drop falls, quick and heavy, and breaks on
+/// the ground into beads that skitter and settle. Then each bead goes back
+/// up as fine silver grains, rising into the ball again, so the metal
+/// keeps coming round. (User 2026-10-22: the old pool at the feet was
+/// "kind of static when worn"; "removed the bottom pool part and just did
+/// a cool drip ball animation instead"; then "a little more liquidy
+/// looking".)
 ///
-/// The pools are cached unit outlines; the beads are atlas sprites (one
-/// pass behind the creature, one in front).
+/// The ball's skin is laid each frame (48 points, closest at the drip) and
+/// filled with unit shaders moved onto it; the beads and grains are atlas
+/// sprites.
 abstract final class _Quicksilver {
-  /// A mirror lying flat: its far half gives back the sky (bright, cool),
-  /// a hard horizon, then the dark of the ground it reflects, lightening
-  /// again toward the near edge where it gives back the sky at a slant.
-  static final Shader _surface = ui.Gradient.linear(
-    const Offset(0, -1),
-    const Offset(0, 1),
+  /// Liquid chrome on the unit disc, as a ball of mirror gives the world
+  /// back: the sky dim overhead and brightest just above a hard horizon,
+  /// the horizon bowed round the ball (the gradient's middle is far above
+  /// it), the dark ground under it, and that ground's light along the
+  /// underside.
+  static final Shader _chrome = ui.Gradient.radial(
+    const Offset(0, -2.6),
+    3.6,
     const [
-      Color(0xFFF2F5FA),
-      Color(0xFFC4CDD9),
-      Color(0xFF8C97A6),
-      Color(0xFF2C323C),
-      Color(0xFF20252D),
-      Color(0xFF5E6876),
-      Color(0xFFB4BECB),
+      Color(0xFF4A5362),
+      Color(0xFF5E6878),
+      Color(0xFFDCE3EC),
+      Color(0xFFEEF2F7),
+      Color(0xFF151920),
+      Color(0xFF20252C),
+      Color(0xFF8D99A9),
+      Color(0xFFB9C4D2),
     ],
-    const [0.0, 0.18, 0.4, 0.47, 0.7, 0.9, 1.0],
+    const [0.0, 0.444, 0.7, 0.728, 0.738, 0.85, 0.96, 1.0],
+  );
+
+  /// Its roundness: the mirror darkening toward the edge, where it turns
+  /// away.
+  static final Shader _depth = ui.Gradient.radial(
+    Offset.zero,
+    1,
+    const [
+      Color(0x00101318),
+      Color(0x00101318),
+      Color(0x30101318),
+      Color(0x70101318),
+    ],
+    const [0.0, 0.55, 0.85, 1.0],
   );
 
   static final Paint _paint = Paint()..isAntiAlias = true;
-  static final Paint _flat = Paint()..isAntiAlias = true;
+  static final Path _unit = Path()
+    ..addOval(Rect.fromCircle(center: Offset.zero, radius: 1));
 
-  /// A pool's outline on the unit disc, lobed where it has run.
-  static Path _pond(int seed, double lobes) {
-    const n = 28;
-    final k = seed * 1.7;
-    final xs = Float64List(n), ys = Float64List(n);
-    for (var i = 0; i < n; i++) {
-      final a = i / n * math.pi * 2;
-      final rr =
-          1 +
-          lobes *
-              (0.13 * math.sin(2 * a + 0.6 + k) +
-                  0.08 * math.sin(3 * a + 2.1 + k) +
-                  0.04 * math.sin(5 * a));
-      xs[i] = math.cos(a) * rr;
-      ys[i] = math.sin(a) * rr;
-    }
-    final path = Path()
-      ..moveTo((xs[n - 1] + xs[0]) / 2, (ys[n - 1] + ys[0]) / 2);
+  /// Seconds between drips.
+  static const double _period = 3.0;
+
+  /// Where in a drip's [_period] it pinches off.
+  static const double _pinch = 0.62;
+
+  /// Seconds a drop takes to fall: heavy, so quick.
+  static const double _fall = 0.42;
+
+  /// How far below the ball's middle the bulb hangs as it lets go, and how
+  /// big it is then, in the ball's radii.
+  static const double _letGo = 1.85, _drop = 0.3;
+
+  static const int _n = 48;
+  static final Float64List _ux = Float64List(_n), _uy = Float64List(_n);
+  static final Float64List _ex = Float64List(_n), _ey = Float64List(_n);
+  static final Path _plain = Path(), _seen = Path();
+
+  /// Where the skin's points sit round it, laid once: each one's angle, and
+  /// how far that is from straight down (the drip), crowding toward it.
+  static final Float64List _dist = Float64List.fromList([
+    for (var i = 0; i < _n; i++)
+      math.pi * math.pow((-1 + 2 * i / _n).abs(), 1.6).toDouble(),
+  ]);
+  static final Float64List _angle = Float64List.fromList([
+    for (var i = 0; i < _n; i++)
+      math.pi / 2 + (2 * i < _n ? -_dist[i] : _dist[i]),
+  ]);
+
+  /// [xs], [ys] joined into a smooth closed outline in [path].
+  static Path _close(Path path, Float64List xs, Float64List ys) {
+    final n = xs.length;
+    path.moveTo((xs[n - 1] + xs[0]) / 2, (ys[n - 1] + ys[0]) / 2);
     for (var i = 0; i < n; i++) {
       final j = (i + 1) % n;
       path.quadraticBezierTo(
@@ -62,87 +101,93 @@ abstract final class _Quicksilver {
     return path..close();
   }
 
-  /// The main pool, then the three little ones that have run off it.
-  static final List<Path> _ponds = [
-    _pond(0, 1.5),
-    _pond(3, 0.6),
-    _pond(5, 0.5),
-    _pond(7, 0.4),
-  ];
+  /// The ball's skin at [t] on the unit disc: waves running round it, the
+  /// drip [sag]ging out of its underside [width] round (radians), and a
+  /// [shake] that squashes it wide or tall. Laid twice: as it is
+  /// ([_plain]), and as its mirror sees it, turned back by [tilt] and
+  /// lowered by [lift] ([_seen]), so the reflection can slosh while the
+  /// skin stays put. The points crowd toward the drip, so a thin neck is
+  /// still smooth.
+  static void _skin(
+    double t,
+    double sag,
+    double width,
+    double shake,
+    double tilt,
+    double lift,
+  ) {
+    final ct = math.cos(tilt), st = math.sin(tilt);
+    for (var i = 0; i < _n; i++) {
+      final d = _dist[i], a = _angle[i];
+      var rr =
+          1 +
+          0.045 * math.sin(2 * a + t * 1.7) +
+          0.03 * math.sin(3 * a - t * 2.3 + 1) +
+          0.018 * math.sin(5 * a + t * 3.1 + 2) +
+          shake * math.cos(2 * a);
+      if (d < width) {
+        final q = 1 - (d / width) * (d / width);
+        rr += sag * q * q;
+      }
+      final x = math.cos(a) * rr, y = math.sin(a) * rr;
+      _ux[i] = x;
+      _uy[i] = y;
+      _ex[i] = x * ct + y * st;
+      _ey[i] = -x * st + y * ct - lift;
+    }
+    _close(_plain..reset(), _ux, _uy);
+    _close(_seen..reset(), _ex, _ey);
+  }
 
-  /// The near edge's bright meniscus, on the unit pool.
-  static final Path _meniscus = vfxCrescent(
-    const Offset(0, -0.2),
-    1.12,
-    0.16,
-    math.pi / 2,
-    2.3,
-  );
-
-  /// A ripple's near and far halves, at unit radius.
-  static final Path _rippleNear = vfxCrescent(
-    Offset.zero,
-    1,
-    0.11,
-    math.pi / 2,
-    math.pi * 1.5,
-  );
-  static final Path _rippleFar = vfxCrescent(
-    Offset.zero,
-    1,
-    0.08,
-    -math.pi / 2,
-    math.pi * 0.9,
-  );
-
-  /// One pool of the metal, centred at ([x], [y]), [rx] by [ry]. Its edge
-  /// shivers a little as the metal does.
-  static void _puddle(
+  /// Liquid metal [rad] round at ([x], [y]): [seen] in the chrome, its
+  /// reflection turned [tilt] and raised [lift], [plain] darkened toward
+  /// its edge, and the sky's highlight riding on it.
+  static void _metal(
     Canvas c,
-    int which,
     double x,
     double y,
-    double rx,
-    double ry,
-    double t,
-    double o, {
-    int streaks = 0,
-    bool meniscus = false,
-  }) {
-    final shiver = 1 + 0.018 * math.sin(t * 2.3 + which * 1.9);
+    double rad,
+    Path plain,
+    Path seen,
+    double tilt,
+    double lift,
+    double o,
+  ) {
+    if (rad <= 0.3) return;
     c.save();
     c.translate(x, y);
-    c.scale(rx * shiver, ry * (2 - shiver));
-    final pond = _ponds[which];
+    c.scale(rad, rad);
+    c.save();
+    c.rotate(tilt);
+    c.translate(0, lift);
     _paint
-      ..shader = _surface
+      ..shader = _chrome
       ..color = Color.fromRGBO(0, 0, 0, o);
-    c.drawPath(pond, _paint);
-    if (streaks > 0 || meniscus) {
-      c.clipPath(pond);
-      // Light sliding over it, and the near edge's bright meniscus.
-      for (var i = 0; i < streaks; i++) {
-        // Sliding across and fading at either end, so it never pops in.
-        final f = _frac(t / (9 + i * 5) + i * 0.43);
-        final fade = math.sin(math.pi * f);
-        c.drawOval(
-          Rect.fromCenter(
-            center: Offset(-1.4 + f * 2.8, -0.5 + i * 0.62),
-            width: 0.8 - i * 0.3,
-            height: 0.09,
-          ),
-          _flat
-            ..color = Color.fromRGBO(255, 255, 255, (0.7 - i * 0.3) * fade * o),
-        );
-      }
-      if (meniscus) {
-        c.drawPath(
-          _meniscus,
-          _flat..color = Color.fromRGBO(235, 242, 252, 0.5 * o),
-        );
-      }
-    }
+    c.drawPath(seen, _paint);
     c.restore();
+    _paint.shader = _depth;
+    c.drawPath(plain, _paint);
+    c.restore();
+    // The sky's highlight, high on the lit side, moving as the metal does.
+    final hx = -0.36 + 0.12 * tilt, hy = -0.46 - 0.3 * lift;
+    _pool(
+      c,
+      x + rad * hx,
+      y + rad * hy,
+      rad * 0.4,
+      rad * 0.24,
+      const Color(0xFFFFFFFF),
+      0.55 * o,
+    );
+    _pool(
+      c,
+      x + rad * hx,
+      y + rad * hy,
+      rad * 0.15,
+      rad * 0.09,
+      const Color(0xFFFFFFFF),
+      0.9 * o,
+    );
   }
 
   /// A bead [br] in radius resting on the ground at ([x], [y]).
@@ -162,92 +207,123 @@ abstract final class _Quicksilver {
     bool dark,
     bool front,
   ) {
-    final cx = at.dx, fy = at.dy + r * 0.64;
-    final rx = r * 0.64, ry = r * 0.15;
+    final fy = at.dy + r * 0.64;
+    // The ball, beside the creature at its shoulder, bobbing.
+    final bx = at.dx + r * 0.74;
+    final by = at.dy - r * 0.36 + r * 0.035 * math.sin(t * 2.1);
+    final br = r * 0.14;
+
     if (!front) {
-      // Cold light round it, then the pool and the little ones that have
-      // run off it.
-      _pool(c, cx, fy, r * 1.15, ry * 2.6, const Color(0xFFB4C8E0), 0.2 * o);
-      _puddle(c, 1, cx + rx * 1.25, fy + ry * 0.6, rx * 0.2, ry * 0.36, t, o);
-      _puddle(c, 2, cx - rx * 1.32, fy + ry * 0.25, rx * 0.15, ry * 0.3, t, o);
-      _puddle(c, 3, cx - rx * 0.9, fy + ry * 1.25, rx * 0.1, ry * 0.22, t, o);
-      _puddle(c, 0, cx, fy, rx, ry, t, o, streaks: 2, meniscus: true);
+      // The ground's faint light under the ball.
+      _pool(c, bx, fy, r * 0.3, r * 0.06, const Color(0xFFB4C8E0), 0.18 * o);
+      return;
     }
 
-    // Drops lifting off the surface and falling back, and the ripple where
-    // each lands (on the silver, so always behind).
+    final cyc = t / _period;
+    final now = cyc.floor();
+    final u = cyc - now;
+
+    // The drip now: the underside sagging (to 0.45), then drawn out into
+    // a neck with the bulb coming out below it (to the pinch); after, the
+    // neck snapping back up, and the ball jiggling round.
+    double sag, width, shake, bulbAt = 0, bulb = 0;
+    if (u < 0.45) {
+      final g = _smooth(0.0, 0.45, u);
+      sag = 0.4 * g;
+      width = 0.95 - 0.25 * g;
+      shake = 0;
+    } else if (u < _pinch) {
+      final p = _smooth(0.45, _pinch, u);
+      sag = 0.4 + 0.2 * p;
+      width = 0.7 - 0.5 * p;
+      shake = -0.04 * p;
+      bulb = 0.34 - (0.34 - _drop) * p;
+      bulbAt = 1.06 + (_letGo - 1.06) * p;
+    } else {
+      final s = (u - _pinch) * _period;
+      sag = 0.6 * math.exp(-9 * s) * math.cos(15 * s);
+      width = 0.2 + 0.5 * _smooth(0.0, 0.3, s);
+      shake = -0.04 * math.exp(-4 * s) * math.cos(14 * s);
+    }
+    // The reflection sloshing inside it.
+    final tilt = 0.25 * math.sin(t * 1.1);
+    final lift = 0.08 * math.sin(t * 1.9);
+
     _Atlas.clear();
-    for (var i = 0; i < 3; i++) {
-      final period = 6 + 3 * _h(i, 51);
-      final u = _frac(t / period + _h(i, 52));
-      final a = _h(i, 53) * math.pi * 2;
-      final near = math.sin(a) > 0;
-      final bx = cx + math.cos(a) * rx * 0.62;
-      final by = fy + math.sin(a) * ry * 0.62;
-      if (near == front && u < 0.75) {
-        // Up slowly (0–0.5), hanging (–0.62), falling (–0.75).
-        final double lift;
-        if (u < 0.5) {
-          lift = _smooth(0.0, 0.5, u);
-        } else if (u < 0.62) {
-          lift = 1 + 0.03 * math.sin((u - 0.5) * 50);
-        } else {
-          final g = (u - 0.62) / 0.13;
-          lift = 1 - g * g;
+    // The drops already let go — falling, then beads on the ground going
+    // back up as grains — from this drip and the two before it.
+    for (var k = 0; k < 3; k++) {
+      final n = now - k;
+      final since = t - (n + _pinch) * _period;
+      if (since < 0) continue;
+      final seed = n * 7;
+      if (since < _fall) {
+        // Falling: quickening, with a faint trail above it.
+        final y0 = by + br * _letGo;
+        for (var j = 2; j >= 0; j--) {
+          final g = (since / _fall - j * 0.06).clamp(0.0, 1.0);
+          _bead(
+            bx,
+            y0 + (fy - y0) * g * g,
+            br * _drop * (1 - j * 0.25),
+            o * (1 - j * 0.35),
+          );
         }
-        // Swelling as it lifts, and taken back into the pool as it lands.
-        final br =
-            r * 0.045 * _smooth(0.0, 0.12, u) * (1 - _smooth(0.7, 0.75, u));
-        _bead(bx, by - lift * r * 0.55, br, o);
+        continue;
       }
-      if (!front && u > 0.75 && u < 0.98) {
-        final g = (u - 0.75) / 0.23;
-        final fade = (1 - g) * (1 - g);
-        final rr = r * (0.04 + 0.22 * g);
-        c.save();
-        c.translate(bx, by);
-        c.scale(rr, rr * 0.26);
-        c.drawPath(
-          _rippleNear,
-          _flat..color = Color.fromRGBO(235, 242, 250, 0.5 * fade * o),
+      // On the ground: it breaks into beads that skitter out and settle,
+      // and after a while each goes up as grains into the ball.
+      final s = since - _fall;
+      if (s < 0.6) {
+        _pool(
+          c,
+          bx,
+          fy,
+          r * 0.22,
+          r * 0.05,
+          const Color(0xFFC8D6E8),
+          0.4 * (1 - s / 0.6) * o,
         );
-        c.drawPath(
-          _rippleFar,
-          _flat..color = Color.fromRGBO(235, 242, 250, 0.3 * fade * o),
-        );
-        c.restore();
       }
-    }
-
-    // Beads all round on the ground, rolling slowly in and taken back into
-    // the pool. A few big ones only shiver where they lie.
-    for (var i = 0; i < 16; i++) {
-      final big = i < 4;
-      final a = _h(i, 41) * math.pi * 2 + t * 0.04 * (_h(i, 42) - 0.5);
-      final near = math.sin(a) > 0;
-      if (near != front) continue;
-      final double d, grow;
-      if (big) {
-        d = 1.3 + 0.4 * _h(i, 46);
-        grow = 1 + 0.04 * math.sin(t * 3 + i);
-      } else {
-        final period = 6 + 5 * _h(i, 43);
-        final u = _frac(t / period + _h(i, 44));
-        d = 2.1 - 1.1 * _smooth(0.0, 0.9, u);
-        grow = _smooth(0.0, 0.12, u) * (1 - _smooth(0.85, 1.0, u));
+      for (var j = 0; j < 4; j++) {
+        final dir = (_h(seed + j, 91) - 0.5) * 2;
+        final reach = r * (0.08 + 0.22 * _h(seed + j, 92));
+        final out = 1 - math.exp(-s * 5);
+        final hop = s < 0.25 ? r * 0.05 * 4 * (s / 0.25) * (1 - s / 0.25) : 0.0;
+        final x = bx + dir * reach * out;
+        final y = fy + (_h(seed + j, 93) - 0.5) * r * 0.08 * out;
+        final size = r * (0.018 + 0.02 * _h(seed + j, 94));
+        // Going up from 1.4 s, each in its own time, over 1.6 s.
+        final up = _smooth(0.0, 1.6, s - 1.4 - 0.4 * _h(seed + j, 95));
+        _bead(x, y - hop, size * (1 - up), o);
+        if (up <= 0 || up >= 1) continue;
+        // Each bead's grains rise on an arc of its own, bowed out to its
+        // side by its own amount, so they never stand in a column.
+        final bow = r * (0.12 + 0.2 * _h(seed + j, 96)) * (dir < 0 ? -1 : 1);
+        for (var q = 0; q < 3; q++) {
+          final f = (up * 1.4 - q * 0.2).clamp(0.0, 1.0);
+          if (f <= 0 || f >= 1) continue;
+          final e = 1 - f;
+          _Atlas.add(
+            x * e * e +
+                (x + bow) * 2 * e * f +
+                bx * f * f +
+                math.sin(f * 9 + q * 2.3) * r * 0.025,
+            y * e * e + (y + by) * e * f + (by + br * 0.6) * f * f,
+            r * 0.05,
+            0xDCE4EE,
+            0.7 * math.sin(math.pi * f) * o,
+          );
+        }
       }
-      final br =
-          r * (big ? 0.06 + 0.03 * _h(i, 45) : 0.022 + 0.03 * _h(i, 45)) * grow;
-      // The ground is seen at a slant: the far side of it close behind the
-      // pool, so no bead seems to hang in the air beside the creature.
-      final sa = math.sin(a);
-      _bead(
-        cx + math.cos(a) * rx * d,
-        fy + sa * ry * d * (sa < 0 ? 0.8 : 1.3),
-        br,
-        o,
-      );
     }
     _Atlas.draw(c, additive: false);
+
+    // The bulb first, so the neck runs into it, then the ball.
+    if (bulb > 0) {
+      _metal(c, bx, by + br * bulbAt, br * bulb, _unit, _unit, tilt, 0, o);
+    }
+    _skin(t, sag, width, shake, tilt, lift);
+    _metal(c, bx, by, br, _plain, _seen, tilt, lift, o);
   }
 }

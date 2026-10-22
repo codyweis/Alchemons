@@ -953,8 +953,9 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.alchemyQuicksilver,
       name: 'Quicksilver',
       description:
-          'One of your Alchemons stands in a pool of liquid silver, with '
-          'beads of it rolling around. From the Furnace.',
+          'A ball of liquid silver hangs beside one of your Alchemons and '
+          'drips. The drops break into beads that rise back into it. From '
+          'the Furnace.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyGoldLeaf: InventoryItemDef(
@@ -1029,8 +1030,8 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: FamilyCostume.crown.title,
       description:
           'A crown of dark gold and garnets over a velvet cap. Fits '
-          '${FamilyCostume.fittedFamiliesText}. Worn in place of the party '
-          'hat. From the Furnace; once it is drawn, the shop sells more.',
+          '${FamilyCostume.fittedFamiliesText}. From the Furnace; once it is '
+          'drawn, the shop sells more.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.alchemyBrassMonocle: InventoryItemDef(
@@ -1038,9 +1039,8 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       name: FamilyCostume.monocle.title,
       description:
           'A brass monocle on a chain of brass beads. Fits '
-          '${FamilyCostume.fittedFamiliesText}. Worn in place of the '
-          'sunglasses. From the Furnace; once it is drawn, the shop sells '
-          'more.',
+          '${FamilyCostume.fittedFamiliesText}. From the Furnace; once it is '
+          'drawn, the shop sells more.',
       icon: AppIcons.auto_awesome_rounded,
     ),
     InvKeys.staminaPotion: InventoryItemDef(
