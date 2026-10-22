@@ -59,7 +59,7 @@ enum AlchemonMutation {
   /// Turned to gold.
   transmuted('transmuted', 'Transmuted'),
 
-  /// A rainbow running down the body. Also what a rift's Alchemon carries.
+  /// A rainbow running down the body.
   prismatic('prismatic', 'Prismatic'),
 
   /// Liquid silver.
@@ -101,6 +101,10 @@ enum AlchemonMutation {
     if (rng.nextDouble() >= mutationChance(notches)) return null;
     return values[rng.nextInt(values.length)];
   }
+
+  /// The mutation a rift's Alchemon carries: it always has one, an even pick.
+  static AlchemonMutation rollRift(math.Random rng) =>
+      values[rng.nextInt(values.length)];
 }
 
 /// Whether a creature with the old prismatic flag [flag] and [mutation] is a

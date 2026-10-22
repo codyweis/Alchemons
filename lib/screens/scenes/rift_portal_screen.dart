@@ -11,14 +11,19 @@ import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/encounter_pool.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/debug_settings_service.dart';
 import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
 import 'package:alchemons/services/wilderness_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/fx/mutation_sheets.dart';
+import 'package:alchemons/widgets/fx/rift_mutation_roll.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:flame/flame.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
@@ -79,12 +84,17 @@ class RiftPortalScreen extends StatefulWidget {
   /// screen behind); without it, leaving cuts straight back.
   final RiftExitSheet? exit;
 
+  /// The mutation the rift's roll lands on; null rolls one. Previews pass
+  /// one to see each.
+  final AlchemonMutation? mutation;
+
   const RiftPortalScreen({
     super.key,
     required this.faction,
     this.party = const [],
     this.species,
     this.exit,
+    this.mutation,
     this.returnOrientation = const [
       DeviceOrientation.portraitUp,
       DeviceOrientation.portraitDown,
@@ -131,11 +141,27 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
   /// poured, then takes over from its grains once they are home.
   RiftPour? _pour;
   double _pourT = 0;
-
-  /// When (on the vortex's clock) the sprite was read: a prismatic one
-  /// goes on turning through its hues, and its grains turn with it.
-  double _readAt = 0;
   final ValueNotifier<double> _shown = ValueNotifier(0);
+
+  /// Once it has nearly poured in, the rift rolls its mutation: a ball off
+  /// the disk turns through the six ([RiftMutationRoll], on [_rollT]'s
+  /// clock, below 0 until it starts), lands, and pours into the Alchemon
+  /// ([_transmute]), which is then what it landed on ([_mutated]).
+  RiftMutationRoll? _roll;
+  double _rollT = -1;
+  int _ticked = 0;
+  bool _landed = false;
+  bool _transmuting = false;
+  RiftTransmute? _transmute;
+  double _transmuteT = 0;
+  bool _mutated = false;
+
+  /// The mutated sprite has drawn, so it can take over from the grains, and
+  /// when (on the vortex's clock) it was read: a Prismatic's hues turn on.
+  bool _mutatedDrawn = false;
+  double _dressedAt = 0;
+  Timer? _mutatedWait;
+  bool _rollDone = false;
 
   /// The sprite has drawn (or will not): the pour is set going, or the
   /// sprite simply fades in ([_plainIn]).
@@ -186,13 +212,13 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     if (_pour != null) {
       _pourT += dt / RiftPour.seconds;
       if (_pourT >= 1) {
-        if (!_arrived) _arrive();
         _shown.value = min(1.0, _shown.value + dt / _handoverSeconds);
         if (_shown.value >= 1) _pour = null;
       }
-    } else if (_plainIn && _shown.value < 1) {
+    } else if (_plainIn && _shown.value < 1 && !_transmuting) {
       _shown.value = min(1.0, _shown.value + dt / 0.7);
     }
+    _stepRoll(dt);
 
     if (_leaving && !_gone) {
       _dark = min(1.0, _dark + dt / _darkSeconds);
@@ -211,11 +237,170 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     _vortexClock.value = _vortex.time;
   }
 
-  /// The Alchemon is here: the encounter opens round it.
+  /// The Alchemon is here, mutated: the encounter opens round it.
   void _arrive() {
     if (_arrived || !mounted) return;
     setState(() => _arrived = true);
   }
+
+  /// The roll, from when the Alchemon has nearly poured in: the ball
+  /// gathers and rolls, a tick for each face, lands, holds, and pours into
+  /// the Alchemon; once the mutated sprite has taken over, the encounter
+  /// opens.
+  void _stepRoll(double dt) {
+    if (_arrived) return;
+    final roll = _roll;
+    if (roll == null) return;
+    if (_rollT < 0) {
+      final poured = _pour != null
+          ? _pourT >= 0.72
+          : (_sprited && _shown.value >= 0.6);
+      if (!poured) return;
+      _rollT = 0;
+    }
+    _rollT += dt;
+    while (_ticked < roll.washAt.length && _rollT >= roll.washAt[_ticked]) {
+      _ticked++;
+      HapticFeedback.selectionClick();
+    }
+    // It lands unnamed: the material is the answer.
+    if (!_landed && _rollT >= roll.landed) {
+      _landed = true;
+      HapticFeedback.lightImpact();
+      context.sound(SoundCue.extractionRareReveal);
+    }
+    if (!_transmuting && _rollT >= roll.pourAt) {
+      _transmuting = true;
+      _beginTransmute();
+    }
+    final transmute = _transmute;
+    if (transmute == null) return;
+    _transmuteT += dt;
+    if (!_mutated && _transmuteT >= transmute.seconds) _mutate();
+    if (!_mutatedDrawn || _transmuteT < transmute.seconds) return;
+    // The grains give way to the mutated sprite; without grains standing in
+    // it simply changed as the ball went in.
+    if (transmute.body != null) {
+      _shown.value = min(1.0, _shown.value + dt / 0.4);
+    }
+    if (transmute.body == null || _shown.value >= 1) {
+      _rollDone = true;
+      _arrive();
+    }
+  }
+
+  /// The roll's mutation: the one asked for, the developer tools' forced
+  /// one, or an even pick. Its baked sheet is made while the ball rolls, so
+  /// the mutated sprite is ready when the ball pours in.
+  Future<void> _rollMutation(Creature creature) async {
+    var mutation = widget.mutation;
+    if (mutation == null) {
+      try {
+        final debug = DebugSettingsService();
+        mutation = AlchemonMutation.byId(
+          await debug.pendingForcedWildMutation(),
+        );
+        if (mutation != null) await debug.setForcedWildMutation(null);
+      } catch (_) {
+        mutation = null;
+      }
+      mutation ??= AlchemonMutation.rollRift(Random());
+    }
+    if (!mounted) return;
+    final sheet = creature.spriteData == null
+        ? null
+        : sheetForVisuals(
+            sheetFromCreature(creature),
+            visualsFromInstance(_mutatedAs(creature, mutation), null),
+          );
+    if (sheet != null) {
+      unawaited(
+        loadCreatureSheet(
+          Flame.images,
+          sheet.path,
+        ).then<void>((_) {}, onError: (Object _) {}),
+      );
+    }
+    setState(() {
+      _roll = RiftMutationRoll(mutation!, seed: Random().nextInt(1 << 30));
+    });
+  }
+
+  static Creature _mutatedAs(Creature c, AlchemonMutation m) => c.copyWith(
+    wildMutation: m.id,
+    isPrismaticSkin: m == AlchemonMutation.prismatic,
+  );
+
+  /// The ball pours in: the Alchemon is read into grains as it stands now,
+  /// and they stand in for it while the mutation spreads through them.
+  Future<void> _beginTransmute() async {
+    SpecimenGrains? body;
+    final box = _voidCaptureKey.currentContext?.findRenderObject();
+    if (box is RenderRepaintBoundary && box.attached) {
+      try {
+        body = await SpecimenGrains.capture(
+          box,
+          pixelRatio: min(MediaQuery.devicePixelRatioOf(context), 2.5),
+        ).timeout(const Duration(milliseconds: 500));
+      } catch (_) {
+        body = null;
+      }
+    }
+    if (!mounted) return;
+    final ball = riftBallOf(_coreROf(MediaQuery.sizeOf(context)));
+    _transmute = RiftTransmute(
+      _roll!,
+      body,
+      ball: ball.centre,
+      radius: ball.radius,
+      startedAt: _rollT,
+    );
+    _transmuteT = 0;
+    if (body != null) {
+      // The grains stand in for it from here, so under them it can already
+      // be what it is turning into, and be read for the wave's colors.
+      _shown.value = 0;
+      _mutate();
+    }
+  }
+
+  /// The mutated sprite has drawn: it is read into grains, and the wave
+  /// turns the body's grains into its colors.
+  Future<void> _readMutated() async {
+    // The sprite's own painter takes a frame or two to show the new sheet.
+    for (var i = 0; i < 4; i++) {
+      await SchedulerBinding.instance.endOfFrame;
+    }
+    if (!mounted) return;
+    final box = _voidCaptureKey.currentContext?.findRenderObject();
+    if (box is! RenderRepaintBoundary || !box.attached) return;
+    try {
+      final grains = await SpecimenGrains.capture(
+        box,
+        pixelRatio: min(MediaQuery.devicePixelRatioOf(context), 2.5),
+      ).timeout(const Duration(milliseconds: 500));
+      if (!mounted || grains == null) return;
+      _transmute?.dress(grains);
+      _dressedAt = _vortex.time;
+    } catch (_) {
+      // Without them a grain is its own color read into the material.
+    }
+  }
+
+  /// The roll's Alchemon is what it landed on. Its grains (if any stand in
+  /// for it) hold until the mutated sprite has drawn.
+  void _mutate() {
+    _mutated = true;
+    setState(() => _voidCreature = _mutatedAs(_voidCreature!, _roll!.landing));
+    _mutatedWait = Timer(const Duration(milliseconds: 1500), () {
+      _mutatedDrawn = true;
+    });
+  }
+
+  /// The core's radius on a screen of [size]: just wider than the sprite
+  /// standing in it, so the light bent round the core haloes it; any bigger
+  /// and the Alchemon is lost in the black.
+  static double _coreROf(Size size) => min(100.0, size.shortestSide * 0.27);
 
   /// Its sprite has drawn its first frame: read it into grains and pour
   /// them out of the disk. If it cannot be read, it fades in as it is.
@@ -225,7 +410,6 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     _spriteWait?.cancel();
     await SchedulerBinding.instance.endOfFrame;
     if (!mounted) return;
-    _readAt = _vortex.time;
     SpecimenGrains? grains;
     final box = _voidCaptureKey.currentContext?.findRenderObject();
     if (box is RenderRepaintBoundary && box.attached) {
@@ -307,18 +491,17 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
       orElse: () => EncounterRarity.rare,
     );
 
-    // Generate a prismatic instance (100% prismatic chance for void spawns).
-    final gen = WildlifeGenerator(
+    // It pours in as itself; the rift's roll mutates it after.
+    final hydrated = WildlifeGenerator(
       repo,
-      tuning: const WildlifeTuning(prismaticSkinChance: 1.0),
-    );
-    final hydrated = gen.generate(picked.id, rarity: rarity.label);
+    ).generate(picked.id, rarity: rarity.label);
     if (hydrated == null) return;
 
     setState(() {
       _voidCreature = hydrated;
       _voidRarity = rarity;
     });
+    unawaited(_rollMutation(hydrated));
     // A sprite that never says it has drawn still arrives, plainly.
     _spriteWait = Timer(const Duration(milliseconds: 1600), () {
       if (_sprited || !mounted) return;
@@ -339,6 +522,7 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
     // but landscape for the wilderness scene a rift was found in.
     SystemChrome.setPreferredOrientations(widget.returnOrientation);
     _spriteWait?.cancel();
+    _mutatedWait?.cancel();
     _vortexTicker.dispose();
     _vortexClock.dispose();
     _shown.dispose();
@@ -477,13 +661,17 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                             child:
                                 NotificationListener<SpriteReadyNotification>(
                                   onNotification: (_) {
-                                    _onSpriteReady();
+                                    if (!_mutated) {
+                                      _onSpriteReady();
+                                    } else if (!_mutatedDrawn) {
+                                      _mutatedDrawn = true;
+                                      _readMutated();
+                                    }
                                     return true;
                                   },
                                   child: _VoidSprite(
                                     creature: _voidCreature!,
                                     size: 170,
-                                    isPrismatic: true,
                                     flipHorizontal: false,
                                   ),
                                 ),
@@ -505,8 +693,6 @@ class _RiftPortalScreenState extends State<RiftPortalScreen>
                     child: _VoidSprite(
                       creature: _selectedPartyCreature!,
                       size: 140,
-                      isPrismatic:
-                          _selectedPartyCreature!.isPrismaticSkin == true,
                       flipHorizontal: true, // face right → toward the wild
                     ),
                   ),
@@ -732,13 +918,11 @@ class _ExitHolePainter extends CustomPainter {
 class _VoidSprite extends StatelessWidget {
   final Creature creature;
   final double size;
-  final bool isPrismatic;
   final bool flipHorizontal;
 
   const _VoidSprite({
     required this.creature,
     required this.size,
-    required this.isPrismatic,
     required this.flipHorizontal,
   });
 
@@ -762,9 +946,10 @@ class _VoidSprite extends StatelessWidget {
           saturation: visuals.saturation,
           brightness: visuals.brightness,
           hueShift: visuals.hueShiftDeg,
-          isPrismatic: isPrismatic,
+          isPrismatic: visuals.isPrismatic,
           tint: visuals.tint,
           variantFaction: visuals.variantFaction,
+          mutation: visuals.mutation,
         ),
       );
     } else {
@@ -793,50 +978,53 @@ class _RiftInteriorPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final field = s._vortex;
-    // The core just wider than the sprite standing in it, so the light
-    // bent round the core haloes it; any bigger and the Alchemon is lost in
-    // the black.
-    final coreR = min(100.0, size.shortestSide * 0.27);
+    final coreR = _RiftPortalScreenState._coreROf(size);
     final rr = coreR / field.core;
     final c = size.center(Offset.zero);
     field.paint(canvas, size, c, rr, s._palette);
-    final pour = s._pour;
-    if (pour == null) return;
-    // The rift's Alchemon is prismatic: its colors have turned since it was
-    // read, as the sprite's have.
-    final turned =
-        (field.time - s._readAt) /
-        (CreatureSprite.prismaticCycle.inMilliseconds / 1000) *
-        360;
     canvas.save();
     canvas.translate(c.dx, c.dy);
-    // Out of the nearer part of the disk: its rim is off the screen.
-    pour.paint(
-      canvas,
-      rr * 0.8,
-      field.core / 0.8,
-      s._pourT,
-      s._palette,
-      fade: 1 - s._shown.value,
-      colors: _turned(pour.specimen.tones, turned),
-    );
+    final pour = s._pour;
+    if (pour != null) {
+      // Out of the nearer part of the disk: its rim is off the screen.
+      pour.paint(
+        canvas,
+        rr * 0.8,
+        field.core / 0.8,
+        s._pourT,
+        s._palette,
+        fade: 1 - s._shown.value,
+      );
+    }
+    final roll = s._roll;
+    if (roll != null && s._rollT > 0 && !s._rollDone) {
+      final ball = riftBallOf(coreR);
+      final transmute = s._transmute;
+      roll.paint(
+        canvas,
+        s._rollT,
+        ball: ball.centre,
+        radius: ball.radius,
+        rr: rr,
+        palette: s._palette,
+        launched: transmute?.launched,
+        drained: transmute == null
+            ? 0
+            : Curves.easeIn.transform(min(1.0, s._transmuteT / 0.7)),
+      );
+      transmute?.paint(
+        canvas,
+        s._transmuteT,
+        fade: 1 - s._shown.value,
+        // A Prismatic's sprite has turned through its hues since it was read.
+        hue: roll.landing == AlchemonMutation.prismatic
+            ? (field.time - s._dressedAt) /
+                  (CreatureSprite.prismaticCycle.inMilliseconds / 1000) *
+                  360
+            : 0,
+      );
+    }
     canvas.restore();
-  }
-
-  /// [tones] turned [degrees] round the hue circle, the way a sprite's
-  /// hue filter turns them ([hueRotationMatrix]).
-  static List<Color> _turned(List<Color> tones, double degrees) {
-    final m = hueRotationMatrix(degrees % 360);
-    int ch(int row, Color c) => (m[row] * c.r * 255 +
-            m[row + 1] * c.g * 255 +
-            m[row + 2] * c.b * 255 +
-            m[row + 4])
-        .round()
-        .clamp(0, 255);
-    return [
-      for (final c in tones)
-        Color.fromARGB((c.a * 255).round(), ch(0, c), ch(5, c), ch(10, c)),
-    ];
   }
 
   @override

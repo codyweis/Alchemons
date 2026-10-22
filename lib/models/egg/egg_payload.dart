@@ -312,6 +312,8 @@ class EggPayloadFactory {
       natureId: creature.nature?.id,
       natureId2: creature.nature2?.id,
       isPrismaticSkin: creature.isPrismaticSkin,
+      // A rift's Alchemon comes with its mutation.
+      mutation: creature.wildMutation,
       genetics: creature.genetics?.variants ?? {},
       stats: hasFixedStats
           ? CreatureStats(

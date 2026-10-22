@@ -138,7 +138,7 @@ const _riftKeyItems = <_MarketItem>[
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFFFF5722),
     inventoryKey: 'item.portal_key.volcanic',
-    baseCost: {'gold': 5},
+    baseCost: {'gold': 20},
     faction: 'volcanic',
   ),
   _MarketItem(
@@ -148,7 +148,7 @@ const _riftKeyItems = <_MarketItem>[
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF64B5F6),
     inventoryKey: 'item.portal_key.oceanic',
-    baseCost: {'gold': 5},
+    baseCost: {'gold': 20},
     faction: 'oceanic',
   ),
   _MarketItem(
@@ -158,7 +158,7 @@ const _riftKeyItems = <_MarketItem>[
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF66BB6A),
     inventoryKey: 'item.portal_key.verdant',
-    baseCost: {'gold': 5},
+    baseCost: {'gold': 20},
     faction: 'verdant',
   ),
   _MarketItem(
@@ -168,7 +168,7 @@ const _riftKeyItems = <_MarketItem>[
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF8D6E63),
     inventoryKey: 'item.portal_key.earthen',
-    baseCost: {'gold': 5},
+    baseCost: {'gold': 20},
     faction: 'earthen',
   ),
   _MarketItem(
@@ -178,7 +178,7 @@ const _riftKeyItems = <_MarketItem>[
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFFCE93D8),
     inventoryKey: 'item.portal_key.arcane',
-    baseCost: {'gold': 5},
+    baseCost: {'gold': 20},
     faction: 'arcane',
   ),
 ];

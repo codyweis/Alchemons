@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
 import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -225,6 +226,102 @@ void main() {
     }
     await step(20);
     expect(exit.covering, isFalse);
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+    tester.view.reset();
+    await tester.runAsync(db.close);
+  });
+
+  // The rift's mutation rolled: the ball gathering off the disk, turning
+  // through the six, landing, and pouring into the Alchemon. One run per
+  // mutation (ROLL_MUTATIONS=starlit,obsidian picks some), frames at the
+  // screen's seconds.
+  testWidgets('rift roll preview', (tester) async {
+    if (outDir == null) return;
+    Directory(outDir).createSync(recursive: true);
+    final wanted = (Platform.environment['ROLL_MUTATIONS'] ?? '')
+        .split(',')
+        .where((s) => s.isNotEmpty)
+        .toSet();
+
+    late AlchemonsDatabase db;
+    final catalog = CreatureCatalog();
+    await tester.runAsync(() async {
+      db = AlchemonsDatabase(NativeDatabase.memory());
+      await catalog.load();
+      await loadNatures();
+    });
+    final constellation = ConstellationEffectsService(db);
+    tester.view.physicalSize = const Size(860, 360) * 2;
+    tester.view.devicePixelRatio = 2;
+
+    for (final mutation in AlchemonMutation.values) {
+      if (wanted.isNotEmpty && !wanted.contains(mutation.id)) continue;
+      final key = GlobalKey();
+      await tester.pumpWidget(const SizedBox());
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            Provider<AlchemonsDatabase>.value(value: db),
+            Provider<CreatureCatalog>.value(value: catalog),
+            ChangeNotifierProvider<ConstellationEffectsService>.value(
+              value: constellation,
+            ),
+            Provider<CatchService>(
+              create: (_) => CatchService(db, constellation),
+            ),
+          ],
+          child: RepaintBoundary(
+            key: key,
+            child: MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: ThemeData.dark(),
+              home: RiftPortalScreen(
+                faction: RiftFaction.volcanic,
+                species: catalog.getCreatureById('HOR01'),
+                mutation: mutation,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      var clock = 0.0;
+      Future<void> until(double seconds) async {
+        while (clock < seconds) {
+          await tester.runAsync(
+            () => Future<void>.delayed(const Duration(milliseconds: 30)),
+          );
+          await tester.pump(const Duration(milliseconds: 1000 ~/ 30));
+          clock += 1 / 30;
+        }
+      }
+
+      // ROLL_VIDEO=1 shoots every frame from the pour on, for a video:
+      //   ffmpeg -framerate 30 -i roll_starlit_%04d.png roll.mp4
+      final every = Platform.environment['ROLL_VIDEO'] != null;
+      final times = every
+          ? [for (var f = 45; f < 330; f++) f / 30]
+          : const [
+              2.6, 3.2, 3.8, 4.4, 5.0, 5.6, 6.2, 6.8, 7.4, //
+              8.0, 8.4, 8.8, 9.2, 9.6, 10.0, 10.6,
+            ];
+      for (final (n, at) in times.indexed) {
+        await until(at);
+        await tester.runAsync(() async {
+          final boundary =
+              key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+          final image = await boundary.toImage(pixelRatio: 1);
+          final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+          File(
+            every
+                ? '$outDir/roll_${mutation.id}_${n.toString().padLeft(4, '0')}.png'
+                : '$outDir/roll_${mutation.id}_${at.toStringAsFixed(1)}.png',
+          ).writeAsBytesSync(bytes!.buffer.asUint8List());
+          image.dispose();
+        });
+      }
+    }
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
     tester.view.reset();

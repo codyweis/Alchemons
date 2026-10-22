@@ -822,10 +822,10 @@ class _Panel extends StatelessWidget {
         const SizedBox(height: 6),
         Text(
           w.partyEnters
-              ? 'One prismatic Alchemon of these elements waits on the other '
-                    'side. Your party goes in with you.'
-              : 'One prismatic Alchemon of these elements waits on the other '
-                    'side.',
+              ? 'One Alchemon of these elements waits on the other side, '
+                    'with a random mutation. Your party goes in with you.'
+              : 'One Alchemon of these elements waits on the other side, '
+                    'with a random mutation.',
           style: const TextStyle(color: _muted, fontSize: 12, height: 1.4),
         ),
         const SizedBox(height: 16),
