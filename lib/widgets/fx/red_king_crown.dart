@@ -56,13 +56,6 @@ abstract final class RedKingCrown {
     const [0.0, 0.22, 0.55, 0.85, 1.0],
   );
 
-  static final ui.Shader _goldUp = ui.Gradient.linear(
-    Offset.zero,
-    const Offset(0, -60),
-    const [Color(0xFF6E4A12), Color(0xFFC9963A), Color(0xFFFFE6A8)],
-    const [0.0, 0.55, 1.0],
-  );
-
   /// Seconds the heat takes to go once round the crown.
   static const double _turn = 6.5;
 
@@ -176,7 +169,10 @@ abstract final class RedKingCrown {
   );
 
   /// The velvet cap: a low dome filling the band, its foot down behind
-  /// the near band so nothing shows between the two.
+  /// the near band so nothing shows between the two. It hides the back of
+  /// the band inside, as on a crown worn with its cap, so that is not
+  /// drawn (user 2026-10-22: drawn over the cap it read as a gold strap
+  /// across the velvet, "the back part looks kind of weird").
   static final Path _cap = Path()
     ..moveTo(-_rx + 2, -_band + 2)
     ..cubicTo(-_rx + 4, -_band - 30, _rx - 4, -_band - 30, _rx - 2, -_band + 2)
@@ -191,33 +187,6 @@ abstract final class RedKingCrown {
     const [Color(0x33FFFFFF), Color(0x0FFFFFFF), Color(0x00FFFFFF)],
     const [0.0, 0.5, 1.0],
   );
-
-  /// The back of the band, inside. The cap rises over it, as on a crown
-  /// worn with its cap: drawn under the cap, it shows only where the band
-  /// is wider than the cap (user 2026-10-22: drawn over the cap it read as
-  /// a gold strap across the velvet, "the back part looks kind of weird").
-  static final Path _back = Path()
-    ..addArc(
-      Rect.fromCenter(
-        center: const Offset(0, -_band),
-        width: _rx * 2,
-        height: _ry * 2,
-      ),
-      math.pi,
-      math.pi,
-    )
-    ..lineTo(_rx - 3, -_band + 4)
-    ..arcTo(
-      Rect.fromCenter(
-        center: const Offset(0, -_band + 4),
-        width: _rx * 2 - 6,
-        height: _ry * 2 - 4,
-      ),
-      0,
-      -math.pi,
-      false,
-    )
-    ..close();
 
   /// The near band: a strip between two half-ellipses.
   static final Path _bandPath = Path()
@@ -356,7 +325,6 @@ abstract final class RedKingCrown {
     _grains.clear();
     gems(true, 0.75 * o);
     _grains.draw(canvas);
-    fill(_back, _goldUp, Color.fromRGBO(0, 0, 0, 0.75 * o));
     fill(_cap, _velvet(color), Color.fromRGBO(0, 0, 0, o));
     fill(_cap, _domeLight, Color.fromRGBO(0, 0, 0, o));
     fill(_bandPath, _goldAcross, Color.fromRGBO(0, 0, 0, o));
@@ -388,15 +356,26 @@ abstract final class RedKingCrown {
       paintDisc(canvas, gem.orb, Offset.zero, 7.5 * s, o);
       canvas.restore();
     }
-    // The near points, over the band, each warming as the heat passes it.
+    // The near points, over the band; the one the heat is passing warms.
+    // (One at most: a frame's draws stay within the effects' budget.)
+    var hottest = -1;
+    var most = 0.02;
     for (var k = 0; k < _spikes.length; k++) {
       final (path, shader, _, _, far) = _spikes[k];
       if (far) continue;
       fill(path, shader, Color.fromRGBO(0, 0, 0, o));
       final heat = _heat(_points[k].$1, time);
-      if (heat > 0.02) {
-        fill(path, null, Color.fromRGBO(255, 222, 150, 0.3 * heat * o));
+      if (heat > most) {
+        most = heat;
+        hottest = k;
       }
+    }
+    if (hottest >= 0) {
+      fill(
+        _spikes[hottest].$1,
+        null,
+        Color.fromRGBO(255, 222, 150, 0.3 * most * o),
+      );
     }
     // Their garnets, then gold grains glinting along the band, a few at a
     // time.
