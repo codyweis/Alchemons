@@ -43,7 +43,7 @@ const List<Color> kMutagenColors = [
 
 /// The vial's grains: [kMeterPerRow] across, a row every [kMeterRowStep].
 const int kMeterPerRow = 2;
-const double kMeterRowStep = 2.3;
+const double kMeterRowStep = 2.53;
 
 /// How often a grain is one of the spectrum's, not one of [kMutagenColors].
 const double kMutagenSpectrumShare = 0.28;
@@ -210,8 +210,9 @@ class _MutationMeterHudState extends State<MutationMeterHud>
 
   Rect _glassIn(Size size, EdgeInsets pad) {
     // A short vial centred under Exit (66 wide, 54 tall, 8 in), never
-    // reaching Items below it.
-    const w = 9.0, h = 64.0, gap = 10.0;
+    // reaching Items below it. A tenth up on 9 × 64 (user 2026-10-22), its
+    // grains with it.
+    const w = 9.9, h = 70.4, gap = 10.0;
     final cx = pad.left + 8 + 33;
     final top = pad.top + 8 + 54 + gap;
     final room = size.height - pad.bottom - 8 - 54 - gap - top;
@@ -653,7 +654,7 @@ class _MeterPainter extends CustomPainter {
         pts,
         Paint()
           ..color = colour.withValues(alpha: 0.08 * band / 3)
-          ..strokeWidth = 2.8
+          ..strokeWidth = 3.1
           ..strokeCap = StrokeCap.round,
       );
       canvas.drawRawPoints(
@@ -661,7 +662,7 @@ class _MeterPainter extends CustomPainter {
         pts,
         Paint()
           ..color = colour.withValues(alpha: band / 3)
-          ..strokeWidth = 1.3
+          ..strokeWidth = 1.43
           ..strokeCap = StrokeCap.round,
       );
     }
@@ -669,7 +670,7 @@ class _MeterPainter extends CustomPainter {
     // The bead at the top: brightens as it fills, breathes when full.
     final b = 0.25 + 0.35 * shownFill + 0.4 * near;
     if (near > 0 || breath > 0) {
-      final halo = 6 + 6 * near + 5 * breath;
+      final halo = 6.6 + 6.6 * near + 5.5 * breath;
       canvas.drawCircle(
         cap,
         halo,
@@ -683,11 +684,11 @@ class _MeterPainter extends CustomPainter {
     }
     canvas.drawCircle(
       cap,
-      2.6,
+      2.86,
       Paint()
         ..shader = ui.Gradient.radial(
-          cap - const Offset(0.7, 0.9),
-          2.9,
+          cap - const Offset(0.77, 1.0),
+          3.2,
           [
             Color.fromRGBO(255, 244, 214, 0.45 + 0.55 * b),
             Color.fromRGBO(205, 176, 122, 0.55 + 0.4 * b),
