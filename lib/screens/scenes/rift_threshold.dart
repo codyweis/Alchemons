@@ -823,9 +823,10 @@ class _Panel extends StatelessWidget {
         Text(
           w.partyEnters
               ? 'One Alchemon of these elements waits on the other side, '
-                    'with a random mutation. Your party goes in with you.'
+                    'with one of six mutations, all equally likely. Your party '
+                    'goes in with you.'
               : 'One Alchemon of these elements waits on the other side, '
-                    'with a random mutation.',
+                    'with one of six mutations, all equally likely.',
           style: const TextStyle(color: _muted, fontSize: 12, height: 1.4),
         ),
         const SizedBox(height: 16),

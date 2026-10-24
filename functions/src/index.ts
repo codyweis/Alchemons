@@ -11,6 +11,7 @@ import {VerificationFailure, VerifiedPurchase} from "./types";
 initializeApp();
 
 export {previewProgressReset, beginProgressReset, finishProgressReset} from "./resetProgress";
+export {deleteAccountData} from "./accountDeletion";
 
 interface RedeemRequest {
   platform?: unknown;

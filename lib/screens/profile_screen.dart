@@ -89,6 +89,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // TYPE
@@ -861,6 +862,23 @@ class _ProfileScreenState extends State<ProfileScreen>
     _showTransferSnack('Account created. Your game now saves to it.');
   }
 
+  static final Uri _privacyPolicyUrl = Uri.parse(
+    'https://alchemons.com/privacy/',
+  );
+
+  Future<void> _openPrivacyPolicy() async {
+    final opened = await launchUrl(
+      _privacyPolicyUrl,
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && mounted) {
+      _showTransferSnack(
+        'Couldn\'t open the browser. The policy is at alchemons.com/privacy.',
+        isError: true,
+      );
+    }
+  }
+
   bool _resetBusy = false;
 
   Future<void> _resetProgress() async {
@@ -1538,6 +1556,24 @@ class _ProfileScreenState extends State<ProfileScreen>
                               palette: palette,
                               accent: accent,
                               onTap: _resetProgress,
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      _Section(
+                        label: 'ABOUT',
+                        palette: palette,
+                        children: [
+                          _Row(
+                            title: 'PRIVACY POLICY',
+                            description: 'What the game stores and why',
+                            palette: palette,
+                            trailing: _QuietButton(
+                              label: 'OPEN',
+                              palette: palette,
+                              accent: accent,
+                              onTap: _openPrivacyPolicy,
                             ),
                           ),
                         ],

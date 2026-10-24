@@ -1120,7 +1120,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.volcanic',
       name: 'Volcanic Portal Key',
       description:
-          'Opens a Volcanic Rift portal in cosmic space. The Volcanic Alchemon inside always carries a random mutation. Consumed on entry.',
+          'Opens a Volcanic Rift portal in cosmic space. The Volcanic Alchemon inside always carries one of six mutations, all equally likely. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFFFF5722),
       cost: const {'gold': 20},
@@ -1133,7 +1133,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.oceanic',
       name: 'Oceanic Portal Key',
       description:
-          'Opens an Oceanic Rift portal in cosmic space. The Oceanic Alchemon inside always carries a random mutation. Consumed on entry.',
+          'Opens an Oceanic Rift portal in cosmic space. The Oceanic Alchemon inside always carries one of six mutations, all equally likely. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF64B5F6),
       cost: const {'gold': 20},
@@ -1146,7 +1146,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.verdant',
       name: 'Verdant Portal Key',
       description:
-          'Opens a Verdant Rift portal in cosmic space. The Verdant Alchemon inside always carries a random mutation. Consumed on entry.',
+          'Opens a Verdant Rift portal in cosmic space. The Verdant Alchemon inside always carries one of six mutations, all equally likely. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF66BB6A),
       cost: const {'gold': 20},
@@ -1159,7 +1159,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.earthen',
       name: 'Earthen Portal Key',
       description:
-          'Opens an Earthen Rift portal in cosmic space. The Earthen Alchemon inside always carries a random mutation. Consumed on entry.',
+          'Opens an Earthen Rift portal in cosmic space. The Earthen Alchemon inside always carries one of six mutations, all equally likely. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFF8D6E63),
       cost: const {'gold': 20},
@@ -1172,7 +1172,7 @@ class ShopService extends ChangeNotifier {
       id: 'key.portal.arcane',
       name: 'Arcane Portal Key',
       description:
-          'Opens an Arcane Rift portal in cosmic space. The Arcane Alchemon inside always carries a random mutation. Consumed on entry.',
+          'Opens an Arcane Rift portal in cosmic space. The Arcane Alchemon inside always carries one of six mutations, all equally likely. Consumed on entry.',
       icon: AppIcons.vpn_key_rounded,
       iconColor: const Color(0xFFCE93D8),
       cost: const {'gold': 20},

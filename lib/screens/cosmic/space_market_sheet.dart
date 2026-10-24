@@ -134,7 +134,8 @@ const _riftKeyItems = <_MarketItem>[
   _MarketItem(
     id: 'market.key.volcanic',
     name: 'Volcanic Portal Key',
-    description: 'Grants entry into a Volcanic Rift. Consumed on entry.',
+    description:
+        'Grants entry into a Volcanic Rift. Its Alchemon carries one of six mutations, all equally likely. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFFFF5722),
     inventoryKey: 'item.portal_key.volcanic',
@@ -144,7 +145,8 @@ const _riftKeyItems = <_MarketItem>[
   _MarketItem(
     id: 'market.key.oceanic',
     name: 'Oceanic Portal Key',
-    description: 'Grants entry into an Oceanic Rift. Consumed on entry.',
+    description:
+        'Grants entry into an Oceanic Rift. Its Alchemon carries one of six mutations, all equally likely. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF64B5F6),
     inventoryKey: 'item.portal_key.oceanic',
@@ -154,7 +156,8 @@ const _riftKeyItems = <_MarketItem>[
   _MarketItem(
     id: 'market.key.verdant',
     name: 'Verdant Portal Key',
-    description: 'Grants entry into a Verdant Rift. Consumed on entry.',
+    description:
+        'Grants entry into a Verdant Rift. Its Alchemon carries one of six mutations, all equally likely. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF66BB6A),
     inventoryKey: 'item.portal_key.verdant',
@@ -164,7 +167,8 @@ const _riftKeyItems = <_MarketItem>[
   _MarketItem(
     id: 'market.key.earthen',
     name: 'Earthen Portal Key',
-    description: 'Grants entry into an Earthen Rift. Consumed on entry.',
+    description:
+        'Grants entry into an Earthen Rift. Its Alchemon carries one of six mutations, all equally likely. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFF8D6E63),
     inventoryKey: 'item.portal_key.earthen',
@@ -174,7 +178,8 @@ const _riftKeyItems = <_MarketItem>[
   _MarketItem(
     id: 'market.key.arcane',
     name: 'Arcane Portal Key',
-    description: 'Grants entry into an Arcane Rift. Consumed on entry.',
+    description:
+        'Grants entry into an Arcane Rift. Its Alchemon carries one of six mutations, all equally likely. Consumed on entry.',
     icon: AppIcons.vpn_key_rounded,
     iconColor: Color(0xFFCE93D8),
     inventoryKey: 'item.portal_key.arcane',
