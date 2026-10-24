@@ -42,7 +42,7 @@ import 'station_art.dart';
 import 'poi_art.dart';
 import 'asteroid_art.dart';
 import 'landmark_art.dart';
-import 'obsidian_kit.dart' show paintDisc, polar, stoneLightFor;
+import 'obsidian_kit.dart' show paintDisc, paintRaidStorm, polar, stoneLightFor;
 import 'works.dart';
 import 'works_art.dart';
 import 'package:alchemons/games/stadium/stadium_space_art.dart';
@@ -5034,30 +5034,12 @@ class CosmicGame extends FlameGame with PanDetector {
         continue;
       }
 
-      // Raid takeover: a slow crimson storm-pulse wraps the overrun planet.
+      // Raid takeover: a crimson storm of grains turns round the overrun
+      // planet, as the star chart draws it.
       if (raidElement != null &&
           planet.element == raidElement &&
           planet.discovered) {
-        final pp = planet.position;
-        final r = planet.radius;
-        final pulse = 0.5 + 0.5 * sin(_elapsed * 1.6);
-        paintSoftCircle(
-          canvas,
-          pp,
-          r * (1.5 + pulse * 0.25),
-          const Color(0xFFE25544).withValues(alpha: 0.10 + pulse * 0.08),
-          30,
-        );
-        canvas.drawCircle(
-          pp,
-          r * (1.28 + pulse * 0.10),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.0
-            ..color = const Color(
-              0xFFE25544,
-            ).withValues(alpha: 0.35 + pulse * 0.25),
-        );
+        paintRaidStorm(canvas, planet.position, planet.radius, _elapsed);
       }
 
       // The ship, so a planet's loose matter can part round it.

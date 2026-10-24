@@ -63,10 +63,23 @@ class RaidService {
   /// Advance the active raid to its next tier. The first Level-3 clear starts
   /// its echo cooldown; clearing the echo closes the raid and queues the next
   /// rotation from now.
-  Future<void> markLevelCleared() async {
+  ///
+  /// Only the raid that was fought ([element] at [level]) advances. The space
+  /// screen keeps rotating raids while a fight runs, so the stored one can
+  /// have closed, or another opened elsewhere, by the time the guardian falls.
+  Future<void> markLevelCleared({
+    required String element,
+    required int level,
+    required int level3Clears,
+  }) async {
     final prefs = await SharedPreferences.getInstance();
     final state = RaidState.deserialise(prefs.getString(_stateKey));
     if (state == null) return;
+    if (state.element != element ||
+        state.level != level ||
+        state.level3Clears != level3Clears) {
+      return;
+    }
     final now = DateTime.now().toUtc();
     final next = state.advanceLevel(nowUtc: now);
     final rotationMs = prefs.getInt(_rotationKey);

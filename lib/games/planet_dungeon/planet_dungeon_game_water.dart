@@ -3793,7 +3793,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
   void _spawnBrineWardens(DungeonRoom room) {
     final hpScale =
         CosmicSurvivalBalance.enemyWaveHpScale(6) *
-        (1.0 + 0.18 * clearedGuardianCount);
+        (1.0 + 0.18 * _campaignClears);
     final dmgScale = CosmicSurvivalBalance.enemyWaveDamageScale(6);
     for (var i = 0; i < 3; i++) {
       final a = i * pi * 2 / 3 - pi / 2;

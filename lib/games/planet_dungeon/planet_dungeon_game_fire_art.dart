@@ -324,6 +324,12 @@ extension CinderCathedralArt on PlanetDungeonGame {
         final g = room.guardian;
         _drawRoostLive(canvas, room, g?.position ?? room.bounds.center);
         _drawSimurghTelegraph(canvas, room);
+      case 'raid_arena':
+        // The raid's braziers burn as the sanctum's do; draw them so a
+        // pillar is never felt before it is seen.
+        final g = room.guardian;
+        _drawRoostLive(canvas, room, g?.position ?? room.bounds.center);
+        _drawSimurghTelegraph(canvas, room);
     }
   }
 
@@ -2702,7 +2708,7 @@ extension CinderCathedralArt on PlanetDungeonGame {
   /// choir's own arrangement, re-lit in this run's remembered order. Each
   /// takes its turn with a readable FLARE before the pillar of flame lands.
   void _drawSimurghTelegraph(Canvas canvas, DungeonRoom room) {
-    if (isRaid || !guardianAwake) return;
+    if (!guardianAwake) return;
     final g = room.guardian;
     if (g == null || hasStar(g.starIndex)) return;
     final spots = simurghTelegraphSpots(room);

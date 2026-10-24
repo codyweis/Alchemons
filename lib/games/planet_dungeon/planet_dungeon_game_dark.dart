@@ -179,7 +179,8 @@ extension BlackSunDungeon on PlanetDungeonGame {
 
   /// Is [c] in the room the view is on? (Only these are drawn.)
   bool _sunHere(DungeonCreature c) {
-    if (!_isVault) return true;
+    // A raid is one room, so the whole squad is always in it.
+    if (!_isVault || isRaid) return true;
     if (blackSun.inArena) return true;
     return blackSun.state.pos[_sunName(c)]!.room == currentRoomId;
   }
@@ -199,6 +200,12 @@ extension BlackSunDungeon on PlanetDungeonGame {
   /// The run starts with all three on the porch's own squares.
   void _sunPlaceParty() {
     if (!_isVault) return;
+    // A raid is Noctryos' arena from the start: one room, none of the
+    // Black Sun's, with the squad spread where the engine put it.
+    if (isRaid) {
+      blackSun.inArena = true;
+      return;
+    }
     blackSun.state = blackSun.state.copyWith(
       pos: {
         for (var i = 0; i < kSunBodies.length; i++)
@@ -620,12 +627,28 @@ extension BlackSunDungeon on PlanetDungeonGame {
 
   // ── The arena ────────────────────────────────────────────
 
+  /// The arena floor's black holes in [room]: the dungeon arena's own, or
+  /// in a raid the same four stretched to the raid arena's bounds.
+  List<Offset> _sunArenaHoles(DungeonRoom room) {
+    if (!isRaid) return kSunArenaHoles;
+    const from = kSunArenaBounds;
+    final to = room.bounds;
+    return [
+      for (final h in kSunArenaHoles)
+        Offset(
+          to.left + (h.dx - from.left) / from.width * to.width,
+          to.top + (h.dy - from.top) / from.height * to.height,
+        ),
+    ];
+  }
+
   /// Noctryos' enemies come out of black holes in the arena floor.
   Offset? _sunArenaSpawn(DungeonRoom room, Offset toward) {
     if (!_isVault || room.guardian == null) return null;
-    var best = kSunArenaHoles.first;
+    final holes = _sunArenaHoles(room);
+    var best = holes.first;
     var bestD = double.infinity;
-    for (final h in kSunArenaHoles) {
+    for (final h in holes) {
       final d = (h - toward).distance + _combatRng.nextDouble() * 220;
       if (d < bestD) {
         bestD = d;

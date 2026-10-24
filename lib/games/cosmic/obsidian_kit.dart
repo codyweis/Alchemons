@@ -369,3 +369,37 @@ class BakedArt {
     return img;
   }
 }
+
+/// The raid's crimson, on the star chart and in open space alike.
+const Color kRaidEmber = Color(0xFFE25544);
+final StoneLight _raidStormLight = StoneLight(kRaidEmber);
+final PointBatch _raidStorm = PointBatch(320);
+final PointBatch _raidStormHot = PointBatch(140);
+
+/// An overrun planet in open space: a crimson storm of grains turning slowly
+/// round the body of radius [r] at [at], thicker on the side it comes from,
+/// as the star chart's raid glyph draws it (weather on the planet, not a
+/// ring round it). [time] in seconds.
+void paintRaidStorm(Canvas c, Offset at, double r, double time) {
+  final pulse = 0.5 + 0.5 * sin(time * 1.6);
+  paintDisc(c, _raidStormLight.leak, at, r * 1.7, 0.55 + 0.25 * pulse);
+  _raidStorm.clear();
+  _raidStormHot.clear();
+  // Denser round a bigger body, so a giant's storm is not a scatter.
+  final count = (r * 1.6).clamp(120.0, 440.0).toInt();
+  // The heavy side drifts round over about two minutes.
+  final front = 0.9 + time * 0.05;
+  for (var i = 0; i < count; i++) {
+    final a = hash01(i, 4) * 2 * pi + time * (0.10 + 0.16 * hash01(i, 7));
+    final lean = 0.5 + 0.5 * cos(a + front);
+    final breathe = 1 + 0.05 * sin(time * 1.3 + i * 0.7);
+    final rr = r * (1.06 + (0.3 + 0.8 * lean) * hash01(i, 6)) * breathe;
+    final x = at.dx + cos(a) * rr;
+    final y = at.dy + sin(a) * rr * 0.86;
+    (hash01(i, 8) < 0.3 ? _raidStormHot : _raidStorm).add(x, y);
+  }
+  // Sand, not beads, however big the planet.
+  final grain = (r * 0.016).clamp(1.6, 3.4);
+  _raidStorm.draw(c, grain, _raidStormLight.grainDim);
+  _raidStormHot.draw(c, grain * 1.35, _raidStormLight.grainHot);
+}

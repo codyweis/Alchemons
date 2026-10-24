@@ -6095,7 +6095,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       _renderCauldron(canvas, c);
       if (monastery.boilOver >= 0) _drawBoilOver(canvas, c, _benchAt(still));
     }
-    if (room.id == layout.entranceRoomId) _drawEntrancePot(canvas);
+    // A raid arena is its layout's entrance room, but has only Blightfang's
+    // pot: the entry rite's pot would stand there dead.
+    if (!isRaid && room.id == layout.entranceRoomId) _drawEntrancePot(canvas);
 
     final ward = room.ward;
     if (ward != null) {

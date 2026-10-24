@@ -1362,7 +1362,7 @@ const DungeonLayout darkLayout = DungeonLayout(
     // black holes (the author's call: the boss is not a puzzle).
     'noctryos_totality': DungeonRoom(
       id: 'noctryos_totality',
-      bounds: Rect.fromLTWH(0, 0, 900, 640),
+      bounds: kSunArenaBounds,
       doors: [
         DungeonDoor(
           rect: Rect.fromLTWH(395, 0, 110, 24),
@@ -1382,6 +1382,9 @@ const DungeonLayout darkLayout = DungeonLayout(
     ),
   },
 );
+
+/// Noctryos' arena, which [kSunArenaHoles] are laid out in.
+const Rect kSunArenaBounds = Rect.fromLTWH(0, 0, 900, 640);
 
 /// Black holes in the arena floor, where Noctryos' enemies come out.
 const List<Offset> kSunArenaHoles = [

@@ -5149,7 +5149,8 @@ _ShaftGround _buildShaftGround(DungeonRoom room) {
       _groundColdSump(g, b, rnd);
     case 'star_font':
       _groundStarFont(g, b, rnd, room.rime!.roof!);
-    case 'frowyrm_hollow':
+    // A raid is Frowyrm's fight, so it stands on Frowyrm's floor.
+    case 'frowyrm_hollow' || 'raid_arena':
       _groundFrowyrmHollow(g, b, rnd);
     case 'shelf_glass':
       _groundShelf(g, b, rnd, vault: true);

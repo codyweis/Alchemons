@@ -920,8 +920,9 @@ extension BlackSunArt on PlanetDungeonGame {
   /// Noctryos' arena: black holes in the floor, where its enemies come out —
   /// the Dark planet's own black hole, four times over.
   void _renderSunArena(Canvas canvas, DungeonRoom room) {
-    for (var h = 0; h < kSunArenaHoles.length; h++) {
-      final c = kSunArenaHoles[h];
+    final holes = _sunArenaHoles(room);
+    for (var h = 0; h < holes.length; h++) {
+      final c = holes[h];
       final hole = _sunHoles.putIfAbsent(
         'arena$h',
         () => BlackHoleArt(seed: 101 + h * 13, motes: 640, infall: 90, grain: 7),

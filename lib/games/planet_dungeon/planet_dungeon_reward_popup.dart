@@ -12,6 +12,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
+import 'package:alchemons/games/planet_dungeon/reward_popup_parts.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/widgets/instant_extractor_glyph.dart';
 import 'package:alchemons/widgets/tincture_glyph.dart';
@@ -205,7 +206,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                 // Rays, turning slowly. Nothing else in the game does this.
                 IgnorePointer(
                   child: CustomPaint(
-                    painter: _RewardRaysPainter(
+                    painter: RewardRaysPainter(
                       progress: t,
                       spin: _turn.value * pi * 2,
                     ),
@@ -500,7 +501,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
             if (_relicIncoming)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _StaggerIn(
+                child: RewardStaggerIn(
                   index: 0,
                   child: _rewardCard(
                     '+1 ${guardianRelicName(widget.element)}, Guardian Relic',
@@ -509,7 +510,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                 ),
               ),
             for (var i = 0; i < Star3Choice.values.length; i++) ...[
-              _StaggerIn(
+              RewardStaggerIn(
                 index: i + (_relicIncoming ? 1 : 0),
                 child: _choiceCard(Star3Choice.values[i]),
               ),
@@ -531,7 +532,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
             )
           else
             for (var i = 0; i < lines.length; i++) ...[
-              _StaggerIn(index: i, child: _rewardCard(lines[i])),
+              RewardStaggerIn(index: i, child: _rewardCard(lines[i])),
               if (i < lines.length - 1) const SizedBox(height: 8),
             ],
         ],
@@ -623,7 +624,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
             ),
           ),
           const SizedBox(width: 8),
-          _MiniTag(label: tagOverride ?? d.tag, color: d.accent),
+          RewardMiniTag(label: tagOverride ?? d.tag, color: d.accent),
         ],
       ),
     );
@@ -636,67 +637,13 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     required Widget child,
     bool selected = false,
     bool dim = false,
-  }) {
-    final wash = dim ? 0.16 : (selected ? 0.46 : 0.34);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color.lerp(CosmicScreenStyles.bg2, accent, wash)!,
-              Color.lerp(CosmicScreenStyles.bg2, accent, wash * 0.25)!,
-              CosmicScreenStyles.bg1,
-            ],
-            stops: const [0.0, 0.5, 1.0],
-          ),
-          border: Border.all(
-            color: accent.withValues(
-              alpha: selected ? 1.0 : (dim ? 0.3 : 0.55),
-            ),
-            width: selected ? 1.8 : 1.0,
-          ),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 5,
-                color: accent.withValues(alpha: dim ? 0.5 : 1),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: CosmicScreenStyles.bg0.withValues(alpha: 0.7),
-                          border: Border.all(
-                            color: accent.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        child: art,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: child),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  }) => RewardSurgeCard(
+    accent: accent,
+    art: art,
+    selected: selected,
+    dim: dim,
+    child: child,
+  );
 
   Color _choiceAccent(Star3Choice c) => switch (c) {
     Star3Choice.gold => _C.amberBright,
@@ -807,38 +754,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
       enabled = _canContinue;
       action = widget.onContinue;
     }
-    return GestureDetector(
-      onTap: context.soundAction(enabled ? action : null),
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: _C.amberBright.withValues(alpha: enabled ? 0.9 : 0.3),
-          bracketSize: 8,
-          strokeWidth: 1.2,
-        ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: enabled ? _C.amberBright : CosmicScreenStyles.bg2,
-            border: Border.all(
-              color: enabled ? _C.amberBright : CosmicScreenStyles.borderDim,
-            ),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: enabled ? _C.bg : _C.muted,
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.w900,
-              fontSize: 13,
-              letterSpacing: 1.8,
-            ),
-          ),
-        ),
-      ),
-    );
+    return RewardPopupButton(label: label, enabled: enabled, onTap: action);
   }
 }
 
@@ -851,132 +767,4 @@ Color _legible(Color c) {
       .withSaturation(hsl.saturation.clamp(0.45, 1.0))
       .withLightness(hsl.lightness.clamp(0.58, 0.78))
       .toColor();
-}
-
-/// The surge card's kind tag.
-class _MiniTag extends StatelessWidget {
-  const _MiniTag({required this.label, required this.color});
-  final String label;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 8.5,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 1.0,
-        ),
-      ),
-    );
-  }
-}
-
-/// Cards arrive one after another, sliding up — the reward is counted out,
-/// not dumped.
-class _StaggerIn extends StatefulWidget {
-  const _StaggerIn({required this.index, required this.child});
-  final int index;
-  final Widget child;
-
-  @override
-  State<_StaggerIn> createState() => _StaggerInState();
-}
-
-class _StaggerInState extends State<_StaggerIn>
-    with SingleTickerProviderStateMixin {
-  // The wait is part of the animation (an Interval), not a Future.delayed:
-  // a bare timer outlives the widget if the popup closes early.
-  late final int _delayMs = 260 + widget.index * 110;
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: Duration(milliseconds: _delayMs + 380),
-  )..forward();
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final start = _delayMs / (_delayMs + 380);
-    return AnimatedBuilder(
-      animation: _c,
-      builder: (context, child) {
-        final t = Interval(
-          start,
-          1,
-          curve: Curves.easeOutCubic,
-        ).transform(_c.value);
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, (1 - t) * 16),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
-    );
-  }
-}
-
-/// Slow rays behind the reward panel.
-///
-/// Deliberately unlike anything else in the dungeon: every other panel is
-/// amber-on-dark with bracket corners, so a reward wearing that same chrome
-/// read as another hint. This is the one moment allowed to look like an event.
-class _RewardRaysPainter extends CustomPainter {
-  const _RewardRaysPainter({required this.progress, required this.spin});
-
-  final double progress;
-  final double spin;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (progress <= 0.01) return;
-    final c = Offset(size.width / 2, size.height / 2);
-    final r = size.longestSide * 0.78;
-    // UNEVEN, so it reads as light and not as a pinwheel. Fourteen identical
-    // wedges turning in lockstep is a prize-wheel; a scatter of long thin
-    // ones at three different widths and reaches is a shaft coming through
-    // something.
-    const rays = 11;
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(spin);
-    for (var i = 0; i < rays; i++) {
-      final a = i * (pi * 2 / rays);
-      final half = 0.016 + (i % 3) * 0.014;
-      final reach = r * (0.62 + (i % 4) * 0.13);
-      canvas.drawPath(
-        Path()
-          ..moveTo(0, 0)
-          ..lineTo(cos(a - half) * reach, sin(a - half) * reach)
-          ..lineTo(cos(a + half) * reach, sin(a + half) * reach)
-          ..close(),
-        Paint()
-          ..color = _C.amberBright.withValues(
-            alpha: (0.030 + (i % 3) * 0.014) * progress,
-          ),
-      );
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _RewardRaysPainter old) =>
-      old.progress != progress || old.spin != spin;
 }

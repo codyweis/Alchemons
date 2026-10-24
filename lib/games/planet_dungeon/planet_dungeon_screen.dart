@@ -737,18 +737,15 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
         bracketSize: 7,
         strokeWidth: 1.2,
       ),
+      // The bare chrome: a fill, lit from below by the frame. It wore an
+      // ember side rail and an outline from before the bare look.
       child: Container(
         height: 30,
-        padding: const EdgeInsets.only(right: 12),
-        decoration: BoxDecoration(
-          color: _C.bg.withValues(alpha: 0.82),
-          border: Border.all(color: color.withValues(alpha: 0.42)),
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        color: _C.bg.withValues(alpha: 0.82),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(width: 3, height: 30, color: color),
-            const SizedBox(width: 10),
             Text(
               'L${widget.raid!.safeLevel}',
               style: TextStyle(
@@ -1528,11 +1525,6 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
       ),
     );
   }
-
-  /// Raid HUD chip: which planet is overrun and how long the window has left.
-  ///
-  /// Same chrome as the space-view raid strip — hard edges, bracketed corners,
-  /// an ember accent rail — so the raid reads as one thing across both views.
 
   /// The descent: a portal of alchemical glyphs spelling the dungeon's name,
   /// rushing past as a tunnel with one elemental twist per planet, under the

@@ -4926,6 +4926,24 @@ final Map<String, String> kRaidGuardianIds = {
       entry.key: _guardianMysticId(entry.value)!,
 };
 
+/// A raid guardian's share of the raid pool ([RaidConfig.hpMul]) on the
+/// planets whose rule costs the squad more than the plain fight does. A tier
+/// is harder by lasting longer, and answering one of these rules is part of
+/// how long it lasts: the squad spends its time at Magmara's ring head,
+/// Prismalith's heart plate under the guardian, Wraithord's chime or in
+/// Solarin's shade, taking the planet's own blows, while a plain raid is
+/// only striking. Measured 2026-10-23 on the every-planet tier table
+/// (raid_threat_harness_test.dart): at the full pool a strong squad (stats
+/// 4.5) with no healer wiped at L3 on all four, against the author's "a
+/// strong squad shouldn't need a healer". Every other planet takes the
+/// whole pool.
+const Map<String, double> kRaidPlanetHpScale = {
+  'Lava': 0.75,
+  'Crystal': 0.8,
+  'Spirit': 0.77,
+  'Light': 0.6,
+};
+
 String? _guardianMysticId(DungeonLayout layout) {
   for (final room in layout.rooms.values) {
     final id = room.guardian?.encounter?.mysticId;

@@ -6170,7 +6170,11 @@ class _CosmicScreenState extends State<CosmicScreen>
         element: planet.element,
         party: roster,
         raid: RaidConfig(level: raid.level, level3Clears: raid.level3Clears),
-        onRaidCleared: () => _raidService.markLevelCleared(),
+        onRaidCleared: () => _raidService.markLevelCleared(
+          element: raid.element,
+          level: raid.level,
+          level3Clears: raid.level3Clears,
+        ),
         revealReady: ready,
         revealed: revealed,
       ),

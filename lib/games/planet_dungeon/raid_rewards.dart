@@ -1,5 +1,4 @@
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
-import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/raid_rewards.dart
 //
 // Raid victory loot escalates by level: one to three elemental cache rolls,
@@ -10,6 +9,9 @@ import 'package:alchemons/audio/audio.dart';
 import 'dart:math';
 
 import 'package:alchemons/database/alchemons_db.dart';
+import 'package:alchemons/games/cosmic/cosmic_data.dart' show elementColor;
+import 'package:alchemons/games/planet_dungeon/reward_popup_parts.dart';
+import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/inventory.dart';
@@ -98,22 +100,19 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
 // POPUP
 // ─────────────────────────────────────────────────────────
 
-/// THE HOUSE POPUP PALETTE. These were a warm brown set of their own
-/// (panel 14120E, amber C4A35A, border 74613A) while cosmic and survival
-/// moved to black grounds and brighter ink — so a star payout read as a
-/// screen from an older game than the one that opened it. Aliases onto
-/// `CosmicScreenStyles` now: one set of tokens, and the dialogs cannot drift
-/// apart again.
+/// THE HOUSE POPUP PALETTE: `CosmicScreenStyles`, as the dungeon's star
+/// popup uses, so the two payouts read as one game.
 class _C {
-  static const bg = Color(0xFF0B0909);
-  static const text = Color(0xFFEDE3CF);
-  static const muted = Color(0xFF9A8F7A);
+  static const bg = CosmicScreenStyles.bg0;
+  static const amber = CosmicScreenStyles.amber;
   static const amberBright = CosmicScreenStyles.amberBright;
-  static const border = CosmicScreenStyles.borderAccent;
-  static const danger = Color(0xFFB8503F);
+  static const text = CosmicScreenStyles.textPrimary;
+  static const muted = CosmicScreenStyles.textSecondary;
+  static const silver = Color(0xFFC9CED6);
 }
 
-/// Raid-tier loot popup in the dungeon popup chrome. Grants on mount, then
+/// Raid-tier loot popup in the dungeon popup's chrome: the same rays, surge
+/// cards counted out one by one, and lit CONTINUE. Grants on mount, then
 /// advances the persisted raid via [onGranted] immediately afterward.
 class RaidRewardPopup extends StatefulWidget {
   const RaidRewardPopup({
@@ -141,8 +140,9 @@ class RaidRewardPopup extends StatefulWidget {
 }
 
 class _RaidRewardPopupState extends State<RaidRewardPopup>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   late final AnimationController _intro;
+  late final AnimationController _turn;
   List<RaidRewardEntry>? _entries;
 
   @override
@@ -152,6 +152,10 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
       vsync: this,
       duration: const Duration(milliseconds: 700),
     )..forward();
+    _turn = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 44),
+    )..repeat();
     _grant();
   }
 
@@ -179,28 +183,66 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
 
   @override
   void dispose() {
+    _turn.dispose();
     _intro.dispose();
     super.dispose();
   }
+
+  bool get _firstLevel3Clear =>
+      widget.raidLevel == 3 && widget.level3ClearsBeforeFight == 0;
+  bool get _finalLevel3Clear =>
+      widget.raidLevel == 3 && widget.level3ClearsBeforeFight > 0;
 
   @override
   Widget build(BuildContext context) {
     final curved = CurvedAnimation(parent: _intro, curve: Curves.easeOutBack);
     return Positioned.fill(
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior: HitTestBehavior.opaque, // absorb taps to the game behind
         onTap: () {},
-        child: ColoredBox(
-          color: _C.bg.withValues(alpha: 0.78),
-          child: Center(
-            child: FadeTransition(
-              opacity: _intro,
-              child: ScaleTransition(
-                scale: Tween(begin: 0.85, end: 1.0).animate(curved),
-                child: _panel(),
-              ),
-            ),
-          ),
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_intro, _turn]),
+          builder: (context, _) {
+            final t = _intro.value;
+            return Stack(
+              fit: StackFit.expand,
+              children: [
+                ColoredBox(color: Colors.black.withValues(alpha: 0.90 * t)),
+                IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        radius: 0.75,
+                        colors: [
+                          _C.amberBright.withValues(alpha: 0.20 * t),
+                          _C.amber.withValues(alpha: 0.06 * t),
+                          Colors.transparent,
+                        ],
+                        stops: const [0.0, 0.45, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+                IgnorePointer(
+                  child: CustomPaint(
+                    painter: RewardRaysPainter(
+                      progress: t,
+                      spin: _turn.value * pi * 2,
+                    ),
+                  ),
+                ),
+                Center(
+                  child: Opacity(
+                    opacity: t,
+                    child: Transform.scale(
+                      scale: 0.72 + 0.28 * curved.value,
+                      child: _panel(),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
     );
@@ -208,125 +250,71 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
 
   Widget _panel() {
     final entries = _entries;
-    final firstLevel3Clear =
-        widget.raidLevel == 3 && widget.level3ClearsBeforeFight == 0;
-    final finalLevel3Clear =
-        widget.raidLevel == 3 && widget.level3ClearsBeforeFight > 0;
+    final maxWidth = MediaQuery.sizeOf(context).width - 36;
     return CustomPaint(
       painter: const BracketFramePainter(
-        color: _C.amberBright,
-        bracketSize: 12,
+        color: _C.amber,
+        bracketSize: 14,
+        strokeWidth: 1.3,
       ),
       child: Container(
-        width: 320,
-        margin: const EdgeInsets.all(2),
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 14),
+        width: maxWidth < 400 ? maxWidth : 400,
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.sizeOf(context).height - 60,
+        ),
+        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
         decoration: BoxDecoration(
-          color: _C.bg.withValues(alpha: 0.96),
-          border: Border.all(color: _C.border.withValues(alpha: 0.55)),
+          color: _C.bg.withValues(alpha: 0.97),
+          border: Border.all(color: _C.amber.withValues(alpha: 0.30)),
+          boxShadow: const [
+            BoxShadow(
+              color: Color(0x99000000),
+              blurRadius: 28,
+              spreadRadius: 4,
+            ),
+          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                const Icon(Icons.whatshot_rounded, color: _C.danger, size: 16),
-                const SizedBox(width: 8),
-                // Flexible: a large accessibility text size must shrink the
-                // line, not push it off the panel.
-                Flexible(
-                  child: Text(
-                    'RAID LEVEL ${widget.raidLevel} BROKEN',
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: _C.amberBright,
-                      fontFamily: 'monospace',
-                      fontSize: 13,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.6,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text(
-              firstLevel3Clear
-                  ? 'The guardian reforms in 12 hours. One final echo remains.'
-                  : widget.raidLevel < 3
-                  ? 'The raid deepens. Level ${widget.raidLevel + 1} is now available.'
-                  : 'The guardian\'s madness lifts. The raid is cleared.',
-              style: const TextStyle(color: _C.muted, fontSize: 11.5),
-            ),
-            const SizedBox(height: 12),
-            if (entries == null)
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 18),
-                child: Center(
-                  child: Text('…', style: TextStyle(color: _C.muted)),
-                ),
-              )
-            else
-              for (final e in entries)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 7),
-                  child: Row(
-                    children: [
-                      _entryArt(e, 24),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          e.label,
-                          style: const TextStyle(
-                            color: _C.text,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.2,
+            _header(),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (entries == null)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 18),
+                        child: Center(
+                          child: Text('…', style: TextStyle(color: _C.muted)),
+                        ),
+                      )
+                    else
+                      for (var i = 0; i < entries.length; i++)
+                        RewardStaggerIn(
+                          index: i,
+                          child: Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: _entryCard(entries[i]),
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-            const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerRight,
-              child: GestureDetector(
-                onTap: context.soundAction(
-                  entries == null ? null : widget.onContinue,
-                ),
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 250),
-                  opacity: entries == null ? 0.4 : 1.0,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18,
-                      vertical: 9,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: _C.amberBright),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      widget.raidLevel < 3
-                          ? 'RETURN FOR LEVEL ${widget.raidLevel + 1}'
-                          : firstLevel3Clear
-                          ? 'RETURN TO ORBIT'
-                          : finalLevel3Clear
-                          ? 'RAID CLEARED'
-                          : 'CONTINUE',
-                      style: const TextStyle(
-                        color: _C.amberBright,
-                        fontFamily: 'monospace',
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.4,
-                      ),
-                    ),
-                  ),
+                  ],
                 ),
               ),
+            ),
+            const SizedBox(height: 6),
+            RewardPopupButton(
+              label: widget.raidLevel < 3
+                  ? 'RETURN FOR LEVEL ${widget.raidLevel + 1}'
+                  : _firstLevel3Clear
+                  ? 'RETURN TO ORBIT'
+                  : _finalLevel3Clear
+                  ? 'RAID CLEARED'
+                  : 'CONTINUE',
+              enabled: entries != null,
+              onTap: widget.onContinue,
             ),
           ],
         ),
@@ -334,12 +322,122 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
     );
   }
 
+  Widget _header() {
+    return Column(
+      children: [
+        const Text(
+          'RAID BROKEN',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            color: _C.muted,
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 2.4,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'LEVEL ${widget.raidLevel}',
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: _C.text,
+            fontSize: 19,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.6,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          _firstLevel3Clear
+              ? 'The guardian reforms in 12 hours. One final echo remains.'
+              : widget.raidLevel < 3
+              ? 'The raid deepens. Level ${widget.raidLevel + 1} is now available.'
+              : 'The guardian\'s madness lifts. The raid is cleared.',
+          textAlign: TextAlign.center,
+          style: const TextStyle(color: _C.muted, fontSize: 11),
+        ),
+      ],
+    );
+  }
+
+  /// What a loot line IS, for its card: accent, tag, amount and name.
+  ({Color accent, String tag, String amount, String name}) _describe(
+    RaidRewardEntry e,
+  ) {
+    final m = RegExp(r'^(\+\d+)\s+(.*)$').firstMatch(e.label);
+    final amount = m?.group(1) ?? '';
+    final name = m?.group(2) ?? e.label;
+    final key = e.itemKey;
+    ({Color accent, String tag, String amount, String name}) card(
+      Color accent,
+      String tag,
+    ) => (accent: accent, tag: tag, amount: amount, name: name);
+    if (key == null) {
+      return card(
+        name.contains('Gold') ? _C.amberBright : _C.silver,
+        'CURRENCY',
+      );
+    }
+    if (key == InvKeys.athanorTincture) {
+      return card(_C.amberBright, 'ATHANOR');
+    }
+    if (key == InvKeys.potentialSoul) {
+      return card(const Color(0xFFB79CFF), 'POTENTIAL');
+    }
+    for (final t in AlchemicalPowerupType.values) {
+      if (key == t.inventoryKey) return card(_legible(t.color), 'POWERUP');
+    }
+    return card(_legible(elementColor(widget.element)), 'CACHE');
+  }
+
+  Widget _entryCard(RaidRewardEntry e) {
+    final d = _describe(e);
+    return RewardSurgeCard(
+      accent: d.accent,
+      art: _entryArt(e, 26),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (d.amount.isNotEmpty)
+                  Text(
+                    d.amount,
+                    style: TextStyle(
+                      color: Color.lerp(_C.text, d.accent, 0.45),
+                      fontSize: 20,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                    ),
+                  ),
+                const SizedBox(height: 3),
+                Text(
+                  d.name.toUpperCase(),
+                  style: const TextStyle(
+                    color: _C.text,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                    height: 1.15,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          RewardMiniTag(label: d.tag, color: d.accent),
+        ],
+      ),
+    );
+  }
+
   Widget _entryArt(RaidRewardEntry e, double size) {
     final key = e.itemKey;
     if (key == null) {
-      // Currency: gold coin art for gold, tinted coin for silver.
-      if (e.label.contains('Gold')) return CoinIcon.gold(size: size);
-      return Icon(Icons.brightness_5_rounded, size: size, color: _C.muted);
+      return e.label.contains('Gold')
+          ? CoinIcon.gold(size: size)
+          : CoinIcon.silver(size: size);
     }
     return SizedBox(
       width: size,
@@ -352,4 +450,14 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
       ),
     );
   }
+}
+
+/// Lifts a color until it holds its own as an accent on the near-black
+/// plate (the survival surge's rule, as the dungeon's popup uses it).
+Color _legible(Color c) {
+  final hsl = HSLColor.fromColor(c);
+  return hsl
+      .withSaturation(hsl.saturation.clamp(0.45, 1.0))
+      .withLightness(hsl.lightness.clamp(0.58, 0.78))
+      .toColor();
 }

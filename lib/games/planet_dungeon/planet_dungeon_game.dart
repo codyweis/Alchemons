@@ -25,7 +25,8 @@ import 'package:alchemons/games/cosmic/horn_runtime.dart'
         HornRules,
         clampHornChargeBurst,
         hornDarkAuraRadius,
-        hornDarkCaptureRadius;
+        hornDarkCaptureRadius,
+        hornDarkPullSpeed;
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic/planets/planet_art.dart'
     show BlackHoleArt, DiskPalette;
@@ -266,6 +267,9 @@ class _DungeonWingBeam {
   double life;
   double tickTimer;
   double chargeTimer;
+
+  /// Survival's focus: how long the beam has been held on one body.
+  final WingBeamHeat heat = WingBeamHeat();
 
   bool get dead => life <= 0;
 }
@@ -532,6 +536,11 @@ class PlanetDungeonGame extends FlameGame {
   /// enemies and especially guardians scale with it.
   final int clearedGuardianCount;
 
+  /// The clock everything in a run rides: [clearedGuardianCount], or none in
+  /// a raid, which is tuned on its own ladder (RaidConfig). The raid's wisps
+  /// used to ride it, so a late save met adds four times the tuned health.
+  int get _campaignClears => isRaid ? 0 : clearedGuardianCount;
+
   /// Guardian/wisp HP swells with progress (final guardian ≈ 3.9×). Was
   /// ×0.45·n (≈8.2× at the end) while the guardian pool was tiny and the
   /// lull-strike fraction decided every fight; now that [kGuardianBaseHp] is
@@ -578,7 +587,7 @@ class PlanetDungeonGame extends FlameGame {
       // Solarin: three planned blows, each set up on the shadow floor — the
       // fight is the puzzle, and fourteen of them would be a chore.
       ? 3
-      : kGuardianBaseStrikes + clearedGuardianCount * 0.75;
+      : kGuardianBaseStrikes + _campaignClears * 0.75;
 
   /// Synthetic discovery id for the entry passage reveal. Stored alongside
   /// cloud ids so the one-time entry puzzle stays solved across runs
@@ -684,7 +693,9 @@ class PlanetDungeonGame extends FlameGame {
         g.isDead ||
         g.hp <= 0 ||
         currentRoom.guardian == null ||
-        _isRites ||
+        // Blood's rites are their own fight; its raid is not, and takes the
+        // squad hit like every other raid.
+        (_isRites && !isRaid) ||
         _raidDeath != null ||
         _raidExpiredFired) {
       // A gather the fight ended under never lands.
@@ -4905,8 +4916,17 @@ class PlanetDungeonGame extends FlameGame {
       if (comp.damageAmpTimer > 0) comp.damageAmpTimer -= dt;
       if (comp.pipSpiritEmpowerTimer > 0) comp.pipSpiritEmpowerTimer -= dt;
       if (comp.hornSpecialActiveWindow > 0) comp.hornSpecialActiveWindow -= dt;
-      if (comp.pipSteamWindowTimer > 0) {
-        comp.pipSteamWindowTimer -= dt;
+      // Pip+Steam: advance the perpetual attack-speed ramp cycle, as
+      // survival does. It only ever counted down here, so it sat at 0 and
+      // the ramp never left its first step.
+      if (comp.member.family.toLowerCase() == 'pip' &&
+          comp.member.element == 'Steam') {
+        comp.pipSteamWindowTimer += dt;
+        if (comp.pipSteamWindowTimer >=
+            CosmicSurvivalCompanion.pipSteamWindowDuration) {
+          comp.pipSteamWindowTimer -=
+              CosmicSurvivalCompanion.pipSteamWindowDuration;
+        }
       }
       // Kin blessing regen (set by _applySpecialSupportEffects).
       if (comp.blessingTimer > 0) {
@@ -6013,22 +6033,58 @@ class PlanetDungeonGame extends FlameGame {
       return;
     }
 
-    final end = _wingBeamEnd(beam);
-    final radius = max(10.0, descriptor.width * 1.35);
+    // Focus, as survival's beam (2026-10-20): the body the beam is held on
+    // takes its tick at the beam's heat, which climbs the longer it stays
+    // there; every other body the line crosses takes the unheated tick.
+    // Water's beam is held on an ally in survival, and there is no ally aim
+    // down here, so it keeps its authored tick.
+    final focus = _wingBeamFocus(beam);
+    final heats =
+        WingBeamRules.heats(descriptor) &&
+        descriptor.targetPolicy != WingBeamTargetPolicy.lowestHealthAllyOrShip;
+    final heat = heats ? beam.heat.tick(focus, descriptor.tickInterval) : 1.0;
+    final lineShare = heats ? WingBeamRules.lineShare : 1.0;
+    final riderScales = WingBeamRules.riderScales(descriptor.tickEffect);
+    Projectile effectAt(double share) => !riderScales || share == 1.0
+        ? effectProjectile
+        : Projectile(
+            position: beam.origin,
+            angle: beam.angle,
+            element: descriptor.element,
+            damage: descriptor.effectPower * share,
+            life: 0.1,
+            sourceSlotIndex: beam.sourceSlotIndex,
+            abilityFamily: 'wing',
+            effectPower: descriptor.effectPower * share,
+            effectRadius: max(descriptor.radius, descriptor.width * 8),
+            effectDuration: descriptor.effectDuration,
+            hitEffect: descriptor.tickEffect,
+          );
+    final focusEffect = effectAt(heat);
+    final lineEffect = effectAt(lineShare);
+    final end = _wingBeamEndAt(beam, focus);
+    final radius = WingBeamRules.hitRadius(descriptor);
     for (final enemy in combatEnemies) {
       if (enemy.isDead) continue;
       final distance = _distanceToSegment(enemy.position, beam.origin, end);
       if (distance > enemy.radius + radius) continue;
-      _damageEnemyFromBeam(enemy, pulseDamage);
-      _applyProjectileEffect(effectProjectile, enemy, descriptor.tickEffect);
+      final onFocus = identical(enemy, focus);
+      _damageEnemyFromBeam(enemy, pulseDamage * (onFocus ? heat : lineShare));
+      _applyProjectileEffect(
+        onFocus ? focusEffect : lineEffect,
+        enemy,
+        descriptor.tickEffect,
+      );
     }
 
     if (descriptor.healPerTick > 0) {
+      // Crystal's and Light's heal is the beam's own damage coming back, so
+      // it runs at the beam's heat.
       final comp = _combatCompanionForSlot(beam.sourceSlotIndex);
       if (comp != null) {
         comp.currentHp = min(
           comp.maxHp,
-          comp.currentHp + descriptor.healPerTick.round(),
+          comp.currentHp + (descriptor.healPerTick * heat).round(),
         );
       }
     }
@@ -6133,25 +6189,46 @@ class PlanetDungeonGame extends FlameGame {
     return base * venomDrainMul(active);
   }
 
-  Offset _wingBeamEnd(_DungeonWingBeam beam) {
+  /// The body a line beam is held on: the one its policy aims at.
+  CosmicSurvivalEnemy? _wingBeamFocus(_DungeonWingBeam beam) {
     final descriptor = beam.descriptor;
-    final target = switch (descriptor.targetPolicy) {
-      WingBeamTargetPolicy.lowestHealthEnemy => _lowestHealthEnemyPosition(
+    return switch (descriptor.targetPolicy) {
+      WingBeamTargetPolicy.lowestHealthEnemy => _lowestHealthCombatEnemy(
         beam.origin,
         descriptor.range,
       ),
-      WingBeamTargetPolicy.nearestEnemy => _nearestEnemyPosition(
+      WingBeamTargetPolicy.nearestEnemy => _nearestCombatEnemy(
         beam.origin,
         maxRange: descriptor.range,
       ),
       _ => null,
     };
-    if (target != null) return target;
-    return beam.origin +
-        Offset(cos(beam.angle), sin(beam.angle)) * descriptor.range;
   }
 
-  Offset? _lowestHealthEnemyPosition(Offset from, double maxRange) {
+  Offset _wingBeamEnd(_DungeonWingBeam beam) =>
+      _wingBeamEndAt(beam, _wingBeamFocus(beam));
+
+  /// Where [beam] ends when held on [focus]. A beam aimed at the nearest
+  /// body runs on through it to its full range, as survival's does, so the
+  /// line cuts through what stands behind; it used to stop on the body.
+  Offset _wingBeamEndAt(_DungeonWingBeam beam, CosmicSurvivalEnemy? focus) {
+    final descriptor = beam.descriptor;
+    if (focus == null) {
+      return beam.origin +
+          Offset(cos(beam.angle), sin(beam.angle)) * descriptor.range;
+    }
+    if (WingBeamRules.sweeps(descriptor)) {
+      return WingBeamRules.sweepEnd(
+        beam.origin,
+        focus.position,
+        descriptor.range,
+        beam.angle,
+      );
+    }
+    return focus.position;
+  }
+
+  CosmicSurvivalEnemy? _lowestHealthCombatEnemy(Offset from, double maxRange) {
     CosmicSurvivalEnemy? best;
     var bestHealth = double.infinity;
     for (final enemy in combatEnemies) {
@@ -6162,7 +6239,7 @@ class PlanetDungeonGame extends FlameGame {
         best = enemy;
       }
     }
-    return best?.position;
+    return best;
   }
 
   double _distanceToSegment(Offset point, Offset a, Offset b) {
@@ -6895,10 +6972,10 @@ class PlanetDungeonGame extends FlameGame {
     const wave = 4;
     final hpScale =
         CosmicSurvivalBalance.enemyWaveHpScale(wave) *
-        (boss ? progressHpMul : 1.0 + 0.22 * clearedGuardianCount);
+        (boss ? progressHpMul : 1.0 + 0.22 * _campaignClears);
     final damageScale =
         CosmicSurvivalBalance.enemyWaveDamageScale(wave) *
-        (boss ? progressDmgMul : 1.0 + 0.07 * clearedGuardianCount);
+        (boss ? progressDmgMul : 1.0 + 0.07 * _campaignClears);
     final speedScale = CosmicSurvivalBalance.enemyWaveSpeedScale(wave);
     final e = CosmicSurvivalEnemy(
       position: offscreenSpawn(currentRoom, from),
@@ -6935,10 +7012,10 @@ class PlanetDungeonGame extends FlameGame {
     // Wisps ride the campaign clock too, a touch gentler than guardians.
     final hpScale =
         CosmicSurvivalBalance.enemyWaveHpScale(wave) *
-        (1.0 + 0.22 * clearedGuardianCount);
+        (1.0 + 0.22 * _campaignClears);
     final damageScale =
         CosmicSurvivalBalance.enemyWaveDamageScale(wave) *
-        (1.0 + 0.07 * clearedGuardianCount);
+        (1.0 + 0.07 * _campaignClears);
     final speedScale = CosmicSurvivalBalance.enemyWaveSpeedScale(wave);
     for (var i = 0; i < count; i++) {
       combatEnemies.add(
@@ -7036,6 +7113,7 @@ class PlanetDungeonGame extends FlameGame {
     final hpScale =
         CosmicSurvivalBalance.enemyWaveHpScale(7) *
         (raid?.hpMul ?? 1.0) *
+        (isRaid ? kRaidPlanetHpScale[layout.element] ?? 1.0 : 1.0) *
         progressHpMul;
     final damageScale =
         CosmicSurvivalBalance.enemyWaveDamageScale(7) *
@@ -7961,12 +8039,15 @@ class PlanetDungeonGame extends FlameGame {
           // Void-suck: drag enemies into the brew, out to the reach survival
           // and open space drag from ([hornDarkAuraRadius], by Beauty).
           final reach = hornDarkAuraRadius(comp.member.statBeauty.toDouble());
+          // The pull ramps over the wind-up as survival's does; it was a
+          // flat 95 here.
+          final pull = hornDarkPullSpeed(comp.windUpTimer);
           for (final e in combatEnemies) {
             if (e.isDead || _isBossBody(e)) continue;
             final toCaster = creature.position - e.position;
             final d = toCaster.distance;
             if (d > 1 && d < reach) {
-              e.position += toCaster / d * 95 * dt;
+              e.position += toCaster / d * pull * dt;
             }
           }
         }
@@ -13182,11 +13263,14 @@ class PlanetDungeonGame extends FlameGame {
                 ? const Color(0xFFE4C16A)
                 : const Color(0xFF9FB3C8));
 
-      // Soft channel wash.
-      canvas.drawRect(
-        cur.rect,
-        Paint()..color = tint.withValues(alpha: strong ? 0.07 : 0.04),
-      );
+      // Soft channel wash. Not in a raid: there the crosswinds are only lift
+      // for gliders, and two hard slabs framed every planet's arena.
+      if (!isRaid) {
+        canvas.drawRect(
+          cur.rect,
+          Paint()..color = tint.withValues(alpha: strong ? 0.07 : 0.04),
+        );
+      }
 
       if (mote == null) continue;
       final r = cur.rect;
@@ -15688,40 +15772,15 @@ class PlanetDungeonGame extends FlameGame {
       // own color. Swapping it for the generic Poison blob at the end of
       // the crawl would undo the whole point of the crawl.
       if (_isVenom && identical(enemy, monastery.body)) continue;
-      final base = elementColor(enemy.element);
-      final flash = enemy.hitFlash > 0
-          ? Color.lerp(base, Colors.white, enemy.hitFlash.clamp(0.0, 1.0))!
-          : base;
       // The same body survival and open space draw (cosmic_enemy_vfx.dart):
-      // dive telegraph, attack tells and root wraps included.
+      // dive telegraph, attack tells and root wraps included, and its health
+      // the way survival shows it — none on the small ones, a flat bar on a
+      // hurt heavy. This drew a rounded bar of its own over every body.
       drawSurvivalEnemy(
         canvas: canvas,
         enemy: enemy,
         time: _time,
         reduceLabels: true,
-      );
-
-      final barW = enemy.radius * 2.2;
-      final bar = Rect.fromCenter(
-        center: enemy.position + Offset(0, -enemy.radius - 12),
-        width: barW,
-        height: 4,
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(bar, const Radius.circular(3)),
-        Paint()..color = Colors.black.withValues(alpha: 0.55),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-            bar.left,
-            bar.top,
-            bar.width * enemy.hpFraction,
-            bar.height,
-          ),
-          const Radius.circular(3),
-        ),
-        Paint()..color = flash.withValues(alpha: 0.85),
       );
     }
   }

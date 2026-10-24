@@ -8,6 +8,8 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/raid_state.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart'
+    show CosmicSurvivalEnemy;
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_data.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_game.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,10 +49,11 @@ PlanetDungeonGame _buildRaid({
   RaidConfig config = const RaidConfig(),
   void Function()? onCleared,
   void Function(int)? onStar,
+  String element = 'Air',
 }) {
   final party = [for (var i = 0; i < 2; i++) _member(slot: i)];
   final game = PlanetDungeonGame(
-    element: 'Air',
+    element: element,
     party: party,
     initialStarMask: 0,
     onStarEarned: onStar ?? (_) {},
@@ -58,7 +61,7 @@ PlanetDungeonGame _buildRaid({
     onChanged: () {},
     raid: config,
     onRaidCleared: onCleared,
-    layoutOverride: buildRaidArenaLayout('Air'),
+    layoutOverride: buildRaidArenaLayout(element),
   );
   game.currentRoomId = game.layout.entranceRoomId;
   final spawn = game.layout.entranceSpawn;
@@ -155,6 +158,27 @@ void main() {
       // The normal dungeon's guardian still waits for the altar puzzle.
       final normal = _buildNormalDungeon();
       expect(normal.guardianAwake, isFalse);
+    });
+
+    test('a planet whose rule costs the squad holds less of the pool', () {
+      CosmicSurvivalEnemy guardianOf(String element) {
+        final game = _buildRaid(element: element);
+        for (var i = 0; i < 60 * 8; i++) {
+          if (game.combatEnemies.any((e) => e.isElite)) break;
+          game.update(1 / 60);
+        }
+        return game.combatEnemies.firstWhere((e) => e.isElite);
+      }
+
+      final plain = guardianOf('Air').maxHp;
+      for (final MapEntry(key: element, value: scale)
+          in kRaidPlanetHpScale.entries) {
+        expect(
+          guardianOf(element).maxHp,
+          closeTo(plain * scale, 0.001),
+          reason: element,
+        );
+      }
     });
 
     test('phase adds spawn as guardian hp crosses each threshold', () {
@@ -356,6 +380,21 @@ void main() {
       expect(raidWith(5).progressDmgMul, raidWith(0).progressDmgMul);
       expect(raidWith(0).progressHpMul, 1.0);
       expect(raidWith(0).progressDmgMul, 1.0);
+
+      // Its adds too: a late save meets the wisps the ladder was tuned on.
+      CosmicSurvivalEnemy wisp(int cleared) {
+        final game = raidWith(cleared)
+          ..currentRoomId = buildRaidArenaLayout('Air').entranceRoomId;
+        game.spawnWispWave(
+          element: 'Air',
+          center: const Offset(700, 450),
+          announce: false,
+        );
+        return game.combatEnemies.last;
+      }
+
+      expect(wisp(16).maxHp, wisp(0).maxHp);
+      expect(wisp(16).damage, wisp(0).damage);
     });
   });
 

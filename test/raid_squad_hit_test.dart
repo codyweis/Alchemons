@@ -31,10 +31,14 @@ CosmicPartyMember _member(int slot) => CosmicPartyMember(
   staminaMax: 3,
 );
 
-PlanetDungeonGame _raid({int level = 1, int squad = 5}) {
+PlanetDungeonGame _raid({
+  int level = 1,
+  int squad = 5,
+  String element = 'Air',
+}) {
   final members = [for (var i = 0; i < squad; i++) _member(i)];
   final g = PlanetDungeonGame(
-    element: 'Air',
+    element: element,
     party: members,
     initialStarMask: 0,
     onStarEarned: (_) {},
@@ -42,7 +46,7 @@ PlanetDungeonGame _raid({int level = 1, int squad = 5}) {
     onChanged: () {},
     raid: RaidConfig(level: level),
     onRaidCleared: () async {},
-    layoutOverride: buildRaidArenaLayout('Air'),
+    layoutOverride: buildRaidArenaLayout(element),
   );
   g.onGameResize(Vector2(412, 915));
   g.currentRoomId = g.layout.entranceRoomId;
@@ -90,6 +94,12 @@ void main() {
       g.update(1 / 60);
       t += 1 / 60;
     }
+    expect(g.squadHitsLanded, 1);
+  });
+
+  test("Blood's raid takes it too: only the dungeon's rites skip it", () {
+    final g = _raid(element: 'Blood');
+    _tickToHit(g);
     expect(g.squadHitsLanded, 1);
   });
 

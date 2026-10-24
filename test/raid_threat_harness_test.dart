@@ -352,6 +352,11 @@ const _ruleNeeds = <String, List<(List<String>, String?)>>{
 /// about a notch everywhere: it is in the rage aura while it walks out).
 const _walk = bool.fromEnvironment('WALK');
 
+/// DETAIL=true prints every run of the every-planet table under its row.
+const _detail = bool.fromEnvironment('DETAIL');
+final double _hpScale =
+    double.tryParse(const String.fromEnvironment('RAID_HP_SCALE')) ?? 1.0;
+
 const _tableSquads = [
   [..._core, 'Lava/let'],
   [..._core, 'Fire/mask'],
@@ -553,7 +558,17 @@ void main() {
                 healer: healed ? 4 : null,
                 rule: keyed.hands,
                 walk: _walk,
+                config: _hpScale == 1.0
+                    ? null
+                    : RaidConfig(
+                        level: level,
+                        hpMul: RaidConfig(level: level).hpMul * _hpScale,
+                      ),
               );
+              if (_detail) {
+                // ignore: avoid_print
+                print('  $planet L$level s$stat ${keyed.squad.join(" ")}: $run');
+              }
               if (run.cleared) clears++;
               losses.add(run.downs.length);
               seconds += run.seconds;

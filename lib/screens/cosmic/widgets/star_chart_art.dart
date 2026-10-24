@@ -418,8 +418,7 @@ void paintDustGlyph(Canvas c, Offset at, double s) {
   paintDisc(c, _dustLight.spark, at + Offset(0, -s * 0.12), s * 0.18, 0.8);
 }
 
-const Color _raidEmber = Color(0xFFE25544);
-final StoneLight _raidLight = StoneLight(_raidEmber);
+final StoneLight _raidLight = StoneLight(kRaidEmber);
 
 /// An overrun planet: an orb of [planet]'s color inside a crimson storm of
 /// grains, in an [s]-pixel box centred on [at].
