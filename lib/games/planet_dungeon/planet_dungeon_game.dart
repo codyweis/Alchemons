@@ -8661,6 +8661,7 @@ class PlanetDungeonGame extends FlameGame {
         (_combatRng.nextDouble() - 0.5) * enemy.radius * 1.2,
         -enemy.radius * 0.7 - _combatRng.nextDouble() * 6,
       ),
+      key: enemy,
     );
   }
 
@@ -13493,9 +13494,11 @@ class PlanetDungeonGame extends FlameGame {
         );
       }
       // Guardian is procedural (cosmic-enemy wisp/phantom style). The combat
-      // body drives position + hit flash so there is exactly one Roc.
-      final enemyFlash = _guardianEnemy?.hitFlash ?? 0;
-      final flash = max(guardianHitFlash, enemyFlash);
+      // body drives position so there is exactly one Roc. Its flash is the
+      // lull strike's alone: every chip hit kept the combat body's flash
+      // lit, and with a squad on it the guardian sat in a white disc for
+      // the whole fight. The damage numbers say a chip hit landed.
+      final flash = guardianHitFlash;
       final bodyCol = flash > 0
           ? Color.lerp(col, Colors.white, (flash / 0.3).clamp(0, 1))!
           : col;
@@ -13691,10 +13694,20 @@ class PlanetDungeonGame extends FlameGame {
             ..color = const Color(0xFFE4C16A).withValues(alpha: 0.55),
         );
       }
+      if (!vulnerable) {
+        // Raging, it hovers: a fainter shadow on the floor under it.
+        paintContactShadow(
+          canvas,
+          c + const Offset(0, 52),
+          80,
+          18,
+          opacity: 0.22,
+        );
+      }
       _paintGuardianFigure(canvas, c, r, color, vulnerable);
-      // Hit feedback: a white bloom (the sprite itself stays untinted).
-      if (guardianHitFlash > 0 || (_guardianEnemy?.hitFlash ?? 0) > 0) {
-        final f = max(guardianHitFlash, _guardianEnemy?.hitFlash ?? 0);
+      // A lull strike's white bloom (the sprite itself stays untinted).
+      if (guardianHitFlash > 0) {
+        final f = guardianHitFlash;
         canvas.drawCircle(
           c + Offset(0, _guardianHover(vulnerable)),
           54,
@@ -15824,8 +15837,9 @@ class PlanetDungeonGame extends FlameGame {
     Canvas canvas,
     DungeonCreature c,
     bool facingRight,
-    double time,
-  ) {
+    double time, {
+    double hurt = 0,
+  }) {
     final ticker = c.ticker;
     if (ticker == null) return;
     final sprite = ticker.getSprite();
@@ -15841,6 +15855,18 @@ class PlanetDungeonGame extends FlameGame {
     canvas.save();
     canvas.scale(facingRight ? -c.spriteScale : c.spriteScale, c.spriteScale);
     sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
+    if (hurt > 0) {
+      // Struck: the body's own shape washed red, fading as it recovers.
+      sprite.render(
+        canvas,
+        anchor: Anchor.center,
+        overridePaint: Paint()
+          ..colorFilter = ColorFilter.mode(
+            const Color(0xFFE0524D).withValues(alpha: 0.6 * hurt),
+            BlendMode.srcATop,
+          ),
+      );
+    }
     paintWornCostumes(canvas, looks, sprite, ticker.currentIndex, time);
     canvas.restore();
     paintWornAura(canvas, looks, auraR, time, front: true);
@@ -15945,6 +15971,17 @@ class PlanetDungeonGame extends FlameGame {
         continue;
       }
 
+      // A contact shadow, so a body stands ON the floor: on a pale one
+      // (Light's shadow floor) the glow alone left a golden body nothing
+      // to stand out against.
+      paintContactShadow(
+        canvas,
+        Offset(0, 17 * k),
+        32 * k,
+        9 * k,
+        opacity: 0.32,
+      );
+
       // Elemental aura (baked glow) — kept soft so it never reads as a
       // shield bubble around the body.
       if (_fx.ready) {
@@ -16035,20 +16072,12 @@ class PlanetDungeonGame extends FlameGame {
         }
       }
 
-      // Damage feedback: brief red flash on the body when struck.
+      // Damage feedback: the body itself flashes red when struck (in
+      // [_paintLook]). It was a flat red disc behind it, and a raid's squad
+      // hit lit five of them at once.
       final hitFlash = i < combatCompanions.length
           ? combatCompanions[i].hitFlash
           : 0.0;
-      if (hitFlash > 0) {
-        canvas.drawCircle(
-          Offset.zero,
-          20 * k,
-          Paint()
-            ..color = const Color(
-              0xFFE0524D,
-            ).withValues(alpha: 0.45 * (hitFlash / 0.22).clamp(0.0, 1.0)),
-        );
-      }
 
       // Cast telegraphs: a converging ring while a kin laser charges or a
       // horn winds up / brews its storm.
@@ -16150,7 +16179,13 @@ class PlanetDungeonGame extends FlameGame {
       }
 
       if (c.ticker != null) {
-        _paintLook(canvas, c, cos(c.angle) > 0, _time);
+        _paintLook(
+          canvas,
+          c,
+          cos(c.angle) > 0,
+          _time,
+          hurt: (hitFlash / 0.22).clamp(0.0, 1.0),
+        );
       } else {
         canvas.drawCircle(
           Offset.zero,

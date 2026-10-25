@@ -11894,6 +11894,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         (_rng.nextDouble() - 0.5) * boss.radius * 1.2,
         -boss.radius * 0.75 - _rng.nextDouble() * 8,
       ),
+      key: boss,
     );
 
     final dealtToBoss = hpBefore - max(boss.hp, 0.0);

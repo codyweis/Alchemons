@@ -39,6 +39,44 @@ void main() {
     });
   });
 
+  group('hits on one body fold together', () {
+    test('a hit inside the window adds to that body\'s number', () {
+      final f = DamageNumberField(mergeWindow: 0.2, bigThreshold: 40);
+      final boss = Object();
+      f.spawn(Offset.zero, 25, key: boss);
+      f.update(0.1);
+      f.spawn(Offset.zero, 20, key: boss);
+      expect(f.length, 1);
+      expect(f.numbers.single.label, '45');
+      expect(f.numbers.single.isBig, isTrue);
+    });
+
+    test('a hit after the window raises a number of its own', () {
+      final f = DamageNumberField(mergeWindow: 0.2);
+      final boss = Object();
+      f.spawn(Offset.zero, 25, key: boss);
+      f.update(0.25);
+      f.spawn(Offset.zero, 20, key: boss);
+      expect(f.length, 2);
+    });
+
+    test('another body, or no body, never folds in', () {
+      final f = DamageNumberField();
+      f.spawn(Offset.zero, 25, key: Object());
+      f.spawn(Offset.zero, 20, key: Object());
+      f.spawn(Offset.zero, 15);
+      expect(f.length, 3);
+    });
+
+    test('chip damage too small to show alone still counts', () {
+      final f = DamageNumberField();
+      final boss = Object();
+      f.spawn(Offset.zero, 4, key: boss);
+      f.spawn(Offset.zero, 0.5, key: boss);
+      expect(f.numbers.single.label, '4.5');
+    });
+  });
+
   group('the pool is bounded', () {
     test('a sustained beam cannot grow the list without bound', () {
       final f = DamageNumberField(maxNumbers: 40);

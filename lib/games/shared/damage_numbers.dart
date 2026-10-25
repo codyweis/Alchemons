@@ -21,14 +21,20 @@ class DamageNumber {
     required this.drift,
     this.isBig = false,
     this.life = 0.85,
+    this.key,
   }) : maxLife = life;
 
   Offset position;
-  final double amount;
+
+  /// What it shows. Grows while hits on the same [key] fold into it.
+  double amount;
   final Offset drift;
 
   /// Heavy hits get a larger, brighter treatment.
-  final bool isBig;
+  bool isBig;
+
+  /// The body it rose from, when hits on that body fold together.
+  final Object? key;
 
   double life;
   final double maxLife;
@@ -42,7 +48,11 @@ class DamageNumber {
 
 /// Owns a pool of numbers plus the painter cache. One per game instance.
 class DamageNumberField {
-  DamageNumberField({this.maxNumbers = 40, this.bigThreshold = 40});
+  DamageNumberField({
+    this.maxNumbers = 40,
+    this.bigThreshold = 40,
+    this.mergeWindow = 0.2,
+  });
 
   /// Cap the list rather than the spawn rate: a big AoE tick should show every
   /// hit, but a sustained beam must not grow this without bound.
@@ -50,6 +60,12 @@ class DamageNumberField {
 
   /// At or above this, a hit is rendered large.
   final double bigThreshold;
+
+  /// Seconds a number keeps taking in hits on its body before it floats off
+  /// alone. A raid's squad lands a hit on the guardian every few frames, and
+  /// one number per hit piled into a block over its head that nobody could
+  /// read; folded, the same damage rises as a few honest numbers a second.
+  final double mergeWindow;
 
   final List<DamageNumber> numbers = [];
   final Map<String, TextPainter> _painters = {};
@@ -66,8 +82,27 @@ class DamageNumberField {
   void clear() => numbers.clear();
 
   /// [jitter] spreads simultaneous hits so they don't stack into one
-  /// illegible blob; pass a per-call random offset.
-  void spawn(Offset at, double amount, {Offset jitter = Offset.zero}) {
+  /// illegible blob; pass a per-call random offset. With a [key] (the body
+  /// struck), a hit lands on that body's newest number while it is younger
+  /// than [mergeWindow] instead of raising one of its own.
+  void spawn(
+    Offset at,
+    double amount, {
+    Offset jitter = Offset.zero,
+    Object? key,
+  }) {
+    if (key != null) {
+      for (var i = numbers.length - 1; i >= 0; i--) {
+        final d = numbers[i];
+        if (!identical(d.key, key)) continue;
+        if (d.maxLife - d.life < mergeWindow) {
+          d.amount += amount;
+          d.isBig = d.amount >= bigThreshold;
+          return;
+        }
+        break;
+      }
+    }
     if (amount < 1) return;
     if (numbers.length >= maxNumbers) {
       numbers.removeRange(0, numbers.length - maxNumbers + 1);
@@ -78,6 +113,7 @@ class DamageNumberField {
         amount: amount,
         drift: Offset(jitter.dx * 0.8, -46),
         isBig: amount >= bigThreshold,
+        key: key,
       ),
     );
   }
