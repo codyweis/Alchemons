@@ -166,7 +166,7 @@ class TradeSpecimenSheet extends StatelessWidget {
         const SizedBox(height: 14),
         const BracketSectionDivider(label: 'TRAITS'),
         const SizedBox(height: 6),
-        ...specimenTraitRows(context, species, inst, natureEffects: true),
+        ...specimenTraitRows(context, species, inst, geneAnalyzer: true),
         if (worn.isNotEmpty) ...[
           const SizedBox(height: 14),
           const BracketSectionDivider(label: 'WEARS'),

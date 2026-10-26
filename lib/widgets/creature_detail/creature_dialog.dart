@@ -1215,7 +1215,7 @@ class _OverviewTab extends StatelessWidget {
             context,
             creature,
             inst,
-            natureEffects: effects.hasGeneAnalyzer(),
+            geneAnalyzer: effects.hasGeneAnalyzer(),
           );
     return LayoutBuilder(
       builder: (context, box) => SingleChildScrollView(

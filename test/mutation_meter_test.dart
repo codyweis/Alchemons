@@ -70,11 +70,11 @@ void main() {
       }
     });
 
-    test('ids round-trip, and every mutation has a perk', () {
+    test('ids round-trip, and the Gene Analyzer has an effect to read', () {
       expect(AlchemonMutation.values, hasLength(6));
       for (final m in AlchemonMutation.values) {
         expect(AlchemonMutation.byId(m.id), m);
-        expect(m.perk, isNotEmpty);
+        expect(m.effect, isNotEmpty);
       }
       expect(AlchemonMutation.byId('opalite'), isNull);
     });

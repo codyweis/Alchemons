@@ -658,7 +658,7 @@ class _Reading {
       specimen: [
         ('CLASSIFICATION', species.rarity),
         ('TYPE', species.types.join(', ')),
-        if (mutation != null) ('MUTATION', _mutationReading(mutation)),
+        if (mutation != null) ('MUTATION', mutation.label),
         if (notablePurity) ('PURITY', purity.label),
         if (species.description.isNotEmpty) ('NOTES', species.description),
       ],
@@ -1318,9 +1318,6 @@ String? _displayVariant(String? faction) {
   if (trimmed.isEmpty) return null;
   return trimmed[0].toUpperCase() + trimmed.substring(1);
 }
-
-/// What a mutated specimen reads as: its name and what it does.
-String _mutationReading(AlchemonMutation m) => '${m.label}: ${m.perk}';
 
 Color _purityColor(InstancePurityStatus purity) {
   if (purity.isPure) return const Color(0xFF4ADE80);

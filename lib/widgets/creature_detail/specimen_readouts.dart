@@ -440,17 +440,21 @@ String titleCaseWord(String raw) {
   return raw[0].toUpperCase() + raw.substring(1).toLowerCase();
 }
 
+/// What a nature's or a mutation's effect says before the Gene Analyzer is
+/// unlocked.
+const _readByGeneAnalyzer = 'Its effect is read by the Gene Analyzer.';
+
 /// What a specimen is, as trait rows: element, family, size, tint, nature,
 /// variant, skin, mutation. Each only when it has one.
 ///
-/// [natureEffects] true prints what the nature does under it; false says the
-/// Gene Analyzer is what reads it; null leaves the effect out altogether
-/// (the quick look, which has no room for it).
+/// [geneAnalyzer] true prints what the nature and the mutation do under
+/// them; false says the Gene Analyzer is what reads them; null leaves the
+/// effects out altogether (the quick look, which has no room for them).
 List<TraitRow> specimenTraitRows(
   BuildContext context,
   Creature species,
   CreatureInstance? instance, {
-  bool? natureEffects,
+  bool? geneAnalyzer,
 }) {
   final tokens = ForgeTokens(context.read<FactionTheme>());
   final family = (species.mutationFamily ?? '').trim();
@@ -478,15 +482,15 @@ List<TraitRow> specimenTraitRows(
       if (id != null && id.isNotEmpty) id,
   ];
   String? natureNote;
-  if (natures.isNotEmpty && natureEffects != null) {
-    if (natureEffects) {
+  if (natures.isNotEmpty && geneAnalyzer != null) {
+    if (geneAnalyzer) {
       natureNote = [
         for (final id in natures)
           if (NatureCatalog.byId(id) case final n?)
             formatNatureEffectSummary(n.effect),
       ].join('\n');
     } else {
-      natureNote = 'Its effect is read by the Gene Analyzer.';
+      natureNote = _readByGeneAnalyzer;
     }
   }
 
@@ -495,6 +499,9 @@ List<TraitRow> specimenTraitRows(
       ? null
       : variant[0].toUpperCase() + variant.substring(1);
   final mutation = AlchemonMutation.byId(instance.mutation);
+  final mutationNote = mutation == null || geneAnalyzer == null
+      ? null
+      : (geneAnalyzer ? mutation.effect : _readByGeneAnalyzer);
 
   return [
     ...kind,
@@ -508,7 +515,7 @@ List<TraitRow> specimenTraitRows(
         value: natures.map(titleCaseWord).join(' · '),
         color: tokens.amberBright,
         note: natureNote,
-        noteMuted: natureEffects == false,
+        noteMuted: geneAnalyzer == false,
       ),
     if (variantDisplay != null)
       TraitRow(
@@ -521,7 +528,8 @@ List<TraitRow> specimenTraitRows(
         label: 'MUTATION',
         value: mutation.label,
         color: mutationAccent(mutation),
-        note: mutation.perk,
+        note: mutationNote,
+        noteMuted: geneAnalyzer == false,
       ),
   ];
 }

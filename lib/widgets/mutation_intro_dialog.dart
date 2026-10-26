@@ -32,7 +32,7 @@ Future<void> maybeShowFirstMutationExtractionDialog(
       StoryBeat(
         title: mutation.label,
         message:
-            'You extracted a ${mutation.label} Alchemon. ${mutation.perk}\n\n'
+            'You extracted a ${mutation.label} Alchemon.\n\n'
             'Mutations only happen when fusing with wild Alchemons in the '
             'realms, and they are not inherited. There are '
             '${AlchemonMutation.values.length} kinds.',

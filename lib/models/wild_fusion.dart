@@ -51,6 +51,11 @@ double mutationChance(int notches) {
 }
 
 /// A rare change to one individual, from a fusion in the wilderness.
+///
+/// Each one also does something no other Alchemon does ([effect]). Only the
+/// details say what, and only once the Gene Analyzer reads it, as it reads a
+/// nature's effect; the extraction card and the first-extraction dialog
+/// name the mutation and nothing more (the author, 2026-10-26).
 enum AlchemonMutation {
   /// Made of grains, permanently: the summoning's particles, never settling
   /// back into a sprite.
@@ -85,8 +90,9 @@ enum AlchemonMutation {
     return null;
   }
 
-  /// What it does that no other Alchemon does, in one line.
-  String get perk => switch (this) {
+  /// What it does that no other Alchemon does, in one line: what the Gene
+  /// Analyzer reads in the details. Shown nowhere else.
+  String get effect => switch (this) {
     alchemized => 'Collects 60 essence a minute at any level.',
     transmuted => 'Sells for 50 gold.',
     prismatic => '+1% to all four stats.',

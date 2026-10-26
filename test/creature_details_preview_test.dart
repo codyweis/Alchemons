@@ -30,6 +30,8 @@ import 'package:provider/provider.dart';
 // founder (c), the species alone from the catalog (d), and a line through
 // fifteen elements (e). A case and a trail are owned, so their squares show.
 //
+// DETAILS_MUTATION=transmuted gives the specimen a mutation.
+//
 //   DETAILS_OUT=/tmp/details [DETAILS_SIZE=360x740] flutter test \
 //     test/creature_details_preview_test.dart --tags preview
 void main() {
@@ -119,6 +121,7 @@ void main() {
           level: 7,
           xp: 40,
           natureId: 'Metabolic',
+          mutation: Platform.environment['DETAILS_MUTATION'],
           source: fused ? 'standard_fusion' : 'wild_capture',
           genetics: {'size': 'large', 'tinting': 'warm'},
           parentage: !fused
