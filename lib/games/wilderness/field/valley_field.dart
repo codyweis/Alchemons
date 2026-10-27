@@ -374,6 +374,9 @@ class ValleyField extends _GrainField {
   }
 
   @override
+  bool grassOverFeet(SceneLayer layer) => layer == meadow;
+
+  @override
   bool hasLive(SceneLayer layer, {required bool front}) => switch (layer) {
     meadow => true,
     far || hills || fore => !front,

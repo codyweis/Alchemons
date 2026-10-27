@@ -3,13 +3,17 @@ part of 'scene_game.dart';
 // The Athanor's cosmetics in the home field (docs/athanor_design.md):
 //
 //  * TRAILS — a resident wearing one leaves it where it walks: a print
-//    every ~0.55 of its size of ground walked, alternating feet, painted on
+//    every ~0.32 of its size of ground walked, alternating feet, painted on
 //    its row's ground, under everything standing there (priority 8: the
-//    keepsakes stand at 9, the residents at 10). Prints are kept from the
-//    resident's own spot, so they stay put on the ground when the field
-//    loops round under the camera. Nothing is stepped on a floater, on a
-//    resident lifted onto something, asleep, going through a portal or
-//    bathing, nor while arranging.
+//    keepsakes stand at 9, the residents at 10). Standing still (asleep
+//    too), the ground under it takes the trail in a patch that spreads and
+//    stays while it stands. Where the field's grass grows over the feet,
+//    the trail is laid on the grass tops too (priority 71, just over the
+//    front grass at 70). Prints are kept from the resident's own spot, so
+//    they stay put on the ground when the field loops round under the
+//    camera. Nothing is laid by a floater, a resident lifted onto
+//    something, going through a portal or bathing, nor while arranging;
+//    nothing is stepped while asleep.
 //  * AMBIENCE — one per realm, laid over the field at its hour (over the
 //    near row's residents, under its front grass); the mist is laid on the
 //    far row too. It never announces itself.
@@ -25,6 +29,9 @@ class _Walker {
   double? lastDx;
   double walked = 0;
   int foot = 0;
+
+  /// Seconds it has stood still.
+  double still = 0;
 }
 
 class _HomeTrails {
@@ -40,6 +47,10 @@ class _HomeTrails {
     final time = game._fieldTime;
     final of = game.trailOf;
     final residents = game._residents;
+    // One gone from the field walked off whatever it stood on.
+    for (final e in _walkers.entries) {
+      if (!residents.containsKey(e.key)) e.value.prints.leave(time);
+    }
     _walkers.removeWhere(
       (id, w) => !residents.containsKey(id) && !w.prints.aliveAt(time),
     );
@@ -54,6 +65,7 @@ class _HomeTrails {
       if (style == null || sp == null || sp.aloft) {
         // Taken off (or flying): what it left fades on its own.
         w?.lastDx = null;
+        w?.prints.leave(time);
         continue;
       }
       if (w == null || w.prints.style != style) {
@@ -68,27 +80,45 @@ class _HomeTrails {
       if (last == null || l == null) continue;
       final size = sp.size.x;
       final moved = (dx - last).abs();
-      final onFoot =
+      final grounded =
           game.lively &&
           !game.arranging &&
           game._held != id &&
-          l.act != _Act.asleep &&
           l.trip == null &&
           l.fade > 0.95 &&
           l.lift.abs() < size * 0.06 &&
           !comp.submerged;
       // A jump (a reset, a portal) is not a walk.
-      if (!onFoot || moved > size * 0.5) {
+      if (!grounded || moved > size * 0.5) {
         w.walked = 0;
+        w.still = 0;
+        w.prints.leave(time);
         continue;
       }
+      final drop = game._standDrop[id] ?? size * 0.46;
+      // Still (a walk is a third of its width a second): after a moment,
+      // the ground under it takes the trail. Moving, it walks off it.
+      if (dt > 0 && moved / dt < size * 0.05) {
+        w.still += dt;
+        if (w.still > 0.6) {
+          w.prints.stand(
+            dx,
+            game._life._groundShift(sp, dx) + drop,
+            time,
+            size: size * 0.2,
+          );
+        }
+      } else if (dt > 0) {
+        w.still = 0;
+        w.prints.leave(time);
+      }
+      if (l.act == _Act.asleep) continue;
       w.walked += moved;
-      final stride = size * 0.55;
+      final stride = size * 0.32;
       if (w.walked < stride) continue;
       w.walked -= stride;
       final near = w.foot.isEven;
       w.foot++;
-      final drop = game._standDrop[id] ?? size * 0.46;
       w.prints.step(
         dx + (near ? -1 : 1) * size * 0.05,
         game._life._groundShift(sp, dx) + drop + (near ? 1 : -1) * size * 0.025,
@@ -100,24 +130,41 @@ class _HomeTrails {
 
   void _mount(SceneLayer layer) {
     if (_mounted.contains(layer)) return;
-    final container = game._layers[layer]?.container;
+    final art = game._layers[layer];
+    final container = art?.container;
     if (container == null) return;
     _mounted.add(layer);
     container.add(_TrailLayer(this, layer)..priority = 8);
+    if (art is _ArtLayer && art.art.grassOverFeet(layer)) {
+      container.add(_TrailLayer(this, layer, onGrass: true)..priority = 71);
+    }
   }
 }
 
-/// A row's trails, on its ground.
+/// A row's trails, on its ground — or, [onGrass], on the tops of the grass
+/// that grows over the feet there.
 class _TrailLayer extends Component with HasGameReference<SceneGame> {
-  _TrailLayer(this.trails, this.layer);
+  _TrailLayer(this.trails, this.layer, {this.onGrass = false})
+    : _ground = CosmeticAtlas(
+        _residents *
+            (onGrass ? TrailPrints.grassEntries : TrailPrints.groundEntries),
+      ),
+      _light = CosmeticAtlas(
+        _residents *
+            (onGrass
+                ? TrailPrints.grassLightEntries
+                : TrailPrints.lightEntries),
+      );
+
+  /// Residents on a row, at most, for sizing the atlases.
+  static const int _residents = 12;
 
   final _HomeTrails trails;
   final SceneLayer layer;
+  final bool onGrass;
 
-  final CosmeticAtlas _ground = CosmeticAtlas(
-    12 * 14 * TrailPrints.entriesPerPrint,
-  );
-  final CosmeticAtlas _light = CosmeticAtlas(12 * 14 * 4);
+  final CosmeticAtlas _ground;
+  final CosmeticAtlas _light;
 
   @override
   void render(Canvas canvas) {
@@ -129,6 +176,16 @@ class _TrailLayer extends Component with HasGameReference<SceneGame> {
       if (anchor == null) continue;
       // The resident's own spot, wherever the loop has put it.
       final o = game._life.offsetOf(e.key) ?? Offset.zero;
+      if (onGrass) {
+        w.prints.paintSurface(
+          _ground,
+          _light,
+          time,
+          ox: anchor.position.x - o.dx,
+          oy: anchor.position.y - o.dy,
+        );
+        continue;
+      }
       w.prints.paint(
         _ground,
         _light,

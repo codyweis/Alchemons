@@ -248,6 +248,11 @@ abstract class FieldArt {
   /// mounting an empty component.
   bool hasLive(SceneLayer layer, {required bool front});
 
+  /// Whether [layer]'s front pass grows grass over the feet of what stands
+  /// on it, so what lies on that ground (a trail) must show on the grass as
+  /// well as under it.
+  bool grassOverFeet(SceneLayer layer) => false;
+
   /// The live parts of [layer]. The front pass draws over the creatures
   /// standing on the layer; the back pass under them.
   void paintLive(

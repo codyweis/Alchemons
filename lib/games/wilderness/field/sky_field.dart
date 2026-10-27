@@ -500,6 +500,9 @@ class SkyField extends _GrainField {
   }
 
   @override
+  bool grassOverFeet(SceneLayer layer) => layer == near;
+
+  @override
   bool hasLive(SceneLayer layer, {required bool front}) => switch (layer) {
     near => true,
     far || mid => !front,
