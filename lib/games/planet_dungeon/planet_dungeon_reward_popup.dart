@@ -45,6 +45,7 @@ class DungeonRewardPopup extends StatefulWidget {
     required this.onContinue,
     this.starNames = const [],
     this.onStarClaimed,
+    this.onLeave,
   });
 
   /// Planet element — drives the guardian-relic grant and its artwork.
@@ -62,6 +63,12 @@ class DungeonRewardPopup extends StatefulWidget {
   /// Called right after a star's reward is granted so the claim flag can be
   /// persisted immediately (a force-quit mid-popup must not re-grant).
   final Future<void> Function(int starIndex)? onStarClaimed;
+
+  /// Star 3: the guardian has fallen and the planet is done. When set, the
+  /// last button splits in two, LEAVE PLANET or STAY, where a lone CONTINUE
+  /// used to drop the player back in an empty arena with END RUN, in alarm
+  /// red, as the only way out of a planet they had just won.
+  final VoidCallback? onLeave;
 
   @override
   State<DungeonRewardPopup> createState() => _DungeonRewardPopupState();
@@ -738,6 +745,33 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   /// Filled amber when there is something to press, like survival's.
   Widget _bottomButton() {
     final awaitingChoice = _needStar3 && _choice == null;
+    // The guardian's star, claimed: leave the planet, or stay. Not "keep
+    // looking": the vault and the maxim may both be found already, and the
+    // maxim is a secret, so a button must not say whether anything is left.
+    if (!awaitingChoice && _needStar3 && widget.onLeave != null) {
+      return Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: RewardPopupButton(
+              label: 'STAY',
+              enabled: _canContinue,
+              onTap: widget.onContinue,
+              quiet: true,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 3,
+            child: RewardPopupButton(
+              label: 'LEAVE PLANET',
+              enabled: _canContinue,
+              onTap: widget.onLeave,
+            ),
+          ),
+        ],
+      );
+    }
     final String label;
     final bool enabled;
     final VoidCallback? action;

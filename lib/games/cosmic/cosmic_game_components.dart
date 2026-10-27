@@ -80,6 +80,17 @@ class PlanetComponent {
   /// How it is drawn — see lib/games/cosmic/planets/.
   final PlanetArt art;
 
+  /// The ring its fallen guardian left (planets/cleared_ring.dart); null
+  /// while the guardian stands.
+  ClearedRing? cleared;
+
+  /// The game time the ring began to form, when it is forming; null once
+  /// it was already there.
+  double? formingFrom;
+
+  /// How far out it is drawn, planet radii: body and glow, or its ring.
+  double get reach => max(2.6, cleared?.reach ?? 0);
+
   void render(Canvas canvas, double elapsed, {bool drawLabel = true}) {
     final pos = planet.position;
     final r = planet.radius;
@@ -88,9 +99,32 @@ class PlanetComponent {
     // The edge of its pull is drawn in grains, in its own pass (the ring is
     // far wider than the planet's cull): CosmicGame._renderGravityRings.
 
+    final ring = cleared;
+    final from = formingFrom;
+    final form = from == null
+        ? 1.0
+        : ((elapsed - from) / ClearedRing.formSeconds).clamp(0.0, 1.0);
     art.paintBack(canvas, pos, r, elapsed);
+    ring?.paint(
+      canvas,
+      pos,
+      r,
+      elapsed,
+      front: false,
+      wake: art.wake,
+      form: form,
+    );
     art.paintBody(canvas, pos, r, elapsed);
     art.paintFront(canvas, pos, r, elapsed);
+    ring?.paint(
+      canvas,
+      pos,
+      r,
+      elapsed,
+      front: true,
+      wake: art.wake,
+      form: form,
+    );
 
     // ── element label ──
     // An undiscovered planet's label was laid out at alpha 0: invisible.

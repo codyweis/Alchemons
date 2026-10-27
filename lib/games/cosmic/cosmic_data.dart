@@ -2099,6 +2099,13 @@ class PlanetStarState {
     return n;
   }
 
+  /// The planets whose guardian (Star 3) has fallen. Each wears the ring
+  /// it left (planets/cleared_ring.dart).
+  Set<String> fallenGuardians() => {
+    for (final el in starMasks.keys)
+      if (hasStar(el, 2)) el,
+  };
+
   /// Earned but not-yet-claimed star indices for [element].
   List<int> pendingRewards(String element) => [
     for (var i = 0; i < 3; i++)

@@ -7,6 +7,7 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
+import 'package:alchemons/games/cosmic/planets/planet_art.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -24,9 +25,20 @@ import 'package:flutter_test/flutter_test.dart';
 //   backdrop_<el>.png     — the encounter-backdrop render (scaled UP, so it
 //                           is where a weak surface shows first)
 // and sheet_all.png — every planet side by side at in-game scale.
+//
+// PLANET_CLEARED=1 draws every planet as its guardian left it, wearing its
+// ring (planets/cleared_ring.dart), and adds forming_<el>.png: the ring
+// lifting off the surface, left to right.
 void main() {
   final outDir = Platform.environment['PLANET_OUT'];
   final element = Platform.environment['PLANET_ELEMENT'] ?? 'Lava';
+  final cleared = Platform.environment['PLANET_CLEARED'] == '1';
+
+  PlanetComponent component(CosmicPlanet p) {
+    final pc = PlanetComponent(planet: p);
+    if (cleared) pc.cleared = ClearedRing.of(pc.art, 7);
+    return pc;
+  }
 
   const w = 915.0, h = 412.0, dpr = 2.0;
   const zoomMid = 0.72, zoomClose = 0.85;
@@ -83,7 +95,7 @@ void main() {
     // As CosmicGameWild._renderTerritories does, the view being well inside.
     paintTerritoryWash(canvas, planet, planet.position);
     planetArtFor(planet).paintTerritory(canvas, planet.position, view, 1.0, t);
-    PlanetComponent(planet: planet).render(canvas, t);
+    component(planet).render(canvas, t);
     final pic = recorder.endRecording();
     final img = pic.toImageSync((w * dpr).round(), (h * dpr).round());
     pic.dispose();
@@ -178,13 +190,52 @@ void main() {
           c.translate(centre.dx, centre.dy);
           c.scale(min(zoomMid, cell * 0.3 / p.radius));
           c.translate(-p.position.dx, -p.position.dy);
-          PlanetComponent(planet: p).render(c, times[i], drawLabel: false);
+          component(p).render(c, times[i], drawLabel: false);
           c.restore();
         }
         final pic = rec.endRecording();
         await save(
           pic.toImageSync(sheet.width.round(), sheet.height.round()),
           'strip_$tag',
+        );
+      }
+
+      if (cleared) {
+        // The ring forming: begun at t=10, a frame every tenth of the way.
+        const cell = 340.0;
+        const per = 6;
+        final forms = [0.05, 0.15, 0.25, 0.35, 0.45, 0.55, 0.65, 0.75, 0.85,
+            0.95, 1.0, 1.0];
+        final rowsN = (forms.length / per).ceil();
+        final rec = ui.PictureRecorder();
+        final c = Canvas(rec);
+        final sheet = Rect.fromLTWH(0, 0, per * cell, rowsN * cell);
+        paintSpace(c, sheet, 9);
+        for (var i = 0; i < forms.length; i++) {
+          final centre = Offset(
+            (i % per) * cell + cell / 2,
+            (i ~/ per) * cell + cell / 2,
+          );
+          final p = CosmicPlanet(
+            element: element,
+            position: const Offset(5000, 5000),
+            radius: kPlanetRadius[element]!,
+            discovered: true,
+          );
+          final pc = component(p)..formingFrom = 10;
+          c.save();
+          c.clipRect(Rect.fromCenter(center: centre, width: cell, height: cell));
+          c.translate(centre.dx, centre.dy);
+          c.scale(cell * 0.46 / (p.radius * pc.cleared!.reach));
+          c.translate(-p.position.dx, -p.position.dy);
+          pc.render(c, 10 + forms[i] * ClearedRing.formSeconds,
+              drawLabel: false);
+          c.restore();
+        }
+        final pic = rec.endRecording();
+        await save(
+          pic.toImageSync(sheet.width.round(), sheet.height.round()),
+          'forming_$tag',
         );
       }
 
@@ -228,11 +279,12 @@ void main() {
         );
         // Big worlds are shrunk to fit the cell; note the scale is not the
         // in-game one for those two.
-        final fit = min(1.0, (cell * 0.36) / (p.radius * zoomMid));
+        final reach = cleared ? component(p).reach / 2.6 * 1.25 : 1.0;
+        final fit = min(1.0, (cell * 0.36) / (p.radius * reach * zoomMid));
         canvas.translate(p.position.dx, p.position.dy);
         canvas.scale(zoomMid * fit);
         canvas.translate(-p.position.dx, -p.position.dy);
-        PlanetComponent(planet: p).render(canvas, 5);
+        component(p).render(canvas, 5);
         canvas.restore();
       }
       final pic = recorder.endRecording();

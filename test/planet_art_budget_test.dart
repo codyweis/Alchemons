@@ -72,6 +72,27 @@ void main() {
     }
   });
 
+  test('a fallen guardian\'s ring draws no blur and adds a few draws', () {
+    // Two lane fills and up to eight batched point draws, forming or formed.
+    for (final el in kPlanetRadius.keys) {
+      final bare = PlanetComponent(planet: _planet(el));
+      final ringed = PlanetComponent(planet: _planet(el))
+        ..cleared = ClearedRing.of(planetArtFor(_planet(el)), 7)
+        ..formingFrom = 2;
+      for (var t = 0.0; t < 9; t += 0.37) {
+        final a = _CensusCanvas(), b = _CensusCanvas();
+        bare.render(a as Canvas, t, drawLabel: false);
+        ringed.render(b as Canvas, t, drawLabel: false);
+        expect(b.blurredDraws, 0, reason: '$el blurs at t=$t');
+        expect(
+          b.draws - a.draws,
+          lessThanOrEqualTo(10),
+          reason: '$el ring at t=$t',
+        );
+      }
+    }
+  });
+
   test('territory motes draw no blur and stay capped', () {
     for (final el in kPlanetRadius.keys) {
       final art = planetArtFor(_planet(el));

@@ -173,6 +173,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
   // End-run reward popup.
   List<int>? _rewardStars;
 
+  /// END RUN opened the popup (a reward was still waiting), so closing it
+  /// leaves rather than resuming the run.
+  bool _leaveAfterRewards = false;
+
   /// A reward earned mid-run that is waiting for a safe beat to be offered.
   ///
   /// Rewards used to be handed out only by _endRun, so the payoff arrived at
@@ -799,6 +803,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     _introTicker.stop();
   }
 
+  /// This planet's guardian is down (Star 3 banked, this run or before).
+  /// Raids are excluded: retreating from one still forfeits the attempt.
+  bool _guardianFallen(PlanetDungeonGame game) =>
+      !_isRaid && (game.starMask & 4) != 0;
+
   void _popDungeon(Object? result) {
     if (!mounted) return;
     _prepareExit();
@@ -823,12 +832,15 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // Show the reward popup; the game keeps rendering behind it — which it
     // now actually does. This line said so while calling `pauseEngine()`
     // directly underneath.
+    _leaveAfterRewards = true;
     if (mounted) setState(() => _rewardStars = pending);
   }
 
   /// Called when the reward popup's Continue is tapped: mark the granted stars
-  /// claimed (rewards already granted inside the popup), then leave.
-  Future<void> _finishRewards() async {
+  /// claimed (rewards already granted inside the popup), then hand the
+  /// dungeon back — or, when the player chose LEAVE PLANET or the popup was
+  /// opened by END RUN, leave.
+  Future<void> _finishRewards({bool leave = false}) async {
     final claimed = _rewardStars ?? const <int>[];
     final prefs = await SharedPreferences.getInstance();
     var state = PlanetStarState.deserialise(
@@ -842,8 +854,14 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
     // Close the popup and hand the dungeon back. This used to pop the route —
     // a leftover from when rewards were only shown at the exit door. Once the
     // payoff moved next to the accomplishment, claiming Star 1 was throwing
-    // the player out of the planet mid-run. Leaving is what END RUN is for.
+    // the player out of the planet mid-run. Leaving is what END RUN is for —
+    // and the guardian's LEAVE PLANET. END RUN with a reward still waiting
+    // used to come back here and resume the run it had asked to end.
     if (!mounted) return;
+    if (leave || _leaveAfterRewards) {
+      _popDungeon(_game?.starMask ?? 0);
+      return;
+    }
     setState(() => _rewardStars = null);
     _game?.resumeEngine();
   }
@@ -1110,9 +1128,11 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
+                      // Once the guardian has fallen nothing here can be
+                      // lost, so the way out stops reading as giving up.
                       _pillButton(
-                        'END RUN',
-                        _C.danger,
+                        _guardianFallen(game) ? 'LEAVE PLANET' : 'END RUN',
+                        _guardianFallen(game) ? _C.amber : _C.danger,
                         _endRun,
                         icon: Icons.logout_rounded,
                       ),
@@ -1500,6 +1520,7 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
                 db: context.read<AlchemonsDatabase>(),
                 onStarClaimed: _onStarClaimed,
                 onContinue: _finishRewards,
+                onLeave: () => _finishRewards(leave: true),
               ),
 
             // Raid victory popup.

@@ -222,27 +222,31 @@ class RewardRaysPainter extends CustomPainter {
 }
 
 /// The popup's one button: filled and lit when it can be pressed, a dim
-/// plate while it waits.
+/// plate while it waits. [quiet] is the lesser of two choices: a dark plate
+/// with amber words, so the filled one beside it reads as the way on.
 class RewardPopupButton extends StatelessWidget {
   const RewardPopupButton({
     super.key,
     required this.label,
     required this.enabled,
     required this.onTap,
+    this.quiet = false,
   });
 
   final String label;
   final bool enabled;
   final VoidCallback? onTap;
+  final bool quiet;
 
   @override
   Widget build(BuildContext context) {
+    final lit = enabled && !quiet;
     return GestureDetector(
       onTap: context.soundAction(enabled ? onTap : null),
       child: CustomPaint(
         painter: BracketFramePainter(
           color: CosmicScreenStyles.amberBright.withValues(
-            alpha: enabled ? 0.9 : 0.3,
+            alpha: lit ? 0.9 : (enabled ? 0.55 : 0.3),
           ),
           bracketSize: 8,
           strokeWidth: 1.2,
@@ -252,12 +256,14 @@ class RewardPopupButton extends StatelessWidget {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: enabled
+            color: lit
                 ? CosmicScreenStyles.amberBright
                 : CosmicScreenStyles.bg2,
             border: Border.all(
-              color: enabled
+              color: lit
                   ? CosmicScreenStyles.amberBright
+                  : enabled
+                  ? CosmicScreenStyles.borderAccent
                   : CosmicScreenStyles.borderDim,
             ),
           ),
@@ -265,8 +271,10 @@ class RewardPopupButton extends StatelessWidget {
             label,
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: enabled
+              color: lit
                   ? CosmicScreenStyles.bg0
+                  : enabled
+                  ? CosmicScreenStyles.amberBright
                   : CosmicScreenStyles.textSecondary,
               fontFamily: 'monospace',
               fontWeight: FontWeight.w900,

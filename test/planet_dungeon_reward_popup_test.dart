@@ -28,6 +28,8 @@ void main() {
     List<int> stars, {
     List<String> starNames = const [],
     Size logical = const Size(390, 844),
+    VoidCallback? onContinue,
+    VoidCallback? onLeave,
   }) async {
     tester.view.physicalSize = Size(logical.width * 3, logical.height * 3);
     tester.view.devicePixelRatio = 3.0;
@@ -42,7 +44,8 @@ void main() {
                 stars: stars,
                 starNames: starNames,
                 db: db,
-                onContinue: () {},
+                onContinue: onContinue ?? () {},
+                onLeave: onLeave,
               ),
             ],
           ),
@@ -173,6 +176,57 @@ void main() {
       }
       expect(boxes[1].top, greaterThan(boxes[0].top));
       expect(boxes[2].top, greaterThan(boxes[1].top));
+    });
+  });
+
+  // After the guardian, CONTINUE put the player back in an empty arena with a
+  // red END RUN as the only way out. The guardian's popup asks instead.
+  group('the guardian\'s popup asks whether to leave', () {
+    Future<void> claimGold(WidgetTester tester) async {
+      await tester.tap(find.text('25 GOLD'));
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.text('25 GOLD'));
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    testWidgets('LEAVE PLANET leaves and STAY stays', (tester) async {
+      var left = 0, stayed = 0;
+      await pumpPopup(
+        tester,
+        const [2],
+        onContinue: () => stayed++,
+        onLeave: () => left++,
+      );
+      // Not before the reward is chosen.
+      expect(find.text('LEAVE PLANET'), findsNothing);
+      await claimGold(tester);
+      expect(find.text('CONTINUE'), findsNothing);
+      expect(find.text('KEEP LOOKING'), findsNothing);
+      await tester.tap(find.text('STAY'));
+      await tester.pump();
+      expect(stayed, 1);
+      await tester.tap(find.text('LEAVE PLANET'));
+      await tester.pump();
+      expect(left, 1);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('it fits a small phone', (tester) async {
+      await pumpPopup(
+        tester,
+        const [2],
+        logical: const Size(320, 640),
+        onLeave: () {},
+      );
+      await claimGold(tester);
+      expect(find.text('LEAVE PLANET'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('stars 1 and 2 still just continue', (tester) async {
+      await pumpPopup(tester, const [0, 1], onLeave: () {});
+      expect(find.text('CONTINUE'), findsOneWidget);
+      expect(find.text('LEAVE PLANET'), findsNothing);
     });
   });
 }

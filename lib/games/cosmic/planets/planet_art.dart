@@ -27,7 +27,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'dart:ui';
 
-import 'package:flutter/painting.dart' show HSVColor;
+import 'package:flutter/painting.dart' show HSLColor, HSVColor;
 
 import '../vfx_shapes.dart';
 import 'planet_sphere.dart';
@@ -35,6 +35,7 @@ import 'planet_sphere.dart';
 part 'accretion_disk.dart';
 part 'air_planet.dart';
 part 'blood_planet.dart';
+part 'cleared_ring.dart';
 part 'crystal_planet.dart';
 part 'dark_planet.dart';
 part 'dust_planet.dart';
@@ -789,6 +790,7 @@ class _ParticleRing {
   double _preparedT = double.nan;
   double _preparedR = 0;
   Offset? _preparedWake;
+  double _preparedForm = 1;
 
   void _prepare(
     double r,
@@ -796,22 +798,40 @@ class _ParticleRing {
     Offset? wakeLocal,
     double flat,
     bool nearIsDown,
+    double form,
   ) {
-    if (t == _preparedT && r == _preparedR && wakeLocal == _preparedWake) {
+    if (t == _preparedT &&
+        r == _preparedR &&
+        wakeLocal == _preparedWake &&
+        form == _preparedForm) {
       return;
     }
     _preparedT = t;
     _preparedR = r;
     _preparedWake = wakeLocal;
+    _preparedForm = form;
     _near.clear();
     _far.clear();
     final reach = max(130.0, r * 0.45);
     for (final (rad, a0, size, phase) in grains) {
-      final a = a0 + t * speed / (rad * sqrt(rad));
+      var a = a0 + t * speed / (rad * sqrt(rad));
+      var at = rad;
+      var rising = false;
+      if (form < 1) {
+        // Still forming (a cleared planet's ring): each grain leaves the
+        // surface on its own beat and climbs out to its orbit on a widening
+        // spiral, lit while it is still on the way.
+        final k = ((form - phase / (2 * pi) * 0.55) / 0.45).clamp(0.0, 1.0);
+        if (k <= 0) continue;
+        final e = 1 - (1 - k) * (1 - k) * (1 - k);
+        at = 0.9 + (rad - 0.9) * e;
+        a -= (1 - e) * 2.6;
+        rising = e < 0.7;
+      }
       final sy = sin(a);
-      var x = cos(a) * rad * r;
-      var y = sy * rad * r * flat;
-      var lit = sin(t * 2.2 + phase) > brightCut;
+      var x = cos(a) * at * r;
+      var y = sy * at * r * flat;
+      var lit = rising || sin(t * 2.2 + phase) > brightCut;
       // The ship stirs the ring as it passes: grains near it eddy round it
       // and catch the light.
       if (wakeLocal != null) {
@@ -823,7 +843,7 @@ class _ParticleRing {
           if (stir.$3 > 0.3 && sin(t * 7 + phase * 11) > -0.3) lit = true;
         }
       }
-      final bucket = (lit ? 2 : 0) + (size > 0.85 ? 1 : 0);
+      final bucket = (lit ? 2 : 0) + (rising || size > 0.85 ? 1 : 0);
       ((sy > 0) == nearIsDown ? _near : _far).add(bucket, x, y);
     }
   }
@@ -840,6 +860,7 @@ class _ParticleRing {
     Offset? wake,
     Color? laneTint,
     double alpha = 1,
+    double form = 1,
   }) {
     final m = spin.matrixAt(0);
     final flat = m[7].abs().clamp(0.05, 1.0);
@@ -853,7 +874,7 @@ class _ParticleRing {
       final ca = cos(-angle), sa = sin(-angle);
       wakeLocal = Offset(d.dx * ca - d.dy * sa, d.dx * sa + d.dy * ca);
     }
-    _prepare(r, t, wakeLocal, flat, nearSign > 0);
+    _prepare(r, t, wakeLocal, flat, nearSign > 0, form);
     c.save();
     c.translate(p.dx, p.dy);
     c.rotate(angle);
@@ -867,7 +888,12 @@ class _ParticleRing {
     c.save();
     c.scale(1, flat);
     final outer = r * laneReach;
-    final breathe = 0.85 + 0.15 * sin(t * 0.4);
+    var breathe = 0.85 + 0.15 * sin(t * 0.4);
+    if (form < 1) {
+      // The lanes gather once most of the grains are out.
+      final u = ((form - 0.4) / 0.6).clamp(0.0, 1.0);
+      breathe *= u * u * (3 - 2 * u);
+    }
     c.drawCircle(
       Offset.zero,
       outer,

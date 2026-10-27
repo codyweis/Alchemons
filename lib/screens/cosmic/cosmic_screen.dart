@@ -35,6 +35,7 @@ import 'package:alchemons/games/cosmic/cosmic_game.dart';
 import 'package:alchemons/games/cosmic/station_art.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_settings_overlay.dart';
 import 'package:alchemons/screens/cosmic/widgets/station_panel_kit.dart';
+import 'package:alchemons/screens/cosmic/widgets/planet_action_button.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
     show ShardAmount, panelLabel, panelMono, panelPalette;
 import 'package:alchemons/games/cosmic/planets/planet_art.dart'
@@ -904,6 +905,7 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     final game = CosmicGame(
       guardiansDefeated: _planetStarState.guardiansDefeated(),
+      fallenGuardians: _planetStarState.fallenGuardians(),
       world_: _world,
       onMeterChanged: _onMeterChanged,
       onSound: _playCosmicSfx,
@@ -6027,6 +6029,7 @@ class _CosmicScreenState extends State<CosmicScreen>
         '1';
     if (!mounted) return;
 
+    final fellBefore = _planetStarState.hasStar(planet.element, 2);
     await _descendInto(
       planet,
       (ready, revealed) => PlanetDungeonScreen(
@@ -6052,6 +6055,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!mounted) return;
     setState(() => _planetStarState = refreshed);
     _game?.syncGuardianProgress(refreshed.guardiansDefeated());
+    _syncFallenGuardians(planet.element, fellBefore: fellBefore);
     final db = context.read<AlchemonsDatabase>();
     if (refreshed.guardiansDefeated() > 0 &&
         await db.settingsDao.getSetting('campaign_guardian_presence_seen_v1') !=
@@ -6094,6 +6098,7 @@ class _CosmicScreenState extends State<CosmicScreen>
       return;
     }
 
+    final fellBefore = _planetStarState.hasStar(planet.element, 2);
     await _descendInto(
       planet,
       (ready, revealed) => PlanetDungeonScreen(
@@ -6111,7 +6116,19 @@ class _CosmicScreenState extends State<CosmicScreen>
       );
     });
     _game?.syncGuardianProgress(_planetStarState.guardiansDefeated());
+    _syncFallenGuardians(planet.element, fellBefore: fellBefore);
     if (!_anyOverlayOpen && !_showMiniMap) _game?.resumeEngine();
+  }
+
+  /// Back up out of [element]'s planet: every fallen guardian's planet wears
+  /// its ring, and if this one's guardian fell on this visit ([fellBefore]
+  /// false), its ring forms in front of the player as space resumes.
+  void _syncFallenGuardians(String element, {required bool fellBefore}) {
+    final fellNow = _planetStarState.hasStar(element, 2);
+    _game?.syncFallenGuardians(
+      _planetStarState.fallenGuardians(),
+      justFell: fellNow && !fellBefore ? element : null,
+    );
   }
 
   /// The planet's §6 ideal team. Lives in dungeon_debug_party.dart so the
@@ -6302,87 +6319,6 @@ class _CosmicScreenState extends State<CosmicScreen>
       );
     }
     await _refreshRaidState();
-  }
-
-  /// A planet-surface action (DESCEND / ENTER RAID / SUMMON RAID): a plate of
-  /// dark glass washed with its color, in accent brackets, the word in the
-  /// console's type — the same button as the station sheets and the lab.
-  /// A [sublabel] rides beneath the word in small muted type, so the word
-  /// itself never has to share its one line with a level or a timer.
-  Widget _planetCta({
-    required String label,
-    required Color accent,
-    required VoidCallback onTap,
-    String? sublabel,
-    IconData? icon,
-    Widget? glyph,
-    bool compact = false,
-    bool fullWidth = false,
-  }) {
-    final fontSize = compact ? 11.0 : 12.5;
-    final word = Text(
-      label,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: panelLabel(fontSize, panelPalette.ink, spacing: 1.6),
-    );
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        foregroundPainter: BracketFramePainter(
-          color: accent.withValues(alpha: 0.9),
-          bracketSize: compact ? 8 : 10,
-          strokeWidth: 1.3,
-        ),
-        child: Container(
-          width: fullWidth ? double.infinity : null,
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 16 : 20,
-            vertical: compact ? 10 : 13,
-          ),
-          color: Color.alphaBlend(
-            accent.withValues(alpha: compact ? 0.1 : 0.16),
-            panelPalette.bg0.withValues(alpha: 0.9),
-          ),
-          child: Row(
-            mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              if (glyph != null) ...[
-                glyph,
-                const SizedBox(width: 9),
-              ] else if (icon != null) ...[
-                Icon(icon, color: accent, size: fontSize + 3),
-                const SizedBox(width: 9),
-              ],
-              Flexible(
-                child: sublabel == null
-                    ? word
-                    : Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          word,
-                          const SizedBox(height: 3),
-                          Text(
-                            sublabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: panelLabel(
-                              fontSize - 3,
-                              panelPalette.muted,
-                              spacing: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
   }
 
   /// The planet's dungeon stars (earned vs open), shown wherever the
@@ -6622,19 +6558,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     final showDemands =
         !raidHere && _planetStarState.starsEarned(planet.element) < 3;
     // Legibility over the bright planet without a hard-edged card: a soft dark
-    // vignette that fades to nothing, plus glow shadows on the text itself.
+    // vignette that fades to nothing (placardVignette), plus glow shadows on
+    // the text itself.
     return Container(
       constraints: const BoxConstraints(maxWidth: 340),
       padding: const EdgeInsets.fromLTRB(28, 16, 28, 18),
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          radius: 0.85,
-          colors: [
-            Colors.black.withValues(alpha: 0.6),
-            Colors.black.withValues(alpha: 0.0),
-          ],
-        ),
-      ),
+      decoration: placardVignette,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -6716,54 +6645,65 @@ class _CosmicScreenState extends State<CosmicScreen>
               ),
             ],
             const SizedBox(height: 14),
-            _planetCta(
+            PlanetActionButton(
               label: raidActionLabel,
               sublabel: raidActionSublabel,
-              accent: const Color(0xFFE25544),
+              light: const Color(0xFFE25544),
               glyph: SpaceActionGlyph(
                 SpaceAction.raid,
-                size: 24,
+                size: PlanetActionButton.glyphSize,
                 color: planet.color,
               ),
-              fullWidth: true,
               onTap: context.soundTap(() => unawaited(_enterRaid(planet))),
             ),
           ] else if (descendReady) ...[
-            const SizedBox(height: 14),
-            _planetCta(
-              label: 'DESCEND',
-              accent: const Color(0xFFE4C16A),
-              glyph: SpaceActionGlyph(
-                SpaceAction.descend,
-                size: 24,
-                color: planet.color,
-              ),
-              fullWidth: true,
-              onTap: context.soundTap(() => unawaited(_enterDungeon(planet))),
-            ),
-            if (canSummonRaidHere) ...[
-              const SizedBox(height: 7),
-              _planetCta(
-                label: 'SUMMON RAID  ·  $_raidBeaconQty',
-                accent: const Color(0xFFE25544),
-                glyph: const SpaceActionGlyph(SpaceAction.summon, size: 20),
-                compact: true,
-                fullWidth: true,
-                onTap: context.soundTap(() => unawaited(_summonRaid(planet))),
-              ),
-            ] else if (showDebugRaid) ...[
-              const SizedBox(height: 7),
-              _planetCta(
-                label: 'RAID (DEBUG)',
-                accent: const Color(0xFF5BC8E8),
-                icon: Icons.local_fire_department_rounded,
-                compact: true,
-                fullWidth: true,
-                onTap: context.soundTap(
-                  () => unawaited(_debugSummonRaid(planet)),
+            const SizedBox(height: 10),
+            // DESCEND, and the lesser action beside it rather than under it:
+            // the lenses stand on one line, their words level.
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                PlanetActionButton(
+                  label: 'DESCEND',
+                  light: elementInk(planet.element),
+                  glyph: SpaceActionGlyph(
+                    SpaceAction.descend,
+                    size: PlanetActionButton.glyphSize,
+                    color: planet.color,
+                  ),
+                  onTap: context.soundTap(
+                    () => unawaited(_enterDungeon(planet)),
+                  ),
                 ),
-              ),
-            ],
+                if (canSummonRaidHere) ...[
+                  const SizedBox(width: 26),
+                  PlanetActionButton(
+                    label: 'SUMMON  ·  $_raidBeaconQty',
+                    light: const Color(0xFFE25544),
+                    glyph: const SpaceActionGlyph(
+                      SpaceAction.summon,
+                      size: PlanetActionButton.compactGlyphSize,
+                    ),
+                    compact: true,
+                    onTap: context.soundTap(
+                      () => unawaited(_summonRaid(planet)),
+                    ),
+                  ),
+                ] else if (showDebugRaid) ...[
+                  const SizedBox(width: 26),
+                  PlanetActionButton(
+                    label: 'RAID (DEBUG)',
+                    light: const Color(0xFF5BC8E8),
+                    icon: Icons.local_fire_department_rounded,
+                    compact: true,
+                    onTap: context.soundTap(
+                      () => unawaited(_debugSummonRaid(planet)),
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ],
         ],
       ),
@@ -6780,15 +6720,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     return Container(
       constraints: const BoxConstraints(maxWidth: 340),
       padding: const EdgeInsets.fromLTRB(28, 16, 28, 18),
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          radius: 0.85,
-          colors: [
-            Colors.black.withValues(alpha: 0.6),
-            Colors.black.withValues(alpha: 0.0),
-          ],
-        ),
-      ),
+      decoration: placardVignette,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -7989,9 +7921,11 @@ class _CosmicScreenState extends State<CosmicScreen>
                   right: 0,
                   child: SafeArea(
                     child: Center(
-                      child: _planetCta(
+                      child: PlanetActionButton(
                         label: 'UNSEAL GATE',
-                        accent: const Color(0xFFE4C16A),
+                        light: _nearPlanet == null
+                            ? panelPalette.ink
+                            : elementInk(_nearPlanet!.element),
                         icon: AppIcons.lock_open_rounded,
                         onTap: _triggerScreenShakeAndSummon,
                       ),

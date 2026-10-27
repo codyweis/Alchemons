@@ -23,10 +23,11 @@ void main() {
     test('only the destructive one spends a label', () {
       // _pillButton is the labelled control. END RUN cannot be a glyph: it is
       // the one press that throws the run away, and it should have to be read.
+      // Once the guardian is down the same pill reads LEAVE PLANET.
       final labelled = RegExp(
-        r"_pillButton\(\s*'([^']+)'",
+        r"(?<!Widget )_pillButton\(\s*([^\n]+),\n",
       ).allMatches(source).map((m) => m.group(1)).toList();
-      expect(labelled, ['END RUN']);
+      expect(labelled, ["_guardianFallen(game) ? 'LEAVE PLANET' : 'END RUN'"]);
     });
 
     test('the tools are icons, and there are several of them', () {

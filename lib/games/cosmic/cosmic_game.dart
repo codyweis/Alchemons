@@ -89,6 +89,7 @@ part 'cosmic_game_kin.dart';
 part 'cosmic_game_mane.dart';
 part 'cosmic_game_travel.dart';
 part 'cosmic_game_works.dart';
+part 'cosmic_game_cleared_rings.dart';
 
 /// Cached icon-glyph painters for item loot drops — same shop icon set
 /// resolved via [InventoryItemArtwork.offerFor], baked once per (icon, color)
@@ -241,14 +242,32 @@ class CosmicGame extends FlameGame with PanDetector {
     String? initialAmmoId,
     this.startCloserToSurvivalSignal = false,
     int guardiansDefeated = 0,
+    Set<String> fallenGuardians = const {},
   }) : activeCustomizations = initialCustomizations ?? {},
        _guardiansDefeated = max(0, guardiansDefeated),
+       _fallenGuardians = {...fallenGuardians},
        customizationOptions = initialOptions ?? {},
        activeAmmoId = initialAmmoId;
 
   final CosmicWorld world_;
   int _guardiansDefeated;
   int get guardiansDefeated => _guardiansDefeated;
+
+  /// Planets whose guardian has fallen: they wear its ring
+  /// (cosmic_game_cleared_rings.dart).
+  final Set<String> _fallenGuardians;
+
+  /// The planet whose ring is forming while the camera holds on it.
+  PlanetComponent? _ringShot;
+
+  /// Where [_ringShot] was framed (the copy of it nearest the ship).
+  Offset _ringShotAt = Offset.zero;
+
+  /// 0..1: how far the camera has come round to frame the ring.
+  double _ringFrame = 0;
+
+  /// The zoom that fits the forming ring on screen.
+  double _ringFrameZoom = 1;
 
   /// New ambient contacts near home stay at starter difficulty, including
   /// across the world's wrapped edges. Enemies already pursuing can follow.
@@ -926,6 +945,12 @@ class CosmicGame extends FlameGame with PanDetector {
       final frame = size.x / (BloodRing.visualRadius * 2 * 1.5);
       z += (min(z, frame) - z) * Curves.easeInOut.transform(_bloodFrame);
     }
+    if (_ringFrame > 0) {
+      // A fallen guardian's ring forming: eased out until it all fits.
+      z +=
+          (min(z, _ringFrameZoom) - z) *
+          Curves.easeInOut.transform(_ringFrame);
+    }
     return z;
   }
 
@@ -988,6 +1013,7 @@ class CosmicGame extends FlameGame with PanDetector {
     for (final planet in world_.planets) {
       planetComps.add(PlanetComponent(planet: planet));
     }
+    _dressFallenGuardians();
 
     // Seed background stars (procedural, dense) — stored in spatial grid
     final rng = Random(42);
@@ -2408,6 +2434,8 @@ class CosmicGame extends FlameGame with PanDetector {
           Curves.easeInOut.transform(_bloodFrame);
       return;
     }
+    // A fallen guardian's ring forming: the world holds still for it too.
+    if (_updateRingShot(dt)) return;
 
     // ── ship movement ──
     double baseSpeed = _shipDead
@@ -5028,7 +5056,7 @@ class CosmicGame extends FlameGame with PanDetector {
       // Culled by what it actually covers — body, glow, rings — not by its
       // centre: Etherion and Cindrath are big enough that their centres can
       // be a screen away while their edges are in view.
-      final reach = planet.radius * 2.6;
+      final reach = planet.radius * pc.reach;
       if ((planet.position.dx - cx - screenW / 2).abs() > screenW / 2 + reach ||
           (planet.position.dy - cy - screenH / 2).abs() > screenH / 2 + reach) {
         continue;
