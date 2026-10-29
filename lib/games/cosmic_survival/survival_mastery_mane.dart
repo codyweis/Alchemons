@@ -1,24 +1,31 @@
-/// Mane's three mastery paths: the numbers, the per-companion state, and the
+/// Mane's two mastery paths: the numbers, the per-companion state, and the
 /// rules that do not need the game to evaluate.
 ///
 /// Phase 3 of docs/survival_species_mastery_design.md — the vertical slice.
-/// Mane is the flexible skirmisher whose chassis is two close-angle slashes,
-/// and all three paths are about what landing one or both of those blades is
-/// worth:
+/// Mane is the flexible skirmisher whose chassis is two close-angle slashes
+/// and a slow piercing catapult, and each path changes one of them:
 ///
-/// * **Twin Fang** (assault) tightens the pair and pays for putting both into
-///   one body, then chains off kills.
-/// * **War Rhythm** (resonance) banks Rhythm from clean pairs and spends it on
-///   cadence — a ring on every fourth cast, then empowered casts and a window.
+/// * **War Rhythm** (resonance) is about the slashes. A clean pair banks
+///   Rhythm and crosses through to the next body with the element
+///   (Crosscut), every fourth attack throws a ring, and a special cast on a
+///   full reserve spends it on an Encore.
 /// * **Limitless** carries one idea four times: the catapult shot does not
-///   stop. It flies further, hits harder, stops expiring, and finally the
-///   first shot of each cast peels off to circle the arena.
+///   stop. It flies further, bends after the bodies ahead of it, stops
+///   expiring, and finally the first shot of a cast peels off to circle the
+///   arena.
 ///
-/// The family used to have a Tempest Claw path instead of Limitless. It was
-/// replaced because three of its four nodes had no idea in them — two stat
-/// tweaks and a node that re-applied the element the node above it had
-/// already applied — and it measured last of the three. Its one good node,
-/// Tempest Ring, moved to War Rhythm, where a cadence counter belongs.
+/// The family had a third path, Twin Fang, until 2026-10-29. Three of its
+/// four nodes were damage on hits that already killed (the 2026-10-21 sweep
+/// measured the whole path at a point of party share), and every family went
+/// to two paths. Its one node that changed what an attack does, Crosscut,
+/// moved to War Rhythm, where a clean pair already earned something. War
+/// Rhythm's Crescendo went at the same time: it spent the reserve on +12%
+/// for a few attacks, so the special now spends Rhythm only for an Encore.
+/// Limitless's Overdraw, a flat 15%, became Hunter's Arc.
+///
+/// Before that the family had a Tempest Claw path instead of Limitless. Its
+/// one good node, Tempest Ring, moved to War Rhythm, where a cadence counter
+/// belongs.
 ///
 /// The state below lives per companion slot for the length of a run. Nothing
 /// here reaches into combat: the game owns the one place that reads this state
@@ -26,27 +33,24 @@
 /// payload rate limits and the object budget.
 library;
 
+import 'dart:math';
+import 'dart:ui' show Offset;
+
 /// Node ids, so the game never spells one out as a string literal. A typo in
 /// a literal is a node that silently never fires.
 class ManeNodes {
   const ManeNodes._();
 
-  static const assaultPath = 'mane.assault';
   static const resonancePath = 'mane.resonance';
   static const limitlessPath = 'mane.limitless';
 
-  static const honedPair = 'mane.assault.honed_pair';
-  static const crosscut = 'mane.assault.crosscut';
-  static const predatorStep = 'mane.assault.predator_step';
-  static const bladeDance = 'mane.assault.blade_dance';
-
   static const measuredCuts = 'mane.resonance.measured_cuts';
+  static const crosscut = 'mane.resonance.crosscut';
   static const tempestRing = 'mane.resonance.tempest_ring';
-  static const crescendo = 'mane.resonance.crescendo';
   static const encore = 'mane.resonance.encore';
 
   static const farThrow = 'mane.limitless.far_throw';
-  static const overdraw = 'mane.limitless.overdraw';
+  static const huntersArc = 'mane.limitless.hunters_arc';
   static const noHorizon = 'mane.limitless.no_horizon';
   static const endlessCircuit = 'mane.limitless.endless_circuit';
 }
@@ -55,14 +59,12 @@ class ManeNodes {
 class ManeCastTags {
   const ManeCastTags._();
 
-  /// This basic was empowered by Crescendo: extra damage and one payload.
-  static const crescendo = 'mane.crescendo';
-
-  /// This basic's slashes return to the Mane (Blade Dance).
-  static const bladeDance = 'mane.bladeDance';
-
   /// This is a Tempest Ring, not a scheduled attack.
   static const tempestRing = 'mane.tempestRing';
+
+  /// This is a pair that crossed through a body (Crosscut), not a scheduled
+  /// attack. It crosses no further.
+  static const crosscut = 'mane.crosscut';
 }
 
 /// Initial balance targets. Every one of these is a prototype and expected to
@@ -70,43 +72,103 @@ class ManeCastTags {
 class ManeTuning {
   const ManeTuning._();
 
-  /// The chassis: two slashes at 65% physical, ±0.08 radians off the aim.
-  static const double baseSlashFraction = 0.65;
-  static const double baseSpread = 0.08;
+  // ── War Rhythm ──
+  /// Measured Cuts: a dual hit banks Rhythm; a cast that misses with both
+  /// blades spends one.
+  static const int maxRhythm = 5;
+  static const double rhythmHastePerStack = 0.02;
 
-  // ── Twin Fang ──
-  /// Honed Pair: 35% closer together, 80% physical each (70% until the
-  /// 2026-10-21 mastery sweep, when the whole path moved a Mane's party
-  /// share by a point at most).
-  static const double honedPairSpreadScale = 0.65;
-  static const double honedPairSlashFraction = 0.80;
+  /// Crosscut: a pair that both landed on one body crosses through it and
+  /// flies on to the next body ahead — the nearest inside [crosscutCone]
+  /// either side of where it was going, within [crosscutReach] — or straight
+  /// on when there is none. The crossed pair is the attack's own two
+  /// slashes, at their own damage, for [crosscutLife] seconds; its first hit
+  /// carries one payload of the element, and both of it landing on one body
+  /// crosses that too, up to [crosscutCrossings] bodies an attack.
+  ///
+  /// Until 2026-10-29 Crosscut was +40% physical on the body both blades
+  /// had already struck (20% before the 2026-10-21 sweep): damage on a body
+  /// that mostly died to the pair anyway, which moved neither the share nor
+  /// the hold rate. Reaching a second body is what a horde notices.
+  static const double crosscutReach = 240.0;
 
-  /// Crosscut: a dual hit adds 40% physical and fires one payload per cast.
-  /// 20% until the 2026-10-21 mastery sweep: a Mane's slashes are about a
-  /// seventh of what it deals, and the whole path moved its party share by
-  /// nothing at Potential 50 or 80.
-  static const double crosscutBonusFraction = 0.40;
+  /// How many bodies one attack's pair may cross through in all: a crossed
+  /// pair that lands both blades on its next body crosses that one too. One
+  /// crossing (a second body) measured no lift in waves held at P50 wave 36
+  /// (2026-10-29), where the pair reaching only one more body was a few
+  /// percent of a Mane's damage.
+  static const int crosscutCrossings = 3;
+  static const double crosscutCone = pi / 3;
+  static const double crosscutLife = 0.9;
   static const double crosscutPayloadStrength = 1.0;
 
-  /// Predator Step: a basic kill empowers the next cast inside this window.
-  static const double predatorStepWindow = 3.0;
-  static const double predatorStepDamageBonus = 0.40;
-  static const double predatorStepHoming = 3.2;
+  /// Tempest Ring: every fourth cast throws a ring of radial slashes.
+  static const int tempestRingCadence = 4;
+  static const int tempestRingSlashes = 8;
+  static const double tempestRingSlashFraction = 0.20;
+  static const int tempestRingMaxHitsPerTarget = 3;
+  static const double tempestRingSpeed = 0.85;
+  static const double tempestRingLife = 0.55;
 
-  /// Blade Dance: a special empowers this many basic casts, whose slashes
-  /// return for this fraction of their outgoing damage.
-  static const int bladeDanceCasts = 5;
-  static const double bladeDanceReturnFraction = 0.60;
+  /// Encore: a special cast on a full reserve spends it and opens a window
+  /// that kills extend.
+  static const double encoreDuration = 6.0;
+  static const double encoreHaste = 0.25;
+  static const double encoreWidthScale = 1.20;
+  static const double encoreKillExtension = 0.4;
+  static const double encoreMaxExtension = 2.0;
+
+  /// How long a cast is given to land before a silent one counts as a miss.
+  /// A slash lives two seconds; the slack keeps a slow last hit from costing
+  /// the player a Rhythm they actually earned.
+  static const double missGrace = 2.3;
 
   // ── Limitless ──
   /// Far Throw: the special's projectiles carry 45% further before fading.
   static const double farThrowLifeScale = 1.45;
 
-  /// Overdraw: a flat 15% on the special. Deliberately plain — several
-  /// elements already grow as they travel (Light ramps per pierce, Earth
-  /// sheds fragments), so a second "gains power with distance" node would be
-  /// describing what the element was already doing.
-  static const double overdrawDamageBonus = 0.15;
+  /// Hunter's Arc: a shot that has struck something looks this far ahead
+  /// for the next body...
+  static const double arcSearchRadius = 260.0;
+
+  /// ...inside this half-angle either side of where it is heading (about
+  /// ±60°). A body behind it or off to the side is not "ahead".
+  static const double arcConeHalfAngle = pi / 3;
+
+  /// It turns no tighter than a circle this wide, so a slow catapult bends
+  /// gently (about 1 rad/s at the family's crawl) and reads as an arc...
+  static const double arcTurnRadius = 160.0;
+
+  /// ...and no faster than this however fast it flies (Air's gale, Fire's
+  /// fireballs, Mud's shards, Lightning's orbs), so a quick shot does not
+  /// snap onto a body either.
+  static const double arcMaxTurnRate = 2.6;
+
+  /// The most it turns in all, so a shot that keeps finding bodies ahead
+  /// still leaves: with No Horizon only the arena edge ends a shot, and a
+  /// shot that could turn forever could circle a horde for the rest of the
+  /// wave. A quarter of a lap: at a third (2026-10-29, first measure)
+  /// Limitless carried a Mane to 44% of party damage at Potential 50 where
+  /// Overdraw had it at 42%; a quarter and a sixth both measured 42% (39% at
+  /// Potential 80), so the arc pays for its first bends, and a quarter
+  /// leaves room to bend from one body to the next.
+  static const double arcTurnBudget = pi / 2;
+
+  /// How often it picks its body again, as homing does: often enough to
+  /// follow a walking body, rarely enough that a cast of a dozen shots is a
+  /// handful of grid queries a frame.
+  static const double arcRescanInterval = 0.15;
+
+  /// Light's ward does not fly; its rings turn round the Mane. A ring that
+  /// has struck something leans out of (or into) its orbit toward the
+  /// nearest body ahead of it on its round, up to this far...
+  static const double arcRingMaxReach = 80.0;
+
+  /// ...at this many units a second, and eases back when nothing is ahead.
+  static const double arcRingReachSpeed = 150.0;
+
+  /// A ring never leans closer to the Mane than this.
+  static const double arcRingMinRadius = 24.0;
 
   /// Endless Circuit: the first projectile of each cast sweeps out to this
   /// fraction of the arena radius and circles it.
@@ -137,55 +199,14 @@ class ManeTuning {
   /// number the renderer uses. The circuit collides as the blade it draws
   /// rather than as the small circle every Mane shot normally uses.
   static const double circuitBladeHalfLength = 8.0;
-
-  /// Tempest Ring: every fourth cast throws a ring of radial slashes.
-  static const int tempestRingCadence = 4;
-  static const int tempestRingSlashes = 8;
-  static const double tempestRingSlashFraction = 0.20;
-  static const int tempestRingMaxHitsPerTarget = 3;
-  static const double tempestRingSpeed = 0.85;
-  static const double tempestRingLife = 0.55;
-
-  // ── War Rhythm ──
-  /// Measured Cuts: a dual hit banks Rhythm; a cast that misses with both
-  /// blades spends one.
-  static const int maxRhythm = 5;
-  static const double rhythmHastePerStack = 0.02;
-
-  /// Crescendo: the special spends all Rhythm to empower that many casts.
-  static const double crescendoDamageBonus = 0.12;
-  static const double crescendoPayloadStrength = 1.0;
-
-  /// Encore: spending a full five Rhythm opens a window that kills extend.
-  static const double encoreDuration = 6.0;
-  static const double encoreHaste = 0.25;
-  static const double encoreWidthScale = 1.20;
-  static const double encoreKillExtension = 0.4;
-  static const double encoreMaxExtension = 2.0;
-
-  /// How long a cast is given to land before a silent one counts as a miss.
-  /// A slash lives two seconds; the slack keeps a slow last hit from costing
-  /// the player a Rhythm they actually earned.
-  static const double missGrace = 2.3;
 }
 
 /// One Mane companion's mastery state for the length of a run.
 class ManeMasteryState {
-  // ── Twin Fang ──
-  /// Seconds left on the Predator Step window opened by a basic kill.
-  double predatorStepTimer = 0;
-
-  /// Basic casts still empowered by Blade Dance.
-  int bladeDanceCasts = 0;
-
-  // ── War Rhythm ──
   /// Scheduled attacks since the last ring.
   int castsSinceRing = 0;
 
   int rhythm = 0;
-
-  /// Basic casts still empowered by Crescendo.
-  int crescendoCasts = 0;
 
   double encoreTimer = 0;
 
@@ -193,17 +214,27 @@ class ManeMasteryState {
   /// [ManeTuning.encoreMaxExtension].
   double encoreExtensionUsed = 0;
 
-  /// Handoff between the two halves of launching a cast. The shape pass
-  /// decides whether this cast is empowered and spends the counter; the cast
-  /// itself does not exist until after that, so the tag has to be carried the
-  /// few lines between them. Consuming a counter and then re-reading it to
-  /// decide the tag is how a one-cast Crescendo ends up tagging nothing.
-  bool pendingCrescendoCast = false;
-  bool pendingBladeDanceCast = false;
+  /// Crosscut: each crossed pair in flight (by its cast), and how many
+  /// bodies its attack has crossed through so far.
+  final Map<int, int> crossings = {};
 
-  /// The share of the pending cast's damage owed to mastery, carried across
-  /// the same gap for the same reason.
-  double pendingMasteryDamageFraction = 0;
+  /// Crosscut: casts whose pair has already crossed through a body. A pair
+  /// crosses once; the pair it sends on may cross again.
+  final Set<int> crossed = {};
+
+  /// Claims [castId]'s one crossing. False when it has crossed already.
+  bool claimCrossing(int castId) {
+    if (!crossed.add(castId)) return false;
+    // Casts are answerable for four seconds; a few dozen ids is plenty.
+    if (crossed.length > 64) crossed.remove(crossed.first);
+    return true;
+  }
+
+  /// Records a crossed pair's cast and how many bodies it has crossed.
+  void noteCrossedPair(int castId, int depth) {
+    crossings[castId] = depth;
+    if (crossings.length > 64) crossings.remove(crossings.keys.first);
+  }
 
   /// Basic casts launched and not yet judged hit-or-miss, oldest first.
   /// Bounded: a Mane cannot outrun [ManeTuning.missGrace] by more than a
@@ -225,11 +256,14 @@ class ManeMasteryState {
     if (rhythm > 0) rhythm--;
   }
 
-  /// Spends the whole reserve for Crescendo and reports what it was worth.
-  int consumeRhythm() {
-    final spent = rhythm;
+  /// A special cast, for Encore: on a full reserve with no Encore running it
+  /// spends all five and opens one, and reports that it did. Below five, or
+  /// while an Encore runs, the reserve is left alone — the special is the
+  /// only thing that spends Rhythm, and it spends it only here.
+  bool trySpendForEncore() {
+    if (rhythm < ManeTuning.maxRhythm || encoreActive) return false;
     rhythm = 0;
-    return spent;
+    return tryOpenEncore();
   }
 
   /// Opens an Encore, but only if one is not already running: the capstone
@@ -255,10 +289,6 @@ class ManeMasteryState {
   }
 
   void tick(double dt) {
-    if (predatorStepTimer > 0) {
-      predatorStepTimer -= dt;
-      if (predatorStepTimer < 0) predatorStepTimer = 0;
-    }
     if (encoreTimer > 0) {
       encoreTimer -= dt;
       if (encoreTimer <= 0) {
@@ -283,91 +313,88 @@ class ManeMasteryState {
     return 1.0 / (1.0 + haste);
   }
 
+  /// How much wider the pair is drawn and collides: Encore's wider slashes.
+  double slashWidthScale({required bool hasEncore}) =>
+      hasEncore && encoreActive ? ManeTuning.encoreWidthScale : 1.0;
+
   @override
   String toString() =>
-      'ManeMasteryState(rhythm: $rhythm, crescendo: $crescendoCasts, '
-      'encore: ${encoreTimer.toStringAsFixed(1)}, '
-      'bladeDance: $bladeDanceCasts, ring: $castsSinceRing)';
+      'ManeMasteryState(rhythm: $rhythm, '
+      'encore: ${encoreTimer.toStringAsFixed(1)}, ring: $castsSinceRing)';
 }
 
-/// How the equipped path reshapes one basic cast's pair of slashes.
-///
-/// Pure: the game hands in what it knows about the companion and gets back
-/// geometry and multipliers. Every number that decides what a Mane basic looks
-/// like is resolved in one place rather than spread across the combat loop.
-class ManeBasicShape {
-  const ManeBasicShape({
-    required this.slashFraction,
-    required this.spread,
-    required this.widthScale,
-    required this.damageMultiplier,
-    required this.homingStrength,
-  });
-
-  /// Physical-attack fraction per slash, before [damageMultiplier].
-  final double slashFraction;
-
-  /// Radians off the aim for each blade.
-  final double spread;
-
-  /// Collision and visual width multiplier.
-  final double widthScale;
-
-  /// Everything multiplicative on top: Rhythm, Crescendo, Predator Step.
-  final double damageMultiplier;
-
-  /// Above zero, the slashes track their target (Predator Step).
-  final double homingStrength;
-
-  bool get homes => homingStrength > 0;
-
-  /// The chassis, untouched. What a Mane with no path equipped throws.
-  static const base = ManeBasicShape(
-    slashFraction: ManeTuning.baseSlashFraction,
-    spread: ManeTuning.baseSpread,
-    widthScale: 1.0,
-    damageMultiplier: 1.0,
-    homingStrength: 0,
-  );
+/// [angle] brought into -π..π.
+double _wrapAngle(double angle) {
+  var a = angle;
+  while (a > pi) {
+    a -= 2 * pi;
+  }
+  while (a < -pi) {
+    a += 2 * pi;
+  }
+  return a;
 }
 
-/// Resolves the shape of the next Mane basic cast.
+/// Hunter's Arc: the signed angle, in -π..π, between a shot's [heading]
+/// and the direction [toBody].
+double maneArcBearing(double heading, Offset toBody) =>
+    _wrapAngle(atan2(toBody.dy, toBody.dx) - heading);
+
+/// Hunter's Arc: whether a body at [toBody] from a shot heading [heading]
+/// is ahead of it — inside [ManeTuning.arcConeHalfAngle] either side.
+bool maneArcAhead(double heading, Offset toBody) {
+  if (toBody.dx == 0 && toBody.dy == 0) return false;
+  return maneArcBearing(heading, toBody).abs() <= ManeTuning.arcConeHalfAngle;
+}
+
+/// Crosscut: whether a body at [toBody] from where a crossed pair leaves a
+/// body, heading [heading], is ahead of it — inside
+/// [ManeTuning.crosscutCone] either side.
+bool maneCrosscutAhead(double heading, Offset toBody) {
+  if (toBody.dx == 0 && toBody.dy == 0) return false;
+  return maneArcBearing(heading, toBody).abs() <= ManeTuning.crosscutCone;
+}
+
+/// Hunter's Arc: the signed turn, in radians, a shot heading [heading] at
+/// [speed] units a second makes toward [toTarget] over [dt].
 ///
-/// [hasNode] answers whether a node is purchased and equipped for this
-/// companion; [state] carries the run's accumulated Rhythm and windows.
-ManeBasicShape resolveManeBasicShape({
-  required bool Function(String nodeId) hasNode,
-  required ManeMasteryState state,
-  required bool crescendoEmpowered,
+/// Held to the tighter of [ManeTuning.arcTurnRadius] and
+/// [ManeTuning.arcMaxTurnRate], so it bends rather than snaps, and to
+/// [budgetLeft], what remains of [ManeTuning.arcTurnBudget].
+double maneArcTurn({
+  required double heading,
+  required Offset toTarget,
+  required double speed,
+  required double dt,
+  required double budgetLeft,
 }) {
-  var slashFraction = ManeTuning.baseSlashFraction;
-  var spread = ManeTuning.baseSpread;
-  var widthScale = 1.0;
-  var damage = 1.0;
-  var homing = 0.0;
-
-  // Twin Fang re-cuts the chassis into a tighter, harder pair.
-  if (hasNode(ManeNodes.honedPair)) {
-    slashFraction = ManeTuning.honedPairSlashFraction;
-    spread *= ManeTuning.honedPairSpreadScale;
-  }
-
-  if (crescendoEmpowered) damage += ManeTuning.crescendoDamageBonus;
-
-  if (hasNode(ManeNodes.encore) && state.encoreActive) {
-    widthScale *= ManeTuning.encoreWidthScale;
-  }
-
-  if (hasNode(ManeNodes.predatorStep) && state.predatorStepTimer > 0) {
-    damage += ManeTuning.predatorStepDamageBonus;
-    homing = ManeTuning.predatorStepHoming;
-  }
-
-  return ManeBasicShape(
-    slashFraction: slashFraction,
-    spread: spread,
-    widthScale: widthScale,
-    damageMultiplier: damage,
-    homingStrength: homing,
+  if (budgetLeft <= 0 || dt <= 0 || speed <= 0) return 0;
+  final rate = min(
+    speed / ManeTuning.arcTurnRadius,
+    ManeTuning.arcMaxTurnRate,
   );
+  final cap = min(rate * dt, budgetLeft);
+  return maneArcBearing(heading, toTarget).clamp(-cap, cap).toDouble();
+}
+
+/// Hunter's Arc for a Light ward ring: the reach, past its own orbit, it
+/// leans to over [dt] — toward [wantReach] (0 to ease home), at
+/// [ManeTuning.arcRingReachSpeed], never past [ManeTuning.arcRingMaxReach]
+/// and never closer to the Mane than [ManeTuning.arcRingMinRadius].
+double maneArcRingReach({
+  required double reach,
+  required double wantReach,
+  required double orbitRadius,
+  required double dt,
+}) {
+  final floor = min(0.0, ManeTuning.arcRingMinRadius - orbitRadius);
+  final goal = wantReach
+      .clamp(
+        max(-ManeTuning.arcRingMaxReach, floor),
+        ManeTuning.arcRingMaxReach,
+      )
+      .toDouble();
+  final step = ManeTuning.arcRingReachSpeed * dt;
+  final delta = (goal - reach).clamp(-step, step).toDouble();
+  return reach + delta;
 }

@@ -9,9 +9,10 @@ import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Pip's three paths. The family throws three fast darts, and each path is a
-/// different answer to where those darts go: all into one body, one into each
-/// of three, or more of them loaded into the special.
+/// Pip's two paths. The family throws three fast darts, and each path is a
+/// different answer to where those darts go: one into each of three bodies,
+/// or more of them loaded into the special — thrown a beat late as a second
+/// volley, and fanned wide across the crowd.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -130,29 +131,13 @@ void main() {
     }
   }
 
-  group('the chassis and its two re-cuts', () {
+  group('the chassis and its re-cut', () {
     test('an unequipped Pip throws the untouched three darts', () async {
       final (game, target) = await arena();
       final darts = castVolley(game, target);
       expect(darts, hasLength(PipTuning.baseDartCount));
       expect(darts.every((d) => d.masteryCastId == 0), isTrue);
       expect(darts.every((d) => !d.homing), isTrue);
-    });
-
-    test('Tight Grouping narrows the fan and sharpens each dart', () async {
-      final (bare, bareTarget) = await arena();
-      final loose = castVolley(bare, bareTarget);
-      final looseSpread = (loose.first.angle - loose.last.angle).abs();
-
-      final (game, target) = await arena(
-        snapshot: equip(PipNodes.needlepointPath, throughTier: 1),
-      );
-      final tight = castVolley(game, target);
-      final tightSpread = (tight.first.angle - tight.last.angle).abs();
-
-      expect(tight, hasLength(PipTuning.baseDartCount));
-      expect(tightSpread, lessThan(looseSpread));
-      expect(tight.first.damage, greaterThan(loose.first.damage));
     });
 
     test(
@@ -182,108 +167,6 @@ void main() {
         snapshot: equip(PipNodes.scattershotPath, throughTier: 3),
       );
       expect(castVolley(game, target), hasLength(PipTuning.baseDartCount + 1));
-    });
-  });
-
-  group('Needlepoint', () {
-    test('a full volley banks a Pin, and only one per volley', () async {
-      final (game, target) = await arena(
-        snapshot: equip(PipNodes.needlepointPath, throughTier: 2),
-      );
-      landVolley(game, target);
-      final state = game.pipMasteryFor(0)!;
-      expect(
-        state.pinsOn(identityHashCode(target)),
-        1,
-        reason: 'Three darts on one body is one Pin, not three.',
-      );
-
-      landVolley(game, target);
-      expect(state.pinsOn(identityHashCode(target)), 2);
-    });
-
-    test('Pins stop at five', () async {
-      final (game, target) = await arena(
-        snapshot: equip(PipNodes.needlepointPath, throughTier: 2),
-      );
-      for (var i = 0; i < 9; i++) {
-        landVolley(game, target);
-      }
-      expect(
-        game.pipMasteryFor(0)!.pinsOn(identityHashCode(target)),
-        PipTuning.maxPins,
-      );
-    });
-
-    test('Pluck the Pins spends a full set for a burst', () async {
-      final (game, target) = await arena(
-        snapshot: equip(PipNodes.needlepointPath, throughTier: 3),
-      );
-      for (var i = 0; i < 12; i++) {
-        landVolley(game, target);
-        final state = game.pipMasteryFor(0);
-        if (state != null &&
-            state.pinsOn(identityHashCode(target)) == 0 &&
-            game.mastery.telemetryFor(0).masteryDamage > 0) {
-          break;
-        }
-      }
-      final state = game.pipMasteryFor(0)!;
-      expect(
-        game.mastery.telemetryFor(0).masteryDamage,
-        greaterThan(0),
-        reason: 'A full set of Pins should have detonated by now.',
-      );
-      expect(
-        state.pinsOn(identityHashCode(target)),
-        lessThan(PipTuning.maxPins),
-      );
-    });
-
-    test('a boss keeps a residue so the loop can restart', () {
-      final state = PipMasteryState();
-      for (var i = 0; i < PipTuning.maxPins; i++) {
-        state.addPin(7, 0);
-      }
-      expect(
-        state.spendPins(7, isBoss: true),
-        PipTuning.maxPins - PipTuning.pluckBossResidue,
-      );
-      expect(state.pinsOn(7), PipTuning.pluckBossResidue);
-
-      for (var i = 0; i < PipTuning.maxPins; i++) {
-        state.addPin(8, 0);
-      }
-      expect(state.spendPins(8, isBoss: false), PipTuning.maxPins);
-      expect(state.pinsOn(8), 0);
-    });
-
-    test('Pins lapse on a body the Pip has stopped shooting', () {
-      final state = PipMasteryState()..addPin(3, 0);
-      expect(state.pinsOn(3), 1);
-      state.expirePins(PipTuning.pinLifetime + 0.1);
-      expect(state.pinsOn(3), 0);
-    });
-
-    test('Thousand Cuts throws a bonus volley that cannot bank Pins', () async {
-      final (game, target) = await arena(
-        snapshot: equip(PipNodes.needlepointPath),
-      );
-      for (var i = 0; i < PipTuning.thousandCutsCadence; i++) {
-        landVolley(game, target);
-      }
-      // Let the queued beat come due.
-      final comp = game.activeCompanions[0]!;
-      for (var i = 0; i < 30; i++) {
-        comp.basicCooldown = 99999;
-        comp.specialCooldown = 99999;
-        game.update(1 / 60);
-      }
-      expect(
-        game.mastery.telemetryFor(0).capstoneActivations,
-        greaterThan(0),
-        reason: 'Four full volleys should have earned a bonus one.',
-      );
     });
   });
 
@@ -328,17 +211,73 @@ void main() {
   });
 
   group('Salvo', () {
-    int specialDarts(CosmicSurvivalGame game, CosmicSurvivalEnemy target) {
+    /// One special, thrown at [target] from 150 to its left, then the
+    /// frames a Second Volley needs to come due. Each dart is read (copied)
+    /// the frame it first appears, before it has flown or struck anything.
+    ({
+      List<Projectile> authored,
+      List<Projectile> extras,
+      int extrasAtCast,
+      int pendingAtCast,
+      Offset pipAt,
+    })
+    throwSpecial(
+      CosmicSurvivalGame game,
+      CosmicSurvivalEnemy target, {
+      void Function()? afterCast,
+    }) {
       final comp = game.activeCompanions[0]!;
-      comp.position = target.position - const Offset(150, 0);
+      final pipAt = target.position - const Offset(150, 0);
+      comp.position = pipAt;
       comp.basicCooldown = 99999;
       comp.specialCooldown = 0;
       game.companionProjectiles.clear();
       game.update(1 / 60);
       comp.specialCooldown = 99999;
-      return game.companionProjectiles
-          .where((p) => p.sourceSlotIndex == 0)
-          .length;
+      final seen = <Projectile>{};
+      final authored = <Projectile>[];
+      final extras = <Projectile>[];
+      for (final p in game.companionProjectiles) {
+        if (p.sourceSlotIndex != 0 || !seen.add(p)) continue;
+        final copy = copyProjectile(p)
+          ..homingRescanTimer = p.homingRescanTimer;
+        (p.masteryGenerated ? extras : authored).add(copy);
+      }
+      final extrasAtCast = extras.length;
+      final pendingAtCast = game.pipSecondVolleyDartsPending;
+      afterCast?.call();
+      for (var i = 0; i < 30; i++) {
+        final pip = game.activeCompanions[0];
+        if (pip != null) {
+          pip.position = pipAt;
+          pip.basicCooldown = 99999;
+          pip.specialCooldown = 99999;
+        }
+        game.update(1 / 60);
+        for (final p in game.companionProjectiles) {
+          if (!p.masteryGenerated || p.sourceSlotIndex != 0) continue;
+          if (seen.add(p)) {
+            extras.add(
+              copyProjectile(p)..homingRescanTimer = p.homingRescanTimer,
+            );
+          }
+        }
+      }
+      return (
+        authored: authored,
+        extras: extras,
+        extrasAtCast: extrasAtCast,
+        pendingAtCast: pendingAtCast,
+        pipAt: pipAt,
+      );
+    }
+
+    /// How far each extra left from the line to [aimAt], in radians.
+    List<double> offsets(List<Projectile> extras, Offset from, Offset aimAt) {
+      final aim = atan2(aimAt.dy - from.dy, aimAt.dx - from.dx);
+      return [
+        for (final p in extras) atan2(sin(p.angle - aim), cos(p.angle - aim)),
+      ];
     }
 
     test('each node loads one more dart into the special', () async {
@@ -350,7 +289,9 @@ void main() {
               ? null
               : equip(PipNodes.salvoPath, throughTier: tier),
         );
-        counts.add(specialDarts(game, target));
+        final thrown = throwSpecial(game, target);
+        counts.add(thrown.authored.length + thrown.extras.length);
+        expect(game.pipSecondVolleyDartsPending, 0);
       }
       for (var i = 1; i < counts.length; i++) {
         expect(
@@ -367,20 +308,15 @@ void main() {
         element: 'Ice',
         snapshot: equip(PipNodes.salvoPath, throughTier: 3),
       );
-      specialDarts(three, threeTarget);
-      final beforeCapstone = three.companionProjectiles
-          .where((p) => p.masteryGenerated)
-          .map((p) => p.damage)
-          .toList();
-      final authored = three.companionProjectiles
-          .where((p) => !p.masteryGenerated && p.sourceSlotIndex == 0)
-          .map((p) => p.damage)
-          .toList();
-      expect(beforeCapstone, isNotEmpty);
-      expect(authored, isNotEmpty);
+      final before = throwSpecial(three, threeTarget);
+      expect(before.extras, isNotEmpty);
+      expect(before.authored, isNotEmpty);
       expect(
-        beforeCapstone.first,
-        lessThan(authored.first),
+        before.extras.first.damage,
+        closeTo(
+          before.authored.first.damage * PipTuning.salvoExtraFraction,
+          0.01,
+        ),
         reason: 'Before the capstone the extras hit at 60%.',
       );
 
@@ -388,18 +324,13 @@ void main() {
         element: 'Ice',
         snapshot: equip(PipNodes.salvoPath),
       );
-      specialDarts(four, fourTarget);
-      final afterCapstone = four.companionProjectiles
-          .where((p) => p.masteryGenerated)
-          .map((p) => p.damage)
-          .toList();
-      final authoredAfter = four.companionProjectiles
-          .where((p) => !p.masteryGenerated && p.sourceSlotIndex == 0)
-          .map((p) => p.damage)
-          .toList();
+      final after = throwSpecial(four, fourTarget);
       expect(
-        afterCapstone.first,
-        closeTo(authoredAfter.first * PipTuning.salvoPerfectFraction, 0.01),
+        after.extras.first.damage,
+        closeTo(
+          after.authored.first.damage * PipTuning.salvoPerfectFraction,
+          0.01,
+        ),
         reason: 'The capstone brings every extra up to 75%.',
       );
     });
@@ -409,27 +340,177 @@ void main() {
         element: 'Lightning',
         snapshot: equip(PipNodes.salvoPath),
       );
-      specialDarts(game, target);
-      final extras = game.companionProjectiles
-          .where((p) => p.masteryGenerated)
-          .toList();
-      final authored = game.companionProjectiles
-          .where((p) => !p.masteryGenerated && p.sourceSlotIndex == 0)
-          .toList();
-      expect(extras, isNotEmpty);
-      expect(authored, isNotEmpty);
+      final thrown = throwSpecial(game, target);
+      expect(thrown.extras, isNotEmpty);
+      expect(thrown.authored, isNotEmpty);
       // Lightning's identity is its bounce count; a copied dart keeps it.
-      expect(extras.first.bounceCount, authored.first.bounceCount);
-      expect(extras.first.abilityFamily, authored.first.abilityFamily);
+      expect(
+        thrown.extras.first.bounceCount,
+        thrown.authored.first.bounceCount,
+      );
+      expect(
+        thrown.extras.first.abilityFamily,
+        thrown.authored.first.abilityFamily,
+      );
     });
 
-    test('Salvo gives a Dark Pip nothing, because it has no cast', () async {
+    test('a Dark Pip throws no special for Salvo to load', () async {
+      // Its hole is loaded instead (survival_family_audit_fixes_2_test).
       final (game, target) = await arena(
         element: 'Dark',
         snapshot: equip(PipNodes.salvoPath),
       );
-      expect(specialDarts(game, target), 0);
+      final thrown = throwSpecial(game, target);
+      expect(thrown.authored, isEmpty);
+      expect(thrown.extras, isEmpty);
       expect(game.mastery.telemetryFor(0).specialCasts, 0);
+    });
+
+    group('Second Volley', () {
+      test('before it, the extra dart leaves with the special', () async {
+        final (game, target) = await arena(
+          element: 'Ice',
+          snapshot: equip(PipNodes.salvoPath, throughTier: 1),
+        );
+        final thrown = throwSpecial(game, target);
+        expect(thrown.extrasAtCast, 1);
+        expect(thrown.pendingAtCast, 0);
+      });
+
+      test(
+        'the extras are held back, then thrown a beat later at the target',
+        () async {
+          final (game, target) = await arena(
+            element: 'Ice',
+            snapshot: equip(PipNodes.salvoPath, throughTier: 2),
+          );
+          final thrown = throwSpecial(game, target);
+          expect(thrown.extrasAtCast, 0, reason: 'they left with the special');
+          expect(thrown.pendingAtCast, 2);
+          expect(thrown.extras, hasLength(2), reason: 'never thrown');
+          for (final o in offsets(
+            thrown.extras,
+            thrown.pipAt,
+            target.position,
+          )) {
+            expect(o.abs(), lessThan(0.4), reason: 'thrown off the target');
+          }
+        },
+      );
+
+      test(
+        'a target the special killed hands the volley to the nearest body',
+        () async {
+          final (game, target) = await arena(
+            element: 'Ice',
+            snapshot: equip(PipNodes.salvoPath, throughTier: 2),
+          );
+          late CosmicSurvivalEnemy next;
+          final thrown = throwSpecial(
+            game,
+            target,
+            afterCast: () {
+              target.isDead = true;
+              final pipAt = game.activeCompanions[0]!.position;
+              next = dummy(target, pipAt + const Offset(0, 200));
+              game.enemies.add(next);
+            },
+          );
+          expect(thrown.extras, hasLength(2));
+          for (final o in offsets(thrown.extras, thrown.pipAt, next.position)) {
+            expect(o.abs(), lessThan(0.4), reason: 'not at the next body');
+          }
+        },
+      );
+
+      test('a Pip lost before the beat throws nothing', () async {
+        final (game, target) = await arena(
+          element: 'Ice',
+          snapshot: equip(PipNodes.salvoPath, throughTier: 2),
+        );
+        final thrown = throwSpecial(
+          game,
+          target,
+          afterCast: () => game.activeCompanions[0]!.isDead = true,
+        );
+        expect(thrown.pendingAtCast, 2);
+        expect(thrown.extras, isEmpty);
+        expect(game.pipSecondVolleyDartsPending, 0);
+      });
+    });
+
+    group('Wide Load', () {
+      test('the extras leave both flanks, wider than the volley', () async {
+        Future<List<double>> fan(int tier) async {
+          final (game, target) = await arena(
+            element: 'Ice',
+            snapshot: equip(PipNodes.salvoPath, throughTier: tier),
+          );
+          final thrown = throwSpecial(game, target);
+          expect(thrown.extras, hasLength(tier));
+          return offsets(thrown.extras, thrown.pipAt, target.position);
+        }
+
+        double reach(List<double> o) => o.map((v) => v.abs()).reduce(max);
+        final narrow = await fan(2);
+        final wide = await fan(3);
+        final widest = await fan(4);
+        // Without Wide Load the extras carry the fan on past one edge.
+        expect(
+          narrow.every((o) => o > 0) || narrow.every((o) => o < 0),
+          isTrue,
+          reason: '$narrow',
+        );
+        expect(
+          wide.any((o) => o > 0) && wide.any((o) => o < 0),
+          isTrue,
+          reason: '$wide',
+        );
+        expect(reach(wide), greaterThan(reach(narrow) * 2));
+        expect(
+          widest.where((o) => o.abs() >= PipTuning.wideLoadStart - 0.01),
+          hasLength(4),
+          reason: 'every extra leaves outside the authored volley: $widest',
+        );
+      });
+
+      test('a fanned dart flies straight before it seeks', () async {
+        final (game, target) = await arena(
+          element: 'Ice',
+          snapshot: equip(PipNodes.salvoPath, throughTier: 3),
+        );
+        final thrown = throwSpecial(game, target);
+        expect(thrown.extras, isNotEmpty);
+        for (final p in thrown.extras) {
+          expect(p.homingRescanTimer, PipTuning.wideLoadHold);
+        }
+        final (plain, plainTarget) = await arena(
+          element: 'Ice',
+          snapshot: equip(PipNodes.salvoPath, throughTier: 2),
+        );
+        for (final p in throwSpecial(plain, plainTarget).extras) {
+          expect(p.homingRescanTimer, 0);
+        }
+      });
+
+      test('every throwing element fans the same way, rings included', () async {
+        // Air's and Light's specials leave as a ring around the Pip, and
+        // Steam's do not seek at all; the extras still leave from the aim.
+        for (final element in ['Air', 'Light', 'Steam', 'Lava', 'Blood']) {
+          final (game, target) = await arena(
+            element: element,
+            snapshot: equip(PipNodes.salvoPath, throughTier: 3),
+          );
+          final thrown = throwSpecial(game, target);
+          expect(thrown.extras, hasLength(3), reason: element);
+          final o = offsets(thrown.extras, thrown.pipAt, target.position);
+          expect(
+            o.any((v) => v > 0.3) && o.any((v) => v < -0.3),
+            isTrue,
+            reason: '$element: $o',
+          );
+        }
+      });
     });
   });
 

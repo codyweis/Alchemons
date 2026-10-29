@@ -227,7 +227,9 @@ bool drawMaskTrapFixture({
     // lies reads from across the field, and the body still says exactly
     // how close is too close. Kept faint, since a field of them overlaps.
     final mine = _springsOnContact(projectile);
-    final breathe = 0.85 + 0.15 * sin(time * 1.6 + position.dx * 0.01);
+    final breathe =
+        0.85 +
+        0.15 * sin(time * 1.6 + (projectile.lookAnchor ?? position).dx * 0.01);
     _maskLightSpill(
       canvas,
       ui.Offset.zero,
@@ -240,7 +242,10 @@ bool drawMaskTrapFixture({
     );
   }
   // Stable irregularity belongs to the fixture; only light and fluid move.
-  final seed = position.dx * 0.013 + position.dy * 0.017;
+  // A fixture that creeps is seeded from where it was laid, or every shape
+  // it draws would reshuffle as it went.
+  final anchor = projectile.lookAnchor ?? position;
+  final seed = anchor.dx * 0.013 + anchor.dy * 0.017;
   if (element == 'Crystal') {
     // Broken smoky mineral, not a symmetrical jewel icon. Faces overlap and
     // only interrupted internal fractures catch the cold alchemical light.

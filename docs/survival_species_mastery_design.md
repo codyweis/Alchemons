@@ -1,6 +1,6 @@
 # Survival Family Mastery
 
-Status (2026-09-18): Phases 1 and 2 complete. **All eight families are implemented in combat.** Seven carry twelve nodes across three paths; Mystic carries eight across two. Each lives in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`, `_wing.dart`, `_kin.dart`, `_mystic.dart`) with its own test suite. Tuning is open for all of them and none has been played on device. Tuning is open for all three and none has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
+Status (2026-10-29): **all eight families are implemented in combat, two paths each** — sixteen paths, sixty-four nodes. Each family had a third path until 2026-10-29; the seven that went (Twin Fang, Ground Zero, Needlepoint, Rearm, Juggernaut, Burn Through, Longline) barely moved a horde wave or were plain bonuses, and twelve number-only nodes in the paths that stayed were rewritten so every node changes how the family fights. Each family lives in its own file (`survival_mastery_mane.dart`, `_let.dart`, `_pip.dart`, `_horn.dart`, `_mask.dart`, `_wing.dart`, `_kin.dart`, `_mystic.dart`) with its own test suite. None of the 2026-10-29 rework has been played on device. The Base Command Mastery tab is polished (the first item of Phase 6).
 
 Nothing in the panel is purchasable-but-inert any more.
 
@@ -35,7 +35,7 @@ family attack chassis
 
 ## Tree and economy
 
-Every family has three paths (Mystic two) of three sequential nodes and a capstone, bought with that family's own mastery points. Since 2026-10-09 masteries are earned by playing survival, not bought with silver and gold.
+Every family has two paths of three sequential nodes and a capstone, bought with that family's own mastery points. Since 2026-10-09 masteries are earned by playing survival, not bought with silver and gold.
 
 | Tier | Cost | Purpose |
 | --- | ---: | --- |
@@ -144,23 +144,50 @@ Design rules for nodes (revised 2026-09-16):
 
 ## Mane
 
-**Existing chassis:** two close-angle slash projectiles at 65% physical damage each. Mane is a flexible skirmisher that rewards positioning both blades.
+**Existing chassis:** two close-angle slash projectiles at 65% physical damage each, and a slow piercing catapult as the special. Mane is a flexible skirmisher that rewards positioning both blades.
 
-### Assault — Twin Fang
+**Two paths since 2026-10-29**, one for each half of the chassis: War Rhythm changes what the slashes earn, Limitless changes how the catapult travels. Every node changes what an attack does; none is a bare percentage.
 
-Single-target pressure and kill chaining.
+- **Twin Fang was cut.** Honed Pair, Predator Step and Blade Dance were damage on hits that mostly killed anyway: the 2026-10-21 sweep measured the whole path at a point of party share (35% to 36% at Potential 50, 31% to 32% at 80). Its one node that changed what an attack does, **Crosscut**, moved to War Rhythm with the same numbers, where a clean pair already earned a Rhythm.
+- **Crescendo was cut** from War Rhythm. It spent the reserve on +12% damage and a payload for a few attacks, so the special was the drain on a resource Encore wanted full. The special now spends Rhythm only for an Encore.
+- **Overdraw became Hunter's Arc.** A flat 15% on the special became a change to where the special goes.
 
-1. **Honed Pair** — Narrow slash spread by 35%. Each slash deals 70% physical damage instead of 65%.
-2. **Crosscut** — A dual hit deals an additional 20% physical damage and triggers one elemental payload per cast.
-3. **Predator Step** — A basic kill gives the next cast within 3 seconds stronger tracking and 25% more main-hit damage.
-4. **Capstone: Blade Dance** — Casting the special empowers the next five basic casts. Their slashes return to the Mane for 35% of outgoing damage. Returning hits cannot trigger Crosscut or another payload.
+Saves that owned the removed nodes simply drop them, as with Tempest Claw (`FamilyMasteryCatalog.sanitizePurchases`). The game is unreleased, so nothing is refunded.
+
+Measured with `test/family_balance_survival_test.dart` (`FAMILY_MASTERY=<path> FAMILY_MASTERY_ONLY=1`, 105 parties), a Mane's share of party damage and the hold rate of parties with a Mane: no mastery, then the path before the change, then after.
+
+| Path | P50 w36 share | P50 w36 held | P80 w41 share | P80 w41 held |
+| --- | --- | --- | --- | --- |
+| War Rhythm | 35% → 39% → **40%** | 49% → 51% → **49%** | 31% → 33% → **34%** | 87% → 89% → **89%** |
+| Limitless | 35% → 42% → **42%** | 49% → 63% → **60%** | 31% → 36% → **39%** | 87% → 92% → **93%** |
+
+The probe is not fully deterministic: the hold rate of parties *without* a Mane, which no Mane path can touch, read 53% and 57% on two runs of the same build, so hold differences of a few points are noise. War Rhythm's hold lift was within that noise before the change and still is; its share sits at the 40% ceiling, so there is no room to buy one with damage.
+
+**2026-10-29, second pass: Crosscut reaches bodies instead of adding to one.** +40% on a body both blades had already struck was damage on a body that mostly died to the pair. Crosscut now sends the pair on through it to the next body ahead, carrying the element, and a crossed pair can cross again, up to three bodies an attack (node 2 below). Re-measured with 420 parties (the 105 above were too few to call a hold lift either way), P50 wave 36, Mane share / held: no mastery 33% / 60%; War Rhythm before 38% / 61%; one crossing 38% / 62%; up to three 39% / 62%. P80 wave 41: no mastery 30% / 91%, before 34% / 91%, after 34% / 93%. **The path still lifts no waves held.** The trace below (Wing, "what breaks a party") is why: at P50 wave 36 the orb is lost to brutes' siege beams, fired from 300-560 out, and a Mane's slashes go to whatever is closest to the Mane. Reaching three more of those bodies is still reaching chaff; the hold rate moves with what the catapult does, which is Limitless's half of the chassis. Encores roughly doubled (1.4 to 2.9 a party at P50) now that a special below five no longer empties the reserve. Hunter's Arc was first measured with a third of a lap to turn (44% at P50, 39% at P80); a quarter and a sixth both measured 42% and 39%, and a quarter was kept. What keeps Limitless above 40% at Potential 50 is still the Endless Circuit, as in the 2026-10-21 sweep: through No Horizon the path carries a Mane to 38%, and the circuit takes it to 42%.
+
+### Resonance — War Rhythm
+
+Clean pairs build Rhythm and pay out; a full reserve is spent on the special.
+
+1. **Measured Cuts** — A dual hit grants one Rhythm, up to five. Each Rhythm grants 2% basic attack speed. A cast that misses with both blades removes one Rhythm.
+2. **Crosscut** — When both blades of an attack land on one body, the pair crosses through it and flies on: the attack's own two slashes, at their own damage, thrown again from the body's far side at the nearest body ahead (inside ±60° of the pair's heading, within 240) or straight on, for 0.9 s (`_crossManePair`). The crossed pair's first hit carries one elemental payload, and if both of its blades land on one body it crosses that one too, up to three bodies an attack (`ManeTuning.crosscutCrossings`). A crossing is its own tagged cast (`ManeCastTags.crosscut`), not a scheduled attack: it earns no Rhythm, and its damage is filed as mastery. Until 2026-10-29 (second pass) it was +40% physical on the body both blades had struck, and one payload per cast (20% until the 2026-10-21 sweep).
+3. **Tempest Ring** — Every fourth scheduled attack also throws eight radial slashes at 20% physical each that pierce, strike a body at most three times between them, and carry one payload on the ring's first hit. The ring is its own cast that does not count as a scheduled attack. Tier 2 until 2026-10-29.
+4. **Capstone: Encore** — Casting the special at five Rhythm spends all five and opens a 6-second Encore: 25% faster basics and slashes 20% wider. Basic kills extend the current Encore by 0.4 seconds, up to 2 additional seconds total; Encore cannot otherwise refresh itself. Below five, or while an Encore is running, the special spends nothing — nothing else spends Rhythm, so a reserve built during an Encore waits for the next special after it. The rule lives in `ManeMasteryState.trySpendForEncore`.
 
 ### Limitless
 
 One idea, four times: the catapult shot does not stop.
 
 1. **Far Throw** — Special projectiles carry 45% longer before fading, piercing more on the way.
-2. **Overdraw** — The special deals 15% more damage. Deliberately plain: several elements already grow as they travel (Light ramps per pierce, Earth sheds fragments), so a "gains power with distance" node would describe what the element was already doing.
+2. **Hunter's Arc** — After its first hit, each of the special's projectiles bends toward the nearest body ahead of it: inside about ±60° of its heading (`arcConeHalfAngle`), within 260 units, that it can still strike and is not already passing through. A shot with nothing ahead flies straight, and a shot that has struck nothing yet never bends. It turns no tighter than a 160-unit circle and no faster than 2.6 rad/s (about 1 rad/s at the catapult's crawl), so it reads as an arc, and no more than a quarter of a lap in all (`arcTurnBudget`), so a No Horizon shot that keeps finding bodies still leaves the arena (a Lightning orb has no budget: it comes down where it is going). It re-picks its body every 0.15 s from the enemy grid, as homing does. No new art: the shot is drawn where it is. In each element's own terms:
+   - the thirteen single catapults, Fire's fan and Spirit's stream turn their heading shot by shot; what a shot sheds on the way (Earth's quakes, Steam's geysers, Dust's cloud, Lava's blobs) falls along the curve it takes;
+   - **Lightning**'s orbs fly to a landing point rather than on a heading, so an orb that has crossed a body swings its landing point round, onto the body ahead at that body's range, and its field blooms there;
+   - **Mud**'s ball is spent by its first hit, which is what throws the shards, so the shards bend from the moment they are thrown, and they skip the body that broke the ball. Without the node all ten are spent on that body in their first frame, because they are thrown from inside it (the base game's behaviour, left alone);
+   - **Light**'s ward does not fly. A ring that has struck something leans out of (or into) its orbit toward the body ahead of it on its round, up to 80 units at 150 units a second, and eases back when nothing is ahead;
+   - the Endless Circuit does not bend: it is the rim.
+
+   Replaced **Overdraw**, a flat 15% on the special, on 2026-10-29. Overdraw was plain on purpose — several elements already grow as they travel, so a "gains power with distance" node would have described what the element was already doing — and that is why it was replaced with a node about direction instead of power.
+
 3. **No Horizon** — Special projectiles stop ageing. Only leaving the arena ends them.
 4. **Capstone: Endless Circuit** — One shot sweeps to 72% of the arena radius and circles it at 0.575 rad/s (a lap in about eleven seconds), permanently, dragging a burning arc behind it. Enemies spawn on a ring around the orb and walk inward, so the rim is the line every wave crosses — this is a perimeter, not a shot thrown away.
 
@@ -180,22 +207,13 @@ Audited across all seventeen elements: fifteen build one circuit on their first 
 
 *Replaced Tempest Claw on 2026-09-16.* That path measured last of the three and three of its four nodes had no idea in them: two stat tweaks and a node (Crosswind) that re-applied the element the node above it had already applied to the same bodies. Its one good node, Tempest Ring, moved to War Rhythm where a cadence counter belongs.
 
-### Resonance — War Rhythm
-
-Build rhythm with basics and release it around the existing special.
-
-1. **Measured Cuts** — A dual hit grants one Rhythm, up to five. Each Rhythm grants 2% basic attack speed. Missing with both blades removes one Rhythm.
-2. **Rising Tempo** — Each Rhythm also grants 3% basic damage. At three or more Rhythm, slashes are 15% wider.
-3. **Crescendo** — Casting the special consumes Rhythm and empowers that many subsequent basic casts with 12% damage and one payload on their primary target.
-4. **Capstone: Encore** — Consuming five Rhythm also creates a 6-second Encore: 25% faster basics and wider slashes. Basic kills extend the current Encore by 0.4 seconds, up to 2 additional seconds total; Encore cannot otherwise refresh itself.
-
 ---
 
 ## Let
 
 **Existing chassis:** one large, slow meteor at 115% physical damage, thrown flat at a single target. Let is the deliberate heavy artillery family, and its targeting already prefers the toughest enemy and bosses.
 
-**Two meteors — every node names which one it changes.** A Let throws two different things, and the tree text must never leave the player guessing which:
+**Two meteors — every node names which one it changes.** A Let throws two different things, and the tree text must never leave the player guessing which. Both paths change the auto-attack meteor; the special meteor is the element's.
 
 - **The auto-attack meteor** — the rock thrown on every attack (the chassis above).
 - **The special meteor** — the skyfall that drops onto a locked target and craters, carrying the element's own effect from the design board (see the Let specials design memory: Air shoves, Fire explodes on a kill, Dark throws follow-up meteors, and so on).
@@ -219,7 +237,7 @@ Build rhythm with basics and release it around the existing special.
 | Splash damage | Water |
 | Faster special cooldown | Crystal |
 
-So Let mastery works only in what no element owns: damage, marks, attack speed, range, targeting, and the shape of the auto-attack's delivery.
+So Let mastery works only in what no element owns: damage, range, targeting, and the shape of the auto-attack's delivery.
 
 **Replaced 2026-09-17.** The earlier tree was Falling Star, Scatterfall and Orbital Cycle. Scatterfall was built from owned mechanics (fragments and extra meteors are Dark's and Blood's, crater splash is Water's, and Lingering Fall invented ground effects for elements that have none). Orbital Cycle had the Tempest Claw problem — an abstract counter carrying three "more damage near the special" nodes — and its capstone repeated the special's entire aftermath, which for Dark means re-running a five-meteor bombardment. Falling Star's Terminal Velocity was pure numbers that only made sense while the auto-attack flew flat. Saves that owned the removed nodes simply drop them, as with Tempest Claw.
 
@@ -241,24 +259,17 @@ The auto-attack stops being thrown and starts falling — the same motion as the
 3. **Ranging Shots** — Attack range rises 25%. Each drop on the same body within 3 seconds of the last deals 10% more, up to 30%; changing target resets it.
 4. **Capstone: Skyreach** — The auto-attack is no longer limited by range: it can land on any enemy in the arena and always chooses the one with the most health, bosses first. One drop per attack, as ever — this changes where it lands, not how many land.
 
-### Ground Zero — special meteor
+### Ground Zero — cut 2026-10-29
 
-The big one tells the rest where to land: the special meteor marks, the auto-attack meteor punishes. Marks and attack speed are owned by no element, so this path reads the same for all seventeen and takes nothing from any of them.
-
-1. **Sighted** — Every body the special meteor's crater catches is Sighted for 6 seconds. The Let's auto-attack meteors deal 20% more to Sighted bodies. Sight is applied alongside the element's own effect, never instead of it.
-2. **Walking Fire** — The Let's auto-attack targeting prefers Sighted bodies, and each auto-attack hit on one adds 1 second to its Sight, up to 10 seconds remaining.
-3. **Called Shot** — Every companion deals 10% more damage to Sighted bodies.
-4. **Capstone: Fire for Effect** — While any body is Sighted, the Let attacks 30% faster. When a Sighted body dies its Sight, with its remaining time, passes to the nearest living enemy — one hop per death, so it cannot cascade within a frame.
+Every family went to two paths, and Ground Zero was the Let's weakest. The special meteor marked what its crater caught (Sighted), the auto-attack meteor hit marked bodies 20% harder and preferred them (Walking Fire), the whole team hit them 10% harder (Called Shot), and the Let attacked faster while anything was Sighted (Fire for Effect). Three of the four were percentages on hits that mostly killed anyway, and the 2026-10-21 sweep measured the whole path at a point of party share (23% to 25% at Potential 50, 19% to 20% at 80) against Bombardment's eight and seven. The `MasteryPayloadStatuses` Sight fields went with it. Saves that owned its nodes drop them, as with Tempest Claw.
 
 ### Let implementation notes (2026-09-17)
 
-- **Where it lives.** Numbers, node ids and the per-hit bonus rule are in `survival_mastery_let.dart`; the game wires them in under "Let mastery" in `cosmic_survival_game.dart`. The body statuses (`letFractureTimer`, `letSightTimer` and the Sight's owner flags) live on the shared `MasteryPayloadStatuses`, so enemies and bosses carry them alike.
-- **One place for the auto-attack bonuses.** Cratermaker, Dead Weight, the Ranging Shots streak and the Sighted bonus are resolved together in `resolveLetAutoAttackBonus`, called from `_damageEnemy` and `damageBoss` only for damage that belongs to a Let *basic* cast. Crater splash carries no cast, so it never earns them. The bonus is additive, and its share of the hit is credited to mastery in telemetry.
-- **Called Shot credit.** The +10% applies to every companion's damage against a Sighted body, and its share is credited to the Let whose special applied the Sight, not to whoever fired.
+- **Where it lives.** Numbers, node ids and the per-hit bonus rule are in `survival_mastery_let.dart`; the game wires them in under "Let mastery" in `cosmic_survival_game.dart`. The body status (`letFractureTimer`) lives on the shared `MasteryPayloadStatuses`, so enemies and bosses carry it alike.
+- **One place for the auto-attack bonuses.** Cratermaker, Dead Weight and the Ranging Shots streak are resolved together in `resolveLetAutoAttackBonus`, called from `_damageEnemy` and `damageBoss` only for damage that belongs to a Let *basic* cast. Crater splash carries no cast, so it never earns them. The bonus is additive, and its share of the hit is credited to mastery in telemetry.
 - **Deadfall** builds its falling rock through the same `letSkyfallDrop` geometry as the special, and marks it `letDeadfall` so it lands through its own `_detonateLetDeadfall` — nearest body under the crater takes the rock, the rest take the crater share, and `_resolveLetMeteorHit` (the special's element behaviour) is never reached. Its ground telegraph draws the auto-attack crater, not the special's, and it sheds about a third of the special's descent embers.
 - **Comets** (Extinction Event) still fly flat; the crater opens on first contact through `_openLetCrater`, once.
 - **Skyreach** fires from `_tryFireLetSkyreach` before the in-range attack block, on its own target (the healthiest boss, else the healthiest enemy, anywhere), whether or not anything is near the Let. It spends the cooldown, which is what stops the ordinary attack firing a second rock that frame. The Let does not walk to the target. A capstone activation is recorded only when the target was beyond ordinary reach.
-- **Fire for Effect's hop** runs from `_killEnemy` and the boss death path, before the body is marked dead, and moves the Sight's remaining time to the nearest living body. The body it lands on is alive, so no hop can cascade inside a frame.
 - **Tests** check every node against the real combat loop, including that a falling Air rock shoves nothing and a killing Dark rock calls no follow-up meteors, and that each capstone records itself.
 
 ## Pip
@@ -274,17 +285,14 @@ attack-speed windows (Steam, Spirit), taunts (Crystal), ricochets
 black holes (Dark). The family's first design had a ricochet path and an
 attack-speed path, which would have handed Lightning's, Steam's and Spirit's
 identities to every Pip that bought them. Both were replaced. What was left
-unclaimed — marks, dart counts, target spread — is what these paths are made
-of.
+unclaimed — dart counts, target spread, when the darts fly — is what these
+paths are made of.
 
-### Assault — Needlepoint
-
-All three darts into one body.
-
-1. **Tight Grouping** — Spread narrows 45%; each dart deals 32% physical.
-2. **Pin Cushion** — A full volley on one body banks a Pin, up to five. Each Pin adds 3% to Pip damage against it. Pins lapse after 6 seconds untouched.
-3. **Pluck the Pins** — Hitting a five-Pin body spends them for 55% physical. A boss keeps two, so the loop can restart against something that will not die to one detonation.
-4. **Capstone: Thousand Cuts** — Every fourth full volley throws a second five-dart volley 0.2s later at 16% each. The bonus volley cannot bank Pins, or it would feed itself.
+Two paths since 2026-10-29 (every family has two). **Needlepoint** — all
+three darts into one body, banking Pins and plucking them for a burst, with a
+bonus volley every fourth full one — was cut: its nodes were percentages on
+hits that already killed, and it moved a horde wave by a point (13% → 13% of
+party damage at P50, 30% → 30% at P80 in the 2026-10-21 sweep).
 
 ### Control — Scattershot
 
@@ -297,60 +305,80 @@ One dart into each of three bodies.
 
 ### Salvo
 
-Leaves the volley alone and loads the special instead.
+Leaves the volley alone and loads the special instead. One more dart per node
+(1, 2, 3, 4 extra), each at 60% of an authored dart's damage and reach, 75% at
+the capstone. The middle two nodes used to be the same node twice ("another
+dart, also at 60%"); since 2026-10-29 each also changes how the extras are
+thrown.
 
-1. **Spare Needle** — One more dart on the special, at 70% of an authored dart.
-2. **Double Load** — Another.
-3. **Full Quiver** — Another.
-4. **Capstone: Perfect Salvo** — A fourth extra dart, and every extra now hits at full strength.
+1. **Spare Needle** — One more dart on the special, at 60%.
+2. **Second Volley** — Another dart, and the extras are held back and thrown
+   0.25 s after the special, as a second volley: at the body the special was
+   thrown at, or the body nearest the Pip (within 420) if that one died, or
+   along the old aim if nothing is near. Aimed from where the Pip stands when
+   it throws. (`_applyPipSpecialMastery`, `_throwPipSecondVolley`.)
+3. **Wide Load** — Another dart, and the extras leave the volley's flanks
+   instead of its edge: alternating sides, the first pair 0.42 rad (24°)
+   either side of the aim and each pair after 0.30 rad further, about 82° in
+   all against 15-25° for most elements' authored volley. A fanned dart flies
+   straight for 0.2 s before it seeks, so the fan opens before each dart turns
+   for the body nearest it (`pipSalvoOffset`, `PipTuning.wideLoadHold`).
+4. **Capstone: Perfect Salvo** — A fourth extra dart, and every extra hits and
+   reaches at 75%.
 
 Each extra is a *copy of the element's own dart*, so a Lightning salvo still
 ricochets five times and a Blood salvo still heals on a kill. The path adds
-darts; it never decides what a dart does.
+darts and decides when and where they leave; it never decides what a dart
+does. Sixteen elements throw their special as darts from the Pip; Air's and
+Light's leave as a ring and Steam's do not seek, and the extras leave from the
+aim all the same, so both behaviours read alike for all sixteen.
 
-Two consequences, both accepted:
+**Dark** throws nothing: its special is the black hole an auto kill opens. Salvo
+loads the hole, which spits one dart per node at the bodies round it, once per
+special interval (`_loadPipDarkSalvo`). Second Volley holds them in the hole
+for the beat, so the hole opens and then spits. Wide Load, with no arc to
+widen on a hole that already spits all the way round, spits each dart straight
+at a different body within 320 of the hole, nearest first, where they used to
+set off round the ring and chase whichever body was nearest them
+(`_fanPipDarkDarts`). That matters more than it sounds: a hole's darts fly at
+1,200 a second and turn at 3 radians a second, so set off the wrong way they
+rarely come back. With a body 60 from the hole and three more 170 out, three
+darts spat round the ring struck 0-1 of them over six seeds; fanned, three.
 
-- **A flat dart is worth different amounts per element.** Lava throws two
-  darts, so four more nearly triples it; Lightning throws six, so four more is
-  a 1.7x lift. Scaling by percentage instead would be fairer and far less
-  legible on a tooltip.
-- **Salvo gives a Dark Pip nothing.** Pip+Dark is passive-only and has no cast
-  at all, so all four nodes are dead for it. That is the intended shape of the
-  choice rather than an oversight: a Dark player takes Needlepoint or
-  Scattershot, and a test asserts the zero so nobody later "fixes" it.
+One consequence, accepted: **a flat dart is worth different amounts per
+element.** Lava throws two darts, so four more nearly triples it; Lightning
+throws six, so four more is a 1.7x lift. Scaling by percentage instead would
+be fairer and far less legible on a tooltip.
 
 ---
 
 ## Mask
 
-**Existing chassis:** one fast piercing dart at 90% physical damage. Mask specials create snares, lures, taunts, and persistent fixtures.
+**Existing chassis:** one fast piercing dart at 90% physical damage. Mask specials place fixtures — traps that persist and wait, and whose element decides what they do when something touches them.
 
-### Assault — Phantom Needle
+Two paths since 2026-10-29: **Deathmask** and **Contagion**. The draft tree
+these replaced (Phantom Needle, Hexweaver, Grand Masquerade) and why it was
+dropped are under *Mask — Deathmask, Contagion* below. **Rearm** (a trap that
+goes off re-arms: Spring Again, Hair Trigger, Snap Shut, Held Ground) was cut
+in the move to two paths.
 
-Piercing lanes and priority-target punishment.
+### Deathmask
 
-1. **Long Needle** — Projectile life increases by 25%, speed by 10%, and first-target damage becomes 100% physical attack.
-2. **Through the Veil** — Each enemy pierced increases damage to the next enemy by 8%, up to 24%.
-3. **Chosen Victim** — The first elite or boss hit is Marked for 3 seconds. Mask basics deal 12% more damage to their own Marked target.
-4. **Capstone: Phantom Lance** — Every fourth cast becomes a broad spectral lance that pierces indefinitely, deals 145% physical damage, and applies one elemental payload to the first three targets.
+Every kill leaves a trap behind.
 
-### Control — Hexweaver
+1. **Grave Goods** — A dart kill leaves a small trap of the Mask's element where the body fell, at 35% strength. Only a dart kill, never a trap's own; at most twelve graves a Mask and one every 0.35 s.
+2. **Restless Graves** — The graves move at a walking pace (75 units a second) to the nearest body standing still — planted for its signature attack (a brute charging its siege beam, a sentinel its volley), siege artillery at its hold, or anything rooted, frozen or stunned (`_enemyStandingStill`) — and lie under it, keeping with it while it lives and stays within 360. With nothing standing still in reach, a grave makes for the thickest press of bodies near it and sits in the middle (`_thickestCrowdNear`, the densest enemy-grid cell's bodies); with no body at all, a boss. Each grave looks again four times a second (one grid query, and the grid's own cell counts). Only graves move: the traps the special places stay where they were laid. A moving grave keeps the look it was laid with (`Projectile.lookAnchor`). Replaced Open Grave (40% wider, 50% longer), which was a plain size bonus; until 2026-10-29 (second pass) the graves crept at 18 after the nearest body. (`_updateMaskRestlessGraves`.)
+3. **Cold Ground** — Graves carry the element's full effect instead of a weakened one.
+4. **Capstone: Necropolis** — A dart kill inside one of the Mask's own traps leaves a full-strength grave.
 
-Basics prepare space for existing trap specials.
+### Contagion
 
-1. **Inscribed Dart** — The first enemy hit receives a 4-second Sigil. Only one Sigil per Mask may exist. Mask basics deal 10% more damage to the Sigiled enemy.
-2. **Binding Script** — Striking the Sigiled enemy again triggers one elemental payload and briefly slows it by 15%. Internal cooldown: 1 second.
-3. **Prepared Ground** — Casting the special near the Sigiled enemy transfers the Sigil to the created fixture, increasing its radius or reach by 15% and duration by 20%.
-4. **Capstone: Haunted Ground** — The empowered fixture fires a reduced copy of the Mask's basic at a nearby enemy every 1.2 seconds. Copies deal 30% physical damage and cannot create Sigils.
+What the traps catch carries it on.
 
-### Resonance — Grand Masquerade
-
-Manipulates enemy attention and turns trap success into offense.
-
-1. **False Face** — Basic hits make ordinary enemies 20% more likely to choose a Mask fixture or decoy as their target for 2 seconds.
-2. **Applause** — When a Mask fixture controls an enemy, the Mask gains 12% basic attack speed for 2 seconds. This refreshes but does not stack.
-3. **Curtain Call** — An enemy killed while controlled releases a small payload at 60% strength. Internal cooldown: 0.5 seconds.
-4. **Capstone: Grand Masquerade** — While a Mask fixture is active, every third basic originates a second 35%-damage spectral dart from that fixture toward a different target. The copy cannot trigger Curtain Call.
+1. **Carrier** — A body that walks out of a Mask trap alive is infected for 6 s.
+2. **Spread** — An infected body passes it to up to five others within 110 once a second, for at most four generations from the trap.
+3. **Virulence** — Infection eats at its carrier every half second.
+4. **Capstone: Plague** — An infected body that dies bursts, infecting everything within 90 and dealing damage. One Mask's infection holds at most 160 bodies.
 
 ---
 
@@ -358,32 +386,29 @@ Manipulates enemy attention and turns trap success into offense.
 
 **Existing chassis:** one slow, oversized projectile at 160% physical damage. Horn specials center on charges, impact sweeps, passive auras, and defensive effects.
 
-### Assault — Breaker
+Two paths since 2026-10-29: **Bulwark** and **Bastion**. The draft tree these
+replaced (Breaker, Bastion's first draft, Stampede) and why it was dropped are
+under *Horn — Bulwark, Bastion* below. **Juggernaut** (the special runs a
+second time: Second Effort, Full Weight, Relentless, Second Front) was cut in
+the move to two paths.
 
-Close-range impact and armor destruction.
+### Bulwark
 
-1. **Heavy Head** — Basic projectile speed falls by 8%, but damage rises to 175% physical attack.
-2. **Sunder** — Basic hits apply 6% physical vulnerability for 3 seconds, up to two stacks. Boss stacks are half strength.
-3. **Point Blank** — Hits inside 45% of attack range deal 22% additional damage and briefly stagger ordinary enemies.
-4. **Capstone: Siege Horn** — Every fourth cast becomes an impact shell dealing 220% physical damage and a 55% shockwave around the target. It consumes Sunder to enlarge the shockwave, not increase boss damage.
+Turns bulk into damage.
 
-### Control — Bastion
+1. **Ironhead** — Attacks hit for an extra 2.5% of maximum HP.
+2. **Weight Behind It** — The special carries the same weight at 60%, folded into the charge once at cast. A Horn whose special strikes nothing (Air, Mud, Light) carries it on its attacks instead.
+3. **Braced** — The weight rides current health: 1.5x at full, 0.5x nearly down.
+4. **Capstone: Anvil** — A body killed by the weight ruptures for 12% of maximum HP within 120.
 
-Protects space and converts attacks into guard.
+### Bastion
 
-1. **Guarded Shot** — Casting a basic grants a small temporary shield equal to 1.5% maximum HP, capped at 6%.
-2. **Hold the Line** — Hitting an enemy moving toward the orb pushes it back and triggers the elemental payload at 70% strength. Internal cooldown: 1 second per target.
-3. **Interposition** — At maximum Guarded Shot shield, the next projectile that would hit the orb or a nearby ally is intercepted; the shield is consumed.
-4. **Capstone: Countercharge** — Consuming the shield through Interposition primes the next basic within 4 seconds into a 190%-damage countershot with a strong push and one full payload.
+Takes the hits meant for the team.
 
-### Resonance — Stampede
-
-Basics build Momentum for the existing charge or passive special.
-
-1. **Gather Momentum** — Each basic hit grants one Momentum, up to five. Momentum expires after 5 seconds without a hit. Each Momentum grants 2% basic damage.
-2. **Rolling Weight** — Each Momentum grants 3% basic projectile speed and 2% attack speed.
-3. **Impact Reserve** — Casting an active Horn special consumes Momentum to add 6% impact or field power per stack. Passive-only Horns instead release a payload pulse at five stacks and reset.
-4. **Capstone: Unstoppable** — Consuming five Momentum makes the next charge ignore ordinary collision control, increases sweep width by 25%, and causes the landing to fire the Horn's basic in four directions at 35% damage. Passive-only Horns receive an equivalent 6-second empowered aura window.
+1. **Guarded Shot** — Each attack banks a shield of 1.5% of maximum HP, up to 6%.
+2. **Bodyguard** — Within 260 of the orb, a quarter of the orb's damage is taken by the Horn instead, 40% less of it.
+3. **Shield Wall** — While the shield holds, allies within 150 take 20% less.
+4. **Capstone: Last Stand** — A shield broken through ruptures for 2.2x the shield it had, within 160, and gives back 20% of the special's cooldown; once every 4 s.
 
 ---
 
@@ -391,32 +416,21 @@ Basics build Momentum for the existing charge or passive special.
 
 **Existing chassis:** two same-angle projectiles at 50% physical damage each with slightly different speed and lifetime. Wing specials are beams and long-range elemental lanes.
 
-### Assault — Twin Lance
+Two paths since 2026-10-29 (the reasoning is under "Wing — Longshot and Tracer" below). Burn Through, a damage ramp on a held target, was cut.
 
-Converging long-range pressure.
+### Longshot — the further out, the harder you hit
 
-1. **Synchronized Flight** — The paired projectiles align their speed and converge slightly; each deals 53% physical damage.
-2. **Rangefinder** — Hits beyond 60% of attack range deal 15% additional damage.
-3. **Double Tap** — A dual hit on the same target deals 25% additional physical damage and triggers one payload at 70% strength.
-4. **Capstone: Twin Suns** — Every fifth cast fuses the pair mid-flight into one homing lance dealing 165% physical damage. It pierces once and triggers a payload on its first hit.
+1. **Rangefinder** — Everything the Wing does to an enemy past 60% of its range deals +15%.
+2. **Long Lens** — Range +20%, and an auto-attack at a body past 60% of range is aimed where the body will be when the shots arrive (its heading and speed, the slower shot's flight time, capped at 0.8 s of travel). Bosses and near bodies are fired at straight.
+3. **Standoff** — While nothing is inside 30% of range, the +15% applies at any distance.
+4. **Capstone: Overwatch** — Every body that comes into the band from 60% of range to its edge takes one free auto-attack, aimed as Long Lens aims, paid the Longshot bonus as any hit there is. Once per body per Wing. Looked for ten times a second over the grid cells the band covers. Since 2026-10-29 (second pass), a body that begins to take aim within twice the Wing's range — a brute charging its siege beam, a sentinel gathering its volley — takes a free shot too, each time it does (`_onEnemyTakesAim`, called where the wind-up starts, so nothing scans for it). Both come out of one bank of six, refilled at twelve a second. Long Lens no longer leads a body planted for its own attack: it is not walking (`_enemyPlanted`).
 
-### Control — Razor Horizon
+### Tracer — your shots feed your beam
 
-Wide firing lanes and distributed pressure.
-
-1. **Open Wings** — The two projectiles fire at opposite 9-degree angles and each pierces one enemy at 46% physical damage.
-2. **Crosscurrent** — After piercing, each shot bends toward a different nearby target for 35% remaining damage.
-3. **Elemental Contrails** — The first pierced enemy on each side receives the elemental payload at 60% strength.
-4. **Capstone: Razor Horizon** — Every fourth cast sweeps a thin line between the two shots for 1 second. Enemies crossing it take 65% physical damage and one reduced payload, once per cast.
-
-### Resonance — Beamweaver
-
-Basics tune the next existing beam special.
-
-1. **Sightline** — Dual hits grant one Focus, up to five. Focus expires after 6 seconds without a hit. Each Focus grants 2% basic range.
-2. **Coherent Light** — Each Focus also grants 3% basic damage.
-3. **Beam Feed** — Casting the special consumes Focus, adding 4% beam or special duration and 4% effect power per stack. One-shot specials receive equivalent total output rather than duration.
-4. **Capstone: Continuum** — Consuming five Focus leaves a reduced echo of the special's primary line or impact after it ends, dealing 35% of its original power. This never modifies special cooldown; Dark Wing receives no additional firing-rate multiplier.
+1. **Tracer Rounds** — Each auto-attack that lands takes 0.25 s off the special's cooldown.
+2. **Loaded Beam** (saved id `wing.tracer.ranging_shots`; it was sold as Ranging Shots, which is also a Let node) — Each landed auto-attack also adds 0.1 s to the next beam, up to 1.5 s.
+3. **Hot Barrel** — While the Wing's beam is firing, its auto-attacks come twice as fast.
+4. **Capstone: Live Feed** — While a beam is firing, landed auto-attacks lengthen that beam instead of banking for the next one.
 
 ---
 
@@ -424,32 +438,21 @@ Basics tune the next existing beam special.
 
 **Existing chassis:** a dedicated 1.5-second charged laser scaled from physical attack. Kin specials are primarily blessings and team support effects.
 
-### Assault — Overcharge
+Two paths since 2026-10-29 (the reasoning is under "Kin — Conduction and Benediction" below). Longline, the laser's reach, was cut.
 
-Transforms the charged laser into a deliberate offensive weapon.
+### Conduction — the line carries help, not just harm
 
-1. **Hot Coil** — Charge time falls from 1.5 to 1.25 seconds, while laser damage falls to 90% of its prior coefficient.
-2. **Burn Through** — The laser pierces one additional enemy for 55% remaining damage.
-3. **Critical Mass** — Holding a valid target for the entire charge adds 20% damage and one payload to the primary target.
-4. **Capstone: Judgment Line** — Every fourth completed charge overcharges for an additional 0.35 seconds, then fires a much wider beam at 180% normal laser damage. The player receives a clear windup cue; interrupted charges do not consume it.
+1. **Live Current** — Allies the laser passes through gain a shield worth 30% of the damage it dealt (at most 18% of their health, topped up rather than stacked).
+2. **Lifeline** — An ally below half health is healed instead, for half again as much.
+3. **Grounding** — The Kin's element lands on every enemy down the line.
+4. **Capstone: Transfusion** — The shield and heal are worth 50% more and reach allies within 120 of the line.
 
-### Control — Conduit
+### Benediction — the support reaches the whole team
 
-Conductive marks and battlefield lanes.
-
-1. **Conductivity** — A laser hit marks its target for 4 seconds. Only one Kin Conductivity mark may exist per caster. The marked target takes 8% more damage from all companions.
-2. **Ground Path** — Firing through the marked target leaves a 2-second lane between Kin and target. Enemies crossing it receive the payload at 60% strength once.
-3. **Relay Point** — An ally autoattack hitting the marked target sends a 20%-elemental-attack pulse to one nearby enemy. Internal cooldown: 0.8 seconds.
-4. **Capstone: Living Circuit** — While the Kin's timed support special is active, Conductivity may link up to three targets. An instantaneous support special instead opens this link window for 6 seconds. Laser and allied pulses travel the link once, using a shared chain budget to prevent recursion.
-
-### Resonance — Aegis Relay
-
-Laser hits feed the Kin's existing support identity.
-
-1. **Guard Charge** — Completing a laser grants the lowest-health ally or the orb a shield equal to 1% of the Kin's maximum HP. Per-target cap: 4%.
-2. **Shared Current** — Shielding an ally gives that ally 8% basic attack speed for 2 seconds. This refreshes but does not stack.
-3. **Blessing Reserve** — Laser hits store one Reserve, up to five. Casting the special consumes Reserve for 4% increased healing, shielding, duration, or support strength per stack.
-4. **Capstone: Guardian Relay** — Consuming five Reserve sends the Kin's elemental payload through every living companion once at a support-safe interpretation: harmful payloads strike a nearby enemy; Blood and Light heal or ward allies. It cannot trigger another Reserve.
+1. **Kindred** — The ally standing nearest the Kin when it casts gets the cast's support as the Kin does: its heal, its blessing and any shield, at full strength and for as long. For Kin+Fire, which never casts, the ally nearest it when the phoenix fires is reborn with it, keeping the same haste and damage for the rest of the run.
+2. **Vigil** — While any ally is below half health, the special recharges twice as fast. For Kin+Fire, the reborn flame burns twice as often instead.
+3. **Unbroken** — Being downed no longer ends the support; it runs its full course.
+4. **Capstone: Communion** — The blessing reaches every ally and the ship, however far: Kindred's ally keeps all of it, the rest get half.
 
 ---
 
@@ -457,34 +460,21 @@ Laser hits feed the Kin's existing support identity.
 
 **Existing chassis:** three 40%-damage spell projectiles. Basic attacks already reduce special cooldown. Mystic specials transform the world and normally cast only once per deployment.
 
-Mystic mastery never adds further special-cooldown refunds.
+Mystic mastery never adds further special-cooldown refunds. Two paths (the reasoning is under "Mystic — Quickening and Firmament" below).
 
-### Assault — Starcaller
+### Quickening — the world acts far more often
 
-Makes the ordinary spell volley a credible offensive choice before and after the world arrives.
+1. **Quickening** — Each time the world acts, the next body to die (to anything, anywhere) makes it act again at once at half strength: its latest act, the same way, in the same place. One repeat per act of its own, however many die after it. An Ice world, whose blizzard has no act of its own, gains one: every 6 s at P50 (its beat, quickened by the surge and SPECIAL as the other clocked worlds are) the blizzard freezes everything in it for 12% of the beat. Without the path the blizzard is exactly the steady slow it was. Until 2026-10-29 (second pass) each body the world killed brought its next act 0.2 s sooner, which reached nine worlds of seventeen.
+2. **First Light** — The world acts the moment it ignites: the clocked worlds (Lightning, Earth, Steam, and a Quickening Ice) act on the frame they are lit, and Light's dawn breaks on the next one. The placed worlds act on their first contact anyway, and the rule worlds (Spirit, Blood, Dark, Mud, Crystal, Dust) when their trigger first comes.
+3. **Aftershock** — Each time the world acts, it acts again half a second later at 40% strength, in the same place. A repeat is not repeated.
+4. **Capstone: Relentless Sky** — Each time the world acts, it acts once more a quarter of a second later at full strength (the aftershock still follows). An Ice repeat holds the freeze still running that share longer.
 
-1. **Aligned Stars** — Volley spread narrows by 30%; each bolt deals 42% physical damage.
-2. **Conjunction** — A full volley hit deals 30% elemental attack and triggers one payload per cast.
-3. **Falling Sign** — Every fourth full volley marks the target. The next volley against it gains light homing and 20% main-hit damage.
-4. **Capstone: The Stars Answer** — Every fifth cast converges into a sigil at the primary target after 0.45 seconds, dealing 85% elemental attack in an area. While the world is active, the sigil uses a stronger visual and 20% larger radius.
+### Firmament — the world shelters its makers
 
-### Control — Worldshaper
-
-Basics seed locations that the existing world special later awakens.
-
-1. **Seed the Field** — Every third cast leaves a Seed at the primary hit location for 8 seconds. Maximum three. Each Seed pulses 10% elemental attack to nearby enemies every 2 seconds.
-2. **Local Omen** — Enemies near a Seed receive a weak, non-damaging version of the elemental payload once every 2 seconds.
-3. **Awakening** — When the world activates, all current Seeds awaken for its lifetime, gaining a small element-specific damage or control pulse.
-4. **Capstone: Living World** — While the world is active, every fifth cast creates a temporary awakened Seed for 5 seconds. Maximum five total Seeds; replacing the oldest does not trigger an exit effect.
-
-### Resonance — Covenant
-
-Uses basic accuracy to support the party without accelerating the one-use world cast.
-
-1. **Witness** — A full volley hit grants one Insight, up to five. Insight does not expire while the Mystic remains deployed. Each Insight grants 2% basic damage.
-2. **Shared Vision** — At five Insight, the party gains 5% attack range and the Mystic's basics seek targets not already being attacked when possible.
-3. **Oath Fulfilled** — Casting the world consumes Insight to grant all living companions a 5-second element-themed boon. The boon changes behavior or utility, not raw special cooldown.
-4. **Capstone: Worldbond** — While the world is active, every five full-volley hits release a covenant pulse: allies receive a small shield or heal, and nearby enemies receive one payload at 60% strength. Internal cooldown: 2 seconds.
+1. **Native Air** — Allies standing in the world take 15% less damage.
+2. **Home Ground** — They deal 15% more while they stand in it.
+3. **Tended** — The world mends allies inside it, 1.2% of their health a second.
+4. **Capstone: Sanctum** — Their attacks carry the world's element.
 
 ## Elemental interpretation principles
 
@@ -712,27 +702,32 @@ balance baseline.
 
 ## Mane implementation notes
 
-All twelve nodes live in `lib/games/cosmic_survival/survival_mastery_mane.dart`
-(numbers, per-slot state, and the pure shape resolver) and in the game's
-"Mane mastery" section (the hooks that spawn and apply). The split is the one
-phases 4 and 5 should copy: anything that can be decided without the world
-lives in the family file, so it can be read and tested on its own.
+All eight nodes live in `lib/games/cosmic_survival/survival_mastery_mane.dart`
+(numbers, per-slot state, and the pure rules: Encore's spend, Hunter's Arc's
+cone, turn and ring lean) and in the game's "Mane mastery" section (the hooks
+that spawn and apply). The split is the one phases 4 and 5 should copy:
+anything that can be decided without the world lives in the family file, so
+it can be read and tested on its own.
 
-Three things worth knowing before the next family:
+Things worth knowing (revised 2026-10-29, when Twin Fang and Crescendo went):
 
-- **The pair is rebuilt, not edited.** Spread, width, damage and tracking are
-  decided together, and `homing` is final on a projectile, so a Predator Step
-  cast cannot be made to track by tweaking what the chassis factory returned.
-  Per-slash damage is still derived from that factory's own output, so the
-  chassis stays the single source of base scaling.
-- **A cast's empowerment is decided before the cast exists.** The shape pass
-  spends the Crescendo and Blade Dance counters, then `beginCast` runs, then
-  the tag is applied. The counter cannot be re-read to decide the tag — a
-  one-cast Crescendo spends its counter to zero and would tag nothing.
-- **Exclusions are structural where they can be.** A Blade Dance return
-  carries no cast id and no return fraction of its own, which is exactly why
-  it cannot trigger Crosscut, cannot fire a payload and cannot boomerang
-  again. Nothing checks for those three cases.
+- **The pair is edited, not rebuilt.** Encore's width is the only thing a path
+  changes about the slashes, so `_applyManeBasicMastery` scales the chassis's
+  own pair in place. It used to rebuild the pair, because Predator Step's
+  tracking is final on a projectile; the rebuilt slashes lost the chassis's
+  render tag (`basicFamily`) on the way.
+- **Hunter's Arc is per projectile.** `Projectile.masteryArc` is stamped by
+  the special-shape pass after every per-element rewrite, so Spirit's stream
+  and Lightning's orbs carry it; the ward ring and Mud's shards are stamped
+  where they are made. `_steerManeArc` runs in the projectile update before the
+  shot moves, arms on `pierceCount`/`hitBoss` (or `masteryArcArmed`), re-picks
+  its body from the enemy grid every 0.15 s and turns by at most
+  `maneArcTurn`. A ring's lean is `masteryArcReach`, added to its orbit radius
+  where the orbit is resolved; the circuit resets it.
+- **Damage after a bend stays the special's.** The arc changes where a shot
+  goes, not what it deals, and a hit after a slight bend is not one the shot
+  would otherwise have missed, so none of it is filed as mastery. Crosscut's
+  bonus and the Tempest Ring are what War Rhythm files as mastery.
 
 Two rules needed runtime support that phases 4-5 will reuse: `MasteryCast.tag`
 for "this cast was empowered", and `maxHitsPerTarget` with a pre-damage veto
@@ -1109,7 +1104,7 @@ Beauty 5, which sit either side of average on a 2.5–12 scale, and asked for a
 20% radius gap that Mane's deliberately narrow curve no longer owes between two
 ordinary creatures.
 
-### Horn — Bulwark, Bastion, Juggernaut (2026-09-18)
+### Horn — Bulwark, Bastion (2026-09-18; Juggernaut cut 2026-10-29)
 
 Horn's draft tree spent six of its twelve nodes on mechanics its own elements
 already owned, and its third path was Mane's War Rhythm down to the numbers.
@@ -1128,17 +1123,18 @@ whose cast pattern changes with its element**: Air and Mud never cast at all,
 and Light never moves. `Unstoppable` was dead content for three of seventeen
 Horns, and `Impact Reserve` carried a bolt-on clause conceding it.
 
-So all three replacement paths key only to what every Horn has — a body with
-hit points, an auto-attack, and an element:
+So the replacement paths key only to what every Horn has — a body with hit
+points, an auto-attack, and an element:
 
 - **Bulwark** turns maximum HP into damage. Nothing else in the game scales a
   companion's damage off its own bulk.
 - **Bastion** takes hits meant for the orb, mitigated by that bulk, so the team
   comes out ahead rather than the damage merely moving. Nothing else in the
   game redirects damage onto a companion.
-- **Juggernaut** runs the special a second time — a charge ploughs back, a
-  wind-up releases twice, Light's barrier re-ups, and a passive Horn, which can
-  never cast, gains a pulse instead.
+
+A third, **Juggernaut**, ran the special a second time (a charge ploughed
+back, a wind-up released twice, Light's barrier re-upped, a passive Horn
+pulsed). It was cut on 2026-10-29, when every family went to two paths.
 
 Two things worth keeping from the implementation:
 
@@ -1147,13 +1143,12 @@ Two things worth keeping from the implementation:
   times, which is how a tank path quietly becomes the best damage path.
 - **`hornSpecialActiveWindow` is useless as a completion signal.** It is a flat
   five seconds and Horn's own special cooldown is about four, so a Horn that
-  keeps casting re-opens it forever and it never closes. Juggernaut arms off
-  `chargeTimer`/`windUpTimer`/the Light barrier instead, and only after it has
-  actually seen the ability running — otherwise the second run arms on the
-  frame of the cast and the two overlap into one doubled hit.
+  keeps casting re-opens it forever and it never closes. Anything that needs
+  to know a Horn's ability has finished should read `chargeTimer`,
+  `windUpTimer` and the Light barrier instead (Juggernaut did).
 
 
-### Mask — Deathmask, Rearm, Contagion (2026-09-18)
+### Mask — Deathmask, Contagion (2026-09-18; Rearm cut 2026-10-29)
 
 Mask's draft was more derivative than Horn's. Every collision below was
 checked against the code, not assumed:
@@ -1178,14 +1173,40 @@ seven of seventeen, so nothing in the tree counts fixtures. There is a test
 for that.
 
 What every Mask does have is at least one fixture that persists and waits, so
-the tree is the three phases of one trap's life — how it gets placed, how often
-it goes off, and what happens after:
+the tree is the two ends of one trap's life — how it gets placed, and what
+happens after:
 
-- **Deathmask** puts traps down on kills.
-- **Rearm** stops a trap spending itself on contact.
+- **Deathmask** puts traps down on kills, and (Restless Graves) sends them
+  after what stands still, or into the thick of the crowd.
 - **Contagion** makes what a trap catches carry it onward. Enemy-to-enemy
   spread was the one genuinely unclaimed mechanic left: a grep for
   `contagion`, `spreadTo` and `infect` returned nothing.
+
+A third, **Rearm**, stopped a trap spending itself on contact. It was cut on
+2026-10-29, when every family went to two paths.
+
+**2026-10-29, second pass: Restless Graves, three ways, none of them a lift.**
+Measured as tier 2 against tier 1 (`FAMILY_MASTERY_TIER`, 420 parties, P50
+wave 36; Mask share / held), where tier 1 (Grave Goods alone) is 34% / 68%
+and no mastery 26% / 58%:
+
+| Restless Graves | Share | Held |
+| --- | --- | --- |
+| creep at 18 after the nearest body (as shipped) | 34% | 68% |
+| 75 after the nearest body, riding it once caught | 34% | 68% |
+| 75 to the thickest crowd near it | 36% | 70% |
+| 75 to the nearest body standing still, else the thickest crowd (kept) | 36% | 68% |
+
+A grave is a contact trap at 35% of the special's fixture. Riding one body
+it is walked into by fewer than lying in the stream; in the thick of the
+crowd or under a planted brute it catches more (two points of share) but
+nothing that changes whether the orb holds — at P50 wave 36 that is decided
+by brutes' siege beams (see Wing, below), and a third-strength trap under a
+brute does not bring it down before it fires again. Tier 2 does not beat
+tier 1 by more than the probe's noise in any version. The kept one is the
+version that goes after the bodies that matter; the next lever is what a
+grave *is* at tier 2 rather than where it goes. Full path: before 36% / 71%,
+after 38% / 73%; P80 wave 41 before 29% / 90%, after 30% / 92%.
 
 **Two ceilings exist because of a bug this game has already had.** A Mask trap
 chain once doubled per frame until a single frame cost 2.2 seconds, and both of
@@ -1202,7 +1223,78 @@ Plus a flat cap of twelve live graves per Mask and a proc cooldown on placing
 them. All four are pinned by tests, in the group named for the failure.
 
 
-### Wing — Burn Through, Longshot, Tracer (2026-09-18)
+### Wing — Longshot and Tracer (2026-09-18, reworked 2026-10-29)
+
+**2026-10-29: two paths, and every node changes how the Wing fights.** The
+user cut every family to two paths and asked that no node be a plain number.
+Burn Through went whole: its ramp was a number that climbed, and it moved a
+horde wave by a point (`docs/audits/survival_families_2026-10-20.md`, "Mastery
+sweep"). In the two that stayed:
+
+- **Long Lens** stopped climbing the bonus to +35% at the edge and now aims:
+  an auto-attack at a body past 60% of range is fired at where the body will
+  be (`wingLeadPoint`, read in `_wingShotAngle`). Wing's shots do not home, so
+  a far body walking across the line used to be missed.
+- **Overwatch** replaced Horizon (another +35% range): every body that comes
+  into the far band takes one free auto-attack (`_updateWingMastery` →
+  `_watchWingFarReach`). It looks ten times a second over the grid cells the
+  band covers (`_visitEnemiesNear`'s `innerRadius` skips the cells wholly
+  inside 60%), keeps a per-Wing set of the bodies it has shot (dropped as
+  they die, `_forgetWingOverwatch`), and fires out of a bank of six refilled
+  at twelve a second, so a wave arriving at once is shot down in turn rather
+  than in one frame. The shot is the Wing's own attack, filed as the path's.
+- **Loaded Beam** is Ranging Shots renamed (Let's Bombardment has a Ranging
+  Shots), keeping the saved id `wing.tracer.ranging_shots` through `_path`'s
+  `slugs`.
+- **Hot Barrel** stopped growing Tracer's numbers and now doubles the
+  auto-attack rate while the Wing's beam is firing
+  (`wingBasicCooldownMultiplier`, read in `_masteryBasicCooldownMultiplier`).
+  With Tracer Rounds that is a loop — faster shots shave the special faster —
+  which is what the path is for; Tracer Rounds and Loaded Beam keep their
+  0.25 s and 0.1 s.
+
+Measured with `test/family_balance_survival_test.dart`
+(`FAMILY_MASTERY_ONLY=1`, 105 parties; share of party damage, then how
+often a party with a Wing held), against no mastery at 27%/55% (P50 wave 36)
+and 27%/88% (P80 wave 41): Tracer 40%/71% and 38%/99%; Longshot 35%/57% and
+34%/91%, the path dealing 37-40% of the Wing's damage. Longshot's hold lift
+is inside the probe's ±6 points: what it adds lands on bodies far out, which
+the rest of the party was killing anyway. Overwatch fired six shots a second
+at first (32%/56%, 31%/89%).
+
+**2026-10-29, second pass: what breaks a party, and Overwatch on the
+brutes.** Traced over 105 parties at P50 wave 36 with no mastery (a
+temporary probe that filed every hit on the orb by its caller): **brutes'
+siege beams are 55-70% of what the orb takes** (`_updateEnemyHazards`;
+colossus shockwaves a sliver of it), ordinary contact 15-26%, enemy rounds
+(sentinel volleys, shooters, artillery shells) 15-18%. A party of five
+brutes fires about 114 beams a wave. Three in four were fired by a brute at
+75% of its health or more, and from 300-560 out from the orb (the brute's
+action reaches 560). The Wing works the outer edge (its family targeting is
+"furthest from the orb"; it stood 634 from the orb on average, range 291):
+four in five beams came from a brute further than 160% of the Wing's range
+from it, three in five from one more than 750 away. So far-band shots fell
+on bodies the party was killing anyway, and the bodies breaking the orb were
+nowhere near the Wing.
+
+Two levers were tried at 420 parties, P50 wave 36, Wing share / held (no
+mastery 27% / 59%; Longshot as shipped 35% / 64%):
+
+- Overwatch as a *target*: a body taking aim within twice the range became
+  the Wing's first target, and in reach of its attack (no free shots). 33% /
+  61%. The Wing left the far band to chase brutes it could not bring down
+  before they fired (a brute has ~1,150 health at P50 wave 36; a Wing shot
+  is ~70), and lost the free shots' work.
+- Overwatch's free shots *also* at whatever takes aim within twice the
+  range, every time it does (kept). 36% / 66%; at 840 parties
+  36% / 67% against 28% / 57% with no mastery. P80 wave 41: no mastery 28% / 90%, before 35% / 94%,
+  after 34% / 93%.
+
+Nothing here takes another family's signature: the shots are the Wing's own
+attack, the reach is range, and a body taking aim is read from the enemy's
+own action phase, which no other node reads.
+
+The 2026-09-18 reasoning below still holds for the two that stayed.
 
 Wing's draft was Mane's tree with "shots" written over "slashes". Side by side:
 
@@ -1244,7 +1336,44 @@ active beam. It became Live Feed instead, which puts the time into the beam
 already running rather than banking it for the next one.
 
 
-### Kin — Longline, Conduction, Benediction (2026-09-18)
+### Kin — Conduction and Benediction (2026-09-18, reworked 2026-10-29)
+
+**2026-10-29: two paths.** Longline went whole — a longer line and a bigger
+number at its end, and still a support family turned damage dealer after the
+2026-10-21 trims (7% of its party's damage to 19%). Benediction's first two
+nodes were numbers (+40% duration, +25% strength) and became behaviours:
+
+- **Kindred** (`_applyKinKindred`, from `_applyCompanionSpecialSupportEffects`):
+  the ally standing nearest the Kin when it casts gets the cast's support as
+  the Kin does. What every Kin's cast hands its caster is a heal (15-50% of
+  its health by element) and a blessing (a heal over 3.5-8 s); that is what
+  Kindred copies, whole and for as long (and a shield, should a cast carry
+  one), with the orb echo paid once. Each element's own support
+  already reaches past the Kin — the Steam boiler hastes every ally, the Dark
+  veil hides every ally, the Blood pact and the Lava plate answer the whole
+  team's damage, the Lightning charge chains everyone's attacks, the Light,
+  Crystal, Water and Air pieces ride the ship, the Earth wall rings the orb,
+  the Plant garden and Dust clouds are placed, Mud enchants the ship, the Ice
+  release and Poison darts and Spirit wisp go at enemies — so the part that
+  stopped at the Kin is the heal and blessing, and every casting element has
+  both. Kin+Fire never casts: its support is the phoenix, so Kindred hands
+  the ally nearest it when the phoenix fires the same rebirth haste and
+  damage, for good (`_applyKinKindredRebirth`,
+  `CosmicSurvivalCompanion.kindredRebirthDamageAmp`/`kindredRebirthHaste`).
+- **Vigil** (`_kinVigilRate`): while any ally is below half health the Kin's
+  special recharges twice as fast — on `specialCooldown`, in
+  `_updateCompanion`. Kin+Fire has no cooldown to hurry, so its reborn flame
+  burns twice as often instead (`_updateKinSupportTick`).
+- **Communion** now leaves Kindred's ally the whole blessing and gives the
+  rest of the team and the ship half.
+
+Unbroken and Conduction are as they were. Measured the same way as Wing
+above: a party with a Benediction Kin held 84% of P50 wave 36 against 52%
+with no mastery (Kindred and Vigil alone 75%, with Unbroken 76%), and 96%
+of P80 wave 41 against 89%; the Kin stays at 4-6% of the damage. The old
+path, after the 2026-10-21 trims, held 76% and 100%. Communion's half share
+is the lever if it should come down. The 2026-09-18 reasoning below still
+holds for what stayed.
 
 Kin's draft was the worst of the six. Its first path, "turn the laser into a
 weapon", made the Rare Support family a damage dealer, which is the one thing
@@ -1283,7 +1412,102 @@ their timers expire, and the three "is some Kin support up?" reads consult
 them too.
 
 
-### Mystic — Quickening, Firmament, and only two paths (2026-09-18)
+### Mystic — Quickening and Firmament (2026-09-18, reworked 2026-10-29)
+
+**2026-10-29: Quickening acts instead of multiplying.** It was three number
+bumps (acts 25% more often, lands 30% harder, acts twice as often), all read
+through the world surge (`_mysticWorldPower`). Reading the worlds again: only
+Lightning, Earth and Steam keep a clock; the rest act on their own terms — an
+ember catches, a revenant strikes, a vine lashes or spits, a patch bites, the
+water and the wind grind, a crack drops meteors, a shard bursts as the ship
+takes it, the maw swallows, the haze turns a round or a body, the dawn
+breaks, the tithe is drawn, the mud weighs on a hit. So each world now marks
+its act where it happens (`_mysticActed`) and hands over how to do it again,
+at a strength, in the same place: the bolt on the same spot
+(`_landMysticLightning`), the quake over the same field
+(`_shakeMysticEarth`), the vent (`_ventMysticSteam`), the meteor on the same
+ground (`_landMysticMeteor`), the shard's burst where it was taken
+(`_burstMysticCrystal`), the lash down the same arc (`_lashMysticVine`), the
+ember at the same point (`_catchMysticEmber`), and so on. The repeats queue
+in `_mysticReplays` (at most 240 waiting) and land from
+`_updateMysticMastery`; a repeat never queues another. Mud's act is the
+weight on every hit the field takes, so its repeats are banked per body
+(`_echoMysticMire`). **Ice was the one world with no act** — its blizzard
+holds every body every frame — so Aftershock and Relentless Sky did nothing
+for it (until the second pass, below).
+
+- **Quickening**, first pass (`_quickenMysticWorld`, gone in the second
+  pass below; from the kill in `_damageEnemy` and `damageBoss`): every body
+  the world kills (anything its spent Mystic deals
+  that is not an auto-attack) takes 0.2 s off the world's next act — the
+  clock, each ember's catch, each revenant's strike, each vine, each patch,
+  the water's and wind's grind, each crack's rearm — never below a third of a
+  second (`mysticQuickenedTimer`), so no act comes round more than three
+  times a second. Worlds that never kill (Blood, Dark, Mud, Ice, Steam,
+  Light) and the two whose acts keep no clock (Crystal, Dust) have nothing
+  for it to hurry.
+- **Aftershock** replaced Weight of Heaven (+30%): each act again half a
+  second later at 40%.
+- **Relentless Sky** replaced "acts twice as often". The first choice was a
+  world that stays lit until the wave ends; but a world never fades during a
+  wave — it holds until its Mystic falls or is recalled — and one that
+  outlives its Mystic is Kin's Unbroken (the reason the uptime path was
+  rejected, below) and would mean rewiring every world's caster check. So it
+  is the visible alternative: each act comes twice in a row, the second a
+  quarter of a second after at full strength, and the aftershock follows.
+
+Measured with `FAMILY_MYSTIC=1 FAMILY_MYSTIC_LIT=1` (105 parties): a lit
+Mystic with no mastery took 20% of its party's damage and its parties held
+54% of P50 wave 36; with Quickening 34% and 63%. At P80 wave 41, 21%/91% and
+33%/93%. (The old path: 35%/75% and 35%/97%.) A repeat's damage is filed as
+the path's (`_mysticReplaying` in `_damageEnemy` and `damageBoss`).
+
+**2026-10-29, second pass: Quickening reaches all seventeen worlds.** The
+kill rule above hurried nine worlds: Blood, Dark, Mud, Ice, Steam and Light
+never kill, and Crystal and Dust keep no clock. Ice had no act at all, so
+Aftershock and Relentless Sky did nothing for it either.
+
+- **Ice's act.** Only Quickening gives the blizzard one, so without the path
+  it is exactly the steady slow it was. On a beat of 6 s at P50
+  (`MysticTuning.iceActInterval`, through `_mysticBeat`, so the surge and
+  SPECIAL quicken it as they do the bolt, quake and vent) the blizzard
+  freezes everything in it to 5% speed (`iceFreezeSpeed`, the freeze effect's
+  own figure) for 12% of the beat (`_freezeMysticBlizzard`). It is written
+  to the blizzard's own multiplier, so it costs no walk the blizzard was not
+  already making, and it holds bosses to the slow as the blizzard does. A
+  repeat adds its strength's share to the freeze still running, so Aftershock
+  and Relentless Sky hold one freeze longer (about a third of the time frozen
+  with the whole path). It looks like the blizzard: the frost that settles
+  on held bodies (`_rimeMysticBlizzard`) settles on more of them while the
+  freeze holds. First Light freezes on ignition; the readout shows the next
+  freeze. Light's First Light was also dead (the star waited out its first
+  turn); dawn now breaks the frame after a First Light star is raised.
+- **Quickening** (`_noteMysticDeath` from `_killEnemy` and the boss kill,
+  `_quickenMysticWorlds` from `_updateMysticMastery`): each time the world
+  acts, the next body to die, to anything, makes it act again at once at
+  half strength — its latest act through the same `_mysticActed` hook, the
+  same way, in the same place. The death only raises a flag, and the act
+  lands in the mastery pass of the same frame, so an act that kills never
+  runs again from inside itself. Mud's act, the weight on a hit, is kept as
+  the body and the weight's share of the hit and re-landed by one closure
+  (`_relandMysticMire`). The brief suggested "every death acts again, at
+  most twice a second"; a flat rate does not fit worlds whose acts run from
+  an ember catching several times a second to a quake every 33 s and a dawn
+  that mends everything, which at two a second would have been a quake a
+  second and an orb that could not fall. One repeat per act of the world's
+  own gives every world the same half, and a repeat is never repeated.
+  Driven for all seventeen in
+  `survival_mastery_mystic_combat_test.dart` ("Quickening reaches all
+  seventeen worlds").
+
+Measured with `FAMILY_MYSTIC=1 FAMILY_MYSTIC_LIT=1 FAMILY_MASTERY_ONLY=1`,
+420 parties, Mystic share / held: P50 wave 36 no mastery 19% / 51%, the kill
+rule 36% / 66%, now 30% / 62%; P80 wave 41 22% / 90%, 35% / 94%, now
+30% / 94%. The nine worlds the kill rule hurried were pinned at an act
+every third of a second in a crowd, so the path gave up a little where it
+had worked to reach the eight where it did nothing.
+
+Firmament is as it was. The 2026-09-18 reasoning below still holds for it.
 
 Mystic is the one family with two paths instead of three, and that is a
 decision rather than an omission. Only one Mystic may be fielded at a time, its
@@ -1310,20 +1534,18 @@ with something built days earlier: a world that lingers past your death is
 Kin's Unbroken, and surviving a lethal hit so the world holds is Kin/Fire's
 phoenix.
 
-Two implementation notes worth keeping:
+Two implementation notes from then (both gone with the 2026-10-29 rework):
 
-- **Weight of Heaven is applied once in `_damageEnemy`**, not at seventeen
+- **Weight of Heaven was applied once in `_damageEnemy`**, not at seventeen
   bespoke world sites. A world's output is everything a spent Mystic deals
-  that is not its own auto-attack, which is exactly what the condition says.
+  that is not its own auto-attack — the same condition Quickening's kill now
+  reads.
 - **`mysticWorldInterval` threw on a world authored faster than its own
-  floor** — `clamp(0.35, 0.2)` puts the lower limit above the upper one. A
-  world already faster than the floor is now left exactly as it is.
+  floor** — `clamp(0.35, 0.2)` puts the lower limit above the upper one.
 
-Supporting this needed two structural changes: the catalog validator expects
-two paths for Mystic and three for everyone else, and `_columnsFor` spaces
-however many columns a tree has instead of hardcoding the sixths — Mystic's
-two land on the quarters rather than leaving the right third of the crown
-empty. The catalog is now eight trees, 23 paths and 92 nodes.
+Supporting two paths needed `_columnsFor` to space however many columns a
+tree has instead of hardcoding the sixths. Since 2026-10-29 every family has
+two (`FamilyMasteryCatalog.validate`).
 
 
 ## Decisions intentionally made

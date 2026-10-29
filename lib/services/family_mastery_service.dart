@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -91,15 +92,15 @@ class FamilyMasteryService extends ChangeNotifier {
     _points = await _readPoints();
     _purchases.clear();
     _selectedPaths.clear();
+    final unsettled = <CreatureFamily>{};
 
     for (final row in rows) {
       final family = creatureFamilyFromStorage(row.familyId);
       if (family == null) continue;
-      final owned = FamilyMasteryCatalog.sanitizePurchases(
-        family,
-        _decodeStringSet(row.purchasedNodeIdsJson),
-      );
+      final stored = _decodeStringSet(row.purchasedNodeIdsJson);
+      final owned = FamilyMasteryCatalog.sanitizePurchases(family, stored);
       _purchases[family] = owned;
+      if (owned.length != stored.length) unsettled.add(family);
 
       final pathId = row.selectedPathId;
       final path = pathId == null
@@ -107,11 +108,48 @@ class FamilyMasteryService extends ChangeNotifier {
           : FamilyMasteryCatalog.pathFor(family, pathId);
       if (path != null && owned.contains(path.nodes.first.id)) {
         _selectedPaths[family] = path.id;
+      } else if (pathId != null) {
+        unsettled.add(family);
       }
     }
 
+    if (unsettled.isNotEmpty) await _refundDropped(unsettled);
+
     _loaded = true;
     notifyListeners();
+  }
+
+  /// A purchase that no longer stands — its path cut from the tree, its node
+  /// rewritten under a new name, or a tier now missing beneath it — is paid
+  /// back. Its cost cannot be read from a node that is gone, so the balance
+  /// is set from what the family earned less what it still holds; it is
+  /// only ever raised.
+  Future<void> _refundDropped(Set<CreatureFamily> families) async {
+    late Map<CreatureFamily, FamilyMasteryPoints> next;
+    await _db.transaction(() async {
+      next = await _readPoints();
+      for (final family in families) {
+        final owned = _purchases[family] ?? const <String>{};
+        final held = next[family] ?? FamilyMasteryPoints.zero;
+        final kept = owned.fold<int>(
+          0,
+          (sum, id) =>
+              sum + (FamilyMasteryCatalog.entryForNode(id)?.node.cost ?? 0),
+        );
+        final settled = math.max(held.balance, held.earned - kept);
+        if (settled != held.balance) {
+          next[family] = held.copyWith(balance: settled);
+        }
+        await _db.familyMasteryDao.saveFamilyMastery(
+          familyId: family.name,
+          purchasedNodeIdsJson: _encodeStringSet(owned),
+          selectedPathId: _selectedPaths[family],
+          updatedAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+        );
+      }
+      await _writePoints(next);
+    });
+    _points = Map.unmodifiable(next);
   }
 
   Future<FamilyMasteryPurchaseResult> purchaseNode({

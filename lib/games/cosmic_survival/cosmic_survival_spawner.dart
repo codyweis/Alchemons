@@ -98,17 +98,6 @@ mixin MasteryPayloadStatuses {
   /// body deals more. Every landing re-cracks it.
   double letFractureTimer = 0;
 
-  /// Let's Sight (Ground Zero), from the special meteor. [letSightSlot] is
-  /// the Let that applied it, which telemetry credits; [letSightCalledShot]
-  /// is whether that Let has Called Shot, which turns the Sight into a bonus
-  /// for the whole team.
-  double letSightTimer = 0;
-  int? letSightSlot;
-  bool letSightCalledShot = false;
-  bool letSightFireForEffect = false;
-
-  bool get isLetSighted => letSightTimer > 0;
-
   /// Mask's Contagion. A body that walks out of a Mask trap alive carries the
   /// infection, and may pass it on. [maskInfectionGeneration] counts how far
   /// this body is from the trap that seeded it: without that ceiling a dense
@@ -120,46 +109,6 @@ mixin MasteryPayloadStatuses {
   double maskInfectionTickTimer = 0;
 
   bool get isMaskInfected => maskInfectionTimer > 0;
-
-  /// Wing's Burn Through. Seconds this body has been held under one Wing's
-  /// beam. Modelled on `frostBuildup`, which is the same idea already native
-  /// to Wing/Ice — this one feeds damage rather than a freeze, so the two
-  /// accumulate side by side without touching each other.
-  double wingBeamDwell = 0;
-  int? wingBeamDwellSlot;
-
-  /// Seconds the beam's last tick still holds this body: one tick interval
-  /// and a frame's slack, so the dwell decays only once a whole tick has
-  /// gone by with no beam on it, not on the frames between two ticks.
-  double wingBeamHold = 0;
-
-  /// Counts a tick of beam held on this body, [dt] being the beam's tick
-  /// interval. A beam from a different Wing starts the dwell over, because
-  /// the ramp belongs to whoever is aiming.
-  void noteWingBeamDwell(int slotIndex, double dt) {
-    if (wingBeamDwellSlot != slotIndex) {
-      wingBeamDwellSlot = slotIndex;
-      wingBeamDwell = 0;
-    }
-    wingBeamDwell += dt;
-    wingBeamHold = dt + 1 / 30;
-  }
-
-  /// Lets the dwell fall away once the beam is off. [fade] of zero drops it
-  /// at once, which is what the path does before No Reprieve.
-  void decayWingBeamDwell(double dt, double fade) {
-    if (wingBeamDwell <= 0) return;
-    if (fade <= 0) {
-      wingBeamDwell = 0;
-      wingBeamDwellSlot = null;
-      return;
-    }
-    wingBeamDwell -= dt * (1 / fade) * wingBeamDwell.clamp(0.0, 8.0);
-    if (wingBeamDwell <= 0.001) {
-      wingBeamDwell = 0;
-      wingBeamDwellSlot = null;
-    }
-  }
 
   /// Infects this body, keeping whichever infection lasts longer. A body
   /// already carrying a closer-to-source infection keeps that generation,
@@ -186,26 +135,6 @@ mixin MasteryPayloadStatuses {
     maskInfectionGeneration = 0;
     maskInfectionSpreadTimer = 0;
     maskInfectionTickTimer = 0;
-  }
-
-  /// Marks this body Sighted, keeping whichever Sight lasts longer.
-  void applyLetSight({
-    required int slotIndex,
-    required double duration,
-    required bool calledShot,
-    required bool fireForEffect,
-  }) {
-    if (duration > letSightTimer) letSightTimer = duration;
-    letSightSlot = slotIndex;
-    letSightCalledShot = calledShot;
-    letSightFireForEffect = fireForEffect;
-  }
-
-  void clearLetSight() {
-    letSightTimer = 0;
-    letSightSlot = null;
-    letSightCalledShot = false;
-    letSightFireForEffect = false;
   }
 
   /// Total incoming damage multiplier from mastery statuses. 1.0 when clean.
@@ -253,10 +182,6 @@ mixin MasteryPayloadStatuses {
     if (letFractureTimer > 0) {
       letFractureTimer -= dt;
       if (letFractureTimer < 0) letFractureTimer = 0;
-    }
-    if (letSightTimer > 0) {
-      letSightTimer -= dt;
-      if (letSightTimer <= 0) clearLetSight();
     }
     return damage;
   }

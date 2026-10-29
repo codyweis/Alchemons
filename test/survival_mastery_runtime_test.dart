@@ -12,14 +12,14 @@ void main() {
   SurvivalMasteryRuntime runtimeWith({
     CreatureFamily family = CreatureFamily.mane,
     int slotIndex = 0,
-    List<String> nodes = const ['mane.assault.honed_pair'],
+    List<String> nodes = const ['mane.resonance.measured_cuts'],
   }) {
     return SurvivalMasteryRuntime(
       snapshot: SurvivalFamilyMasterySnapshot({
         slotIndex: EquippedFamilyMastery(
           instanceId: 'test-$slotIndex',
           family: family,
-          pathId: 'mane.assault',
+          pathId: 'mane.resonance',
           activeNodeIds: nodes,
         ),
       }),
@@ -42,17 +42,17 @@ void main() {
         ),
         0,
       );
-      expect(runtime.hasNode(0, 'mane.assault.honed_pair'), isFalse);
+      expect(runtime.hasNode(0, 'mane.resonance.measured_cuts'), isFalse);
       expect(runtime.tryProc(0, 'anything', 1.0), isFalse);
     });
 
     test('an equipped path enables the runtime and its node lookups', () {
       final runtime = runtimeWith();
       expect(runtime.enabled, isTrue);
-      expect(runtime.hasNode(0, 'mane.assault.honed_pair'), isTrue);
-      expect(runtime.hasNode(0, 'mane.assault.crosscut'), isFalse);
-      expect(runtime.hasNode(1, 'mane.assault.honed_pair'), isFalse);
-      expect(runtime.hasPath(0, 'mane.assault'), isTrue);
+      expect(runtime.hasNode(0, 'mane.resonance.measured_cuts'), isTrue);
+      expect(runtime.hasNode(0, 'mane.resonance.crosscut'), isFalse);
+      expect(runtime.hasNode(1, 'mane.resonance.measured_cuts'), isFalse);
+      expect(runtime.hasPath(0, 'mane.resonance'), isTrue);
       expect(runtime.hasPath(0, 'mane.control'), isFalse);
     });
   });
@@ -202,20 +202,22 @@ void main() {
     });
 
     test('cooldowns are scoped by slot, effect and target', () {
-      final runtime = runtimeWith(nodes: const ['mane.assault.honed_pair']);
+      final runtime = runtimeWith(
+        nodes: const ['mane.resonance.measured_cuts'],
+      );
       runtime.applySnapshot(
         SurvivalFamilyMasterySnapshot({
           0: EquippedFamilyMastery(
             instanceId: 'a',
             family: CreatureFamily.mane,
-            pathId: 'mane.assault',
-            activeNodeIds: const ['mane.assault.honed_pair'],
+            pathId: 'mane.resonance',
+            activeNodeIds: const ['mane.resonance.measured_cuts'],
           ),
           1: EquippedFamilyMastery(
             instanceId: 'b',
             family: CreatureFamily.mane,
-            pathId: 'mane.assault',
-            activeNodeIds: const ['mane.assault.honed_pair'],
+            pathId: 'mane.resonance',
+            activeNodeIds: const ['mane.resonance.measured_cuts'],
           ),
         }),
       );
@@ -278,8 +280,8 @@ void main() {
           0: EquippedFamilyMastery(
             instanceId: 'a',
             family: CreatureFamily.mane,
-            pathId: 'mane.assault',
-            activeNodeIds: const ['mane.assault.honed_pair'],
+            pathId: 'mane.resonance',
+            activeNodeIds: const ['mane.resonance.measured_cuts'],
           ),
         }),
         masteryObjectsPerSecond: 10,
@@ -355,7 +357,7 @@ void main() {
       expect(runtime.procRemaining(0, 'crosscut'), 0);
       expect(runtime.clock, 0);
       // The path itself is the run's, locked at the start and untouched.
-      expect(runtime.hasNode(0, 'mane.assault.honed_pair'), isTrue);
+      expect(runtime.hasNode(0, 'mane.resonance.measured_cuts'), isTrue);
     });
   });
 

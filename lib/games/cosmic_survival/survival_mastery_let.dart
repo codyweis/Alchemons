@@ -1,25 +1,29 @@
-/// Let's three mastery paths: the numbers, the per-companion state, and the
+/// Let's two mastery paths: the numbers, the per-companion state, and the
 /// rules that do not need the game to evaluate.
 ///
 /// Phase 4 of docs/survival_species_mastery_design.md. A Let throws two
-/// different meteors, and every path says which one it changes:
+/// different meteors, and both paths change the auto-attack one:
 ///
-/// * **Falling Star** (auto-attack meteor) makes one hit enormous: a denser
-///   rock, a crack the next rock exploits, extra weight against the healthy,
-///   and every fifth throw a giant comet.
-/// * **Bombardment** (auto-attack meteor) stops the rock being thrown at all.
-///   It falls, like the special, into a crater that grows, from further away,
-///   and finally from anywhere in the arena.
-/// * **Ground Zero** (special meteor) lets the big one tell the rest where to
-///   land: whatever the special catches is Sighted, and the auto-attack
-///   meteors punish it.
+/// * **Falling Star** makes one hit enormous: a denser rock, a crack the next
+///   rock exploits, extra weight against the healthy, and every fifth throw a
+///   giant comet.
+/// * **Bombardment** stops the rock being thrown at all. It falls, like the
+///   special, into a crater that grows, from further away, and finally from
+///   anywhere in the arena.
+///
+/// A third path, Ground Zero, had the special meteor mark what it caught
+/// (Sighted) for the auto-attack meteors and the team to punish. It was cut
+/// on 2026-10-29, when every family went to two paths: its marks were
+/// percentages on hits that mostly killed anyway, and the 2026-10-21 sweep
+/// measured the whole path at a point of party share.
 ///
 /// Every mechanic here is one no Let element's special owns. Shoving is Air's,
 /// slowing Dust's and Crystal's, extra meteors Dark's, splash Water's — a path
 /// that handed any of those to every Let would erase the element that owns
-/// it. What is left is damage, marks, attack speed, range and targeting, and
-/// that is all this file uses. None of it carries an element effect: the
-/// special's on-collide and on-kill behaviours stay the special's.
+/// it. What is left is damage, range, targeting and the shape of the
+/// auto-attack's delivery, and that is all this file uses. None of it carries
+/// an element effect: the special's on-collide and on-kill behaviours stay
+/// the special's.
 library;
 
 /// Node ids, so the game never spells one out as a string literal.
@@ -28,7 +32,6 @@ class LetNodes {
 
   static const fallingStarPath = 'let.assault';
   static const bombardmentPath = 'let.bombardment';
-  static const groundZeroPath = 'let.ground_zero';
 
   static const denseCore = 'let.assault.dense_core';
   static const cratermaker = 'let.assault.cratermaker';
@@ -39,11 +42,6 @@ class LetNodes {
   static const heavyOrdnance = 'let.bombardment.heavy_ordnance';
   static const rangingShots = 'let.bombardment.ranging_shots';
   static const skyreach = 'let.bombardment.skyreach';
-
-  static const sighted = 'let.ground_zero.sighted';
-  static const walkingFire = 'let.ground_zero.walking_fire';
-  static const calledShot = 'let.ground_zero.called_shot';
-  static const fireForEffect = 'let.ground_zero.fire_for_effect';
 }
 
 /// Cast tags, set when a cast launches and read when it lands.
@@ -102,24 +100,6 @@ class LetTuning {
   static const double rangingStreakWindow = 3.0;
   static const double rangingStreakBonus = 0.10;
   static const int rangingStreakMax = 3;
-
-  // ── Ground Zero ──
-  /// Sighted: what the special catches is marked for this long, and the
-  /// Let's auto-attack meteors deal this much more to it.
-  static const double sightDuration = 6.0;
-  static const double sightedBonus = 0.20;
-
-  /// Walking Fire: targeting leans hard on Sighted bodies, and each hit on
-  /// one extends its Sight up to a ceiling.
-  static const double walkingFireTargetBonus = 320.0;
-  static const double walkingFireExtension = 1.0;
-  static const double sightMaxRemaining = 10.0;
-
-  /// Called Shot: every companion's bonus against a Sighted body.
-  static const double calledShotBonus = 0.10;
-
-  /// Fire for Effect: attack speed while anything is Sighted.
-  static const double fireForEffectHaste = 0.30;
 }
 
 /// One Let companion's mastery state for the length of a run.
@@ -133,7 +113,7 @@ class LetMasteryState {
   double lastDropTime = double.negativeInfinity;
   int dropStreak = 0;
 
-  /// Handoff between shaping a cast and opening it, as in Mane: the share of
+  /// Handoff between shaping a cast and opening it, as in Pip: the share of
   /// the pending cast's damage owed to mastery, and whether it is a comet.
   double pendingMasteryDamageFraction = 0;
   bool pendingComet = false;
@@ -168,20 +148,17 @@ class LetMasteryState {
 
 /// How a Let auto-attack hit is amplified by the equipped path, resolved
 /// without the game: the caller supplies what it knows about the body and
-/// gets back the additive bonus. Only one path is ever equipped, so the three
+/// gets back the additive bonus. Only one path is ever equipped, so the two
 /// paths' bonuses never meet.
 ///
-/// Mutates the body's crack through [consumeFracture] / [applyFracture] and
-/// its Sight through [extendSight], so the whole rule lives here rather than
-/// half in the combat loop.
+/// Mutates the body's crack through [consumeFracture] / [applyFracture], so
+/// the whole rule lives here rather than half in the combat loop.
 double resolveLetAutoAttackBonus({
   required bool Function(String nodeId) hasNode,
   required double targetHpFraction,
   required double fractureRemaining,
-  required double sightRemaining,
   required void Function() consumeFracture,
   required void Function() applyFracture,
-  required void Function() extendSight,
   required double Function() rangingStreakBonus,
 }) {
   var bonus = 0.0;
@@ -203,12 +180,6 @@ double resolveLetAutoAttackBonus({
 
   // ── Bombardment ──
   if (hasNode(LetNodes.rangingShots)) bonus += rangingStreakBonus();
-
-  // ── Ground Zero ──
-  if (sightRemaining > 0) {
-    if (hasNode(LetNodes.sighted)) bonus += LetTuning.sightedBonus;
-    if (hasNode(LetNodes.walkingFire)) extendSight();
-  }
 
   return bonus;
 }

@@ -94,19 +94,19 @@ void main() {
           CreatureFamily.mystic: 60,
         });
         for (final id in [
-          'mane.assault.honed_pair',
-          'mane.assault.crosscut',
+          'mane.resonance.measured_cuts',
+          'mane.resonance.crosscut',
           'mane.limitless.far_throw',
         ]) {
           await mastery.purchaseNode(family: CreatureFamily.mane, nodeId: id);
         }
         await mastery.selectPath(
           family: CreatureFamily.mane,
-          pathId: 'mane.assault',
+          pathId: 'mane.resonance',
         );
         for (final (path, count) in const [
           ('kin.benediction', 4),
-          ('kin.longline', 2),
+          ('kin.conduction', 2),
         ]) {
           final nodes = FamilyMasteryCatalog.pathFor(
             CreatureFamily.kin,

@@ -9,19 +9,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('FamilyMasteryCatalog', () {
-    test('defines eight valid trees, 23 paths, and 92 nodes', () {
-      // Seven families of three paths, and Mystic's two. Only one Mystic may
-      // be fielded at a time and its seventeen worlds are each a bespoke rule
-      // with almost no shared surface, so it carries two paths that work for
-      // all seventeen rather than three where one is filler for eleven.
+    test('defines eight valid trees, 16 paths, and 64 nodes', () {
+      // Every family has two paths (2026-10-29): two where every node changes
+      // how the attack behaves beat three where one is filler.
       expect(FamilyMasteryCatalog.validate(), isEmpty);
       expect(kFamilyMasteryTrees, hasLength(8));
-      expect(kFamilyMasteryTrees.expand((tree) => tree.paths), hasLength(23));
+      expect(kFamilyMasteryTrees.expand((tree) => tree.paths), hasLength(16));
       expect(
         kFamilyMasteryTrees
             .expand((tree) => tree.paths)
             .expand((path) => path.nodes),
-        hasLength(92),
+        hasLength(64),
       );
       expect(
         FamilyMasteryCatalog.treeFor(CreatureFamily.mystic).paths,
@@ -56,7 +54,7 @@ void main() {
                 role: path.role,
                 nodes: [
                   for (var i = 0; i < path.nodes.length; i++)
-                    i == tierIndex && path.id == 'mane.assault'
+                    i == tierIndex && path.id == 'mane.resonance'
                         ? FamilyMasteryNodeDef(
                             id: path.nodes[i].id,
                             name: path.nodes[i].name,
@@ -81,22 +79,22 @@ void main() {
       // The old silver price, and the old 10 gold capstone, are both wrong
       // now.
       expect(costErrors(repriced(0, 1000)), [
-        'mane.assault.honed_pair must cost 25 mastery',
+        'mane.resonance.measured_cuts must cost 25 mastery',
       ]);
       expect(costErrors(repriced(3, 10)), [
-        'mane.assault.blade_dance must cost 300 mastery',
+        'mane.resonance.encore must cost 300 mastery',
       ]);
     });
 
     test('drops unknown and non-sequential saved nodes', () {
       final sanitized =
           FamilyMasteryCatalog.sanitizePurchases(CreatureFamily.mane, const {
-            'mane.assault.honed_pair',
-            'mane.assault.predator_step',
-            'mane.limitless.overdraw',
+            'mane.resonance.measured_cuts',
+            'mane.resonance.tempest_ring',
+            'mane.limitless.hunters_arc',
             'retired.node',
           });
-      expect(sanitized, {'mane.assault.honed_pair'});
+      expect(sanitized, {'mane.resonance.measured_cuts'});
     });
   });
 
@@ -355,7 +353,7 @@ void main() {
       () async {
         final result = await service.purchaseNode(
           family: CreatureFamily.mane,
-          nodeId: 'mane.assault.honed_pair',
+          nodeId: 'mane.resonance.measured_cuts',
         );
 
         expect(result, FamilyMasteryPurchaseResult.purchased);
@@ -367,11 +365,11 @@ void main() {
         expect(await db.currencyDao.getGoldBalance(), 100);
         expect(
           service.purchasedNodes(CreatureFamily.mane),
-          contains('mane.assault.honed_pair'),
+          contains('mane.resonance.measured_cuts'),
         );
         expect(
           service.selectedPathForFamily(CreatureFamily.mane),
-          'mane.assault',
+          'mane.resonance',
         );
       },
     );
@@ -379,7 +377,7 @@ void main() {
     test('rejects skipped prerequisites without spending points', () async {
       final result = await service.purchaseNode(
         family: CreatureFamily.mane,
-        nodeId: 'mane.assault.predator_step',
+        nodeId: 'mane.resonance.tempest_ring',
       );
 
       expect(result, FamilyMasteryPurchaseResult.prerequisiteMissing);
@@ -394,7 +392,7 @@ void main() {
 
       final result = await service.purchaseNode(
         family: CreatureFamily.kin,
-        nodeId: 'kin.longline.extended_coil',
+        nodeId: 'kin.conduction.live_current',
       );
 
       expect(result, FamilyMasteryPurchaseResult.insufficientPoints);
@@ -409,7 +407,7 @@ void main() {
       await service.addPoints(const {CreatureFamily.mane: 550});
       final path = FamilyMasteryCatalog.pathFor(
         CreatureFamily.mane,
-        'mane.assault',
+        'mane.resonance',
       )!;
 
       for (final node in path.nodes) {
@@ -434,11 +432,11 @@ void main() {
       final results = await Future.wait([
         service.purchaseNode(
           family: CreatureFamily.mane,
-          nodeId: 'mane.assault.honed_pair',
+          nodeId: 'mane.resonance.measured_cuts',
         ),
         service.purchaseNode(
           family: CreatureFamily.mane,
-          nodeId: 'mane.assault.honed_pair',
+          nodeId: 'mane.resonance.measured_cuts',
         ),
       ]);
 
@@ -460,7 +458,7 @@ void main() {
     test('one family selection applies to every member in a run', () async {
       await service.purchaseNode(
         family: CreatureFamily.mane,
-        nodeId: 'mane.assault.honed_pair',
+        nodeId: 'mane.resonance.measured_cuts',
       );
       await service.purchaseNode(
         family: CreatureFamily.mane,
@@ -497,7 +495,7 @@ void main() {
     test('rejects a node from the wrong family without charging', () async {
       final result = await service.purchaseNode(
         family: CreatureFamily.pip,
-        nodeId: 'mane.assault.honed_pair',
+        nodeId: 'mane.resonance.measured_cuts',
       );
 
       expect(result, FamilyMasteryPurchaseResult.wrongFamily);
@@ -508,20 +506,20 @@ void main() {
     test('selects and clears a family path without charging', () async {
       await service.purchaseNode(
         family: CreatureFamily.mane,
-        nodeId: 'mane.assault.honed_pair',
+        nodeId: 'mane.resonance.measured_cuts',
       );
       final pointsAfterPurchase = service.pointsFor(CreatureFamily.mane);
 
       expect(
         await service.selectPath(
           family: CreatureFamily.mane,
-          pathId: 'mane.assault',
+          pathId: 'mane.resonance',
         ),
         FamilyMasteryEquipResult.equipped,
       );
       expect(
         service.selectedPathForFamily(CreatureFamily.mane),
-        'mane.assault',
+        'mane.resonance',
       );
       expect(
         await service.selectPath(family: CreatureFamily.mane, pathId: null),
@@ -536,7 +534,7 @@ void main() {
       () async {
         await service.purchaseNode(
           family: CreatureFamily.mane,
-          nodeId: 'mane.assault.honed_pair',
+          nodeId: 'mane.resonance.measured_cuts',
         );
         final restored = FamilyMasteryService(db);
         addTearDown(restored.dispose);
@@ -544,11 +542,11 @@ void main() {
         await restored.load();
 
         expect(restored.purchasedNodes(CreatureFamily.mane), {
-          'mane.assault.honed_pair',
+          'mane.resonance.measured_cuts',
         });
         expect(
           restored.selectedPathForFamily(CreatureFamily.mane),
-          'mane.assault',
+          'mane.resonance',
         );
         expect(restored.pointsFor(CreatureFamily.mane), 975);
         expect(restored.lifetimePointsFor(CreatureFamily.mane), 1000);

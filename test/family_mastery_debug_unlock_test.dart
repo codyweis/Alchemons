@@ -32,7 +32,7 @@ void main() {
 
   test('with the switch off, nothing is owned', () {
     expect(mastery.purchasedNodes(CreatureFamily.mane), isEmpty);
-    expect(mastery.isNodePurchased('mane.assault.honed_pair'), isFalse);
+    expect(mastery.isNodePurchased('mane.resonance.measured_cuts'), isFalse);
   });
 
   test('with the switch on, every node of every family is owned', () {

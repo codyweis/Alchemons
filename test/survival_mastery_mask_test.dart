@@ -15,7 +15,7 @@ void main() {
   group('Deathmask cannot run away', () {
     final full = holding({
       MaskNodes.graveGoods,
-      MaskNodes.openGrave,
+      MaskNodes.restlessGraves,
       MaskNodes.coldGround,
       MaskNodes.necropolis,
     });
@@ -121,48 +121,18 @@ void main() {
       );
     });
 
-    test('Open Grave widens the grave and nothing else', () {
-      expect(maskGraveShape(hasNode: holding({})).scale, 1.0);
-      final shape = maskGraveShape(
-        hasNode: holding({MaskNodes.graveGoods, MaskNodes.openGrave}),
+    test('Restless Graves moves graves, and only once there are graves', () {
+      expect(maskGravesCreep(hasNode: holding({})), isFalse);
+      expect(
+        maskGravesCreep(hasNode: holding({MaskNodes.graveGoods})),
+        isFalse,
       );
-      expect(shape.scale, greaterThan(1.0));
-      expect(shape.life, greaterThan(1.0));
-    });
-  });
-
-  group('Rearm stops a trap spending itself', () {
-    test('a trap without the path is used up', () {
-      expect(maskRearmDelay(hasNode: holding({})), 0);
-    });
-
-    test('Hair Trigger only shortens what Spring Again started', () {
-      final slow = maskRearmDelay(hasNode: holding({MaskNodes.springAgain}));
-      final fast = maskRearmDelay(
-        hasNode: holding({MaskNodes.springAgain, MaskNodes.hairTrigger}),
+      expect(
+        maskGravesCreep(
+          hasNode: holding({MaskNodes.graveGoods, MaskNodes.restlessGraves}),
+        ),
+        isTrue,
       );
-      expect(slow, closeTo(MaskTuning.rearmDelay, 0.001));
-      expect(fast, lessThan(slow));
-
-      // Held alone it does nothing; the opener is what re-arms.
-      expect(maskRearmDelay(hasNode: holding({MaskNodes.hairTrigger})), 0);
-    });
-
-    test('Held Ground takes three triggers, and only with the node', () {
-      final state = MaskMasteryState();
-      var held = false;
-      for (var i = 0; i < MaskTuning.heldGroundTriggers; i++) {
-        held = state.noteTrigger(1, hasHeldGround: true);
-      }
-      expect(held, isTrue);
-      expect(state.triggersOn(1), MaskTuning.heldGroundTriggers);
-
-      final without = MaskMasteryState();
-      var ever = false;
-      for (var i = 0; i < 20; i++) {
-        if (without.noteTrigger(1, hasHeldGround: false)) ever = true;
-      }
-      expect(ever, isFalse);
     });
   });
 
@@ -223,13 +193,9 @@ void main() {
     test('every node id the game references exists in the catalog', () {
       const referenced = [
         MaskNodes.graveGoods,
-        MaskNodes.openGrave,
+        MaskNodes.restlessGraves,
         MaskNodes.coldGround,
         MaskNodes.necropolis,
-        MaskNodes.springAgain,
-        MaskNodes.hairTrigger,
-        MaskNodes.snapShut,
-        MaskNodes.heldGround,
         MaskNodes.carrier,
         MaskNodes.spread,
         MaskNodes.virulence,

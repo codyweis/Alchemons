@@ -76,7 +76,7 @@ void main() {
       caption(tester),
       endsWith(FamilyMasteryCatalog.treeFor(CreatureFamily.mane).chassis),
     );
-    expect(find.text('TWIN FANG'), findsOneWidget);
+    expect(find.text('WAR RHYTHM'), findsOneWidget);
     expect(find.byKey(const ValueKey('family-skill-tree')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('mastery-node-inspector')),
@@ -101,7 +101,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(caption(tester), startsWith('PIP'));
-    expect(find.text('NEEDLEPOINT'), findsOneWidget);
+    expect(find.text('SCATTERSHOT'), findsOneWidget);
   });
 
   testWidgets('Mystic\'s two branches line up under their headings', (
@@ -135,8 +135,8 @@ void main() {
     await pumpPanel(tester, manePoints: 120);
 
     expect(balance(tester), 'MANE MASTERY 120');
-    // The dock's price, and the next node's on each of the three branches.
-    expect(find.text('25 MASTERY'), findsNWidgets(4));
+    // The dock's price, and the next node's on each of the two branches.
+    expect(find.text('25 MASTERY'), findsNWidgets(3));
 
     await tester.tap(find.byKey(const ValueKey('mastery-family-pip')));
     await tester.pumpAndSettle();
@@ -153,7 +153,7 @@ void main() {
   ) async {
     await pumpPanel(tester, manePoints: 100);
 
-    const nodeId = 'mane.assault.honed_pair';
+    const nodeId = 'mane.resonance.measured_cuts';
     final button = find.byKey(const ValueKey('unlock-$nodeId'));
     expect(find.text('UPGRADE'), findsOneWidget);
 
@@ -166,13 +166,16 @@ void main() {
     await settle(tester);
 
     expect(mastery.isNodePurchased(nodeId), isTrue);
-    expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.assault');
+    expect(
+      mastery.selectedPathForFamily(CreatureFamily.mane),
+      'mane.resonance',
+    );
     expect(mastery.pointsFor(CreatureFamily.mane), 75);
     expect(balance(tester), 'MANE MASTERY 75');
     // The dock advances to the next tier of the same branch.
     expect(find.text('CROSSCUT'), findsNWidgets(2));
     expect(
-      find.byKey(const ValueKey('unlock-mane.assault.crosscut')),
+      find.byKey(const ValueKey('unlock-mane.resonance.crosscut')),
       findsOneWidget,
     );
   });
@@ -183,7 +186,7 @@ void main() {
     await pumpPanel(tester);
 
     await tester.tap(
-      find.byKey(const ValueKey('unlock-mane.assault.honed_pair')),
+      find.byKey(const ValueKey('unlock-mane.resonance.measured_cuts')),
     );
     await tester.pump();
     expect(find.text('TAP TO CONFIRM'), findsOneWidget);
@@ -202,31 +205,50 @@ void main() {
     expect(find.text('NEED'), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('unlock-mane.assault.honed_pair')),
+        of: find.byKey(const ValueKey('unlock-mane.resonance.measured_cuts')),
         matching: find.text('25 MASTERY'),
       ),
       findsOneWidget,
     );
     await tester.tap(
-      find.byKey(const ValueKey('unlock-mane.assault.honed_pair')),
+      find.byKey(const ValueKey('unlock-mane.resonance.measured_cuts')),
     );
     await tester.pump();
     expect(find.text('TAP TO CONFIRM'), findsNothing);
 
     final capstone = find.byKey(
-      const ValueKey('mastery-node-mane.assault.blade_dance'),
+      const ValueKey('mastery-node-mane.resonance.encore'),
     );
     await tester.tap(capstone);
     await tester.pump();
-    expect(find.text('REQUIRES PREDATOR STEP'), findsOneWidget);
+    expect(find.text('REQUIRES TEMPEST RING'), findsOneWidget);
     expect(find.text('CAPSTONE'), findsOneWidget);
+  });
+
+  testWidgets('tapping a locked branch\'s heading only shows it', (
+    tester,
+  ) async {
+    await mastery.addPoints(const {CreatureFamily.mane: 25});
+    await mastery.purchaseNode(
+      family: CreatureFamily.mane,
+      nodeId: 'mane.resonance.measured_cuts',
+    );
+    await pumpPanel(tester);
+
+    await tester.tap(find.byKey(const ValueKey('branch-head-mane.limitless')));
+    await settle(tester);
+    expect(
+      mastery.selectedPathForFamily(CreatureFamily.mane),
+      'mane.resonance',
+    );
+    expect(find.text('FAR THROW'), findsNWidgets(2));
   });
 
   testWidgets('tapping a bought branch\'s heading equips it', (tester) async {
     await mastery.addPoints(const {CreatureFamily.mane: 50});
     await mastery.purchaseNode(
       family: CreatureFamily.mane,
-      nodeId: 'mane.assault.honed_pair',
+      nodeId: 'mane.resonance.measured_cuts',
     );
     await mastery.purchaseNode(
       family: CreatureFamily.mane,
@@ -234,16 +256,13 @@ void main() {
     );
     await pumpPanel(tester);
 
-    expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.assault');
+    expect(
+      mastery.selectedPathForFamily(CreatureFamily.mane),
+      'mane.resonance',
+    );
     expect(find.text('ACTIVE'), findsOneWidget);
-    // Limitless is bought but not worn; War Rhythm is locked.
+    // Limitless is bought but not worn.
     expect(find.text('EQUIP'), findsOneWidget);
-
-    // A locked heading only shows its branch.
-    await tester.tap(find.byKey(const ValueKey('branch-head-mane.resonance')));
-    await settle(tester);
-    expect(mastery.selectedPathForFamily(CreatureFamily.mane), 'mane.assault');
-    expect(find.text('MEASURED CUTS'), findsNWidgets(2));
 
     // A bought one equips, and its next node comes into the dock.
     await tester.tap(find.byKey(const ValueKey('branch-head-mane.limitless')));
@@ -252,13 +271,13 @@ void main() {
       mastery.selectedPathForFamily(CreatureFamily.mane),
       'mane.limitless',
     );
-    expect(find.text('OVERDRAW'), findsNWidgets(2));
-    // Twin Fang is the one that now offers EQUIP.
+    expect(find.text("HUNTER'S ARC"), findsNWidgets(2));
+    // War Rhythm is the one that now offers EQUIP.
     expect(find.text('ACTIVE'), findsOneWidget);
     expect(find.text('EQUIP'), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byKey(const ValueKey('branch-head-mane.assault')),
+        of: find.byKey(const ValueKey('branch-head-mane.resonance')),
         matching: find.text('EQUIP'),
       ),
       findsOneWidget,

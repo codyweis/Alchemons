@@ -4624,6 +4624,11 @@ class Projectile {
   /// Original vine power, retained while repeated casts feed its growth.
   double? maskBasePower;
 
+  /// Where a fixture that moves was laid. The Mask fixture painters seed a
+  /// trap's shape from where it lies; one that creeps (a Restless grave) is
+  /// seeded from here instead, so it keeps the shape it was laid with.
+  Offset? lookAnchor;
+
   bool get isMaskDamageZone =>
       abilityFamily == 'mask' &&
       switch (tickEffect) {
@@ -4974,10 +4979,25 @@ class Projectile {
   /// three times as often. See survival_mastery_runtime.dart.
   int masteryCastId = 0;
 
-  /// Above zero, this projectile returns to its caster when it is spent,
-  /// dealing this fraction of its damage again (Mane's Blade Dance). The
-  /// return itself carries no fraction, so a boomerang cannot boomerang.
-  double masteryReturnFraction = 0;
+  /// Mane's Hunter's Arc: once this shot has struck something it bends
+  /// toward the nearest body ahead of it. Read only by survival.
+  bool masteryArc = false;
+
+  /// Bends from the start rather than from its first hit: Mud's shards,
+  /// which are thrown by the ball's first hit.
+  bool masteryArcArmed = false;
+
+  /// Radians it has turned under the arc so far, against its budget.
+  double masteryArcTurned = 0;
+
+  /// For a ring turning round its caster (Mane+Light's ward), how far it
+  /// leans off its orbit toward the body ahead of it. 0 for everything else.
+  double masteryArcReach = 0;
+
+  /// The body it is bending toward, re-picked a few times a second, and the
+  /// countdown to the next pick.
+  Offset? masteryArcTarget;
+  double masteryArcRescan = 0;
 
   /// When true this projectile does not age. Only leaving the arena stops it
   /// (Mane's No Horizon). The lifetime is still carried so anything reading
@@ -5751,7 +5771,9 @@ Projectile copyProjectile(
   // would read to the runtime as a second, unaccounted attack.
   clone.masteryCastId = p.masteryCastId;
   clone.masteryGenerated = p.masteryGenerated;
-  clone.masteryReturnFraction = p.masteryReturnFraction;
+  clone.masteryArc = p.masteryArc;
+  clone.masteryArcArmed = p.masteryArcArmed;
+  clone.masteryArcTurned = p.masteryArcTurned;
   clone.masteryNoLifetime = p.masteryNoLifetime;
   clone.masteryCircuit = p.masteryCircuit;
   clone.letDeadfall = p.letDeadfall;

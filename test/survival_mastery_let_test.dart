@@ -10,8 +10,8 @@ import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Phase 4: the Let slice. Twelve nodes across three paths, checked against
-/// the real combat loop.
+/// Phase 4: the Let slice. Eight nodes across two paths, checked against the
+/// real combat loop.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -400,117 +400,6 @@ void main() {
         reason: 'It should fall on the healthiest body, however far away.',
       );
       expect(game.mastery.telemetryFor(0).capstoneActivations, 1);
-    });
-  });
-
-  group('Ground Zero', () {
-    /// Casts the Let's special on [target] and lets it land.
-    void dropSpecial(CosmicSurvivalGame game, CosmicSurvivalEnemy target) {
-      final comp = game.activeCompanions[0]!;
-      hold(game);
-      comp.position = target.position - const Offset(160, 0);
-      comp.specialCooldown = 0;
-      game.update(1 / 60);
-      for (var i = 0; i < 90; i++) {
-        hold(game);
-        game.update(1 / 60);
-        if (target.isLetSighted) break;
-      }
-    }
-
-    test('Sighted: the special marks what it lands on', () async {
-      final (game, target) = await arena(
-        snapshot: equip(LetNodes.groundZeroPath, throughTier: 1),
-      );
-      final (bare, bareTarget) = await arena(
-        snapshot: equip(LetNodes.groundZeroPath, throughTier: 1),
-      );
-      final unmarked = oneHit(bare, bareTarget);
-
-      dropSpecial(game, target);
-      expect(target.isLetSighted, isTrue);
-      expect(target.letSightTimer, lessThanOrEqualTo(LetTuning.sightDuration));
-      final marked = oneHit(game, target);
-      expect(marked / unmarked, closeTo(1 + LetTuning.sightedBonus, 0.01));
-    });
-
-    test('Walking Fire chases the Sight and keeps it burning', () async {
-      final (game, target) = await arena(
-        snapshot: equip(LetNodes.groundZeroPath, throughTier: 2),
-      );
-      dropSpecial(game, target);
-      expect(target.isLetSighted, isTrue);
-      final before = target.letSightTimer;
-      oneHit(game, target);
-      // The flight costs a fraction of a second; the hit gives back a whole one.
-      expect(target.letSightTimer, greaterThan(before + 0.5));
-
-      // A healthier, unmarked body right beside the Let loses to the Sight.
-      final comp = game.activeCompanions[0]!;
-      // Close enough to the Let to beat the sticky-target bonus on distance.
-      final decoy = dummy(target.position + const Offset(-110, 0));
-      game.enemies.add(decoy);
-      hold(game);
-      comp.position = target.position - const Offset(120, 0);
-      comp.basicCooldown = 0;
-      game.update(1 / 60);
-      expect(identical(comp.stickyTarget, target), isTrue);
-    });
-
-    test('Called Shot: the whole team hits a Sighted body harder', () async {
-      final party = [
-        member(family: 'Let', baseId: 'LET01'),
-        member(family: 'Pip', baseId: 'PIP01', element: 'Fire', slotIndex: 1),
-      ];
-      final (game, target) = await arena(
-        snapshot: equip(LetNodes.groundZeroPath, throughTier: 3),
-        party: party,
-      );
-      final pip = game.activeCompanions[1]!;
-
-      double pipVolley() {
-        hold(game);
-        pip.position = target.position - const Offset(90, 0);
-        pip.basicCooldown = 0;
-        game.update(1 / 60);
-        return settle(game, target, frames: 40);
-      }
-
-      final plain = pipVolley();
-      dropSpecial(game, target);
-      expect(target.letSightCalledShot, isTrue);
-      final called = pipVolley();
-      expect(called / plain, closeTo(1 + LetTuning.calledShotBonus, 0.02));
-    });
-
-    test('Fire for Effect: faster while anything is Sighted, and the Sight '
-        'survives a death', () async {
-      final (game, target) = await arena(
-        snapshot: equip(LetNodes.groundZeroPath),
-      );
-      final comp = game.activeCompanions[0]!;
-      final next = dummy(target.position + const Offset(0, 200));
-      game.enemies.add(next);
-
-      throwRock(game, target);
-      final coldCooldown = comp.basicCooldown;
-      settle(game, target);
-
-      dropSpecial(game, target);
-      expect(target.isLetSighted, isTrue);
-      comp.basicCooldown = 0;
-      comp.position = target.position - const Offset(120, 0);
-      game.update(1 / 60);
-      expect(
-        comp.basicCooldown,
-        lessThan(coldCooldown * 0.8),
-        reason: 'Sighted enemies should speed the Let up.',
-      );
-
-      target.hp = 1;
-      oneHit(game, target);
-      expect(target.isDead, isTrue, reason: 'test setup');
-      expect(next.isLetSighted, isTrue, reason: 'The Sight should hop.');
     });
   });
 

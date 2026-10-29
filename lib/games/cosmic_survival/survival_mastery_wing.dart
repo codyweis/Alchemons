@@ -1,4 +1,4 @@
-/// Wing's three mastery paths: the numbers, the per-companion state, and the
+/// Wing's two mastery paths: the numbers, the per-companion state, and the
 /// rules that do not need the game to evaluate.
 ///
 /// Wing is the Beams family, and a beam is the only thing in this game that is
@@ -12,14 +12,17 @@
 /// So the test a path has to pass is not "is this unclaimed" but **does it
 /// take an element's signature, or a neutral property of a beam?**
 ///
-/// * **Burn Through** is dwell. `frostBuildup` already proves Wing accumulates
-///   on a held target, but only Ice uses it and only to freeze; a damage ramp
-///   generalises the idea without touching Ice's signature.
 /// * **Longshot** is distance. Nothing in the game reads range, and a sniper
-///   that gets worse as enemies close is a real tactical identity.
-/// * **Tracer** is the auto-attack. Wing fires two shots and both beam paths
-///   ignore them completely, so this path is what makes the two halves of the
-///   kit talk to each other.
+///   that gets worse as enemies close is a real tactical identity: it aims
+///   ahead of what is far off (Long Lens) and takes a shot at whatever walks
+///   into its far reach or takes aim at twice its range (Overwatch).
+/// * **Tracer** is the auto-attack. Wing fires two shots and its beam ignored
+///   them completely, so this path is what makes the two halves of the kit
+///   talk to each other, both ways: the shots feed the beam, and a firing beam
+///   doubles the shots (Hot Barrel).
+///
+/// Burn Through, a damage ramp on a held target, was cut on 2026-10-29: it
+/// was a number that climbed, and it moved a horde wave by a point.
 ///
 /// What is deliberately absent. The draft tree was Mane's, almost verbatim:
 /// "when both shots hit the same enemy, deal +25% and apply your element" next
@@ -28,30 +31,28 @@
 /// spent on the special, which is War Rhythm down to the per-stack value. It
 /// also added two more every-Nth-attack nodes to the four the game already
 /// has, built a path on piercing (Mane's identity), left a damaging lane on
-/// the ground (Wing/Lava's own scar) and ended with an echo of the special
+/// the ground (Wing/Lava's own scar) and ended with a repeat of the special
 /// after it finishes, which is Horn's Juggernaut.
 library;
+
+import 'dart:math' as math;
 
 /// Node ids, so the game never spells one out as a string literal.
 class WingNodes {
   const WingNodes._();
 
-  static const burnThroughPath = 'wing.burn_through';
   static const longshotPath = 'wing.longshot';
   static const tracerPath = 'wing.tracer';
-
-  static const bore = 'wing.burn_through.bore';
-  static const deeper = 'wing.burn_through.deeper';
-  static const noReprieve = 'wing.burn_through.no_reprieve';
-  static const carryThrough = 'wing.burn_through.carry_through';
 
   static const rangefinder = 'wing.longshot.rangefinder';
   static const longLens = 'wing.longshot.long_lens';
   static const standoff = 'wing.longshot.standoff';
-  static const horizon = 'wing.longshot.horizon';
+  static const overwatch = 'wing.longshot.overwatch';
 
   static const tracerRounds = 'wing.tracer.tracer_rounds';
-  static const rangingShots = 'wing.tracer.ranging_shots';
+
+  /// Loaded Beam. Sold as Ranging Shots, so it keeps that id.
+  static const loadedBeam = 'wing.tracer.ranging_shots';
   static const hotBarrel = 'wing.tracer.hot_barrel';
   static const liveFeed = 'wing.tracer.live_feed';
 }
@@ -60,61 +61,80 @@ class WingNodes {
 class WingTuning {
   const WingTuning._();
 
-  // ── Burn Through ──
-  /// Bore, then Deeper: how far the ramp climbs and how fast it gets there.
-  /// +45% and +80% until the 2026-10-21 mastery sweep, which also found the
-  /// ramp falling away between the beam's ticks: a beam is one part of what
-  /// a Wing deals, and the held body is one of many, so the whole path was
-  /// about 3% of a Wing's damage in a horde and 8% on a boss wave.
-  static const double boreMax = 0.60;
-  static const double deeperMax = 1.20;
-  static const double boreRampSeconds = 3.0;
-  static const double deeperRampSeconds = 1.5;
-
-  /// No Reprieve: how long the ramp takes to fade once the beam moves off,
-  /// instead of dropping the instant it does.
-  static const double reprieveFade = 2.0;
-
-  /// Carry Through: a body that dies at this much of a full ramp hands it on.
-  static const double carryThreshold = 0.95;
-
   // ── Longshot ──
-  /// Rangefinder: past this share of the Wing's range, a hit pays more.
+  /// Rangefinder: past this share of the Wing's range, a hit pays more. The
+  /// same band is Long Lens's "far" and Overwatch's far reach.
   static const double farThreshold = 0.60;
   static const double rangefinderBonus = 0.15;
 
-  /// Long Lens: the bonus climbs with distance to this, and range grows.
-  static const double longLensBonus = 0.35;
+  /// Long Lens: how much further the Wing reaches.
   static const double longLensRange = 1.20;
 
-  /// Standoff: while nothing is inside this share of range, the full bonus
+  /// Long Lens: the most a far shot leads its target by, in seconds of the
+  /// target's travel, so a body that turns does not drag the aim off the map.
+  static const double leadCap = 0.8;
+
+  /// Standoff: while nothing is inside this share of range, the bonus
   /// applies at any distance — the path pays for actually keeping away.
   static const double standoffThreshold = 0.30;
 
-  /// Horizon: range again, and everything past the old edge is at full bonus.
-  static const double horizonRange = 1.35;
+  /// Overwatch: how often a Wing looks for bodies newly in its far reach,
+  /// and how many free shots it may take a second, banked up to
+  /// [overwatchBurst]. A wave pouring in at once is shot as fast as the
+  /// bank refills, not hundreds in one frame. Six a second at first; at six
+  /// the path dealt 29% of a Wing's damage at P50 wave 36 and moved the hold
+  /// rate a point, at twelve 40% and two (the 2026-10-29 probe).
+  static const double overwatchScanInterval = 0.1;
+  static const double overwatchShotsPerSecond = 12.0;
+  static const double overwatchBurst = 6.0;
+
+  /// Overwatch: a body taking aim (a brute charging its siege beam, a
+  /// sentinel gathering its volley) within this many times the Wing's range
+  /// takes a free shot from the same bank, each time it takes aim.
+  ///
+  /// Traced at P50 wave 36 (2026-10-29, second pass): brutes' siege beams
+  /// were 55-70% of what the orb took; three in four were fired by a brute
+  /// at three quarters of its health or more, and four in five by one
+  /// further than 160% of the Wing's range from it, while the Wing worked
+  /// the outer edge of the field — so the far-band shots fell on bodies
+  /// that were not the ones breaking the orb. Turning the Wing itself onto
+  /// those brutes instead (it stopped shooting the far band) held fewer
+  /// waves than the far-band shots alone: 61% against 64%.
+  static const double overwatchReach = 2.0;
 
   // ── Tracer ──
-  /// Tracer Rounds, then Hot Barrel: what a landed attack shaves.
+  /// Tracer Rounds: what a landed attack shaves off the special.
   static const double tracerShave = 0.25;
-  static const double hotBarrelShave = 0.40;
 
-  /// Ranging Shots, then Hot Barrel: what it banks onto the next beam, and
-  /// the ceiling on how much can be banked for one beam.
+  /// Loaded Beam: what it banks onto the next beam, and the ceiling on how
+  /// much can be banked for one beam.
   static const double rangingExtend = 0.10;
   static const double rangingCap = 1.50;
-  static const double hotBarrelExtend = 0.18;
-  static const double hotBarrelCap = 3.00;
+
+  /// Hot Barrel: the auto-attack's cooldown while the Wing's beam is firing
+  /// (twice as fast).
+  static const double hotBarrelCooldown = 0.5;
 }
 
 /// One Wing companion's mastery state for the length of a run.
 class WingMasteryState {
-  /// Seconds banked onto the next beam by Ranging Shots.
+  /// Seconds banked onto the next beam by Loaded Beam.
   double bankedBeamTime = 0;
 
-  /// A full ramp inherited from a body that died under the beam, waiting for
-  /// the next thing the beam touches.
-  double carriedRamp = 0;
+  /// Overwatch: the bodies this Wing has already taken its free shot at.
+  /// One shot each, ever; a body leaves the set when it dies.
+  final Set<Object> overwatched = {};
+
+  /// Overwatch: countdown to the next look for bodies in the far reach.
+  double overwatchScan = 0;
+
+  /// Overwatch: free shots in the bank ([WingTuning.overwatchBurst]).
+  double overwatchShots = WingTuning.overwatchBurst;
+
+  /// Free shots fired this run, for the tests and telemetry, and how many
+  /// of them went at a body taking aim.
+  int overwatchFired = 0;
+  int overwatchAimShots = 0;
 
   /// Banks time toward the next beam, respecting the ceiling.
   void bankBeamTime(double seconds, double cap) {
@@ -129,53 +149,48 @@ class WingMasteryState {
     return banked;
   }
 
-  /// Takes a carried ramp, if one is waiting.
-  double takeCarriedRamp() {
-    final carried = carriedRamp;
-    carriedRamp = 0;
-    return carried;
+  /// Refills the free-shot bank and reports whether this frame is a look.
+  bool tickOverwatch(double dt) {
+    overwatchShots = math.min(
+      WingTuning.overwatchBurst,
+      overwatchShots + dt * WingTuning.overwatchShotsPerSecond,
+    );
+    overwatchScan -= dt;
+    if (overwatchScan > 0) return false;
+    overwatchScan = WingTuning.overwatchScanInterval;
+    return true;
+  }
+
+  /// Spends one free shot on [body], once. False when it has had its shot
+  /// or the bank is dry — a dry bank leaves it for a later look.
+  bool takeOverwatchShot(Object body) {
+    if (overwatched.contains(body) || overwatchShots < 1) return false;
+    overwatchShots -= 1;
+    overwatched.add(body);
+    overwatchFired++;
+    return true;
+  }
+
+  /// Spends one free shot on a body taking aim. Every time it takes aim,
+  /// not once; false only when the bank is dry.
+  bool takeOverwatchAimShot() {
+    if (overwatchShots < 1) return false;
+    overwatchShots -= 1;
+    overwatchFired++;
+    overwatchAimShots++;
+    return true;
   }
 
   @override
   String toString() =>
       'WingMasteryState(banked: ${bankedBeamTime.toStringAsFixed(2)}s, '
-      'carried: ${carriedRamp.toStringAsFixed(2)})';
-}
-
-/// How far Burn Through's ramp can climb, and how fast.
-({double max, double rampSeconds, double fade}) wingBoreCurve({
-  required bool Function(String nodeId) hasNode,
-}) {
-  if (!hasNode(WingNodes.bore)) {
-    return (max: 0, rampSeconds: WingTuning.boreRampSeconds, fade: 0);
-  }
-  final deeper = hasNode(WingNodes.deeper);
-  return (
-    max: deeper ? WingTuning.deeperMax : WingTuning.boreMax,
-    rampSeconds: deeper
-        ? WingTuning.deeperRampSeconds
-        : WingTuning.boreRampSeconds,
-    // Without No Reprieve the ramp is gone the moment the beam moves off.
-    fade: hasNode(WingNodes.noReprieve) ? WingTuning.reprieveFade : 0,
-  );
-}
-
-/// The damage multiplier Burn Through has earned on a body the beam has been
-/// held on for [dwell] seconds.
-double wingBoreMultiplier({
-  required bool Function(String nodeId) hasNode,
-  required double dwell,
-}) {
-  final curve = wingBoreCurve(hasNode: hasNode);
-  if (curve.max <= 0 || dwell <= 0) return 1.0;
-  final t = (dwell / curve.rampSeconds).clamp(0.0, 1.0);
-  return 1.0 + curve.max * t;
+      'overwatched: ${overwatched.length})';
 }
 
 /// How much extra a Longshot deals at [distance], given its [range].
 ///
 /// [nearestEnemyDistance] is what Standoff reads: while nothing has closed
-/// inside the threshold, the full bonus applies however near the target is.
+/// inside the threshold, the bonus applies however near the target is.
 double wingLongshotBonus({
   required bool Function(String nodeId) hasNode,
   required double distance,
@@ -183,34 +198,57 @@ double wingLongshotBonus({
   required double nearestEnemyDistance,
 }) {
   if (!hasNode(WingNodes.rangefinder) || range <= 0) return 0;
-
-  final far = distance / range;
+  final far = distance / range >= WingTuning.farThreshold;
   final standoff =
       hasNode(WingNodes.standoff) &&
       nearestEnemyDistance >= range * WingTuning.standoffThreshold;
-  // Horizon pays the full bonus to everything past where the range used to
-  // end, which is what the extra range pushed out from under the threshold.
-  final horizonFull =
-      hasNode(WingNodes.horizon) && far >= WingTuning.farThreshold;
-
-  if (!standoff && far < WingTuning.farThreshold) return 0;
-
-  if (!hasNode(WingNodes.longLens)) return WingTuning.rangefinderBonus;
-  if (standoff || horizonFull) return WingTuning.longLensBonus;
-
-  // Between the threshold and the edge the bonus climbs with distance.
-  final t = ((far - WingTuning.farThreshold) / (1 - WingTuning.farThreshold))
-      .clamp(0.0, 1.0);
-  return WingTuning.rangefinderBonus +
-      (WingTuning.longLensBonus - WingTuning.rangefinderBonus) * t;
+  return far || standoff ? WingTuning.rangefinderBonus : 0;
 }
 
+/// Whether [distance] is in the far reach of a Wing whose range is [range]:
+/// Rangefinder's band, Long Lens's lead and Overwatch's watch.
+bool wingInFarReach({required double distance, required double range}) =>
+    range > 0 &&
+    distance <= range &&
+    distance >= range * WingTuning.farThreshold;
+
 /// How much further a Longshot can reach.
-double wingRangeMultiplier({required bool Function(String nodeId) hasNode}) {
-  var multiplier = 1.0;
-  if (hasNode(WingNodes.longLens)) multiplier *= WingTuning.longLensRange;
-  if (hasNode(WingNodes.horizon)) multiplier *= WingTuning.horizonRange;
-  return multiplier;
+double wingRangeMultiplier({required bool Function(String nodeId) hasNode}) =>
+    hasNode(WingNodes.longLens) ? WingTuning.longLensRange : 1.0;
+
+/// Overwatch: how many times its range a Wing watches for a body taking
+/// aim, or 0 without the node.
+double wingOverwatchReach({required bool Function(String nodeId) hasNode}) =>
+    hasNode(WingNodes.overwatch) ? WingTuning.overwatchReach : 0.0;
+
+/// Long Lens: where to aim a shot from [from] at a body at [target] moving at
+/// [velocity], for a shot travelling at [shotSpeed] — the point it will have
+/// reached when the shot gets there. Solved by two refinements of the flight
+/// time, which is plenty for bodies a tenth as fast as the shot, and capped
+/// at [WingTuning.leadCap] seconds of travel.
+({double dx, double dy}) wingLeadPoint({
+  required double fromX,
+  required double fromY,
+  required double targetX,
+  required double targetY,
+  required double velocityX,
+  required double velocityY,
+  required double shotSpeed,
+}) {
+  if (shotSpeed <= 0) return (dx: targetX, dy: targetY);
+  var aimX = targetX;
+  var aimY = targetY;
+  for (var i = 0; i < 2; i++) {
+    final dx = aimX - fromX;
+    final dy = aimY - fromY;
+    final t = math.min(
+      WingTuning.leadCap,
+      math.sqrt(dx * dx + dy * dy) / shotSpeed,
+    );
+    aimX = targetX + velocityX * t;
+    aimY = targetY + velocityY * t;
+  }
+  return (dx: aimX, dy: aimY);
 }
 
 /// What one landed attack is worth to Tracer.
@@ -224,20 +262,23 @@ double wingRangeMultiplier({required bool Function(String nodeId) hasNode}) {
   if (!hasNode(WingNodes.tracerRounds)) {
     return (shave: 0, extend: 0, cap: 0, intoRunningBeam: false);
   }
-  final hot = hasNode(WingNodes.hotBarrel);
-  final extends_ = hasNode(WingNodes.rangingShots);
+  final loaded = hasNode(WingNodes.loadedBeam);
   return (
-    shave: hot ? WingTuning.hotBarrelShave : WingTuning.tracerShave,
-    extend: !extends_
-        ? 0.0
-        : hot
-        ? WingTuning.hotBarrelExtend
-        : WingTuning.rangingExtend,
-    cap: hot ? WingTuning.hotBarrelCap : WingTuning.rangingCap,
-    intoRunningBeam:
-        extends_ && beamRunning && hasNode(WingNodes.liveFeed),
+    shave: WingTuning.tracerShave,
+    extend: loaded ? WingTuning.rangingExtend : 0.0,
+    cap: WingTuning.rangingCap,
+    intoRunningBeam: loaded && beamRunning && hasNode(WingNodes.liveFeed),
   );
 }
+
+/// Hot Barrel: the auto-attack cooldown multiplier, below 1 while the Wing's
+/// beam is firing.
+double wingBasicCooldownMultiplier({
+  required bool Function(String nodeId) hasNode,
+  required bool beamRunning,
+}) => beamRunning && hasNode(WingNodes.hotBarrel)
+    ? WingTuning.hotBarrelCooldown
+    : 1.0;
 
 /// The share of a hit's damage that mastery is responsible for.
 double wingUpliftFraction(double multiplier) =>

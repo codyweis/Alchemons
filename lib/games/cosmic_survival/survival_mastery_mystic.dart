@@ -1,25 +1,36 @@
 /// Mystic's two mastery paths: the numbers, the per-companion state, and the
 /// rules that do not need the game to evaluate.
 ///
-/// Mystic gets two paths where every other family gets three, and that is the
-/// design rather than an omission. Only one Mystic may be fielded at a time,
-/// its cast is spent for the whole deployment, and its seventeen worlds are
-/// each a bespoke rule or placement with almost no shared surface between
-/// them. Two paths that both work for all seventeen beat three where one is
-/// filler for eleven of them.
+/// Only one Mystic may be fielded at a time, its cast is spent for the whole
+/// deployment, and its seventeen worlds are each a bespoke rule or placement
+/// with almost no shared surface between them. Two paths that both work for
+/// all seventeen beat three where one is filler for eleven of them.
 ///
 /// Reading the runtime is what settled which two. There is no shared "world
 /// damage" or "world radius" field to hang a path on — Spirit's world is a
-/// rule with no placement at all, Blood's likewise. Two things *are* universal:
+/// rule with no placement at all, Blood's likewise. Two things *are* shared:
 ///
-/// * **`_mysticClock`**, the interval on which a world acts. **Quickening**
-///   drives it: more often, sooner, harder.
+/// * **Every world acts.** A bolt falls, the ground quakes, a vent blows, a
+///   vine lashes, an ember catches, a pool bites, the dawn breaks, the tithe
+///   is drawn. Each world's act is its own, so the game marks each one where
+///   it happens and hands it a way to happen again ([mysticWorldReplays]).
+///   **Quickening** drives the acts: a death after an act brings it again at
+///   once, the first comes at once, each comes again as an aftershock, and
+///   at the top each comes twice in a row. Ice's blizzard holds every body
+///   every frame and had no act, so the path gives it one: a moment's hard
+///   freeze of everything in it, on a beat ([mysticIceActs]).
 /// * **The element, and the fact that a world is a place.** **Firmament**
 ///   drives that: the world shelters whoever stands in it and lends them its
 ///   element.
 ///
 /// So one path is what the world does to the enemy and the other is what it
 /// does to your team, which is the whole of what an environment can be.
+///
+/// Until 2026-10-29 Quickening was three number bumps (acts 25% more often,
+/// lands 30% harder, acts twice as often), read through the world surge.
+/// Its first rewrite hurried the next act 0.2 s for every body the world
+/// killed, which reached nine worlds of seventeen: six never kill, and two
+/// keep no clock to hurry. A death after an act reaches all of them.
 ///
 /// The obvious third path was uptime — a world holds until its caster dies, so
 /// "survive longer" is literally "world duration". Every version of it
@@ -44,7 +55,7 @@ class MysticNodes {
 
   static const quickening = 'mystic.quickening.quickening';
   static const firstLight = 'mystic.quickening.first_light';
-  static const weightOfHeaven = 'mystic.quickening.weight_of_heaven';
+  static const aftershock = 'mystic.quickening.aftershock';
   static const relentlessSky = 'mystic.quickening.relentless_sky';
 
   static const nativeAir = 'mystic.firmament.native_air';
@@ -58,17 +69,38 @@ class MysticTuning {
   const MysticTuning._();
 
   // ── Quickening ──
-  /// Quickening, then Relentless Sky: how much more often a world acts. These
-  /// are the rate, so the interval is divided by them.
-  static const double quickeningRate = 1.25;
-  static const double relentlessRate = 2.00;
+  /// Quickening: how hard the act a death calls for lands.
+  ///
+  /// One repeat per act of the world's own, never one per death: a world's
+  /// acts run from an ember catching several times a second to a quake every
+  /// half minute, and a dawn that mends everything, so "every death acts
+  /// again" at a flat rate was a quake a second and a mend that never let
+  /// the orb fall. Tied to its own acts, every world gains the same half.
+  static const double quickenStrength = 0.5;
 
-  /// Weight of Heaven: how much harder each act lands.
-  static const double weightOfHeaven = 1.30;
+  /// Ice's act, which only this path gives it: every [iceActInterval]
+  /// seconds (quickened by the world surge and the caster's SPECIAL, as the
+  /// other clocked worlds are) the blizzard freezes everything in it to
+  /// [iceFreezeSpeed] for [iceActHoldShare] of that beat. A share of the
+  /// beat rather than a flat hold, so a world that beats faster does not
+  /// freeze for longer in all: with every node bought, about a third of the
+  /// time. A repeat adds its strength's share to the freeze still running.
+  static const double iceActInterval = 6.0;
+  static const double iceActHoldShare = 0.12;
+  static const double iceFreezeSpeed = 0.05;
 
-  /// No world may be driven below this interval however the nodes stack. A
-  /// world that acts every frame is not a world, it is a crash.
-  static const double minimumInterval = 0.35;
+  /// Aftershock: how long after an act it comes again, and how hard.
+  static const double aftershockDelay = 0.5;
+  static const double aftershockStrength = 0.4;
+
+  /// Relentless Sky: the act comes again this soon after, whole — soon
+  /// enough to read as twice in a row, late enough to be seen as two.
+  static const double relentlessDelay = 0.25;
+  static const double relentlessStrength = 1.0;
+
+  /// The most repeats one world may have waiting. An ember field acts dozens
+  /// of times a second in a crowd; past this the newest go unrepeated.
+  static const int maxPendingReplays = 240;
 
   // ── Firmament ──
   /// Native Air, Home Ground: what an ally standing inside the world gets.
@@ -99,6 +131,50 @@ class MysticMasteryState {
   /// Healing this world has handed out, for telemetry and the HUD.
   double healedInside = 0;
 
+  /// Deaths that made the world act again (Quickening), and acts repeated by
+  /// Aftershock and Relentless Sky, for the tests and telemetry.
+  int quickenings = 0;
+  int replays = 0;
+
+  /// Quickening: the world's latest act of its own, how to do it again at a
+  /// strength ([noteAct]).
+  void Function(double strength)? latestAct;
+
+  /// Whether the world has acted since a death last made it act again, and
+  /// whether a body has died since then.
+  bool quickenReady = false;
+  bool quickenDue = false;
+
+  /// Mud's act is the weight on a hit, hundreds a second, so its latest is
+  /// kept as the body and the weight's part of the hit, read by one act
+  /// made once ([mireAct]) rather than a new one for every hit.
+  Object? mireBody;
+  double mireExtra = 0;
+  void Function(double strength)? mireAct;
+
+  /// An act of the world's own: the next death may call for it again.
+  void noteAct(void Function(double strength) act) {
+    latestAct = act;
+    quickenReady = true;
+  }
+
+  /// A body died while the world stood.
+  void noteDeath() {
+    if (quickenReady) quickenDue = true;
+  }
+
+  /// The act a death has called for, once, or null when none is: one
+  /// repeat per act of the world's own, however many die after it.
+  void Function(double strength)? takeQuickening() {
+    if (!quickenDue) return null;
+    quickenDue = false;
+    final act = latestAct;
+    if (!quickenReady || act == null) return null;
+    quickenReady = false;
+    quickenings++;
+    return act;
+  }
+
   /// Ticks the mend, reporting the frames it should pay on.
   bool takeTendedTick(double dt) {
     tendedTimer -= dt;
@@ -109,44 +185,39 @@ class MysticMasteryState {
 
   @override
   String toString() =>
-      'MysticMasteryState(healed: ${healedInside.round()})';
+      'MysticMasteryState(healed: ${healedInside.round()}, '
+      'quickened: $quickenings, replays: $replays)';
 }
 
-/// How often a world should act, given the interval it was authored with.
-///
-/// Clamped at the bottom, because a world driven to act every frame is not a
-/// faster world, it is a frame-time bug with a nice name.
-double mysticWorldInterval({
+/// Whether a death after an act makes the world act again (Quickening).
+bool mysticQuickens({required bool Function(String nodeId) hasNode}) =>
+    hasNode(MysticNodes.quickening);
+
+/// Whether an Ice world has an act: its freeze, on a beat. Only Quickening
+/// gives it one; without it the blizzard is a steady slow and nothing else.
+bool mysticIceActs({required bool Function(String nodeId) hasNode}) =>
+    hasNode(MysticNodes.quickening);
+
+/// Each act's repeats: Relentless Sky's straight after at full strength, and
+/// Aftershock's half a second later at 40%. A repeat is not itself repeated.
+List<({double delay, double strength})> mysticWorldReplays({
   required bool Function(String nodeId) hasNode,
-  required double authoredInterval,
-}) {
-  if (authoredInterval <= 0) return authoredInterval;
-  var rate = 1.0;
-  if (hasNode(MysticNodes.quickening)) rate *= MysticTuning.quickeningRate;
-  if (hasNode(MysticNodes.relentlessSky)) {
-    // Relentless Sky is stated against where the world started, not against
-    // Quickening, so the capstone replaces the opener's rate rather than
-    // multiplying with it.
-    rate = MysticTuning.relentlessRate;
-  }
-  if (rate <= 1.0) return authoredInterval;
-  // A world already authored faster than the floor is left exactly as it is.
-  // Clamping it would put the lower limit above the upper one and throw, and
-  // there is nothing to speed up anyway.
-  if (authoredInterval <= MysticTuning.minimumInterval) return authoredInterval;
-  return (authoredInterval / rate).clamp(
-    MysticTuning.minimumInterval,
-    authoredInterval,
-  );
-}
+}) => [
+  if (hasNode(MysticNodes.relentlessSky))
+    (
+      delay: MysticTuning.relentlessDelay,
+      strength: MysticTuning.relentlessStrength,
+    ),
+  if (hasNode(MysticNodes.aftershock))
+    (
+      delay: MysticTuning.aftershockDelay,
+      strength: MysticTuning.aftershockStrength,
+    ),
+];
 
 /// Whether the world's first act comes immediately rather than after a turn.
 bool mysticActsOnIgnition({required bool Function(String nodeId) hasNode}) =>
     hasNode(MysticNodes.firstLight);
-
-/// How much harder everything the world does lands.
-double mysticWorldPower({required bool Function(String nodeId) hasNode}) =>
-    hasNode(MysticNodes.weightOfHeaven) ? MysticTuning.weightOfHeaven : 1.0;
 
 /// What an ally standing inside the world receives.
 ({double mitigation, double power, bool mends, bool lendsElement})

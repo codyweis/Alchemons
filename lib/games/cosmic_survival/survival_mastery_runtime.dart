@@ -83,8 +83,8 @@ class MasteryCast {
 
   /// The share of this cast's damage that mastery is responsible for.
   ///
-  /// A path that empowers the family's own attack — Rising Tempo's damage per
-  /// Rhythm, Predator Step's kill bonus — does all its work inside a basic
+  /// A path that empowers the family's own attack — Dense Core's heavier
+  /// rock, Extinction Event's comet — does all its work inside a basic
   /// hit. Without this split that whole contribution lands in the basic
   /// bucket and the path reads as doing nothing, which is the opposite of
   /// what the telemetry exists to answer.

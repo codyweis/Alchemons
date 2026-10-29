@@ -24,10 +24,6 @@ void main() {
         HornNodes.bodyguard,
         HornNodes.shieldWall,
         HornNodes.lastStand,
-        HornNodes.secondEffort,
-        HornNodes.fullWeight,
-        HornNodes.relentless,
-        HornNodes.secondFront,
       ];
       for (final id in referenced) {
         expect(
@@ -202,61 +198,6 @@ void main() {
       );
       expect(split.toOrb, 100);
       expect(split.toHorn, 0);
-    });
-  });
-
-  group('Juggernaut runs the cast twice', () {
-    test('nothing is pending without the opener', () {
-      expect(hornSecondRun(hasNode: holding({})).power, 0);
-    });
-
-    test('Relentless makes the second run the strong one', () {
-      final weak = hornSecondRun(hasNode: holding({HornNodes.secondEffort}));
-      final strong = hornSecondRun(
-        hasNode: holding({HornNodes.secondEffort, HornNodes.relentless}),
-      );
-      expect(weak.power, closeTo(0.45, 0.001));
-      expect(strong.power, greaterThan(weak.power));
-      expect(weak.coverage, 1.0);
-    });
-
-    test('Second Front widens only the second run', () {
-      final wide = hornSecondRun(
-        hasNode: holding({HornNodes.secondEffort, HornNodes.secondFront}),
-      );
-      expect(wide.coverage, closeTo(1.40, 0.001));
-    });
-
-    test('a second run cannot arm a third', () {
-      final state = HornMasteryState();
-      expect(state.armSecondRun(), isTrue);
-      expect(
-        state.armSecondRun(),
-        isFalse,
-        reason: 'this is the one place the path could recurse',
-      );
-
-      // Tick it out; it fires exactly once.
-      var fired = 0;
-      for (var i = 0; i < 120; i++) {
-        if (state.takeSecondRun(1 / 60)) fired++;
-      }
-      expect(fired, 1);
-    });
-
-    test('a passive Horn pulses instead, and faster with Relentless', () {
-      int pulses({required bool relentless}) {
-        final state = HornMasteryState();
-        var n = 0;
-        for (var i = 0; i < 60 * 30; i++) {
-          if (state.takePassivePulse(1 / 60, relentless: relentless)) n++;
-        }
-        return n;
-      }
-
-      final plain = pulses(relentless: false);
-      expect(plain, greaterThan(0));
-      expect(pulses(relentless: true), greaterThan(plain));
     });
   });
 

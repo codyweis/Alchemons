@@ -6,9 +6,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_kin.dart';
-import 'package:alchemons/games/cosmic_survival/survival_mastery_mask.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mystic.dart';
-import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_wing.dart';
 import 'package:alchemons/models/elemental_group.dart';
@@ -138,18 +136,6 @@ void main() {
     );
   }
 
-  /// Clears the field to one stationary body at [at], so a test decides
-  /// what its companions shoot.
-  CosmicSurvivalEnemy onlyBody(CosmicSurvivalGame game, Offset at) {
-    final body = dummy(game, at);
-    for (final e in game.enemies) {
-      e.isDead = true;
-    }
-    game.enemies.add(body);
-    game.debugRebuildEnemyGrid();
-    return body;
-  }
-
   /// What [boss] lost to one hit through the game's real boss intake.
   double bossTook(
     CosmicSurvivalGame game,
@@ -208,23 +194,6 @@ void main() {
       expect(longshot / plain, closeTo(1 + WingTuning.rangefinderBonus, 0.01));
     });
 
-    test('Weight of Heaven lands on a boss', () async {
-      final mystic = member('Mystic', 'Lightning', 0);
-      Future<double> hit(int tier) async {
-        final game = await arena(
-          [mystic],
-          snapshot: equip(mystic, MysticNodes.quickeningPath, throughTier: tier),
-        );
-        expect(await _lightWorld(game), isTrue);
-        final b = boss(game.orb.position + const Offset(200, 0));
-        return bossTook(game, b, 40, slot: 0);
-      }
-
-      final without = await hit(2);
-      final weighted = await hit(3);
-      expect(weighted / without, closeTo(MysticTuning.weightOfHeaven, 0.01));
-    });
-
     test('Home Ground lifts what an ally deals from inside the world, '
         'its special and on a boss included', () async {
       final mystic = member('Mystic', 'Lightning', 0);
@@ -279,41 +248,6 @@ void main() {
       expect(fireWeighted, closeTo(fireIronhead, 0.01));
     });
 
-    test('Pin Cushion: the special\'s darts read the Pins too', () async {
-      final pip = member('Pip', 'Fire', 0);
-      final game = await arena(
-        [pip],
-        snapshot: equip(pip, 'pip.assault', throughTier: 2),
-      );
-      for (var i = 0; i < 600 && game.pipMasteryFor(0) == null; i++) {
-        game.update(1 / 60);
-      }
-      final state = game.pipMasteryFor(0)!;
-      final pinned = boss(game.orb.position + const Offset(200, 0));
-      final bare = boss(game.orb.position + const Offset(-200, 0));
-      for (var i = 0; i < 5; i++) {
-        state.addPin(identityHashCode(pinned), game.mastery.clock);
-      }
-      int specialCast() => game.mastery.beginCast(
-        slotIndex: 0,
-        family: CreatureFamily.pip,
-        element: 'Fire',
-        kind: MasteryCastKind.special,
-        projectileCount: 1,
-      );
-      double took(SurvivalBoss b) {
-        final before = b.hp;
-        game.damageBoss(40, sourceSlotIndex: 0, target: b,
-            masteryCastId: specialCast());
-        return before - b.hp;
-      }
-
-      expect(
-        took(pinned) / took(bare),
-        closeTo(1 + 5 * PipTuning.pinDamagePerStack, 0.01),
-      );
-    });
-
     test('Three Fronts pays every one of the three bodies', () async {
       final pip = member('Pip', 'Fire', 0);
       final game = await arena(
@@ -344,26 +278,6 @@ void main() {
       expect(took[0], greaterThan(took[2] / 1.21));
     });
 
-    test('Sighted: the Let\'s special lands harder on what it Sighted',
-        () async {
-      final let = member('Let', 'Fire', 0);
-      final game = await arena(
-        [let],
-        snapshot: equip(let, 'let.ground_zero', throughTier: 1),
-      );
-      final sighted = boss(game.orb.position + const Offset(200, 0))
-        ..applyLetSight(
-          slotIndex: 0,
-          duration: 6,
-          calledShot: false,
-          fireForEffect: false,
-        );
-      final bare = boss(game.orb.position + const Offset(-200, 0));
-      final a = bossTook(game, sighted, 40, slot: 0);
-      final b = bossTook(game, bare, 40, slot: 0);
-      expect(a / b, closeTo(1.20, 0.01));
-    });
-
     test('Longshot: the special\'s hits far out are paid too', () async {
       final wing = member('Wing', 'Dark', 0);
       Future<double> hit(SurvivalFamilyMasterySnapshot? snap) async {
@@ -385,84 +299,7 @@ void main() {
     });
   });
 
-  group('Burn Through', () {
-    /// The most dwell a Wing's beam builds on one body it holds.
-    Future<double> peakDwell(int tier) async {
-      final wing = member('Wing', 'Dark', 0);
-      final game = await arena(
-        [wing],
-        snapshot: equip(wing, WingNodes.burnThroughPath, throughTier: tier),
-      );
-      final comp = game.activeCompanions[0]!;
-      // Out from the orb: a body that reaches it is spent on it.
-      final body = onlyBody(game, game.orb.position + const Offset(380, 0));
-      comp.position = game.orb.position + const Offset(200, 0);
-      comp.specialCooldown = 0;
-      var peak = 0.0;
-      for (var i = 0; i < 60 * 6; i++) {
-        _keepOnly(game, body);
-        game.update(1 / 60);
-        if (body.wingBeamDwell > peak) peak = body.wingBeamDwell;
-      }
-      return peak;
-    }
-
-    test('Bore holds its ramp between the beam\'s ticks', () async {
-      // The beam ticks every 0.12-0.28 s, and the ramp used to fall away on
-      // every frame between two ticks, so before No Reprieve it never got
-      // past one tick's worth: Bore and Deeper bought almost nothing.
-      expect(await peakDwell(1), greaterThan(1.0));
-    });
-
-    test('a beam held on a boss builds the same ramp', () async {
-      final wing = member('Wing', 'Dark', 0);
-      final game = await arena(
-        [wing],
-        snapshot: equip(wing, WingNodes.burnThroughPath, throughTier: 2),
-      );
-      final comp = game.activeCompanions[0]!;
-      // The boss stands on the line to the only body, so the beam held on
-      // the body runs through it.
-      final body = onlyBody(game, game.orb.position + const Offset(460, 0));
-      final b = boss(game.orb.position + const Offset(330, 0));
-      game.activeBoss = b;
-      comp.position = game.orb.position + const Offset(200, 0);
-      comp.specialCooldown = 0;
-      var peak = 0.0;
-      for (var i = 0; i < 60 * 5; i++) {
-        _keepOnly(game, body);
-        game.update(1 / 60);
-        if (b.wingBeamDwell > peak) peak = b.wingBeamDwell;
-      }
-      expect(peak, greaterThan(0.5), reason: 'the boss never took the ramp');
-    });
-  });
-
   group('Benediction', () {
-    test('Deep Reserves strengthens the heals and shields a Kin hands out',
-        () async {
-      final kin = member('Kin', 'Water', 0);
-      Future<(int, int)> support(int tier) async {
-        final game = await arena(
-          [kin],
-          snapshot: equip(kin, KinNodes.benedictionPath, throughTier: tier),
-        );
-        final comp = game.activeCompanions[0]!;
-        comp.currentHp = 1;
-        comp.shieldHp = 0;
-        game.debugApplySpecialSupport(
-          0,
-          const CosmicSpecialResult(shieldHp: 100, selfHeal: 100),
-        );
-        return (comp.shieldHp, comp.currentHp - 1);
-      }
-
-      final (shieldBefore, healBefore) = await support(1);
-      final (shieldAfter, healAfter) = await support(2);
-      expect(shieldAfter, (shieldBefore * KinTuning.deepReservesPower).round());
-      expect(healAfter, (healBefore * KinTuning.deepReservesPower).round());
-    });
-
     test('Communion reaches the ship', () async {
       final kin = member('Kin', 'Water', 0);
       Future<double> shipMended(int tier) async {
@@ -527,55 +364,6 @@ void main() {
     // which is three times the caster's own.
     expect(shared, lessThan(caster * 1.3));
   });
-
-  group('Rearm', () {
-    /// The life a Mask trap comes back with after it is spent: the life of
-    /// the first new fixture seen once the placed one has gone.
-    Future<double> rearmedLife(int tier) async {
-      final mask = member('Mask', 'Lightning', 0);
-      final game = await arena(
-        [mask],
-        snapshot: equip(mask, MaskNodes.rearmPath, throughTier: tier),
-      );
-      final comp = game.activeCompanions[0]!;
-      comp.specialCooldown = 0;
-      bool isTrap(Projectile p) =>
-          p.abilityFamily == 'mask' && p.stationary && p.life > 0;
-      for (var i = 0; i < 60 * 8; i++) {
-        game.update(1 / 60);
-        if (game.companionProjectiles.any(isTrap)) break;
-      }
-      final placed = game.companionProjectiles.where(isTrap).toList();
-      expect(placed, isNotEmpty, reason: 'the Mask never placed a trap');
-      for (final p in placed) {
-        p.life = 0.001;
-      }
-      for (var i = 0; i < 60 * 4; i++) {
-        comp.specialCooldown = 99999;
-        game.update(1 / 60);
-        for (final p in game.companionProjectiles) {
-          if (isTrap(p) && !placed.any((q) => identical(p, q))) return p.life;
-        }
-      }
-      return 0;
-    }
-
-    test('Hair Trigger: a trap comes back with the life it was placed with',
-        () async {
-      // Lightning's trap is placed for 12 s. Spring Again alone brings it
-      // back for 6 s; Hair Trigger says re-arming no longer shortens it.
-      expect(await rearmedLife(1), lessThan(6.5));
-      expect(await rearmedLife(2), greaterThan(9));
-    });
-  });
-}
-
-/// Clears every body but [body] the spawner has added since, so a beam's
-/// nearest target stays the one a test put down.
-void _keepOnly(CosmicSurvivalGame game, CosmicSurvivalEnemy body) {
-  for (final e in game.enemies) {
-    if (!identical(e, body)) e.isDead = true;
-  }
 }
 
 /// Runs until the Mystic in slot 0 has lit its world.

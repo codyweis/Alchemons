@@ -280,14 +280,20 @@ class SurvivalFamilyMasterySnapshot {
   static final empty = SurvivalFamilyMasterySnapshot(const {});
 }
 
+/// [slug] keeps a renamed node's saved id: without it the id is spelled from
+/// [name], so renaming a node would orphan every purchase of it.
 FamilyMasteryNodeDef _node(
   String pathId,
   int tier,
   String name,
-  String description,
-) {
-  final slug = name
+  String description, {
+  String? slug,
+}) {
+  // An apostrophe is dropped rather than split on: Hunter's Arc is
+  // `hunters_arc`, not `hunter_s_arc`.
+  slug ??= name
       .toLowerCase()
+      .replaceAll("'", '')
       .replaceAll(RegExp(r'[^a-z0-9]+'), '_')
       .replaceAll(RegExp(r'^_|_$'), '');
   return FamilyMasteryNodeDef(
@@ -300,19 +306,22 @@ FamilyMasteryNodeDef _node(
   );
 }
 
+/// [slugs] holds, by tier, the saved slug of a node renamed since it was
+/// first sold ([_node]).
 FamilyMasteryPathDef _path(
   String id,
   String name,
   String role,
-  List<(String, String)> nodes,
-) {
+  List<(String, String)> nodes, {
+  Map<int, String> slugs = const {},
+}) {
   return FamilyMasteryPathDef(
     id: id,
     name: name,
     role: role,
     nodes: [
       for (var i = 0; i < nodes.length; i++)
-        _node(id, i + 1, nodes[i].$1, nodes[i].$2),
+        _node(id, i + 1, nodes[i].$1, nodes[i].$2, slug: slugs[i + 1]),
     ],
   );
 }
@@ -322,40 +331,22 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
     family: CreatureFamily.mane,
     chassis: FamilyCombatCopy.of(CreatureFamily.mane).attack,
     paths: [
-      _path('mane.assault', 'Twin Fang', 'Burst down single enemies', [
-        (
-          'Honed Pair',
-          "Slashes fly 35% closer together and each deals 80% damage (up from 65%), making it easier to land both.",
-        ),
-        (
-          'Crosscut',
-          "When both slashes hit the same enemy, deal +40% bonus damage and apply your element's effect.",
-        ),
-        (
-          'Predator Step',
-          "After a kill, your next attack within 3s tracks its target better and deals +40% damage.",
-        ),
-        (
-          'Blade Dance',
-          "Casting your special makes your next 5 attacks boomerang back, hitting again for 60% damage.",
-        ),
-      ]),
       _path('mane.resonance', 'War Rhythm', 'Build Rhythm and spend it on cadence', [
         (
           'Measured Cuts',
           "Landing both slashes on one enemy builds Rhythm (max 5). Each Rhythm gives +2% attack speed. Missing with both loses 1.",
         ),
         (
+          'Crosscut',
+          "When both slashes hit the same enemy, they cross through it to the next enemy ahead, carrying your element's effect. Up to 3 crossings.",
+        ),
+        (
           'Tempest Ring',
           "Every 4th attack also bursts 8 slashes outward in a ring (20% damage each) that carry your element.",
         ),
         (
-          'Crescendo',
-          "Casting your special spends all Rhythm: that many following attacks deal +12% damage and apply your element's effect.",
-        ),
-        (
           'Encore',
-          "Spending 5 Rhythm starts a 6s Encore: +25% attack speed and wider slashes. Kills extend it by up to 2s.",
+          "Casting your special at 5 Rhythm spends it and starts a 6s Encore: +25% attack speed and wider slashes. Kills extend it by up to 2s.",
         ),
       ]),
       _path('mane.limitless', 'Limitless', 'Your special never stops travelling', [
@@ -363,7 +354,10 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           'Far Throw',
           "Your special's projectiles travel 45% further before fading, piercing more enemies on the way.",
         ),
-        ('Overdraw', "Your special deals 15% more damage."),
+        (
+          "Hunter's Arc",
+          "After its first hit, each of your special's projectiles bends toward the nearest enemy ahead of it.",
+        ),
         (
           'No Horizon',
           "Your special's projectiles stop fading with time. Only the edge of the arena stops them.",
@@ -415,48 +409,12 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           "Your auto-attack meteor can reach any enemy in the arena, always landing on the toughest one.",
         ),
       ]),
-      _path('let.ground_zero', 'Ground Zero', 'Your special meteor marks targets', [
-        (
-          'Sighted',
-          "Enemies hit by your special meteor are Sighted for 6s. Your meteors deal +20% damage to them.",
-        ),
-        (
-          'Walking Fire',
-          "Your auto-attack meteors go after Sighted enemies first, and each hit adds 1s to the Sight (up to 10s).",
-        ),
-        (
-          'Called Shot',
-          "Your whole team deals +10% damage to Sighted enemies.",
-        ),
-        (
-          'Fire for Effect',
-          "While any enemy is Sighted you attack 30% faster, and when a Sighted enemy dies its Sight jumps to the nearest enemy.",
-        ),
-      ]),
     ],
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.pip,
     chassis: FamilyCombatCopy.of(CreatureFamily.pip).attack,
     paths: [
-      _path('pip.assault', 'Needlepoint', 'Pin down and shred one target', [
-        (
-          'Tight Grouping',
-          "Darts fly 45% closer together and each deals 32% damage (up from 30%), making it easier to land all three.",
-        ),
-        (
-          'Pin Cushion',
-          "Landing all 3 darts on one enemy adds a Pin (max 5). Each Pin makes your darts deal +5% damage to it.",
-        ),
-        (
-          'Pluck the Pins',
-          "Hitting an enemy that has 5 Pins rips them out for an 80% damage burst. Bosses keep 2 Pins.",
-        ),
-        (
-          'Thousand Cuts',
-          "Every 4th time all 3 darts land, fire a bonus 5-dart volley at the same enemy (16% damage each).",
-        ),
-      ]),
       _path('pip.control', 'Scattershot', 'Spray darts across the whole crowd', [
         (
           'Wide Spray',
@@ -478,12 +436,12 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           "Your special throws 1 more dart, at 60% of a normal dart's damage and reach.",
         ),
         (
-          'Double Load',
-          "Your special throws another dart, also at 60%.",
+          'Second Volley',
+          "Your special throws another dart, and the extra darts fly a moment after the first throw, as a second volley.",
         ),
         (
-          'Full Quiver',
-          "Your special throws another dart, also at 60%.",
+          'Wide Load',
+          "Another dart, and the extra darts fan out across a wider arc, so the special covers more of the crowd.",
         ),
         (
           'Perfect Salvo',
@@ -501,7 +459,10 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           'Grave Goods',
           "Enemies your darts kill leave a small trap of your element where they fell, at 35% strength.",
         ),
-        ('Open Grave', "Those traps are 40% wider and last 50% longer."),
+        (
+          'Restless Graves',
+          "Your grave traps walk to the nearest enemy standing still and stay under it. With none standing still, they go where enemies are thickest.",
+        ),
         (
           'Cold Ground',
           "They carry your element's full effect instead of a weakened one.",
@@ -509,24 +470,6 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         (
           'Necropolis',
           "A dart kill inside one of your own traps leaves a trap at full strength instead of a small one.",
-        ),
-      ]),
-      _path('mask.rearm', 'Rearm', 'Your traps stop spending themselves', [
-        (
-          'Spring Again',
-          "A trap that goes off re-arms after 2.5s instead of being used up.",
-        ),
-        (
-          'Hair Trigger',
-          "It re-arms in 1.2s, and re-arming no longer shortens how long it lasts.",
-        ),
-        (
-          'Snap Shut',
-          "A re-armed trap catches everything in reach at once, not just the first enemy to touch it.",
-        ),
-        (
-          'Held Ground',
-          "A trap that has gone off three times stops expiring, and holds until something kills it.",
         ),
       ]),
       _path('mask.contagion', 'Contagion', 'What your traps catch carries it', [
@@ -589,50 +532,12 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           "When your shield is broken through, it ruptures for elemental damage around you and gives back 20% of your special cooldown.",
         ),
       ]),
-      _path('horn.juggernaut', 'Juggernaut', 'Your special runs a second time', [
-        (
-          'Second Effort',
-          "When your special finishes, it runs again at 45% power. Passive Horns gain a pulse of the same strength instead.",
-        ),
-        (
-          'Full Weight',
-          "The second run carries your element's full effect instead of a weakened one.",
-        ),
-        (
-          'Relentless',
-          "The second run is no longer the weak one: 75% power, and a passive Horn's pulse comes twice as often.",
-        ),
-        (
-          'Second Front',
-          "The second run begins where the first one ended, and covers 40% more ground.",
-        ),
-      ]),
     ],
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.wing,
     chassis: FamilyCombatCopy.of(CreatureFamily.wing).attack,
     paths: [
-      _path(
-        'wing.burn_through',
-        'Burn Through',
-        'Hold the beam and it bites deeper',
-        [
-          (
-            'Bore',
-            "Your beam hits harder the longer it stays on one enemy, up to +60%. Moving off drops it.",
-          ),
-          ('Deeper', "It builds twice as fast and reaches +120%."),
-          (
-            'No Reprieve',
-            "Moving off no longer drops it at once — it fades over 2s, so switching targets costs little.",
-          ),
-          (
-            'Carry Through',
-            "An enemy that dies at full bite hands it to whatever your beam touches next.",
-          ),
-        ],
-      ),
       _path('wing.longshot', 'Longshot', 'The further out, the harder you hit', [
         (
           'Rangefinder',
@@ -640,59 +545,49 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         ),
         (
           'Long Lens',
-          "Your range grows 20%, and the bonus climbs with distance to +35% at the edge.",
+          "Your range grows 20%, and your attacks aim ahead of far enemies, so long shots land.",
         ),
         (
           'Standoff',
           "While nothing is closer than 30% of your range, that bonus applies at any distance.",
         ),
         (
-          'Horizon',
-          "Your range grows another 35%, and everything past the old edge takes the full bonus.",
+          'Overwatch',
+          "Every enemy entering the far reach of your range takes a free shot, once. An enemy taking aim within twice your range takes one every time.",
         ),
       ]),
-      _path('wing.tracer', 'Tracer', 'Your shots feed your beam', [
-        (
-          'Tracer Rounds',
-          "Each attack that lands takes 0.25s off your special's cooldown.",
-        ),
-        (
-          'Ranging Shots',
-          "Each landed attack also adds 0.1s to your next beam, up to 1.5s.",
-        ),
-        (
-          'Hot Barrel',
-          "Both grow: 0.4s off the cooldown and 0.18s onto the beam, up to 3s.",
-        ),
-        (
-          'Live Feed',
-          "While a beam is firing, your attacks lengthen the beam already running instead of banking for the next one.",
-        ),
-      ]),
+      _path(
+        'wing.tracer',
+        'Tracer',
+        'Your shots feed your beam',
+        [
+          (
+            'Tracer Rounds',
+            "Each attack that lands takes 0.25s off your special's cooldown.",
+          ),
+          (
+            'Loaded Beam',
+            "Each landed attack also adds 0.1s to your next beam, up to 1.5s.",
+          ),
+          (
+            'Hot Barrel',
+            "While your beam is firing, your attacks come twice as fast.",
+          ),
+          (
+            'Live Feed',
+            "While a beam is firing, your attacks lengthen the beam already running instead of banking for the next one.",
+          ),
+        ],
+        // Loaded Beam was sold as Ranging Shots, a name Let's Bombardment
+        // also uses.
+        slugs: {2: 'ranging_shots'},
+      ),
     ],
   ),
   FamilyMasteryTreeDef(
     family: CreatureFamily.kin,
     chassis: FamilyCombatCopy.of(CreatureFamily.kin).attack,
     paths: [
-      _path('kin.longline', 'Longline', 'Reach further down the line', [
-        (
-          'Extended Coil',
-          "Your laser runs 35% longer, and its longest reach grows by a quarter.",
-        ),
-        (
-          'Full Span',
-          "It stops being cut short just past your target: every shot runs at least 60% of its longest reach.",
-        ),
-        (
-          'Deep Line',
-          "Enemies further down the line take more, up to +40% at the far end.",
-        ),
-        (
-          'Crossfire',
-          "Your laser also fires straight back through you at half strength, covering the full width of the field.",
-        ),
-      ]),
       _path('kin.conduction', 'Conduction', 'The line carries help, not just harm', [
         (
           'Live Current',
@@ -714,12 +609,15 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
       _path(
         'kin.benediction',
         'Benediction',
-        'Your support runs deeper and longer',
+        'Your support reaches the whole team',
         [
-          ('Devotion', "Your support ability lasts 40% longer."),
           (
-            'Deep Reserves',
-            "Its healing, shielding and buffs are 25% stronger.",
+            'Kindred',
+            "Your support also reaches the ally standing nearest you, at full strength and for as long.",
+          ),
+          (
+            'Vigil',
+            "While any ally is below half health, your support recharges twice as fast.",
           ),
           (
             'Unbroken',
@@ -727,7 +625,7 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
           ),
           (
             'Communion',
-            "It reaches every ally and the ship at half strength, however far apart you are standing.",
+            "It reaches every ally and the ship however far apart you are standing: the nearest at full strength, the rest at half.",
           ),
         ],
       ),
@@ -742,15 +640,21 @@ final List<FamilyMasteryTreeDef> kFamilyMasteryTrees = [
         'Quickening',
         'Your world acts far more often',
         [
-          ('Quickening', "Your world acts 25% more often."),
+          (
+            'Quickening',
+            "Each time your world acts, the next enemy to die makes it act again at once at half strength. An Ice world gains an act: a freeze every 6s.",
+          ),
           (
             'First Light',
             "It acts the moment it ignites, instead of waiting out a full turn.",
           ),
-          ('Weight of Heaven', "Everything your world does lands 30% harder."),
+          (
+            'Aftershock',
+            "Each time your world acts, it acts again half a second later at 40% strength, in the same place. A repeat is never repeated.",
+          ),
           (
             'Relentless Sky',
-            "Your world acts twice as often as it did before you began.",
+            "Each time your world acts, it acts once more straight after, at full strength.",
           ),
         ],
       ),
@@ -823,11 +727,10 @@ class FamilyMasteryCatalog {
       if (!treeFamilies.add(tree.family)) {
         errors.add('Duplicate family tree: ${tree.family.name}');
       }
-      // Mystic gets two. Only one Mystic may be fielded at a time and its
-      // seventeen worlds are all bespoke, so it has far less shared surface
-      // to hang a third path on than any other family — two good paths beat
-      // three where one is filler.
-      final expectedPaths = tree.family == CreatureFamily.mystic ? 2 : 3;
+      // Every family has two. Two paths where every node changes how the
+      // attack behaves beat three where one is filler (2026-10-29; Mystic
+      // had two from the start).
+      const expectedPaths = 2;
       if (tree.paths.length != expectedPaths) {
         errors.add(
           '${tree.family.name} must have exactly $expectedPaths paths',

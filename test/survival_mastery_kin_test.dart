@@ -7,73 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   bool Function(String) holding(Set<String> owned) => owned.contains;
 
-  group('Longline reaches further down the field', () {
-    test('an unequipped Kin gets the chassis clamp, unchanged', () {
-      expect(
-        kinLaserLength(hasNode: holding({}), distanceToTarget: 300),
-        closeTo(360, 0.001),
-      );
-      // Still clamped at both ends.
-      expect(kinLaserLength(hasNode: holding({}), distanceToTarget: 0), 120);
-      expect(
-        kinLaserLength(hasNode: holding({}), distanceToTarget: 5000),
-        720,
-      );
-    });
-
-    test('Extended Coil lengthens the line and raises its ceiling', () {
-      final owned = holding({KinNodes.extendedCoil});
-      expect(
-        kinLaserLength(hasNode: owned, distanceToTarget: 300),
-        closeTo(360 * KinTuning.extendedCoilScale, 0.001),
-      );
-      expect(
-        kinLaserLength(hasNode: owned, distanceToTarget: 5000),
-        greaterThan(720),
-      );
-    });
-
-    test('Full Span stops the line being cut short at close range', () {
-      final coil = holding({KinNodes.extendedCoil});
-      final span = holding({KinNodes.extendedCoil, KinNodes.fullSpan});
-      // Point blank is where the difference shows.
-      expect(
-        kinLaserLength(hasNode: span, distanceToTarget: 10),
-        greaterThan(kinLaserLength(hasNode: coil, distanceToTarget: 10)),
-      );
-      // And it never exceeds the ceiling the path bought.
-      expect(
-        kinLaserLength(hasNode: span, distanceToTarget: 9999),
-        lessThanOrEqualTo(KinTuning.extendedCoilCap),
-      );
-    });
-
-    test('Deep Line pays for standing at the far end', () {
-      final owned = holding({KinNodes.deepLine});
-      expect(
-        kinDeepLineMultiplier(hasNode: owned, along: 0, length: 500),
-        closeTo(1.0, 0.001),
-      );
-      expect(
-        kinDeepLineMultiplier(hasNode: owned, along: 500, length: 500),
-        closeTo(1 + KinTuning.deepLineBonus, 0.001),
-      );
-      // Past the end is still the end, and a zero line cannot divide.
-      expect(
-        kinDeepLineMultiplier(hasNode: owned, along: 9999, length: 500),
-        closeTo(1 + KinTuning.deepLineBonus, 0.001),
-      );
-      expect(
-        kinDeepLineMultiplier(hasNode: owned, along: 10, length: 0),
-        1.0,
-      );
-      expect(
-        kinDeepLineMultiplier(hasNode: holding({}), along: 500, length: 500),
-        1.0,
-      );
-    });
-  });
-
   group('Conduction carries help down the same line', () {
     test('nothing without the opener', () {
       final none = kinConduction(
@@ -152,23 +85,22 @@ void main() {
     });
   });
 
-  group('Benediction deepens the support itself', () {
+  group('Benediction carries the support to the team', () {
     test('an unequipped Kin changes nothing', () {
       final none = kinBenediction(hasNode: holding({}));
-      expect(none.duration, 1.0);
-      expect(none.power, 1.0);
+      expect(none.kindred, isFalse);
+      expect(none.vigil, isFalse);
       expect(none.survivesDeath, isFalse);
       expect(none.allyRange, 0);
     });
 
     test('each node turns on exactly its own part', () {
+      final kindred = kinBenediction(hasNode: holding({KinNodes.kindred}));
+      expect(kindred.kindred, isTrue);
+      expect(kindred.vigil, isFalse);
       expect(
-        kinBenediction(hasNode: holding({KinNodes.devotion})).duration,
-        closeTo(KinTuning.devotionDuration, 0.001),
-      );
-      expect(
-        kinBenediction(hasNode: holding({KinNodes.deepReserves})).power,
-        closeTo(KinTuning.deepReservesPower, 0.001),
+        kinBenediction(hasNode: holding({KinNodes.vigil})).vigil,
+        isTrue,
       );
       expect(
         kinBenediction(hasNode: holding({KinNodes.unbroken})).survivesDeath,
@@ -179,21 +111,25 @@ void main() {
         greaterThan(0),
       );
     });
+
+    test('Vigil doubles the recharge only while an ally is below half', () {
+      final vigil = holding({KinNodes.vigil});
+      expect(kinVigilRate(hasNode: vigil, lowestAllyHealth: 0.49), 2.0);
+      expect(kinVigilRate(hasNode: vigil, lowestAllyHealth: 0.5), 1.0);
+      expect(kinVigilRate(hasNode: vigil, lowestAllyHealth: 1.0), 1.0);
+      expect(kinVigilRate(hasNode: holding({}), lowestAllyHealth: 0.1), 1.0);
+    });
   });
 
   group('the tree itself', () {
     test('every node id the game references exists in the catalog', () {
       const referenced = [
-        KinNodes.extendedCoil,
-        KinNodes.fullSpan,
-        KinNodes.deepLine,
-        KinNodes.crossfire,
         KinNodes.liveCurrent,
         KinNodes.lifeline,
         KinNodes.grounding,
         KinNodes.transfusion,
-        KinNodes.devotion,
-        KinNodes.deepReserves,
+        KinNodes.kindred,
+        KinNodes.vigil,
         KinNodes.unbroken,
         KinNodes.communion,
       ];

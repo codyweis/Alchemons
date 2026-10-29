@@ -1,14 +1,16 @@
-/// Mask's three mastery paths: the numbers, the per-companion state, and the
+/// Mask's two mastery paths: the numbers, the per-companion state, and the
 /// rules that do not need the game to evaluate.
 ///
 /// Mask is the Traps family. Every element places at least one fixture that
 /// persists and waits, and the element decides what the fixture does when
-/// something touches it. The three paths are the three phases of one trap's
-/// life:
+/// something touches it. The two paths are the two ends of one trap's life:
 ///
-/// * **Deathmask** is how traps get onto the field: every kill leaves one.
-/// * **Rearm** is how often a trap goes off: it stops spending itself.
+/// * **Deathmask** is how traps get onto the field: every kill leaves one,
+///   and those graves go after the crowd.
 /// * **Contagion** is what happens after: what a trap catches carries it on.
+///
+/// A third path, Rearm (a trap that goes off comes back), was cut on
+/// 2026-10-29 in the move to two paths a family.
 ///
 /// Two constraints shaped all of it.
 ///
@@ -25,9 +27,9 @@
 /// kill may leave a grave. A trap's own kills never do. Dart kills are bounded
 /// by attack speed; trap kills are not bounded by anything.
 ///
-/// What is deliberately absent. The draft tree marked bodies (Pip banks Pins
-/// and Let marks Sighted — claimed twice over), fired on an every-Nth-attack
-/// cadence twice (Let, Pip and Mane already own four such nodes between them),
+/// What is deliberately absent. The draft tree marked bodies (Let marks
+/// Sighted, and Pip then banked Pins — claimed twice over), fired on an
+/// every-Nth-attack cadence twice (Let, Pip and Mane owned four such nodes),
 /// slowed enemies (Mask/Mud's own trap is the slow pool), had traps shoot
 /// darts (Mask/Steam's own traps are the shooting geysers), lured enemies
 /// (Kin's aggro shift, and Horn taunts on four elements) and granted attack
@@ -41,18 +43,12 @@ class MaskNodes {
   const MaskNodes._();
 
   static const deathmaskPath = 'mask.deathmask';
-  static const rearmPath = 'mask.rearm';
   static const contagionPath = 'mask.contagion';
 
   static const graveGoods = 'mask.deathmask.grave_goods';
-  static const openGrave = 'mask.deathmask.open_grave';
+  static const restlessGraves = 'mask.deathmask.restless_graves';
   static const coldGround = 'mask.deathmask.cold_ground';
   static const necropolis = 'mask.deathmask.necropolis';
-
-  static const springAgain = 'mask.rearm.spring_again';
-  static const hairTrigger = 'mask.rearm.hair_trigger';
-  static const snapShut = 'mask.rearm.snap_shut';
-  static const heldGround = 'mask.rearm.held_ground';
 
   static const carrier = 'mask.contagion.carrier';
   static const spread = 'mask.contagion.spread';
@@ -85,10 +81,6 @@ class MaskTuning {
   /// Necropolis: unless the kill happened inside one of the Mask's own traps.
   static const double necropolisStrength = 1.0;
 
-  /// Open Grave: how much wider and longer-lived a grave is.
-  static const double openGraveScale = 1.40;
-  static const double openGraveLife = 1.50;
-
   /// Graves alive at once, per Mask. A ceiling the spawner cannot exceed
   /// however fast the kills come.
   static const int graveCap = 12;
@@ -96,17 +88,23 @@ class MaskTuning {
   /// And no more than one grave per this many seconds.
   static const double graveProcCooldown = 0.35;
 
-  // ── Rearm ──
-  /// Spring Again, then Hair Trigger: how long a spent trap takes to re-arm.
-  static const double rearmDelay = 2.5;
-  static const double hairTriggerDelay = 1.2;
+  /// Restless Graves: how fast a grave makes for the thickest press of
+  /// bodies near it, in units a second — a walking pace, as fast as most of
+  /// a wave walks, so it keeps up with the crowd it sits in.
+  ///
+  /// Until 2026-10-29 a grave crept at 18 after the nearest body, which most
+  /// of a wave outwalks two to five times over, and it measured as nothing
+  /// (tier 2 against tier 1, within the probe's noise). Sent after the
+  /// nearest body at 75 it still measured as nothing: a trap catches what
+  /// walks into it, and a grave riding one body is walked into by fewer
+  /// than one lying in the stream. Going where the bodies are thickest is
+  /// what puts more of them through it.
+  static const double restlessSpeed = 75.0;
 
-  /// What a re-armed trap comes back for under Spring Again alone. Hair
-  /// Trigger brings it back for the life it was placed with instead.
-  static const double rearmLife = 6.0;
-
-  /// Held Ground: a trap that has gone off this many times stops expiring.
-  static const int heldGroundTriggers = 3;
+  /// How often a grave looks again for the thickest crowd near it, and how
+  /// far. With no body in reach it waits where it lies.
+  static const double restlessRetarget = 0.25;
+  static const double restlessReach = 360.0;
 
   // ── Contagion ──
   //
@@ -170,37 +168,12 @@ class MaskMasteryState {
   /// identity of each placed fixture rather than the fixture itself.
   final Set<int> graves = {};
 
-  /// Trigger counts per fixture, for Held Ground.
-  final Map<int, int> triggers = {};
-
-  /// The life each fixture was placed with, for Hair Trigger. Dropped with
-  /// the fixture, and cleared outright if fixtures leave some other way and
-  /// it ever grows past what one Mask can have on the field.
-  final Map<int, double> placedLives = {};
-
-  void notePlacedLife(int fixtureId, double life) {
-    if (placedLives.length >= 96) placedLives.clear();
-    placedLives[fixtureId] = life;
-  }
-
-  double placedLifeOf(int fixtureId) => placedLives[fixtureId] ?? 0;
-
   /// Bodies carrying this Mask's infection: counted afresh each frame, and
   /// raised as new bodies catch it in between, so it never reads low.
   int carriers = 0;
 
   /// Whether one more body may catch the infection ([MaskTuning.carrierCap]).
   bool get canInfectAnother => carriers < MaskTuning.carrierCap;
-
-  int triggersOn(int fixtureId) => triggers[fixtureId] ?? 0;
-
-  /// Counts a trigger and reports whether that fixture has now earned the
-  /// right to stop expiring.
-  bool noteTrigger(int fixtureId, {required bool hasHeldGround}) {
-    final next = triggersOn(fixtureId) + 1;
-    triggers[fixtureId] = next;
-    return hasHeldGround && next >= MaskTuning.heldGroundTriggers;
-  }
 
   /// Records a placed grave. Returns false when the cap is already reached,
   /// which is the spawner's signal to place nothing.
@@ -211,14 +184,11 @@ class MaskMasteryState {
 
   void dropFixture(int fixtureId) {
     graves.remove(fixtureId);
-    triggers.remove(fixtureId);
-    placedLives.remove(fixtureId);
   }
 
   @override
   String toString() =>
-      'MaskMasteryState(graves: ${graves.length}, '
-      'tracked: ${triggers.length})';
+      'MaskMasteryState(graves: ${graves.length}, carriers: $carriers)';
 }
 
 /// What a kill leaves behind, as a share of an ordinary placed fixture.
@@ -241,25 +211,10 @@ double maskGraveStrength({
   return MaskTuning.graveStrength;
 }
 
-/// How much wider and longer-lived a grave is than the bare placement.
-({double scale, double life}) maskGraveShape({
-  required bool Function(String nodeId) hasNode,
-}) {
-  if (!hasNode(MaskNodes.openGrave)) return (scale: 1.0, life: 1.0);
-  return (
-    scale: MaskTuning.openGraveScale,
-    life: MaskTuning.openGraveLife,
-  );
-}
-
-/// How long a spent fixture takes to re-arm. Zero means it is spent for good,
-/// which is what a trap does without this path.
-double maskRearmDelay({required bool Function(String nodeId) hasNode}) {
-  if (!hasNode(MaskNodes.springAgain)) return 0;
-  return hasNode(MaskNodes.hairTrigger)
-      ? MaskTuning.hairTriggerDelay
-      : MaskTuning.rearmDelay;
-}
+/// Whether a Mask's graves go after the crowd (Restless Graves). Only the
+/// graves Grave Goods leaves: the traps the special places stay put.
+bool maskGravesCreep({required bool Function(String nodeId) hasNode}) =>
+    hasNode(MaskNodes.graveGoods) && hasNode(MaskNodes.restlessGraves);
 
 /// What an infection does when it lands, and whether it may jump again.
 ///

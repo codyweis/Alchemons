@@ -42,23 +42,29 @@ void main() {
     staminaMax: 3,
   );
 
-  SurvivalFamilyMasterySnapshot equip(String pathId) {
+  SurvivalFamilyMasterySnapshot equip(String pathId, {int throughTier = 4}) {
     final path = FamilyMasteryCatalog.pathFor(CreatureFamily.mane, pathId)!;
     return SurvivalFamilyMasterySnapshot({
       0: EquippedFamilyMastery(
         instanceId: 'mane',
         family: CreatureFamily.mane,
         pathId: path.id,
-        activeNodeIds: path.nodes.map((n) => n.id),
+        activeNodeIds: path.nodes
+            .where((n) => n.tier <= throughTier)
+            .map((n) => n.id),
       ),
     });
   }
 
-  Future<CosmicSurvivalGame> start(String element, String pathId) async {
+  Future<CosmicSurvivalGame> start(
+    String element,
+    String pathId, {
+    int throughTier = 4,
+  }) async {
     final game = CosmicSurvivalGame(
       party: [mane(element)],
       onGameOver: () {},
-      masterySnapshot: equip(pathId),
+      masterySnapshot: equip(pathId, throughTier: throughTier),
       random: Random(7),
     );
     game.onGameResize(Vector2(900, 700));
@@ -282,10 +288,6 @@ void main() {
       );
     }
 
-    test(
-      'Twin Fang',
-      () => expectPathContributes(ManeNodes.assaultPath, 'Fire'),
-    );
     // Limitless is measured differently on purpose. It owns no payload node,
     // and its capstone works at the arena rim — a scenario with every body
     // clustered on the caster gives it nothing to do, which says more about
@@ -335,32 +337,139 @@ void main() {
     );
   });
 
-  group('a path that empowers the basic is still measurable', () {
-    test('an empowered cast attributes its uplift to mastery', () async {
-      final game = await start('Fire', ManeNodes.assaultPath);
+  group('what a path adds to the attack is still measurable', () {
+    test('Crosscut\'s cut is filed as mastery, the pair as the attack',
+        () async {
+      final game = await start(
+        'Fire',
+        ManeNodes.resonancePath,
+        throughTier: 2,
+      );
       for (final e in game.enemies) {
         e.isDead = true;
       }
       final comp = game.activeCompanions[0]!;
       final body = dummy(game, comp.position + const Offset(60, 0));
+      // The next body ahead, for the pair to cross on to.
+      final next = dummy(game, comp.position + const Offset(150, 0));
       comp.basicCooldown = 0;
       comp.specialCooldown = 999;
       game.update(1 / 60);
       comp.basicCooldown = 999;
-      for (var i = 0; i < 40; i++) {
+      for (var i = 0; i < 60; i++) {
         game.update(1 / 60);
       }
 
       final stats = game.mastery.telemetryFor(0);
       expect(body.hp, lessThan(body.maxHp), reason: 'setup: nothing landed');
+      expect(next.hp, lessThan(next.maxHp), reason: 'nothing crossed');
       expect(
         stats.masteryDamage,
         greaterThan(0),
         reason:
-            'Honed Pair raises each slash from 65% to 70%; that difference is '
-            'the path working and has to show up as the path working.',
+            'Both slashes landed on one body and crossed on to the next; '
+            'the crossing is the path working and has to show up as the '
+            'path working.',
       );
-      expect(stats.basicDamage, greaterThan(stats.masteryDamage));
+      expect(stats.basicDamage, greaterThan(0), reason: 'the pair itself');
+    });
+  });
+
+  group("Hunter's Arc reads in every element's own language", () {
+    final elements =
+        'Fire Lava Lightning Water Ice Steam Earth Mud Dust Crystal Air '
+                'Plant Poison Spirit Dark Light Blood'
+            .split(' ');
+
+    /// One special into a field of standing bodies around the orb, through
+    /// [throughTier] of Limitless. How far any of the cast's shots turned
+    /// after their first hit, and how far any ward ring leaned.
+    Future<({double turned, double leaned, int armed})> arc(
+      String element, {
+      int throughTier = 2,
+    }) async {
+      final game = await start(
+        element,
+        ManeNodes.limitlessPath,
+        throughTier: throughTier,
+      );
+      for (final e in game.enemies) {
+        e.isDead = true;
+      }
+      final comp = game.activeCompanions[0]!;
+      comp.position = game.orb.position + const Offset(-40, 0);
+      final field = <CosmicSurvivalEnemy>{};
+      for (var x = -7; x <= 7; x++) {
+        for (var y = -7; y <= 7; y++) {
+          final at = game.orb.position + Offset(x * 85.0 + 30, y * 85.0 + 20);
+          if ((at - comp.position).distance < 70) continue;
+          field.add(dummy(game, at));
+        }
+      }
+      comp.basicCooldown = 99999;
+      comp.specialCooldown = 0;
+      var turned = 0.0, leaned = 0.0, armed = 0;
+      for (var i = 0; i < 60 * 4; i++) {
+        for (final e in game.enemies) {
+          if (!field.contains(e)) e.isDead = true;
+        }
+        game.update(1 / 60);
+        comp.basicCooldown = 99999;
+        comp.specialCooldown = 99999;
+        for (final p in game.companionProjectiles) {
+          if (p.sourceSlotIndex != 0 || !p.masteryArc) continue;
+          armed++;
+          turned = max(turned, p.masteryArcTurned);
+          leaned = max(leaned, p.masteryArcReach.abs());
+        }
+      }
+      return (turned: turned, leaned: leaned, armed: armed);
+    }
+
+    for (final element in elements) {
+      test('$element bends after its first hit', () async {
+        final result = await arc(element);
+        expect(
+          result.armed,
+          greaterThan(0),
+          reason: '$element\'s special carried no Hunter\'s Arc at all',
+        );
+        // Light's rings turn round the Mane, so they lean rather than turn;
+        // everything else turns its heading (Lightning's orbs by swinging
+        // their landing point).
+        if (element == 'Light') {
+          expect(
+            result.leaned,
+            greaterThan(1),
+            reason: 'Light: no ward ring leaned toward a body ahead of it',
+          );
+        } else {
+          expect(
+            result.turned,
+            greaterThan(0.05),
+            reason:
+                '$element: nothing of its special bent toward a body ahead '
+                'of it after striking one',
+          );
+        }
+        // A Lightning orb comes down where it is going, so it needs no
+        // budget to end; everything that flies on does.
+        if (element != 'Lightning') {
+          expect(
+            result.turned,
+            lessThanOrEqualTo(ManeTuning.arcTurnBudget + 1e-9),
+          );
+        }
+        expect(
+          result.leaned,
+          lessThanOrEqualTo(ManeTuning.arcRingMaxReach + 1e-9),
+        );
+      });
+    }
+
+    test('without the node nothing bends', () async {
+      final result = await arc('Ice', throughTier: 1);
+      expect(result.armed, 0);
     });
   });
 }

@@ -58,13 +58,13 @@ const _families = ['Horn', 'Wing', 'Let', 'Pip', 'Mane', 'Mask', 'Kin'];
 
 /// A strong path per family, for FAMILY_MASTERY.
 const _masteryPaths = <CreatureFamily, String>{
-  CreatureFamily.horn: 'horn.juggernaut',
+  CreatureFamily.horn: 'horn.bulwark',
   CreatureFamily.mane: 'mane.resonance',
-  CreatureFamily.let: 'let.ground_zero',
+  CreatureFamily.let: 'let.bombardment',
   CreatureFamily.pip: 'pip.control',
   CreatureFamily.mask: 'mask.contagion',
   CreatureFamily.wing: 'wing.tracer',
-  CreatureFamily.kin: 'kin.longline',
+  CreatureFamily.kin: 'kin.benediction',
 };
 
 /// How far down each path FAMILY_MASTERY buys (FAMILY_MASTERY_TIER, 4 when

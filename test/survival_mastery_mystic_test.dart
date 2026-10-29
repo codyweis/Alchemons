@@ -7,93 +7,97 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   bool Function(String) holding(Set<String> owned) => owned.contains;
 
-  group('Mystic is the one family with two paths', () {
-    test('the catalog holds two, and the validator accepts them', () {
+  group('Every family has two paths', () {
+    test('Mystic holds two, four nodes each', () {
       final tree = FamilyMasteryCatalog.treeFor(CreatureFamily.mystic);
       expect(tree.paths, hasLength(2));
       for (final path in tree.paths) {
         expect(path.nodes, hasLength(4));
       }
-      // Whatever validation the catalog runs must still pass with two.
-      expect(FamilyMasteryCatalog.validate(), isEmpty);
     });
 
-    test('every other family still has three', () {
-      for (final family in CreatureFamily.values) {
-        if (family == CreatureFamily.mystic) continue;
+    test('Wing and Kin are down to two as well', () {
+      for (final family in [CreatureFamily.wing, CreatureFamily.kin]) {
         expect(
           FamilyMasteryCatalog.treeFor(family).paths,
-          hasLength(3),
+          hasLength(2),
           reason: family.name,
         );
       }
     });
   });
 
-  group('Quickening drives the world faster', () {
-    test('an unequipped world keeps the interval it was authored with', () {
+  group('Quickening drives the world\'s acts', () {
+    test('Quickening is the opener, and it gives Ice its act', () {
+      expect(mysticQuickens(hasNode: holding({})), isFalse);
       expect(
-        mysticWorldInterval(hasNode: holding({}), authoredInterval: 4.0),
-        4.0,
+        mysticQuickens(hasNode: holding({MysticNodes.quickening})),
+        isTrue,
       );
-    });
-
-    test('the opener speeds it up and the capstone more so', () {
-      final quick = mysticWorldInterval(
-        hasNode: holding({MysticNodes.quickening}),
-        authoredInterval: 4.0,
-      );
-      final relentless = mysticWorldInterval(
-        hasNode: holding({MysticNodes.quickening, MysticNodes.relentlessSky}),
-        authoredInterval: 4.0,
-      );
-      expect(quick, closeTo(4.0 / MysticTuning.quickeningRate, 0.001));
-      expect(relentless, lessThan(quick));
-      // The capstone is stated against where the world started, so it
-      // replaces the opener's rate rather than compounding with it.
-      expect(relentless, closeTo(4.0 / MysticTuning.relentlessRate, 0.001));
-    });
-
-    test('no stacking can drive a world to act every frame', () {
-      // A world acting every frame is not a faster world, it is a frame-time
-      // bug with a nice name.
-      for (final authored in [0.5, 0.4, 0.2, 0.05]) {
-        final driven = mysticWorldInterval(
-          hasNode: holding({
-            MysticNodes.quickening,
-            MysticNodes.relentlessSky,
-          }),
-          authoredInterval: authored,
-        );
-        expect(driven, greaterThanOrEqualTo(
-          authored < MysticTuning.minimumInterval
-              ? authored
-              : MysticTuning.minimumInterval,
-        ));
-        expect(driven, lessThanOrEqualTo(authored));
-      }
-    });
-
-    test('a world with no clock is left alone', () {
+      expect(mysticIceActs(hasNode: holding({})), isFalse);
+      expect(mysticIceActs(hasNode: holding({MysticNodes.nativeAir})), isFalse);
       expect(
-        mysticWorldInterval(
-          hasNode: holding({MysticNodes.relentlessSky}),
-          authoredInterval: 0,
-        ),
-        0,
+        mysticIceActs(hasNode: holding({MysticNodes.quickening})),
+        isTrue,
       );
     });
 
-    test('the other two nodes turn on exactly their own part', () {
+    test('an act readies one repeat, and the next death calls for it', () {
+      final state = MysticMasteryState();
+      final landed = <double>[];
+      // A death before the world has acted calls for nothing.
+      state.noteDeath();
+      expect(state.takeQuickening(), isNull);
+
+      state.noteAct(landed.add);
+      expect(state.takeQuickening(), isNull, reason: 'nobody has died yet');
+      state.noteDeath();
+      state.noteDeath();
+      state.takeQuickening()?.call(MysticTuning.quickenStrength);
+      expect(landed, [MysticTuning.quickenStrength]);
+      expect(state.quickenings, 1);
+
+      // However many more die, nothing more until it acts again.
+      state.noteDeath();
+      expect(state.takeQuickening(), isNull);
+      state.noteAct(landed.add);
+      state.noteDeath();
+      expect(state.takeQuickening(), isNotNull);
+      expect(state.quickenings, 2);
+    });
+
+    test('the repeat is the latest act', () {
+      final state = MysticMasteryState();
+      final which = <String>[];
+      state.noteAct((_) => which.add('first'));
+      state.noteAct((_) => which.add('second'));
+      state.noteDeath();
+      state.takeQuickening()?.call(1);
+      expect(which, ['second']);
+    });
+
+    test('Aftershock and Relentless Sky each repeat an act once', () {
+      expect(mysticWorldReplays(hasNode: holding({})), isEmpty);
+      final after = mysticWorldReplays(
+        hasNode: holding({MysticNodes.aftershock}),
+      );
+      expect(after, hasLength(1));
+      expect(after.single.delay, MysticTuning.aftershockDelay);
+      expect(after.single.strength, MysticTuning.aftershockStrength);
+      final both = mysticWorldReplays(
+        hasNode: holding({MysticNodes.aftershock, MysticNodes.relentlessSky}),
+      );
+      expect(both, hasLength(2));
+      // Relentless Sky's comes first and whole.
+      expect(both.first.strength, 1.0);
+      expect(both.first.delay, lessThan(both.last.delay));
+    });
+
+    test('First Light turns on exactly its own part', () {
       expect(mysticActsOnIgnition(hasNode: holding({})), isFalse);
       expect(
         mysticActsOnIgnition(hasNode: holding({MysticNodes.firstLight})),
         isTrue,
-      );
-      expect(mysticWorldPower(hasNode: holding({})), 1.0);
-      expect(
-        mysticWorldPower(hasNode: holding({MysticNodes.weightOfHeaven})),
-        closeTo(MysticTuning.weightOfHeaven, 0.001),
       );
     });
   });
@@ -140,7 +144,7 @@ void main() {
       const referenced = [
         MysticNodes.quickening,
         MysticNodes.firstLight,
-        MysticNodes.weightOfHeaven,
+        MysticNodes.aftershock,
         MysticNodes.relentlessSky,
         MysticNodes.nativeAir,
         MysticNodes.homeGround,

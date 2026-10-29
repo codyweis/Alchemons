@@ -9,7 +9,7 @@ import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// Horn's three paths, driven through the real game rather than the resolvers.
+/// Horn's two paths, driven through the real game rather than the resolvers.
 ///
 /// Horn is the family whose cast pattern changes with its element — a charge,
 /// a wind-up, an always-on passive, or a stationary channel — so the tests
@@ -209,90 +209,6 @@ void main() {
       final before = game.orb.currentHp;
       game.debugDamageOrb(400);
       expect(before - game.orb.currentHp, closeTo(400, 1));
-    });
-  });
-
-  group('Juggernaut runs the cast twice', () {
-    test('a charging Horn owes a second run, then takes it', () async {
-      final (game, target) = await arena(
-        snapshot: equip(HornNodes.juggernautPath, throughTier: 1),
-      );
-      final comp = game.activeCompanions[0]!;
-      comp.position = target.position - const Offset(120, 0);
-      comp.specialCooldown = 0;
-
-      // Horn's ordinary special cooldown is only about four seconds, so
-      // counting casts would prove nothing — the path has to be caught in
-      // the act. secondRunActive is consumed by the cast it belongs to, so
-      // it is sampled every frame.
-      var owed = false;
-      var ran = false;
-      for (var i = 0; i < 60 * 20; i++) {
-        // Held in position before each frame: left alone the companion
-        // steers back to its anchor, and the arena's single dummy falls out
-        // of the ~197 unit special range, so nothing ever casts.
-        comp.position = target.position - const Offset(120, 0);
-        comp.anchor = comp.position;
-        game.update(1 / 60);
-        final state = game.hornMasteryFor(0);
-        if (state == null) continue;
-        if (state.secondRunOwed) owed = true;
-        if (state.secondRunActive) ran = true;
-      }
-      expect(owed, isTrue, reason: 'a cast never owed a second run');
-      expect(ran, isTrue, reason: 'the second run never came due');
-    });
-
-    test('a Horn without the path owes nothing', () async {
-      final (game, target) = await arena();
-      final comp = game.activeCompanions[0]!;
-      comp.position = target.position - const Offset(120, 0);
-      comp.specialCooldown = 0;
-      for (var i = 0; i < 60 * 12; i++) {
-        comp.position = target.position - const Offset(120, 0);
-        comp.anchor = comp.position;
-        game.update(1 / 60);
-        expect(game.hornMasteryFor(0)?.secondRunOwed ?? false, isFalse);
-      }
-    });
-
-    test('a passive Horn pulses, because it can never cast', () async {
-      // Air is one of the two Horns that never casts at all. The draft tree
-      // had a whole path keyed to "your next charge" and paid it nothing.
-      final (game, target) = await arena(
-        element: 'Air',
-        snapshot: equip(HornNodes.juggernautPath, throughTier: 1),
-      );
-      expect(isPassiveOnlyCosmicAbility('horn', 'Air'), isTrue);
-
-      final comp = game.activeCompanions[0]!;
-      comp.position = target.position - const Offset(40, 0);
-      final before = target.hp;
-      for (var i = 0; i < 60 * 20; i++) {
-        game.update(1 / 60);
-      }
-      expect(
-        before - target.hp,
-        greaterThan(0),
-        reason: 'a passive Horn must still be paid by this path',
-      );
-    });
-
-    test('the second run cannot arm a third', () async {
-      final (game, target) = await arena(
-        snapshot: equip(HornNodes.juggernautPath, throughTier: 4),
-      );
-      final comp = game.activeCompanions[0]!;
-      comp.position = target.position - const Offset(120, 0);
-      comp.specialCooldown = 0;
-
-      for (var i = 0; i < 60 * 30; i++) {
-        game.update(1 / 60);
-      }
-      final state = game.hornMasteryFor(0)!;
-      // Whatever happened, the bookkeeping must be consistent: a run that is
-      // active is never also owed.
-      expect(state.secondRunActive && state.secondRunOwed, isFalse);
     });
   });
 }

@@ -1,4 +1,4 @@
-/// Kin's three mastery paths: the numbers, the per-companion state, and the
+/// Kin's two mastery paths: the numbers, the per-companion state, and the
 /// rules that do not need the game to evaluate.
 ///
 /// Kin is Rare Support, and its chassis is unlike anything else in the game:
@@ -8,20 +8,22 @@
 /// family's basic is a line through space rather than a thing aimed at a
 /// target.
 ///
-/// Two paths take that line apart and one feeds the seventeen bespoke
-/// supports the family actually exists for:
+/// One path takes that line and one feeds the seventeen bespoke supports the
+/// family actually exists for:
 ///
-/// * **Longline** is reach — how far down the field the line runs.
 /// * **Conduction** is what the line carries. It already hits every enemy it
 ///   crosses; this makes it help every ally it crosses too, which is where
 ///   the support identity lives.
-/// * **Benediction** is the special itself: longer, stronger, harder to
-///   interrupt, and finally reaching the whole team.
+/// * **Benediction** is the special itself: it reaches the ally beside the
+///   Kin (Kindred), comes back sooner while someone is in trouble (Vigil),
+///   outlasts the Kin (Unbroken), and finally reaches the whole team.
 ///
-/// Longline is not Wing's Longshot. Wing's path reads the *gap between the
-/// Wing and its target* and pays more for keeping it; Kin's reads the *length
-/// of the line itself*, which is how many bodies one shot crosses. Different
-/// quantity, different decision.
+/// Longline, the line's reach, was cut on 2026-10-29: its nodes were a
+/// longer line and a bigger number at its end, and it turned the support
+/// family into a damage dealer (7% of its party's damage to 19% after the
+/// 2026-10-21 trims). Devotion and Deep Reserves, Benediction's first two
+/// nodes, were +40% duration and +25% strength; Kindred and Vigil replaced
+/// them the same day.
 ///
 /// What is deliberately absent. The draft tree's first path turned the Rare
 /// Support family into a damage dealer, which is the one thing the design
@@ -42,22 +44,16 @@ import 'dart:math';
 class KinNodes {
   const KinNodes._();
 
-  static const longlinePath = 'kin.longline';
   static const conductionPath = 'kin.conduction';
   static const benedictionPath = 'kin.benediction';
-
-  static const extendedCoil = 'kin.longline.extended_coil';
-  static const fullSpan = 'kin.longline.full_span';
-  static const deepLine = 'kin.longline.deep_line';
-  static const crossfire = 'kin.longline.crossfire';
 
   static const liveCurrent = 'kin.conduction.live_current';
   static const lifeline = 'kin.conduction.lifeline';
   static const grounding = 'kin.conduction.grounding';
   static const transfusion = 'kin.conduction.transfusion';
 
-  static const devotion = 'kin.benediction.devotion';
-  static const deepReserves = 'kin.benediction.deep_reserves';
+  static const kindred = 'kin.benediction.kindred';
+  static const vigil = 'kin.benediction.vigil';
   static const unbroken = 'kin.benediction.unbroken';
   static const communion = 'kin.benediction.communion';
 }
@@ -65,35 +61,6 @@ class KinNodes {
 /// Initial balance targets. Prototypes, expected to move once simulated.
 class KinTuning {
   const KinTuning._();
-
-  // ── Longline ──
-  /// Extended Coil: how much longer the line runs, and the new ceiling on a
-  /// length the chassis otherwise clamps to 720.
-  ///
-  /// 1,100 until the 2026-10-21 mastery sweep. Kin is the support family
-  /// and the path is its reach, but the whole path took a Kin from 7% of
-  /// its party's damage to 32% at Potential 50 (5% to 21% at 80): Full Span
-  /// alone, a line of at least 1,012 every shot into the thick of the horde
-  /// at the rim, was 8% to 22%, and Crossfire's full-strength second line
-  /// most of the rest. With this ceiling and the back line
-  /// ([crossfireStrength]) cut it was still 27%, because the gain was never
-  /// the longest line, it was every short one run out to it
-  /// ([fullSpanMinimum]).
-  static const double extendedCoilScale = 1.35;
-  static const double extendedCoilCap = 900.0;
-
-  /// Full Span: the line stops being cut to "just past the target", and
-  /// runs at least this share of its longest reach (0.92 until 2026-10-21,
-  /// [extendedCoilCap]).
-  static const double fullSpanMinimum = 0.6;
-
-  /// Deep Line: a body at the far end takes this much more than one at the
-  /// muzzle, scaled by how far along the line it stands.
-  static const double deepLineBonus = 0.40;
-
-  /// Crossfire: the backward line, as a share of the forward one. Full
-  /// strength until the 2026-10-21 mastery sweep ([extendedCoilCap]).
-  static const double crossfireStrength = 0.5;
 
   // ── Conduction ──
   /// Live Current: an ally on the line is shielded for this share of what the
@@ -121,11 +88,10 @@ class KinTuning {
   static const double transfusionRadius = 120.0;
 
   // ── Benediction ──
-  /// Devotion: how much longer a support runs.
-  static const double devotionDuration = 1.40;
-
-  /// Deep Reserves: how much more it heals, shields and buffs.
-  static const double deepReservesPower = 1.25;
+  /// Vigil: below this much health an ally is in trouble, and while any is,
+  /// the Kin's special recharges this many times as fast.
+  static const double vigilThreshold = 0.5;
+  static const double vigilRate = 2.0;
 
   /// Communion: an ally this far away is still reached. Large enough to mean
   /// "anywhere", without being infinite in a way that breaks a distance sort.
@@ -133,66 +99,31 @@ class KinTuning {
 
   /// ...and what reaches it, as a share of the Kin's own blessing. Full until
   /// the 2026-10-21 mastery sweep: a Kin's blessing is a fortieth of its own
-  /// large health a second, near-constant under Devotion, and copied whole
-  /// to every ally it kept the whole party alive. Parties with a Communion
-  /// Kin held 91% of Potential 50 waves against 51% without the path; with
-  /// the shared copies no longer echoing into the orb, still 85%, and 76%
-  /// with them at half (at a third, 76% as well — about where the other
-  /// strongest paths now leave their parties).
+  /// large health a second, near-constant under the old Devotion, and copied
+  /// whole to every ally it kept the whole party alive. Parties with a
+  /// Communion Kin held 91% of Potential 50 waves against 51% without the
+  /// path; with the shared copies no longer echoing into the orb, still 85%,
+  /// and 76% with them at half. Kindred's ally keeps the whole of it.
   static const double communionShare = 0.5;
 }
 
 /// One Kin companion's mastery state for the length of a run.
 class KinMasteryState {
-  /// Supports that must keep running although the Kin is down, for Unbroken.
-  /// Keyed by the effect's own timer name, holding what is left of it.
-  final Map<String, double> orphanedSupports = {};
-
   /// Total shielding this Kin has handed out, for telemetry and for the HUD.
   double shieldGranted = 0;
+
+  /// What Kindred has handed the ally beside the Kin: heal, blessing and
+  /// shield, for telemetry and the tests.
+  double kindredGiven = 0;
+
+  /// Seconds of special cooldown Vigil has taken off, for the tests.
+  double vigilSeconds = 0;
 
   @override
   String toString() =>
       'KinMasteryState(shielded: ${shieldGranted.round()}, '
-      'orphaned: ${orphanedSupports.length})';
-}
-
-/// How long the laser's line should run, given the distance to the target.
-///
-/// The chassis fires `distance + 60`, clamped between 120 and 720. Longline
-/// raises the ceiling and, at Full Span, stops the line being cut down to
-/// "just past whatever you were aiming at".
-double kinLaserLength({
-  required bool Function(String nodeId) hasNode,
-  required double distanceToTarget,
-  double baseMinimum = 120.0,
-  double baseMaximum = 720.0,
-}) {
-  final natural = distanceToTarget + 60.0;
-  if (!hasNode(KinNodes.extendedCoil)) {
-    return natural.clamp(baseMinimum, baseMaximum).toDouble();
-  }
-  final ceiling = KinTuning.extendedCoilCap;
-  final extended = natural * KinTuning.extendedCoilScale;
-  if (!hasNode(KinNodes.fullSpan)) {
-    return extended.clamp(baseMinimum, ceiling).toDouble();
-  }
-  // Full Span: never much shorter than the reach the path paid for.
-  return extended
-      .clamp(ceiling * KinTuning.fullSpanMinimum, ceiling)
-      .toDouble();
-}
-
-/// Deep Line's multiplier for a body standing [along] of the way down a line
-/// of [length].
-double kinDeepLineMultiplier({
-  required bool Function(String nodeId) hasNode,
-  required double along,
-  required double length,
-}) {
-  if (!hasNode(KinNodes.deepLine) || length <= 0) return 1.0;
-  final t = (along / length).clamp(0.0, 1.0);
-  return 1.0 + KinTuning.deepLineBonus * t;
+      'kindred: ${kindredGiven.round()}, '
+      'vigil: ${vigilSeconds.toStringAsFixed(1)}s)';
 }
 
 /// What Conduction gives one ally the line crossed.
@@ -242,13 +173,26 @@ double kinConductionShieldCeiling({
 }
 
 /// What Benediction does to the support ability itself.
-({double duration, double power, bool survivesDeath, double allyRange})
+///
+/// [kindred]: the ally nearest the Kin gets what the Kin gets, whole.
+/// [vigil]: the special recharges faster while an ally is hurt
+/// ([kinVigilRate]). [survivesDeath]: Unbroken. [allyRange]: Communion.
+({bool kindred, bool vigil, bool survivesDeath, double allyRange})
 kinBenediction({required bool Function(String nodeId) hasNode}) => (
-  duration: hasNode(KinNodes.devotion) ? KinTuning.devotionDuration : 1.0,
-  power: hasNode(KinNodes.deepReserves) ? KinTuning.deepReservesPower : 1.0,
+  kindred: hasNode(KinNodes.kindred),
+  vigil: hasNode(KinNodes.vigil),
   survivesDeath: hasNode(KinNodes.unbroken),
   allyRange: hasNode(KinNodes.communion) ? KinTuning.communionRange : 0.0,
 );
+
+/// Vigil: how fast the Kin's special recharges, given the lowest health
+/// fraction among its allies (not itself).
+double kinVigilRate({
+  required bool Function(String nodeId) hasNode,
+  required double lowestAllyHealth,
+}) => hasNode(KinNodes.vigil) && lowestAllyHealth < KinTuning.vigilThreshold
+    ? KinTuning.vigilRate
+    : 1.0;
 
 /// The share of a hit's damage that mastery is responsible for.
 double kinUpliftFraction(double multiplier) =>

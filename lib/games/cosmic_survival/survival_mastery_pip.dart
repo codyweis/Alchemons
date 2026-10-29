@@ -1,13 +1,18 @@
-/// Pip's three mastery paths: the numbers, the per-companion state, and the
+/// Pip's two mastery paths: the numbers, the per-companion state, and the
 /// rules that do not need the game to evaluate.
 ///
 /// Pip's chassis is three fast spread darts at 30% physical each — the rapid,
-/// precision-volume family. The three paths are three answers to the same
+/// precision-volume family. The two paths are two answers to the same
 /// question, which is where those darts go:
 ///
-/// * **Needlepoint** puts all three in one body, banking Pins and cashing them.
 /// * **Scattershot** puts each one in a different body, and adds more of them.
-/// * **Salvo** leaves the volley alone and loads extra darts into the special.
+/// * **Salvo** leaves the volley alone and loads extra darts into the special,
+///   then changes how they are thrown: a beat later as a second volley, and
+///   fanned wide across the crowd.
+///
+/// A third path, Needlepoint (all three darts into one body, banking Pins),
+/// was cut on 2026-10-29: its nodes were percentages on hits that already
+/// killed, and it moved a horde wave by a point.
 ///
 /// Every node here is careful not to take a mechanic an element already owns.
 /// Pip's seventeen specials between them claim push (Air), slow fields (Dust,
@@ -17,22 +22,16 @@
 /// gain (Plant), kill-splash (Water) and black holes (Dark). A path built on
 /// any of those would erase the one element it belonged to — which is why the
 /// ricochet path and the attack-speed path this family was first designed with
-/// were dropped. Marks, dart counts and target spread were what remained
-/// unclaimed.
+/// were dropped. Dart counts, target spread and when the darts fly were what
+/// remained unclaimed.
 library;
 
 /// Node ids, so the game never spells one out as a string literal.
 class PipNodes {
   const PipNodes._();
 
-  static const needlepointPath = 'pip.assault';
   static const scattershotPath = 'pip.control';
   static const salvoPath = 'pip.salvo';
-
-  static const tightGrouping = 'pip.assault.tight_grouping';
-  static const pinCushion = 'pip.assault.pin_cushion';
-  static const pluckThePins = 'pip.assault.pluck_the_pins';
-  static const thousandCuts = 'pip.assault.thousand_cuts';
 
   static const wideSpray = 'pip.control.wide_spray';
   static const threeFronts = 'pip.control.three_fronts';
@@ -40,17 +39,14 @@ class PipNodes {
   static const scatterStorm = 'pip.control.scatter_storm';
 
   static const spareNeedle = 'pip.salvo.spare_needle';
-  static const doubleLoad = 'pip.salvo.double_load';
-  static const fullQuiver = 'pip.salvo.full_quiver';
+  static const secondVolley = 'pip.salvo.second_volley';
+  static const wideLoad = 'pip.salvo.wide_load';
   static const perfectSalvo = 'pip.salvo.perfect_salvo';
 }
 
 /// Cast tags, set when a volley launches and read when it lands.
 class PipCastTags {
   const PipCastTags._();
-
-  /// This volley is the bonus one Thousand Cuts threw; it may not bank Pins.
-  static const bonusVolley = 'pip.bonusVolley';
 
   /// This is a Scatter Storm, not a scheduled attack.
   static const scatterStorm = 'pip.scatterStorm';
@@ -60,38 +56,10 @@ class PipCastTags {
 class PipTuning {
   const PipTuning._();
 
-  /// The chassis: three darts at 30% physical, 0.12 radians apart.
-  static const double baseDartFraction = 0.30;
+  /// The chassis: three darts, 0.12 radians apart (at 30% physical each,
+  /// which the basic-attack factory sets and no node changes).
   static const double baseSpread = 0.12;
   static const int baseDartCount = 3;
-
-  // ── Needlepoint ──
-  /// Tight Grouping: 45% closer together, 32% physical each.
-  static const double tightSpreadScale = 0.55;
-  static const double tightDartFraction = 0.32;
-
-  /// Pin Cushion: a full volley on one body banks a Pin.
-  ///
-  /// 3% a Pin, and Pluck 55%, until the 2026-10-21 mastery sweep: the whole
-  /// path was worth a point of a Pip's party share on a boss wave and
-  /// nothing in a horde.
-  static const int maxPins = 5;
-  static const double pinDamagePerStack = 0.05;
-
-  /// How long a body keeps its Pins without being hit again.
-  static const double pinLifetime = 6.0;
-
-  /// Pluck the Pins: a full-Pin body loses them for a burst.
-  static const double pluckFraction = 0.80;
-
-  /// A boss keeps this many, so the pattern can restart against one.
-  static const int pluckBossResidue = 2;
-
-  /// Thousand Cuts: every fourth full volley throws a bonus one.
-  static const int thousandCutsCadence = 4;
-  static const int thousandCutsDarts = 5;
-  static const double thousandCutsFraction = 0.16;
-  static const double thousandCutsDelay = 0.2;
 
   // ── Scattershot ──
   /// Wide Spray: 40% further apart, and each dart seeks its own body.
@@ -110,7 +78,7 @@ class PipTuning {
   static const double scatterStormFraction = 0.22;
 
   // ── Salvo ──
-  /// Each of the first three nodes loads one more dart into the special.
+  /// Each node loads one more dart into the special: one, two, three, four.
   static const int salvoDartsPerNode = 1;
 
   /// Those extra darts are lighter than the ones the ability authored...
@@ -124,6 +92,41 @@ class PipTuning {
   /// Potential 80 and 100 (30-31% without it).
   static const double salvoPerfectFraction = 0.75;
 
+  /// The extras fan out from the authored volley this far apart, so more
+  /// darts reads as a wider salvo rather than a stack.
+  static const double salvoSpread = baseSpread * 1.15;
+
+  /// Second Volley: the extras are held back and thrown this long after the
+  /// special, at what it was thrown at (or the nearest body, if that died).
+  static const double secondVolleyDelay = 0.25;
+
+  /// How far from the Pip a second volley looks for a new body when the one
+  /// the special was thrown at has died.
+  static const double secondVolleyReach = 420;
+
+  /// Volleys one Pip may have waiting at once. A special comes back in
+  /// seconds and a volley waits a quarter of one, so one is the norm.
+  static const int secondVolleyQueueCap = 4;
+
+  /// Wide Load: the extras leave the volley's flanks instead of its edge,
+  /// alternating sides — the first pair this far either side of the aim,
+  /// each pair after that [wideLoadStep] further out. Four extras cover
+  /// about 82 degrees, against 15 to 25 for most elements' authored volley.
+  static const double wideLoadStart = 0.42;
+  static const double wideLoadStep = 0.30;
+
+  /// Wide Load: a fanned dart flies straight this long before it starts
+  /// seeking, so the fan opens before each dart turns to the body nearest
+  /// it, rather than every one curling straight back to the special's
+  /// target.
+  static const double wideLoadHold = 0.2;
+
+  /// Wide Load for a Dark Pip, whose hole already spits its darts all the
+  /// way round and has no arc to widen: the hole spits each dart at a
+  /// different body within this reach of it, nearest first, instead of
+  /// every dart chasing whichever body is nearest.
+  static const double darkFanReach = 320;
+
   /// Pip Dark throws no special: its ability is the black hole an auto kill
   /// opens. Salvo loads that hole instead, which spits its extra darts at the
   /// bodies round it, at most once per special interval so it pays what
@@ -136,15 +139,6 @@ class PipTuning {
 
 /// One Pip companion's mastery state for the length of a run.
 class PipMasteryState {
-  // ── Needlepoint ──
-  /// Pins per body, keyed by [identityHashCode], with the time each was last
-  /// topped up so a body the Pip has left alone loses them.
-  final Map<int, int> pins = {};
-  final Map<int, double> pinTouched = {};
-
-  /// Full volleys since the last bonus one.
-  int volleysSinceBonus = 0;
-
   // ── Scattershot ──
   /// Scheduled attacks since the last storm.
   int castsSinceStorm = 0;
@@ -185,50 +179,6 @@ class PipMasteryState {
     _front1 = null;
   }
 
-  /// Handoff between the two halves of launching a volley: the shape pass
-  /// decides what this cast is before the cast exists to be tagged.
-  bool pendingBonusVolley = false;
-  double pendingMasteryDamageFraction = 0;
-
-  int pinsOn(int targetId) => pins[targetId] ?? 0;
-
-  /// Banks a Pin on [targetId], up to the cap. Returns the new total.
-  int addPin(int targetId, double now) {
-    final next = (pinsOn(targetId) + 1).clamp(0, PipTuning.maxPins);
-    pins[targetId] = next;
-    pinTouched[targetId] = now;
-    return next;
-  }
-
-  /// Spends a body's Pins. A boss keeps a residue so the loop can restart
-  /// against something that will not die to one detonation.
-  int spendPins(int targetId, {required bool isBoss}) {
-    final held = pinsOn(targetId);
-    if (held <= 0) return 0;
-    final keep = isBoss ? PipTuning.pluckBossResidue : 0;
-    pins[targetId] = keep;
-    return held - keep;
-  }
-
-  /// Drops Pins on bodies the Pip has stopped shooting, and keeps the map
-  /// from growing for the length of a run.
-  void expirePins(double now) {
-    if (pinTouched.isEmpty) return;
-    pinTouched.removeWhere((id, at) {
-      if (now - at < PipTuning.pinLifetime) return false;
-      pins.remove(id);
-      return true;
-    });
-  }
-
-  /// Counts a landed volley and reports whether it earns a bonus one.
-  bool takeBonusVolleyTurn() {
-    volleysSinceBonus++;
-    if (volleysSinceBonus < PipTuning.thousandCutsCadence) return false;
-    volleysSinceBonus = 0;
-    return true;
-  }
-
   /// Counts a scheduled attack and reports whether it earns a storm.
   bool takeStormTurn() {
     castsSinceStorm++;
@@ -238,24 +188,18 @@ class PipMasteryState {
   }
 
   @override
-  String toString() =>
-      'PipMasteryState(pinned: ${pins.length}, volleys: $volleysSinceBonus, '
-      'casts: $castsSinceStorm)';
+  String toString() => 'PipMasteryState(casts: $castsSinceStorm)';
 }
 
 /// How the equipped path reshapes one volley.
 class PipVolleyShape {
   const PipVolleyShape({
     required this.dartCount,
-    required this.dartFraction,
     required this.spread,
     required this.homingStrength,
   });
 
   final int dartCount;
-
-  /// Physical-attack fraction per dart.
-  final double dartFraction;
 
   /// Radians between neighbouring darts.
   final double spread;
@@ -267,7 +211,6 @@ class PipVolleyShape {
 
   static const base = PipVolleyShape(
     dartCount: PipTuning.baseDartCount,
-    dartFraction: PipTuning.baseDartFraction,
     spread: PipTuning.baseSpread,
     homingStrength: 0,
   );
@@ -278,15 +221,10 @@ PipVolleyShape resolvePipVolleyShape({
   required bool Function(String nodeId) hasNode,
 }) {
   var count = PipTuning.baseDartCount;
-  var fraction = PipTuning.baseDartFraction;
   var spread = PipTuning.baseSpread;
   var homing = 0.0;
 
-  // The two tier-one nodes are on different paths and cannot both be held.
-  if (hasNode(PipNodes.tightGrouping)) {
-    fraction = PipTuning.tightDartFraction;
-    spread *= PipTuning.tightSpreadScale;
-  } else if (hasNode(PipNodes.wideSpray)) {
+  if (hasNode(PipNodes.wideSpray)) {
     spread *= PipTuning.wideSpreadScale;
     homing = PipTuning.wideHoming;
   }
@@ -297,33 +235,51 @@ PipVolleyShape resolvePipVolleyShape({
 
   return PipVolleyShape(
     dartCount: count,
-    dartFraction: fraction,
     spread: spread,
     homingStrength: homing,
   );
 }
 
-/// How many extra darts Salvo loads into the special, and what each is worth
-/// relative to a dart the ability authored itself.
-({int extraDarts, double fraction}) resolvePipSalvo({
-  required bool Function(String nodeId) hasNode,
-}) {
+/// What Salvo does to the special: how many extra darts it loads, what each
+/// is worth relative to a dart the ability authored itself, and how they are
+/// thrown — held back as a second volley, and fanned wide.
+({int extraDarts, double fraction, bool secondVolley, bool wide})
+resolvePipSalvo({required bool Function(String nodeId) hasNode}) {
   var extra = 0;
-  if (hasNode(PipNodes.spareNeedle)) extra += PipTuning.salvoDartsPerNode;
-  if (hasNode(PipNodes.doubleLoad)) extra += PipTuning.salvoDartsPerNode;
-  if (hasNode(PipNodes.fullQuiver)) extra += PipTuning.salvoDartsPerNode;
+  final second = hasNode(PipNodes.secondVolley);
+  final wide = hasNode(PipNodes.wideLoad);
   final perfect = hasNode(PipNodes.perfectSalvo);
+  if (hasNode(PipNodes.spareNeedle)) extra += PipTuning.salvoDartsPerNode;
+  if (second) extra += PipTuning.salvoDartsPerNode;
+  if (wide) extra += PipTuning.salvoDartsPerNode;
   if (perfect) extra += PipTuning.salvoDartsPerNode;
   return (
     extraDarts: extra,
     fraction: perfect
         ? PipTuning.salvoPerfectFraction
         : PipTuning.salvoExtraFraction,
+    secondVolley: second,
+    wide: wide,
   );
 }
 
-/// The share of a volley's damage that mastery is responsible for, given the
-/// multiplier its nodes applied. A path that trades damage away is owed
-/// nothing here; its payoff is counted elsewhere.
-double pipUpliftFraction(double multiplier) =>
-    multiplier <= 1.0 ? 0.0 : (multiplier - 1.0) / multiplier;
+/// Where the [index]th of [extras] Salvo darts leaves, in radians from the
+/// special's aim, on a special that authored [authored] darts of its own.
+///
+/// Without Wide Load the extras continue the authored fan past its edge at
+/// [PipTuning.salvoSpread]. With it they alternate flanks, starting
+/// [PipTuning.wideLoadStart] out and stepping [PipTuning.wideLoadStep].
+double pipSalvoOffset({
+  required int index,
+  required int extras,
+  required int authored,
+  required bool wide,
+}) {
+  if (wide) {
+    final side = index.isEven ? 1.0 : -1.0;
+    final step = index ~/ 2;
+    return side * (PipTuning.wideLoadStart + step * PipTuning.wideLoadStep);
+  }
+  final centre = (authored + extras - 1) / 2.0;
+  return (authored + index - centre) * PipTuning.salvoSpread;
+}

@@ -206,3 +206,39 @@ Tests: `test/survival_mastery_sweep_test.dart` (15, each shown failing on the co
 - Strong but under the line: Contagion now (35%, 30%, 29%), and, left as they were, Tracer (38%, 36%, 35%), Deathmask (33%, 27%, 26%; a party with one held 72% of P50 waves against 47%), Bombardment, Bulwark and Quickening. Benediction still lifts a party from 51% to 76% at P50, about where those leave theirs.
 - The single-target paths (Twin Fang, Needlepoint, Falling Star, Burn Through, Longshot) still move a horde wave by a point or two; on a boss wave they now carry 12-27% of their family's damage. That is what they are for, but a player buying them for horde waves gets little.
 - Not measured here: boss waves past P50, and every family's path bought at once.
+
+## Two paths a family: Pip, Mask, Horn (2026-10-29)
+
+User brief: two paths a family instead of three, every node changes how the attack behaves (no plain "+X%"), quality over quantity.
+
+- **Cut:** Pip Needlepoint (`pip.assault`), Mask Rearm (`mask.rearm`), Horn Juggernaut (`horn.juggernaut`), with their state, tuning, combat branches and tests. Needlepoint had measured +1/−1 above.
+- **Pip Salvo:** the dart counts are as they were (1, 2, 3, 4 extra; 60%, 75% at the capstone). Double Load and Full Quiver, which were the same node twice, are now **Second Volley** (the extras are thrown 0.25 s after the special, at its target or the nearest body if that died) and **Wide Load** (the extras leave both flanks, 24° to 41° off the aim, and fly straight 0.2 s before seeking). A Dark Pip's hole holds its darts for the beat, and with Wide Load spits each at a different body round it.
+- **Mask Deathmask:** Open Grave (40% wider, 50% longer) is now **Restless Graves**: graves creep toward the nearest body at 18 a second and stop when they touch it.
+
+Measured as above (`FAMILY_MASTERY=<path> FAMILY_MASTERY_ONLY=1`, 105 parties), no mastery → the path. Other families' paths were mid-rework in other sessions; these runs had none of them.
+
+| Path | P50 w36 share | P50 w36 held | P80 w41 share | P80 w41 held | P100 E10 w91 share |
+|---|---|---|---|---|---|
+| Pip Salvo | 12% → **18%** | 44% → **52%** | 30% → **40%** | 87% → **96%** | 30% → **40%** (held 89% → 95%) |
+| Mask Deathmask | 24% → **32%** | 49% → **67%** | 20% → **27%** (twice) | 85% → **88%** |  |
+
+By node (`FAMILY_MASTERY_TIER`): Salvo at P80 is 31%, 33%, 36%, 40% through tiers 1-4, the capstone still the largest step. Deathmask's lift is Grave Goods': tier 1 alone is 31% / 59% held at P50 and 24% / 92% at P80, tier 2 30% / 65% and 25% / 91%. On the P50 boss wave (35) the Mask stays at 17% at every tier; a boss wave makes few kills to leave graves.
+
+What it leaves:
+
+- **Salvo is on the 40% line** at P80 and P100 E10, where it was after the sweep (38%, 40%). Not trimmed: the new behaviours add about the step the identical nodes they replaced did. The lever is still the capstone (75%) or the count.
+- **Restless Graves measures as nothing in these bands** (±1 point of share, held within noise). In a horde a grave is laid where the crowd already is, and the waves walk two to five times faster than it creeps, so it mostly closes on what has stopped. It does what it says (driven in `test/survival_mastery_mask_combat_test.dart`, and live in ordinary combat), but a faster creep is outside the brief's 15-20 a second.
+- The probe's mastery column reads 0% for Deathmask: a grave is a copy of the special's own fixture and its damage is filed as the special's, as it was before this change.
+
+## What breaks a party at P50 wave 36 (2026-10-29, second pass)
+
+Brief: the four paths that measured no hold lift (War Rhythm, Longshot, Restless Graves) or reached only part of their family (Quickening, nine worlds of seventeen). Details and tables per path are in `docs/survival_species_mastery_design.md`, in each family's 2026-10-29 second-pass note.
+
+The trace that settles most of it: over 105 parties with no mastery, every hit on the orb filed by its caller. **Brutes' siege beams are 55-70% of what the orb takes**, contact 15-26%, enemy rounds 15-18%. Three in four beams come from a brute at 75% of its health or more, 300-560 out from the orb. A path lifts the hold rate here only if it hurts brutes, and nothing that adds to chaff near a companion does.
+
+Measured at 420 parties (the ±6 of 105 parties is about ±3 here; the hold rate of parties without the family moved one to two points between runs), no mastery → before → after, share / held at P50 wave 36:
+
+- **Quickening** reaches all seventeen worlds (Ice gains an act, a freeze on a beat): 19% / 51% → 36% / 66% → 30% / 62%.
+- **Longshot**: Overwatch also shoots whatever takes aim within twice the range: 27% / 59% → 35% / 64% → 36% / 66%; at 840 parties 28% / 57% → 36% / 67%.
+- **War Rhythm**: Crosscut crosses through to the next body, up to three: 33% / 60% → 38% / 61% → 39% / 62%. No lift.
+- **Restless Graves** (tier 2 against tier 1's 34% / 68%): 34% / 68% → 36% / 68%. No lift.

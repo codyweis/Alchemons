@@ -3,12 +3,10 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart' as space;
-import 'package:alchemons/games/cosmic/horn_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
-import 'package:alchemons/games/cosmic_survival/survival_mastery_horn.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_kin.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_mystic.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
@@ -334,44 +332,10 @@ void main() {
       );
     });
 
-    test('Pip Pin Cushion adds 3% a Pin to the darts that land on it', () async {
-      final game = await arena(
-        [member('Pip', 'Earth')],
-        snapshot: equip(
-          CreatureFamily.pip,
-          PipNodes.needlepointPath,
-          throughTier: 2,
-        ),
-      );
-      final pip = game.activeCompanions[0]!;
-      final at = pip.position;
-      final pinned = body(game, at + const Offset(120, 0));
-      final pinnedId = identityHashCode(pinned);
-      for (var f = 0; f < 60 * 12; f++) {
-        run(
-          game,
-          1,
-          keep: {pinned},
-          holdBasics: false,
-          pin: () => pip.position = at,
-        );
-        if ((game.pipMasteryFor(0)?.pinsOn(pinnedId) ?? 0) >= 2) break;
-      }
-      final pins = game.pipMasteryFor(0)?.pinsOn(pinnedId) ?? 0;
-      expect(pins, greaterThan(0), reason: 'no volley landed whole');
-      final fresh = body(game, at + const Offset(-400, 0));
-      final pinnedBefore = pinned.hp;
-      final freshBefore = fresh.hp;
-      game.debugAutoAttackDamage(pinned, 100, sourceSlotIndex: 0);
-      game.debugAutoAttackDamage(fresh, 100, sourceSlotIndex: 0);
-      expect(
-        (pinnedBefore - pinned.hp) / (freshBefore - fresh.hp),
-        closeTo(1 + PipTuning.pinDamagePerStack * pins, 1e-6),
-      );
-    });
-
     test('Pip Salvo loads a Dark Pip\'s black hole, once a special', () async {
-      Future<List<Projectile>> darts({int throughTier = 0}) async {
+      /// Every dart the holes spat, through Second Volley's beat, and how
+      /// many were already out the moment the holes opened.
+      Future<(List<Projectile>, int)> darts({int throughTier = 0}) async {
         final game = await arena(
           [member('Pip', 'Dark')],
           snapshot: throughTier == 0
@@ -396,19 +360,30 @@ void main() {
             .where((p) => p.element == 'Dark' && p.stationary)
             .length;
         expect(holes, 3, reason: 'each auto kill opens its hole');
-        return game.companionProjectiles
-            .where(
-              (p) =>
-                  p.abilityFamily == 'pip' &&
-                  p.element == 'Dark' &&
-                  p.visualStyle == ProjectileVisualStyle.dart,
-            )
-            .toList();
+        bool isDart(Projectile p) =>
+            p.abilityFamily == 'pip' &&
+            p.element == 'Dark' &&
+            p.visualStyle == ProjectileVisualStyle.dart;
+        final atKill = game.companionProjectiles.where(isDart).length;
+        // Nothing for them to strike: they are counted, not spent.
+        final seen = <Projectile>{...game.companionProjectiles.where(isDart)};
+        for (var f = 0; f < 30; f++) {
+          run(game, 1);
+          seen.addAll(game.companionProjectiles.where(isDart));
+        }
+        return (seen.toList(), atKill);
       }
 
-      expect(await darts(), isEmpty);
-      expect(await darts(throughTier: 2), hasLength(2));
-      final perfect = await darts(throughTier: 4);
+      expect((await darts()).$1, isEmpty);
+      // Spare Needle: spat as the hole opens.
+      final (spare, spareAtKill) = await darts(throughTier: 1);
+      expect(spare, hasLength(1));
+      expect(spareAtKill, 1);
+      // Second Volley: the hole opens, then spits, a beat later.
+      final (second, secondAtKill) = await darts(throughTier: 2);
+      expect(second, hasLength(2));
+      expect(secondAtKill, 0, reason: 'spat with the hole, not a beat after');
+      final (perfect, _) = await darts(throughTier: 4);
       expect(perfect, hasLength(4));
       for (final dart in perfect) {
         expect(dart.damage, greaterThan(0));
@@ -416,110 +391,59 @@ void main() {
       }
     });
 
-    test('Horn Juggernaut runs a Light Horn\'s barrier again, weaker', () async {
-      // Light has no ram, so no second run was ever owed and the whole path
-      // did nothing for it. The second barrier stands 0.45 s after the first
-      // falls, for 45% of the time, and its shield is 45% of the first.
+    test('Pip Wide Load spits a Dark hole\'s darts at different bodies',
+        () async {
+      // The hole spits all the way round already, so what Wide Load widens
+      // is how much of the crowd the darts reach: each is spat straight at
+      // its own body round the hole, nearest first, where they used to set
+      // off round the ring and turn for whichever body was nearest them.
+      // A Dark salvo dart that strikes a body that survives is spent, and
+      // remembers what it struck.
       final game = await arena(
-        [member('Horn', 'Light')],
+        [member('Pip', 'Dark')],
         snapshot: equip(
-          CreatureFamily.horn,
-          HornNodes.juggernautPath,
-          throughTier: 1,
+          CreatureFamily.pip,
+          PipNodes.salvoPath,
+          throughTier: 3,
         ),
       );
-      final horn = game.activeCompanions[0]!;
-      final at = horn.position;
-      final lure = body(game, at + const Offset(150, 0));
-      final born = <Projectile, int>{};
-      final lifeAtBirth = <Projectile, double>{};
-      final shieldAtBirth = <Projectile, int>{};
-      final died = <Projectile, int>{};
-      horn
-        ..specialCooldown = 0
-        ..shieldHp = 0;
-      castFreely(
-        game,
-        60 * 20,
-        lure: lure,
-        pin: () => horn.position = at,
-        each: (f) {
-          final live = game.companionProjectiles
-              .where(isHornLightBarrier)
-              .toSet();
-          for (final p in live) {
-            if (born.containsKey(p)) continue;
-            born[p] = f;
-            lifeAtBirth[p] = p.life;
-            shieldAtBirth[p] = horn.shieldHp;
-            horn.shieldHp = 0;
+      final pip = game.activeCompanions[0]!;
+      final hole = pip.position + const Offset(260, 0);
+      final crowd = <CosmicSurvivalEnemy>{
+        body(game, hole + const Offset(60, 0)),
+        for (final a in [pi / 2, pi, 3 * pi / 2])
+          body(game, hole + Offset(cos(a) * 170, sin(a) * 170)),
+      };
+      game.debugKillByDart(0, body(game, hole, hp: 1));
+      final spat = <Projectile, double>{};
+      for (var f = 0; f < 90; f++) {
+        run(game, 1, keep: crowd);
+        for (final p in game.companionProjectiles) {
+          if (p.abilityFamily == 'pip' &&
+              p.element == 'Dark' &&
+              p.visualStyle == ProjectileVisualStyle.dart) {
+            spat.putIfAbsent(p, () => p.angle);
           }
-          for (final p in born.keys) {
-            if (!live.contains(p)) died.putIfAbsent(p, () => f);
-          }
-        },
-      );
-      final order = born.keys.toList()
-        ..sort((a, b) => born[a]!.compareTo(born[b]!));
-      expect(order.length, greaterThanOrEqualTo(2));
-      final first = order[0];
-      final second = order[1];
-      expect(
-        born[second]! - died[first]!,
-        lessThan(60),
-        reason: 'the second barrier waited for the ordinary cooldown',
-      );
-      expect(
-        lifeAtBirth[second]! / lifeAtBirth[first]!,
-        closeTo(HornTuning.secondRunPower, 0.03),
-      );
-      expect(
-        shieldAtBirth[second]! / shieldAtBirth[first]!,
-        closeTo(HornTuning.secondRunPower, 0.02),
-      );
+        }
+      }
+      expect(spat, hasLength(3));
+      // Spat at three different bearings from the hole, one per body.
+      final bearings = spat.values.toList()..sort();
+      for (var i = 1; i < bearings.length; i++) {
+        expect(bearings[i] - bearings[i - 1], greaterThan(0.5));
+      }
+      // The hole itself bites whatever it pulls in, so what each dart
+      // struck is read off the dart, not off the bodies' health.
+      final struck = <CosmicSurvivalEnemy>{};
+      for (final dart in spat.keys) {
+        final hit = crowd
+            .where((e) => !dart.canHitEnemy(identityHashCode(e)))
+            .toList();
+        expect(hit, hasLength(1), reason: 'a dart struck ${hit.length}');
+        struck.addAll(hit);
+      }
+      expect(struck, hasLength(3), reason: 'two darts went for one body');
     });
-
-    for (final (tier, expected, strength) in [
-      (1, HornTuning.secondRunPower, 'the run\'s'),
-      (2, 1.0, 'full, with Full Weight'),
-    ]) {
-      test(
-        'a Juggernaut second run leaves its burst at $strength strength',
-        () async {
-          // The ram was scaled and the zone it drops was not, so the second
-          // run's element came out at full strength without Full Weight.
-          final game = await arena(
-            [member('Horn', 'Earth')],
-            snapshot: equip(
-              CreatureFamily.horn,
-              HornNodes.juggernautPath,
-              throughTier: tier,
-            ),
-          );
-          final horn = game.activeCompanions[0]!;
-          final lure = body(game, horn.position + const Offset(150, 0));
-          final bursts = <List<Projectile>>[];
-          final powers = <double>[];
-          horn.specialCooldown = 0;
-          castFreely(
-            game,
-            60 * 14,
-            lure: lure,
-            pin: () {},
-            each: (_) {
-              final pending = horn.pendingChargeBurst;
-              if (pending == null || pending.isEmpty) return;
-              if (bursts.any((b) => identical(b, pending))) return;
-              bursts.add(pending);
-              powers.add(pending.first.effectPower);
-            },
-          );
-          expect(bursts.length, greaterThanOrEqualTo(2));
-          expect(powers[0], greaterThan(0));
-          expect(powers[1] / powers[0], closeTo(expected, 0.01));
-        },
-      );
-    }
 
     test('Wing Tracer pays when a shot lands, not when it is fired', () async {
       final game = await arena(
