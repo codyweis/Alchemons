@@ -383,11 +383,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       primaryLabel: 'BEGIN',
       beats: const [
         StoryBeat(
-          title: 'Ancient Portal',
+          title: 'The Wild',
           message: '',
-          voice:
-              'This portal was created eons ago. Is this false perception? '
-              'Beauty obstructs reality.',
+          voice: "I remember this place. I don't remember creating it.",
         ),
         StoryBeat(
           title: 'Alchemy is Power',

@@ -503,8 +503,8 @@ class _MysticAltarScreenState extends State<MysticAltarScreen>
 
     final status = switch (seat.state) {
       SeatState.unearned when isHeart =>
-        'The heart of the altar wakes last. Its relic, the $relic, is won '
-            'from the guardian of the ${e.element} planet.',
+        "The heart's Mystic wakes only after the other sixteen. Its relic, "
+            'the $relic, comes from the guardian of the ${e.element} planet.',
       SeatState.unearned =>
         'Defeat the guardian of the ${e.element} planet to earn the $relic. '
             'Its Mystic shows itself once the relic is set.',

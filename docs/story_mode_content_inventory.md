@@ -28,7 +28,7 @@ Authored story text found in the repo, in the order a new player meets it. Re-au
 - Source: `lib/screens/scenes/scene_page.dart`
 - Reachability: Reachable in tutorial wilderness mode. Presented before the first forced encounter.
 
-- [Voice] Ancient Portal: This portal was created eons ago. Is this false perception? Beauty obstructs reality.
+- [Voice] The Wild: I remember this place. I don't remember creating it.
 - [Dialog] Alchemy is Power: Tap the wild Alchemon, then choose one of yours to fuse with it. Fusing with a wild Alchemon can produce rare mutations, which only happen in the wild.
 
 ## First Fusion
@@ -106,7 +106,7 @@ Authored story text found in the repo, in the order a new player meets it. Re-au
 - Reachability: The first guardian's dialog plays back in space after the first guardian falls. The altar intro plays on the first visit to a relic altar. The Mystic dialog plays on leaving the altar after the first summon. The guardian and Mystic voices are the journal's "guardian" and "mystic" entries.
 
 - [Dialog] The first relic: It was guarding this place from alchemy. You have called what remains a relic. / Bring the relic to the Mystic Altar. Each elemental ritual requires one of every non-Mystic species of that element.
-- [Dialog] A Relic Is Not A Trophy: It is what remains when form fails. Not the creature, not its beauty, but the instruction that endured beneath both. / Is creation discovery or concealment, is beauty truth made visible, or a veil drawn over something worse?
+- [Dialog] Relics Make Mystics: A guardian leaves its relic when it falls. Set the relic here with the Alchemons this altar asks for, and they become its Mystic. / The Mystic takes its nature from what you offer, and strong offerings make a stronger one.
 - [Dialog] Another creature: The guardian resisted you. The creature you make from its relic will enter your collection. You know the difference. You continue.
 
 ## Blood Mystic Altar Beats
@@ -114,9 +114,9 @@ Authored story text found in the repo, in the order a new player meets it. Re-au
 - Source: `lib/screens/mystic_altar/boss_altar_detail_screen.dart`
 - Reachability: Reachable in the blood relic altar flow. The altar intro appears once on first entry to the blood mystic ritual; the witness section is a persistent requirement on the blood ritual UI; the space hint appears once after first successfully summoning the blood mystic.
 
-- [Dialog] Not A Return: A relic does not bring something back. It gives the surviving instruction a body again. / If the mystics were made to guard what this world could not bear, then Sanguorath is what remains when sacrifice itself is taught to take shape.
+- [Dialog] The Blood Mystic: This relic makes Sanguorath, the Mystic of sacrifice. / It is the only Mystic the Blood Ring in space answers to.
 - [Witness Requirement] All 16 prior mystics must already be summoned before the blood mystic ritual can complete.
-- [Dialog] Carry It Outward: Do not keep it here. / The stars are not above this world. Bring the blood mystic outward, where the last offering can be witnessed.
+- [Dialog] Take It to Space: Sanguorath belongs at the Blood Ring in space. Bring it there for the last offering.
 
 ## Cosmic: Blood Ring Ending
 

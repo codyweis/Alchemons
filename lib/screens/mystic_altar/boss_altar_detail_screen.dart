@@ -196,10 +196,10 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
     if (!hasSeen && mounted) {
       await LandscapeDialog.show(
         context,
-        title: 'A Relic Is Not A Trophy',
+        title: 'Relics Make Mystics',
         message:
-            'It is what remains when form fails. Not the creature, not its beauty, but the instruction that endured beneath both.\n\n'
-            'Is creation discovery or concealment, is beauty truth made visible, or a veil drawn over something worse?',
+            'A guardian leaves its relic when it falls. Set the relic here with the Alchemons this altar asks for, and they become its Mystic.\n\n'
+            'The Mystic takes its nature from what you offer, and strong offerings make a stronger one.',
       );
 
       if (!mounted) return;
@@ -216,10 +216,10 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
     await LandscapeDialog.show(
       context,
-      title: 'Not A Return',
+      title: 'The Blood Mystic',
       message:
-          'A relic does not bring something back. It gives the surviving instruction a body again.\n\n'
-          'If the mystics were made to guard what this world could not bear, then Sanguorath is what remains when sacrifice itself is taught to take shape.',
+          'This relic makes Sanguorath, the Mystic of sacrifice.\n\n'
+          'It is the only Mystic the Blood Ring in space answers to.',
     );
 
     if (!mounted) return;
@@ -512,9 +512,9 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
         mounted) {
       await LandscapeDialog.show(
         context,
-        title: 'Carry It Outward',
+        title: 'Take It to Space',
         message:
-            'Do not keep it here.\n\nThe stars are not above this world. Bring the blood mystic outward, where the last offering can be witnessed.',
+            'Sanguorath belongs at the Blood Ring in space. Bring it there for the last offering.',
       );
       await db.settingsDao.setSetting('blood_mystic_space_hint_seen_v1', '1');
     }
