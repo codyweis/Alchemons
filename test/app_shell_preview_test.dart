@@ -425,7 +425,7 @@ void main() {
         await settle(10);
       });
       await step('snack', () async {
-        showGameSnack(ctx, 'Harvest collected', icon: AppIcons.check_rounded);
+        showGameSnack(ctx, 'Harvest collected');
         await settle(14);
         await shoot('19_snack');
         await settle(60);

@@ -234,7 +234,6 @@ class BracketTabs extends StatelessWidget {
     required this.onSelect,
     required this.palette,
     required this.accent,
-    this.icons,
     this.gap = 8,
     this.marked = const {},
     this.markColor,
@@ -251,9 +250,6 @@ class BracketTabs extends StatelessWidget {
   /// The dot's colour; the accent when null.
   final Color? markColor;
 
-  /// Tabs no longer show icons; kept until the last caller drops it.
-  @Deprecated('Tabs no longer show icons; drop the argument')
-  final List<IconData>? icons;
   final int selected;
   final ValueChanged<int> onSelect;
   final BracketPalette palette;

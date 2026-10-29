@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/screens/story/story_intro_screen.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -99,7 +98,6 @@ void main() {
         'dialog_field_tutorial',
         (c) => showStoryDialog(
           c,
-          icon: AppIcons.auto_awesome,
           primaryLabel: 'BEGIN',
           beats: const [
             StoryBeat(

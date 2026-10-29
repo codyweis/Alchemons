@@ -12,7 +12,6 @@ import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/fast_long_press_detector.dart';
 import 'package:flutter/material.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -31,6 +30,9 @@ import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
+
+/// Which face of a specimen an instance sheet shows.
+enum InstanceDetailMode { info, stats, genetics, enhancement }
 
 String _displayVariantFaction(String faction) {
   final trimmed = faction.trim();

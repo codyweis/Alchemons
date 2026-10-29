@@ -50,10 +50,6 @@ void showGameSnack(
   BuildContext context,
   String message, {
 
-  /// Notices no longer carry an icon; kept until the last caller drops it.
-  @Deprecated('Notices no longer show an icon; drop the argument')
-  IconData? icon,
-
   /// The severity color. It tints the bar and the border; it is
   /// never the background.
   Color? accent,

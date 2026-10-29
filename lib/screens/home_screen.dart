@@ -20,7 +20,6 @@ import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/navigation/world_transition.dart';
 import 'package:alchemons/games/cosmic_survival/components/survival_lobby_stage.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_screen.dart';
-import 'package:alchemons/screens/competition_hub_screen.dart';
 import 'package:alchemons/screens/cosmic/cosmic_screen.dart';
 import 'package:alchemons/screens/inventory_screen.dart';
 import 'package:alchemons/screens/map_screen.dart';
@@ -58,7 +57,6 @@ import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:alchemons/widgets/side_dock_widget.dart';
 import 'package:drift/drift.dart' hide Column;
 import 'package:flame/flame.dart' show Flame;
-import 'package:flutter/cupertino.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/fx/ship_reveal_fx.dart';
 import 'package:alchemons/widgets/fx/starter_vial_handoff.dart';
@@ -2516,24 +2514,9 @@ class _HomeScreenState extends State<HomeScreen>
                                     HapticFeedback.mediumImpact();
                                     _openHarvest();
                                   },
-                            onCompetitions: _isFieldTutorialActive
-                                ? () {}
-                                : () {
-                                    HapticFeedback.mediumImpact();
-                                    Navigator.push(
-                                      context,
-                                      CupertinoPageRoute(
-                                        builder: (_) =>
-                                            const CompetitionHubScreen(),
-                                        fullscreenDialog: true,
-                                      ),
-                                    );
-                                  },
-
                             onBattle: _isFieldTutorialActive
                                 ? () {}
                                 : () => async.unawaited(_openCosmicSurvival()),
-                            onMysticAltar: null,
                             fieldKey: _fieldEmblem,
                             harvestKey: _harvestEmblem,
                             survivalKey: _survivalEmblem,

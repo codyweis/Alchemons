@@ -44,7 +44,7 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart'
+import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart'
     show InstanceDetailMode;
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;

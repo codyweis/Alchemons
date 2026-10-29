@@ -1,6 +1,5 @@
 // lib/screens/scenes/scene_page.dart
 import 'dart:async';
-import 'dart:math';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/wilderness/encounter_sheet.dart';
 import 'package:alchemons/games/wilderness/rift_portal_component.dart';
@@ -43,31 +42,15 @@ import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/models/wilderness.dart'
     show PartyMember, WildEncounter;
 import 'package:alchemons/models/scenes/scene_definition.dart';
-import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/services/wildlife_generator.dart';
-import 'package:alchemons/widgets/app_icons.dart';
 
 SceneEncounterTables Function(SceneDefinition) _tableBuilderForScene(
-  String sceneId, {
-  bool isCosmicPlanetEntry = false,
-  String? cosmicElementName,
-}) {
-  if (isCosmicPlanetEntry && cosmicElementName != null) {
-    final element = cosmicElementName.trim().toLowerCase();
-    final mappedSceneId = switch (element) {
-      'fire' || 'lava' => 'volcano',
-      'water' || 'ice' || 'steam' || 'mud' || 'poison' => 'swamp',
-      'air' || 'lightning' => 'sky',
-      'spirit' || 'dark' || 'blood' || 'light' => 'arcane',
-      _ => 'valley',
-    };
-    return _tableBuilderForScene(mappedSceneId);
-  }
-
+  String sceneId,
+) {
   return switch (sceneId) {
     'sky' => skyEncounterPools,
     'volcano' => volcanoEncounterPools,
@@ -88,8 +71,6 @@ class ScenePage extends StatefulWidget {
   final List<PartyMember> party;
   final String sceneId;
   final bool isTutorial;
-  final bool isCosmicPlanetEntry;
-  final String? cosmicElementName;
   final void Function(NavSection section, {int? breedInitialTab})?
   onNavigateSection;
 
@@ -99,8 +80,6 @@ class ScenePage extends StatefulWidget {
     this.party = const [],
     required this.sceneId,
     this.isTutorial = false,
-    this.isCosmicPlanetEntry = false,
-    this.cosmicElementName,
     this.onNavigateSection,
     this.revealReady,
   });
@@ -115,9 +94,6 @@ class ScenePage extends StatefulWidget {
 }
 
 class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
-  static final RegExp _poisonSpeciesPattern = RegExp(
-    r'^(LET|PIP|MAN|HOR|MSK|WNG|KIN)13$',
-  );
   late SceneGame _game;
 
   late final RevealWhenReady _revealWhenReady;
@@ -128,7 +104,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   // Saved references
   late WildernessSpawnService _spawnService;
   late AlchemonsDatabase _db;
-  late CreatureCatalog _repo;
 
   // Encounter state
   bool _inEncounter = false;
@@ -149,7 +124,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   bool _shipBeaconPlaced = false;
 
   late final AnimationController _biomeAmbienceCtrl;
-  bool get _isCosmicPlanetMode => widget.isCosmicPlanetEntry;
 
   @override
   void initState() {
@@ -157,13 +131,9 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      if (_isCosmicPlanetMode) {
-        unawaited(context.read<AudioController>().playPlanetMusic());
-      } else {
-        unawaited(
-          context.read<AudioController>().playWildMusicForScene(widget.sceneId),
-        );
-      }
+      unawaited(
+        context.read<AudioController>().playWildMusicForScene(widget.sceneId),
+      );
     });
 
     _biomeAmbienceCtrl = AnimationController(
@@ -171,10 +141,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       duration: const Duration(seconds: 14),
     )..repeat();
 
-    _game = SceneGame(
-      scene: widget.scene,
-      transparentBackground: widget.isCosmicPlanetEntry,
-    );
+    _game = SceneGame(scene: widget.scene);
 
     // An entry portal is covering this page: tell it when the scene is
     // built. Flame only attaches its render box once the game has loaded.
@@ -191,11 +158,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     _encounters = EncounterService(
       scene: widget.scene,
       party: widget.party,
-      tableBuilder: _tableBuilderForScene(
-        widget.sceneId,
-        isCosmicPlanetEntry: widget.isCosmicPlanetEntry,
-        cosmicElementName: widget.cosmicElementName,
-      ),
+      tableBuilder: _tableBuilderForScene(widget.sceneId),
     );
 
     _game.attachEncounters(_encounters);
@@ -222,128 +185,114 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
 
     _spawnService = context.read<WildernessSpawnService>();
     _db = context.read<AlchemonsDatabase>();
-    _repo = context.read<CreatureCatalog>();
 
     if (!_initialized) {
       _initialized = true;
 
-      if (_isCosmicPlanetMode) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _seedTransientEncounterSpawns();
-        });
-      } else {
-        _spawnService.markSceneActive(widget.sceneId);
-        _spawnService.addListener(_onSpawnServiceChanged);
+      _spawnService.markSceneActive(widget.sceneId);
+      _spawnService.addListener(_onSpawnServiceChanged);
 
-        // A state the land is in (the Swamp gone dry) has to be there from
-        // the first frame, not appear once the batch is taken in below.
-        final land = _spawnService.weatherIn(widget.sceneId)?.kind;
-        if (!widget.isTutorial && (land?.settled ?? false)) {
-          _game.fieldWeather = land;
-        }
-        // So does the stage of a field's own cycle (the Volcano still,
-        // smoking or erupting); the visit is counted once the scene is open,
-        // so the next one finds the next stage. The tutorial's visit is
-        // not counted.
-        if (!widget.isTutorial) {
-          _game.fieldStage = _spawnService.fieldStageFor(
-            widget.sceneId,
-            widget.scene,
-          );
-        }
-
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          await _db
-              .into(_db.activeSceneEntry)
-              .insertOnConflictUpdate(
-                ActiveSceneEntryCompanion.insert(
-                  sceneId: widget.sceneId,
-                  enteredAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
-                ),
-              );
-
-          // Track visited biomes and possibly create the cosmic ship in-world
-          await _registerVisitedBiome();
-          if (!widget.isTutorial && widget.scene.stages.isNotEmpty) {
-            await _spawnService.noteFieldVisit(widget.sceneId);
-          }
-
-          final isCaptureTutorialScene =
-              await OpeningWildernessService.isCaptureTutorialScene(
-                _db.settingsDao,
-                widget.sceneId,
-              );
-          if (mounted) {
-            setState(() {
-              _isCaptureTutorialScene = isCaptureTutorialScene;
-            });
-          } else {
-            _isCaptureTutorialScene = isCaptureTutorialScene;
-          }
-          _game.isTutorialMode = widget.isTutorial || _isCaptureTutorialScene;
-
-          // Ensure spawns exist (first visit or empty scene)
-          if (!widget.isTutorial && !_isCaptureTutorialScene) {
-            await _spawnService.ensureSpawnsForScene(widget.sceneId);
-            await _enforcePoisonOnlySpawns();
-            if (mounted) _syncSpawnsFromService();
-          }
-
-          // Load ship state for rendering (skip for tutorial flow).
-          if (!widget.isTutorial && !_isCaptureTutorialScene) {
-            await _loadShipState();
-            await _syncShipBeaconPlacement();
-            await _consumeSceneBatchOnEntry();
-          }
-
-          // Keep tutorial scenes pinned to the matching main Let.
-          if (widget.isTutorial || _isCaptureTutorialScene) {
-            _game.fieldWeather = null;
-            if (widget.isTutorial) {
-              await _ensureTutorialWildFusion();
-            }
-            await _ensureTutorialSpawn();
-            if (_isCaptureTutorialScene) {
-              await _ensureCaptureTutorialHarvester();
-            }
-            if (mounted) _syncSpawnsFromService();
-          }
-
-          if (widget.isTutorial && !_tutorialDialogShown && mounted) {
-            _tutorialDialogShown = true;
-            await _showFieldTutorialDialog();
-          } else if (_isCaptureTutorialScene &&
-              !_tutorialDialogShown &&
-              mounted) {
-            _tutorialDialogShown = true;
-            await _showCaptureTutorialDialog();
-          }
-
-          // The mutation meter, the first time the field is entered with it.
-          if (!widget.isTutorial &&
-              !_isCaptureTutorialScene &&
-              !_isCosmicPlanetMode &&
-              mounted) {
-            await _maybeRevealMutationMeter();
-          }
-
-          if (!widget.isTutorial &&
-              !_isCaptureTutorialScene &&
-              !_riftSpawned &&
-              mounted) {
-            _riftSpawned = true;
-            unawaited(_resolveRift());
-          }
-        });
+      // A state the land is in (the Swamp gone dry) has to be there from
+      // the first frame, not appear once the batch is taken in below.
+      final land = _spawnService.weatherIn(widget.sceneId)?.kind;
+      if (!widget.isTutorial && (land?.settled ?? false)) {
+        _game.fieldWeather = land;
       }
+      // So does the stage of a field's own cycle (the Volcano still,
+      // smoking or erupting); the visit is counted once the scene is open,
+      // so the next one finds the next stage. The tutorial's visit is
+      // not counted.
+      if (!widget.isTutorial) {
+        _game.fieldStage = _spawnService.fieldStageFor(
+          widget.sceneId,
+          widget.scene,
+        );
+      }
+
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        await _db
+            .into(_db.activeSceneEntry)
+            .insertOnConflictUpdate(
+              ActiveSceneEntryCompanion.insert(
+                sceneId: widget.sceneId,
+                enteredAtUtcMs: DateTime.now().toUtc().millisecondsSinceEpoch,
+              ),
+            );
+
+        // Track visited biomes and possibly create the cosmic ship in-world
+        await _registerVisitedBiome();
+        if (!widget.isTutorial && widget.scene.stages.isNotEmpty) {
+          await _spawnService.noteFieldVisit(widget.sceneId);
+        }
+
+        final isCaptureTutorialScene =
+            await OpeningWildernessService.isCaptureTutorialScene(
+              _db.settingsDao,
+              widget.sceneId,
+            );
+        if (mounted) {
+          setState(() {
+            _isCaptureTutorialScene = isCaptureTutorialScene;
+          });
+        } else {
+          _isCaptureTutorialScene = isCaptureTutorialScene;
+        }
+        _game.isTutorialMode = widget.isTutorial || _isCaptureTutorialScene;
+
+        // Ensure spawns exist (first visit or empty scene)
+        if (!widget.isTutorial && !_isCaptureTutorialScene) {
+          await _spawnService.ensureSpawnsForScene(widget.sceneId);
+          if (mounted) _syncSpawnsFromService();
+        }
+
+        // Load ship state for rendering (skip for tutorial flow).
+        if (!widget.isTutorial && !_isCaptureTutorialScene) {
+          await _loadShipState();
+          await _syncShipBeaconPlacement();
+          await _consumeSceneBatchOnEntry();
+        }
+
+        // Keep tutorial scenes pinned to the matching main Let.
+        if (widget.isTutorial || _isCaptureTutorialScene) {
+          _game.fieldWeather = null;
+          if (widget.isTutorial) {
+            await _ensureTutorialWildFusion();
+          }
+          await _ensureTutorialSpawn();
+          if (_isCaptureTutorialScene) {
+            await _ensureCaptureTutorialHarvester();
+          }
+          if (mounted) _syncSpawnsFromService();
+        }
+
+        if (widget.isTutorial && !_tutorialDialogShown && mounted) {
+          _tutorialDialogShown = true;
+          await _showFieldTutorialDialog();
+        } else if (_isCaptureTutorialScene &&
+            !_tutorialDialogShown &&
+            mounted) {
+          _tutorialDialogShown = true;
+          await _showCaptureTutorialDialog();
+        }
+
+        // The mutation meter, the first time the field is entered with it.
+        if (!widget.isTutorial &&
+            !_isCaptureTutorialScene &&
+            mounted) {
+          await _maybeRevealMutationMeter();
+        }
+
+        if (!widget.isTutorial &&
+            !_isCaptureTutorialScene &&
+            !_riftSpawned &&
+            mounted) {
+          _riftSpawned = true;
+          unawaited(_resolveRift());
+        }
+      });
     }
 
-    if (_isCosmicPlanetMode) {
-      _game.attachEncounters(_encounters);
-      _game.syncWildFromEncounters();
-    } else {
-      _syncSpawnsFromService();
-    }
+    _syncSpawnsFromService();
   }
 
   Future<void> _ensureTutorialWildFusion() async {
@@ -431,7 +380,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     if (!mounted) return;
     await showStoryDialog(
       context,
-      icon: AppIcons.auto_awesome,
       primaryLabel: 'BEGIN',
       beats: const [
         StoryBeat(
@@ -459,7 +407,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       message:
           'This wild Alchemon must be harvested, not fused. Open the harvester panel and use the issued device to capture the specimen.',
       kind: LandscapeDialogKind.info,
-      icon: AppIcons.catching_pokemon_rounded,
       primaryLabel: 'Begin Capture',
       barrierDismissible: false,
     );
@@ -472,7 +419,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     showGameSnack(
       context,
       'Wild Alchemons are pure — harvest for a pure replica, or fuse for something new',
-      icon: AppIcons.auto_awesome_rounded,
       duration: const Duration(seconds: 5),
     );
   }
@@ -483,22 +429,8 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     WebAds.breakAfter('field');
     _revealWhenReady.dispose();
     try {
-      if (_isCosmicPlanetMode) {
-        unawaited(
-          context.read<AudioController>().playCosmicExplorationMusic(
-            cycle: false,
-          ),
-        );
-      } else {
-        unawaited(context.read<AudioController>().playHomeMusic());
-      }
+      unawaited(context.read<AudioController>().playHomeMusic());
     } catch (_) {}
-
-    if (_isCosmicPlanetMode) {
-      _biomeAmbienceCtrl.dispose();
-      super.dispose();
-      return;
-    }
 
     _biomeAmbienceCtrl.dispose();
     _spawnService.markSceneInactive(widget.sceneId);
@@ -523,13 +455,11 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   }
 
   void _onSpawnServiceChanged() {
-    if (_isCosmicPlanetMode) return;
     if (_usingSessionSceneSpawns || _consumingSceneBatch) return;
     _syncSpawnsFromService();
   }
 
   void _syncSpawnsFromService() {
-    if (_isCosmicPlanetMode) return;
     _encounters.clearSpawns();
 
     for (final sp in widget.scene.spawnPoints) {
@@ -553,7 +483,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   }
 
   Future<void> _consumeSceneBatchOnEntry() async {
-    if (_isCosmicPlanetMode || widget.isTutorial || _usingSessionSceneSpawns) {
+    if (widget.isTutorial || _usingSessionSceneSpawns) {
       return;
     }
 
@@ -591,157 +521,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     }
   }
 
-  void _seedTransientEncounterSpawns() {
-    _encounters.clearSpawns();
-
-    final spawnPoints = List.of(widget.scene.spawnPoints);
-    if (spawnPoints.isEmpty) return;
-
-    if (_isCosmicPlanetMode && widget.cosmicElementName != null) {
-      final element = widget.cosmicElementName!.trim();
-      final candidates = _repo
-          .byType(element)
-          .where((c) => c.mutationFamily != 'Mystic')
-          .toList();
-      if (candidates.isEmpty) {
-        debugPrint('⚠️ No cosmic candidates for element: $element');
-        _game.attachEncounters(_encounters);
-        _game.syncWildFromEncounters();
-        return;
-      }
-
-      final rng = Random();
-      final byRarity = {
-        for (final r in EncounterRarity.values) r: <Creature>[],
-      };
-      for (final creature in candidates) {
-        byRarity[_encounterRarityForCreature(creature.rarity)]!.add(creature);
-      }
-
-      // Keep cosmic encounters closer to center to reduce excessive panning.
-      final centeredPoints = List.of(spawnPoints)
-        ..sort(
-          (a, b) => (a.normalizedPos.dx - 0.5).abs().compareTo(
-            (b.normalizedPos.dx - 0.5).abs(),
-          ),
-        );
-      final spawnPool =
-          centeredPoints.take(min(5, centeredPoints.length)).toList()
-            ..shuffle(rng);
-      final targetCount = 1 + rng.nextInt(min(5, spawnPool.length));
-      final chosenPoints = <SpawnPoint>[];
-
-      // Guarantee at least one spawn in the initial no-pan viewport.
-      final starterCandidates =
-          spawnPoints.where((sp) => sp.normalizedPos.dx <= 0.52).toList()..sort(
-            (a, b) => (a.normalizedPos.dx - 0.38).abs().compareTo(
-              (b.normalizedPos.dx - 0.38).abs(),
-            ),
-          );
-      if (starterCandidates.isNotEmpty) {
-        chosenPoints.add(starterCandidates.first);
-      }
-
-      for (final sp in spawnPool) {
-        if (chosenPoints.length >= targetCount) break;
-        if (chosenPoints.any((existing) => existing.id == sp.id)) continue;
-        chosenPoints.add(sp);
-      }
-
-      for (final sp in chosenPoints) {
-        final creature = _pickCosmicCreatureByRarity(byRarity, rng);
-        if (creature == null) continue;
-        // Only a creature that can float is put in the open air.
-        if (sp.aloft && !speciesCanFloat(creature.id)) continue;
-        final rarity = _encounterRarityForCreature(creature.rarity);
-        _encounters.forceSpawnAt(
-          sp.id,
-          WildEncounter(
-            wildBaseId: creature.id,
-            baseBreedChance: breedChanceForRarity(rarity),
-            rarity: rarity.label,
-          ),
-        );
-      }
-    } else {
-      for (final sp in spawnPoints) {
-        // A point there only in some weather is not there in this one.
-        if (sp.onlyIn != null) continue;
-        final roll = _encounters.roll(spawnId: sp.id);
-        _encounters.forceSpawnAt(
-          sp.id,
-          WildEncounter(
-            wildBaseId: roll.speciesId,
-            baseBreedChance: breedChanceForRarity(roll.rarity),
-            rarity: roll.rarity.name,
-          ),
-        );
-      }
-    }
-
-    _game.attachEncounters(_encounters);
-    _game.syncWildFromEncounters();
-  }
-
-  EncounterRarity _encounterRarityForCreature(String rarity) {
-    return switch (rarity.trim().toLowerCase()) {
-      'common' => EncounterRarity.common,
-      'uncommon' => EncounterRarity.uncommon,
-      'rare' => EncounterRarity.rare,
-      'mythic' || 'legendary' || 'variant' => EncounterRarity.legendary,
-      _ => EncounterRarity.common,
-    };
-  }
-
-  Creature? _pickCosmicCreatureByRarity(
-    Map<EncounterRarity, List<Creature>> byRarity,
-    Random rng,
-  ) {
-    // Target distribution:
-    // legendary 1%, rare 10%, uncommon 30%, common 59%.
-    final roll = rng.nextDouble();
-    final target = switch (roll) {
-      < 0.01 => EncounterRarity.legendary,
-      < 0.11 => EncounterRarity.rare,
-      < 0.41 => EncounterRarity.uncommon,
-      _ => EncounterRarity.common,
-    };
-
-    final fallbackOrder = switch (target) {
-      EncounterRarity.legendary => const [
-        EncounterRarity.legendary,
-        EncounterRarity.rare,
-        EncounterRarity.uncommon,
-        EncounterRarity.common,
-      ],
-      EncounterRarity.rare => const [
-        EncounterRarity.rare,
-        EncounterRarity.uncommon,
-        EncounterRarity.common,
-        EncounterRarity.legendary,
-      ],
-      EncounterRarity.uncommon => const [
-        EncounterRarity.uncommon,
-        EncounterRarity.common,
-        EncounterRarity.rare,
-        EncounterRarity.legendary,
-      ],
-      EncounterRarity.common => const [
-        EncounterRarity.common,
-        EncounterRarity.uncommon,
-        EncounterRarity.rare,
-        EncounterRarity.legendary,
-      ],
-    };
-
-    for (final rarity in fallbackOrder) {
-      final bucket = byRarity[rarity];
-      if (bucket == null || bucket.isEmpty) continue;
-      return bucket[rng.nextInt(bucket.length)];
-    }
-    return null;
-  }
-
   void _removeTransientSpawn(String spawnId) {
     _preparedWildBySpawnId.remove(spawnId);
     _sessionSceneSpawns.remove(spawnId);
@@ -761,27 +540,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     }
     _game.attachEncounters(_encounters);
     _game.syncWildFromEncounters();
-  }
-
-  Future<void> _enforcePoisonOnlySpawns() async {
-    if (widget.sceneId != 'poison') return;
-    final ids = _spawnService.getActiveSpawnPoints(widget.sceneId);
-    var invalidFound = false;
-    final pointsById = {for (final sp in widget.scene.spawnPoints) sp.id: sp};
-    for (final id in ids) {
-      final enc = _spawnService.getSpawnAt(widget.sceneId, id);
-      if (enc == null) continue;
-      final point = pointsById[id];
-      final outOfBand = point != null && point.normalizedPos.dy > 0.38;
-      if (!_poisonSpeciesPattern.hasMatch(enc.speciesId) || outOfBand) {
-        invalidFound = true;
-        break;
-      }
-    }
-    if (!invalidFound) return;
-
-    await _spawnService.clearSceneSpawns(widget.sceneId);
-    await _spawnService.ensureSpawnsForScene(widget.sceneId);
   }
 
   // Counts this visit to the wild, and brings the cosmic ship down into
@@ -830,7 +588,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       message:
           '"Recognizing that the world is but an illusion, does not act as if it were real, so he escapes suffering."',
       kind: LandscapeDialogKind.success,
-      icon: AppIcons.rocket_launch_rounded,
       primaryLabel: 'Claim',
       barrierDismissible: true,
     );
@@ -881,7 +638,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   }
 
   Future<void> _syncShipBeaconPlacement() async {
-    if (_isCosmicPlanetMode) return;
     final shouldShow = _shipPresent && _shipSceneId == widget.sceneId;
     if (!shouldShow) {
       _shipSpawnId = null;
@@ -947,7 +703,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       title: 'The Cosmic Ship',
       message: 'The ship is beckoning.',
       kind: LandscapeDialogKind.warning,
-      icon: AppIcons.rocket_launch_rounded,
       primaryLabel: 'Stay',
       barrierDismissible: true,
     );
@@ -1126,30 +881,15 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
       },
     );
     if (!mounted) return;
-    if (_isCosmicPlanetMode) {
-      unawaited(context.read<AudioController>().playPlanetMusic());
-    } else {
-      unawaited(
-        context.read<AudioController>().playWildMusicForScene(widget.sceneId),
-      );
-    }
+    unawaited(
+      context.read<AudioController>().playWildMusicForScene(widget.sceneId),
+    );
   }
 
   bool isNight(DateTime now) => now.hour >= 20 || now.hour < 5;
 
   List<Color>? _particlePaletteForScene() {
-    if (widget.isCosmicPlanetEntry && widget.cosmicElementName != null) {
-      return _particlePaletteForElement(widget.cosmicElementName!);
-    }
-
     return switch (widget.sceneId) {
-      'poison' => const [
-        Color(0xFFFF4FA2),
-        Color(0xFFE040FB),
-        Color(0xFFB388FF),
-        Color(0xFF8E24AA),
-        Color(0xFF3A0A3F),
-      ],
       'arcane' => const [
         Color(0xFF6A1B9A),
         Color(0xFF3949AB),
@@ -1160,148 +900,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
     };
   }
 
-  List<Color> _particlePaletteForElement(String element) {
-    return switch (element) {
-      'Fire' => const [
-        Color(0xFFFF7043),
-        Color(0xFFFFAB40),
-        Color(0xFFFF3D00),
-        Color(0xFF6D1B00),
-      ],
-      'Lava' => const [
-        Color(0xFFFF8A65),
-        Color(0xFFFF6F00),
-        Color(0xFFFFAB00),
-        Color(0xFF4E1200),
-      ],
-      'Lightning' => const [
-        Color(0xFFFFFF8D),
-        Color(0xFFFFF176),
-        Color(0xFFB3E5FC),
-        Color(0xFF4A4A22),
-      ],
-      'Water' => const [
-        Color(0xFF64B5F6),
-        Color(0xFF42A5F5),
-        Color(0xFF90CAF9),
-        Color(0xFF0D2F5C),
-      ],
-      'Ice' => const [
-        Color(0xFF80DEEA),
-        Color(0xFFB3E5FC),
-        Color(0xFFE1F5FE),
-        Color(0xFF1D3C47),
-      ],
-      'Steam' => const [
-        Color(0xFFCFD8DC),
-        Color(0xFFB0BEC5),
-        Color(0xFFECEFF1),
-        Color(0xFF37474F),
-      ],
-      'Earth' => const [
-        Color(0xFFA1887F),
-        Color(0xFF8D6E63),
-        Color(0xFFD7CCC8),
-        Color(0xFF3E2723),
-      ],
-      'Mud' => const [
-        Color(0xFF8D6E63),
-        Color(0xFF795548),
-        Color(0xFFBCAAA4),
-        Color(0xFF2C1B16),
-      ],
-      'Dust' => const [
-        Color(0xFFFFE0B2),
-        Color(0xFFFFCC80),
-        Color(0xFFFFF3E0),
-        Color(0xFF5D4037),
-      ],
-      'Crystal' => const [
-        Color(0xFF80CBC4),
-        Color(0xFF26A69A),
-        Color(0xFFB2DFDB),
-        Color(0xFF004D40),
-      ],
-      'Air' => const [
-        Color(0xFFB3E5FC),
-        Color(0xFF81D4FA),
-        Color(0xFFE1F5FE),
-        Color(0xFF1A3B4A),
-      ],
-      'Plant' => const [
-        Color(0xFFA5D6A7),
-        Color(0xFF66BB6A),
-        Color(0xFFC8E6C9),
-        Color(0xFF1B5E20),
-      ],
-      'Poison' => const [
-        Color(0xFFFF4FA2),
-        Color(0xFFE040FB),
-        Color(0xFFB388FF),
-        Color(0xFF3A0A3F),
-      ],
-      'Spirit' => const [
-        Color(0xFF9FA8DA),
-        Color(0xFF7986CB),
-        Color(0xFFC5CAE9),
-        Color(0xFF1A237E),
-      ],
-      'Dark' => const [
-        Color(0xFF9575CD),
-        Color(0xFF673AB7),
-        Color(0xFFB39DDB),
-        Color(0xFF311B92),
-      ],
-      'Light' => const [
-        Color(0xFFFFF59D),
-        Color(0xFFFFF176),
-        Color(0xFFFFE082),
-        Color(0xFF5D4A00),
-      ],
-      'Blood' => const [
-        Color(0xFFEF9A9A),
-        Color(0xFFE57373),
-        Color(0xFFFFCDD2),
-        Color(0xFF7F1D1D),
-      ],
-      _ => const [
-        Color(0xFF9FA8DA),
-        Color(0xFF90CAF9),
-        Color(0xFFC5CAE9),
-        Color(0xFF1A237E),
-      ],
-    };
-  }
-
   Widget? _elementalBackdropForScene() {
-    if (widget.isCosmicPlanetEntry) {
-      final cosmicElement = widget.cosmicElementName;
-      return AnimatedBuilder(
-        animation: _biomeAmbienceCtrl,
-        builder: (_, __) => IgnorePointer(
-          child: CustomPaint(
-            painter: (cosmicElement ?? '') == 'Poison'
-                ? _PoisonBiomePainter(phase: _biomeAmbienceCtrl.value)
-                : _CosmicElementBiomePainter(
-                    element: cosmicElement,
-                    phase: _biomeAmbienceCtrl.value,
-                  ),
-          ),
-        ),
-      );
-    }
-
-    if (widget.sceneId == 'poison') {
-      return AnimatedBuilder(
-        animation: _biomeAmbienceCtrl,
-        builder: (_, __) => IgnorePointer(
-          child: CustomPaint(
-            painter: _PoisonBiomePainter(phase: _biomeAmbienceCtrl.value),
-          ),
-        ),
-      );
-    }
-
     // A field drawn in code paints its own void.
     if (widget.sceneId == 'arcane' && widget.scene.art == null) {
       return IgnorePointer(
@@ -1373,8 +972,6 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                   IgnorePointer(
                     child: AlchemicalParticleBackground(
                       opacity: switch (widget.sceneId) {
-                        'poison' => widget.isCosmicPlanetEntry ? 0.35 : 0.45,
-                        _ when widget.isCosmicPlanetEntry => 0.55,
                         _ => 0.9,
                       },
                       densityMultiplier: switch (widget.sceneId) {
@@ -1404,9 +1001,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       _wildCreature = prepared;
                     },
                     party: widget.party,
-                    // A planet surface belongs to space; only the
-                    // wilderness's own fields mutate a fusion.
-                    fieldMutations: !_isCosmicPlanetMode,
+                    fieldMutations: true,
                     highlightPartyHUD: _showTutorialHighlight,
                     isTutorial: widget.isTutorial,
                     isCaptureTutorial: _isCaptureTutorialScene,
@@ -1441,7 +1036,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                       if (success && id != null) {
                         _game.clearWildAt(id);
                         _removeTransientSpawn(id);
-                        if (!_isCosmicPlanetMode && !_usingSessionSceneSpawns) {
+                        if (!_usingSessionSceneSpawns) {
                           await _spawnService.removeSpawn(widget.sceneId, id);
                         }
                         _usedSpawnPointId = null;
@@ -1537,14 +1132,10 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                   ),
                 // The mutation meter, on the left edge between Exit and
                 // Items. Wilderness only, like mutations.
-                if (!widget.isTutorial &&
-                    !_isCaptureTutorialScene &&
-                    !_isCosmicPlanetMode)
+                if (!widget.isTutorial && !_isCaptureTutorialScene)
                   const Positioned.fill(child: MutationMeterHud()),
-                // Back / leave button - hidden in tutorial and cosmic planets.
-                if (!widget.isTutorial &&
-                    !_isCaptureTutorialScene &&
-                    !_isCosmicPlanetMode)
+                // Back / leave button - hidden in the tutorial.
+                if (!widget.isTutorial && !_isCaptureTutorialScene)
                   Positioned.fill(
                     child: WildernessControls(
                       party: widget.party,
@@ -1557,9 +1148,7 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
                           !(_shipPresent && _shipSceneId == widget.sceneId),
                       onLeaveBlocked: _showShipBeckoning,
                       onLeave: () async {
-                        if (!_isCosmicPlanetMode) {
-                          await _db.delete(_db.activeSceneEntry).go();
-                        }
+                        await _db.delete(_db.activeSceneEntry).go();
 
                         if (!context.mounted) return;
                         // Let the confirmation finish closing: the field is
@@ -1583,463 +1172,3 @@ class _ScenePageState extends State<ScenePage> with TickerProviderStateMixin {
   }
 }
 
-class _PoisonBiomePainter extends CustomPainter {
-  final double phase;
-
-  const _PoisonBiomePainter({required this.phase});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-
-    final bg = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF2A0034), Color(0xFF130019), Color(0xFF050006)],
-      ).createShader(rect);
-    canvas.drawRect(rect, bg);
-
-    final fogPulseA = 0.85 + 0.25 * sin(phase * pi * 2);
-    final fogPulseB = 0.82 + 0.22 * sin(phase * pi * 2 + 1.8);
-
-    final hazeA = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-0.28, -0.22),
-        radius: 1.0,
-        colors: [
-          const Color(0xFFFF4FA2).withValues(alpha: 0.26 * fogPulseA),
-          Colors.transparent,
-        ],
-      ).createShader(rect);
-    canvas.drawRect(rect, hazeA);
-
-    final hazeB = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(0.45, -0.05),
-        radius: 1.15,
-        colors: [
-          const Color(0xFFD65BFF).withValues(alpha: 0.18 * fogPulseB),
-          Colors.transparent,
-        ],
-      ).createShader(rect);
-    canvas.drawRect(rect, hazeB);
-
-    final swirlPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-    final center = Offset(size.width * 0.5, size.height * 0.78);
-    for (var i = 0; i < 6; i++) {
-      final r = size.width * (0.18 + i * 0.055);
-      final arcRect = Rect.fromCircle(center: center, radius: r);
-      swirlPaint
-        ..strokeWidth = 1.5 + i * 0.25
-        ..color = Color.lerp(
-          const Color(0xFFFF65B5),
-          const Color(0xFF8524A8),
-          i / 6,
-        )!.withValues(alpha: 0.16 - i * 0.02);
-      canvas.drawArc(arcRect, pi * 0.98, pi * 0.55, false, swirlPaint);
-    }
-
-    final sporePaint = Paint()..style = PaintingStyle.fill;
-    const spores = [
-      (0.16, 0.16, 18.0, 0.22),
-      (0.30, 0.22, 12.0, 0.20),
-      (0.76, 0.24, 15.0, 0.18),
-      (0.62, 0.14, 22.0, 0.16),
-      (0.84, 0.34, 10.0, 0.15),
-      (0.20, 0.40, 14.0, 0.14),
-      (0.52, 0.30, 13.0, 0.14),
-      (0.42, 0.12, 8.0, 0.16),
-    ];
-    for (var i = 0; i < spores.length; i++) {
-      final (nx, ny, radius, alpha) = spores[i];
-      final localPhase = phase * pi * 2 + i * 0.9;
-      final driftX = sin(localPhase) * (5 + i * 0.6);
-      final driftY = cos(localPhase * 0.75) * (4 + i * 0.5);
-      final p = Offset(size.width * nx + driftX, size.height * ny + driftY);
-      final twinkle = 0.8 + 0.35 * sin(localPhase * 1.4);
-      final grad = RadialGradient(
-        colors: [
-          const Color(0xFFFF8BC7).withValues(alpha: alpha * twinkle),
-          const Color(0xFFA137C8).withValues(alpha: alpha * 0.55 * twinkle),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromCircle(center: p, radius: radius * 2.5));
-      sporePaint.shader = grad;
-      canvas.drawCircle(p, radius * 2.5, sporePaint);
-    }
-
-    final mistPath = Path()
-      ..moveTo(0, size.height * 0.70)
-      ..quadraticBezierTo(
-        size.width * 0.18,
-        size.height * 0.62,
-        size.width * 0.34,
-        size.height * 0.69,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.53,
-        size.height * 0.76,
-        size.width * 0.72,
-        size.height * 0.66,
-      )
-      ..quadraticBezierTo(
-        size.width * 0.86,
-        size.height * 0.60,
-        size.width,
-        size.height * 0.68,
-      )
-      ..lineTo(size.width, size.height * 0.90)
-      ..lineTo(0, size.height * 0.90)
-      ..close();
-    final mistPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          const Color(0xFFEF66B9).withValues(alpha: 0.19 + 0.06 * fogPulseA),
-          const Color(0xFF5A146B).withValues(alpha: 0.08 + 0.04 * fogPulseB),
-          Colors.transparent,
-        ],
-      ).createShader(rect)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-    canvas.drawPath(mistPath, mistPaint);
-
-    final groundCenter = Offset(size.width * 0.5, size.height * 1.16);
-    final groundRx = size.width * 0.88;
-    final groundRy = size.height * 0.48;
-    final groundRect = Rect.fromCenter(
-      center: groundCenter,
-      width: groundRx * 2,
-      height: groundRy * 2,
-    );
-    final groundPaint = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(0, -0.62),
-        radius: 1.0,
-        colors: [
-          const Color(0xFFFF7EC7).withValues(alpha: 0.56),
-          const Color(0xFFC045BB).withValues(alpha: 0.62),
-          const Color(0xFF5E1E71).withValues(alpha: 0.90),
-          const Color(0xFF1B051E),
-        ],
-        stops: const [0.0, 0.26, 0.58, 1.0],
-      ).createShader(groundRect);
-    canvas.drawOval(groundRect, groundPaint);
-
-    final rimPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = max(2.0, size.width * 0.005)
-      ..color = const Color(0xFFFFA6DF).withValues(alpha: 0.45)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    final rimRect = Rect.fromCenter(
-      center: Offset(size.width * 0.5, size.height * 0.92),
-      width: size.width * 0.96,
-      height: size.height * 0.38,
-    );
-    canvas.drawArc(rimRect, pi * 1.02, pi * 0.96, false, rimPaint);
-
-    final foregroundShade = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.transparent,
-          const Color(0xFF1A0420).withValues(alpha: 0.35),
-          const Color(0xFF060007).withValues(alpha: 0.72),
-        ],
-        stops: const [0.0, 0.55, 1.0],
-      ).createShader(rect);
-    canvas.drawRect(rect, foregroundShade);
-  }
-
-  @override
-  bool shouldRepaint(covariant _PoisonBiomePainter oldDelegate) =>
-      oldDelegate.phase != phase;
-}
-
-class _CosmicElementBiomePainter extends CustomPainter {
-  final String? element;
-  final double phase;
-
-  const _CosmicElementBiomePainter({
-    required this.element,
-    required this.phase,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = Offset.zero & size;
-    final t = phase * pi * 2;
-
-    ({
-      Color skyTop,
-      Color skyBottom,
-      Color glowA,
-      Color glowB,
-      Color groundLight,
-      Color groundMid,
-      Color groundDark,
-      Color rim,
-    })
-    palette = switch (element) {
-      'Fire' => (
-        skyTop: const Color(0xFF3D1108),
-        skyBottom: const Color(0xFF120503),
-        glowA: const Color(0xFFFF7043),
-        glowB: const Color(0xFFFFB74D),
-        groundLight: const Color(0xFFD95A2C),
-        groundMid: const Color(0xFF7C2A10),
-        groundDark: const Color(0xFF2A0C05),
-        rim: const Color(0xFFFFCC9C),
-      ),
-      'Lava' => (
-        skyTop: const Color(0xFF4A1508),
-        skyBottom: const Color(0xFF170603),
-        glowA: const Color(0xFFFF8A65),
-        glowB: const Color(0xFFFFAB40),
-        groundLight: const Color(0xFFFF7043),
-        groundMid: const Color(0xFF9E3A18),
-        groundDark: const Color(0xFF2F1007),
-        rim: const Color(0xFFFFD0A8),
-      ),
-      'Lightning' => (
-        skyTop: const Color(0xFF2E2D11),
-        skyBottom: const Color(0xFF0E0E06),
-        glowA: const Color(0xFFFFFF8D),
-        glowB: const Color(0xFFFFF176),
-        groundLight: const Color(0xFFC9B85C),
-        groundMid: const Color(0xFF6A5F2C),
-        groundDark: const Color(0xFF1C1A0C),
-        rim: const Color(0xFFFFF9B8),
-      ),
-      'Water' => (
-        skyTop: const Color(0xFF0B2B56),
-        skyBottom: const Color(0xFF071528),
-        glowA: const Color(0xFF64B5F6),
-        glowB: const Color(0xFF90CAF9),
-        groundLight: const Color(0xFF4E8FCB),
-        groundMid: const Color(0xFF245685),
-        groundDark: const Color(0xFF0A223C),
-        rim: const Color(0xFFBFE3FF),
-      ),
-      'Ice' => (
-        skyTop: const Color(0xFF0D3845),
-        skyBottom: const Color(0xFF07151A),
-        glowA: const Color(0xFF80DEEA),
-        glowB: const Color(0xFFE1F5FE),
-        groundLight: const Color(0xFF93C9D6),
-        groundMid: const Color(0xFF3F7A88),
-        groundDark: const Color(0xFF123843),
-        rim: const Color(0xFFD9F6FF),
-      ),
-      'Steam' => (
-        skyTop: const Color(0xFF2E3840),
-        skyBottom: const Color(0xFF101419),
-        glowA: const Color(0xFFCFD8DC),
-        glowB: const Color(0xFFECEFF1),
-        groundLight: const Color(0xFFB0BEC5),
-        groundMid: const Color(0xFF607D8B),
-        groundDark: const Color(0xFF263238),
-        rim: const Color(0xFFECEFF1),
-      ),
-      'Earth' => (
-        skyTop: const Color(0xFF32261F),
-        skyBottom: const Color(0xFF120D0A),
-        glowA: const Color(0xFFA1887F),
-        glowB: const Color(0xFFD7CCC8),
-        groundLight: const Color(0xFF8D6E63),
-        groundMid: const Color(0xFF5D4037),
-        groundDark: const Color(0xFF2B1B16),
-        rim: const Color(0xFFD7CCC8),
-      ),
-      'Mud' => (
-        skyTop: const Color(0xFF2C201A),
-        skyBottom: const Color(0xFF120C09),
-        glowA: const Color(0xFF8D6E63),
-        glowB: const Color(0xFFBCAAA4),
-        groundLight: const Color(0xFF795548),
-        groundMid: const Color(0xFF4E342E),
-        groundDark: const Color(0xFF24140F),
-        rim: const Color(0xFFC8B9B3),
-      ),
-      'Dust' => (
-        skyTop: const Color(0xFF423523),
-        skyBottom: const Color(0xFF181209),
-        glowA: const Color(0xFFFFE0B2),
-        glowB: const Color(0xFFFFCC80),
-        groundLight: const Color(0xFFD7B07A),
-        groundMid: const Color(0xFF8E6A3A),
-        groundDark: const Color(0xFF352511),
-        rim: const Color(0xFFFFE7BE),
-      ),
-      'Crystal' => (
-        skyTop: const Color(0xFF053830),
-        skyBottom: const Color(0xFF021411),
-        glowA: const Color(0xFF80CBC4),
-        glowB: const Color(0xFFB2DFDB),
-        groundLight: const Color(0xFF4DB6AC),
-        groundMid: const Color(0xFF00796B),
-        groundDark: const Color(0xFF00332D),
-        rim: const Color(0xFFC7F6F0),
-      ),
-      'Air' => (
-        skyTop: const Color(0xFF0C3440),
-        skyBottom: const Color(0xFF07141A),
-        glowA: const Color(0xFFB3E5FC),
-        glowB: const Color(0xFFE1F5FE),
-        groundLight: const Color(0xFF88BCD2),
-        groundMid: const Color(0xFF3A6C84),
-        groundDark: const Color(0xFF153341),
-        rim: const Color(0xFFDDF6FF),
-      ),
-      'Plant' => (
-        skyTop: const Color(0xFF17381D),
-        skyBottom: const Color(0xFF09130B),
-        glowA: const Color(0xFFA5D6A7),
-        glowB: const Color(0xFFC8E6C9),
-        groundLight: const Color(0xFF66BB6A),
-        groundMid: const Color(0xFF2E7D32),
-        groundDark: const Color(0xFF113916),
-        rim: const Color(0xFFD7F6D9),
-      ),
-      'Spirit' => (
-        skyTop: const Color(0xFF171E42),
-        skyBottom: const Color(0xFF090B18),
-        glowA: const Color(0xFF9FA8DA),
-        glowB: const Color(0xFFC5CAE9),
-        groundLight: const Color(0xFF7986CB),
-        groundMid: const Color(0xFF3949AB),
-        groundDark: const Color(0xFF1A237E),
-        rim: const Color(0xFFDDE2FF),
-      ),
-      'Dark' => (
-        skyTop: const Color(0xFF1A1134),
-        skyBottom: const Color(0xFF07050F),
-        glowA: const Color(0xFF9575CD),
-        glowB: const Color(0xFFB39DDB),
-        groundLight: const Color(0xFF673AB7),
-        groundMid: const Color(0xFF4527A0),
-        groundDark: const Color(0xFF1A0C40),
-        rim: const Color(0xFFD7CCFF),
-      ),
-      'Light' => (
-        skyTop: const Color(0xFF4E4218),
-        skyBottom: const Color(0xFF191407),
-        glowA: const Color(0xFFFFFF9D),
-        glowB: const Color(0xFFFFF176),
-        groundLight: const Color(0xFFFBC02D),
-        groundMid: const Color(0xFFAF8A1C),
-        groundDark: const Color(0xFF4A380B),
-        rim: const Color(0xFFFFF5BE),
-      ),
-      'Blood' => (
-        skyTop: const Color(0xFF3A0D13),
-        skyBottom: const Color(0xFF140406),
-        glowA: const Color(0xFFEF9A9A),
-        glowB: const Color(0xFFFFCDD2),
-        groundLight: const Color(0xFFE57373),
-        groundMid: const Color(0xFFC62828),
-        groundDark: const Color(0xFF5A1118),
-        rim: const Color(0xFFFFD0D5),
-      ),
-      _ => (
-        skyTop: const Color(0xFF0B1226),
-        skyBottom: const Color(0xFF030307),
-        glowA: const Color(0xFF46B8FF),
-        glowB: const Color(0xFF8B5CFF),
-        groundLight: const Color(0xFF5E72A7),
-        groundMid: const Color(0xFF283457),
-        groundDark: const Color(0xFF0A0E1D),
-        rim: const Color(0xFFAEC6FF),
-      ),
-    };
-
-    final bg = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [palette.skyTop, palette.skyBottom, palette.groundDark],
-      ).createShader(rect);
-    canvas.drawRect(rect, bg);
-
-    final glowA = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(-0.28, -0.24),
-        radius: 1.1,
-        colors: [
-          palette.glowA.withValues(alpha: 0.16 + 0.05 * sin(t)),
-          Colors.transparent,
-        ],
-      ).createShader(rect);
-    canvas.drawRect(rect, glowA);
-
-    final glowB = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(0.42, -0.05),
-        radius: 1.2,
-        colors: [
-          palette.glowB.withValues(alpha: 0.14 + 0.05 * cos(t + 0.9)),
-          Colors.transparent,
-        ],
-      ).createShader(rect);
-    canvas.drawRect(rect, glowB);
-
-    final mist = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.transparent,
-          palette.glowA.withValues(alpha: 0.08 + 0.03 * sin(t * 0.8)),
-          palette.groundDark.withValues(alpha: 0.30),
-        ],
-      ).createShader(rect)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-    canvas.drawRect(rect, mist);
-
-    final motePaint = Paint()..style = PaintingStyle.fill;
-    for (var i = 0; i < 12; i++) {
-      final p = t + i * 0.72;
-      final x = size.width * (0.08 + (i % 6) * 0.17) + sin(p) * 11;
-      final y = size.height * (0.22 + (i ~/ 6) * 0.42) + cos(p * 0.86) * 14;
-      final r = 6.0 + (i % 3) * 2.0;
-      motePaint.color = palette.rim.withValues(alpha: 0.05 + 0.03 * sin(p));
-      canvas.drawCircle(Offset(x, y), r, motePaint);
-    }
-
-    final groundCenter = Offset(size.width * 0.5, size.height * 1.12);
-    final groundRect = Rect.fromCenter(
-      center: groundCenter,
-      width: size.width * 1.72,
-      height: size.height * 0.92,
-    );
-    final ground = Paint()
-      ..shader = RadialGradient(
-        center: const Alignment(0, -0.62),
-        radius: 1.0,
-        colors: [palette.groundLight, palette.groundMid, palette.groundDark],
-        stops: const [0.0, 0.35, 1.0],
-      ).createShader(groundRect);
-    canvas.drawOval(groundRect, ground);
-
-    final rim = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = max(2.0, size.width * 0.0046)
-      ..color = palette.rim.withValues(alpha: 0.36)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    final rimRect = Rect.fromCenter(
-      center: Offset(size.width * 0.5, size.height * 0.90),
-      width: size.width * 0.95,
-      height: size.height * 0.34,
-    );
-    canvas.drawArc(rimRect, pi * 1.02, pi * 0.96, false, rim);
-  }
-
-  @override
-  bool shouldRepaint(covariant _CosmicElementBiomePainter oldDelegate) =>
-      oldDelegate.phase != phase || oldDelegate.element != element;
-}

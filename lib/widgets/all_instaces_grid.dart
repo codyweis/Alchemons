@@ -5,7 +5,6 @@ import 'dart:convert';
 import 'package:alchemons/database/daos/creature_dao.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
-import 'package:alchemons/widgets/creature_selection_sheet.dart';
 import 'package:alchemons/widgets/filterchip_solod.dart';
 import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart';

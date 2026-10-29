@@ -307,12 +307,6 @@ class FactionService extends ChangeNotifier {
     return v == '1';
   }
 
-  /// Test helper for unlocking extra blob slots.
-  Future<bool> setBlobSlotsUnlockedTest() async {
-    await db.settingsDao.setSetting('blob_slots_unlocked', '3');
-    return true;
-  }
-
   Future<void> _setPerkUnlocked(int perkIndex, bool value, {FactionId? forId}) {
     final id = forId ?? current;
     if (id == null) return Future.value();
@@ -422,15 +416,5 @@ class FactionService extends ChangeNotifier {
   double get airBubbleSlotCostMultiplier {
     if (!isAir() || !perk1Active) return 1.0;
     return 0.5;
-  }
-
-  Map<String, int> discountedBubbleSlotCost(Map<String, int> baseCost) {
-    final mult = airBubbleSlotCostMultiplier;
-    if (mult >= 1.0) return Map<String, int>.from(baseCost);
-
-    return {
-      for (final entry in baseCost.entries)
-        entry.key: (entry.value * mult).round(),
-    };
   }
 }

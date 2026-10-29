@@ -49,8 +49,6 @@ Future<bool?> showStoryDialog(
   BuildContext context, {
   required List<StoryBeat> beats,
   StoryDialogKind kind = StoryDialogKind.info,
-  @Deprecated('Story dialogs no longer show an icon; drop the argument')
-  IconData? icon,
   String primaryLabel = 'CONTINUE',
   VoidCallback? onPrimary,
   String? secondaryLabel,
@@ -78,7 +76,6 @@ class StoryDialog extends StatefulWidget {
     super.key,
     required this.beats,
     this.kind = StoryDialogKind.info,
-    this.icon,
     this.primaryLabel = 'CONTINUE',
     this.onPrimary,
     this.secondaryLabel,
@@ -88,9 +85,6 @@ class StoryDialog extends StatefulWidget {
   final List<StoryBeat> beats;
   final StoryDialogKind kind;
 
-  /// Never drawn; kept until the last caller drops it.
-  @Deprecated('Story dialogs no longer show an icon; drop the argument')
-  final IconData? icon;
 
   /// The last page's button; earlier pages say NEXT.
   final String primaryLabel;

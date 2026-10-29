@@ -21,7 +21,6 @@ import 'package:alchemons/audio/audio.dart';
 
 import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/constants/element_resources.dart';
-import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/screens/black_market_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
@@ -58,7 +57,6 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
-import 'package:alchemons/services/debug_settings_service.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // SCREEN
@@ -87,8 +85,6 @@ class _ShopScreenBody extends StatefulWidget {
 
 class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   ForgeTokens get t => ForgeTokens(context.read<FactionTheme>());
-
-  int _slotsUnlocked = 1;
 
   /// Cosmic space found. Raids only exist out there, so the beacon that
   /// summons one is meaningless — and a spoiler — before then.
@@ -139,15 +135,9 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   /// player who never looks at it never bakes its effect cards.
   bool _cosmeticsBuilt = false;
 
-  late final Map<String, int> _slot2Cost;
-  late final Map<String, int> _slot3Cost;
-
   @override
   void initState() {
     super.initState();
-    _slot2Cost = UnlockCosts.bubbleSlot(2);
-    _slot3Cost = UnlockCosts.bubbleSlot(3);
-
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       context.read<BlackMarketService>().checkNow();
@@ -233,48 +223,11 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   Future<void> _refreshAll() async {
     final db = context.read<AlchemonsDatabase>();
-    final n = await db.settingsDao.getBlobSlotsUnlocked();
     final show = await db.settingsDao.getShopShowPurchased();
     if (!mounted) return;
     setState(() {
-      _slotsUnlocked = n;
       _showPurchased = show;
     });
-  }
-
-  Map<String, int> _bubbleSlotCostFor(int slotNumber) {
-    final baseCost = slotNumber == 2 ? _slot2Cost : _slot3Cost;
-    return context.read<FactionService>().discountedBubbleSlotCost(baseCost);
-  }
-
-  Future<void> _purchaseSlot(int target, Map<String, int> cost) async {
-    final db = context.read<AlchemonsDatabase>();
-
-    if (_slotsUnlocked >= target) {
-      _toast('Already unlocked');
-      return;
-    }
-
-    final ok = await db.currencyDao.spendResources(cost);
-    if (!ok) {
-      _toast(
-        'Not enough resources',
-        icon: AppIcons.lock_rounded,
-        color: t.amber,
-      );
-      return;
-    }
-
-    await db.settingsDao.setBlobSlotsUnlocked(target);
-    await _refreshAll();
-    if (!mounted) return;
-    context.sound(SoundCue.purchaseSuccess, owner: this);
-    _toast(
-      'Bubble slot $target unlocked!',
-      icon: AppIcons.bubble_chart_rounded,
-      color: t.teal,
-    );
-    HapticFeedback.lightImpact();
   }
 
   void _toast(
@@ -1164,142 +1117,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     );
   }
 
-  Widget buildExplorationGrid(
-    FactionTheme theme,
-    Map<String, int> allCurrencies,
-    Map<String, int> inventory,
-    Map<String, int> resourceBalances,
-  ) {
-    return Consumer<ShopService>(
-      builder: (context, shopService, _) {
-        final offers = ShopService.allOffers
-            .where((o) => o.id.startsWith('cosmic.'))
-            .toList();
-
-        final cards = offers.map<Widget>((offer) {
-          final canPurchase = shopService.canPurchase(offer.id);
-          final effectiveCost = shopService.getEffectiveCost(offer);
-          final canAffordUnit = effectiveCost.entries.every(
-            (e) => (allCurrencies[e.key] ?? 0) >= e.value,
-          );
-          final invQty = offer.inventoryKey != null
-              ? (inventory[offer.inventoryKey] ?? 0)
-              : 0;
-          final status = invQty > 0 ? 'x$invQty' : null;
-          final costWidgets = <Widget>[
-            for (final entry in effectiveCost.entries)
-              CostChip(
-                currencyType: entry.key,
-                amount: entry.value,
-                available: allCurrencies[entry.key] ?? 0,
-              ),
-          ];
-          return GestureDetector(
-            onTap: context.soundAction(
-              () => canPurchase
-                  ? _handlePurchase(
-                      context,
-                      offer,
-                      allCurrencies,
-                      canAffordUnit,
-                    )
-                  : _showDetails(context, offer, allCurrencies, canAffordUnit),
-            ),
-            child: GameShopCard(
-              key: ValueKey('exploration-${offer.id}'),
-              title: offer.name,
-              offer: offer,
-              theme: theme,
-              costWidgets: costWidgets,
-              statusText: status,
-              enabled: canPurchase,
-              canAfford: canAffordUnit,
-            ),
-          );
-        }).toList();
-
-        // ── Alchemy Chamber (bubble slot) upgrades ──
-        void addSlot(int slotNumber) {
-          final cost = DebugSettingsService.priced(
-            _bubbleSlotCostFor(slotNumber),
-          );
-          if (_slotsUnlocked >= slotNumber && !_showPurchased) return;
-          final enabled = _slotsUnlocked < slotNumber;
-          final canAfford = cost.entries.every(
-            (e) => (resourceBalances[e.key] ?? 0) >= e.value,
-          );
-          final costWidgets = <Widget>[
-            for (final res in ElementResources.all)
-              if ((cost[res.settingsKey] ?? 0) > 0)
-                MiniCostChip(
-                  resource: res,
-                  required: cost[res.settingsKey]!,
-                  current: resourceBalances[res.settingsKey] ?? 0,
-                ),
-          ];
-          final slotOffer = ShopOffer(
-            rewardType: 'Upgrade',
-            reward: <String, dynamic>{},
-            limit: PurchaseLimit.once,
-            id: 'unlock.bubble_slot_$slotNumber',
-            name: 'Alchemy Chamber $slotNumber',
-            description: 'Unlock an additional floating alchemy chamber.',
-            icon: AppIcons.bubble_chart_rounded,
-            cost: cost,
-            inventoryKey: null,
-            assetName: null,
-          );
-          cards.add(
-            GestureDetector(
-              onTap: context.soundAction(
-                () => enabled
-                    ? _handleBubbleSlotPurchase(
-                        context,
-                        slotOffer,
-                        resourceBalances,
-                        canAfford,
-                        slotNumber,
-                      )
-                    : _showBubbleSlotDetails(
-                        context,
-                        slotOffer,
-                        resourceBalances,
-                        canAfford,
-                      ),
-              ),
-              child: GameShopCard(
-                key: ValueKey('upgrade-slot-$slotNumber'),
-                title: 'Alchemy Chamber $slotNumber',
-                offer: slotOffer,
-                theme: theme,
-                costWidgets: costWidgets,
-                enabled: enabled,
-                canAfford: canAfford,
-              ),
-            ),
-          );
-        }
-
-        addSlot(2);
-        addSlot(3);
-
-        if (cards.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.all(12),
-            child: EmptySection(
-              message: 'No exploration items available',
-            ),
-          );
-        }
-
-        return Padding(
-          padding: const EdgeInsets.all(12),
-          child: ShopShelf(children: cards),
-        );
-      },
-    );
-  }
-
   Widget _buildPortalKeysGrid(
     FactionTheme theme,
     Map<String, int> allCurrencies,
@@ -1661,46 +1478,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
   }
 
   // ── DIALOGS & PURCHASE FLOWS (logic unchanged) ─────────────────────────────
-
-  Future<void> _showBubbleSlotDetails(
-    BuildContext context,
-    ShopOffer offer,
-    Map<String, int> balances,
-    bool canAfford,
-  ) async {
-    final theme = context.read<FactionTheme>();
-    await showItemDetailDialog(
-      context: context,
-      offer: offer,
-      theme: theme,
-      currencies: balances,
-      inventoryQty: 0,
-      canPurchase: canAfford,
-      canAfford: canAfford,
-    );
-  }
-
-  Future<void> _handleBubbleSlotPurchase(
-    BuildContext context,
-    ShopOffer offer,
-    Map<String, int> balances,
-    bool canAfford,
-    int slotNumber,
-  ) async {
-    final theme = context.read<FactionTheme>();
-    final shouldProceed = await showItemDetailDialog(
-      context: context,
-      offer: offer,
-      theme: theme,
-      currencies: balances,
-      inventoryQty: 0,
-      canPurchase: canAfford,
-      canAfford: canAfford,
-      effectiveCost: offer.cost,
-    );
-    if (!shouldProceed || !context.mounted) return;
-    await _purchaseSlot(slotNumber, offer.cost);
-  }
 
   /// The service's held counts only see its own sales, and most items are
   /// also spent and granted elsewhere (a Wild Fusion in the field, a

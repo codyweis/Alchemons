@@ -50,30 +50,4 @@ class UnlockCosts {
     final raw = _biomeByBiomeId[b]!;
     return ElementResources.costByBiome(raw);
   }
-
-  /// Bubble slot unlock costs (DB keys).
-  /// Previously this charged Fire/Water/Air/Earth evenly.
-  /// Now we charge across the 5 biome currencies.
-  static Map<String, int> bubbleSlot(int n) {
-    switch (n) {
-      case 2:
-        return ElementResources.costByBiome({
-          'volcanic': 1000,
-          'oceanic': 1000,
-          'earthen': 1000,
-          'verdant': 1000,
-          'arcane': 1000,
-        });
-      case 3:
-        return ElementResources.costByBiome({
-          'volcanic': 1000,
-          'oceanic': 1000,
-          'earthen': 1000,
-          'verdant': 1000,
-          'arcane': 1000,
-        });
-      default:
-        return const {};
-    }
-  }
 }

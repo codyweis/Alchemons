@@ -42,7 +42,6 @@ Future<Rect> _show(
                   onPressed: () => showGameSnack(
                     context,
                     message,
-                    icon: Icons.star,
                     action: withAction
                         ? SnackBarAction(label: 'VIEW', onPressed: () {})
                         : null,

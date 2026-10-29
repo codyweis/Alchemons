@@ -70,21 +70,6 @@ class SettingsDao extends DatabaseAccessor<AlchemonsDatabase>
 
   // =================== BLOB PARTY (OVERLAY) ===================
 
-  Future<int> getBlobSlotsUnlocked() async {
-    final v = await getSetting('blob_slots_unlocked');
-    if (v == null) {
-      await setSetting('blob_slots_unlocked', '1');
-      return 1;
-    }
-    final n = int.tryParse(v) ?? 1;
-    return n.clamp(1, 3);
-  }
-
-  Future<void> setBlobSlotsUnlocked(int n) async {
-    final clamped = n.clamp(1, 3);
-    await setSetting('blob_slots_unlocked', clamped.toString());
-  }
-
   Future<List<String?>> getBlobInstanceSlots() async {
     final keys = ['blob_slot_0', 'blob_slot_1', 'blob_slot_2'];
     final vals = <String?>[];

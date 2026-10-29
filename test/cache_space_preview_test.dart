@@ -2,8 +2,7 @@
 library;
 
 // The 17 elemental caches as they sit in open space, and their unsealing,
-// to judge as a set — plus the daily cache on home, which paints the same
-// reliquary.
+// to judge as a set.
 //
 //   CACHE_SPACE_OUT=/tmp/caches flutter test \
 //     test/cache_space_preview_test.dart --tags preview
@@ -13,10 +12,9 @@ library;
 //                ship is near; a portrait phone's middle zoom at 2x, the
 //                last cell holding the ship for size
 //   strip.png    every element through its unsealing, left to right
-//   space/NNN.png, home/NNN.png
-//                frames at 30 fps of all 17 opening together, and of the
-//                four divisions' home caches at home size; join them with
-//                ffmpeg -framerate 30 -i space/%03d.png space.mp4
+//   space/NNN.png
+//                frames at 30 fps of all 17 opening together; join them
+//                with ffmpeg -framerate 30 -i space/%03d.png space.mp4
 
 import 'dart:io';
 import 'dart:math';
@@ -26,14 +24,9 @@ import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_cache_vfx.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/ship_art.dart';
-import 'package:alchemons/widgets/daily_reliquary.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-/// The home cache's unsealing, in seconds, as the daily chest played it
-/// (the chest has given way to the Athanor; DailyReliquary is kept).
-const double _homeOpenSeconds = 2.1;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -214,43 +207,6 @@ void main() {
         ),
         const Size(330 * 0.72 * 3, 330 * 0.72 * 6),
         '$out/space/${f.toString().padLeft(3, '0')}.png',
-      );
-    }
-
-    // Home: the four divisions' caches at home size (128 dp, drawn at 2x),
-    // with room round them for what they throw past the box.
-    const homeElements = ['Fire', 'Water', 'Crystal', 'Plant'];
-    const box = 128.0 * 2;
-    const homeCell = 300.0 * 2;
-    final homeFrames = ((lead + _homeOpenSeconds + 0.5) * fps).round();
-    for (var f = 0; f < homeFrames; f++) {
-      final s = f / fps;
-      final t = s < lead ? 0.0 : ((s - lead) / _homeOpenSeconds);
-      final rec = ui.PictureRecorder();
-      final c = Canvas(rec);
-      c.drawRect(
-        const Rect.fromLTWH(0, 0, homeCell * 2, homeCell * 2),
-        Paint()..color = const Color(0xFF07090C),
-      );
-      for (var i = 0; i < homeElements.length; i++) {
-        c.save();
-        c.translate(
-          (i % 2) * homeCell + (homeCell - box) / 2,
-          (i ~/ 2) * homeCell + (homeCell - box) / 2,
-        );
-        DailyReliquaryPainter(
-          element: homeElements[i],
-          life: 2.0 + s,
-          // Past the end the widget is gone (claimed); a t of 1 paints
-          // nothing.
-          open: min(t, 1.0),
-        ).paint(c, const Size.square(box));
-        c.restore();
-      }
-      await save(
-        rec.endRecording(),
-        const Size(homeCell * 2, homeCell * 2),
-        '$out/home/${f.toString().padLeft(3, '0')}.png',
       );
     }
   });
