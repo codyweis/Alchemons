@@ -28,6 +28,8 @@ import 'package:alchemons/screens/scenes/rift_portal_screen.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/services/wilderness_catch_service.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/element_resource_glyph.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
@@ -985,17 +987,9 @@ class _HoldToTurn extends StatelessWidget {
       onPointerCancel: (_) => release(),
       child: ValueListenableBuilder<double>(
         valueListenable: s._turn,
-        builder: (context, turn, _) => Container(
-          height: 48,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: const Color(0xFF0B0A0E),
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(
-              color: color.withValues(alpha: 0.45 + 0.5 * turn),
-              width: 1.1,
-            ),
-          ),
+        builder: (context, turn, _) => _RiftPlate(
+          color: color,
+          lit: 0.55 + 0.45 * turn,
           child: Stack(
             children: [
               // The turn, filling from the left as the key goes round.
@@ -1094,28 +1088,11 @@ class _NoKey extends StatelessWidget {
           GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: canAfford && !s._buying ? context.soundAction(s._buy) : null,
-            child: Container(
-              height: 48,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0B0A0E),
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(
-                  color: canAfford
-                      ? color.withValues(alpha: 0.8)
-                      : const Color(0xFF3A3530),
-                  width: 1.1,
-                ),
-              ),
+            child: _RiftPlate(
+              color: color,
+              lit: canAfford ? 1 : 0,
               child: s._buying
-                  ? SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.8,
-                        valueColor: AlwaysStoppedAnimation(color),
-                      ),
-                    )
+                  ? Center(child: GrainLoader(size: 16, color: color))
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1228,28 +1205,11 @@ class _NoHarvester extends StatelessWidget {
             onTap: canAfford && !s._buyingHarvester
                 ? context.soundAction(s._buyHarvester)
                 : null,
-            child: Container(
-              height: 48,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0B0A0E),
-                borderRadius: BorderRadius.circular(9),
-                border: Border.all(
-                  color: canAfford
-                      ? color.withValues(alpha: 0.8)
-                      : const Color(0xFF3A3530),
-                  width: 1.1,
-                ),
-              ),
+            child: _RiftPlate(
+              color: color,
+              lit: canAfford ? 1 : 0,
               child: s._buyingHarvester
-                  ? SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.8,
-                        valueColor: AlwaysStoppedAnimation(color),
-                      ),
-                    )
+                  ? Center(child: GrainLoader(size: 16, color: color))
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -1296,6 +1256,44 @@ class _NoHarvester extends StatelessWidget {
       ],
     );
   }
+}
+
+/// The threshold's buttons in the kit's way: a dark plate washed in
+/// [color], lit from below as [lit] nears 1, unlit (a price not met) at 0.
+/// (Rounded outlined boxes until 2026-10.)
+class _RiftPlate extends StatelessWidget {
+  const _RiftPlate({
+    required this.color,
+    required this.lit,
+    required this.child,
+  });
+
+  final Color color;
+  final double lit;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    foregroundPainter: BracketFramePainter(
+      color: lit <= 0
+          ? BracketPalette.dark.line
+          : color.withValues(alpha: 0.55 + 0.45 * lit.clamp(0.0, 1.0)),
+      strokeWidth: 1.3,
+    ),
+    child: Container(
+      height: 48,
+      clipBehavior: Clip.hardEdge,
+      decoration: BoxDecoration(
+        color: Color.lerp(
+          const Color(0xFF0B0A0E),
+          color,
+          lit <= 0 ? 0.0 : 0.12,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: child,
+    ),
+  );
 }
 
 /// A price's currency: the gold and silver coins, or an element's glyph.

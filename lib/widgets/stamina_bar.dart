@@ -161,9 +161,9 @@ class _StaminaBadgeState extends State<StaminaBadge> {
     }
 
     return Tooltip(
-      message: 'Breeding stamina',
+      message: 'Fusion stamina',
       child: Semantics(
-        label: 'Breeding stamina ${state.bars} of ${state.max}',
+        label: 'Fusion stamina ${state.bars} of ${state.max}',
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

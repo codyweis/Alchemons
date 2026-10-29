@@ -6,6 +6,7 @@ import 'package:alchemons/widgets/chronal_catalyst_glyph.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -101,63 +102,20 @@ class _HalfCultivationChipState extends State<HalfCultivationChip> {
   }
 
   void _explain(BuildContext context, Duration left) {
-    final theme = context.read<FactionTheme>();
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: theme.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: theme.border),
+    showStoryDialog(
+      context,
+      beats: [
+        StoryBeat(
+          title: 'CHRONAL CATALYST',
+          message:
+              'Every cultivation you start right now takes half as long.\n\n'
+              'It runs for ${formatRemaining(left)} more, and it keeps running '
+              'while the app is closed. Cultivations already under way keep '
+              'the time they were given when they started.',
         ),
-        titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 8),
-        contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-        title: Row(
-          children: [
-            // The same glyph the shop sells it with, so the countdown in the
-            // header and the item on the shelf are recognisably one thing.
-            const ChronalCatalystGlyph(size: 22),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Chronal Catalyst',
-                style: TextStyle(
-                  fontFamily: appFontFamily(context),
-                  color: theme.text,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 1.1,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'Every cultivation you start right now takes half as long.\n\n'
-          'It runs for ${formatRemaining(left)} more, and it keeps running '
-          'while the app is closed. Cultivations already under way keep the '
-          'time they were given when they started.',
-          style: TextStyle(
-            fontFamily: appFontFamily(context),
-            color: theme.textMuted,
-            fontSize: 12.5,
-            height: 1.45,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: context.soundAction(() => Navigator.of(ctx).pop()),
-            child: Text(
-              'Got it',
-              style: TextStyle(
-                fontFamily: appFontFamily(context),
-                color: theme.accent,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
-          ),
-        ],
-      ),
+      ],
+      primaryLabel: 'CLOSE',
+      barrierDismissible: true,
     );
   }
 }

@@ -1,64 +1,14 @@
 import 'package:alchemons/utils/faction_util.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 import 'package:flutter/material.dart';
 
+/// A screen still waiting on game data: ink and the grain loader.
+///
+/// [message] is what the gate is waiting on. It is not shown; the wait is
+/// short enough that naming it only reads as a system booting.
 Widget buildLoadingScreen(FactionTheme theme, String message) {
-  return Scaffold(
+  return const Scaffold(
     backgroundColor: Colors.transparent,
-    body: Container(
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: const Alignment(0, -0.6),
-          radius: 1.2,
-          colors: [
-            theme.surface,
-            theme.surface,
-            theme.surfaceAlt.withValues(alpha: .6),
-          ],
-          stops: const [0, .6, 1],
-        ),
-      ),
-      child: Center(
-        child: Container(
-          width: 240,
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.surfaceAlt,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.border, width: 2),
-            boxShadow: [
-              BoxShadow(
-                color: theme.accent.withValues(alpha: .4),
-                blurRadius: 28,
-                spreadRadius: 4,
-              ),
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .8),
-                blurRadius: 40,
-                spreadRadius: 16,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(
-                strokeWidth: 3,
-                valueColor: AlwaysStoppedAnimation(theme.primary),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                message,
-                style: TextStyle(
-                  color: theme.text,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
+    body: GrainLoadingScreen(),
   );
 }

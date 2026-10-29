@@ -291,7 +291,7 @@ class CosmicGame extends FlameGame with PanDetector {
     final previousLevel = CosmicBalance.spaceLevel(_guardiansDefeated);
     _guardiansDefeated = count;
     if (!isLoaded || previousLevel == CosmicBalance.spaceLevel(count)) return;
-    final rng = Random(world_.planets.first.element.hashCode ^ count);
+    final rng = Random(world_.seed ^ count);
     for (final lair in bossLairs) {
       if (lair.state == BossLairState.waiting) {
         lair.level = CosmicBalance.rollSpaceLevel(count, rng);
@@ -862,7 +862,7 @@ class CosmicGame extends FlameGame with PanDetector {
           world_.retiredArenaPosition,
           world_.bloodRing.position,
           world_.prismaticField.position,
-          ...world_.riftPortals.map((r) => r.position),
+          ...world_.riftPortals.map((r) => r.origin),
           ...world_.retiredContestArenaPositions,
         ],
       );
@@ -1067,28 +1067,28 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // Generate star dust collectibles
     starDusts = StarDust.generate(
-      seed: world_.planets.first.element.hashCode ^ 0xC05,
+      seed: world_.seed ^ 0xC05,
       worldSize: world_.worldSize,
       planets: world_.planets,
     );
 
     // Generate asteroid belt
     asteroidBelt = AsteroidBelt.generate(
-      seed: world_.planets.first.element.hashCode ^ 0xBEEF,
+      seed: world_.seed ^ 0xBEEF,
       worldSize: world_.worldSize,
     );
 
     // Generate galaxy whirls (horde encounters)
     galaxyWhirls = GalaxyWhirl.generate(
       guardiansDefeated: _guardiansDefeated,
-      seed: world_.planets.first.element.hashCode ^ 0xAA11,
+      seed: world_.seed ^ 0xAA11,
       worldSize: world_.worldSize,
       planets: world_.planets,
     );
 
     // Generate space POIs
     spacePOIs = SpacePOI.generate(
-      seed: world_.planets.first.element.hashCode ^ 0xBB22,
+      seed: world_.seed ^ 0xBB22,
       worldSize: world_.worldSize,
       planets: world_.planets,
     );
@@ -1106,7 +1106,7 @@ class CosmicGame extends FlameGame with PanDetector {
     syncPlanetScannerAvailability();
 
     // Generate initial boss lairs (3-4 spread around the world)
-    final lairRng = Random(world_.planets.first.element.hashCode ^ 0xCC33);
+    final lairRng = Random(world_.seed ^ 0xCC33);
     final lairCount = 3 + lairRng.nextInt(2); // 3 or 4
     bossLairs = [];
     for (int i = 0; i < lairCount; i++) {

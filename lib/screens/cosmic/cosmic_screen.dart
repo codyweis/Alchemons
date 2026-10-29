@@ -27,6 +27,7 @@ import 'package:alchemons/screens/cosmic/space_market_sheet.dart';
 import 'package:alchemons/screens/cosmic/cosmic_sell_sheet.dart';
 import 'package:alchemons/screens/cosmic/gold_conversion_sheet.dart';
 import 'package:alchemons/screens/scenes/landscape_dialog.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
@@ -79,7 +80,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/bracket_controls.dart'
-    show AttentionDot, showBracketConfirm;
+    show AttentionDot, BracketButton, showBracketConfirm;
 import 'package:alchemons/widgets/coin_icon.dart' show CoinKind;
 import 'package:alchemons/games/cosmic/works.dart';
 
@@ -155,6 +156,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     with TickerProviderStateMixin, RouteAware {
   static const _prefsKey = 'cosmic_fog_state_v2';
   static const _seedKey = 'cosmic_world_seed_v2';
+  static const _riftsPrefsKey = 'cosmic_rift_positions_v1';
   static const _planetRecipeArrivalIntroSeenKey =
       'cosmic_planet_recipe_arrival_intro_seen_v1';
   static const _cosmicIntroPromptedKey = 'cosmic_intro_prompted_v1';
@@ -737,6 +739,10 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
 
     _world = CosmicWorld.generate(seed: _worldSeed);
+    // Rifts move on once something is caught in one; put them where they went.
+    if (!widget.memoryTutorial) {
+      RiftPortal.restoreAll(_world, prefs.getString(_riftsPrefsKey));
+    }
 
     // Load planet star state (dungeon stars earned per planet)
     final starRaw = prefs.getString(_planetStarStatePrefsKey);
@@ -1854,7 +1860,6 @@ class _CosmicScreenState extends State<CosmicScreen>
           'The field thins. Whatever this was, it is already behind you — and '
           'you are only remembering it.',
       kind: LandscapeDialogKind.info,
-      icon: AppIcons.auto_awesome,
       primaryLabel: 'Return',
       barrierDismissible: false,
     );
@@ -2354,6 +2359,7 @@ class _CosmicScreenState extends State<CosmicScreen>
           onReturn: (success) {
             if (success != true || !mounted) return;
             _game?.relocateRift(rift);
+            unawaited(_saveRifts());
             setState(() => _isNearRift = false);
           },
         );
@@ -2542,6 +2548,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     setState(() {});
   }
 
+  Future<void> _saveRifts() async {
+    if (widget.memoryTutorial) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_riftsPrefsKey, RiftPortal.serialiseAll(_world));
+  }
+
   Future<void> _saveNexusState() async {
     if (_game == null) return;
     final prefs = await SharedPreferences.getInstance();
@@ -2581,7 +2593,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     if (!game.cacheAttunementReady(cache)) {
       HapticFeedback.lightImpact();
       _showQuote(
-        'The seal will not take. It needs ${cacheHintFor(cache.element)}.',
+        'The cache will not open. It needs ${cacheHintFor(cache.element)}.',
         holdFor: const Duration(seconds: 4),
       );
       return;
@@ -2902,92 +2914,137 @@ class _CosmicScreenState extends State<CosmicScreen>
     List<CosmicPartyMember> candidates,
   ) async {
     if (!mounted) return null;
+    const palette = BracketPalette.dark;
+    final accent = FC.of(context).amberBright;
     return showDialog<CosmicPartyMember>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF120607),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: const BorderSide(color: Color(0x55FF8A80), width: 1.2),
-          ),
-          title: Text(
-            'Choose Favorite Alchemon',
-            style: TextStyle(
-              color: Color(0xFFFFCDD2),
-              fontSize: 18,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 0.8,
+      barrierColor: Colors.black.withValues(alpha: 0.7),
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 28),
+          child: CustomPaint(
+            foregroundPainter: BracketFramePainter(
+              color: accent.withValues(alpha: 0.9),
+              bracketSize: 14,
+              strokeWidth: 1.3,
             ),
-          ),
-          content: SizedBox(
-            width: 360,
-            child: SingleChildScrollView(
+            child: Container(
+              color: palette.bg1,
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.only(bottom: 10),
-                    child: Text(
-                      'Sacrifice and rebirth: choose a reserve companion to offer. It is consumed, and a Bloodborn Vial goes to your extraction chamber. What is extracted keeps its level, training and nickname; any Potential below 95 becomes 95, and none is lowered. Its Potential Souls come back to you. This cannot be undone.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.white70, fontSize: 13),
+                  Text(
+                    'GIVE TO THE BLOOD RING',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: palette.ink,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.8,
                     ),
                   ),
-                  for (final c in candidates)
-                    ListTile(
-                      onTap: context.soundAction(
-                        () => Navigator.of(context).pop(c),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFF2B1011),
-                        child: c.imagePath != null
-                            ? ClipOval(
-                                child: Image.asset(
-                                  c.imagePath!,
-                                  fit: BoxFit.cover,
-                                  width: 34,
-                                  height: 34,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    AppIcons.auto_awesome,
-                                    color: Colors.white70,
-                                    size: 16,
+                  const SizedBox(height: 12),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            'Choose a reserve companion to give to the Blood Ring. It is consumed, and a Bloodborn Vial goes to your extraction chamber. What is extracted keeps its level, training and nickname; any Potential below 95 becomes 95, and none is lowered. Its Potential Souls come back to you. This cannot be undone.',
+                            style: bracketText(
+                              ctx,
+                              13,
+                              palette.ink.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                          for (final c in candidates)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: ctx.soundAction(
+                                  () => Navigator.of(ctx).pop(c),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: palette.surfaceMutedFill(),
+                                    border: Border.all(color: palette.line),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 40,
+                                        height: 40,
+                                        child: c.imagePath != null
+                                            ? Image.asset(
+                                                c.imagePath!,
+                                                fit: BoxFit.contain,
+                                                errorBuilder: (_, __, ___) =>
+                                                    const SizedBox.shrink(),
+                                              )
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              c.displayName,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: bracketText(
+                                                ctx,
+                                                14,
+                                                palette.ink,
+                                                weight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Text(
+                                              '${c.element} · ${c.family}',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: bracketText(
+                                                ctx,
+                                                12,
+                                                palette.muted,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
-                              )
-                            : const Icon(
-                                AppIcons.auto_awesome,
-                                color: Colors.white70,
-                                size: 16,
                               ),
-                      ),
-                      title: Text(
-                        c.displayName,
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      subtitle: Text(
-                        '${c.element} · ${c.family}',
-                        style: TextStyle(color: Colors.white60),
-                      ),
-                      trailing: const Icon(
-                        AppIcons.chevron_right_rounded,
-                        color: Colors.white54,
+                            ),
+                        ],
                       ),
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                  BracketButton(
+                    label: 'CANCEL',
+                    primary: false,
+                    height: 42,
+                    palette: palette,
+                    accent: accent,
+                    onTap: () => Navigator.of(ctx).pop(),
+                  ),
                 ],
               ),
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(() => Navigator.of(context).pop()),
-              child: Text('Cancel'),
-            ),
-          ],
         );
       },
     );
@@ -4079,7 +4136,7 @@ class _CosmicScreenState extends State<CosmicScreen>
     }
     meter.reset();
     _game!.onMeterChanged();
-    _showQuote('Elemental cargo jettisoned into the void.');
+    _showQuote('Cargo hold emptied.');
     HapticFeedback.mediumImpact();
     setState(() {});
   }
@@ -5156,59 +5213,16 @@ class _CosmicScreenState extends State<CosmicScreen>
   Future<bool> _showConfirmPurchase({
     required String title,
     required String cost,
-  }) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (ctx) {
-        final fc = FC.of(ctx);
-        final ft = FT(fc);
-        return AlertDialog(
-          backgroundColor: fc.bg2,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: fc.borderDim),
-          ),
-          title: Text(
-            title.toUpperCase(),
-            style: ft.heading.copyWith(fontSize: 15, color: fc.textPrimary),
-          ),
-          content: Text(
-            'Cost: $cost',
-            style: ft.body.copyWith(color: fc.textSecondary, fontSize: 14),
-          ),
-          actions: [
-            TextButton(
-              onPressed: context.soundAction(
-                () => Navigator.of(ctx).pop(false),
-              ),
-              child: Text(
-                'Cancel',
-                style: ft.label.copyWith(color: fc.textMuted),
-              ),
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: fc.success,
-                foregroundColor: fc.textPrimary,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 10,
-                ),
-              ),
-              onPressed: context.soundAction(() => Navigator.of(ctx).pop(true)),
-              child: Text(
-                'Confirm',
-                style: ft.mono.copyWith(color: fc.textPrimary),
-              ),
-            ),
-          ],
-        );
-      },
+  }) {
+    // The cost is element stock and shards by name, not a coin, so it
+    // reads in the message.
+    return showBracketConfirm(
+      context,
+      palette: BracketPalette.dark,
+      accent: FC.of(context).amberBright,
+      title: title.toUpperCase(),
+      message: 'Cost: $cost',
     );
-    return result ?? false;
   }
 
   Future<void> _handleTryRecipe(String recipeId) async {
@@ -6850,12 +6864,12 @@ class _CosmicScreenState extends State<CosmicScreen>
     final planetName = kPlanetDisplayName[element] ?? element;
     if (dungeonIsComingSoon(element)) {
       _showQuote(
-        'The gate of $planetName stands unsealed! '
-        'Its depths are still being forged. Descent coming soon.',
+        '$planetName gate unlocked. '
+        'Its depths are not ready yet; descent is coming soon.',
       );
     } else {
       _showQuote(
-        'The gate of $planetName stands unsealed! '
+        '$planetName gate unlocked. '
         'Bring ${req.join(' + ')} alchemons to descend.',
       );
     }
@@ -7312,26 +7326,9 @@ class _CosmicScreenState extends State<CosmicScreen>
 
     // Show loading while game initialises
     if (_game == null || _recipes == null) {
-      return Scaffold(
-        backgroundColor: const Color(0xFF020010),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: theme.accent),
-              const SizedBox(height: 16),
-              Text(
-                'ENTERING THE COSMOS...',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.7),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2,
-                ),
-              ),
-            ],
-          ),
-        ),
+      return const Scaffold(
+        backgroundColor: Color(0xFF020010),
+        body: Center(child: GrainLoader(size: 72)),
       );
     }
 
@@ -8206,6 +8203,8 @@ class _CosmicScreenState extends State<CosmicScreen>
                 ),
 
               // ── Rift portal button ──
+              // The planet's DESCEND lens, its light the rift's own. (A
+              // glowing rounded plate until 2026-10.)
               if (showCosmicHud &&
                   _game != null &&
                   _isNearRift &&
@@ -8215,48 +8214,21 @@ class _CosmicScreenState extends State<CosmicScreen>
                 Builder(
                   builder: (context) {
                     final rift = _game!.nearestRift!;
-                    final col = rift.color;
-                    final core = rift.coreColor;
                     return Positioned(
                       bottom: 100,
                       left: 0,
                       right: 0,
                       child: Center(
-                        child: GestureDetector(
-                          onTap: context.soundAction(_handleRiftTap),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              color: core.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: col, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: col.withValues(alpha: 0.4),
-                                  blurRadius: 20,
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(AppIcons.blur_on, color: col, size: 22),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'ENTER ${rift.displayName.toUpperCase()}',
-                                  style: TextStyle(
-                                    color: col,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        child: PlanetActionButton(
+                          label: 'ENTER',
+                          sublabel: rift.displayName,
+                          light: rift.color,
+                          glyph: SpaceActionGlyph(
+                            SpaceAction.portal,
+                            size: PlanetActionButton.glyphSize,
+                            color: rift.color,
                           ),
+                          onTap: context.soundTap(_handleRiftTap),
                         ),
                       ),
                     );
@@ -8274,76 +8246,20 @@ class _CosmicScreenState extends State<CosmicScreen>
                   left: 0,
                   right: 0,
                   child: Center(
-                    child: GestureDetector(
-                      onTap: context.soundAction(_handleBloodRingTap),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.93),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFFFF8A80),
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(
-                                0xFFB71C1C,
-                              ).withValues(alpha: 0.55),
-                              blurRadius: 24,
-                            ),
-                            BoxShadow(
-                              color: const Color(
-                                0xFFFFCDD2,
-                              ).withValues(alpha: 0.16),
-                              blurRadius: 40,
-                              spreadRadius: 3,
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  AppIcons.brightness_2,
-                                  color: Color(0xFFFF8A80),
-                                  size: 22,
-                                ),
-                                const SizedBox(width: 10),
-                                Text(
-                                  _game!.bloodRing.ritualCompleted
-                                      ? 'ENTER BLOOD PORTAL'
-                                      : 'BLOOD RITUAL',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              _game!.bloodRing.ritualCompleted
-                                  ? 'Replay the ending credits'
-                                  : 'Summon Mystic Blood + Choose One Offering',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
-                        ),
+                    child: PlanetActionButton(
+                      label: _game!.bloodRing.ritualCompleted
+                          ? 'ENTER'
+                          : 'MAKE AN OFFERING',
+                      sublabel: _game!.bloodRing.ritualCompleted
+                          ? 'Blood Portal'
+                          : 'Blood Ring',
+                      light: const Color(0xFFC0392B),
+                      glyph: const SpaceActionGlyph(
+                        SpaceAction.portal,
+                        size: PlanetActionButton.glyphSize,
+                        color: Color(0xFFD94A3D),
                       ),
+                      onTap: context.soundTap(_handleBloodRingTap),
                     ),
                   ),
                 ),
@@ -8390,64 +8306,22 @@ class _CosmicScreenState extends State<CosmicScreen>
                   left: 0,
                   right: 0,
                   child: Center(
-                    child: GestureDetector(
-                      onTap: context.soundAction(_handleNexusTap),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 24,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.92),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.deepPurpleAccent,
-                            width: 2,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.deepPurpleAccent.withValues(
-                                alpha: 0.5,
-                              ),
-                              blurRadius: 24,
-                            ),
-                            BoxShadow(
-                              color: Colors.cyanAccent.withValues(alpha: 0.2),
-                              blurRadius: 40,
-                              spreadRadius: 4,
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'ENTER ELEMENTAL NEXUS',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              '4 Boss Keys + 25% Fire · Water · Air · Earth',
-                              style: TextStyle(
-                                color: Colors.white60,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1,
-                              ),
-                            ),
-                          ],
-                        ),
+                    child: PlanetActionButton(
+                      label: 'ENTER',
+                      sublabel: 'Elemental Nexus · four guardian relics',
+                      light: const Color(0xFF8B7BE8),
+                      glyph: const SpaceActionGlyph(
+                        SpaceAction.portal,
+                        size: PlanetActionButton.glyphSize,
+                        color: Color(0xFFFF7043),
+                        cargo: [
+                          Color(0xFFFF7043),
+                          Color(0xFF4FA3FF),
+                          Color(0xFF9CCC65),
+                          Color(0xFFB3E5FC),
+                        ],
                       ),
+                      onTap: context.soundTap(_handleNexusTap),
                     ),
                   ),
                 ),
@@ -8464,7 +8338,7 @@ class _CosmicScreenState extends State<CosmicScreen>
                     final col = {
                       'Fire': const Color(0xFFFF5722),
                       'Water': const Color(0xFF448AFF),
-                      'Earth': const Color(0xFF795548),
+                      'Earth': const Color(0xFFA1887F),
                       'Air': const Color(0xFF81D4FA),
                     }[element]!;
                     return Positioned(
@@ -8472,41 +8346,16 @@ class _CosmicScreenState extends State<CosmicScreen>
                       left: 0,
                       right: 0,
                       child: Center(
-                        child: GestureDetector(
-                          onTap: context.soundAction(_handlePocketPortalTap),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 14,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withValues(alpha: 0.92),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: col, width: 2),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: col.withValues(alpha: 0.5),
-                                  blurRadius: 24,
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(AppIcons.blur_on, color: col, size: 22),
-                                const SizedBox(width: 10),
-                                Text(
-                                  'ENTER ${element.toUpperCase()} PORTAL',
-                                  style: TextStyle(
-                                    color: col,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: 2,
-                                  ),
-                                ),
-                              ],
-                            ),
+                        child: PlanetActionButton(
+                          label: 'ENTER',
+                          sublabel: '$element Portal',
+                          light: col,
+                          glyph: SpaceActionGlyph(
+                            SpaceAction.portal,
+                            size: PlanetActionButton.glyphSize,
+                            color: col,
                           ),
+                          onTap: context.soundTap(_handlePocketPortalTap),
                         ),
                       ),
                     );
@@ -8524,46 +8373,23 @@ class _CosmicScreenState extends State<CosmicScreen>
                   child: SafeArea(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
-                      child: GestureDetector(
-                        onTap: context.soundAction(() {
-                          if (_game == null) return;
-                          HapticFeedback.mediumImpact();
-                          _game!.exitNexusPocket();
-                          _saveNexusState();
-                          setState(() {
-                            _nearPocketPortalElement = null;
-                          });
-                        }),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.7),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.white24, width: 1),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                AppIcons.arrow_back,
-                                color: Colors.white54,
-                                size: 16,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'EXIT NEXUS',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ],
-                          ),
+                      child: SizedBox(
+                        width: 132,
+                        child: BracketButton(
+                          label: 'EXIT NEXUS',
+                          primary: false,
+                          height: 38,
+                          palette: BracketPalette.dark,
+                          accent: CosmicScreenStyles.amber,
+                          onTap: () {
+                            if (_game == null) return;
+                            HapticFeedback.mediumImpact();
+                            _game!.exitNexusPocket();
+                            _saveNexusState();
+                            setState(() {
+                              _nearPocketPortalElement = null;
+                            });
+                          },
                         ),
                       ),
                     ),
@@ -9128,50 +8954,14 @@ class _CosmicScreenState extends State<CosmicScreen>
                   right: 0,
                   child: SafeArea(
                     child: Center(
-                      child: GestureDetector(
-                        onTap: context.soundAction(_endHomePreview),
-                        behavior: HitTestBehavior.opaque,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 22,
-                            vertical: 12,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.92),
-                            border: Border.all(
-                              color: CosmicScreenStyles.teal,
-                              width: 1.6,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: CosmicScreenStyles.teal.withValues(
-                                  alpha: 0.4,
-                                ),
-                                blurRadius: 22,
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                AppIcons.visibility_off_rounded,
-                                size: 15,
-                                color: CosmicScreenStyles.teal,
-                              ),
-                              const SizedBox(width: 9),
-                              Text(
-                                'END PREVIEW',
-                                style: TextStyle(
-                                  fontFamily: appFontFamily(context),
-                                  color: CosmicScreenStyles.teal,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2,
-                                ),
-                              ),
-                            ],
-                          ),
+                      child: SizedBox(
+                        width: 180,
+                        child: BracketButton(
+                          label: 'END PREVIEW',
+                          height: 44,
+                          palette: BracketPalette.dark,
+                          accent: CosmicScreenStyles.teal,
+                          onTap: _endHomePreview,
                         ),
                       ),
                     ),

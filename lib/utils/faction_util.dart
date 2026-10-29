@@ -126,12 +126,13 @@ const _lightRoles = <FactionId, _Role>{
   ),
 };
 
-// Defaults for "unknown" / null faction
+// Defaults for "unknown" / null faction: the ink + brass of the rest of the
+// game (they were periwinkle and violet, which nothing else uses).
 const _defaultDarkRole = _Role(
-  Color(0xFF8E9AF7),
-  Color(0xFFB388FF),
-  Color(0xFF7C86FF),
-  Color(0xFFB3BBFF),
+  Color(0xFFB89656), // brass
+  Color(0xFFCDB07A), // pale brass
+  Color(0xFFCDB07A),
+  Color(0xFFE2C98F),
 );
 
 const _defaultLightRole = _Role(
@@ -143,10 +144,12 @@ const _defaultLightRole = _Role(
 
 // ======= System neutrals for Dark / Light =======
 
-const _darkText = Color(0xFFE8EAED);
-const _darkMuted = Color(0xFFB6C0CC);
-const _darkSurface = Color(0xFF111422);
-const _darkSurfaceAlt = Color(0xFF0E1120);
+// The ink palette (BracketPalette.dark / ForgeTokens): these were a cool navy
+// that every Material fallback — dialogs, snackbars, sheets — showed through.
+const _darkText = Color(0xFFE6E2DA);
+const _darkMuted = Color(0xFFB5B1A9);
+const _darkSurface = Color(0xFF131316);
+const _darkSurfaceAlt = Color(0xFF0F0F12);
 const _darkBorder = Color(0x1AFFFFFF);
 
 const _lightText = Color(0xFF0F1221);
@@ -158,7 +161,7 @@ const _lightBorder = Color(0x14000000); // ~8% black
 // ======= Gradients per faction (Dark / Light) =======
 
 Map<FactionId?, List<Color>> _darkGrad = {
-  null: const [Color(0xFF0A0E27), Color(0xFF111638), Color(0xFF171C44)],
+  null: const [Color(0xFF09090B), Color(0xFF131316), Color(0xFF17171A)],
   FactionId.volcanic: const [
     Color(0xFF1A0D0D),
     Color(0xFF2A0E12),
@@ -488,7 +491,7 @@ extension FactionMaterialTheme on FactionTheme {
     return base.copyWith(
       colorScheme: scheme,
       scaffoldBackgroundColor: isDark
-          ? const Color(0xFF0A0E27)
+          ? const Color(0xFF09090B)
           : const Color(0xFFF7F8FC),
       cardColor: surface,
       textTheme: tintedText,

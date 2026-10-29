@@ -15,6 +15,10 @@
 //   raid     a planet with the storm of an overrun on it (the chart's own)
 //   summon   the raid beacon (the item's own glyph)
 //   outpost  the planet's extractor (works_art.dart), its hopper lit
+//   portal   a rift, the Blood Portal, the Nexus: grains drawn in round a
+//            dark eye, lopsided, going hot as they near it and dimming into
+//            it — taken in, not orbiting. [cargo] colors the grains several
+//            ways (the Nexus's four)
 //
 // And the combat buttons:
 //
@@ -50,6 +54,7 @@ enum SpaceAction {
   raid,
   summon,
   outpost,
+  portal,
   gun,
   boost,
   missile,
@@ -218,12 +223,65 @@ class SpaceActionPainter extends CustomPainter {
           mining: lit,
         );
         canvas.restore();
+      case SpaceAction.portal:
+        _portal(canvas, c, s, t);
       case SpaceAction.gun:
         _gun(canvas, c, s, t);
       case SpaceAction.boost:
         _boost(canvas, c, s, t);
       case SpaceAction.missile:
         _missile(canvas, c, s, t);
+    }
+  }
+
+  /// Grains drawn in round a dark eye: each comes in from the rim along a
+  /// short spiral, hot over the last of the way and dim as it goes under.
+  void _portal(Canvas canvas, Offset c, double s, double t) {
+    final colors = cargo.isEmpty ? [color] : cargo.take(4).toList();
+    final eye = c + Offset(s * 0.03, -s * 0.02);
+    final dim = lit ? 1.0 : 0.6;
+    paintDisc(canvas, stoneLightFor(colors.first).leak, eye, s * 0.56, dim);
+    // The eye: a dark the light goes into.
+    _paint
+      ..shader = ui.Gradient.radial(
+        eye,
+        s * 0.22,
+        const [Color(0xF2000000), Color(0x8C000000), Color(0x00000000)],
+        const [0.0, 0.55, 1.0],
+      )
+      ..color = const Color(0xFF000000);
+    canvas.drawCircle(eye, s * 0.22, _paint);
+    _paint.shader = null;
+    final b = _b..clear();
+    const n = 64;
+    for (var i = 0; i < n; i++) {
+      final k = i % colors.length;
+      final ph = ((lit ? t * 0.3 : 0) + hash01(i, 21)) % 1.0;
+      final base = hash01(i, 22) * math.pi * 2;
+      // The head, then a short run of its path behind it, fainter: a
+      // streak, not a row of dots.
+      for (var j = 0; j < 4; j++) {
+        final q = ph - j * 0.014;
+        if (q < 0 || q > 0.97) continue;
+        final a = base + q * 2.8;
+        // Wider on one side than the other: a pull, not an orbit.
+        final r =
+            s * (0.06 + 0.42 * math.pow(1 - q, 0.8)) *
+            (1 + 0.17 * math.sin(a + 1.1));
+        final p = eye + Offset(math.cos(a), math.sin(a)) * r;
+        final hot = j == 0 && q > 0.42 && q < 0.88;
+        b.add(k * 2 + (hot ? 0 : 1), p.dx, p.dy);
+      }
+    }
+    for (var k = 0; k < colors.length; k++) {
+      final m = stoneLightFor(colors[k]);
+      b.draw(
+        canvas,
+        k * 2 + 1,
+        s * 0.034,
+        m.grainDim.withValues(alpha: 0.5 * dim),
+      );
+      b.draw(canvas, k * 2, s * 0.05, m.grainHot.withValues(alpha: 0.95 * dim));
     }
   }
 

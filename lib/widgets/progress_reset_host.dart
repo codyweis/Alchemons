@@ -125,6 +125,9 @@ class _ProgressResetHostState extends State<ProgressResetHost> {
         // save and the new one.
         theme: ThemeData.dark(),
         home: Scaffold(
+          // Waiting is the splash's own ink, with nothing on it: the real
+          // splash follows, so no stock spinner or words come first.
+          backgroundColor: const Color(0xFF09090B),
           body: SafeArea(
             child: Center(
               child: Builder(
@@ -133,14 +136,13 @@ class _ProgressResetHostState extends State<ProgressResetHost> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (_error == null) const CircularProgressIndicator(),
-                      const SizedBox(height: 20),
-                      Text(
-                        _error == null
-                            ? 'Preparing your game…'
-                            : 'Could not finish preparing your game.\n$_error',
-                        textAlign: TextAlign.center,
-                      ),
+                      if (_error != null) ...[
+                        const SizedBox(height: 20),
+                        Text(
+                          'Could not finish preparing your game.\n$_error',
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                       if (_error != null)
                         TextButton(
                           onPressed: _restart,

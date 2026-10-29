@@ -31,6 +31,7 @@ import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/inventory_item_artwork.dart';
 import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
@@ -296,9 +297,7 @@ class _AthanorScreenState extends State<AthanorScreen>
       r.dispose();
       if (!mounted) return;
       if (r.failed) {
-        ScaffoldMessenger.maybeOf(
-          context,
-        )?.showSnackBar(const SnackBar(content: Text('Nothing was poured.')));
+        showGameSnack(context, 'Nothing was poured.');
       } else if (items.isNotEmpty) {
         await _showEnhanceOrbs(items);
       }

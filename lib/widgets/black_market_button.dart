@@ -9,6 +9,8 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/navigation/emblem_passage.dart';
+import 'package:alchemons/widgets/home_emblems.dart' show EmblemStage;
 import 'package:alchemons/widgets/animations/floating_particle.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:alchemons/widgets/fx/glyph_clock.dart';
@@ -23,12 +25,17 @@ class AnimatedBlackMarketButton extends StatefulWidget {
   /// The square the button takes up; the ball sits in the middle of it.
   final double size;
 
+  /// True while the ball is away carrying the player in
+  /// ([BlackMarketPassage]): its place is left empty.
+  final ValueListenable<bool>? lifted;
+
   const AnimatedBlackMarketButton({
     super.key,
     required this.isOpen,
     required this.accent,
     required this.onTap,
     this.size = 75,
+    this.lifted,
   });
 
   @override
@@ -83,6 +90,17 @@ class AnimatedBlackMarketButtonState extends State<AnimatedBlackMarketButton>
 
   @override
   Widget build(BuildContext context) {
+    final lifted = widget.lifted;
+    final button = _button(context);
+    if (lifted == null) return button;
+    return ValueListenableBuilder<bool>(
+      valueListenable: lifted,
+      builder: (_, away, child) => Opacity(opacity: away ? 0 : 1, child: child),
+      child: button,
+    );
+  }
+
+  Widget _button(BuildContext context) {
     return GestureDetector(
       onTap: context.soundAction(widget.onTap),
       child: AnimatedBuilder(
@@ -255,10 +273,50 @@ abstract final class _MarketOrbPaint {
   static final GrainBatch _b = GrainBatch(7);
   static final Paint _p = Paint();
 
-  static final Map<int, Shader> _glowShaders = {};
-  static final Map<int, Shader> _bodyShaders = {};
-  static final Map<int, Shader> _rimShaders = {};
-  static final Map<int, Shader> _shineShaders = {};
+  // Each light at unit size, scaled to the ball as it is drawn: the ball
+  // grows over the whole screen on the way in, and a shader per radius
+  // would be one per frame.
+  static final Shader _glowShader = ui.Gradient.radial(
+    Offset.zero,
+    1,
+    [
+      _violet.withValues(alpha: 0.55),
+      _violet.withValues(alpha: 0.42),
+      _violet.withValues(alpha: 0.14),
+      _violet.withValues(alpha: 0),
+    ],
+    const [0.0, 0.5, 0.7, 1.0],
+  );
+  static final Shader _bodyShader = ui.Gradient.radial(
+    Offset.zero,
+    1,
+    const [Color(0xFF050307), Color(0xF2060409), Color(0x00070409)],
+    const [0.0, 0.72, 1.0],
+  );
+  static final Shader _rimShader = ui.Gradient.radial(
+    Offset.zero,
+    1,
+    [
+      _violet.withValues(alpha: 0),
+      _violet.withValues(alpha: 0),
+      Color.lerp(_violet, _lilac, 0.3)!.withValues(alpha: 0.3),
+      _violet.withValues(alpha: 0),
+    ],
+    const [0.0, 0.6, 0.84, 1.0],
+  );
+  static final Shader _shineShader = ui.Gradient.radial(Offset.zero, 1, const [
+    Color(0x2EFFFFFF),
+    Color(0x00FFFFFF),
+  ]);
+
+  /// [_p]'s unit-size light, drawn as a disc of radius [r].
+  static void _unit(Canvas canvas, double r) {
+    canvas.save();
+    canvas.scale(r);
+    canvas.drawCircle(Offset.zero, 1, _p);
+    canvas.restore();
+    _p.shader = null;
+  }
 
   /// Paints the ball round [c] at radius [r] at time [t].
   ///
@@ -281,25 +339,10 @@ abstract final class _MarketOrbPaint {
 
     // ── its light on what is round it ──
     if (on > 0) {
-      final glowR = r * 1.9;
       _p
-        ..shader = _glowShaders.putIfAbsent(
-          glowR.round(),
-          () => ui.Gradient.radial(
-            Offset.zero,
-            glowR,
-            [
-              _violet.withValues(alpha: 0.55),
-              _violet.withValues(alpha: 0.42),
-              _violet.withValues(alpha: 0.14),
-              _violet.withValues(alpha: 0),
-            ],
-            const [0.0, 0.5, 0.7, 1.0],
-          ),
-        )
+        ..shader = _glowShader
         ..color = Color.fromRGBO(0, 0, 0, (on * glow).clamp(0.0, 1.0));
-      canvas.drawCircle(Offset.zero, glowR, _p);
-      _p.shader = null;
+      _unit(canvas, r * 1.9);
     }
 
     // ── the sphere ──
@@ -337,20 +380,10 @@ abstract final class _MarketOrbPaint {
         on >= 1 ? _tones[k] : Color.lerp(_tones[k ~/ 2], _tones[k], on)!;
 
     // The core: black, soft at its edge, so the grains draw its outline.
-    final bodyR = r.roundToDouble();
     _p
-      ..shader = _bodyShaders.putIfAbsent(
-        bodyR.round(),
-        () => ui.Gradient.radial(
-          Offset.zero,
-          bodyR,
-          const [Color(0xFF050307), Color(0xF2060409), Color(0x00070409)],
-          const [0.0, 0.72, 1.0],
-        ),
-      )
+      ..shader = _bodyShader
       ..color = const Color(0xFF000000);
-    canvas.drawCircle(Offset.zero, r, _p);
-    _p.shader = null;
+    _unit(canvas, r);
     // The far side, faint through the smoke.
     b.draw(canvas, _farB, d * 0.8, _tones[1].withValues(alpha: 0.55));
     for (var k = 0; k < 5; k++) {
@@ -358,41 +391,108 @@ abstract final class _MarketOrbPaint {
     }
     // The light behind it wells up round its edge.
     _p
-      ..shader = _rimShaders.putIfAbsent(
-        bodyR.round(),
-        () => ui.Gradient.radial(
-          Offset.zero,
-          bodyR * 1.15,
-          [
-            _violet.withValues(alpha: 0),
-            _violet.withValues(alpha: 0),
-            Color.lerp(_violet, _lilac, 0.3)!.withValues(alpha: 0.3),
-            _violet.withValues(alpha: 0),
-          ],
-          const [0.0, 0.6, 0.84, 1.0],
-        ),
-      )
+      ..shader = _rimShader
       ..color = Color.fromRGBO(0, 0, 0, 0.15 + 0.85 * on);
-    canvas.drawCircle(Offset.zero, r * 1.15, _p);
-    _p.shader = null;
+    _unit(canvas, r * 1.15);
     // A faint catchlight, upper left: black glass, not a hole.
-    final shineR = r * 0.38;
     canvas.save();
     canvas.translate(-r * 0.34, -r * 0.4);
     _p
-      ..shader = _shineShaders.putIfAbsent(
-        shineR.round(),
-        () => ui.Gradient.radial(Offset.zero, shineR, const [
-          Color(0x2EFFFFFF),
-          Color(0x00FFFFFF),
-        ]),
-      )
+      ..shader = _shineShader
       ..color = Color.fromRGBO(0, 0, 0, 0.5 + 0.5 * on);
-    canvas.drawCircle(Offset.zero, shineR, _p);
-    _p.shader = null;
+    _unit(canvas, r * 0.38);
     canvas.restore();
     b.draw(canvas, _glintB, d * 2.2, _lilac.withValues(alpha: 0.3));
     b.draw(canvas, _glintB, d * 1.2, _lilac);
     canvas.restore();
+  }
+}
+
+/// The way into the black market: the ball lifts off the shop and grows
+/// over it until the shop is gone into its dark, a few of its grains still
+/// turning there; then the dark opens from where the stall's lamp hangs, and
+/// the lamplit stall is what was inside it. Back, the lamp's light closes
+/// and the ball shrinks home.
+class BlackMarketPassage extends PassageScene {
+  const BlackMarketPassage();
+
+  @override
+  Duration get inward => const Duration(milliseconds: 900);
+  @override
+  Duration get outward => const Duration(milliseconds: 850);
+  @override
+  Duration get landing => const Duration(milliseconds: 750);
+
+  /// Built while the ball is still growing, so the stall's painting is read
+  /// before the dark opens onto it.
+  @override
+  double get buildAt => 0.4;
+
+  /// Wholly there under the dark from the first frame of the landing; the
+  /// dark opening is what shows it.
+  @override
+  double pageShown(double land) => land > 0 ? 1 : 0.004;
+
+  /// The stall's lamp: the black market screen's pool of lamplight is
+  /// centred at Alignment(0, -0.2).
+  static Offset lampOf(Size screen) =>
+      Offset(screen.width / 2, screen.height * 0.4);
+
+  static double _smooth(double e0, double e1, double x) {
+    final t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
+    return t * t * (3 - 2 * t);
+  }
+
+  static final Paint _veil = Paint();
+  static const Color _night = Color(0xFF050307);
+
+  @override
+  void paint(
+    Canvas canvas,
+    EmblemStage s, {
+    required bool back,
+    required bool front,
+  }) {
+    final size = s.screen;
+    final lamp = lampOf(size);
+    // Far enough that the ball's solid core covers every corner.
+    final far = math.sqrt(
+      math.pow(size.width / 2, 2) +
+          math.pow(math.max(lamp.dy, size.height - lamp.dy), 2),
+    );
+    final full = far / 0.7;
+    final g = s.grow;
+    final home = s.box.center;
+    final r0 = s.box.shortestSide * 0.3;
+    // It rises toward the lamp's place as it grows, quickly at first.
+    final c = Offset.lerp(home, lamp, _smooth(0, 0.7, g))!;
+    final r = r0 + (full - r0) * g * g;
+
+    if (back) {
+      // The shop goes under the night it is growing into.
+      _veil.color = _night.withValues(alpha: 0.85 * s.ground);
+      canvas.drawRect(Offset.zero & size, _veil);
+    }
+    if (!front) return;
+    final land = s.land;
+    if (land <= 0) {
+      _MarketOrbPaint.paint(canvas, c, r, s.time, glow: 1 - 0.6 * g);
+      return;
+    }
+    // The dark opens from the lamp: a hole of light widening through it,
+    // its edge soft as lamplight is.
+    final open = _smooth(0, 1, land);
+    // Wide enough by the end that every corner is clear (inside 0.45).
+    final hole = far * 2.4 * open;
+    _veil
+      ..color = const Color(0xFF000000)
+      ..shader = ui.Gradient.radial(
+        lamp,
+        math.max(hole, 1),
+        [_night.withValues(alpha: 0), _night.withValues(alpha: 0), _night],
+        const [0.0, 0.45, 1.0],
+      );
+    canvas.drawRect(Offset.zero & size, _veil);
+    _veil.shader = null;
   }
 }

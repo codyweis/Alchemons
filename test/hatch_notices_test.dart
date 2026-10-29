@@ -40,7 +40,7 @@ void main() {
     await tester.tap(find.text('go'));
     await tester.pump(const Duration(milliseconds: 300));
 
-    expect(find.textContaining('FIRELET REACHED 10 BRED'), findsOneWidget);
+    expect(find.textContaining('FIRELET REACHED 10 FUSIONS'), findsOneWidget);
     expect(find.textContaining('+2 CONSTELLATION POINTS'), findsOneWidget);
     expect(find.text('PROGRESS'), findsOneWidget);
     expect(find.byType(Icon), findsNothing);

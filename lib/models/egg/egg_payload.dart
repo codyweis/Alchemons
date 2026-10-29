@@ -491,7 +491,15 @@ class EggPayloadFactory {
     );
   }
 
-  EggPayload createVialPayload(Creature creature, {String? vialName}) {
+  /// [natureId], [tint] and [size] are what an infusion chose
+  /// (models/vial_infusion.dart); without them it is rolled as any vial.
+  EggPayload createVialPayload(
+    Creature creature, {
+    String? vialName,
+    String? natureId,
+    String? tint,
+    String? size,
+  }) {
     final rng = _random;
     final primaryElement = creature.types.isNotEmpty
         ? creature.types.first
@@ -499,8 +507,11 @@ class EggPayloadFactory {
     final nativeFaction = elementalGroupNameOf(creature);
     final family = creature.mutationFamily;
 
-    // Vials get random nature
-    final natures = NatureCatalogWeighted.rollWildSlots(rng);
+    // Vials get random nature, or the one infused into them
+    final infused = natureId == null ? null : NatureCatalog.byId(natureId);
+    final natures = infused != null
+        ? [infused]
+        : NatureCatalogWeighted.rollWildSlots(rng);
     final nature = natures.isEmpty ? null : natures.first;
 
     final rolledStats = _rollStatBlock(
@@ -518,7 +529,11 @@ class EggPayloadFactory {
       natureId: nature?.id,
       natureId2: natures.length > 1 ? natures[1].id : null,
       isPrismaticSkin: false,
-      genetics: creature.genetics?.variants ?? {},
+      genetics: {
+        ...?creature.genetics?.variants,
+        'tinting': ?tint,
+        'size': ?size,
+      },
       stats: rolledStats.stats,
       parentage: null,
       potentials: rolledStats.potentials,

@@ -52,6 +52,7 @@ import 'package:alchemons/widgets/loading_widget.dart';
 import 'package:alchemons/widgets/notification_banner_system.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:alchemons/widgets/dock_passages.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/dock_emblems.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:alchemons/widgets/side_dock_widget.dart';
@@ -155,7 +156,7 @@ class _MainShellState extends State<MainShell> {
     const screens = <(int, String, double)>[
       (1, 'Organizing your Alchemons', 0.82),
       (2, 'Stocking the markets', 0.88),
-      (3, 'Preparing the breeding lab', 0.94),
+      (3, 'Loading Fusion', 0.94),
       (4, 'Sorting your inventory', 0.98),
     ];
 
@@ -1520,12 +1521,10 @@ class _HomeScreenState extends State<HomeScreen>
       debugPrint('Error during app initialization: $e');
       debugPrint('Error during app initialization: $e\n$st');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to initialize app: $e'),
-          backgroundColor: Colors.red.shade600,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
+      showGameSnack(
+        context,
+        'Failed to initialize app: $e',
+        accent: const Color(0xFFE57373),
       );
     }
   }
@@ -1729,13 +1728,7 @@ class _HomeScreenState extends State<HomeScreen>
           count: totalSpawns,
           stateKey: stateKey,
           onTap: () {
-            Navigator.push(
-              context,
-              CupertinoPageRoute(
-                builder: (_) => const MapScreen(),
-                fullscreenDialog: true,
-              ),
-            );
+            _openField();
           },
         ),
       );
@@ -2042,12 +2035,7 @@ class _HomeScreenState extends State<HomeScreen>
           subtitle: 'Tap to collect',
           count: readyHarvests,
           stateKey: stateKey,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ExtractionHubScreen()),
-            );
-          },
+          onTap: _openHarvest,
         ),
       );
     } else {
@@ -3151,11 +3139,7 @@ class _HomeScreenState extends State<HomeScreen>
     final unlocked = await db.settingsDao.isCosmicSurvivalPortalDiscovered();
     if (!mounted) return;
     if (!unlocked) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Discover the cosmic portal to unlock Survival.'),
-        ),
-      );
+      showGameSnack(context, 'Discover the cosmic portal to unlock Survival.');
       return;
     }
     // The equipped orb grows out of the dock onto the hub's own.

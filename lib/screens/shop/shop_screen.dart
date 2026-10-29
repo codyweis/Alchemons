@@ -23,8 +23,6 @@ import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/constants/element_resources.dart';
 import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/models/extraction_vile.dart';
 import 'package:alchemons/screens/black_market_screen.dart';
 import 'package:alchemons/screens/profile_screen.dart';
 import 'package:alchemons/screens/shop/alchemon_exchange_screen.dart';
@@ -41,20 +39,22 @@ import 'package:alchemons/widgets/potential_soul_sphere.dart';
 import 'package:alchemons/widgets/shelf_look.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart'
     show routeObserver;
 import 'package:alchemons/widgets/background/particle_background_scaffold.dart';
 import 'package:alchemons/widgets/black_market_button.dart';
+import 'package:alchemons/navigation/emblem_passage.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
+import 'package:alchemons/widgets/game_snack.dart';
+import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/wallet_panel.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/perf/viewport_ticker_gate.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -180,6 +180,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   @override
   void dispose() {
+    _marketLifted.dispose();
     _pages.dispose();
     _scenesScroll.dispose();
     _focusedScene.dispose();
@@ -282,42 +283,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     Color? color,
   }) {
     if (!mounted) return;
-    final backgroundColor = color ?? t.amber;
-    final foregroundColor = t.onColor(backgroundColor);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: t.bg1,
-                borderRadius: BorderRadius.circular(2),
-              ),
-              child: Icon(icon, color: foregroundColor, size: 13),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(
-                msg.toUpperCase(),
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: foregroundColor,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 0.8,
-                ),
-              ),
-            ),
-          ],
-        ),
-        backgroundColor: backgroundColor,
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(14),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(3)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+    showGameSnack(context, msg, accent: color ?? t.amber);
   }
 
   // ── BUILD ──────────────────────────────────────────────────────────────────
@@ -344,11 +310,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                 child: BracketTabs(
                   labels: const ['SUPPLIES', 'COSMETICS', 'SCENES'],
-                  icons: const [
-                    AppIcons.science,
-                    AppIcons.auto_awesome,
-                    AppIcons.landscape_rounded,
-                  ],
                   selected: _tab,
                   onSelect: _selectTab,
                   palette: BracketPalette.fromTheme(theme),
@@ -462,69 +423,8 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     );
   }
 
-  // ── DAILY VIAL ─────────────────────────────────────────────────────────────
-
-  Widget _buildDailyVialSection(
-    FactionTheme theme,
-    Map<String, int> allCurrencies,
-  ) {
-    return Consumer<ShopService>(
-      builder: (context, shopService, _) {
-        final offer = shopService.getActiveDailyVialOffer();
-        if (offer == null) return const SizedBox.shrink();
-
-        final canPurchase = shopService.canPurchase(offer.id);
-        final effectiveCost = shopService.getEffectiveCost(offer);
-        final price = effectiveCost['silver'] ?? (offer.cost['silver'] ?? 100);
-        final canAfford = (allCurrencies['silver'] ?? 0) >= price;
-        final isPurchased = !canPurchase;
-
-        final costWidgets = <Widget>[
-          CostChip(
-            currencyType: 'silver',
-            amount: price,
-            available: allCurrencies['silver'] ?? 0,
-          ),
-        ];
-
-        final groupName = offer.id.split('.').last;
-        final group = ElementalGroup.values.firstWhere(
-          (g) => g.name == groupName,
-          orElse: () => ElementalGroup.volcanic,
-        );
-        final vialModel = ExtractionVial(
-          id: offer.id,
-          name: '${group.displayName} Vial',
-          group: group,
-          rarity: VialRarity.common,
-          quantity: 1,
-          price: price,
-        );
-
-        return GestureDetector(
-          onTap: context.soundAction(() {
-            if (canPurchase) {
-              _handlePurchase(context, offer, allCurrencies, canAfford);
-            } else {
-              _showDetails(context, offer, allCurrencies, canAfford);
-            }
-          }),
-          child: GameShopCard(
-            key: ValueKey('vial-${offer.id}'),
-            title: '${group.displayName} Vial',
-            offer: offer,
-            theme: theme,
-            costWidgets: costWidgets,
-            enabled: !isPurchased,
-            canAfford: canAfford,
-            preview: Center(
-              child: ExtractionVialOrb(vial: vialModel, size: 70),
-            ),
-          ),
-        );
-      },
-    );
-  }
+  // The daily vial used to live here. Vials are now only sold at the black
+  // market, since the Essence stand needs them to do anything with.
 
   // ── SHOP CONTENT ───────────────────────────────────────────────────────────
   // (unchanged grid logic — only section headers restyled)
@@ -643,21 +543,14 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _buildSectionHeader('COMMON ITEMS'),
-                // The vial is a routine restock like the other two, so
-                // it shares their grid — same cell, same size — instead
-                // of a full-width card above them. Its live brewing
-                // particle field keeps its own layer, paused once it
-                // scrolls out of the viewport.
+                // Vials used to show up here too, but they are only sold at
+                // the black market now (the stand in the Essence screen is
+                // the one place they are used).
                 _buildInstantItemsGrid(
                   theme,
                   allCurrencies,
                   inventoryByKey,
                   _commonConsumableIds,
-                  leading: [
-                    ViewportTickerGate(
-                      child: _buildDailyVialSection(theme, allCurrencies),
-                    ),
-                  ],
                 ),
 
                 _buildSectionHeader('GOLD VAULT', coin: CoinKind.gold),
@@ -1052,7 +945,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No effects available',
-              icon: AppIcons.auto_awesome_outlined,
             ),
           );
         }
@@ -1169,7 +1061,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         if (offers.isEmpty) {
           return const EmptySection(
             message: 'No gold packs available',
-            icon: AppIcons.account_balance_wallet_outlined,
           );
         }
 
@@ -1397,7 +1288,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No exploration items available',
-              icon: AppIcons.rocket_launch_outlined,
             ),
           );
         }
@@ -1426,7 +1316,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No portal keys available',
-              icon: AppIcons.vpn_key_outlined,
             ),
           );
         }
@@ -1515,7 +1404,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'No consumables available',
-              icon: AppIcons.flash_off_rounded,
             ),
           );
         }
@@ -1706,7 +1594,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
             padding: EdgeInsets.all(12),
             child: EmptySection(
               message: 'All special items unlocked',
-              icon: AppIcons.check_circle_outline_rounded,
             ),
           );
         }
@@ -1869,7 +1756,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
         ? shopService.inventoryCountForOffer(offer.id)
         : 0;
 
-    final shouldProceed = await showItemDetailDialog(
+    final qty = await showOfferDialog(
       context: context,
       offer: offer,
       theme: theme,
@@ -1878,15 +1765,7 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
       canPurchase: canPurchaseDaily,
       canAfford: isCurrencyAffordable,
       effectiveCost: effectiveCost,
-    );
-    if (!shouldProceed || !context.mounted) return;
-
-    final qty = await showPurchaseConfirmationDialog(
-      context: context,
-      offer: offer,
-      theme: theme,
-      currencies: currencies,
-      effectiveCost: effectiveCost,
+      allowQuantity: shopService.allowsQuantity(offer),
     );
     if (qty == null || !context.mounted) return;
 
@@ -1932,11 +1811,6 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
     if (success && offer.id == 'boost.faction_change') {
       HapticFeedback.mediumImpact();
-      _toast(
-        'Opening faction selector...',
-        icon: AppIcons.flag_rounded,
-        color: const Color(0xFF7C3AED),
-      );
       // The app shell watches `require_faction_picker` and opens the picker.
       // Pushing it here as well stacks two pickers and makes the user choose twice.
     }
@@ -2027,25 +1901,51 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
     );
   }
 
+  final GlobalKey _marketKey = GlobalKey();
+  final ValueNotifier<bool> _marketLifted = ValueNotifier(false);
+
+  /// Into the market through its ball ([BlackMarketPassage]). The ball is
+  /// lifted a frame after the push, once the passage's own ball stands over
+  /// it: the route's first frame is laid out offstage and not painted, and
+  /// lifting at once left neither for that frame (a blink on the tap).
+  void _openBlackMarket(Color accent) {
+    final away = ValueNotifier<bool>(false);
+    away.addListener(() {
+      if (!away.value) {
+        _marketLifted.value = false;
+        return;
+      }
+      SchedulerBinding.instance
+        ..addPostFrameCallback((_) {
+          if (away.value) _marketLifted.value = true;
+        })
+        ..ensureVisualUpdate();
+    });
+    EmblemPassage.pushScene<void>(
+      context,
+      scene: const BlackMarketPassage(),
+      from: _marketKey,
+      page: BlackMarketScreen(accent: accent),
+      lifted: away,
+    );
+  }
+
   Widget _buildBlackMarketFloatingButton(BuildContext context, Color accent) {
     return Consumer<BlackMarketService>(
       builder: (context, marketService, child) => AnimatedBlackMarketButton(
+        key: _marketKey,
         isOpen: marketService.isOpen,
         accent: accent,
         size: 54,
+        lifted: _marketLifted,
         onTap: marketService.isOpen
             ? () {
                 HapticFeedback.lightImpact();
-                Navigator.push(
-                  context,
-                  CupertinoPageRoute(
-                    builder: (_) => BlackMarketScreen(accent: accent),
-                  ),
-                );
+                _openBlackMarket(accent);
               }
             : () {
                 HapticFeedback.mediumImpact();
-                _showMarketClosedDialog(context, accent, marketService);
+                _showMarketClosedDialog(context, marketService);
               },
       ),
     );
@@ -2084,119 +1984,25 @@ class _ShopScreenState extends State<_ShopScreenBody> with RouteAware {
 
   void _showMarketClosedDialog(
     BuildContext context,
-    Color accent,
     BlackMarketService marketService,
   ) {
     final timeUntil = marketService.getTimeUntilOpen();
     final hoursUntil = timeUntil.inHours;
     final minutesUntil = timeUntil.inMinutes % 60;
-    final timerAccent = t.readableAccent(t.amberBright);
+    final wait = hoursUntil > 0
+        ? '${hoursUntil}H ${minutesUntil}M'
+        : '${minutesUntil}M';
 
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        backgroundColor: t.bg1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(4),
-          side: BorderSide(color: t.borderAccent, width: 1.5),
+    showStoryDialog(
+      context,
+      beats: [
+        StoryBeat(
+          title: 'BLACK MARKET',
+          message: 'The black market opens in $wait.',
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Icon plate
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: t.bg2,
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: t.borderDim),
-                ),
-                child: Icon(
-                  AppIcons.storefront_rounded,
-                  color: t.textMuted,
-                  size: 28,
-                ),
-              ),
-              const SizedBox(height: 14),
-              Text(
-                'NOBODY HERE',
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: 2.0,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'There is a digital timer in the corner\nwith a countdown:',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'monospace',
-                  color: t.textSecondary,
-                  fontSize: 12,
-                  letterSpacing: 0.3,
-                  height: 1.6,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  color: t.amberDim.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(3),
-                  border: Border.all(color: t.borderAccent),
-                ),
-                child: Text(
-                  hoursUntil > 0
-                      ? '${hoursUntil}H  ${minutesUntil}M'
-                      : '${minutesUntil}M',
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: timerAccent,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 4.0,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: GestureDetector(
-                  onTap: context.soundAction(() => Navigator.pop(ctx)),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    decoration: BoxDecoration(
-                      color: t.bg2,
-                      borderRadius: BorderRadius.circular(3),
-                      border: Border.all(color: t.borderDim),
-                    ),
-                    child: Center(
-                      child: Text(
-                        'CLOSE',
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: t.textSecondary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 2.0,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+      ],
+      primaryLabel: 'CLOSE',
+      barrierDismissible: true,
     );
   }
 }

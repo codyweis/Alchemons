@@ -32,6 +32,7 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
@@ -265,25 +266,7 @@ class _BossAltarDetailScreenState extends State<BossAltarDetailScreen>
 
   void _snack(String msg) {
     if (!mounted) return;
-    final accent = altarAccent(_boss.element);
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            msg,
-            style: altarBody(context, color: AltarTone.parchment),
-          ),
-          backgroundColor: const Color(0xFF0B0812),
-          behavior: SnackBarBehavior.floating,
-          elevation: 0,
-          margin: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-          shape: Border(
-            left: BorderSide(color: accent.withValues(alpha: 0.75), width: 2),
-          ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
+    showGameSnack(context, msg, accent: altarAccent(_boss.element));
   }
 
   // ── the clock ─────────────────────────────────────────────────────────────

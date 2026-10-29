@@ -1,7 +1,7 @@
 import 'package:alchemons/audio/audio.dart';
 // lib/screens/progress_overview_screen.dart
 //
-// Breeding milestones: every species you have bred, one row each — its
+// Fusion milestones: every species you have fused, one row each — its
 // portrait in a lit case, its name, how far it is to the next milestone and
 // what that is worth, and the milestone track. Rows closest to their next
 // milestone come first; species with every milestone reached sink to the
@@ -191,12 +191,12 @@ class _ConstellationProgressOverviewScreenState
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'BREEDING MILESTONES',
+                            'FUSION MILESTONES',
                             style: caseMono(13, palette.ink, spacing: 1.6),
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            'Breed a species to earn constellation points',
+                            'Fuse a species to earn constellation points',
                             style: caseMono(
                               9.5,
                               palette.muted,
@@ -216,7 +216,7 @@ class _ConstellationProgressOverviewScreenState
                       '$bred',
                       style: caseMono(15, palette.ink, weight: FontWeight.w900),
                     ),
-                    Text(' BRED    ', style: caseMono(10.5, palette.muted)),
+                    Text(' FUSED    ', style: caseMono(10.5, palette.muted)),
                     Text(
                       '$points',
                       style: caseMono(15, gilt, weight: FontWeight.w900),
@@ -232,8 +232,8 @@ class _ConstellationProgressOverviewScreenState
                   Padding(
                     padding: const EdgeInsets.only(top: 24),
                     child: Text(
-                      'Nothing bred yet. Each species pays out at '
-                      '${BreedingMilestone.milestones.map((m) => m.count).join(', ')} bred.',
+                      'Nothing fused yet. Each species pays out at '
+                      '${BreedingMilestone.milestones.map((m) => m.count).join(', ')} fused.',
                       style: caseMono(
                         11,
                         palette.muted,

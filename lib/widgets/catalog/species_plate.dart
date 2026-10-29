@@ -156,7 +156,7 @@ class _SpeciesPlateState extends State<SpeciesPlate> {
                           weight: FontWeight.w900,
                         ),
                       ),
-                      Text(' BRED', style: caseMono(9.5, palette.muted)),
+                      Text(' FUSED', style: caseMono(9.5, palette.muted)),
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(

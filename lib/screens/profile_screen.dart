@@ -90,6 +90,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // TYPE
@@ -1223,14 +1224,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           children: [
             Row(
               children: [
-                SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: _accent,
-                  ),
-                ),
+                GrainLoader(size: 18, color: _accent),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Text(message, style: _prose(context, _palette.ink)),

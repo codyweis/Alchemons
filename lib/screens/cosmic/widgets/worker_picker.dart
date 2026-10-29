@@ -23,6 +23,7 @@ import 'cosmic_overlay_chrome.dart';
 import 'cosmic_panel_kit.dart';
 import 'cosmic_screen_styles.dart';
 import 'works_panels.dart' show jobFigure, jobReads, jobScore, jobStats;
+import 'package:alchemons/widgets/grain_loader.dart';
 
 /// What an Alchemon brings to a job, read from its record.
 WorkerProfile workerProfileOf(CreatureInstance inst, String element) =>
@@ -160,13 +161,7 @@ class _WorkerPickerState extends State<WorkerPicker> {
               ),
               Expanded(
                 child: all == null
-                    ? const Center(
-                        child: SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      )
+                    ? const Center(child: GrainLoader(size: 22))
                     : all.isEmpty
                     ? Center(
                         child: Text(

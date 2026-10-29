@@ -3,6 +3,7 @@
 // Data model for the Cosmic Alchemy Explorer — planets, fog-of-war, element
 // collection and summon resolution.
 
+import 'dart:convert';
 import 'dart:math';
 import 'dart:ui';
 import 'package:alchemons/games/cosmic/cosmic_contests.dart';
@@ -861,11 +862,41 @@ class RiftPortal {
   Offset position;
   bool entered; // true once the player has entered this session
 
+  /// Where the world placed it. It moves on once something is caught in it,
+  /// but the caches are laid out round this spot, so they stay put.
+  final Offset origin;
+
   RiftPortal({
     required this.faction,
     required this.position,
     this.entered = false,
+  }) : origin = position;
+
+  /// Where every rift of [world] stands now, for the save.
+  static String serialiseAll(CosmicWorld world) => jsonEncode({
+    'seed': world.seed,
+    for (final r in world.riftPortals)
+      r.faction: [r.position.dx.round(), r.position.dy.round()],
   });
+
+  /// Puts [world]'s rifts back where [raw] saved them, if it was saved for
+  /// this world.
+  static void restoreAll(CosmicWorld world, String? raw) {
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final data = jsonDecode(raw) as Map<String, dynamic>;
+      if (data['seed'] != world.seed) return;
+      for (final r in world.riftPortals) {
+        final xy = data[r.faction];
+        if (xy is List && xy.length == 2) {
+          r.position = Offset(
+            (xy[0] as num).toDouble(),
+            (xy[1] as num).toDouble(),
+          );
+        }
+      }
+    } catch (_) {}
+  }
 
   static const double interactRadius = 120.0;
   static const double exitRadius = 150.0;
@@ -1032,6 +1063,7 @@ class SwarmMote {
 /// The entire cosmos layout.
 class CosmicWorld {
   CosmicWorld({
+    required this.seed,
     required this.planets,
     required this.worldSize,
     required this.riftPortals,
@@ -1043,6 +1075,11 @@ class CosmicWorld {
     required this.retiredContestArenaPositions,
     this.loreNotes = const [],
   });
+
+  /// The seed this world was built from. Everything laid out after the
+  /// world itself (POIs, star dust, whirls, lairs) is seeded from it too, so
+  /// each world has its own layout.
+  final int seed;
 
   final List<CosmicPlanet> planets;
   final Size worldSize; // total explorable area
@@ -1070,7 +1107,8 @@ class CosmicWorld {
   /// Generate a standard cosmos: one planet per element scattered across a
   /// huge field. Deliberately large so it takes ~10 minutes to traverse.
   factory CosmicWorld.generate({int? seed}) {
-    final rng = Random(seed ?? DateTime.now().millisecondsSinceEpoch);
+    final worldSeed = seed ?? DateTime.now().millisecondsSinceEpoch;
+    final rng = Random(worldSeed);
     const elements = [
       'Fire',
       'Water',
@@ -1261,6 +1299,7 @@ class CosmicWorld {
     );
 
     return CosmicWorld(
+      seed: worldSeed,
       planets: planets,
       worldSize: const Size(worldW, worldH),
       riftPortals: rifts,

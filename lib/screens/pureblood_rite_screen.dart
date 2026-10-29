@@ -18,6 +18,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/audio/scene_ambience.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
@@ -228,6 +230,7 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen> {
         _selectedInstanceId = selected.instanceId;
       }
     });
+    context.sound(check.isEligible ? SoundCue.uiConfirm : SoundCue.uiDenied);
     if (!check.isEligible) {
       showGameSnack(context, check.message, accent: _blood);
     }
@@ -375,62 +378,65 @@ class _PurebloodRiteScreenState extends State<PurebloodRiteScreen> {
     String? count,
   }) {
     final pad = MediaQuery.paddingOf(context);
-    return Scaffold(
-      backgroundColor: kRiteVoid,
-      body: Column(
-        children: [
-          SizedBox(height: pad.top),
-          SizedBox(
-            height: kRiteHeaderHeight,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  BracketIconButton(
-                    icon: AppIcons.chevron_left_rounded,
-                    palette: _palette,
-                    onTap: () => Navigator.of(context).maybePop(),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Text(
-                      'THE PUREBLOOD RITE',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: altarMono(
-                        11.5,
-                        AltarTone.parchmentDim,
-                        spacing: 2.8,
+    return SceneAmbience(
+      cue: AmbienceCue.ritePool,
+      child: Scaffold(
+        backgroundColor: kRiteVoid,
+        body: Column(
+          children: [
+            SizedBox(height: pad.top),
+            SizedBox(
+              height: kRiteHeaderHeight,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Row(
+                  children: [
+                    BracketIconButton(
+                      icon: AppIcons.chevron_left_rounded,
+                      palette: _palette,
+                      onTap: () => Navigator.of(context).maybePop(),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'THE PUREBLOOD RITE',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: altarMono(
+                          11.5,
+                          AltarTone.parchmentDim,
+                          spacing: 2.8,
+                        ),
                       ),
                     ),
-                  ),
-                  if (count != null) ...[
-                    Text(count, style: altarMono(11, AltarTone.muted)),
-                    const SizedBox(width: 12),
+                    if (count != null) ...[
+                      Text(count, style: altarMono(11, AltarTone.muted)),
+                      const SizedBox(width: 12),
+                    ],
+                    BracketIconButton(
+                      icon: AppIcons.menu_book_rounded,
+                      palette: _palette,
+                      onTap: _openEncyclopedia,
+                    ),
                   ],
-                  BracketIconButton(
-                    icon: AppIcons.menu_book_rounded,
-                    palette: _palette,
-                    onTap: _openEncyclopedia,
+                ),
+              ),
+            ),
+            Expanded(
+              child: CustomScrollView(
+                controller: _scroll,
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: stage),
+                  SliverPadding(
+                    padding: EdgeInsets.fromLTRB(24, 6, 24, 40 + pad.bottom),
+                    sliver: SliverList.list(children: body),
                   ),
                 ],
               ),
             ),
-          ),
-          Expanded(
-            child: CustomScrollView(
-              controller: _scroll,
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                SliverToBoxAdapter(child: stage),
-                SliverPadding(
-                  padding: EdgeInsets.fromLTRB(24, 6, 24, 40 + pad.bottom),
-                  sliver: SliverList.list(children: body),
-                ),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

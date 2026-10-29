@@ -11,6 +11,9 @@ enum AmbienceCue {
   dungeonArcane('amb_dungeon_arcane_loop'),
   lab('amb_lab_loop'),
 
+  /// The pool of blood the Pureblood Rite stands over.
+  ritePool('amb_rite_pool_loop'),
+
   /// The stadium's stands through a race.
   raceCrowd('amb_race_crowd_loop'),
 

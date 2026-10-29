@@ -260,8 +260,8 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
           sigil: ChartSigil.rise,
           title: 'UNLOCK SKILLS',
           body:
-              'Spend points to light stones that boost breeding, combat, '
-              'or extraction.',
+              'Spend points to light stones that boost fusion, combat, '
+              'or resources.',
         ),
         SizedBox(height: 10),
         _ChartDialogStep(
@@ -359,7 +359,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
   String _getTreeDescription(ConstellationTree tree) {
     switch (tree) {
       case ConstellationTree.breeder:
-        return 'Genetics & Breeding Mastery';
+        return 'Genetics & Fusion Mastery';
       case ConstellationTree.combat:
         return 'Combat & Boss Battles';
       case ConstellationTree.extraction:
@@ -728,7 +728,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'Chart your line through the sky.',
+                  'Spend points to unlock upgrades.',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: bracketText(
@@ -857,7 +857,7 @@ class _ConstellationScreenState extends State<ConstellationScreen> {
           _ChartDialogStep(
             sigil: ChartSigil.merge,
             title: 'FUSION MILESTONES',
-            body: 'Fusion milestones award the points, not extraction taps.',
+            body: 'Points come from fusion milestones.',
           ),
         ],
         confirmLabel: 'GOT IT',

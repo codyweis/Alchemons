@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/providers/app_providers.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/extraction_hub_screen.dart';
@@ -12,6 +13,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/services/harvest_service.dart';
+import 'package:alchemons/services/timed_boost_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/element_resource_totals_bar.dart';
 import 'package:drift/native.dart';
@@ -141,6 +143,10 @@ class HubHarness {
           Provider<AlchemonsDatabase>.value(value: db),
           Provider<FactionTheme>.value(value: FactionTheme.scorchForge()),
           Provider<CreatureCatalog>.value(value: catalog),
+          Provider<EggPayloadFactory>.value(value: EggPayloadFactory(catalog)),
+          ChangeNotifierProvider<TimedBoostService>(
+            create: (_) => TimedBoostService(db.settingsDao),
+          ),
           ChangeNotifierProvider<ThemeNotifier>(create: (_) => _PlainFont(db)),
           ChangeNotifierProvider<FactionService>.value(
             value: FactionService(db),

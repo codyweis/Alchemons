@@ -7,6 +7,7 @@ import 'package:alchemons/screens/inventory_screen.dart'
     show InventoryImageHelper;
 import 'cosmic_screen_styles.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 class ShipInventoryOverlay extends StatefulWidget {
   const ShipInventoryOverlay({
@@ -68,10 +69,10 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
     InvKeys.harvesterStdArcane => 'Standard device. Chance-based.',
     InvKeys.harvesterGuaranteed => 'Guaranteed capture device.',
     InvKeys.staminaPotion =>
-      'Fully restores breeding stamina. Use from your creature list.',
+      'Fully restores fusion stamina. Use from your creature list.',
     InvKeys.wildFusion =>
       'Single-use catalyst for a fusion attempt with a wild Alchemon.',
-    _ => 'A mysterious item from the cosmos.',
+    _ => 'An item from space.',
   };
 
   static Color _invColor(String key) {
@@ -167,13 +168,9 @@ class ShipInventoryOverlayState extends State<ShipInventoryOverlay> {
               Expanded(
                 child: widget.loading
                     ? const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: CosmicScreenStyles.amber,
-                            strokeWidth: 1.5,
-                          ),
+                        child: GrainLoader(
+                          size: 20,
+                          color: CosmicScreenStyles.amber,
                         ),
                       )
                     : widget.inventory.entries

@@ -21,9 +21,7 @@ import 'package:provider/provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
-import 'package:alchemons/screens/extract_vial_dialog.dart';
 import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
-import 'package:alchemons/services/egg_hatching_service.dart';
 import 'package:alchemons/services/shop_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/specimen_picker_route.dart';
@@ -377,8 +375,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             const SizedBox(height: 2),
                             Text(
                               def.isKeyItem
-                                  ? 'A rare find carried for the long path.'
-                                  : 'A useful field supply kept on hand.',
+                                  ? 'Key item'
+                                  : 'You have ${item.qty}',
                               style: _display(
                                 context,
                                 12,
@@ -552,7 +550,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                             ),
                             const SizedBox(height: 2),
                             Text(
-                              'Extract the specimen and send it to the chamber.',
+                              'Used at the vial stand in its Essence chamber.',
                               style: _display(
                                 context,
                                 12,
@@ -597,7 +595,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Text(
-                    'Extract this vial to capture the specimen inside and place it in your extraction chamber.',
+                    'Open the Essence screen and tap VIAL beside its chamber.',
                     style: _display(
                       context,
                       13,
@@ -613,8 +611,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Row(
                     children: [
-                      SizedBox(
-                        width: 102,
+                      Expanded(
                         child: _DialogActionButton(
                           label: 'Remove',
                           color: const Color(0xFFC0392B),
@@ -622,17 +619,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
                           onTap: () async {
                             Navigator.pop(ctx);
                             await _deleteVial(vial);
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: _DialogActionButton(
-                          label: 'Extract',
-                          color: bracketReadableAccent(theme),
-                          onTap: () {
-                            Navigator.pop(ctx);
-                            _useVial(vial);
                           },
                         ),
                       ),
@@ -648,13 +634,8 @@ class _InventoryScreenState extends State<InventoryScreen> {
   }
 
   Future<void> _useItem(InventoryItem item, InventoryItemDef def) async {
-    if (!def.canUse) {
-      _showToast(
-        'This is a key item and cannot be used right now',
-        color: Colors.indigo,
-      );
-      return;
-    }
+    // The details dialog only offers Use for items that can be used.
+    if (!def.canUse) return;
 
     if (item.key.startsWith('lootbox.boss.')) {
       final service = InventoryService(context.read<AlchemonsDatabase>());
@@ -701,7 +682,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
       return;
     }
 
-    _showToast('Item usage not yet implemented', color: Colors.blue);
+    _showToast('This cannot be used from here', color: Colors.blue);
   }
 
   Future<void> _useStaminaPotion(
@@ -873,46 +854,6 @@ class _InventoryScreenState extends State<InventoryScreen> {
       }
     } catch (e) {
       _showToast('Failed to remove item', color: Colors.red);
-    }
-  }
-
-  Future<void> _useVial(ExtractionVial vial) async {
-    final db = context.read<AlchemonsDatabase>();
-
-    final qty = await db.inventoryDao.getVialQty(
-      vial.group,
-      vial.rarity,
-      vial.name,
-    );
-    if (qty <= 0) {
-      _showToast('No vials of this type available', color: Colors.orange);
-      return;
-    }
-
-    if (!mounted) return;
-    final confirmed = await showExtractVialDialog(
-      context: context,
-      vial: vial,
-      owned: qty,
-      catalog: context.read<CreatureCatalog>().creatures,
-    );
-
-    if (!confirmed || !mounted) return;
-
-    final res = await EggHatching.extractViaVial(
-      context: context,
-      group: vial.group,
-      rarity: creatureRarityForVial(vial.rarity),
-      name: vial.name,
-    );
-
-    if (!res.success) {
-      _showToast(
-        res.message ?? 'Extraction failed',
-        color: res.color ?? Colors.red,
-      );
-    } else {
-      _showToast('Extraction complete!', color: Colors.green);
     }
   }
 

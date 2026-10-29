@@ -60,7 +60,7 @@ Future<void> showDatabaseTutorial(BuildContext context, FactionTheme theme) {
         _TutorialRow(
           palette: palette,
           accent: accent,
-          title: 'Breeding milestones',
+          title: 'Fusion milestones',
           body:
               'A species you pick shows its milestones above its specimens; '
               'MILESTONES in the catalog lists them all.',

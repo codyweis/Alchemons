@@ -40,6 +40,7 @@ import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
     show caseElementLight;
 import 'package:alchemons/widgets/creature_sprite.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/trade/trade_origin.dart';
 import 'package:alchemons/widgets/fx/elemental_essence.dart';
 import 'package:alchemons/widgets/stamina_bar.dart';
@@ -50,6 +51,7 @@ import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS
@@ -464,8 +466,10 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
         setState(() {
           _instance = instance;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to update nickname.')),
+        showGameSnack(
+          context,
+          'Failed to update nickname.',
+          accent: ForgeTokens(context.read<FactionTheme>()).danger,
         );
       } finally {
         if (mounted) {
@@ -833,16 +837,9 @@ class _HeaderBar extends StatelessWidget {
                                       ),
                                       const SizedBox(width: 8),
                                       if (nicknameBusy)
-                                        SizedBox(
-                                          width: 13,
-                                          height: 13,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 1.6,
-                                            valueColor:
-                                                AlwaysStoppedAnimation<Color>(
-                                                  _dialogAccent(context),
-                                                ),
-                                          ),
+                                        GrainLoader(
+                                          size: 13,
+                                          color: _dialogAccent(context),
                                         )
                                       else
                                         Icon(
@@ -956,14 +953,7 @@ class _HeaderIconButton extends StatelessWidget {
           width: 52,
           alignment: Alignment.center,
           child: busy
-              ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.8,
-                    valueColor: AlwaysStoppedAnimation<Color>(iconColor),
-                  ),
-                )
+              ? GrainLoader(size: 20, color: iconColor)
               : Icon(icon, color: iconColor, size: 24),
         ),
       ),

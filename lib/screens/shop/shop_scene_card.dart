@@ -26,6 +26,7 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 /// The wild scene a realm for sale is drawn from.
 SceneDefinition sceneForShop(String sceneId) => switch (sceneId) {
@@ -169,14 +170,7 @@ class _PreviewLoading extends StatelessWidget {
     return const ColoredBox(
       color: Colors.black,
       child: Center(
-        child: SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(
-            strokeWidth: 1.6,
-            color: Color(0x66E8D9B5),
-          ),
-        ),
+        child: GrainLoader(size: 18, color: Color(0xFFE8D9B5)),
       ),
     );
   }

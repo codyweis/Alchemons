@@ -6,9 +6,12 @@ import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_frame.dart' show BracketFramePainter;
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart' show FC;
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphoricons_flutter/phosphoricons_flutter.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 // Everything on this screen is static between purchases: the tree is one
 // CustomPaint behind a RepaintBoundary, nothing loops, and glows are layered
@@ -94,9 +97,7 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
     return Consumer<FamilyMasteryService>(
       builder: (context, mastery, _) {
         if (!mastery.isLoaded) {
-          return const Center(
-            child: CircularProgressIndicator(color: Color(0xFFFFA726)),
-          );
+          return const Center(child: GrainLoader());
         }
         return _buildContent(mastery);
       },
@@ -287,16 +288,12 @@ class _FamilyMasteryPanelState extends State<FamilyMasteryPanel>
   }
 
   void _showResult(String message, bool success) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: success
-              ? const Color(0xFF315C3B)
-              : const Color(0xFF8B2D27),
-        ),
-      );
+    final fc = FC.of(context);
+    showGameSnack(
+      context,
+      message,
+      accent: success ? fc.success : fc.danger,
+    );
   }
 }
 
@@ -1153,14 +1150,7 @@ class _BranchHead extends StatelessWidget {
                           ),
                           color: color.withValues(alpha: 0.18),
                           child: equipping
-                              ? SizedBox(
-                                  width: 8,
-                                  height: 8,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 1.5,
-                                    color: color,
-                                  ),
-                                )
+                              ? GrainLoader(size: 8, color: color)
                               : Text(
                                   'EQUIP',
                                   style: stateStyle.copyWith(color: color),
@@ -1961,14 +1951,7 @@ class _UpgradeButton extends StatelessWidget {
                   : null,
             ),
             child: state == _UpgradeState.busy
-                ? SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: foreground,
-                    ),
-                  )
+                ? GrainLoader(size: 18, color: foreground)
                 : Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: FittedBox(

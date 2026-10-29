@@ -545,6 +545,8 @@ class StasisCell extends StatefulWidget {
     this.dimmed = false,
     this.presentDialog,
     this.onExtract,
+    this.onTap,
+    this.label,
   });
 
   const StasisCell.socket({super.key})
@@ -553,7 +555,9 @@ class StasisCell extends StatefulWidget {
       nowUtc = null,
       dimmed = false,
       presentDialog = null,
-      onExtract = null;
+      onExtract = null,
+      onTap = null,
+      label = null;
 
   final Egg? egg;
   final CinematicQuality quality;
@@ -567,6 +571,13 @@ class StasisCell extends StatefulWidget {
 
   /// Extracts it; see [StorageSection.onExtract].
   final StorageExtract? onExtract;
+
+  /// What a tap does instead of opening its dialog (the exchange's picker
+  /// puts it on the counter).
+  final VoidCallback? onTap;
+
+  /// Shown in place of its time left (the exchange shows its price).
+  final String? label;
 
   @override
   State<StasisCell> createState() => _StasisCellState();
@@ -626,7 +637,9 @@ class _StasisCellState extends State<StasisCell> {
 
     return _HexHitBox(
       child: GestureDetector(
-        onTap: context.soundAction(() => _showEggDetails(context, payload)),
+        onTap: context.soundAction(
+          widget.onTap ?? () => _showEggDetails(context, payload),
+        ),
         child: Stack(
           fit: StackFit.expand,
           children: [
@@ -678,7 +691,8 @@ class _StasisCellState extends State<StasisCell> {
             Align(
               alignment: const Alignment(0, 0.8),
               child: Text(
-                isReady ? 'READY' : _fmtShort(displayRemaining),
+                widget.label ??
+                    (isReady ? 'READY' : _fmtShort(displayRemaining)),
                 maxLines: 1,
                 style: TextStyle(
                   fontFamily: 'monospace',
@@ -1124,8 +1138,8 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
     final ready = times.ready;
     final act = ready ? _extract : _toChamber;
 
-    final source = _formatSource(payload['source'] as String?);
-    final parents = _parentNames(payload);
+    final source = storedCultivationSource(payload['source'] as String?);
+    final parents = storedCultivationParents(payload);
     final lineage = [
       elementGroup.displayName,
       ?source,
@@ -1429,45 +1443,46 @@ class _StoredCultivationDialogState extends State<StoredCultivationDialog> {
     Navigator.pop(context);
   }
 
-  /// Where it came from, in words; null when the record does not say.
-  static String? _formatSource(String? source) {
-    return switch (source) {
-      null || '' || 'unknown' => null,
-      'wild_capture' || 'wild' => 'Wild Capture',
-      'wild_fusion' || 'wild_breeding' => 'Wild Fusion',
-      'standard_fusion' || 'breeding' => 'Standard Fusion',
-      'friend_fusion' => 'Friend Fusion',
-      'rift_portal' => 'Rift Portal',
-      'planet_summon' => 'Planet Summon',
-      'boss_summon' => 'Altar Summon',
-      'vial' => 'Extraction Vial',
-      'bloodborn' => 'Bloodborn Rite',
-      'starter' => 'Starter Selection',
-      _ =>
-        source
-            .split('_')
-            .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
-            .join(' '),
-    };
-  }
+}
 
-  /// Its parents' names, when it has any on record.
-  static List<String> _parentNames(Map<String, dynamic> payload) {
-    final parentage = payload['parentage'];
-    if (parentage is! Map) return const [];
-    final names = <String>[];
-    for (final key in const ['parentA', 'parentB']) {
-      final raw = parentage[key];
-      if (raw is! Map) continue;
-      String name;
-      try {
-        name = ParentSnapshot.fromJson(Map<String, dynamic>.from(raw)).name;
-      } catch (_) {
-        name = raw['name'] as String? ?? '';
-      }
-      name = name.trim();
-      if (name.isNotEmpty) names.add(name);
+/// Where a stored cultivation came from, in words; null when unknown.
+String? storedCultivationSource(String? source) {
+  return switch (source) {
+    null || '' || 'unknown' => null,
+    'wild_capture' || 'wild' => 'Wild Capture',
+    'wild_fusion' || 'wild_breeding' => 'Wild Fusion',
+    'standard_fusion' || 'breeding' => 'Standard Fusion',
+    'friend_fusion' => 'Friend Fusion',
+    'rift_portal' => 'Rift Portal',
+    'planet_summon' => 'Planet Summon',
+    'boss_summon' => 'Altar Summon',
+    'vial' => 'Extraction Vial',
+    'bloodborn' => 'Bloodborn Rite',
+    'starter' => 'Starter Selection',
+    _ =>
+      source
+          .split('_')
+          .map((w) => w.isEmpty ? w : w[0].toUpperCase() + w.substring(1))
+          .join(' '),
+  };
+}
+
+/// A stored cultivation's parents' names, when it has any on record.
+List<String> storedCultivationParents(Map<String, dynamic> payload) {
+  final parentage = payload['parentage'];
+  if (parentage is! Map) return const [];
+  final names = <String>[];
+  for (final key in const ['parentA', 'parentB']) {
+    final raw = parentage[key];
+    if (raw is! Map) continue;
+    String name;
+    try {
+      name = ParentSnapshot.fromJson(Map<String, dynamic>.from(raw)).name;
+    } catch (_) {
+      name = raw['name'] as String? ?? '';
     }
-    return names;
+    name = name.trim();
+    if (name.isNotEmpty) names.add(name);
   }
+  return names;
 }

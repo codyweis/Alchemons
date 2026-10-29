@@ -37,6 +37,7 @@ import 'package:alchemons/utils/faction_util.dart';
 // for FactionTheme
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/story_dialog.dart';
 import 'package:alchemons/widgets/dock_passages.dart';
@@ -419,7 +420,6 @@ class _MapScreenState extends State<MapScreen>
   void _showTutorialBlockedDialog() {
     showStoryDialog(
       context,
-      icon: AppIcons.lock_outline,
       primaryLabel: 'OK',
       barrierDismissible: true,
       beats: const [
@@ -435,7 +435,6 @@ class _MapScreenState extends State<MapScreen>
   void _showInfoDialog(BuildContext context) {
     showStoryDialog(
       context,
-      icon: AppIcons.explore_rounded,
       primaryLabel: 'OK',
       barrierDismissible: true,
       beats: const [
@@ -588,7 +587,6 @@ class _MapScreenState extends State<MapScreen>
         where == null
             ? 'This region is quiet — explore elsewhere first'
             : 'This region is quiet — $where is stirring',
-        icon: AppIcons.schedule_rounded,
       );
       return;
     }
@@ -642,7 +640,6 @@ class _MapScreenState extends State<MapScreen>
       showGameSnack(
         context,
         'Something has been drawn to the area',
-        icon: AppIcons.pets_rounded,
       );
     }
 
@@ -660,7 +657,7 @@ class _MapScreenState extends State<MapScreen>
         if (!context.mounted) return;
         _showToast(
           context,
-          'Breeding ground refreshes in ${hh}h ${mm}m ${ss}s',
+          'This realm refreshes in ${hh}h ${mm}m ${ss}s',
           AppIcons.schedule_rounded,
           Colors.orange.shade400,
         );
@@ -798,96 +795,15 @@ class _MapScreenState extends State<MapScreen>
     ];
     if (warnings.isEmpty) return true;
 
-    final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
-    return await showDialog<bool>(
-          context: context,
-          barrierDismissible: false,
-          builder: (dialogContext) => AlertDialog(
-            backgroundColor: theme.isDark ? t.bg1 : Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(6),
-              side: BorderSide(color: t.amber.withValues(alpha: 0.55)),
-            ),
-            title: Row(
-              children: [
-                Icon(AppIcons.warning_amber_rounded, color: t.amber, size: 22),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    'EXPEDITION CHECK',
-                    style: TextStyle(
-                      color: theme.text,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.1,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final warning in warnings) ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.only(top: 5),
-                        child: Container(
-                          width: 5,
-                          height: 5,
-                          decoration: BoxDecoration(
-                            color: t.amber,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 9),
-                      Expanded(
-                        child: Text(
-                          warning,
-                          style: TextStyle(
-                            color: theme.textMuted,
-                            fontSize: 12,
-                            height: 1.4,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                ],
-                Text(
-                  'Enter anyway?',
-                  style: TextStyle(
-                    color: theme.text,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogContext, false),
-                child: Text(
-                  'GO BACK',
-                  style: TextStyle(color: theme.textMuted),
-                ),
-              ),
-              FilledButton(
-                style: FilledButton.styleFrom(backgroundColor: t.amber),
-                onPressed: () => Navigator.pop(dialogContext, true),
-                child: const Text('ENTER ANYWAY'),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+    return showBracketConfirm(
+      context,
+      palette: BracketPalette.dark,
+      accent: ForgeTokens(context.read<FactionTheme>()).amber,
+      title: 'EXPEDITION CHECK',
+      message: '${warnings.join('\n\n')}\n\nEnter anyway?',
+      confirmLabel: 'ENTER ANYWAY',
+      cancelLabel: 'GO BACK',
+    );
   }
 
   void _showToast(
@@ -896,32 +812,7 @@ class _MapScreenState extends State<MapScreen>
     IconData icon,
     Color color,
   ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: color,
-        duration: const Duration(seconds: 2),
-        showCloseIcon: true,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        margin: const EdgeInsets.all(16),
-        content: Row(
-          children: [
-            Icon(icon, color: Colors.white, size: 16),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    showGameSnack(context, message, accent: color);
   }
 }
 

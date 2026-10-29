@@ -1,8 +1,11 @@
-import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:flutter/material.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:flutter/material.dart';
 
+/// The close button that floats at the foot of a screen: the kit's bare
+/// bracket button, so it reads as the same control as every other close.
 class FloatingCloseButton extends StatelessWidget {
   final VoidCallback onTap;
   final double size;
@@ -13,7 +16,7 @@ class FloatingCloseButton extends StatelessWidget {
   const FloatingCloseButton({
     super.key,
     required this.onTap,
-    this.size = 60,
+    this.size = 48,
     this.accentColor,
     this.iconColor,
     required this.theme,
@@ -21,26 +24,12 @@ class FloatingCloseButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: theme.text,
-          border: Border.all(color: theme.text, width: 1.5),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 20,
-              offset: Offset(0, 8),
-              spreadRadius: 2,
-            ),
-          ],
-        ),
-        width: size,
-        height: size,
-        child: Icon(AppIcons.close, color: theme.surface, size: size * 0.8),
-      ),
+    return BracketIconButton(
+      icon: AppIcons.close,
+      onTap: onTap,
+      palette: BracketPalette.dark,
+      color: iconColor ?? accentColor,
+      size: size,
     );
   }
 }

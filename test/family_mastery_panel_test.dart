@@ -5,6 +5,7 @@ import 'package:alchemons/games/cosmic_survival/components/family_mastery_panel.
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/survival_family_mastery.dart';
 import 'package:alchemons/services/family_mastery_service.dart';
+import 'package:alchemons/utils/faction_util.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,8 +33,12 @@ void main() {
     addTearDown(tester.view.reset);
     await mastery.addPoints({CreatureFamily.mane: manePoints});
     await tester.pumpWidget(
-      ChangeNotifierProvider<FamilyMasteryService>.value(
-        value: mastery,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<FamilyMasteryService>.value(value: mastery),
+          // The notice a purchase or an equip raises is tinted from it.
+          Provider<FactionTheme>.value(value: FactionTheme.scorchForge()),
+        ],
         child: const MaterialApp(home: Scaffold(body: FamilyMasteryPanel())),
       ),
     );

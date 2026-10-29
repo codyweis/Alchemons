@@ -31,6 +31,7 @@ import 'package:alchemons/screens/cosmic/widgets/trippy_cosmos_painter.dart';
 import 'package:alchemons/utils/app_font_family.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/background/alchemical_particle_background.dart';
+import 'package:alchemons/widgets/creature_detail/forge_tokens.dart' show FC;
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/fx/portal_harvest.dart';
 import 'package:alchemons/widgets/fx/rift_vortex.dart';
@@ -418,6 +419,7 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
   // ── phase 1: the harvester in the middle ─────────────
 
   Widget _driftingLayer() {
+    final brass = FC.of(context).amberBright;
     return AnimatedBuilder(
       animation: Listenable.merge([_fadeIn, _cosmos, _claimFlash]),
       builder: (context, _) {
@@ -472,14 +474,14 @@ class _CosmicPrologueScreenState extends State<CosmicPrologueScreen>
                       // frame, since this whole layer repaints with the
                       // clock. A painted haze behind the line reads the same.
                       CustomPaint(
-                        painter: const _LabelGlowPainter(Colors.amber),
+                        painter: _LabelGlowPainter(brass),
                         child: Text(
                           _harvesterClaimed
                               ? 'STABILIZED HARVESTER SECURED'
                               : 'STABILIZED HARVESTER',
                           style: TextStyle(
                             fontFamily: appFontFamily(context),
-                            color: Colors.amber.withValues(alpha: 0.95),
+                            color: brass.withValues(alpha: 0.95),
                             fontSize: 14,
                             fontWeight: FontWeight.w900,
                             letterSpacing: 2.2,

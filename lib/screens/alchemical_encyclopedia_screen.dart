@@ -43,6 +43,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 /// Gilt: the Codex's own accent.
 const Color _kGilt = Color(0xFFE4B356);
@@ -217,7 +218,7 @@ class _AlchemicalEncyclopediaScreenState
               }
               final data = snapshot.data;
               if (data == null) {
-                return Center(child: CircularProgressIndicator(color: _kGilt));
+                return const Center(child: GrainLoader(color: _kGilt));
               }
               _queueShowcase(data);
               final found =

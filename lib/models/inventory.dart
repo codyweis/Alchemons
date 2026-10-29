@@ -1047,7 +1047,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
       key: InvKeys.staminaPotion,
       name: 'Stamina Elixir',
       description:
-          'Fully restores an Alchemon\'s breeding stamina for the Fusion Chamber.',
+          'Fully restores an Alchemon\'s fusion stamina for the Fusion Chamber.',
       icon: AppIcons.local_drink_rounded,
     ),
     InvKeys.wildFusion: InventoryItemDef(
@@ -1139,7 +1139,7 @@ Map<String, InventoryItemDef> buildInventoryRegistry(AlchemonsDatabase db) {
           '${element[0].toUpperCase()}${element.substring(1)} Mystic Loot Box',
       description:
           'An elemental reward cache from Survival or a Mystic rematch. Open it to claim its contents. '
-          'Contains survival items like Harvesters, breeding Stamina Elixirs, Wild Fusion catalysts, Alchemy effects, and rare Stabilized Harvesters.',
+          'Contains survival items like Harvesters, Stamina Elixirs, Wild Fusion catalysts, Alchemy effects, and rare Stabilized Harvesters.',
       icon: meta.lootboxIcon,
       stackable: true,
       canUse: true,

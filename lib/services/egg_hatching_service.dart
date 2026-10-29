@@ -13,6 +13,7 @@ import 'package:alchemons/models/home_keepsakes.dart' show kEffigyBredCount;
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/models/vial_infusion.dart';
 import 'package:alchemons/models/parent_snapshot.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/screens/progress_overview_screen.dart';
@@ -497,12 +498,89 @@ class EggHatching {
 
     // Create standardized payload using factory
     final payload = payloadFactory.createVialPayload(offspring, vialName: name);
-    final payloadJson = payload.toJsonString();
-
-    final eggId = db.creatureDao.makeInstanceId('EGG');
     if (!context.mounted) {
       return HatchingResult(success: false, message: 'Screen was closed');
     }
+    return _placeVialEgg(
+      context,
+      offspring,
+      payload,
+      onFull: () => db.inventoryDao.addVial(name, group, vialRarity),
+    );
+  }
+
+  /// Extract the vial on a chamber's stand with what it was infused with
+  /// (models/vial_infusion.dart). The vial was taken from the inventory when
+  /// it was set down. [pay] spends the extraction's essence; it is only
+  /// asked once there is somewhere for the egg to go, and the infusion is
+  /// left on the stand if there is not.
+  static Future<HatchingResult> extractInfusedVial({
+    required BuildContext context,
+    required VialInfusion infusion,
+    required Future<bool> Function() pay,
+  }) async {
+    final db = context.read<AlchemonsDatabase>();
+    final repo = context.read<CreatureCatalog>();
+    final payloadFactory = context.read<EggPayloadFactory>();
+    final wanted = creatureRarityForVial(infusion.rarity).toLowerCase();
+    final types = infusion.group.elementTypes;
+    final eligible = repo.creatures
+        .where(
+          (c) =>
+              c.rarity.toLowerCase() == wanted && c.types.any(types.contains),
+        )
+        .toList();
+    if (eligible.isEmpty) {
+      return HatchingResult(
+        success: false,
+        message: 'No creatures available for this vial type',
+        icon: AppIcons.error_rounded,
+        color: Colors.red,
+      );
+    }
+    if (await db.incubatorDao.firstFreeSlot() == null &&
+        !await ColdStorageService.hasCapacity(db)) {
+      return HatchingResult(
+        success: false,
+        message: await ColdStorageService.buildFullMessage(db),
+        icon: AppIcons.inventory_2_rounded,
+        color: Colors.orange,
+      );
+    }
+    if (!await pay()) {
+      return HatchingResult(
+        success: false,
+        message: 'Not enough essence',
+        icon: AppIcons.error_rounded,
+        color: Colors.orange,
+      );
+    }
+    final offspring = eligible[Random().nextInt(eligible.length)];
+    final payload = payloadFactory.createVialPayload(
+      offspring,
+      vialName: infusion.name,
+      natureId: infusion.natureId,
+      tint: infusion.tint,
+      size: infusion.size,
+    );
+    if (!context.mounted) {
+      return HatchingResult(success: false, message: 'Screen was closed');
+    }
+    return _placeVialEgg(context, offspring, payload, onFull: () async {});
+  }
+
+  /// A vial's egg into the first free chamber, or cold storage. [onFull]
+  /// gives back what was spent if neither has room.
+  static Future<HatchingResult> _placeVialEgg(
+    BuildContext context,
+    Creature offspring,
+    EggPayload payload, {
+    required Future<void> Function() onFull,
+  }) async {
+    final db = context.read<AlchemonsDatabase>();
+    final payloadJson = payload.toJsonString();
+
+    final eggId = db.creatureDao.makeInstanceId('EGG');
     final adjustedHatchDelay = _calculateHatchTime(
       context,
       offspring,
@@ -512,7 +590,7 @@ class EggHatching {
 
     if (free == null) {
       if (!await ColdStorageService.hasCapacity(db)) {
-        await db.inventoryDao.addVial(name, group, vialRarity);
+        await onFull();
         return HatchingResult(
           success: false,
           message: await ColdStorageService.buildFullMessage(db),
@@ -550,7 +628,7 @@ class EggHatching {
 
       return HatchingResult(
         success: true,
-        message: 'Specimen placed in incubation chamber ${free.id + 1}',
+        message: 'Cultivating in chamber ${free.id + 1}',
         icon: AppIcons.science_rounded,
         color: const Color.fromARGB(255, 239, 255, 92),
       );
@@ -1083,7 +1161,7 @@ class EggHatching {
         : '';
     showGameSnack(
       context,
-      '$speciesName reached ${showcase.milestoneCount} bred  •  '
+      '$speciesName reached ${showcase.milestoneCount} fusions  •  '
       '+${showcase.pointsAwarded} constellation points$effigy',
       accent: FC.blue,
       action: SnackBarAction(

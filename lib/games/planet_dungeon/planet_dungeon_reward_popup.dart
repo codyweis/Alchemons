@@ -2,14 +2,13 @@ import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
 import 'package:alchemons/audio/audio.dart';
 // lib/games/planet_dungeon/planet_dungeon_reward_popup.dart
 //
-// Reward popup. Reveals the star (or stars) just secured and
-// grants each star's reward (Star 3 is the player's choice of three —
-// highlight a card first, then confirm). Styled to match the dungeon HUD:
-// dark alchemical panel, bracket corners, monospace headings, amber glow.
+// Reward popup. The star (or stars) just secured gathers out of gold
+// grains, and each star's reward is granted (Star 3 is the player's choice
+// of three — light a row first, then confirm). The bare kit on ink, from
+// reward_popup_parts.dart, which the raid's loot popup shares.
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/games/planet_dungeon/planet_dungeon_rewards.dart';
 import 'package:alchemons/games/planet_dungeon/reward_popup_parts.dart';
@@ -17,8 +16,8 @@ import 'package:alchemons/models/alchemical_powerup.dart';
 import 'package:alchemons/widgets/instant_extractor_glyph.dart';
 import 'package:alchemons/widgets/tincture_glyph.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
-import 'dart:math';
-
+import 'package:alchemons/widgets/fx/power_orb.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 import 'package:flutter/material.dart';
 
 /// THE HOUSE POPUP PALETTE. These were a warm brown set of their own
@@ -28,10 +27,8 @@ import 'package:flutter/material.dart';
 /// `CosmicScreenStyles` now: one set of tokens, and the dialogs cannot drift
 /// apart again.
 class _C {
-  static const bg = CosmicScreenStyles.bg0;
   static const amber = CosmicScreenStyles.amber;
   static const amberBright = CosmicScreenStyles.amberBright;
-  static const border = CosmicScreenStyles.borderAccent;
   static const text = CosmicScreenStyles.textPrimary;
   static const muted = CosmicScreenStyles.textSecondary;
 }
@@ -75,9 +72,8 @@ class DungeonRewardPopup extends StatefulWidget {
 }
 
 class _DungeonRewardPopupState extends State<DungeonRewardPopup>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _intro;
-  late final AnimationController _turn;
   final Map<int, List<String>> _lines = {};
   Star3Choice? _choice;
   Star3Choice? _highlighted;
@@ -114,18 +110,8 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   @override
   void initState() {
     super.initState();
-    _intro = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
-    // THE LIGHT KEEPS TURNING. The rays used to be spun by `_intro`, which
-    // runs once and stops at 1.0 — so the moment the panel finished arriving
-    // the light behind it froze mid-turn, and the rarest screen in the game
-    // sat there as a still image. This one repeats, slowly, forever.
-    _turn = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 44),
-    )..repeat();
+    _intro = AnimationController(vsync: this, duration: kRewardIntro)
+      ..forward();
     _checkRelicIncoming();
     _grantAuto();
   }
@@ -170,79 +156,48 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
 
   @override
   void dispose() {
-    _turn.dispose();
     _intro.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final curved = CurvedAnimation(parent: _intro, curve: Curves.easeOutBack);
     return Positioned.fill(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque, // absorb taps to the game behind
         onTap: () {},
         child: AnimatedBuilder(
-          animation: Listenable.merge([_intro, _turn]),
-          builder: (context, _) {
-            final t = _intro.value;
+          animation: _intro,
+          builder: (context, panel) {
+            final t = Curves.easeOutCubic.transform(_intro.value);
             return Stack(
               fit: StackFit.expand,
               children: [
-                // Hard scrim. The old one was #080808 at 0.78 over an already
-                // dark dungeon, so the rarest moment in a run separated from
-                // the world about as much as a hint box does.
-                ColoredBox(color: Colors.black.withValues(alpha: 0.90 * t)),
-                // Radial light behind the panel: the reward is the only thing
-                // in the dungeon that emits its own light.
-                IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        radius: 0.75,
-                        colors: [
-                          _C.amberBright.withValues(alpha: 0.20 * t),
-                          _C.amber.withValues(alpha: 0.06 * t),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 0.45, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-                // Rays, turning slowly. Nothing else in the game does this.
-                IgnorePointer(
-                  child: CustomPaint(
-                    painter: RewardRaysPainter(
-                      progress: t,
-                      spin: _turn.value * pi * 2,
-                    ),
-                  ),
-                ),
+                RewardBackdrop(t: _intro.value),
                 Center(
                   child: Opacity(
                     opacity: t,
-                    child: Transform.scale(
-                      // Overshoots harder than a normal panel, and lands.
-                      scale: 0.72 + 0.28 * curved.value,
-                      child: _panel(),
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - t) * 18),
+                      child: panel,
                     ),
                   ),
                 ),
               ],
             );
           },
+          child: _panel(),
         ),
       ),
     );
   }
 
-  /// The actual item art the rest of the game uses: the metallic gold coin,
-  /// the branded glowing powerup orbs, the extractor and tincture glyphs.
+  /// The art the rest of the game draws these with: the gold coin, the
+  /// power orbs, the extractor and tincture glyphs, the planet's relic.
   Widget _rewardArt(String line, double size) {
     if (line.contains('Guardian Relic')) return _relicArt(size);
     if (line.contains('Sparks')) return TinctureGlyph(size: size);
-    if (line.contains('Gold')) return CoinIcon.gold(size: size);
+    if (line.contains('Gold')) return CoinIcon.gold(size: size * 0.8);
     if (line.contains('Extractor')) {
       return InstantExtractorGlyph(size: size);
     }
@@ -255,148 +210,70 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
         : line.contains('Beauty')
         ? AlchemicalPowerupType.beauty
         : null;
-    if (type != null) return _powerupOrb(type, size);
-    return Icon(Icons.auto_awesome_rounded, size: size, color: _C.amberBright);
+    if (type != null) return PowerOrb(type: type, size: size);
+    return RewardStarGrains(size: size);
   }
 
-  /// A powerup as it appears everywhere else: a glowing orb in its stat
-  /// color with the branded glyph.
-  Widget _powerupOrb(AlchemicalPowerupType type, double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          center: const Alignment(-0.3, -0.35),
-          colors: [
-            Color.lerp(type.color, Colors.white, 0.45)!,
-            type.color,
-            Color.lerp(type.color, Colors.black, 0.45)!,
-          ],
-          stops: const [0.0, 0.55, 1.0],
-        ),
-        boxShadow: [BoxShadow(color: type.glowColor, blurRadius: size * 0.45)],
-      ),
-      child: Icon(type.icon, size: size * 0.58, color: Colors.white),
-    );
-  }
-
-  /// The planet's relic artwork with an amber bloom — the headline reward.
+  /// The planet's relic artwork, the headline reward.
   Widget _relicArt(double size) {
-    return Container(
+    return Image.asset(
+      'assets/images/relics/${widget.element.toLowerCase()}relic.png',
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: _C.amberBright.withValues(alpha: 0.55),
-            blurRadius: size * 0.6,
-          ),
-        ],
-      ),
-      child: Image.asset(
-        'assets/images/relics/${widget.element.toLowerCase()}relic.png',
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) =>
-            Icon(Icons.shield_moon_rounded, size: size, color: _C.amberBright),
-      ),
+      fit: BoxFit.contain,
+      errorBuilder: (_, __, ___) => RewardStarGrains(size: size),
     );
   }
-
-  // ── THE PANEL — the survival surge's chrome ───────────────────────────
-  //
-  // Star rewards used to be a list of text lines under a row of star glyphs,
-  // in a panel of their own design. Survival's surge offer is the dialog the
-  // game already does best: a near-black plate with bracket corners, and each
-  // thing on it a CARD whose color says what kind of thing it is before a
-  // word is read. A star payout is the same kind of moment, so it wears the
-  // same clothes: every reward is a card, and the Star 3 choice is three of
-  // them to pick between.
 
   Widget _panel() {
-    final maxWidth = MediaQuery.sizeOf(context).width - 36;
-    return CustomPaint(
-      painter: const BracketFramePainter(
-        color: _C.amber,
-        bracketSize: 14,
-        strokeWidth: 1.3,
-      ),
-      child: Container(
-        width: maxWidth < 400 ? maxWidth : 400,
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height - 60,
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-        decoration: BoxDecoration(
-          color: _C.bg.withValues(alpha: 0.97),
-          border: Border.all(color: _C.amber.withValues(alpha: 0.30)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x99000000),
-              blurRadius: 28,
-              spreadRadius: 4,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _header(),
-            const SizedBox(height: 16),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // The Star 3 CHOICE leads the scroll while unresolved so
-                    // it sits at the top of the fold, never hidden under the
-                    // granted-reward lists.
-                    if (_needStar3 && _choice == null) _rewardBlock(2),
-                    for (final s in widget.stars)
-                      if (!(s == 2 && _needStar3 && _choice == null))
-                        _rewardBlock(s),
-                  ],
-                ),
+    return RewardPanel(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _header(),
+          const SizedBox(height: 18),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // The Star 3 CHOICE leads the scroll while unresolved so
+                  // it sits at the top of the fold, never hidden under the
+                  // granted-reward lists.
+                  if (_needStar3 && _choice == null) _rewardBlock(2),
+                  for (final s in widget.stars)
+                    if (!(s == 2 && _needStar3 && _choice == null))
+                      _rewardBlock(s),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            _bottomButton(),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          _bottomButton(),
+        ],
       ),
     );
   }
 
-  /// The star itself, as a struck medallion, then its name. Several stars
-  /// at once (a run ended holding more than one) stand side by side.
+  /// The star itself, gathering out of gold grains, then its name. Several
+  /// stars at once (a run ended holding more than one) stand side by side.
   Widget _header() {
     final awarded = widget.stars.toList()..sort();
-    final size = awarded.length == 1 ? 68.0 : 50.0;
+    final size = awarded.length == 1 ? 92.0 : 68.0;
     return Column(
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             for (var n = 0; n < awarded.length; n++)
-              ScaleTransition(
-                scale: CurvedAnimation(
-                  parent: _intro,
-                  curve: Interval(
-                    0.1 + n * 0.15,
-                    (0.55 + n * 0.15).clamp(0.0, 1.0),
-                    curve: Curves.easeOutBack,
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: _starMedallion(size),
-                ),
+              RewardStarGrains(
+                size: size,
+                delay: Duration(milliseconds: 120 + n * 260),
+                salt: awarded[n],
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 6),
         // The caption, unless the title already IS the caption (an unnamed
         // star, or several at once).
         if (!_title.endsWith('SECURED'))
@@ -433,77 +310,16 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     );
   }
 
-  /// A gold medallion with the star struck into it — a coin of the game's
-  /// own minting, not an icon from a font.
-  Widget _starMedallion(double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: const RadialGradient(
-          center: Alignment(-0.3, -0.35),
-          colors: [
-            CosmicScreenStyles.amberGlow,
-            _C.amberBright,
-            Color(0xFF8A6A2C),
-          ],
-          stops: [0.0, 0.5, 1.0],
-        ),
-        border: Border.all(color: const Color(0xFFFFF1C8), width: 1.2),
-        boxShadow: [
-          BoxShadow(
-            color: _C.amberBright.withValues(alpha: 0.35),
-            blurRadius: size * 0.35,
-          ),
-        ],
-      ),
-      child: Icon(
-        Icons.star_rounded,
-        size: size * 0.6,
-        color: const Color(0xFF3A2A0E),
-      ),
-    );
-  }
-
-  /// A section heading: monospace label, then a rule out to the edge.
-  Widget _sectionLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        children: [
-          Text(
-            text,
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              color: _C.muted,
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.8,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Container(
-              height: 1,
-              color: _C.border.withValues(alpha: 0.35),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Widget _rewardBlock(int star) {
     final lines = _lines[star];
     final needChoice = star == 2 && _choice == null;
     final label = needChoice ? 'CHOOSE YOUR REWARD' : 'STAR ${star + 1}';
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _sectionLabel(label),
+          RewardSectionLabel(label),
           if (needChoice) ...[
             if (_relicIncoming)
               Padding(
@@ -521,33 +337,24 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                 index: i + (_relicIncoming ? 1 : 0),
                 child: _choiceCard(Star3Choice.values[i]),
               ),
-              if (i < Star3Choice.values.length - 1) const SizedBox(height: 8),
+              if (i < Star3Choice.values.length - 1) const SizedBox(height: 6),
             ],
           ] else if (lines == null)
             const SizedBox(
               height: 60,
-              child: Center(
-                child: SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: _C.amber,
-                  ),
-                ),
-              ),
+              child: Center(child: GrainLoader(size: 28, color: _C.amber)),
             )
           else
             for (var i = 0; i < lines.length; i++) ...[
               RewardStaggerIn(index: i, child: _rewardCard(lines[i])),
-              if (i < lines.length - 1) const SizedBox(height: 8),
+              if (i < lines.length - 1) const SizedBox(height: 6),
             ],
         ],
       ),
     );
   }
 
-  /// What a reward line IS, for its card: accent, tag, amount and name.
+  /// What a reward line IS, for its row: accent, kind, amount and name.
   ({Color accent, String tag, String amount, String name}) _describe(
     String line,
   ) {
@@ -559,6 +366,14 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
       return (
         accent: _legible(elementColor(widget.element)),
         tag: 'GUARDIAN RELIC',
+        amount: amount,
+        name: name,
+      );
+    }
+    if (line.contains('Sparks')) {
+      return (
+        accent: _C.amberBright,
+        tag: 'ATHANOR',
         amount: amount,
         name: name,
       );
@@ -592,65 +407,21 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     return (accent: _C.amber, tag: 'REWARD', amount: amount, name: name);
   }
 
-  /// ONE REWARD, AS A SURGE CARD: the accent washing in from a solid spine,
-  /// a medallion with the item's own art, the amount large and the name
-  /// under it, and a tag saying what kind of thing it is.
+  /// One reward as a row: its art in its own light, the amount large and
+  /// the name under it, and what kind of thing it is.
   Widget _rewardCard(String line, {String? tagOverride}) {
     final d = _describe(line);
-    return _surgeCard(
+    return RewardRow(
       accent: d.accent,
-      art: _rewardArt(line, 26),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (d.amount.isNotEmpty)
-                  Text(
-                    d.amount,
-                    style: TextStyle(
-                      color: Color.lerp(_C.text, d.accent, 0.45),
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      height: 1.0,
-                    ),
-                  ),
-                const SizedBox(height: 3),
-                Text(
-                  d.name.toUpperCase(),
-                  style: const TextStyle(
-                    color: _C.text,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    height: 1.15,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          RewardMiniTag(label: tagOverride ?? d.tag, color: d.accent),
-        ],
+      art: _rewardArt(line, 32),
+      kind: tagOverride ?? d.tag,
+      child: RewardAmountName(
+        amount: d.amount,
+        name: d.name,
+        accent: d.accent,
       ),
     );
   }
-
-  /// The card chrome every reward and choice shares (survival's surge card).
-  Widget _surgeCard({
-    required Color accent,
-    required Widget art,
-    required Widget child,
-    bool selected = false,
-    bool dim = false,
-  }) => RewardSurgeCard(
-    accent: accent,
-    art: art,
-    selected: selected,
-    dim: dim,
-    child: child,
-  );
 
   Color _choiceAccent(Star3Choice c) => switch (c) {
     Star3Choice.gold => _C.amberBright,
@@ -659,7 +430,7 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
   };
 
   Widget _choiceArt(Star3Choice c, double size) => switch (c) {
-    Star3Choice.gold => CoinIcon.gold(size: size),
+    Star3Choice.gold => CoinIcon.gold(size: size * 0.8),
     Star3Choice.extractors => InstantExtractorGlyph(size: size),
     Star3Choice.powerups => SizedBox(
       width: size * 1.2,
@@ -668,25 +439,32 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
         children: [
           Positioned(
             left: 0,
-            top: size * 0.1,
-            child: _powerupOrb(AlchemicalPowerupType.speed, size * 0.7),
+            top: 0,
+            child: PowerOrb(
+              type: AlchemicalPowerupType.speed,
+              size: size * 0.8,
+            ),
           ),
           Positioned(
             right: 0,
             bottom: 0,
-            child: _powerupOrb(AlchemicalPowerupType.beauty, size * 0.7),
+            child: PowerOrb(
+              type: AlchemicalPowerupType.beauty,
+              size: size * 0.8,
+            ),
           ),
         ],
       ),
     ),
   };
 
-  /// A Star 3 choice. First tap highlights it; a second tap (or the button)
+  /// A Star 3 choice. First tap lights it; a second tap (or the button)
   /// claims it — no accidental one-tap claims.
   Widget _choiceCard(Star3Choice c) {
     final selected = _highlighted == c;
     final accent = _choiceAccent(c);
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: context.soundAction(
         _busy
             ? null
@@ -698,42 +476,31 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
                 }
               },
       ),
-      child: _surgeCard(
+      child: RewardRow(
         accent: accent,
         selected: selected,
         dim: _highlighted != null && !selected,
-        art: _choiceArt(c, 26),
-        child: Row(
+        art: _choiceArt(c, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    star3ChoiceTitle(c).toUpperCase(),
-                    style: TextStyle(
-                      color: Color.lerp(_C.text, accent, 0.3),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(
-                    star3ChoiceSubtitle(c),
-                    style: const TextStyle(
-                      color: _C.muted,
-                      fontSize: 11.5,
-                      height: 1.25,
-                    ),
-                  ),
-                ],
+            Text(
+              star3ChoiceTitle(c).toUpperCase(),
+              style: TextStyle(
+                color: Color.lerp(_C.text, accent, 0.3),
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.4,
               ),
             ),
-            AnimatedOpacity(
-              duration: const Duration(milliseconds: 180),
-              opacity: selected ? 1 : 0,
-              child: Icon(Icons.check_circle_rounded, color: accent, size: 22),
+            const SizedBox(height: 3),
+            Text(
+              star3ChoiceSubtitle(c),
+              style: const TextStyle(
+                color: _C.muted,
+                fontSize: 11.5,
+                height: 1.25,
+              ),
             ),
           ],
         ),
@@ -741,8 +508,8 @@ class _DungeonRewardPopupState extends State<DungeonRewardPopup>
     );
   }
 
-  /// The button morphs through the flow: choose → CLAIM (choice) → CONTINUE.
-  /// Filled amber when there is something to press, like survival's.
+  /// The button changes through the flow: choose → CLAIM (choice) →
+  /// CONTINUE. Lit when there is something to press.
   Widget _bottomButton() {
     final awaitingChoice = _needStar3 && _choice == null;
     // The guardian's star, claimed: leave the planet, or stay. Not "keep

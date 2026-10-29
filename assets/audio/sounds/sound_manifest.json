@@ -3222,5 +3222,27 @@
     "rms_db": -28.37,
     "sha256": "9c7a41c4e47a8dae3a2f927c94b1ee447b2fa2552b47c7320c1b8e9535cc76c5",
     "source": "tool/sounds/stadium.py"
+  },
+  {
+    "name": "sfx_rite_offering",
+    "description": "The Pureblood Rite's offering: the specimen's grains loosen and let go from the feet up, fall, and the blood takes them in thick bubbles; one slow surge, and it settles",
+    "path": "assets/audio/sounds/sfx_rite_offering.wav",
+    "duration": 5.6,
+    "loop": false,
+    "peak_db": -11.02,
+    "rms_db": -29.43,
+    "sha256": "a8ff1a2bf690430f76ed00730af088ed80e3414a288064c5e238455740c62d49",
+    "source": "tool/sounds/rite.py"
+  },
+  {
+    "name": "amb_rite_pool_loop",
+    "description": "The pool of blood the rite stands over: a deep dark room, blood turning slowly, a thick bubble now and then, the souls' faint breath",
+    "path": "assets/audio/sounds/amb_rite_pool_loop.wav",
+    "duration": 26.0,
+    "loop": true,
+    "peak_db": -19.71,
+    "rms_db": -34.45,
+    "sha256": "36c9d1fd8f49a0397183df8016cdc2e834f4ab413c6d7f8f7ee7e2e1319317f3",
+    "source": "tool/sounds/rite.py"
   }
 ]

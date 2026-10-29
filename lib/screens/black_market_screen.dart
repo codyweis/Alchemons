@@ -28,7 +28,6 @@ import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:alchemons/services/debug_settings_service.dart';
 
 class BlackMarketScreen extends StatefulWidget {
   final Color accent;
@@ -57,9 +56,9 @@ Color _vialRarityColor(VialRarity r) => switch (r) {
   VialRarity.mythic => const Color(0xFFE879F9),
 };
 
-/// A vial's price is in gold only at the top end (as the service prices it).
-CoinKind _vialCoin(ExtractionVial vial) =>
-    vial.rarity == VialRarity.legendary ? CoinKind.gold : CoinKind.silver;
+/// Every vial is priced in gold: a vial is now the one thing the stand
+/// needs, and the stand is where it earns back more than its silver.
+CoinKind _vialCoin(ExtractionVial vial) => CoinKind.gold;
 
 /// Two resources fetch a silver; this matches the shop's resources-to-gold
 /// rate (5,000 resources is 2,500 silver).
@@ -233,55 +232,40 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
   // ── buy ───────────────────────────────────────────────────────────────
 
   Widget _buildBuy(BlackMarketService market) {
-    if (market.dailyOffers.isEmpty && market.dailyVials.isEmpty) {
+    final vials = market.dailyVials;
+    if (vials.isEmpty) {
       return _Notice(
         icon: AppIcons.schedule_rounded,
         title: 'Laying out the wares…',
         line: 'Give me a moment.',
       );
     }
-    final vials = market.dailyVials;
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
       children: [
-        if (vials.isNotEmpty) ...[
-          _SectionLabel("THIS WEEK'S VIALS", trailing: _restockLine()),
-          const SizedBox(height: 10),
-          for (var row = 0; row < vials.length; row += 2) ...[
-            if (row > 0) const SizedBox(height: 10),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (var col = 0; col < 2; col++) ...[
-                  if (col > 0) const SizedBox(width: 10),
-                  Expanded(
-                    child: row + col < vials.length
-                        ? _VialLot(
-                            vial: vials[row + col],
-                            sold: market.isPurchased(vials[row + col].id),
-                            onOpen: () => _showVialDetails(vials[row + col]),
-                            onBuy: () => _buyVial(vials[row + col], market),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ],
+        _SectionLabel("THIS WEEK'S VIALS", trailing: _restockLine()),
+        const SizedBox(height: 10),
+        for (var row = 0; row < vials.length; row += 2) ...[
+          if (row > 0) const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var col = 0; col < 2; col++) ...[
+                if (col > 0) const SizedBox(width: 10),
+                Expanded(
+                  child: row + col < vials.length
+                      ? _VialLot(
+                          vial: vials[row + col],
+                          sold: market.isPurchased(vials[row + col].id),
+                          onOpen: () => _showVialDetails(vials[row + col]),
+                          onBuy: () => _buyVial(vials[row + col], market),
+                        )
+                      : const SizedBox.shrink(),
+                ),
               ],
-            ),
-          ],
-          const SizedBox(height: 22),
-        ],
-        if (market.dailyOffers.isNotEmpty) ...[
-          const _SectionLabel('DEALS'),
-          const SizedBox(height: 10),
-          for (final offer in market.dailyOffers) ...[
-            _DealRow(
-              offer: offer,
-              sold: market.isPurchased(offer.id),
-              onBuy: () => _handlePurchase(offer, market),
-            ),
-            const SizedBox(height: 10),
-          ],
+            ],
+          ),
         ],
       ],
     );
@@ -447,68 +431,6 @@ class _BlackMarketScreenState extends State<BlackMarketScreen> {
     );
   }
 
-  Future<void> _handlePurchase(
-    DailyOffer offer,
-    BlackMarketService marketService,
-  ) async {
-    final db = context.read<AlchemonsDatabase>();
-    final cost = DebugSettingsService.priced(offer.cost);
-    final currencies = await db.currencyDao.getAllCurrencies();
-    for (final entry in cost.entries) {
-      if ((currencies[entry.key] ?? 0) < entry.value) {
-        if (mounted) context.sound(SoundCue.uiDenied);
-        _toast('Not enough ${entry.key}.', icon: AppIcons.warning_rounded);
-        return;
-      }
-    }
-
-    if (!mounted) return;
-    final confirmed = await showBracketConfirm(
-      context,
-      palette: _p,
-      accent: _kLamp,
-      title: offer.name.toUpperCase(),
-      message: offer.description,
-      amounts: [
-        for (final e in cost.entries)
-          if (CoinKind.tryFromToken(e.key) case final kind?) (kind, e.value),
-      ],
-      amountsLabel: 'COSTS',
-      confirmLabel: 'BUY',
-    );
-    if (!confirmed || !mounted) return;
-
-    for (final entry in cost.entries) {
-      if (entry.key == 'gold') {
-        await db.currencyDao.addGold(-entry.value);
-      } else if (entry.key == 'silver') {
-        await db.currencyDao.addSilver(-entry.value);
-      }
-    }
-    if (offer.rewardType == 'currency') {
-      for (final entry in offer.reward.entries) {
-        if (entry.key == 'gold') {
-          await db.currencyDao.addGold(entry.value as int);
-        } else if (entry.key == 'silver') {
-          await db.currencyDao.addSilver(entry.value as int);
-        }
-      }
-    } else if (offer.rewardType == 'resources') {
-      for (final entry in offer.reward.entries) {
-        await db.currencyDao.addResource(entry.key, entry.value as int);
-      }
-    }
-
-    await marketService.purchaseOffer(offer.id);
-    if (!mounted) return;
-    context.sound(SoundCue.purchaseSuccess);
-    HapticFeedback.heavyImpact();
-    _toast(
-      '${offer.name} bought.',
-      icon: AppIcons.check_circle_rounded,
-      accent: _kLamp,
-    );
-  }
 
   // ── sell ──────────────────────────────────────────────────────────────
 
@@ -919,151 +841,7 @@ class _VialLot extends StatelessWidget {
 }
 
 /// A deal: what it costs, what it gets you.
-class _DealRow extends StatelessWidget {
-  const _DealRow({
-    required this.offer,
-    required this.sold,
-    required this.onBuy,
-  });
-
-  final DailyOffer offer;
-  final bool sold;
-  final VoidCallback onBuy;
-
-  @override
-  Widget build(BuildContext context) {
-    final gets = <Widget>[
-      if (offer.rewardType == 'currency')
-        for (final e in offer.reward.entries)
-          if (CoinKind.tryFromToken(e.key) case final kind?)
-            CoinAmount(kind: kind, amount: e.value as int, size: 12),
-      if (offer.rewardType == 'resources')
-        for (final e in offer.reward.entries)
-          _ResourceAmount(resourceKey: e.key, amount: e.value as int),
-    ];
-
-    return Opacity(
-      opacity: sold ? 0.55 : 1,
-      child: CustomPaint(
-        foregroundPainter: BracketFramePainter(
-          color: (sold ? _p.line : _kLamp).withValues(alpha: 0.7),
-          bracketSize: 10,
-          strokeWidth: 1.1,
-        ),
-        child: Container(
-          color: _kGlass,
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              CustomPaint(
-                painter: BracketFramePainter(
-                  color: _kLamp.withValues(alpha: 0.6),
-                  bracketSize: 6,
-                ),
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  alignment: Alignment.center,
-                  color: _kLamp.withValues(alpha: 0.08),
-                  child: Icon(offer.icon, size: 22, color: _kLamp),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      offer.name,
-                      style: bracketText(
-                        context,
-                        14,
-                        _p.ink,
-                        weight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      offer.description,
-                      style: bracketText(context, 12, _p.muted),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        for (final e in DebugSettingsService.priced(
-                          offer.cost,
-                        ).entries)
-                          if (CoinKind.tryFromToken(e.key) case final kind?)
-                            CoinAmount(kind: kind, amount: e.value, size: 12),
-                        if (gets.isNotEmpty) ...[
-                          Icon(
-                            AppIcons.arrow_forward_rounded,
-                            size: 12,
-                            color: _p.muted,
-                          ),
-                          ...gets,
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              if (sold)
-                const _SoldTag()
-              else
-                SizedBox(
-                  width: 64,
-                  child: BracketButton(
-                    label: 'BUY',
-                    height: 34,
-                    palette: _p,
-                    accent: _kLamp,
-                    onTap: onBuy,
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// A resource and how much, for a deal's reward.
-class _ResourceAmount extends StatelessWidget {
-  const _ResourceAmount({required this.resourceKey, required this.amount});
-
-  final String resourceKey;
-  final int amount;
-
-  @override
-  Widget build(BuildContext context) {
-    final resource = ElementResources.all
-        .where((r) => r.settingsKey == resourceKey)
-        .firstOrNull;
-    if (resource == null) return const SizedBox.shrink();
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        ElementResourceGlyph.of(resource, size: 15),
-        const SizedBox(width: 3),
-        Text(
-          formatCoins(amount),
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: resource.color,
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 /// One resource, and how much of it to put on the table.
 class _ResourceLot extends StatelessWidget {

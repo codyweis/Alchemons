@@ -42,6 +42,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 // ============= SUPPORTING WIDGETS =============
 
@@ -123,11 +124,177 @@ class CurrencyPill extends StatelessWidget {
   }
 }
 
-// Enhanced Item Detail Dialog
-// Add this to your shop_widgets.dart or create a new file for dialogs
+/// An offer, and the buying of it, in one dialog: the art, what it is, how
+/// many, what it costs, BUY. Returns the quantity bought, or null.
+///
+/// Until 2026-10 a purchase took two dialogs in two looks — a rounded item
+/// card, then a bracketed CONFIRM PURCHASE stacked over it asking again.
+/// [allowQuantity] shows the stepper; the cost and what it buys follow it.
+Future<int?> showOfferDialog({
+  required BuildContext context,
+  required ShopOffer offer,
+  required FactionTheme theme,
+  required Map<String, int> currencies,
+  required int inventoryQty,
+  required bool canPurchase,
+  required bool canAfford,
+  Map<String, int>? effectiveCost,
+  bool allowQuantity = false,
+}) {
+  final unit = effectiveCost ?? offer.cost;
+  final palette = BracketPalette.fromTheme(theme);
+  final t = ForgeTokens(theme);
+  final accent = t.amberBright;
+  var qty = 1;
+  return showDialog<int?>(
+    context: context,
+    barrierColor: Colors.black.withValues(alpha: 0.7),
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setState) {
+        final cost = {for (final e in unit.entries) e.key: e.value * qty};
+        // One of something is the caller's call (it may know more than the
+        // purse); more than one is the purse's.
+        final affordable = qty == 1
+            ? canAfford
+            : cost.entries.every((e) => (currencies[e.key] ?? 0) >= e.value);
+        final String buyLabel;
+        if (!canPurchase) {
+          buyLabel = offer.limit == PurchaseLimit.daily
+              ? 'BOUGHT TODAY'
+              : 'OWNED';
+        } else {
+          buyLabel = affordable ? 'BUY' : "CAN'T AFFORD";
+        }
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(
+            horizontal: 28,
+            vertical: 24,
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: CustomPaint(
+              foregroundPainter: BracketFramePainter(
+                color: accent.withValues(alpha: 0.9),
+                bracketSize: 14,
+                strokeWidth: 1.3,
+              ),
+              child: Container(
+                color: palette.bg1,
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      SizedBox(
+                        height: 124,
+                        child: Center(
+                          child: _buildOfferPreviewForDialog(
+                            offer,
+                            size: 100.0,
+                            theme: theme,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        offer.name.toUpperCase(),
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'monospace',
+                          color: palette.ink,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.6,
+                        ),
+                      ),
+                      if (inventoryQty > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            '$inventoryQty held',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'monospace',
+                              color: palette.muted,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 10),
+                      Text(
+                        offer.description,
+                        textAlign: TextAlign.center,
+                        style: bracketText(
+                          ctx,
+                          13.5,
+                          palette.ink.withValues(alpha: 0.82),
+                          weight: FontWeight.w500,
+                        ).copyWith(height: 1.45),
+                      ),
+                      if (canPurchase && allowQuantity) ...[
+                        const SizedBox(height: 16),
+                        _DialogQuantityPicker(
+                          qty: qty,
+                          onChanged: (next) => setState(() => qty = next),
+                        ),
+                      ],
+                      if (canPurchase && cost.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        const BracketSectionDivider(label: 'COST'),
+                        const SizedBox(height: 4),
+                        for (final entry in cost.entries)
+                          _ForgeCostRow(
+                            type: entry.key,
+                            amount: entry.value,
+                            current: currencies[entry.key] ?? 0,
+                            theme: theme,
+                          ),
+                      ],
+                      const SizedBox(height: 18),
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: BracketButton(
+                              label: 'BACK',
+                              primary: false,
+                              height: 44,
+                              palette: palette,
+                              accent: accent,
+                              onTap: () => Navigator.pop(ctx),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            flex: 3,
+                            child: BracketButton(
+                              label: buyLabel,
+                              enabled: canPurchase && affordable,
+                              height: 44,
+                              palette: palette,
+                              accent: accent,
+                              onTap: () => Navigator.pop(ctx, qty),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
+}
 
-// ── Forge color tokens are provided by ForgeTokens(theme) ──────────────────────
-
+/// [showOfferDialog] for one: true when the player bought it.
 Future<bool> showItemDetailDialog({
   required BuildContext context,
   required ShopOffer offer,
@@ -137,260 +304,41 @@ Future<bool> showItemDetailDialog({
   required bool canPurchase,
   required bool canAfford,
   Map<String, int>? effectiveCost,
-}) async {
-  final displayCost = effectiveCost ?? offer.cost;
-  final t = ForgeTokens(theme);
-  final accent = t.readableAccent(t.amber);
-  return await showDialog<bool>(
-        context: context,
-        builder: (ctx) => Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.symmetric(
-            horizontal: 24,
-            vertical: 24,
-          ),
-          child: Container(
-            constraints: const BoxConstraints(maxWidth: 380),
-            decoration: BoxDecoration(
-              color: t.bg1,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(
-                    alpha: theme.isDark ? 0.5 : 0.18,
-                  ),
-                  blurRadius: 28,
-                  offset: const Offset(0, 12),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // ── Header (flat, just title + close) ───────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 14, 10, 0),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          'ITEM DETAILS',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: t.textMuted,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 2.2,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: context.soundAction(
-                          () => Navigator.pop(ctx, false),
-                        ),
-                        icon: Icon(
-                          AppIcons.close_rounded,
-                          color: t.textMuted,
-                          size: 18,
-                        ),
-                        splashRadius: 18,
-                        padding: const EdgeInsets.all(6),
-                        constraints: const BoxConstraints(
-                          minWidth: 32,
-                          minHeight: 32,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+}) async =>
+    await showOfferDialog(
+      context: context,
+      offer: offer,
+      theme: theme,
+      currencies: currencies,
+      inventoryQty: inventoryQty,
+      canPurchase: canPurchase,
+      canAfford: canAfford,
+      effectiveCost: effectiveCost,
+    ) !=
+    null;
 
-                // ── Preview area (blends with body, no separate fill) ───────
-                SizedBox(
-                  height: 130,
-                  child: _buildOfferPreviewForDialog(
-                    offer,
-                    size: 100.0,
-                    theme: theme,
-                  ),
-                ),
-
-                // ── Name + description ───────────────────────────────────────
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
-                  child: Text(
-                    offer.name.toUpperCase(),
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: t.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.6,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                if (inventoryQty > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      '× $inventoryQty in inventory',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: accent,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 0.8,
-                      ),
-                    ),
-                  ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
-                  child: Text(
-                    offer.description,
-                    style: TextStyle(
-                      color: t.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      height: 1.5,
-                      letterSpacing: 0.3,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-
-                // ── Cost section ─────────────────────────────────────────────
-                const SizedBox(height: 18),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _MonoSectionHeader(label: 'COST', color: t.textMuted),
-                ),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    children: [
-                      for (final entry in displayCost.entries)
-                        _ForgeCostRow(
-                          type: entry.key,
-                          amount: entry.value,
-                          current: currencies[entry.key] ?? 0,
-                          theme: theme,
-                        ),
-                    ],
-                  ),
-                ),
-
-                // ── Buttons ──────────────────────────────────────────────────
-                const SizedBox(height: 18),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        flex: 2,
-                        child: _DialogSecondaryButton(
-                          label: 'BACK',
-                          onTap: context.soundTap(
-                            () => Navigator.pop(ctx, false),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 3,
-                        child: canPurchase
-                            ? _DialogPrimaryButton(
-                                label: canAfford ? 'PURCHASE' : "CAN'T AFFORD",
-                                onTap: canAfford
-                                    ? () => Navigator.pop(ctx, true)
-                                    : null,
-                                isDestructive: !canAfford,
-                              )
-                            : _DialogStatusPill(
-                                label: offer.limit == PurchaseLimit.daily
-                                    ? 'BOUGHT TODAY'
-                                    : 'PURCHASED',
-                                icon: AppIcons.check_circle_outline_rounded,
-                                color: t.success,
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ) ??
-      false;
-}
-
-/// Flat filled primary button used across all shop dialogs.
+/// The kit's lit button, for the shop's remaining dialogs.
 class _DialogPrimaryButton extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
-  final bool isDestructive;
 
-  const _DialogPrimaryButton({
-    required this.label,
-    this.onTap,
-    this.isDestructive = false,
-  });
+  const _DialogPrimaryButton({required this.label, this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
-    final enabled = onTap != null;
-    final accent = t.readableAccent(t.amber);
-
-    final Color bg;
-    final Color fg;
-    if (!enabled) {
-      bg = t.bg3.withValues(alpha: theme.isDark ? 0.6 : 0.6);
-      fg = isDestructive ? t.danger.withValues(alpha: 0.7) : t.textMuted;
-    } else if (theme.isDark) {
-      bg = t.amber;
-      fg = t.bg0;
-    } else {
-      bg = accent;
-      fg = Colors.white;
-    }
-
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          color: bg,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: fg,
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 1.4,
-              ),
-            ),
-          ],
-        ),
-      ),
+    final t = ForgeTokens(context.read<FactionTheme>());
+    return BracketButton(
+      label: label,
+      onTap: onTap,
+      enabled: onTap != null,
+      height: 44,
+      palette: BracketPalette.of(context),
+      accent: t.amberBright,
     );
   }
 }
 
-/// Flat, low-emphasis text button (no border).
+/// The kit's quiet button: the way back out.
 class _DialogSecondaryButton extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
@@ -399,72 +347,14 @@ class _DialogSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
-    return GestureDetector(
-      onTap: context.soundAction(onTap),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        height: 44,
-        decoration: BoxDecoration(
-          color: theme.text.withValues(alpha: theme.isDark ? 0.05 : 0.04),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: bracketText(
-            context,
-            13.5,
-            t.textSecondary,
-            weight: FontWeight.w800,
-            letterSpacing: 1.2,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Status indicator for completed/owned states — flat, no border.
-class _DialogStatusPill extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color color;
-
-  const _DialogStatusPill({
-    required this.label,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
+    final t = ForgeTokens(context.read<FactionTheme>());
+    return BracketButton(
+      label: label,
+      onTap: onTap,
+      primary: false,
       height: 44,
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      alignment: Alignment.center,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 14),
-          const SizedBox(width: 7),
-          Text(
-            label,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.4,
-            ),
-          ),
-        ],
-      ),
+      palette: BracketPalette.of(context),
+      accent: t.amberBright,
     );
   }
 }
@@ -489,7 +379,7 @@ class _ForgeCostRow extends StatelessWidget {
   (IconData, String, Color) _info(String t) {
     switch (t) {
       case 'gold':
-        return (AppIcons.hexagon_rounded, 'Gold', const Color(0xFFF59E0B));
+        return (AppIcons.hexagon_rounded, 'Gold', coinColor(CoinKind.gold));
       case 'silver':
         return (
           AppIcons.monetization_on_rounded,
@@ -541,7 +431,7 @@ class _ForgeCostRow extends StatelessWidget {
         biomeId: biome,
         color: hasEnough
             ? (ElementResources.byBiomeId[biome]?.color ?? color)
-            : const Color(0xFFEF4444),
+            : kShortColor,
         size: 16,
       );
     } else if (coin != null) {
@@ -578,7 +468,7 @@ class _ForgeCostRow extends StatelessWidget {
               fontFamily: 'monospace',
               color: hasEnough
                   ? color.withValues(alpha: 0.95)
-                  : const Color(0xFFEF4444),
+                  : kShortColor,
               fontSize: 13,
               fontWeight: FontWeight.w800,
               letterSpacing: 0.2,
@@ -591,7 +481,7 @@ class _ForgeCostRow extends StatelessWidget {
               fontFamily: 'monospace',
               color: hasEnough
                   ? t.textMuted
-                  : const Color(0xFFEF4444).withValues(alpha: 0.7),
+                  : kShortColor.withValues(alpha: 0.7),
               fontSize: 12,
               fontWeight: FontWeight.w600,
               letterSpacing: 0.4,
@@ -1591,7 +1481,7 @@ class FarmUnlockSection extends StatelessWidget {
         if (!snap.hasData) {
           return const Padding(
             padding: EdgeInsets.all(16),
-            child: Center(child: CircularProgressIndicator()),
+            child: Center(child: GrainLoader()),
           );
         }
 
@@ -2210,24 +2100,13 @@ class _StepperButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = context.read<FactionTheme>();
-    final t = ForgeTokens(theme);
-    return GestureDetector(
-      onTap: context.soundAction(enabled ? onTap : null),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: theme.text.withValues(alpha: theme.isDark ? 0.06 : 0.04),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        alignment: Alignment.center,
-        child: Icon(
-          icon,
-          size: 18,
-          color: enabled ? t.textPrimary : t.textMuted,
-        ),
+    final palette = BracketPalette.of(context);
+    return Opacity(
+      opacity: enabled ? 1 : BracketButton.disabledOpacity,
+      child: BracketIconButton(
+        icon: icon,
+        palette: palette,
+        onTap: enabled ? onTap : () {},
       ),
     );
   }
@@ -2324,7 +2203,7 @@ class DialogResourceDisplay extends StatelessWidget {
     switch (type) {
       // Currencies
       case 'gold':
-        return (AppIcons.hexagon_rounded, 'Gold', const Color(0xFFB45309));
+        return (AppIcons.hexagon_rounded, 'Gold', coinColor(CoinKind.gold));
       case 'silver':
         return (
           AppIcons.monetization_on_rounded,

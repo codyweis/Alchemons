@@ -11,6 +11,7 @@ import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 /// Push this screen and it will return the chosen instanceId (String)
 /// via `Navigator.pop<String>(instanceId)`.
@@ -238,7 +239,7 @@ class _CompetitionPickerScreenState extends State<CompetitionPickerScreen> {
               future: _future,
               builder: (context, snap) {
                 if (snap.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(child: GrainLoader());
                 }
                 if (snap.hasError) {
                   return Center(

@@ -371,18 +371,20 @@ class BlackMarketService extends ChangeNotifier {
     return VialRarity.common;
   }
 
+  /// Vials are gold-only now: the stand is where they are used, and the
+  /// essence to infuse them is dear. One gold at the floor.
   int _priceFor(VialRarity r) {
     switch (r) {
       case VialRarity.common:
-        return 150;
+        return 1;
       case VialRarity.uncommon:
-        return 300;
+        return 3;
       case VialRarity.rare:
-        return 650;
+        return 8;
       case VialRarity.legendary:
-        return 10;
+        return 20;
       case VialRarity.mythic:
-        return 100;
+        return 60;
     }
   }
 

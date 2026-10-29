@@ -609,7 +609,7 @@ class _BasicsDialog extends StatelessWidget {
               if (souls)
                 line(
                   'SOULS',
-                  'Raise one Potential. The new Potential passes on through breeding.',
+                  'Raise one Potential. The new Potential passes on through fusion.',
                   _kSoul,
                 ),
               const SizedBox(height: 18),

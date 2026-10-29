@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 // Capture dialog renders over dark scene backdrops — always dark.
 const _palette = BracketPalette.dark;
@@ -121,10 +122,7 @@ class _DeviceSelectionDialogState extends State<DeviceSelectionDialog>
                 if (_loading)
                   const Padding(
                     padding: EdgeInsets.all(32),
-                    child: CircularProgressIndicator(
-                      color: _amber,
-                      strokeWidth: 2,
-                    ),
+                    child: GrainLoader(color: _amber),
                   )
                 else
                   Flexible(

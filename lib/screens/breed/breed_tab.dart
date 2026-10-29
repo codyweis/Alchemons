@@ -1419,7 +1419,11 @@ class _BreedingTabState extends State<BreedingTab>
       WebAds.tally('fusion', count: _fusionsMade);
       widget.onBreedingComplete();
     } catch (e) {
-      _showToast('Fusion failed: $e', color: Colors.red);
+      debugPrint('fusion: failed: $e');
+      _showToast(
+        'The fusion did not go through. Try again.',
+        color: Colors.red,
+      );
     }
   }
 

@@ -62,6 +62,7 @@ import 'package:alchemons/services/game_data_service.dart';
 import 'package:alchemons/constants/breed_constants.dart';
 import 'package:alchemons/models/wilderness.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/wilderness/device_selection_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
@@ -483,7 +484,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                         const SizedBox(width: AppSpace.md),
                         Expanded(
                           child: Text(
-                            'Further research required',
+                            'Cannot fuse yet',
                             style: bracketText(
                               ctx,
                               17,
@@ -497,11 +498,11 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                     ),
                     const SizedBox(height: AppSpace.lg),
                     Text(
-                      'Your current field protocols only support fusion '
-                      'within the same lineage family.\n\n'
-                      'To attempt wild breeding between $familyA and $familyB '
-                      'specimens, unlock the Cross-Species Lineage node in '
-                      'the Breeder constellation.',
+                      'In the field you can only fuse two Alchemons of the '
+                      'same family.\n\n'
+                      'To fuse $familyA and $familyB Alchemons together, '
+                      'unlock Cross-Species Lineage in the Alchemy '
+                      'constellation.',
                       style: bracketText(
                         ctx,
                         12.5,
@@ -525,7 +526,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
                           alignment: Alignment.center,
                           color: amber.withValues(alpha: 0.14),
                           child: Text(
-                            'Acknowledge',
+                            'OK',
                             style: bracketText(
                               ctx,
                               13,
@@ -1007,17 +1008,9 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         await maybePlayFirstFusionStory(ctx);
         if (!mounted || !ctx.mounted) return;
 
-        // Show it BEFORE closing. Closing the encounter tears down the
-        // scene page under this sheet, and a snackbar posted into a
-        // messenger that is on its way out never reaches the screen.
-        final messenger = ScaffoldMessenger.maybeOf(ctx);
-        if (messenger != null) {
-          _showResultNotification(
-            messenger,
-            'Fusion complete',
-            outcome.message,
-          );
-        }
+        // The notice lives in the app's own overlay, so it outlasts the
+        // scene page this sheet closes with.
+        _showResultNotification('Fusion complete', outcome.message);
         // Browser build only: counts toward the every-so-many-fusions ad.
         if (!widget.isTutorial) WebAds.tally('fusion');
         _hide(true);
@@ -1167,14 +1160,10 @@ class _EncounterOverlayState extends State<EncounterOverlay>
         if (!ctx.mounted) return;
         // The panel is retracted on a success and the encounter closes right
         // after. Say it where it will actually be read.
-        final messenger = ScaffoldMessenger.maybeOf(ctx);
-        if (messenger != null) {
-          _showResultNotification(
-            messenger,
-            'Extraction complete',
-            'Specimen sent to Cultivations.',
-          );
-        }
+        _showResultNotification(
+          'Harvest complete',
+          'Specimen sent to Cultivations.',
+        );
 
         await _placeWildEgg(ctx, wildCreature);
 
@@ -1248,9 +1237,7 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   /// missing catalyst. The rest the encounter says with the creatures and the
   /// buttons; there is no status line to write it on.
   void _notify(BuildContext ctx, String title, String message) {
-    final messenger = ScaffoldMessenger.maybeOf(ctx);
-    if (messenger == null) return;
-    _showResultNotification(messenger, title, message, failed: true);
+    _showResultNotification(title, message, failed: true);
   }
 
   /// Lightweight, non-blocking result notification. The one piece of
@@ -1259,77 +1246,13 @@ class _EncounterOverlayState extends State<EncounterOverlay>
   /// encounter closes on a success. [failed] draws it in ember, for the
   /// setbacks [_notify] reports.
   void _showResultNotification(
-    ScaffoldMessengerState messenger,
     String title,
     String message, {
     bool failed = false,
   }) {
-    final accent = failed ? const Color(0xFFE0785A) : const Color(0xFF22C55E);
-    messenger.clearSnackBars();
-    messenger.showSnackBar(
-      SnackBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 4),
-        padding: EdgeInsets.zero,
-        margin: const EdgeInsets.all(16),
-        content: CustomPaint(
-          painter: BracketFramePainter(
-            color: accent.withValues(alpha: 0.85),
-            bracketSize: 9,
-            strokeWidth: 1.2,
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF12161D),
-              border: Border(left: BorderSide(color: accent, width: 3)),
-            ),
-            padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
-            child: Row(
-              children: [
-                Icon(
-                  failed
-                      ? AppIcons.warning_amber_rounded
-                      : AppIcons.check_circle_rounded,
-                  color: accent,
-                  size: 18,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        style: bracketText(
-                          messenger.context,
-                          13,
-                          Colors.white,
-                          weight: FontWeight.w800,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        message,
-                        style: bracketText(
-                          messenger.context,
-                          11.5,
-                          Colors.white70,
-                          weight: FontWeight.w500,
-                        ),
-                        strutStyle: const StrutStyle(height: 1.3),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    showGameSnackAnywhere(
+      '$title — $message',
+      accent: failed ? const Color(0xFFE0785A) : const Color(0xFF22C55E),
     );
   }
 
@@ -1633,56 +1556,49 @@ class _ActionButton extends StatelessWidget {
     return GestureDetector(
       onTap: context.soundAction(isDisabled ? null : onPressed),
       behavior: HitTestBehavior.opaque,
-      child: Container(
-        height: 46,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          // Opaque, so it reads on any backdrop, with the action's color
-          // rising from its foot like light from below — not a neon rim.
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              const Color(0xFF0B0A0E),
-              Color.lerp(
-                const Color(0xFF0B0A0E),
-                accent,
-                isDisabled ? 0.03 : 0.16,
-              )!,
-            ],
-          ),
-          borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-            color: accent.withValues(alpha: isDisabled ? 0.7 : 0.62),
-            width: 1,
-          ),
+      // The kit's button: an opaque dark plate, so it reads on any
+      // backdrop, washed in the action's color and lit from below. (A
+      // rounded outlined box until 2026-10.)
+      child: CustomPaint(
+        foregroundPainter: BracketFramePainter(
+          color: isDisabled ? BracketPalette.dark.line : accent,
+          strokeWidth: 1.3,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (glyphBiome != null) ...[
-              HarvesterGlyph(
-                biomeId: glyphBiome!,
-                size: 22,
-                // Greyed out it is not a device you can use, so it stops
-                // beating and stops asking for frames.
-                color: isDisabled ? _kPalette.muted : null,
-                animate: !isDisabled,
+        child: Container(
+          height: 46,
+          padding: const EdgeInsets.symmetric(horizontal: 18),
+          alignment: Alignment.center,
+          color: Color.lerp(
+            const Color(0xFF0B0A0E),
+            accent,
+            isDisabled ? 0.03 : 0.12,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (glyphBiome != null) ...[
+                HarvesterGlyph(
+                  biomeId: glyphBiome!,
+                  size: 22,
+                  // Greyed out it is not a device you can use, so it stops
+                  // beating and stops asking for frames.
+                  color: isDisabled ? _kPalette.muted : null,
+                  animate: !isDisabled,
+                ),
+                const SizedBox(width: 9),
+              ],
+              Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: ink,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 1.4,
+                ),
               ),
-              const SizedBox(width: 9),
             ],
-            Text(
-              label.toUpperCase(),
-              style: TextStyle(
-                fontFamily: 'monospace',
-                color: ink,
-                fontSize: 12.5,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 1.4,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );

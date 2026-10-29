@@ -38,6 +38,7 @@ import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 const _kSellRewardMultiplier = 5;
 
@@ -307,12 +308,7 @@ class _CosmicSellSheetState extends State<CosmicSellSheet> {
               ? 'FOUR BERTHS · PLANET-SUMMONED AND PRISMATIC ONLY'
               : 'PAYING DOUBLE TODAY · ${_todaysSpecies!.name.toUpperCase()}',
           body: _loading
-              ? const Center(
-                  child: CircularProgressIndicator(
-                    color: _accent,
-                    strokeWidth: 1.5,
-                  ),
-                )
+              ? const Center(child: GrainLoader(color: _accent))
               : ListView(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
                   children: [

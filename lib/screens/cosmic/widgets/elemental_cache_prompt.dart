@@ -1,4 +1,3 @@
-import 'package:alchemons/audio/audio.dart';
 // lib/screens/cosmic/widgets/elemental_cache_prompt.dart
 //
 // The prompt that appears when the ship parks at a sealed elemental cache.
@@ -8,12 +7,16 @@ import 'package:alchemons/audio/audio.dart';
 // cosmic screen rebuilding.
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:alchemons/games/cosmic/cosmic_cache_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
-import 'package:alchemons/utils/app_font_family.dart';
+import 'package:alchemons/widgets/fx/grain_glass.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+import 'planet_action_button.dart';
 
 class ElementalCachePrompt extends StatefulWidget {
   const ElementalCachePrompt({
@@ -54,70 +57,55 @@ class _ElementalCachePromptState extends State<ElementalCachePrompt> {
 
   @override
   Widget build(BuildContext context) {
-    final accent = elementColor(widget.cache.element);
-    final font = appFontFamily(context);
-    final tint = _ready ? accent : Colors.white54;
-
     // Nothing at all until a companion of the right element is standing close
     // enough. The sealed state used to sit on screen announcing itself; now the
     // cache stays quiet and the prompt IS the signal that you can open it.
     if (!_ready) return const SizedBox.shrink();
 
-    return GestureDetector(
-      onTap: context.soundAction(widget.onTap),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.black.withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: tint.withValues(alpha: _ready ? 1.0 : 0.4),
-            width: _ready ? 2 : 1.2,
-          ),
-          boxShadow: _ready
-              ? [
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.5),
-                    blurRadius: 26,
-                  ),
-                  BoxShadow(
-                    color: accent.withValues(alpha: 0.18),
-                    blurRadius: 46,
-                    spreadRadius: 4,
-                  ),
-                ]
-              : const [],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'BREAK THE SEAL',
-              style: TextStyle(
-                fontFamily: font,
-                color: Colors.white,
-                fontSize: 15,
-                fontWeight: FontWeight.w900,
-                letterSpacing: 2,
-              ),
-            ),
-            const SizedBox(height: 5),
-            // The seal is named by what it asked for, never by its element —
-            // "a living spark", not "LIGHTNING CACHE".
-            Text(
-              'Your companion answers ${cacheHintFor(widget.cache.element)}',
-              style: TextStyle(
-                fontFamily: font,
-                color: tint.withValues(alpha: 0.85),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
+    final accent = elementColor(widget.cache.element);
+    // The planet's lens, holding the cache's light as grains. (A glowing
+    // rounded plate reading BREAK THE SEAL until 2026-10.) The seal is
+    // named by what it asked for, never by its element — "a living spark",
+    // not "LIGHTNING CACHE".
+    return PlanetActionButton(
+      label: 'OPEN',
+      sublabel: 'Your companion answers ${cacheHintFor(widget.cache.element)}',
+      light: accent,
+      glyph: GrainGlyph(
+        size: PlanetActionButton.glyphSize,
+        animate: true,
+        painter: (clock) => _SealedGrainsPainter(clock, accent),
       ),
+      onTap: widget.onTap,
     );
   }
+}
+
+/// What the seal holds: a sphere of the element's grains, held a little
+/// loose, as if it would come apart at a touch.
+class _SealedGrainsPainter extends CustomPainter {
+  _SealedGrainsPainter(this.clock, this.color) : super(repaint: clock);
+
+  final ValueListenable<double>? clock;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide;
+    final t = clock?.value ?? 0;
+    GrainGlass.sphere(
+      canvas,
+      Offset(s / 2, s / 2),
+      s * 0.28,
+      t,
+      a: color,
+      spin: 0.8,
+      gather: 0.82 + 0.06 * math.sin(t * 1.7),
+      glass: 0.7,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _SealedGrainsPainter old) =>
+      old.clock != clock || old.color != color;
 }

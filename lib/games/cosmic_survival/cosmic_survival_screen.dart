@@ -84,6 +84,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DESIGN TOKENS (matching survival aesthetic)
@@ -2418,7 +2419,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   }
 
   Widget _buildLoading() {
-    return const Center(child: CircularProgressIndicator(color: _C.accent));
+    return const Center(child: GrainLoader(color: _C.accent));
   }
 
   // ── Lobby ──────────────────────────────────────────────

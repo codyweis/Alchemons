@@ -7,6 +7,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 enum EncounterAction { breed, capture }
 
@@ -309,7 +310,7 @@ class _EncounterActionDialogState extends State<EncounterActionDialog>
         child: const Center(
           child: Padding(
             padding: EdgeInsets.all(32.0),
-            child: CircularProgressIndicator(strokeWidth: 2),
+            child: GrainLoader(),
           ),
         ),
       );

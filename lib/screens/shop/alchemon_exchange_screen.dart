@@ -1,11 +1,15 @@
 // lib/screens/shop/alchemon_exchange_screen.dart
 //
-// THE SPECIMEN EXCHANGE — the shop's counter for selling Alchemons and vials.
+// THE SPECIMEN EXCHANGE — the shop's counter for selling Alchemons and what
+// waits in cold storage.
 //
-// Choose what to sell (specimens from the collection, vials held or stored),
-// see each one priced on the counter, then complete the sale. Drawn in the
-// bracket-frame language of the details and the black market, in the app's
-// own theme.
+// Choose what to sell (specimens from the collection, cultivations from cold
+// storage, picked from the same stasis cells the nursery shows them in), see
+// each one priced on the counter, then complete the sale. Vials are not sold
+// here: they are for the Essence stand. Drawn in the bracket-frame language of
+// the details and the black market, in the app's own theme.
+
+import 'dart:math' as math;
 
 import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/constants/black_market_constants.dart';
@@ -13,25 +17,27 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/egg/egg_payload_helpers.dart';
 import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/models/extraction_vile.dart';
-import 'package:alchemons/models/parent_snapshot.dart';
+import 'package:alchemons/models/parent_snapshot.dart' show decodeGenetics;
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
+import 'package:alchemons/services/cinematic_quality_service.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/widgets/all_specimens_page.dart';
-import 'package:alchemons/widgets/animations/extraction_vile_ui.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bottom_sheet_shell.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/currency_display_widget.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/cold_storage_glyph.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart';
+import 'package:alchemons/widgets/nav_emblems.dart';
+import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -54,7 +60,9 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   late final List<CreatureInstance> _selectedForSale = [
     ...widget.debugInitialSpecimens,
   ];
-  final Map<String, _SelectedVialSale> _selectedVialsForSale = {};
+
+  /// Cultivations from cold storage on the counter, by egg id.
+  final Map<String, Egg> _selectedStored = {};
 
   FactionTheme get _theme => context.read<FactionTheme>();
   ForgeTokens get t => ForgeTokens(_theme);
@@ -62,31 +70,21 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
   Color get _accent => t.readableAccent(t.amberBright);
 
   bool get _hasSelections =>
-      _selectedForSale.isNotEmpty || _selectedVialsForSale.isNotEmpty;
-  int get _selectedVialCount => _selectedVialsForSale.values.fold(
-    0,
-    (sum, vial) => sum + vial.selectedQty,
-  );
-  int get _selectionCount => _selectedForSale.length + _selectedVialCount;
+      _selectedForSale.isNotEmpty || _selectedStored.isNotEmpty;
+  int get _selectionCount => _selectedForSale.length + _selectedStored.length;
 
   String get _selectionSummary =>
-      _soldItemSummary(_selectedForSale.length, _selectedVialCount);
+      _soldItemSummary(_selectedForSale.length, _selectedStored.length);
 
   // ── prices ────────────────────────────────────────────────────────────
 
-  int _silverValueForVialRarity(VialRarity rarity) {
-    switch (rarity) {
-      case VialRarity.common:
-        return 25;
-      case VialRarity.uncommon:
-        return 50;
-      case VialRarity.rare:
-        return 100;
-      case VialRarity.legendary:
-      case VialRarity.mythic:
-        return 150;
-    }
-  }
+  /// What a stored cultivation fetches: what it holds would, new — its
+  /// rarity at level 1 — with the same constellation sale boost. What else
+  /// it may carry is not read here: it is still unknown.
+  int _storedPrice(Egg egg, double saleMult) =>
+      (BlackMarketConstants.calculateSellPrice(rarity: egg.rarity, level: 1) *
+              saleMult)
+          .round();
 
   /// A specimen's base price in silver: rarity, level, tint, natures,
   /// Potential, and the Earthen perk.
@@ -160,8 +158,8 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
         silver += amount;
       }
     }
-    for (final vial in _selectedVialsForSale.values) {
-      silver += vial.totalSilverValue;
+    for (final egg in _selectedStored.values) {
+      silver += _storedPrice(egg, saleMult);
     }
     return (silver, gold);
   }
@@ -223,7 +221,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  'ALCHEMONS AND VIALS, FOR COIN',
+                  'ALCHEMONS AND COLD STORAGE',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -270,6 +268,12 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               child: _ChoiceTile(
                 label: 'SPECIMENS',
                 caption: 'From your collection',
+                glyph: NavEmblem(
+                  kind: NavEmblemKind.creatures,
+                  dockSet: context.watch<FactionService>().dockSet,
+                  size: 76,
+                  animate: true,
+                ),
                 accent: _accent,
                 palette: palette,
                 onTap: _showInstanceBrowser,
@@ -278,11 +282,12 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: _ChoiceTile(
-                label: 'VIALS',
-                caption: 'Held or in storage',
+                label: 'COLD STORAGE',
+                caption: 'Cultivations waiting there',
+                glyph: const ColdStorageGlyph(size: 76),
                 accent: _accent,
                 palette: palette,
-                onTap: _showVialBrowser,
+                onTap: _showStoragePicker,
               ),
             ),
           ],
@@ -333,7 +338,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
               onTap: context.soundAction(() {
                 setState(() {
                   _selectedForSale.clear();
-                  _selectedVialsForSale.clear();
+                  _selectedStored.clear();
                 });
                 HapticFeedback.lightImpact();
               }),
@@ -385,17 +390,18 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
             const SizedBox(height: 8),
           ],
         ],
-        if (_selectedVialsForSale.isNotEmpty) ...[
+        if (_selectedStored.isNotEmpty) ...[
           const SizedBox(height: 10),
-          _SubLabel('VIALS', palette: palette),
+          _SubLabel('FROM COLD STORAGE', palette: palette),
           const SizedBox(height: 8),
-          for (final vial in _selectedVialsForSale.values) ...[
-            _VialLot(
-              vial: vial,
+          for (final egg in _selectedStored.values) ...[
+            _StoredLot(
+              egg: egg,
+              amount: _storedPrice(egg, saleMult),
               palette: palette,
               coinInk: coinColor(CoinKind.silver, palette),
               onRemove: () {
-                setState(() => _selectedVialsForSale.remove(vial.key));
+                setState(() => _selectedStored.remove(egg.eggId));
                 HapticFeedback.lightImpact();
               },
             ),
@@ -436,12 +442,12 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: BracketButton(
-                    label: 'VIALS',
+                    label: 'COLD STORAGE',
                     primary: false,
                     height: 36,
                     palette: palette,
                     accent: _accent,
-                    onTap: _showVialBrowser,
+                    onTap: _showStoragePicker,
                   ),
                 ),
               ],
@@ -575,191 +581,95 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
     HapticFeedback.selectionClick();
   }
 
-  Future<void> _showVialBrowser() async {
+  /// Cold storage, as its stasis cells: tap one to put it on the counter
+  /// (its price in its label), tap again to take it off.
+  Future<void> _showStoragePicker() async {
     final db = context.read<AlchemonsDatabase>();
     final theme = _theme;
     final palette = _palette;
-    final items = await db.inventoryDao.watchItemInventory().first;
-    final storedEggs = await db.select(db.eggs).get();
-    final vials =
-        <_VialPickerEntry>[
-          ...items
-              .where((item) => item.key.startsWith('vial.'))
-              .map(_parseVialInventoryItem)
-              .whereType<_VialPickerEntry>(),
-          ..._parseStoredVialEntries(storedEggs),
-        ]..sort((a, b) {
-          final sourceCompare = a.source.index.compareTo(b.source.index);
-          if (sourceCompare != 0) return sourceCompare;
-          final rarityCompare = a.rarity.index.compareTo(b.rarity.index);
-          if (rarityCompare != 0) return rarityCompare;
-          final groupCompare = a.group.displayName.compareTo(
-            b.group.displayName,
-          );
-          if (groupCompare != 0) return groupCompare;
-          return a.displayName.compareTo(b.displayName);
-        });
-
-    if (vials.isEmpty) {
-      _showToast('No vials to sell.');
+    final saleMult = context
+        .read<ConstellationEffectsService>()
+        .getAlchemonSaleMultiplier();
+    final stored = await db.select(db.eggs).get();
+    if (stored.isEmpty) {
+      _showToast('Nothing is waiting in cold storage.');
       return;
     }
     if (!mounted) return;
+    final chosen = <String>{..._selectedStored.keys};
+    final nowUtc = DateTime.now().toUtc();
 
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) {
-        final selectedQty = <String, int>{
-          for (final entry in vials)
-            entry.key: _selectedVialsForSale[entry.key]?.selectedQty ?? 0,
-        };
-
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            final chosen = selectedQty.values.fold(0, (a, b) => a + b);
-            return BottomSheetShell(
-              theme: theme,
-              title: 'Select Vials',
-              child: Column(
-                children: [
-                  Expanded(
-                    child: ListView.separated(
-                      physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
-                      itemCount: vials.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final vial = vials[index];
-                        final qty = selectedQty[vial.key] ?? 0;
-                        return _VialPickRow(
-                          entry: vial,
-                          quantity: qty,
-                          palette: palette,
-                          onChanged: (next) {
-                            setModalState(() => selectedQty[vial.key] = next);
-                            HapticFeedback.selectionClick();
-                          },
-                        );
-                      },
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                    child: BracketButton(
-                      label: chosen == 0
-                          ? 'NONE CHOSEN'
-                          : 'PUT $chosen ON THE COUNTER',
-                      palette: palette,
-                      accent: _accent,
-                      // Applying nothing still clears what was there.
-                      onTap: () {
-                        final nextSelection = <String, _SelectedVialSale>{};
-                        for (final entry in vials) {
-                          final qty = selectedQty[entry.key] ?? 0;
-                          if (qty <= 0) continue;
-                          nextSelection[entry.key] = _SelectedVialSale(
-                            key: entry.key,
-                            name: entry.name,
-                            group: entry.group,
-                            rarity: entry.rarity,
-                            selectedQty: qty,
-                            unitSilverValue: entry.unitSilverValue,
-                            source: entry.source,
-                            storageEggIds: entry.storageEggIds
-                                .take(qty)
-                                .toList(),
-                          );
-                        }
-                        setState(() {
-                          _selectedVialsForSale
-                            ..clear()
-                            ..addAll(nextSelection);
+      builder: (_) => StatefulBuilder(
+        builder: (context, setModalState) {
+          var silver = 0;
+          for (final egg in stored) {
+            if (chosen.contains(egg.eggId)) {
+              silver += _storedPrice(egg, saleMult);
+            }
+          }
+          return BottomSheetShell(
+            theme: theme,
+            title: 'Cold Storage',
+            child: Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(8, 4, 8, 12),
+                    child: _StoredHoneycomb(
+                      eggs: stored,
+                      chosen: chosen,
+                      nowUtc: nowUtc,
+                      priceOf: (egg) => _storedPrice(egg, saleMult),
+                      onToggle: (egg) {
+                        setModalState(() {
+                          if (!chosen.remove(egg.eggId)) chosen.add(egg.eggId);
                         });
-                        Navigator.pop(context);
-                        HapticFeedback.mediumImpact();
+                        HapticFeedback.selectionClick();
                       },
                     ),
                   ),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  List<_VialPickerEntry> _parseStoredVialEntries(List<Egg> eggs) {
-    return eggs
-        .map((egg) {
-          final payload = parseEggPayload(egg);
-          final rarityName = (payload['rarity'] as String? ?? egg.rarity)
-              .toLowerCase();
-          final rarity = _vialRarityFromString(rarityName);
-          final group = getElementalGroupFromPayload(payload);
-          return _VialPickerEntry(
-            key: 'storage:${egg.eggId}',
-            name: '${group.displayName} Vial',
-            group: group,
-            rarity: rarity,
-            availableQty: 1,
-            unitSilverValue: _silverValueForVialRarity(rarity),
-            source: _VialSaleSource.storage,
-            storageEggIds: [egg.eggId],
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  child: BracketButton(
+                    label: chosen.isEmpty
+                        ? 'NONE CHOSEN'
+                        : 'PUT ${chosen.length} ON THE COUNTER',
+                    palette: palette,
+                    accent: _accent,
+                    trailing: chosen.isEmpty
+                        ? null
+                        : CoinAmount(
+                            kind: CoinKind.silver,
+                            amount: silver,
+                            size: 13,
+                            color: coinColor(CoinKind.silver, palette),
+                          ),
+                    // Applying nothing still clears what was there.
+                    onTap: () {
+                      setState(() {
+                        _selectedStored
+                          ..clear()
+                          ..addAll({
+                            for (final egg in stored)
+                              if (chosen.contains(egg.eggId)) egg.eggId: egg,
+                          });
+                      });
+                      Navigator.pop(context);
+                      HapticFeedback.mediumImpact();
+                    },
+                  ),
+                ),
+              ],
+            ),
           );
-        })
-        .whereType<_VialPickerEntry>()
-        .toList();
-  }
-
-  VialRarity _vialRarityFromString(String rarity) {
-    switch (rarity.toLowerCase()) {
-      case 'common':
-        return VialRarity.common;
-      case 'uncommon':
-        return VialRarity.uncommon;
-      case 'rare':
-        return VialRarity.rare;
-      case 'legendary':
-        return VialRarity.legendary;
-      case 'mythic':
-      case 'mystic':
-        return VialRarity.mythic;
-      default:
-        return VialRarity.common;
-    }
-  }
-
-  _VialPickerEntry? _parseVialInventoryItem(InventoryItem item) {
-    final parts = item.key.split('.');
-    if (parts.length != 4 || parts.first != 'vial') return null;
-
-    ElementalGroup? group;
-    for (final value in ElementalGroup.values) {
-      if (value.name == parts[1]) {
-        group = value;
-        break;
-      }
-    }
-    VialRarity? rarity;
-    for (final value in VialRarity.values) {
-      if (value.name == parts[2]) {
-        rarity = value;
-        break;
-      }
-    }
-    if (group == null || rarity == null) return null;
-
-    return _VialPickerEntry(
-      key: item.key,
-      name: parts[3],
-      group: group,
-      rarity: rarity,
-      availableQty: item.qty,
-      unitSilverValue: _silverValueForVialRarity(rarity),
-      source: _VialSaleSource.inventory,
+        },
+      ),
     );
   }
 
@@ -769,7 +679,7 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
     if (!_hasSelections) return;
     final (silverTotal, goldTotal) = _totals();
     final specimenCount = _selectedForSale.length;
-    final vialCount = _selectedVialCount;
+    final storedCount = _selectedStored.length;
 
     final confirmed = await showBracketConfirm(
       context,
@@ -793,14 +703,8 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
       if (ids.isNotEmpty) {
         await db.creatureDao.deleteInstances(ids);
       }
-      for (final vial in _selectedVialsForSale.values) {
-        if (vial.source == _VialSaleSource.inventory) {
-          await db.inventoryDao.decrementItem(vial.key, by: vial.selectedQty);
-        } else {
-          for (final eggId in vial.storageEggIds) {
-            await db.incubatorDao.removeFromInventory(eggId);
-          }
-        }
+      for (final eggId in _selectedStored.keys) {
+        await db.incubatorDao.removeFromInventory(eggId);
       }
       if (silverTotal > 0) await db.currencyDao.addSilver(silverTotal);
       if (goldTotal > 0) await db.currencyDao.addGold(goldTotal);
@@ -809,12 +713,12 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
     if (!mounted) return;
     setState(() {
       _selectedForSale.clear();
-      _selectedVialsForSale.clear();
+      _selectedStored.clear();
     });
     context.sound(SoundCue.currencyGain);
     HapticFeedback.heavyImpact();
 
-    final what = _soldItemSummary(specimenCount, vialCount);
+    final what = _soldItemSummary(specimenCount, storedCount);
     final paid = [
       if (silverTotal > 0) '${formatCoins(silverTotal)} silver',
       if (goldTotal > 0) '${formatCoins(goldTotal)} gold',
@@ -822,11 +726,12 @@ class _AlchemonExchangeScreenState extends State<AlchemonExchangeScreen> {
     _showToast('Sold $what for $paid.');
   }
 
-  String _soldItemSummary(int specimenCount, int vialCount) {
+  String _soldItemSummary(int specimenCount, int storedCount) {
     final parts = <String>[
       if (specimenCount > 0)
         '$specimenCount specimen${specimenCount == 1 ? '' : 's'}',
-      if (vialCount > 0) '$vialCount vial${vialCount == 1 ? '' : 's'}',
+      if (storedCount > 0)
+        '$storedCount stored cultivation${storedCount == 1 ? '' : 's'}',
     ];
     return parts.join(' and ');
   }
@@ -845,14 +750,6 @@ Color _rarityColor(String rarity) => switch (rarity.toLowerCase()) {
   'legendary' => const Color(0xFFFFB020),
   'mythic' || 'mystic' => const Color(0xFFE879F9),
   _ => const Color(0xFF9AA4B2),
-};
-
-Color _vialRarityColor(VialRarity r) => switch (r) {
-  VialRarity.common => const Color(0xFF9AA4B2),
-  VialRarity.uncommon => const Color(0xFF34D399),
-  VialRarity.rare => const Color(0xFF60A5FA),
-  VialRarity.legendary => const Color(0xFFFFB020),
-  VialRarity.mythic => const Color(0xFFE879F9),
 };
 
 class _SectionLabel extends StatelessWidget {
@@ -909,6 +806,7 @@ class _ChoiceTile extends StatelessWidget {
   const _ChoiceTile({
     required this.label,
     required this.caption,
+    required this.glyph,
     required this.accent,
     required this.palette,
     required this.onTap,
@@ -916,6 +814,9 @@ class _ChoiceTile extends StatelessWidget {
 
   final String label;
   final String caption;
+
+  /// Its living mark: the dock's creatures emblem, the cold-storage cells.
+  final Widget glyph;
   final Color accent;
   final BracketPalette palette;
   final VoidCallback onTap;
@@ -932,11 +833,36 @@ class _ChoiceTile extends StatelessWidget {
           strokeWidth: 1.2,
         ),
         child: Container(
-          padding: const EdgeInsets.fromLTRB(12, 22, 12, 20),
+          padding: const EdgeInsets.fromLTRB(12, 16, 12, 18),
           color: palette.surfaceFill(),
           child: Column(
             children: [
               // A soft pool of light under the glyph, never a ring.
+              SizedBox(
+                height: 92,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Container(
+                      width: 92,
+                      height: 92,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: RadialGradient(
+                          colors: [
+                            accent.withValues(
+                              alpha: palette.isDark ? 0.16 : 0.12,
+                            ),
+                            accent.withValues(alpha: 0),
+                          ],
+                        ),
+                      ),
+                    ),
+                    IgnorePointer(child: glyph),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
               Text(
                 label,
                 style: TextStyle(
@@ -1088,26 +1014,39 @@ class _SpecimenLot extends StatelessWidget {
   }
 }
 
-/// A vial on the counter.
-class _VialLot extends StatelessWidget {
-  const _VialLot({
-    required this.vial,
+/// A cultivation from cold storage on the counter: its cell, where it came
+/// from, and what it fetches.
+class _StoredLot extends StatelessWidget {
+  const _StoredLot({
+    required this.egg,
+    required this.amount,
     required this.palette,
     required this.coinInk,
     required this.onRemove,
   });
 
-  final _SelectedVialSale vial;
+  final Egg egg;
+  final int amount;
   final BracketPalette palette;
   final Color coinInk;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    final rarityColor = _vialRarityColor(vial.rarity);
+    final payload = parseEggPayload(egg);
+    final group = getElementalGroupFromPayload(payload);
+    final rarityColor = _rarityColor(egg.rarity);
+    final source = storedCultivationSource(payload['source'] as String?);
+    final parents = storedCultivationParents(payload);
+    // Named and described as the nursery's cold storage names it.
+    final line = [
+      group.displayName,
+      ?source,
+      if (parents.isNotEmpty) parents.join(' × '),
+    ];
     return CustomPaint(
       foregroundPainter: BracketFramePainter(
-        color: vial.group.color.withValues(alpha: 0.6),
+        color: rarityColor.withValues(alpha: 0.6),
         bracketSize: 9,
       ),
       child: Container(
@@ -1115,11 +1054,17 @@ class _VialLot extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
         child: Row(
           children: [
-            Container(
-              width: 56,
-              height: 56,
-              color: palette.bg0.withValues(alpha: palette.isDark ? 0.7 : 0.5),
-              child: ExtractionVialOrb(vial: vial.previewVial, size: 56),
+            SizedBox(
+              width: 60,
+              height: 52,
+              child: IgnorePointer(
+                child: StasisCell(
+                  egg: egg,
+                  quality: CinematicQuality.performance,
+                  nowUtc: null,
+                  label: '',
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -1127,7 +1072,7 @@ class _VialLot extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    vial.displayName,
+                    getEggLabel(payload),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: bracketText(
@@ -1138,41 +1083,32 @@ class _VialLot extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Text(
-                        vial.rarity.badgeLabel.toUpperCase(),
-                        style: TextStyle(
-                          fontFamily: 'monospace',
-                          color: rarityColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      // "×1" on a single vial is noise; only a real stack
-                      // needs a count.
-                      if (vial.selectedQty > 1) ...[
-                        const SizedBox(width: 8),
-                        Text(
-                          '×${vial.selectedQty}',
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            color: palette.muted,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
-                    ],
+                  Text(
+                    egg.rarity.toUpperCase(),
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: rarityColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.2,
+                    ),
                   ),
+                  if (line.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      line.join('  ·  '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: bracketText(context, 11, palette.muted),
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(width: 8),
             CoinAmount(
               kind: CoinKind.silver,
-              amount: vial.totalSilverValue,
+              amount: amount,
               size: 15,
               color: coinInk,
             ),
@@ -1191,263 +1127,133 @@ class _VialLot extends StatelessWidget {
   }
 }
 
-/// A vial in the picker, and how many of it to sell.
-class _VialPickRow extends StatelessWidget {
-  const _VialPickRow({
-    required this.entry,
-    required this.quantity,
-    required this.palette,
-    required this.onChanged,
+/// Cold storage as the nursery racks it: flat-topped stasis cells in a
+/// honeycomb, each labelled with what it would fetch. A chosen one stands
+/// in a pool of coin light, raised a little, its price in gold.
+class _StoredHoneycomb extends StatelessWidget {
+  const _StoredHoneycomb({
+    required this.eggs,
+    required this.chosen,
+    required this.nowUtc,
+    required this.priceOf,
+    required this.onToggle,
   });
 
-  final _VialPickerEntry entry;
-  final int quantity;
-  final BracketPalette palette;
-  final ValueChanged<int> onChanged;
+  final List<Egg> eggs;
+  final Set<String> chosen;
+  final DateTime nowUtc;
+  final int Function(Egg egg) priceOf;
+  final ValueChanged<Egg> onToggle;
+
+  static const double _cellW = 92;
 
   @override
   Widget build(BuildContext context) {
-    final chosen = quantity > 0;
-    final color = entry.group.color;
-    return CustomPaint(
-      foregroundPainter: BracketFramePainter(
-        color: chosen ? color : palette.line.withValues(alpha: 0.6),
-        bracketSize: 9,
-        strokeWidth: chosen ? 1.3 : 1,
-      ),
-      child: Container(
-        color: palette.surfaceFill(),
-        padding: const EdgeInsets.all(10),
-        child: Row(
-          children: [
-            ExtractionVialOrb(vial: entry.previewVial, size: 52),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    entry.displayName,
-                    style: bracketText(
-                      context,
-                      14,
-                      palette.ink,
-                      weight: FontWeight.w600,
+    return LayoutBuilder(
+      builder: (context, box) {
+        // Flat-topped hexes: a column every three quarters of a cell, every
+        // other column dropped half a cell, as the nursery's rack lays them.
+        final cellH = _cellW * math.sqrt(3) / 2;
+        final step = _cellW * 0.78;
+        final cols = math.max(1, ((box.maxWidth - _cellW) / step).floor() + 1);
+        final rows = (eggs.length / cols).ceil();
+        final width = _cellW + step * (cols - 1);
+        final height = rows * (cellH + 6) + (cols > 1 ? cellH / 2 : 0) + 8;
+        final left = (box.maxWidth - width) / 2;
+        return SizedBox(
+          width: box.maxWidth,
+          height: height,
+          child: Stack(
+            children: [
+              for (var i = 0; i < eggs.length; i++)
+                Positioned(
+                  left: left + (i % cols) * step,
+                  top:
+                      4 +
+                      (i ~/ cols) * (cellH + 6) +
+                      ((i % cols).isOdd ? cellH / 2 : 0),
+                  width: _cellW,
+                  height: cellH,
+                  child: _StoredCell(
+                    egg: eggs[i],
+                    chosen: chosen.contains(eggs[i].eggId),
+                    nowUtc: nowUtc,
+                    price: priceOf(eggs[i]),
+                    onTap: () => onToggle(eggs[i]),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _StoredCell extends StatelessWidget {
+  const _StoredCell({
+    required this.egg,
+    required this.chosen,
+    required this.nowUtc,
+    required this.price,
+    required this.onTap,
+  });
+
+  final Egg egg;
+  final bool chosen;
+  final DateTime nowUtc;
+  final int price;
+  final VoidCallback onTap;
+
+  static const Color _coin = Color(0xFFE6C36A);
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: chosen ? 1 : 0),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (context, k, child) => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // The coin light it stands in once chosen.
+          if (k > 0)
+            Positioned(
+              left: -20,
+              right: -20,
+              top: -18,
+              bottom: -18,
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      colors: [
+                        _coin.withValues(alpha: 0.55 * k),
+                        _coin.withValues(alpha: 0.16 * k),
+                        _coin.withValues(alpha: 0),
+                      ],
+                      stops: const [0.0, 0.55, 1.0],
                     ),
                   ),
-                  const SizedBox(height: 3),
-                  Text(
-                    '${entry.rarity.badgeLabel.toUpperCase()}  ·  '
-                    '${entry.sourceLabel.toUpperCase()}'
-                    '${entry.availableQty > 1 ? '  ·  ${entry.availableQty} HELD' : ''}',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: _vialRarityColor(entry.rarity),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${entry.unitSilverValue} silver each',
-                    style: bracketText(context, 12, palette.muted),
-                  ),
-                ],
+                ),
               ),
             ),
-            const SizedBox(width: 10),
-            // A stepper over a stack you only own one of is three controls
-            // to express a yes/no. Vials off storage eggs are always single;
-            // inventory vials genuinely stack, so those keep the counter.
-            if (entry.availableQty <= 1)
-              _Check(
-                on: chosen,
-                color: color,
-                palette: palette,
-                onTap: () => onChanged(chosen ? 0 : 1),
-              )
-            else
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _Step(
-                    icon: AppIcons.remove_rounded,
-                    enabled: quantity > 0,
-                    palette: palette,
-                    onTap: () => onChanged(quantity - 1),
-                  ),
-                  SizedBox(
-                    width: 34,
-                    child: Text(
-                      '$quantity',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: palette.ink,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ),
-                  _Step(
-                    icon: AppIcons.add_rounded,
-                    enabled: quantity < entry.availableQty,
-                    palette: palette,
-                    onTap: () => onChanged(quantity + 1),
-                  ),
-                ],
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Check extends StatelessWidget {
-  const _Check({
-    required this.on,
-    required this.color,
-    required this.palette,
-    required this.onTap,
-  });
-
-  final bool on;
-  final Color color;
-  final BracketPalette palette;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: context.soundAction(onTap),
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: on ? color : palette.line,
-          bracketSize: 6,
-        ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 140),
-          width: 32,
-          height: 32,
-          color: on ? color.withValues(alpha: 0.16) : Colors.transparent,
-          child: on
-              ? Icon(AppIcons.check_rounded, size: 17, color: color)
-              : null,
-        ),
-      ),
-    );
-  }
-}
-
-class _Step extends StatelessWidget {
-  const _Step({
-    required this.icon,
-    required this.enabled,
-    required this.palette,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final bool enabled;
-  final BracketPalette palette;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Opacity(
-      opacity: enabled ? 1 : 0.35,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: context.soundAction(enabled ? onTap : null),
-        child: CustomPaint(
-          painter: BracketFramePainter(color: palette.line, bracketSize: 6),
-          child: Container(
-            width: 32,
-            height: 32,
-            alignment: Alignment.center,
-            color: palette.surfaceMutedFill(),
-            child: Icon(icon, size: 16, color: palette.ink),
+          Positioned.fill(
+            child: Transform.translate(
+              offset: Offset(0, -4 * k),
+              child: Opacity(opacity: 0.62 + 0.38 * k, child: child),
+            ),
           ),
-        ),
+        ],
+      ),
+      child: StasisCell(
+        egg: egg,
+        quality: CinematicQuality.performance,
+        nowUtc: nowUtc,
+        onTap: onTap,
+        label: formatCoins(price),
       ),
     );
   }
-}
-
-// ── data ────────────────────────────────────────────────────────────────
-
-enum _VialSaleSource { inventory, storage }
-
-class _VialPickerEntry {
-  final String key;
-  final String name;
-  final ElementalGroup group;
-  final VialRarity rarity;
-  final int availableQty;
-  final int unitSilverValue;
-  final _VialSaleSource source;
-  final List<String> storageEggIds;
-
-  const _VialPickerEntry({
-    required this.key,
-    required this.name,
-    required this.group,
-    required this.rarity,
-    required this.availableQty,
-    required this.unitSilverValue,
-    required this.source,
-    this.storageEggIds = const [],
-  });
-
-  String get sourceLabel =>
-      source == _VialSaleSource.inventory ? 'Inventory' : 'Storage';
-
-  String get displayName => '${group.displayName} Vial';
-
-  ExtractionVial get previewVial => ExtractionVial(
-    id: key,
-    name: displayName,
-    group: group,
-    rarity: rarity,
-    quantity: availableQty,
-    price: null,
-  );
-}
-
-class _SelectedVialSale {
-  final String key;
-  final String name;
-  final ElementalGroup group;
-  final VialRarity rarity;
-  final int selectedQty;
-  final int unitSilverValue;
-  final _VialSaleSource source;
-  final List<String> storageEggIds;
-
-  const _SelectedVialSale({
-    required this.key,
-    required this.name,
-    required this.group,
-    required this.rarity,
-    required this.selectedQty,
-    required this.unitSilverValue,
-    required this.source,
-    this.storageEggIds = const [],
-  });
-
-  int get totalSilverValue => selectedQty * unitSilverValue;
-
-  String get displayName => '${group.displayName} Vial';
-
-  ExtractionVial get previewVial => ExtractionVial(
-    id: key,
-    name: displayName,
-    group: group,
-    rarity: rarity,
-    quantity: selectedQty,
-    price: null,
-  );
 }

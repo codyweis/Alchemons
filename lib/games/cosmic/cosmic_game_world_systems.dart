@@ -3782,17 +3782,27 @@ extension CosmicGameWorldSystems on CosmicGame {
     scanner.life = 0;
   }
 
-  /// Relocate a rift portal to a new random position far from planets and other rifts.
+  /// Relocate a rift portal to a new random position far from planets, other
+  /// rifts, the POIs and landmarks, the ship, and where it stood.
   void relocateRift(RiftPortal rift) {
     final rng = Random();
     const margin = 1920.0;
     const minDist = 3840.0;
+    const minPoiDist = 1200.0;
+    const minShipDist = 6000.0;
     final ww = world_.worldSize.width;
     final wh = world_.worldSize.height;
     final obstacles = <Offset>[
       ...world_.planets.map((p) => p.position),
       ...world_.riftPortals.where((r) => r != rift).map((r) => r.position),
     ];
+    final landmarks = <Offset>[
+      ...spacePOIs.where((p) => p.type != POIType.comet).map((p) => p.position),
+      world_.elementalNexus.position,
+      world_.bloodRing.position,
+      world_.prismaticField.position,
+    ];
+    final oldPos = rift.position;
     Offset pos;
     int tries = 0;
     do {
@@ -3801,7 +3811,11 @@ extension CosmicGameWorldSystems on CosmicGame {
         margin + rng.nextDouble() * (wh - margin * 2),
       );
       tries++;
-    } while (tries < 300 && obstacles.any((o) => (o - pos).distance < minDist));
+    } while (tries < 300 &&
+        (obstacles.any((o) => (o - pos).distance < minDist) ||
+            landmarks.any((o) => (o - pos).distance < minPoiDist) ||
+            (ship.pos - pos).distance < minShipDist ||
+            (oldPos - pos).distance < minShipDist));
     rift.position = pos;
     _nearestRift = null;
     _wasNearRift = false;

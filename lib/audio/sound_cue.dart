@@ -31,6 +31,11 @@ enum SoundCue {
   /// SEAL AND DEPART: the Mystic winds into a sphere of its grains (0.74 s),
   /// is stoppered, and drops away (1.35 s).
   altarSeal('assets/audio/sounds/sfx_altar_seal.wav'),
+
+  /// The Pureblood Rite's offering (rite_offering.dart, from when its grains
+  /// are read): the specimen's grains let go from the feet up (0.55 - 2.3 s)
+  /// and the pool takes them (1.35 - 3.1 s); one slow surge, and it settles.
+  riteOffering('assets/audio/sounds/sfx_rite_offering.wav'),
   cosmicPortalOpen('assets/audio/sounds/cosmic/sfx_cosmic_portal_open.wav'),
   cosmicOrbPickup('assets/audio/sounds/cosmic/sfx_cosmic_orb_pickup.wav'),
   cosmicOrbDeposit('assets/audio/sounds/cosmic/sfx_cosmic_orb_deposit.wav'),
@@ -662,6 +667,7 @@ enum SoundCue {
     SoundCue.captureEscape ||
     SoundCue.altarRite ||
     SoundCue.altarAwake ||
+    SoundCue.riteOffering ||
     SoundCue.extractionCreatureReveal ||
     SoundCue.extractionRareReveal ||
     // A Mystic opens its world once per deployment.

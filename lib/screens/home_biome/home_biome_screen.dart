@@ -2910,7 +2910,7 @@ class _HomeBiomeScreenState extends State<HomeBiomeScreen>
       return _note(
         context,
         'No keepsakes yet. Lost maxims, cups won in the Trials and a hundred '
-        'of a species bred each earn one.',
+        'of a species fused each earn one.',
       );
     }
     return Column(

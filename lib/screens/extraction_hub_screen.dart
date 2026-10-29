@@ -12,7 +12,9 @@ import 'package:alchemons/constants/unlock_costs.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/biome_farm_state.dart';
 import 'package:alchemons/models/creature.dart';
+import 'package:alchemons/models/elemental_group.dart';
 import 'package:alchemons/models/harvest_biome.dart';
+import 'package:alchemons/screens/essence/vial_stand.dart';
 import 'package:alchemons/models/wild_fusion.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
@@ -311,7 +313,9 @@ class _ExtractionHubScreenState extends State<ExtractionHubScreen>
       failed == 0
           ? 'Reloaded $reloaded chamber${reloaded == 1 ? '' : 's'}'
           : 'Reloaded $reloaded of ${reloadPlans.length} chambers',
-      accent: failed == 0 ? null : Colors.orange.shade400,
+      accent: failed == 0
+          ? null
+          : ForgeTokens(context.read<FactionTheme>()).amber,
     );
   }
 
@@ -855,9 +859,9 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
           onWillSelectInstance: (inst) async {
             if (busyIds.contains(inst.instanceId)) {
               _showToast(
-                'That specimen is already extracting.',
+                'That specimen is already filling a chamber.',
                 icon: AppIcons.block_rounded,
-                color: Colors.orange.shade400,
+                color: ForgeTokens(theme).amber,
               );
               return false;
             }
@@ -869,7 +873,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
               _showToast(
                 'Only ${widget.farm.biome.label.toLowerCase()} specimens can work here.',
                 icon: AppIcons.filter_alt_off_rounded,
-                color: Colors.orange.shade400,
+                color: ForgeTokens(theme).amber,
               );
               return false;
             }
@@ -914,9 +918,9 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       await _refreshCreatureCache();
     } else {
       _showToast(
-        'Could not start extraction.',
+        'Could not start filling the chamber.',
         icon: AppIcons.error_outline,
-        color: Colors.red.shade400,
+        color: ForgeTokens(theme).danger,
       );
     }
   }
@@ -1018,7 +1022,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       _showToast(
         'That creature is no longer available.',
         icon: AppIcons.error_outline,
-        color: Colors.red.shade400,
+        color: ForgeTokens(widget.theme).danger,
       );
       return;
     }
@@ -1041,7 +1045,7 @@ class _EmbeddedChamberState extends State<_EmbeddedChamber>
       _showToast(
         'Could not reload.',
         icon: AppIcons.error_outline,
-        color: Colors.red.shade400,
+        color: ForgeTokens(widget.theme).danger,
       );
     }
   }
@@ -1228,7 +1232,14 @@ class _ChamberTitle extends StatelessWidget {
                 letterSpacing: 1.8,
               ),
             ),
-          ),
+          ),          // The chamber's vial stand: vials of its own group, infused with
+          // its essence.
+          if (farm.unlocked) ...[
+            const SizedBox(width: 12),
+            VialStandSocket(
+              group: ElementalGroup.values.byName(farm.biome.id),
+            ),
+          ],
         ],
       ),
     );
@@ -1661,7 +1672,7 @@ class _HarvestHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final parts = <String>[
       '$chambers OPEN',
-      if (active > 0) '$active EXTRACTING',
+      if (active > 0) '$active FILLING',
       if (ready > 0) '$ready FULL',
     ];
     return Padding(

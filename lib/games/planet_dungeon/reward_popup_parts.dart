@@ -1,24 +1,231 @@
 // lib/games/planet_dungeon/reward_popup_parts.dart
 //
 // The pieces a payout popup is built from, shared by the dungeon's star
-// popup and the raid's loot popup so the two cannot drift apart: survival's
-// surge card, its kind tag, cards counted out one after another, the slow
-// rays behind the panel, and the lit CONTINUE.
+// popup and the raid's loot popup so the two cannot drift apart: the light
+// it stands in, the star gathering out of grains, a reward row, rows counted
+// out one after another, and the button.
+//
+// Until 2026-10 these were survival's old surge cards (a solid spine, an
+// outlined medallion, an outlined tag) under slowly turning rays, with a
+// stock star struck into a gold coin. Now the payout wears the bare kit:
+// unframed rows on ink, the chosen one lit from below, and the only thing
+// that moves on its own is the star's light.
 
-import 'dart:math';
-
-import 'package:alchemons/audio/audio.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_screen_styles.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/fx/glyph_clock.dart';
+import 'package:alchemons/widgets/fx/grain_glass.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-/// The card chrome every reward and choice shares (survival's surge card).
-class RewardSurgeCard extends StatelessWidget {
-  const RewardSurgeCard({
+/// How long a payout takes to arrive: the scrim, the light and the panel.
+const Duration kRewardIntro = Duration(milliseconds: 900);
+
+/// What the popup stands in: the scrim, and a warm pool of light rising
+/// from below the panel, so the payout is lit and the world behind it is not.
+class RewardBackdrop extends StatelessWidget {
+  const RewardBackdrop({super.key, required this.t});
+
+  /// 0..1 of the arrival.
+  final double t;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: CustomPaint(painter: _RewardBackdropPainter(t), size: Size.infinite),
+  );
+}
+
+class _RewardBackdropPainter extends CustomPainter {
+  const _RewardBackdropPainter(this.t);
+
+  final double t;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (t <= 0) return;
+    canvas.drawRect(
+      Offset.zero & size,
+      Paint()..color = Colors.black.withValues(alpha: 0.9 * t),
+    );
+    // Low and wide, not a disc round the middle: light from below the
+    // panel, as a chosen thing in the kit is lit.
+    final w = size.width;
+    final c = Offset(w / 2, size.height * 0.62);
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    canvas.scale(1, 0.62);
+    GrainGlass.pool(
+      canvas,
+      Offset.zero,
+      w * 0.78,
+      CosmicScreenStyles.amber,
+      alpha: 0.42 * t,
+    );
+    canvas.restore();
+  }
+
+  @override
+  bool shouldRepaint(covariant _RewardBackdropPainter old) => old.t != t;
+}
+
+/// The star just secured, as gold grains gathering into a sphere of light,
+/// then running there. [delay] staggers several stars won at once.
+class RewardStarGrains extends StatefulWidget {
+  const RewardStarGrains({
+    super.key,
+    required this.size,
+    this.delay = Duration.zero,
+    this.salt = 0,
+  });
+
+  final double size;
+  final Duration delay;
+  final int salt;
+
+  @override
+  State<RewardStarGrains> createState() => _RewardStarGrainsState();
+}
+
+class _RewardStarGrainsState extends State<RewardStarGrains>
+    with SingleTickerProviderStateMixin, GlyphClockLease {
+  // The wait is part of the controller, not a timer that could outlive it.
+  late final AnimationController _gather = AnimationController(
+    vsync: this,
+    duration: widget.delay + const Duration(milliseconds: 1500),
+  )..forward();
+  bool _visible = true;
+
+  @override
+  bool get wantsClock => _visible;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _visible = TickerMode.valuesOf(context).enabled;
+    syncGlyphClock();
+  }
+
+  @override
+  void dispose() {
+    releaseGlyphClock();
+    _gather.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = _gather.duration!.inMicroseconds;
+    final start = total == 0 ? 0.0 : widget.delay.inMicroseconds / total;
+    return SizedBox.square(
+      dimension: widget.size,
+      child: CustomPaint(
+        willChange: true,
+        painter: _StarGrainsPainter(
+          clock: glyphClock,
+          gather: _gather,
+          start: start,
+          salt: widget.salt,
+        ),
+      ),
+    );
+  }
+}
+
+class _StarGrainsPainter extends CustomPainter {
+  _StarGrainsPainter({
+    required this.clock,
+    required this.gather,
+    required this.start,
+    required this.salt,
+  }) : super(
+         repaint: Listenable.merge([gather, if (clock != null) clock]),
+       );
+
+  final ValueListenable<double>? clock;
+  final Animation<double> gather;
+  final double start;
+  final int salt;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final s = size.shortestSide;
+    final g = GrainGlass.smooth(
+      ((gather.value - start) / (1 - start)).clamp(0.0, 1.0),
+    );
+    if (g <= 0) return;
+    GrainGlass.sphere(
+      canvas,
+      Offset(s / 2, s / 2),
+      s * 0.3,
+      clock?.value ?? 0,
+      a: CosmicScreenStyles.amber,
+      spin: 0.55,
+      gather: g,
+      heat: 0.85 * g,
+      heatColor: CosmicScreenStyles.amberBright,
+      glass: g,
+      fade: GrainGlass.smooth(g / 0.35),
+      salt: salt,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _StarGrainsPainter old) =>
+      old.clock != clock || old.gather != gather || old.salt != salt;
+}
+
+/// An item's art standing in a pool of its own light, unframed.
+class RewardArt extends StatelessWidget {
+  const RewardArt({
+    super.key,
+    required this.accent,
+    required this.child,
+    this.size = 44,
+  });
+
+  final Color accent;
+  final Widget child;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: size,
+    child: CustomPaint(
+      painter: _ArtPoolPainter(accent),
+      child: Center(child: child),
+    ),
+  );
+}
+
+class _ArtPoolPainter extends CustomPainter {
+  const _ArtPoolPainter(this.accent);
+
+  final Color accent;
+
+  @override
+  void paint(Canvas canvas, Size size) => GrainGlass.pool(
+    canvas,
+    size.center(Offset.zero),
+    size.shortestSide * 0.62,
+    accent,
+    alpha: 0.5,
+  );
+
+  @override
+  bool shouldRepaint(covariant _ArtPoolPainter old) => old.accent != accent;
+}
+
+/// One reward, or one choice: its art, the amount large, the name under it,
+/// and what kind of thing it is in small letters. Unframed on ink; a chosen
+/// one is lit from below in its [accent], the rest of a choice go quiet.
+class RewardRow extends StatelessWidget {
+  const RewardRow({
     super.key,
     required this.accent,
     required this.art,
     required this.child,
+    this.kind,
     this.selected = false,
     this.dim = false,
   });
@@ -26,104 +233,107 @@ class RewardSurgeCard extends StatelessWidget {
   final Color accent;
   final Widget art;
   final Widget child;
+
+  /// What kind of thing it is: CURRENCY, POWERUP, GUARDIAN RELIC.
+  final String? kind;
   final bool selected;
   final bool dim;
 
   @override
   Widget build(BuildContext context) {
-    final wash = dim ? 0.16 : (selected ? 0.46 : 0.34);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              Color.lerp(CosmicScreenStyles.bg2, accent, wash)!,
-              Color.lerp(CosmicScreenStyles.bg2, accent, wash * 0.25)!,
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 220),
+      opacity: dim ? 0.45 : 1,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: selected ? 1 : 0),
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOutCubic,
+        builder: (context, lit, inner) => CustomPaint(
+          foregroundPainter: BracketFramePainter(
+            color: accent.withValues(alpha: 0.55 + 0.45 * lit),
+            strokeWidth: 1.3,
+          ),
+          child: Container(
+            color: Color.lerp(
               CosmicScreenStyles.bg1,
-            ],
-            stops: const [0.0, 0.5, 1.0],
-          ),
-          border: Border.all(
-            color: accent.withValues(
-              alpha: selected ? 1.0 : (dim ? 0.3 : 0.55),
+              Color.lerp(CosmicScreenStyles.bg2, accent, 0.1),
+              lit,
             ),
-            width: selected ? 1.8 : 1.0,
+            padding: const EdgeInsets.fromLTRB(8, 8, 12, 8),
+            child: inner,
           ),
-          borderRadius: BorderRadius.circular(10),
         ),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Container(
-                width: 5,
-                color: accent.withValues(alpha: dim ? 0.5 : 1),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: CosmicScreenStyles.bg0.withValues(alpha: 0.7),
-                          border: Border.all(
-                            color: accent.withValues(alpha: 0.7),
-                          ),
-                        ),
-                        child: art,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: child),
-                    ],
-                  ),
+        child: Row(
+          children: [
+            RewardArt(accent: accent, child: art),
+            const SizedBox(width: 12),
+            Expanded(child: child),
+            if (kind != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                kind!,
+                style: TextStyle(
+                  fontFamily: 'monospace',
+                  color: Color.lerp(CosmicScreenStyles.textSecondary, accent, 0.5)!
+                      .withValues(alpha: 0.8),
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.2,
                 ),
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// The surge card's kind tag.
-class RewardMiniTag extends StatelessWidget {
-  const RewardMiniTag({super.key, required this.label, required this.color});
-  final String label;
-  final Color color;
+/// A reward's amount over its name, as both popups set them.
+class RewardAmountName extends StatelessWidget {
+  const RewardAmountName({
+    super.key,
+    required this.amount,
+    required this.name,
+    required this.accent,
+  });
+
+  final String amount;
+  final String name;
+  final Color accent;
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.16),
-        border: Border.all(color: color.withValues(alpha: 0.6)),
-        borderRadius: BorderRadius.circular(3),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontFamily: 'monospace',
-          color: color,
-          fontSize: 8.5,
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (amount.isNotEmpty)
+        Text(
+          amount,
+          style: TextStyle(
+            color: Color.lerp(CosmicScreenStyles.textPrimary, accent, 0.45),
+            fontSize: 20,
+            fontWeight: FontWeight.w900,
+            height: 1.0,
+          ),
+        ),
+      const SizedBox(height: 3),
+      Text(
+        name.toUpperCase(),
+        style: const TextStyle(
+          color: CosmicScreenStyles.textPrimary,
+          fontSize: 12.5,
           fontWeight: FontWeight.w800,
-          letterSpacing: 1.0,
+          letterSpacing: 0.5,
+          height: 1.15,
         ),
       ),
-    );
-  }
+    ],
+  );
 }
 
-/// Cards arrive one after another, sliding up — the reward is counted out,
-/// not dumped.
+/// Rows arrive one after another, rising a little as they fade in — the
+/// reward is counted out, not dumped.
 class RewardStaggerIn extends StatefulWidget {
   const RewardStaggerIn({super.key, required this.index, required this.child});
   final int index;
@@ -137,10 +347,10 @@ class _RewardStaggerInState extends State<RewardStaggerIn>
     with SingleTickerProviderStateMixin {
   // The wait is part of the animation (an Interval), not a Future.delayed:
   // a bare timer outlives the widget if the popup closes early.
-  late final int _delayMs = 260 + widget.index * 110;
+  late final int _delayMs = 520 + widget.index * 140;
   late final AnimationController _c = AnimationController(
     vsync: this,
-    duration: Duration(milliseconds: _delayMs + 380),
+    duration: Duration(milliseconds: _delayMs + 480),
   )..forward();
 
   @override
@@ -151,7 +361,7 @@ class _RewardStaggerInState extends State<RewardStaggerIn>
 
   @override
   Widget build(BuildContext context) {
-    final start = _delayMs / (_delayMs + 380);
+    final start = _delayMs / (_delayMs + 480);
     return AnimatedBuilder(
       animation: _c,
       builder: (context, child) {
@@ -163,7 +373,7 @@ class _RewardStaggerInState extends State<RewardStaggerIn>
         return Opacity(
           opacity: t,
           child: Transform.translate(
-            offset: Offset(0, (1 - t) * 16),
+            offset: Offset(0, (1 - t) * 10),
             child: child,
           ),
         );
@@ -173,57 +383,29 @@ class _RewardStaggerInState extends State<RewardStaggerIn>
   }
 }
 
-/// Slow rays behind the reward panel.
-///
-/// Deliberately unlike anything else in the dungeon: every other panel is
-/// amber-on-dark with bracket corners, so a reward wearing that same chrome
-/// read as another hint. This is the one moment allowed to look like an event.
-class RewardRaysPainter extends CustomPainter {
-  const RewardRaysPainter({required this.progress, required this.spin});
-
-  final double progress;
-  final double spin;
+/// A section heading: small monospace letters, no rule.
+class RewardSectionLabel extends StatelessWidget {
+  const RewardSectionLabel(this.text, {super.key});
+  final String text;
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (progress <= 0.01) return;
-    final c = Offset(size.width / 2, size.height / 2);
-    final r = size.longestSide * 0.78;
-    // UNEVEN, so it reads as light and not as a pinwheel. Fourteen identical
-    // wedges turning in lockstep is a prize-wheel; a scatter of long thin
-    // ones at three different widths and reaches is a shaft coming through
-    // something.
-    const rays = 11;
-    canvas.save();
-    canvas.translate(c.dx, c.dy);
-    canvas.rotate(spin);
-    for (var i = 0; i < rays; i++) {
-      final a = i * (pi * 2 / rays);
-      final half = 0.016 + (i % 3) * 0.014;
-      final reach = r * (0.62 + (i % 4) * 0.13);
-      canvas.drawPath(
-        Path()
-          ..moveTo(0, 0)
-          ..lineTo(cos(a - half) * reach, sin(a - half) * reach)
-          ..lineTo(cos(a + half) * reach, sin(a + half) * reach)
-          ..close(),
-        Paint()
-          ..color = CosmicScreenStyles.amberBright.withValues(
-            alpha: (0.030 + (i % 3) * 0.014) * progress,
-          ),
-      );
-    }
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant RewardRaysPainter old) =>
-      old.progress != progress || old.spin != spin;
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 8, left: 2),
+    child: Text(
+      text,
+      style: const TextStyle(
+        fontFamily: 'monospace',
+        color: CosmicScreenStyles.textSecondary,
+        fontSize: 10,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 1.8,
+      ),
+    ),
+  );
 }
 
-/// The popup's one button: filled and lit when it can be pressed, a dim
-/// plate while it waits. [quiet] is the lesser of two choices: a dark plate
-/// with amber words, so the filled one beside it reads as the way on.
+/// The popup's button, from the kit: lit from below in brass when it is the
+/// way on; [quiet] is the lesser of two choices.
 class RewardPopupButton extends StatelessWidget {
   const RewardPopupButton({
     super.key,
@@ -239,51 +421,33 @@ class RewardPopupButton extends StatelessWidget {
   final bool quiet;
 
   @override
+  Widget build(BuildContext context) => BracketButton(
+    label: label,
+    onTap: onTap,
+    palette: BracketPalette.dark,
+    accent: CosmicScreenStyles.amberBright,
+    enabled: enabled,
+    primary: !quiet,
+    height: 48,
+  );
+}
+
+/// The panel every payout sits on: ink, unframed, no shadow — the light
+/// below it is what sets it apart.
+class RewardPanel extends StatelessWidget {
+  const RewardPanel({super.key, required this.child});
+  final Widget child;
+
+  @override
   Widget build(BuildContext context) {
-    final lit = enabled && !quiet;
-    return GestureDetector(
-      onTap: context.soundAction(enabled ? onTap : null),
-      child: CustomPaint(
-        painter: BracketFramePainter(
-          color: CosmicScreenStyles.amberBright.withValues(
-            alpha: lit ? 0.9 : (enabled ? 0.55 : 0.3),
-          ),
-          bracketSize: 8,
-          strokeWidth: 1.2,
-        ),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          decoration: BoxDecoration(
-            color: lit
-                ? CosmicScreenStyles.amberBright
-                : CosmicScreenStyles.bg2,
-            border: Border.all(
-              color: lit
-                  ? CosmicScreenStyles.amberBright
-                  : enabled
-                  ? CosmicScreenStyles.borderAccent
-                  : CosmicScreenStyles.borderDim,
-            ),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: lit
-                  ? CosmicScreenStyles.bg0
-                  : enabled
-                  ? CosmicScreenStyles.amberBright
-                  : CosmicScreenStyles.textSecondary,
-              fontFamily: 'monospace',
-              fontWeight: FontWeight.w900,
-              fontSize: 13,
-              letterSpacing: 1.8,
-            ),
-          ),
-        ),
-      ),
+    final size = MediaQuery.sizeOf(context);
+    final maxWidth = size.width - 36;
+    return Container(
+      width: maxWidth < 400 ? maxWidth : 400,
+      constraints: BoxConstraints(maxHeight: size.height - 60),
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+      color: CosmicScreenStyles.bg0.withValues(alpha: 0.94),
+      child: child,
     );
   }
 }

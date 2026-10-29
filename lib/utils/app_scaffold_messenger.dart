@@ -1,3 +1,4 @@
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/material.dart';
 
@@ -8,37 +9,22 @@ final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
 /// invitation to race) to show itself and open where it leads.
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
+/// A notice from outside any screen, in the game's one notice look.
 void showAppSnack(
   String message, {
   bool isError = false,
   BuildContext? fallbackContext,
 }) {
+  final accent = isError ? const Color(0xFFE57373) : null;
   SchedulerBinding.instance.addPostFrameCallback((_) {
-    final messenger = rootScaffoldMessengerKey.currentState;
-    final context = rootScaffoldMessengerKey.currentContext ?? fallbackContext;
-    if (messenger == null || !messenger.mounted || context == null) return;
-    if (!context.mounted) return;
-
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final background = isError
-        ? colorScheme.errorContainer
-        : colorScheme.inverseSurface;
-    final foreground = isError
-        ? colorScheme.onErrorContainer
-        : colorScheme.onInverseSurface;
-
-    messenger
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            message,
-            style: theme.textTheme.bodyMedium?.copyWith(color: foreground),
-          ),
-          backgroundColor: background,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+    // Before the navigator exists (the very first frames), the caller's own
+    // screen is the only place to show it.
+    if (rootNavigatorKey.currentState?.overlay == null &&
+        fallbackContext != null &&
+        fallbackContext.mounted) {
+      showGameSnack(fallbackContext, message, accent: accent);
+      return;
+    }
+    showGameSnackAnywhere(message, accent: accent);
   });
 }

@@ -11,6 +11,9 @@
 
 import 'dart:math' as math;
 
+import 'package:alchemons/audio/audio.dart';
+import 'package:alchemons/audio/scene_ambience.dart';
+import 'package:alchemons/providers/audio_provider.dart';
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/screens/mystic_altar/altar_chrome.dart';
@@ -93,6 +96,14 @@ class _RiteOfferingState extends State<_RiteOffering>
   Duration? _from;
   bool _continueShown = false;
 
+  AudioController? _audio;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _audio = context.audio;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -111,8 +122,15 @@ class _RiteOfferingState extends State<_RiteOffering>
     _ticker = createTicker((elapsed) {
       // It waits for its grains (a moment at most) before it starts.
       if (!_read) return;
-      _from ??= elapsed;
+      if (_from == null) {
+        _from = elapsed;
+        context.sound(SoundCue.riteOffering, owner: this);
+      }
+      final was = _t.value;
       _t.value = (elapsed - _from!).inMicroseconds / 1e6;
+      if (was < _kCount && _t.value >= _kCount && widget.gold > 0) {
+        context.sound(SoundCue.currencyGain);
+      }
       if (_t.value > _kContinue && !_continueShown) {
         setState(() => _continueShown = true);
       }
@@ -121,6 +139,8 @@ class _RiteOfferingState extends State<_RiteOffering>
 
   @override
   void dispose() {
+    // CONTINUE before it has settled: let the pool finish under the fade.
+    _audio?.releaseSoundOwner(this);
     _ticker.dispose();
     _t.dispose();
     super.dispose();
@@ -134,63 +154,67 @@ class _RiteOfferingState extends State<_RiteOffering>
   @override
   Widget build(BuildContext context) {
     final pad = MediaQuery.paddingOf(context);
-    return Scaffold(
-      backgroundColor: kRiteVoid,
-      body: LayoutBuilder(
-        builder: (context, box) {
-          final size = box.biggest;
-          final pool = ritePoolFor(size, pad);
-          final stageTop = pad.top + kRiteHeaderHeight;
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: RepaintBoundary(
-                  child: CustomPaint(
-                    painter: _OfferingPainter(
-                      t: _t,
-                      grains: _g,
-                      read: _read,
-                      centre: pool.centre,
-                      radius: pool.radius,
-                      top: stageTop,
+    // The screen's pool, still heard under it.
+    return SceneAmbience(
+      cue: AmbienceCue.ritePool,
+      child: Scaffold(
+        backgroundColor: kRiteVoid,
+        body: LayoutBuilder(
+          builder: (context, box) {
+            final size = box.biggest;
+            final pool = ritePoolFor(size, pad);
+            final stageTop = pad.top + kRiteHeaderHeight;
+            return Stack(
+              children: [
+                Positioned.fill(
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: _OfferingPainter(
+                        t: _t,
+                        grains: _g,
+                        read: _read,
+                        centre: pool.centre,
+                        radius: pool.radius,
+                        top: stageTop,
+                      ),
                     ),
                   ),
                 ),
-              ),
-              // No grains to give: the sprite itself sinks into the pool.
-              if (_read && _g == null)
-                ValueListenableBuilder<double>(
-                  valueListenable: _t,
-                  builder: (_, t, child) {
-                    final gone = _smooth(_kRelease, _kRelease + 1.6, t);
-                    final feet = riteStageLayout(size.width).feet + stageTop;
-                    return Positioned(
-                      left: (size.width - kRiteVesselSize) / 2,
-                      top: feet - kRiteVesselSize + gone * 30,
-                      width: kRiteVesselSize,
-                      height: kRiteVesselSize,
-                      child: Opacity(opacity: 1 - gone, child: child),
-                    );
-                  },
-                  child: RiteVessel(
-                    species: widget.species,
-                    instance: widget.instance,
-                    size: kRiteVesselSize,
+                // No grains to give: the sprite itself sinks into the pool.
+                if (_read && _g == null)
+                  ValueListenableBuilder<double>(
+                    valueListenable: _t,
+                    builder: (_, t, child) {
+                      final gone = _smooth(_kRelease, _kRelease + 1.6, t);
+                      final feet = riteStageLayout(size.width).feet + stageTop;
+                      return Positioned(
+                        left: (size.width - kRiteVesselSize) / 2,
+                        top: feet - kRiteVesselSize + gone * 30,
+                        width: kRiteVesselSize,
+                        height: kRiteVesselSize,
+                        child: Opacity(opacity: 1 - gone, child: child),
+                      );
+                    },
+                    child: RiteVessel(
+                      species: widget.species,
+                      instance: widget.instance,
+                      size: kRiteVesselSize,
+                    ),
+                  ),
+                Positioned(
+                  left: 28,
+                  right: 28,
+                  top: pool.centre.dy + pool.radius * RitePool.flat + 40,
+                  bottom: pad.bottom + 24,
+                  child: ValueListenableBuilder<double>(
+                    valueListenable: _t,
+                    builder: (context, t, _) => _words(context, t),
                   ),
                 ),
-              Positioned(
-                left: 28,
-                right: 28,
-                top: pool.centre.dy + pool.radius * RitePool.flat + 40,
-                bottom: pad.bottom + 24,
-                child: ValueListenableBuilder<double>(
-                  valueListenable: _t,
-                  builder: (context, t, _) => _words(context, t),
-                ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

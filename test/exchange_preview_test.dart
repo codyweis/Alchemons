@@ -7,14 +7,14 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/models/creature.dart';
-import 'package:alchemons/models/elemental_group.dart';
-import 'package:alchemons/models/extraction_vile.dart';
+import 'package:alchemons/helpers/nature_loader.dart';
+import 'package:alchemons/models/egg/egg_payload.dart';
 import 'package:alchemons/screens/shop/alchemon_exchange_screen.dart';
 import 'package:alchemons/services/constellation_effects_service.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/services/faction_service.dart';
 import 'package:alchemons/utils/faction_util.dart';
-import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/nursery/storage_section_widget.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -22,8 +22,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
-// The specimen exchange on a phone, in both themes: nothing chosen, the vial
-// picker, the counter with specimens and vials, and the sale's confirmation.
+// The specimen exchange on a phone, in both themes: nothing chosen, the cold
+// storage picker, the counter with specimens and stored cultivations, and the
+// sale's confirmation.
 //
 //   EXCHANGE_OUT=/tmp/exchange flutter test \
 //     test/exchange_preview_test.dart --tags preview
@@ -89,18 +90,24 @@ void main() {
           for (final id in const ['a', 'b', 'c'])
             (await db.creatureDao.getInstance(id))!,
         ];
-        await db.inventoryDao.addVial(
-          'Volcanic Vial',
-          ElementalGroup.volcanic,
-          VialRarity.uncommon,
-          qty: 3,
-        );
-        await db.inventoryDao.addVial(
-          'Oceanic Vial',
-          ElementalGroup.oceanic,
-          VialRarity.rare,
-          qty: 1,
-        );
+        // Cold storage: three cultivations waiting.
+        await loadNatures();
+        final payloads = EggPayloadFactory(catalog);
+        for (final (id, base, hours) in const [
+          ('s1', 'HOR01', 30),
+          ('s2', 'LET05', 4),
+          ('s3', 'HOR16', 90),
+          ('s4', 'LET09', 12),
+        ]) {
+          final creature = catalog.getCreatureById(base)!;
+          await db.incubatorDao.enqueueEgg(
+            eggId: id,
+            resultCreatureId: base,
+            rarity: creature.rarity,
+            remaining: Duration(hours: hours),
+            payloadJson: payloads.createVialPayload(creature).toJsonString(),
+          );
+        }
         constellations = ConstellationEffectsService(db);
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
@@ -158,16 +165,16 @@ void main() {
       await tester.pumpWidget(const SizedBox());
       await tester.pumpWidget(app(specimens));
       await settle(14);
-      await tester.tap(find.text('VIALS'));
+      await tester.tap(find.text('COLD STORAGE'));
       // The sheet slides up over a quarter second.
       await settle(16);
-      // Two of the stack, and the single one.
-      final plus = find.byIcon(AppIcons.add_rounded).hitTestable();
-      await tester.tap(plus.first);
-      await settle(2);
-      await tester.tap(plus.first);
-      await settle(4);
-      await shoot('2_vial_picker');
+      // Two of the four put on the counter.
+      final cells = find.byType(StasisCell);
+      await tester.tap(cells.at(0));
+      await settle(3);
+      await tester.tap(cells.at(2));
+      await settle(10);
+      await shoot('2_storage_picker');
       await tester.tap(find.textContaining('PUT '));
       await settle(12);
       await shoot('3_counter');

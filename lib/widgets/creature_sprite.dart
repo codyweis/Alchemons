@@ -19,6 +19,7 @@ import 'package:flame/flame.dart' show Flame;
 import 'package:flame/sprite.dart';
 import 'package:flame/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 class _SpriteLoadingIndicator extends StatelessWidget {
   const _SpriteLoadingIndicator();
@@ -49,14 +50,7 @@ class _SpriteLoadingIndicator extends StatelessWidget {
                 ],
               ),
             ),
-            SizedBox.square(
-              dimension: 34,
-              child: CircularProgressIndicator(
-                strokeWidth: 1.6,
-                color: accent.withValues(alpha: 0.72),
-                backgroundColor: accent.withValues(alpha: 0.10),
-              ),
-            ),
+            GrainLoader(size: 34, color: accent),
           ],
         ),
       ),

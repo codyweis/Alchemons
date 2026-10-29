@@ -12,13 +12,13 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart' show elementColor;
 import 'package:alchemons/games/planet_dungeon/reward_popup_parts.dart';
 import 'package:alchemons/models/alchemical_powerup.dart';
-import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/models/athanor.dart';
 import 'package:alchemons/models/inventory.dart';
 import 'package:alchemons/models/potential_soul.dart';
 import 'package:alchemons/screens/inventory_screen.dart'
     show InventoryImageHelper;
 import 'package:alchemons/widgets/coin_icon.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 import 'package:flutter/material.dart';
 
 class RaidRewardEntry {
@@ -103,7 +103,6 @@ Future<List<RaidRewardEntry>> grantRaidRewards({
 /// THE HOUSE POPUP PALETTE: `CosmicScreenStyles`, as the dungeon's star
 /// popup uses, so the two payouts read as one game.
 class _C {
-  static const bg = CosmicScreenStyles.bg0;
   static const amber = CosmicScreenStyles.amber;
   static const amberBright = CosmicScreenStyles.amberBright;
   static const text = CosmicScreenStyles.textPrimary;
@@ -111,8 +110,8 @@ class _C {
   static const silver = Color(0xFFC9CED6);
 }
 
-/// Raid-tier loot popup in the dungeon popup's chrome: the same rays, surge
-/// cards counted out one by one, and lit CONTINUE. Grants on mount, then
+/// Raid-tier loot popup in the dungeon popup's chrome: the same light from
+/// below, rows counted out one by one, and lit CONTINUE. Grants on mount, then
 /// advances the persisted raid via [onGranted] immediately afterward.
 class RaidRewardPopup extends StatefulWidget {
   const RaidRewardPopup({
@@ -140,22 +139,15 @@ class RaidRewardPopup extends StatefulWidget {
 }
 
 class _RaidRewardPopupState extends State<RaidRewardPopup>
-    with TickerProviderStateMixin {
+    with SingleTickerProviderStateMixin {
   late final AnimationController _intro;
-  late final AnimationController _turn;
   List<RaidRewardEntry>? _entries;
 
   @override
   void initState() {
     super.initState();
-    _intro = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
-    _turn = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 44),
-    )..repeat();
+    _intro = AnimationController(vsync: this, duration: kRewardIntro)
+      ..forward();
     _grant();
   }
 
@@ -183,7 +175,6 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
 
   @override
   void dispose() {
-    _turn.dispose();
     _intro.dispose();
     super.dispose();
   }
@@ -195,54 +186,31 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
 
   @override
   Widget build(BuildContext context) {
-    final curved = CurvedAnimation(parent: _intro, curve: Curves.easeOutBack);
     return Positioned.fill(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque, // absorb taps to the game behind
         onTap: () {},
         child: AnimatedBuilder(
-          animation: Listenable.merge([_intro, _turn]),
-          builder: (context, _) {
-            final t = _intro.value;
+          animation: _intro,
+          builder: (context, panel) {
+            final t = Curves.easeOutCubic.transform(_intro.value);
             return Stack(
               fit: StackFit.expand,
               children: [
-                ColoredBox(color: Colors.black.withValues(alpha: 0.90 * t)),
-                IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        radius: 0.75,
-                        colors: [
-                          _C.amberBright.withValues(alpha: 0.20 * t),
-                          _C.amber.withValues(alpha: 0.06 * t),
-                          Colors.transparent,
-                        ],
-                        stops: const [0.0, 0.45, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-                IgnorePointer(
-                  child: CustomPaint(
-                    painter: RewardRaysPainter(
-                      progress: t,
-                      spin: _turn.value * pi * 2,
-                    ),
-                  ),
-                ),
+                RewardBackdrop(t: _intro.value),
                 Center(
                   child: Opacity(
                     opacity: t,
-                    child: Transform.scale(
-                      scale: 0.72 + 0.28 * curved.value,
-                      child: _panel(),
+                    child: Transform.translate(
+                      offset: Offset(0, (1 - t) * 18),
+                      child: panel,
                     ),
                   ),
                 ),
               ],
             );
           },
+          child: _panel(),
         ),
       ),
     );
@@ -250,74 +218,50 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
 
   Widget _panel() {
     final entries = _entries;
-    final maxWidth = MediaQuery.sizeOf(context).width - 36;
-    return CustomPaint(
-      painter: const BracketFramePainter(
-        color: _C.amber,
-        bracketSize: 14,
-        strokeWidth: 1.3,
-      ),
-      child: Container(
-        width: maxWidth < 400 ? maxWidth : 400,
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.sizeOf(context).height - 60,
-        ),
-        padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
-        decoration: BoxDecoration(
-          color: _C.bg.withValues(alpha: 0.97),
-          border: Border.all(color: _C.amber.withValues(alpha: 0.30)),
-          boxShadow: const [
-            BoxShadow(
-              color: Color(0x99000000),
-              blurRadius: 28,
-              spreadRadius: 4,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _header(),
-            const SizedBox(height: 16),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (entries == null)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 18),
-                        child: Center(
-                          child: Text('…', style: TextStyle(color: _C.muted)),
+    return RewardPanel(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _header(),
+          const SizedBox(height: 18),
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (entries == null)
+                    const SizedBox(
+                      height: 60,
+                      child: Center(
+                        child: GrainLoader(size: 28, color: _C.amber),
+                      ),
+                    )
+                  else
+                    for (var i = 0; i < entries.length; i++)
+                      RewardStaggerIn(
+                        index: i,
+                        child: Padding(
+                          padding: const EdgeInsets.only(bottom: 6),
+                          child: _entryCard(entries[i]),
                         ),
-                      )
-                    else
-                      for (var i = 0; i < entries.length; i++)
-                        RewardStaggerIn(
-                          index: i,
-                          child: Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: _entryCard(entries[i]),
-                          ),
-                        ),
-                  ],
-                ),
+                      ),
+                ],
               ),
             ),
-            const SizedBox(height: 6),
-            RewardPopupButton(
-              label: widget.raidLevel < 3
-                  ? 'RETURN FOR LEVEL ${widget.raidLevel + 1}'
-                  : _firstLevel3Clear
-                  ? 'RETURN TO ORBIT'
-                  : _finalLevel3Clear
-                  ? 'RAID CLEARED'
-                  : 'CONTINUE',
-              enabled: entries != null,
-              onTap: widget.onContinue,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 6),
+          RewardPopupButton(
+            label: widget.raidLevel < 3
+                ? 'RETURN FOR LEVEL ${widget.raidLevel + 1}'
+                : _firstLevel3Clear
+                ? 'RETURN TO ORBIT'
+                : _finalLevel3Clear
+                ? 'RAID CLEARED'
+                : 'CONTINUE',
+            enabled: entries != null,
+            onTap: widget.onContinue,
+          ),
+        ],
       ),
     );
   }
@@ -325,6 +269,8 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
   Widget _header() {
     return Column(
       children: [
+        const RewardStarGrains(size: 84, delay: Duration(milliseconds: 120)),
+        const SizedBox(height: 6),
         const Text(
           'RAID BROKEN',
           style: TextStyle(
@@ -351,8 +297,8 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
           _firstLevel3Clear
               ? 'The guardian reforms in 12 hours. One final echo remains.'
               : widget.raidLevel < 3
-              ? 'The raid deepens. Level ${widget.raidLevel + 1} is now available.'
-              : 'The guardian\'s madness lifts. The raid is cleared.',
+              ? 'Level ${widget.raidLevel + 1} is open.'
+              : 'The raid is cleared.',
           textAlign: TextAlign.center,
           style: const TextStyle(color: _C.muted, fontSize: 11),
         ),
@@ -360,7 +306,7 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
     );
   }
 
-  /// What a loot line IS, for its card: accent, tag, amount and name.
+  /// What a loot line IS, for its row: accent, kind, amount and name.
   ({Color accent, String tag, String amount, String name}) _describe(
     RaidRewardEntry e,
   ) {
@@ -392,43 +338,11 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
 
   Widget _entryCard(RaidRewardEntry e) {
     final d = _describe(e);
-    return RewardSurgeCard(
+    return RewardRow(
       accent: d.accent,
-      art: _entryArt(e, 26),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (d.amount.isNotEmpty)
-                  Text(
-                    d.amount,
-                    style: TextStyle(
-                      color: Color.lerp(_C.text, d.accent, 0.45),
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
-                      height: 1.0,
-                    ),
-                  ),
-                const SizedBox(height: 3),
-                Text(
-                  d.name.toUpperCase(),
-                  style: const TextStyle(
-                    color: _C.text,
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.5,
-                    height: 1.15,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          RewardMiniTag(label: d.tag, color: d.accent),
-        ],
-      ),
+      art: _entryArt(e, 32),
+      kind: d.tag,
+      child: RewardAmountName(amount: d.amount, name: d.name, accent: d.accent),
     );
   }
 
@@ -436,8 +350,8 @@ class _RaidRewardPopupState extends State<RaidRewardPopup>
     final key = e.itemKey;
     if (key == null) {
       return e.label.contains('Gold')
-          ? CoinIcon.gold(size: size)
-          : CoinIcon.silver(size: size);
+          ? CoinIcon.gold(size: size * 0.8)
+          : CoinIcon.silver(size: size * 0.8);
     }
     return SizedBox(
       width: size,

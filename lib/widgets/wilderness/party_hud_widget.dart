@@ -8,6 +8,7 @@ import 'package:alchemons/database/alchemons_db.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:provider/provider.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 class PartyHUD extends StatelessWidget {
   final List<PartyMember> party;
@@ -149,16 +150,7 @@ class _PartySlot extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: Colors.white30, width: 1),
             ),
-            child: const Center(
-              child: SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white54,
-                ),
-              ),
-            ),
+            child: const Center(child: GrainLoader(size: 20)),
           );
         }
 

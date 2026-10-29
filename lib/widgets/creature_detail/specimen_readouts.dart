@@ -17,7 +17,9 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/nature_effect_formatter.dart';
 import 'package:alchemons/widgets/app_icons.dart';
+import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
+import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
     show MarkDiamond, elementLight;
 import 'package:alchemons/widgets/fx/mutation_sheets.dart' show mutationAccent;
@@ -536,7 +538,7 @@ List<TraitRow> specimenTraitRows(
 
 // ── Stamina elixir ──────────────────────────────────────────────────────────
 
-/// Restores breeding stamina with an elixir, when it is down and there is
+/// Restores fusion stamina with an elixir, when it is down and there is
 /// one to spend. Nothing otherwise.
 class StaminaRestoreChip extends StatelessWidget {
   const StaminaRestoreChip({
@@ -609,63 +611,25 @@ class StaminaRestoreChip extends StatelessWidget {
     AlchemonsDatabase db,
     int qty,
   ) async {
-    final t = ForgeTokens(context.read<FactionTheme>());
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dCtx) => AlertDialog(
-        backgroundColor: t.bg1,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
-        title: Text(
-          'Restore Breeding Stamina?',
-          style: TextStyle(
-            color: t.textPrimary,
-            fontSize: 16,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        content: Text(
-          "Use 1 Stamina Elixir to restore $creatureName's breeding "
-          'stamina? ($qty remaining)',
-          style: TextStyle(color: t.textSecondary, fontSize: 13),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dCtx).pop(false),
-            child: Text('Cancel', style: TextStyle(color: t.textMuted)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(dCtx).pop(true),
-            child: Text(
-              'Restore',
-              style: TextStyle(
-                color: t.amberBright,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
-      ),
+    final theme = context.read<FactionTheme>();
+    final confirmed = await showBracketConfirm(
+      context,
+      palette: BracketPalette.of(context),
+      accent: bracketReadableAccent(theme),
+      title: 'RESTORE FUSION STAMINA',
+      message:
+          "Use 1 Stamina Elixir to restore $creatureName's fusion stamina? "
+          '($qty remaining)',
+      confirmLabel: 'RESTORE',
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
     await db.inventoryDao.addItemQty(InvKeys.staminaPotion, -1);
     await StaminaService(db).restoreToFull(instanceId);
     if (!context.mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Breeding stamina restored!',
-          style: TextStyle(
-            fontFamily: 'monospace',
-            color: t.textPrimary,
-            fontSize: 12,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        backgroundColor: t.bg1,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        duration: const Duration(seconds: 2),
-      ),
+    showGameSnack(
+      context,
+      'Fusion stamina restored!',
+      accent: ForgeTokens(context.read<FactionTheme>()).success,
     );
   }
 }

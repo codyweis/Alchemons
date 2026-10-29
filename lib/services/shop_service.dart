@@ -563,7 +563,7 @@ class ShopService extends ChangeNotifier {
       id: 'boost.instant_stamina_potion',
       name: 'Stamina Elixir',
       description:
-          'Fully restores an Alchemon\'s breeding stamina so it can use the Fusion Chamber again immediately.',
+          'Fully restores an Alchemon\'s fusion stamina so it can use the Fusion Chamber again immediately.',
       icon: AppIcons.local_drink_rounded,
       cost: const {'silver': 1200},
       reward: const {},
@@ -615,7 +615,7 @@ class ShopService extends ChangeNotifier {
       name: 'Potential Soul',
       description:
           'Permanently raises one selected Potential, used from the Souls '
-          'tray in Enhance, and the improved genetics pass through breeding. '
+          'tray in Enhance, and the improved genetics pass on through fusion. '
           'Costs Silver to use on top of this purchase.',
       icon: AppIcons.diamond_rounded,
       cost: const {'gold': 150},
@@ -1415,13 +1415,7 @@ class ShopService extends ChangeNotifier {
       if (o.id == offerId) return o;
     }
 
-    // --- ADD THIS BLOCK ---
-    // 3. Check the dynamic daily vial offer
-    final dailyVial = getActiveDailyVialOffer();
-    if (dailyVial != null && dailyVial.id == offerId) {
-      return dailyVial;
-    }
-    // --- END OF ADDED BLOCK ---
+    // The daily vial used to be here; vials are now a black-market-only item.
 
     // 4. Not found
     return null;

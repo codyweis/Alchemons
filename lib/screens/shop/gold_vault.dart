@@ -20,6 +20,7 @@ import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show GrainBatch;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:alchemons/widgets/grain_loader.dart';
 
 /// One gold pack as the vault shows it.
 class GoldVaultOffer {
@@ -1065,14 +1066,7 @@ class _BuyButton extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (offer.pending) ...[
-              const SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.8,
-                  valueColor: AlwaysStoppedAnimation(_V.ink),
-                ),
-              ),
+              const GrainLoader(size: 12, color: _V.ink),
               const SizedBox(width: 8),
             ] else if (needsAccount) ...[
             ],
