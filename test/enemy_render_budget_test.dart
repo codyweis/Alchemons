@@ -61,11 +61,14 @@ void main() {
   // faceted solids now: however many faces, each solid is one drawVertices.
   const budget = {
     EnemyTier.wisp: 3,
-    EnemyTier.drone: 8,
-    EnemyTier.sentinel: 11,
-    EnemyTier.phantom: 10,
-    EnemyTier.brute: 6,
-    EnemyTier.colossus: 9,
+    // Every body that acts is one over its 09-29 measure (2026-11-03): its
+    // wind-up is a gathering pool and a batch of grains drawn in (two draws)
+    // where it was a closing ring (one), which read as a hoop.
+    EnemyTier.drone: 9,
+    EnemyTier.sentinel: 12,
+    EnemyTier.phantom: 11,
+    EnemyTier.brute: 7,
+    EnemyTier.colossus: 10,
   };
 
   test('no enemy body draws a blur, in any phase', () {

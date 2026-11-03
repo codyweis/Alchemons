@@ -19,6 +19,7 @@ import 'survival_outbreak_vfx.dart';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
+import 'package:alchemons/games/cosmic/enemy_body_art.dart' show enemyPalette;
 import 'package:alchemons/games/cosmic/mane_alchemical_vfx.dart'
     show maneLavaPoolCrowd;
 import 'package:alchemons/games/shared/creature_looks.dart';
@@ -29,13 +30,23 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart' show ShipComponent;
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/cosmic_projectile_vfx.dart';
+import 'package:alchemons/games/cosmic/ship_art.dart' show ShipLight, shipLight;
 import 'package:alchemons/games/cosmic/vfx_shapes.dart'
-    show vfxFlare, vfxGrain, vfxGrainsFlush, vfxMaterial, vfxPolar, vfxSpill;
+    show
+        vfxCrossLit,
+        vfxFlare,
+        vfxGrain,
+        vfxGrainsFlush,
+        vfxLens,
+        vfxMaterial,
+        vfxPolar,
+        vfxSpill;
 import 'package:alchemons/games/cosmic/horn_runtime.dart';
 import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/surge_grains.dart';
+import 'package:alchemons/games/cosmic_survival/survival_death_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mender_vfx.dart';
 import 'package:alchemons/games/shared/burn_healing.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
@@ -1890,6 +1901,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // VFX particles
   final _VfxPool _vfx = _VfxPool();
   final AbilityGrainBatch _vfxGrains = AbilityGrainBatch();
+
+  /// Bodies coming apart where they fell (survival_death_vfx.dart).
+  final SurvivalDeaths _deaths = SurvivalDeaths();
   final List<_BeamFx> _beamFx = [];
   final MaskTrapVisuals _maskTrapVisuals = MaskTrapVisuals();
 
@@ -1904,6 +1918,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// for, and the competition is invisible from outside without this.
   @visibleForTesting
   int get vfxParticleCount => _vfx.length;
+
+  /// Grains the last frame drew for bodies coming apart — their own atlas
+  /// draw, under the bodies, apart from the ability particles.
+  @visibleForTesting
+  int get debugDeathGrainsDrawn => _deaths.lastDrawn;
 
   // Let meteor craters. One entry per landing, alive for a fraction of a
   // second. Kept as plain state rather than projectiles because nothing about
@@ -2081,9 +2100,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   int _spatialQueries = 0;
   int _spatialCandidates = 0;
   double _spatialMetricsTimer = 0;
-  final Paint _shipProjectilePaint = Paint()..color = const Color(0xFF00E5FF);
-  final Paint _shipProjectileGlowPaint = Paint()
-    ..color = const Color(0xFF00E5FF).withValues(alpha: 0.2);
   final Paint _companionProjCorePaint = Paint();
 
   /// Species-type scale factors for companion sprites. Shared with open cosmic
@@ -6665,13 +6681,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           breaker: enemy.trait == EnemyTrait.breaker,
         ),
       );
-      if (_enemyExplodesOnOrbImpact(enemy)) {
-        _triggerEnemyOrbExplosion(enemy, damageMultiplier);
-      }
+      final bursts = _enemyExplodesOnOrbImpact(enemy);
+      if (bursts) _triggerEnemyOrbExplosion(enemy, damageMultiplier);
       if (powerUps.hasMirrorShield) {
         _triggerMirrorShieldPulse(enemy.position, enemy.damage);
       }
-      _killEnemy(enemy, grantAlchemyReward: false);
+      _killEnemy(
+        enemy,
+        grantAlchemyReward: false,
+        blast: bursts ? _enemyOrbExplosionRadius(enemy) : 0,
+        blastTint: bursts ? elementColor(enemy.element) : null,
+      );
       return;
     }
 
@@ -10177,6 +10197,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     /// This kill was dealt by a hit carrying Bulwark's weight, which is the
     /// only thing Anvil ruptures on.
     bool hornWeighted = false,
+
+    /// The body bursts as it dies, this far across (the caller deals the
+    /// damage): its grains are thrown out that far, in [blastTint].
+    double blast = 0,
+    Color? blastTint,
   }) {
     if (enemy.isDead) return;
     _forgetWingOverwatch(enemy);
@@ -10227,6 +10252,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           ? 1.50
           : 1.0;
     }();
+    var maneRootBurst = false;
     final alchemyValue =
         meterGain *
         (enemy.isElite ? 1.35 : 1.0) *
@@ -10264,6 +10290,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // Mane+Plant pierce and is still in the root window, blow up.
       if (enemy.maneRootSlot != null && enemy.maneRootTimer > 0) {
         const explodeRadius = ManeRuntime.plantRootExplodeRadius;
+        maneRootBurst = true;
         final explodeDamage =
             (companion?.elemAtk ?? 4) * ManeRuntime.plantRootExplodeShare;
         _visitEnemiesNear(enemy.position, explodeRadius, (other) {
@@ -10282,7 +10309,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           other.slowMultiplier = 0;
           return false;
         });
-        _spawnHitSpark(enemy.position, elementColor('Plant'));
       }
       // Horn special on-kill effects. Gated by hornSpecialActiveWindow
       // so basic-attack kills outside the cast window don't trigger.
@@ -10395,7 +10421,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
 
-    _spawnHitSpark(enemy.position, elementColor(enemy.element));
+    // Fury's splash is decided here so the death can show it.
+    final furySplash = powerUps.hasElementalFury && !_furyErupting
+        ? _furySplashDamage(sourceSlotIndex)
+        : 0.0;
+    _spawnDeath(
+      enemy,
+      blast: blast,
+      blastTint: blastTint,
+      volatile: enemy.isElite && enemy.isVolatile,
+      maneRootBurst: maneRootBurst,
+      fury: furySplash > 0,
+    );
     if (enemy.trait == EnemyTrait.splitter && enemies.length < 220) {
       final shards = spawner.spawnSplitterShards(enemy);
       enemies.addAll(shards);
@@ -10411,28 +10448,76 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // through all of it until wisp health outgrew the flat number (wipes to
     // wave 40-60, then nothing) — and it ignored the creature's stats.
     // Bodies the splash finishes do not erupt again.
-    if (powerUps.hasElementalFury && !_furyErupting) {
-      final splashDamage = _furySplashDamage(sourceSlotIndex);
-      if (splashDamage > 0) {
-        _furyErupting = true;
-        _visitEnemiesNear(enemy.position, 80, (other) {
-          if (_withinRange(other.position, enemy.position, 80)) {
-            _damageEnemy(
-              other,
-              splashDamage,
-              sourceSlotIndex: sourceSlotIndex,
-            );
-          }
-          return false;
-        });
-        _furyErupting = false;
-      }
+    if (furySplash > 0) {
+      _furyErupting = true;
+      _visitEnemiesNear(enemy.position, _kFuryReach, (other) {
+        if (_withinRange(other.position, enemy.position, _kFuryReach)) {
+          _damageEnemy(other, furySplash, sourceSlotIndex: sourceSlotIndex);
+        }
+        return false;
+      });
+      _furyErupting = false;
     }
   }
 
   /// True while a Fury eruption is dealing its splash, so the kills it makes
   /// do not erupt in turn.
   bool _furyErupting = false;
+
+  /// How far a Fury eruption splashes.
+  static const double _kFuryReach = 80;
+
+  /// How far a volatile elite's death blast reaches.
+  double _volatileBlastRadius(CosmicSurvivalEnemy enemy) =>
+      110.0 + enemy.radius * 0.8;
+
+  /// The body coming apart where it fell. A death that is also a blast
+  /// throws its grains out to the blast's reach, so whatever the blast kills
+  /// is seen to be inside it: a volatile elite in its affix's orange and
+  /// brightest (it hurts the ship and the party), a burst on the core or a
+  /// rooted Mane+Plant mark in their element, Fury faintest (it erupts on
+  /// every kill).
+  void _spawnDeath(
+    CosmicSurvivalEnemy enemy, {
+    double blast = 0,
+    Color? blastTint,
+    bool volatile = false,
+    bool maneRootBurst = false,
+    bool fury = false,
+  }) {
+    var reach = blast;
+    var tint = blastTint;
+    var light = blast > 0 ? 0.16 : 0.0;
+    if (volatile && _volatileBlastRadius(enemy) > reach) {
+      reach = _volatileBlastRadius(enemy);
+      tint = const Color(0xFFFFA34A);
+      light = 0.3;
+    }
+    if (maneRootBurst && ManeRuntime.plantRootExplodeRadius > reach) {
+      reach = ManeRuntime.plantRootExplodeRadius;
+      tint = elementColor('Plant');
+      light = 0.12;
+    }
+    if (fury && _kFuryReach > reach) {
+      reach = _kFuryReach;
+      tint = null;
+      light = 0.08;
+    }
+    final speed = enemy.effectiveSpeed;
+    _deaths.add(
+      at: enemy.position,
+      velocity:
+          Offset(cos(enemy.angle) * speed, sin(enemy.angle) * speed) +
+          enemy.knockbackVelocity,
+      radius: enemy.radius,
+      tier: enemy.tier,
+      palette: enemyPalette(enemy.element, enemy.visualColor),
+      elite: enemy.isElite,
+      blast: reach,
+      blastTint: tint == null ? null : abilityMaterialTint(tint),
+      blastLight: light,
+    );
+  }
 
   /// Fury's splash: a share of the killer's E-ATK by level (25/40/55%). A
   /// kill with no creature behind it (the ship, the orb, a trap with no
@@ -10542,7 +10627,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }) {
     if (!enemy.isElite) return;
     if (enemy.isVolatile) {
-      final blastRadius = 110.0 + enemy.radius * 0.8;
+      final blastRadius = _volatileBlastRadius(enemy);
       final blastDamage = 10.0 + enemy.damage * 0.65;
       _visitEnemiesNear(enemy.position, blastRadius, (other) {
         if (identical(other, enemy)) return false;
@@ -10571,7 +10656,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           if (comp.currentHp <= 0) comp.isDead = true;
         }
       }
-      _spawnHitSpark(enemy.position, const Color(0xFFFFA34A));
     }
   }
 
@@ -10581,21 +10665,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   ) {
     final radius = _enemyOrbExplosionRadius(enemy);
     final damage = _enemyOrbExplosionDamage(enemy) * damageMultiplier;
-    final blastColor = elementColor(enemy.element);
-
-    // Big plume + ring of sparks.
-    _spawnHitSpark(enemy.position, blastColor);
-    final sparkCount = enemy.tier == EnemyTier.colossus ? 14 : 9;
-    for (var i = 0; i < sparkCount; i++) {
-      final angle = (i / sparkCount) * pi * 2;
-      _spawnHitSpark(
-        Offset(
-          enemy.position.dx + cos(angle) * (radius * 0.45),
-          enemy.position.dy + sin(angle) * (radius * 0.45),
-        ),
-        blastColor,
-      );
-    }
+    // Drawn by the body's death, which the contact kill spawns with this
+    // reach (_applyEnemyContactDamage).
 
     // The orb already took the contact hit. Charging the same explosion
     // again made heavy breakers capable of deleting a healthy orb in one hit.
@@ -22579,6 +22650,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       p.update(dt);
     }
     _vfx.removeWhere((p) => p.dead);
+    _deaths.thin = _reduceAmbientVfx;
+    _deaths.update(dt);
     updateLetSkyfallImpacts(_letSkyfallImpacts, dt);
     updateLetFx(_letFx, dt);
     updateHornFx(_hornFx, dt);
@@ -23247,6 +23320,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         viewport: Rect.fromLTWH(cx, cy, viewW, viewH),
       );
     }
+    // A Mystic world's floor, under the core and every body on it.
+    _renderMysticFloor(canvas, cx, cy, viewW, viewH);
     _renderOrb(canvas);
     for (final f in _orbFronts) {
       paintOrbFront(
@@ -23314,6 +23389,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _renderEnemy(canvas, enemy);
     }
     _swarmBatch.flush(canvas, stats.timeElapsed);
+    // The fallen, coming apart over the floor and under everything in flight.
+    _deaths.paint(canvas, view, _vfxGrains);
     // Menders: the grains they gather, and the heal flowing out of them.
     paintMenderMantles(canvas, _livingMenders, view, stats.timeElapsed);
     _menderFlows.paint(canvas, view);
@@ -23329,7 +23406,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (extra.isDead) continue;
       _renderBoss(canvas, extra);
     }
-    damageNumbers.render(canvas);
 
     // Boss projectiles
     for (final proj in bossProjectiles) {
@@ -23402,7 +23478,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _renderCompanionProjectile(canvas, proj);
     }
 
-    // Ship projectiles
+    // Ship projectiles, in the hull's own light.
+    final light = shipLight(shipSkin);
     for (final proj in shipProjectiles) {
       if (proj.life <= 0) continue;
       if (!_isWithinViewport(
@@ -23417,38 +23494,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         continue;
       }
 
-      if (proj.isRocket) {
-        final angle = atan2(proj.velocity.dy, proj.velocity.dx);
-        if (!_reduceSecondaryGlows) {
-          canvas.drawCircle(
-            proj.position,
-            10,
-            Paint()
-              ..color = const Color(0xFFFF6F00).withValues(alpha: 0.3)
-          );
-        }
-        canvas.save();
-        canvas.translate(proj.position.dx, proj.position.dy);
-        canvas.rotate(angle + pi / 2);
-        final missilePath = Path()
-          ..moveTo(0, -6)
-          ..lineTo(-3, 4)
-          ..lineTo(3, 4)
-          ..close();
-        canvas.drawPath(missilePath, Paint()..color = const Color(0xFFFF8F00));
-        canvas.drawCircle(
-          const Offset(0, 6),
-          3,
-          Paint()
-            ..color = const Color(0xFFFFAB40).withValues(alpha: 0.6)
-        );
-        canvas.restore();
-      } else {
-        canvas.drawCircle(proj.position, 3, _shipProjectilePaint);
-        if (!_reduceSecondaryGlows) {
-          canvas.drawCircle(proj.position, 6, _shipProjectileGlowPaint);
-        }
-      }
+      _renderShipShot(canvas, proj, light);
     }
 
     // Each live Wing beam, painted once a frame straight from
@@ -23619,62 +23665,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       viewport: Rect.fromLTWH(cx, cy, viewW, viewH),
     );
 
-    // Ground cover, under everything else a world puts on the map: it is the
-    // floor, and the fight happens on top of it.
-    for (final f in _mysticFlora) {
-      if (!_isWithinViewport(
-        f.position,
-        30,
-        cx,
-        cy,
-        cx + viewW,
-        cy + viewH,
-        margin: 36,
-      )) {
-        continue;
-      }
-      drawMysticFlora(
-        canvas: canvas,
-        at: f.position,
-        element: f.element,
-        size: f.size,
-        bloom: f.bloom,
-        seed: f.seed,
-        time: stats.timeElapsed,
-        tint: elementColor(f.element),
-      );
-    }
-
-    // Poison Mystic's trail, under everything: it is on the floor, and the
-    // ship that laid it has to be readable while flying back over it.
-    for (final pool in _mysticPools) {
-      if (pool.fade <= 0.01) continue;
-      if (!_isWithinViewport(
-        pool.position,
-        pool.radius,
-        cx,
-        cy,
-        cx + viewW,
-        cy + viewH,
-        margin: 40,
-      )) {
-        continue;
-      }
-      // Thins out over its last second rather than vanishing on a frame, and
-      // spreads into existence rather than appearing finished.
-      final ebb = pool.life < 1.0 ? pool.life.clamp(0.0, 1.0) : 1.0;
-      final spread = pool.spreadEase;
-      drawMysticPoisonPatch(
-        canvas: canvas,
-        centre: pool.position,
-        radius: pool.radius * (0.28 + 0.72 * spread),
-        alpha: pool.fade * ebb * spread,
-        seed: pool.seed,
-        time: stats.timeElapsed,
-        poison: elementColor('Poison'),
-      );
-    }
-
     // Air Mystic's tornado. Over the floor rather than under it: the funnel is
     // in the air, and what it has picked up is in the air with it.
     for (final twister in _mysticTornados) {
@@ -23697,92 +23687,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         phase: twister.phase,
         travelAngle: twister.angle + pi / 2,
         alpha: twister.fade,
-        time: stats.timeElapsed,
-      );
-    }
-
-    // Water Mystic's maelstrom, beneath everything: it is the surface the
-    // fight is happening on.
-    for (final storm in _mysticMaelstroms) {
-      if (storm.fade <= 0.01) continue;
-      drawMysticMaelstrom(
-        canvas: canvas,
-        centre: storm.centre,
-        radius: storm.radius,
-        phase: storm.phase,
-        alpha: storm.fade,
-        time: stats.timeElapsed,
-      );
-    }
-
-    // Lava Mystic's fissures and the scorches its meteors leave, on the floor
-    // under everything that walks over them.
-    for (final fissure in _mysticFissures) {
-      if (fissure.fade <= 0.01) continue;
-      drawMysticFissure(
-        canvas: canvas,
-        points: fissure.points,
-        alpha: fissure.fade,
-        flare: fissure.flare,
-        seed: fissure.seed,
-        time: stats.timeElapsed,
-      );
-    }
-    for (final scorch in _mysticScorches) {
-      drawMysticScorch(
-        canvas: canvas,
-        at: scorch.at,
-        age: scorch.age,
-        maxAge: _MysticScorch.maxAge,
-        seed: scorch.seed,
-      );
-    }
-
-    // Steam Mystic's vents, on the floor with the quakes.
-    for (final vent in _mysticVents) {
-      drawMysticVent(
-        canvas: canvas,
-        centre: vent.centre,
-        radius: vent.radius,
-        progress: vent.age / _MysticVent.maxAge,
-        time: stats.timeElapsed,
-      );
-    }
-
-    // Earth Mystic's quakes, also on the floor.
-    for (final quake in _mysticQuakes) {
-      drawMysticQuake(
-        canvas: canvas,
-        centre: quake.centre,
-        radius: quake.radius,
-        progress: quake.age / _MysticQuake.maxAge,
-        earth: elementColor('Earth'),
-      );
-    }
-
-    // Dark Mystic's maw. Drawn before everything else in this pass because it
-    // is a hole in the floor, not an effect sitting on top of one — bodies
-    // being dragged across it have to pass OVER it.
-    for (final maw in _mysticMaws) {
-      if (maw.fade <= 0.01) continue;
-      if (!_isWithinViewport(
-        maw.position,
-        maw.radius * maw.open,
-        cx,
-        cy,
-        cx + viewW,
-        cy + viewH,
-        margin: 40,
-      )) {
-        continue;
-      }
-      drawMysticMaw(
-        canvas: canvas,
-        centre: maw.position,
-        horizonRadius: maw.horizon,
-        open: maw.open,
-        spin: maw.spin,
-        alpha: maw.fade,
         time: stats.timeElapsed,
       );
     }
@@ -23841,41 +23745,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         alpha: r.fade,
         time: stats.timeElapsed,
         seed: r.seed,
-      );
-    }
-
-    // A Light world's star, behind everything: it hangs outside the arena.
-    for (final star in _mysticStars) {
-      drawMysticDawnStar(
-        canvas: canvas,
-        at: star.position,
-        charge: star.charge,
-        flare: star.flare,
-        alpha: star.fade,
-        time: stats.timeElapsed,
-      );
-    }
-
-    // The sky gathering, under the bodies it is about to hit — it marks the
-    // ground, so anything standing on that ground has to read on top of it.
-    for (final charge in _mysticCharges) {
-      if (!_isWithinViewport(
-        charge.at,
-        110,
-        cx,
-        cy,
-        cx + viewW,
-        cy + viewH,
-        margin: 40,
-      )) {
-        continue;
-      }
-      drawMysticStormCharge(
-        canvas: canvas,
-        at: charge.at,
-        progress: charge.progress,
-        seed: charge.seed,
-        time: stats.timeElapsed,
       );
     }
 
@@ -23995,9 +23864,251 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     grains.flush(canvas);
 
+    // A boss's numbers over everything in the world, so the effects of the
+    // hits they count never bury them.
+    damageNumbers.render(canvas);
+
     canvas.restore();
 
     if (isGameOver) _renderCoreFall(canvas);
+  }
+
+  /// The ship's shot, in the light of its hull ([light]): a bolt is a short
+  /// tapered lens of it, lit along its axis; a rocket is a dark slug with a
+  /// hot nose and a tail of embers. They were a neon-cyan dot whatever the
+  /// hull, and a flat orange triangle.
+  void _renderShipShot(Canvas canvas, ShipProjectile proj, ShipLight light) {
+    final v = proj.velocity;
+    final angle = atan2(v.dy, v.dx);
+    canvas.save();
+    canvas.translate(proj.position.dx, proj.position.dy);
+    canvas.rotate(angle);
+    if (proj.isRocket) {
+      // Embers left behind, fainter the further back.
+      for (var i = 1; i <= 3; i++) {
+        vfxSpill(
+          canvas,
+          Offset(-4.0 - i * 5.0, 0),
+          4.2 - i * 0.7,
+          const Color(0xFFFF8E4A),
+          0.5 / i,
+        );
+      }
+      vfxCrossLit(canvas, _rocketBody, 2.6, light.rim, light.face, 0.95);
+      vfxSpill(canvas, const Offset(5, 0), 3.4, light.hot, 0.85);
+    } else {
+      if (!_reduceSecondaryGlows) {
+        vfxSpill(canvas, const Offset(-3, 0), 8, light.essence, 0.22);
+      }
+      vfxCrossLit(canvas, _boltBody, 1.8, light.essence, light.hot, 1.0);
+    }
+    canvas.restore();
+  }
+
+  /// A bolt along +x with its head at the origin, and a rocket's slug.
+  static final Path _boltBody = vfxLens(
+    14,
+    3.6,
+    10,
+    2,
+  ).shift(const Offset(-12, 0));
+  static final Path _rocketBody = vfxLens(
+    12,
+    5.2,
+    3,
+    4,
+  ).shift(const Offset(-5, 0));
+
+  /// What a Mystic world lays on the floor: ground cover, pools, the
+  /// maelstrom, fissures and scorches, vents, quakes, the maw, the dawn star
+  /// and the sky gathering over the ground it will hit. Drawn before any body,
+  /// because the fight happens on top of it — it was drawn after the ship and
+  /// the party, so a maelstrom or a poison trail washed over every body
+  /// standing in it.
+  void _renderMysticFloor(
+    Canvas canvas,
+    double cx,
+    double cy,
+    double viewW,
+    double viewH,
+  ) {
+    // Ground cover, under everything else a world puts on the map: it is the
+    // floor, and the fight happens on top of it.
+    for (final f in _mysticFlora) {
+      if (!_isWithinViewport(
+        f.position,
+        30,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 36,
+      )) {
+        continue;
+      }
+      drawMysticFlora(
+        canvas: canvas,
+        at: f.position,
+        element: f.element,
+        size: f.size,
+        bloom: f.bloom,
+        seed: f.seed,
+        time: stats.timeElapsed,
+        tint: elementColor(f.element),
+      );
+    }
+
+    // Poison Mystic's trail, under everything: it is on the floor, and the
+    // ship that laid it has to be readable while flying back over it.
+    for (final pool in _mysticPools) {
+      if (pool.fade <= 0.01) continue;
+      if (!_isWithinViewport(
+        pool.position,
+        pool.radius,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 40,
+      )) {
+        continue;
+      }
+      // Thins out over its last second rather than vanishing on a frame, and
+      // spreads into existence rather than appearing finished.
+      final ebb = pool.life < 1.0 ? pool.life.clamp(0.0, 1.0) : 1.0;
+      final spread = pool.spreadEase;
+      drawMysticPoisonPatch(
+        canvas: canvas,
+        centre: pool.position,
+        radius: pool.radius * (0.28 + 0.72 * spread),
+        alpha: pool.fade * ebb * spread,
+        seed: pool.seed,
+        time: stats.timeElapsed,
+        poison: elementColor('Poison'),
+      );
+    }
+
+    // Water Mystic's maelstrom, beneath everything: it is the surface the
+    // fight is happening on.
+    for (final storm in _mysticMaelstroms) {
+      if (storm.fade <= 0.01) continue;
+      drawMysticMaelstrom(
+        canvas: canvas,
+        centre: storm.centre,
+        radius: storm.radius,
+        phase: storm.phase,
+        alpha: storm.fade,
+        time: stats.timeElapsed,
+      );
+    }
+
+    // Lava Mystic's fissures and the scorches its meteors leave, on the floor
+    // under everything that walks over them.
+    for (final fissure in _mysticFissures) {
+      if (fissure.fade <= 0.01) continue;
+      drawMysticFissure(
+        canvas: canvas,
+        points: fissure.points,
+        alpha: fissure.fade,
+        flare: fissure.flare,
+        seed: fissure.seed,
+        time: stats.timeElapsed,
+      );
+    }
+    for (final scorch in _mysticScorches) {
+      drawMysticScorch(
+        canvas: canvas,
+        at: scorch.at,
+        age: scorch.age,
+        maxAge: _MysticScorch.maxAge,
+        seed: scorch.seed,
+      );
+    }
+
+    // Steam Mystic's vents, on the floor with the quakes.
+    for (final vent in _mysticVents) {
+      drawMysticVent(
+        canvas: canvas,
+        centre: vent.centre,
+        radius: vent.radius,
+        progress: vent.age / _MysticVent.maxAge,
+        time: stats.timeElapsed,
+      );
+    }
+
+    // Earth Mystic's quakes, also on the floor.
+    for (final quake in _mysticQuakes) {
+      drawMysticQuake(
+        canvas: canvas,
+        centre: quake.centre,
+        radius: quake.radius,
+        progress: quake.age / _MysticQuake.maxAge,
+        earth: elementColor('Earth'),
+      );
+    }
+
+    // Dark Mystic's maw. Drawn before everything else in this pass because it
+    // is a hole in the floor, not an effect sitting on top of one — bodies
+    // being dragged across it have to pass OVER it.
+    for (final maw in _mysticMaws) {
+      if (maw.fade <= 0.01) continue;
+      if (!_isWithinViewport(
+        maw.position,
+        maw.radius * maw.open,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 40,
+      )) {
+        continue;
+      }
+      drawMysticMaw(
+        canvas: canvas,
+        centre: maw.position,
+        horizonRadius: maw.horizon,
+        open: maw.open,
+        spin: maw.spin,
+        alpha: maw.fade,
+        time: stats.timeElapsed,
+      );
+    }
+
+    // A Light world's star, behind everything: it hangs outside the arena.
+    for (final star in _mysticStars) {
+      drawMysticDawnStar(
+        canvas: canvas,
+        at: star.position,
+        charge: star.charge,
+        flare: star.flare,
+        alpha: star.fade,
+        time: stats.timeElapsed,
+      );
+    }
+
+    // The sky gathering, under the bodies it is about to hit — it marks the
+    // ground, so anything standing on that ground has to read on top of it.
+    for (final charge in _mysticCharges) {
+      if (!_isWithinViewport(
+        charge.at,
+        110,
+        cx,
+        cy,
+        cx + viewW,
+        cy + viewH,
+        margin: 40,
+      )) {
+        continue;
+      }
+      drawMysticStormCharge(
+        canvas: canvas,
+        at: charge.at,
+        progress: charge.progress,
+        seed: charge.seed,
+        time: stats.timeElapsed,
+      );
+    }
+
   }
 
   /// The end of the run: the arena dims and stills, and over it the core

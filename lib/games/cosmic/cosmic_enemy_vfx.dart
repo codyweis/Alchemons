@@ -1393,16 +1393,22 @@ void _drawActionTelegraph(
 
   switch (phase) {
     case EnemyActionPhase.windUp:
-      // A band of light closing onto the body: starts wide, tightens as the
-      // attack approaches. The body itself shows the charge building.
-      vfxSoftRing(
-        canvas,
-        Offset.zero,
-        r * (3.2 - 2.0 * p),
-        r * (0.12 + 0.1 * p) + 1.5,
-        light,
-        0.35 + 0.5 * p,
-      );
+      // Light gathering onto the body: a wide faint pool that tightens and
+      // brightens, and grains drawn in to it on a lopsided curl, as the
+      // attack approaches. It was a band of light closing like a hoop — on
+      // a horde front, dozens of rings at once, which read as UI pulses and
+      // made the field look busier than it played.
+      vfxSpill(canvas, Offset.zero, r * (2.4 - 1.1 * p), light, 0.1 + 0.36 * p);
+      final seed = enemy.seed;
+      for (var i = 0; i < 6; i++) {
+        // Each grain starts at its own point in the gather, so they arrive
+        // in turn rather than as one shrinking circle.
+        final g = (p + i / 6) % 1.0;
+        final a = seed * 0.37 + i * 2.1 + (i.isEven ? 1 : -1) * g * 1.4;
+        final d = r * (1.0 + 2.2 * (1 - g) * (1 - g));
+        vfxGrain(cos(a) * d, sin(a) * d);
+      }
+      vfxGrainsFlush(canvas, 1.6 + r * 0.06, light, 0.35 + 0.45 * p);
       // Shockwaves are radial; a directional tell would promise a safe side.
       if (enemy.tier != EnemyTier.colossus) {
         // A lance of light laid out where it is going to land.
@@ -1426,15 +1432,9 @@ void _drawActionTelegraph(
       vfxSpill(canvas, Offset.zero, r * (1.4 + 0.5 * p), light, 0.4 * (1 - p));
 
     case EnemyActionPhase.recover:
-      // Vented and open: the window that pays you for reading the tell.
-      vfxSoftRing(
-        canvas,
-        Offset.zero,
-        r * 1.25,
-        r * 0.14,
-        Colors.white,
-        0.28 * (1 - p),
-      );
+      // Vented and open: the window that pays you for reading the tell. A
+      // pale light spent around the body, thinning as it closes again.
+      vfxSpill(canvas, Offset.zero, r * 1.7, light, 0.26 * (1 - p));
 
     case EnemyActionPhase.idle:
       break;

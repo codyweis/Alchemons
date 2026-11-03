@@ -3,7 +3,9 @@
 // (lib/games/cosmic/ability_grains.dart) — survival's own pool and the
 // AbilityVfxPool open space and the dungeons use alike. This pins that, and
 // zero blurred paints, for a representative cast: a five-family party
-// casting every special on the same frame into a crowd.
+// casting every special on the same frame into a crowd. In survival the
+// bodies coming apart (survival_death_vfx.dart) are one more atlas draw of
+// the same grain, under the bodies, counted apart.
 //
 // A budget test, not a golden. For a close look at the grains:
 //   GRAIN_PREVIEW_OUT=<dir> flutter test test/ability_grain_budget_test.dart
@@ -146,11 +148,16 @@ void main() {
         final c = _Census();
         game.render(c);
         expect(c.blurred, 0, reason: 'frame $f');
+        final deathGrains = game.debugDeathGrainsDrawn;
         if (game.vfxParticleCount > 0) {
-          expect(c.grainAtlasCalls, 1, reason: 'frame $f');
+          expect(
+            c.grainAtlasCalls,
+            1 + (deathGrains > 0 ? 1 : 0),
+            reason: 'frame $f',
+          );
           // Every live particle but the ones fading below a hundredth.
           expect(
-            c.grainsDrawn,
+            c.grainsDrawn - deathGrains,
             inInclusiveRange(
               game.vfxParticleCount * 0.9,
               game.vfxParticleCount,
