@@ -388,6 +388,7 @@ extension FrozenObservatory on PlanetDungeonGame {
       }
     }
     if (mouth == null) return false;
+    if (_probing) return _probeHit('OPEN');
     if (a.member.element != 'Light') {
       // WHAT is missing, in one clause (§5.6) — the WHY is the floor's own
       // one-time teach and Mask's to repeat.
@@ -425,6 +426,10 @@ extension FrozenObservatory on PlanetDungeonGame {
     for (final f in kRimeFlues) {
       if (f.headRoom != currentRoomId) continue;
       if ((a.position - f.headPos).distance > _kShaftReach) continue;
+      if (_probing) {
+        final drift = f.freezable && _flue(f.id) == RimeFlueState.drift;
+        return _probeHit(drift ? 'FREEZE' : null);
+      }
       if (!f.freezable) {
         _setBlockedHint('The water runs too hard to freeze from above');
         return true;
@@ -460,6 +465,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     final pos = currentRoom.rime?.rimefall;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kShaftReach) return false;
+    if (_probing) return _probeHit(rimefallFrozen ? null : 'FREEZE');
     if (a.member.element != 'Ice') {
       _setBlockedHint('Only Ice can freeze this fall');
       return true;
@@ -488,6 +494,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kShaftReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
+    if (_probing) return _probeHit('SING');
     if (a.member.element != 'Ice') {
       _setBlockedHint('Only Ice can sing the font');
       return true;
@@ -516,6 +523,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kShaftReach) return false;
     if (hoarfrostWhole) return false;
+    if (_probing) return _probeHit(_hoarfrostDown > 0 ? null : 'RAISE');
     if (_hoarfrostDown > 0) {
       _setBlockedHint('The pillar needs a moment to regrow');
       return true;
@@ -742,6 +750,12 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (ring == null || hasStar(currentRoom.rime!.starIndex!)) return false;
     for (var i = 0; i < ring.count; i++) {
       if ((a.position - ring.frameAt(i)).distance > _kMirrorReach) continue;
+      if (_probing) {
+        if (i == ring.lodestoneIndex) {
+          return _probeHit(lodestoneLit ? null : 'STRIKE');
+        }
+        return _probeHit(silveredFrames.contains(i) ? 'UNSILVER' : 'SILVER');
+      }
       if (i == ring.lodestoneIndex) return _strikeLodestone(a, ring, i);
       if (a.member.element != 'Ice') {
         _setBlockedHint('Only Ice can silver a frame');
@@ -837,6 +851,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     final ring = _mirrorRing;
     if (ring == null || hasStar(currentRoom.rime!.starIndex!)) return false;
     if ((a.position - ring.vent).distance > _kShaftReach) return false;
+    if (_probing) return _probeHit(mirrorSweep > 0 ? null : 'BLOW');
     if (a.member.element != 'Air') {
       _setBlockedHint('Only Air can use this vent');
       return true;
@@ -989,6 +1004,7 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (_orreryCellAt(g, a.position) != null) return false;
     final hub = _orreryCrankAt(g);
     if ((a.position - hub).distance > _kShaftReach) return false;
+    if (_probing) return _probeHit('RESET');
     if (a.member.element != 'Light') {
       _setBlockedHint('Only Light can turn the crank');
       return true;
@@ -1039,6 +1055,19 @@ extension FrozenObservatory on PlanetDungeonGame {
       if (c < 0 || r < 0 || c >= g.cols || r >= g.rows) return false;
     }
     final block = _orreryBlockAt(g, c, r);
+    if (_probing) {
+      if (block != null && !orrerySeated.contains(block)) {
+        return _probeHit('SHOVE');
+      }
+      if (_orreryPillar(g, c, r) || _orrerySocket(g, c, r)) {
+        return _probeHit(null);
+      }
+      return switch (a.member.element) {
+        'Ice' => _probeHit('GLAZE'),
+        'Light' => _probeHit('MELT'),
+        _ => false,
+      };
+    }
     if (block != null && !orrerySeated.contains(block)) {
       return _shoveBlock(g, block, step);
     }
@@ -1563,6 +1592,13 @@ extension FrozenObservatory on PlanetDungeonGame {
         t != null && (a.position - roof.centerAt(t)).distance <= _kRoofEdge;
     switch (a.member.element) {
       case 'Air':
+        if (_probing) {
+          if (atThroat) {
+            final held = (conduitEnergy['A'] ?? 0) > 0;
+            return held ? false : _probeHit('TURN');
+          }
+          return nearFont ? false : _probeHit(null);
+        }
         if (atThroat) return _tryRoofBreath(a, roof, t);
         if (nearFont) return false;
         _setBlockedHint(
@@ -1626,6 +1662,15 @@ extension FrozenObservatory on PlanetDungeonGame {
     int? target, {
     required bool nearFont,
   }) {
+    if (_probing) {
+      if (target == null || roofIsWater(target) || roofIsThroat(target)) {
+        return nearFont ? false : _probeHit(null);
+      }
+      if (!roofIsBare(target)) return _probeHit('LOOK');
+      final under = roofUnder(roof, target);
+      final rock = under == IceRoofUnder.rock || under == IceRoofUnder.pier;
+      return _probeHit(rock ? null : 'OPEN');
+    }
     if (target == null) {
       if (nearFont) return false;
       _setBlockedHint('Nothing ahead but stone');
@@ -1713,6 +1758,11 @@ extension FrozenObservatory on PlanetDungeonGame {
     int? target, {
     required bool nearFont,
   }) {
+    if (_probing) {
+      if (target != null && roofIsWater(target)) return _probeHit('FREEZE');
+      if (target != null && roofIsThroat(target)) return _probeHit(null);
+      return nearFont ? false : _probeHit(null);
+    }
     if (target != null && roofIsWater(target)) {
       roofWater.remove(target);
       roofBare.add(target);
@@ -2069,6 +2119,8 @@ extension FrozenObservatory on PlanetDungeonGame {
     if (discoveredClouds.contains(kIceStarWalkerEggId)) return false;
     final ring = _mirrorRingRoom?.rime?.mirrors;
     if (ring == null) return false;
+    // The lens is the planet's maxim: it acts, and is never named.
+    if (_probing) return _probeHit(null);
     switch (a.member.element) {
       case 'Air':
         // THE REPEATED BEAT: a breath turns the wheel one notch, always the

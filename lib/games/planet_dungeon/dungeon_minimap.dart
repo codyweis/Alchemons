@@ -491,25 +491,6 @@ class _DungeonMiniMapPainter extends CustomPainter {
         objective = cell.position;
         break;
       }
-    } else if (room.molten != null) {
-      // Molten Labyrinth: the goal pedestal, until the room is solved.
-      final g = room.molten!;
-      final done = g.starIndex != null
-          ? game.hasStar(g.starIndex!)
-          : game.moltenRiteDone;
-      if (!done) {
-        for (var r = 0; r < g.rowCount; r++) {
-          final i = g.rows[r].indexOf('P');
-          if (i < 0) continue;
-          final cw = room.bounds.width / g.cols;
-          final ch = room.bounds.height / g.rowCount;
-          objective = Offset(
-            room.bounds.left + (i + 0.5) * cw,
-            room.bounds.top + (r + 0.5) * ch,
-          );
-          break;
-        }
-      }
     }
     if (objective != null) {
       final p = map(objective);
@@ -931,7 +912,6 @@ List<int> _roomStars(DungeonRoom room) => [
   ?room.circuitStarIndex,
   ?room.garth?.starIndex,
   ?room.capstone?.starIndex,
-  ?room.molten?.starIndex,
   ?room.foundryStar?.starIndex,
   ?room.priorsSeal?.diagnosisStarIndex,
   ?room.priorsSeal?.triageStarIndex,

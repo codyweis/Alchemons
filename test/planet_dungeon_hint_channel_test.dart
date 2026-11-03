@@ -117,9 +117,10 @@ void main() {
       expect(game.hintText, contains('stays shut'));
       expect(game.hintChannel, DungeonHintChannel.blocked);
 
-      // Keep leaning on it well past the line's lifetime: the refusal must
-      // fade and STAY faded instead of re-firing every frame.
-      _step(game, 5.0);
+      // Keep leaning on it well past the line's lifetime (a line stays as
+      // long as it takes to read, 14 s at most): the refusal must fade and
+      // STAY faded instead of re-firing every frame.
+      _step(game, 15.0);
       expect(
         game.hintText,
         isNull,

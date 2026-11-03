@@ -1051,21 +1051,6 @@ class DynamoTrunk {
 // the ORDER: dam before you melt, cool ahead of the creep, or the flood reaches
 // the pedestal (or you) first.
 
-/// A molten-labyrinth grid for one room. Authored as [rows] of equal-length
-/// strings (one char per cell); the engine sizes the cells to fill the room's
-/// bounds. Legend:
-///   '.' open floor   '#' meltable rock wall   'X' bedrock (never melts)
-///   'L' lava (molten at start)   'P' the goal pedestal (open)
-/// Reaching the pedestal banks [starIndex]; a null [starIndex] instead performs
-/// the guardian RITE (the engine-room grid that wakes the guardian).
-class MoltenGrid {
-  final List<String> rows;
-  final int? starIndex;
-  const MoltenGrid({required this.rows, this.starIndex});
-  int get cols => rows.isEmpty ? 0 : rows.first.length;
-  int get rowCount => rows.length;
-}
-
 /// A geyser mouth (Steam, Star 1 — the Geyser Field). Every mouth in a room
 /// erupts on ONE shared cycle, so the field breathes together.
 ///
@@ -1271,7 +1256,6 @@ class DungeonRoom {
   final Rect? castSpan;
   final GeyserCapstone? capstone;
 
-  final MoltenGrid? molten; // a star room's spreading-lava grid
   final Offset? steamVent; // the entry-gate relief vent (Steam cracks it)
   final List<PressureSeal> pressureSeals; // clamped ring-main junction doors
   final Offset? stokePort; // firebox: Fire stokes the main (+pressure, +wisps)
@@ -1422,7 +1406,6 @@ class DungeonRoom {
     this.maximCache,
     this.lustralFont,
     this.capstone,
-    this.molten,
     this.steamVent,
     this.pressureSeals = const [],
     this.stokePort,
@@ -1576,7 +1559,6 @@ extension DungeonRoomAffordances on DungeonRoom {
       // Steam
       geysers.isNotEmpty ||
       capstone != null ||
-      molten != null ||
       steamVent != null ||
       stokePort != null ||
       burstDisc != null ||
@@ -1761,7 +1743,6 @@ class DungeonLayout {
       if (room.ribStarIndex != null) seen.add(room.ribStarIndex!);
       if (room.pillarStarIndex != null) seen.add(room.pillarStarIndex!);
       if (room.circuitStarIndex != null) seen.add(room.circuitStarIndex!);
-      if (room.molten?.starIndex != null) seen.add(room.molten!.starIndex!);
       // The two 2026-08-14 reworks: Fire's burnable garth and Steam's geyser
       // field both carry their planet's star on the object, not on a room flag.
       if (room.garth != null) seen.add(room.garth!.starIndex);
@@ -4362,25 +4343,23 @@ const DungeonLayout _lightningLayout = DungeonLayout(
   },
 );
 
-/// Steam layout: VAPORIS — the Molten Labyrinth, rebuilt per the §5.5
-/// anti-template mandate as the PRESSURE RING-MAIN. Topology: NO hub — a
-/// closed loop of four segments (south manifold → west causeway → north
-/// manifold → east forge → back to south) around the central Crucible, with
-/// the furnace-heart beyond it and the burst-disc vault hanging off the ring.
+/// Steam layout: VAPORIS — the Boiler Ring. Topology: NO hub — a closed
+/// loop of four segments (south manifold → west causeway → north manifold →
+/// east forge → back to south) around the central Crucible, with the
+/// furnace-heart beyond it and the burst-disc vault hanging off the ring.
 /// Strategic question: THE BOILER HOLDS ONLY SO MUCH PRESSURE — every ring
 /// junction costs pressure to unclamp (4 × 15 vs a starting head of 40, so
-/// the whole ring can't be opened up front). Steam's cooling CONDENSES: every
-/// lava cell cooled returns condensate to the main (+4), so the flood is also
-/// fuel; Fire can STOKE a firebox (+20) but the roar draws wisps. The vault
-/// hides behind a burst-disc that only yields to DUMPING ≥60 pressure at once
-/// — the whole remaining budget, sacrificed. Tile mechanics unchanged: FIRE
-/// melts rock to lava (Earth+Fire→Lava), STEAM cools lava to stone, EARTH
-/// dams. Egg = the whole labyrinth without one scald (Hidden Harmony).
+/// the whole ring can't be opened up front). Fire can STOKE a firebox (+20)
+/// but the roar draws wisps. The vault hides behind a burst-disc that only
+/// yields to DUMPING ≥60 pressure at once. The star rooms are geyser fields:
+/// shut mouths send their head to the ones still open, and a riser throws
+/// whoever rides it as far as the held field allows. The maxim is a place —
+/// the scald cellar, down a split in the main at the end of a dead spur.
 const DungeonLayout _steamLayout = DungeonLayout(
   element: 'Steam',
   entranceRoomId: 'boiler_gate',
   entranceSpawn: Offset(170, 270),
-  title: 'THE MOLTEN LABYRINTH',
+  title: 'THE BOILER RING',
   descentTitle: 'Vaporis Foundry',
   stars: [
     DungeonStarSpec(

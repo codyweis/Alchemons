@@ -1753,6 +1753,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     final held = brewById(m.carriedPotion);
     if (held == null) return false;
     if ((a.position - _guardianPosition(g)).distance > 118) return false;
+    if (_probing) return _probeHit('DOSE');
 
     if (m.blightLull > 0) {
       _setBlockedHint('It is already open. Hit it.');
@@ -1809,6 +1810,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       if (_tryEntrancePot(a, room)) return true;
       final door = room.doors.first;
       if ((a.position - door.rect.center).distance <= 96) {
+        if (_probing) return _probeHit(null);
         _setBlockedHint(
           'The door is waxed shut. The pot in the middle opens it: one gift '
           'from each of you.',
@@ -1827,7 +1829,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (room.apothecary != null) {
       if (_tryBottleBench(a, room)) return true;
       if (_tryCauldron(a, room)) {
-        _checkBrewStrand(room);
+        if (!_probing) _checkBrewStrand(room);
         return true;
       }
     }
@@ -1839,6 +1841,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (ward != null &&
         ward.id != kCryptWard &&
         (a.position - ward.censer).distance <= _kMonasteryReach) {
+      if (_probing) return _probeHit('DOSE');
       return _tryAdminister(a, ward);
     }
 
@@ -1897,6 +1900,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final ward = layout.rooms[door.targetRoomId]?.ward;
       if (ward == null || t.opened.contains(ward.id)) continue;
       if ((a.position - door.rect.center).distance > 96) continue;
+      if (_probing) return _probeHit(null);
       _setBlockedHint(
         ward.id == kCryptWard
             ? 'The dead-house opens from the cross. It needs three '
@@ -1937,6 +1941,11 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if (still == null) return false;
     final at = _benchAt(still);
     if ((a.position - at).distance > _kMonasteryReach) return false;
+    if (_probing) {
+      final m = monastery;
+      if (m.carriedPotion != null) return _probeHit('SET');
+      return _probeHit(m.bottled.isEmpty ? null : 'TAKE');
+    }
     final m = monastery;
     final held = m.carriedPotion;
     if (held != null) {
@@ -1964,6 +1973,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     if ((a.position - still.cistern).distance > _kMonasteryReach + 14) {
       return false;
     }
+    if (_probing) return _probeHit('GIVE');
     final m = monastery;
     final el = a.member.element;
     final id = a.member.instanceId;
@@ -2120,6 +2130,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
     // the middle of it — the cloister is the arena, and the arena wants
     // clear ground.
     if (m.cloisterOpen) return false;
+    if (_probing) return _probeHit('POUR');
     if (m.carriedPotion != kPureVial.id) {
       _setBlockedHint(
         m.carriedPotion == null
@@ -3237,6 +3248,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       final at = m.relicAt[p.id];
       if (at == null) continue;
       if ((a.position - at).distance > _kMonasteryReach) continue;
+      if (_probing) return _probeHit('TAKE');
       if (m.carriedRelic != null) {
         _setBlockedHint('A hand already carries a reliquary.');
         return true;
@@ -3256,6 +3268,9 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   bool _tryCross(PriorsSeal seal) {
     final m = monastery;
     final held = m.carriedRelic;
+    if (_probing) {
+      return _probeHit(held != null && brewById(held) != null ? 'SET' : null);
+    }
     if (held == null) return _readTheRoll(seal);
     final potion = brewById(held);
     if (potion == null) return _readTheRoll(seal);
@@ -3396,6 +3411,8 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
   bool _tryPushWisp(DungeonCreature a) {
     final m = monastery;
     final at = m.wisp!;
+    // The sick wisp is the planet's maxim: it acts, and is never named.
+    if (_probing) return _probeHit(null);
     if (m.wispCircle >= 0) return true; // busy at the cross
     final wants = kWispOrder[m.wispStage];
     if (a.member.element != wants) {
@@ -3720,10 +3737,7 @@ extension VenomMonasteryPuzzle on PlanetDungeonGame {
       }
       final m = monastery;
       if (!m.cloisterOpen) {
-        _setInsightHint(
-          'The font in the middle wants the Pure Vial: Poison and Poison at '
-          'the pot',
-        );
+        _setInsightHint('The font in the middle wants the Pure Vial');
       } else if (m.relicsPlaced.length >= kPlaguePotions.length) {
         _setInsightHint(
           'The cross is lit. The Charnel Ward at the east end is open',

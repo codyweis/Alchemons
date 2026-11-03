@@ -493,6 +493,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final knoll = currentRoom.fen?.knoll;
     if (knoll == null) return false;
     if ((a.position - const Offset(560, 240)).distance > 220) return false;
+    if (_probing) return _probeHit('WASH');
     if (a.member.element != 'Water') {
       _setBlockedHint('Only Water can wash this weed off');
       return true;
@@ -518,6 +519,10 @@ extension SinkingAltarFen on PlanetDungeonGame {
       final head = ford.headIn(currentRoomId);
       if (head == null) continue;
       if ((a.position - head).distance > _kFenReach) continue;
+      if (_probing) {
+        final open = f.stateOf(ford.id) == BogFordState.mire;
+        return _probeHit(open ? 'HARDEN' : null);
+      }
       switch (f.stateOf(ford.id)) {
         case BogFordState.sod:
           _setBlockedHint('This crossing is already hardened');
@@ -530,9 +535,8 @@ extension SinkingAltarFen on PlanetDungeonGame {
       }
       final braid = a.member.element != 'Mud';
       if (braid && !_bogBraidReady(a)) {
-        _setBlockedHint(
-          'Only Mud can harden this crossing, or Plant and Water together',
-        );
+        // Bare: the braid is the player's to find in their recipes.
+        _setBlockedHint('Only Mud can harden this crossing');
         return true;
       }
       final lost = f.harden(ford.id) ?? const <BogFord>[];
@@ -612,6 +616,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
     if (currentRoomId != f.sarsenKnoll) return false;
     final stone = _sarsenStandsAt();
     if ((a.position - stone).distance > _kFenReach) return false;
+    if (_probing) {
+      return _probeHit(f.sarsenKnoll == kSarsenSocketKnoll ? 'SET' : 'CARRY');
+    }
     if (f.sarsenKnoll == kSarsenSocketKnoll) {
       // Already here: it is waiting on the ground, not on a hand.
       if (!_settleSarsenIfDry()) {
@@ -710,6 +717,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final f = _fen;
     if (altar == null || f.sarsenSeated) return false;
     if ((a.position - altar.socket).distance > _kFenReach) return false;
+    if (_probing) return _probeHit(null);
     _setBlockedHint(
       f.sarsenKnoll == kSarsenSocketKnoll
           ? 'The stone is here, but the altar sinks. This knoll must be dry'
@@ -736,6 +744,9 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final f = _fen;
     if (moor == null) return false;
     if ((a.position - moor.basin).distance > _kFenReach) return false;
+    if (_probing) {
+      return _probeHit(f.moorsWoken.contains(currentRoomId) ? null : 'FILL');
+    }
     if (f.moorsWoken.contains(currentRoomId)) {
       _setHint('This basin is holding');
       return true;
@@ -825,6 +836,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final f = _fen;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kFenReach) return false;
+    if (_probing) return _probeHit(f.soughFreed ? null : 'PULL');
     if (a.member.element != 'Mud') {
       _setBlockedHint('Only Mud can pull this plug');
       return true;
@@ -903,6 +915,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // ── 2 · the cuts, read out of the black water ──
     if (!bog.cutsFound) {
       if ((a.position - lead).distance > _kFenReach) return false;
+      if (_probing) return _probeHit(null);
       if (e != 'Water') {
         _spawnAlchemyBurst(
           lead,
@@ -927,6 +940,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     for (var i = 0; i < cuts.length; i++) {
       if ((a.position - cuts[i]).distance > _kFenReach) continue;
       if (bog.poured.contains(i)) return false;
+      if (_probing) return _probeHit(null);
       if (!bog.seedSet) {
         // Pouring into a sink with nothing in it teaches what is missing
         // without naming it: the peat goes down and the hole takes it.
@@ -988,6 +1002,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     // ── 3 · the seed ──
     if ((a.position - sink).distance > _kFenReach) return false;
     if (bog.seedSet) return false;
+    if (_probing) return _probeHit(null);
     if (e != 'Plant') {
       _spawnAlchemyBurst(
         sink,
@@ -1016,6 +1031,7 @@ extension SinkingAltarFen on PlanetDungeonGame {
     final f = _fen;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kFenReach) return false;
+    if (_probing) return _probeHit(f.anchorFirm ? null : 'HARDEN');
     if (a.member.element != 'Mud') {
       _setBlockedHint('Only Mud can harden this floor');
       return true;

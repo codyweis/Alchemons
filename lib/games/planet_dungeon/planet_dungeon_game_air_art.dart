@@ -615,23 +615,37 @@ extension WindCrownArt on PlanetDungeonGame {
         // down, and the path to the spire cut into the floor.
         dais(at(0.5, 0.55), 150, 84, 6, joints: 12);
       case 'anvil_cloud':
-        // The anvil: a thunderhead's flat top, sunk into the floor as a
-        // panel in its own shape — horn, face, waist and foot — and the
-        // blow-lane beside it scored with the wind's direction.
+        // The anvil: a THUNDERHEAD's — a flat top spreading wide, drawn in
+        // to the column under it, the column billowing out into the cloud's
+        // base — sunk into the floor as a panel in its own shape, and the
+        // blow-lane beside it scored with the wind's direction. (It was a
+        // smith's anvil, horn, waist and foot, which read as an icon of one.)
         final o = at(0.5, 0.5);
         final anvil = Path()
-          ..moveTo(o.dx - 170, o.dy - 62)
-          ..lineTo(o.dx + 150, o.dy - 62)
-          ..quadraticBezierTo(o.dx + 190, o.dy - 58, o.dx + 200, o.dy - 40)
-          ..quadraticBezierTo(o.dx + 150, o.dy - 30, o.dx + 110, o.dy - 14)
-          ..lineTo(o.dx + 60, o.dy + 20)
-          ..lineTo(o.dx + 60, o.dy + 50)
-          ..lineTo(o.dx + 110, o.dy + 80)
-          ..lineTo(o.dx - 110, o.dy + 80)
-          ..lineTo(o.dx - 60, o.dy + 50)
-          ..lineTo(o.dx - 60, o.dy + 20)
-          ..lineTo(o.dx - 130, o.dy - 14)
-          ..quadraticBezierTo(o.dx - 170, o.dy - 30, o.dx - 170, o.dy - 62)
+          ..moveTo(o.dx - 200, o.dy - 66)
+          ..lineTo(o.dx + 200, o.dy - 66)
+          ..quadraticBezierTo(o.dx + 214, o.dy - 58, o.dx + 196, o.dy - 50)
+          ..quadraticBezierTo(o.dx + 90, o.dy - 40, o.dx + 52, o.dy - 6)
+          ..quadraticBezierTo(o.dx + 40, o.dy + 16, o.dx + 70, o.dy + 30)
+          ..arcToPoint(
+            Offset(o.dx + 84, o.dy + 74),
+            radius: const Radius.circular(24),
+          )
+          ..arcToPoint(
+            Offset(o.dx + 20, o.dy + 86),
+            radius: const Radius.circular(34),
+          )
+          ..arcToPoint(
+            Offset(o.dx - 44, o.dy + 82),
+            radius: const Radius.circular(34),
+          )
+          ..arcToPoint(
+            Offset(o.dx - 76, o.dy + 34),
+            radius: const Radius.circular(26),
+          )
+          ..quadraticBezierTo(o.dx - 44, o.dy + 14, o.dx - 54, o.dy - 6)
+          ..quadraticBezierTo(o.dx - 92, o.dy - 40, o.dx - 196, o.dy - 50)
+          ..quadraticBezierTo(o.dx - 214, o.dy - 58, o.dx - 200, o.dy - 66)
           ..close();
         c.drawPath(anvil, Paint()..color = p.stoneFoot.withValues(alpha: 0.5));
         c.save();
@@ -647,8 +661,8 @@ extension WindCrownArt on PlanetDungeonGame {
         groove(anvil, w: 2.4);
         groove(
           Path()
-            ..moveTo(o.dx - 140, o.dy - 30)
-            ..lineTo(o.dx + 150, o.dy - 30),
+            ..moveTo(o.dx - 170, o.dy - 54)
+            ..lineTo(o.dx + 170, o.dy - 54),
           w: 1.4,
         );
         for (var i = 0; i < 3; i++) {

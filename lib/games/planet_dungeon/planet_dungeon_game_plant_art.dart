@@ -738,11 +738,16 @@ extension ConservatoryArt on PlanetDungeonGame {
   // ─────────────────────────────────────────────────────────
 
   /// A leaded-glass ring set in the floor. Every ring has the same three
-  /// panes — Water, Spirit, Crystal — each lit as a creature of that element
-  /// stands in it, so the glass shows WHO is in the ring and never which
-  /// bodies the recipe wants (the user, 2026-09-27: no recipe giveaways).
-  /// Only the heart is tinted with what the ring wants. A ring whose work is
-  /// done goes to silver.
+  /// elements in it — Water, Spirit, Crystal — each lit as a creature of that
+  /// element stands in it, so the glass shows WHO is in the ring and never
+  /// which bodies the recipe wants (the user, 2026-09-27: no recipe
+  /// giveaways). Only the heart is tinted with what the ring wants. A ring
+  /// whose work is done goes to silver.
+  ///
+  /// Each element is three LEAF panes, so the ring is a rosette of nine
+  /// leaves round a boss (2026-11-03). It was three flat wedges with a ring
+  /// of stone spikes outside, which at play zoom read as a pie chart on a
+  /// gear.
   void _drawTendRing(
     Canvas canvas,
     Offset c,
@@ -764,43 +769,46 @@ extension ConservatoryArt on PlanetDungeonGame {
       c,
       r + 6,
       Paint()
-        ..shader = ui.Gradient.linear(
-          c - Offset(0, r + 6),
-          c + Offset(0, r + 6),
-          [_kVerdantGlass.stoneTop, _kVerdantGlass.stoneFace],
-        ),
+        ..shader =
+            ui.Gradient.linear(c - Offset(0, r + 6), c + Offset(0, r + 6), [
+              Color.lerp(
+                _kVerdantGlass.stoneFace,
+                _kVerdantGlass.stoneTop,
+                0.45,
+              )!,
+              _kVerdantGlass.stoneFace,
+            ]),
     );
-    // The panes.
+    // The panes: three leaves to an element, round the boss.
     final n = els.length;
-    final gap = n == 1 ? 0.0 : 0.08;
+    const perEl = 3;
     for (var i = 0; i < n; i++) {
-      final a0 = -pi / 2 + i * 2 * pi / n + gap / 2;
-      final a1 = a0 + 2 * pi / n - gap;
       final e = els[i];
       final on = here.contains(e) || here.contains(product);
-      final base = _kVerdantGlass.frostAt(i + c.dx.round());
-      final lit = done
-          ? Color.lerp(_kVerdantGlass.silver, _paneTint(e), 0.25)!
-          : on
-          ? _paneTint(e)
-          : Color.lerp(base, _paneTint(e), 0.28)!;
-      final pane = n == 1
-          ? (Path()
-              ..addOval(Rect.fromCircle(center: c, radius: r))
-              ..addOval(Rect.fromCircle(center: c, radius: r * 0.52))
-              ..fillType = PathFillType.evenOdd)
-          : sectorPath(c, r * 0.52, r, a0, a1);
-      paintPane(canvas, pane, lit, _kVerdantGlass, lead: 3);
-      if (on || done) {
-        paintStreak(
-          canvas,
-          Rect.fromCircle(
-            center:
-                c + Offset(cos((a0 + a1) / 2), sin((a0 + a1) / 2)) * r * 0.76,
-            radius: r * 0.2,
-          ),
-          opacity: 0.5,
+      for (var k = 0; k < perEl; k++) {
+        final a = -pi / 2 + (i * perEl + k + 0.5) * 2 * pi / (n * perEl);
+        final base = _kVerdantGlass.frostAt(i * perEl + k + c.dx.round());
+        final lit = done
+            ? Color.lerp(_kVerdantGlass.silver, _paneTint(e), 0.25)!
+            : on
+            ? _paneTint(e)
+            : Color.lerp(base, _paneTint(e), 0.2)!;
+        final leaf = vfxLeaf(
+          c + Offset(cos(a), sin(a)) * r * 0.43,
+          r * 0.64,
+          a,
         );
+        paintPane(canvas, leaf, lit, _kVerdantGlass, lead: 2.6);
+        if (on || done) {
+          paintStreak(
+            canvas,
+            Rect.fromCircle(
+              center: c + Offset(cos(a), sin(a)) * r * 0.74,
+              radius: r * 0.12,
+            ),
+            opacity: 0.5,
+          );
+        }
       }
     }
     // The heart: a carved boss with the product's glyph-color in it.
@@ -818,14 +826,6 @@ extension ConservatoryArt on PlanetDungeonGame {
             ),
       rim: done ? 1 : 0.7,
     );
-    // Leaves of carved stone round the rim, so a ring is a garden thing.
-    for (var k = 0; k < 8; k++) {
-      final a = k * pi / 4 + pi / 8;
-      canvas.drawPath(
-        vfxLeaf(c + Offset(cos(a), sin(a)) * (r + 4), 11, a),
-        Paint()..color = _kVerdantGlass.stoneTop.withValues(alpha: 0.8),
-      );
-    }
     final lit = here.isNotEmpty && !done;
     if (lit && _fx.ready) {
       drawGlow(

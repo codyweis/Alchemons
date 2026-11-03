@@ -473,6 +473,10 @@ extension WindCrownSpire on PlanetDungeonGame {
     if (room.galeVents.isEmpty) return false;
     for (final v in room.galeVents) {
       if ((a.position - v.position).distance > _kVentReach) continue;
+      if (_probing) {
+        final blows = !spiralTorn && spiralOpenJets.contains(v.id);
+        return _probeHit(blows ? null : 'OPEN');
+      }
       if (spiralTorn) {
         // §5.6 BLOCKED: one clause, naming the state, never the method.
         _setBlockedHint('The eye is tearing apart. Let the ring settle');
@@ -804,6 +808,9 @@ extension WindCrownSpire on PlanetDungeonGame {
     if (!_isSpire || hasStar(0)) return false;
     for (final s in currentRoom.gustShrines) {
       if ((a.position - s.position).distance > _kShrineReach) continue;
+      if (_probing) {
+        return _probeHit(wokenGales.contains(s.wakesGale) ? null : 'WAKE');
+      }
       if (wokenGales.contains(s.wakesGale)) {
         _setHint('${_capitalise(s.name)} already blows', 2.2);
         return true;
@@ -1085,6 +1092,10 @@ extension WindCrownSpire on PlanetDungeonGame {
     if (room.stormRods.isEmpty) return false;
     for (final rod in room.stormRods) {
       if ((a.position - rod.position).distance > _kRodReach) continue;
+      if (_probing) {
+        final top = (rodHeight[rod.id] ?? 0) >= kStormRodMaxHeight;
+        return _probeHit(top ? 'LOWER' : 'RAISE');
+      }
       if (a.member.element != 'Air') {
         _setBlockedHint('Only Air can move the rods');
         return true;
@@ -1113,6 +1124,7 @@ extension WindCrownSpire on PlanetDungeonGame {
     final cell = stormCellPosition(room);
     if (cell == null) return false;
     if ((a.position - cell).distance > _kCellGustReach) return false;
+    if (_probing) return _probeHit('PUSH');
     if (a.member.element != 'Air') {
       _setBlockedHint('Only Air can push the storm cell');
       return true;
@@ -2133,6 +2145,11 @@ extension PlanetDungeonFourWinds on PlanetDungeonGame {
     final idx = _windRuneAt(a.position);
     final atHeart = (a.position - heart).distance <= _kCompassHeartReach;
     if (idx < 0 && !atHeart) return false;
+    // The First Wind is the planet's maxim: it acts, and is never named.
+    if (_probing) {
+      if (firstWindGatherT < 0 && atHeart && firstWindStage > 0) return false;
+      return _probeHit(null);
+    }
     // Mid-gather the room is answering; nothing more to say.
     if (firstWindGatherT >= 0) return true;
     final el = a.member.element;

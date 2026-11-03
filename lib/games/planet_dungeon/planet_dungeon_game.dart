@@ -489,6 +489,7 @@ class PlanetDungeonGame extends FlameGame {
   /// Every dungeon sound goes through here. One funnel, so the count above
   /// cannot drift from what was actually played.
   void _cue(SoundCue cue) {
+    if (_probing) return _probeLeak();
     _cuesEmitted++;
     onSound?.call(cue);
   }
@@ -1877,19 +1878,6 @@ class PlanetDungeonGame extends FlameGame {
 
   bool get _isCircuit => layout.element == 'Lightning';
 
-  // ── Steam (the Molten Labyrinth) run-state ──
-  /// Mutable cell grid per room (roomId → rows of codes: 0 open · 1 wall ·
-  /// 2 bedrock · 3 lava). Re-derived from the authored grid on reset; the trio
-  /// melts/cools/dams it and the lava creeps each beat.
-  final Map<String, List<List<int>>> moltenCells = {};
-
-  /// Seconds until the next lava-creep beat.
-  double moltenBeat = _kMoltenBeat;
-
-  /// Rooms whose flood has WOKEN — the molten sleeps until Fire first breaks
-  /// rock in that room; only woken rooms creep on the beat.
-  final Set<String> wokeRooms = {};
-
   // ── Fire Star 2: THE BURN ──
   /// The live field per room, built from the authored garth on first entry.
   final Map<String, BurnField> burnFields = {};
@@ -1937,43 +1925,32 @@ class PlanetDungeonGame extends FlameGame {
   /// from one that did nothing at all.
   final Map<int, GeyserFlight> geyserFlights = {};
 
-  /// The Cinder Forge's casting moat: how far down the channel the melt has
-  /// run (0..1), how much rock is left on the lip to feed it (0..1), and how
-  /// long since anyone last worked it.
-  /// THE CRUCIBLE FURNACE (§ Star 3 rebuild). Its heat, how long it has sat
-  /// in the working band, and whether the pour has taken. The rite used to be
-  /// "still every source vein, then touch the pedestal" — a flood-fill rule
-  /// the player could not see, in the only tile-grid room on a planet whose
-  /// every other beat is pressure. It is the planet's own gauge now: bring
-  /// the furnace to heat and HOLD it there while the chamber works against
-  /// you.
-  /// THE POUR (§9.5). The live front of a run of melt, how many cells of it
-  /// are left before it congeals, and whether one is running at all.
-  ///
-  /// Nothing in the crucible moves until you commit: you build the channel
-  /// cold with Earth's walls, break a wet gate with Fire, and the melt falls
-  /// on its own down the only route you left it. A wrong answer costs a
-  /// re-plan, never a re-flex.
-  /// THE CRUCIBLE'S SEALED CORNERS. A sealed corner plugs its own vents for
-  /// good, so the room's head climbs as you finish it — which is what makes
-  /// the far corners reachable at all and what finally puts the centre there.
+  /// When the field's last blast opened, on the [_moltenPulse] clock, and
+  /// how long it ran (open-ended while it is still blowing) — so a plume can
+  /// be drawn from its own birth: growing out of the mouth, and lifting off
+  /// and thinning once the blast stops, rather than switching off.
+  double _geyserBlastAt = -1;
+  double _geyserBlastLen = 0;
+
   /// The Steam room last ticked, so a throw cannot stay in the air across a
   /// doorway.
   String? _vaporPrevRoomId;
 
+  /// THE CRUCIBLE'S SEALED CORNERS. A sealed corner plugs its own vents for
+  /// good, so the room's head climbs as you finish it — which is what makes
+  /// the far corners reachable at all and what finally puts the centre there.
   final Set<String> sealedCorners = {};
 
-  /// Throws that fell into the void. The Hidden Harmony asks for none.
+  /// Throws that fell into the void.
   int shortThrows = 0;
 
   /// Seconds since a lost maxim was taken, for rooms that send you home
   /// themselves. Reset with the rest of the planet's state.
   double maximExitTimer = 0;
 
-  final Set<int> pourFront = {};
-  int pourVolume = 0;
-  bool pourRunning = false;
-
+  /// The Cinder Forge's casting moat: how far down the channel the melt has
+  /// run (0..1), how much rock is left on the lip to feed it (0..1), and how
+  /// long since anyone last worked it.
   double moatFill = 0;
   double boulderCharge = 0;
   double _moatIdle = 0;
@@ -2022,33 +1999,11 @@ class PlanetDungeonGame extends FlameGame {
 
   /// True once the capstone has burst (the star follows).
 
-  /// Fire-blood too fresh to quench (roomId → cell indices), cleared on the
-  /// next creep beat.
-  ///
-  /// THE POINT OF THE WHOLE PLANET (2026-08-14, playtest): "it's fire turn
-  /// wall to lava, steam quickly puts it out, walk through." Melt and quench
-  /// cancelled each other, so two presses turned a wall into floor and the
-  /// creep the room is built on NEVER HAPPENED. A breach now RUNS: for its
-  /// first beat the molten is too hot to take the breath, so breaking rock is
-  /// a commitment you have to have prepared for — wall off where it will go,
-  /// stand clear, and quench only once it has spent itself. (An earlier pass
-  /// had this exactly backwards: it GUARANTEED a free beat to cork your own
-  /// breach, which optimised the cancel instead of removing it.)
-  final Map<String, Set<int>> freshLava = {};
-
-  /// Steam's cooling-breath charges (max [kSteamBreathMax]); one is spent per
-  /// cooled cell and one returns with each creep beat — so a wide flood can't
-  /// be out-cooled, only dammed.
-  int steamBreath = kSteamBreathMax;
-
-  /// Times any creature's footing was swallowed by lava this run (scalds).
-  /// Ending the rite with zero scalds earns the Hidden Harmony egg.
-  int moltenScalds = 0;
-
-  /// Set once the engine-room rite grid's pedestal is reached (wakes Boilrog).
+  /// Set once the crucible's four corners are shut and a body stands on the
+  /// centre plinth (wakes Boilrog).
   bool moltenRiteDone = false;
 
-  /// A free-running clock for molten ember/pedestal pulses.
+  /// A free-running clock for Steam's pulses and plumes.
   double _moltenPulse = 0;
 
   /// The ring-main's boiler pressure head (Steam): the run's ONE budget.
@@ -2434,21 +2389,6 @@ class PlanetDungeonGame extends FlameGame {
     ),
   };
 
-  /// Half-HP escalation copy, per mystic.
-  static const Map<String, String> _guardianEnrageHints = {
-    'Roc': 'The Roc screeches, the storm tightens!',
-    'Simurgh': 'The Simurgh shrieks, its flame burns black!',
-    'Leviathan': 'The Leviathan coils, the deep crushes inward!',
-    'Terradon': 'Terradon heaves, the whole barrow shudders!',
-    'Raikuma': 'Raikuma roars, the whole circuit overloads white!',
-    'Boilrog': 'Boilrog bellows, the pressure spikes to a scream!',
-    'Frowyrm': 'Frowyrm keens, the whole shaft cracks and runs!',
-    'Bogdrya': 'Bogdrya swallows, the whole fen shudders and drops!',
-    'Wraithord': 'Wraithord thins. Its openings come shorter now!',
-    'Solarin': 'Solarin blazes. Its openings come shorter now!',
-    'Sanguorath': 'Sanguorath races, and the heartbeat doubles!',
-    'Botanica': 'Botanica tears open, and its roots thrash the floor!',
-  };
   SpriteAnimationTicker? _guardianTicker;
   double _guardianSpriteScale = 1.0;
 
@@ -2729,7 +2669,6 @@ class PlanetDungeonGame extends FlameGame {
       room.ribStarIndex ??
       room.pillarStarIndex ??
       room.circuitStarIndex ??
-      room.molten?.starIndex ??
       room.foundryStar?.starIndex ??
       room.guardian?.starIndex;
 
@@ -2914,6 +2853,10 @@ class PlanetDungeonGame extends FlameGame {
   /// Priority still decides between lines within an asked-for reading, so a
   /// refusal cannot be stomped by a lower channel mid-read.
   bool _emitHint(String msg, DungeonHintChannel channel, [double ttl = 2.4]) {
+    if (_probing) {
+      _probeLeak();
+      return false;
+    }
     if (!_hintAsked) {
       // Unasked. A refusal or a reading is REMEMBERED; narration and flavour
       // are dropped. A refusal also flashes at the creature, because being
@@ -2933,8 +2876,21 @@ class PlanetDungeonGame extends FlameGame {
     if (live && channel.priority < hintChannel.priority) return false;
     hintText = msg;
     hintChannel = channel;
-    _hintTtl = ttl;
+    _hintTtl = max(ttl, _readingSeconds(msg));
     return true;
+  }
+
+  /// LONG ENOUGH TO READ (2026-11-02). A line used to leave on its caller's
+  /// fixed clock — 2.4 s unless told otherwise — whatever its length, so a
+  /// forty-word reading the player had just ASKED for was gone before it
+  /// could be read on a folded phone. It now stays at least as long as it
+  /// takes to read at an easy pace (about 200 words a minute, and a beat to
+  /// find it), capped so a long reading never parks over the room. The
+  /// capsule ignores touches, so a line that stays costs nothing to play
+  /// through.
+  static double _readingSeconds(String msg) {
+    final words = msg.trim().split(RegExp(r'\s+')).length;
+    return min(14.0, 1.2 + words * 0.3);
   }
 
   /// The room whose goal line is still owed to the HINT button: the room
@@ -3410,6 +3366,58 @@ class PlanetDungeonGame extends FlameGame {
     _resetRitesState();
   }
 
+  /// Planets where a wipe at the guardian still resets the whole run.
+  /// Poison's fight spends brews the run cannot give back. Dark, Light and
+  /// Blood fight on floors where every body's square is state, so a regroup
+  /// could place one wrong. For these four the full reset is still the way
+  /// out of a stuck fight.
+  static const Set<String> _kWipeResetsRun = {
+    'Poison',
+    'Dark',
+    'Light',
+    'Blood',
+  };
+
+  /// A WIPE AT THE GUARDIAN REGROUPS AT ITS DOOR (2026-11-02).
+  ///
+  /// A party that fell to a guardian used to wake at the planet's entrance
+  /// with every puzzle undone: three stars of work, and the walk, for one
+  /// lost fight. Now the fight starts over and the work stays. The party
+  /// stands up whole where it came into the lair, the guardian is at full
+  /// strength and descends again, and every wisp and shot is cleared. Any
+  /// wipe outside a guardian fight, and any wipe on a planet in
+  /// [_kWipeResetsRun], still resets the run.
+  bool _regroupAtLair() {
+    if (isRaid || _kWipeResetsRun.contains(layout.element)) return false;
+    if (!inGuardianFight) return false;
+    final anchor = _roomEntryAnchor;
+    if (anchor == null) return false;
+    combatEnemies.clear();
+    combatProjectiles.clear();
+    _activeWingBeams.clear();
+    _guardianEnemy = null;
+    _guardianArrival = -1;
+    guardianAwake = true;
+    guardianVulnerable = false;
+    guardianHp = maxGuardianHp;
+    guardianHitFlash = 0;
+    _guardianStrikeCooldown = 0;
+    _guardianCycle = 0;
+    _rocEnraged = false;
+    for (final c in creatures) {
+      c
+        ..hp = c.maxHp
+        ..downHandled = false
+        ..respawnTimer = 0;
+    }
+    activeIndex = 0;
+    flightActive = false;
+    _spreadCreaturesAround(anchor);
+    onPlayerDown();
+    onChanged();
+    return true;
+  }
+
   void _resetRun() {
     _resetPuzzleState();
     _placeAtEntrance();
@@ -3663,6 +3671,7 @@ class PlanetDungeonGame extends FlameGame {
 
     _applyCurrents(a, room, dt);
     _updateEnvironmentalHints(a, room);
+    _updateVerbLabel(a, dt);
     // Carried-echo wake: the echo trails wind behind its carrier.
     if (carriedCloudId != null) {
       _carryTrail.add(a.position + const Offset(0, -30));
@@ -4020,6 +4029,7 @@ class PlanetDungeonGame extends FlameGame {
   }
 
   void _discoverCloud(String cloudId) {
+    if (_probing) return _probeLeak();
     if (!discoveredClouds.add(cloudId)) return;
     onCloudDiscovered?.call(cloudId);
     onChanged();
@@ -4079,6 +4089,7 @@ class PlanetDungeonGame extends FlameGame {
     int? particleCount,
     double intensity = 1.0,
   }) {
+    if (_probing) return _probeLeak();
     final colors = <Color>[
       for (final e in reagentElements) elementColor(e),
       elementColor(producedElement),
@@ -4434,6 +4445,7 @@ class PlanetDungeonGame extends FlameGame {
         // The Conjunction: Air, Fire and Lightning reagents circle the
         // orbit — seal the ring while the trio is gathered.
         if ((a.position - room.bounds.center).distance > 90) return false;
+        if (_probing) return _probeHit('BIND');
         if (ringMotesAligned) {
           _completeWonderTrial(
             sealed,
@@ -4449,6 +4461,7 @@ class PlanetDungeonGame extends FlameGame {
       case 'anvil_cloud':
         if (_anvilShellStruck) {
           if (_anvilWave.any((e) => !e.isDead && e.hp > 0)) {
+            if (_probing) return _probeHit(null);
             _setBlockedHint(
               'The sparks still guard the anvil. Beat them '
               'first',
@@ -4459,6 +4472,7 @@ class PlanetDungeonGame extends FlameGame {
         }
         final nearShell = (a.position - sealed.position).distance < 64;
         final inCurrent = room.currents.any((c) => c.rect.contains(a.position));
+        if (_probing) return nearShell || inCurrent ? _probeHit('CRACK') : false;
         if (a.member.element == 'Lightning' && nearShell) {
           _crackAnvilShell(sealed, viaRecipe: false);
           return true;
@@ -4488,6 +4502,7 @@ class PlanetDungeonGame extends FlameGame {
         for (var i = 0; i < spots.length; i++) {
           if (!pinnable(i)) continue;
           if ((a.position - spots[i]).distance > reach) continue;
+          if (_probing) return _probeHit('PIN');
           _veilPinned.add(i);
           _spawnAlchemyBurst(
             spots[i],
@@ -4511,6 +4526,7 @@ class PlanetDungeonGame extends FlameGame {
         }
         // Fire flare: reveal every fold for a few breaths.
         if (a.member.element == 'Fire') {
+          if (_probing) return _probeHit('FLARE');
           veilFlareTimer = 3.0;
           _setHint('Firelight floods the chamber, the folds stand bare');
           _spawnAlchemyBurst(
@@ -4521,6 +4537,7 @@ class PlanetDungeonGame extends FlameGame {
           );
           return true;
         }
+        if (_probing) return _probeHit(null);
         _setHint('A fold breathes somewhere. Pin it while it shows');
         return true;
     }
@@ -4688,11 +4705,9 @@ class PlanetDungeonGame extends FlameGame {
           !_guardianEnemy!.isDead &&
           _guardianHpFraction < 0.5) {
         _rocEnraged = true;
-        _setHint(
-          _guardianEnrageHints[g.encounter?.mysticId] ??
-              'The guardian\'s fury redoubles!',
-          3.2,
-        );
+        // No line: this runs from update, where narration is dropped unasked,
+        // and the burst and the two wisps already say it. (Twelve purple
+        // enrage lines lived here, never shown — cut 2026-11-02.)
         _spawnAlchemyBurst(
           stormCenter,
           producedElement: layout.element,
@@ -4882,6 +4897,7 @@ class PlanetDungeonGame extends FlameGame {
         onRaidWiped?.call();
         return;
       }
+      if (_regroupAtLair()) return;
       _resetRun();
       return;
     }
@@ -7002,6 +7018,7 @@ class PlanetDungeonGame extends FlameGame {
     bool unstable = false,
     bool announce = true, // false = the caller's own hint explains the wave
   }) {
+    if (_probing) return _probeLeak();
     // Hard cap: the consequence layer harasses, it never floods the room.
     final liveWisps = combatEnemies
         .where((e) => !e.isDead && !identical(e, _guardianEnemy))
@@ -9797,6 +9814,121 @@ class PlanetDungeonGame extends FlameGame {
   /// with an authored cue keeps it; the nine silent planets get feedback for
   /// the first time; and a press into empty air stays quiet, which is what
   /// the wordless element puff is already there to answer.
+  // ── THE PAD SAYS WHAT A PRESS WOULD DO (2026-11-02) ─────────
+  //
+  // The utility tile said UTILITY on fifteen planets, wherever you stood.
+  // Blood (TURN · LEAD · FLIP) and Dark (SHINE · PUT OUT) named their press,
+  // and those are the two the author built last and played most. This is
+  // the same thing for the rest, without a second copy of any planet's
+  // geometry: a PROBE runs the press through the very dispatcher a real
+  // press takes, and every handler reports itself at the point it would act
+  // — after its reach check, before its first effect — and stops there.
+  // What it names is what the press does or attempts here: a refusal still
+  // shows the object's verb, so the label never says WHO can do it.
+  // Secrets report themselves with no label (UTILITY stays), so the pad
+  // never finds a maxim for you.
+  //
+  // A planet joins [_kVerbLabelPlanets] only once EVERY handler on its path
+  // reports itself; an unreported one would act for real inside the probe.
+  // The guard is three layers deep: the effect funnels (_cue, _emitHint, the
+  // bursts, wisps, discoveries and stars) refuse to act inside a probe and
+  // report a leak — an assert in tests, and in a release build the pad
+  // simply stops naming presses for the run; and
+  // test/dungeon_pad_verb_label_test.dart walks every room of every opted-in
+  // planet checking that the probe changes nothing and agrees with a press.
+
+  /// Planets whose every handler reports to the probe.
+  static const Set<String> _kVerbLabelPlanets = {'Fire', 'Light', 'Steam', 'Air', 'Lightning', 'Lava', 'Plant', 'Earth', 'Dust', 'Mud', 'Crystal', 'Spirit', 'Poison', 'Water', 'Ice'};
+
+  /// Test seam: the planets whose pad names its presses.
+  @visibleForTesting
+  static Set<String> get verbLabelPlanets => _kVerbLabelPlanets;
+
+  bool _probing = false;
+  bool _verbLabelsOff = false;
+  bool _probeHitAny = false;
+  String? _probeLabel;
+  String? _verbLabel;
+  double _verbLabelClock = 0;
+
+  /// What the utility tile says here, or null for the plain UTILITY.
+  String? get utilityVerbLabel => _verbLabel;
+
+  /// A handler, at the point it would act: during a probe, record [label]
+  /// (null = act, but say nothing — a secret) and stop.
+  bool _probeHit(String? label) {
+    _probeHitAny = true;
+    _probeLabel = label;
+    return true;
+  }
+
+  /// A handler reached an effect inside a probe: it would act without having
+  /// reported. Tests fail loudly; a release build refuses the effect, and
+  /// the pad says UTILITY for the rest of the run rather than risk it again.
+  void _probeLeak() {
+    assert(false, 'a press probe reached an effect: a handler is unreported');
+    _verbLabelsOff = true;
+  }
+
+  /// A dispatcher branch took the press.
+  bool _took() {
+    if (!_probing) onChanged();
+    return true;
+  }
+
+  /// What a press by [a] would do right now, without doing it.
+  String? _probeVerb(DungeonCreature a) {
+    _probing = true;
+    _probeHitAny = false;
+    _probeLabel = null;
+    try {
+      if (_dispatchAbility(a)) {
+        if (!_probeHitAny) _probeLeak();
+        return _probeLabel;
+      }
+      // The family fallback: only a Wing's does anything worth naming.
+      if (a.ability == DungeonAbility.aerialTraversal) {
+        return flightActive ? 'LAND' : 'GLIDE';
+      }
+      return null;
+    } finally {
+      _probing = false;
+      _probeLabel = null;
+    }
+  }
+
+  /// Test seam: what the probe finds for the active body — whether a press
+  /// here would be taken by a handler, and the word the pad would show.
+  @visibleForTesting
+  ({bool hit, String? label}) debugProbeVerb() {
+    final a = active;
+    if (a == null) return (hit: false, label: null);
+    final label = _probeVerb(a);
+    return (hit: _probeHitAny, label: label);
+  }
+
+  /// Test seam: sound cues emitted so far (a press that a handler takes
+  /// always makes one).
+  @visibleForTesting
+  int get debugCuesEmitted => _cuesEmitted;
+
+  /// Ten times a second is plenty for a label, and it only rebuilds the HUD
+  /// when the word changes.
+  void _updateVerbLabel(DungeonCreature a, double dt) {
+    _verbLabelClock -= dt;
+    if (_verbLabelClock > 0) return;
+    _verbLabelClock = 0.1;
+    final next =
+        !isRaid &&
+            !_verbLabelsOff &&
+            _kVerbLabelPlanets.contains(layout.element)
+        ? _probeVerb(a)
+        : null;
+    if (next == _verbLabel) return;
+    _verbLabel = next;
+    onChanged();
+  }
+
   void activateAbility() {
     final a = active;
     if (a == null) return;
@@ -9818,191 +9950,167 @@ class PlanetDungeonGame extends FlameGame {
   /// Runs the press through every verb this planet has. True when one of
   /// them took it.
   bool _dispatchAbility(DungeonCreature a) {
-    _spawnUtilitySignature(a);
+    // A probe asks what this press WOULD do, so it shows nothing.
+    if (!_probing) _spawnUtilitySignature(a);
     // Object-driven interactions first, so any creature near a conduit can
     // attempt it — the object itself decides whether it answers.
     if (_tryChannel(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Wind-Crown Spire: wake a gust shrine (Star 1), crank a storm-rod or
     // shove the storm-cell (Star 3 and the Roc's own fight). The rods sit
     // inside the guardian's radius, so — like Lightning's grounding spike —
     // they are checked BEFORE the guardian's catch.
     if (_isSpire && (_tryGustShrine(a) || _tryStormRod(a) || _tryHerdCell(a))) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Storm Circuit: the grounding spike outranks the guardian's own catch —
     // the spike IS the fight's verb (§7: Raikuma feeds on powered trunks),
     // and it sits inside the guardian's interaction radius.
     if (_isCircuit && _tryCoreBreaker(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Molten Reliquary: the ring's heads outrank the guardian's own catch —
     // they sit inside its radius and they ARE the fight's verb (§7).
     if (_isFoundry && _tryHeartHead(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Venom Monastery: a phial in hand outranks the guardian's own catch —
     // the dose IS the fight's verb (§7: Blightfang's lull answers physic, not
     // a clock). Empty-handed this declines and the strike path runs.
     if (_isVenom && _tryDoseBlightfang(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Frozen Observatory: freezing a flue, the rimefall, the orrery's
     // glaze/shove, the mirror ring, the font and Frowyrm's pillar all ride
     // one dispatcher — and the pillar, like Lightning's spike, must outrank
     // the guardian's own catch.
     if (_isShaft && _tryShaftVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Sinking Altar: the drag, the haul, the basins, the sough, the
     // sink-pit and Bogdrya's mire anchor all ride one dispatcher — and the
     // anchor, like Ice's pillar, must outrank the guardian's own catch.
     if (_isBog && _tryBogVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Ruins of Time: the spade, the vanes, the yard, the armillary, the
     // glass and Ashdjinn's cut all ride one dispatcher — and the cut, like
     // Lightning's spike, must outrank the guardian's own catch.
     if (_isRuins && _tryRuinsVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Prism Labyrinth: the glass face, the lamp, the hearth shard, the
     // font, the berth chain, the anneal, the choir floor and the shunt itself
     // all ride one dispatcher — and the choir plate, like Ice's pillar, must
     // outrank the guardian's own catch.
     if (_isKeep && _tryKeepVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Echo Grave: the mouth, the lych-stones, the telling, the sunken
     // brink, the sigil, the offering bowl and the undug grave all ride one
     // dispatcher — and the arena's stone, like Ice's pillar, must outrank the
     // guardian's own catch, because passing over IS the fight.
     if (_isFuneral && _tryFuneralVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Conservatory: every tending circle, the trellis root, the grey
     // seed — and the arena's two circles, which like Ice's pillar must
     // outrank the guardian's own catch.
     if (_isConservatory && _tryConservatoryVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Eclipse Vault: the pall, the gnomons, the arena's vane, the
     // analemma's stones, the shadow-anchors and the nave's snuffer all ride
     // one dispatcher — and the vane, like Plant's root-gall, must outrank the
     // guardian's own catch.
     if (_isVault && _tryVaultVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Beacon Archive: the door-shutter, the beacons, the court's effigies,
     // the slips behind the shelves and the reading floor's shutter-ring all
     // ride one dispatcher.
     if (_isArchive && _tryArchiveVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // The Sanguine Orrery: the pericardium, the arena's vagal node, the four
     // mouths, the collateral cocks, the rite's balance, the heart-drum and
     // the Kin's steadying all ride one dispatcher — and the vagal node, like
     // Dark's shadow-vane, must outrank the guardian's own catch.
     if (_isRites && _tryRiteVerb(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // An awake guardian nearby: strike it in the lull.
     if (_tryGuardian(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Cinder Cathedral interactions (hearth, braziers, garden, vesper).
     if (_tryCathedral(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Mirror-Tide Temple interactions (fountain, valves, seals, currents,
     // moon-pools, the frozen moon).
     if (_tryTemple(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Buried Giant interactions (lintel, ribs, sockets, the stone scale,
     // the open palm).
     if (_tryBarrow(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Storm Circuit interactions (charge pylons, rotate conductor mirrors,
     // herd/heat storm-cells, the breaker maze, the Thunderbolt egg).
     if (_tryCircuit(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Fire Star 2: the garth's three verbs answer before anything else in
     // the cathedral — the room IS the burn now.
     if (_tryBurn(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Steam Star 1: Earth's stone is the room's own verb, so it answers
     // before the ring-main's fixtures.
     if (_tryEarthRock(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Pressure Cathedral interactions (vents/seals steer the clock, boiler
     // pack+ignite, the escapement, the entry vent).
     if (_tryPressure(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Molten Reliquary interactions (the crucible and its font, the points,
     // the accumulator, a hand chill, melting a casting out, keys and wards).
     if (_tryFoundry(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Venom Monastery interactions (the wax seals, the still's four taps, a
     // ward's censer, the prior's cross, the oubliette, the sick wisp).
     if (_tryMonastery(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Wonder-cloud trials (ring conjunction, anvil shell, veil pinning) —
     // checked before the generic Fire ignite so trial-specific recipe uses
     // (Fire arcing the anvil shell) win over the flavour spark.
     if (_tryWonderTrial(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // THE FOUR WINDS — Air's lost maxim, worked at the hub's rune pillars.
     // Wordless; the pillars answer every press themselves.
     if (_tryFourWinds(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Fire-element contextual ignition (the Air+Fire→Lightning recipe).
     if (a.member.element == 'Fire' && _tryFireIgnite(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
     // Lightning answers its own: everything the braid electrifies, the
     // storm-born arc directly (entry rune, conduit B, a carried Anvil).
     if (a.member.element == 'Lightning' && _tryLightningArc(a)) {
-      onChanged();
-      return true;
+      return _took();
     }
+    // Nothing in reach took it. A probe stops here: the family fallback
+    // below is the pad's own default, read by [_probeVerb].
+    if (_probing) return false;
     // Otherwise fall back to the creature's family ability.
     // Nothing here TALKS any more. A press with no object in reach used to
     // answer with a sentence — "force ripples outward", "energy answers, but
@@ -10105,7 +10213,7 @@ class PlanetDungeonGame extends FlameGame {
       if (hintText == null && shown != null) {
         hintText = shown;
         hintChannel = shownChannel;
-        _hintTtl = 3.4;
+        _hintTtl = max(3.4, _readingSeconds(shown));
       }
     } finally {
       _hintAsked = false;
@@ -10342,6 +10450,7 @@ class PlanetDungeonGame extends FlameGame {
       // invariant "answers neither a hand nor the storm").
       if (c.struckByStorm) continue;
       if ((a.position - c.position).distance > 34) continue;
+      if (_probing) return _probeHit('CHARGE');
       final r = evaluateInteraction(a.member, c.requirement);
       switch (r) {
         case InteractionResult.passed:
@@ -10395,6 +10504,11 @@ class PlanetDungeonGame extends FlameGame {
     final room = currentRoom;
     for (final cur in room.currents) {
       if (!cur.rect.contains(a.position)) continue;
+      // Air's entry rite is the planet's first find, and the spark is
+      // flavour: neither is named.
+      if (_probing) {
+        return _probeHit(carriedCloudType == 'Anvil' ? 'CHARGE' : null);
+      }
       if (room.id == 'entry' && !entryDoorRevealed) {
         entryDoorRevealed = true;
         _discoverCloud(entryDoorDiscoveryId); // persist the reveal
@@ -10463,6 +10577,7 @@ class PlanetDungeonGame extends FlameGame {
     if (room.id == 'entry' && !entryDoorRevealed) {
       for (final cur in room.currents) {
         if (!cur.rect.contains(a.position)) continue;
+        if (_probing) return _probeHit(null);
         entryDoorRevealed = true;
         _discoverCloud(entryDoorDiscoveryId); // persist the reveal
         final doorCenter = room.doors.isNotEmpty
@@ -10495,11 +10610,13 @@ class PlanetDungeonGame extends FlameGame {
     for (final c in room.conduits) {
       if (!c.struckByStorm) continue;
       if ((a.position - c.position).distance > 34) continue;
+      if (_probing) return _probeHit('CHARGE');
       _setBlockedHint('Only lightning from the storm can charge this pylon');
       return true;
     }
     // A carried Anvil: electrify the cloud directly, no wind needed.
     if (carriedCloudType == 'Anvil') {
+      if (_probing) return _probeHit('CHARGE');
       carriedCloudType = 'Thundercloud';
       speakConsequence(
         'The arc sinks into the Anvil. It is a Thundercloud now',
@@ -10535,6 +10652,7 @@ class PlanetDungeonGame extends FlameGame {
     if (!shadowReach && (a.position - _guardianPosition(g)).distance > 90) {
       return false;
     }
+    if (_probing) return _probeHit('STRIKE');
     // Standing under a mystic in mid-fall: nothing to strike yet. Only
     // the ground beneath it is refused — the room's own verbs (ranking rods,
     // herding the cell) stay live everywhere else while it comes down.
@@ -11252,6 +11370,7 @@ class PlanetDungeonGame extends FlameGame {
 
   /// Bank a star instantly (idempotent). Slice-2 persistence handles the save.
   void earnStar(int starIndex) {
+    if (_probing) return _probeLeak();
     if (starIndex < 0 || starIndex > 2) return;
     if (_earnedStars.contains(starIndex)) return;
     _haptic(DungeonHaptic.big);
@@ -11585,6 +11704,8 @@ class PlanetDungeonGame extends FlameGame {
       _renderGuardianFall(canvas);
       _renderRelicDrop(canvas);
     }
+    // Steam's plumes rise OVER the party: a body in a blast stands in it.
+    if (_isVapor) _renderSteamOverParty(canvas, room);
     _renderVaultCacheGlow(canvas, room);
     _renderRaidDeath(canvas);
     // Numbers sit above everything they annotate.
@@ -11947,6 +12068,7 @@ class PlanetDungeonGame extends FlameGame {
     // otherwise.
     _renderWalls(canvas, room);
     _renderDoors(canvas, room);
+    if (_isVapor) _renderSteamOverParty(canvas, room);
     _renderMaximRite(canvas);
   }
 
@@ -11967,7 +12089,6 @@ class PlanetDungeonGame extends FlameGame {
     switch (_themeFor(room)) {
       case _AirRoomTheme.entry:
         _drawEntryIgnitionPuzzle(canvas, room);
-        _drawDistantSpireSilhouette(canvas, b);
         break;
       case _AirRoomTheme.hub:
         _drawHubProgressCompass(canvas, room);
@@ -12501,22 +12622,6 @@ class PlanetDungeonGame extends FlameGame {
         sparkPaint,
       );
     }
-  }
-
-  void _drawDistantSpireSilhouette(Canvas canvas, Rect b) {
-    final c = Offset(b.right - 120, b.top + 155);
-    final p = Paint()..color = const Color(0xFF070B13).withValues(alpha: 0.38);
-    final path = Path()
-      ..moveTo(c.dx, c.dy - 120)
-      ..lineTo(c.dx + 38, c.dy + 90)
-      ..lineTo(c.dx - 42, c.dy + 90)
-      ..close();
-    canvas.drawPath(path, p);
-    canvas.drawCircle(
-      c + const Offset(0, -32),
-      42,
-      Paint()..color = const Color(0xFF5BC8E8).withValues(alpha: 0.035),
-    );
   }
 
   /// Seven stars wheel slowly around the compass, joined by faint threads —
@@ -14572,6 +14677,10 @@ class PlanetDungeonGame extends FlameGame {
   /// A solid floating island: cached procedural top/underside paths, readable
   /// flat walkable surface, jagged hanging stone, and sparse rune/debris detail.
   void _renderFloatingIsland(Canvas canvas, Rect rect, {required bool sigil}) {
+    if (_isVapor) {
+      _renderVaporLedge(canvas, rect);
+      return;
+    }
     if (_isSpire) {
       _renderSkyIsland(canvas, rect);
       if (sigil) _drawSigil(canvas, rect);

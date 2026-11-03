@@ -134,6 +134,20 @@ extension CinderCathedralArt on PlanetDungeonGame {
     );
   }
 
+  /// Each room's floor is laid for what the room is (2026-11-02): the
+  /// processional ways run long, the measured halls are ashlar, the walks
+  /// and side rooms are basketwork, and the rough rooms keep the old courses.
+  static const Map<String, FlagLaying> _kCathedralLaying = {
+    'nave': FlagLaying.long,
+    'bell_gallery': FlagLaying.long,
+    'choir': FlagLaying.ashlar,
+    'high_altar': FlagLaying.ashlar,
+    'reliquary': FlagLaying.ashlar,
+    'cloister': FlagLaying.basket,
+    'vestry': FlagLaying.basket,
+    'scriptorium': FlagLaying.basket,
+  };
+
   ui.Picture _bakeCathedral(DungeonRoom room) {
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
@@ -146,6 +160,7 @@ extension CinderCathedralArt on PlanetDungeonGame {
       rng,
       doors: room.doors.map((d) => d.rect),
       arcade: room.id != 'scriptorium' && room.id != 'vestry',
+      laying: _kCathedralLaying[room.id] ?? FlagLaying.courses,
     );
     switch (room.id) {
       case 'narthex':

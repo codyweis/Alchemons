@@ -472,6 +472,10 @@ extension VenomMonasteryArt on PlanetDungeonGame {
   bool _tryEntrancePot(DungeonCreature a, DungeonRoom room) {
     final at = _entrancePotAt;
     if ((a.position - at).distance > _kMonasteryReach + 20) return false;
+    if (_probing) {
+      final given = monastery.entryGiven.contains(a.member.instanceId);
+      return _probeHit(given ? null : 'GIVE');
+    }
     final m = monastery;
     final id = a.member.instanceId;
     if (m.entryGiven.contains(id)) {

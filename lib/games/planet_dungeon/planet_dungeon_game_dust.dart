@@ -214,6 +214,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final pos = currentRoom.ruins?.gateSilt;
     if (pos == null || entryDoorRevealed) return false;
     if ((a.position - pos).distance > _kRuinsReach) return false;
+    if (_probing) return _probeHit('CLEAR');
     if (a.member.element != 'Dust') {
       _setBlockedHint('Only Dust can clear this sand');
       return true;
@@ -241,6 +242,11 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final pos = currentRoom.ruins?.windVane;
     if (pos == null) return false;
     if ((a.position - pos).distance > _kRuinsReach) return false;
+    if (_probing) {
+      return _probeHit(
+        ruins.armedVaneRoom == currentRoomId ? 'RESET' : 'WIND',
+      );
+    }
     if (a.member.element != 'Air') {
       _setBlockedHint('Only Air can turn this vane');
       return true;
@@ -295,13 +301,14 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   bool _tryMoundDig(DungeonCreature a) {
     for (final m in _liveMoundsIn(currentRoom)) {
       if ((a.position - m.streetPos).distance > 120) continue;
+      if (_probing) {
+        final bared = ruins.stateOf(m.id) == MoundState.bared;
+        return _probeHit(bared ? null : 'DIG');
+      }
       if (!_ruinsCitySpade(a)) {
-        _setBlockedHint(
-          _dustHandDown
-              ? 'Only Dust can dig here. With Dust down, Air and Earth '
-                    'together can'
-              : 'Only Dust can dig the city\'s squares',
-        );
+        // Bare: with Dust down the braid still digs, and finding it is the
+        // player's — the line never names the pair.
+        _setBlockedHint('Only Dust can dig the city\'s squares');
         return true;
       }
       switch (ruins.stateOf(m.id)) {
@@ -522,6 +529,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final here = _yardCellAt(g, a.position);
     if (here == null) return false;
     if (!g.isGround(here.$1, here.$2)) {
+      if (_probing) return _probeHit(null);
       _setBlockedHint('Broken column. Nothing to do here');
       return true;
     }
@@ -531,6 +539,10 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     final bc = here.$1 - step.$1;
     final br = here.$2 - step.$2;
     final el = a.member.element;
+    if (_probing) {
+      if (el == 'Air') return _probeHit('BLOW');
+      return _ruinsHasSpade(a) ? _probeHit('DIG') : false;
+    }
 
     // SCOUR (Air): the load underfoot goes one square downwind. The only verb
     // on the planet that takes the crest off a dune.
@@ -635,6 +647,17 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       requiredFamily: DungeonAbility.aerialTraversal,
     );
     final dist = (a.position - pos).distance;
+    if (_probing) {
+      if (dist > _kRuinsReach) {
+        if (dist > _kArmillaryEdgeReach) return false;
+        if (_armillaryBlindLine() == null &&
+            evaluateInteraction(a.member, req) !=
+                InteractionResult.blockedFamily) {
+          return false;
+        }
+      }
+      return _probeHit(_armillaryBlindLine() != null ? null : 'SIGHT');
+    }
     if (dist > _kRuinsReach) {
       // A body that cannot fly can never get within reach of the island, so
       // it must be answered from the MOAT'S EDGE — otherwise the Wing gate is
@@ -753,6 +776,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kRuinsReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
+    if (_probing) return _probeHit('TURN');
     if (a.member.element != 'Dust') {
       _setBlockedHint('Only Dust can turn the great glass');
       return true;
@@ -785,6 +809,7 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kRuinsReach) return false;
     if (ruins.hollowOpen) return false;
+    if (_probing) return _probeHit('CLEAR');
     if (_hollowSettle > 0) {
       _setBlockedHint('Sand is still pouring back in. Wait a moment');
       return true;
@@ -904,6 +929,8 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
     if (best < 0) return false;
     final m = kDustMounds[best];
     final pit = pits[best];
+    // The tally is the planet's maxim: it acts, and is never named.
+    if (_probing) return _probeHit(null);
     if (a.member.element != 'Air') {
       // A wrong hand: a small burst and a sentence about what it sees (§7).
       _spawnAlchemyBurst(
@@ -3455,8 +3482,14 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
   }
 
   /// FIVE SURVEY MARKS, one per mound, cut the same way on a mound's tag and
-  /// on its pit's plate. Chalk-simple, legible at phone size: a ring, a bar, a
-  /// triangle, a cross, a lozenge.
+  /// on its pit's plate: the alchemists' signs for sun, moon, sulphur, lead
+  /// and earth. Each is its own silhouette at phone size — a ring with a
+  /// heart, a crescent, a triangle on a cross, a hooked cross, a barred
+  /// triangle point-down.
+  ///
+  /// They were a ring, a cross, a triangle, an X and a lozenge, which is a
+  /// gamepad's face buttons — on a planet that a controller can play, the
+  /// tags read as button prompts (2026-11-02).
   void _drawSurveyGlyph(
     Canvas canvas,
     Offset c,
@@ -3472,30 +3505,82 @@ extension RuinsOfTimeDungeon on PlanetDungeonGame {
       ..strokeJoin = StrokeJoin.round;
     switch (glyph % 5) {
       case 0:
+        // ☉ Sun.
         canvas.drawCircle(c, r, ink);
+        canvas.drawCircle(c, r * 0.24, Paint()..color = color);
       case 1:
-        canvas.drawLine(c + Offset(-r, 0), c + Offset(r, 0), ink);
-        canvas.drawLine(c + Offset(0, -r * 0.5), c + Offset(0, r * 0.5), ink);
+        // ☽ Moon: horns to the right.
+        canvas.drawPath(
+          Path()
+            ..moveTo(c.dx + r * 0.35, c.dy - r)
+            ..arcToPoint(
+              Offset(c.dx + r * 0.35, c.dy + r),
+              radius: Radius.circular(r),
+              clockwise: false,
+            )
+            ..arcToPoint(
+              Offset(c.dx + r * 0.35, c.dy - r),
+              radius: Radius.circular(r * 1.35),
+            ),
+          ink,
+        );
       case 2:
+        // 🜍 Sulphur: a triangle standing on a cross.
+        final base = c.dy + r * 0.1;
         canvas.drawPath(
           Path()
             ..moveTo(c.dx, c.dy - r)
-            ..lineTo(c.dx + r, c.dy + r * 0.8)
-            ..lineTo(c.dx - r, c.dy + r * 0.8)
+            ..lineTo(c.dx + r * 0.72, base)
+            ..lineTo(c.dx - r * 0.72, base)
             ..close(),
           ink,
         );
+        canvas.drawLine(Offset(c.dx, base), Offset(c.dx, c.dy + r), ink);
+        canvas.drawLine(
+          Offset(c.dx - r * 0.42, c.dy + r * 0.58),
+          Offset(c.dx + r * 0.42, c.dy + r * 0.58),
+          ink,
+        );
       case 3:
-        canvas.drawLine(c + Offset(-r, -r), c + Offset(r, r), ink);
-        canvas.drawLine(c + Offset(-r, r), c + Offset(r, -r), ink);
-      default:
+        // ♄ Lead: a cross whose foot hooks round.
+        final x = c.dx - r * 0.3;
+        canvas.drawLine(
+          Offset(c.dx - r * 0.8, c.dy - r * 0.55),
+          Offset(c.dx + r * 0.2, c.dy - r * 0.55),
+          ink,
+        );
         canvas.drawPath(
           Path()
-            ..moveTo(c.dx, c.dy - r)
-            ..lineTo(c.dx + r * 0.8, c.dy)
+            ..moveTo(x, c.dy - r)
+            ..lineTo(x, c.dy + r * 0.25)
+            ..quadraticBezierTo(x, c.dy - r * 0.2, c.dx + r * 0.35, c.dy)
+            ..quadraticBezierTo(
+              c.dx + r * 0.75,
+              c.dy + r * 0.2,
+              c.dx + r * 0.4,
+              c.dy + r * 0.6,
+            )
+            ..quadraticBezierTo(
+              c.dx + r * 0.15,
+              c.dy + r * 0.95,
+              c.dx + r * 0.6,
+              c.dy + r,
+            ),
+          ink,
+        );
+      default:
+        // 🜃 Earth: a triangle point-down, barred.
+        canvas.drawPath(
+          Path()
+            ..moveTo(c.dx - r * 0.95, c.dy - r * 0.8)
+            ..lineTo(c.dx + r * 0.95, c.dy - r * 0.8)
             ..lineTo(c.dx, c.dy + r)
-            ..lineTo(c.dx - r * 0.8, c.dy)
             ..close(),
+          ink,
+        );
+        canvas.drawLine(
+          Offset(c.dx - r * 0.95, c.dy + r * 0.02),
+          Offset(c.dx + r * 0.95, c.dy + r * 0.02),
           ink,
         );
     }

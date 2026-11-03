@@ -264,6 +264,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
   bool _tryHallVerb(DungeonCreature a) {
     if (entryDoorRevealed) return false;
     if ((a.position - kHallKindle).distance > 80) return false;
+    if (_probing) return _probeHit('WAKE');
     if (_shadowName(a) != 'Light') {
       _setBlockedHint('The star needs Light');
       return true;
@@ -298,6 +299,10 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
       for (final sx in kKeyStudX) {
         for (final sy in kKeyStudY) {
           if ((p - keyFloor(sx, sy)).distance > 40) continue;
+          if (_probing) {
+            final on = archive.keyLampX == sx && archive.keyLampY == sy;
+            return _probeHit(on ? null : 'SET');
+          }
           if (archive.keyLampX == sx && archive.keyLampY == sy) return true;
           archive
             ..keyLampX = sx
@@ -311,6 +316,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
     }
     if (!atArch) return false;
     if (me == 'Steam') {
+      if (_probing) return _probeHit('VEIL');
       if (archive.keyVeil) {
         _setBlockedHint('The veil is already hanging');
         return true;
@@ -323,6 +329,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
       return true;
     }
     if (me == 'Dark') {
+      if (_probing) return _probeHit('PIN');
       if (!archive.keyVeil) {
         _setBlockedHint('There is no shadow on the arch to pin');
         return true;
@@ -355,6 +362,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
       case 'Dark':
         if (def.pins <= 0) return false;
         if (s.pins == 0 && s.pinned.contains(sqKey(here.x, here.y))) {
+          if (_probing) return _probeHit('UNPIN');
           // Release, if nobody would be left on nothing.
           final bare = s.copyWith(pinned: const {});
           for (final n in kShadowNames) {
@@ -373,6 +381,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
           return true;
         }
         if (!def.isGlass(here.x, here.y)) return false;
+        if (_probing) return _probeHit('PIN');
         if (s.pins == 0) {
           _setBlockedHint('The pin is spent');
           return true;
@@ -406,6 +415,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
         return true;
       case 'Steam':
         if (def.vents.any((v) => v.x == here.x && v.y == here.y)) {
+          if (_probing) return _probeHit('VEIL');
           if (s.veil != null && s.veil!.x == here.x && s.veil!.y == here.y) {
             _setBlockedHint('The veil is already hanging here');
             return true;
@@ -418,6 +428,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
         }
         for (final (from, to) in def.pipes) {
           if (from.x != here.x || from.y != here.y) continue;
+          if (_probing) return _probeHit('RISE');
           if (s.piped) {
             _setBlockedHint('The pipe is spent');
             return true;
@@ -452,6 +463,7 @@ extension ShadowFloorDungeon on PlanetDungeonGame {
         return false;
       case 'Light':
         if (def.rail == null || def.at(here.x, here.y) != 'C') return false;
+        if (_probing) return _probeHit('TURN');
         archive
           ..railFrom = s.rail.toDouble()
           ..railT = _time;

@@ -953,6 +953,27 @@ void paintCarvedDisc(
 /// Laid flags over [area], in offset courses, each its own tint — a floor with
 /// a grain and no straight line the length of the room. Translucent at
 /// [opacity] (§8). Clip first to lay them in any shape.
+/// How a room's flags are laid. Rooms of one planet share their stone, so the
+/// LAYING is what tells one room from the next at play zoom, where the floor
+/// is most of the screen (2026-11-02). It is the fabric, never a motif: no
+/// rings, dials or arrows, which read as machinery (§7.11).
+enum FlagLaying {
+  /// Offset courses of uneven flags — the default, and every planet's floor
+  /// before layings existed.
+  courses,
+
+  /// Big squared slabs in level, staggered courses: a hall that was
+  /// measured. (Never a true grid: a square grid on the floor of a game with
+  /// grid puzzles reads as a board to play on.)
+  ashlar,
+
+  /// Long flags laid lengthwise down the room: a processional way.
+  long,
+
+  /// Pairs of blocks turning a quarter in a checker: a cloister's walk.
+  basket,
+}
+
 void paintFlagFloor(
   Canvas canvas,
   Rect area,
@@ -961,6 +982,7 @@ void paintFlagFloor(
   double opacity = 0.58,
   double course = 62.0,
   double jointOpacity = 0.55,
+  FlagLaying laying = FlagLaying.courses,
 }) {
   canvas.drawRect(area, Paint()..color = p.floor.withValues(alpha: opacity));
   final alt = Paint()..color = p.floorAlt.withValues(alpha: opacity * 0.55);
@@ -971,6 +993,64 @@ void paintFlagFloor(
   final lip = Paint()
     ..strokeWidth = 1.0
     ..color = p.stoneTop.withValues(alpha: 0.10);
+  void flagAt(Rect r) {
+    final flag = r.intersect(area);
+    if (flag.width <= 0 || flag.height <= 0) return;
+    if (rng.next() < 0.45) canvas.drawRect(flag.deflate(1), alt);
+    canvas.drawRect(flag, joint);
+    canvas.drawLine(
+      flag.topLeft + const Offset(2, 1.5),
+      flag.topRight + const Offset(-2, 1.5),
+      lip,
+    );
+  }
+
+  switch (laying) {
+    case FlagLaying.courses:
+      break;
+    case FlagLaying.ashlar:
+      final s = course * 1.45;
+      var row = 0;
+      for (var y = area.top; y < area.bottom; y += s, row++) {
+        var x = area.left - (row.isOdd ? s * 0.5 : 0);
+        while (x < area.right) {
+          final w = s * (rng.next() < 0.5 ? 1.0 : 1.5);
+          flagAt(Rect.fromLTWH(x, y, w, s));
+          x += w;
+        }
+      }
+      return;
+    case FlagLaying.long:
+      final h = course * 0.62;
+      var row = 0;
+      for (var y = area.top; y < area.bottom; y += h, row++) {
+        var x = area.left - rng.range(0.2, 1.8) * course;
+        while (x < area.right) {
+          final w = course * rng.range(2.2, 3.6);
+          flagAt(Rect.fromLTWH(x, y, w, h));
+          x += w;
+        }
+      }
+      return;
+    case FlagLaying.basket:
+      final s = course * 1.1;
+      var j = 0;
+      for (var y = area.top; y < area.bottom; y += s, j++) {
+        var i = 0;
+        for (var x = area.left; x < area.right; x += s, i++) {
+          final across = (i + j).isEven;
+          final half = s / 2;
+          if (across) {
+            flagAt(Rect.fromLTWH(x, y, s, half));
+            flagAt(Rect.fromLTWH(x, y + half, s, half));
+          } else {
+            flagAt(Rect.fromLTWH(x, y, half, s));
+            flagAt(Rect.fromLTWH(x + half, y, half, s));
+          }
+        }
+      }
+      return;
+  }
   var row = 0;
   for (var y = area.top; y < area.bottom; y += course, row++) {
     final y1 = min(y + course, area.bottom);
@@ -1020,6 +1100,7 @@ void paintCarvedRoomShell(
   bool flags = true,
   double flagCourse = 62.0,
   double jointOpacity = 0.55,
+  FlagLaying laying = FlagLaying.courses,
 }) {
   final gaps = doors.map((d) => d.inflate(6)).toList();
   bool blocked(Rect r) => gaps.any((g) => g.overlaps(r));
@@ -1038,6 +1119,7 @@ void paintCarvedRoomShell(
       opacity: floorOpacity,
       course: flagCourse,
       jointOpacity: jointOpacity,
+      laying: laying,
     );
   }
 

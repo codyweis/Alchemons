@@ -393,6 +393,7 @@ extension FuneralDungeon on PlanetDungeonGame {
   /// THE ENTRY RITE: grave-dust drifted up the memorial's arch.
   bool _tryDrift(DungeonCreature a, FuneralRoom fr) {
     if (entryDoorRevealed || !_near(a, fr.drift)) return false;
+    if (_probing) return _probeHit(_run.isGhost ? null : 'CLEAR');
     if (_refusePast()) return true;
     if (a.member.element != 'Dust') {
       _setBlockedHint('Only Dust can shift this');
@@ -416,6 +417,7 @@ extension FuneralDungeon on PlanetDungeonGame {
   /// this planet is read.
   bool _tryMemorialStone(DungeonCreature a, FuneralRoom fr) {
     if (!_near(a, fr.memorialStone)) return false;
+    if (_probing) return _probeHit('CROSS');
     if (a.member.element != 'Spirit') {
       _setBlockedHint('Only Spirit can use the memorial stone');
       return true;
@@ -461,6 +463,16 @@ extension FuneralDungeon on PlanetDungeonGame {
   bool _tryUrn(DungeonCreature a, FuneralRoom fr) {
     final id = fr.urnId;
     if (id == null || !_near(a, fr.urn)) return false;
+    if (_probing) {
+      final r = _run;
+      if (r.isGhost) return _probeHit(null);
+      if (r.fitted.contains(funeralUrnById(id)!.socketId)) {
+        return _probeHit(null);
+      }
+      if (r.crystalAtUrn(id)) return _probeHit(r.held != null ? null : 'TAKE');
+      if (r.held == id) return false;
+      return _probeHit(r.canCrystallize(id) ? 'GATHER' : null);
+    }
     if (_refusePast()) return true;
     final r = _run;
     final urn = funeralUrnById(id)!;
@@ -510,6 +522,23 @@ extension FuneralDungeon on PlanetDungeonGame {
   bool _trySocket(DungeonCreature a, FuneralRoom fr) {
     final sk = fr.socket;
     if (sk == null || !_near(a, sk.at)) return false;
+    if (_probing) {
+      final r = _run;
+      if (r.isGhost) return _probeHit(null);
+      if (!r.fitted.contains(sk.id)) {
+        return _probeHit(r.held == null ? null : 'SET');
+      }
+      if (sk.id == 'sk_bier') return false;
+      // The name is the planet's maxim: it acts, and is never named.
+      if (sk.id == 'sk_name') return _probeHit(null);
+      if (a.member.element != 'Blood') return _probeHit('WAKE');
+      final spent = switch (sk.id) {
+        'sk_treadle' => r.bellRung || funeral.bellT >= 0,
+        'sk_doorstep' => r.bierArrived || funeral.walkDist >= 0,
+        _ => false,
+      };
+      return _probeHit(spent ? null : 'WAKE');
+    }
     if (_refusePast()) return true;
     final r = _run;
     final fitted = r.fitted.contains(sk.id);
@@ -583,6 +612,11 @@ extension FuneralDungeon on PlanetDungeonGame {
       }
     }
     if (hit == null) return false;
+    if (_probing) {
+      final r = _run;
+      final still = r.isGhost || r.bierArrived || funeral.walkDist >= 0;
+      return _probeHit(still ? null : 'PRESS');
+    }
     if (_refusePast()) return true;
     if (_run.bierArrived) {
       _setBlockedHint('The bearers have finished their walk');
@@ -600,6 +634,8 @@ extension FuneralDungeon on PlanetDungeonGame {
     if (_run.nicheCleared || !_near(a, fr.niche, _kFuneralReach + 30)) {
       return false;
     }
+    // The niche is the vault's: it acts, and is never named.
+    if (_probing) return _probeHit(null);
     if (_refusePast()) return true;
     if (a.member.element != 'Dust') {
       _setBlockedHint('Only Dust can shift this');
@@ -649,6 +685,10 @@ extension FuneralDungeon on PlanetDungeonGame {
       if ((a.position - fr.stones[i]).distance <= _kStoneReach) on = i;
     }
     if (on == null) return false;
+    if (_probing) {
+      final spent = _run.isGhost || _run.riteDone || funeral.riteT >= 0;
+      return _probeHit(spent ? null : 'WAKE');
+    }
     if (_refusePast()) return true;
     if (_run.riteDone || funeral.riteT >= 0) {
       _setBlockedHint('The mourners have gone through');
@@ -696,6 +736,8 @@ extension FuneralDungeon on PlanetDungeonGame {
     // west kneeler is also standing at the memorial stone, which must get
     // the press.
     if (a.member.element != 'Blood') return false;
+    // The vigil fills the Empty Urn, the planet's maxim: never named.
+    if (_probing) return _probeHit(null);
     if (_refusePast()) return true;
     final r = _run;
     if (r.urnFilled || discoveredClouds.contains(kSpiritEmptyUrnEgg)) {
@@ -738,6 +780,15 @@ extension FuneralDungeon on PlanetDungeonGame {
   /// THE VIGIL CHIME — Star 3's counter, and the planet's one hard gate.
   bool _tryChime(DungeonCreature a, FuneralRoom fr) {
     if (!_near(a, fr.chime)) return false;
+    if (_probing) {
+      final f = funeral;
+      final live =
+          guardianAwake &&
+          room0Guardian != null &&
+          !f.chimeHeld &&
+          f.chimeWarm;
+      return _probeHit(live ? 'RING' : null);
+    }
     final gate = layout.familyGateFor('vigil_chime');
     if (gate != null &&
         (a.member.element != gate.element ||

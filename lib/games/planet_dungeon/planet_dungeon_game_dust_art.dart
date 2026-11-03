@@ -235,28 +235,97 @@ extension RuinsOfTimeArt on PlanetDungeonGame {
   void _drawBuriedSquare(Canvas canvas, Rect r, _MoundGeometry geo) {
     // One laid slab of street. Destination tiles carry the choices around
     // its edge; internal quartering would look like four more choices.
-    final slab = RRect.fromRectAndRadius(r, const Radius.circular(4));
+    //
+    // A slab of STONE (2026-11-03): worn at its corners, grained, its near
+    // arris catching the moon, sand drifted against its windward side, and
+    // small bronze studs where it was pinned. It was a flat grey square with
+    // a ring at each corner, which read as a tile of the interface.
+    final rng = GlassRng(glassSeed('slab', r));
+    final slab = RRect.fromRectAndRadius(r, const Radius.circular(9));
     canvas.drawRRect(
       slab.shift(const Offset(0, 6)),
       Paint()..color = Colors.black.withValues(alpha: 0.5),
     );
-    canvas.drawRRect(slab, Paint()..color = const Color(0xFF6A5A42));
+    canvas.drawRRect(
+      slab,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: const [Color(0xFF75644A), Color(0xFF5E4F3A)],
+        ).createShader(r),
+    );
+    canvas.save();
+    canvas.clipRRect(slab);
+    // The stone's grain: pits and a few lighter flecks.
+    for (var k = 0; k < (r.width * r.height / 260).round(); k++) {
+      final at = Offset(rng.range(r.left, r.right), rng.range(r.top, r.bottom));
+      canvas.drawCircle(
+        at,
+        rng.range(0.8, 2.2),
+        Paint()
+          ..color =
+              (rng.next() < 0.7
+                      ? const Color(0xFF3E3226)
+                      : const Color(0xFF9A8768))
+                  .withValues(alpha: rng.range(0.25, 0.55)),
+      );
+    }
+    // Two old cracks.
+    final crack = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.1
+      ..color = const Color(0xFF2E2418).withValues(alpha: 0.7);
+    for (var k = 0; k < 2; k++) {
+      final p = Path()
+        ..moveTo(
+          r.left + rng.range(0.1, 0.9) * r.width,
+          k == 0 ? r.top : r.bottom,
+        );
+      var y = k == 0 ? r.top : r.bottom;
+      var x = p.getBounds().left;
+      for (var s = 0; s < 4; s++) {
+        x += rng.range(-14, 14);
+        y += (k == 0 ? 1 : -1) * r.height * rng.range(0.08, 0.16);
+        p.lineTo(x, y);
+      }
+      canvas.drawPath(p, crack);
+    }
+    // Sand drifted against the windward (west) side.
+    canvas.drawRect(
+      Rect.fromLTWH(r.left, r.top, r.width * 0.28, r.height),
+      Paint()
+        ..shader = LinearGradient(
+          colors: [
+            const Color(0xFFB89A68).withValues(alpha: 0.45),
+            const Color(0x00B89A68),
+          ],
+        ).createShader(Rect.fromLTWH(r.left, r.top, r.width * 0.28, r.height)),
+    );
+    canvas.restore();
+    // The near arris, moonlit, and the far edge in shadow.
     canvas.drawLine(
-      r.bottomLeft + const Offset(4, -1),
-      r.bottomRight + const Offset(-4, -1),
+      r.bottomLeft + const Offset(8, -1),
+      r.bottomRight + const Offset(-8, -1),
       Paint()
         ..strokeWidth = 1.6
         ..color = RuinsOfTimeDungeon._kDustMoon.withValues(alpha: 0.4),
     );
+    canvas.drawRRect(
+      slab,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..color = const Color(0xFF2A2014).withValues(alpha: 0.8),
+    );
     for (final c in [r.topLeft, r.topRight, r.bottomRight, r.bottomLeft]) {
-      canvas.drawCircle(c, 4, Paint()..color = const Color(0xFF2A2014));
+      final at =
+          c + Offset(c.dx < r.center.dx ? 9 : -9, c.dy < r.center.dy ? 9 : -9);
+      canvas.drawCircle(at, 2.6, Paint()..color = const Color(0xFF2A2014));
       canvas.drawCircle(
-        c,
-        4,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = RuinsOfTimeDungeon._kDustMoon.withValues(alpha: 0.7),
+        at - const Offset(0.6, 0.6),
+        1.6,
+        Paint()..color = const Color(0xFFB08A50).withValues(alpha: 0.85),
       );
     }
   }

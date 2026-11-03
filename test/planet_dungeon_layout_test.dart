@@ -509,9 +509,6 @@ void main() {
             if (room.circuitStarIndex != null) {
               nonGuardianStars.add(room.circuitStarIndex!);
             }
-            if (room.molten?.starIndex != null) {
-              nonGuardianStars.add(room.molten!.starIndex!);
-            }
             // The 2026-08-14 reworks carry their star on the object: Fire's
             // burnable garth and Steam's geyser capstone.
             if (room.garth != null) {
@@ -2319,40 +2316,6 @@ void main() {
         );
       },
     );
-
-    test('Steam molten grids are well-formed and solvable in shape', () {
-      final steam = kPlanetDungeonLayouts['Steam']!;
-      const legal = {'.', '#', 'X', 'L', 'P'};
-      for (final room in steam.rooms.values) {
-        final g = room.molten;
-        if (g == null) continue;
-        // Rectangular: every row the same width.
-        for (final line in g.rows) {
-          expect(
-            line.length,
-            g.cols,
-            reason: '${room.id} molten rows must be equal-length',
-          );
-          for (final ch in line.split('')) {
-            expect(
-              legal.contains(ch),
-              isTrue,
-              reason: '${room.id} has illegal molten cell "$ch"',
-            );
-          }
-        }
-        // A star grid has exactly one pedestal; so does the rite grid.
-        final pedestals = g.rows.fold<int>(
-          0,
-          (n, line) => n + 'P'.allMatches(line).length,
-        );
-        expect(
-          pedestals,
-          1,
-          reason: '${room.id} must have exactly one pedestal',
-        );
-      }
-    });
 
     test('Lightning circuit graphs are well-formed', () {
       final lightning = kPlanetDungeonLayouts['Lightning']!;

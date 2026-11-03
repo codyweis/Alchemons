@@ -1232,6 +1232,7 @@ extension CinderCathedral on PlanetDungeonGame {
 
     // AIR swings the vane wherever it stands — the wind is the whole room's.
     if (a.member.element == 'Air') {
+      if (_probing) return _probeHit('TURN');
       field.wind = field.wind.quarterRight;
       _syncCrosswindTo(field.wind);
       _setHint('The vane swings, the wind runs ${_burnWindName(field.wind)}');
@@ -1243,6 +1244,13 @@ extension CinderCathedral on PlanetDungeonGame {
     if (i < 0) return false;
     final at = garthCentre(room, g, i);
     if ((a.position - at).distance > _kGarthReach) return false;
+    if (_probing) {
+      return switch (a.member.element) {
+        'Plant' => _probeHit('GROW'),
+        'Fire' => _probeHit('BURN'),
+        _ => false,
+      };
+    }
 
     switch (a.member.element) {
       case 'Plant':
@@ -1612,6 +1620,7 @@ extension CinderCathedral on PlanetDungeonGame {
         // creature's own verb — a lit torch is not an obstacle.
         return false;
       }
+      if (_probing) return _probeHit('LIGHT');
       if (a.member.element != 'Fire') {
         _setBlockedHint('Only Fire can light this pitch');
         return true;
@@ -1669,6 +1678,7 @@ extension CinderCathedral on PlanetDungeonGame {
     }
     final element = a.member.element;
     if (epitaphStage == 1 && element == 'Plant') {
+      if (_probing) return _probeHit(null);
       epitaphStage = 2;
       _spawnAlchemyBurst(
         kEmberEpitaphPlanter,
@@ -1679,6 +1689,7 @@ extension CinderCathedral on PlanetDungeonGame {
       return true;
     }
     if (epitaphStage == 2 && element == 'Fire') {
+      if (_probing) return _probeHit(null);
       epitaphStage = 3;
       epitaphFans = 0;
       _spawnAlchemyBurst(
@@ -1691,6 +1702,7 @@ extension CinderCathedral on PlanetDungeonGame {
       return true;
     }
     if (epitaphStage == 3 && element == 'Air') {
+      if (_probing) return _probeHit(null);
       epitaphFans++;
       _spawnAlchemyBurst(
         kEmberEpitaphPlanter,
@@ -1732,6 +1744,7 @@ extension CinderCathedral on PlanetDungeonGame {
 
     // Standalone hearth (no star index) = the entry rite.
     if (room.brazierStarIndex == null) {
+      if (_probing) return _probeHit(entryDoorRevealed ? null : 'LIGHT');
       if (entryDoorRevealed) {
         _setHint('The great hearth burns steady');
         return true;
@@ -1765,6 +1778,7 @@ extension CinderCathedral on PlanetDungeonGame {
     final star = room.brazierStarIndex!;
     if (hasStar(star)) return false;
     final rank = riteRankOf(nearestIndex);
+    if (_probing) return _probeHit(rank < ritualProgress ? null : 'LIGHT');
     if (rank < ritualProgress) {
       _setHint('This brazier already burns its remembered turn');
       return true;
@@ -1834,6 +1848,7 @@ extension CinderCathedral on PlanetDungeonGame {
     // The wind-cross on the dry fountain, at the heart of the garth.
     final vane = room.windVane;
     if (vane != null && (a.position - vane).distance <= _kVaneReach) {
+      if (_probing) return _probeHit('TURN');
       if (element != 'Air') {
         // §5.6 BLOCKED: one clause, element-first, never a method.
         _setBlockedHint('Only Air can turn this cross');
@@ -1855,6 +1870,13 @@ extension CinderCathedral on PlanetDungeonGame {
       }
     }
     if (index < 0) return false;
+    if (_probing) {
+      return _probeHit(switch (element) {
+        'Plant' => 'GROW',
+        'Fire' => 'BURN',
+        _ => 'TEND',
+      });
+    }
     final bed = room.vineBeds[index];
     final state = bedStateAt(index);
 
@@ -1985,6 +2007,9 @@ extension CinderCathedral on PlanetDungeonGame {
     if (room.vesperRoutes.isEmpty || hasStar(2)) return false;
     for (final route in room.vesperRoutes) {
       if ((a.position - route.standPosition).distance > 50) continue;
+      if (_probing) {
+        return _probeHit(vesperRouteId == route.id ? null : 'LIGHT');
+      }
       if (a.member.element != 'Fire') {
         _setBlockedHint('Only Fire can light this stand');
         return true;
@@ -2029,6 +2054,7 @@ extension CinderCathedral on PlanetDungeonGame {
         if (_vesperFlames.containsKey(chain.id)) continue;
         final ignition = chainIgnitionPoint(chain);
         if ((a.position - ignition).distance > 46) continue;
+        if (_probing) return _probeHit('LIGHT');
         if (!guardianRiteUnlocked) {
           _setBlockedHint(
             'The vesper needs the ${layout.starName(0)} and '
@@ -2084,6 +2110,7 @@ extension CinderCathedral on PlanetDungeonGame {
         if (flame == null) continue;
         final pos = _chainPoint(chain, flame.segment, flame.t);
         if ((a.position - pos).distance > _kGustRadius) continue;
+        if (_probing) return _probeHit('GUST');
         final speedT = normStat(a.member.statSpeed);
         // Enough to carry the flame onto the next cloister censer and no
         // further; a nave gap still needs the flame to survive the walk to a
@@ -2112,6 +2139,7 @@ extension CinderCathedral on PlanetDungeonGame {
           ? _chainPoint(chain, flame.segment, flame.t)
           : chainIgnitionPoint(chain);
       if ((a.position - anchor).distance <= _kGustRadius) {
+        if (_probing) return _probeHit(flame != null ? 'GUST' : 'LIGHT');
         _setBlockedHint('Fire lights the censers. Air carries the flame');
         return true;
       }
@@ -2123,6 +2151,7 @@ extension CinderCathedral on PlanetDungeonGame {
   bool _tryNaveCommune(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'nave' || starsEarnedCount < 3) return false;
     if ((a.position - room.bounds.center).distance >= 34) return false;
+    if (_probing) return _probeHit(null);
     // Spoken: the line IS the reward, and a plain hint from a press that is
     // not HINT is dropped.
     speakConsequence(

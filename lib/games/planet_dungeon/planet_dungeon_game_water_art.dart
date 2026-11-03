@@ -109,6 +109,20 @@ extension MirrorTideArt on PlanetDungeonGame {
     );
   }
 
+  /// Each hall of the temple is laid for what it is (2026-11-02): the
+  /// galleries run long, the courts and the well are ashlar, the works and
+  /// the vault are basketwork, and the gate and the depths keep the old
+  /// courses.
+  static const Map<String, FlagLaying> _kTempleLaying = {
+    'moon_hall': FlagLaying.long,
+    'ghost_gallery': FlagLaying.long,
+    'drowned_court': FlagLaying.ashlar,
+    'reflection_court': FlagLaying.ashlar,
+    'moon_well': FlagLaying.ashlar,
+    'tide_works': FlagLaying.basket,
+    'pearl_vault': FlagLaying.basket,
+  };
+
   ui.Picture _bakeTempleFabric(DungeonRoom room) {
     final rec = ui.PictureRecorder();
     final c = Canvas(rec);
@@ -125,6 +139,7 @@ extension MirrorTideArt on PlanetDungeonGame {
       floorOpacity: 0.42,
       flagCourse: 88,
       jointOpacity: 0.26,
+      laying: _kTempleLaying[room.id] ?? FlagLaying.courses,
     );
     // Old salt lines where past tides stood — the temple remembers its water.
     final salt = Paint()
@@ -426,5 +441,269 @@ extension MirrorTideArt on PlanetDungeonGame {
         Colors.white.withValues(alpha: 0.25 * (1 - f)),
       );
     }
+  }
+
+  // ── POOLS AND RUNNELS, IN STONE (2026-11-03) ───────────────
+
+  /// The kerbs' stone: darker than the marble's lit top, so a kerb frames a
+  /// pool without reading as a pale UI panel round it.
+  Color get _kerbStone =>
+      Color.lerp(_kSeaGlass.stoneFace, _kSeaGlass.stoneTop, 0.35)!;
+
+  /// A TEMPLE POOL. Every tide basin was a flat translucent rectangle — at
+  /// play zoom a UI panel lying on the floor. It is a sunk basin now: a
+  /// sea-marble kerb, the far inner wall catching what light there is, an
+  /// old mosaic on its floor; and as the tide reaches it, water climbing the
+  /// far wall, deep at the back, glinting where the surface moves.
+  /// A [ledge] is a drowned wall, not a basin: a carved block the water
+  /// climbs over. [wet] is 0 (dry) .. 1 (under).
+  void _drawTemplePool(
+    Canvas canvas,
+    Rect r,
+    double wet, {
+    required bool ledge,
+  }) {
+    final key =
+        'pool|${r.left.round()},${r.top.round()},${r.width.round()},'
+        '${r.height.round()}|$ledge';
+    canvas.drawPicture(
+      _templeFabricCache.putIfAbsent(key, () {
+        final rec = ui.PictureRecorder();
+        final c = Canvas(rec);
+        if (ledge) {
+          paintCarvedBlock(
+            c,
+            r.deflate(2),
+            12,
+            _kSeaGlass,
+            radius: 8,
+            topColor: _kerbStone,
+          );
+          return rec.endRecording();
+        }
+        final rng = GlassRng(glassSeed('pool', r));
+        final kerb = RRect.fromRectAndRadius(
+          r.inflate(10),
+          const Radius.circular(16),
+        );
+        c.drawRRect(
+          kerb.shift(const Offset(0, 4)),
+          Paint()..color = const Color(0x66000000),
+        );
+        c.drawRRect(kerb, Paint()..color = _kerbStone);
+        c.drawLine(
+          Offset(r.left + 4, r.top - 9),
+          Offset(r.right - 4, r.top - 9),
+          Paint()
+            ..strokeWidth = 1.4
+            ..color = Colors.white.withValues(alpha: 0.16),
+        );
+        final basin = RRect.fromRectAndRadius(r, const Radius.circular(10));
+        c.drawRRect(basin, Paint()..color = _kSeaGlass.stoneFoot);
+        c.save();
+        c.clipRRect(basin);
+        // What is left of an old mosaic: patches of tesserae in the silt,
+        // most of the floor long since taken by the sea. (Laid whole it read
+        // as a game board.)
+        for (var k = 0; k < (r.width * r.height / 9000).ceil(); k++) {
+          final cx = rng.range(r.left + 20, r.right - 20);
+          final cy = rng.range(r.top + 30, r.bottom - 14);
+          final reach = rng.range(18, 40);
+          for (var t = 0; t < 26; t++) {
+            final a = rng.range(0, 2 * pi);
+            final d = reach * sqrt(rng.next());
+            final at = Offset(cx + cos(a) * d, cy + sin(a) * d * 0.8);
+            c.drawRect(
+              Rect.fromCenter(center: at, width: 7, height: 7),
+              Paint()
+                ..color = Color.lerp(
+                  _kSeaGlass.frostAt(rng.pick(5)),
+                  const Color(0xFF3E7C8C),
+                  rng.next() * 0.35,
+                )!.withValues(alpha: 0.35 + 0.3 * rng.next()),
+            );
+          }
+        }
+        // The far inner wall, which is what a basin seen from the south is.
+        final wall = Rect.fromLTWH(r.left, r.top, r.width, 20);
+        c.drawRect(
+          wall,
+          Paint()
+            ..shader = LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [_kSeaGlass.stoneFace, _kSeaGlass.stoneFoot],
+            ).createShader(wall),
+        );
+        c.restore();
+        c.drawRRect(
+          basin,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5
+            ..color = const Color(0xAA05090C),
+        );
+        return rec.endRecording();
+      }),
+    );
+    if (wet <= 0) return;
+    // The water: it climbs the far wall as it rises.
+    final surface = ledge
+        ? r.inflate(6)
+        : Rect.fromLTRB(r.left, r.top + 20 * (1 - wet), r.right, r.bottom);
+    final body = RRect.fromRectAndRadius(surface, const Radius.circular(10));
+    canvas.drawRRect(
+      body,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            const Color(0xFF3A90AC).withValues(alpha: 0.30 + 0.32 * wet),
+            const Color(0xFF0C3446).withValues(alpha: 0.40 + 0.38 * wet),
+          ],
+        ).createShader(surface),
+    );
+    // The waterline against the far wall.
+    canvas.drawLine(
+      Offset(surface.left + 8, surface.top + 1),
+      Offset(surface.right - 8, surface.top + 1),
+      Paint()
+        ..strokeWidth = 1.4
+        ..color = const Color(0xFFBFEAF4).withValues(alpha: 0.30 * wet),
+    );
+    // Glints where the surface moves: short bright grains drifting with the
+    // swell, twinkling in and out — never a drawn wavy line.
+    final n = (surface.width * surface.height / 900 * wet).round().clamp(
+      6,
+      220,
+    );
+    final seed = glassSeed('glint', r);
+    for (var i = 0; i < n; i++) {
+      final h1 = _vaporHash(seed + i * 3);
+      final h2 = _vaporHash(seed * 7 + i * 5 + 1);
+      final h3 = _vaporHash(seed * 13 + i * 11 + 2);
+      final x =
+          surface.left +
+          8 +
+          ((h1 * (surface.width - 16) + _time * (6 + 6 * h3)) %
+              (surface.width - 16));
+      final y =
+          surface.top +
+          6 +
+          h2 * (surface.height - 12) +
+          sin(_time + h1 * 9) * 2;
+      final tw = (0.5 + 0.5 * sin(_time * (1.5 + h3 * 2) + h2 * 20)).clamp(
+        0.0,
+        1.0,
+      );
+      final len = 2 + 5 * h3;
+      _vaporBatch.add(
+        Offset(x - len, y),
+        Offset(x, y),
+        h3 > 0.85 ? 3 : (h3 > 0.5 ? 2 : 1),
+        0.55 * tw * wet,
+      );
+    }
+    _vaporBatch.paint(canvas, _kSprayRamp, width: 1.4);
+    if (_fx.ready) {
+      for (var k = 0; k < 2; k++) {
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          Offset(
+            surface.left +
+                surface.width * (0.3 + 0.4 * k) +
+                surface.width * 0.15 * sin(_time * 0.21 + k * 2),
+            surface.center.dy + surface.height * 0.2 * cos(_time * 0.17 + k),
+          ),
+          min(surface.width, surface.height) * 0.45,
+          const Color(0xFF6FC4DC).withValues(alpha: 0.07 * wet),
+        );
+      }
+    }
+  }
+
+  /// A RUNNEL of the canal gallery: a channel cut in the floor with stone
+  /// kerbs either side, its bed dark — what the line on the floor was meant
+  /// to be. A deep cut is cut wider and darker.
+  void _drawCanalRunnel(
+    Canvas canvas,
+    Offset a,
+    Offset b, {
+    bool deep = false,
+  }) {
+    canvas.drawLine(
+      a + const Offset(0, 3),
+      b + const Offset(0, 3),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = deep ? 30 : 24
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0x55000000),
+    );
+    canvas.drawLine(
+      a,
+      b,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = deep ? 30 : 24
+        ..strokeCap = StrokeCap.round
+        ..color = _kerbStone,
+    );
+    canvas.drawLine(
+      a,
+      b,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = deep ? 20 : 15
+        ..strokeCap = StrokeCap.round
+        ..color = deep ? const Color(0xFF02070A) : const Color(0xFF071319),
+    );
+  }
+
+  /// Live water running down a runnel: a ribbon of water and grains of light
+  /// riding it downstream, so "this one runs, and THAT way" reads at a
+  /// glance. A [torrent] churns: faster, broken, white.
+  void _drawRunnelWater(
+    Canvas canvas,
+    Offset a,
+    Offset unit,
+    double length, {
+    bool torrent = false,
+  }) {
+    final b = a + unit * length;
+    canvas.drawLine(
+      a,
+      b,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = torrent ? 15 : 11
+        ..strokeCap = StrokeCap.round
+        ..color = (torrent ? const Color(0xFF4A9AB8) : const Color(0xFF2A88A8))
+            .withValues(alpha: torrent ? 0.6 : 0.5),
+    );
+    final normal = Offset(-unit.dy, unit.dx);
+    final n = (length / (torrent ? 3 : 6)).round().clamp(4, 260);
+    final speed = torrent ? 120.0 : 46.0;
+    final seed = (a.dx * 7 + a.dy * 13).round();
+    for (var i = 0; i < n; i++) {
+      final h1 = _vaporHash(seed + i * 3);
+      final h2 = _vaporHash(seed * 5 + i * 7 + 1);
+      final along = (h1 * length + _time * speed * (0.8 + 0.4 * h2)) % length;
+      final across =
+          (h2 - 0.5) * (torrent ? 11 : 7) +
+          (torrent ? sin(_time * 9 + i) * 2.5 : 0);
+      final q = a + unit * along + normal * across;
+      final p = q - unit * (torrent ? 6 : 4);
+      final fade = min(1.0, min(along, length - along) / 14);
+      _vaporBatch.add(
+        p,
+        q,
+        torrent ? (h2 > 0.4 ? 3 : 2) : (h2 > 0.75 ? 3 : (h2 > 0.35 ? 2 : 1)),
+        (torrent ? 0.75 : 0.55) * fade,
+      );
+    }
+    _vaporBatch.paint(canvas, _kSprayRamp, width: 1.5);
   }
 }

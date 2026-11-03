@@ -1,53 +1,28 @@
 // lib/games/planet_dungeon/planet_dungeon_game_steam.dart
 //
-// VAPORIS — the Molten Labyrinth. The Steam planet's puzzle logic + rendering,
+// VAPORIS — the Boiler Ring. The Steam planet's puzzle logic + rendering,
 // as a part of planet_dungeon_game.dart.
 //
-// World rule: *each star room is a tile grid flooded by creeping lava.*
-//   • FIRE melts a rock wall → LAVA (the Earth+Fire→Lava braid: a Fire heart
-//     breaks the earthen rock and its fire-blood runs free). It opens a route —
-//     and unleashes the flood.
-//   • STEAM cools LAVA → standing rock you can walk on, and HALTS its creep.
-//   • EARTH raises a wall on open floor → DAMS the flood.
-// The molten SLEEPS until Fire first breaks rock in a room — then every beat,
-// each lava cell creeps into its open neighbours. Cooling runs on a small
-// breath meter (one back per beat), so a wide flood can't be out-cooled, only
-// dammed; lava underfoot SCALDS. Strategy is the ORDER: fortify before you
-// melt, quench sources before they multiply.
-//  • Entry — a Steam creature cracks the relief vent and the seal hisses open.
-//  • Star 0 (Causeway) — CHOOSE YOUR BREACH: the wall is a dam; wet sections
-//    glow with ember cracks (molten behind — breaching them floods your own
-//    chamber), one is dry. Read the wall, breach the quiet stone, cool, cross.
-//  • Star 1 (Cinder) — bunker the sanctuary gate BEFORE melting it; the break
-//    wakes every cistern in the vault.
-//  • Rite (Crucible) — bunker a band-gate, break through, quench the upper
-//    cistern at its source, take the pedestal → Boilrog.
-//  • Egg — Hidden Harmony: finish the rite without one scald (Heraclitus).
+// World rule: *the ring main holds only so much pressure, and every mouth you
+// shut sends its head somewhere else.*
+//   • The main starts at 40; each clamped junction costs 15 to open, and Fire
+//     stokes a firebox for 20 more at the price of wisps.
+//   • Entry — a Steam creature cracks the relief vent and the seal hisses open.
+//   • Star 0 (Causeway) — the geyser field: cap every mouth (bodies, Earth's
+//     one stone, the choked one) and the heart takes the whole head.
+//   • Star 1 (Cinder Forge) — the launch: hold the field so the riser throws
+//     two across the chasm, where Earth and Fire cast the moat to its foot.
+//   • Rite (Crucible) — four corners, each shut by its own hand; every shut
+//     corner adds head to the next throw, and the centre exists only once all
+//     four are shut. Stand on it → Boilrog.
+//   • Vault — vent ≥60 of the main into the burst-disc at once.
+//   • Maxim (Hidden Harmony) — the scald cellar, down the split pipe at full
+//     blast.
 
 part of 'planet_dungeon_game.dart';
 
 /// Steam's lost maxim discovery id (screen pays 20 gold on first find).
 const String kSteamHiddenHarmonyEggId = 'egg:steam_hidden_harmony';
-
-/// Mutable cell codes for the molten grid.
-const int _mOpen = 0; // walkable floor
-const int _mWall = 1; // meltable rock wall ('#')
-const int _mRock = 2; // bedrock — never melts ('X')
-const int _mLava = 3; // molten — deadly, creeps ('L')
-
-/// Seconds between lava-creep beats (generous; tune on device).
-const double _kMoltenBeat = 2.2;
-
-/// How many cells the flood may claim on one beat. Uncapped it doubled, which
-/// is not a flood a party can work against — see `_spreadLava`.
-const int _kMoltenSpreadPerBeat = 3;
-
-/// Steam's cooling-breath capacity. One breath per cooled cell, one back per
-/// creep beat — you can quench a lane, never out-cool a whole flood.
-const int kSteamBreathMax = 3;
-
-/// HP torn away when the molten swallows a creature's footing (a scald).
-const double _kScaldDamage = 14.0;
 
 // ── Ring-main pressure economy ──
 /// The boiler's head at the start of every run: enough for TWO junctions,
@@ -56,10 +31,6 @@ const int kSteamStartPressure = 40;
 
 /// The main never holds more than this.
 const int kSteamPressureMax = 99;
-
-/// Pressure returned per lava cell cooled — condensate back to the boiler.
-/// The flood is also fuel.
-const int kSteamCondensateGain = 4;
 
 /// Pressure gained per Fire stoke of a firebox (the roar draws wisps).
 const int kSteamStokeGain = 20;
@@ -98,15 +69,6 @@ const double _kThrowPerOver = 1.2;
 /// How close a body must stand to a channel lip to work it.
 const double _kCastReach = 62.0;
 
-// ── THE POUR (Star 3) ─────────────────────────────────────
-/// Cells of melt a pour is worth before it congeals, at a flat main — plus
-/// one for every few units of head, so the ring is what buys you REACH.
-const int _kPourBase = 5;
-const int _kPourPerHead = 6;
-
-/// How close Fire must stand to a gate to work it.
-const double _kPourReach = 74.0;
-
 /// How close a body must stand to a corner's seal to work it.
 const double _kSealReach = 74.0;
 
@@ -144,33 +106,25 @@ const double _kRockReach = 46.0;
 const double _kRockPlaceAhead = 52.0;
 const double _kRockRadius = 24.0;
 
-extension MoltenLabyrinth on PlanetDungeonGame {
+extension BoilerRing on PlanetDungeonGame {
   // ── Lifecycle ────────────────────────────────────────────
 
   void _resetPressureState() {
     if (!_isVapor) return;
-    moltenCells.clear();
-    freshLava.clear();
-    moltenBeat = _kMoltenBeat;
     moltenRiteDone = false;
-    wokeRooms.clear();
-    steamBreath = kSteamBreathMax;
-    moltenScalds = 0;
     _moltenPulse = 0;
     boilerPressure = kSteamStartPressure;
     unclampedSeals.clear();
     burstDiscBlown = false;
     cappedGeysers.clear();
     geyserCycle = 0;
+    _geyserBlastAt = -1;
     earthRock = null;
     earthRockRaise = 0;
     burstCapstoneRooms.clear();
     sealedCorners.clear();
     shortThrows = 0;
     maximExitTimer = 0;
-    pourFront.clear();
-    pourVolume = 0;
-    pourRunning = false;
     moatFill = 0;
     boulderCharge = 0;
     _moatIdle = 0;
@@ -381,7 +335,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
 
     // THE BLAST, on the edge where it opens: everything still open throws.
-    if (!wasBlasting && _geyserBlasting) _eruptGeysers(room);
+    if (!wasBlasting && _geyserBlasting) {
+      _geyserBlastAt = _moltenPulse;
+      _geyserBlastLen = double.infinity;
+      _eruptGeysers(room);
+    } else if (wasBlasting && !_geyserBlasting) {
+      _geyserBlastLen = (_moltenPulse - _geyserBlastAt) % 1000.0;
+    }
 
     // STAR 2 — THE CASTING. It used to bank when the WHOLE PARTY stood on the
     // far shore, which cannot happen any more: the field needs a body holding
@@ -535,7 +495,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
   }
 
-  /// EARTH's verb in this labyrinth: heave one rock out of the floor, and
+  /// EARTH's verb on this planet: heave one rock out of the floor, and
   /// heave it back down. Only ever ONE — pressing again on your own rock
   /// destroys it, which is what makes WHERE you spend it the question.
   /// Is this creature standing at something the ring-main answers for — a
@@ -589,6 +549,17 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     final moat = room.castingMoat;
     if (moat != null && (a.position - moat.boulderAt).distance <= _kCastReach) {
       return false;
+    }
+    if (_probing) {
+      if (a.member.element != 'Earth' && _nearPressureFixture(a, room)) {
+        return false;
+      }
+      final rock = earthRock;
+      final atRock =
+          a.member.element == 'Earth' &&
+          rock != null &&
+          (a.position - rock).distance <= _kRockReach;
+      return _probeHit(atRock ? 'SINK' : 'RAISE');
     }
     if (a.member.element != 'Earth') {
       // A REFUSAL MUST NEVER OUTRANK A THING THAT WOULD ACTUALLY WORK. Earth's
@@ -715,14 +686,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       if (door.targetRoomId != room.doors.last.targetRoomId) return false;
       return sealedCorners.length < room.crucibleSeals.length && !hasStar(2);
     }
-    final g = room.molten;
-    if (g == null || g.starIndex != null) return false;
-    if (door.targetRoomId != room.doors.last.targetRoomId) {
-      // Only the ONWARD door — the way back to the ring stays open, so a
-      // party that has spent its head can always go and stoke.
-      return false;
-    }
-    return !moltenRiteDone && !hasStar(2);
+    return false;
   }
 
   bool _sealBlocked(DungeonRoom room, DungeonDoor door) {
@@ -746,18 +710,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// Whether the current room is a molten puzzle that can be restarted.
   /// Dispatched from the core `canRestartRoom` (Fire's garth has one too).
   bool get _canRestartVaporRoom =>
-      _isVapor &&
-      ((layout.rooms[currentRoomId]?.molten) != null ||
-          (layout.rooms[currentRoomId]?.geysers.isNotEmpty ?? false));
+      _isVapor && (layout.rooms[currentRoomId]?.geysers.isNotEmpty ?? false);
 
-  /// Wipe the current molten room back to its authored state and return the
+  /// Wipe the current geyser room back to its authored state and return the
   /// party to the chamber entrance — the puzzle's clean-slate button. Earned
   /// stars are untouched (a cleared room has nothing to reset).
   void _restartVaporRoom() {
     if (!_canRestartVaporRoom) return;
-    moltenCells.remove(currentRoomId);
-    freshLava.remove(currentRoomId);
-    wokeRooms.remove(currentRoomId); // the flood goes back to sleep
     // A geyser room resets the same way: the stone sinks, the field re-lays,
     // and the party comes back to the door — which is what keeps a party
     // stranded on the wrong shore from ever being a dead run.
@@ -765,8 +724,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     earthRockRaise = 0;
     cappedGeysers.clear();
     geyserCycle = 0;
-    steamBreath = kSteamBreathMax;
-    moltenBeat = _kMoltenBeat;
+    _geyserBlastAt = -1;
     final spawn = _roomEntrySpawn(currentRoomId);
     for (final c in creatures) {
       c
@@ -774,15 +732,12 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         ..lastSafe = spawn;
     }
     _fallRecovering = false;
-    _moltenFor(
-      currentRoom,
-    ); // rebuild immediately so render/collision are fresh
-    _setHint('The chamber resets, the molten recedes to its banks');
+    _setHint('The field resets, and the stone sinks back into the floor');
     onChanged();
   }
 
   /// The spawn a neighbour's door drops you onto when entering [roomId] (always
-  /// an authored-open cell); the dungeon entrance as a last resort.
+  /// authored open ground); the dungeon entrance as a last resort.
   Offset _roomEntrySpawn(String roomId) {
     for (final r in layout.rooms.values) {
       for (final d in r.doors) {
@@ -790,76 +745,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
     }
     return layout.entranceSpawn;
-  }
-
-  /// THE SOURCE: the authored molten that sits OUTSIDE the pedestal's own
-  /// chamber — the reservoir hanging above the band, not the cisterns you
-  /// share the floor with. Found structurally, never by hand-counted rows:
-  /// flood-fill the AUTHORED open ground from the pedestal, and any authored
-  /// 'L' the fill cannot see is a source, because the band is what separates
-  /// them. (So a re-authored crucible cannot silently drift from this rule.)
-  // (`_riteSourceCells`, `_moltenLavaCount` and `_riteRefusalHint` lived here
-  // and are gone with the quenching rite. They flood-filled from the pedestal
-  // to decide which lava the player was obliged to still — a rule with no
-  // expression anywhere on screen, in a room that drew both kinds of lava
-  // identically. See `_updateCrucibleFurnace` for what replaced it.)
-
-  /// The mutable cell grid for [room], built lazily from its authored rows.
-  List<List<int>> _moltenFor(DungeonRoom room) {
-    final cached = moltenCells[room.id];
-    if (cached != null) return cached;
-    final g = room.molten;
-    final grid = <List<int>>[];
-    if (g != null) {
-      for (final line in g.rows) {
-        grid.add([for (final ch in line.split('')) _codeOf(ch)]);
-      }
-    }
-    moltenCells[room.id] = grid;
-    return grid;
-  }
-
-  int _codeOf(String ch) => switch (ch) {
-    '#' => _mWall,
-    'X' => _mRock,
-    'L' => _mLava,
-    _ => _mOpen, // '.', 'P', 'S'
-  };
-
-  (double, double) _cellSize(DungeonRoom room, MoltenGrid g) =>
-      (room.bounds.width / g.cols, room.bounds.height / g.rowCount);
-
-  /// The (col, row) of [p] in [room]'s grid, or (-1, -1) if outside.
-  (int, int) _cellAt(Offset p, DungeonRoom room, MoltenGrid g) {
-    final (cw, ch) = _cellSize(room, g);
-    final c = ((p.dx - room.bounds.left) / cw).floor();
-    final r = ((p.dy - room.bounds.top) / ch).floor();
-    if (c < 0 || r < 0 || c >= g.cols || r >= g.rowCount) return (-1, -1);
-    return (c, r);
-  }
-
-  Offset _cellCenter(DungeonRoom room, MoltenGrid g, int c, int r) {
-    final (cw, ch) = _cellSize(room, g);
-    return Offset(
-      room.bounds.left + (c + 0.5) * cw,
-      room.bounds.top + (r + 0.5) * ch,
-    );
-  }
-
-  /// The pedestal cell ('P'), or null.
-  (int, int)? _pedestalCell(MoltenGrid g) {
-    for (var r = 0; r < g.rowCount; r++) {
-      final i = g.rows[r].indexOf('P');
-      if (i >= 0) return (i, r);
-    }
-    return null;
-  }
-
-  /// A molten room is "cleared" once its star banks (or, for the rite grid, once
-  /// the rite is done). Cleared rooms freeze: the lava is cooled away for good.
-  bool _moltenCleared(DungeonRoom room, MoltenGrid g) {
-    if (g.starIndex != null) return hasStar(g.starIndex!);
-    return moltenRiteDone;
   }
 
   // ── Per-frame update ─────────────────────────────────────
@@ -877,244 +762,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       _vaporPrevRoomId = room.id;
       geyserFlights.clear();
       cappedGeysers.clear();
+      _geyserBlastAt = -1; // a plume does not follow you through a door
     }
     _moltenPulse = (_moltenPulse + dt) % 1000.0;
     // …and they tick for EVERY Steam room, so one can never hang mid-arc
     // because the party walked somewhere with no geysers in it.
     _updateGeyserFlights(dt);
-    // The guardian wakes once the rite is done, even from the (grid-less) heart.
+    // The guardian wakes once the rite is done, even from the heart.
     _maybeWakeBoilrog(room);
-    // The furnace runs in the crucible, which has no geyser field — so it
-    // ticks HERE, not inside `_updateGeyserField` where it first went and
-    // was never once called.
-    final g = room.molten;
-    if (g == null) return;
-    final grid = _moltenFor(room);
-    if (grid.isEmpty) return;
-
-    // Cleared → cool every remaining lava cell once, then hold inert.
-    if (_moltenCleared(room, g)) {
-      for (final row in grid) {
-        for (var c = 0; c < row.length; c++) {
-          if (row[c] == _mLava) row[c] = _mOpen;
-        }
-      }
-      return;
-    }
-
-    // The flood creeps on the beat — but only once WOKEN (the molten sleeps
-    // until Fire first breaks rock in this room). Each beat also returns one
-    // cooling breath, woken or not.
-    moltenBeat -= dt;
-    if (moltenBeat <= 0) {
-      moltenBeat = _kMoltenBeat;
-      steamBreath = min(kSteamBreathMax, steamBreath + 1);
-      // THE CRUCIBLE DOES NOT CREEP. Its melt only ever moves as a POUR you
-      // committed to, so the chamber is completely still until you break a
-      // gate — which is what lets the whole thing be planned standing still.
-      if (g.starIndex == null) {
-        _advancePour(room, grid, g);
-      } else if (wokeRooms.contains(room.id)) {
-        _spreadLava(grid, g);
-      }
-      // ...and having run for a beat, it has cooled enough to take the breath.
-      freshLava.remove(room.id);
-    }
-
-    // Footing: lava under a creature throws it back to safe ground — and the
-    // flood spares NO ONE: idle companions standing in its path scald too
-    // (they were untouchable before — the flood walked straight through
-    // them). If the whole chamber has flooded and there is no open ground,
-    // the cell underfoot crusts to a foothold so no one is ever frozen (and
-    // the restart button is the clean-slate option).
-    for (final cr in creatures) {
-      if (cr.hp <= 0) continue;
-      final isActive = identical(cr, a);
-      if (isActive && _fallRecovering) continue;
-      final (col, r) = _cellAt(cr.position, room, g);
-      if (col < 0) continue;
-      if (grid[r][col] == _mLava) {
-        // A scald: the molten bites (and spoils the Hidden Harmony this run).
-        moltenScalds++;
-        // A room's rule: defence does not trim a scald.
-        cr.hp = max(0, cr.hp - _kScaldDamage);
-        final safe = _moltenSafe(cr, room, g, grid);
-        final (sc, sr) = _cellAt(safe, room, g);
-        if (sc < 0 || grid[sr][sc] != _mOpen) {
-          grid[r][col] = _mOpen; // crust a foothold — never strand anyone
-          cr.lastSafe = cr.position;
-          if (isActive) {
-            _setHint(
-              'The molten scalds and closes in, your footing crusts '
-              'to bare stone',
-            );
-          }
-        } else if (isActive) {
-          _beginFallRecovery(
-            cr,
-            safe,
-            hint: 'The molten scalds, you scramble to cool ground',
-          );
-        } else {
-          // Companions scramble instantly (no camera recovery beat) — and
-          // only ever to ground they could actually REACH.
-          cr
-            ..position = safe
-            ..lastSafe = safe;
-          _setHint(
-            '${cr.member.displayName} scrambles from the molten, '
-            'scalded',
-          );
-        }
-      } else if (grid[r][col] == _mOpen) {
-        cr.lastSafe = cr.position;
-      }
-    }
-    final (col, r) = _cellAt(a.position, room, g);
-    final onGrid = col >= 0;
-
-    // Pedestal reached → bank the star (a star grid), or, in the crucible,
-    // stand at the furnace. The RITE is no longer "touch this": see
-    // `_updateCrucibleFurnace`.
-    final ped = _pedestalCell(g);
-    if (ped != null && onGrid && col == ped.$1 && r == ped.$2) {
-      if (g.starIndex != null && !hasStar(g.starIndex!)) {
-        _setHint('You stand on the cooled pedestal, the molten yields to you');
-        earnStar(g.starIndex!);
-      }
-    }
-  }
-
-  /// Every meltable gate in [roomId]'s band, and whether it is WET — asked
-  /// through the REAL rule, so the layout test's proof cannot drift from the
-  /// thing the renderer draws and the player reads.
-  ///
-  /// This exists because the crucible shipped with the cisterns one column
-  /// off: diagonally beside the gates rather than orthogonally behind them.
-  /// `_wallIsWet` looks at the four orthogonal neighbours only, so not one
-  /// gate on the planet was ever wet, and choose-your-breach — the dungeon's
-  /// first lesson, per the design doc — had no instance in the built game.
-  @visibleForTesting
-  Map<String, bool> gateWetness(String roomId) {
-    final room = layout.rooms[roomId]!;
-    final g = room.molten;
-    if (g == null) return const {};
-    final grid = _moltenFor(room);
-    final out = <String, bool>{};
-    for (var r = 0; r < g.rowCount; r++) {
-      for (var c = 0; c < g.cols; c++) {
-        if (g.rows[r][c] != '#') continue;
-        out['$c,$r'] = _wallIsWet(grid, g, c, r);
-      }
-    }
-    return out;
-  }
-
-  /// A wall cell is WET when molten leans on it from any side — breaching it
-  /// releases the reservoir. Rendered as ember cracks; hinted up close.
-  bool _wallIsWet(List<List<int>> grid, MoltenGrid g, int c, int r) {
-    for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
-      final nc = c + dc, nr = r + dr;
-      if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
-      if (grid[nr][nc] == _mLava) return true;
-    }
-    return false;
-  }
-
-  /// One creep step: each lava cell floods its open 4-neighbours (snapshot, so a
-  /// single beat advances exactly one ring).
-  /// The creep, and it is a CREEP now.
-  ///
-  /// Every lava cell used to claim all four of its open neighbours on every
-  /// beat, which is exponential: the crucible went from five cells to
-  /// thirty-four in five seconds and the chamber was simply gone. Nothing
-  /// Earth can dam keeps up with a doubling, so the flood was not a pressure,
-  /// it was a wipe — the same fault the mask trap chain had.
-  ///
-  /// It takes the cells NEAREST THE MOULD first, a few a beat, so the melt
-  /// visibly runs downhill toward the thing you are working and a dam in the
-  /// right place is worth something. And it never takes the mould itself: the
-  /// plinth stands proud of the floor and the melt runs around it, which is
-  /// what makes an eight-second hold possible at all.
-  void _spreadLava(List<List<int>> grid, MoltenGrid g) {
-    final ped = _pedestalCell(g);
-    final seen = <int>{};
-    final next = <(int, int)>[];
-    for (var r = 0; r < g.rowCount; r++) {
-      for (var c = 0; c < g.cols; c++) {
-        if (grid[r][c] != _mLava) continue;
-        for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
-          final nc = c + dc, nr = r + dr;
-          if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
-          if (grid[nr][nc] != _mOpen) continue;
-          if (ped != null && nc == ped.$1 && nr == ped.$2) continue;
-          if (!seen.add(nr * g.cols + nc)) continue;
-          next.add((nc, nr));
-        }
-      }
-    }
-    // IT COMES FOR YOU. Sorting toward the mould read well but quietly broke
-    // the wet-breach lesson: melt released north of the band would turn round
-    // and run south, so breaching a wet face no longer flooded the chamber
-    // you were standing in. Nearest-to-a-body does both — during the hold you
-    // are AT the mould, so it still crawls toward the work.
-    final room = currentRoom;
-    final (cw, ch) = _cellSize(room, g);
-    final bodies = <(int, int)>[
-      for (final c in creatures)
-        if (c.alive)
-          (
-            ((c.position.dx - room.bounds.left) / cw).floor(),
-            ((c.position.dy - room.bounds.top) / ch).floor(),
-          ),
-    ];
-    if (bodies.isNotEmpty) {
-      int near((int, int) cell) {
-        var best = 1 << 20;
-        for (final b in bodies) {
-          final d = (cell.$1 - b.$1).abs() + (cell.$2 - b.$2).abs();
-          if (d < best) best = d;
-        }
-        return best;
-      }
-
-      next.sort((a, b) => near(a).compareTo(near(b)));
-    }
-    for (final (c, r) in next.take(_kMoltenSpreadPerBeat)) {
-      grid[r][c] = _mLava;
-    }
-  }
-
-  /// The nearest open ground the creature could actually SCRAMBLE to: a BFS
-  /// from its cell through open/molten cells only. Walls and bedrock block
-  /// the search — the old nearest-by-distance spiral would happily pick a
-  /// cell on the far side of the dam and teleport the creature through it.
-  Offset _moltenSafe(
-    DungeonCreature a,
-    DungeonRoom room,
-    MoltenGrid g,
-    List<List<int>> grid,
-  ) {
-    final (lc, lr) = _cellAt(a.lastSafe, room, g);
-    if (lc >= 0 && grid[lr][lc] == _mOpen) return a.lastSafe;
-    final (c0, r0) = _cellAt(a.position, room, g);
-    if (c0 < 0) return a.lastSafe;
-    final visited = <int>{r0 * g.cols + c0};
-    final queue = <(int, int)>[(c0, r0)];
-    var qi = 0;
-    while (qi < queue.length) {
-      final (c, r) = queue[qi++];
-      if (grid[r][c] == _mOpen) return _cellCenter(room, g, c, r);
-      for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
-        final nc = c + dc, nr = r + dr;
-        if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
-        if (!visited.add(nr * g.cols + nc)) continue;
-        final code = grid[nr][nc];
-        if (code == _mOpen || code == _mLava) queue.add((nc, nr));
-      }
-    }
-    // No reachable open ground — the caller crusts a foothold underfoot.
-    return a.position;
   }
 
   void _maybeWakeBoilrog(DungeonRoom room) {
@@ -1200,144 +855,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   // ── Action button ────────────────────────────────────────
 
-  /// The cell the mould sits in.
-  (int, int)? _mouldCell(DungeonRoom room) {
-    final g = room.molten;
-    if (g == null || g.starIndex != null) return null;
-    return _pedestalCell(g);
-  }
-
-  /// THE POUR — the crucible's rite, and a PLAN, not a performance.
-  ///
-  /// WHAT THIS REPLACES: first a quenching whose win condition was a
-  /// flood-fill the player could not see, then a hold-the-needle act that was
-  /// simply the wrong KIND of difficulty — knowing the answer was not enough,
-  /// you also had to execute it against a clock.
-  ///
-  /// Nothing here moves until you commit. Earth walls the floor cold and at
-  /// leisure — walls are the channel — and Fire breaking a WET gate releases
-  /// the cistern behind it. The melt then falls on its own: south while it
-  /// can, sideways when it cannot, splitting if both sides are open. It is
-  /// worth a fixed number of cells before it congeals, and that number is
-  /// bought with the main. Reach the mould and the rite is done.
-  ///
-  /// Every part of it is undoable: Steam cools any run back to floor, Fire
-  /// melts a wall away, Earth raises another, and a gate can be poured again.
-  /// A wrong answer costs a re-plan.
-  bool _tryPour(DungeonCreature a) {
-    final room = currentRoom;
-    final g = room.molten;
-    if (g == null || g.starIndex != null || moltenRiteDone) return false;
-    if (a.member.element != 'Fire') return false;
-    final grid = _moltenFor(room);
-    final target = _targetCell(a, room, g);
-    if (target == null) return false;
-    final (c, r) = target;
-    if ((a.position - _cellCenter(room, g, c, r)).distance > _kPourReach) {
-      return false;
-    }
-    // A gate is a source only if molten leans on it — the wet ones. A dry
-    // gate is just a door, and melting it is handled by the usual verb.
-    final wasWall = grid[r][c] == _mWall;
-    if (wasWall && !_wallIsWet(grid, g, c, r)) return false;
-    if (!wasWall && grid[r][c] != _mLava) return false;
-    if (!wasWall && !_wallIsWet(grid, g, c, r)) return false;
-
-    if (pourRunning) {
-      _setBlockedHint('Molten is already flowing. Let it settle first');
-      return true;
-    }
-    grid[r][c] = _mLava;
-    pourFront
-      ..clear()
-      ..add(r * g.cols + c);
-    pourVolume = _kPourBase + boilerPressure ~/ _kPourPerHead;
-    pourRunning = true;
-    _setHint(
-      wasWall
-          ? 'The gate gives, the cistern runs, and it is worth $pourVolume '
-                'cells of channel'
-          : 'The gate runs again, $pourVolume cells of it',
-      3.4,
-    );
-    _spawnAlchemyBurst(
-      _cellCenter(room, g, c, r),
-      producedElement: 'Lava',
-      reagentElements: const ['Earth', 'Fire'],
-      unstable: true,
-      particleCount: 22,
-      intensity: 1.1,
-    );
-    onChanged();
-    return true;
-  }
-
-  /// One beat of a running pour. South while it can, sideways when it cannot,
-  /// and both ways if both are open — which is why walling the branch you do
-  /// not want is worth as much as opening the one you do.
-  void _advancePour(DungeonRoom room, List<List<int>> grid, MoltenGrid g) {
-    if (!pourRunning) return;
-    final mould = _mouldCell(room);
-    final next = <int>{};
-    for (final key in pourFront) {
-      final r = key ~/ g.cols, c = key % g.cols;
-      bool open(int cc, int rr) =>
-          cc >= 0 &&
-          rr >= 0 &&
-          cc < g.cols &&
-          rr < g.rowCount &&
-          grid[rr][cc] == _mOpen;
-      if (open(c, r + 1)) {
-        next.add((r + 1) * g.cols + c);
-        continue; // it falls; it does not also go sideways
-      }
-      if (open(c - 1, r)) next.add(r * g.cols + c - 1);
-      if (open(c + 1, r)) next.add(r * g.cols + c + 1);
-    }
-    if (next.isEmpty || pourVolume <= 0) {
-      pourRunning = false;
-      pourFront.clear();
-      if (!moltenRiteDone) {
-        _setHint('The run congeals, it did not reach the mould', 3.2);
-      }
-      onChanged();
-      return;
-    }
-    // Deterministic, and the deepest cells first so a fall always resolves
-    // before a sideways crawl on the same beat.
-    final ordered = next.toList()
-      ..sort((x, y) => (y ~/ g.cols).compareTo(x ~/ g.cols));
-    final taken = <int>[];
-    for (final key in ordered) {
-      if (pourVolume <= 0) break;
-      final r = key ~/ g.cols, c = key % g.cols;
-      grid[r][c] = _mLava;
-      pourVolume--;
-      taken.add(key);
-      if (mould != null && c == mould.$1 && r == mould.$2) {
-        pourRunning = false;
-        pourFront.clear();
-        moltenRiteDone = true;
-        _setHint(
-          'The melt finds the mould and fills it, Boilrog heaves up from '
-          'the heart',
-          4.0,
-        );
-        onChanged();
-        return;
-      }
-    }
-    pourFront
-      ..clear()
-      ..addAll(taken);
-    if (pourVolume <= 0) {
-      pourRunning = false;
-      pourFront.clear();
-      _setHint('The run congeals, it did not reach the mould', 3.2);
-    }
-    onChanged();
-  }
-
   /// Shut a corner. Each wants its own hand; the last wants two, which is why
   /// it is the one across the room.
   bool _trySeal(DungeonCreature a) {
@@ -1345,6 +862,9 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (room.crucibleSeals.isEmpty) return false;
     for (final seal in room.crucibleSeals) {
       if ((a.position - seal.position).distance > _kSealReach) continue;
+      if (_probing) {
+        return _probeHit(sealedCorners.contains(seal.id) ? null : 'SHUT');
+      }
       if (sealedCorners.contains(seal.id)) {
         _setHint('This corner is shut, its vents hold themselves now');
         return true;
@@ -1407,6 +927,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (moat == null) return false;
     if ((a.position - moat.boulderAt).distance > _kCastReach) return false;
     final cap = currentRoom.capstone;
+    if (_probing) {
+      if (cap != null && hasStar(cap.starIndex)) return _probeHit(null);
+      return _probeHit(a.member.element == 'Earth' ? 'RAISE' : 'MELT');
+    }
     if (cap != null && hasStar(cap.starIndex)) {
       _setHint('The cast is made, the moat lies cold and full');
       return true;
@@ -1481,7 +1005,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (!_isVapor) return false;
     final room = currentRoom;
     if (_trySeal(a)) return true;
-    if (_tryPour(a)) return true;
     if (_tryCasting(a)) return true;
 
     // Entry rite: a Steam creature cracks the gate vent → the seal hisses open.
@@ -1490,6 +1013,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
         room.id == layout.entranceRoomId &&
         !entryDoorRevealed) {
       if ((a.position - vent).distance <= 64) {
+        if (_probing) return _probeHit('OPEN');
         if (a.member.element != 'Steam') {
           _setBlockedHint('Only Steam can open this vent');
           return true;
@@ -1514,6 +1038,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       final seal = _sealFor(room, door);
       if (seal == null || !_sealBlocked(room, door)) continue;
       if ((a.position - door.rect.center).distance > _kPressureReach) continue;
+      if (_probing) return _probeHit('OPEN');
       if (boilerPressure < seal.cost) {
         _setBlockedHint(
           'This junction costs ${seal.cost} pressure. The main has only '
@@ -1537,6 +1062,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     // Stoke firebox: Fire feeds the main (+20) — and the roar draws wisps.
     final port = room.stokePort;
     if (port != null && (a.position - port).distance <= _kPressureReach) {
+      if (_probing) return _probeHit('STOKE');
       if (a.member.element != 'Fire') {
         _setBlockedHint('Only Fire can stoke the firebox');
         return true;
@@ -1573,6 +1099,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     if (disc != null &&
         !burstDiscBlown &&
         (a.position - disc.position).distance <= _kPressureReach) {
+      if (_probing) return _probeHit('VENT');
       if (boilerPressure < disc.threshold) {
         _setBlockedHint(
           'The burst-disc needs ${disc.threshold} pressure at once. The main '
@@ -1596,168 +1123,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       );
       return true;
     }
-
-    final g = room.molten;
-    if (g == null) return false;
-    if (_moltenCleared(room, g)) return false;
-    final grid = _moltenFor(room);
-    if (grid.isEmpty) return false;
-
-    final target = _targetCell(a, room, g);
-    if (target == null) return false;
-    final (c, r) = target;
-    final code = grid[r][c];
-    final el = a.member.element;
-    final at = _cellCenter(room, g, c, r);
-
-    switch (el) {
-      case 'Fire':
-        if (code == _mWall) {
-          final wet = _wallIsWet(grid, g, c, r);
-          grid[r][c] = _mLava;
-          // A WET FACE BURSTS AT ONCE, and it bursts THROUGH — straight past
-          // the breach into the chamber you are standing in. This used to be
-          // a line of hint text and nothing else: the pour was left to the
-          // general creep, which meant it happened eventually, from wherever,
-          // and read as no consequence at all. The melt behind the gate goes
-          // out the far side of it, deterministically, on the frame you break
-          // it.
-          if (wet) {
-            for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
-              final bc = c + dc, br = r + dr;
-              if (bc < 0 || br < 0 || bc >= g.cols || br >= g.rowCount) {
-                continue;
-              }
-              if (grid[br][bc] != _mLava) continue;
-              // Straight through, to the cell on the opposite face.
-              final tc = c - dc, tr = r - dr;
-              if (tc < 0 || tr < 0 || tc >= g.cols || tr >= g.rowCount) {
-                continue;
-              }
-              if (grid[tr][tc] == _mOpen) {
-                grid[tr][tc] = _mLava;
-                (freshLava[room.id] ??= <int>{}).add(tr * g.cols + tc);
-              }
-              break;
-            }
-          }
-          // The breach RUNS: too hot to quench until it has had its beat.
-          // (The clock is deliberately NOT reset here either — resetting it
-          // per melt let a player stall the whole flood by breaking rock on a
-          // loop.)
-          (freshLava[room.id] ??= <int>{}).add(r * g.cols + c);
-          final woke = wokeRooms.add(room.id);
-          _setHint(
-            wet
-                ? 'The dam gives way, the reservoir pours through your breach!'
-                : g.starIndex == null
-                // In a pour chamber a dry gate is a DOOR, not a source, and
-                // breaking one is the most natural first thing to try. Say so
-                // rather than leaving the player with one square of melt and
-                // no idea why nothing ran.
-                ? 'Nothing behind this one, it is a door. The runs come from '
-                      'the gates the cisterns lean on'
-                : woke
-                ? 'Fire breaks the rock, and the sleeping cisterns WAKE'
-                : 'Fire breaks the rock, the fire-blood runs free',
-          );
-          _spawnAlchemyBurst(
-            at,
-            producedElement: 'Lava',
-            reagentElements: const ['Earth', 'Fire'],
-            unstable: true,
-            particleCount: 22,
-            intensity: 1.1,
-          );
-        } else if (code == _mRock) {
-          _setHint('This bedrock will not melt');
-        } else {
-          _setHint('Fire finds no rock wall to melt here');
-        }
-        return true;
-      case 'Steam':
-        if (code == _mLava) {
-          if (freshLava[room.id]?.contains(r * g.cols + c) ?? false) {
-            // §5.6 BLOCKED: names what is wrong, never the method.
-            _setBlockedHint('The molten is still flowing too hot to cool');
-            return true;
-          }
-          if (steamBreath <= 0) {
-            _setHint('Your cooling breath is spent, it gathers with the beat');
-            return true;
-          }
-          steamBreath--;
-          grid[r][c] = _mOpen;
-          // Condensate: cooled molten returns to the main as pressure.
-          final gained = min(
-            kSteamCondensateGain,
-            kSteamPressureMax - boilerPressure,
-          );
-          boilerPressure += gained;
-          _setHint(
-            gained > 0
-                ? 'Steam cools the molten to standing stone. Condensate '
-                      'returns to the main'
-                : 'Steam cools the molten to standing stone',
-          );
-          _spawnAlchemyBurst(
-            at,
-            producedElement: 'Steam',
-            particleCount: 16,
-            intensity: 0.8,
-          );
-        } else {
-          _setHint('Steam finds no molten to cool here');
-        }
-        return true;
-      case 'Earth':
-        final ped = _pedestalCell(g);
-        final onPed = ped != null && ped.$1 == c && ped.$2 == r;
-        // Never entomb a companion: a cell someone stands on stays open.
-        final occupied = creatures.any((cr) {
-          if (cr.hp <= 0) return false;
-          final (cc, rr) = _cellAt(cr.position, room, g);
-          return cc == c && rr == r;
-        });
-        if (occupied) {
-          _setHint('A companion stands there, the wall will not rise');
-          return true;
-        }
-        if (code == _mOpen && !onPed) {
-          grid[r][c] = _mWall;
-          // ELEMENT-ONLY: any Earth drives the wall home, clean and silent.
-          _setHint('The wall drives home, the flood is dammed');
-          _spawnAlchemyBurst(
-            at,
-            producedElement: 'Earth',
-            particleCount: 14,
-            intensity: 0.7,
-          );
-        } else {
-          _setHint('Earth can only wall up open ground');
-        }
-        return true;
-      default:
-        _setHint('$el has no power over the molten here');
-        return true;
-    }
-  }
-
-  /// The cell the active creature is aiming at (the full joystick direction
-  /// picks one of 4 dirs — [DungeonCreature.aimAngle], NOT the left/right
-  /// sprite-flip angle, so cells above and below are targetable).
-  (int, int)? _targetCell(DungeonCreature a, DungeonRoom room, MoltenGrid g) {
-    final (col, r) = _cellAt(a.position, room, g);
-    if (col < 0) return null;
-    final dx = cos(a.aimAngle), dy = sin(a.aimAngle);
-    var tc = col, tr = r;
-    if (dx.abs() >= dy.abs()) {
-      tc += dx >= 0 ? 1 : -1;
-    } else {
-      tr += dy >= 0 ? 1 : -1;
-    }
-    if (tc < 0 || tr < 0 || tc >= g.cols || tr >= g.rowCount) return null;
-    return (tc, tr);
+    return false;
   }
 
   // ── Insight (Mask) ───────────────────────────────────────
@@ -1915,7 +1281,6 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   // ── Collision ────────────────────────────────────────────
 
-  /// Walls, bedrock, and lava block movement; cleared rooms are open footing.
   /// Test seam for the Steam collision rules (the cast span in particular).
   @visibleForTesting
   bool steamBlocksAtForTest(Offset center) =>
@@ -1945,29 +1310,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       final cap = room.capstone;
       if (cap == null || !hasStar(cap.starIndex)) return true;
     }
-    final g = room.molten;
-    if (g == null || flightActive) return false;
-    final grid = _moltenFor(room);
-    if (grid.isEmpty) return false;
-    // Doors sit on the grid's bedrock border — carve a passage corridor
-    // through the collision so every door stays walkable on foot.
-    for (final d in room.doors) {
-      final r = d.rect;
-      final pass = r.width >= r.height
-          ? Rect.fromLTRB(r.left, r.top - 90, r.right, r.bottom + 90)
-          : Rect.fromLTRB(r.left - 90, r.top, r.right + 90, r.bottom);
-      if (pass.contains(center)) return false;
-    }
-    if (_moltenCleared(room, g)) {
-      // Frozen-solid rooms keep only their walls/bedrock; lava is cooled away.
-      final (c, r) = _cellAt(center, room, g);
-      if (c < 0) return true;
-      return grid[r][c] == _mWall || grid[r][c] == _mRock;
-    }
-    final (c, r) = _cellAt(center, room, g);
-    if (c < 0) return true;
-    final code = grid[r][c];
-    return code == _mWall || code == _mRock || code == _mLava;
+    return false;
   }
 
   // ── Hints ────────────────────────────────────────────────
@@ -2003,30 +1346,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       _setAmbientHint('A riveted burst-disc, etched "${disc.threshold}"');
       return;
     }
-    final g = room.molten;
-    if (g == null || _moltenCleared(room, g)) return;
-    final target = _targetCell(a, room, g);
-    if (target == null) return;
-    final grid = _moltenFor(room);
-    switch (grid[target.$2][target.$1]) {
-      case _mWall:
-        // The glow/quiet reading IS the dam-wall's authored clue layer —
-        // observation only; the breach method is Mask's (_steamReveal).
-        _setAmbientHint(
-          _wallIsWet(grid, g, target.$1, target.$2)
-              ? 'The rock glows hot, something molten presses against its far side'
-              : 'Cool, quiet rock, it sounds hollow beyond',
-        );
-      case _mLava:
-        _setAmbientHint('The molten crawls, slow and bright');
-    }
   }
 
   String? _steamObjectiveHint(DungeonRoom room) {
-    // WHAT, never HOW (§5.6). Every Vaporis room is grid-less (the molten
-    // tile grids retired with the geyser rework), so the star rooms' lines
-    // key off the room id — they sat behind `room.molten != null` and had
-    // not been said once since the rework.
+    // WHAT, never HOW (§5.6). The lines key off the room id.
     if (room.guardian != null) {
       return 'Furnace Heart. Face Boilrog: strike in its lulls';
     }
@@ -2064,784 +1387,96 @@ extension MoltenLabyrinth on PlanetDungeonGame {
 
   // ── Rendering ────────────────────────────────────────────
 
-  /// STAR 1/2 — the geyser field. Every mouth shows three things at a glance:
-  /// whether it is SHUT, how close the shared cycle is to blowing, and (for a
-  /// riser) that its throat is too wide to smother. The capstone cracks wider
-  /// the more of the field is held, so the goal reads from across the room.
+  /// STAR 1/2 — the geyser field, in stone. Every mouth shows three things at
+  /// a glance: whether it is HELD, how close the shared cycle is to blowing
+  /// (heat climbing in the throat, the mutter thickening), and — for a riser
+  /// — the iron collar of a throat too wide to smother. The steam itself is
+  /// grains drawn over the party (`_renderSteamOverParty`).
   void _drawGeyserField(Canvas canvas, DungeonRoom room) {
     if (room.geysers.isEmpty) return;
     final solved = room.capstone != null && hasStar(room.capstone!.starIndex);
     final charge = geyserCharge;
-    final blasting = _geyserBlasting;
-    final p = geyserPressure;
+    final sealedBy = <String, String>{
+      for (final seal in room.crucibleSeals)
+        if (sealedCorners.contains(seal.id))
+          for (final v in seal.vents) v: seal.second ?? seal.element,
+    };
 
     for (final gy in room.geysers) {
-      final capped = cappedGeysers.contains(gy.id);
       final r = gy.isRiser ? 34.0 : 24.0;
-
-      // THE MOUTH IS A RENT IN THE ROCK, not a hole punched in a floor.
-      // Everything below is geology; the steam, glow and strain the FX layer
-      // adds on top of it are untouched.
-      //
-      // Sinter: the mineral a hot spring lays down as it dries, in terraces
-      // that build unevenly because one side always runs wetter. Three broken
-      // rings, each nudged off-centre, so no two mouths read alike.
-      for (var t = 3; t >= 1; t--) {
-        final lean = Offset(
-          cos(gy.position.dx * 0.11 + t) * 3.0,
-          sin(gy.position.dy * 0.13 + t) * 3.0,
-        );
-        canvas.drawCircle(
-          gy.position + lean,
-          r + t * 5.0,
-          Paint()
-            ..color = Color.lerp(
-              const Color(0xFF6A5A48),
-              const Color(0xFF3A322A),
-              t / 3,
-            )!.withValues(alpha: 0.55),
-        );
-      }
-      // Wet stain around the lip — dark where it never dries out.
-      canvas.drawCircle(
-        gy.position,
-        r + 7,
-        Paint()..color = const Color(0x33100C08),
-      );
-      // The throat's own broken lip: an irregular ring of stone teeth.
-      for (var i = 0; i < 9; i++) {
-        final a0 = i * (pi * 2 / 9) + gy.position.dx * 0.01;
-        final wob = 0.6 + 0.5 * _forgeNoise(i, gy.id.length + i);
-        canvas.drawCircle(
-          gy.position + Offset(cos(a0), sin(a0)) * (r + 1),
-          2.6 + 3.2 * wob,
-          Paint()..color = const Color(0xFF544A3E),
-        );
-      }
-      // The throat itself, cut into it.
-      canvas.drawCircle(
-        gy.position,
-        r,
-        Paint()..color = const Color(0xFF17130F),
-      );
-      canvas.drawCircle(
-        gy.position,
-        r,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = gy.isRiser ? 3.4 : 2.2
-          ..color = capped
-              ? const Color(0xFF6E6257)
-              : const Color(0xFF8FE0EC).withValues(alpha: 0.85),
-      );
-      // A riser wears a second ring: the throat one body cannot smother.
-      if (gy.isRiser) {
-        canvas.drawCircle(
-          gy.position,
-          r - 9,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..color = const Color(0x778FE0EC),
-        );
-      }
-
-      if (capped) {
-        // SHUT — but a shut mouth is not a dead one: the head it was venting
-        // has gone into the rest of the field, and you can see it straining.
-        canvas.drawCircle(
-          gy.position,
-          r - 7,
-          Paint()..color = const Color(0xFF5A5048),
-        );
-        canvas.drawCircle(
-          gy.position,
-          r - 7,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = const Color(0xFF8A7A68),
-        );
-        if (!solved && _fx.ready) {
-          // Vapour hissing out from under the seal, hardest right before the
-          // field blows — the room breathing even where it is held.
-          final strain = (0.25 + 0.55 * charge) * (0.6 + 0.1 * p);
-          for (var i = 0; i < 4; i++) {
-            final a0 = i * pi / 2 + _moltenPulse * 0.6;
-            final at =
-                gy.position +
-                Offset(cos(a0), sin(a0)) * (r - 2) -
-                Offset(0, 4 + 7 * strain);
-            drawPuff(
-              canvas,
-              _fx.puff!,
-              at,
-              r * (0.55 + 0.35 * strain),
-              const Color(0xFFCFEAF2).withValues(alpha: 0.10 + 0.16 * strain),
-            );
-          }
-        }
+      _drawVentGeology(canvas, gy, r);
+      if (gy.blockedAtStart) {
+        _drawRubblePlug(canvas, gy.position, r, _steamSeed(gy.id));
         continue;
       }
-      if (solved) continue;
-
-      // OPEN — the throat, then the column. Steam is drawn the way this
-      // codebase draws soft things: baked puff sprites blitted cheaply and
-      // additive glow, never per-frame blurs (see planet_dungeon_fx.dart).
-      final heat = 0.25 + 0.55 * charge;
-      // The throat: a hot well that brightens as the head builds under it,
-      // with a low collar of steam always creeping over the lip — a live
-      // mouth is never perfectly still.
-      canvas.drawCircle(
-        gy.position,
-        r - 8,
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFF23343C),
-            const Color(0xFFCFF4FF),
-            heat,
-          )!.withValues(alpha: 0.95),
-      );
-      if (_fx.ready) {
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          gy.position + Offset(sin(_moltenPulse * 0.9) * 3, -3),
-          r * 1.6,
-          const Color(0xFFCFEAF2).withValues(alpha: 0.07 + 0.06 * charge),
-        );
+      final by = sealedBy[gy.id];
+      if (by != null) {
+        _drawVentPlug(canvas, gy.position, r, by);
+        continue;
       }
+      if (solved || cappedGeysers.contains(gy.id)) continue;
+      // OPEN: heat deep in the throat, climbing as the head builds under it,
+      // and the wet far lip catching it.
       if (_fx.ready) {
         drawGlow(
           canvas,
           _fx.glow!,
-          gy.position,
-          r * (0.9 + 0.5 * charge),
-          const Color(0xFF8FE0EC).withValues(alpha: 0.10 + 0.30 * charge),
+          gy.position - Offset(0, r * 0.15),
+          r * (0.55 + 0.45 * charge),
+          const Color(0xFFBFF2FF).withValues(alpha: 0.05 + 0.30 * charge),
         );
       }
-
-      // Pressure makes the column taller and fatter, so a field nearly shut
-      // LOOKS like it is about to tear the lid off.
-      // Every mouth you shut sends its head here, so an open mouth in a
-      // nearly-shut field is not slightly bigger — it is a column.
-      final force = 1.0 + 0.38 * p;
-
-      // Seconds since this blast opened (negative while it is still building).
-      // Steam is drawn as puffs BORN at the mouth that then rise, expand and
-      // fade — never as one shape that scales, which is what made the old
-      // version read as sucking inward instead of blowing out.
-      final phase = geyserCycle % _kGeyserPeriod;
-      final blastAge = phase - (_kGeyserPeriod - _kGeyserBlast);
-
-      if (_fx.ready) {
-        const puffs = 9;
-        const puffLife = 1.5; // seconds a parcel of steam stays readable
-        const stagger = 0.16; // seconds between parcels leaving the throat
-        for (var i = 0; i < puffs; i++) {
-          // While building, only a slow mutter of steam leaves the mouth; on
-          // the blast the parcels come fast and hard.
-          final age = blasting
-              ? blastAge - i * stagger
-              : (phase * 0.5) - i * (puffLife * 0.9);
-          if (age <= 0) continue;
-          final life = (age / puffLife).clamp(0.0, 1.0);
-          if (life >= 1) continue;
-
-          // Rise: fast off the mouth, slowing as it cools and spreads.
-          final ease = 1 - pow(1 - life, 2.2).toDouble();
-          final rise = (blasting ? 168.0 : 34.0) * force * ease;
-          // Expand as it climbs — a plume mushrooms, it does not stay a rod.
-          final w =
-              r *
-              (blasting ? 1.25 : 0.85) *
-              (0.55 + 1.75 * life) *
-              (1.0 + 0.16 * p); // the head widens the column too
-          // Drift: each parcel keeps its own wander so the column churns.
-          final sway =
-              sin(_moltenPulse * 1.6 + i * 1.7 + gy.position.dx * 0.02) *
-              (4 + 20 * life);
-          // Fade: bright at the throat, gone by the top.
-          final alpha =
-              (blasting ? 0.42 : 0.16) *
-              pow(1 - life, 1.35).toDouble() *
-              (0.55 + 0.45 * (blasting ? 1.0 : charge));
-
-          drawPuff(
-            canvas,
-            _fx.puff!,
-            Offset(gy.position.dx + sway, gy.position.dy - rise),
-            w,
-            const Color(0xFFE6F7FF).withValues(alpha: alpha),
-          );
-        }
-
-        if (blasting) {
-          final bt = (blastAge / _kGeyserBlast).clamp(0.0, 1.0);
-          // The jet at the throat: hardest as it opens, easing as it spends.
-          final jet = pow(1 - bt, 1.6).toDouble();
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            gy.position - Offset(0, 26 * force * (1 - jet)),
-            r * (1.3 + 1.1 * jet),
-            const Color(0xFFBFF2FF).withValues(alpha: 0.10 + 0.34 * jet),
-          );
-          // Condensate flung UP and out along the jet, falling back as it goes.
-          for (var i = 0; i < 6; i++) {
-            final k = ((i * 53) % 11) / 11.0;
-            final spread = (i - 2.5) * 0.22;
-            final travel = (0.35 + 0.65 * k) * bt;
-            final d = 150 * force * travel;
-            final at =
-                gy.position +
-                Offset(sin(spread) * d * 0.55, -cos(spread) * d) +
-                Offset(0, d * d * 0.0016); // a little gravity on the arc
-            drawGlow(
-              canvas,
-              _fx.mote!,
-              at,
-              4.5 + 3.0 * (1 - travel),
-              const Color(
-                0xFFF2FCFF,
-              ).withValues(alpha: 0.42 * pow(1 - travel, 1.2).toDouble()),
-            );
-          }
-          // The skirt: a ring rushing OUTWARD from the mouth as it opens —
-          // the tell for the throw, travelling the way the force travels.
-          canvas.drawCircle(
-            gy.position,
-            r + (_kBlastReach - r) * Curves.easeOutCubic.transform(bt),
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 3.0 * pow(1 - bt, 0.8).toDouble()
-              ..color = const Color(
-                0xFFBFF2FF,
-              ).withValues(alpha: 0.50 * pow(1 - bt, 0.9).toDouble()),
-          );
-        }
-      }
+      canvas.drawArc(
+        Rect.fromCircle(center: gy.position, radius: r + 1.5),
+        pi + 0.35,
+        pi - 0.7,
+        false,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.6
+          ..strokeCap = StrokeCap.round
+          ..color = const Color(
+            0xFFCFEFF6,
+          ).withValues(alpha: 0.12 + 0.36 * charge),
+      );
     }
 
-    // THE HEART, ONCE IT IS OPEN: the whole field's head comes up through it
-    // and never stops. Driven off _moltenPulse rather than the geyser cycle,
-    // because a solved field stops turning — but this plume is the room's
-    // standing trophy and has to keep breathing.
+    // THE HEART'S LIGHT, once it is open — the column itself is grains.
     final heart = room.capstone;
     if (heart != null &&
         !room.geysers.any((g) => g.isRiser) &&
         (capstoneBurst || solved) &&
         _fx.ready) {
-      const puffs = 12;
-      const life = 2.4;
-      for (var i = 0; i < puffs; i++) {
-        final age = (_moltenPulse * 1.15 + i * (life / puffs)) % life;
-        final t = age / life;
-        final ease = 1 - pow(1 - t, 2.0).toDouble();
-        final rise = 300 * ease;
-        final sway = sin(_moltenPulse * 1.1 + i * 1.6) * (6 + 34 * t);
-        drawPuff(
-          canvas,
-          _fx.puff!,
-          heart.position + Offset(sway, -rise),
-          46 * (0.5 + 2.0 * t),
-          const Color(
-            0xFFE6F7FF,
-          ).withValues(alpha: 0.34 * pow(1 - t, 1.3).toDouble()),
-        );
-      }
       drawGlow(
         canvas,
         _fx.glow!,
-        heart.position - Offset(0, 20),
+        heart.position - const Offset(0, 20),
         70 + 10 * sin(_moltenPulse * 2.0),
-        const Color(0xFFBFF2FF).withValues(alpha: 0.30),
-      );
-      // Condensate raining back down around the throat.
-      for (var i = 0; i < 7; i++) {
-        final k = ((i * 41) % 13) / 13.0;
-        final f = (_moltenPulse * 0.8 + k) % 1.0;
-        final a0 = k * pi * 2;
-        drawGlow(
-          canvas,
-          _fx.mote!,
-          heart.position +
-              Offset(cos(a0) * (26 + 44 * f), -230 * (1 - f) + 60 * f * f),
-          4.0,
-          const Color(0xFFF2FCFF).withValues(alpha: 0.34 * (1 - f)),
-        );
-      }
-    }
-
-    // THE CAST SPAN: a raw channel while the mould is still being worked, and
-    // a set casting — the way home — once the star is banked.
-    final span = room.castSpan;
-    if (span != null) {
-      final cap = room.capstone;
-      final set = cap != null && hasStar(cap.starIndex);
-      if (set) {
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            span.translate(0, 4).inflate(2),
-            const Radius.circular(6),
-          ),
-          Paint()..color = const Color(0x88000000),
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(span, const Radius.circular(5)),
-          Paint()..color = const Color(0xFF4A4136),
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromLTWH(span.left, span.top, span.width, 5),
-            const Radius.circular(3),
-          ),
-          Paint()..color = const Color(0x66E4C16A),
-        );
-        // Still warm along its seams, so it reads as something poured.
-        for (var i = 0; i < 3; i++) {
-          final y = span.top + span.height * (0.3 + 0.22 * i);
-          canvas.drawLine(
-            Offset(span.left + 5, y),
-            Offset(span.right - 5, y),
-            Paint()
-              ..strokeWidth = 1.2
-              ..color = const Color(0x55C9702A),
-          );
-        }
-      } else {
-        // Not yet: the empty run-off where the cast will set.
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(span, const Radius.circular(5)),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.4
-            ..color = const Color(0x3AC7B49A),
-        );
-      }
-    }
-
-    // THE CASTING MOAT: a dry channel with a boulder lip at its head, and
-    // the melt that has run down it so far.
-    final moat = room.castingMoat;
-    if (moat != null) {
-      final ch = moat.channel;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(ch, const Radius.circular(5)),
-        Paint()..color = const Color(0xFF191410),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(ch.deflate(3), const Radius.circular(4)),
-        Paint()..color = const Color(0xFF2C251D),
-      );
-      for (var y = ch.top + 14; y < ch.bottom - 6; y += 22) {
-        canvas.drawLine(
-          Offset(ch.left + 7, y),
-          Offset(ch.right - 7, y),
-          Paint()
-            ..strokeWidth = 1.0
-            ..color = const Color(0x2EC7B49A),
-        );
-      }
-      // The melt, filling from the head DOWN — the front is where the work
-      // has got to, and it is the thing the player is watching.
-      if (moatFill > 0.004) {
-        final h = ch.height * moatFill.clamp(0.0, 1.0);
-        final run = Rect.fromLTWH(ch.left + 3, ch.top + 3, ch.width - 6, h);
-        final pulse = 0.55 + 0.45 * sin(_moltenPulse * 2.2);
-        // The tongue must not lick past the end of the channel once the run
-        // has bottomed out — a full moat is a full moat, not an overflow.
-        final rr = _moltenRunPath(
-          run,
-          _moltenPulse * 0.9,
-          tongue: (ch.bottom - 4 - run.bottom).clamp(0.0, 7.0),
-        );
-        canvas.drawPath(rr, Paint()..color = const Color(0xFF3A1206));
-        canvas.save();
-        canvas.clipPath(rr);
-        canvas.drawRect(
-          run,
-          Paint()
-            ..color = Color.lerp(
-              const Color(0xFF8A2E0C),
-              const Color(0xFFC4531A),
-              pulse * 0.8,
-            )!,
-        );
-        // The same travelling bands the chamber's melt has — a moat being fed
-        // should look like it is RUNNING, not like a filled progress bar.
-        final band = Paint()
-          ..strokeWidth = 6
-          ..strokeCap = StrokeCap.round;
-        for (var i = 0; i < 5; i++) {
-          final t = ((_moltenPulse * 0.30 + i / 5) % 1.0);
-          final y = run.top - 20 + (run.height + 40) * t;
-          band.color = const Color(
-            0xFFFFB05A,
-          ).withValues(alpha: 0.22 * sin(t * pi).clamp(0.0, 1.0));
-          canvas.drawLine(
-            Offset(run.left - 6, y),
-            Offset(run.right + 6, y + 7),
-            band,
-          );
-        }
-        for (var y = run.top + 12; y < run.bottom - 4; y += 26) {
-          canvas.drawLine(
-            Offset(run.left + 5, y),
-            Offset(run.right - 5, y + 4),
-            Paint()
-              ..strokeWidth = 1.5
-              ..color = const Color(0xFFFFC98A).withValues(alpha: 0.5),
-          );
-        }
-        canvas.restore();
-        canvas.drawPath(
-          rr,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = const Color(
-              0xFFFFC98A,
-            ).withValues(alpha: 0.5 + 0.2 * pulse),
-        );
-        // The FRONT of the run — where the work has got to, and the thing the
-        // player is actually watching.
-        final front = Offset(run.center.dx, run.bottom);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(
-            Rect.fromCenter(center: front, width: run.width, height: 9),
-            const Radius.circular(4),
-          ),
-          Paint()..color = const Color(0xFFFFD9A0).withValues(alpha: 0.85),
-        );
-        if (_fx.ready) {
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            front,
-            40,
-            const Color(0xFFFF7A33).withValues(alpha: 0.30 + 0.20 * pulse),
-          );
-        }
-      }
-      // The lip, and the rock on it — which visibly wears down as it melts.
-      canvas.drawCircle(
-        moat.boulderAt,
-        15,
-        Paint()..color = const Color(0xFF3A322A),
-      );
-      canvas.drawCircle(
-        moat.boulderAt,
-        15,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = const Color(0xFF7C6A54),
-      );
-      if (boulderCharge > 0.05) {
-        final r = 9 + 8 * boulderCharge;
-        canvas.drawCircle(
-          moat.boulderAt - const Offset(0, 6),
-          r,
-          Paint()..color = const Color(0xFF6A5F50),
-        );
-        canvas.drawCircle(
-          moat.boulderAt - Offset(0, 6 + r * 0.35),
-          r * 0.55,
-          Paint()..color = const Color(0xFF7E7161),
-        );
-        canvas.drawCircle(
-          moat.boulderAt - const Offset(0, 6),
-          r,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = const Color(0xFF463C31),
-        );
-      }
-    }
-
-    // THE PEDESTAL on the far shore. In a RISER room the capstone is not a
-    // slab to be blown off, it is the thing you are crossing TO — and nothing
-    // drew it at all, so the far side of the chasm was bare floor and the room
-    // gave the player no reason to look at it. A room whose whole point is
-    // "get over there" has to show you what is over there.
-    final ped = room.capstone;
-    if (ped != null && room.geysers.any((g) => g.isRiser)) {
-      final taken = hasStar(ped.starIndex);
-      // A squat plinth: base step, drum, lip.
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: ped.position + const Offset(0, 20),
-          width: 76,
-          height: 26,
-        ),
-        Paint()..color = const Color(0x66000000),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: ped.position + const Offset(0, 12),
-            width: 70,
-            height: 22,
-          ),
-          const Radius.circular(5),
-        ),
-        Paint()..color = const Color(0xFF3A3229),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(center: ped.position, width: 54, height: 40),
-          const Radius.circular(6),
-        ),
-        Paint()..color = const Color(0xFF4A4136),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: ped.position - const Offset(0, 18),
-            width: 62,
-            height: 14,
-          ),
-          const Radius.circular(4),
-        ),
-        Paint()..color = const Color(0xFF5B5044),
-      );
-      // Lit top face, so it stands rather than lies.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: ped.position - const Offset(0, 21),
-            width: 54,
-            height: 5,
-          ),
-          const Radius.circular(2),
-        ),
-        Paint()..color = const Color(0x66E4C16A),
-      );
-      // Unclaimed, it breathes a beacon — the one bright thing across the
-      // gap, which is how the room says "there".
-      if (_fx.ready) {
-        final pulse = taken ? 0.34 : 0.24 + 0.16 * sin(_moltenPulse * 1.6);
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          ped.position - const Offset(0, 24),
-          taken ? 54 : 46,
-          const Color(0xFFE4C16A).withValues(alpha: pulse),
-        );
-      }
-      canvas.drawCircle(
-        ped.position - const Offset(0, 24),
-        7,
-        Paint()
-          ..color = taken
-              ? const Color(0xFFFFEAB8)
-              : const Color(0xFFE4C16A).withValues(alpha: 0.85),
+        const Color(0xFFBFF2FF).withValues(alpha: 0.26),
       );
     }
 
-    // THE CAPSTONE at the heart: the slab, cracking wider with the head.
-    final cap = room.capstone;
-    if (cap != null && !room.geysers.any((g) => g.isRiser)) {
-      final burst = capstoneBurst || hasStar(cap.starIndex);
-      final frac = room.geysers.isEmpty
-          ? 0.0
-          : (p / room.geysers.length).clamp(0.0, 1.0);
-      // Once it goes, the slab is not a lid any more — it is a throat.
-      canvas.drawCircle(
-        cap.position,
-        30,
-        Paint()
-          ..color = burst ? const Color(0xFF10181C) : const Color(0xFF3A342C),
-      );
-      if (burst) {
-        // The broken lip: shards left standing around the open mouth.
-        final shard = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.2
-          ..strokeCap = StrokeCap.round
-          ..color = const Color(0xFF8A7A68);
-        for (var i = 0; i < 6; i++) {
-          final a0 = i * pi / 3 + 0.3;
-          canvas.drawLine(
-            cap.position + Offset(cos(a0), sin(a0)) * 24,
-            cap.position + Offset(cos(a0), sin(a0)) * 34,
-            shard,
-          );
-        }
-      }
-      canvas.drawCircle(
-        cap.position,
-        30,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3
-          ..color = burst ? const Color(0xFFE4C16A) : const Color(0xFF8A7A68),
-      );
-      // Cracks: they widen and brighten as the field is shut.
-      final crack = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.0 + 2.4 * frac
-        ..color = Color.lerp(
-          const Color(0xFF6E6257),
-          const Color(0xFFBFF2FF),
-          burst ? 1.0 : frac,
-        )!.withValues(alpha: 0.55 + 0.45 * frac);
-      for (var i = 0; i < 5; i++) {
-        final a0 = i * pi * 2 / 5 + 0.4;
-        canvas.drawLine(
-          cap.position + Offset(cos(a0), sin(a0)) * 8,
-          cap.position + Offset(cos(a0), sin(a0)) * (30 * (0.5 + 0.5 * frac)),
-          crack,
-        );
-      }
-      if (_fx.ready) {
-        // Light bleeding up through the seams, and a plume once it splits.
-        if (frac > 0.25 || burst) {
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            cap.position,
-            40 + 26 * frac,
-            const Color(
-              0xFFBFF2FF,
-            ).withValues(alpha: 0.08 + 0.34 * (burst ? 1.0 : frac)),
-          );
-        }
-        if (burst) {
-          for (var i = 0; i < 5; i++) {
-            final f = (i + 1) / 5;
-            drawPuff(
-              canvas,
-              _fx.puff!,
-              cap.position -
-                  Offset(sin(_moltenPulse * 1.4 + i) * 8, 30 + 150 * f),
-              46 + 70 * f,
-              const Color(0xFFE8FAFF).withValues(alpha: 0.30 - 0.22 * f),
-            );
-          }
-        } else if (frac > 0.5) {
-          // Before it goes: a warning wisp squeezing out of the seam.
-          drawPuff(
-            canvas,
-            _fx.puff!,
-            cap.position - Offset(0, 26 + 16 * frac),
-            34 * frac,
-            const Color(0xFFCFEAF2).withValues(alpha: 0.16 * frac),
-          );
-        }
-      }
-    }
+    _drawCastSpan(canvas, room);
+    _drawCastingMoat(canvas, room);
+    _drawForgeMould(canvas, room);
+    _drawCapstoneSlab(canvas, room);
 
     // THE STONE: Earth's one boulder, heaving up out of the floor.
     final rock = earthRock;
     if (rock != null) {
-      final rise = earthRockRaise.clamp(0.0, 1.0);
-      final rr = _kRockRadius * (0.45 + 0.55 * rise);
-      canvas.drawOval(
-        Rect.fromCenter(
-          center: rock + const Offset(0, 8),
-          width: rr * 2.1,
-          height: rr * 0.8,
-        ),
-        Paint()..color = Colors.black.withValues(alpha: 0.35 * rise),
-      );
-      canvas.drawCircle(rock, rr, Paint()..color = const Color(0xFF6B5B49));
-      canvas.drawCircle(
+      _drawSteamStone(
+        canvas,
         rock,
-        rr,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.2
-          ..color = const Color(0xFF9C8A66),
+        _kRockRadius,
+        4231,
+        rise: earthRockRaise.clamp(0.0, 1.0),
       );
-      // A few facets so it reads as cut stone, not a ball.
-      final facet = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.2
-        ..color = const Color(0x99483A2C);
-      for (var i = 0; i < 3; i++) {
-        final a0 = i * 2.1 + 0.6;
-        canvas.drawLine(
-          rock + Offset(cos(a0), sin(a0)) * rr * 0.25,
-          rock + Offset(cos(a0 + 1.2), sin(a0 + 1.2)) * rr * 0.85,
-          facet,
-        );
-      }
     }
   }
 
   void _renderSteamFloor(Canvas canvas, DungeonRoom room) {
-    final g = room.molten;
-    if (g == null) {
-      _renderVaporFabric(canvas, room);
-      _renderForgeAmbient(canvas, room);
-      return;
-    }
-    // THE FLOOR IS CONTINUOUS, and only the MATERIAL sits on it. Drawing an
-    // outlined tile for every open cell as well is what made the crucible read
-    // as a board game rather than a room — the lattice was the loudest thing
-    // in it. Same grid, same rules; the empty squares are simply floor now.
     _renderVaporFabric(canvas, room);
-    final grid = _moltenFor(room);
-    final (cw, ch) = _cellSize(room, g);
-    final cleared = _moltenCleared(room, g);
-    // THE MOULD, in a pour chamber: the thing every decision in the room is
-    // aimed at, so it cannot be a small ring on the floor. A sunk basin with
-    // a lip, and it fills when the melt finds it.
-    final mould = _mouldCell(room);
-    if (mould != null) {
-      final at = Rect.fromLTWH(
-        room.bounds.left + mould.$1 * cw,
-        room.bounds.top + mould.$2 * ch,
-        cw,
-        ch,
-      ).deflate(5);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(at.inflate(4), const Radius.circular(7)),
-        Paint()..color = const Color(0xFF221B14),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(at, const Radius.circular(5)),
-        Paint()
-          ..color = moltenRiteDone
-              ? const Color(0xFFB5400F)
-              : const Color(0xFF120D09),
-      );
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(at, const Radius.circular(5)),
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4
-          ..color = moltenRiteDone
-              ? const Color(0xFFE4C16A)
-              : const Color(0xFF8A7A68),
-      );
-      if (moltenRiteDone && _fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          at.center,
-          46,
-          const Color(0xFFFF7A33).withValues(alpha: 0.35),
-        );
-      }
-    }
-    for (var r = 0; r < g.rowCount; r++) {
-      for (var c = 0; c < g.cols; c++) {
-        final code = grid[r][c];
-        if (code == _mOpen || code == _mLava) continue;
-        final rect = Rect.fromLTWH(
-          room.bounds.left + c * cw,
-          room.bounds.top + r * ch,
-          cw + 0.6,
-          ch + 0.6,
-        );
-        _renderMoltenCell(canvas, rect, code, cleared);
-      }
-    }
-    if (!cleared) _drawMoltenMass(canvas, room, g, grid);
+    _renderForgeAmbient(canvas, room);
   }
 
   /// A stable 0..1 value per grid cell — variation without allocating, and
@@ -2860,6 +1495,13 @@ extension MoltenLabyrinth on PlanetDungeonGame {
   /// bolted flanges and a condensate grate cut across the low side.
   void _drawFoundryFloor(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
+    _paintFirebrick(canvas, b);
+    _drawRingMainAndGrate(canvas, b);
+  }
+
+  /// Firebrick courses over [b], every other one offset by half a brick —
+  /// the boiler house's one floor, rooms and ledges alike.
+  void _paintFirebrick(Canvas canvas, Rect b, {double alpha = 0.82}) {
     const bw = 78.0, bh = 34.0;
     final rows = (b.height / bh).ceil();
     final brick = Paint();
@@ -2883,17 +1525,16 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           const Color(0xFF2A2119),
           n > 0.93 ? const Color(0xFF3E2718) : const Color(0xFF322820),
           n,
-        )!.withValues(alpha: 0.82);
+        )!.withValues(alpha: alpha);
         canvas.drawRect(cell, brick);
         canvas.drawRect(cell.deflate(0.5), joint);
       }
     }
+  }
 
-    // 2) (The heat blooms are gone, 2026-10-08: five round orange discs with
-    // dark middles, which read as stains on the brick rather than heat. The
-    // scorched ruddy bricks above already say something hot stood here.)
-
-    // 3) THE RING-MAIN ITSELF, sunk into the floor: two heavy pipe runs with
+  /// The ring-main sunk in the floor, and the condensate grate.
+  void _drawRingMainAndGrate(Canvas canvas, Rect b) {
+    // THE RING-MAIN ITSELF, sunk into the floor: two heavy pipe runs with
     // bolted flanges. This planet's one big idea is that pressure travels
     // between the rooms — so the pipe that carries it is under your feet in
     // every one of them.
@@ -2934,7 +1575,7 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
     }
 
-    // 4) A condensate grate down the low side — where the cooled breath goes.
+    // A condensate grate down the low side — where the cooled breath goes.
     final grate = Rect.fromLTWH(b.left + 26, b.bottom - 40, b.width - 52, 12);
     canvas.drawRect(grate, Paint()..color = const Color(0xFF15100C));
     final bar = Paint()
@@ -2949,377 +1590,39 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     }
   }
 
-  /// Decorative foundry heat for the non-puzzle rooms (hub, gate, gallery,
-  /// vault, heart): lava seeps in grated channels INSET from the walkable floor
-  /// — clearly background, never on the path — plus a few rising steam wisps.
-  /// Kept cheap: a handful of rects + baked-glow blits, no new render pass.
+  /// Heat in the brick and breath off the grate. The rooms used to be ringed
+  /// by a molten seam behind grate bars — the lava planet's furniture, left
+  /// over from when this one flooded, and at play zoom an orange dashed
+  /// border round every room. The warmth stays, as heat in the walls; the
+  /// seam is gone. The grate's steam rises only where nothing else is
+  /// steaming: in a geyser room the field carries it.
   void _renderForgeAmbient(Canvas canvas, DungeonRoom room) {
     final b = room.bounds;
     final t = _moltenPulse;
-    const inset = 16.0;
-    final channels = <Rect>[
-      Rect.fromLTWH(b.left + inset, b.top + inset, b.width - 2 * inset, 6),
-      Rect.fromLTWH(
-        b.left + inset,
-        b.bottom - inset - 6,
-        b.width - 2 * inset,
-        6,
-      ),
-      Rect.fromLTWH(b.left + inset, b.top + inset, 6, b.height - 2 * inset),
-      Rect.fromLTWH(
-        b.right - inset - 6,
-        b.top + inset,
-        6,
-        b.height - 2 * inset,
-      ),
-    ];
-    for (var i = 0; i < channels.length; i++) {
-      final ch = channels[i];
-      final horizontal = ch.width > ch.height;
-      final pulse = 0.45 + 0.35 * sin(t * 1.6 + i * 1.3);
-      // The molten seam itself.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(ch, const Radius.circular(3)),
-        Paint()
-          ..color = Color.lerp(
-            const Color(0xFF5A1E08),
-            const Color(0xFFB5400F),
-            pulse,
-          )!.withValues(alpha: 0.55),
-      );
-      // Grate bars over it, so it reads as lava behind a floor grate.
-      final n = ((horizontal ? ch.width : ch.height) / 26).floor().clamp(1, 60);
-      final bars = Paint()
-        ..color = const Color(0xCC141A20)
-        ..strokeWidth = 3;
-      for (var k = 1; k < n; k++) {
-        if (horizontal) {
-          final x = ch.left + k * 26.0;
-          canvas.drawLine(
-            Offset(x, ch.top - 1),
-            Offset(x, ch.bottom + 1),
-            bars,
-          );
-        } else {
-          final y = ch.top + k * 26.0;
-          canvas.drawLine(
-            Offset(ch.left - 1, y),
-            Offset(ch.right + 1, y),
-            bars,
-          );
-        }
-      }
-      if (_fx.ready) {
-        final steps = horizontal ? 3 : 2;
-        for (var s = 0; s < steps; s++) {
-          final p = horizontal
-              ? Offset(ch.left + ch.width * ((s + 0.5) / steps), ch.center.dy)
-              : Offset(ch.center.dx, ch.top + ch.height * ((s + 0.5) / steps));
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            p,
-            26,
-            const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.10 * pulse),
-          );
-        }
-      }
-    }
-    // A few steam wisps rising through the room — grains up off the
-    // condensate grate (steam_art.dart). They were four soft grey glows climbing the room,
-    // which read as smudges drifting over the brick.
-    _paintForgeWisps(canvas, b, t);
-  }
-
-  /// MOLTEN AS A MASS, not as tiles.
-  ///
-  /// Lava used to be drawn one cell at a time, which made a run of it read as
-  /// a row of orange squares — a board game, not a river. Adjacent cells are
-  /// merged into a single path here: the outside corners round off only where
-  /// there is no neighbour, so a run has a flowing outline and a body of it
-  /// has none at all, and the surface carries slow bands that travel ALONG
-  /// the mass so it looks like something moving rather than something lit.
-  void _drawMoltenMass(
-    Canvas canvas,
-    DungeonRoom room,
-    MoltenGrid g,
-    List<List<int>> grid,
-  ) {
-    final (cw, ch) = _cellSize(room, g);
-    final body = Path();
-    var any = false;
-    Rect? bounds;
-    for (var r = 0; r < g.rowCount; r++) {
-      for (var c = 0; c < g.cols; c++) {
-        if (grid[r][c] != _mLava) continue;
-        any = true;
-        final rect = Rect.fromLTWH(
-          room.bounds.left + c * cw,
-          room.bounds.top + r * ch,
-          cw + 0.5,
-          ch + 0.5,
-        );
-        bounds = bounds == null ? rect : bounds.expandToInclude(rect);
-        bool lava(int cc, int rr) =>
-            cc >= 0 &&
-            rr >= 0 &&
-            cc < g.cols &&
-            rr < g.rowCount &&
-            grid[rr][cc] == _mLava;
-        // Round a corner only where the mass actually ends.
-        const rad = 13.0;
-        final tl = (lava(c - 1, r) || lava(c, r - 1))
-            ? Radius.zero
-            : const Radius.circular(rad);
-        final tr = (lava(c + 1, r) || lava(c, r - 1))
-            ? Radius.zero
-            : const Radius.circular(rad);
-        final br = (lava(c + 1, r) || lava(c, r + 1))
-            ? Radius.zero
-            : const Radius.circular(rad);
-        final bl = (lava(c - 1, r) || lava(c, r + 1))
-            ? Radius.zero
-            : const Radius.circular(rad);
-        body.addRRect(
-          RRect.fromRectAndCorners(
-            rect,
-            topLeft: tl,
-            topRight: tr,
-            bottomRight: br,
-            bottomLeft: bl,
-          ),
-        );
-      }
-    }
-    if (!any || bounds == null) return;
-
-    final pulse = 0.5 + 0.5 * sin(_moltenPulse * 1.9);
-    // The crust the run has skinned over with.
-    canvas.drawPath(body, Paint()..color = const Color(0xFF3A1206));
-    canvas.save();
-    canvas.clipPath(body);
-    // The body of it, breathing.
-    canvas.drawRect(
-      bounds,
-      Paint()
-        ..color = Color.lerp(
-          const Color(0xFF8A2E0C),
-          const Color(0xFFC4531A),
-          pulse * 0.8,
-        )!,
-    );
-    // Bands travelling ALONG the mass — this is the whole difference between
-    // "lit" and "flowing".
-    final band = Paint()
-      ..strokeWidth = 7
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 7; i++) {
-      final t = ((_moltenPulse * 0.22 + i / 7) % 1.0);
-      final y = bounds.top - 40 + (bounds.height + 80) * t;
-      band.color = const Color(
-        0xFFFFB05A,
-      ).withValues(alpha: 0.20 * sin(t * pi).clamp(0.0, 1.0));
-      canvas.drawLine(
-        Offset(bounds.left - 10, y),
-        Offset(bounds.right + 10, y + 14),
-        band,
-      );
-    }
-    // Bright seams where the crust has cracked open.
-    final seam = Paint()
-      ..strokeWidth = 2.4
-      ..strokeCap = StrokeCap.round
-      ..color = Color.lerp(
-        const Color(0xFFFF6A2A),
-        const Color(0xFFFFE0A8),
-        pulse,
-      )!;
-    for (var r = 0; r < g.rowCount; r++) {
-      for (var c = 0; c < g.cols; c++) {
-        if (grid[r][c] != _mLava) continue;
-        final n = _forgeNoise(c * 7, r * 13);
-        final x = room.bounds.left + (c + 0.2 + 0.6 * n) * cw;
-        final y = room.bounds.top + (r + 0.5) * ch;
-        canvas.drawLine(
-          Offset(x, y - ch * 0.22),
-          Offset(x + cw * (0.2 + 0.3 * n), y + ch * 0.24),
-          seam,
-        );
-      }
-    }
-    canvas.restore();
-    // A hot rim on the outside of the mass.
-    canvas.drawPath(
-      body,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2
-        ..color = const Color(0xFFFFC98A).withValues(alpha: 0.55 + 0.2 * pulse),
-    );
     if (_fx.ready) {
-      for (var r = 0; r < g.rowCount; r++) {
-        for (var c = 0; c < g.cols; c++) {
-          if (grid[r][c] != _mLava) continue;
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            Offset(
-              room.bounds.left + (c + 0.5) * cw,
-              room.bounds.top + (r + 0.5) * ch,
-            ),
-            cw * 0.8,
-            const Color(0xFFFF7A33).withValues(alpha: 0.22 + 0.14 * pulse),
-          );
-        }
+      const inset = 19.0;
+      final spots = <Offset>[
+        for (final f in const [0.2, 0.5, 0.8]) ...[
+          Offset(b.left + b.width * f, b.top + inset),
+          Offset(b.left + b.width * f, b.bottom - inset),
+        ],
+        for (final f in const [0.3, 0.7]) ...[
+          Offset(b.left + inset, b.top + b.height * f),
+          Offset(b.right - inset, b.top + b.height * f),
+        ],
+      ];
+      for (var i = 0; i < spots.length; i++) {
+        final pulse = 0.45 + 0.35 * sin(t * 1.1 + i * 1.3);
+        drawGlow(
+          canvas,
+          _fx.glow!,
+          spots[i],
+          30,
+          const Color(0xFFFF7A33).withValues(alpha: 0.06 + 0.06 * pulse),
+        );
       }
     }
-  }
-
-  void _renderMoltenCell(Canvas canvas, Rect rect, int code, bool cleared) {
-    // THE CRUCIBLE WAS A BOARD GAME. Flat orange squares for lava and flat
-    // grey squares for rock, on a checkerboard — the most schematic room on
-    // the planet, and the one the whole third star happens in. Same grid, same
-    // rules, drawn as materials: basalt with mortar-dark joints, and lava as a
-    // cooling crust with a bright core showing through its cracks.
-    final n = _forgeNoise(rect.left.round(), rect.top.round());
-    switch (code) {
-      case _mOpen:
-        // Translucent floor so the steam shader breathes through (FLOOR RULE),
-        // with the foundry's own soot worked into it.
-        canvas.drawRect(rect, Paint()..color = const Color(0x5520282E));
-        canvas.drawRect(
-          rect.deflate(2 + 3 * n),
-          Paint()..color = Color(0x0EFF7A33),
-        );
-        canvas.drawRect(
-          rect.deflate(0.5),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1
-            ..color = const Color(0x118FA6B0),
-        );
-      case _mWall:
-        // Dressed block — the built thing, squared off and mortared.
-        final rr = RRect.fromRectAndRadius(
-          rect.deflate(2),
-          const Radius.circular(3),
-        );
-        canvas.drawRRect(
-          rr,
-          Paint()
-            ..color = Color.lerp(
-              const Color(0xFF3A4149),
-              const Color(0xFF4A525A),
-              n,
-            )!,
-        );
-        // Lit top face and a shadowed foot, so it stands rather than lies.
-        canvas.drawRect(
-          Rect.fromLTWH(rect.left + 4, rect.top + 3, rect.width - 8, 4),
-          Paint()..color = const Color(0x55CFE0E6),
-        );
-        canvas.drawRect(
-          Rect.fromLTWH(rect.left + 4, rect.bottom - 7, rect.width - 8, 4),
-          Paint()..color = const Color(0x44000000),
-        );
-        canvas.drawRRect(
-          rr,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
-            ..color = const Color(0xFF20262B),
-        );
-      case _mRock:
-        // Raw basalt — irregular, dark, split. Never a rounded tile.
-        canvas.drawRect(rect, Paint()..color = const Color(0xFF191F24));
-        final slab = Rect.fromLTWH(
-          rect.left + 1 + n,
-          rect.top + 1 + (1 - n),
-          rect.width - 2 - 2 * n,
-          rect.height - 2,
-        );
-        canvas.drawRect(
-          slab,
-          Paint()
-            ..color = Color.lerp(
-              const Color(0xFF23292F),
-              const Color(0xFF2E353B),
-              n,
-            )!,
-        );
-        // A split across the face, angled by the cell's own noise.
-        canvas.drawLine(
-          Offset(slab.left + slab.width * (0.2 + 0.3 * n), slab.top),
-          Offset(slab.left + slab.width * (0.5 + 0.4 * n), slab.bottom),
-          Paint()
-            ..color = const Color(0x55000000)
-            ..strokeWidth = 1.4,
-        );
-      case _mLava:
-        if (cleared) {
-          canvas.drawRect(rect, Paint()..color = const Color(0x5520282E));
-          return;
-        }
-        // A crust that has skinned over, with the bright body showing through
-        // where it has cracked — not a solid orange square.
-        final pulse = 0.55 + 0.45 * sin(_moltenPulse * 2.4 + rect.left * 0.03);
-        canvas.drawRect(rect, Paint()..color = const Color(0xFF2A0C04));
-        canvas.drawRect(
-          rect.deflate(1),
-          Paint()
-            ..color = Color.lerp(
-              const Color(0xFF7A2A0E),
-              const Color(0xFFB5400F),
-              pulse * 0.5,
-            )!,
-        );
-        // The cracks: a rough net of hot seams, fixed per cell so the crust
-        // looks like crust rather than crawling.
-        final hot = Paint()
-          ..strokeWidth = 2.2
-          ..strokeCap = StrokeCap.round
-          ..color = Color.lerp(
-            const Color(0xFFFF6A2A),
-            const Color(0xFFFFD98A),
-            pulse,
-          )!;
-        // Short seams meeting at odd angles, each anchored to its own part
-        // of the cell. Three lines drawn corner-to-corner through the middle
-        // read as an asterisk stamped on a tile, which is the opposite of
-        // crust.
-        for (var k = 0; k < 4; k++) {
-          final m = _forgeNoise(
-            rect.left.round() + k * 7,
-            rect.top.round() + k,
-          );
-          final m2 = _forgeNoise(rect.top.round() + k * 13, rect.left.round());
-          final a0 = Offset(
-            rect.left + rect.width * (0.12 + 0.76 * m),
-            rect.top + rect.height * (0.12 + 0.76 * m2),
-          );
-          final ang = (m + m2) * pi;
-          final len = rect.width * (0.18 + 0.22 * m2);
-          // Clamped inside the cell: an unclamped seam runs out across the
-          // floor and reads as a crack in the room rather than in the lava.
-          final raw = a0 + Offset(cos(ang), sin(ang)) * len;
-          final inner = rect.deflate(3);
-          final a1 = Offset(
-            raw.dx.clamp(inner.left, inner.right),
-            raw.dy.clamp(inner.top, inner.bottom),
-          );
-          hot.strokeWidth = 1.6 + 1.2 * m;
-          canvas.drawLine(a0, a1, hot);
-        }
-        if (_fx.ready) {
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            rect.center,
-            rect.width * 0.7,
-            const Color(0xFFFF7A33).withValues(alpha: 0.30 + 0.22 * pulse),
-          );
-        }
-    }
+    if (room.geysers.isEmpty) _paintForgeWisps(canvas, b, t);
   }
 
   /// Ring-main fixtures: clamped junction plates over sealed doors, the
@@ -3425,97 +1728,10 @@ extension MoltenLabyrinth on PlanetDungeonGame {
       }
     }
 
-    // The stoke firebox: a grated hearth breathing ember light.
     final port = room.stokePort;
-    if (port != null) {
-      final box = Rect.fromCenter(center: port, width: 64, height: 46);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(box, const Radius.circular(6)),
-        Paint()..color = const Color(0xFF2B2420),
-      );
-      final pulse = 0.5 + 0.5 * sin(_moltenPulse * 1.8);
-      _drawFireboxGlass(canvas, box, pulse);
-      if (_fx.ready) {
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          port,
-          30,
-          const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.14 * pulse),
-        );
-      }
-    }
-
-    // The burst-disc: a riveted circular wall plate stamped with its
-    // threshold; blown = torn petals around a dark opening.
+    if (port != null) _drawFirebox(canvas, port);
     final disc = room.burstDisc;
-    if (disc != null) {
-      if (burstDiscBlown) {
-        canvas.drawCircle(
-          disc.position,
-          26,
-          Paint()..color = const Color(0xFF0A0D10),
-        );
-        final petals = Paint()
-          ..color = const Color(0xFF5A6A74)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 3;
-        for (var k = 0; k < 6; k++) {
-          final ang = k * pi / 3 + 0.3;
-          canvas.drawLine(
-            disc.position + Offset(cos(ang), sin(ang)) * 14,
-            disc.position + Offset(cos(ang + 0.5), sin(ang + 0.5)) * 30,
-            petals,
-          );
-        }
-      } else {
-        canvas.drawCircle(
-          disc.position,
-          24,
-          Paint()..color = const Color(0xFF39434B),
-        );
-        canvas.drawCircle(
-          disc.position,
-          24,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.5
-            ..color = const Color(0xFF8FA6B0),
-        );
-        // Rivets.
-        for (var k = 0; k < 8; k++) {
-          final ang = k * pi / 4;
-          canvas.drawCircle(
-            disc.position + Offset(cos(ang), sin(ang)) * 18,
-            2.2,
-            Paint()..color = const Color(0xFF5A6A74),
-          );
-        }
-        final tp = TextPainter(
-          text: TextSpan(
-            text: '${disc.threshold}',
-            style: const TextStyle(
-              color: Color(0xFFE4C16A),
-              fontSize: 13,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 1,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        tp.paint(canvas, disc.position - Offset(tp.width / 2, tp.height / 2));
-        if (_fx.ready && boilerPressure >= disc.threshold) {
-          final pulse = 0.6 + 0.4 * sin(_moltenPulse * 3.0);
-          drawGlow(
-            canvas,
-            _fx.glow!,
-            disc.position,
-            34,
-            const Color(0xFFE4C16A).withValues(alpha: 0.10 + 0.16 * pulse),
-          );
-        }
-      }
-    }
+    if (disc != null) _drawBurstDisc(canvas, disc.position, disc.threshold);
   }
 
   /// THE WESTERN SPUR AND THE SPLIT. The main runs off past the last junction
@@ -3984,255 +2200,14 @@ extension MoltenLabyrinth on PlanetDungeonGame {
     _drawCrucibleSeals(canvas, room);
     _drawSplitPipe(canvas, room);
     _drawMaximCache(canvas, room);
-    final g = room.molten;
-    if (g == null) {
-      // The entry vent wheel.
-      final vent = room.steamVent;
-      if (vent != null) {
-        final lit = entryDoorRevealed;
-        canvas.drawCircle(
-          vent,
-          15,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 3
-            ..color = lit ? const Color(0xFF6FBE8F) : const Color(0xFF8FE0EC),
-        );
-        for (var k = 0; k < 4; k++) {
-          final ang = k * pi / 2 + _moltenPulse * 0.6;
-          canvas.drawLine(
-            vent,
-            vent + Offset(cos(ang), sin(ang)) * 15,
-            Paint()
-              ..color = const Color(0x998FE0EC)
-              ..strokeWidth = 2,
-          );
-        }
-        _drawGaugeHub(canvas, vent, lit: !lit);
-        if (_fx.ready && !lit) {
-          drawGlow(canvas, _fx.glow!, vent, 22, const Color(0x338FE0EC));
-        }
-      }
-      return;
+    final vent = room.steamVent;
+    if (vent != null) {
+      _drawReliefValve(canvas, vent, room.bounds, open: entryDoorRevealed);
     }
-    final grid = _moltenFor(room);
-    if (grid.isEmpty) return;
-
-    // WET walls — meltable rock with molten pressed against it glows with
-    // pulsing ember cracks: the tell that breaching HERE releases the flood.
-    if (!_moltenCleared(room, g)) {
-      final (cw, ch) = _cellSize(room, g);
-      for (var r = 0; r < g.rowCount; r++) {
-        for (var c = 0; c < g.cols; c++) {
-          if (grid[r][c] != _mWall || !_wallIsWet(grid, g, c, r)) continue;
-          final rect = Rect.fromLTWH(
-            room.bounds.left + c * cw,
-            room.bounds.top + r * ch,
-            cw,
-            ch,
-          );
-          final pulse = 0.5 + 0.5 * sin(_moltenPulse * 2.2 + c * 1.7 + r);
-          // A WET GATE IS A SOURCE, and in a pour chamber that is the single
-          // most important thing on the screen: which of these doors will
-          // actually give you melt. Thin cracks on a grey block, in a room
-          // already full of orange, were not saying it — reported from play
-          // as breaking one and getting "just one square of fire".
-          //
-          // So the gate is lit from behind, and the cistern leaning on it
-          // visibly FEEDS it: a molten throat through the rock joining the
-          // two, so the pairing can be read from across the room.
-          canvas.drawRect(
-            rect.deflate(3),
-            Paint()
-              ..color = Color.lerp(
-                const Color(0x66B5400F),
-                const Color(0x99FF7A33),
-                pulse,
-              )!,
-          );
-          for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
-            final nc = c + dc, nr = r + dr;
-            if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
-            if (grid[nr][nc] != _mLava) continue;
-            final from = Offset(
-              room.bounds.left + (nc + 0.5) * cw,
-              room.bounds.top + (nr + 0.5) * ch,
-            );
-            canvas.drawLine(
-              from,
-              rect.center,
-              Paint()
-                ..strokeWidth = 7
-                ..strokeCap = StrokeCap.round
-                ..color = const Color(
-                  0xFFB5400F,
-                ).withValues(alpha: 0.45 + 0.30 * pulse),
-            );
-          }
-          if (_fx.ready) {
-            drawGlow(
-              canvas,
-              _fx.glow!,
-              rect.center,
-              cw * 0.75,
-              const Color(0xFFFF7A33).withValues(alpha: 0.22 + 0.16 * pulse),
-            );
-          }
-          final crack = Paint()
-            ..strokeWidth = 2
-            ..strokeCap = StrokeCap.round
-            ..color = Color.lerp(
-              const Color(0xFFB5400F),
-              const Color(0xFFFFC14A),
-              pulse * 0.7,
-            )!.withValues(alpha: 0.55 + 0.35 * pulse);
-          final cx = rect.center.dx, cy = rect.center.dy;
-          canvas.drawLine(
-            Offset(cx - cw * 0.22, rect.top + 8),
-            Offset(cx + cw * 0.08, cy),
-            crack,
-          );
-          canvas.drawLine(
-            Offset(cx + cw * 0.08, cy),
-            Offset(cx - cw * 0.12, rect.bottom - 8),
-            crack,
-          );
-          canvas.drawLine(
-            Offset(cx + cw * 0.20, cy - ch * 0.18),
-            Offset(cx + cw * 0.26, cy + ch * 0.22),
-            crack,
-          );
-          if (_fx.ready) {
-            drawGlow(
-              canvas,
-              _fx.glow!,
-              rect.center,
-              cw * 0.55,
-              const Color(0xFFFF7A33).withValues(alpha: 0.10 + 0.14 * pulse),
-            );
-          }
-        }
-      }
-    }
-
-    // The goal pedestal.
-    final ped = _pedestalCell(g);
-    if (ped != null) {
-      final centre = _cellCenter(room, g, ped.$1, ped.$2);
-      final won = _moltenCleared(room, g);
-      canvas.drawCircle(
-        centre,
-        17,
-        Paint()
-          ..color = won ? const Color(0xFF3A4C44) : const Color(0xFF33414A),
-      );
-      canvas.drawCircle(
-        centre,
-        17,
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2
-          ..color = const Color(0xFFE4C16A),
-      );
-      if (_fx.ready && !won) {
-        final pulse = 0.7 + 0.3 * sin(_moltenPulse * 2.0);
-        drawGlow(
-          canvas,
-          _fx.glow!,
-          centre,
-          30 * pulse,
-          const Color(0xFFE4C16A),
-        );
-      }
-    }
-
-    // Mask insight: a creep FORECAST — with an insight creature active, the
-    // cells the flood will take next beat glow warning-orange (Intelligence
-    // tier 2 also ghosts the beat after). Reading the flood is the Mask's gift.
-    final seer = active;
-    if (seer != null &&
-        seer.ability == DungeonAbility.insight &&
-        wokeRooms.contains(room.id) &&
-        !_moltenCleared(room, g)) {
-      final tier = revealHintTier(seer.member.statIntelligence);
-      final (cw, ch) = _cellSize(room, g);
-      Rect cellRect(int c, int r) => Rect.fromLTWH(
-        room.bounds.left + c * cw,
-        room.bounds.top + r * ch,
-        cw,
-        ch,
-      );
-      final nextBeat = <(int, int)>{};
-      for (var r = 0; r < g.rowCount; r++) {
-        for (var c = 0; c < g.cols; c++) {
-          if (grid[r][c] != _mLava) continue;
-          for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
-            final nc = c + dc, nr = r + dr;
-            if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
-            if (grid[nr][nc] == _mOpen) nextBeat.add((nc, nr));
-          }
-        }
-      }
-      final urgency = (1.0 - moltenBeat / _kMoltenBeat).clamp(0.0, 1.0);
-      final warn = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2
-        ..color = Color(0xFFFF7A33).withValues(alpha: 0.25 + 0.45 * urgency);
-      for (final (c, r) in nextBeat) {
-        canvas.drawRect(cellRect(c, r).deflate(4), warn);
-      }
-      if (tier >= 2) {
-        final after = <(int, int)>{};
-        for (final (c, r) in nextBeat) {
-          for (final (dc, dr) in const [(1, 0), (-1, 0), (0, 1), (0, -1)]) {
-            final nc = c + dc, nr = r + dr;
-            if (nc < 0 || nr < 0 || nc >= g.cols || nr >= g.rowCount) continue;
-            if (grid[nr][nc] == _mOpen && !nextBeat.contains((nc, nr))) {
-              after.add((nc, nr));
-            }
-          }
-        }
-        final ghost = Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
-          ..color = const Color(0x33FF7A33);
-        for (final (c, r) in after) {
-          canvas.drawRect(cellRect(c, r).deflate(7), ghost);
-        }
-      }
-    }
-
-    // Highlight the cell the active creature is facing (where a verb would act).
-    final act = active;
-    if (act != null && !_moltenCleared(room, g)) {
-      final t = _targetCell(act, room, g);
-      if (t != null) {
-        final (cw, ch) = _cellSize(room, g);
-        final rect = Rect.fromLTWH(
-          room.bounds.left + t.$1 * cw,
-          room.bounds.top + t.$2 * ch,
-          cw,
-          ch,
-        );
-        final col = switch (act.member.element) {
-          'Fire' => const Color(0xFFFF8A50),
-          'Steam' => const Color(0xFF8FE0EC),
-          'Earth' => const Color(0xFFD8B878),
-          _ => const Color(0xFF8FA6B0),
-        };
-        canvas.drawRect(
-          rect.deflate(2),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2
-            ..color = col.withValues(alpha: 0.7),
-        );
-      }
-    }
+    if (room.guardian != null) _drawFurnaceMouths(canvas, room);
   }
 
-  /// The boiler-pressure gauge (always on for Steam) plus, in live molten
-  /// rooms, a compact legend of the three verbs + the creep-beat pulse.
+  /// The boiler-pressure gauge (always on for Steam).
   /// Test seam: the HUD paints straight to a canvas so the gauge can be
   /// LOOKED AT. It ran off the edge of a phone screen and no test could have
   /// told me — the numbers were all correct.
@@ -4341,79 +2316,5 @@ extension MoltenLabyrinth on PlanetDungeonGame {
           ..strokeWidth = 2,
       );
     }
-
-    // ── THE RUN, when a pour is going in the crucible ──
-    // How many cells of channel it has left. This is the only live number in
-    // the room and it is a CONSEQUENCE of a decision already made, not a
-    // thing to react to.
-    if (pourRunning) {
-      final rtp = TextPainter(
-        text: TextSpan(
-          text: 'RUN $pourVolume',
-          style: const TextStyle(
-            color: Color(0xFFFF9A4A),
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 1.0,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      rtp.paint(canvas, Offset(gaugeBar.right - rtp.width, gaugeBar.top + 22));
-    }
-
-    final room = layout.rooms[currentRoomId];
-    if (room?.molten == null || _moltenCleared(room!, room.molten!)) return;
-    final entries = <(Color, String)>[
-      (const Color(0xFFFF8A50), 'FIRE · melt'),
-      (const Color(0xFF8FE0EC), 'STEAM · cool'),
-      (const Color(0xFFD8B878), 'EARTH · dam'),
-    ];
-    final x = vp.width - 116.0;
-    var y = vp.height * 0.5 - 30;
-    for (final (col, label) in entries) {
-      canvas.drawCircle(Offset(x, y), 5, Paint()..color = col);
-      final tp = TextPainter(
-        text: TextSpan(
-          text: label,
-          style: const TextStyle(
-            color: Color(0xFFCFE0E6),
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.5,
-          ),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(x + 12, y - 7));
-      // Breath pips beside the STEAM row — the cooling charges left.
-      if (label.startsWith('STEAM')) {
-        for (var k = 0; k < kSteamBreathMax; k++) {
-          canvas.drawCircle(
-            Offset(x + 16 + tp.width + k * 9.0, y),
-            3,
-            Paint()
-              ..color = k < steamBreath
-                  ? const Color(0xFF8FE0EC)
-                  : const Color(0x553A4750),
-          );
-        }
-      }
-      y += 20;
-    }
-    // Creep-beat bar — fills as the next flood approaches.
-    final frac = (1.0 - (moltenBeat / _kMoltenBeat)).clamp(0.0, 1.0);
-    final bar = Rect.fromLTWH(x - 2, y + 2, 100, 6);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(bar, const Radius.circular(3)),
-      Paint()..color = const Color(0x6606141C),
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(bar.left, bar.top, bar.width * frac, bar.height),
-        const Radius.circular(3),
-      ),
-      Paint()..color = const Color(0xFFFF7A33).withValues(alpha: 0.8),
-    );
   }
 }

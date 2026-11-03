@@ -125,6 +125,11 @@ void main() {
         setup: (g) => g.boilerPressure = 99,
       );
 
+      // The field between blasts, then blowing: the steam is grains drawn
+      // over the party, born at the throat (2026-11-03).
+      await shoot('field_build', 'ember_causeway', seconds: 2.0);
+      await shoot('field_blast', 'ember_causeway', seconds: 4.4);
+
       // The crucible: corners open, then two sealed.
       await shoot('crucible', 'crucible', stars: 0x3);
       await shoot(
@@ -160,6 +165,7 @@ void main() {
       for (final (a, b) in const [
         ('gate', 'gate_open'),
         ('manifold_poor', 'manifold_rich'),
+        ('field_build', 'field_blast'),
         ('crucible', 'crucible_two'),
         ('cellar', 'cellar_setting'),
         ('cellar_setting', 'cellar_found'),

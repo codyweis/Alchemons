@@ -228,6 +228,8 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (ch == null || ch.id != 'onyx') return false;
     if (discoveredClouds.contains(kCrystalKnowThyselfEgg)) return false;
     if ((a.position - kChamberHeart).distance > _kKeepReach + 30) return false;
+    // The black cell is the planet's maxim: it acts, and is never named.
+    if (_probing) return _probeHit(null);
     if (!_chamberSealed(cell, ch)) {
       // WHAT is missing (§5.6): a doorway is still in this glass somewhere.
       _setBlockedHint(
@@ -427,6 +429,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final face = currentRoom.prism?.glassFace;
     if (face == null || entryDoorRevealed) return false;
     if ((a.position - face).distance > _kKeepReach) return false;
+    if (_probing) return _probeHit('CRACK');
     if (a.member.element != 'Lightning') {
       _setBlockedHint('Only Lightning can crack this glass');
       return true;
@@ -454,6 +457,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (_cellOf(currentRoom) != kKeepBeamRow.first) return false;
     if ((a.position - kWestLamp).distance > _kKeepReach) return false;
     final f = _keep;
+    if (_probing) return _probeHit(f.lampLit ? null : 'LIGHT');
     if (f.lampLit) {
       _setBlockedHint('The lamp is already lit');
       return true;
@@ -461,9 +465,8 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final direct = a.member.element == 'Light';
     final braid = _keepBraidReady(a);
     if (!direct && !braid) {
-      _setBlockedHint(
-        'The lamp needs Light. Crystal and Spirit together can make it',
-      );
+      // Bare (the Plant ruling, 2026-09-27): the product, never the pair.
+      _setBlockedHint('The lamp needs Light');
       return true;
     }
     f.lampLit = true;
@@ -500,6 +503,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     final f = _keep;
     if (f.chamberAt(cell)?.id != 'hearth') return false;
     if ((a.position - kChamberHeart).distance > _kKeepReach) return false;
+    if (_probing) return _probeHit(f.hearthKindled ? null : 'KINDLE');
     if (f.hearthKindled) {
       _setBlockedHint('The shard is already warm');
       return true;
@@ -533,6 +537,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     if (pos == null) return false;
     if ((a.position - pos).distance > _kKeepReach) return false;
     if ((conduitEnergy['B'] ?? 0) > 0) return false;
+    if (_probing) return _probeHit('RING');
     if (a.member.element != 'Crystal') {
       _setBlockedHint('Only Crystal can use the font');
       return true;
@@ -573,6 +578,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     }
     if ((a.position - kBerthChain).distance > _kKeepReach) return false;
     final f = _keep;
+    if (_probing) return _probeHit('PULL');
     if (a.member.element != 'Crystal') {
       _setBlockedHint('Only Crystal can pull the chain');
       return true;
@@ -634,6 +640,7 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
         guardianVulnerable) {
       return false;
     }
+    if (_probing) return _probeHit('RESET');
     if (a.member.element != 'Crystal') {
       _setBlockedHint('Only Crystal can ring this boss');
       return true;
@@ -691,6 +698,18 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
     // use it, and the fight is unwinnable with the §6.10 ideal trio.
     if (guardianAwake && guardianVulnerable) return false;
     if (!keepNeighbours(prism.choirHollow).contains(standing)) return false;
+    if (_probing) {
+      if (a.member.element != 'Crystal') {
+        if (a.ability == DungeonAbility.aerialTraversal) return false;
+        final g = currentRoom.guardian;
+        if (g != null &&
+            guardianAwake &&
+            (a.position - _guardianPosition(g)).distance <= 90) {
+          return false;
+        }
+      }
+      return _probeHit('SLIDE');
+    }
     if (a.member.element != 'Crystal') {
       // WHAT is missing (§5.6) — but never at the cost of the guardian's own
       // catch (its "wait for the lull" line) or a Wing's glide.
@@ -734,6 +753,15 @@ extension PrismLabyrinthKeep on PlanetDungeonGame {
       final target = keepNeighbourToward(cell, facet);
       if (target < 0) continue; // an outer wall carries no plate
       if ((a.position - keepPlateFor(facet)).distance > _kKeepReach) continue;
+      if (_probing) {
+        final empty =
+            a.member.element == 'Crystal' &&
+            !f.facetStanding &&
+            inSocket &&
+            f.chamberAt(target) == null;
+        if (empty) continue;
+        return _probeHit('SLIDE');
+      }
       if (a.member.element != 'Crystal') {
         _setBlockedHint('Only Crystal moves this glass');
         return true;

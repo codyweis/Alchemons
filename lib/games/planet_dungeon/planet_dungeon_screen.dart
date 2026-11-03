@@ -2353,7 +2353,10 @@ class _PlanetDungeonScreenState extends State<PlanetDungeonScreen>
           Icon(elementIconFor(element), size: 24, color: _padInk(!enabled)),
           const SizedBox(width: 8),
           _padLabel(
-            game.sunUtilityLabel ?? game.riteUtilityLabel ?? 'UTILITY',
+            game.sunUtilityLabel ??
+                game.riteUtilityLabel ??
+                game.utilityVerbLabel ??
+                'UTILITY',
             !enabled,
           ),
         ],

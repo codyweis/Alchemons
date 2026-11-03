@@ -509,6 +509,7 @@ extension StormCircuit on PlanetDungeonGame {
     // Only a Lightning creature can turn the heavy iron conductors.
     for (final m in room.beamMirrors) {
       if ((a.position - m.position).distance <= 52) {
+        if (_probing) return _probeHit('TURN');
         if (a.member.element != 'Lightning') {
           _setBlockedHint('Only Lightning can turn the conductor');
           return true;
@@ -1098,6 +1099,7 @@ extension StormCircuit on PlanetDungeonGame {
     final spike = room.coreBreaker;
     if (spike == null) return false;
     if ((a.position - spike).distance > 56) return false;
+    if (_probing) return _probeHit('GROUND');
     if (a.member.element != 'Lightning') {
       _setBlockedHint('Only Lightning can use the grounding spike');
       return true;
@@ -1154,6 +1156,7 @@ extension StormCircuit on PlanetDungeonGame {
         if (discoveredClouds.contains(cell.id)) continue;
         if ((a.position - cell.position).distance <= _kEchoReach ||
             (a.position - cell.reflection).distance <= _kEchoReach) {
+          if (_probing) return _probeHit('BARE');
           _setBlockedHint('Only Lightning can bare an echo');
           return true;
         }
@@ -1166,6 +1169,7 @@ extension StormCircuit on PlanetDungeonGame {
       if (discoveredClouds.contains(cell.id)) continue;
       if (!stormCellShown(cell)) continue;
       if ((a.position - cell.position).distance <= _kEchoReach) {
+        if (_probing) return _probeHit('BARE');
         _discoverCloud(cell.id);
         _setHint(
           'The ${cell.cellType} echo bares, its place wakes at the works',
@@ -1180,6 +1184,7 @@ extension StormCircuit on PlanetDungeonGame {
         return true;
       }
       if ((a.position - cell.reflection).distance <= _kEchoReach) {
+        if (_probing) return _probeHit('BARE');
         _setBlockedHint('That\'s only a reflection. The echo is elsewhere');
         return true;
       }
@@ -1189,6 +1194,7 @@ extension StormCircuit on PlanetDungeonGame {
       return false;
     }
     if (!room.stormCells.any(stormCellShown)) {
+      if (_probing) return _probeHit(null);
       _setBlockedHintOnce(
         'circuit:gallery_drowned',
         activeTrunk == null
@@ -1226,6 +1232,7 @@ extension StormCircuit on PlanetDungeonGame {
       if (node.kind != CircuitNodeKind.source) continue;
       if (node.latching) continue; // sockets, not charge-driven
       if ((a.position - node.position).distance > 52) continue;
+      if (_probing) return _probeHit('CHARGE');
       return _chargePylon(a, node);
     }
 
@@ -1233,6 +1240,7 @@ extension StormCircuit on PlanetDungeonGame {
     for (final node in room.circuitNodes) {
       if (node.kind != CircuitNodeKind.mirror) continue;
       if ((a.position - node.position).distance > 52) continue;
+      if (_probing) return _probeHit('TURN');
       return _rotateMirror(a, node);
     }
 
@@ -1241,6 +1249,7 @@ extension StormCircuit on PlanetDungeonGame {
       if (!sock.requiresHeat) continue;
       if (!_anvilCellWaiting.contains(sock.id)) continue;
       if ((a.position - sock.position).distance > 52) continue;
+      if (_probing) return _probeHit('HEAT');
       if (a.member.element == 'Fire') {
         return _heatAnvil(a, sock);
       }
@@ -1254,6 +1263,7 @@ extension StormCircuit on PlanetDungeonGame {
         if (energizedSockets.contains(sock.id)) continue;
         if (_anvilCellWaiting.contains(sock.id)) continue;
         if ((a.position - sock.position).distance > 48) continue;
+        if (_probing) return _probeHit('SET');
         return _depositCell(a, sock);
       }
     }
@@ -1266,6 +1276,7 @@ extension StormCircuit on PlanetDungeonGame {
         if (!discoveredClouds.contains(id)) continue;
         if (placedClouds.contains(id)) continue;
         if ((a.position - slots[i]).distance > 48) continue;
+        if (_probing) return _probeHit('TAKE');
         carriedCloudId = id;
         carriedCloudType = _cellTypeFor(id);
         _setHint('You gather the $carriedCloudType echo. Bear it to a socket');
@@ -1327,6 +1338,7 @@ extension StormCircuit on PlanetDungeonGame {
     final element = a.member.element;
 
     if (element == 'Air') {
+      if (_probing) return _probeHit(null);
       rotorOverspeed = kRotorOverspeedSeconds;
       _dynamoSwing = 0;
       _spawnAlchemyBurst(
@@ -1341,6 +1353,7 @@ extension StormCircuit on PlanetDungeonGame {
     }
 
     if (element == 'Lightning' && dynamoFused) {
+      if (_probing) return _probeHit(null);
       _spawnAlchemyBurst(
         c,
         producedElement: 'Lightning',
@@ -1373,6 +1386,7 @@ extension StormCircuit on PlanetDungeonGame {
       // designed for. This is the Thunderbolt's repeated beat.
       if (el == 'Fire' &&
           !discoveredClouds.contains(kLightningThunderboltEggId)) {
+        if (_probing) return _probeHit(null);
         if (weldedBreakers.contains(t.id)) {
           // NAME THE UNDO. This said "it will not open again" — eight lines
           // below the branch whose own comment reads "A FUSED BREAKER IS NOT
@@ -1404,6 +1418,7 @@ extension StormCircuit on PlanetDungeonGame {
         return true;
       }
 
+      if (_probing) return _probeHit('THROW');
       if (el != 'Lightning') {
         _setBlockedHint('Only Lightning can throw the breaker');
         return true;
@@ -1561,12 +1576,10 @@ extension StormCircuit on PlanetDungeonGame {
             ? 'The low vent makes a real bolt, but it hits the east wall. '
                   'Only the high vent reaches the iron'
             : tier >= 1
-            ? 'Air opens a vent. Fire standing in that wind turns it into '
-                  'lightning, and only lightning wakes the mast. Lightning '
-                  'over a vat blows it and trips the dynamo. Wind over one is '
-                  'safe'
-            : 'Only lightning wakes the mast. Wind and flame together make '
-                  'it, and iron carries it',
+            ? 'Only lightning wakes the mast. Lightning over a vat blows it '
+                  'and trips the dynamo. Wind over one is safe'
+            // Bare: what makes lightning is the player's to find.
+            : 'Only lightning wakes the mast. Iron carries it',
       );
       return;
     }

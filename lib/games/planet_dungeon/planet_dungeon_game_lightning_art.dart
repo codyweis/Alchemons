@@ -44,7 +44,11 @@ extension StormCircuitArt on PlanetDungeonGame {
     final rng = GlassRng(glassSeed(room.id, b));
 
     // PLATE COURSES, offset like brickwork so the joins never make a grid —
-    // translucent (§8), so the storm shader shows through the iron.
+    // translucent (§8), so the storm shader shows through the iron. At 0.55
+    // it showed through too much (2026-11-03): this sky is a high-contrast
+    // marble of lightning, and every room was that marble with the puzzle
+    // sunk in it. The iron carries the room now and the storm is a glow
+    // behind it.
     const plateH = 118.0;
     var row = 0;
     for (var y = b.top; y < b.bottom; y += plateH) {
@@ -54,7 +58,7 @@ extension StormCircuitArt on PlanetDungeonGame {
         Rect.fromLTWH(b.left, y, b.width, h),
         Paint()
           ..color = (row.isEven ? _kVoltGlass.floor : _kVoltGlass.floorAlt)
-              .withValues(alpha: 0.55),
+              .withValues(alpha: 0.82),
       );
       canvas.drawLine(
         Offset(b.left, y),
@@ -103,17 +107,51 @@ extension StormCircuitArt on PlanetDungeonGame {
           ..color = const Color(0xFF3E5A72).withValues(alpha: 0.26),
       );
     }
-    // Old scorch, where arcs have crossed this room for a long time.
+    // Old scorch, where arcs have crossed this room for a long time: a soft
+    // burn with the arc's branching scar in it. (They were flat black discs,
+    // which read as holes in the floor.)
     for (var i = 0; i < 5; i++) {
       final at = Offset(
         b.left + 60 + rng.next() * (b.width - 120),
         b.top + 60 + rng.next() * (b.height - 120),
       );
+      final r = 22.0 + (i % 3) * 10;
       canvas.drawCircle(
         at,
-        20.0 + (i % 3) * 9,
-        Paint()..color = const Color(0xFF05080D).withValues(alpha: 0.4),
+        r,
+        Paint()
+          ..shader = ui.Gradient.radial(at, r, [
+            const Color(0xFF05080D).withValues(alpha: 0.34),
+            const Color(0x0005080D),
+          ]),
       );
+      final scar = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.1
+        ..strokeCap = StrokeCap.round
+        ..color = const Color(0xFF03050A).withValues(alpha: 0.42);
+      void branch(Offset from, double a, double len, int depth) {
+        var p = from;
+        final steps = 4;
+        for (var k = 0; k < steps; k++) {
+          final q =
+              p +
+              Offset(
+                    cos(a + rng.range(-0.5, 0.5)),
+                    sin(a + rng.range(-0.5, 0.5)),
+                  ) *
+                  (len / steps);
+          canvas.drawLine(p, q, scar);
+          if (depth > 0 && rng.next() < 0.45) {
+            branch(q, a + rng.range(-0.9, 0.9), len * 0.5, depth - 1);
+          }
+          p = q;
+        }
+      }
+
+      for (var k = 0; k < 5; k++) {
+        branch(at, k * 2 * pi / 5 + rng.range(-0.3, 0.3), r * 1.6, 2);
+      }
     }
     paintCarvedRoomShell(
       canvas,

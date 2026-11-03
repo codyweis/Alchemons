@@ -195,6 +195,11 @@ extension ConservatoryDungeon on PlanetDungeonGame {
   bool _tryWingRing(DungeonCreature a, ConservatoryPlot g) {
     final wing = g.wing;
     if (wing == null || !_standingIn(a, wing.ring)) return false;
+    if (_probing) {
+      return _probeHit(
+        greenhouse.healed.contains(wing.climate) ? null : 'TEND',
+      );
+    }
     final product = climateFix(wing.climate);
     if (greenhouse.healed.contains(wing.climate)) {
       _setHint('It is thriving. This room needs nothing more');
@@ -291,11 +296,19 @@ extension ConservatoryDungeon on PlanetDungeonGame {
       _ => t.lit == lamp,
     };
     if (done) {
+      if (_probing) {
+        _probeHit(null);
+        return;
+      }
       _setHint(switch (product) {
         'Water' => 'The soil is already wet, and it stays wet',
         'Ice' => 'The crossing is already frozen, and it stays frozen',
         _ => 'This lamp is already the lit one',
       });
+      return;
+    }
+    if (_probing) {
+      _probeHit('TEND');
       return;
     }
     final missing = tendMissing(product, _ringElements(ring.at));
@@ -332,6 +345,12 @@ extension ConservatoryDungeon on PlanetDungeonGame {
 
   bool _tryTrellisRoot(DungeonCreature a) {
     final g = greenhouse;
+    if (_probing) {
+      final busy =
+          _green.tendrilMoving ||
+          (_green.budBurstT >= 0 && _green.budBurstT < kBudEnd);
+      return _probeHit(busy ? null : (g.grown ? 'DRAW' : 'GROW'));
+    }
     if (_green.tendrilMoving) return true; // let it finish
     // Nor is the bud's opening something to pull out of.
     if (_green.budBurstT >= 0 && _green.budBurstT < kBudEnd) return true;
@@ -479,6 +498,9 @@ extension ConservatoryDungeon on PlanetDungeonGame {
     if (tip == null) return false;
     final ring = kRootRings[tip]!.at;
     final g2 = greenhouse;
+    if (_probing) {
+      return _probeHit(g2.rootsOpen || hasStar(2) ? null : 'TEND');
+    }
     if (g2.rootsOpen || hasStar(2)) {
       _setHint('The roots have let go');
       return true;
@@ -544,6 +566,10 @@ extension ConservatoryDungeon on PlanetDungeonGame {
   /// most of the lattice's states can no longer reach the crown.
   bool _tryRootStump() {
     final g = greenhouse;
+    if (_probing) {
+      final spent = g.rootsOpen || hasStar(2) || g.roots.bare;
+      return _probeHit(spent ? null : 'PRUNE');
+    }
     if (g.rootsOpen || hasStar(2)) {
       _setHint('The roots have let go');
       return true;
@@ -626,6 +652,7 @@ extension ConservatoryDungeon on PlanetDungeonGame {
     }
     if (ring == null) return false;
     final climate = greenhouse.arena;
+    if (_probing) return _probeHit(climate == null ? null : 'TEND');
     if (climate == null) {
       _setHint(
         _green.lull > 0
@@ -672,6 +699,8 @@ extension ConservatoryDungeon on PlanetDungeonGame {
     final at = g.seedPlanter;
     if (at == null || !_greySeedPlanted) return false;
     if ((a.position - at).distance > _kGreenReach) return false;
+    // The grey seed is the planet's maxim: it acts, and is never named.
+    if (_probing) return _probeHit(null);
     if (discoveredClouds.contains(kPlantOppositeSeedEggId) ||
         _ritePendingEgg == kPlantOppositeSeedEggId) {
       _setHint('It is in bloom, in the shade, the warm and the dry');

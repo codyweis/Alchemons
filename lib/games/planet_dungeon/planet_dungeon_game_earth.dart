@@ -382,6 +382,13 @@ extension BuriedGiant on PlanetDungeonGame {
     final scale = room.stoneScale;
     if (scale == null || hasStar(2)) return false;
     if ((a.position - scale.plinth).distance > 46) return false;
+    if (_probing) {
+      return _probeHit(switch (prismStage) {
+        0 => 'RAISE',
+        1 => 'FORM',
+        _ => 'GAZE',
+      });
+    }
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
         'The plinth needs the ${layout.starName(0)} and '
@@ -464,6 +471,7 @@ extension BuriedGiant on PlanetDungeonGame {
   bool _tryBarrowLintel(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'barrow_gate') return false;
     if ((a.position - kBarrowLintel).distance > 46) return false;
+    if (_probing) return _probeHit(entryDoorRevealed ? null : 'LIFT');
     // Both of these are REFUSALS and belong on the blocked channel (§5.6),
     // not the plain one — a press that gets turned down is not the room
     // telling you something. It was invisible while nothing depended on the
@@ -508,6 +516,10 @@ extension BuriedGiant on PlanetDungeonGame {
     }
     for (final rib in room.fossilRibs) {
       if (!_ribRect(rib).inflate(38).contains(a.position)) continue;
+      if (_probing) {
+        final busy = _ribSlides.containsKey(rib.id) || _ribBridging(rib);
+        return _probeHit(busy ? null : 'SHOVE');
+      }
       if (_ribSlides.containsKey(rib.id)) {
         _setHint('The bone is still grinding. Let it settle');
         return true;
@@ -854,6 +866,7 @@ extension BuriedGiant on PlanetDungeonGame {
     for (var i = 0; i < kSpineSteps; i++) {
       final at = spineStepAt(room, i);
       if ((a.position - at).distance > _kSpineStepReach) continue;
+      if (_probing) return _probeHit(spineLatched.contains(i) ? null : 'SEAT');
       if (spineLatched.contains(i)) {
         _setHint('This one is set, it will hold');
         return true;
@@ -925,6 +938,14 @@ extension BuriedGiant on PlanetDungeonGame {
       if ((a.position - pillar.position).distance > 50) continue;
       final element = a.member.element;
       final id = pillar.id;
+      if (_probing) {
+        if (pillarSealed.contains(id)) return _probeHit(null);
+        if (!pillarBared.contains(id)) return false;
+        if (element == 'Crystal') return _probeHit('SEAL');
+        final busy =
+            lockedPillars.contains(id) || _pillarCharge.containsKey(id);
+        return _probeHit(busy ? null : 'LIGHT');
+      }
 
       if (pillarSealed.contains(id)) {
         _setHint('Crystal has this one for good');
@@ -1037,6 +1058,7 @@ extension BuriedGiant on PlanetDungeonGame {
     if (scale == null || hasStar(2)) return false;
     for (final w in scale.weights) {
       if ((a.position - w.position).distance > 46) continue;
+      if (_probing) return _probeHit(guardianAwake ? null : 'MOVE');
       if (!guardianRiteUnlocked) {
         _setBlockedHint(
           'The scale needs the ${layout.starName(0)} and '
@@ -1135,6 +1157,8 @@ extension BuriedGiant on PlanetDungeonGame {
     if (room.id != 'palm_hollow') return false;
     if (discoveredClouds.contains(kEarthGiantsPalmEggId)) return false;
     if ((a.position - kGiantsPalm).distance > 60) return false;
+    // The open palm is the planet's maxim: it acts, and is never named.
+    if (_probing) return _probeHit(null);
     final element = a.member.element;
 
     switch (palmStage) {
@@ -1231,6 +1255,7 @@ extension BuriedGiant on PlanetDungeonGame {
   bool _tryBarrowCommune(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'sternum_court' || starsEarnedCount < 3) return false;
     if ((a.position - room.bounds.center).distance >= 34) return false;
+    if (_probing) return _probeHit(null);
     _setHint(
       'The dust settles utterly still. Before the burial, Terradon shaped '
       'these bones from the first mountain, the giant remembers, and now '

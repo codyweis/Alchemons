@@ -5,6 +5,229 @@ matrix + build roadmap.** Keep this in sync as we build.
 
 ---
 
+## Visual pass on every dungeon — 2026-11-03
+
+After the Steam pass the user asked for "a visual pass on every dungeon".
+Every room of all seventeen was rendered and read for the same tells Steam
+had: things that read as interface (flat panels, node-and-line diagrams,
+pie charts, crosshairs), clip-art icons, and floors the puzzle sinks into.
+
+**Changed:**
+  · **Water** — the tide basins were flat translucent rectangles (a UI panel
+    on the floor). `_drawTemplePool`: a sunk basin with a kerb, its far inner
+    wall lit, mosaic remnants in the silt, and water that climbs the far wall
+    as the tide rises, deep at the back, glinting in grains where the surface
+    moves. Ledges are carved blocks the water rises over. The canal gallery's
+    grooves were 9px lines between rings — a schematic. They are stone
+    runnels (`_drawCanalRunnel`) with live water as a ribbon carrying grains
+    downstream (a torrent churns white), and the basins sit in kerbs.
+  · **Plant** — the tend rings were three flat wedges inside a ring of stone
+    spikes: a pie chart on a gear. Each element is three leaf panes now, so a
+    ring is a leaded rosette of nine leaves round its boss, on a darker
+    collar. What lights, and why, is unchanged.
+  · **Lightning** — the floor plates were 0.55 opaque over a high-contrast
+    marble storm, so every room was that marble with the puzzle sunk in it.
+    0.82 now: the iron carries the room and the storm glows behind it. The
+    "old scorch" was five flat black discs (holes); it is a soft burn with
+    the arc's branching scar in it.
+  · **Air** — the anvil cloud's floor panel was a smith's anvil (horn, waist,
+    foot), an icon. It is a thunderhead's anvil: flat spreading top, column,
+    billowed base. The entry's dark "distant spire" triangle is gone.
+  · **Dust** — a street slab was a flat grey square with a ring at each
+    corner. It is one worn stone slab: grain, two cracks, sand drifted on its
+    windward side, small bronze studs. Still one slab, so it never reads as
+    four choices.
+
+**Looked at and left, because they are deliberate or already right:** Fire,
+Lava, Dark, Blood and Light hold up. Earth's scale tablets are gold inlay in
+carved stone (reworked 09-25 and 10-08). Spirit's urn and bell were made
+bright on purpose on 10-08 — they are the puzzle surfaces. Poison's "text
+bar" boards are real riddle signs (the headless render draws text as
+blocks). Ice's gold arrows are rule information. The right-edge gauges on
+Steam, Mud and Water are HUD. Crystal's swatch board is its "you are here".
+
+## Steam brought up to date — 2026-11-03
+
+The user, looking at Vaporis: "a lot is outdated like the boulder created,
+steam, etc." It was the most dated planet. The 10-08 grains pass gave it only
+a light check, and that check kept the geyser plumes as sprite puffs on budget
+grounds, so the steam on the steam planet was the oldest steam in the game.
+The puzzles were left exactly as they were (the user: "the puzzles are fine").
+
+  · **The name.** The title card said THE MOLTEN LABYRINTH, and nothing on the
+    planet has melted in a labyrinth since the lava flood was cut on
+    2026-08-14. It is **THE BOILER RING** now (and the Lava planet keeps
+    "Molten" to itself).
+  · **The dead lava code is out**, about 1,350 lines: `MoltenGrid` and
+    `DungeonRoom.molten`, the creep, the scalds, the breath pips, the pour,
+    the tile verbs, the wet-wall reading, the creep forecast, the molten
+    floor painter and the HUD's verb legend, plus their run state.
+    `moltenRiteDone` stays — it is the crucible rite's flag and wakes Boilrog.
+  · **Steam is grains**, drawn over the party so a body in a blast stands in
+    it. A blast is born at the throat and grows, billows, and lifts off and
+    thins when it stops (`_addGeyserBlast`, from its own birth on the
+    `_moltenPulse` clock, so a throw that freezes the cycle does not freeze
+    the plume). Between blasts the mouth mutters, thicker as the head builds;
+    a held mouth hisses out from under whatever holds it; the shove's reach
+    is a low sheet of condensate rolling out to it instead of a drawn ring;
+    the won field's heart is a standing column. Twelve at once (the crucible)
+    are thinned to about five plumes' worth.
+  · **The vents are rock**: sinter shelves laid unevenly, a wet lip, a throat
+    whose far wall you see. A riser wears a riveted iron collar. A sealed
+    crucible vent is plugged with what shut it — Steam's sinter, Earth's
+    stone, Fire's slag. The choked mouth is a heap of broken rock.
+  · **Earth's stone** is a rough lit boulder that heaves up through the
+    floor — the brick torn open round it, grit sliding off — not a flat disc
+    that grew.
+  · **One boiler house.** The forge and crucible stood on the generic floating
+    island, pale slate over a void. They are firebrick ledges now with a
+    riveted iron rim and a brick pier dropping into the pit. The cast span is
+    not drawn as ground until the forge's star is banked.
+  · **The forge**: the moat is a trough between kerbs with the melt crusting
+    into plates behind its bright front, and a set casting once won; the
+    pedestal is a mould at its foot that fills and turns gold.
+  · **The empty rooms**: Boilrog's room has two fire-mouths in its north wall;
+    the gate's vent is a relief valve on a branch off the main, hissing until
+    Steam bleeds it; the firebox stands with its flue; the burst-disc is a
+    riveted dome in a flanged ring. The orange "lava seam" border round every
+    room is gone (heat glow stays), and the grate wisps that read as static
+    are wider and softer, and only in rooms with no geysers.
+  · Cost, measured headless in the debug runner: a crucible frame with twelve
+    blasts records in ~3.4 ms against ~1.8 ms between blasts.
+
+## Cross-planet polish pass — 2026-11-02
+
+All 159 rooms were rendered on contact sheets, and the copy was swept
+against the bare-hint ruling.
+
+- **Dust's survey marks are alchemical signs:** ☉ sun, ☽ moon, 🜍 sulphur,
+  ♄ lead and 🜃 earth. Before, they were a ring, a cross, a triangle, an X
+  and a lozenge, which are a gamepad's face buttons. Dust can be played on
+  a controller, so the tags read as button prompts. The marks are drawn in
+  one place, `_drawSurveyGlyph`, and no line of copy names them.
+- **Refusals no longer name the pair.** The Plant ruling (2026-09-27: the
+  product, never the recipe) now holds on every planet. These lines were
+  changed: Crystal's lamp ("Crystal and Spirit together can make it"),
+  Mud's crossing ("or Plant and Water together"), Dust's dig with Dust
+  down ("Air and Earth together can"), Poison's font ("Poison and Poison
+  at the pot") and Lightning's mast readings ("Wind and flame together
+  make it", "Fire standing in that wind turns it into lightning").
+- **A line stays long enough to read.** Each line used to leave on its
+  caller's fixed clock, 2.4 s by default, however long it was. A line now
+  stays for at least 1.2 s + 0.3 s a word (about 200 words a minute),
+  capped at 14 s. The capsule ignores touches, so a line that stays never
+  blocks play.
+
+### The pad says what a press would do (2026-11-02; every planet but Blood and Dark, which name their own)
+
+The utility tile said UTILITY on fifteen planets, wherever you stood. Only
+Blood (TURN · LEAD · FLIP) and Dark (SHINE · PUT OUT) named their press. The
+tile now names the press on any planet in `_kVerbLabelPlanets`. Fire was
+the pilot. The same day it reached all fifteen planets that had said
+UTILITY.
+
+The words, by planet:
+
+- **Fire:** LIGHT, BURN, GROW, TEND, TURN, GUST.
+- **Air:** WAKE a shrine, RAISE or LOWER a rod, PUSH the cell, OPEN a jet,
+  BIND, CRACK, PIN, FLARE.
+- **Water:** FILL, TURN, OPEN, LIGHT, READ, PLUG or UNPLUG, WANE, FREEZE
+  or THAW.
+- **Earth:** LIFT, SHOVE, SEAT, SEAL, LIGHT, RAISE, FORM, GAZE, MOVE.
+- **Lightning:** GROUND, BARE, THROW, TURN, CHARGE, HEAT, SET, TAKE.
+- **Steam:** RAISE or SINK stone, SHUT, MELT, OPEN, STOKE, VENT.
+- **Lava:** BREAK, POUR, QUENCH, CHILL, THROW, WAKE or VENT, MELT, TAKE,
+  UNLOCK, DROP.
+- **Poison:** GIVE, SET, TAKE, DOSE, POUR.
+- **Mud:** WASH, HARDEN, CARRY, SET, FILL, PULL.
+- **Ice:** OPEN, RESET, FREEZE, RAISE, SING, STRIKE, SILVER or UNSILVER,
+  BLOW, SHOVE, GLAZE, MELT, TURN, LOOK.
+- **Dust:** CLEAR, WIND or RESET, SIGHT, TURN, DIG, BLOW.
+- **Crystal:** CRACK, LIGHT, KINDLE, RING, PULL, RESET, SLIDE.
+- **Plant:** TEND (the same word whoever stands in a ring, so the pairing
+  never leaks), GROW or DRAW, PRUNE.
+- **Spirit:** CLEAR, CROSS, TAKE, GATHER, SET, WAKE, PRESS, RING.
+- **Light:** WAKE, SET, VEIL, PIN or UNPIN, RISE, TURN.
+
+Every maxim is unnamed, and so are Spirit's vault niche and anything done
+in its past.
+
+- **How it is found.** No planet's geometry is copied. Ten times a second, a
+  probe runs the active body's press through the real `_dispatchAbility`.
+  Every handler reports `_probeHit(label)` where it would act: after its
+  reach check, before its first effect. The handler then stops. The pad
+  shows the word, and UTILITY when nothing reports.
+- **What it names.** The thing in reach and what is done to it: LIGHT a
+  torch, the hearth, a brazier, a censer or a stand; TURN the vane; GROW
+  and BURN a bed; TEND a bed for anyone else; GUST a live flame; CHARGE a
+  conduit; STRIKE a guardian. A Wing with nothing in reach shows GLIDE or
+  LAND. A refusal still shows the object's word, so the label never says
+  WHO can work it. A planet whose handler is element-led, like Fire's burn,
+  names what the press by this body would do. That says no more than a
+  free press does.
+- **What it never names.** A secret: the Ember Epitaph, the nave's last
+  words, Air's entry rite, flavour sparks. These report with no label, so
+  the pad stays UTILITY and never finds a maxim for you. A lit hearth or a
+  brazier that has already burned reports no label either.
+- **Safety.** A planet joins the set only when every handler on its press
+  path reports itself. An unreported handler would act for real inside the
+  probe. `assert(!_probing)` tripwires sit in `_cue`, `_emitHint`,
+  `_spawnAlchemyBurst`, `spawnWispWave`, `_discoverCloud` and `earnStar`.
+  `test/dungeon_pad_verb_label_test.dart` checks three things across every
+  room, a 20 px grid, every element and six stages of the run. The probe
+  changes nothing (about 60,000 probes against a state fingerprint). A real
+  press is taken exactly where the probe reported one. The epitaph is
+  never named.
+- **A new handler** must call `_probeHit` after its reach check. If it
+  does not, the test fails, because the test walks every planet in the
+  set with all 17 elements. Some planets roll their puzzle per game, so
+  the agreement check probes and then presses on ONE game. The probe is
+  pure, so both see the same room.
+
+### A wipe at the guardian regroups at its door (2026-11-02)
+
+When the whole party fell to a guardian, it woke at the planet's entrance
+with every puzzle undone, then walked back. Now `_regroupAtLair` handles a
+wipe inside a guardian fight:
+
+- The party stands up whole where it came into the lair.
+- The guardian keeps its wake and descends again at full strength.
+- Every wisp, shot and beam is cleared.
+- Stars, finds and every puzzle's state are kept.
+
+A wipe anywhere else still resets the run.
+
+**Poison, Dark, Light and Blood** (`_kWipeResetsRun`) keep the full reset
+at the guardian too:
+
+- Poison's fight spends brews the run cannot give back.
+- Dark, Light and Blood fight on floors where each body's square is state,
+  so a regroup could place a body wrong.
+
+`test/dungeon_guardian_wipe_regroup_test.dart` reaches the fight on all 17
+planets and checks both outcomes.
+
+### Each room's floor is laid for what it is (Fire and Water, 2026-11-02)
+
+The rooms of a planet share their stone, so at play zoom, where the floor
+is most of the screen, one room looked like the next. `paintFlagFloor` now
+takes a `FlagLaying`:
+
+- `courses`: the default, byte-identical to before.
+- `ashlar`: big slabs in staggered courses, never a true grid. A square
+  grid on the floor of a game with grid puzzles reads as a board to play
+  on.
+- `long`: lengthwise flags, for processional ways.
+- `basket`: blocks in pairs, turning a quarter in a checker.
+
+Fire lays the nave and bell gallery long, the choir, high altar and
+reliquary in ashlar, and the cloister, vestry and scriptorium in
+basketwork. Water lays the moon hall and ghost gallery long, the two courts
+and the well in ashlar, and the tide works and pearl vault in basketwork.
+This is the fabric, not decoration: no motif was added, so nothing new
+reads as machinery. Earth keeps its unpaved strata, because a barrow is
+not a laid floor. Its rooms already differ by the giant's anatomy.
+
 ## Strategy and pacing review — 2026-09-27
 
 Plant, Spirit, Dark, Light and Blood retain their authored route puzzles,

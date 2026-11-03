@@ -581,12 +581,14 @@ extension MoltenReliquary on PlanetDungeonGame {
     for (final n in s.line.levers) {
       if (n.roomId != room.id) continue;
       if ((a.position - n.leverAt!).distance > _kWorksReach) continue;
+      if (_probing) return _probeHit('THROW');
       return _throwPoints(a, n);
     }
 
     // 4) The mill's accumulator: Ice+Lava→Steam drives the dead die (§6.2).
     if (room.id == 'stamp_mill' &&
         (a.position - kLavaAccumulator).distance <= _kWorksReach) {
+      if (_probing) return _probeHit(s.dieWoken ? 'VENT' : 'WAKE');
       return _tryWakeDie(a);
     }
 
@@ -607,6 +609,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       if (ward == null || s.wardsTurned.contains(ward)) continue;
       if ((a.position - d.rect.center).distance > _kWorksReach + 30) continue;
       if (s.carried != ward) continue;
+      if (_probing) return _probeHit('UNLOCK');
       s.turnWard(ward);
       _setHint('The ward turns and the bolts run back');
       _queueDoorReveal(room.id, d.targetRoomId);
@@ -625,6 +628,10 @@ extension MoltenReliquary on PlanetDungeonGame {
   bool _tryCrucible(DungeonCreature a, FoundryNode tap) {
     final s = works.line;
     final el = a.member.element;
+    if (_probing) {
+      final quench = s.pour != null && s.pour!.channelId == 'ch_tap';
+      return _probeHit(quench ? 'QUENCH' : (s.tapWoken ? 'POUR' : 'BREAK'));
+    }
 
     // Quench the font mid-pour: it costs the charge and leaves the same cold
     // plug any other freeze does. It is no longer the maxim (see
@@ -710,6 +717,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       const DungeonInteractionRequirement(element: 'Ice'),
     );
     if (!interactionSucceeded(r)) return false; // not Ice: let other verbs try
+    if (_probing) return _probeHit('CHILL');
     s.freezeHere();
     works
       ..flash = 1.0
@@ -836,6 +844,7 @@ extension MoltenReliquary on PlanetDungeonGame {
       final centre = c.rect.width > 0 ? c.rect.center : Offset.zero;
       if (c.rect.width <= 0) continue; // a carried key has no footprint
       if ((a.position - centre).distance > _kWorksReach + 20) continue;
+      if (_probing) return _probeHit('MELT');
       if (a.member.element != 'Lava') {
         _setBlockedHint('Only Lava can melt a casting out');
         return true;
@@ -861,6 +870,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     final what = s.molds[mold.id];
     if (what == null) return false;
     if (what == 'span_a') return false; // a road is not carried
+    if (_probing) return _probeHit(s.cast(what) ? 'TAKE' : 'MELT');
     // A ruined key has no footprint on the floor for the re-melt sweep to
     // find, so the form itself is where a Lava hand takes it back out.
     if (!s.cast(what)) {
@@ -902,6 +912,7 @@ extension MoltenReliquary on PlanetDungeonGame {
     if (g == null || !guardianAwake || hasStar(g.starIndex)) return false;
     for (final head in kLavaHeartHeads) {
       if ((a.position - head).distance > _kHeadReach) continue;
+      if (_probing) return _probeHit('DROP');
       final w = works;
       // A beached Magmara lies by the head that caught it, and the head used
       // to come back up sooner than it got away: one body at a head held it

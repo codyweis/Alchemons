@@ -366,6 +366,8 @@ extension MirrorTide on PlanetDungeonGame {
     if (!mirrorIsGlass || mirrorShards.isEmpty) return false;
     for (var i = 0; i < kMirrorShardAt.length; i++) {
       if ((a.position - kMirrorShardAt[i]).distance > _kShardReach) continue;
+      // The mirror is the planet's maxim: it acts, and is never named.
+      if (_probing) return _probeHit(null);
       if (mirrorShards[i] == kMoonNotches - 1) {
         _setHint('This piece already shows the moon whole');
         return true;
@@ -984,6 +986,7 @@ extension MirrorTide on PlanetDungeonGame {
   bool _tryOfferingBowl(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'tide_gate') return false;
     if ((a.position - kTideGateBowl).distance > 46) return false;
+    if (_probing) return _probeHit(entryDoorRevealed ? null : 'FILL');
     if (entryDoorRevealed) {
       _setHint('The offering-bowl brims, mirror-still');
       return true;
@@ -1019,6 +1022,14 @@ extension MirrorTide on PlanetDungeonGame {
   bool _tryTideValve(DungeonCreature a, DungeonRoom room) {
     for (final valve in room.tideValves) {
       if ((a.position - valve.position).distance > 46) continue;
+      if (_probing) {
+        final still =
+            _atWell &&
+            !hasStar(2) &&
+            !moonBridgeWhole &&
+            a.member.element == 'Water';
+        return _probeHit(still ? null : 'TURN');
+      }
       final r = evaluateInteraction(
         a.member,
         DungeonInteractionRequirement(
@@ -1077,6 +1088,9 @@ extension MirrorTide on PlanetDungeonGame {
     if (room.tideSeals.isEmpty || star == null || hasStar(star)) return false;
     for (final seal in room.tideSeals) {
       if ((a.position - seal.position).distance > 46) continue;
+      if (_probing) {
+        return _probeHit(openedSeals.contains(seal.id) ? null : 'OPEN');
+      }
       if (openedSeals.contains(seal.id)) {
         _setBlockedHint('This sluice already runs free');
         return true;
@@ -1138,6 +1152,15 @@ extension MirrorTide on PlanetDungeonGame {
     if (room.canalNodes.isEmpty || star == null || hasStar(star)) return false;
     for (final node in room.canalNodes) {
       if ((a.position - node.position).distance > _kCanalReach) continue;
+      if (_probing) {
+        if (node.isSea) return _probeHit(null);
+        if (lanternLit && lanternNodeId == node.id) {
+          return a.member.element == 'Ice' ? false : _probeHit(null);
+        }
+        final here =
+            node.isSpring || (lanternAground && lanternNodeId == node.id);
+        return here ? _probeHit('LIGHT') : false;
+      }
       if (node.isSea) {
         _setHint('The grate breathes; somewhere below it, the sea');
         return true;
@@ -1197,6 +1220,9 @@ extension MirrorTide on PlanetDungeonGame {
     for (final node in room.canalNodes) {
       if (!node.isBasin) continue;
       if ((a.position - node.position).distance > _kCanalReach) continue;
+      if (_probing) {
+        return _probeHit(dammedNodes.contains(node.id) ? 'UNPLUG' : 'PLUG');
+      }
       if (a.member.element != 'Ice') {
         // §5.6 BLOCKED: one clause, element-first, no how-to.
         _setBlockedHint('Only Ice plugs a basin');
@@ -1244,6 +1270,7 @@ extension MirrorTide on PlanetDungeonGame {
     final star = room.canalStarIndex;
     if (room.canalNodes.isEmpty || star == null) return false;
     if (a.member.element != 'Spirit') return false;
+    if (_probing) return _probeHit(hasStar(star) ? null : 'READ');
     if (hasStar(star)) {
       _setHint('The canals lie quiet, the lantern is away');
       return true;
@@ -1283,6 +1310,7 @@ extension MirrorTide on PlanetDungeonGame {
     if (glint == null) return false;
     if (a.member.element != 'Ice') return false;
     if ((a.position - glint).distance > 28) return false;
+    if (_probing) return _probeHit(null);
     // YOU CANNOT FREEZE A MOON THAT IS MOVING. The reflection runs because
     // the water runs; still the water and it will hold. The refusal costs
     // nothing and says what it sees, not what to do.
@@ -1321,6 +1349,7 @@ extension MirrorTide on PlanetDungeonGame {
   bool _tryCourtCommune(DungeonCreature a, DungeonRoom room) {
     if (room.id != 'drowned_court' || starsEarnedCount < 3) return false;
     if ((a.position - room.bounds.center).distance >= 34) return false;
+    if (_probing) return _probeHit(null);
     // Spoken: the line IS the reward, and a plain hint from a press that is
     // not HINT is dropped.
     speakConsequence(
@@ -1763,92 +1792,17 @@ extension MirrorTide on PlanetDungeonGame {
   }
 
   /// The animated water itself: every tide zone fills and drains with the
-  /// live tideAnim — alpha and ripple swell as the water climbs.
+  /// live tideAnim, as a sunk pool or a drowned wall (`_drawTemplePool`).
   void _renderTideWater(Canvas canvas, DungeonRoom room) {
     for (final z in room.tideZones) {
       final thr = _zoneThreshold(z);
       // How "wet" the zone is right now (starts rising a little early so
       // the flood reads as approaching, not popping).
       final wet = ((tideAnim - (thr - 0.22)) / 0.22).clamp(0.0, 1.0);
-      if (z.ledge) {
-        if (wet < 1) {
-          // The ledge wall, sinking as the water climbs.
-          final wallAlpha = (1 - wet) * 0.85;
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(z.rect, const Radius.circular(8)),
-            Paint()
-              ..color = const Color(0xFF24404C).withValues(alpha: wallAlpha),
-          );
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(z.rect, const Radius.circular(8)),
-            Paint()
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.6
-              ..color = const Color(
-                0xFF4A8AB8,
-              ).withValues(alpha: wallAlpha.clamp(0.0, 0.7)),
-          );
-        }
-        if (wet > 0) {
-          // Submerged: the drowned wall's ghost under the swell.
-          canvas.drawRRect(
-            RRect.fromRectAndRadius(z.rect, const Radius.circular(8)),
-            Paint()
-              ..color = const Color(0xFF2A6478).withValues(alpha: 0.18 * wet),
-          );
-        }
-        continue;
-      }
-      // Basins: drained mosaic floor → live water.
-      if (wet <= 0) {
-        // Drained: the basin reads as a sunken floor.
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(z.rect, const Radius.circular(10)),
-          Paint()..color = const Color(0xFF081218).withValues(alpha: 0.5),
-        );
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(z.rect, const Radius.circular(10)),
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.2
-            ..color = const Color(0xFF2A4A56).withValues(alpha: 0.5),
-        );
-        continue;
-      }
-      // Water body.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(z.rect, const Radius.circular(10)),
-        Paint()
-          ..color = const Color(
-            0xFF1E6884,
-          ).withValues(alpha: 0.20 + 0.16 * wet),
-      );
-      // Two travelling surface highlights.
-      final r = z.rect;
-      final shine = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.3
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.22 * wet);
-      for (var i = 0; i < 2; i++) {
-        final phase = _time * (0.5 + i * 0.3) + i * 2.2;
-        final y = r.top + r.height * (0.3 + 0.4 * i) + sin(phase) * 6;
-        final path = Path()..moveTo(r.left + 12, y);
-        var x = r.left + 12.0;
-        while (x < r.right - 12) {
-          final nx = min(x + 46, r.right - 12);
-          path.quadraticBezierTo(
-            (x + nx) / 2,
-            y + sin(phase + x * 0.05) * 4,
-            nx,
-            y,
-          );
-          x = nx;
-        }
-        canvas.drawPath(path, shine);
-      }
+      _drawTemplePool(canvas, z.rect, wet, ledge: z.ledge);
       // Rim sparkle while the tide is actively moving.
-      if (!tideSettled && _fx.ready) {
+      if (wet > 0 && !tideSettled && _fx.ready) {
+        final r = z.rect;
         drawGlow(
           canvas,
           _fx.mote!,
@@ -2143,34 +2097,16 @@ extension MirrorTide on PlanetDungeonGame {
     final done = star != null && hasStar(star);
     final geoms = _canalGeometry;
 
-    // 1) The grooves themselves: cut stone, always there.
-    final groove = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 9
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF071319).withValues(alpha: 0.6);
-    final grooveLip = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF4A7080).withValues(alpha: 0.34);
+    // 1) The runnels themselves: cut stone, always there. A deep cut is CUT
+    //    DEEPER, and it looks it — wider and darker. Nothing about it is
+    //    hidden; Spirit's reading only saves you finding out at high water.
     for (final g in geoms) {
-      if (g.channel.sill == CanalSill.deep) {
-        // A deep cut is CUT DEEPER, and it looks it: a wider, darker throat
-        // under the ordinary groove. Nothing about it is hidden — Spirit's
-        // reading only saves you finding out at the high water.
-        canvas.drawLine(
-          g.a,
-          g.b,
-          Paint()
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 14
-            ..strokeCap = StrokeCap.round
-            ..color = const Color(0xFF040C12).withValues(alpha: 0.55),
-        );
-      }
-      canvas.drawLine(g.a, g.b, groove);
-      canvas.drawLine(g.a, g.b, grooveLip);
+      _drawCanalRunnel(
+        canvas,
+        g.a,
+        g.b,
+        deep: g.channel.sill == CanalSill.deep,
+      );
     }
 
     // 2) The live water, and the fall it runs in. This IS the tide gauge for
@@ -2204,46 +2140,13 @@ extension MirrorTide on PlanetDungeonGame {
   /// A running groove: a band of water with two travelling glints sliding
   /// downstream, so "this one is live, and it runs THAT way" reads at a
   /// glance from across the room.
-  void _drawLiveChannel(Canvas canvas, _CanalGeom g) {
-    canvas.drawLine(
-      g.a,
-      g.b,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6
-        ..strokeCap = StrokeCap.round
-        ..color = const Color(0xFF2A88A8).withValues(alpha: 0.42),
-    );
-    final glint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFF8FE0EC).withValues(alpha: 0.42);
-    for (var i = 0; i < 2; i++) {
-      final travel = ((_time * 44 + i * g.length * 0.5) % g.length);
-      final head = g.a + g.unit * travel;
-      final tail = g.a + g.unit * max(0.0, travel - 16);
-      canvas.drawLine(tail, head, glint);
-    }
-  }
+  void _drawLiveChannel(Canvas canvas, _CanalGeom g) =>
+      _drawRunnelWater(canvas, g.a, g.unit, g.length);
 
   /// A deep cut drowned by the high water: not a channel any more, a torrent.
   /// It churns, it runs no glints, and it is unmistakable.
-  void _drawTorrent(Canvas canvas, _CanalGeom g) {
-    final normal = Offset(-g.unit.dy, g.unit.dx);
-    final churn = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.0
-      ..strokeCap = StrokeCap.round
-      ..color = const Color(0xFFB8D8E8).withValues(alpha: 0.34);
-    final steps = (g.length / 26).clamp(2, 18).toInt();
-    for (var i = 0; i < steps; i++) {
-      final t = (i + 0.5) / steps;
-      final at = g.a + g.unit * (g.length * t);
-      final wob = sin(_time * 7 + i * 1.9) * 5.5;
-      canvas.drawLine(at - normal * wob, at + normal * wob * 0.4, churn);
-    }
-  }
+  void _drawTorrent(Canvas canvas, _CanalGeom g) =>
+      _drawRunnelWater(canvas, g.a, g.unit, g.length, torrent: true);
 
   /// Which way the stone falls — carved chevrons along the groove. Brighter
   /// while the groove is running, but never absent: the direction is stone.
@@ -2300,7 +2203,25 @@ extension MirrorTide on PlanetDungeonGame {
   /// and — for the blind sump — a visibly missing throat.
   void _drawCanalNode(Canvas canvas, CanalNode node) {
     final p = node.position;
-    final r = node.isBasin ? 21.0 : 15.0;
+    final r = node.isBasin ? 24.0 : 17.0;
+    // A sea-marble kerb round the glass bowl, so it stands as a basin cut
+    // in the floor rather than a ring drawn on it.
+    canvas.drawCircle(
+      p + const Offset(0, 3),
+      r + 8,
+      Paint()..color = const Color(0x66000000),
+    );
+    canvas.drawCircle(p, r + 8, Paint()..color = _kerbStone);
+    canvas.drawArc(
+      Rect.fromCircle(center: p, radius: r + 7),
+      pi + 0.3,
+      pi - 0.6,
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..color = Colors.white.withValues(alpha: 0.16),
+    );
     _drawBasinGlass(canvas, p, r);
     if (node.isSpring) {
       // The spring: a mouth with water spilling from it, always running.
@@ -3600,6 +3521,7 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     final dial = currentRoom.moonDial;
     if (dial == null || hasStar(2) || moonBridgeWhole) return false;
     if ((a.position - dial).distance > _kDialReach) return false;
+    if (_probing) return _probeHit('WANE');
     if (!guardianRiteUnlocked) {
       _setBlockedHint(
         'The well needs the ${layout.starName(0)} and '
@@ -3650,6 +3572,10 @@ extension PlanetDungeonMoonWell on PlanetDungeonGame {
     if (room.moonPools.isEmpty || hasStar(2)) return false;
     for (final pool in room.moonPools) {
       if ((a.position - pool.position).distance > _kPoolReach) continue;
+      if (_probing) {
+        final frozen = (poolStates[pool.id] ?? 0) == 1;
+        return _probeHit(frozen ? 'THAW' : 'FREEZE');
+      }
       if (!guardianRiteUnlocked) {
         _setBlockedHint(
           'The pools need the ${layout.starName(0)} and '
