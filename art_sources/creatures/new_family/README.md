@@ -36,6 +36,11 @@ Every motion runs one full cycle in the four frames, so the loop has no seam.
 | Light | Sun rays turn behind it as it glows |
 | Blood | A lub-dub heartbeat with a red aura and gloss; a drop falls from the claw |
 
+Every arm swings gently out from its shoulder as the chest fills and back as
+it empties (the second arm a beat behind the first), so the still is the art
+exactly as drawn. Lightning's hand on its hip stays put, and Air's little arm
+under its beak is left alone; its wings flap instead.
+
 No sparkles and no floating decoration: the only things that leave a body
 are what its element really throws off -- lightning's arcs, a flame's
 embers, a drip.
