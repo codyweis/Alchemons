@@ -25,10 +25,10 @@ Every motion runs one full cycle in the four frames, so the loop has no seam.
 | Crystal | Crystals glow violet |
 | Plant | A breath; the leaves on its head sway |
 | Fire | Flames flicker and glow; embers rise off the head and tail |
-| Water | Light ripples through the body; the fins sway |
+| Water | A breath; the fins sway |
 | Earth | A heavy breath; its stones float off it; the eyes smoulder |
 | Air | Floats and flaps its cloud wings |
-| Steam | A breath; the cloud ring billows |
+| Steam | Its cloud ring swells with the breath and churns; wisps curl up off its sides |
 | Lava | The cracks and eyes glow; embers rise off the peaks |
 | Poison | Spike tips and eyes glow; it drools |
 | Spirit | Floats, flickering translucent; its wisps sway; the eyes glow |

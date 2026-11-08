@@ -288,7 +288,7 @@ def flicker(m, body, f, where, amp=3.0, waves=3.0, lift=2.0):
 
 
 # ---------------------------------------------------------------------------
-# Light: glows, ripples, arcs
+# Light: glows and arcs
 
 
 def blur(x, sigma):
@@ -319,19 +319,6 @@ def tint(fr, mask, f, color, levels=(0.0, 0.5, 1.0, 0.5), amount=0.35, mode="scr
         fr.col = fr.col * (1 - k + color * k)
     else:
         fr.col = fr.col + (color - fr.col) * k
-
-
-def ripples(fr, mask, f, color, scale=26.0, amount=0.45, angle=0.5):
-    """Caustic light crawling across the masked parts, like light through water."""
-    x, y = fr.motion.x, fr.motion.y
-    ph = 2 * math.pi * PHASE[f]
-    ca, sa = math.cos(angle), math.sin(angle)
-    a1 = (x * ca + y * sa) / scale
-    a2 = (x * -sa + y * ca) / (scale * 1.3)
-    s = np.sin(a1 + ph) + np.sin(a2 * 1.7 - ph + np.sin(a1 * 0.6)) + 0.6 * np.sin((a1 + a2) * 1.3 + ph)
-    lines = np.clip(1.0 - np.abs(s) * 2.2, 0.0, 1.0) ** 2
-    k = (mask * lines * amount)[..., None]
-    fr.col = 1 - (1 - fr.col) * (1 - color * k)
 
 
 def motes(fr, f, pts, color, rise=(0, -60), size=4.0, grow=(1.0, 1.0), shape="soft",
@@ -396,26 +383,53 @@ def arcs(fr, f, ends, color, seed=0, width=1.2, jag=0.22, per_frame=2):
         fr.polyline(pts, width * 0.45, rgb(255, 255, 255), 1.0)
 
 
-def shadow_flames(fr, f, color, rim, reach=7.0, height=46.0, strength=0.8, waves=4.0):
-    """Tongues of shadow licking up off the creature, behind it."""
-    base = np.clip(blur(fr.alpha, reach) * 1.6, 0, 1)
+def licks(fr, f, color, rim=None, source=None, reach=7.0, height=46.0, strength=0.8,
+          waves=4.0, wobble=5.0, soft=1.6, cap=0.9, layer="behind"):
+    """Tongues licking up off the creature (or off `source`, a mask of part
+    of it): Dark's shadow flames, Steam's vapor. Each loop the tongues sway
+    and flicker one full cycle, so they never jump at the seam."""
+    src = fr.alpha if source is None else source
+    base = np.clip(blur(src, reach) * 1.6, 0, 1)
     x, y = fr.motion.x, fr.motion.y
     ph = 2 * math.pi * PHASE[f]
     acc = np.zeros_like(base)
     steps = 32
     for i in range(1, steps + 1):
         k = i / steps
-        dx = 5.0 * k * np.sin(y / FRAME * 2 * math.pi * waves + ph + 1.7 * k) + 3.0 * k * np.sin(x / 23.0 - ph)
+        dx = wobble * k * np.sin(y / FRAME * 2 * math.pi * waves + ph + 1.7 * k) + 3.0 * k * np.sin(x / 23.0 - ph)
         dy = height * k
         sx = x - dx
         sy = y + dy
         lick = 0.55 + 0.45 * np.sin(x / 17.0 + ph * 1.0 + k * 2.0)
         smp = ndi.map_coordinates(base, [sy, sx], order=1, mode="constant")
         acc = np.maximum(acc, smp * (1 - k) ** 1.3 * lick)
-    a = np.clip(blur(acc, 1.6) * strength, 0, 0.9)
-    edge = np.clip(a - np.clip(blur(a, 3.0) - 0.04, 0, 1), 0, 1)
-    fr.behind_add(color, a)
-    fr.behind_add(rim, np.clip(edge * 1.5, 0, 0.6))
+    a = np.clip(blur(acc, soft) * strength, 0, cap)
+    if layer == "behind":
+        fr.behind_add(color, a)
+    else:
+        lay = np.concatenate([color * a[..., None], a[..., None]], -1)
+        fr.front = lay + fr.front * (1 - a[..., None])
+    if rim is not None:
+        edge = np.clip(a - np.clip(blur(a, 3.0) - 0.04, 0, 1), 0, 1)
+        fr.behind_add(rim, np.clip(edge * 1.5, 0, 0.6))
+
+
+def boil(m, body, f, where, amp=2.5, scale=16.0):
+    """Churns a cloud: its lobes roll and its edges billow, a full turn a loop."""
+    ph = 2 * math.pi * PHASE[f]
+    x, y = m.x, m.y
+    dx = amp * where * np.sin(y / scale + ph + np.sin(x / (scale * 1.4)))
+    dy = amp * where * np.cos(x / scale - ph + np.sin(y / (scale * 1.2)))
+    m.shift(dx, dy)
+
+
+def swell(m, body, f, center, k=0.025, where=None):
+    """Swells a part out from `center` with the breath, like pressure building."""
+    cx, cy = center
+    g = 1 + k * SWELL[f]
+    w = 1.0 if where is None else where
+    m.sx = m.sx + w * ((cx + (m.sx - cx) / g) - m.sx)
+    m.sy = m.sy + w * ((cy + (m.sy - cy) / g) - m.sy)
 
 
 def aura(fr, f, color, levels=SWELL, reach=10.0, strength=0.6, mask=None):
@@ -664,8 +678,6 @@ def water(b, f, fr=None):
         breathe(m, b, f)
         sway(m, b, f, amp=3.5, pivot=0.42, top=0.0, wave=1.4)
         return m
-    body = fr.warp(b.mask())
-    ripples(fr, body, f, rgb(235, 252, 255), scale=20.0, amount=0.32)
 
 
 def hover(b, box):
@@ -699,13 +711,29 @@ def air(b, f, fr=None):
         return m
 
 
+def _steam_ring(b):
+    return b.mask(lum=(0.72, None), sat=(None, 0.35), box=(0, 0, 1, 0.65), soft=3)
+
+
 def steam(b, f, fr=None):
     if fr is None:
         m = Motion()
         breathe(m, b, f)
-        ring = b.mask(lum=(0.72, None), sat=(None, 0.35), box=(0, 0, 1, 0.65), soft=3)
-        sway(m, b, f, amp=4.0, pivot=0.62, top=0.0, wave=1.0, where=ring)
+        ring = _steam_ring(b)
+        # The ring is steam held under pressure: it swells with the breath,
+        # and its clouds keep churning.
+        swell(m, b, f, b.at(0.47, 0.40), k=0.03, where=ring)
+        boil(m, b, f, np.clip(ndi.gaussian_filter(ndi.grey_dilation(ring, size=(9, 9)), 3), 0, 1),
+             amp=2.6, scale=15.0)
+        sway(m, b, f, amp=3.0, pivot=0.62, top=0.0, wave=1.0, where=ring)
         return m
+    # Wisps curl up off the outer sides of the ring, where there's room above.
+    ring = fr.warp(b.mask(lum=(0.72, None), sat=(None, 0.35), box=(0, 0, 1, 0.65)))
+    above = np.clip(ring - np.roll(ring, 5, axis=0), 0, 1)
+    sides = (b.u < 0.24) | (b.u > 0.76)
+    lips = above * sides * (b.v > 0.12)
+    licks(fr, f, rgb(246, 249, 253), source=lips, reach=2.5, height=b.size(0.10),
+          strength=1.6, wobble=6.0, soft=2.0, cap=0.65)
 
 
 def lava(b, f, fr=None):
@@ -757,8 +785,8 @@ def dark(b, f, fr=None):
         sway(m, b, f, amp=4.0, pivot=0.3, top=0.0, wave=1.2)
         flap(m, b, f, b.mask(box=(0.7, 0.35, 1.0, 0.85), soft=6), amp=5.0, phase=0.25)
         return m
-    shadow_flames(fr, f, rgb(46, 18, 78), rgb(150, 90, 230), reach=3.5, height=b.size(0.15),
-                  strength=1.15)
+    licks(fr, f, rgb(46, 18, 78), rim=rgb(150, 90, 230), reach=3.5, height=b.size(0.15),
+          strength=1.15)
     collar = fr.warp(b.mask(hue=(215, 250), sat=(0.3, None), val=(0.5, None), box=(0.25, 0.6, 0.5, 0.8)))
     glow(fr, collar, f, rgb(120, 140, 255), heat=(0.02, 0.18), halo=0.5, spill=0.2, reach=0.6)
 
