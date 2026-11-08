@@ -253,6 +253,26 @@ def heartbeat(m, body, f, beat=0.022):
     m.scale_about(cx, FEET_Y, 1 + beat * 0.6 * t, 1 + beat * t)
 
 
+def jelly(m, body, f, where, pivot, stretch):
+    """Wobbles a soft part about `pivot` like jelly: `stretch` is its taller-
+    and-thinner amount each frame (negative squashes it), keeping its volume."""
+    k = stretch[f]
+    cx, cy = pivot
+    ky, kx = 1 + k, 1 - k * 0.5
+    m.sx = m.sx + where * ((cx + (m.sx - cx) / kx) - m.sx)
+    m.sy = m.sy + where * ((cy + (m.sy - cy) / ky) - m.sy)
+
+
+def whip(m, body, f, where, pivot, top, dx, dy=(0, 0, 0, 0)):
+    """Throws a tip about, more the further out it is: `dx`/`dy` are where
+    the very tip sits each frame, so a damped wobble can follow a beat."""
+    py = body.at(0, pivot)[1]
+    ty = body.at(0, top)[1]
+    out = (py - m.y) / (py - ty) if ty != py else np.zeros_like(m.y)
+    w = smoothstep(out, 0.0, 1.0) ** 1.6 * where
+    m.shift(dx[f] * w, dy[f] * w)
+
+
 def bob(m, body, f, px=5.0):
     """Floats up and down a full cycle per loop."""
     m.shift(0.0, -px * math.sin(2 * math.pi * PHASE[f]))
@@ -805,6 +825,15 @@ def blood(b, f, fr=None):
     if fr is None:
         m = Motion()
         heartbeat(m, b, f)
+        # It is liquid, and the beat runs through it: the head stretches up on
+        # the lub, squashes on the dub, and settles; the tip of the drop whips
+        # after it, and the tail gives a flick.
+        head = np.clip(ndi.gaussian_filter(smoothstep(-b.v, -0.60, -0.48), 3), 0, 1)
+        jelly(m, b, f, head, b.at(0.48, 0.60), (0.0, 0.03, -0.022, 0.008))
+        tip = np.clip(ndi.gaussian_filter(((b.u > 0.5) & (b.v < 0.34)).astype(np.float32), 5), 0, 1)
+        whip(m, b, f, tip, pivot=0.32, top=0.0, dx=(0.0, -11.0, 12.0, -4.0), dy=(0.0, 2.0, -1.5, 0.5))
+        tail = np.clip(ndi.gaussian_filter(((b.u > 0.80) & (b.v > 0.66) & (b.v < 0.95)).astype(np.float32), 4), 0, 1)
+        m.shift(0.0, tail * (0.0, -4.5, 3.0, -1.0)[f])
         return m
     beat = (0.15, 1.0, 0.5, 0.1)
     aura(fr, f, rgb(200, 20, 35), levels=beat, reach=8, strength=0.75)
