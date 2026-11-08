@@ -277,45 +277,6 @@ def flap(m, body, f, where, amp=4.0, phase=0.0):
     m.shift(0.0, -amp * where * math.sin(2 * math.pi * (PHASE[f] + phase)))
 
 
-def swing(m, body, f, shoulder, hand, radius=0.04, deg=4.0, phase=0.0):
-    """Swings an arm about its shoulder with the breath: out as the chest
-    fills, back as it empties. `deg` is how far it turns at the peak,
-    positive clockwise (a left arm hanging down swings out to the left).
-    The upper arm bends softly, the hand moves most."""
-    px, py = body.at(*shoulder)
-    hx, hy = body.at(*hand)
-    vx, vy = hx - px, hy - py
-    L2 = max(vx * vx + vy * vy, 1.0)
-    r = body.size(radius)
-
-    def reach(x, y):
-        t = np.clip(((x - px) * vx + (y - py) * vy) / L2, 0.0, 1.25)
-        d = np.hypot(x - (px + t * vx), y - (py + t * vy))
-        return (1.0 - smoothstep(d, r * 0.8, r * 1.6)) * smoothstep(t, 0.0, 0.45)
-
-    # At rest the arm is exactly as drawn (so the still is the art); it
-    # swings out to `deg` at the breath's peak (frame 3 of 4) and back.
-    th = math.radians(deg) * (1 - math.cos(2 * math.pi * (PHASE[f] + phase))) / 2
-    c, s = math.cos(-th), math.sin(-th)
-    # Move both where the arm was and where it swings to, so the hand
-    # neither leaves a sliver of itself behind nor gets clipped.
-    bx = px + (m.x - px) * c - (m.y - py) * s
-    by = py + (m.x - px) * s + (m.y - py) * c
-    w = np.maximum(reach(m.x, m.y), reach(bx, by))
-    dx, dy = m.sx - px, m.sy - py
-    rx = px + dx * c - dy * s
-    ry = py + dx * s + dy * c
-    m.sx = m.sx + w * (rx - m.sx)
-    m.sy = m.sy + w * (ry - m.sy)
-
-
-def arms(m, body, f, *specs):
-    """Each spec: (shoulder, hand, radius, deg[, phase]). A second arm a
-    beat behind the first keeps the pair from moving like a mirror."""
-    for spec in specs:
-        swing(m, body, f, *spec)
-
-
 def flicker(m, body, f, where, amp=3.0, waves=3.0, lift=2.0):
     """Licks a flame: ripples running up through `where`, and a tug upward."""
     yspan = body.box[3] - body.box[1]
@@ -327,7 +288,7 @@ def flicker(m, body, f, where, amp=3.0, waves=3.0, lift=2.0):
 
 
 # ---------------------------------------------------------------------------
-# Light: glows, ripples, rays, arcs
+# Light: glows, ripples, arcs
 
 
 def blur(x, sigma):
@@ -371,20 +332,6 @@ def ripples(fr, mask, f, color, scale=26.0, amount=0.45, angle=0.5):
     lines = np.clip(1.0 - np.abs(s) * 2.2, 0.0, 1.0) ** 2
     k = (mask * lines * amount)[..., None]
     fr.col = 1 - (1 - fr.col) * (1 - color * k)
-
-
-def rays(fr, center, f, color, n=10, inner=40, outer=220, strength=0.55, levels=SWELL, spin=1):
-    """Soft light rays turning behind the creature: one ray's step a loop."""
-    cx, cy = center
-    x, y = fr.motion.x - cx, fr.motion.y - cy
-    r = np.hypot(x, y)
-    th = np.arctan2(y, x)
-    off = spin * (2 * math.pi / n) * PHASE[f]
-    beams = (0.5 + 0.5 * np.cos(n * (th - off))) ** 6
-    beams2 = (0.5 + 0.5 * np.cos(n * (th + off * 0.5) + 1.7)) ** 10 * 0.6
-    fall = smoothstep(r, inner * 0.6, inner) * (1 - smoothstep(r, inner, outer))
-    a = np.clip((beams + beams2) * fall * strength * (0.65 + 0.35 * levels[f]), 0, 1)
-    fr.behind_add(color, a)
 
 
 def motes(fr, f, pts, color, rise=(0, -60), size=4.0, grow=(1.0, 1.0), shape="soft",
@@ -621,7 +568,6 @@ def lightning(b, f, fr=None):
     if fr is None:
         m = Motion()
         breathe(m, b, f)
-        arms(m, b, f, ((0.25, 0.63), (0.17, 0.77), 0.035, 12.0))
         return m
     bolts = fr.warp(b.mask(hue=(30, 70), sat=(0.2, None), val=(0.6, None)))
     glow(fr, bolts, f, rgb(255, 226, 110), core=rgb(255, 246, 190))
@@ -642,7 +588,6 @@ def mud(b, f, fr=None):
     if fr is None:
         m = Motion()
         breathe(m, b, f, rise=0.016, narrow=0.008)
-        arms(m, b, f, ((0.30, 0.64), (0.25, 0.80), 0.05, 10.4), ((0.66, 0.64), (0.67, 0.80), 0.05, -10.4, 0.08))
         return m
     cap = fr.warp(b.mask(val=(None, 0.42), box=(0, 0, 1, 0.32)))
     tint(fr, cap, f, rgb(255, 235, 200), levels=(0.1, 0.3, 0.55, 0.3), amount=0.18)
@@ -656,7 +601,6 @@ def ice(b, f, fr=None):
     if fr is None:
         m = Motion()
         breathe(m, b, f, rise=0.008, narrow=0.003)
-        arms(m, b, f, ((0.31, 0.62), (0.30, 0.745), 0.045, 7.5), ((0.63, 0.62), (0.64, 0.765), 0.045, -7.5, 0.08))
         return m
     cubes = fr.warp(b.mask(box=(0, 0, 1, 0.5), val=(0.8, None)))
     glow(fr, cubes, f, rgb(160, 230, 255), core=rgb(235, 250, 255), heat=(0.0, 0.12),
@@ -669,7 +613,6 @@ def dust(b, f, fr=None):
         breathe(m, b, f, rise=0.010, narrow=0.006)
         sway(m, b, f, amp=9.0, pivot=0.25, top=0.0, wave=1.6,
              where=b.mask(box=(0.45, 0, 0.85, 0.3), soft=4))
-        arms(m, b, f, ((0.39, 0.69), (0.32, 0.79), 0.04, 12.8), ((0.65, 0.71), (0.72, 0.82), 0.04, -12.8, 0.08))
         return m
 
 
@@ -677,7 +620,6 @@ def crystal(b, f, fr=None):
     if fr is None:
         m = Motion()
         breathe(m, b, f)
-        arms(m, b, f, ((0.26, 0.71), (0.135, 0.83), 0.05, 12.8), ((0.56, 0.71), (0.62, 0.81), 0.04, -10.4, 0.08))
         return m
     gems = b.mask(hue=(265, 330), sat=(0.18, None), val=(0.62, None))
     gems = gems * (1 - b.mask(box=(0.0, 0.5, 0.45, 0.62)))
@@ -690,7 +632,6 @@ def plant(b, f, fr=None):
         m = Motion()
         breathe(m, b, f)
         sway(m, b, f, amp=5.5, pivot=0.42, top=0.0, wave=1.0)
-        arms(m, b, f, ((0.31, 0.69), (0.26, 0.80), 0.035, 12.8), ((0.59, 0.70), (0.61, 0.80), 0.035, -10.4, 0.08))
         return m
 
 
@@ -705,7 +646,6 @@ def fire(b, f, fr=None):
         m = Motion()
         breathe(m, b, f)
         flicker(m, b, f, _fire_parts(b), amp=3.2, waves=3.0, lift=2.5)
-        arms(m, b, f, ((0.36, 0.71), (0.235, 0.875), 0.048, 11.2), ((0.58, 0.70), (0.56, 0.80), 0.035, -10.4, 0.08))
         return m
     flames = fr.warp(b.mask(hue=(15, 60), val=(0.85, None)) * _fire_parts(b))
     glow(fr, flames, f, rgb(255, 160, 70), core=rgb(255, 232, 160), heat=(0.04, 0.16),
@@ -723,7 +663,6 @@ def water(b, f, fr=None):
         m = Motion()
         breathe(m, b, f)
         sway(m, b, f, amp=3.5, pivot=0.42, top=0.0, wave=1.4)
-        arms(m, b, f, ((0.43, 0.72), (0.21, 0.78), 0.04, 10.4), ((0.63, 0.735), (0.57, 0.81), 0.035, -10.4, 0.08))
         return m
     body = fr.warp(b.mask())
     ripples(fr, body, f, rgb(235, 252, 255), scale=20.0, amount=0.32)
@@ -746,7 +685,6 @@ def earth(b, f, fr=None):
         flap(m, b, f, hover(b, (0.34, -0.2, 0.60, 0.09)), amp=5.0)
         flap(m, b, f, hover(b, (-0.2, -0.2, 0.36, 0.17)), amp=2.5, phase=0.5)
         flap(m, b, f, hover(b, (0.78, 0.30, 1.2, 0.53)), amp=4.5, phase=0.25)
-        arms(m, b, f, ((0.25, 0.66), (0.19, 0.76), 0.045, 8.0), ((0.60, 0.61), (0.63, 0.77), 0.06, -6.4, 0.08))
         return m
     eyes = fr.warp(b.mask(hue=(15, 50), sat=(0.45, None), val=(0.55, None), box=(0.05, 0.4, 0.5, 0.58)))
     glow(fr, eyes, f, rgb(255, 170, 70), heat=(0.0, 0.25), halo=0.45, spill=0.2, reach=0.5)
@@ -767,7 +705,6 @@ def steam(b, f, fr=None):
         breathe(m, b, f)
         ring = b.mask(lum=(0.72, None), sat=(None, 0.35), box=(0, 0, 1, 0.65), soft=3)
         sway(m, b, f, amp=4.0, pivot=0.62, top=0.0, wave=1.0, where=ring)
-        arms(m, b, f, ((0.39, 0.71), (0.355, 0.795), 0.034, 7.0), ((0.615, 0.71), (0.605, 0.78), 0.03, -6.0, 0.08))
         return m
 
 
@@ -775,7 +712,6 @@ def lava(b, f, fr=None):
     if fr is None:
         m = Motion()
         breathe(m, b, f)
-        arms(m, b, f, ((0.27, 0.63), (0.21, 0.75), 0.045, 9.6), ((0.64, 0.61), (0.685, 0.74), 0.045, -9.6, 0.08))
         return m
     cracks = fr.warp(b.mask(hue=(345, 45), sat=(0.45, None), val=(0.45, None)))
     glow(fr, cracks, f, rgb(255, 110, 40), core=rgb(255, 215, 130), heat=(0.1, 0.35),
@@ -789,7 +725,6 @@ def poison(b, f, fr=None):
     if fr is None:
         m = Motion()
         breathe(m, b, f)
-        arms(m, b, f, ((0.367, 0.70), (0.288, 0.78), 0.04, 12.8), ((0.586, 0.69), (0.60, 0.78), 0.035, -10.4, 0.08))
         return m
     tips = fr.warp(b.mask(hue=(295, 345), sat=(0.25, None), val=(0.75, None)))
     glow(fr, tips, f, rgb(235, 120, 255), core=rgb(255, 205, 255), heat=(0.04, 0.2),
@@ -806,7 +741,6 @@ def spirit(b, f, fr=None):
         bob(m, b, f, px=6.0)
         sway(m, b, f, amp=4.0, pivot=0.45, top=0.0, wave=1.5, where=b.mask(box=(0.55, 0, 1, 0.5), soft=5))
         sway(m, b, f, amp=5.0, pivot=0.78, top=1.0, wave=1.5, phase=0.25)
-        arms(m, b, f, ((0.30, 0.73), (0.25, 0.80), 0.03, 16.0))
         return m
     fr.opacity(0.9 + 0.07 * math.cos(2 * math.pi * PHASE[f]))
     eyes = fr.warp(b.mask(hue=(170, 205), sat=(0.35, None), val=(0.7, None), box=(0, 0.5, 0.6, 0.66)))
@@ -822,7 +756,6 @@ def dark(b, f, fr=None):
         breathe(m, b, f)
         sway(m, b, f, amp=4.0, pivot=0.3, top=0.0, wave=1.2)
         flap(m, b, f, b.mask(box=(0.7, 0.35, 1.0, 0.85), soft=6), amp=5.0, phase=0.25)
-        arms(m, b, f, ((0.20, 0.68), (0.15, 0.76), 0.035, 12.8), ((0.53, 0.66), (0.52, 0.78), 0.04, -10.4, 0.08))
         return m
     shadow_flames(fr, f, rgb(46, 18, 78), rgb(150, 90, 230), reach=3.5, height=b.size(0.15),
                   strength=1.15)
@@ -834,10 +767,7 @@ def light(b, f, fr=None):
     if fr is None:
         m = Motion()
         breathe(m, b, f)
-        arms(m, b, f, ((0.45, 0.68), (0.43, 0.76), 0.028, 9.0), ((0.63, 0.68), (0.65, 0.75), 0.028, -9.0, 0.08))
         return m
-    rays(fr, b.at(0.47, 0.37), f, rgb(255, 238, 160), n=12, inner=b.size(0.3),
-         outer=b.size(0.54), strength=0.6)
     crest = fr.warp(b.mask(box=(0, 0, 1, 0.66)))
     glow(fr, crest, f, rgb(255, 228, 130), core=rgb(255, 250, 225), heat=(0.0, 0.14),
          halo=0.7, spill=0.2)
@@ -847,7 +777,6 @@ def blood(b, f, fr=None):
     if fr is None:
         m = Motion()
         heartbeat(m, b, f)
-        arms(m, b, f, ((0.305, 0.657), (0.178, 0.758), 0.04, 10.4), ((0.62, 0.64), (0.59, 0.74), 0.04, -10.4, 0.08))
         return m
     beat = (0.15, 1.0, 0.5, 0.1)
     aura(fr, f, rgb(200, 20, 35), levels=beat, reach=8, strength=0.75)
