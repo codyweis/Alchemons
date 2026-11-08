@@ -19,22 +19,26 @@ Every motion runs one full cycle in the four frames, so the loop has no seam.
 | Element | Idle |
 | --- | --- |
 | Lightning | Bolts glow; arcs crackle off the bolt tips and the tail orb |
-| Mud | A squishy breath; bubbles blorp on the cap; drips from the chin and the cap |
-| Ice | A cold glow; glints wink on the cube corners; snow drifts down |
-| Dust | The top curl sways; grains and puffs blow off the head |
-| Crystal | Crystals glow violet; glints wink on their tips |
-| Plant | Head leaves sway; pollen rises; a leaf falls |
+| Mud | A squishy breath; the cap's wet shine; drips from the chin and the cap |
+| Ice | A slow breath; a cold glow off the cubes |
+| Dust | A breath; the curl on top sways |
+| Crystal | Crystals glow violet |
+| Plant | A breath; the leaves on its head sway |
 | Fire | Flames flicker and glow; embers rise off the head and tail |
-| Water | Light ripples through the body; the fins sway; bubbles rise |
-| Earth | A heavy breath; its stones float; gravel crumbles; dust kicks at the feet |
-| Air | Floats and flaps its cloud wings; wind sweeps past |
-| Steam | The cloud ring sways; steam puffs drift off it |
+| Water | Light ripples through the body; the fins sway |
+| Earth | A heavy breath; its stones float off it; the eyes smoulder |
+| Air | Floats and flaps its cloud wings |
+| Steam | A breath; the cloud ring billows |
 | Lava | The cracks and eyes glow; embers rise off the peaks |
-| Poison | Spike tips glow; toxic bubbles rise; it drools |
+| Poison | Spike tips and eyes glow; it drools |
 | Spirit | Floats, flickering translucent; its wisps sway; the eyes glow |
 | Dark | Shadow flames lick up behind it; hair and tail sway; the collar glows |
-| Light | Sun rays turn behind it; it glows; sparkles wink on the spikes |
+| Light | Sun rays turn behind it as it glows |
 | Blood | A lub-dub heartbeat with a red aura and gloss; a drop falls from the claw |
+
+No sparkles and no floating decoration: the only things that leave a body
+are what its element really throws off -- lightning's arcs, a flame's
+embers, a drip.
 
 Rebuild any of them (NumPy + SciPy + Pillow), from the repository root:
 

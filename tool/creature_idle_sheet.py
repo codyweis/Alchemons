@@ -4,8 +4,8 @@ The concept art is a grid of seventeen creatures on a flat grey card. For each
 one this lifts it off the card (an unmixed matte, so the outline keeps its
 anti-aliasing and no grey fringe), stands it in the game's 512px frame -- one
 scale for the whole card, so the family keeps its sizes -- and draws four idle
-frames in its element's own way: a breath, a sway, a glow, motes rising off
-it. Every motion runs one full cycle in the four frames, so the loop has no
+frames in its element's own way: a breath, a sway, a glow, and only what its
+element really throws off (lightning's arcs, a flame's embers, a drip). Every motion runs one full cycle in the four frames, so the loop has no
 seam when the game plays it at 120 ms a frame like every other sheet.
 
     python tool/creature_idle_sheet.py               # all seventeen
@@ -288,7 +288,7 @@ def flicker(m, body, f, where, amp=3.0, waves=3.0, lift=2.0):
 
 
 # ---------------------------------------------------------------------------
-# Light: glows, glints, ripples, rays
+# Light: glows, ripples, rays, arcs
 
 
 def blur(x, sigma):
@@ -348,23 +348,6 @@ def rays(fr, center, f, color, n=10, inner=40, outer=220, strength=0.55, levels=
     fr.behind_add(color, a)
 
 
-def glints(fr, pts, f, color, size=9.0, seed=0, every=2):
-    """Four-point stars winking on and off across the loop."""
-    rng = np.random.default_rng(seed)
-    for i, (x, y) in enumerate(pts):
-        on = (i + f) % FRAMES
-        # Each glint lights for `every` frames: up, full, out.
-        level = {0: 1.0, 1: 0.45}.get(on, 0.0) if every == 2 else (1.0 if on == 0 else 0.0)
-        if level <= 0:
-            continue
-        s = size * (0.75 + 0.5 * rng.random()) * (0.6 + 0.4 * level)
-        fr.star(x, y, s, color, level)
-
-
-# ---------------------------------------------------------------------------
-# Motes: dots, puffs, embers, bubbles, leaves -- each runs one life a loop
-
-
 def motes(fr, f, pts, color, rise=(0, -60), size=4.0, grow=(1.0, 1.0), shape="soft",
           seed=0, alpha=0.9, wobble=6.0, layer="front", edge=None, spin=0.0, fade=0.8):
     """One mote per point, each at its own phase of a life that lasts one loop;
@@ -384,17 +367,6 @@ def motes(fr, f, pts, color, rise=(0, -60), size=4.0, grow=(1.0, 1.0), shape="so
         s = sz * (grow[0] + (grow[1] - grow[0]) * t)
         fr.dot(x, y, s, color, alpha * life, shape=shape, layer=layer, edge=edge,
                angle=ang0 + spin * t * 2 * math.pi, vel=(rx, ry))
-
-
-def outward(center, reach, up=0.0):
-    """A rise that carries each mote away from `center`, and up a little."""
-    cx, cy = center
-
-    def rise(x, y):
-        dx, dy = x - cx, y - cy
-        n = math.hypot(dx, dy) or 1.0
-        return reach * dx / n, reach * dy / n - up
-    return rise
 
 
 def drip(fr, x, y, f, color, r=4.0, fall=44.0, shade=None, shine=True, offset=0):
@@ -436,30 +408,6 @@ def arcs(fr, f, ends, color, seed=0, width=1.2, jag=0.22, per_frame=2):
         fr.polyline(pts, width * 3.5, color, 0.35)
         fr.polyline(pts, width, color, 1.0)
         fr.polyline(pts, width * 0.45, rgb(255, 255, 255), 1.0)
-
-
-def gusts(fr, f, starts, color, travel=150.0, length=70.0, bend=7.0, width=2.0, seed=0, alpha=0.85):
-    """Curling lines of wind sweeping past, each one pass a loop."""
-    rng = np.random.default_rng(seed)
-    for (x0, y0) in starts:
-        ph = rng.random()
-        L = length * (0.7 + 0.6 * rng.random())
-        t = (ph + PHASE[f]) % 1.0
-        a = alpha * math.sin(math.pi * t) ** 0.7
-        if a < 0.05:
-            continue
-        hx = x0 + travel * t
-        pts = []
-        n = 12
-        for j in range(n + 1):
-            k = j / n
-            x = hx - L * k
-            y = y0 + bend * math.sin(math.pi * 1.5 * k + 2 * math.pi * t) * k
-            pts.append((x, y))
-        # Thick and bright at the head, thinning to nothing at the tail.
-        fades = [(1 - j / n) ** 1.2 for j in range(n + 1)]
-        fr.polyline(pts, [width * (0.35 + 0.65 * k) for k in fades], color,
-                    [a * k for k in fades])
 
 
 def shadow_flames(fr, f, color, rim, reach=7.0, height=46.0, strength=0.8, waves=4.0):
@@ -573,24 +521,11 @@ class Frame:
             cov = np.exp(-(d * d) / (2 * (s * 0.6) ** 2))
         elif shape == "disc":
             cov = np.clip(s + 0.5 - d, 0, 1)
-        elif shape == "bubble":
-            ring = np.clip(s + 0.5 - d, 0, 1) - np.clip(s - 1.2 - d, 0, 1) * 0.75
-            hx, hy = dx + s * 0.35, dy + s * 0.35
-            hl = np.exp(-(hx * hx + hy * hy) / (2 * (s * 0.18 + 0.4) ** 2))
-            cov = np.clip(ring + hl * 0.9, 0, 1)
         elif shape == "egg":
             # A drop: round below, drawn out to a point above.
             ry = np.where(dy < 0, s * stretch, s)
             e = np.sqrt((dx / s) ** 2 + (dy / ry) ** 2)
             cov = np.clip((1.0 - e) * s + 0.5, 0, 1)
-        elif shape == "cloud":
-            # A cartoon puff: three round lobes with a crisp edge.
-            cov = np.zeros_like(d)
-            for ox, oy, rr in ((-0.5, 0.18, 0.62), (0.48, 0.22, 0.56), (0.0, -0.22, 0.74)):
-                dd = np.hypot(dx - ox * s, dy - oy * s)
-                cov = np.maximum(cov, np.clip(rr * s + 0.5 - dd, 0, 1))
-        elif shape == "puff":
-            cov = np.exp(-(d * d) / (2 * (s * 0.7) ** 2)) * 0.9
         elif shape == "streak":
             vx, vy = vel
             n = math.hypot(vx, vy) or 1.0
@@ -598,18 +533,6 @@ class Frame:
             along = dx * ux + dy * uy
             across = -dx * uy + dy * ux
             cov = np.exp(-(along ** 2) / (2 * (s * 1.6) ** 2) - (across ** 2) / (2 * (s * 0.35) ** 2))
-        elif shape == "leaf":
-            ca, sa = math.cos(angle), math.sin(angle)
-            along = dx * ca + dy * sa
-            across = -dx * sa + dy * ca
-            e = (along / (s * 1.3)) ** 2 + (across / (s * 0.6)) ** 2
-            cov = np.clip((1.0 - e) * s * 0.9, 0, 1)
-        elif shape == "shard":
-            ca, sa = math.cos(angle), math.sin(angle)
-            along = np.abs(dx * ca + dy * sa)
-            across = np.abs(-dx * sa + dy * ca)
-            e = along / (s * 1.4) + across / (s * 0.55)
-            cov = np.clip((1.0 - e) * s * 0.9, 0, 1)
         else:
             raise ValueError(shape)
         cov = np.clip(cov * a, 0, 1)
@@ -618,21 +541,6 @@ class Frame:
             rim = np.clip(ndi.grey_dilation(cov, size=(3, 3)) - cov, 0, 1)
             self.paint(layer, x, y, rim * 0.8, edge, x0, y0)
         self.paint(layer, x, y, cov, color, x0, y0)
-
-    def star(self, x, y, s, color, a):
-        R = int(math.ceil(s * 1.6 + 3))
-        x0, y0 = int(math.floor(x)) - R, int(math.floor(y)) - R
-        yy, xx = np.mgrid[y0:y0 + 2 * R + 1, x0:x0 + 2 * R + 1].astype(np.float32)
-        dx, dy = xx - x, yy - y
-        w = max(s * 0.09, 0.55)
-        arm1 = np.exp(-(dx * dx) / (2 * w * w) - (dy * dy) / (2 * (s * 0.55) ** 2))
-        arm2 = np.exp(-(dy * dy) / (2 * w * w) - (dx * dx) / (2 * (s * 0.55) ** 2))
-        core = np.exp(-(dx * dx + dy * dy) / (2 * (s * 0.16) ** 2))
-        halo = np.exp(-(dx * dx + dy * dy) / (2 * (s * 0.45) ** 2)) * 0.35
-        cov = np.clip((np.maximum(arm1, arm2) + core + halo) * a, 0, 1)
-        self.paint("front", x, y, cov, color, x0, y0)
-        white = np.clip(core * a * 0.9, 0, 1)
-        self.paint("front", x, y, white, rgb(255, 255, 255), x0, y0)
 
     def opacity(self, k):
         self.alpha = self.alpha * k
@@ -697,11 +605,6 @@ def mud(b, f, fr=None):
         return m
     cap = fr.warp(b.mask(val=(None, 0.42), box=(0, 0, 1, 0.32)))
     tint(fr, cap, f, rgb(255, 235, 200), levels=(0.1, 0.3, 0.55, 0.3), amount=0.18)
-    blorps = [b.at(0.38, 0.07), b.at(0.66, 0.11), b.at(0.18, 0.18), b.at(0.86, 0.24),
-              b.at(0.52, 0.16)]
-    motes(fr, f, [fr.fwd(*p) for p in blorps], rgb(150, 108, 70), rise=(0, -6), size=8.5,
-          grow=(0.3, 1.15), shape="bubble", seed=11, alpha=1.0, wobble=0.0,
-          edge=rgb(62, 40, 24))
     drip(fr, *b.lowest((0.15, 0.5, 0.45, 0.68)), f, rgb(128, 88, 54), r=8.5, fall=58,
          shade=rgb(70, 46, 28))
     drip(fr, *b.lowest((0.85, 0.5, 1.0, 0.8)), f, rgb(100, 66, 40), r=6.5, fall=46,
@@ -716,12 +619,6 @@ def ice(b, f, fr=None):
     cubes = fr.warp(b.mask(box=(0, 0, 1, 0.5), val=(0.8, None)))
     glow(fr, cubes, f, rgb(160, 230, 255), core=rgb(235, 250, 255), heat=(0.0, 0.12),
          halo=0.55, spill=0.25)
-    corners = [b.at(0.18, 0.03), b.at(0.48, 0.01), b.at(0.86, 0.13), b.at(0.03, 0.17),
-               b.at(0.93, 0.37), b.at(0.87, 0.57), b.at(0.60, 0.14), b.at(0.30, 0.45)]
-    glints(fr, [fr.fwd(*p) for p in corners], f, rgb(215, 245, 255), size=11, seed=5)
-    flakes = scatter(b, 16, 21, (-0.12, -0.15, 1.12, 0.75))
-    motes(fr, f, flakes, rgb(250, 253, 255), rise=(8, 70), size=2.2, shape="disc",
-          seed=22, alpha=0.95, wobble=5, edge=rgb(120, 170, 200))
 
 
 def dust(b, f, fr=None):
@@ -731,16 +628,6 @@ def dust(b, f, fr=None):
         sway(m, b, f, amp=9.0, pivot=0.25, top=0.0, wave=1.6,
              where=b.mask(box=(0.45, 0, 0.85, 0.3), soft=4))
         return m
-    puff = b.mask(hue=(15, 45), val=(0.72, None), box=(0, 0, 1, 0.66))
-    rim = np.clip(puff - ndi.grey_erosion(puff, size=(13, 13)), 0, 1)
-    head = b.at(0.5, 0.36)
-    grains = b.points(rim, 34, seed=31, min_gap=8)
-    motes(fr, f, grains, rgb(240, 212, 168), rise=outward(head, 40, up=26), size=2.6,
-          shape="disc", seed=32, alpha=1.0, wobble=3, edge=rgb(150, 112, 76))
-    clouds = b.points(rim, 6, seed=33, min_gap=50)
-    motes(fr, f, clouds, rgb(238, 210, 166), rise=outward(head, 26, up=16), size=7,
-          grow=(0.5, 1.4), shape="cloud", seed=34, alpha=0.55, wobble=3,
-          edge=rgb(196, 160, 118))
 
 
 def crystal(b, f, fr=None):
@@ -752,9 +639,6 @@ def crystal(b, f, fr=None):
     gems = gems * (1 - b.mask(box=(0.0, 0.5, 0.45, 0.62)))
     glow(fr, fr.warp(gems), f, rgb(225, 160, 255), core=rgb(255, 235, 255), heat=(0.04, 0.2),
          halo=0.8, spill=0.35)
-    tips = [b.at(0.22, 0.02), b.at(0.50, 0.08), b.at(0.72, 0.26), b.at(0.74, 0.44),
-            b.at(0.95, 0.70), b.at(0.36, 0.13), b.at(0.60, 0.18), b.at(0.05, 0.5)]
-    glints(fr, [fr.fwd(*p) for p in tips], f, rgb(255, 225, 255), size=12, seed=6)
 
 
 def plant(b, f, fr=None):
@@ -763,13 +647,6 @@ def plant(b, f, fr=None):
         breathe(m, b, f)
         sway(m, b, f, amp=5.5, pivot=0.42, top=0.0, wave=1.0)
         return m
-    pollen = scatter(b, 16, 41, (-0.05, 0.0, 1.05, 0.85))
-    motes(fr, f, pollen, rgb(248, 255, 175), rise=(6, -60), size=3.6, shape="soft",
-          seed=42, alpha=1.0, wobble=6)
-    motes(fr, f, pollen[:8], rgb(255, 255, 230), rise=(6, -60), size=1.4, shape="disc",
-          seed=42, alpha=1.0, wobble=6)
-    motes(fr, f, [b.at(0.88, 0.16), b.at(0.06, 0.28)], rgb(132, 182, 58), rise=(26, 120),
-          size=11, shape="leaf", seed=43, alpha=1.0, wobble=12, edge=rgb(58, 92, 26), spin=0.6)
 
 
 def _fire_parts(b):
@@ -803,9 +680,6 @@ def water(b, f, fr=None):
         return m
     body = fr.warp(b.mask())
     ripples(fr, body, f, rgb(235, 252, 255), scale=20.0, amount=0.32)
-    bubbles = scatter(b, 8, 61, (-0.05, 0.3, 1.05, 0.95))
-    motes(fr, f, bubbles, rgb(235, 250, 255), rise=(0, -85), size=6.5, shape="bubble",
-          seed=62, alpha=1.0, wobble=5, edge=rgb(60, 130, 195))
 
 
 def hover(b, box):
@@ -828,13 +702,6 @@ def earth(b, f, fr=None):
         return m
     eyes = fr.warp(b.mask(hue=(15, 50), sat=(0.45, None), val=(0.55, None), box=(0.05, 0.4, 0.5, 0.58)))
     glow(fr, eyes, f, rgb(255, 170, 70), heat=(0.0, 0.25), halo=0.45, spill=0.2, reach=0.5)
-    gravel = [b.at(0.10, 0.62), b.at(0.88, 0.48), b.at(0.66, 0.70), b.at(0.24, 0.84),
-              b.at(0.97, 0.70), b.at(0.42, 0.66)]
-    motes(fr, f, gravel, rgb(118, 104, 92), rise=(4, 62), size=5.0, shape="shard",
-          seed=71, alpha=1.0, wobble=2, edge=rgb(44, 36, 32), spin=0.35)
-    feet = [b.at(0.24, 0.99), b.at(0.36, 0.99), b.at(0.66, 0.99), b.at(0.80, 0.99)]
-    motes(fr, f, feet, rgb(196, 180, 158), rise=outward(b.at(0.52, 1.02), 30, up=10), size=7,
-          grow=(0.5, 1.4), shape="cloud", seed=72, alpha=0.75, wobble=2, edge=rgb(140, 124, 106))
 
 
 def air(b, f, fr=None):
@@ -844,13 +711,6 @@ def air(b, f, fr=None):
         flap(m, b, f, b.mask(box=(0.0, 0.05, 0.32, 0.4), soft=6), amp=6.0)
         flap(m, b, f, b.mask(box=(0.62, 0.05, 1.0, 0.42), soft=6), amp=6.0)
         return m
-    starts = [b.at(-0.15, 0.30), b.at(-0.05, 0.62), b.at(0.45, 0.04), b.at(0.55, 0.92),
-              b.at(-0.2, 0.86), b.at(0.6, 0.48)]
-    gusts(fr, f, starts, rgb(255, 255, 255), travel=b.size(0.55), length=b.size(0.2),
-          bend=6.0, width=2.6, seed=81, alpha=0.9)
-    puffs = scatter(b, 3, 83, (-0.15, 0.2, 0.3, 0.9))
-    motes(fr, f, puffs, rgb(248, 253, 255), rise=(110, -6), size=7, grow=(0.7, 1.2),
-          shape="cloud", seed=84, alpha=0.8, wobble=3, edge=rgb(160, 205, 230))
 
 
 def steam(b, f, fr=None):
@@ -858,15 +718,8 @@ def steam(b, f, fr=None):
         m = Motion()
         breathe(m, b, f)
         ring = b.mask(lum=(0.72, None), sat=(None, 0.35), box=(0, 0, 1, 0.65), soft=3)
-        sway(m, b, f, amp=3.0, pivot=0.62, top=0.0, wave=0.8, where=ring)
+        sway(m, b, f, amp=4.0, pivot=0.62, top=0.0, wave=1.0, where=ring)
         return m
-    # Puffs leave the ring's upper sides and drift up and out, staying in frame.
-    vents = [b.at(0.12, 0.16), b.at(0.88, 0.16), b.at(0.02, 0.36), b.at(0.98, 0.34),
-             b.at(0.26, 0.07), b.at(0.74, 0.07), b.at(0.5, 0.05)]
-    motes(fr, f, [fr.fwd(*p) for p in vents], rgb(246, 250, 255),
-          rise=outward(b.at(0.5, 0.42), 34, up=4), size=10.5,
-          grow=(0.4, 1.5), shape="cloud", seed=91, alpha=1.0, wobble=4,
-          edge=rgb(190, 214, 238), fade=0.3)
 
 
 def lava(b, f, fr=None):
@@ -892,9 +745,6 @@ def poison(b, f, fr=None):
          halo=0.75, spill=0.3)
     eyes = fr.warp(b.mask(hue=(80, 160), sat=(0.25, None), val=(0.6, None), box=(0.1, 0.5, 0.45, 0.62)))
     glow(fr, eyes, f, rgb(170, 255, 140), heat=(0.05, 0.25), halo=0.4, spill=0.2, reach=0.5)
-    bubbles = scatter(b, 8, 111, (0.0, 0.2, 1.0, 0.9))
-    motes(fr, f, bubbles, rgb(205, 130, 255), rise=(0, -80), size=6.0, shape="bubble",
-          seed=112, alpha=1.0, wobble=5, edge=rgb(96, 36, 136))
     drip(fr, *b.lowest((0.15, 0.6, 0.45, 0.76)), f, rgb(232, 112, 232), r=5.0, fall=50,
          shade=rgb(116, 36, 136))
 
@@ -912,11 +762,6 @@ def spirit(b, f, fr=None):
          halo=0.9, spill=0.35, reach=0.7)
     tint(fr, fr.warp(b.mask()), f, rgb(170, 245, 255), levels=(0.2, 0.45, 0.7, 0.45), amount=0.25)
     aura(fr, f, rgb(140, 238, 255), levels=(0.55, 0.8, 1.0, 0.8), reach=9, strength=0.6)
-    wisps = scatter(b, 12, 121, (-0.1, 0.05, 1.1, 1.0))
-    motes(fr, f, wisps, rgb(190, 250, 255), rise=(0, -70), size=4.6, shape="soft",
-          seed=122, alpha=0.95, wobble=7)
-    motes(fr, f, wisps, rgb(240, 255, 255), rise=(0, -70), size=1.3, shape="disc",
-          seed=122, alpha=1.0, wobble=7)
 
 
 def dark(b, f, fr=None):
@@ -930,8 +775,6 @@ def dark(b, f, fr=None):
                   strength=1.15)
     collar = fr.warp(b.mask(hue=(215, 250), sat=(0.3, None), val=(0.5, None), box=(0.25, 0.6, 0.5, 0.8)))
     glow(fr, collar, f, rgb(120, 140, 255), heat=(0.02, 0.18), halo=0.5, spill=0.2, reach=0.6)
-    eyes = [b.at(0.085, 0.575), b.at(0.285, 0.565)]
-    glints(fr, [fr.fwd(*p) for p in eyes], f, rgb(200, 180, 255), size=8, seed=9)
 
 
 def light(b, f, fr=None):
@@ -944,9 +787,6 @@ def light(b, f, fr=None):
     crest = fr.warp(b.mask(box=(0, 0, 1, 0.66)))
     glow(fr, crest, f, rgb(255, 228, 130), core=rgb(255, 250, 225), heat=(0.0, 0.14),
          halo=0.7, spill=0.2)
-    tips = [b.at(0.45, 0.0), b.at(0.1, 0.18), b.at(0.93, 0.2), b.at(0.03, 0.42),
-            b.at(0.97, 0.42), b.at(0.22, 0.66), b.at(0.8, 0.64), b.at(0.62, 0.12)]
-    glints(fr, [fr.fwd(*p) for p in tips], f, rgb(255, 250, 215), size=12, seed=8)
 
 
 def blood(b, f, fr=None):
