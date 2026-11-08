@@ -1,36 +1,44 @@
-"""Cuts one creature out of a concept sheet and builds its 4-frame idle sheet.
+"""Cuts the new family off its concept card and builds each one's idle sheet.
 
-The concept art comes as a grid of creatures on a flat grey card. This lifts
-one of them off the card (an unmixed matte, so the outline keeps its
-anti-aliasing and no grey fringe), fits it to the game's 512px frame the way
-the Let sheets sit, and draws four idle frames: a slow breath anchored at the
-feet, and the element's own parts glowing up and back down.
+The concept art is a grid of seventeen creatures on a flat grey card. For each
+one this lifts it off the card (an unmixed matte, so the outline keeps its
+anti-aliasing and no grey fringe), stands it in the game's 512px frame -- one
+scale for the whole card, so the family keeps its sizes -- and draws four idle
+frames in its element's own way: a breath, a sway, a glow, motes rising off
+it. Every motion runs one full cycle in the four frames, so the loop has no
+seam when the game plays it at 120 ms a frame like every other sheet.
 
-    python tool/creature_idle_sheet.py SRC --crop X0,Y0,X1,Y1 --out PREFIX
+    python tool/creature_idle_sheet.py               # all seventeen
+    python tool/creature_idle_sheet.py fire water    # just these
+    python tool/creature_idle_sheet.py --contact     # also a contact sheet
 
-writes PREFIX.png (the still), PREFIX_spritesheet.png (4 x 512 frames, to be
-played at 120 ms a frame like every other sheet) and PREFIX_preview.gif (the
-loop on the grey card, for looking at).
-
-The glowing parts are picked by hue: --glow-hue 30,70 is the yellow of
-Lightning. Run with NumPy + SciPy + Pillow.
+writes NAME.png (the still), NAME_spritesheet.png (4 x 512 frames) and
+NAME_preview.gif (the loop on the grey card) into art_sources/creatures/
+new_family/. Run with NumPy + SciPy + Pillow.
 """
 import argparse
+import math
 import os
 
 import numpy as np
 from PIL import Image
 from scipy import ndimage as ndi
 
-FRAME = 512
-# The Let sheets stand a creature ~448px tall with its feet ~40px off the
-# frame's bottom; this leaves the same room, plus a little for the halo.
-FIT_HEIGHT = 432
-FEET_Y = 474
+HERE = os.path.join("art_sources", "creatures", "new_family")
+CARD = os.path.join(HERE, "concept_sheet.jpg")
 
-# One breath and one glow pulse per loop: rest, rising, peak, falling.
-BREATH = [0.0, 0.5, 1.0, 0.5]
-GLOW = [0.25, 0.6, 1.0, 0.6]
+FRAME = 512
+FRAMES = 4
+# The Let sheets stand their feet ~40px off the frame's bottom.
+FEET_Y = 474
+# One scale for the whole card: its tallest (Steam, with its cloud ring)
+# stands ~438px, the rest in proportion.
+SCALE = 0.775
+
+# Phase of each frame through the loop, 0..1.
+PHASE = [f / FRAMES for f in range(FRAMES)]
+# A breath or a pulse: rest, rising, peak, falling.
+SWELL = [0.0, 0.5, 1.0, 0.5]
 
 
 def smoothstep(x, lo, hi):
@@ -38,21 +46,27 @@ def smoothstep(x, lo, hi):
     return t * t * (3 - 2 * t)
 
 
-def cut_out(rgb):
+def rgb(*c):
+    return np.array(c, np.float32) / 255.0
+
+
+# ---------------------------------------------------------------------------
+# Lifting a creature off the card
+
+
+def cut_out(rgb_u8):
     """Premultiplied RGBA (float, 0-1) of the creature on a flat card."""
-    p = rgb.astype(np.float32) / 255.0
-    h, w, _ = p.shape
+    p = rgb_u8.astype(np.float32) / 255.0
     border = np.concatenate([p[:6].reshape(-1, 3), p[-6:].reshape(-1, 3),
                              p[:, :6].reshape(-1, 3), p[:, -6:].reshape(-1, 3)])
     bg = np.median(border, axis=0)
-
     dist = np.abs(p - bg).max(-1)
 
-    # Card is only what is card-coloured AND wide: the line art's own
-    # anti-aliasing (black outline into an eye's white, gold outline into a
-    # bolt) passes through the card's grey in thin threads, and those belong
-    # to the creature. A real gap -- the open card, the loop of a bent arm --
-    # holds a patch of flat card grey; a thread only grazes it in passing.
+    # Card is only what is card-coloured AND holds a patch of flat card grey:
+    # the line art's own anti-aliasing (black outline into an eye's white,
+    # gold outline into a bolt) passes through the card's grey in thin
+    # threads, and those belong to the creature. A real gap -- the open card,
+    # the loop of a bent arm -- holds a patch of flat grey; a thread doesn't.
     greyish = dist <= 0.10
     flat = ndi.binary_erosion(greyish, iterations=1) & (dist < 0.07)
     lab, n = ndi.label(greyish)
@@ -65,20 +79,21 @@ def cut_out(rgb):
     card = ~body
 
     # Along the card's edge, unmix each pixel against the nearest strongly
-    # coloured one -- its own outline, usually: P = a*F + (1-a)*card.
-    # The pale gold line round a bolt sits only ~0.15 off the card, and unmixed
-    # against the bolt's yellow it would read as card; it has to count here.
+    # coloured one -- its own outline, usually: P = a*F + (1-a)*card. A pale
+    # outline (a bolt's gold line) sits only ~0.15 off the card and still
+    # has to count as strong, or it would unmix to nothing.
     strong = body & (dist > 0.15)
     edge = ndi.binary_dilation(card, iterations=3) & ~strong
-    _, (iy, ix) = ndi.distance_transform_edt(~strong, return_indices=True)
+    far, (iy, ix) = ndi.distance_transform_edt(~strong, return_indices=True)
     f = p[iy, ix]
     fb = f - bg
     a_edge = ((p - bg) * fb).sum(-1) / np.maximum((fb * fb).sum(-1), 1e-4)
     a_edge = np.clip(a_edge, 0.0, 1.0)
-    a_edge[card & (dist < 0.03)] = 0.0
+    # Card well away from the creature is card, whatever its JPEG noise says;
+    # a soft wisp fading out keeps its fade inside that reach.
+    a_edge[card & ((dist < 0.03) | (far > 14))] = 0.0
 
     alpha = np.where(edge, a_edge, body.astype(np.float32)).astype(np.float32)
-    # Colour where the edge is mostly card is unreliable; take the outline's.
     safe = np.maximum(alpha, 1e-4)[..., None]
     unmixed = np.clip(bg + (p - bg) / safe, 0.0, 1.0)
     keep = smoothstep(alpha, 0.25, 0.6)[..., None]
@@ -95,127 +110,937 @@ def resize(premul, size):
     return out
 
 
-def place(premul):
-    """Scales the cut-out to stand in a FRAME x FRAME cell."""
+def place(premul, nudge_x=0, lift=0):
+    """Stands the cut-out in a FRAME x FRAME cell; returns it and its box."""
     a = premul[..., 3]
     ys, xs = np.nonzero(a > 0.02)
     premul = premul[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
     h, w = premul.shape[:2]
-    s = FIT_HEIGHT / h
-    nw, nh = round(w * s), round(h * s)
+    nw, nh = round(w * SCALE), round(h * SCALE)
     small = resize(premul, (nw, nh))
     cell = np.zeros((FRAME, FRAME, 4), np.float32)
-    x0 = (FRAME - nw) // 2
-    y0 = FEET_Y - nh
+    x0 = (FRAME - nw) // 2 + nudge_x
+    y0 = FEET_Y - nh - lift
     cell[y0:y0 + nh, x0:x0 + nw] = small
-    return cell
+    return cell, (x0, y0, x0 + nw, y0 + nh)
 
 
-def element_mask(premul, hue_lo, hue_hi):
-    """How much each pixel belongs to the element's glowing parts (0-1)."""
-    a = premul[..., 3]
-    c = premul[..., :3] / np.maximum(a, 1e-4)[..., None]
-    mx, mn = c.max(-1), c.min(-1)
-    chroma = mx - mn
-    sat = chroma / np.maximum(mx, 1e-4)
-    r, g, b = c[..., 0], c[..., 1], c[..., 2]
-    safe = np.maximum(chroma, 1e-4)
-    hue = np.where(mx == r, ((g - b) / safe) % 6,
-                   np.where(mx == g, (b - r) / safe + 2, (r - g) / safe + 4)) * 60
-    mid = (hue_lo + hue_hi) / 2
-    half = (hue_hi - hue_lo) / 2
-    in_hue = 1.0 - smoothstep(np.abs(hue - mid), half * 0.7, half)
-    return a * in_hue * smoothstep(sat, 0.12, 0.28) * smoothstep(mx, 0.45, 0.7)
+# ---------------------------------------------------------------------------
+# Picking parts of a creature
 
 
-def breathe(img, t):
-    """Rises a hair at the head and narrows a hair at the waist, feet fixed."""
-    sy = 1.0 + 0.010 * t
-    sx = 1.0 - 0.004 * t
-    cx = FRAME / 2
-    # PIL's affine maps output -> input.
-    coeffs = (1 / sx, 0, cx - cx / sx, 0, 1 / sy, FEET_Y - FEET_Y / sy)
-    if img.ndim == 2:
-        return np.asarray(Image.fromarray(img).transform(
-            (FRAME, FRAME), Image.AFFINE, coeffs, Image.BICUBIC))
-    return np.dstack([breathe(img[..., c], t) for c in range(img.shape[2])])
+class Body:
+    """The placed creature, with helpers to pick its parts."""
+
+    def __init__(self, premul, box):
+        self.premul = premul
+        self.box = box
+        a = premul[..., 3]
+        self.alpha = a
+        self.color = premul[..., :3] / np.maximum(a, 1e-4)[..., None]
+        c = self.color
+        mx, mn = c.max(-1), c.min(-1)
+        chroma = mx - mn
+        self.val = mx
+        self.sat = chroma / np.maximum(mx, 1e-4)
+        r, g, b = c[..., 0], c[..., 1], c[..., 2]
+        safe = np.maximum(chroma, 1e-4)
+        self.hue = np.where(mx == r, ((g - b) / safe) % 6,
+                            np.where(mx == g, (b - r) / safe + 2,
+                                     (r - g) / safe + 4)) * 60
+        self.lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+        yy, xx = np.mgrid[0:FRAME, 0:FRAME].astype(np.float32)
+        x0, y0, x1, y1 = box
+        self.u = (xx - x0) / (x1 - x0)
+        self.v = (yy - y0) / (y1 - y0)
+
+    def at(self, u, v):
+        """Frame pixel of a point given across the creature's box (0-1)."""
+        x0, y0, x1, y1 = self.box
+        return x0 + u * (x1 - x0), y0 + v * (y1 - y0)
+
+    def size(self, s):
+        """A length given as a share of the creature's height, in pixels."""
+        return s * (self.box[3] - self.box[1])
+
+    def mask(self, hue=None, sat=None, val=None, lum=None, box=None, soft=0.0):
+        """Soft 0-1 mask of the pixels matching every test given."""
+        m = self.alpha.copy()
+        if hue is not None:
+            # A hue range, wrapping through red when lo > hi (340, 20).
+            lo, hi = hue
+            width = (hi - lo) % 360
+            mid = (lo + width / 2) % 360
+            d = np.abs((self.hue - mid + 180) % 360 - 180) - width / 2
+            m = m * (1.0 - smoothstep(d, 0.0, 8.0))
+        for arr, rng in ((self.sat, sat), (self.val, val), (self.lum, lum)):
+            if rng is None:
+                continue
+            lo, hi = rng
+            if lo is not None:
+                m = m * smoothstep(arr, lo - 0.06, lo + 0.06)
+            if hi is not None:
+                m = m * (1.0 - smoothstep(arr, hi - 0.06, hi + 0.06))
+        if box is not None:
+            u0, v0, u1, v1 = box
+            m = m * ((self.u >= u0) & (self.u <= u1) & (self.v >= v0) & (self.v <= v1))
+        if soft:
+            m = ndi.gaussian_filter(m, soft)
+        return m.astype(np.float32)
+
+    def lowest(self, box):
+        """The lowest solid pixel in a region: where a drop would hang."""
+        m = self.mask(box=box) > 0.5
+        ys, xs = np.nonzero(m)
+        i = np.argmax(ys + 0.001 * xs)
+        y = ys[i]
+        row = xs[ys == y]
+        return float(row.mean()), float(y)
+
+    def points(self, mask, n, seed, min_gap=0.0):
+        """n random pixels inside a mask, weighted by it."""
+        rng = np.random.default_rng(seed)
+        w = mask.ravel().astype(np.float64)
+        w = w / w.sum()
+        picks = []
+        tries = 0
+        while len(picks) < n and tries < n * 50:
+            tries += 1
+            i = rng.choice(w.size, p=w)
+            y, x = divmod(i, FRAME)
+            if all((x - px) ** 2 + (y - py) ** 2 >= min_gap ** 2 for px, py in picks):
+                picks.append((float(x), float(y)))
+        return picks
+
+
+# ---------------------------------------------------------------------------
+# Motion: every motion maps each output pixel back to where it samples from
+
+
+class Motion:
+    def __init__(self):
+        yy, xx = np.mgrid[0:FRAME, 0:FRAME].astype(np.float32)
+        self.x = xx
+        self.y = yy
+        self.sx = xx.copy()
+        self.sy = yy.copy()
+
+    def scale_about(self, cx, cy, kx, ky):
+        self.sx = cx + (self.sx - cx) / kx
+        self.sy = cy + (self.sy - cy) / ky
+
+    def shift(self, dx, dy):
+        self.sx = self.sx - dx
+        self.sy = self.sy - dy
+
+    def apply(self, img, order=1):
+        if img.ndim == 2:
+            return ndi.map_coordinates(img, [self.sy, self.sx], order=order,
+                                       mode="constant", cval=0.0).astype(np.float32)
+        return np.dstack([self.apply(img[..., c], order) for c in range(img.shape[2])])
+
+
+def breathe(m, body, f, rise=0.010, narrow=0.004):
+    t = SWELL[f]
+    cx = (body.box[0] + body.box[2]) / 2
+    m.scale_about(cx, FEET_Y, 1 - narrow * t, 1 + rise * t)
+
+
+def heartbeat(m, body, f, beat=0.022):
+    """Lub-dub: a strong beat, a smaller one, then rest."""
+    t = [0.0, 1.0, 0.45, 0.0][f]
+    cx = (body.box[0] + body.box[2]) / 2
+    m.scale_about(cx, FEET_Y, 1 + beat * 0.6 * t, 1 + beat * t)
+
+
+def bob(m, body, f, px=5.0):
+    """Floats up and down a full cycle per loop."""
+    m.shift(0.0, -px * math.sin(2 * math.pi * PHASE[f]))
+
+
+def sway(m, body, f, amp=4.0, pivot=0.35, top=0.0, wave=1.2, where=None, phase=0.0):
+    """Sways what lies beyond `pivot` (share of height from the top) toward
+    `top` side to side, more the further out it is; `wave` sends the sway
+    along it as a ripple. With top > pivot it sways what hangs below."""
+    py = body.at(0, pivot)[1]
+    ty = body.at(0, top)[1]
+    out = (py - m.y) / (py - ty) if ty != py else np.zeros_like(m.y)
+    w = smoothstep(out, 0.0, 1.0) ** 1.4
+    if where is not None:
+        w = w * where
+    dx = amp * w * np.sin(2 * math.pi * (PHASE[f] + phase) - wave * out * math.pi)
+    m.shift(dx, 0.0)
+
+
+def flap(m, body, f, where, amp=4.0, phase=0.0):
+    """Lifts and drops one part (a wing, a tail) a full cycle a loop."""
+    m.shift(0.0, -amp * where * math.sin(2 * math.pi * (PHASE[f] + phase)))
+
+
+def flicker(m, body, f, where, amp=3.0, waves=3.0, lift=2.0):
+    """Licks a flame: ripples running up through `where`, and a tug upward."""
+    yspan = body.box[3] - body.box[1]
+    k = 2 * math.pi * waves / yspan
+    ph = 2 * math.pi * PHASE[f]
+    dx = amp * where * np.sin(k * m.y + ph) * (0.6 + 0.4 * np.cos(k * 0.37 * m.x - ph))
+    dy = lift * where * (0.5 + 0.5 * np.sin(k * 0.8 * m.y + ph + 1.3))
+    m.shift(dx, -dy)
+
+
+# ---------------------------------------------------------------------------
+# Light: glows, glints, ripples, rays
 
 
 def blur(x, sigma):
     return ndi.gaussian_filter(x, sigma, mode="constant")
 
 
-def frame(base, mask, t, g, glow_rgb, core_rgb):
-    body = np.clip(breathe(base, t), 0.0, 1.0)
-    m = np.clip(breathe(mask, t), 0.0, 1.0)
-    a = body[..., 3:4]
-    col = body[..., :3] / np.maximum(a, 1e-4)
+def glow(fr, mask, f, color, core=None, levels=(0.25, 0.6, 1.0, 0.6), heat=(0.08, 0.27),
+         halo=1.0, spill=0.5, reach=1.0):
+    """The masked parts warm toward a hot core and throw light around them."""
+    g = levels[f]
+    core = color if core is None else core
+    hot = (mask * (heat[0] + heat[1] * g))[..., None]
+    fr.col = fr.col + (core - fr.col) * hot
+    h = (blur(mask, 5 * reach) * 0.9 + blur(mask, 14 * reach) * 1.2 +
+         blur(mask, 30 * reach) * 0.8) * g * halo
+    s = (np.clip(h * spill, 0.0, 0.8) * (1.0 - mask))[..., None]
+    fr.col = 1 - (1 - fr.col) * (1 - color * s)
+    air = np.clip(h * 0.75, 0.0, 0.8)
+    fr.behind_add(color, air)
 
-    # The parts themselves warm toward a hot core, gently enough that their
-    # own markings (the orb's cracks) still read at the peak.
-    hot = (m * (0.08 + 0.27 * g))[..., None]
-    col = col + (core_rgb - col) * hot
 
-    # Light spilling out of them: onto the body nearby, and into the air.
-    halo = (blur(m, 5) * 0.9 + blur(m, 14) * 1.2 + blur(m, 30) * 0.8) * g
-    spill = (np.clip(halo * 0.5, 0.0, 0.8) * (1.0 - m))[..., None]
-    col = 1 - (1 - col) * (1 - glow_rgb * spill)  # screen
+def tint(fr, mask, f, color, levels=(0.0, 0.5, 1.0, 0.5), amount=0.35, mode="screen"):
+    """Washes the masked parts toward a colour as the pulse rises."""
+    k = (mask * amount * levels[f])[..., None]
+    if mode == "screen":
+        fr.col = 1 - (1 - fr.col) * (1 - color * k)
+    elif mode == "multiply":
+        fr.col = fr.col * (1 - k + color * k)
+    else:
+        fr.col = fr.col + (color - fr.col) * k
 
-    sprite = np.dstack([col * a, a])
-    air = np.clip(halo * 0.75, 0.0, 0.8)[..., None]
-    behind = np.dstack([glow_rgb * air, air])
-    out = sprite + behind * (1 - a)
-    return np.clip(out, 0.0, 1.0)
+
+def ripples(fr, mask, f, color, scale=26.0, amount=0.45, angle=0.5):
+    """Caustic light crawling across the masked parts, like light through water."""
+    x, y = fr.motion.x, fr.motion.y
+    ph = 2 * math.pi * PHASE[f]
+    ca, sa = math.cos(angle), math.sin(angle)
+    a1 = (x * ca + y * sa) / scale
+    a2 = (x * -sa + y * ca) / (scale * 1.3)
+    s = np.sin(a1 + ph) + np.sin(a2 * 1.7 - ph + np.sin(a1 * 0.6)) + 0.6 * np.sin((a1 + a2) * 1.3 + ph)
+    lines = np.clip(1.0 - np.abs(s) * 2.2, 0.0, 1.0) ** 2
+    k = (mask * lines * amount)[..., None]
+    fr.col = 1 - (1 - fr.col) * (1 - color * k)
+
+
+def rays(fr, center, f, color, n=10, inner=40, outer=220, strength=0.55, levels=SWELL, spin=1):
+    """Soft light rays turning behind the creature: one ray's step a loop."""
+    cx, cy = center
+    x, y = fr.motion.x - cx, fr.motion.y - cy
+    r = np.hypot(x, y)
+    th = np.arctan2(y, x)
+    off = spin * (2 * math.pi / n) * PHASE[f]
+    beams = (0.5 + 0.5 * np.cos(n * (th - off))) ** 6
+    beams2 = (0.5 + 0.5 * np.cos(n * (th + off * 0.5) + 1.7)) ** 10 * 0.6
+    fall = smoothstep(r, inner * 0.6, inner) * (1 - smoothstep(r, inner, outer))
+    a = np.clip((beams + beams2) * fall * strength * (0.65 + 0.35 * levels[f]), 0, 1)
+    fr.behind_add(color, a)
+
+
+def glints(fr, pts, f, color, size=9.0, seed=0, every=2):
+    """Four-point stars winking on and off across the loop."""
+    rng = np.random.default_rng(seed)
+    for i, (x, y) in enumerate(pts):
+        on = (i + f) % FRAMES
+        # Each glint lights for `every` frames: up, full, out.
+        level = {0: 1.0, 1: 0.45}.get(on, 0.0) if every == 2 else (1.0 if on == 0 else 0.0)
+        if level <= 0:
+            continue
+        s = size * (0.75 + 0.5 * rng.random()) * (0.6 + 0.4 * level)
+        fr.star(x, y, s, color, level)
+
+
+# ---------------------------------------------------------------------------
+# Motes: dots, puffs, embers, bubbles, leaves -- each runs one life a loop
+
+
+def motes(fr, f, pts, color, rise=(0, -60), size=4.0, grow=(1.0, 1.0), shape="soft",
+          seed=0, alpha=0.9, wobble=6.0, layer="front", edge=None, spin=0.0, fade=0.8):
+    """One mote per point, each at its own phase of a life that lasts one loop;
+    `rise` is how far a mote travels over its life."""
+    rng = np.random.default_rng(seed)
+    for (x0, y0) in pts:
+        ph = rng.random()
+        wob = rng.random() * 2 * math.pi
+        sz = size * (0.7 + 0.6 * rng.random())
+        ang0 = rng.random() * math.pi
+        t = (ph + PHASE[f]) % 1.0
+        rx, ry = rise(x0, y0) if callable(rise) else rise
+        x = x0 + rx * t + wobble * math.sin(2 * math.pi * t + wob)
+        y = y0 + ry * t
+        # `fade` below 1 keeps a mote solid most of its life, gone quickly.
+        life = math.sin(math.pi * t) ** fade
+        s = sz * (grow[0] + (grow[1] - grow[0]) * t)
+        fr.dot(x, y, s, color, alpha * life, shape=shape, layer=layer, edge=edge,
+               angle=ang0 + spin * t * 2 * math.pi, vel=(rx, ry))
+
+
+def outward(center, reach, up=0.0):
+    """A rise that carries each mote away from `center`, and up a little."""
+    cx, cy = center
+
+    def rise(x, y):
+        dx, dy = x - cx, y - cy
+        n = math.hypot(dx, dy) or 1.0
+        return reach * dx / n, reach * dy / n - up
+    return rise
+
+
+def drip(fr, x, y, f, color, r=4.0, fall=44.0, shade=None, shine=True, offset=0):
+    """A drop swells, sags, lets go and falls: one drop a loop."""
+    k = (f + offset) % FRAMES
+    x, y = fr.fwd(x, y)
+    dark = color * 0.55 if shade is None else shade
+    if k == 0:
+        drops = [(x, y + r * 0.2, r * 0.55, 1.0, 1.0)]
+    elif k == 1:
+        drops = [(x, y + r * 0.7, r * 0.9, 1.25, 1.0), (x, y + r * 0.1, r * 0.45, 1.6, 1.0)]
+    elif k == 2:
+        drops = [(x, y + fall * 0.4, r * 0.8, 1.35, 1.0), (x, y + r * 0.1, r * 0.3, 1.0, 1.0)]
+    else:
+        drops = [(x, y + fall, r * 0.7, 1.5, 0.75)]
+    for (dx, dy, rr, stretch, a) in drops:
+        fr.dot(dx, dy, rr, color, a, shape="egg", edge=dark, stretch=stretch)
+        if shine:
+            fr.dot(dx - rr * 0.3, dy - rr * 0.35 * stretch, rr * 0.28, rgb(255, 255, 255),
+                   0.75 * a, shape="soft")
+
+
+def arcs(fr, f, ends, color, seed=0, width=1.2, jag=0.22, per_frame=2):
+    """Electric arcs jumping between pairs of points, a new crackle each frame."""
+    rng = np.random.default_rng(seed + 101 * f)
+    order = rng.permutation(len(ends))[:per_frame]
+    for i in order:
+        (ax, ay), (bx, by) = ends[i]
+        ax, ay = fr.fwd(ax, ay)
+        bx, by = fr.fwd(bx, by)
+        n = 7
+        L = math.hypot(bx - ax, by - ay)
+        nx, ny = -(by - ay) / (L or 1), (bx - ax) / (L or 1)
+        pts = []
+        for j in range(n + 1):
+            t = j / n
+            off = 0.0 if j in (0, n) else rng.normal() * jag * L * math.sin(math.pi * t)
+            pts.append((ax + (bx - ax) * t + nx * off, ay + (by - ay) * t + ny * off))
+        fr.polyline(pts, width * 3.5, color, 0.35)
+        fr.polyline(pts, width, color, 1.0)
+        fr.polyline(pts, width * 0.45, rgb(255, 255, 255), 1.0)
+
+
+def gusts(fr, f, starts, color, travel=150.0, length=70.0, bend=7.0, width=2.0, seed=0, alpha=0.85):
+    """Curling lines of wind sweeping past, each one pass a loop."""
+    rng = np.random.default_rng(seed)
+    for (x0, y0) in starts:
+        ph = rng.random()
+        L = length * (0.7 + 0.6 * rng.random())
+        t = (ph + PHASE[f]) % 1.0
+        a = alpha * math.sin(math.pi * t) ** 0.7
+        if a < 0.05:
+            continue
+        hx = x0 + travel * t
+        pts = []
+        n = 12
+        for j in range(n + 1):
+            k = j / n
+            x = hx - L * k
+            y = y0 + bend * math.sin(math.pi * 1.5 * k + 2 * math.pi * t) * k
+            pts.append((x, y))
+        # Thick and bright at the head, thinning to nothing at the tail.
+        fades = [(1 - j / n) ** 1.2 for j in range(n + 1)]
+        fr.polyline(pts, [width * (0.35 + 0.65 * k) for k in fades], color,
+                    [a * k for k in fades])
+
+
+def shadow_flames(fr, f, color, rim, reach=7.0, height=46.0, strength=0.8, waves=4.0):
+    """Tongues of shadow licking up off the creature, behind it."""
+    base = np.clip(blur(fr.alpha, reach) * 1.6, 0, 1)
+    x, y = fr.motion.x, fr.motion.y
+    ph = 2 * math.pi * PHASE[f]
+    acc = np.zeros_like(base)
+    steps = 32
+    for i in range(1, steps + 1):
+        k = i / steps
+        dx = 5.0 * k * np.sin(y / FRAME * 2 * math.pi * waves + ph + 1.7 * k) + 3.0 * k * np.sin(x / 23.0 - ph)
+        dy = height * k
+        sx = x - dx
+        sy = y + dy
+        lick = 0.55 + 0.45 * np.sin(x / 17.0 + ph * 1.0 + k * 2.0)
+        smp = ndi.map_coordinates(base, [sy, sx], order=1, mode="constant")
+        acc = np.maximum(acc, smp * (1 - k) ** 1.3 * lick)
+    a = np.clip(blur(acc, 1.6) * strength, 0, 0.9)
+    edge = np.clip(a - np.clip(blur(a, 3.0) - 0.04, 0, 1), 0, 1)
+    fr.behind_add(color, a)
+    fr.behind_add(rim, np.clip(edge * 1.5, 0, 0.6))
+
+
+def aura(fr, f, color, levels=SWELL, reach=10.0, strength=0.6, mask=None):
+    """Coloured light behind the creature, hugging its outline."""
+    a = fr.alpha if mask is None else mask
+    h = (blur(a, reach) * 0.7 + blur(a, reach * 2.5) * 0.6) * strength * levels[f]
+    fr.behind_add(color, np.clip(h, 0, 0.85))
+
+
+# ---------------------------------------------------------------------------
+# A frame being drawn
+
+
+class Frame:
+    def __init__(self, body, f, motion):
+        self.f = f
+        self.motion = motion
+        moved = np.clip(motion.apply(body.premul), 0.0, 1.0)
+        self.alpha = moved[..., 3]
+        self.col = moved[..., :3] / np.maximum(self.alpha, 1e-4)[..., None]
+        self.col = np.clip(self.col, 0.0, 1.0)
+        self.behind = np.zeros((FRAME, FRAME, 4), np.float32)
+        self.front = np.zeros((FRAME, FRAME, 4), np.float32)
+
+    def warp(self, mask):
+        """A mask picked on the still, moved the way this frame moved."""
+        return np.clip(self.motion.apply(mask), 0.0, 1.0)
+
+    def fwd(self, x, y):
+        """Where a point on the still sits in this frame."""
+        xi, yi = int(round(min(max(x, 0), FRAME - 1))), int(round(min(max(y, 0), FRAME - 1)))
+        return x - (self.motion.sx[yi, xi] - x), y - (self.motion.sy[yi, xi] - y)
+
+    def polyline(self, pts, width, color, a, layer="front"):
+        """A line through pts; width and a may be one value or one per point,
+        so a stroke can taper. Painted once, so its joints don't bead."""
+        n = len(pts)
+        ws = list(width) if isinstance(width, (list, tuple)) else [width] * n
+        als = list(a) if isinstance(a, (list, tuple)) else [a] * n
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        R = int(math.ceil(max(ws) * 3 + 2))
+        x0, y0 = int(min(xs)) - R, int(min(ys)) - R
+        x1, y1 = int(max(xs)) + R + 1, int(max(ys)) + R + 1
+        yy, xx = np.mgrid[y0:y1, x0:x1].astype(np.float32)
+        cov = np.zeros(xx.shape, np.float32)
+        for i in range(n - 1):
+            (ax, ay), (bx, by) = pts[i], pts[i + 1]
+            vx, vy = bx - ax, by - ay
+            t = np.clip(((xx - ax) * vx + (yy - ay) * vy) / max(vx * vx + vy * vy, 1e-6), 0, 1)
+            d = np.hypot(xx - ax - t * vx, yy - ay - t * vy)
+            w = ws[i] + (ws[i + 1] - ws[i]) * t
+            al = als[i] + (als[i + 1] - als[i]) * t
+            cov = np.maximum(cov, np.exp(-(d * d) / (2 * (w * 0.6) ** 2)) * al)
+        self.paint(layer, 0, 0, np.clip(cov, 0, 1), color, x0, y0)
+
+    def behind_add(self, color, a):
+        """Adds light behind the creature (premultiplied, screen-like)."""
+        a = np.clip(a, 0, 1)[..., None]
+        lay = np.concatenate([color * a, a], -1)
+        self.behind = lay + self.behind * (1 - a)
+
+    def _layer(self, layer):
+        return self.front if layer == "front" else self.behind
+
+    def paint(self, layer, x, y, a_patch, color, x0, y0):
+        """Composites a coverage patch (0-1) of one colour onto a layer."""
+        lay = self._layer(layer)
+        h, w = a_patch.shape
+        X0, Y0 = max(x0, 0), max(y0, 0)
+        X1, Y1 = min(x0 + w, FRAME), min(y0 + h, FRAME)
+        if X1 <= X0 or Y1 <= Y0:
+            return
+        a = a_patch[Y0 - y0:Y1 - y0, X0 - x0:X1 - x0][..., None]
+        src = np.concatenate([np.broadcast_to(color, a.shape[:2] + (3,)) * a, a], -1)
+        dst = lay[Y0:Y1, X0:X1]
+        lay[Y0:Y1, X0:X1] = src + dst * (1 - a)
+
+    def dot(self, x, y, s, color, a, shape="soft", layer="front", edge=None, angle=0.0,
+            vel=(0, -1), stretch=1.0):
+        if a <= 0.01 or s <= 0.2:
+            return
+        R = int(math.ceil(s * 3 * max(stretch, 1.0) + 3))
+        x0, y0 = int(math.floor(x)) - R, int(math.floor(y)) - R
+        yy, xx = np.mgrid[y0:y0 + 2 * R + 1, x0:x0 + 2 * R + 1].astype(np.float32)
+        dx, dy = xx - x, yy - y
+        d = np.hypot(dx, dy)
+        if shape == "soft":
+            cov = np.exp(-(d * d) / (2 * (s * 0.6) ** 2))
+        elif shape == "disc":
+            cov = np.clip(s + 0.5 - d, 0, 1)
+        elif shape == "bubble":
+            ring = np.clip(s + 0.5 - d, 0, 1) - np.clip(s - 1.2 - d, 0, 1) * 0.75
+            hx, hy = dx + s * 0.35, dy + s * 0.35
+            hl = np.exp(-(hx * hx + hy * hy) / (2 * (s * 0.18 + 0.4) ** 2))
+            cov = np.clip(ring + hl * 0.9, 0, 1)
+        elif shape == "egg":
+            # A drop: round below, drawn out to a point above.
+            ry = np.where(dy < 0, s * stretch, s)
+            e = np.sqrt((dx / s) ** 2 + (dy / ry) ** 2)
+            cov = np.clip((1.0 - e) * s + 0.5, 0, 1)
+        elif shape == "cloud":
+            # A cartoon puff: three round lobes with a crisp edge.
+            cov = np.zeros_like(d)
+            for ox, oy, rr in ((-0.5, 0.18, 0.62), (0.48, 0.22, 0.56), (0.0, -0.22, 0.74)):
+                dd = np.hypot(dx - ox * s, dy - oy * s)
+                cov = np.maximum(cov, np.clip(rr * s + 0.5 - dd, 0, 1))
+        elif shape == "puff":
+            cov = np.exp(-(d * d) / (2 * (s * 0.7) ** 2)) * 0.9
+        elif shape == "streak":
+            vx, vy = vel
+            n = math.hypot(vx, vy) or 1.0
+            ux, uy = vx / n, vy / n
+            along = dx * ux + dy * uy
+            across = -dx * uy + dy * ux
+            cov = np.exp(-(along ** 2) / (2 * (s * 1.6) ** 2) - (across ** 2) / (2 * (s * 0.35) ** 2))
+        elif shape == "leaf":
+            ca, sa = math.cos(angle), math.sin(angle)
+            along = dx * ca + dy * sa
+            across = -dx * sa + dy * ca
+            e = (along / (s * 1.3)) ** 2 + (across / (s * 0.6)) ** 2
+            cov = np.clip((1.0 - e) * s * 0.9, 0, 1)
+        elif shape == "shard":
+            ca, sa = math.cos(angle), math.sin(angle)
+            along = np.abs(dx * ca + dy * sa)
+            across = np.abs(-dx * sa + dy * ca)
+            e = along / (s * 1.4) + across / (s * 0.55)
+            cov = np.clip((1.0 - e) * s * 0.9, 0, 1)
+        else:
+            raise ValueError(shape)
+        cov = np.clip(cov * a, 0, 1)
+        if edge is not None:
+            # A darker rim, drawn first, so the mote reads on light ground.
+            rim = np.clip(ndi.grey_dilation(cov, size=(3, 3)) - cov, 0, 1)
+            self.paint(layer, x, y, rim * 0.8, edge, x0, y0)
+        self.paint(layer, x, y, cov, color, x0, y0)
+
+    def star(self, x, y, s, color, a):
+        R = int(math.ceil(s * 1.6 + 3))
+        x0, y0 = int(math.floor(x)) - R, int(math.floor(y)) - R
+        yy, xx = np.mgrid[y0:y0 + 2 * R + 1, x0:x0 + 2 * R + 1].astype(np.float32)
+        dx, dy = xx - x, yy - y
+        w = max(s * 0.09, 0.55)
+        arm1 = np.exp(-(dx * dx) / (2 * w * w) - (dy * dy) / (2 * (s * 0.55) ** 2))
+        arm2 = np.exp(-(dy * dy) / (2 * w * w) - (dx * dx) / (2 * (s * 0.55) ** 2))
+        core = np.exp(-(dx * dx + dy * dy) / (2 * (s * 0.16) ** 2))
+        halo = np.exp(-(dx * dx + dy * dy) / (2 * (s * 0.45) ** 2)) * 0.35
+        cov = np.clip((np.maximum(arm1, arm2) + core + halo) * a, 0, 1)
+        self.paint("front", x, y, cov, color, x0, y0)
+        white = np.clip(core * a * 0.9, 0, 1)
+        self.paint("front", x, y, white, rgb(255, 255, 255), x0, y0)
+
+    def opacity(self, k):
+        self.alpha = self.alpha * k
+
+    def compose(self):
+        a = self.alpha[..., None]
+        sprite = np.dstack([np.clip(self.col, 0, 1) * a, a])
+        out = sprite + self.behind * (1 - a)
+        out = self.front + out * (1 - self.front[..., 3:4])
+        # Light and motes fade out before the frame's edge, never cut by it.
+        e = np.minimum(np.minimum(self.motion.x, FRAME - 1 - self.motion.x),
+                       np.minimum(self.motion.y, FRAME - 1 - self.motion.y))
+        out = out * smoothstep(e, 0.0, 14.0)[..., None]
+        return np.clip(out, 0.0, 1.0)
 
 
 def to_image(premul):
     a = premul[..., 3:4]
-    rgb = premul[..., :3] / np.maximum(a, 1e-4)
-    rgba = np.dstack([rgb, a])
+    col = premul[..., :3] / np.maximum(a, 1e-4)
+    rgba = np.dstack([col, a])
     rgba[a[..., 0] < 1 / 255] = 0
     return Image.fromarray((np.clip(rgba, 0, 1) * 255 + 0.5).astype(np.uint8), "RGBA")
+
+
+# ---------------------------------------------------------------------------
+# The family: where each sits on the card, and how each idles
+
+def scatter(b, n, seed, box):
+    """n fixed points spread over a region of the creature's box."""
+    rng = np.random.default_rng(seed)
+    u0, v0, u1, v1 = box
+    return [b.at(u0 + (u1 - u0) * rng.random(), v0 + (v1 - v0) * rng.random()) for _ in range(n)]
+
+
+# Each idle is called twice a frame: first without `fr` for how the body
+# moves, then with the moved frame to light it and set motes around it.
+
+def lightning(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        return m
+    bolts = fr.warp(b.mask(hue=(30, 70), sat=(0.2, None), val=(0.6, None)))
+    glow(fr, bolts, f, rgb(255, 226, 110), core=rgb(255, 246, 190))
+    orb = b.at(0.885, 0.6)
+    r = b.size(0.075)
+    ends = [
+        (b.at(0.08, 0.03), b.at(0.02, -0.04)),
+        (b.at(0.40, 0.03), b.at(0.47, -0.05)),
+        (b.at(0.70, 0.18), b.at(0.80, 0.12)),
+        ((orb[0] + r * 0.9, orb[1] - r * 0.5), (orb[0] + r * 1.9, orb[1] - r * 1.4)),
+        ((orb[0] - r * 0.2, orb[1] - r * 0.95), (orb[0] + r * 0.3, orb[1] - r * 2.1)),
+        ((orb[0] + r * 0.6, orb[1] + r * 0.8), (orb[0] + r * 1.7, orb[1] + r * 1.5)),
+    ]
+    arcs(fr, f, ends, rgb(255, 236, 130), seed=3, per_frame=2 if f != 2 else 3)
+
+
+def mud(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f, rise=0.016, narrow=0.008)
+        return m
+    cap = fr.warp(b.mask(val=(None, 0.42), box=(0, 0, 1, 0.32)))
+    tint(fr, cap, f, rgb(255, 235, 200), levels=(0.1, 0.3, 0.55, 0.3), amount=0.18)
+    blorps = [b.at(0.38, 0.07), b.at(0.66, 0.11), b.at(0.18, 0.18), b.at(0.86, 0.24),
+              b.at(0.52, 0.16)]
+    motes(fr, f, [fr.fwd(*p) for p in blorps], rgb(150, 108, 70), rise=(0, -6), size=8.5,
+          grow=(0.3, 1.15), shape="bubble", seed=11, alpha=1.0, wobble=0.0,
+          edge=rgb(62, 40, 24))
+    drip(fr, *b.lowest((0.15, 0.5, 0.45, 0.68)), f, rgb(128, 88, 54), r=8.5, fall=58,
+         shade=rgb(70, 46, 28))
+    drip(fr, *b.lowest((0.85, 0.5, 1.0, 0.8)), f, rgb(100, 66, 40), r=6.5, fall=46,
+         shade=rgb(56, 36, 20), offset=2)
+
+
+def ice(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f, rise=0.008, narrow=0.003)
+        return m
+    cubes = fr.warp(b.mask(box=(0, 0, 1, 0.5), val=(0.8, None)))
+    glow(fr, cubes, f, rgb(160, 230, 255), core=rgb(235, 250, 255), heat=(0.0, 0.12),
+         halo=0.55, spill=0.25)
+    corners = [b.at(0.18, 0.03), b.at(0.48, 0.01), b.at(0.86, 0.13), b.at(0.03, 0.17),
+               b.at(0.93, 0.37), b.at(0.87, 0.57), b.at(0.60, 0.14), b.at(0.30, 0.45)]
+    glints(fr, [fr.fwd(*p) for p in corners], f, rgb(215, 245, 255), size=11, seed=5)
+    flakes = scatter(b, 16, 21, (-0.12, -0.15, 1.12, 0.75))
+    motes(fr, f, flakes, rgb(250, 253, 255), rise=(8, 70), size=2.2, shape="disc",
+          seed=22, alpha=0.95, wobble=5, edge=rgb(120, 170, 200))
+
+
+def dust(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f, rise=0.010, narrow=0.006)
+        sway(m, b, f, amp=9.0, pivot=0.25, top=0.0, wave=1.6,
+             where=b.mask(box=(0.45, 0, 0.85, 0.3), soft=4))
+        return m
+    puff = b.mask(hue=(15, 45), val=(0.72, None), box=(0, 0, 1, 0.66))
+    rim = np.clip(puff - ndi.grey_erosion(puff, size=(13, 13)), 0, 1)
+    head = b.at(0.5, 0.36)
+    grains = b.points(rim, 34, seed=31, min_gap=8)
+    motes(fr, f, grains, rgb(240, 212, 168), rise=outward(head, 40, up=26), size=2.6,
+          shape="disc", seed=32, alpha=1.0, wobble=3, edge=rgb(150, 112, 76))
+    clouds = b.points(rim, 6, seed=33, min_gap=50)
+    motes(fr, f, clouds, rgb(238, 210, 166), rise=outward(head, 26, up=16), size=7,
+          grow=(0.5, 1.4), shape="cloud", seed=34, alpha=0.55, wobble=3,
+          edge=rgb(196, 160, 118))
+
+
+def crystal(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        return m
+    gems = b.mask(hue=(265, 330), sat=(0.18, None), val=(0.62, None))
+    gems = gems * (1 - b.mask(box=(0.0, 0.5, 0.45, 0.62)))
+    glow(fr, fr.warp(gems), f, rgb(225, 160, 255), core=rgb(255, 235, 255), heat=(0.04, 0.2),
+         halo=0.8, spill=0.35)
+    tips = [b.at(0.22, 0.02), b.at(0.50, 0.08), b.at(0.72, 0.26), b.at(0.74, 0.44),
+            b.at(0.95, 0.70), b.at(0.36, 0.13), b.at(0.60, 0.18), b.at(0.05, 0.5)]
+    glints(fr, [fr.fwd(*p) for p in tips], f, rgb(255, 225, 255), size=12, seed=6)
+
+
+def plant(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        sway(m, b, f, amp=5.5, pivot=0.42, top=0.0, wave=1.0)
+        return m
+    pollen = scatter(b, 16, 41, (-0.05, 0.0, 1.05, 0.85))
+    motes(fr, f, pollen, rgb(248, 255, 175), rise=(6, -60), size=3.6, shape="soft",
+          seed=42, alpha=1.0, wobble=6)
+    motes(fr, f, pollen[:8], rgb(255, 255, 230), rise=(6, -60), size=1.4, shape="disc",
+          seed=42, alpha=1.0, wobble=6)
+    motes(fr, f, [b.at(0.88, 0.16), b.at(0.06, 0.28)], rgb(132, 182, 58), rise=(26, 120),
+          size=11, shape="leaf", seed=43, alpha=1.0, wobble=12, edge=rgb(58, 92, 26), spin=0.6)
+
+
+def _fire_parts(b):
+    head = b.mask(box=(0, 0, 1, 0.52)) * smoothstep(-b.v, -0.50, -0.30)
+    tail = b.mask(box=(0.72, 0.55, 1.0, 0.92))
+    return np.clip(ndi.gaussian_filter(head + tail, 3), 0, 1)
+
+
+def fire(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        flicker(m, b, f, _fire_parts(b), amp=3.2, waves=3.0, lift=2.5)
+        return m
+    flames = fr.warp(b.mask(hue=(15, 60), val=(0.85, None)) * _fire_parts(b))
+    glow(fr, flames, f, rgb(255, 160, 70), core=rgb(255, 232, 160), heat=(0.04, 0.16),
+         halo=1.0, spill=0.3)
+    tops = b.points(b.mask(box=(0.05, 0.0, 0.95, 0.3)) * _fire_parts(b), 12, seed=51, min_gap=18)
+    tops += b.points(b.mask(box=(0.75, 0.55, 1.0, 0.7)), 3, seed=52, min_gap=10)
+    motes(fr, f, tops, rgb(255, 214, 110), rise=(4, -75), size=2.7, shape="streak",
+          seed=53, alpha=1.0, wobble=7)
+    motes(fr, f, tops[::2], rgb(255, 245, 200), rise=(4, -75), size=1.2, shape="disc",
+          seed=53, alpha=1.0, wobble=7)
+
+
+def water(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        sway(m, b, f, amp=3.5, pivot=0.42, top=0.0, wave=1.4)
+        return m
+    body = fr.warp(b.mask())
+    ripples(fr, body, f, rgb(235, 252, 255), scale=20.0, amount=0.32)
+    bubbles = scatter(b, 8, 61, (-0.05, 0.3, 1.05, 0.95))
+    motes(fr, f, bubbles, rgb(235, 250, 255), rise=(0, -85), size=6.5, shape="bubble",
+          seed=62, alpha=1.0, wobble=5, edge=rgb(60, 130, 195))
+
+
+def hover(b, box):
+    """A soft region of the frame (not just the creature) to lift."""
+    u0, v0, u1, v1 = box
+    m = ((b.u >= u0) & (b.u <= u1) & (b.v >= v0) & (b.v <= v1)).astype(np.float32)
+    return ndi.gaussian_filter(m, 2.5)
+
+
+def earth(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f, rise=0.007, narrow=0.003)
+        # Its stones hover a little off it, each on its own beat.
+        # The lifted regions run past each stone's outer edges (open air), so
+        # only the seam where a stone meets the head stretches.
+        flap(m, b, f, hover(b, (0.34, -0.2, 0.60, 0.09)), amp=5.0)
+        flap(m, b, f, hover(b, (-0.2, -0.2, 0.36, 0.17)), amp=2.5, phase=0.5)
+        flap(m, b, f, hover(b, (0.78, 0.30, 1.2, 0.53)), amp=4.5, phase=0.25)
+        return m
+    eyes = fr.warp(b.mask(hue=(15, 50), sat=(0.45, None), val=(0.55, None), box=(0.05, 0.4, 0.5, 0.58)))
+    glow(fr, eyes, f, rgb(255, 170, 70), heat=(0.0, 0.25), halo=0.45, spill=0.2, reach=0.5)
+    gravel = [b.at(0.10, 0.62), b.at(0.88, 0.48), b.at(0.66, 0.70), b.at(0.24, 0.84),
+              b.at(0.97, 0.70), b.at(0.42, 0.66)]
+    motes(fr, f, gravel, rgb(118, 104, 92), rise=(4, 62), size=5.0, shape="shard",
+          seed=71, alpha=1.0, wobble=2, edge=rgb(44, 36, 32), spin=0.35)
+    feet = [b.at(0.24, 0.99), b.at(0.36, 0.99), b.at(0.66, 0.99), b.at(0.80, 0.99)]
+    motes(fr, f, feet, rgb(196, 180, 158), rise=outward(b.at(0.52, 1.02), 30, up=10), size=7,
+          grow=(0.5, 1.4), shape="cloud", seed=72, alpha=0.75, wobble=2, edge=rgb(140, 124, 106))
+
+
+def air(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        bob(m, b, f, px=4.0)
+        flap(m, b, f, b.mask(box=(0.0, 0.05, 0.32, 0.4), soft=6), amp=6.0)
+        flap(m, b, f, b.mask(box=(0.62, 0.05, 1.0, 0.42), soft=6), amp=6.0)
+        return m
+    starts = [b.at(-0.15, 0.30), b.at(-0.05, 0.62), b.at(0.45, 0.04), b.at(0.55, 0.92),
+              b.at(-0.2, 0.86), b.at(0.6, 0.48)]
+    gusts(fr, f, starts, rgb(255, 255, 255), travel=b.size(0.55), length=b.size(0.2),
+          bend=6.0, width=2.6, seed=81, alpha=0.9)
+    puffs = scatter(b, 3, 83, (-0.15, 0.2, 0.3, 0.9))
+    motes(fr, f, puffs, rgb(248, 253, 255), rise=(110, -6), size=7, grow=(0.7, 1.2),
+          shape="cloud", seed=84, alpha=0.8, wobble=3, edge=rgb(160, 205, 230))
+
+
+def steam(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        ring = b.mask(lum=(0.72, None), sat=(None, 0.35), box=(0, 0, 1, 0.65), soft=3)
+        sway(m, b, f, amp=3.0, pivot=0.62, top=0.0, wave=0.8, where=ring)
+        return m
+    # Puffs leave the ring's upper sides and drift up and out, staying in frame.
+    vents = [b.at(0.12, 0.16), b.at(0.88, 0.16), b.at(0.02, 0.36), b.at(0.98, 0.34),
+             b.at(0.26, 0.07), b.at(0.74, 0.07), b.at(0.5, 0.05)]
+    motes(fr, f, [fr.fwd(*p) for p in vents], rgb(246, 250, 255),
+          rise=outward(b.at(0.5, 0.42), 34, up=4), size=10.5,
+          grow=(0.4, 1.5), shape="cloud", seed=91, alpha=1.0, wobble=4,
+          edge=rgb(190, 214, 238), fade=0.3)
+
+
+def lava(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        return m
+    cracks = fr.warp(b.mask(hue=(345, 45), sat=(0.45, None), val=(0.45, None)))
+    glow(fr, cracks, f, rgb(255, 110, 40), core=rgb(255, 215, 130), heat=(0.1, 0.35),
+         halo=0.9, spill=0.45, reach=0.8)
+    embers = scatter(b, 12, 101, (0.12, -0.02, 0.78, 0.3))
+    motes(fr, f, embers, rgb(255, 150, 60), rise=(0, -90), size=2.0, shape="streak",
+          seed=102, alpha=1.0, wobble=8)
+
+
+def poison(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        return m
+    tips = fr.warp(b.mask(hue=(295, 345), sat=(0.25, None), val=(0.75, None)))
+    glow(fr, tips, f, rgb(235, 120, 255), core=rgb(255, 205, 255), heat=(0.04, 0.2),
+         halo=0.75, spill=0.3)
+    eyes = fr.warp(b.mask(hue=(80, 160), sat=(0.25, None), val=(0.6, None), box=(0.1, 0.5, 0.45, 0.62)))
+    glow(fr, eyes, f, rgb(170, 255, 140), heat=(0.05, 0.25), halo=0.4, spill=0.2, reach=0.5)
+    bubbles = scatter(b, 8, 111, (0.0, 0.2, 1.0, 0.9))
+    motes(fr, f, bubbles, rgb(205, 130, 255), rise=(0, -80), size=6.0, shape="bubble",
+          seed=112, alpha=1.0, wobble=5, edge=rgb(96, 36, 136))
+    drip(fr, *b.lowest((0.15, 0.6, 0.45, 0.76)), f, rgb(232, 112, 232), r=5.0, fall=50,
+         shade=rgb(116, 36, 136))
+
+
+def spirit(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        bob(m, b, f, px=6.0)
+        sway(m, b, f, amp=4.0, pivot=0.45, top=0.0, wave=1.5, where=b.mask(box=(0.55, 0, 1, 0.5), soft=5))
+        sway(m, b, f, amp=5.0, pivot=0.78, top=1.0, wave=1.5, phase=0.25)
+        return m
+    fr.opacity(0.9 + 0.07 * math.cos(2 * math.pi * PHASE[f]))
+    eyes = fr.warp(b.mask(hue=(170, 205), sat=(0.35, None), val=(0.7, None), box=(0, 0.5, 0.6, 0.66)))
+    glow(fr, eyes, f, rgb(110, 240, 255), core=rgb(225, 255, 255), heat=(0.1, 0.3),
+         halo=0.9, spill=0.35, reach=0.7)
+    tint(fr, fr.warp(b.mask()), f, rgb(170, 245, 255), levels=(0.2, 0.45, 0.7, 0.45), amount=0.25)
+    aura(fr, f, rgb(140, 238, 255), levels=(0.55, 0.8, 1.0, 0.8), reach=9, strength=0.6)
+    wisps = scatter(b, 12, 121, (-0.1, 0.05, 1.1, 1.0))
+    motes(fr, f, wisps, rgb(190, 250, 255), rise=(0, -70), size=4.6, shape="soft",
+          seed=122, alpha=0.95, wobble=7)
+    motes(fr, f, wisps, rgb(240, 255, 255), rise=(0, -70), size=1.3, shape="disc",
+          seed=122, alpha=1.0, wobble=7)
+
+
+def dark(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        sway(m, b, f, amp=4.0, pivot=0.3, top=0.0, wave=1.2)
+        flap(m, b, f, b.mask(box=(0.7, 0.35, 1.0, 0.85), soft=6), amp=5.0, phase=0.25)
+        return m
+    shadow_flames(fr, f, rgb(46, 18, 78), rgb(150, 90, 230), reach=3.5, height=b.size(0.15),
+                  strength=1.15)
+    collar = fr.warp(b.mask(hue=(215, 250), sat=(0.3, None), val=(0.5, None), box=(0.25, 0.6, 0.5, 0.8)))
+    glow(fr, collar, f, rgb(120, 140, 255), heat=(0.02, 0.18), halo=0.5, spill=0.2, reach=0.6)
+    eyes = [b.at(0.085, 0.575), b.at(0.285, 0.565)]
+    glints(fr, [fr.fwd(*p) for p in eyes], f, rgb(200, 180, 255), size=8, seed=9)
+
+
+def light(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        breathe(m, b, f)
+        return m
+    rays(fr, b.at(0.47, 0.37), f, rgb(255, 238, 160), n=12, inner=b.size(0.3),
+         outer=b.size(0.54), strength=0.6)
+    crest = fr.warp(b.mask(box=(0, 0, 1, 0.66)))
+    glow(fr, crest, f, rgb(255, 228, 130), core=rgb(255, 250, 225), heat=(0.0, 0.14),
+         halo=0.7, spill=0.2)
+    tips = [b.at(0.45, 0.0), b.at(0.1, 0.18), b.at(0.93, 0.2), b.at(0.03, 0.42),
+            b.at(0.97, 0.42), b.at(0.22, 0.66), b.at(0.8, 0.64), b.at(0.62, 0.12)]
+    glints(fr, [fr.fwd(*p) for p in tips], f, rgb(255, 250, 215), size=12, seed=8)
+
+
+def blood(b, f, fr=None):
+    if fr is None:
+        m = Motion()
+        heartbeat(m, b, f)
+        return m
+    beat = (0.15, 1.0, 0.5, 0.1)
+    aura(fr, f, rgb(200, 20, 35), levels=beat, reach=8, strength=0.75)
+    shine = fr.warp(b.mask(lum=(0.45, None)))
+    tint(fr, shine, f, rgb(255, 225, 225), levels=beat, amount=0.4)
+    drip(fr, *b.lowest((0.02, 0.62, 0.3, 0.86)), f, rgb(176, 16, 28), r=5.5, fall=56,
+         shade=rgb(92, 6, 14))
+
+
+CREATURES = {
+    # name: (where it stands on the card, how it idles)
+    "lightning": ((164, 48, 578, 595), lightning),
+    "mud": ((818, 120, 1136, 597), mud),
+    "ice": ((1345, 113, 1777, 600), ice),
+    "dust": ((1988, 59, 2331, 604), dust),
+    "crystal": ((2512, 52, 2910, 598), crystal),
+    "plant": ((3152, 73, 3587, 601), plant),
+    "fire": ((125, 752, 550, 1306), fire),
+    "water": ((770, 792, 1197, 1310), water),
+    "earth": ((1386, 828, 1785, 1305), earth),
+    "air": ((1916, 821, 2389, 1301), air),
+    "steam": ((2499, 747, 2960, 1312), steam),
+    "lava": ((3171, 812, 3537, 1307), lava),
+    "poison": ((123, 1480, 566, 2013), poison),
+    "spirit": ((824, 1472, 1126, 1986), spirit),
+    "dark": ((1402, 1475, 1841, 2024), dark),
+    "light": ((1964, 1490, 2325, 2024), light),
+    "blood": ((2552, 1487, 2922, 2037), blood),
+}
+
+
+def build(name, contact=None):
+    box, idle = CREATURES[name]
+    card = Image.open(CARD).convert("RGB")
+    pad = 40
+    crop = card.crop((box[0] - pad, box[1] - pad, box[2] + pad, box[3] + pad))
+    premul, where = place(cut_out(np.asarray(crop)))
+    b = Body(premul, where)
+    frames = []
+    for f in range(FRAMES):
+        motion = idle(b, f)
+        fr = Frame(b, f, motion)
+        idle(b, f, fr)
+        frames.append(to_image(fr.compose()))
+    return frames
+
+
+def save(name, frames):
+    out = os.path.join(HERE, name)
+    sheet = Image.new("RGBA", (FRAME * FRAMES, FRAME))
+    for i, f in enumerate(frames):
+        sheet.paste(f, (i * FRAME, 0))
+    sheet.save(out + "_spritesheet.png", optimize=True)
+    frames[0].save(out + ".png", optimize=True)
+    shown = []
+    for f in frames:
+        bg = Image.new("RGBA", f.size, (146, 146, 146, 255))
+        bg.alpha_composite(f)
+        shown.append(bg.convert("RGB"))
+    shown[0].save(out + "_preview.gif", save_all=True, append_images=shown[1:],
+                  duration=120, loop=0, disposal=1)
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("src")
-    ap.add_argument("--crop", required=True, help="X0,Y0,X1,Y1 in the source")
-    ap.add_argument("--out", required=True, help="output path without .png")
-    ap.add_argument("--glow-hue", default="30,70", help="hue range, degrees")
-    ap.add_argument("--glow-color", default="255,226,110")
-    ap.add_argument("--core-color", default="255,246,190")
-    ap.add_argument("--card", default="146,146,146", help="preview background")
+    ap.add_argument("names", nargs="*", help="which to build (default: all)")
+    ap.add_argument("--contact", metavar="PNG", help="also write a contact sheet here")
+    ap.add_argument("--dry", action="store_true", help="contact sheet only, write nothing else")
     args = ap.parse_args()
-
-    box = tuple(int(v) for v in args.crop.split(","))
-    hue_lo, hue_hi = (float(v) for v in args.glow_hue.split(","))
-    glow_rgb = np.array([int(v) for v in args.glow_color.split(",")], np.float32) / 255
-    core_rgb = np.array([int(v) for v in args.core_color.split(",")], np.float32) / 255
-
-    src = np.asarray(Image.open(args.src).convert("RGB").crop(box))
-    base = place(cut_out(src))
-    mask = element_mask(base, hue_lo, hue_hi).astype(np.float32)
-
-    frames = [to_image(frame(base, mask, t, g, glow_rgb, core_rgb))
-              for t, g in zip(BREATH, GLOW)]
-
-    os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
-    sheet = Image.new("RGBA", (FRAME * len(frames), FRAME))
-    for i, f in enumerate(frames):
-        sheet.paste(f, (i * FRAME, 0))
-    sheet.save(args.out + "_spritesheet.png", optimize=True)
-    frames[0].save(args.out + ".png", optimize=True)
-
-    card = tuple(int(v) for v in args.card.split(","))
-    shown = []
-    for f in frames:
-        bg = Image.new("RGBA", f.size, card + (255,))
-        bg.alpha_composite(f)
-        shown.append(bg.convert("RGB"))
-    shown[0].save(args.out + "_preview.gif", save_all=True, append_images=shown[1:],
-                  duration=120, loop=0, disposal=1)
-    print("wrote", args.out + "{.png,_spritesheet.png,_preview.gif}")
+    names = args.names or list(CREATURES)
+    rows = []
+    for name in names:
+        frames = build(name)
+        if not args.dry:
+            save(name, frames)
+        rows.append(frames)
+        print("built", name)
+    if args.contact:
+        grounds = [(146, 146, 146), (16, 19, 27)]
+        sheet = Image.new("RGB", (FRAME * FRAMES * len(grounds), FRAME * len(rows)))
+        for r, frames in enumerate(rows):
+            for g, ground in enumerate(grounds):
+                for i, fimg in enumerate(frames):
+                    bg = Image.new("RGBA", (FRAME, FRAME), ground + (255,))
+                    bg.alpha_composite(fimg)
+                    sheet.paste(bg.convert("RGB"), ((g * FRAMES + i) * FRAME, r * FRAME))
+        sheet.save(args.contact)
 
 
 if __name__ == "__main__":
