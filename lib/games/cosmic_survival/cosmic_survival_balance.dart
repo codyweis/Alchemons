@@ -78,6 +78,39 @@ class CosmicSurvivalBalance {
   /// team can kill.
   static const double artilleryHoldRange = 520;
 
+  /// Where a Clutch (a summoner) settles, measured from the orb. It never
+  /// walks in: it sits here hatching motes until something goes and kills it.
+  static const double clutchHoldRange = 440;
+
+  /// Where a Siphon (a breaker) latches on, measured from the orb, and how
+  /// long it takes to draw down what ramming the orb would have cost it. It
+  /// used to ram once and die; it stays now, so it is worth less per second
+  /// and more the longer it is left.
+  static const double siphonHoldRange = 170;
+  static const double siphonDrainSeconds = 6;
+
+  /// A Sower's wake: bodies this close to one walk this much faster.
+  static const double sowerWakeRange = 150;
+  static const double sowerWakeSpeed = 1.25;
+
+  /// A Crest: from this wave every third husk is one. A body within
+  /// [crestLeeRange] of a Crest and farther from the orb than it (in its
+  /// lee) takes [crestLeeDamageTaken] of every hit. The Crest itself takes
+  /// hits in full, so breaking it first always works.
+  static const int crestFromWave = 10;
+  static const double crestLeeRange = 130;
+  static const double crestLeeDamageTaken = 0.5;
+
+  /// A Snare: from this wave a few spills a wave are one. It holds an
+  /// Alchemon for at most [snareHoldSeconds], then comes apart on its own,
+  /// and no more than [snareMaxHeld] are held at once, so a party is never
+  /// locked out whole.
+  static const int snareFromWave = 12;
+  static int snareCountForWave(int wave) =>
+      wave < snareFromWave ? 0 : (1 + (wave - snareFromWave) ~/ 15).clamp(1, 4);
+  static const double snareHoldSeconds = 6;
+  static const int snareMaxHeld = 2;
+
   /// Artillery health, as a share of its sentinel body's (was 0.85).
   static const double artilleryHp = 2.55;
 

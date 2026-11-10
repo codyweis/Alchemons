@@ -6,7 +6,6 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
@@ -15,6 +14,8 @@ import 'package:alchemons/games/shared/burn_healing.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/painting.dart';
+import 'package:alchemons/games/cosmic_survival/roster_art.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// Renders the mender for judging: a sheet through one pulse (the mantle
@@ -145,9 +146,11 @@ void main() {
         c.save();
         c.clipRect(origin & const Size(cell, cell));
         c.translate(origin.dx, origin.dy);
+        final bodies = RosterBatch();
         for (final e in [...targets, mender]) {
-          drawSurvivalEnemy(canvas: c, enemy: e, time: t);
+          bodies.add(e, e.kind ?? SurvivalKind.mote, t, Offset.zero, arrive: 1);
         }
+        bodies.flush(c);
         const view = Rect.fromLTWH(0, 0, cell, cell);
         paintMenderMantles(c, [mender], view, t);
         flows.paint(c, view);

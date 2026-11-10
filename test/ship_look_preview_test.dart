@@ -7,8 +7,9 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_game.dart';
-import 'package:alchemons/games/cosmic/enemy_body_art.dart';
 import 'package:alchemons/games/cosmic/ship_art.dart';
+import 'package:alchemons/games/cosmic_survival/roster_art.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -183,42 +184,33 @@ void main() {
     // Row 4: the enemies, at the same phone scale.
     top += 360 + 40;
     label('ENEMIES at the same phone scale', Offset(12, top - 26), size: 13);
-    final bodies = <(String, double, void Function(EnemyPalette))>[
-      (
-        'sentinel',
-        32,
-        (p) => paintSentinelBody(c, p, time: 0.6, seed: 1.3, heading: 0.4),
-      ),
-      (
-        'drone',
-        22,
-        (p) => paintDroneBody(c, p, time: 0.6, seed: 0.7, heading: -1.2),
-      ),
-      (
-        'wisp',
-        15,
-        (p) => paintWispBody(c, p, time: 0.6, seed: 0.7, heading: 2.2),
-      ),
-      (
-        'colossus',
-        60,
-        (p) => paintColossusBody(c, p, time: 0.6, seed: 0.4, turn: 0.2),
-      ),
-      (
-        'sentinel (Water)',
-        32,
-        (p) => paintSentinelBody(c, p, time: 1.1, seed: 2.1, heading: 2.0),
-      ),
+    // Drawn in grains, as every mode now draws them (roster_art.dart).
+    const bodies = <(String, double, SurvivalKind, String)>[
+      ('spill', 32, SurvivalKind.spill, 'Fire'),
+      ('strand', 22, SurvivalKind.strand, 'Lightning'),
+      ('mote', 15, SurvivalKind.mote, 'Air'),
+      ('sower', 60, SurvivalKind.sower, 'Dark'),
+      ('husk (Water)', 32, SurvivalKind.husk, 'Water'),
     ];
-    const elems = ['Fire', 'Lightning', 'Air', 'Dark', 'Water'];
     for (var i = 0; i < bodies.length; i++) {
-      final (name, radius, draw) = bodies[i];
+      final (name, radius, kind, element) = bodies[i];
       label(name, Offset(cell * i + 12, top), size: 11);
       c.save();
       c.clipRect(Rect.fromLTWH(cell * i, top, cell, 300));
       c.translate(cell * i + cell / 2, top + 150);
-      c.scale(2.16 * radius);
-      draw(enemyPalette(elems[i]));
+      c.scale(2.16);
+      final batch = RosterBatch()
+        ..addBody(
+          kind: kind,
+          time: 0.6,
+          position: Offset.zero,
+          radius: radius,
+          heading: 0.4 + i,
+          hp: 1,
+          color: elementColor(element),
+          seed: 7 + i,
+        );
+      batch.flush(c);
       c.restore();
     }
 

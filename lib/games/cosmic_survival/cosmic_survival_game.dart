@@ -45,7 +45,11 @@ import 'package:alchemons/games/cosmic/horn_runtime.dart';
 import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
+import 'package:alchemons/games/cosmic_survival/boss_roster_art.dart';
+import 'package:alchemons/games/cosmic_survival/dust_sea.dart';
+import 'package:alchemons/games/cosmic_survival/roster_art.dart';
 import 'package:alchemons/games/cosmic_survival/surge_grains.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
 import 'package:alchemons/games/cosmic_survival/survival_death_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mender_vfx.dart';
 import 'package:alchemons/games/shared/burn_healing.dart';
@@ -210,6 +214,11 @@ class CosmicSurvivalCompanion {
   // +50% to +300% across each window, then vents and restarts.
   double pipSteamWindowTimer;
   double invincibleTimer;
+
+  /// The Snare holding this Alchemon still and silent, and how much longer
+  /// its shell lasts.
+  CosmicSurvivalEnemy? snaredBy;
+  double snareTimer = 0;
   double doubleCastTimer;
   Offset? doubleCastTargetPos;
   double doubleCastAngle;
@@ -1936,6 +1945,31 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// drawing in from the rim, the drift from the wave's bearing.
   final ArenaWear _wear = ArenaWear();
 
+  /// The sea of dust a Drift's wave fills the arena with (dust_sea.dart).
+  final DustSea _dustSea = DustSea();
+  DustSea get debugDustSea => _dustSea;
+
+  /// Your party as grains, for the Other Orb's guard, read from each
+  /// creature's sprite once it has loaded.
+  final Map<int, BossShadow> _shadowBySlot = {};
+  List<BossShadow> _partyShadows = const [];
+  int get debugPartyShadows => _partyShadows.length;
+  int get debugCompanionSpritesLoaded => _companionTickers.length;
+
+  bool get _otherOrbAlive {
+    for (final b in allLivingBosses) {
+      if (survivalBossKindOf(b) == SurvivalBossKind.otherOrb) return true;
+    }
+    return false;
+  }
+
+  bool get _driftAlive {
+    for (final b in allLivingBosses) {
+      if (survivalBossKindOf(b) == SurvivalBossKind.drift) return true;
+    }
+    return false;
+  }
+
   @visibleForTesting
   ArenaWear get debugWear => _wear;
   final List<_BeamFx> _beamFx = [];
@@ -2470,11 +2504,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     SurvivalVisualQuality.balanced => true,
     SurvivalVisualQuality.performance => true,
   };
-  bool get _reduceMinorLabels => switch (visualQuality) {
-    SurvivalVisualQuality.cinematic => false,
-    SurvivalVisualQuality.balanced => false,
-    SurvivalVisualQuality.performance => true,
-  };
   bool get _reduceAmbientVfx => switch (visualQuality) {
     SurvivalVisualQuality.cinematic => false,
     SurvivalVisualQuality.balanced => true,
@@ -2495,7 +2524,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // The ability particle grain (ability_grains.dart), built off the frame
     // with toImage; particles draw as plain discs until it lands.
     AbilityGrainSprite.ensureLoaded().ignore();
-    ensureSurvivalSwarmAtlas().ignore();
     final skinDef = kOrbBases.firstWhere(
       (d) => d.skin == upgradeState.equippedSkin,
       orElse: () => kOrbBases.first,
@@ -2891,6 +2919,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
     _updateVfx(dt);
     _updateWear(dt);
+    _dustSea.update(dt, active: _driftAlive);
+    for (final b in allLivingBosses) {
+      tickSurvivalBossArt(b, stats.timeElapsed);
+    }
     _updateOutbreak(dt);
     final magnet = powerUps.surgeMagnetLevel;
     _surgeGrains.update(
@@ -3505,6 +3537,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     for (final entry in activeCompanions.entries) {
       final comp = entry.value;
+      // Held by a Snare: it does nothing at all until the shell is broken
+      // or tires.
+      if (_heldBySnare(comp, dt)) {
+        comp.stickyTarget = null;
+        comp.engagedTarget = null;
+        comp.tickFlash(dt);
+        _companionTickers[entry.key]?.update(dt);
+        continue;
+      }
       // While a lock holds, the stabilizer returns the current target and
       // discards any fresh pick, so skip the pick: at horde density it is a
       // scored scan of hundreds of bodies per companion per frame.
@@ -3520,6 +3561,89 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     _separateCompanionBodies(dt);
   }
+
+  /// Whether a Snare still holds [comp], running its shell down. A shell
+  /// that is broken lets go at once; one left alone tires after
+  /// [CosmicSurvivalBalance.snareHoldSeconds] and comes apart.
+  bool _heldBySnare(CosmicSurvivalCompanion comp, double dt) {
+    final snare = comp.snaredBy;
+    if (snare == null) return false;
+    comp.snareTimer -= dt;
+    if (!snare.isDead && snare.snareClosed && comp.snareTimer > 0) return true;
+    comp.snaredBy = null;
+    comp.snareTimer = 0;
+    snare.snareClosed = false;
+    if (!snare.isDead) _killEnemy(snare, grantAlchemyReward: false);
+    return false;
+  }
+
+  /// A Snare's whole movement: it goes straight for the nearest Alchemon
+  /// nobody holds, closes round it, and stays on it. False when there is no
+  /// one to take, and it walks as its conduct says.
+  bool _snareMoves(CosmicSurvivalEnemy enemy, double dt) {
+    if (enemy.kind != SurvivalKind.snare) return false;
+    CosmicSurvivalCompanion? free;
+    var best = double.infinity;
+    var held = 0;
+    for (final comp in activeCompanions.values) {
+      if (comp.isDead) continue;
+      if (comp.snaredBy == enemy) {
+        enemy.position = comp.position;
+        return true;
+      }
+      if (comp.snaredBy != null) {
+        held++;
+        continue;
+      }
+      final d = (comp.position - enemy.position).distanceSquared;
+      if (d < best) {
+        best = d;
+        free = comp;
+      }
+    }
+    enemy.snareClosed = false;
+    if (free == null ||
+        held >= CosmicSurvivalBalance.snareMaxHeld ||
+        _isAnyKinDarkCloakActive()) {
+      return false;
+    }
+    final to = free.position - enemy.position;
+    final dist = to.distance;
+    if (dist <= enemy.radius + 18) {
+      free.snaredBy = enemy;
+      free.snareTimer = CosmicSurvivalBalance.snareHoldSeconds;
+      enemy.snareClosed = true;
+      enemy.position = free.position;
+      return true;
+    }
+    enemy.position +=
+        to / dist * (enemy.effectiveSpeed * _timeDilationSlowFactor * dt);
+    enemy.angle = atan2(to.dy, to.dx);
+    return true;
+  }
+
+  /// Where this frame's Crests stand and how far each is from the orb (the
+  /// first eight).
+  final List<(Offset, double)> _crestLees = [];
+
+  /// Whether [at] is in a Crest's lee: near one, and behind it as seen from
+  /// the orb.
+  bool _inCrestLee(Offset at) {
+    const r2 =
+        CosmicSurvivalBalance.crestLeeRange *
+        CosmicSurvivalBalance.crestLeeRange;
+    final fromOrb = (at - orb.position).distance;
+    for (final (crest, crestFromOrb) in _crestLees) {
+      if (fromOrb > crestFromOrb && (crest - at).distanceSquared <= r2) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  @visibleForTesting
+  void debugDamageEnemy(CosmicSurvivalEnemy enemy, double damage) =>
+      _damageEnemy(enemy, damage);
 
   void _updateSingleCompanion(
     double dt,
@@ -5843,6 +5967,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
     _companionTickers[slotIndex] = anim.createTicker();
     _companionVisuals[slotIndex] = member.spriteVisuals;
+    if (!_shadowBySlot.containsKey(slotIndex)) {
+      bossShadowFromSheet(image, sheet.frameSize.x, sheet.frameSize.y)
+          .then((shadow) {
+            if (shadow == null) return;
+            _shadowBySlot[slotIndex] = shadow;
+            _partyShadows = _shadowBySlot.values.toList(growable: false);
+          })
+          .catchError((Object _) {});
+    }
     final desiredSize = 62.4;
     final sx = desiredSize / sheet.frameSize.x;
     final sy = desiredSize / sheet.frameSize.y;
@@ -6073,10 +6206,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final lightBarrier = _activeHornLightBarrier();
     _updateMends(dt);
     _livingMenders.clear();
+    _sowerWakes.clear();
+    _crestLees.clear();
+    for (final enemy in enemies) {
+      if (enemy.isDead) continue;
+      if (enemy.kind == SurvivalKind.sower && _sowerWakes.length < 12) {
+        _sowerWakes.add(enemy.position);
+      } else if (enemy.kind == SurvivalKind.crest && _crestLees.length < 8) {
+        _crestLees.add((
+          enemy.position,
+          (enemy.position - orb.position).distance,
+        ));
+      }
+    }
     // Variants can append enemies while the current wave is being updated.
     // Iterate a snapshot so new spawns join cleanly on the next frame.
     for (final enemy in List<CosmicSurvivalEnemy>.of(enemies)) {
       if (enemy.isDead) continue;
+      enemy.age += dt;
       if (enemy.burnTimer > 0) enemy.burnTimer = max(0, enemy.burnTimer - dt);
       if (enemy.mendLock > 0) enemy.mendLock = max(0, enemy.mendLock - dt);
 
@@ -6330,7 +6477,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           enemy.target != CosmicEnemyTarget.orb &&
           !(enemy.conduct == EnemyConduct.charge && enemy.hasHeavyBody);
 
-      if (usesFlightSteering) {
+      if (_snareMoves(enemy, dt) || _holdsOffOrb(enemy, dt)) {
+        // Settled or latched: it does not walk this frame.
+      } else if (usesFlightSteering) {
         var moveSpeedMult = 1.0;
         for (final proj in controlBuckets.snares) {
           final center =
@@ -6382,6 +6531,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           final snareDist = (center - enemy.position).distance;
           if (snareDist > proj.snareRadius) continue;
           moveSpeedMult = min(moveSpeedMult, proj.snareMoveMultiplier);
+        }
+        if (enemy.kind != SurvivalKind.sower && _inSowerWake(enemy.position)) {
+          moveSpeedMult *= CosmicSurvivalBalance.sowerWakeSpeed;
         }
         final norm = dist > 0
             ? Offset(dir.dx / dist, dir.dy / dist)
@@ -6708,9 +6860,59 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return true;
   }
 
+  /// A Clutch settles and a Siphon latches rather than walk into the orb.
+  /// True once it is inside its hold: it stays where it is, facing the orb,
+  /// and a Siphon draws the orb down for as long as it is left alive.
+  bool _holdsOffOrb(CosmicSurvivalEnemy enemy, double dt) {
+    final kind = enemy.kind;
+    final double hold;
+    if (kind == SurvivalKind.clutch) {
+      hold = CosmicSurvivalBalance.clutchHoldRange;
+    } else if (kind == SurvivalKind.siphon) {
+      hold = CosmicSurvivalBalance.siphonHoldRange;
+    } else {
+      return false;
+    }
+    final to = orb.position - enemy.position;
+    if (to.distanceSquared > hold * hold) return false;
+    enemy.angle = atan2(to.dy, to.dx);
+    final frozen = enemy.slowTimer > 0 && enemy.slowMultiplier <= 0.1;
+    if (kind == SurvivalKind.siphon && !frozen) {
+      _damageOrb(
+        CosmicSurvivalBalance.orbContactDamage(
+              enemy.damage * _orbImpactDamageMultiplier(enemy),
+              orb.maxHp,
+              heavy: enemy.hasHeavyBody,
+              breaker: true,
+            ) /
+            CosmicSurvivalBalance.siphonDrainSeconds *
+            dt *
+            _timeDilationSlowFactor,
+      );
+    }
+    return true;
+  }
+
+  /// Where this frame's Sowers stand (the first dozen: the check is per
+  /// walking body).
+  final List<Offset> _sowerWakes = [];
+
+  bool _inSowerWake(Offset at) {
+    const r2 =
+        CosmicSurvivalBalance.sowerWakeRange *
+        CosmicSurvivalBalance.sowerWakeRange;
+    for (final wake in _sowerWakes) {
+      if ((wake - at).distanceSquared <= r2) return true;
+    }
+    return false;
+  }
+
   void _applyEnemyContactDamage(CosmicSurvivalEnemy enemy, double dt) {
+    // A Siphon and a Clutch never ram: thrown onto the orb, they hold there.
     if (_withinRange(enemy.position, orb.position, enemy.radius + 30) &&
-        enemy.target == CosmicEnemyTarget.orb) {
+        enemy.target == CosmicEnemyTarget.orb &&
+        enemy.kind != SurvivalKind.siphon &&
+        enemy.kind != SurvivalKind.clutch) {
       final damageMultiplier = powerUps.hasMirrorShield ? 0.75 : 1.0;
       _damageOrb(
         CosmicSurvivalBalance.orbContactDamage(
@@ -10048,6 +10250,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     double masteryUplift = 0,
   }) {
     damage *= outbreak?.damageMultiplier(enemy) ?? 1.0;
+    // In a Crest's lee: half of every hit, until the Crest is broken.
+    if (_crestLees.isNotEmpty &&
+        enemy.kind != SurvivalKind.crest &&
+        _inCrestLee(enemy.position)) {
+      damage *= CosmicSurvivalBalance.crestLeeDamageTaken;
+    }
     // Payload statuses that make a body take more: Dark's expose and Light's
     // illuminate. Applied before the family/tier multipliers so they read as
     // a property of the target, which is what both payloads describe.
@@ -10874,6 +11082,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             _updateBossCarrier(dt, boss);
           case BossType.warden:
             _updateBossWarden(dt, boss);
+        }
+        // Whatever its type, the Unhatched hatches what it holds. A warden
+        // hatches on its own summons.
+        if (boss.type != BossType.warden &&
+            survivalBossKindOf(boss) == SurvivalBossKind.unhatched) {
+          _tickUnhatchedHatch(dt, boss);
         }
     }
 
@@ -11988,6 +12202,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
 
+    if (survivalBossKindOf(boss) == SurvivalBossKind.unhatched) {
+      _tickUnhatchedHatch(dt, boss);
+      return;
+    }
     boss.summonTimer -= dt;
     if (boss.summonTimer <= 0) {
       boss.summonTimer = SurvivalBoss.summonCooldown;
@@ -11999,6 +12217,31 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
       enemies.addAll(adds);
     }
+  }
+
+  /// The Unhatched hatches Strands out of its crack every
+  /// [SurvivalBoss.summonCooldown] seconds, a third quicker once it is half
+  /// broken open. They come out fanned toward the side it faces.
+  void _tickUnhatchedHatch(double dt, SurvivalBoss boss) {
+    boss.summonTimer -= dt;
+    if (boss.summonTimer > 0) return;
+    boss.summonTimer =
+        SurvivalBoss.summonCooldown * (boss.hpFraction < 0.5 ? 0.65 : 1.0);
+    final adds = spawner.spawnBossAdds(
+      boss,
+      orb.position,
+      size.x / _currentZoom,
+      size.y / _currentZoom,
+    );
+    final crack = unhatchedCrack(boss);
+    for (var i = 0; i < adds.length; i++) {
+      final dir = boss.angle + (i - (adds.length - 1) / 2) * 0.35;
+      adds[i]
+        ..position = crack + Offset(cos(dir), sin(dir)) * boss.radius * 0.15
+        ..angle = dir;
+    }
+    enemies.addAll(adds);
+    noteUnhatchedHatch(boss, stats.timeElapsed);
   }
 
   void damageBoss(
@@ -22864,6 +23107,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       fill: enemies.length / max(1, spawner.activeLimitNow),
       bearing: spawner.waveBearing,
       bossAlive: anyBossAlive,
+      eclipse: _otherOrbAlive,
     );
     // Where a front stands thick, the ground under it is trodden: the lanes
     // the waves pressed in along stay on the floor.
@@ -23600,8 +23844,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     _wear.paintDrift(canvas, view);
+    if (_dustSea.visible) _paintDustSea(canvas, view);
     _paintCrowdMass(canvas, view);
-    final batchSwarm = enemies.length >= _kSwarmBatchThreshold;
     final denseField = enemies.length >= _kDenseFieldThreshold;
     for (final enemy in enemies) {
       if (enemy.isDead) continue;
@@ -23616,22 +23860,30 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      // Elites stand over the crowd, their shadow darkening it round them.
-      if (enemy.isElite) {
-        _elitesOnTop.add(enemy);
-        continue;
+      // Every body is grains: all in view go out together
+      // (roster_art.dart), with only its tells and roots drawn per body.
+      _roster.add(
+        enemy,
+        enemy.kind ?? SurvivalKind.mote,
+        stats.timeElapsed,
+        orb.position,
+        dense: denseField,
+      );
+      if (enemy.action.isBusy ||
+          enemy.hornPlantRootTimer > 0 ||
+          (enemy.flightSteering?.showTelegraphRing ?? false)) {
+        _rosterMarks.add(enemy);
       }
-      if (batchSwarm &&
-          _swarmBatch.add(enemy, stats.timeElapsed, dense: denseField)) {
-        continue;
-      }
-      _renderEnemy(canvas, enemy);
     }
-    _swarmBatch.flush(canvas, stats.timeElapsed);
-    for (final enemy in _elitesOnTop) {
-      _renderEnemy(canvas, enemy);
+    _roster.flush(canvas);
+    for (final enemy in _rosterMarks) {
+      drawSurvivalEnemyMarks(
+        canvas: canvas,
+        enemy: enemy,
+        time: stats.timeElapsed,
+      );
     }
-    _elitesOnTop.clear();
+    _rosterMarks.clear();
     // The fallen, coming apart over the floor and under everything in flight.
     _deaths.paint(canvas, view, _vfxGrains);
     // Menders: the grains they gather, and the heal flowing out of them.
@@ -24686,25 +24938,46 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
-  /// Below this the detailed per-body silhouettes are affordable and read
-  /// better; above it ordinary bodies go through one batched atlas draw.
-  static const _kSwarmBatchThreshold = 250;
-
-  /// Above this, sentinels, phantoms and bodies mid-attack also come from the
-  /// atlas, with only their attack telegraph drawn live. Device profile at
-  /// 3,000: the detailed renderer was 40-48% of the UI thread.
+  /// Above this the crowd's bodies are drawn with fewer grains each
+  /// (roster_art.dart).
   static const _kDenseFieldThreshold = 1200;
-  final SurvivalSwarmBatch _swarmBatch = SurvivalSwarmBatch();
-  final List<CosmicSurvivalEnemy> _elitesOnTop = [];
+  final RosterBatch _roster = RosterBatch();
+  final List<CosmicSurvivalEnemy> _rosterMarks = [];
 
-  void _renderEnemy(Canvas canvas, CosmicSurvivalEnemy enemy) {
-    drawSurvivalEnemy(
-      canvas: canvas,
-      enemy: enemy,
-      time: stats.timeElapsed,
-      reduceLabels: _reduceMinorLabels,
-      simplifySwarm: enemies.length >= _kSwarmBatchThreshold,
-    );
+  /// The dust sea, parted by everything in it: the Drift's head and stream
+  /// first, then the core's clearing, the ship and your Alchemons, then the
+  /// bodies in view, heavy ones and Hollows before the crowd, until the sea
+  /// takes no more.
+  void _paintDustSea(Canvas canvas, Rect view) {
+    final sea = _dustSea..clearSources();
+    var tint = const Color(0xFFD9B77A);
+    for (final b in allLivingBosses) {
+      if (survivalBossKindOf(b) == SurvivalBossKind.drift) {
+        tint = b.color;
+        driftStreamSources(b, stats.timeElapsed, orb.position, sea.addSource);
+      } else {
+        sea.addSource(b.position.dx, b.position.dy, b.radius * 1.4);
+      }
+    }
+    sea.addSource(orb.position.dx, orb.position.dy, 150);
+    if (!ship.isDead) sea.addSource(ship.position.dx, ship.position.dy, 34);
+    for (final c in activeCompanions.values) {
+      sea.addSource(c.position.dx, c.position.dy, 30);
+    }
+    final reach = view.inflate(60);
+    for (var pass = 0; pass < 2; pass++) {
+      for (final e in enemies) {
+        if (e.isDead || !reach.contains(e.position)) continue;
+        final heavy = _isHeavyBody(e) || e.kind == SurvivalKind.hollow;
+        if (heavy != (pass == 0)) continue;
+        sea.addSource(
+          e.position.dx,
+          e.position.dy,
+          e.radius * (e.kind == SurvivalKind.hollow ? 1.35 : 1.7),
+        );
+      }
+    }
+    sea.paint(canvas, view, tint);
   }
 
   /// Boss rendering — orbiting motes, core gradient, health bar
@@ -24716,6 +24989,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       boss: boss,
       time: stats.timeElapsed,
       reduceGlows: _reduceSecondaryGlows,
+      core: orb.position,
+      shadows: _partyShadows,
     );
   }
 

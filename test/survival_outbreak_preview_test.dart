@@ -4,11 +4,12 @@ library;
 import 'dart:io';
 import 'dart:math';
 import 'dart:ui' as ui;
-import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/survival_outbreak.dart';
 import 'package:alchemons/games/cosmic_survival/survival_outbreak_vfx.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:alchemons/games/cosmic_survival/roster_art.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -83,16 +84,32 @@ void main() {
       canvas.scale(0.235);
       drawSurvivalOutbreak(canvas, chosen, Offset.zero);
       canvas.drawCircle(Offset.zero, 25, Paint()..color = Colors.white54);
+      final cores = RosterBatch();
       for (final core in chosen.cores) {
-        drawSurvivalEnemy(canvas: canvas, enemy: core, time: chosen.elapsed);
+        cores.add(
+          core,
+          core.kind ?? SurvivalKind.core,
+          chosen.elapsed,
+          Offset.zero,
+          arrive: 1,
+        );
       }
+      cores.flush(canvas);
       canvas.restore();
       // Full-size source inset shows the tendril detail at gameplay scale.
       canvas.save();
       canvas.translate(x + 100, y + 300);
       final core = chosen.cores.first;
       core.position = Offset.zero;
-      drawSurvivalEnemy(canvas: canvas, enemy: core, time: chosen.elapsed);
+      RosterBatch()
+        ..add(
+          core,
+          core.kind ?? SurvivalKind.core,
+          chosen.elapsed,
+          Offset.zero,
+          arrive: 1,
+        )
+        ..flush(canvas);
       canvas.restore();
       canvas.drawLine(
         Offset(x, y + 399),

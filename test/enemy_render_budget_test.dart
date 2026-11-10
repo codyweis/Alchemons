@@ -1,17 +1,22 @@
-// THE ENEMIES' BUDGET. Survival fields up to 3,000 bodies, and every one in
-// view is drawn every frame — live under 250, from the horde atlas above
-// that. The bodies are built on the unit disc with cached shaders (see
-// lib/games/cosmic/enemy_body_art.dart); this keeps them blur-free and keeps
-// each body's draw count where it was measured.
+// THE ENEMIES' BUDGET. Survival fields up to 3,000 bodies and open space a
+// few hundred, and every one in view is drawn every frame. They are drawn in
+// grains (lib/games/cosmic_survival/roster_art.dart): each body appends its
+// grains and tubes to buffers shared by its colour, and the field goes out in
+// a handful of draws per colour, however many bodies there are. This keeps
+// that true, and keeps every body and boss blur-free.
 //
 // A budget test, not a golden: it does not care what the enemies look like
-// (test/enemy_look_preview_test.dart renders that), only what they cost.
+// (test/survival_roster_art_preview_test.dart and
+// test/survival_boss_roster_preview_test.dart render that), only what they
+// cost.
 
 import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/cosmic_survival/roster_art.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
 import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:flutter/material.dart' show Colors;
@@ -39,125 +44,117 @@ class _CensusCanvas implements Canvas {
       .fold(0, (s, e) => s + e.value);
 }
 
-CosmicSurvivalEnemy _enemy(EnemyTier tier, {String element = 'Fire'}) =>
-    CosmicSurvivalEnemy(
-      position: const Offset(100, 100),
-      hp: 100,
-      maxHp: 100,
-      speed: 60,
-      damage: 10,
-      radius: tierRadius(tier),
-      tier: tier,
-      element: element,
-      conduct: EnemyConduct.charge,
-      target: CosmicEnemyTarget.orb,
-    );
+/// The most draws one colour's bodies can take: two mass paths, three tube
+/// widths, five heavy and six fine grain tones, and the heads.
+const _perColour = 17;
 
-void main() {
-  // Peak draws per plain body, idle or mid-attack (the tell included), over
-  // a minute of time. Measured when the bodies were rebuilt (2026-09-29);
-  // the bodies before them peaked at 3 (wisp), 9 (drone), 14 (sentinel),
-  // 17 (phantom), 15 (brute) and 31 (colossus). The brute and colossus are
-  // faceted solids now: however many faces, each solid is one drawVertices.
-  const budget = {
-    EnemyTier.wisp: 3,
-    // Every body that acts is one over its 09-29 measure (2026-11-03): its
-    // wind-up is a gathering pool and a batch of grains drawn in (two draws)
-    // where it was a closing ring (one), which read as a hoop.
-    EnemyTier.drone: 9,
-    EnemyTier.sentinel: 12,
-    EnemyTier.phantom: 11,
-    EnemyTier.brute: 7,
-    EnemyTier.colossus: 10,
-  };
+const _elements = ['Fire', 'Water', 'Plant'];
 
-  test('no enemy body draws a blur, in any phase', () {
-    for (final tier in EnemyTier.values) {
-      for (final element in kElementColors.keys) {
-        for (final phase in EnemyActionPhase.values) {
-          final e = _enemy(tier, element: element)
-            ..hitFlash = 0.6
-            ..action.phase = phase
-            ..action.timer = 0.1;
-          final c = _CensusCanvas();
-          drawSurvivalEnemy(canvas: c as Canvas, enemy: e, time: 1.3);
-          expect(c.blurredDraws, 0, reason: '$tier $element $phase blurs');
-        }
+/// Adds [copies] of every kind in every one of [_elements] to [batch],
+/// spread over a field; returns how many Hollows went in.
+int _field(RosterBatch batch, int copies, {double time = 1.3}) {
+  var hollows = 0;
+  var i = 0;
+  for (final element in _elements) {
+    for (final kind in SurvivalKind.values) {
+      for (var k = 0; k < copies; k++, i++) {
+        if (kind == SurvivalKind.hollow) hollows++;
+        batch.addBody(
+          kind: kind,
+          time: time,
+          position: Offset((i % 40) * 60.0, (i ~/ 40) * 60.0),
+          radius: 14,
+          heading: i * 0.7,
+          hp: 0.3 + (i % 7) / 10,
+          color: elementColor(element),
+          seed: i,
+          arrive: (i % 5) / 4,
+        );
       }
     }
-  });
+  }
+  return hollows;
+}
 
-  test('each body stays inside its draw budget', () {
-    for (final tier in EnemyTier.values) {
-      var worst = 0;
-      for (var t = 0.0; t < 60; t += 0.37) {
-        for (final phase in [null, ...EnemyActionPhase.values]) {
-          final e = _enemy(tier);
-          if (phase != null && kEnemyActions.containsKey(tier)) {
-            e.action
-              ..phase = phase
-              ..timer = 0.1;
-          }
-          final c = _CensusCanvas();
-          drawSurvivalEnemy(canvas: c as Canvas, enemy: e, time: t);
-          if (c.draws > worst) worst = c.draws;
-        }
-      }
+void main() {
+  test('a field goes out in a few draws a colour, however many bodies', () {
+    for (final copies in [1, 4, 12]) {
+      final batch = RosterBatch();
+      final hollows = _field(batch, copies);
+      final c = _CensusCanvas();
+      batch.flush(c as Canvas);
+      expect(c.blurredDraws, 0);
+      // A Hollow's gap is one draw of its own; nothing else grows with the
+      // crowd.
       expect(
-        worst,
-        lessThanOrEqualTo(budget[tier]!),
-        reason: '$tier peaks at $worst draws',
+        c.draws,
+        lessThanOrEqualTo(_perColour * _elements.length + hollows),
+        reason: '${copies * SurvivalKind.values.length * 3} bodies',
       );
     }
   });
 
-  // An elite is its tier cased in matte black stone (2026-11-09): the case,
-  // its halo and its shadow take the place of the glass, the glow and the
-  // pool of affix light. Up to two over the tier: the hit flash, which this
-  // test draws and the plain-body test does not, and on a phantom or brute
-  // the halo, which replaces nothing there (measured: sentinel 12, phantom
-  // 12, brute 9, colossus 11).
-  test('each elite stays inside its tier budget, and draws no blur', () {
-    for (final tier in [
-      EnemyTier.sentinel,
-      EnemyTier.phantom,
-      EnemyTier.brute,
-      EnemyTier.colossus,
-    ]) {
+  test('struck bodies and elites draw no blur and stay bounded', () {
+    final batch = RosterBatch();
+    var elites = 0, hollows = 0;
+    for (final kind in SurvivalKind.values) {
       for (final affix in EliteAffix.values) {
-        var worst = 0;
-        for (var t = 0.0; t < 20; t += 0.37) {
-          for (final phase in [null, ...EnemyActionPhase.values]) {
-            final e = CosmicSurvivalEnemy(
-              position: const Offset(100, 100),
-              hp: 100,
-              maxHp: 100,
-              speed: 60,
-              damage: 10,
-              radius: tierRadius(tier) * 1.3,
-              tier: tier,
-              element: 'Water',
-              conduct: EnemyConduct.charge,
-              target: CosmicEnemyTarget.orb,
-              isElite: true,
-              eliteAffix: affix,
-            )..hitFlash = phase == null ? 0 : 0.6;
-            if (phase != null) {
-              e.action
-                ..phase = phase
-                ..timer = 0.1;
-            }
-            final c = _CensusCanvas();
-            drawSurvivalEnemy(canvas: c as Canvas, enemy: e, time: t);
-            expect(c.blurredDraws, 0, reason: 'elite $tier $affix blurs');
-            if (c.draws > worst) worst = c.draws;
-          }
-        }
-        expect(
-          worst,
-          lessThanOrEqualTo(budget[tier]! + 2),
-          reason: 'elite $tier ($affix) peaks at $worst draws',
-        );
+        if (kind == SurvivalKind.hollow) hollows += 2;
+        batch
+          ..addBody(
+            kind: kind,
+            time: 2,
+            position: Offset.zero,
+            radius: 20,
+            heading: 1,
+            hp: 1,
+            color: elementColor('Water'),
+            seed: 3,
+            hitFlash: 1,
+          )
+          ..addBody(
+            kind: kind,
+            time: 2,
+            position: const Offset(80, 0),
+            radius: 26,
+            heading: 1,
+            hp: 1,
+            color: elementColor('Water'),
+            seed: 4,
+            eliteLight: eliteAffixLight(affix),
+          );
+        elites++;
+      }
+    }
+    final c = _CensusCanvas();
+    batch.flush(c as Canvas);
+    expect(c.blurredDraws, 0);
+    // The flash's palette and the matte one, each elite's shadow and halo.
+    expect(c.draws, lessThanOrEqualTo(_perColour * 2 + 2 * elites + hollows));
+  });
+
+  test('the tells drawn over a body draw no blur and stay small', () {
+    for (final tier in EnemyTier.values) {
+      for (final phase in EnemyActionPhase.values) {
+        final e = CosmicSurvivalEnemy(
+          position: const Offset(100, 100),
+          hp: 100,
+          maxHp: 100,
+          speed: 60,
+          damage: 10,
+          radius: tierRadius(tier),
+          tier: tier,
+          element: 'Fire',
+          conduct: EnemyConduct.charge,
+          target: CosmicEnemyTarget.orb,
+        )..hornPlantRootTimer = 0.3;
+        e.action
+          ..phase = phase
+          ..timer = 0.1;
+        final c = _CensusCanvas();
+        drawSurvivalEnemyMarks(canvas: c as Canvas, enemy: e, time: 1.3);
+        expect(c.blurredDraws, 0, reason: '$tier $phase blurs');
+        expect(c.draws, lessThanOrEqualTo(14), reason: '$tier $phase');
       }
     }
   });
@@ -185,24 +182,30 @@ void main() {
       }
     }
     for (final d in SurvivalBossDiscipline.values) {
-      final template = kBossTemplates.first;
-      final boss = SurvivalBoss(
-        template: template,
-        type: BossType.warden,
-        discipline: d,
-        level: 5,
-        position: Offset.zero,
-        hp: 800,
-        maxHp: 1000,
-        speed: 70,
-        baseSpeed: 70,
-        radius: 40,
-        color: Colors.orange,
-      );
-      final c = _CensusCanvas();
-      drawSurvivalBoss(canvas: c as Canvas, boss: boss, time: 2.2);
-      expect(c.blurredDraws, 0, reason: 'survival $d blurs');
-      expect(c.draws, lessThanOrEqualTo(30), reason: 'survival $d');
+      for (final type in BossType.values) {
+        final boss = SurvivalBoss(
+          template: kBossTemplates.first,
+          type: type,
+          discipline: d,
+          level: 5,
+          position: Offset.zero,
+          hp: 800,
+          maxHp: 1000,
+          speed: 70,
+          baseSpeed: 70,
+          radius: 40,
+          color: Colors.orange,
+        );
+        final c = _CensusCanvas();
+        drawSurvivalBoss(
+          canvas: c as Canvas,
+          boss: boss,
+          time: 2.2,
+          core: const Offset(-300, 0),
+        );
+        expect(c.blurredDraws, 0, reason: 'survival $d $type blurs');
+        expect(c.draws, lessThanOrEqualTo(30), reason: 'survival $d $type');
+      }
     }
   });
 }

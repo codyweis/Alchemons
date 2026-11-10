@@ -11,6 +11,7 @@ import 'dart:ui';
 
 import 'package:alchemons/games/shared/enemy_movement.dart';
 import 'package:alchemons/games/shared/enemy_action.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/enemy_body_art.dart' show kDroneForms;
@@ -206,7 +207,25 @@ class CosmicSurvivalEnemy with MasteryPayloadStatuses {
   /// go away.
   final EnemyConduct conduct;
   final EnemyTrait? trait;
+
+  /// What it is to the player (survival_kind.dart): read off body, conduct
+  /// and trait, never rolled. The spawner turns some husks into crests and
+  /// some spills into snares by count.
+  late SurvivalKind? kind = survivalKindOf(
+    tier: tier,
+    conduct: conduct,
+    trait: trait,
+    isPlagueCore: isPlagueCore,
+  );
   CosmicEnemyTarget target;
+
+  /// A snare that has closed: true while it holds one of the player's
+  /// Alchemons (the game keeps which).
+  bool snareClosed = false;
+
+  /// Seconds since it entered the field. Look only: a body gathers out of
+  /// loose grains over its first moments (roster_art.dart).
+  double age = 0;
   bool isDead;
   double hitFlash;
   double slowTimer;
@@ -772,6 +791,9 @@ class CosmicSurvivalSpawner {
   double _spawnTimer = 0;
   int _spawnedThisWave = 0;
   int _artilleryThisWave = 0;
+  int _snaresThisWave = 0;
+  int _husksSent = 0;
+  int _spillsSent = 0;
 
   // The wisp knot being laid down: where it is, its element, and how many
   // more wisps join it. See [_spawnEnemy].
@@ -830,6 +852,7 @@ class CosmicSurvivalSpawner {
     bossSpawned = false;
     _spawnedThisWave = 0;
     _artilleryThisWave = 0;
+    _snaresThisWave = 0;
     _knotLeft = 0;
     _knotAt = null;
     _broodThisWave = 0;
@@ -1380,7 +1403,7 @@ class CosmicSurvivalSpawner {
         ? CosmicSurvivalBalance.hordeBodySpeedMultiplier
         : 1.0;
     if (wantsMender) return _mender(pos, angle + pi);
-    return CosmicSurvivalEnemy(
+    final enemy = CosmicSurvivalEnemy(
       position: pos,
       angle: angle + pi,
       hp: baseHp * variantHpMult * archetypeHpMult,
@@ -1399,6 +1422,22 @@ class CosmicSurvivalSpawner {
           ? 5.0 + _rng.nextDouble() * 2.0
           : 0,
     );
+    // Crests and snares, by count rather than by dice, so a seeded wave
+    // sends the bodies it always did.
+    if (!isBossWave && !isElite) {
+      if (enemy.kind == SurvivalKind.husk &&
+          currentWave >= CosmicSurvivalBalance.crestFromWave &&
+          ++_husksSent % 3 == 0) {
+        enemy.kind = SurvivalKind.crest;
+      } else if (enemy.kind == SurvivalKind.spill &&
+          _snaresThisWave <
+              CosmicSurvivalBalance.snareCountForWave(currentWave) &&
+          ++_spillsSent % 4 == 0) {
+        enemy.kind = SurvivalKind.snare;
+        _snaresThisWave++;
+      }
+    }
+    return enemy;
   }
 
   /// A mender: a phantom that holds back at [CosmicSurvivalBalance.menderHoldRange]
@@ -1877,7 +1916,10 @@ class CosmicSurvivalSpawner {
       SurvivalBossDiscipline.trickster => 3 + (boss.level ~/ 4).clamp(0, 3),
       SurvivalBossDiscipline.conductor => 4 + (boss.level ~/ 4).clamp(0, 3),
       SurvivalBossDiscipline.riftcaller => 4 + (boss.level ~/ 4).clamp(0, 4),
-      SurvivalBossDiscipline.standard => 3 + (boss.level ~/ 2).clamp(0, 5),
+      // The Unhatched's Strands: two more on the deep waves where it used to
+      // send sentinels.
+      SurvivalBossDiscipline.standard =>
+        3 + (boss.level ~/ 2).clamp(0, 5) + (boss.level >= 10 ? 2 : 0),
     };
     for (var i = 0; i < count; i++) {
       final angle = _rng.nextDouble() * 2 * pi;
@@ -1901,7 +1943,9 @@ class CosmicSurvivalSpawner {
           (i % 3 == 0 && boss.level >= 10)
               ? EnemyTier.sentinel
               : EnemyTier.drone,
-        _ => boss.level >= 10 ? EnemyTier.sentinel : EnemyTier.drone,
+        // The Unhatched hatches Strands (boss_roster_art.dart), at every
+        // depth.
+        SurvivalBossDiscipline.standard => EnemyTier.drone,
       };
       // Each discipline fields a pair of conducts, alternating across the
       // adds, plus an optional trait. One vocabulary — this used to pick a

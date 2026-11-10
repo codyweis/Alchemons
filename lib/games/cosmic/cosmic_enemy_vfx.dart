@@ -26,8 +26,8 @@ import 'package:alchemons/games/cosmic/ability_grains.dart'
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/enemy_body_art.dart';
 import 'package:alchemons/games/cosmic/horn_vfx.dart';
-import 'package:alchemons/games/cosmic/planets/planet_art.dart';
 import 'package:alchemons/games/cosmic/vfx_shapes.dart';
+import 'package:alchemons/games/cosmic_survival/boss_roster_art.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_flight_steering.dart';
@@ -118,8 +118,7 @@ class EnemyVisual {
   final int droneForm;
 
   /// The angle the body is drawn at.
-  double get bodyAngle =>
-      facing ?? (actionPhase == null ? angle : actionAngle);
+  double get bodyAngle => facing ?? (actionPhase == null ? angle : actionAngle);
 
   /// Survival's body at the render clock [time]: advances its eased facing.
   factory EnemyVisual.fromSurvival(CosmicSurvivalEnemy e, double time) {
@@ -234,310 +233,6 @@ double _stretchFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
 int openWorldVariantSigilPoints(CosmicEnemyVariant v) =>
     v == CosmicEnemyVariant.standard ? 0 : 3;
 
-/// Bodies simple enough to go out in the horde atlas once the field is busy.
-/// Visual-only; movement, collision and statuses are untouched.
-bool canSimplifySurvivalSwarmEnemy(CosmicSurvivalEnemy enemy) =>
-    (enemy.tier == EnemyTier.wisp || enemy.tier == EnemyTier.drone) &&
-    !enemy.isElite &&
-    enemy.trait == null &&
-    !enemy.isPlagueCore &&
-    enemy.visualColor == null &&
-    !enemy.action.isBusy &&
-    !(enemy.flightSteering?.showTelegraphRing ?? false) &&
-    enemy.hornPlantRootTimer <= 0 &&
-    enemy.maneRootTimer <= 0 &&
-    !(enemy.slowTimer > 0 && enemy.slowMultiplier <= 0.1);
-
-// ── Batched swarm bodies ───────────────────────────────────────────────────
-//
-// At horde density the per-body draw calls dominate the frame (device
-// profile, 1,000 bodies: ~31% of the UI thread in drawCircle alone, and the
-// matching raster cost). So the bodies are baked once into an atlas from the
-// same painters the live pass uses — one row per element, a few animation
-// frames and a hit-flash cell per tier — and every simplifiable body goes out
-// in a single drawRawAtlas, turned to its heading so a wisp's tail trails
-// behind it and a sentinel looks where it is going.
-
-const _kSwarmAtlasElements = [
-  'Fire', 'Lava', 'Lightning', 'Water', 'Ice', 'Steam', 'Earth', 'Mud', //
-  'Dust', 'Crystal', 'Air', 'Plant', 'Poison', 'Spirit', 'Dark', 'Light',
-  'Blood',
-];
-const double _kSwarmCell = 72;
-
-/// Animation frames baked per tier, then one hit-flash cell.
-const int _kSwarmFrames = 3;
-const int _kSwarmCellsPerTier = _kSwarmFrames + 1;
-const double _kSwarmFps = 9;
-
-const _kSwarmTiers = [
-  EnemyTier.wisp,
-  EnemyTier.drone,
-  EnemyTier.sentinel,
-  EnemyTier.phantom,
-];
-
-/// The sheet's groups of cells: a group per tier, and one per drone form.
-const _kSwarmGroups = 3 + kDroneForms;
-
-int _swarmGroup(EnemyTier tier, int form) => switch (tier) {
-  EnemyTier.wisp => 0,
-  EnemyTier.drone => 1 + form % kDroneForms,
-  EnemyTier.sentinel => 1 + kDroneForms,
-  EnemyTier.phantom => 2 + kDroneForms,
-  _ => -1,
-};
-
-/// Body radius in atlas pixels, and how far the body sits forward of the
-/// cell's centre (body radii) so a trailing tail has room behind it.
-(double, double) _swarmSpec(EnemyTier tier) => switch (tier) {
-  EnemyTier.wisp => (14, 0.15),
-  EnemyTier.drone => (14, 0.1),
-  _ => (14, 0),
-};
-
-int _swarmColumn(EnemyTier tier, bool flash, int frame, [int form = 0]) {
-  final g = _swarmGroup(tier, form);
-  if (g < 0) return -1;
-  return g * _kSwarmCellsPerTier + (flash ? _kSwarmFrames : frame);
-}
-
-/// The time each baked frame shows. Frames are spread through a second so
-/// the flicker and twinkle differ from one to the next.
-double _swarmFrameTime(int frame) => frame * 0.37;
-
-ui.Image? _swarmAtlas;
-Future<void>? _swarmAtlasLoading;
-
-/// Whether the horde sheet has been baked.
-bool get survivalSwarmAtlasReady => _swarmAtlas != null;
-
-/// Builds the horde sheet off the frame. Safe to call from `onLoad` without
-/// awaiting: until it lands, every body draws through the live painters.
-/// It used to be built lazily with `toImageSync` mid-frame, the moment a
-/// field first crossed the batch threshold — the leading suspect for bodies
-/// vanishing at the rim as a new batch spawned (an image not yet resident on
-/// the device's renderer draws nothing). A failed build is forgotten, so the
-/// next call tries again.
-Future<void> ensureSurvivalSwarmAtlas() => _swarmAtlasLoading ??= () async {
-  try {
-    final (pic, w, h) = _recordSwarmAtlas();
-    final image = await pic.toImage(w, h);
-    pic.dispose();
-    _swarmAtlas = image;
-  } catch (_) {
-    _swarmAtlasLoading = null;
-  }
-}();
-
-(ui.Picture, int, int) _recordSwarmAtlas() {
-  final rec = ui.PictureRecorder();
-  final canvas = Canvas(rec);
-  for (var row = 0; row < _kSwarmAtlasElements.length; row++) {
-    final element = _kSwarmAtlasElements[row];
-    final pal = enemyPalette(element);
-    for (final (tier, form) in [
-      for (final tier in _kSwarmTiers)
-        if (tier == EnemyTier.drone)
-          for (var form = 0; form < kDroneForms; form++) (tier, form)
-        else
-          (tier, 0),
-    ]) {
-      final (unit, shift) = _swarmSpec(tier);
-      for (var f = 0; f <= _kSwarmFrames; f++) {
-        final flash = f == _kSwarmFrames;
-        final col = _swarmColumn(tier, flash, f, form);
-        canvas.save();
-        canvas.clipRect(
-          Rect.fromLTWH(
-            col * _kSwarmCell,
-            row * _kSwarmCell,
-            _kSwarmCell,
-            _kSwarmCell,
-          ),
-        );
-        // Baked facing +x: the batch turns each body to its heading.
-        canvas.translate(
-          col * _kSwarmCell + _kSwarmCell / 2 + shift * unit,
-          row * _kSwarmCell + _kSwarmCell / 2,
-        );
-        canvas.scale(unit);
-        final t = _swarmFrameTime(flash ? 0 : f);
-        final hit = flash ? 1.0 : 0.0;
-        switch (tier) {
-          case EnemyTier.wisp:
-            paintWispBody(
-              canvas,
-              pal,
-              time: t,
-              seed: 0,
-              heading: 0,
-              flash: hit,
-            );
-          case EnemyTier.drone:
-            // Baked at rest: the batch turns each body to its heading, or
-            // by its tumble for the forms that tumble.
-            paintDroneBody(
-              canvas,
-              pal,
-              time: t,
-              seed: 0,
-              heading: 0,
-              form: form,
-              flash: hit,
-              baked: true,
-            );
-          case EnemyTier.sentinel:
-            paintSentinelBody(
-              canvas,
-              pal,
-              time: t,
-              seed: 0,
-              heading: 0,
-              flash: hit,
-            );
-          case EnemyTier.phantom:
-            paintPhantomBody(
-              canvas,
-              pal,
-              time: t,
-              seed: 0,
-              heading: 0,
-              flash: hit,
-            );
-          default:
-            break;
-        }
-        canvas.restore();
-      }
-    }
-  }
-  return (
-    rec.endRecording(),
-    (_kSwarmCell * _kSwarmGroups * _kSwarmCellsPerTier).toInt(),
-    (_kSwarmCell * _kSwarmAtlasElements.length).toInt(),
-  );
-}
-
-/// Bodies that may use the baked sentinel/phantom cells, or keep only their
-/// attack telegraph drawn live, once the field is dense. Anything that carries
-/// information the atlas cannot show (elite, trait, roots, a hard freeze,
-/// custom color) still gets the full renderer.
-bool canBakeDenseSurvivalEnemy(CosmicSurvivalEnemy enemy) =>
-    _swarmColumn(enemy.tier, false, 0) >= 0 &&
-    !enemy.isElite &&
-    enemy.trait == null &&
-    !enemy.isPlagueCore &&
-    enemy.visualColor == null &&
-    enemy.hornPlantRootTimer <= 0 &&
-    enemy.maneRootTimer <= 0 &&
-    !(enemy.slowTimer > 0 && enemy.slowMultiplier <= 0.1);
-
-/// Collects swarm bodies during the enemy pass and draws them in one call.
-/// Anything it declines (elites, traits, roots, telegraphs, unknown elements)
-/// falls back to [drawSurvivalEnemy] at the call site.
-///
-/// With `dense` set (a very large field) it also takes sentinels, phantoms and
-/// bodies mid-attack: the body comes from the atlas and only the telegraph —
-/// the part that tells the player what is about to happen — is drawn live.
-class SurvivalSwarmBatch {
-  Float32List _xforms = Float32List(4 * 256);
-  Float32List _rects = Float32List(4 * 256);
-  int _count = 0;
-  final List<CosmicSurvivalEnemy> _telegraphs = [];
-  final Paint _atlasPaint = Paint()..filterQuality = FilterQuality.low;
-
-  int get length => _count;
-
-  bool add(CosmicSurvivalEnemy enemy, double time, {bool dense = false}) {
-    // Not baked yet: this body draws live rather than not at all.
-    if (_swarmAtlas == null) {
-      ensureSurvivalSwarmAtlas().ignore();
-      return false;
-    }
-    final busy =
-        enemy.action.isBusy ||
-        (enemy.flightSteering?.showTelegraphRing ?? false);
-    if (dense) {
-      if (!canBakeDenseSurvivalEnemy(enemy)) return false;
-    } else if (!canSimplifySurvivalSwarmEnemy(enemy)) {
-      return false;
-    }
-    final row = _kSwarmAtlasElements.indexOf(enemy.element);
-    if (row < 0) return false;
-    final tier = enemy.tier;
-    final seed = identityHashCode(enemy) & 1023;
-    final frame = (time * _kSwarmFps + seed).floor() % _kSwarmFrames;
-    final form = tier == EnemyTier.drone
-        ? (enemy.droneForm >= 0
-              ? enemy.droneForm
-              : droneFormForSeed(_seedOf(enemy)))
-        : 0;
-    final col = _swarmColumn(tier, enemy.hitFlash > 0.3, frame, form);
-    if (col < 0) return false;
-    final (unit, shift) = _swarmSpec(tier);
-    final scale = enemy.radius / unit;
-    if ((_count + 1) * 4 > _xforms.length) {
-      _xforms = Float32List(_xforms.length * 2)..setAll(0, _xforms);
-      _rects = Float32List(_rects.length * 2)..setAll(0, _rects);
-    }
-    // Turned about the body, which sits [shift] forward of the cell centre:
-    // to its heading, or by its tumble for the drone forms that tumble.
-    final heading = enemy.facing.follow(
-      enemy.action.isBusy ? enemy.action.aimAngle : enemy.angle,
-      time,
-    );
-    final facing = tier == EnemyTier.drone && form != 0
-        ? droneSpin(form, time, _seedOf(enemy))
-        : heading;
-    final scos = scale * cos(facing);
-    final ssin = scale * sin(facing);
-    final ax = _kSwarmCell / 2 + shift * unit;
-    const ay = _kSwarmCell / 2;
-    final i = _count * 4;
-    _xforms[i] = scos;
-    _xforms[i + 1] = ssin;
-    _xforms[i + 2] = enemy.position.dx - scos * ax + ssin * ay;
-    _xforms[i + 3] = enemy.position.dy - ssin * ax - scos * ay;
-    _rects[i] = col * _kSwarmCell;
-    _rects[i + 1] = row * _kSwarmCell;
-    _rects[i + 2] = (col + 1) * _kSwarmCell;
-    _rects[i + 3] = (row + 1) * _kSwarmCell;
-    _count++;
-    if (busy) _telegraphs.add(enemy);
-    return true;
-  }
-
-  void flush(Canvas canvas, double time) {
-    if (_count > 0) {
-      final atlas = _swarmAtlas!;
-      canvas.drawRawAtlas(
-        atlas,
-        Float32List.sublistView(_xforms, 0, _count * 4),
-        Float32List.sublistView(_rects, 0, _count * 4),
-        null,
-        null,
-        null,
-        _atlasPaint,
-      );
-      _count = 0;
-    }
-    for (final enemy in _telegraphs) {
-      final visual = EnemyVisual.fromSurvival(enemy, time);
-      final color = elementColor(enemy.element);
-      final steering = visual.flightSteering;
-      if (steering != null && steering.showTelegraphRing) {
-        _drawDiveTelegraph(canvas, enemy.position, enemy.radius, steering, color);
-      }
-      canvas.save();
-      canvas.translate(enemy.position.dx, enemy.position.dy);
-      _drawActionTelegraph(canvas, visual, color, enemy.radius, time);
-      canvas.restore();
-    }
-    _telegraphs.clear();
-  }
-}
-
 /// The light inside an elite's case, one color per affix.
 Color eliteAffixLight(EliteAffix affix) => switch (affix) {
   EliteAffix.bulwarked => const Color(0xFF7DD3FC),
@@ -547,320 +242,74 @@ Color eliteAffixLight(EliteAffix affix) => switch (affix) {
   EliteAffix.relentless => const Color(0xFFA78BFA),
 };
 
-/// Survival's entry point. [simplifySwarm] is kept for the call site; every
-/// body now draws through the same cheap unit-space painters, so there is
-/// no separate crowd silhouette to fall back to.
-void drawSurvivalEnemy({
+/// What a survival body drawn in grains (roster_art.dart) still needs from
+/// here: its dive and attack tells, and the roots holding it.
+void drawSurvivalEnemyMarks({
   required Canvas canvas,
   required CosmicSurvivalEnemy enemy,
   required double time,
-  bool reduceLabels = false,
-  bool simplifySwarm = false,
-}) {
-  drawEnemy(
-    canvas: canvas,
-    enemy: EnemyVisual.fromSurvival(enemy, time),
-    time: time,
-    reduceLabels: reduceLabels,
-  );
-}
+}) => drawEnemyMarks(
+  canvas: canvas,
+  visual: EnemyVisual.fromSurvival(enemy, time),
+  time: time,
+);
 
-/// The one enemy silhouette. Both modes map their entity onto [EnemyVisual]
-/// and come through here, so there is a single definition to change.
-void drawEnemy({
+/// Open space's marks over a body drawn in grains: its tells and roots, and
+/// its variant's sigil (a crusher or a pouncer is told apart by it).
+void drawOpenWorldEnemyMarks({
   required Canvas canvas,
-  required EnemyVisual enemy,
+  required CosmicEnemy e,
   required double time,
-  bool reduceLabels = false,
+}) => drawEnemyMarks(
+  canvas: canvas,
+  visual: EnemyVisual.fromOpenWorld(e, time),
+  time: time,
+  sigil: true,
+);
+
+/// Whether an open-space body has anything to draw over its grains.
+bool openWorldEnemyHasMarks(CosmicEnemy e) =>
+    e.variant != CosmicEnemyVariant.standard ||
+    e.hornPlantRootTimer > 0 ||
+    (e.flightSteering?.showTelegraphRing ?? false);
+
+/// What is drawn over a body drawn in grains (roster_art.dart): the dive
+/// ring, the attack's wind-up, roots, and with [sigil] its sigil.
+void drawEnemyMarks({
+  required Canvas canvas,
+  required EnemyVisual visual,
+  required double time,
+  bool sigil = false,
 }) {
-  final eColor = enemy.visualColor ?? elementColor(enemy.element);
-  // Dive telegraph: a tightening ring while the enemy rears back, so the
-  // hover/dive swoop is readable and dodgeable (shared steering state).
-  final steering = enemy.flightSteering;
+  final color = visual.visualColor ?? elementColor(visual.element);
+  final steering = visual.flightSteering;
   if (steering != null && steering.showTelegraphRing) {
-    _drawDiveTelegraph(canvas, enemy.position, enemy.radius, steering, eColor);
+    _drawDiveTelegraph(canvas, visual.position, visual.radius, steering, color);
   }
-  // An elite is cased in obsidian with its affix's light inside
-  // (enemy_body_art.dart). The planet dungeons' elites carry no affix and
-  // draw as their tier.
-  final affix = enemy.isElite ? enemy.eliteAffix : null;
-  final cased = affix == null
-      ? null
-      : enemyPalette(enemy.element, eliteAffixLight(affix));
-  final r = enemy.radius;
-  final elapsed = time;
-  final variantScale = enemy.squash;
-  final variantYScale = enemy.stretch;
-
   canvas.save();
-  canvas.translate(enemy.position.dx, enemy.position.dy);
-  if (variantScale != 1.0 || variantYScale != 1.0) {
-    canvas.rotate(enemy.bodyAngle * 0.08);
-    canvas.scale(variantScale, variantYScale);
+  canvas.translate(visual.position.dx, visual.position.dy);
+  _drawActionTelegraph(canvas, visual, color, visual.radius, time);
+  if (sigil) {
+    drawEnemyArchetypeMark(
+      canvas: canvas,
+      centre: Offset.zero,
+      radius: visual.radius,
+      color: Color.lerp(color, const Color(0xFFFFFFFF), 0.55)!,
+      points: visual.sigilPoints,
+      time: time,
+      alpha: 0.8,
+    );
   }
-
-  final pal = enemyPalette(enemy.element, enemy.visualColor);
-  final seed = enemy.seed;
-  // Where the body is in its attack, for the bodies that perform it.
-  final ap = enemy.actionProgress.clamp(0.0, 1.0);
-  final windUp = enemy.actionPhase == EnemyActionPhase.windUp ? ap : 0.0;
-  final commit = enemy.actionPhase == EnemyActionPhase.commit ? 1 - ap : 0.0;
-  final recover = enemy.actionPhase == EnemyActionPhase.recover ? 1 - ap : 0.0;
-
-  if (cased != null) {
-    // It stands in its own shadow: the floor and the crowd's light go dark
-    // round it, so the dark thing in a crowd of light shows from far off.
-    vfxSpill(canvas, Offset.zero, r * 2.5, const Color(0xFF000000), 0.6);
-  }
-
-  canvas.save();
-  canvas.scale(r);
-  switch (enemy.tier) {
-    case EnemyTier.wisp:
-      paintWispBody(
-        canvas,
-        pal,
-        time: elapsed,
-        seed: seed,
-        heading: enemy.bodyAngle,
-        turn: enemy.turn,
-        flash: enemy.hitFlash,
-      );
-    case EnemyTier.drone:
-      paintDroneBody(
-        canvas,
-        pal,
-        time: elapsed,
-        seed: seed,
-        heading: enemy.bodyAngle,
-        form: enemy.droneForm,
-        turn: enemy.turn,
-        charge: windUp,
-        dash: commit,
-        flash: enemy.hitFlash,
-      );
-    case EnemyTier.sentinel:
-      paintSentinelBody(
-        canvas,
-        pal,
-        time: elapsed,
-        seed: seed,
-        heading: enemy.bodyAngle,
-        charge: windUp,
-        release: max(commit, recover * 0.6),
-        flash: enemy.hitFlash,
-        cased: cased,
-      );
-    case EnemyTier.phantom:
-      paintPhantomBody(
-        canvas,
-        pal,
-        time: elapsed,
-        seed: seed,
-        heading: enemy.bodyAngle,
-        fade: enemy.actionPhase == EnemyActionPhase.commit ? 1.0 : windUp,
-        exposed: recover,
-        flash: enemy.hitFlash,
-        cased: cased,
-      );
-    case EnemyTier.brute:
-      if (enemy.isPlagueCore) {
-        _drawPlagueCore(canvas, pal, elapsed, seed, enemy.hitFlash);
-      } else {
-        _drawHeavyBody(
-          canvas,
-          enemy,
-          pal,
-          elapsed,
-          colossus: false,
-          cased: cased,
-        );
-      }
-    case EnemyTier.colossus:
-      _drawHeavyBody(canvas, enemy, pal, elapsed, colossus: true, cased: cased);
-  }
-  canvas.restore();
-
-  if (enemy.tier == EnemyTier.brute || enemy.tier == EnemyTier.colossus) {
-    final colossus = enemy.tier == EnemyTier.colossus;
-    final hpFrac = enemy.hpFraction;
-    if (hpFrac < 1.0 || enemy.isPlagueCore) {
-      // Flat: an ink track and a pale fill of its own light.
-      final barW = r * (colossus ? 2.4 : 2.0);
-      final barY = -r - (colossus ? 10 : 8);
-      canvas.drawRect(
-        Rect.fromLTWH(-barW / 2, barY, barW, 2.5),
-        _heavyBarPaint..color = const Color(0x99000000),
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(-barW / 2, barY, barW * hpFrac, 2.5),
-        _heavyBarPaint
-          ..color = Color.lerp(
-            eColor,
-            Colors.white,
-            0.4,
-          )!.withValues(alpha: 0.8),
-      );
-    }
-  }
-
-  // Variant mark. This is the only thing on an ordinary enemy that says which
-  // of the eight behaviours it is — a splitter that will burst into drones and
-  // a plain sentinel were pixel-identical before this.
-  _drawActionTelegraph(canvas, enemy, eColor, r, elapsed);
-
-  drawEnemyArchetypeMark(
-    canvas: canvas,
-    centre: Offset.zero,
-    radius: r,
-    color: Color.lerp(eColor, const Color(0xFFFFFFFF), 0.55)!,
-    points: enemy.sigilPoints,
-    time: elapsed,
-    alpha: 0.8,
-  );
-
-  // Horn+Plant root: thorned vines climbing over the body (horn_vfx.dart).
-  if (enemy.rootTimer > 0) {
+  if (visual.rootTimer > 0) {
     drawHornPlantRootWrap(
       canvas: canvas,
-      r: r,
-      time: elapsed,
-      seed: enemy.angle,
-      strength: (enemy.rootTimer / 0.4).clamp(0.0, 1.0),
-    );
-  }
-
-
-  canvas.restore();
-}
-
-// One curved ribbon, transformed into a small, bounded set of living limbs.
-final Path _enemyTendril = Path()
-  ..moveTo(0.50, -0.10)
-  ..cubicTo(1.04, -0.46, 1.25, 0.64, 2.05, 0.16)
-  ..cubicTo(1.30, 1.00, 0.98, -0.10, 0.50, 0.12)
-  ..close();
-
-final Map<int, ui.Shader> _tendrilShaders = {};
-
-/// Living limbs, filled — dark flesh at the root going to the color's
-/// light at the tips, no outline.
-void drawEnemyTendrils(
-  Canvas canvas,
-  double radius,
-  Color color,
-  double time, {
-  int count = 5,
-  double seed = 0,
-}) {
-  final fill = Paint()
-    ..shader = _tendrilShaders.putIfAbsent(
-      color.toARGB32(),
-      () => ui.Gradient.radial(
-        Offset.zero,
-        2.1,
-        [
-          Color.lerp(color, Colors.black, 0.72)!,
-          Color.lerp(color, Colors.black, 0.35)!,
-          Color.lerp(color, Colors.white, 0.2)!.withValues(alpha: 0.75),
-          color.withValues(alpha: 0.0),
-        ],
-        const [0.2, 0.5, 0.82, 1.0],
-      ),
-    );
-  canvas.save();
-  canvas.scale(radius);
-  for (var i = 0; i < count; i++) {
-    final sway = sin(time * 1.7 + seed + i * 1.8);
-    canvas.save();
-    canvas.rotate(i * 2 * pi / count + sway * 0.16 + seed * 0.1);
-    canvas.scale(0.94 + sway * 0.10, i.isEven ? 1.0 : -1.0);
-    canvas.drawPath(_enemyTendril, fill);
-    canvas.restore();
-  }
-  canvas.restore();
-}
-
-/// The outbreak core: a beating furnace in a knot of limbs. Unit space.
-void _drawPlagueCore(
-  Canvas canvas,
-  EnemyPalette pal,
-  double time,
-  double seed,
-  double flash,
-) {
-  drawEnemyTendrils(canvas, 1, pal.essence, time, count: 8, seed: seed);
-  final beat = 1.0 + 0.08 * sin(time * 3.2);
-  canvas.save();
-  canvas.scale(0.78 * beat);
-  canvas.drawCircle(Offset.zero, 1, Paint()..shader = pal.orb);
-  canvas.restore();
-  canvas.save();
-  canvas.scale(0.52 * beat);
-  canvas.drawCircle(
-    Offset.zero,
-    1,
-    Paint()
-      ..shader = pal.spark
-      ..color = Colors.white.withValues(alpha: 0.85 + 0.15 * sin(time * 6.4)),
-  );
-  canvas.restore();
-  if (flash > 0.02) {
-    canvas.drawCircle(
-      Offset.zero,
-      0.9,
-      Paint()..color = Colors.white.withValues(alpha: 0.6 * flash.clamp(0, 1)),
-    );
-  }
-}
-
-/// Heavy enemies perform through their shell: the brute's plates part and
-/// its furnace blazes through the channel; the colossus's crown draws in on
-/// the wind-up and blows out on the strike. Unit space.
-void _drawHeavyBody(
-  Canvas canvas,
-  EnemyVisual enemy,
-  EnemyPalette pal,
-  double time, {
-  required bool colossus,
-  EnemyPalette? cased,
-}) {
-  final p = enemy.actionProgress.clamp(0.0, 1.0);
-  final charge = switch (enemy.actionPhase) {
-    EnemyActionPhase.windUp => p,
-    EnemyActionPhase.commit => 1.0,
-    EnemyActionPhase.recover => 1.0 - p,
-    _ => 0.0,
-  };
-  final recoil = enemy.actionPhase == EnemyActionPhase.commit ? 1 - p : 0.0;
-  if (!colossus) {
-    paintBruteBody(
-      canvas,
-      pal,
+      r: visual.radius,
       time: time,
-      seed: enemy.seed,
-      facing: enemy.bodyAngle,
-      charge: charge,
-      recoil: recoil,
-      flash: enemy.hitFlash,
-      cased: cased,
-    );
-  } else {
-    final breath = sin(time * 1.3 + enemy.seed);
-    paintColossusBody(
-      canvas,
-      pal,
-      time: time,
-      seed: enemy.seed,
-      turn: enemy.bodyAngle * 0.12 + sin(time * 0.35) * 0.035,
-      contraction: enemy.actionPhase == EnemyActionPhase.windUp
-          ? -0.15 * charge
-          : 0.22 * recoil + 0.03 * breath,
-      charge: charge,
-      flash: enemy.hitFlash,
-      cased: cased,
+      seed: visual.angle,
+      strength: (visual.rootTimer / 0.4).clamp(0.0, 1.0),
     );
   }
+  canvas.restore();
 }
 
 /// Cached boss-name painters, module-level for the same reason the affix ones
@@ -884,15 +333,6 @@ TextPainter _bossNamePainter(String name, Color color) {
       textDirection: TextDirection.ltr,
     )..layout(),
   );
-}
-
-/// A boss's palette: its own color in its element's material, pushed
-/// toward blood-red while it is enraged.
-EnemyPalette _bossPalette(String element, Color color, bool enraged) {
-  final base = enraged ? Color.lerp(color, const Color(0xFFE53935), 0.35)! : color;
-  return base == elementColor(element)
-      ? enemyPalette(element)
-      : enemyPalette(element, base);
 }
 
 /// Where a boss is about to stand: the floor under it goes dark, its light
@@ -981,8 +421,14 @@ void drawSurvivalBoss({
   required SurvivalBoss boss,
   required double time,
   bool reduceGlows = false,
+  // The core: a boss drawn in grains (boss_roster_art.dart) may lean on it.
+  Offset core = Offset.zero,
+  // The player's party read as grains, for a boss that shows them.
+  List<BossShadow> shadows = const [],
 }) {
   final bColor = boss.color;
+  // Every boss is drawn in grains in the world (boss_roster_art.dart).
+  final kind = survivalBossKindOf(boss);
   final r = boss.radius;
   final elapsed = time;
   final spawnTarget = boss.spawnTargetPosition;
@@ -997,11 +443,18 @@ void drawSurvivalBoss({
     );
   }
 
+  paintSurvivalBossKind(
+    canvas,
+    boss,
+    kind,
+    time: elapsed,
+    core: core,
+    shadows: shadows,
+  );
+
   canvas.save();
   canvas.translate(boss.position.dx, boss.position.dy);
 
-  final pal = _bossPalette(boss.template.element, bColor, boss.enraged);
-  final form = bossFormFor(boss.type);
   if (boss.isVenting) {
     _drawBossVentHeat(
       canvas,
@@ -1010,24 +463,7 @@ void drawSurvivalBoss({
       elapsed,
     );
   }
-  canvas.save();
-  canvas.scale(r);
-  paintBossForm(
-    canvas,
-    pal,
-    form,
-    time: elapsed,
-    seed: boss.template.name.length * 0.7,
-    heading: boss.charging ? boss.chargeAngle : boss.angle,
-    charge: boss.charging ? 1 : 0,
-    enraged: boss.enraged,
-    shield: boss.shieldUp,
-    reduceGlows: reduceGlows,
-    flash: boss.hitFlash,
-  );
-  canvas.restore();
-
-  if (boss.shieldUp && form != BossForm.spire) {
+  if (boss.shieldUp) {
     vfxSoftRing(
       canvas,
       Offset.zero,
@@ -1040,7 +476,12 @@ void drawSurvivalBoss({
 
   final hpFrac = boss.hpFraction;
   final barW = r * 3.0;
-  final barY = -r * bossFormReach(form) - 12;
+  final barY =
+      -r *
+          (kind == SurvivalBossKind.form
+              ? grainFormReach(bossFormFor(boss.type))
+              : survivalBossReach(kind)) -
+      12;
   canvas.drawRRect(
     RRect.fromRectAndRadius(
       Rect.fromCenter(center: Offset(0, barY), width: barW, height: 5),
@@ -1085,26 +526,6 @@ void drawSurvivalBoss({
 // that only the open world had is preserved through the view struct.
 // ─────────────────────────────────────────────────────────────────────────────
 
-void drawOpenWorldEnemy({
-  required Canvas canvas,
-  required CosmicEnemy e,
-  required double time,
-}) =>
-    drawEnemy(
-      canvas: canvas,
-      enemy: EnemyVisual.fromOpenWorld(e, time),
-      time: time,
-    );
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Open-world boss
-//
-// The lair boss you fight in roaming space. It shares survival's six boss
-// forms (boss_forms.dart) and keeps its own tells: the charger's lance and
-// the gunner's shield. It used to carry six MaskFilter.blur sites; it
-// carries none.
-// ─────────────────────────────────────────────────────────────────────────────
-
 void drawOpenWorldBoss({
   required Canvas canvas,
   required CosmicBoss boss,
@@ -1114,46 +535,29 @@ void drawOpenWorldBoss({
   // Culling stays with the caller, which owns the camera.
   final bColor = elementColor(boss.element);
   final r = boss.radius;
-  final pal = _bossPalette(boss.element, bColor, boss.enraged);
+  final form = bossFormFor(boss.type);
+
+  // Its archetype's form in grains, as survival draws its own
+  // (boss_roster_art.dart).
+  paintGrainFormOf(
+    canvas,
+    form: form,
+    position: bp,
+    radius: r,
+    color: bColor,
+    time: time,
+    enraged: boss.enraged,
+    charging: boss.charging,
+    heading: boss.charging ? boss.chargeAngle : boss.angle,
+    shieldUp: boss.shieldUp,
+  );
 
   canvas.save();
   canvas.translate(bp.dx, bp.dy);
 
-  final form = bossFormFor(boss.type);
-
-  // Charger: the wake it leaves while it dashes (the comet's own tail
-  // streams out long and fast as well).
-  if (boss.type == BossType.charger && boss.charging) {
-    canvas.save();
-    canvas.rotate(boss.angle);
-    paintSoftCircle(
-      canvas,
-      Offset(-r * 1.5, 0),
-      r * 0.8,
-      pal.essence.withValues(alpha: 0.4),
-      12,
-    );
-    canvas.restore();
-  }
-
-  canvas.save();
-  canvas.scale(r);
-  paintBossForm(
-    canvas,
-    pal,
-    form,
-    time: time,
-    seed: boss.name.length * 0.7,
-    heading: boss.angle,
-    charge: boss.charging ? 1 : 0,
-    enraged: boss.enraged,
-    shield: boss.shieldUp && boss.type == BossType.bulwark,
-  );
-  canvas.restore();
-
-  // The gunner: a shield of cold light while it holds. (The bulwark's is
-  // the glass barrier its spire wears.)
-  if (boss.type == BossType.gunner && boss.shieldUp) {
+  // A gunner's or a bulwark's shield of cold light while it holds.
+  if (boss.shieldUp &&
+      (boss.type == BossType.gunner || boss.type == BossType.bulwark)) {
     final shieldAlpha =
         (boss.shieldHealth /
                 (boss.type == BossType.bulwark
@@ -1163,7 +567,7 @@ void drawOpenWorldBoss({
     vfxSoftRing(
       canvas,
       Offset.zero,
-      boss.type == BossType.bulwark ? r * 1.55 : r * 1.4,
+      boss.type == BossType.bulwark ? r * 1.65 : r * 1.4,
       r * 0.2,
       const Color(0xFF7FE8F4),
       0.55 * shieldAlpha,
@@ -1173,7 +577,7 @@ void drawOpenWorldBoss({
   // Health bar above boss
   final barWidth = r * 2.5;
   const barHeight = 4.0;
-  final barY = -r * bossFormReach(form) - 12.0;
+  final barY = -r * grainFormReach(form) - 12.0;
   final hpFrac = (boss.health / boss.maxHealth).clamp(0.0, 1.0);
   canvas.drawRRect(
     RRect.fromRectAndRadius(
@@ -1199,10 +603,6 @@ void drawOpenWorldBoss({
     Paint()..color = Color.lerp(Colors.red, bColor, hpFrac)!,
   );
 
-  // Boss name + level. The type used to be prefixed as an emoji — a pistol, a
-  // crown, a dart board — which read as chat decoration on top of a hand-drawn
-  // alchemical game. The archetype is already legible from the boss's own
-  // crown and the moons riding its ring; it did not need a sticker.
   final namePainter = _bossLabelPainter('Lv${boss.level} ${boss.name}');
   namePainter.paint(
     canvas,
@@ -1235,79 +635,6 @@ TextPainter _bossLabelPainter(String text) => _bossLabels.putIfAbsent(
 // Not a boss — the waiting spawn trigger you fly into. Its rotating alchemical
 // diamond is the strongest read in the open world, so if the blur ever comes
 // out of this pass the shape itself should survive untouched.
-// ─────────────────────────────────────────────────────────────────────────────
-
-void drawBossLair({
-  required Canvas canvas,
-  required BossLair lair,
-  required double time,
-}) {
-  final lp = lair.position;
-
-  final lColor = elementColor(lair.template.element);
-  final pulse = 0.5 + 0.3 * sin(time * 2.0);
-
-  // Ominous aura
-  paintSoftCircle(canvas, Offset(lp.dx, lp.dy), BossLair.activationRadius * 0.4, const Color(0xFFFF1744).withValues(alpha: 0.06 * pulse), 40);
-
-  // Rotating diamond shape
-  canvas.save();
-  canvas.translate(lp.dx, lp.dy);
-  canvas.rotate(time * 0.5);
-  final diamondPath = Path()
-    ..moveTo(0, -18)
-    ..lineTo(14, 0)
-    ..lineTo(0, 18)
-    ..lineTo(-14, 0)
-    ..close();
-  canvas.drawPath(
-    diamondPath,
-    Paint()..color = lColor.withValues(alpha: 0.25 * pulse),
-  );
-  canvas.drawPath(
-    diamondPath,
-    Paint()
-      ..color = const Color(0xFFFF1744).withValues(alpha: 0.4 * pulse)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5,
-  );
-  canvas.restore();
-
-  // Inner glow dot
-  paintSoftCircle(canvas, Offset(lp.dx, lp.dy), 6, const Color(0xFFFF1744).withValues(alpha: 0.5 * pulse), 6);
-  canvas.drawCircle(
-    Offset(lp.dx, lp.dy),
-    3,
-    Paint()..color = lColor.withValues(alpha: 0.7),
-  );
-
-  // Level label
-  final lairLabel = TextPainter(
-    text: TextSpan(
-      text: 'Lv${lair.level} ${lair.template.name}',
-      style: TextStyle(
-        color: const Color(0xFFFF5252).withValues(alpha: 0.7 * pulse),
-        fontSize: 10,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 1,
-      ),
-    ),
-    textDirection: TextDirection.ltr,
-  )..layout();
-  lairLabel.paint(canvas, Offset(lp.dx - lairLabel.width / 2, lp.dy + 22));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Archetype marks
-//
-// The lair boss was the only enemy in the game whose archetype changed its
-// silhouette — an inscribed alchemical sigil whose point count varies by type.
-// Everything else (8 survival variants, 7 boss disciplines, 4 roles) rendered
-// identically, so the player could not tell a splitter from a summoner until it
-// went off in their face.
-//
-// Bosses no longer wear a mark: each archetype is its own form (see
-// boss_forms.dart). Enemies come in dozens and get a mark of a few draws.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The wind-up tell, drawn in the enemy's local space.
@@ -1392,29 +719,6 @@ final ui.Paint _markPaint = ui.Paint()
 /// says "this one is special" and leaves the telling to behaviour.
 int traitSigilPoints(EnemyTrait? t) => t == null ? 0 : 3;
 
-/// Orbiting mote count per boss archetype. Kept independent of the sigil
-/// points so the two axes read separately: points tell you the discipline
-/// (how it fights), motes tell you the archetype (what it is).
-int bossTypeMotes(BossType t) => switch (t) {
-  BossType.charger => 3,
-  BossType.gunner => 5,
-  BossType.skirmisher => 4,
-  BossType.bulwark => 6,
-  BossType.carrier => 7,
-  BossType.warden => 8,
-};
-
-/// Star points per boss discipline.
-int disciplineSigilPoints(SurvivalBossDiscipline d) => switch (d) {
-  SurvivalBossDiscipline.standard => 5,
-  SurvivalBossDiscipline.artillery => 4,
-  SurvivalBossDiscipline.trickster => 8,
-  SurvivalBossDiscipline.duelist => 3,
-  SurvivalBossDiscipline.conductor => 6,
-  SurvivalBossDiscipline.siegebreaker => 7,
-  SurvivalBossDiscipline.riftcaller => 9,
-};
-
 /// A cheap archetype mark for ordinary enemies: a sigil burned into the
 /// body — a dark filled star against its light, with a spark at each point.
 /// Filled, not a stroked outline, so it reads as something the body carries
@@ -1453,7 +757,8 @@ void drawEnemyArchetypeMark({
   path.close();
   canvas.drawPath(
     path,
-    _markFill..color = const ui.Color(0xFF05040A).withValues(alpha: 0.62 * alpha),
+    _markFill
+      ..color = const ui.Color(0xFF05040A).withValues(alpha: 0.62 * alpha),
   );
   canvas.drawRawPoints(
     ui.PointMode.points,
@@ -1465,8 +770,6 @@ void drawEnemyArchetypeMark({
 }
 
 final ui.Paint _markFill = ui.Paint();
-
-final Paint _heavyBarPaint = Paint();
 
 /// The dive warning: the body's light gathering in round it — wide and
 /// faint at first, tightening and brightening as the dive comes. It was a

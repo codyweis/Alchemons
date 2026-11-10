@@ -67,6 +67,9 @@ import 'package:alchemons/widgets/fx/variant_look.dart';
 import 'battle_arena_art.dart';
 import 'battle_wire.dart';
 
+import 'package:alchemons/games/cosmic_survival/roster_art.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
+
 part 'cosmic_game_helpers.dart';
 part 'cosmic_game_components.dart';
 part 'cosmic_game_companions.dart';
@@ -788,6 +791,11 @@ class CosmicGame extends FlameGame with PanDetector {
   /// `_gatherFlocks`.
   final Map<int, _FlockCentre> _flockCentres = {};
   static const int _maxEnemies = 220;
+
+  /// Every enemy body in view, drawn in grains together (roster_art.dart),
+  /// and the ones with tells to draw over them.
+  final RosterBatch _roster = RosterBatch();
+  final List<CosmicEnemy> _enemyMarks = [];
 
   /// Stalkers (or stalker flocks) shadowing the ship at once.
   static const int _maxStalkerGroups = 2;
@@ -5802,6 +5810,9 @@ class CosmicGame extends FlameGame with PanDetector {
     }
 
     // ── enemies ──
+    // Drawn in grains as survival's are (roster_art.dart): every body in
+    // view goes out together, then only the tells, roots and variant
+    // sigils, body by body.
     for (final e in enemies) {
       if (e.dead) continue;
       final ep = e.position;
@@ -5809,12 +5820,30 @@ class CosmicGame extends FlameGame with PanDetector {
           (ep.dy - cy - screenH / 2).abs() > screenH) {
         continue;
       }
-
-      // Body drawing lives in the shared cosmic enemy VFX layer so the
-      // preview harness can render the open-world roster, and so this pass can
-      // be compared against survival's.
-      drawOpenWorldEnemy(canvas: canvas, e: e, time: _elapsed);
+      _roster.addBody(
+        kind:
+            survivalKindOf(
+              tier: e.tier,
+              conduct: e.conduct,
+              trait: null,
+              isPlagueCore: false,
+            ) ??
+            SurvivalKind.mote,
+        time: _elapsed,
+        position: ep,
+        radius: e.radius,
+        heading: e.facing.follow(e.angle, _elapsed),
+        hp: e.maxHealth > 0 ? (e.health / e.maxHealth).clamp(0.0, 1.0) : 1,
+        color: e.color,
+        seed: identityHashCode(e) & 1023,
+      );
+      if (openWorldEnemyHasMarks(e)) _enemyMarks.add(e);
     }
+    _roster.flush(canvas);
+    for (final e in _enemyMarks) {
+      drawOpenWorldEnemyMarks(canvas: canvas, e: e, time: _elapsed);
+    }
+    _enemyMarks.clear();
 
     // ── boss lairs (waiting markers) ──
     for (final lair in bossLairs) {

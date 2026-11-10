@@ -1,97 +1,11 @@
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
-import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'dart:ui' as ui;
-import 'package:alchemons/games/shared/enemy_action.dart';
-import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import '../tool/survival_horde_arena.dart';
 import 'package:flame/components.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  CosmicSurvivalEnemy enemy({
-    EnemyTier tier = EnemyTier.wisp,
-    EnemyTrait? trait,
-    bool elite = false,
-    bool core = false,
-  }) => CosmicSurvivalEnemy(
-    position: Offset.zero,
-    hp: 100,
-    maxHp: 100,
-    speed: 14,
-    damage: 0,
-    radius: 8,
-    tier: tier,
-    element: 'Fire',
-    conduct: EnemyConduct.charge,
-    target: CosmicEnemyTarget.orb,
-    trait: trait,
-    isElite: elite,
-    isPlagueCore: core,
-  );
-  test('crowd simplification retains important threats and control cues', () {
-    expect(canSimplifySurvivalSwarmEnemy(enemy()), isTrue);
-    expect(canSimplifySurvivalSwarmEnemy(enemy(tier: EnemyTier.drone)), isTrue);
-    for (final tier in [
-      EnemyTier.sentinel,
-      EnemyTier.phantom,
-      EnemyTier.brute,
-      EnemyTier.colossus,
-    ]) {
-      expect(canSimplifySurvivalSwarmEnemy(enemy(tier: tier)), isFalse);
-    }
-    for (final trait in EnemyTrait.values) {
-      expect(canSimplifySurvivalSwarmEnemy(enemy(trait: trait)), isFalse);
-    }
-    expect(canSimplifySurvivalSwarmEnemy(enemy(elite: true)), isFalse);
-    expect(canSimplifySurvivalSwarmEnemy(enemy(core: true)), isFalse);
-    final root = enemy()..maneRootTimer = 1;
-    expect(canSimplifySurvivalSwarmEnemy(root), isFalse);
-    final frozen = enemy()
-      ..slowTimer = 2
-      ..slowMultiplier = 0.05;
-    expect(canSimplifySurvivalSwarmEnemy(frozen), isFalse);
-    final acting = enemy(tier: EnemyTier.drone)
-      ..action.phase = EnemyActionPhase.windUp;
-    expect(canSimplifySurvivalSwarmEnemy(acting), isFalse);
-  });
-  test('swarm batch draws live until its sheet is baked', () {
-    // Nothing is baked mid-frame any more: before the sheet lands, every
-    // body declines the batch and draws through the live painters.
-    if (survivalSwarmAtlasReady) return;
-    expect(SurvivalSwarmBatch().add(enemy(), 0), isFalse);
-  });
-
-  test('swarm batch takes plain bodies and declines the detailed ones', () async {
-    await ensureSurvivalSwarmAtlas();
-    final batch = SurvivalSwarmBatch();
-    expect(batch.add(enemy(), 0), isTrue);
-    expect(batch.add(enemy(tier: EnemyTier.drone)..hitFlash = 1, 0), isTrue);
-    expect(batch.add(enemy(elite: true), 0), isFalse);
-    expect(batch.add(enemy(tier: EnemyTier.brute), 0), isFalse);
-    expect(batch.length, 2);
-    // A dense field also bakes shooters and blinkers, and keeps a body
-    // mid-attack in the batch with its telegraph drawn live.
-    expect(batch.add(enemy(tier: EnemyTier.sentinel), 0), isFalse);
-    expect(batch.add(enemy(tier: EnemyTier.sentinel), 0, dense: true), isTrue);
-    expect(batch.add(enemy(tier: EnemyTier.phantom), 0, dense: true), isTrue);
-    final winding = enemy(tier: EnemyTier.drone)
-      ..action.phase = EnemyActionPhase.windUp;
-    expect(batch.add(winding, 0), isFalse);
-    expect(batch.add(winding, 0, dense: true), isTrue);
-    expect(batch.add(enemy(elite: true), 0, dense: true), isFalse);
-    expect(batch.add(enemy(tier: EnemyTier.brute), 0, dense: true), isFalse);
-    final frozen = enemy()
-      ..slowTimer = 2
-      ..slowMultiplier = 0;
-    expect(batch.add(frozen, 0, dense: true), isFalse);
-    expect(batch.length, 5);
-    final rec = ui.PictureRecorder();
-    batch.flush(ui.Canvas(rec), 0);
-    rec.endRecording().dispose();
-    expect(batch.length, 0);
-  });
   for (final entry in kHordeArenaParties.entries) {
     testWidgets('device stress arena: ${entry.key} fields its whole party', (
       tester,

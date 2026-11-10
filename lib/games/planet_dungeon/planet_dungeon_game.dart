@@ -37,6 +37,8 @@ import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart'
     show CosmicSurvivalCompanion;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/cosmic_survival/roster_art.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
 import 'package:alchemons/games/shared/companion_stance.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
 import 'package:alchemons/games/planet_dungeon/burn_field.dart';
@@ -602,6 +604,11 @@ class PlanetDungeonGame extends FlameGame {
   final List<DungeonCreature> creatures = [];
   final List<CosmicSurvivalCompanion> combatCompanions = [];
   final List<CosmicSurvivalEnemy> combatEnemies = [];
+
+  /// The combat bodies in view, drawn in grains together
+  /// (roster_art.dart), and the ones with tells to draw over them.
+  final RosterBatch _roster = RosterBatch();
+  final List<CosmicSurvivalEnemy> _rosterMarks = [];
 
   /// Floating damage numbers. Only spawned during guardian and raid fights —
   /// scattering numbers over ordinary trash would bury the puzzle the room is
@@ -15894,17 +15901,27 @@ class PlanetDungeonGame extends FlameGame {
       // own color. Swapping it for the generic Poison blob at the end of
       // the crawl would undo the whole point of the crawl.
       if (_isVenom && identical(enemy, monastery.body)) continue;
-      // The same body survival and open space draw (cosmic_enemy_vfx.dart):
-      // dive telegraph, attack tells and root wraps included, and its health
-      // the way survival shows it — none on the small ones, a flat bar on a
-      // hurt heavy. This drew a rounded bar of its own over every body.
-      drawSurvivalEnemy(
-        canvas: canvas,
-        enemy: enemy,
-        time: _time,
-        reduceLabels: true,
+      // The same body survival and open space draw, in grains
+      // (roster_art.dart): all of them go out together, then the tells and
+      // roots body by body. A hurt body has lost grains.
+      _roster.add(
+        enemy,
+        enemy.kind ?? SurvivalKind.mote,
+        _time,
+        const Offset(1e9, 1e9),
+        arrive: 1,
       );
+      if (enemy.action.isBusy ||
+          enemy.hornPlantRootTimer > 0 ||
+          (enemy.flightSteering?.showTelegraphRing ?? false)) {
+        _rosterMarks.add(enemy);
+      }
     }
+    _roster.flush(canvas);
+    for (final enemy in _rosterMarks) {
+      drawSurvivalEnemyMarks(canvas: canvas, enemy: enemy, time: _time);
+    }
+    _rosterMarks.clear();
   }
 
   /// A refusal, drawn instead of said.

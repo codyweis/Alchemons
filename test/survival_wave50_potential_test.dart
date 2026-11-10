@@ -4,6 +4,8 @@ import 'dart:math';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
+import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/models/stat_system.dart';
@@ -82,7 +84,8 @@ void main() {
     expect(game.bossProjectiles, isEmpty);
   });
 
-  test('heavy breaker orb collision is one bounded impact', () async {
+  test('a latched breaker stays and draws one bounded impact over its drain '
+      'time', () async {
     final game = CosmicSurvivalGame(
       party: potentialParty(80),
       onGameOver: () {},
@@ -104,10 +107,175 @@ void main() {
       conduct: EnemyConduct.charge,
       trait: EnemyTrait.breaker,
     );
+    expect(enemy.kind, SurvivalKind.siphon);
     game.enemies.add(enemy);
     game.update(1 / 30);
-    expect(enemy.isDead, isTrue);
-    expect(hp - game.orb.currentHp, closeTo(game.orb.maxHp * 0.264, 0.001));
+    // It used to ram once and die. It latches now, and what the ram cost
+    // the orb is drawn over the drain time for as long as it is left alive.
+    expect(enemy.isDead, isFalse);
+    expect(
+      hp - game.orb.currentHp,
+      closeTo(
+        game.orb.maxHp * 0.264 / CosmicSurvivalBalance.siphonDrainSeconds / 30,
+        0.001,
+      ),
+    );
+  });
+
+  test('a clutch settles at its hold and never walks into the orb', () async {
+    final game = CosmicSurvivalGame(
+      party: potentialParty(80),
+      onGameOver: () {},
+    );
+    game.onGameResize(Vector2(900, 700));
+    await game.onLoad();
+    game.startGame();
+    final enemy = CosmicSurvivalEnemy(
+      position: game.orb.position + const Offset(600, 0),
+      hp: 1e9,
+      maxHp: 1e9,
+      speed: 120,
+      damage: 10,
+      radius: 20,
+      tier: EnemyTier.brute,
+      element: 'Fire',
+      target: CosmicEnemyTarget.orb,
+      conduct: EnemyConduct.charge,
+      trait: EnemyTrait.summoner,
+      summonCooldown: 1e9,
+    );
+    expect(enemy.kind, SurvivalKind.clutch);
+    game.enemies.add(enemy);
+    for (var i = 0; i < 300; i++) {
+      game.update(1 / 30);
+    }
+    final dist = (enemy.position - game.orb.position).distance;
+    expect(enemy.isDead, isFalse);
+    expect(dist, lessThanOrEqualTo(CosmicSurvivalBalance.clutchHoldRange));
+    expect(dist, greaterThan(CosmicSurvivalBalance.clutchHoldRange - 40));
+  });
+
+  test('a body in a crest\'s lee takes half of a hit; the crest takes it '
+      'whole', () async {
+    final game = CosmicSurvivalGame(
+      party: potentialParty(80),
+      onGameOver: () {},
+    );
+    game.onGameResize(Vector2(900, 700));
+    await game.onLoad();
+    game.startGame();
+    CosmicSurvivalEnemy body(Offset off) => CosmicSurvivalEnemy(
+      position: game.orb.position + off,
+      hp: 1000,
+      maxHp: 1000,
+      speed: 0,
+      damage: 1,
+      radius: 20,
+      tier: EnemyTier.brute,
+      element: 'Fire',
+      target: CosmicEnemyTarget.orb,
+      conduct: EnemyConduct.charge,
+    );
+    final crest = body(const Offset(400, 0))..kind = SurvivalKind.crest;
+    final behind = body(const Offset(480, 0));
+    final ahead = body(const Offset(320, 0));
+    game.enemies.addAll([crest, behind, ahead]);
+    game.update(1 / 60);
+    final before = [crest.hp, behind.hp, ahead.hp];
+    game.debugDamageEnemy(crest, 100);
+    game.debugDamageEnemy(behind, 100);
+    game.debugDamageEnemy(ahead, 100);
+    final whole = before[0] - crest.hp;
+    expect(whole, greaterThan(0));
+    expect(before[2] - ahead.hp, closeTo(whole, 1e-6));
+    expect(
+      before[1] - behind.hp,
+      closeTo(whole * CosmicSurvivalBalance.crestLeeDamageTaken, 1e-6),
+    );
+    // Break the crest and the lee is gone.
+    game.debugKillEnemy(crest);
+    game.update(1 / 60);
+    final hp = behind.hp;
+    game.debugDamageEnemy(behind, 100);
+    expect(hp - behind.hp, closeTo(whole, 1e-6));
+  });
+
+  test('a snare holds an Alchemon until its shell is broken, and tires on '
+      'its own', () async {
+    final game = CosmicSurvivalGame(
+      party: potentialParty(80),
+      onGameOver: () {},
+    );
+    game.onGameResize(Vector2(900, 700));
+    await game.onLoad();
+    game.startGame();
+    game.summonCompanion(0);
+    game.clearCompanionTether();
+    final comp = game.activeCompanions[0]!;
+    CosmicSurvivalEnemy snare() => CosmicSurvivalEnemy(
+      position: comp.position + const Offset(60, 0),
+      hp: 1e9,
+      maxHp: 1e9,
+      speed: 200,
+      damage: 0,
+      radius: 14,
+      tier: EnemyTier.sentinel,
+      element: 'Fire',
+      target: CosmicEnemyTarget.companion,
+      conduct: EnemyConduct.orbit,
+    )..kind = SurvivalKind.snare;
+    final first = snare();
+    game.enemies.add(first);
+    for (var i = 0; i < 60 && comp.snaredBy == null; i++) {
+      game.update(1 / 30);
+    }
+    expect(comp.snaredBy, same(first));
+    expect(first.snareClosed, isTrue);
+    // Broken: it lets go at once.
+    game.debugKillEnemy(first);
+    game.update(1 / 30);
+    expect(comp.snaredBy, isNull);
+
+    final second = snare();
+    game.enemies.add(second);
+    for (var i = 0; i < 60 && comp.snaredBy == null; i++) {
+      game.update(1 / 30);
+    }
+    expect(comp.snaredBy, same(second));
+    // Left alone: the shell tires and comes apart.
+    final frames = (CosmicSurvivalBalance.snareHoldSeconds * 30).ceil() + 5;
+    for (var i = 0; i < frames; i++) {
+      game.update(1 / 30);
+    }
+    expect(comp.snaredBy, isNull);
+    expect(second.isDead, isTrue);
+  });
+
+  test('every body, conduct and trait reads as one kind; a core is a core', () {
+    for (final tier in EnemyTier.values) {
+      for (final conduct in EnemyConduct.values) {
+        for (final trait in <EnemyTrait?>[null, ...EnemyTrait.values]) {
+          expect(
+            survivalKindOf(
+              tier: tier,
+              conduct: conduct,
+              trait: trait,
+              isPlagueCore: false,
+            ),
+            isNotNull,
+          );
+        }
+      }
+    }
+    expect(
+      survivalKindOf(
+        tier: EnemyTier.brute,
+        conduct: EnemyConduct.charge,
+        trait: null,
+        isPlagueCore: true,
+      ),
+      SurvivalKind.core,
+    );
   });
 
   test(
