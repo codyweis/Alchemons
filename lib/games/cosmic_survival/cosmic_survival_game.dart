@@ -1819,6 +1819,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   double get shipRespawnRemaining => ship.isDead
       ? (_shipRespawnDelay - _shipRespawnTimer).clamp(0, _shipRespawnDelay)
       : 0;
+
+  /// How far a downed ship is toward being rebuilt, 0 to 1; 0 while alive.
+  double get shipRespawnProgress => ship.isDead && _shipRespawnDelay > 0
+      ? (_shipRespawnTimer / _shipRespawnDelay).clamp(0.0, 1.0)
+      : 0;
   bool get detonationUnlocked => powerUps.novaDetonationLevel > 0;
 
   // Orb skin passives
@@ -2892,9 +2897,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       dt,
       orb.position,
       ship.position,
-      pull: ship.isDead
-          ? null
-          : kSurgePullRange[min(magnet, kSurgePullRange.length - 1)],
+      pull: kSurgePullRange[min(magnet, kSurgePullRange.length - 1)],
       onTaken: _takeSurgeGrain,
     );
     _updateAlchemicalMeterDisplay(dt);
@@ -10611,12 +10614,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// When the ship last made the gathering sound.
   double _lastGrainSound = -1;
 
+  /// The share of a pickup's worth a downed (ghost) ship gathers: it still
+  /// flies and pulls grains and shards in, but the rest of each is lost
+  /// (user, 2026-11-10: "it should be 25% of what it would normally
+  /// collect").
+  static const double kGhostPickupShare = 0.25;
+
   /// A surge grain taken in by the ship or the core. Paid even while the
   /// ship is down: the kill that left it was made while it was up. The ship
   /// gathering them is heard (a soft intake and a pinch of grains, at most
   /// every 150 ms); the core drinking them is silent.
   void _takeSurgeGrain(double value, bool byShip) {
     if (value <= 0) return;
+    if (byShip && ship.isDead) value *= kGhostPickupShare;
     if (byShip && stats.timeElapsed - _lastGrainSound >= 0.15) {
       _lastGrainSound = stats.timeElapsed;
       onSound?.call(SoundCue.cosmicMatterCollect);
@@ -15213,15 +15223,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         if (shard.fade <= 0) continue;
       }
       shard.life -= dt;
-      if (shard.life <= 0 || ship.isDead) continue;
+      if (shard.life <= 0) continue;
 
       final delta = ship.position - shard.position;
       final dist = delta.distance;
       if (dist <= collectRadius) {
         shard.life = 0;
-        _grantAlchemy(shard.value * _alchemyMeterGainMultiplier);
+        // A ghost ship takes a quarter of the shard's worth and no burst.
+        final ghost = ship.isDead;
+        _grantAlchemy(
+          shard.value *
+              _alchemyMeterGainMultiplier *
+              (ghost ? kGhostPickupShare : 1.0),
+        );
         _spawnHitSpark(ship.position, elementColor('Crystal'));
-        if (owner != null && !owner.isDead) {
+        if (!ghost && owner != null && !owner.isDead) {
           _burstMysticCrystal(shard, ship.position, owner);
         }
         continue;

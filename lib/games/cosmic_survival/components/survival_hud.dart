@@ -155,6 +155,7 @@ class HudGauge extends StatelessWidget {
     required this.fraction,
     required this.color,
     this.figure,
+    this.figureColor,
     this.shield = 0,
   });
 
@@ -164,6 +165,9 @@ class HudGauge extends StatelessWidget {
 
   /// Written after the tube; the percentage when left out.
   final String? figure;
+
+  /// The figure's ink; by default ink, or danger when the fill runs low.
+  final Color? figureColor;
 
   /// What a held shield is worth, as a share of the whole; 0 for none.
   final double shield;
@@ -193,7 +197,7 @@ class HudGauge extends StatelessWidget {
               text: figure ?? '${(f * 100).round()}',
               style: hudMono(
                 10,
-                f < 0.25 ? HudInk.danger : HudInk.ink,
+                figureColor ?? (f < 0.25 ? HudInk.danger : HudInk.ink),
                 spacing: 0.4,
               ),
               children: [
@@ -323,6 +327,8 @@ class SurvivalTopHud extends StatelessWidget {
     required this.keys,
     required this.shipFraction,
     required this.shipGhost,
+    this.shipRespawnSeconds = 0,
+    this.shipRespawnProgress = 0,
     required this.orbFraction,
     required this.orbColor,
     this.orbShield = 0,
@@ -349,6 +355,14 @@ class SurvivalTopHud extends StatelessWidget {
   final List<Widget> keys;
   final double shipFraction;
   final bool shipGhost;
+
+  /// While [shipGhost]: whole seconds until the ship is rebuilt, written
+  /// where its percentage stands (it used to sit mid-screen over the fight).
+  final int shipRespawnSeconds;
+
+  /// While [shipGhost]: how far the ship is toward being rebuilt, 0 to 1.
+  /// The tube fills back up with it, in a faint ship colour.
+  final double shipRespawnProgress;
   final double orbFraction;
   final Color orbColor;
 
@@ -358,9 +372,12 @@ class SurvivalTopHud extends StatelessWidget {
   Widget _gauges({required bool row}) {
     final ship = HudGauge(
       label: shipGhost ? 'GHOST' : 'SHIP',
-      fraction: shipGhost ? 1 : shipFraction,
-      color: HudInk.ship,
-      figure: shipGhost ? '—' : null,
+      fraction: shipGhost ? shipRespawnProgress : shipFraction,
+      color: shipGhost ? HudInk.ship.withValues(alpha: 0.4) : HudInk.ship,
+      figure: shipGhost
+          ? (shipRespawnSeconds > 0 ? '${shipRespawnSeconds}s' : '—')
+          : null,
+      figureColor: shipGhost ? HudInk.muted : null,
     );
     final orb = HudGauge(
       label: 'ORB',

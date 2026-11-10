@@ -92,6 +92,26 @@ void main() {
     expect(grains.takenValue, closeTo(grains.spawnedValue, 1e-9));
   });
 
+  test('a downed ship still gathers grains, at a quarter of their worth', () async {
+    Future<double> gathered({required bool down}) async {
+      final game = await arena();
+      final far = game.orb.position + const Offset(600, 0);
+      final e = body(far);
+      game.enemies.add(e);
+      game.debugKillEnemy(e);
+      if (down) game.ship.isDead = true;
+      final before = game.alchemicalMeter;
+      run(game, 2, shipAt: far);
+      expect(game.debugSurgeOut, closeTo(0, 1e-9), reason: 'down: $down');
+      return game.alchemicalMeter - before;
+    }
+
+    final up = await gathered(down: false);
+    final ghost = await gathered(down: true);
+    expect(up, greaterThan(0));
+    expect(ghost, closeTo(up * CosmicSurvivalGame.kGhostPickupShare, 1e-6));
+  });
+
   test('the core drinks grains that fall inside its field', () async {
     final game = await arena();
     final near = game.orb.position + const Offset(120, 0);

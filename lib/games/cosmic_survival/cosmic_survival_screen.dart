@@ -3122,8 +3122,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                 ),
               ),
             ),
-          if (game.isLoaded && game.ship.isDead && !game.isGameOver)
-            _buildGhostShipBanner(game),
         ],
       ),
     );
@@ -3164,59 +3162,6 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                   ),
                 ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGhostShipBanner(CosmicSurvivalGame game) {
-    return Positioned(
-      left: 0,
-      right: 0,
-      top: 0,
-      bottom: 0,
-      child: IgnorePointer(
-        // Small and see-through: the fight goes on under it (user,
-        // 2026-10-21: "the ship destroyed and countdown is too big and we
-        // should make it more transparent").
-        child: Center(
-          child: HudGlass(
-            accent: HudInk.ship.withValues(alpha: 0.35),
-            alpha: 0.3,
-            bracket: 6,
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'SHIP DESTROYED',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'monospace',
-                    color: HudInk.ship.withValues(alpha: 0.6),
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.6,
-                  ),
-                ),
-                if (game.shipRespawnRemaining > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 3),
-                    child: Text(
-                      'RESPAWN IN ${game.shipRespawnRemaining.ceil()}s',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'monospace',
-                        color: _C.textPrimary.withValues(alpha: 0.42),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-              ],
             ),
           ),
         ),
@@ -3294,6 +3239,12 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                 ],
                 shipFraction: game.isLoaded ? game.ship.hpPercent : 1.0,
                 shipGhost: game.isLoaded && game.ship.isDead,
+                shipRespawnSeconds: game.isLoaded
+                    ? game.shipRespawnRemaining.ceil()
+                    : 0,
+                shipRespawnProgress: game.isLoaded
+                    ? game.shipRespawnProgress
+                    : 0,
                 orbFraction: orbHp,
                 orbColor: game.isLoaded
                     ? orbLook(game.orb.skin).hpColor(orbHp)
