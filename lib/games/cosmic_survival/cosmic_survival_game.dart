@@ -22159,7 +22159,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _cleanupBetweenWaves() {
     enemies.removeWhere((enemy) => enemy.isDead);
     outbreak = null;
-    enemyProjectiles.clear();
+    // The enemies' shots fly on. A wave turns over with a tenth of it still
+    // alive, artillery among it out near the rim, and clearing their shots
+    // on the frame the next wave spawned made lights vanish out there as new
+    // bodies appeared (the rim-vanish report, 2026-09-29). A dead boss's
+    // shots still go with it.
     bossProjectiles.clear();
     extraBosses.removeWhere((boss) => boss.isDead);
   }
