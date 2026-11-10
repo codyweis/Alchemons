@@ -3,10 +3,11 @@
 // What a run does to the arena it is fought in. Four things, all of them in
 // the world and none of them a message:
 //
-//  - The floor keeps what happened on it. Where bodies fell, where a blast
-//    landed, where a front pressed through and where a creature's special
-//    struck, ash and cinder stay for the rest of the run. Wave 60's floor
-//    is not wave 3's.
+//  - The floor keeps what the fight did to it. Where a front pressed through
+//    and where a creature's special struck, ash and cinder stay for the rest
+//    of the run, so wave 60's floor is not wave 3's. What a death leaves (a
+//    body's ash, a blast's scorch) lies a few seconds and goes: a field of
+//    the dead would bury the surge grains the dead drop.
 //  - The edges go dark. The light the core holds over its disc draws in as
 //    the waves climb, and keeps drawing in through the endless waves.
 //  - Ash rides the air from where the wave is coming: thin and slow in a
@@ -99,6 +100,25 @@ class _Tile {
     if (smudgeCount < _smudgeCap) smudgeCount++;
     charDirty = true;
   }
+}
+
+/// What a death leaves: char and ash that lie [life] seconds and go. Its
+/// grains are read off [seed] each frame, so nothing is stored per grain.
+class _Fresh {
+  _Fresh(
+    this.x,
+    this.y,
+    this.r,
+    this.life,
+    this.strength,
+    this.grains,
+    this.cinder,
+    this.seed,
+  );
+  final double x, y, r, life, strength;
+  final int grains, seed;
+  final bool cinder;
+  double age = 0;
 }
 
 /// A mark still warm: light on the floor that cools to nothing over [life].
@@ -215,8 +235,9 @@ class ArenaWear {
     tile.dirty = true;
   }
 
-  /// A body fell at [at]. Rationed: in a horde most deaths leave nothing.
-  /// [heavy] bodies (brutes, colossi, elites) always leave their mark.
+  /// A body fell at [at]: its ash lies a moment and goes. Rationed: in a
+  /// horde most deaths leave nothing. [heavy] bodies (brutes, colossi,
+  /// elites) always leave theirs, and it lies longer.
   void fall(Offset at, double radius, {bool heavy = false}) {
     if (!heavy) {
       if (_ration < 1) return;
@@ -224,8 +245,48 @@ class ArenaWear {
     }
     marks++;
     final reach = radius * (heavy ? 2.6 : 1.9);
-    _charAt(at, reach, heavy ? 0.6 : 0.34);
-    _scatter(at, reach, heavy ? 40 : 14, WearTone.ash);
+    _lay(
+      at,
+      reach,
+      heavy ? _heavyFallLife : _fallLife,
+      heavy ? 0.6 : 0.34,
+      heavy ? 40 : 14,
+      cinder: false,
+    );
+  }
+
+  /// Seconds a body's ash lies on the floor.
+  static const double _fallLife = 2.4, _heavyFallLife = 4.0;
+
+  /// Seconds a death's blast stays scorched.
+  static const double _blastLife = 4.5;
+  static const int _freshCap = 72;
+  final List<_Fresh> _fresh = [];
+
+  /// Death marks on the floor now.
+  int get freshMarks => _fresh.length;
+
+  void _lay(
+    Offset at,
+    double r,
+    double life,
+    double strength,
+    int grains, {
+    required bool cinder,
+  }) {
+    if (_fresh.length >= _freshCap) _fresh.removeAt(0);
+    _fresh.add(
+      _Fresh(
+        at.dx,
+        at.dy,
+        min(r, _margin),
+        life,
+        strength,
+        grains,
+        cinder,
+        (_next() * 1024).floor(),
+      ),
+    );
   }
 
   /// A crowd is standing on [at]: the ground under it is trodden. Light
@@ -237,10 +298,29 @@ class ArenaWear {
     _scatter(at, radius, 3, WearTone.ash);
   }
 
-  /// Something burst at [at] out to [reach]: a scorch that stays, warm for
-  /// a few seconds in [light].
-  void scorch(Offset at, double reach, {Color? light, bool gilt = false}) {
+  /// Something burst at [at] out to [reach]: a scorch, warm for a few
+  /// seconds in [light]. A creature's blast stays for the run; a death's
+  /// (not [lasting]) goes with the body's ash.
+  void scorch(
+    Offset at,
+    double reach, {
+    Color? light,
+    bool gilt = false,
+    bool lasting = true,
+  }) {
     marks++;
+    _warm(at, reach * 0.7, 3.2, light ?? _cinder);
+    if (!lasting) {
+      _lay(
+        at,
+        reach * 0.85,
+        _blastLife,
+        0.62,
+        (18 + reach * 0.4).round().clamp(18, 70),
+        cinder: true,
+      );
+      return;
+    }
     _charAt(at, reach * 0.85, 0.62, gilt ? 2 : 1);
     _scatter(
       at,
@@ -248,7 +328,6 @@ class ArenaWear {
       (18 + reach * 0.4).round().clamp(18, 70),
       gilt ? WearTone.gilt : WearTone.cinder,
     );
-    _warm(at, reach * 0.7, 3.2, light ?? _cinder);
   }
 
   /// A creature's special struck at [at]. [power] is 0 for a newly hatched
@@ -297,6 +376,10 @@ class ArenaWear {
   double _peak = 0;
   double _settle = 0;
   double _boss = 0;
+
+  /// An Other Orb's dark drawing the core's light away (boss_roster_art.dart):
+  /// the rim closes in and the floor dims while it lives.
+  double _eclipse = 0;
   double _dirX = 0, _dirY = 1;
   double _driftX = 0, _driftY = 0;
   double _driftAmount = 0;
@@ -307,27 +390,24 @@ class ArenaWear {
   double get settle => _settle;
 
   /// Starts the arena at wave [wave] already as worn as a run that deep
-  /// would have left it (a resumed run), about [centre] out to [radius].
+  /// would have left it (a resumed run), about [centre] out to [radius]:
+  /// the lanes fronts trod and the creatures' strikes, never the dead.
   void seed(int wave, Offset centre, double radius) {
     _place(centre);
     _depth = depthForWave(wave);
-    final n = (wave * 14).clamp(0, 900);
+    final n = (wave * 10).clamp(0, 640);
     for (var i = 0; i < n; i++) {
       final a = _next() * 2 * pi;
       final d = radius * sqrt(_next()) * 0.96;
       final at = Offset(centre.dx + cos(a) * d, centre.dy + sin(a) * d);
       final roll = _next();
-      if (roll < 0.14) {
-        final reach = 50 + 60 * _next();
-        _charAt(at, reach * 0.85, 0.62, 1);
-        _scatter(at, reach, 44, WearTone.cinder);
-      } else if (roll < 0.3) {
-        _charAt(at, 60, 0.6);
-        _scatter(at, 60, 40, WearTone.ash);
+      if (roll < 0.12) {
+        final reach = 20 + 26 * _next();
+        _charAt(at, reach, 0.4, 1);
+        _scatter(at, reach, 16, WearTone.cinder);
       } else {
-        final reach = 24 + 26 * _next();
-        _charAt(at, reach, 0.34);
-        _scatter(at, reach, 14, WearTone.ash);
+        _charAt(at, 40, 0.13);
+        _scatter(at, 40, 3, WearTone.ash);
       }
     }
   }
@@ -357,14 +437,20 @@ class ArenaWear {
     required double fill,
     required double bearing,
     required bool bossAlive,
+    bool eclipse = false,
   }) {
     _place(centre);
+    _eclipse += ((eclipse ? 1.0 : 0.0) - _eclipse) * min(1.0, dt * 0.5);
     _clock += dt;
     _ration = min(_rationMax, _ration + _rationPerSecond * dt);
     for (final e in _embers) {
       e.age += dt;
     }
     _embers.removeWhere((e) => e.age >= e.life);
+    for (final m in _fresh) {
+      m.age += dt;
+    }
+    _fresh.removeWhere((m) => m.age >= m.life);
 
     final f = fill.clamp(0.0, 1.0);
     if (f > _peak) _peak = f;
@@ -519,6 +605,7 @@ class ArenaWear {
         lastTilesDrawn++;
       }
     }
+    _paintFresh(c, view);
     for (final e in _embers) {
       if (e.x + e.r < view.left ||
           e.x - e.r > view.right ||
@@ -534,26 +621,103 @@ class ArenaWear {
     }
   }
 
+  /// Death marks' grains by tone (dim ash, pale ash, cinder) and by how far
+  /// they have faded (three steps), so they go out in at most nine draws.
+  final List<Float32List> _freshPts = List.generate(9, (_) => Float32List(256));
+  final List<int> _freshN = List.filled(9, 0);
+
+  void _freshAdd(int b, double x, double y) {
+    var d = _freshPts[b];
+    final n = _freshN[b];
+    if (n + 2 > d.length) {
+      d = _freshPts[b] = Float32List(d.length * 2)..setAll(0, d);
+    }
+    d[n] = x;
+    d[n + 1] = y;
+    _freshN[b] = n + 2;
+  }
+
+  /// What the dead left: it holds a while, then fades out. Its grains
+  /// settle outward over the first quarter second, so a death lands.
+  void _paintFresh(Canvas c, Rect view) {
+    if (_fresh.isEmpty) return;
+    for (final m in _fresh) {
+      if (m.x + m.r < view.left ||
+          m.x - m.r > view.right ||
+          m.y + m.r < view.top ||
+          m.y - m.r > view.bottom) {
+        continue;
+      }
+      final f = m.age / m.life;
+      final g = ((f - 0.3) / 0.7).clamp(0.0, 1.0);
+      final fade = 1 - g * g * (3 - 2 * g);
+      if (fade <= 0.01) continue;
+      final at = Offset(m.x, m.y);
+      vfxSpill(c, at, m.r * 0.72, _char, m.strength * 0.8 * fade);
+      final la = _table[m.seed & 1023] * 2 * pi;
+      vfxSpill(
+        c,
+        Offset(m.x + cos(la) * m.r * 0.35, m.y + sin(la) * m.r * 0.35),
+        m.r * 0.5,
+        _char,
+        m.strength * 0.55 * fade,
+      );
+      if (m.cinder) vfxSpill(c, at, m.r * 0.5, _cinder, 0.07 * fade);
+      final step = (fade * 3).ceil().clamp(1, 3) - 1;
+      final spread = 0.6 + 0.4 * min(1.0, m.age / 0.25);
+      for (var i = 0; i < m.grains; i++) {
+        final k = m.seed + i * 3;
+        final a = _table[k & 1023] * 2 * pi;
+        final u = _table[(k + 1) & 1023];
+        final roll = _table[(k + 2) & 1023];
+        final d = m.r * (0.08 + 0.92 * u * u) * spread;
+        final b = m.cinder
+            ? (roll < 0.45 ? 2 : (roll < 0.85 ? 0 : 1))
+            : (roll < 0.7 ? 0 : 1);
+        _freshAdd(b * 3 + step, m.x + cos(a) * d, m.y + sin(a) * d);
+      }
+    }
+    const looks = <(Color, double, double)>[
+      (_ashDim, 3.2, 0.42),
+      (_ashPale, 2.2, 0.5),
+      (_cinder, 2.8, 0.5),
+    ];
+    for (var b = 0; b < 9; b++) {
+      final n = _freshN[b];
+      if (n == 0) continue;
+      final (color, size, alpha) = looks[b ~/ 3];
+      _pointPaint
+        ..color = color.withValues(alpha: alpha * ((b % 3) + 1) / 3)
+        ..strokeWidth = size;
+      c.drawRawPoints(
+        ui.PointMode.points,
+        Float32List.sublistView(_freshPts[b], 0, n),
+        _pointPaint,
+      );
+      _freshN[b] = 0;
+    }
+  }
+
   final Map<int, ui.Shader> _gloomShaders = {};
   final Paint _gloomPaint = Paint();
   static const _ink = Color(0xFF04030A);
 
   /// How far out, as a share of the arena's radius, the dark begins.
-  double get _gloomStart => 0.78 - 0.5 * _depth;
+  double get _gloomStart => 0.78 - 0.5 * _depth - 0.22 * _eclipse;
 
   /// How dark the rim is, 0..1.
   double get gloom =>
-      ((0.66 * _depth + 0.16 * _boss) * (1 - 0.45 * _settleEase)).clamp(
-        0.0,
-        0.86,
-      );
+      ((0.66 * _depth + 0.16 * _boss + 0.24 * _eclipse) *
+              (1 - 0.45 * _settleEase))
+          .clamp(0.0, 0.86);
 
   final Map<int, ui.Shader> _floorShaders = {};
   final Paint _floorPaint = Paint();
   static const _ash = Color(0xFF9A8F7C);
 
   /// How much of its light the floor still holds, 0..1.
-  double get floorLight => (1 - 0.35 * _depth) * (1 + 0.45 * _settleEase);
+  double get floorLight =>
+      (1 - 0.35 * _depth) * (1 + 0.45 * _settleEase) * (1 - 0.3 * _eclipse);
 
   /// The core's [light] lying on the floor about [centre], and the dark
   /// that has drawn in over it from the rim: over the sky and the belt,

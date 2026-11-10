@@ -10571,6 +10571,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         enemy.position,
         reach,
         light: tint == null ? null : abilityMaterialTint(tint),
+        lasting: false,
       );
     }
     final speed = enemy.effectiveSpeed;

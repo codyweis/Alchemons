@@ -79,6 +79,30 @@ void main() {
     expect(wear.marks, before + 20);
   });
 
+  test('what the dead leave goes in seconds; what a creature strikes stays', () {
+    final wear = ArenaWear();
+    _tick(wear, 1);
+    wear.fall(const ui.Offset(0, 0), 12);
+    wear.fall(const ui.Offset(100, 0), 40, heavy: true);
+    wear.scorch(const ui.Offset(0, 100), 80, lasting: false);
+    expect(wear.freshMarks, 3);
+    // Nothing a death leaves is baked into the floor.
+    _paint(wear, view);
+    expect(wear.lastTilesDrawn, 0);
+    _tick(wear, 2.6);
+    expect(wear.freshMarks, 2, reason: 'a small body is gone first');
+    _tick(wear, 2.2);
+    expect(wear.freshMarks, 0);
+
+    wear.strike(const ui.Offset(0, 0), 1.0, light: const ui.Color(0xFFFFAA66));
+    expect(wear.freshMarks, 0);
+    _paint(wear, view);
+    _tick(wear, 30);
+    _paint(wear, view);
+    expect(wear.lastTilesDrawn, greaterThan(0), reason: 'still on the floor');
+    wear.dispose();
+  });
+
   test('a grown creature leaves more than a weak one', () {
     final weak = ArenaWear(), strong = ArenaWear();
     _tick(weak, 1);

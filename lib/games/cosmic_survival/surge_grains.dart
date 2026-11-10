@@ -11,7 +11,12 @@
 //
 // Budget: at most [SurgeGrains.cap] grains; past it a kill's value is added
 // to grains already lying out instead of new ones. Heads and trails go out
-// as three drawRawPoints calls. No blur.
+// as six drawRawPoints calls. No blur.
+//
+// A lying grain has to be found on a floor of ash and in a wave whose
+// bodies may be violet too, so it is a light and not a grain: a soft halo
+// under a bright seed that hovers and twinkles. Nothing else on the field
+// glows and moves like that while standing still.
 
 import 'dart:math';
 import 'dart:typed_data';
@@ -55,8 +60,12 @@ const double _kShipTake = 18;
 const double _kHang = 0.45;
 
 class _Grain {
-  _Grain(this.x, this.y, this.vx, this.vy, this.value);
+  _Grain(this.x, this.y, this.vx, this.vy, this.value)
+    // Read off its throw, so the grains of one kill twinkle apart without
+    // drawing another number.
+    : phase = (vx * 0.37 + vy * 0.53) % (2 * pi);
   double x, y, vx, vy, value;
+  final double phase;
   double age = 0;
 
   /// Where it is headed once it moves: 0 lying, 1 to the ship, 2 to the core.
@@ -226,15 +235,16 @@ class SurgeGrains {
   }
 
   final Float32List _heads = Float32List(cap * 2);
+  final Float32List _bright = Float32List(cap * 2);
   final Float32List _tails = Float32List(cap * 10);
   final Paint _dots = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  /// Paints the grains inside [view]: lying ones as violet points, moving
-  /// ones with a short trail behind.
+  /// Paints the grains inside [view]: lying ones as violet lights that hover
+  /// and twinkle, moving ones with a short trail behind.
   void paint(Canvas c, Rect view) {
-    var h = 0, t = 0;
+    var h = 0, t = 0, b = 0;
     for (final g in _grains) {
       if (g.x < view.left ||
           g.x > view.right ||
@@ -242,8 +252,16 @@ class SurgeGrains {
           g.y > view.bottom) {
         continue;
       }
+      var y = g.y;
+      if (g.heading == 0) {
+        y += 1.3 * sin(g.age * 2.1 + g.phase);
+        if (sin(g.age * 2.7 + g.phase * 1.7) > 0.55) {
+          _bright[b++] = g.x;
+          _bright[b++] = y;
+        }
+      }
       _heads[h++] = g.x;
-      _heads[h++] = g.y;
+      _heads[h++] = y;
       if (g.heading != 0) {
         for (var k = 0; k < 10; k++) {
           _tails[t++] = g.trail[k];
@@ -262,14 +280,32 @@ class SurgeGrains {
     }
     if (h == 0) return;
     final heads = Float32List.sublistView(_heads, 0, h);
+    // The halo, two steps wide so it reads soft, then the seed and its
+    // white heart.
+    for (final (w, a) in const [(13.0, 0.09), (8.5, 0.16)]) {
+      _dots
+        ..strokeWidth = w
+        ..color = _surge.withValues(alpha: a);
+      c.drawRawPoints(ui.PointMode.points, heads, _dots);
+    }
     _dots
-      ..strokeWidth = 3.4
-      ..color = _surge.withValues(alpha: 0.92);
+      ..strokeWidth = 4.6
+      ..color = _surge.withValues(alpha: 0.95);
     c.drawRawPoints(ui.PointMode.points, heads, _dots);
     _dots
-      ..strokeWidth = 1.6
+      ..strokeWidth = 2.2
       ..color = _surgeHot.withValues(alpha: 0.95);
     c.drawRawPoints(ui.PointMode.points, heads, _dots);
+    if (b > 0) {
+      _dots
+        ..strokeWidth = 3.6
+        ..color = _surgeHot;
+      c.drawRawPoints(
+        ui.PointMode.points,
+        Float32List.sublistView(_bright, 0, b),
+        _dots,
+      );
+    }
   }
 
   void clear() => _grains.clear();
