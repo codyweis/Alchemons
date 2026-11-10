@@ -63,3 +63,61 @@ A blessed Horn's charge is a plain charge.
 1 and 2 together (one arena layer: wear, edge loss, drift from the wave's
 bearing, the settle after a clear), then 3, 4, 5/9 through the same layer,
 6, 7.
+
+---
+
+# What was built, same day
+
+Five commits on master, nothing pushed. Headless frames only: no device, no
+simulator, and the party is drawn as discs because sprites do not load in
+tests.
+
+| Item | Built | Where |
+| --- | --- | --- |
+| 1, 8 | The floor keeps ash and char where bodies fell, blasts landed, fronts stood and specials struck; it loses light and the rim goes dark with the wave number, and goes on doing so to wave 100 | `arena_wear.dart` |
+| 2 | Ash rides the air from the wave's bearing, thicker and faster the fuller the field; a boss stills it and darkens the rim; a cleared wave swells the floor's light and eases the dark for six seconds, further after a wave that filled the field | `arena_wear.dart`, `spawner.waveBearing` |
+| 3 | One soft bank of dust under each knot of three or more bodies, in the wave's light | `_paintCrowdMass` |
+| 4 | Grains of the creature's material lie loose while its special is spent, draw in as it returns, ring its feet when ready; a cast throws them out | `cosmic/ready_bed_vfx.dart` |
+| 5 | A grown creature (level and mastery nodes) stands on more grains, and its specials leave wider, longer-warm marks that are always kept; a weak one's are rationed | `_creaturePower`, `ArenaWear.strike` |
+| 9 | Under a blessing: gilt among the grains at its feet and gilt in the ash its casts leave | same |
+| 6 | Boss arrival is a dark floor with grains drawn in; venting is heat on the floor and embers streaming off. 176 lines of stroked hoops, spokes and discipline marks deleted | `cosmic_enemy_vfx.dart` |
+| 7 | A struck brute, colossus or elite sheds a few of its own grains off the struck face, at most once a flash | `_damageEnemy` |
+
+## Cost
+`LATE_COST=1 flutter test test/survival_late_wave_cost_test.dart --tags preview`,
+this Mac, JIT, full party, every special cast, 240 frames:
+
+| | Bodies | Update median / p95 | Draw-record median / p95 |
+| --- | --- | --- | --- |
+| Wave 62 before | 1,035 | 1.05 / 2.63 ms | 2.23 / 4.42 ms |
+| Wave 62 after | 1,035 | 0.78 / 1.66 ms | 2.11 / 3.12 ms |
+| Wave 24 before | 344 | 0.56 / 1.20 ms | 1.59 / 4.02 ms |
+| Wave 24 after | 344 | 0.57 / 2.10 ms | 1.59 / 3.54 ms |
+
+The differences are inside run-to-run noise: the work adds nothing this
+harness can measure. Body counts match to the body, so seeded runs play out
+as before. Raster (GPU) time is not measured here. What the new layers hand
+the GPU a frame: two gradient fills (floor light, dark), eight to twelve
+textured quads and as many point Pictures for the floor, two point batches
+of drift, one gradient fill per dense crowd cell, one fill and up to three
+small point batches per creature.
+
+## Not done, or not seen
+- Not on a phone or simulator. Density, brightness and motion (the drift,
+  the settle, the bed gathering) are unjudged; stills cannot show them.
+- Real creature sprites over the bed of grains were not seen.
+- The boss arrival was only caught at the edge of the harness camera.
+- Wave lulls: no pause was added between waves. The settle is visual; the
+  next wave still starts the frame the last one clears. A real gap would
+  move the stat walls.
+- Elites are still chaff with a pool of affix colour. Not touched.
+- Family specials themselves (the seventeen pictures per family) were not
+  redrawn. Growth and blessing show through what a cast leaves and what the
+  creature stands on, not through the cast's own art.
+- Open space does not draw the bed of grains or the wear; both are survival
+  only. The boss changes are survival's boss draw only.
+- A drone's 0.35 s wind-up is unchanged.
+- The white clumps where bodies burst on the core (11-03 work) are the
+  brightest thing on a late floor. Left for judgement with the rest of that
+  pass.
+- Audio untouched.
