@@ -10972,6 +10972,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
   }
 
+  /// Plays the live boss's entrance again from its start (preview harness).
+  @visibleForTesting
+  void debugRestartBossEntrance() {
+    final boss = activeBoss;
+    if (boss == null) return;
+    final target = boss.spawnTargetPosition ?? boss.position;
+    boss.position = target;
+    final away = target - orb.position;
+    _beginBossEntrance(boss, atan2(away.dy, away.dx));
+  }
+
   void _updateBossEntrance(double dt, SurvivalBoss boss) {
     final from = boss.spawnFromPosition;
     final target = boss.spawnTargetPosition;

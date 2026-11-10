@@ -9,6 +9,8 @@ library;
 //  - KILL_OUT=dir: one death of each tier and a volatile elite close up,
 //    frames 1/15 s apart (survival_death_vfx.dart), with the bodies' wind-up
 //    and some ship fire in the first. KILL_FURY=1 adds Elemental Fury.
+//  - BOSS_OUT=dir: a boss wave (BOSS_WAVE, default 25): the boss arriving
+//    in frames 1/6 s apart, the fight eight seconds in, and a vent.
 //   KILL_OUT=/tmp/kill flutter test test/survival_field_preview_test.dart \
 //     --tags preview
 
@@ -177,6 +179,115 @@ void main() {
         img.dispose();
       }
     });
+    game.onRemove();
+  });
+  testWidgets('boss wave', (tester) async {
+    final bout = Platform.environment['BOSS_OUT'];
+    if (bout == null) return;
+    final wave = int.parse(Platform.environment['BOSS_WAVE'] ?? '25');
+    final game = CosmicSurvivalGame(
+      party: [
+        for (final (i, (id, n, f, e)) in _parties['a']!.indexed)
+          CosmicPartyMember(
+            instanceId: 'p$i',
+            baseId: id,
+            displayName: n,
+            family: f,
+            element: e,
+            level: 10,
+            slotIndex: i,
+            statSpeed: 4,
+            statIntelligence: 4,
+            statStrength: 4,
+            statBeauty: 4,
+            staminaBars: 3,
+            staminaMax: 3,
+          ),
+      ],
+      random: Random(11),
+      onGameOver: () {},
+    );
+    const w = 412.0, h = 915.0;
+    game.onGameResize(Vector2(w, h));
+    await game.onLoad();
+    game.startGame();
+    await tester.runAsync(() => AbilityGrainSprite.ensureLoaded());
+    game.spawner.currentWave = wave - 1;
+    game.spawner.resumeAfterIntermission();
+    game.debugWear.seed(wave, game.orb.position, 1140);
+    void keepAlive() {
+      game.alchemicalMeter = 0;
+      game.gamePaused = false;
+      game.showingPowerUpSelection = false;
+      game.orb.currentHp = game.orb.maxHp.toDouble();
+      game.ship.currentHp = game.ship.maxHp.toDouble();
+    }
+
+    Future<void> shoot(String file) async {
+      final rec = ui.PictureRecorder();
+      final canvas = ui.Canvas(rec);
+      canvas.scale(2);
+      canvas.clipRect(const ui.Rect.fromLTWH(0, 0, w, h));
+      canvas.drawRect(
+        const ui.Rect.fromLTWH(0, 0, w, h),
+        ui.Paint()..color = game.backgroundColor(),
+      );
+      game.render(canvas);
+      final pic = rec.endRecording();
+      await tester.runAsync(() async {
+        final img = await pic.toImage(w.toInt() * 2, h.toInt() * 2);
+        final png = await img.toByteData(format: ui.ImageByteFormat.png);
+        Directory(bout).createSync(recursive: true);
+        File('$bout/$file.png').writeAsBytesSync(png!.buffer.asUint8List());
+        img.dispose();
+      });
+      pic.dispose();
+    }
+
+    // The frame the boss is called, then its arrival, with the camera on
+    // the spot it comes to.
+    game.setCameraZoom(0.595);
+    for (var f = 0; f < 600 && game.activeBoss == null; f++) {
+      keepAlive();
+      game.update(1 / 60);
+    }
+    final boss = game.activeBoss!;
+    final spot = boss.spawnTargetPosition ?? boss.position;
+    game.ship.position = spot + const Offset(60, 190);
+    for (var f = 0; f < 30; f++) {
+      keepAlive();
+      game.update(1 / 60);
+    }
+    // Its arrival again from the start, now that the camera is there.
+    game.debugRestartBossEntrance();
+    for (var shot = 0; shot < 8; shot++) {
+      await shoot('boss_w${wave}_in${shot.toString().padLeft(2, '0')}');
+      for (var f = 0; f < 10; f++) {
+        keepAlive();
+        game.update(1 / 60);
+      }
+    }
+    // The fight, eight seconds in.
+    for (var f = 0; f < 60 * 8; f++) {
+      keepAlive();
+      game.update(1 / 60);
+    }
+    game.ship.position = boss.position + const Offset(60, 190);
+    for (var f = 0; f < 30; f++) {
+      keepAlive();
+      game.update(1 / 60);
+    }
+    await shoot('boss_w${wave}_fight');
+    // Venting.
+    boss.overheatTimer = 1.9;
+    for (var shot = 0; shot < 4; shot++) {
+      for (var f = 0; f < 12; f++) {
+        keepAlive();
+        game.update(1 / 60);
+      }
+      boss.overheatTimer = max(boss.overheatTimer, 1.9 - shot * 0.5);
+      await shoot('boss_w${wave}_vent${shot.toString().padLeft(2, '0')}');
+    }
     game.onRemove();
   });
   final waves = (Platform.environment['LOOK_WAVES'] ?? '24')

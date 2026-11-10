@@ -21,6 +21,8 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
+import 'package:alchemons/games/cosmic/ability_grains.dart'
+    show abilityMaterialTint;
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/enemy_body_art.dart';
 import 'package:alchemons/games/cosmic/horn_vfx.dart';
@@ -872,6 +874,87 @@ EnemyPalette _bossPalette(String element, Color color, bool enraged) {
       : enemyPalette(element, base);
 }
 
+/// Where a boss is about to stand: the floor under it goes dark, its light
+/// gathers there, and grains are drawn in to the spot from four body-widths
+/// out, more of them and faster as it comes ([t] 0..1). It was a pulsing
+/// hoop with spokes and a set of stroked marks per discipline.
+void _drawBossArrival(
+  Canvas canvas,
+  Offset at,
+  double r,
+  double t,
+  Color color,
+  double time,
+) {
+  final e = t.clamp(0.0, 1.0);
+  final ease = e * e * (3 - 2 * e);
+  vfxSpill(
+    canvas,
+    at,
+    r * (1.6 + 1.2 * ease),
+    const Color(0xFF030208),
+    0.7 * ease,
+  );
+  final light = abilityMaterialTint(color);
+  vfxSpill(canvas, at, r * (2.6 - 1.2 * ease), light, 0.08 + 0.24 * ease);
+  const n = 30;
+  final shown = (8 + (n - 8) * ease).round();
+  for (var pass = 0; pass < 2; pass++) {
+    for (var i = pass; i < shown; i += 2) {
+      final h = vfxHash(i * 3.71 + 1.3);
+      // Each on its own lap: out at four widths, in to the spot, again.
+      final f = (h + time * (0.35 + 0.5 * ease) * (0.7 + 0.6 * h)) % 1.0;
+      final rho = r * (0.25 + 3.9 * (1 - f) * (1 - f));
+      // Curling in as it comes.
+      final a = i * 2.39996 + f * 1.4;
+      vfxGrain(at.dx + cos(a) * rho, at.dy + sin(a) * rho);
+    }
+    vfxGrainsFlush(
+      canvas,
+      max(2.6, r * (pass == 0 ? 0.045 : 0.06)),
+      pass == 0 ? light : Color.lerp(light, const Color(0xFFFFFFFF), 0.45)!,
+      0.3 + 0.55 * ease,
+    );
+  }
+}
+
+/// A boss venting: planted, overheated and open. Heat lies on the floor
+/// round it ([_drawBossVentHeat], under the body) and embers stream off it
+/// ([_drawBossVentEmbers], over it), thick while the window is fresh
+/// ([vent] 1) and thinning as it closes. It was a hoop with six dots
+/// circling it.
+void _drawBossVentHeat(Canvas canvas, double r, double vent, double time) {
+  vfxSpill(
+    canvas,
+    Offset.zero,
+    r * (2.3 + 0.1 * sin(time * 2.4)),
+    const Color(0xFFFF7043),
+    0.3 * vent,
+  );
+}
+
+void _drawBossVentEmbers(Canvas canvas, double r, double vent, double time) {
+  const n = 26;
+  for (var pass = 0; pass < 2; pass++) {
+    for (var i = pass; i < n; i += 2) {
+      final h = vfxHash(i * 5.19 + 0.7);
+      final f = (h + time * (0.45 + 0.35 * h)) % 1.0;
+      // Shown only while young enough to still be hot.
+      if (f > 0.35 + 0.65 * vent) continue;
+      final rho = r * (0.7 + 1.5 * f);
+      final a = i * 2.39996 + f * 0.9 * (i.isEven ? 1 : -1);
+      // Rising a little as they leave it.
+      vfxGrain(cos(a) * rho, sin(a) * rho - r * 0.35 * f);
+    }
+    vfxGrainsFlush(
+      canvas,
+      max(3.0, r * (pass == 0 ? 0.05 : 0.07)),
+      pass == 0 ? const Color(0xFFFF7043) : const Color(0xFFFFC078),
+      0.85 * vent,
+    );
+  }
+}
+
 void drawSurvivalBoss({
   required Canvas canvas,
   required SurvivalBoss boss,
@@ -883,179 +966,14 @@ void drawSurvivalBoss({
   final elapsed = time;
   final spawnTarget = boss.spawnTargetPosition;
   if (boss.isSpawning && spawnTarget != null) {
-    final introT = 1.0 - (boss.spawnIntroTimer / boss.spawnIntroDuration);
-    final portalPulse = 0.7 + 0.3 * sin(elapsed * 8.0);
-    final portalRadius = r * (1.7 + 0.25 * portalPulse);
-    canvas.drawCircle(
+    _drawBossArrival(
+      canvas,
       spawnTarget,
-      portalRadius,
-      Paint()
-        ..color = bColor.withValues(alpha: 0.14 + 0.08 * (1.0 - introT))
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 5
-        ..maskFilter = null,
+      r,
+      1.0 - (boss.spawnIntroTimer / boss.spawnIntroDuration),
+      bColor,
+      elapsed,
     );
-    canvas.drawCircle(
-      spawnTarget,
-      r * (1.05 + 0.12 * portalPulse),
-      Paint()
-        ..color = Colors.white.withValues(alpha: 0.18 + 0.10 * portalPulse)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4,
-    );
-    for (var i = 0; i < 6; i++) {
-      final a = elapsed * 1.7 + i * pi / 3;
-      final inner = spawnTarget + Offset(cos(a), sin(a)) * (r * 0.8);
-      final outer = spawnTarget + Offset(cos(a), sin(a)) * (r * 1.45);
-      canvas.drawLine(
-        inner,
-        outer,
-        Paint()
-          ..color = bColor.withValues(alpha: 0.32)
-          ..strokeWidth = 1.8
-          ..strokeCap = StrokeCap.round,
-      );
-    }
-    switch (boss.discipline) {
-      case SurvivalBossDiscipline.riftcaller:
-        for (var i = 0; i < 4; i++) {
-          final phase = elapsed * 0.95 + i * pi / 2;
-          final node =
-              spawnTarget +
-              Offset(cos(phase), sin(phase)) * (portalRadius * 1.12);
-          canvas.drawCircle(
-            node,
-            r * 0.15,
-            Paint()
-              ..color = bColor.withValues(alpha: 0.28)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2,
-          );
-          canvas.drawLine(
-            spawnTarget,
-            node,
-            Paint()
-              ..color = bColor.withValues(alpha: 0.20)
-              ..strokeWidth = 1.4,
-          );
-        }
-      case SurvivalBossDiscipline.siegebreaker:
-        for (var i = 0; i < 3; i++) {
-          final ring = portalRadius * (0.68 + i * 0.24);
-          canvas.drawCircle(
-            spawnTarget,
-            ring,
-            Paint()
-              ..color = bColor.withValues(alpha: 0.26 - i * 0.06)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.2,
-          );
-        }
-      case SurvivalBossDiscipline.conductor:
-        canvas.drawCircle(
-          spawnTarget,
-          portalRadius * 1.22,
-          Paint()
-            ..color = bColor.withValues(alpha: 0.2)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 2.2,
-        );
-        for (var i = 0; i < 8; i++) {
-          final a = elapsed * 0.8 + i * pi / 4;
-          final node =
-              spawnTarget + Offset(cos(a), sin(a)) * (portalRadius * 1.1);
-          canvas.drawCircle(
-            node,
-            r * 0.1,
-            Paint()..color = Colors.white.withValues(alpha: 0.45),
-          );
-        }
-      case SurvivalBossDiscipline.duelist:
-        for (final offset in const [-0.22, 0.22]) {
-          final a = elapsed * 1.4 + offset;
-          final inner =
-              spawnTarget + Offset(cos(a), sin(a)) * (portalRadius * 0.35);
-          final outer =
-              spawnTarget +
-              Offset(cos(a + 0.04), sin(a + 0.04)) * (portalRadius * 1.3);
-          canvas.drawLine(
-            inner,
-            outer,
-            Paint()
-              ..color = Colors.white.withValues(alpha: 0.58)
-              ..strokeWidth = 3
-              ..strokeCap = StrokeCap.round,
-          );
-        }
-      case SurvivalBossDiscipline.artillery:
-        for (var i = 0; i < 3; i++) {
-          final arcRadius = portalRadius * (0.7 + i * 0.22);
-          canvas.drawArc(
-            Rect.fromCircle(center: spawnTarget, radius: arcRadius),
-            -pi / 2 + i * 0.38 + elapsed * 0.18,
-            pi * 0.9,
-            false,
-            Paint()
-              ..color = bColor.withValues(alpha: 0.34 - i * 0.08)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.0,
-          );
-        }
-      case SurvivalBossDiscipline.trickster:
-        for (var i = 0; i < 3; i++) {
-          final phase = elapsed * 2.6 + i * 2.1;
-          final echo =
-              spawnTarget +
-              Offset(cos(phase), sin(phase * 1.2)) * (portalRadius * 0.32);
-          canvas.drawCircle(
-            echo,
-            r * (0.24 - i * 0.03),
-            Paint()
-              ..color = bColor.withValues(alpha: 0.22 - i * 0.05)
-              ..maskFilter = null,
-          );
-        }
-      case SurvivalBossDiscipline.standard:
-        switch (boss.type) {
-          case BossType.charger:
-          case BossType.skirmisher:
-            final a = elapsed * 1.7;
-            final inner =
-                spawnTarget + Offset(cos(a), sin(a)) * (portalRadius * 0.25);
-            final outer =
-                spawnTarget + Offset(cos(a), sin(a)) * (portalRadius * 1.28);
-            canvas.drawLine(
-              inner,
-              outer,
-              Paint()
-                ..color = Colors.white.withValues(alpha: 0.5)
-                ..strokeWidth = 3
-                ..strokeCap = StrokeCap.round,
-            );
-          case BossType.gunner:
-          case BossType.carrier:
-            canvas.drawArc(
-              Rect.fromCircle(center: spawnTarget, radius: portalRadius * 1.08),
-              -pi / 2 + elapsed * 0.15,
-              pi * 1.2,
-              false,
-              Paint()
-                ..color = bColor.withValues(alpha: 0.28)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2.2,
-            );
-          case BossType.bulwark:
-          case BossType.warden:
-            canvas.drawCircle(
-              spawnTarget,
-              portalRadius * 0.78,
-              Paint()
-                ..color = bColor.withValues(alpha: 0.18)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2.6,
-            );
-        }
-    }
   }
 
   canvas.save();
@@ -1063,6 +981,14 @@ void drawSurvivalBoss({
 
   final pal = _bossPalette(boss.template.element, bColor, boss.enraged);
   final form = bossFormFor(boss.type);
+  if (boss.isVenting) {
+    _drawBossVentHeat(
+      canvas,
+      r,
+      (boss.overheatTimer / 1.9).clamp(0.0, 1.0),
+      elapsed,
+    );
+  }
   canvas.save();
   canvas.scale(r);
   paintBossForm(
@@ -1115,23 +1041,12 @@ void drawSurvivalBoss({
   // Venting: planted, overheated and open. This is the window that pays you
   // for closing the distance, so it has to be unmistakable.
   if (boss.isVenting) {
-    final vent = (boss.overheatTimer / 1.9).clamp(0.0, 1.0);
-    canvas.drawCircle(
-      Offset.zero,
-      r * (1.25 + 0.15 * sin(elapsed * 9)),
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3.0
-        ..color = const Color(0xFFFF7043).withValues(alpha: 0.75 * vent),
+    _drawBossVentEmbers(
+      canvas,
+      r,
+      (boss.overheatTimer / 1.9).clamp(0.0, 1.0),
+      elapsed,
     );
-    for (var i = 0; i < 6; i++) {
-      final a = elapsed * 2.2 + i * pi / 3;
-      canvas.drawCircle(
-        Offset(cos(a), sin(a)) * r * 1.05,
-        3.0,
-        Paint()..color = const Color(0xFFFFC078).withValues(alpha: 0.85 * vent),
-      );
-    }
   }
 
   final nameTP = _bossNamePainter(boss.template.name, bColor);
