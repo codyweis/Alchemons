@@ -1,7 +1,12 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/arena_wear.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
+import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void _tick(
@@ -125,5 +130,73 @@ void main() {
     expect(wear.lastTilesBaked, 0);
     expect(wear.lastTilesDrawn, inInclusiveRange(4, 12));
     wear.dispose();
+  });
+
+  testWidgets('a packed crowd stands on one bank of dust, strays on none', (
+    tester,
+  ) async {
+    final game = CosmicSurvivalGame(
+      party: [
+        CosmicPartyMember(
+          instanceId: 'p0',
+          baseId: 'MAN06',
+          displayName: 'Lavamane',
+          family: 'Mane',
+          element: 'Lava',
+          level: 10,
+          slotIndex: 0,
+          statSpeed: 4,
+          statIntelligence: 4,
+          statStrength: 4,
+          statBeauty: 4,
+          staminaBars: 3,
+          staminaMax: 3,
+        ),
+      ],
+      random: Random(3),
+      onGameOver: () {},
+    );
+    game.onGameResize(Vector2(412, 915));
+    await game.onLoad();
+    game.startGame();
+    game.spawner.intermission = true;
+    game.enemies.clear();
+
+    CosmicSurvivalEnemy body(ui.Offset at) => CosmicSurvivalEnemy(
+      position: at,
+      hp: 1e6,
+      maxHp: 1e6,
+      speed: 0,
+      damage: 0,
+      radius: tierRadius(EnemyTier.wisp),
+      tier: EnemyTier.wisp,
+      element: 'Fire',
+      conduct: EnemyConduct.charge,
+      target: CosmicEnemyTarget.orb,
+    );
+    void frame() {
+      game.update(1 / 60);
+      final rec = ui.PictureRecorder();
+      game.render(ui.Canvas(rec));
+      rec.endRecording().dispose();
+    }
+
+    // Strays, each alone in its cell.
+    final near = game.ship.position;
+    for (var i = 0; i < 6; i++) {
+      game.enemies.add(body(near + ui.Offset(-300.0 + i * 120, -200)));
+    }
+    frame();
+    expect(game.debugCrowdCells, 0);
+
+    // Thirty in a knot a few units across.
+    for (var i = 0; i < 30; i++) {
+      game.enemies.add(
+        body(near + ui.Offset(40 + (i % 6) * 5.0, 150 + (i ~/ 6) * 5.0)),
+      );
+    }
+    frame();
+    expect(game.debugCrowdCells, inInclusiveRange(1, 4));
+    game.onRemove();
   });
 }

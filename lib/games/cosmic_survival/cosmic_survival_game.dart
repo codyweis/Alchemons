@@ -22718,6 +22718,58 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     super.onRemove();
   }
 
+  static const _crowdAsh = Color(0xFF9A8F7C);
+
+  /// Cells of dust drawn by the last frame's crowd pass.
+  @visibleForTesting
+  int debugCrowdCells = 0;
+
+  /// The dust a crowd raises: wherever bodies stand thick, one soft bank of
+  /// it under them in the wave's own light, heavier the thicker they stand,
+  /// so a front reads as one mass with an edge and not as separate lights.
+  /// One fill a grid cell in view that holds three bodies or more (a cell is
+  /// [_enemySpatialCellSize] across), centred on the bodies in it, so the
+  /// bank moves with them.
+  void _paintCrowdMass(Canvas canvas, Rect view) {
+    debugCrowdCells = 0;
+    if (_gridEmpty) return;
+    final dust = Color.lerp(
+      _crowdAsh,
+      abilityMaterialTint(elementColor(spawner.waveElement)),
+      0.4,
+    )!;
+    final x0 = max(_enemyCellCoord(view.left - 60) - _gridMinCx, 0);
+    final x1 = min(_enemyCellCoord(view.right + 60) - _gridMinCx, _gridCols - 1);
+    final y0 = max(_enemyCellCoord(view.top - 60) - _gridMinCy, 0);
+    final y1 = min(
+      _enemyCellCoord(view.bottom + 60) - _gridMinCy,
+      _gridRows - 1,
+    );
+    for (var gx = x0; gx <= x1; gx++) {
+      final column = gx * _gridRows;
+      for (var gy = y0; gy <= y1; gy++) {
+        final start = _gridCellStart[column + gy];
+        final n = _gridCellStart[column + gy + 1] - start;
+        if (n < 3) continue;
+        var x = 0.0, y = 0.0;
+        for (var k = start; k < start + n; k++) {
+          final p = _gridItems[k]!.position;
+          x += p.dx;
+          y += p.dy;
+        }
+        final weight = min(n, 20) / 20;
+        vfxSpill(
+          canvas,
+          Offset(x / n, y / n),
+          _enemySpatialCellSize * (0.9 + 0.6 * weight),
+          dust,
+          0.08 + 0.22 * weight,
+        );
+        debugCrowdCells++;
+      }
+    }
+  }
+
   double _treadClock = 0;
 
   /// The wave a resumed run's floor is still to be worn to, or 0.
@@ -23471,6 +23523,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     _wear.paintDrift(canvas, view);
+    _paintCrowdMass(canvas, view);
     final batchSwarm = enemies.length >= _kSwarmBatchThreshold;
     final denseField = enemies.length >= _kDenseFieldThreshold;
     for (final enemy in enemies) {
