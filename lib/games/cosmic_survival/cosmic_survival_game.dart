@@ -62,6 +62,7 @@ import 'package:alchemons/games/cosmic_survival/survival_mastery_pip.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_wing.dart';
 import 'package:alchemons/games/cosmic_survival/survival_suspended_run.dart';
+import 'package:alchemons/games/cosmic/ready_bed_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/arena_art.dart';
 import 'package:alchemons/games/cosmic_survival/arena_wear.dart';
 import 'package:alchemons/games/cosmic/hostile_shot_vfx.dart';
@@ -152,6 +153,26 @@ class CosmicSurvivalCompanion {
     }
     hitFlash = (hitFlash - dt * 4).clamp(0.0, 1.0);
     _flashAfterDecay = hitFlash;
+  }
+
+  /// How ready the special looks on the body, 0 spent .. 1 ready: what the
+  /// grains under it show (ready_bed_vfx.dart). It follows the cooldown as
+  /// it comes back and falls away over a few frames when the cast spends it.
+  double shownReady = 0;
+
+  void tickReady(double dt, double ready) {
+    final rate = ready < shownReady ? 5.0 : 3.0;
+    shownReady += (ready - shownReady) * min(1.0, dt * rate);
+  }
+
+  /// How much of the special is back, 0..1. A creature whose ability is
+  /// always on is always ready.
+  double get specialReadiness {
+    if (isPassiveOnlyCosmicAbility(member.family, member.element)) return 1;
+    final total = effectiveSpecialCooldown;
+    if (total <= 0 || specialCooldown <= 0) return 1;
+    if (!specialCooldown.isFinite) return 0;
+    return (1 - specialCooldown / total).clamp(0.0, 1.0);
   }
 
   double angle;
@@ -3508,6 +3529,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     comp.invincibleTimer = (comp.invincibleTimer - dt).clamp(0, 100);
     comp.stickyTargetLockTimer = (comp.stickyTargetLockTimer - dt).clamp(0, 10);
     comp.tickFlash(dt);
+    comp.tickReady(dt, comp.specialReadiness);
     _companionTickers[slotIndex]?.update(dt);
 
     // Charge state
@@ -24815,9 +24837,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     canvas.save();
     canvas.translate(comp.position.dx, comp.position.dy);
 
-    // Elemental aura: light of the creature's material pooled under it, soft
-    // to its edge (it was a flat disc in the raw element colour).
-    vfxSpill(canvas, Offset.zero, 27, abilityMaterialTint(ec), 0.24);
+    // What it stands on: its material's light and the grains that gather in
+    // it as its special comes back. More of them under a grown creature,
+    // gilt among them under a blessing.
+    drawReadyBed(
+      canvas: canvas,
+      element: comp.member.element,
+      color: ec,
+      ready: comp.shownReady,
+      power: _creaturePower(slotIndex),
+      time: stats.timeElapsed,
+      blessed: comp.blessingTimer > 0,
+      seed: slotIndex.toDouble(),
+    );
     // Low health: ember light gathers under it. Its exact health is on its
     // party case; the field carries no bars.
     _paintLowHealthPool(canvas, Offset.zero, comp.hpPercent);
