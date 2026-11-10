@@ -111,11 +111,12 @@ void main() {
     }
   });
 
-  // An elite is its tier cased in obsidian (2026-11-09): the case and its
-  // shadow take the place of the glass, the glow and the pool of affix light,
-  // so it costs what its tier costs. The one over is the hit flash, which
-  // this test draws and the plain-body test does not (measured: sentinel 12,
-  // phantom 11, brute 8, colossus 11).
+  // An elite is its tier cased in matte black stone (2026-11-09): the case,
+  // its halo and its shadow take the place of the glass, the glow and the
+  // pool of affix light. Up to two over the tier: the hit flash, which this
+  // test draws and the plain-body test does not, and on a phantom or brute
+  // the halo, which replaces nothing there (measured: sentinel 12, phantom
+  // 12, brute 9, colossus 11).
   test('each elite stays inside its tier budget, and draws no blur', () {
     for (final tier in [
       EnemyTier.sentinel,
@@ -154,7 +155,7 @@ void main() {
         }
         expect(
           worst,
-          lessThanOrEqualTo(budget[tier]! + 1),
+          lessThanOrEqualTo(budget[tier]! + 2),
           reason: 'elite $tier ($affix) peaks at $worst draws',
         );
       }

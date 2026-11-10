@@ -343,6 +343,158 @@ void main() {
     );
   }, skip: outDir == null);
 
+  // Every type, a row each, for the labelled roster the user refers to by
+  // code (docs/audits/survival_enemy_pass_2026-11-09/label_roster.py adds
+  // the codes): A wisp; B, C, D the drone's forms; E sentinel; F phantom;
+  // G brute; H colossus; I outbreak core; J the behaviour marks; K elites.
+  // The bosses go on a sheet of their own: M and N the six forms in two
+  // elements, O their states.
+  testWidgets('every type', (tester) async {
+    const cell = 180.0;
+    const els = ['Fire', 'Water', 'Plant', 'Lightning', 'Spirit', 'Dark'];
+    double size(EnemyTier t) => 1.5 * inspect(t);
+    CosmicSurvivalEnemy body(
+      EnemyTier tier,
+      String element, {
+      int form = -1,
+      EnemyTrait? trait,
+      bool core = false,
+      EliteAffix? affix,
+    }) =>
+        CosmicSurvivalEnemy(
+            position: Offset.zero,
+            hp: 100,
+            maxHp: 100,
+            speed: 60,
+            damage: 10,
+            radius: size(tier) * (affix == null ? 1 : 1.3),
+            tier: tier,
+            element: element,
+            conduct: EnemyConduct.charge,
+            trait: trait,
+            isPlagueCore: core,
+            target: CosmicEnemyTarget.orb,
+            isElite: affix != null,
+            eliteAffix: affix,
+          )
+          ..angle = -0.5
+          ..droneForm = form;
+    final rows = <List<CosmicSurvivalEnemy>>[
+      [for (final e in els) body(EnemyTier.wisp, e)],
+      for (var f = 0; f < 3; f++)
+        [for (final e in els) body(EnemyTier.drone, e, form: f)],
+      [for (final e in els) body(EnemyTier.sentinel, e)],
+      [for (final e in els) body(EnemyTier.phantom, e)],
+      [for (final e in els) body(EnemyTier.brute, e)],
+      [for (final e in els) body(EnemyTier.colossus, e)],
+      [for (final e in els) body(EnemyTier.brute, e, core: true)],
+      [
+        body(EnemyTier.sentinel, 'Fire', trait: EnemyTrait.summoner),
+        body(EnemyTier.sentinel, 'Water', trait: EnemyTrait.splitter),
+        body(EnemyTier.sentinel, 'Plant', trait: EnemyTrait.breaker),
+        body(EnemyTier.sentinel, 'Spirit', trait: EnemyTrait.mender),
+        body(EnemyTier.brute, 'Dark', trait: EnemyTrait.breaker),
+        body(EnemyTier.phantom, 'Lightning', trait: EnemyTrait.splitter),
+      ],
+      [
+        body(EnemyTier.sentinel, 'Water', affix: EliteAffix.bulwarked),
+        body(EnemyTier.sentinel, 'Plant', affix: EliteAffix.vampiric),
+        body(EnemyTier.phantom, 'Spirit', affix: EliteAffix.relentless),
+        body(EnemyTier.phantom, 'Ice', affix: EliteAffix.volatile),
+        body(EnemyTier.brute, 'Mud', affix: EliteAffix.overclocked),
+        body(EnemyTier.colossus, 'Poison', affix: EliteAffix.vampiric),
+      ],
+    ];
+    final w = cell * 6, h = cell * rows.length;
+    var rec = ui.PictureRecorder();
+    var c = Canvas(rec);
+    space(c, w, h, seed: 7);
+    for (var r = 0; r < rows.length; r++) {
+      for (var k = 0; k < rows[r].length; k++) {
+        final e = rows[r][k]
+          ..position = Offset(k * cell + cell / 2, r * cell + cell / 2);
+        drawSurvivalEnemy(canvas: c, enemy: e, time: 0.9 + k * 0.29);
+      }
+    }
+    await save(tester, 'every_type', rec.endRecording(), w.round(), h.round());
+
+    const bcell = 260.0;
+    rec = ui.PictureRecorder();
+    c = Canvas(rec);
+    space(c, bcell * 6, bcell * 3, seed: 8);
+    CosmicBoss boss(
+      int k,
+      int row,
+      String element, {
+      BossType? type,
+      bool charging = false,
+      bool shield = false,
+    }) => CosmicBoss(
+      position: Offset(k * bcell + bcell / 2, row * bcell + bcell / 2),
+      name: '',
+      element: element,
+      level: 3,
+      radius: 30,
+      maxHealth: 1000,
+      speed: 60,
+      forcedType: type ?? BossType.values[k],
+      charging: charging,
+      shieldUp: shield,
+      shieldHealth: shield ? 1e9 : 0,
+    )..angle = -0.4;
+    for (var k = 0; k < BossType.values.length; k++) {
+      drawOpenWorldBoss(
+        canvas: c,
+        boss: boss(k, 0, 'Fire'),
+        time: 1.1 + k * 0.4,
+      );
+      drawOpenWorldBoss(
+        canvas: c,
+        boss: boss(k, 1, 'Crystal'),
+        time: 1.1 + k * 0.4,
+      );
+    }
+    drawOpenWorldBoss(
+      canvas: c,
+      boss: boss(0, 2, 'Lava', type: BossType.charger, charging: true),
+      time: 1.3,
+    );
+    drawOpenWorldBoss(
+      canvas: c,
+      boss: boss(1, 2, 'Ice', type: BossType.bulwark, shield: true),
+      time: 1.3,
+    );
+    drawOpenWorldBoss(
+      canvas: c,
+      boss: boss(2, 2, 'Plant', type: BossType.warden)..enraged = true,
+      time: 1.3,
+    );
+    drawSurvivalBoss(
+      canvas: c,
+      boss: SurvivalBoss(
+        template: kBossTemplates.first,
+        type: BossType.gunner,
+        discipline: SurvivalBossDiscipline.conductor,
+        level: 5,
+        position: const Offset(3 * bcell + bcell / 2, 2 * bcell + bcell / 2),
+        hp: 640,
+        maxHp: 1000,
+        speed: 70,
+        baseSpeed: 70,
+        radius: 30,
+        color: elementColor('Dark'),
+      ),
+      time: 1.3,
+    );
+    await save(
+      tester,
+      'every_boss',
+      rec.endRecording(),
+      (bcell * 6).round(),
+      (bcell * 3).round(),
+    );
+  }, skip: outDir == null);
+
   testWidgets('bosses', (tester) async {
     const cell = 300.0;
     const elements = ['Fire', 'Water', 'Crystal', 'Dark'];

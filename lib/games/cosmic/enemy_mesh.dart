@@ -401,6 +401,7 @@ class MeshBatch {
     double heatGlow = 0,
     double rimGlow = 0,
     double dark = 0,
+    double gloss = 1,
   }) {
     final m = rot.m;
     final nv = mesh.vertexCount;
@@ -466,12 +467,12 @@ class MeshBatch {
           max(0.0, (nx * _hx + ny * _hy + nz * _hz0) / _hl),
         );
         var c = _mix(ink, face, 0.08 + lit * lam);
-        c = _mix(c, rim, fres * 0.5);
+        c = _mix(c, rim, fres * 0.5 * gloss);
         // Obsidian: its own light catching the edge as the face turns away.
         if (rimGlow > 0) {
           c = _mix(c, essence, min(0.9, fres * fres * rimGlow * 2));
         }
-        c = _mix(c, hot, dark > 0 ? spec * spec * 0.9 : spec * 0.85);
+        c = _mix(c, hot, (dark > 0 ? spec * spec * 0.9 : spec * 0.85) * gloss);
         if (fire > 0) {
           final dx = gx - (ox + cx), dy = gy - (oy + cy), dz = gz - (oz + cz);
           final d = sqrt(dx * dx + dy * dy + dz * dz);

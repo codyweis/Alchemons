@@ -756,7 +756,6 @@ void paintPhantomBody(
       heading: limb,
       scale: 0.9,
       alpha: 0.35 + 0.65 * there,
-      eye: false,
     );
   }
   c.restore();
@@ -831,7 +830,14 @@ void paintBruteBody(
     facing,
   );
   final open = charge > 0.02;
-  // An elite's crust is blacker, its affix burning through the same veins.
+  // An elite's crust is matte black, its affix burning through the same
+  // veins and haloing it from behind.
+  if (cased != null) {
+    c.save();
+    c.rotate(facing);
+    _backlight(c, cased, 1.3, 1.02);
+    c.restore();
+  }
   meshBatch
     ..add(
       _bombs[which],
@@ -841,8 +847,9 @@ void paintBruteBody(
       explode: 0.12 * charge,
       heat: 0.08 * charge,
       seamAlpha: open ? charge : 0,
-      lit: cased == null ? 0.3 : 0.2,
-      rimGlow: 0.8,
+      lit: cased == null ? 0.3 : 0.12,
+      rimGlow: cased == null ? 0.8 : 0,
+      gloss: cased == null ? 1 : 0,
       dark: cased == null ? 0.8 : 0.92,
       vertexHeat: _bombVeins[which],
       heatGlow: 0.8 + 0.2 * sin(time * 1.7 + seed) + 0.4 * charge,
@@ -931,8 +938,8 @@ void paintColossusBody(
   double flash = 0,
   EnemyPalette? cased,
 }) {
-  // An elite's stones are blacker, round a fire of its affix; the embers
-  // boiling off it are still its element.
+  // An elite's stones are matte black, round a fire of its affix; the
+  // embers boiling off it are still its element.
   final fire = cased ?? pal;
   if (cased == null) _circle(c, pal.glow, 2.2 + 0.3 * charge);
   final ring = 1.02 * (1 + contraction);
@@ -968,9 +975,10 @@ void paintColossusBody(
         inset: 0,
         seamAlpha: 0,
         lit: cased == null ? 0.3 : 0.2,
-        rimGlow: 0.6,
+        rimGlow: cased == null ? 0.6 : 0,
+        gloss: cased == null ? 1 : 0,
         dark: cased == null ? 0.75 : 0.88,
-        fire: (cased == null ? 2.6 : 1.7) + 1.6 * charge,
+        fire: (cased == null ? 2.6 : 1.0) + 1.6 * charge,
         heat: 0.1 * charge,
       );
     }
@@ -995,16 +1003,17 @@ void paintColossusBody(
 
 // ── elites ──────────────────────────────────────────────────────────────────
 //
-// An elite is its tier cased in obsidian, with its affix's light shut inside
-// the case. The crowd round it is made of light — sparks, glass, eclipses —
-// so the elite reads by being the dark thing in it: a black faceted stone
-// where a sentinel's glass would be, a stone across a phantom's sun, a
-// blacker crust on a brute, blacker stones round a colossus's fire. Its
-// affix shows only as light: veins burning through the case, the glint
-// where it looks, the fire it stands round. What it sheds — a sentinel's
-// ring, a phantom's motes, a heavy's embers — is still its element, so the
-// player can read both. Nothing pools round it; it stands in its own
-// shadow instead (drawEnemy).
+// An elite is its tier cased in matte black stone, with its affix's light
+// shut inside the case. The crowd round it is made of light — sparks, glass,
+// eclipses — so the elite reads by being the dark thing in it: a black stone
+// where a sentinel's glass would be, a stone across a phantom's sun, a black
+// crust on a brute, black stones round a colossus's fire. Its affix shows
+// only as light: veins burning through the case, a soft halo round it from
+// behind, the fire it stands round. Nothing on the case shines: a faceted
+// stone with a lit rim and glints read as black glass. What it sheds — a
+// sentinel's ring, a phantom's motes, a heavy's embers — is still its
+// element, so the player can read both. Nothing pools round it; it stands
+// in its own shadow instead (drawEnemy).
 
 final List<FacetMesh> _eliteStones = [
   for (var k = 0; k < 3; k++)
@@ -1021,9 +1030,9 @@ final List<Float64List> _eliteStoneVeins = [
   for (var k = 0; k < 3; k++) _eliteStones[k].veins(hot: 3, seed: 5 + k * 2.3),
 ];
 
-/// The case: a black stone turning slowly, its affix burning through it at
-/// a few veins, brighter as the body winds up, and — when [eye] — a glint
-/// of the light inside where it looks. Unit space.
+/// The case: a matte black stone turning slowly in a halo of its affix's
+/// light, the light burning through it at a few veins, brighter as the body
+/// winds up. Unit space.
 void _paintCase(
   Canvas c,
   EnemyPalette cased, {
@@ -1033,8 +1042,8 @@ void _paintCase(
   double charge = 0,
   double scale = 1,
   double alpha = 1,
-  bool eye = true,
 }) {
+  _backlight(c, cased, scale * 1.08, scale * 1.08, alpha);
   final which = (seed * 7).floor() % _eliteStones.length;
   _rot.euler(
     time * 0.3 + seed,
@@ -1049,16 +1058,28 @@ void _paintCase(
       scale: scale,
       seamAlpha: 0,
       inset: 0,
-      lit: 0.12,
-      rimGlow: 0.75,
+      lit: 0.07,
+      rimGlow: 0,
+      gloss: 0,
       dark: 0.92,
       alpha: alpha,
       vertexHeat: _eliteStoneVeins[which],
       heatGlow: 0.55 + 0.15 * sin(time * 1.9 + seed) + 0.5 * charge,
     )
     ..flush(c);
-  if (eye) {
-    final look = Offset(cos(heading), sin(heading)) * 0.42 * scale;
-    _sparkAt(c, cased, look, (0.2 + 0.08 * charge) * scale, alpha);
-  }
+}
+
+/// The affix's light behind a dark body, haloing its edge softly. Unit
+/// space, [sx] by [sy] across.
+void _backlight(
+  Canvas c,
+  EnemyPalette cased,
+  double sx,
+  double sy, [
+  double alpha = 1,
+]) {
+  c.save();
+  c.scale(sx, sy);
+  _circle(c, cased.corona, 1.5, 1.4 * alpha);
+  c.restore();
 }
