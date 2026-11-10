@@ -10129,6 +10129,29 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
     enemy.hp -= damage;
+    // A heavy body sheds a little of itself off the face that was struck:
+    // a few of its own grains, at most once a flash, so a brute under fire
+    // is seen to be coming apart before it does.
+    if (damage > 0 &&
+        enemy.hp > 0 &&
+        enemy.hitFlash < 0.35 &&
+        _isHeavyBody(enemy)) {
+      final from =
+          (sourceSlotIndex == null
+              ? null
+              : activeCompanions[sourceSlotIndex]?.position) ??
+          (fromShip ? ship.position : orb.position);
+      final away = enemy.position - from;
+      final d = away.distance;
+      final dir = d > 1 ? away / d : const Offset(0, -1);
+      _deaths.add(
+        at: enemy.position - dir * (enemy.radius * 0.7),
+        velocity: enemy.knockbackVelocity - dir * 46,
+        radius: enemy.radius * 0.3,
+        tier: EnemyTier.wisp,
+        palette: enemyPalette(enemy.element, enemy.visualColor),
+      );
+    }
     enemy.hitFlash = 1.0;
 
     if (powerUps.hasBerserker && orb.hpPercent < 0.3) {
