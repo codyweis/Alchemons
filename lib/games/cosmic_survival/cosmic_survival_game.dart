@@ -23599,6 +23599,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
+      // Elites stand over the crowd, their shadow darkening it round them.
+      if (enemy.isElite) {
+        _elitesOnTop.add(enemy);
+        continue;
+      }
       if (batchSwarm &&
           _swarmBatch.add(enemy, stats.timeElapsed, dense: denseField)) {
         continue;
@@ -23606,6 +23611,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _renderEnemy(canvas, enemy);
     }
     _swarmBatch.flush(canvas, stats.timeElapsed);
+    for (final enemy in _elitesOnTop) {
+      _renderEnemy(canvas, enemy);
+    }
+    _elitesOnTop.clear();
     // The fallen, coming apart over the floor and under everything in flight.
     _deaths.paint(canvas, view, _vfxGrains);
     // Menders: the grains they gather, and the heal flowing out of them.
@@ -24669,6 +24678,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// 3,000: the detailed renderer was 40-48% of the UI thread.
   static const _kDenseFieldThreshold = 1200;
   final SurvivalSwarmBatch _swarmBatch = SurvivalSwarmBatch();
+  final List<CosmicSurvivalEnemy> _elitesOnTop = [];
 
   void _renderEnemy(Canvas canvas, CosmicSurvivalEnemy enemy) {
     drawSurvivalEnemy(

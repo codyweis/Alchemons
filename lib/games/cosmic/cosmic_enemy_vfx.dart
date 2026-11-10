@@ -538,6 +538,15 @@ class SurvivalSwarmBatch {
   }
 }
 
+/// The light inside an elite's case, one color per affix.
+Color eliteAffixLight(EliteAffix affix) => switch (affix) {
+  EliteAffix.bulwarked => const Color(0xFF7DD3FC),
+  EliteAffix.volatile => const Color(0xFFFFA34A),
+  EliteAffix.vampiric => const Color(0xFFFB7185),
+  EliteAffix.overclocked => const Color(0xFFFDE047),
+  EliteAffix.relentless => const Color(0xFFA78BFA),
+};
+
 /// Survival's entry point. [simplifySwarm] is kept for the call site; every
 /// body now draws through the same cheap unit-space painters, so there is
 /// no separate crowd silhouette to fall back to.
@@ -571,14 +580,13 @@ void drawEnemy({
   if (steering != null && steering.showTelegraphRing) {
     _drawDiveTelegraph(canvas, enemy.position, enemy.radius, steering, eColor);
   }
-  final affixColor = switch (enemy.eliteAffix) {
-    EliteAffix.bulwarked => const Color(0xFF7DD3FC),
-    EliteAffix.volatile => const Color(0xFFFFA34A),
-    EliteAffix.vampiric => const Color(0xFFFB7185),
-    EliteAffix.overclocked => const Color(0xFFFDE047),
-    EliteAffix.relentless => const Color(0xFFA78BFA),
-    null => eColor,
-  };
+  // An elite is cased in obsidian with its affix's light inside
+  // (enemy_body_art.dart). The planet dungeons' elites carry no affix and
+  // draw as their tier.
+  final affix = enemy.isElite ? enemy.eliteAffix : null;
+  final cased = affix == null
+      ? null
+      : enemyPalette(enemy.element, eliteAffixLight(affix));
   final r = enemy.radius;
   final elapsed = time;
   final variantScale = enemy.squash;
@@ -599,9 +607,10 @@ void drawEnemy({
   final commit = enemy.actionPhase == EnemyActionPhase.commit ? 1 - ap : 0.0;
   final recover = enemy.actionPhase == EnemyActionPhase.recover ? 1 - ap : 0.0;
 
-  if (enemy.isElite && enemy.eliteAffix != null) {
-    // The body stands in a pool of its affix's light — an aura, not a hoop.
-    vfxSpill(canvas, Offset.zero, r * 2.6, affixColor, 0.42);
+  if (cased != null) {
+    // It stands in its own shadow: the floor and the crowd's light go dark
+    // round it, so the dark thing in a crowd of light shows from far off.
+    vfxSpill(canvas, Offset.zero, r * 2.5, const Color(0xFF000000), 0.6);
   }
 
   canvas.save();
@@ -640,6 +649,7 @@ void drawEnemy({
         charge: windUp,
         release: max(commit, recover * 0.6),
         flash: enemy.hitFlash,
+        cased: cased,
       );
     case EnemyTier.phantom:
       paintPhantomBody(
@@ -651,15 +661,23 @@ void drawEnemy({
         fade: enemy.actionPhase == EnemyActionPhase.commit ? 1.0 : windUp,
         exposed: recover,
         flash: enemy.hitFlash,
+        cased: cased,
       );
     case EnemyTier.brute:
       if (enemy.isPlagueCore) {
         _drawPlagueCore(canvas, pal, elapsed, seed, enemy.hitFlash);
       } else {
-        _drawHeavyBody(canvas, enemy, pal, elapsed, colossus: false);
+        _drawHeavyBody(
+          canvas,
+          enemy,
+          pal,
+          elapsed,
+          colossus: false,
+          cased: cased,
+        );
       }
     case EnemyTier.colossus:
-      _drawHeavyBody(canvas, enemy, pal, elapsed, colossus: true);
+      _drawHeavyBody(canvas, enemy, pal, elapsed, colossus: true, cased: cased);
   }
   canvas.restore();
 
@@ -805,6 +823,7 @@ void _drawHeavyBody(
   EnemyPalette pal,
   double time, {
   required bool colossus,
+  EnemyPalette? cased,
 }) {
   final p = enemy.actionProgress.clamp(0.0, 1.0);
   final charge = switch (enemy.actionPhase) {
@@ -824,6 +843,7 @@ void _drawHeavyBody(
       charge: charge,
       recoil: recoil,
       flash: enemy.hitFlash,
+      cased: cased,
     );
   } else {
     final breath = sin(time * 1.3 + enemy.seed);
@@ -838,6 +858,7 @@ void _drawHeavyBody(
           : 0.22 * recoil + 0.03 * breath,
       charge: charge,
       flash: enemy.hitFlash,
+      cased: cased,
     );
   }
 }

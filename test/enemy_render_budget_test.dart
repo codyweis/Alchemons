@@ -111,6 +111,56 @@ void main() {
     }
   });
 
+  // An elite is its tier cased in obsidian (2026-11-09): the case and its
+  // shadow take the place of the glass, the glow and the pool of affix light,
+  // so it costs what its tier costs. The one over is the hit flash, which
+  // this test draws and the plain-body test does not (measured: sentinel 12,
+  // phantom 11, brute 8, colossus 11).
+  test('each elite stays inside its tier budget, and draws no blur', () {
+    for (final tier in [
+      EnemyTier.sentinel,
+      EnemyTier.phantom,
+      EnemyTier.brute,
+      EnemyTier.colossus,
+    ]) {
+      for (final affix in EliteAffix.values) {
+        var worst = 0;
+        for (var t = 0.0; t < 20; t += 0.37) {
+          for (final phase in [null, ...EnemyActionPhase.values]) {
+            final e = CosmicSurvivalEnemy(
+              position: const Offset(100, 100),
+              hp: 100,
+              maxHp: 100,
+              speed: 60,
+              damage: 10,
+              radius: tierRadius(tier) * 1.3,
+              tier: tier,
+              element: 'Water',
+              conduct: EnemyConduct.charge,
+              target: CosmicEnemyTarget.orb,
+              isElite: true,
+              eliteAffix: affix,
+            )..hitFlash = phase == null ? 0 : 0.6;
+            if (phase != null) {
+              e.action
+                ..phase = phase
+                ..timer = 0.1;
+            }
+            final c = _CensusCanvas();
+            drawSurvivalEnemy(canvas: c as Canvas, enemy: e, time: t);
+            expect(c.blurredDraws, 0, reason: 'elite $tier $affix blurs');
+            if (c.draws > worst) worst = c.draws;
+          }
+        }
+        expect(
+          worst,
+          lessThanOrEqualTo(budget[tier]! + 1),
+          reason: 'elite $tier ($affix) peaks at $worst draws',
+        );
+      }
+    }
+  });
+
   test('bosses draw no blur and stay bounded', () {
     for (final type in BossType.values) {
       for (final enraged in [false, true]) {

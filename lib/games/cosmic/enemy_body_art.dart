@@ -616,8 +616,10 @@ void paintSentinelBody(
   double charge = 0,
   double release = 0,
   double flash = 0,
+  EnemyPalette? cased,
 }) {
-  _circle(c, pal.glow, 2.3 + 0.3 * charge);
+  // An elite pools no light of its own (see the elites, below).
+  if (cased == null) _circle(c, pal.glow, 2.3 + 0.3 * charge);
   final tilt = -0.5 + 0.35 * sin(seed * 3.1);
   // Winding up, the ring gathers in and quickens; firing, it is flung out.
   final spread = 1 - 0.3 * charge + 0.35 * release;
@@ -639,17 +641,31 @@ void paintSentinelBody(
   _grainDraw(c, 1, 0.13, pal.grainLit);
   c.restore();
 
-  _circle(c, pal.orb, 1);
   // The light inside leans toward where the sentinel is facing, and
   // breathes.
   final breathe = 1 + 0.08 * sin(time * 2.1 + seed) + 0.25 * charge;
   final look = Offset(cos(heading), sin(heading)) * 0.2;
-  c.save();
-  c.translate(look.dx, look.dy);
-  c.scale(0.52 * breathe);
-  _circle(c, pal.iris, 1, 0.85);
-  c.restore();
-  _sparkAt(c, pal, look * 1.25, 0.22 * breathe);
+  if (cased != null) {
+    // Smaller than the glass it replaces, so the ring still says sentinel
+    // and the stone is not taken for a brute.
+    _paintCase(
+      c,
+      cased,
+      time: time,
+      seed: seed,
+      heading: heading,
+      charge: charge,
+      scale: 0.86,
+    );
+  } else {
+    _circle(c, pal.orb, 1);
+    c.save();
+    c.translate(look.dx, look.dy);
+    c.scale(0.52 * breathe);
+    _circle(c, pal.iris, 1, 0.85);
+    c.restore();
+    _sparkAt(c, pal, look * 1.25, 0.22 * breathe);
+  }
 
   c.save();
   c.rotate(tilt);
@@ -678,13 +694,16 @@ void paintPhantomBody(
   double fade = 0,
   double exposed = 0,
   double flash = 0,
+  EnemyPalette? cased,
 }) {
   // [fade]: blinking out, the limb dims and races. [exposed]: back and
   // solid, the whole limb lit — the window to hit it.
   final phase = time * (1.5 + 5 * fade) + seed * 2;
   final breathe = 1.0 + 0.06 * sin(phase) + 0.1 * fade;
   final there = 1 - 0.75 * fade;
-  _circle(c, pal.glow, 2.2, there);
+  // An elite's eclipse is a stone of its case across its affix's light.
+  final sun = cased ?? pal;
+  if (cased == null) _circle(c, pal.glow, 2.2, there);
   c.save();
   c.scale(breathe);
 
@@ -704,29 +723,46 @@ void paintPhantomBody(
   c.save();
   c.rotate(limb);
   c.translate(0.12 * (1 - exposed), 0);
-  _circle(c, pal.corona, 1.5, there * (1 + 0.8 * exposed));
+  _circle(c, sun.corona, 1.5, there * (1 + 0.8 * exposed));
   c.restore();
 
-  _circle(c, pal.hollow, 0.9, 0.35 + 0.65 * there);
+  if (cased == null) _circle(c, pal.hollow, 0.9, 0.35 + 0.65 * there);
   c.save();
   c.rotate(limb);
+  // Behind an elite's stone the limbs burn a little wider, so their light
+  // shows past its broken edge.
+  if (cased != null) c.scale(1.1);
   _fill
     ..shader = null
     ..color = Color.lerp(
-      pal.essence,
-      pal.hot,
+      sun.essence,
+      sun.hot,
       0.45,
     )!.withValues(alpha: (0.78 + 0.18 * sin(phase * 0.7)) * there);
   c.drawPath(_crescentWide, _fill);
   c.rotate(pi + 0.6 * sin(phase * 0.5) * (1 - exposed));
-  _fill.color = Color.lerp(pal.essence, pal.hot, 0.45 * exposed)!.withValues(
+  _fill.color = Color.lerp(sun.essence, sun.hot, 0.45 * exposed)!.withValues(
     alpha: (0.22 + 0.14 * sin(phase * 0.9 + 1) + 0.6 * exposed) * there,
   );
   // Exposed, the answering limb burns as broad as the first.
   c.drawPath(exposed > 0.3 ? _crescentWide : _crescentThin, _fill);
   c.restore();
+  if (cased != null) {
+    _paintCase(
+      c,
+      cased,
+      time: time,
+      seed: seed,
+      heading: limb,
+      scale: 0.9,
+      alpha: 0.35 + 0.65 * there,
+      eye: false,
+    );
+  }
   c.restore();
-  _sparkAt(c, pal, Offset.zero, 0.26, 0.45 + 0.2 * sin(phase * 1.3));
+  if (cased == null) {
+    _sparkAt(c, pal, Offset.zero, 0.26, 0.45 + 0.2 * sin(phase * 1.3));
+  }
   _hitFlash(c, flash, 1.05);
 }
 
@@ -764,8 +800,9 @@ void paintBruteBody(
   double charge = 0,
   double recoil = 0,
   double flash = 0,
+  EnemyPalette? cased,
 }) {
-  _circle(c, pal.glow, 2.0 + 0.4 * charge);
+  if (cased == null) _circle(c, pal.glow, 2.0 + 0.4 * charge);
   final back = Offset(cos(facing), sin(facing)) * (-recoil * 0.13);
   c.save();
   c.translate(back.dx, back.dy);
@@ -794,18 +831,19 @@ void paintBruteBody(
     facing,
   );
   final open = charge > 0.02;
+  // An elite's crust is blacker, its affix burning through the same veins.
   meshBatch
     ..add(
       _bombs[which],
       _rot,
-      pal,
+      cased ?? pal,
       inset: open ? 0.05 + 0.1 * charge : 0,
       explode: 0.12 * charge,
       heat: 0.08 * charge,
       seamAlpha: open ? charge : 0,
-      lit: 0.3,
+      lit: cased == null ? 0.3 : 0.2,
       rimGlow: 0.8,
-      dark: 0.8,
+      dark: cased == null ? 0.8 : 0.92,
       vertexHeat: _bombVeins[which],
       heatGlow: 0.8 + 0.2 * sin(time * 1.7 + seed) + 0.4 * charge,
     )
@@ -891,8 +929,12 @@ void paintColossusBody(
   double contraction = 0,
   double charge = 0,
   double flash = 0,
+  EnemyPalette? cased,
 }) {
-  _circle(c, pal.glow, 2.2 + 0.3 * charge);
+  // An elite's stones are blacker, round a fire of its affix; the embers
+  // boiling off it are still its element.
+  final fire = cased ?? pal;
+  if (cased == null) _circle(c, pal.glow, 2.2 + 0.3 * charge);
   final ring = 1.02 * (1 + contraction);
   final spin = turn + time * 0.16 + seed;
   final t = _ringTilt.m;
@@ -919,16 +961,16 @@ void paintColossusBody(
       meshBatch.add(
         _stones[k],
         _rot,
-        pal,
+        fire,
         ox: x,
         oy: y,
         oz: z,
         inset: 0,
         seamAlpha: 0,
-        lit: 0.3,
+        lit: cased == null ? 0.3 : 0.2,
         rimGlow: 0.6,
-        dark: 0.75,
-        fire: 2.6 + 1.6 * charge,
+        dark: cased == null ? 0.75 : 0.88,
+        fire: (cased == null ? 2.6 : 1.7) + 1.6 * charge,
         heat: 0.1 * charge,
       );
     }
@@ -945,8 +987,78 @@ void paintColossusBody(
     rate: 1 + charge,
     seed: seed,
   );
-  _sparkAt(c, pal, Offset.zero, 0.7 + 0.25 * charge);
-  _sparkAt(c, pal, Offset.zero, 0.3, 0.9);
+  _sparkAt(c, fire, Offset.zero, 0.7 + 0.25 * charge);
+  _sparkAt(c, fire, Offset.zero, 0.3, 0.9);
   stones(true);
   _hitFlash(c, flash, 1.2);
+}
+
+// ── elites ──────────────────────────────────────────────────────────────────
+//
+// An elite is its tier cased in obsidian, with its affix's light shut inside
+// the case. The crowd round it is made of light — sparks, glass, eclipses —
+// so the elite reads by being the dark thing in it: a black faceted stone
+// where a sentinel's glass would be, a stone across a phantom's sun, a
+// blacker crust on a brute, blacker stones round a colossus's fire. Its
+// affix shows only as light: veins burning through the case, the glint
+// where it looks, the fire it stands round. What it sheds — a sentinel's
+// ring, a phantom's motes, a heavy's embers — is still its element, so the
+// player can read both. Nothing pools round it; it stands in its own
+// shadow instead (drawEnemy).
+
+final List<FacetMesh> _eliteStones = [
+  for (var k = 0; k < 3; k++)
+    FacetMesh.rock(
+      sx: 1.04,
+      sy: 0.94,
+      sz: 0.98,
+      jitter: 0.2,
+      seed: 17 + k * 5.1,
+      subdivide: true,
+    ),
+];
+final List<Float64List> _eliteStoneVeins = [
+  for (var k = 0; k < 3; k++) _eliteStones[k].veins(hot: 3, seed: 5 + k * 2.3),
+];
+
+/// The case: a black stone turning slowly, its affix burning through it at
+/// a few veins, brighter as the body winds up, and — when [eye] — a glint
+/// of the light inside where it looks. Unit space.
+void _paintCase(
+  Canvas c,
+  EnemyPalette cased, {
+  required double time,
+  required double seed,
+  required double heading,
+  double charge = 0,
+  double scale = 1,
+  double alpha = 1,
+  bool eye = true,
+}) {
+  final which = (seed * 7).floor() % _eliteStones.length;
+  _rot.euler(
+    time * 0.3 + seed,
+    0.3 * sin(time * 0.37 + seed),
+    heading * 0.3 + seed,
+  );
+  meshBatch
+    ..add(
+      _eliteStones[which],
+      _rot,
+      cased,
+      scale: scale,
+      seamAlpha: 0,
+      inset: 0,
+      lit: 0.12,
+      rimGlow: 0.75,
+      dark: 0.92,
+      alpha: alpha,
+      vertexHeat: _eliteStoneVeins[which],
+      heatGlow: 0.55 + 0.15 * sin(time * 1.9 + seed) + 0.5 * charge,
+    )
+    ..flush(c);
+  if (eye) {
+    final look = Offset(cos(heading), sin(heading)) * 0.42 * scale;
+    _sparkAt(c, cased, look, (0.2 + 0.08 * charge) * scale, alpha);
+  }
 }

@@ -174,6 +174,7 @@ void main() {
     int brutes = 3,
     int colossi = 1,
     List<String> mix = const ['Fire', 'Poison', 'Ice'],
+    List<(EnemyTier, String, EliteAffix)> elites = const [],
   }) async {
     const w = 1080.0, h = 1400.0;
     const scale = 0.595 * 2.6;
@@ -206,6 +207,23 @@ void main() {
     scatter(EnemyTier.phantom, phantoms, 120, 420);
     scatter(EnemyTier.brute, brutes, 150, 360);
     scatter(EnemyTier.colossus, colossi, 220, 300);
+    // Elites stand in the crowd at their 1.3x, in their own element, drawn
+    // over it as the game draws them.
+    final champions = <CosmicSurvivalEnemy>[];
+    for (final (tier, element, affix) in elites) {
+      final a = rng.nextDouble() * 2 * pi;
+      final p = Offset(cos(a), sin(a)) * (160 + rng.nextDouble() * 240);
+      champions.add(
+        make(
+          tier,
+          element,
+          radius: tierRadius(tier) * 1.3,
+          angle: atan2(-p.dy, -p.dx),
+          elite: true,
+          affix: affix,
+        )..position = p,
+      );
+    }
 
     if (atlas) await tester.runAsync(ensureSurvivalSwarmAtlas);
     final batch = SurvivalSwarmBatch();
@@ -217,6 +235,9 @@ void main() {
       await tester.runAsync(() async {
         batch.flush(c, 1.3);
       });
+    }
+    for (final b in champions) {
+      drawSurvivalEnemy(canvas: c, enemy: b, time: 1.3);
     }
     c.restore();
     await save(tester, name, rec.endRecording(), w.round(), h.round());
@@ -246,6 +267,79 @@ void main() {
       brutes: 6,
       colossi: 2,
       mix: const ['Fire', 'Dark', 'Lightning'],
+    );
+  }, skip: outDir == null);
+
+  // The elite tier: each tier an elite can be, plain first and then under
+  // each affix, at 1.3x the inspection size; then the same through an
+  // attack.
+  testWidgets('elites', (tester) async {
+    const cell = 170.0;
+    const tiers = [
+      (EnemyTier.sentinel, 'Water'),
+      (EnemyTier.phantom, 'Spirit'),
+      (EnemyTier.brute, 'Fire'),
+      (EnemyTier.colossus, 'Earth'),
+    ];
+    const affixes = [null, ...EliteAffix.values];
+    final w = cell * affixes.length;
+    final h = cell * tiers.length * 2;
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    space(c, w, h);
+    for (var pass = 0; pass < 2; pass++) {
+      for (var row = 0; row < tiers.length; row++) {
+        final (tier, element) = tiers[row];
+        for (var col = 0; col < affixes.length; col++) {
+          final affix = affixes[col];
+          final e =
+              make(
+                  tier,
+                  element,
+                  radius: inspect(tier) * (affix == null ? 1 : 1.3),
+                  elite: affix != null,
+                  affix: affix,
+                )
+                ..position = Offset(
+                  col * cell + cell / 2,
+                  (pass * tiers.length + row) * cell + cell / 2,
+                );
+          if (pass == 1 && kEnemyActions.containsKey(tier)) {
+            final def = kEnemyActions[tier]!;
+            e.action
+              ..phase = EnemyActionPhase.windUp
+              ..timer = def.windUp * 0.15
+              ..aimAngle = -0.5;
+          }
+          drawSurvivalEnemy(canvas: c, enemy: e, time: 0.8 + col * 0.21);
+        }
+      }
+    }
+    await save(tester, 'elites', rec.endRecording(), w.round(), h.round());
+  }, skip: outDir == null);
+
+  testWidgets('field, elites in a horde', (tester) async {
+    await field(
+      tester,
+      'field_elites',
+      atlas: true,
+      wisps: 600,
+      drones: 220,
+      sentinels: 24,
+      phantoms: 16,
+      brutes: 5,
+      colossi: 1,
+      mix: const ['Fire', 'Dark', 'Lightning'],
+      elites: const [
+        (EnemyTier.sentinel, 'Water', EliteAffix.bulwarked),
+        (EnemyTier.sentinel, 'Plant', EliteAffix.vampiric),
+        (EnemyTier.phantom, 'Spirit', EliteAffix.relentless),
+        (EnemyTier.phantom, 'Ice', EliteAffix.overclocked),
+        (EnemyTier.brute, 'Mud', EliteAffix.volatile),
+        (EnemyTier.brute, 'Crystal', EliteAffix.bulwarked),
+        (EnemyTier.colossus, 'Poison', EliteAffix.vampiric),
+        (EnemyTier.sentinel, 'Fire', EliteAffix.overclocked),
+      ],
     );
   }, skip: outDir == null);
 
