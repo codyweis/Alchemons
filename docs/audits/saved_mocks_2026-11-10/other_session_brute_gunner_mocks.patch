@@ -1,0 +1,486 @@
+diff --git a/lib/games/cosmic/boss_forms.dart b/lib/games/cosmic/boss_forms.dart
+index 50f91230..d15ae7d7 100644
+--- a/lib/games/cosmic/boss_forms.dart
++++ b/lib/games/cosmic/boss_forms.dart
+@@ -67,7 +67,14 @@ void paintBossForm(
+     case BossForm.comet:
+       _paintComet(c, pal, time, seed, heading, charge, spin, reduceGlows);
+     case BossForm.singularity:
+-      _paintSingularity(c, pal, time, seed, spin, reduceGlows);
++      switch (debugGunnerLook) {
++        case 1:
++          _paintBinary(c, pal, time, seed, spin, reduceGlows);
++        case 2:
++          _paintPulsar(c, pal, time, seed, spin, reduceGlows);
++        default:
++          _paintSingularity(c, pal, time, seed, spin, reduceGlows);
++      }
+     case BossForm.ouroboros:
+       _paintOuroboros(c, pal, time, seed, spin, reduceGlows);
+     case BossForm.spire:
+@@ -285,6 +292,168 @@ void _paintSingularity(
+   c.restore();
+ }
+ 
++// MOCK (2026-11-10): the gunner's form, to judge. 0 = the Singularity;
++// 1 the Binary; 2 the Pulsar.
++int debugGunnerLook = 0;
++
++/// Matter pulled from the big star to the small: (phase, lateral, rate).
++final List<(double, double, double)> _streamGrains = () {
++  final rng = Random(81);
++  return [
++    for (var i = 0; i < 240; i++)
++      (
++        rng.nextDouble(),
++        rng.nextDouble() + rng.nextDouble() - 1,
++        0.75 + rng.nextDouble() * 0.5,
++      ),
++  ];
++}();
++
++/// The big star's boiling surface: (angle, lift, rate).
++final List<(double, double, double)> _donorMotes = () {
++  final rng = Random(82);
++  return [
++    for (var i = 0; i < 90; i++)
++      (
++        rng.nextDouble() * 2 * pi,
++        rng.nextDouble(),
++        0.3 + rng.nextDouble() * 0.4,
++      ),
++  ];
++}();
++
++void _paintBinary(
++  Canvas c,
++  EnemyPalette pal,
++  double time,
++  double seed,
++  double spin,
++  bool reduceGlows,
++) {
++  if (!reduceGlows) _circle(c, pal.glow, 2.7);
++  final th = time * 0.5 * spin + seed;
++  const tilt = 0.55;
++  const a1 = 0.55, a2 = 0.85, rDonor = 0.5;
++  final ax = cos(th), ay = sin(th);
++  // (along the pair, across it) in the orbit's plane → the screen.
++  Offset at(double u, double v) =>
++      Offset(u * ax - v * ay, (u * ay + v * ax) * tilt);
++  final donor = at(-a1, 0), small = at(a2, 0);
++  final donorNear = -a1 * ay > a2 * ay;
++
++  void paintDonor() {
++    // A big soft star, not a ball: light all the way out, its limb boiling.
++    c.save();
++    c.translate(donor.dx, donor.dy);
++    c.scale(1.4);
++    _circle(c, pal.glow, 1, 1);
++    c.restore();
++    _sparkAt(c, pal, donor, 0.78, 0.8);
++  }
++
++  void paintSmall() {
++    _sparkAt(c, pal, small, 0.42);
++    _sparkAt(c, pal, small, 0.16);
++  }
++
++  _grainReset();
++  // The big star's surface boils off in motes that fall back.
++  for (final (a, lift, rate) in _donorMotes) {
++    final u = _frac(time * rate + lift);
++    final rr = rDonor * (0.8 + 0.45 * sin(u * pi));
++    final p = donor + Offset(cos(a + th * 0.3), sin(a + th * 0.3)) * rr;
++    _grainAdd(u < 0.5 ? 1 : 2, p.dx, p.dy);
++  }
++  // The stream: from the near point of the big star, curling in round the
++  // small one and falling into it.
++  const l1 = -a1 + rDonor * 0.95;
++  const r0 = a2 - l1;
++  for (final (ph, lat, rate) in _streamGrains) {
++    final s = _frac(time * 0.32 * rate * spin + ph);
++    final phi = pi - s * 1.75 * pi;
++    final r = r0 * pow(1 - s, 1.25) + 0.05;
++    final spread = lat * (0.04 + 0.1 * sin(s * pi));
++    final u = a2 + (r + spread) * cos(phi);
++    final v = (r + spread) * sin(phi);
++    final p = at(u, v);
++    _grainAdd(s < 0.35 ? 2 : (s < 0.75 ? 1 : 0), p.dx, p.dy);
++  }
++  if (!donorNear) paintDonor();
++  if (donorNear) paintSmall();
++  _grainDraw(
++    c,
++    2,
++    0.045,
++    Color.lerp(pal.essence, pal.ink, 0.3)!.withValues(alpha: 0.7),
++  );
++  _grainDraw(c, 1, 0.05, pal.essence.withValues(alpha: 0.9));
++  _grainDraw(c, 0, 0.055, pal.hot);
++  if (donorNear) paintDonor();
++  if (!donorNear) paintSmall();
++}
++
++/// Jet grains: (phase, lateral, rate).
++final List<(double, double, double)> _jetGrains = () {
++  final rng = Random(91);
++  return [
++    for (var i = 0; i < 300; i++)
++      (
++        rng.nextDouble(),
++        rng.nextDouble() + rng.nextDouble() - 1,
++        0.85 + rng.nextDouble() * 0.3,
++      ),
++  ];
++}();
++
++void _paintPulsar(
++  Canvas c,
++  EnemyPalette pal,
++  double time,
++  double seed,
++  double spin,
++  bool reduceGlows,
++) {
++  if (!reduceGlows) _circle(c, pal.glow, 2.4);
++  const beta = 1.25, tiltX = 0.35;
++  const life = 2.2;
++  final sb = sin(beta), cb = cos(beta), st = sin(tiltX), ct = cos(tiltX);
++  (double, double, double) axis(double t) {
++    final psi = t * 1.15 * spin + seed;
++    final x = sb * cos(psi), y = sb * sin(psi), z = cb;
++    return (x, y * ct - z * st, y * st + z * ct);
++  }
++
++  _grainReset();
++  for (var i = 0; i < _jetGrains.length; i++) {
++    final (ph, lat, rate) = _jetGrains[i];
++    final sign = i.isEven ? 1.0 : -1.0;
++    final u = _frac(time / life * rate + ph);
++    final (dx, dy, _) = axis(time - u * life);
++    final d = 0.22 + u * 2.1;
++    final px = -dy, py = dx;
++    final w = lat * (0.03 + 0.2 * u);
++    _grainAdd(
++      u < 0.12 ? 0 : (u < 0.38 ? 1 : (u < 0.7 ? 2 : 3)),
++      sign * d * dx + px * w,
++      sign * d * dy + py * w,
++    );
++  }
++  _grainDraw(
++    c,
++    3,
++    0.035,
++    Color.lerp(pal.essence, pal.ink, 0.45)!.withValues(alpha: 0.5),
++  );
++  _grainDraw(c, 2, 0.045, pal.essence.withValues(alpha: 0.7));
++  _grainDraw(c, 1, 0.055, pal.essence);
++  _grainDraw(c, 0, 0.065, pal.hot);
++  // The star flares as a beam sweeps across us.
++  final (_, _, z) = axis(time);
++  final flare = pow(max(0.0, z.abs() - 0.3) / 0.32, 4).toDouble();
++  _sparkAt(c, pal, Offset.zero, 0.42 + 0.55 * flare);
++  _sparkAt(c, pal, Offset.zero, 0.2);
++}
++
+ // ── the Ouroboros ───────────────────────────────────────────────────────────
+ 
+ const int _kVertebrae = 22;
+diff --git a/lib/games/cosmic/enemy_body_art.dart b/lib/games/cosmic/enemy_body_art.dart
+index 21302483..425b0f94 100644
+--- a/lib/games/cosmic/enemy_body_art.dart
++++ b/lib/games/cosmic/enemy_body_art.dart
+@@ -829,6 +829,20 @@ void paintBruteBody(
+     0.25 * sin(time * 0.4 + seed),
+     facing,
+   );
++  if (debugBruteLook != 0 && cased == null) {
++    _paintMockBrute(
++      c,
++      pal,
++      which,
++      time: time,
++      seed: seed,
++      charge: charge,
++      facing: facing,
++    );
++    c.restore();
++    _hitFlash(c, flash, 1.1);
++    return;
++  }
+   final open = charge > 0.02;
+   // An elite's crust is matte black, its affix burning through the same
+   // veins and haloing it from behind.
+@@ -859,6 +873,180 @@ void paintBruteBody(
+   _hitFlash(c, flash, 1.1);
+ }
+ 
++// MOCK (2026-11-10): brute looks to judge. 0 = the September gem; 1 matte
++// facets backlit by its own light; 2 the same on a finer rock, its heat in
++// pores; 3 the finer rock with two rifts and no halo.
++int debugBruteLook = 0;
++
++double _mockHash(double x) {
++  final s = sin(x * 12.9898) * 43758.5453;
++  return s - s.floorToDouble();
++}
++
++/// Each brute rock split once more, for smooth shading and finer heat.
++final List<FacetMesh> _boulders = [
++  for (var k = 0; k < _bombs.length; k++)
++    () {
++      final m = _bombs[k];
++      final xyz = <double>[...m.v];
++      final mids = <int, int>{};
++      double len(int i) => sqrt(
++        xyz[i * 3] * xyz[i * 3] +
++            xyz[i * 3 + 1] * xyz[i * 3 + 1] +
++            xyz[i * 3 + 2] * xyz[i * 3 + 2],
++      );
++      int mid(int a, int b) {
++        final key = min<int>(a, b) * 100000 + max<int>(a, b);
++        return mids.putIfAbsent(key, () {
++          final i = xyz.length ~/ 3;
++          final mx = (xyz[a * 3] + xyz[b * 3]) / 2;
++          final my = (xyz[a * 3 + 1] + xyz[b * 3 + 1]) / 2;
++          final mz = (xyz[a * 3 + 2] + xyz[b * 3 + 2]) / 2;
++          final ml = sqrt(mx * mx + my * my + mz * mz);
++          final want = (len(a) + len(b)) / 2 *
++              (1 + 0.05 * (2 * _mockHash(k * 31.0 + i * 1.7) - 1));
++          xyz
++            ..add(mx / ml * want)
++            ..add(my / ml * want)
++            ..add(mz / ml * want);
++          return i;
++        });
++      }
++
++      final faces = <List<int>>[];
++      for (final f in m.faces) {
++        final a = mid(f[0], f[1]), b = mid(f[1], f[2]), c = mid(f[2], f[0]);
++        faces
++          ..add([f[0], a, c])
++          ..add([a, f[1], b])
++          ..add([c, b, f[2]])
++          ..add([a, b, c]);
++      }
++      return FacetMesh(xyz, faces);
++    }(),
++];
++
++/// Unit direction of each vertex of [m].
++Float64List _dirsOf(FacetMesh m) {
++  final d = Float64List(m.vertexCount * 3);
++  for (var i = 0; i < m.vertexCount; i++) {
++    final x = m.v[i * 3], y = m.v[i * 3 + 1], z = m.v[i * 3 + 2];
++    final l = sqrt(x * x + y * y + z * z);
++    d[i * 3] = x / l;
++    d[i * 3 + 1] = y / l;
++    d[i * 3 + 2] = z / l;
++  }
++  return d;
++}
++
++final List<Float64List> _boulderDirs = [for (final m in _boulders) _dirsOf(m)];
++final List<Float64List> _bombDirs = [for (final m in _bombs) _dirsOf(m)];
++
++/// Heat in a few soft spots, by direction: veins that do not care how fine
++/// the mesh is.
++final List<Float64List> _boulderSpots = [
++  for (var k = 0; k < _boulders.length; k++)
++    _spots(_boulderDirs[k], k, 0.5),
++];
++final List<Float64List> _bombSpots = [
++  for (var k = 0; k < _bombs.length; k++) _spots(_bombDirs[k], k, 0.55),
++];
++
++Float64List _spots(Float64List dirs, int k, double width) {
++  final n = dirs.length ~/ 3;
++  final heat = Float64List(n);
++  final cw = cos(width);
++  for (var s = 0; s < 4; s++) {
++    final a = 2 * pi * _mockHash(k * 7.0 + s * 3.3);
++    final b = asin(2 * _mockHash(k * 5.0 + s * 9.1) - 1);
++    final sx = cos(a) * cos(b), sy = sin(b), sz = sin(a) * cos(b);
++    for (var i = 0; i < n; i++) {
++      final d = dirs[i * 3] * sx + dirs[i * 3 + 1] * sy + dirs[i * 3 + 2] * sz;
++      final h = ((d - cw) / (1 - cw)).clamp(0.0, 1.0);
++      heat[i] = max(heat[i], h * h * (3 - 2 * h));
++    }
++  }
++  return heat;
++}
++
++/// Tighter, hotter spots on the fine rock.
++final List<Float64List> _boulderPores = [
++  for (var k = 0; k < _boulders.length; k++)
++    _spots(_boulderDirs[k], k, 0.2),
++];
++
++/// Two rifts across the fine rock: arcs of great circles, hot down their
++/// middle.
++final List<Float64List> _boulderRifts = [
++  for (var k = 0; k < _boulders.length; k++)
++    () {
++      final dirs = _boulderDirs[k];
++      final n = dirs.length ~/ 3;
++      final heat = Float64List(n);
++      for (var r = 0; r < 2; r++) {
++        final a = 2 * pi * _mockHash(k * 3.1 + r * 5.7);
++        final b = 0.6 * (2 * _mockHash(k * 8.3 + r * 2.9) - 1);
++        // The rift's plane normal, and its middle on the surface.
++        final ax = cos(a) * cos(b), ay = sin(b), az = sin(a) * cos(b);
++        var cx = -sin(a), cy = 0.0, cz = cos(a);
++        final t = 2 * pi * _mockHash(k * 4.4 + r);
++        // Turn the middle round the normal.
++        final bx = ay * cz - az * cy, by = az * cx - ax * cz, bz = ax * cy - ay * cx;
++        cx = cx * cos(t) + bx * sin(t);
++        cy = cy * cos(t) + by * sin(t);
++        cz = cz * cos(t) + bz * sin(t);
++        for (var i = 0; i < n; i++) {
++          final px = dirs[i * 3], py = dirs[i * 3 + 1], pz = dirs[i * 3 + 2];
++          final along = px * cx + py * cy + pz * cz;
++          if (along < 0.2) continue;
++          final d = (px * ax + py * ay + pz * az).abs();
++          final h = (1 - d / 0.17).clamp(0.0, 1.0);
++          final end = min(1.0, (along - 0.2) * 2.2);
++          heat[i] = max(heat[i], h * h * (3 - 2 * h) * end);
++        }
++      }
++      return heat;
++    }(),
++];
++
++void _paintMockBrute(
++  Canvas c,
++  EnemyPalette pal,
++  int which, {
++  required double time,
++  required double seed,
++  required double charge,
++  required double facing,
++}) {
++  final breath = 0.85 + 0.15 * sin(time * 1.7 + seed);
++  final fine = debugBruteLook != 1;
++  if (debugBruteLook != 3) {
++    c.save();
++    c.rotate(facing);
++    _backlight(c, pal, 1.3 + 0.12 * charge, 1.02 + 0.12 * charge, 0.8 + 0.4 * charge);
++    c.restore();
++  }
++  meshBatch
++    ..add(
++      fine ? _boulders[which] : _bombs[which],
++      _rot,
++      pal,
++      inset: 0,
++      seamAlpha: 0,
++      lit: debugBruteLook == 3 ? 0.2 : 0.12,
++      rimGlow: 0,
++      gloss: 0,
++      dark: 0.9,
++      vertexHeat: switch (debugBruteLook) {
++        1 => _bombSpots[which],
++        2 => _boulderPores[which],
++        _ => _boulderRifts[which],
++      },
++      heatGlow: (debugBruteLook == 1 ? 0.9 : 1.25) * breath + 0.9 * charge,
++    )
++    ..flush(c);
++}
++
+ // ── colossus ────────────────────────────────────────────────────────────────
+ //
+ // A ring of standing stones round a fire. The stones are dark faceted
+diff --git a/lib/games/cosmic/enemy_mesh.dart b/lib/games/cosmic/enemy_mesh.dart
+index d84e4834..9141abbd 100644
+--- a/lib/games/cosmic/enemy_mesh.dart
++++ b/lib/games/cosmic/enemy_mesh.dart
+@@ -143,6 +143,28 @@ class FacetMesh {
+   final List<Int32List> faces;
+   final Float64List normals;
+ 
++  /// MOCK (2026-11-10): per-vertex normals, the mean of the faces round each
++  /// vertex, for a solid shaded smooth.
++  late final Float64List vertexNormals = () {
++    final out = Float64List(v.length);
++    for (var f = 0; f < faces.length; f++) {
++      for (final k in faces[f]) {
++        out[k * 3] += normals[f * 3];
++        out[k * 3 + 1] += normals[f * 3 + 1];
++        out[k * 3 + 2] += normals[f * 3 + 2];
++      }
++    }
++    for (var i = 0; i < out.length; i += 3) {
++      final l = sqrt(out[i] * out[i] + out[i + 1] * out[i + 1] + out[i + 2] * out[i + 2]);
++      if (l > 0) {
++        out[i] /= l;
++        out[i + 1] /= l;
++        out[i + 2] /= l;
++      }
++    }
++    return out;
++  }();
++
+   int get vertexCount => v.length ~/ 3;
+ 
+   /// Heat for each vertex, for veins of light bleeding through a shell:
+@@ -350,6 +372,7 @@ class MeshBatch {
+   Int32List _col = Int32List(768);
+   int _n = 0;
+   Float64List _tv = Float64List(96);
++  Int32List _vc = Int32List(64);
+   final ui.Paint _paint = ui.Paint();
+ 
+   bool get isEmpty => _n == 0;
+@@ -402,6 +425,7 @@ class MeshBatch {
+     double rimGlow = 0,
+     double dark = 0,
+     double gloss = 1,
++    bool smooth = false,
+   }) {
+     final m = rot.m;
+     final nv = mesh.vertexCount;
+@@ -425,6 +449,26 @@ class MeshBatch {
+     final seamOuter = _withAlpha(essence, 0.9 * seamAlpha * alpha);
+     final seamInner = _withAlpha(hot, seamAlpha * alpha);
+     final radius = scale;
++    if (smooth) {
++      final vn = mesh.vertexNormals;
++      if (_vc.length < nv) _vc = Int32List(nv);
++      for (var i = 0; i < nv; i++) {
++        final x = vn[i * 3], y = vn[i * 3 + 1], z = vn[i * 3 + 2];
++        final nx = m[0] * x + m[1] * y + m[2] * z;
++        final ny = m[3] * x + m[4] * y + m[5] * z;
++        final nz = m[6] * x + m[7] * y + m[8] * z;
++        final lam = max(0.0, (nx * _lx + ny * _ly + nz * _lz) / _ll);
++        final f1 = 1 - max(0.0, nz);
++        final fres = f1 * f1;
++        var col = _mix(ink, face, 0.08 + lit * lam);
++        col = _mix(col, rim, fres * 0.5 * gloss);
++        if (rimGlow > 0) {
++          col = _mix(col, essence, min(0.9, fres * fres * rimGlow * 2));
++        }
++        if (heat > 0) col = _mix(col, essence, heat);
++        _vc[i] = _withAlpha(col, alpha);
++      }
++    }
+     final n = mesh.normals;
+ 
+     // Two passes: the seam light under every visible face, then the faces.
+@@ -496,12 +540,12 @@ class MeshBatch {
+         for (var k = 1; k + 1 < idx.length; k++) {
+           for (var q = 0; q < 3; q++) {
+             final j = q == 0 ? i0 : idx[k + q - 1];
+-            var vc = c;
++            var vc = smooth ? _vc[j] : c;
+             if (heated) {
+               final h = vertexHeat[j] * heatGlow;
+               if (h > 0.01) {
+                 vc = _mix(
+-                  c,
++                  vc,
+                   _withAlpha(_mix(essence, hot, h * 0.7), alpha),
+                   min(1.0, h),
+                 );

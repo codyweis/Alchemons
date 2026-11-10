@@ -1,0 +1,145 @@
+@Tags(['preview'])
+library;
+
+// SCRATCH (2026-11-10): brute and gunner looks to judge. Delete after.
+
+import 'dart:io';
+import 'dart:math';
+import 'dart:ui' as ui;
+
+import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
+import 'package:alchemons/games/cosmic/enemy_body_art.dart';
+import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
+import 'package:alchemons/games/shared/enemy_action.dart';
+import 'package:alchemons/games/shared/enemy_taxonomy.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  final outDir = Platform.environment['ENEMY_LOOK_OUT'];
+
+  Future<void> save(
+    WidgetTester tester,
+    String name,
+    ui.Picture pic,
+    int w,
+    int h,
+  ) async {
+    await tester.runAsync(() async {
+      final img = await pic.toImage(w, h);
+      final bytes = await img.toByteData(format: ui.ImageByteFormat.png);
+      Directory(outDir!).createSync(recursive: true);
+      File('$outDir/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+    });
+  }
+
+  void space(Canvas c, double w, double h, {int seed = 3}) {
+    c.drawRect(
+      Rect.fromLTWH(0, 0, w, h),
+      Paint()..color = const Color(0xFF06050E),
+    );
+    final rng = Random(seed);
+    final star = Paint();
+    for (var i = 0; i < (w * h / 2500).round(); i++) {
+      star.color = Colors.white.withValues(
+        alpha: 0.15 + rng.nextDouble() * 0.45,
+      );
+      c.drawCircle(
+        Offset(rng.nextDouble() * w, rng.nextDouble() * h),
+        0.4 + rng.nextDouble() * 0.9,
+        star,
+      );
+    }
+  }
+
+  testWidgets('brutes', (tester) async {
+    const cell = 180.0;
+    const els = ['Fire', 'Water', 'Plant', 'Lightning', 'Spirit', 'Dark'];
+    final w = cell * 8, h = cell * 4;
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    space(c, w, h, seed: 7);
+    final def = kEnemyActions[EnemyTier.brute]!;
+    for (var look = 0; look < 4; look++) {
+      debugBruteLook = look;
+      for (var k = 0; k < 8; k++) {
+        final e = CosmicSurvivalEnemy(
+          position: Offset(k * cell + cell / 2, look * cell + cell / 2),
+          hp: 100,
+          maxHp: 100,
+          speed: 60,
+          damage: 10,
+          radius: 37.5,
+          tier: EnemyTier.brute,
+          element: k < 6 ? els[k] : (k == 6 ? 'Fire' : 'Plant'),
+          conduct: EnemyConduct.charge,
+          target: CosmicEnemyTarget.orb,
+        )..angle = -0.5;
+        if (k >= 6) {
+          e.action
+            ..phase = EnemyActionPhase.windUp
+            ..timer = def.windUp * (k == 6 ? 0.5 : 0.1)
+            ..aimAngle = -0.5;
+        }
+        drawSurvivalEnemy(canvas: c, enemy: e, time: 0.9 + k * 0.29);
+      }
+    }
+    debugBruteLook = 0;
+    await save(tester, 'brutes', rec.endRecording(), w.round(), h.round());
+  }, skip: outDir == null);
+
+  testWidgets('gunners', (tester) async {
+    const cell = 260.0;
+    const els = ['Dark', 'Fire', 'Crystal', 'Water', 'Lightning', 'Spirit'];
+    final w = cell * 6, h = cell * 3;
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    space(c, w, h, seed: 8);
+    for (var look = 0; look < 3; look++) {
+      debugGunnerLook = look;
+      for (var k = 0; k < 6; k++) {
+        final b = CosmicBoss(
+          position: Offset(k * cell + cell / 2, look * cell + cell / 2 + 10),
+          name: '',
+          element: els[k],
+          level: 3,
+          radius: 30,
+          maxHealth: 1000,
+          speed: 60,
+          forcedType: BossType.gunner,
+        )..angle = -0.4;
+        drawOpenWorldBoss(canvas: c, boss: b, time: 1.1 + k * 0.7);
+      }
+    }
+    debugGunnerLook = 0;
+    await save(tester, 'gunners', rec.endRecording(), w.round(), h.round());
+  }, skip: outDir == null);
+
+  testWidgets('gunners through time', (tester) async {
+    const cell = 220.0;
+    const times = [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0];
+    final w = cell * times.length, h = cell * 2;
+    final rec = ui.PictureRecorder();
+    final c = Canvas(rec);
+    space(c, w, h, seed: 9);
+    for (var look = 1; look < 3; look++) {
+      debugGunnerLook = look;
+      for (var k = 0; k < times.length; k++) {
+        final b = CosmicBoss(
+          position: Offset(k * cell + cell / 2, (look - 1) * cell + cell / 2),
+          name: '',
+          element: 'Fire',
+          level: 3,
+          radius: 26,
+          maxHealth: 1000,
+          speed: 60,
+          forcedType: BossType.gunner,
+        )..angle = -0.4;
+        drawOpenWorldBoss(canvas: c, boss: b, time: times[k]);
+      }
+    }
+    debugGunnerLook = 0;
+    await save(tester, 'gunners_time', rec.endRecording(), w.round(), h.round());
+  }, skip: outDir == null);
+}
