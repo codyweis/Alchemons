@@ -1,0 +1,65 @@
+# Survival as a survival game: look audit, 2026-11-09
+
+Read from the code and from headless frames of a full party at waves 3, 24
+and 62 (`test/survival_field_preview_test.dart`, phone portrait, flying
+zoom). No device was connected, and creature sprites do not load headless,
+so the party is discs in those frames. Baseline cost on this Mac (JIT, not a
+phone): wave 62, 1,035 bodies, every special cast: update 1.05 ms median /
+2.63 p95, recording the frame's drawing 2.23 ms median / 4.42 p95
+(`test/survival_late_wave_cost_test.dart`).
+
+Ranked by how much better a run would feel.
+
+## 1. The arena never changes (waves and pacing)
+Wave 62's floor is wave 3's floor: a faint pool of the core's light and
+stars. A thousand bodies have died on it and it shows nothing. The rim belt,
+the only arena feature, is 1,140 units out and the view is about 690 × 1,540,
+so it is off screen for most of a run. Nothing marks how deep the run is.
+
+## 2. A wave has no arrival and no end (waves and pacing)
+The wave turns over in one frame (`update`: intermission, cleanup, next wave)
+at 90% killed. Each wave rolls a bearing and two to four fronts with an
+escape gap, but nothing shows it until bodies walk into view. A hard wave
+ending and an easy one ending look the same: nothing happens. A boss wave
+changes nothing in the arena either.
+
+## 3. A crowd is separate dots (enemies)
+Late fronts are several hundred bodies in one wave element, drawn as lit
+points on black with nothing under them. They do not read as one mass with a
+leading edge; the eye counts dots. Nothing shows where a front has been.
+
+## 4. A creature's readiness is not on its body (abilities)
+Every companion stands on the same pool of light whether its special is
+spent or ready. The only readout is the party case in the HUD.
+
+## 5. Growth does not show (abilities)
+A level 1 creature with no mastery and a level 10 one on a finished path
+cast the same picture. Nothing a strong creature does stays on the field
+longer than a weak one's.
+
+## 6. Bosses borrow UI (enemies)
+The six boss bodies are the best art in the mode, but what surrounds them is
+stroked: the entrance portal arcs, the venting hoop with six dots, the
+shield band, a red-to-orange health bar. Elites differ from chaff by a pool
+of affix colour only.
+
+## 7. A hit sheds nothing (enemies)
+A struck body flashes. Heavies do not lose material or show weight.
+
+## 8. Endless stops looking new at wave 50
+Body counts climb to wave 100; the picture does not.
+
+## 9. Combined abilities do not show
+A blessed Horn's charge is a plain charge.
+
+## 10. Smaller
+- A drone's wind-up is 0.35 s, under the half second asked for. Lengthening
+  it changes how hard drones hit the party, so it is reported, not changed.
+- Orb contact bursts at wave 62 are white puffs, brighter than anything
+  else on the floor.
+- Rim-vanish bug: see the end of the run notes.
+
+## Order of work
+1 and 2 together (one arena layer: wear, edge loss, drift from the wave's
+bearing, the settle after a clear), then 3, 4, 5/9 through the same layer,
+6, 7.

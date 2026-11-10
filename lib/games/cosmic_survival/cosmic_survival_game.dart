@@ -63,6 +63,7 @@ import 'package:alchemons/games/cosmic_survival/survival_mastery_runtime.dart';
 import 'package:alchemons/games/cosmic_survival/survival_mastery_wing.dart';
 import 'package:alchemons/games/cosmic_survival/survival_suspended_run.dart';
 import 'package:alchemons/games/cosmic_survival/arena_art.dart';
+import 'package:alchemons/games/cosmic_survival/arena_wear.dart';
 import 'package:alchemons/games/cosmic/hostile_shot_vfx.dart';
 import 'package:alchemons/games/cosmic_survival/orb_art.dart';
 import 'package:alchemons/games/shared/damage_numbers.dart';
@@ -1904,6 +1905,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   /// Bodies coming apart where they fell (survival_death_vfx.dart).
   final SurvivalDeaths _deaths = SurvivalDeaths();
+
+  /// What the run has done to the arena: ash where things fell, the dark
+  /// drawing in from the rim, the drift from the wave's bearing.
+  final ArenaWear _wear = ArenaWear();
+
+  @visibleForTesting
+  ArenaWear get debugWear => _wear;
   final List<_BeamFx> _beamFx = [];
   final MaskTrapVisuals _maskTrapVisuals = MaskTrapVisuals();
 
@@ -2700,6 +2708,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     for (var wave = 1; wave < run.wave; wave++) {
       spawner.resumeAfterIntermission();
     }
+    // The arena a run that deep had worn, not a fresh one (laid on the
+    // first frame, once the arena has its size).
+    _wearSeedWave = run.wave;
     _lastIntermissionRewardWave = run.wave - 1;
     alchemicalMeter = run.meter;
     _alchemicalProgressPoints = run.meterProgress;
@@ -2853,6 +2864,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _projectileControlBuckets.reflectors,
     );
     _updateVfx(dt);
+    _updateWear(dt);
     _updateOutbreak(dt);
     final magnet = powerUps.surgeMagnetLevel;
     _surgeGrains.update(
@@ -2927,6 +2939,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final clearedWave = spawner.currentWave;
       final bossWave = spawner.isBossWave;
       onWaveCleared?.call(clearedWave);
+      // The arena lets go, further after a wave that filled the field.
+      _wear.waveCleared(bossWave ? 1.0 : _wear.peakPressure);
       _cleanupBetweenWaves();
       _endWaveGrains();
       _grantIntermissionReward(clearedWave, bossWave: bossWave);
@@ -10503,6 +10517,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       tint = null;
       light = 0.08;
     }
+    _wear.fall(enemy.position, enemy.radius, heavy: _isHeavyBody(enemy));
+    if (reach > 0) {
+      _wear.scorch(
+        enemy.position,
+        reach,
+        light: tint == null ? null : abilityMaterialTint(tint),
+      );
+    }
     final speed = enemy.effectiveSpeed;
     _deaths.add(
       at: enemy.position,
@@ -17485,6 +17507,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         radius: blast,
       ),
     );
+    final caster = activeCompanions[p.sourceSlotIndex];
+    _wear.scorch(
+      centre,
+      blast * (0.55 + 0.45 * _creaturePower(p.sourceSlotIndex)),
+      light: abilityMaterialTint(elementColor(p.element ?? 'Fire')),
+      gilt: caster != null && caster.blessingTimer > 0,
+    );
   }
 
   /// The landing. Everything a Let does happens here.
@@ -22530,6 +22559,17 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _spawnProjectileHitSpark(Projectile projectile) {
     onSound?.call(SoundCue.combatHitLight);
     final color = elementColor(projectile.element ?? 'Fire');
+    // A special's strike stays on the floor, more of it the stronger the
+    // creature that cast it.
+    if (projectile.abilityFamily.isNotEmpty) {
+      final caster = activeCompanions[projectile.sourceSlotIndex];
+      _wear.strike(
+        projectile.position,
+        _creaturePower(projectile.sourceSlotIndex),
+        light: abilityMaterialTint(color),
+        blessed: caster != null && caster.blessingTimer > 0,
+      );
+    }
     if (projectile.visualStyle != ProjectileVisualStyle.mysticOrbital) {
       _spawnHitSpark(projectile.position, color);
       return;
@@ -22659,6 +22699,61 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       beam.update(dt);
     }
     _beamFx.removeWhere((beam) => beam.dead);
+  }
+
+  /// How grown the creature in [slot] is, 0..1: its level, and how far down
+  /// its mastery path it has gone. Drives what its casts leave behind and
+  /// how much gathers under it; never a number in combat.
+  double _creaturePower(int? slot) {
+    final comp = slot == null ? null : activeCompanions[slot];
+    if (comp == null) return 0;
+    final level = ((comp.member.level - 1) / 9).clamp(0.0, 1.0);
+    final nodes = (mastery.equippedFor(slot!)?.activeNodeIds.length ?? 0) / 4;
+    return (0.6 * level + 0.4 * nodes.clamp(0.0, 1.0)).clamp(0.0, 1.0);
+  }
+
+  @override
+  void onRemove() {
+    _wear.dispose();
+    super.onRemove();
+  }
+
+  double _treadClock = 0;
+
+  /// The wave a resumed run's floor is still to be worn to, or 0.
+  int _wearSeedWave = 0;
+
+  void _updateWear(double dt) {
+    if (_wearSeedWave > 0) {
+      _wear.seed(_wearSeedWave, orb.position, _arenaRadius);
+      _wearSeedWave = 0;
+    }
+    _wear.update(
+      dt,
+      centre: orb.position,
+      wave: spawner.currentWave,
+      fill: enemies.length / max(1, spawner.activeLimitNow),
+      bearing: spawner.waveBearing,
+      bossAlive: anyBossAlive,
+    );
+    // Where a front stands thick, the ground under it is trodden: the lanes
+    // the waves pressed in along stay on the floor.
+    _treadClock += dt;
+    if (_treadClock < 0.6) return;
+    _treadClock = 0;
+    final cells = _gridCols * _gridRows;
+    for (var cell = 0; cell < cells; cell++) {
+      final start = _gridCellStart[cell], end = _gridCellStart[cell + 1];
+      if (end - start < 10) continue;
+      var x = 0.0, y = 0.0;
+      for (var k = start; k < end; k++) {
+        final p = _gridItems[k]!.position;
+        x += p.dx;
+        y += p.dy;
+      }
+      final n = end - start;
+      _wear.tread(Offset(x / n, y / n), _enemySpatialCellSize * 0.5);
+    }
   }
 
   void _updateOutbreak(double dt) {
@@ -23311,6 +23406,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       view,
       _currentZoom,
     );
+    // The dark at the edge, over the sky and the belt and under all else.
+    _wear.paintGloom(
+      canvas,
+      orb.position,
+      _arenaRadius,
+      orbLook(orb.skin).rim,
+    );
     _renderOrbGravityField(canvas);
     if (outbreak case final event?) {
       drawSurvivalOutbreak(
@@ -23322,6 +23424,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
     // A Mystic world's floor, under the core and every body on it.
     _renderMysticFloor(canvas, cx, cy, viewW, viewH);
+    _wear.paintFloor(canvas, view);
     _renderOrb(canvas);
     for (final f in _orbFronts) {
       paintOrbFront(
@@ -23367,6 +23470,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       );
     }
 
+    _wear.paintDrift(canvas, view);
     final batchSwarm = enemies.length >= _kSwarmBatchThreshold;
     final denseField = enemies.length >= _kDenseFieldThreshold;
     for (final enemy in enemies) {

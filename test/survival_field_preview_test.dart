@@ -225,6 +225,8 @@ void main() {
         }
         game.spawner.currentWave = wave - 1;
         game.spawner.resumeAfterIntermission();
+        // The floor a run this deep would have left.
+        game.debugWear.seed(wave, game.orb.position, 1140);
         game.spawner.isBossWave = false;
         void keepAlive() {
           game.alchemicalMeter = 0;

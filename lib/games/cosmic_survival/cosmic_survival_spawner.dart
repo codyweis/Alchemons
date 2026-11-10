@@ -842,6 +842,19 @@ class CosmicSurvivalSpawner {
 
   static bool isBossWaveNumber(int wave) => wave > 0 && wave % 5 == 0;
 
+  /// The angle from the core the wave is walking in from: the middle of the
+  /// arc its fronts occupy, opposite the gap it leaves. A boss wave's escort
+  /// comes from all round, so it keeps the last wave's.
+  double get waveBearing {
+    final usableArc =
+        (2 * pi - CosmicSurvivalBalance.hordeSpawnGap) *
+        CosmicSurvivalBalance.hordeFrontOpenness(currentWave);
+    final fronts = min(frontCount, max(1, _targetCountThisWave ~/ 24));
+    return frontBearing +
+        CosmicSurvivalBalance.hordeSpawnGap / 2 +
+        fronts * (usableArc / frontCount) / 2;
+  }
+
   int _enemyCountForWave(int wave) {
     if (isBossWave) return CosmicSurvivalBalance.bossEscortCount(wave);
     final base = CosmicSurvivalBalance.hordeCountForWave(wave);
