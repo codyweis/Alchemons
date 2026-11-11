@@ -1,5 +1,6 @@
 import 'package:alchemons/games/cosmic/vfx_shapes.dart';
 import 'dart:math';
+import 'dart:typed_data';
 import 'dart:ui';
 
 /// Atmospheric ink, kept separate from combat colors and hit indicators.
@@ -560,4 +561,171 @@ void _drawEdgeFormations(
     }
     canvas.restore();
   }
+}
+
+// ── The world's weather, in grains ─────────────────────────────────────────
+//
+// The ambience above keeps to the edges on purpose, and at a phone's view a
+// world's own pieces (the maw, the maelstrom, the storm) are usually off
+// screen, so most worlds read as a tint. This lays the element's weather
+// over the whole view in grains, so which world is up is plain wherever the
+// camera is: embers rise, rain slants, snow drifts, sand drives sideways,
+// crystal glints stand still. It sits on the floor under the bodies.
+//
+// Nothing is stored: a grain's place is read off its cell and the clock.
+// Three point draws a world. No blur.
+
+/// How one element's weather moves: cell size (world units), heading (unit
+/// vector, y down), cells a second along it, grains in a run, sideways sway
+/// (world units), and how it twinkles (0 none .. 1 strongly).
+typedef _Weather = (
+  double cell,
+  double dx,
+  double dy,
+  double speed,
+  int run,
+  double sway,
+  double twinkle,
+);
+
+const _kMysticWeather = <String, _Weather>{
+  'Fire': (42, 0.15, -1, 0.55, 2, 7, 0.8),
+  'Lava': (64, 0.0, 1, 0.5, 3, 3, 0.5),
+  'Lightning': (58, 0.6, 0.8, 2.4, 5, 0, 0.9),
+  'Water': (40, -0.34, 0.94, 1.5, 4, 0, 0.2),
+  'Ice': (40, 0.2, 1, 0.28, 1, 12, 0.5),
+  'Steam': (54, 0.0, -1, 0.22, 3, 10, 0.2),
+  'Earth': (46, 1, 0.0, 0.12, 2, 2, 0.3),
+  'Mud': (58, 0.0, 1, 0.14, 2, 4, 0.1),
+  'Dust': (44, 1, 0.12, 1.3, 4, 5, 0.3),
+  'Crystal': (46, 0.0, 0.0, 0.0, 1, 0, 1.0),
+  'Air': (60, 1, -0.25, 1.7, 6, 14, 0.2),
+  'Plant': (48, -0.3, -0.95, 0.2, 1, 14, 0.5),
+  'Poison': (52, 0.0, -1, 0.3, 2, 6, 0.6),
+  'Spirit': (56, 0.1, -1, 0.3, 3, 18, 0.6),
+  'Dark': (50, 0.0, 0.0, 0.5, 3, 0, 0.3),
+  'Light': (48, 0.0, 1, 0.35, 3, 0, 0.9),
+  'Blood': (54, 0.0, 1, 0.6, 3, 2, 0.3),
+};
+
+double _wh(int i, int salt) {
+  final x = sin(i * 12.9898 + salt * 78.233) * 43758.5453;
+  return x - x.floorToDouble();
+}
+
+Float32List _wDim = Float32List(2048);
+Float32List _wMid = Float32List(2048);
+Float32List _wLit = Float32List(1024);
+final Paint _wPaint = Paint()
+  ..strokeCap = StrokeCap.round
+  ..style = PaintingStyle.stroke;
+
+/// The weather of [element]'s world over [viewport], at [strength] 0..1.
+void drawMysticWorldWeather({
+  required Canvas canvas,
+  required Rect viewport,
+  required String element,
+  required double time,
+  required double strength,
+  int seed = 0,
+}) {
+  final w = _kMysticWeather[element];
+  final color = mysticAtmosphereColors[element];
+  if (w == null || color == null || strength <= 0.02 || viewport.isEmpty) {
+    return;
+  }
+  final (cell, dx, dy, speed, run, sway, twinkle) = w;
+  final centre = viewport.center;
+  final x0 = (viewport.left / cell).floor() - 1;
+  final x1 = (viewport.right / cell).ceil() + 1;
+  final y0 = (viewport.top / cell).floor() - 1;
+  final y1 = (viewport.bottom / cell).ceil() + 1;
+  var nd = 0, nm = 0, nl = 0;
+  void add(int tone, double x, double y) {
+    if (!viewport.contains(Offset(x, y))) return;
+    if (tone == 0 && nd + 2 <= _wDim.length) {
+      _wDim[nd++] = x;
+      _wDim[nd++] = y;
+    } else if (tone == 1 && nm + 2 <= _wMid.length) {
+      _wMid[nm++] = x;
+      _wMid[nm++] = y;
+    } else if (tone == 2 && nl + 2 <= _wLit.length) {
+      _wLit[nl++] = x;
+      _wLit[nl++] = y;
+    }
+  }
+
+  for (var gx = x0; gx < x1; gx++) {
+    for (var gy = y0; gy < y1; gy++) {
+      final id = gx * 7919 + gy * 104729 + seed * 31;
+      final bx = (gx + _wh(id, 1)) * cell, by = (gy + _wh(id, 2)) * cell;
+      // Weather comes in banks and gusts: a slow, wide pattern drifting over
+      // the world thins it in places and gathers it in others. One drop to a
+      // cell everywhere read as an even field.
+      final bank =
+          0.55 +
+          0.3 *
+              sin(bx * 0.0042 + time * 0.13 * (1 + speed)) *
+              cos(by * 0.0051 - time * 0.11) +
+          0.2 * sin((bx + by) * 0.0097 + time * 0.2);
+      if (_wh(id, 8) > bank) continue;
+      final s = (_wh(id, 3) + time * speed * (0.7 + 0.6 * _wh(id, 4))) % 1.0;
+      // Faint as it starts and as it goes, so nothing pops in or out.
+      final edge = speed == 0 ? 1.0 : sin(s * pi);
+      if (edge < 0.2) continue;
+      final lit =
+          sin(time * (1.6 + 2 * _wh(id, 5)) + _wh(id, 6) * 6.2832) >
+          1 - 1.1 * twinkle;
+      // Dark's world draws everything in to the middle of what you see; the
+      // rest travel their own heading.
+      var hx = dx, hy = dy;
+      if (element == 'Dark') {
+        final ox = centre.dx - bx, oy = centre.dy - by;
+        final d = sqrt(ox * ox + oy * oy);
+        if (d < 30) continue;
+        hx = ox / d;
+        hy = oy / d;
+      }
+      final travel = (s - 0.5) * cell * 2.2;
+      final wob = sway == 0 ? 0.0 : sway * sin(time * 1.1 + _wh(id, 7) * 6.2832);
+      final x = bx + hx * travel - hy * wob, y = by + hy * travel + hx * wob;
+      if (speed == 0) {
+        // A glint that stands where it is and comes and goes.
+        if (lit) add(2, bx, by);
+        continue;
+      }
+      for (var k = 0; k < run; k++) {
+        add(
+          k == 0 ? (lit && edge > 0.6 ? 2 : 1) : (k < 2 ? 1 : 0),
+          x - hx * k * 7,
+          y - hy * k * 7,
+        );
+      }
+    }
+  }
+  final a = strength.clamp(0.0, 1.0);
+  void flush(Float32List buf, int n, double size, Color c) {
+    if (n == 0) return;
+    canvas.drawRawPoints(
+      PointMode.points,
+      Float32List.sublistView(buf, 0, n),
+      _wPaint
+        ..strokeWidth = size
+        ..color = c,
+    );
+  }
+
+  // Sized for a camera that pulls well back under a world: at 2 units a
+  // grain was under a pixel there and every world looked like the stars.
+  // Lifted a little toward the light: the world's own tint alone was muted
+  // on the dark floor.
+  final lifted = Color.lerp(color, const Color(0xFFFFF6E4), 0.12)!;
+  flush(_wDim, nd, 2.6, lifted.withValues(alpha: 0.55 * a));
+  flush(_wMid, nm, 3.3, lifted.withValues(alpha: 0.95 * a));
+  flush(
+    _wLit,
+    nl,
+    4.2,
+    Color.lerp(color, const Color(0xFFFFF6E4), 0.28)!.withValues(alpha: 0.95 * a),
+  );
 }

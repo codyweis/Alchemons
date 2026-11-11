@@ -16668,10 +16668,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _mysticEnvParticleTimer -= dt;
     if (_mysticEnvParticleTimer > 0) return;
     _mysticEnvParticleTimer = 0.06;
-    // Spawn 1-2 ambient particles for each active environment.
+    // A world's weather, thick enough to read as weather: three grains a
+    // tick each while the pool has room (it was one, about sixteen on screen,
+    // which left a world looking like a tint), one once the field is busy,
+    // none when the pool is nearly full, so it never starves a hit's sparks.
     for (final env in _mysticEnvironments) {
       if (_vfx.length >= 145) break;
-      _spawnMysticEnvironmentParticle(env);
+      final grains = _vfx.length < 100 ? 3 : 1;
+      for (var i = 0; i < grains; i++) {
+        _spawnMysticEnvironmentParticle(env);
+      }
     }
   }
 
@@ -16998,6 +17004,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         seed: env.ownerSlot,
         strength: env.envelope * mix,
         reducedDetail: _reduceSecondaryGlows || weight > 2,
+      );
+      drawMysticWorldWeather(
+        canvas: canvas,
+        viewport: viewport,
+        element: env.element,
+        time: stats.timeElapsed,
+        seed: env.ownerSlot,
+        strength: env.envelope * mix,
       );
     }
   }
