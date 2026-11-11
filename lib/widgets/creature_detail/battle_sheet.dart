@@ -138,12 +138,11 @@ Future<void> openAbilityPreviewFor(
   );
 }
 
-/// Opens the full ability preview for a species nobody has to own: built from
-/// its species base stats at level 10 with [potential] in every stat and
-/// [enhancementRank] on each. The profile's debug ability lab uses it to test
-/// every Alchemon at a chosen stat band.
-Future<void> openAbilityPreviewForSpecies(
-  BuildContext context, {
+/// A species nobody has to own, as a fighter: built from its species base
+/// stats at level 10 with [potential] in every stat and [enhancementRank] on
+/// each. The profile's debug ability lab and ability reel build every
+/// Alchemon this way.
+CosmicPartyMember abilityLabMember({
   required Creature creature,
   required int potential,
   int enhancementRank = 0,
@@ -164,36 +163,50 @@ Future<void> openAbilityPreviewForSpecies(
     potential: potential,
     enhancementRank: enhancementRank,
   );
-  return _openAbilityPreview(
-    context,
-    member: CosmicPartyMember(
-      instanceId: 'lab_${creature.id}',
-      baseId: creature.id,
-      displayName: creature.name,
-      imagePath: 'assets/images/${creature.image}',
-      element: element,
-      family: family,
-      level: AlchemonStatSystem.maxLevel,
-      statSpeed: stat(base.speed),
-      statIntelligence: stat(base.intelligence),
-      statStrength: stat(base.strength),
-      statBeauty: stat(base.beauty),
-      statSpeedPotential: potential.toDouble(),
-      statIntelligencePotential: potential.toDouble(),
-      statStrengthPotential: potential.toDouble(),
-      statBeautyPotential: potential.toDouble(),
-      slotIndex: 0,
-      staminaBars: 3,
-      staminaMax: 3,
-      spriteSheet: creature.spriteData != null
-          ? sheetFromCreature(creature)
-          : null,
-      spriteVisuals: visualsFromInstance(creature, null),
-    ),
-    family: family,
+  return CosmicPartyMember(
+    instanceId: 'lab_${creature.id}',
+    baseId: creature.id,
+    displayName: creature.name,
+    imagePath: 'assets/images/${creature.image}',
     element: element,
+    family: family,
+    level: AlchemonStatSystem.maxLevel,
+    statSpeed: stat(base.speed),
+    statIntelligence: stat(base.intelligence),
+    statStrength: stat(base.strength),
+    statBeauty: stat(base.beauty),
+    statSpeedPotential: potential.toDouble(),
+    statIntelligencePotential: potential.toDouble(),
+    statStrengthPotential: potential.toDouble(),
+    statBeautyPotential: potential.toDouble(),
+    slotIndex: 0,
+    staminaBars: 3,
+    staminaMax: 3,
+    spriteSheet: creature.spriteData != null
+        ? sheetFromCreature(creature)
+        : null,
+    spriteVisuals: visualsFromInstance(creature, null),
   );
 }
+
+/// Opens the full ability preview for a species nobody has to own
+/// ([abilityLabMember]). The profile's debug ability lab uses it to test
+/// every Alchemon at a chosen stat band.
+Future<void> openAbilityPreviewForSpecies(
+  BuildContext context, {
+  required Creature creature,
+  required int potential,
+  int enhancementRank = 0,
+}) => _openAbilityPreview(
+  context,
+  member: abilityLabMember(
+    creature: creature,
+    potential: potential,
+    enhancementRank: enhancementRank,
+  ),
+  family: creature.mutationFamily ?? 'Unknown',
+  element: creature.types.firstOrNull ?? 'Normal',
+);
 
 Future<void> _openAbilityPreview(
   BuildContext context, {

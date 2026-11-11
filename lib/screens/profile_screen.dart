@@ -42,6 +42,7 @@ import 'package:alchemons/screens/stadium/stadium_screen.dart';
 import 'package:alchemons/providers/theme_provider.dart';
 import 'package:alchemons/screens/alchemical_encyclopedia_screen.dart';
 import 'package:alchemons/screens/debug/ability_lab_screen.dart';
+import 'package:alchemons/screens/debug/ability_reel_screen.dart';
 import 'package:alchemons/screens/debug/bloodborn_vial_debug_screen.dart';
 import 'package:alchemons/screens/debug/dungeon_debug_screen.dart';
 import 'package:alchemons/screens/heart_puzzle/altar_levels_screen.dart';
@@ -489,6 +490,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       MaterialPageRoute(builder: (_) => const AbilityLabScreen()),
     );
   }
+
+  Future<void> _openAbilityReel() => AbilityReelScreen.open(context);
 
   /// The first descent's cinematic again, over a planet picked at random
   /// (any finished one but Blood, the last), with the space party. It is
@@ -1995,6 +1998,13 @@ class _ProfileScreenState extends State<ProfileScreen>
           'at any stat band',
       'OPEN',
       _openAbilityLab,
+    ),
+    _DebugAction(
+      'ABILITY REEL',
+      'Every Alchemon\'s special, one after another in one arena: pause, '
+          'step, cast again, filter by family, jump to any',
+      'PLAY',
+      _openAbilityReel,
     ),
     _DebugAction(
       'FIRST DESCENT',
