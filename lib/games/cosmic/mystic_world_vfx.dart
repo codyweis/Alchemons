@@ -494,15 +494,16 @@ void paintMysticPoisonPatch({
   final a = alpha.clamp(0.0, 1.0);
   if (a <= 0.01) return;
   // Poison's ground in grains (element_ground_art.dart): low banks with no
-  // outline, drawing back in as the patch goes.
+  // outline, dissolving as the patch goes.
   canvas.save();
   canvas.translate(centre.dx, centre.dy);
   final drawn = paintElementGround(
     canvas,
     'Poison',
-    radius * 1.1 * (0.55 + 0.45 * a),
+    radius * 1.1,
     time,
     seed,
+    fade: a,
   );
   canvas.restore();
   if (drawn) return;
@@ -625,15 +626,16 @@ void paintMysticScorch({
   final a = t > 0.72 ? ((1.0 - t) / 0.28).clamp(0.0, 1.0) : 1.0;
   final heat = (1.0 - t) * (1.0 - t);
   // Where a meteor struck: cells of crust with the melt in their seams,
-  // cooling as it ages and drawing in as it goes (mane_grain_vfx.dart's
+  // cooling as it ages and dissolving as it goes (mane_grain_vfx.dart's
   // pool, its cells anchored to the ground). It was a dark blob with five
   // lit shards: a brown pinwheel.
   paintManeLavaPool(
     canvas,
     at,
-    (34.0 + 14.0 * t) * (0.55 + 0.45 * a),
+    34.0 + 14.0 * t,
     seed * 7 + age,
     heat: heat,
+    fade: a,
   );
 }
 

@@ -690,17 +690,18 @@ void drawWingRing({
   // The field is the element's ground in grains (element_ground_art.dart),
   // as every other family's is: tongues of flame on char; olive banks of
   // poison. It was an ink spill under filled fog banks or charred blobs,
-  // which read as a brown or olive blob over the arena. It spreads in and
-  // draws back with [alpha] instead of fading.
+  // which read as a brown or olive blob over the arena. It dissolves in and
+  // out with [alpha], keeping its size.
   canvas.save();
   canvas.translate(center.dx, center.dy);
   paintElementGround(
     canvas,
     element,
-    radius * (0.6 + 0.4 * a),
+    radius,
     time,
     center.dx * 0.013 + center.dy * 0.017,
     reduced: !details,
+    fade: a,
     // It is centred on the wing and wide: it lies over the orb.
     bed: false,
   );

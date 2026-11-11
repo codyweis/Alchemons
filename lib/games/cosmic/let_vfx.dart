@@ -1211,16 +1211,18 @@ bool drawLetGroundZone({
 
   // The element's ground in grains, with no outline
   // (element_ground_art.dart), and the family's stone still at its heart.
-  // It spreads out as it arrives and draws back in as it goes.
+  // It spreads out as it arrives and dissolves as it goes, its grains
+  // thinning where they lie (drawn back in, it read as zooming away).
   canvas.save();
   canvas.translate(c.dx, c.dy);
   final drawn = paintElementGround(
     canvas,
     element,
-    r * 1.1 * grow * (0.55 + 0.45 * alpha),
+    r * 1.1 * grow,
     time,
     seed,
     reduced: reduceAmbient,
+    fade: alpha,
   );
   canvas.restore();
   // Undrawn only while it is still too small to see (its first frames) or

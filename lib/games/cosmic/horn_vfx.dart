@@ -658,7 +658,15 @@ bool drawHornZoneVisual({
       !(element == 'Light' && projectile.reflectsProjectiles)) {
     canvas.save();
     canvas.translate(c.dx, c.dy);
-    final drawn = paintElementGround(canvas, element, effectR * 0.9, time, seed);
+    // It dissolves over its last half second instead of vanishing.
+    final drawn = paintElementGround(
+      canvas,
+      element,
+      effectR * 0.9,
+      time,
+      seed,
+      fade: (projectile.life / 0.5).clamp(0.0, 1.0),
+    );
     canvas.restore();
     if (drawn) return true;
   }

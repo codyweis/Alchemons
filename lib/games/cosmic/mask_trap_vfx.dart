@@ -193,9 +193,13 @@ bool drawMaskTrapFixture({
   // Survival keeps consumed Light/Crystal fixtures briefly for their existing
   // activation timer. Collapse the fixture while independent debris finishes.
   final flash = projectile.abilityGrowthTimer.clamp(0.0, 1.0);
+  // A trap goes by dissolving where it lies: over its last half second, and
+  // when a sprung Light or Crystal trap is spent. (It used to shrink to a
+  // point when sprung, which read as it zooming away.)
+  var gone = (projectile.life / 0.5).clamp(0.0, 1.0);
   if (flash > 0 && (element == 'Light' || element == 'Crystal')) {
     final window = element == 'Light' ? 0.64 : 0.48;
-    canvas.scale((1 - (1 - flash) / window).clamp(0.04, 1.0));
+    gone = min(gone, (1 - (1 - flash) / window).clamp(0.0, 1.0));
   }
 
   // The element's ground, in grains with no outline (element_ground_art.dart):
@@ -214,6 +218,7 @@ bool drawMaskTrapFixture({
       reduced: reduced,
       // A Mask's Earth pool heals whoever stands in it.
       mends: element == 'Earth',
+      fade: gone,
     )) {
       canvas.restore();
       return true;

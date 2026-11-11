@@ -48,6 +48,13 @@ final ui.Paint _pt = ui.Paint()
   ..style = ui.PaintingStyle.stroke;
 
 void _g(int tone, double x, double y) {
+  // Dissolving: each grain goes at its own point as [_keep] falls, by a hash
+  // of where it lies, so the ground thins away where it is instead of
+  // shrinking (which read as it zooming off).
+  if (_keep < 1) {
+    final v = sin(x * 1.731 + y * 0.917) * 43758.5453;
+    if (v - v.floorToDouble() > _keep) return;
+  }
   var b = _buf[tone];
   final i = _n[tone];
   if (i + 2 > b.length) {
@@ -115,7 +122,9 @@ const kElementGrounds = {
 /// Paints [element]'s ground effect round the origin, out to [r]. [seed] is
 /// any number that stays the same for one effect, so no two look alike.
 /// [mends] is for ground that heals what stands on it (Earth shows its
-/// spring). [bed] false leaves out the dark scatter under it, for a field
+/// spring). [fade] (1 to 0) dissolves it: its grains thin away where they
+/// lie, the ground keeping its size. [bed] false leaves out the dark scatter
+/// under it, for a field
 /// wide enough to lie over the orb, where it reads as dirt on the glass.
 /// False for an element it has no form for.
 bool paintElementGround(
@@ -127,10 +136,13 @@ bool paintElementGround(
   bool reduced = false,
   bool mends = false,
   bool bed = true,
+  double fade = 1,
 }) {
   if (r < 6 || !kElementGrounds.contains(element)) return false;
   _mends = mends;
   _withBed = bed;
+  _keep = fade.clamp(0.0, 1.0);
+  if (_keep <= 0.01) return true;
   // Things that stand up off the ground (a flame, a plume, a shard) keep a
   // sensible height however wide the effect is; a wide one has more of
   // them instead.
@@ -178,8 +190,17 @@ bool paintElementGround(
     case 'Dark':
       // The void: a dark hole in a violet haze, wisps falling in over its
       // lip. Grains made it a black disc with a bright rim, which the user
-      // judged worse twice (Dark Mane, then Horn's leftover).
-      drawVfxVoid(canvas, ui.Offset.zero, vfxMaterial('Dark'), r * 0.6, seed, time);
+      // judged worse twice (Dark Mane, then Horn's leftover). It is filled
+      // shapes, so it fades rather than dissolving.
+      drawVfxVoid(
+        canvas,
+        ui.Offset.zero,
+        vfxMaterial('Dark'),
+        r * 0.6,
+        seed,
+        time,
+        alpha: _keep,
+      );
     case 'Light':
       _light(canvas, r, grain, t, sd, n);
     case 'Blood':
@@ -194,6 +215,7 @@ typedef _N = int Function(num v);
 // effect has, and the share of grains each keeps at reduced quality.
 double _many = 1, _fq = 1;
 bool _withBed = true;
+double _keep = 1;
 bool _mends = false;
 int _count(int base) => (base * _many).round();
 int _nf(num v) => (v * _fq).round();

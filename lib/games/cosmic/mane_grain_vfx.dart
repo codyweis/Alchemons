@@ -346,8 +346,9 @@ void paintManeLavaPool(
   double time, {
   bool reduced = false,
   double heat = 1,
+  double fade = 1,
 }) {
-  if (r < 6) return;
+  if (r < 6 || fade <= 0.01) return;
   if (!_poolBuilt) {
     _poolBuilt = true;
     for (var i = 0; i < _kPoolN; i++) {
@@ -378,6 +379,8 @@ void paintManeLavaPool(
   for (var i = 0; i < count; i++) {
     final u = _poolRim[i];
     if (u > 0.72 && _h(i, 201) < (u - 0.72) / 0.28) continue;
+    // Dissolving: each grain goes at its own point as [fade] falls.
+    if (fade < 1 && _h(i, 207) > fade) continue;
     final wx = at.dx + _poolX[i] * r, wy = at.dy + _poolY[i] * r;
     final cx = (wx / _kPoolCell).floor() - gx0;
     final cy = (wy / _kPoolCell).floor() - gy0;

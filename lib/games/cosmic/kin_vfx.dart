@@ -103,7 +103,7 @@ bool drawKinPieceVisual({
   final fade = (projectile.life / 0.6).clamp(0.0, 1.0);
   final r = projectile.effectRadius > 0 ? projectile.effectRadius : 40.0;
   // A Kin's fields are the element's ground in grains
-  // (element_ground_art.dart), drawing in as they go; Earth's wall is a
+  // (element_ground_art.dart), dissolving as they go; Earth's wall is a
   // thing it builds and keeps its own art.
   if (element != 'Earth') {
     canvas.save();
@@ -111,9 +111,10 @@ bool drawKinPieceVisual({
     final drawn = paintElementGround(
       canvas,
       element,
-      r * (0.6 + 0.4 * fade),
+      r,
       time,
       seed,
+      fade: fade,
     );
     canvas.restore();
     if (drawn) return true;

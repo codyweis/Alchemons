@@ -882,9 +882,11 @@ void drawVfxVoid(
   VfxMaterial m,
   double r,
   double seed,
-  double time,
-) {
-  vfxSpill(canvas, c, r * 1.2, m.light, 0.12);
+  double time, {
+  double alpha = 1,
+}) {
+  if (alpha <= 0.01) return;
+  vfxSpill(canvas, c, r * 1.2, m.light, 0.12 * alpha);
   for (var layer = 3; layer >= 0; layer--) {
     vfxFillPath(
       canvas,
@@ -896,7 +898,7 @@ void drawVfxVoid(
         wobble: 0.06,
       ),
       m.ink,
-      0.26 + (3 - layer) * 0.14,
+      (0.26 + (3 - layer) * 0.14) * alpha,
     );
   }
   // Wisps falling in, fading as they cross the lip.
@@ -907,7 +909,7 @@ void drawVfxVoid(
       canvas,
       vfxSpiralArm(c, r * (1.05 - ph * 0.4), a, 1.2, r * 0.05, reach: 0.6),
       m.glint,
-      0.3 * sin(ph * pi),
+      0.3 * sin(ph * pi) * alpha,
     );
   }
 }

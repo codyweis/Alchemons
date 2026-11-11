@@ -629,7 +629,7 @@ bool drawAlchemicalManeVisual({
   if (projectile.stationary && (element == 'Lightning' || element == 'Steam')) {
     // A thrown Lightning orb's shock field and the Steam geyser's puffs lie
     // on their element's ground: forking bolts in charged air; vents with
-    // plumes. Each grows in and shrinks away rather than popping.
+    // plumes. Each spreads in and dissolves away rather than popping.
     final reach = max(
       projectile.effectRadius,
       projectile.snareRadius,
@@ -640,17 +640,18 @@ bool drawAlchemicalManeVisual({
     paintElementGround(
       canvas,
       element!,
-      reach * grow * (0.6 + 0.4 * fade),
+      reach * grow,
       time,
       (identityHashCode(projectile) % 97) * 0.37,
+      fade: fade,
     );
     canvas.restore();
     return true;
   }
   if (projectile.stationary && element == 'Lava') {
     // Lava's pools are cells of crust with the melt in the seams, the cells
-    // anchored to the ground so overlapping pools run together. Each grows
-    // in and shrinks away rather than popping. (Earth's quakes keep their
+    // anchored to the ground so overlapping pools run together. Each spreads
+    // in and dissolves away rather than popping. (Earth's quakes keep their
     // own broken slabs below: in the game they read better trailing the
     // boulder than the shared Earth ground's scattered stones.)
     final reach = max(
@@ -661,9 +662,10 @@ bool drawAlchemicalManeVisual({
     paintManeLavaPool(
       canvas,
       position,
-      reach * grow * (0.6 + 0.4 * fade),
+      reach * grow,
       time,
       reduced: maneLavaPoolCrowd > kManeLavaPoolLiteAbove,
+      fade: fade,
     );
     return true;
   }
