@@ -233,15 +233,6 @@ double _stretchFor(EnemyConduct c, EnemyTrait? t, EnemyTier tier) {
 int openWorldVariantSigilPoints(CosmicEnemyVariant v) =>
     v == CosmicEnemyVariant.standard ? 0 : 3;
 
-/// The light inside an elite's case, one color per affix.
-Color eliteAffixLight(EliteAffix affix) => switch (affix) {
-  EliteAffix.bulwarked => const Color(0xFF7DD3FC),
-  EliteAffix.volatile => const Color(0xFFFFA34A),
-  EliteAffix.vampiric => const Color(0xFFFB7185),
-  EliteAffix.overclocked => const Color(0xFFFDE047),
-  EliteAffix.relentless => const Color(0xFFA78BFA),
-};
-
 /// What a survival body drawn in grains (roster_art.dart) still needs from
 /// here: its dive and attack tells, and the roots holding it.
 void drawSurvivalEnemyMarks({
@@ -416,6 +407,108 @@ void _drawBossVentEmbers(Canvas canvas, double r, double vent, double time) {
   }
 }
 
+Float32List _ringLit = Float32List(2 * 128);
+Float32List _ringOut = Float32List(2 * 128);
+final Float32List _ringEdge = Float32List(2);
+final Paint _ringPaint = Paint()
+  ..strokeCap = StrokeCap.round
+  ..style = PaintingStyle.stroke;
+
+/// A boss's health: grains set round it at [radius], lit clockwise from
+/// the top for the share it has left, the spent ones left as dim specks.
+/// The last lit grain glints, so the edge is easy to find.
+void _drawBossHealthGrains(
+  Canvas canvas,
+  double radius,
+  double hp,
+  Color color,
+  double time,
+) {
+  final n = (2 * pi * radius / 5.5).round().clamp(60, 320);
+  if (_ringLit.length < n * 2) {
+    _ringLit = Float32List(n * 2);
+    _ringOut = Float32List(n * 2);
+  }
+  final lit = (n * hp.clamp(0.0, 1.0)).ceil();
+  var li = 0, oi = 0;
+  for (var i = 0; i < n; i++) {
+    final a = -pi / 2 + (i + 0.5) / n * 2 * pi;
+    // Two courses, the grains a little off their marks: a band of sand,
+    // not a ruled circle.
+    final rr =
+        radius +
+        (i.isEven ? 0.0 : -5.0) +
+        1.6 * sin(time * 2 + i * 0.9) +
+        2.2 * sin(i * 12.9898);
+    final x = rr * cos(a), y = rr * sin(a);
+    if (i < lit) {
+      _ringLit[li++] = x;
+      _ringLit[li++] = y;
+      if (i == lit - 1) {
+        _ringEdge[0] = x;
+        _ringEdge[1] = y;
+      }
+    } else {
+      _ringOut[oi++] = x;
+      _ringOut[oi++] = y;
+    }
+  }
+  if (oi > 0) {
+    canvas.drawRawPoints(
+      ui.PointMode.points,
+      Float32List.sublistView(_ringOut, 0, oi),
+      _ringPaint
+        ..strokeWidth = 1.8
+        ..color = Color.lerp(color, const Color(0xFF07060B), 0.7)!,
+    );
+  }
+  if (li > 0) {
+    canvas.drawRawPoints(
+      ui.PointMode.points,
+      Float32List.sublistView(_ringLit, 0, li),
+      _ringPaint
+        ..strokeWidth = 3.0
+        ..color = Color.lerp(color, const Color(0xFFFFF6E4), 0.25)!,
+    );
+    canvas.drawRawPoints(
+      ui.PointMode.points,
+      _ringEdge,
+      _ringPaint
+        ..strokeWidth = 5
+        ..color = const Color(0xFFFFF6E4),
+    );
+  }
+}
+
+Float32List _shieldPts = Float32List(2 * 128);
+
+/// A boss's shield: plates of pale grains turning round it, two rows deep.
+void _drawBossShieldGrains(Canvas canvas, double radius, double time) {
+  final n = (2 * pi * radius / 5).round().clamp(60, 320);
+  if (_shieldPts.length < n * 4) _shieldPts = Float32List(n * 4);
+  var k = 0;
+  for (var row = 0; row < 2; row++) {
+    final turn = time * (row == 0 ? 0.5 : -0.35);
+    final rr = radius + row * 4.5;
+    for (var i = 0; i < n; i++) {
+      // Plates with gaps between them.
+      if ((i + row * 4) % 11 >= 8) continue;
+      final a = i / n * 2 * pi + turn;
+      _shieldPts[k++] = rr * cos(a);
+      _shieldPts[k++] = rr * sin(a);
+    }
+  }
+  canvas.drawRawPoints(
+    ui.PointMode.points,
+    Float32List.sublistView(_shieldPts, 0, k),
+    _ringPaint
+      ..strokeWidth = 3
+      ..color = const Color(0xFF7FE8F4).withValues(
+        alpha: 0.62 + 0.14 * sin(time * 3),
+      ),
+  );
+}
+
 void drawSurvivalBoss({
   required Canvas canvas,
   required SurvivalBoss boss,
@@ -463,42 +556,30 @@ void drawSurvivalBoss({
       elapsed,
     );
   }
-  if (boss.shieldUp) {
-    vfxSoftRing(
-      canvas,
-      Offset.zero,
-      r * 1.32,
-      r * 0.16,
-      const Color(0xFF7FE8F4),
-      0.42 + 0.12 * sin(elapsed * 3),
-    );
-  }
-
   final hpFrac = boss.hpFraction;
-  final barW = r * 3.0;
-  final barY =
-      -r *
-          (kind == SurvivalBossKind.form
-              ? grainFormReach(bossFormFor(boss.type))
-              : survivalBossReach(kind)) -
-      12;
-  canvas.drawRRect(
-    RRect.fromRectAndRadius(
-      Rect.fromCenter(center: Offset(0, barY), width: barW, height: 5),
-      const Radius.circular(2.5),
-    ),
-    Paint()..color = Colors.black.withValues(alpha: 0.7),
+  // Its health is read off a ring of grains round it, lit clockwise from
+  // the top for what it has left; its shield is a second band of grains
+  // turning inside that.
+  final ringR =
+      max(
+        r *
+            (kind == SurvivalBossKind.form
+                ? grainFormReach(bossFormFor(boss.type))
+                : survivalBossReach(kind)),
+        r * 1.32,
+      ) +
+      10;
+  if (boss.shieldUp) _drawBossShieldGrains(canvas, r * 1.32, elapsed);
+  _drawBossHealthGrains(
+    canvas,
+    ringR,
+    hpFrac,
+    boss.enraged
+        ? Color.lerp(Colors.red, Colors.orange, sin(elapsed * 4) * 0.5 + 0.5)!
+        : Color.lerp(Colors.red, bColor, hpFrac)!,
+    elapsed,
   );
-  canvas.drawRRect(
-    RRect.fromRectAndRadius(
-      Rect.fromLTWH(-barW / 2, barY - 2.5, barW * hpFrac, 5),
-      const Radius.circular(2.5),
-    ),
-    Paint()
-      ..color = boss.enraged
-          ? Color.lerp(Colors.red, Colors.orange, sin(elapsed * 4) * 0.5 + 0.5)!
-          : Color.lerp(Colors.red, bColor, hpFrac)!,
-  );
+  final barY = -ringR - 4;
 
   // Venting: planted, overheated and open. This is the window that pays you
   // for closing the distance, so it has to be unmistakable.

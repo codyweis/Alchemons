@@ -94,11 +94,11 @@ void main() {
     }
   });
 
-  test('struck bodies and elites draw no blur and stay bounded', () {
+  test('struck bodies draw no blur and stay bounded', () {
     final batch = RosterBatch();
-    var elites = 0, hollows = 0;
+    var hollows = 0;
     for (final kind in SurvivalKind.values) {
-      for (final affix in EliteAffix.values) {
+      for (var copy = 0; copy < 5; copy++) {
         if (kind == SurvivalKind.hollow) hollows += 2;
         batch
           ..addBody(
@@ -121,16 +121,14 @@ void main() {
             hp: 1,
             color: elementColor('Water'),
             seed: 4,
-            eliteLight: eliteAffixLight(affix),
           );
-        elites++;
       }
     }
     final c = _CensusCanvas();
     batch.flush(c as Canvas);
     expect(c.blurredDraws, 0);
-    // The flash's palette and the matte one, each elite's shadow and halo.
-    expect(c.draws, lessThanOrEqualTo(_perColour * 2 + 2 * elites + hollows));
+    // The flash's palette and the element's.
+    expect(c.draws, lessThanOrEqualTo(_perColour * 2 + hollows));
   });
 
   test('the tells drawn over a body draw no blur and stay small', () {

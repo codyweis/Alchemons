@@ -47,6 +47,7 @@ import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/boss_roster_art.dart';
 import 'package:alchemons/games/cosmic_survival/dust_sea.dart';
+import 'package:alchemons/games/cosmic_survival/mutator_field.dart';
 import 'package:alchemons/games/cosmic_survival/roster_art.dart';
 import 'package:alchemons/games/cosmic_survival/surge_grains.dart';
 import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
@@ -1947,6 +1948,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   /// The sea of dust a Drift's wave fills the arena with (dust_sea.dart).
   final DustSea _dustSea = DustSea();
+
+  /// What the wave's mutator lays over the floor (mutator_field.dart).
+  final MutatorField _mutatorField = MutatorField();
+
+  /// Shows a mutator's look whatever the wave rolled, for previews.
+  @visibleForTesting
+  SurvivalWaveMutator? debugMutatorLook;
+
+  @visibleForTesting
+  MutatorField get debugMutatorField => _mutatorField;
   DustSea get debugDustSea => _dustSea;
 
   /// Your party as grains, for the Other Orb's guard, read from each
@@ -2920,6 +2931,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _updateVfx(dt);
     _updateWear(dt);
     _dustSea.update(dt, active: _driftAlive);
+    _mutatorField.update(dt, debugMutatorLook ?? spawner.currentMutator);
     for (final b in allLivingBosses) {
       tickSurvivalBossArt(b, stats.timeElapsed);
     }
@@ -23844,6 +23856,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
 
     _wear.paintDrift(canvas, view);
+    _mutatorField.paint(
+      canvas,
+      view,
+      orb.position,
+      _arenaRadius,
+      stats.timeElapsed,
+      elementColor(spawner.waveElement),
+    );
     if (_dustSea.visible) _paintDustSea(canvas, view);
     _paintCrowdMass(canvas, view);
     final denseField = enemies.length >= _kDenseFieldThreshold;
@@ -23916,12 +23936,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      paintHostileShot(
-        canvas,
+      _hostileShots.add(
         proj.position,
         proj.angle,
         proj.radius,
         proj.element,
+        stats.timeElapsed,
         heavy: true,
       );
     }
@@ -23939,14 +23959,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       )) {
         continue;
       }
-      paintHostileShot(
-        canvas,
+      _hostileShots.add(
         proj.position,
         proj.angle,
         proj.radius,
         proj.element,
+        stats.timeElapsed,
       );
     }
+    _hostileShots.flush(canvas);
 
     // Companion projectiles
     for (final proj in companionProjectiles) {
@@ -24942,6 +24963,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// (roster_art.dart).
   static const _kDenseFieldThreshold = 1200;
   final RosterBatch _roster = RosterBatch();
+  final HostileShotBatch _hostileShots = HostileShotBatch();
   final List<CosmicSurvivalEnemy> _rosterMarks = [];
 
   /// The dust sea, parted by everything in it: the Drift's head and stream

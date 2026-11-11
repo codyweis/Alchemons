@@ -26,9 +26,6 @@ import 'dart:typed_data';
 import 'dart:ui';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
-import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart'
-    show eliteAffixLight;
-import 'package:alchemons/games/cosmic/vfx_shapes.dart' show vfxSpill;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/survival_kind.dart';
@@ -79,19 +76,6 @@ class _Palette {
       ],
       massTone = Color.lerp(c, _ink, 0.78)!,
       capTone = Color.lerp(c, _ink, 0.58)!;
-
-  /// An elite's: matte black stone, nothing on it shines.
-  _Palette.matte()
-    : tone = const [
-        Color(0x8C0A090D),
-        Color(0xFF0A090D),
-        Color(0xFF17151C),
-        Color(0xFF26222D),
-        Color(0xFF38333F),
-        Color(0xFF4B4653),
-      ],
-      massTone = const Color(0xFF060508),
-      capTone = const Color(0xFF100E14);
 
   final List<Color> tone;
   final Color massTone, capTone;
@@ -213,14 +197,11 @@ int _tone(double light) =>
 /// Collects every kind body in view and draws them together.
 class RosterBatch {
   final Map<int, _Palette> _palettes = {};
-  final _Palette _matte = _Palette.matte();
   final _Palette _flash = _Palette(_white);
   final List<_Palette> _order = [];
 
   // Hollows: the gap itself, drawn under everything.
   final List<double> _voids = [];
-  // Elites: where each stands, how big, and the light behind it.
-  final List<(Offset, double, Color)> _elites = [];
 
   static final _husk = _Shell(620, bands: 3, segs: 2, fill: 0.8, gap: 0.17);
   static final _crust = _Shell(90, bands: 3, fill: 0.5, gap: 0.12, salt: 3);
@@ -309,9 +290,6 @@ class RosterBatch {
       arrive:
           arrive ??
           (e.age >= 2 ? 1.0 : (e.age / arrivalSeconds(kind)).clamp(0.0, 1.0)),
-      eliteLight: e.isElite && e.eliteAffix != null
-          ? eliteAffixLight(e.eliteAffix!)
-          : null,
       summonCooldown: e.summonCooldown,
       snareClosed: e.snareClosed,
       orb: orb,
@@ -322,7 +300,7 @@ class RosterBatch {
   /// Adds a body of [kind] from plain values, for a mode whose enemies are
   /// not survival's (open space). [heading] is where it faces, [hp] 0..1,
   /// [seed] any stable small number for the body, [arrive] 0..1 how far it
-  /// has gathered on entering; [eliteLight] makes it an elite of that light.
+  /// has gathered on entering.
   /// [orb] is what a Siphon latches to, if anything.
   void addBody({
     required SurvivalKind kind,
@@ -335,7 +313,6 @@ class RosterBatch {
     required int seed,
     double hitFlash = 0,
     double arrive = 1,
-    Color? eliteLight,
     double summonCooldown = 0,
     bool snareClosed = false,
     Offset? orb,
@@ -348,9 +325,6 @@ class RosterBatch {
         p.used = true;
         _order.add(p);
       }
-    } else if (eliteLight != null) {
-      p = _matte;
-      _elites.add((position, radius, eliteLight));
     } else {
       p = _palette(color);
     }
@@ -371,12 +345,6 @@ class RosterBatch {
       SurvivalKind.snare => radius * (1 + 0.035 * sin(time * 2.3 + seed)),
       _ => radius,
     };
-    if (p == _matte &&
-        (kind == SurvivalKind.mote ||
-            kind == SurvivalKind.strand ||
-            kind == SurvivalKind.braid)) {
-      p.mass(cx, cy, radius * 0.8, radius * 0.8);
-    }
     switch (kind) {
       case SurvivalKind.mote:
         _mote(p, cx, cy, r, hc, hs, time, seed, dense);
@@ -1144,16 +1112,6 @@ class RosterBatch {
       _draw(canvas, p, grain);
     }
     _order.clear();
-    // Elites last, over the crowd: each in its own shadow with its affix's
-    // light behind it.
-    if (_elites.isNotEmpty) {
-      for (final (at, r, light) in _elites) {
-        vfxSpill(canvas, at, r * 2.5, const Color(0xFF000000), 0.6);
-        vfxSpill(canvas, at, r * 1.7, light, 0.42);
-      }
-      _elites.clear();
-      _draw(canvas, _matte, grain);
-    }
   }
 
   void _draw(Canvas canvas, _Palette p, double grain) {

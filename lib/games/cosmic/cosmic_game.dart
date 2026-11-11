@@ -795,6 +795,7 @@ class CosmicGame extends FlameGame with PanDetector {
   /// Every enemy body in view, drawn in grains together (roster_art.dart),
   /// and the ones with tells to draw over them.
   final RosterBatch _roster = RosterBatch();
+  final HostileShotBatch _hostileShots = HostileShotBatch();
   final List<CosmicEnemy> _enemyMarks = [];
 
   /// Stalkers (or stalker flocks) shadowing the ship at once.
@@ -5891,15 +5892,16 @@ class CosmicGame extends FlameGame with PanDetector {
       }
 
       // The same hostile shot Survival draws.
-      paintHostileShot(
-        canvas,
+      _hostileShots.add(
         pp,
         bp.angle,
         bp.radius,
         bp.element,
+        _elapsed,
         heavy: true,
       );
     }
+    _hostileShots.flush(canvas);
 
     // ── projectiles ──
     for (final p in projectiles) {

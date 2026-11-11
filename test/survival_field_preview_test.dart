@@ -334,6 +334,12 @@ void main() {
             game.powerUps.apply(fury);
           }
         }
+        // LOOK_MUTATOR=arcStorm: that mutator's look on the field, whatever
+        // the wave rolled.
+        final look = Platform.environment['LOOK_MUTATOR'];
+        if (look != null) {
+          game.debugMutatorLook = SurvivalWaveMutator.values.byName(look);
+        }
         game.spawner.currentWave = wave - 1;
         game.spawner.resumeAfterIntermission();
         // The floor a run this deep would have left.
