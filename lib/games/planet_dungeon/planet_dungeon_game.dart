@@ -19,6 +19,8 @@ import 'package:alchemons/games/shared/enemy_taxonomy.dart';
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic/cosmic_ability_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
+import 'package:alchemons/games/cosmic/mane_grain_vfx.dart'
+    show ManeBloodRuns;
 import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/horn_runtime.dart'
     show
@@ -839,6 +841,10 @@ class PlanetDungeonGame extends FlameGame {
   Offset joystickDirection = Offset.zero;
 
   double _time = 0;
+
+  /// What Mane Blood shots took from the bodies they pierced, running home
+  /// to the caster they heal, one set of runs a caster.
+  final Map<int, ManeBloodRuns> _maneBloodRuns = {};
   double _doorCooldown = 0;
 
   /// Where this room was entered — the door's own arrival point, or the
@@ -5624,6 +5630,7 @@ class PlanetDungeonGame extends FlameGame {
       } else if (!p.stationary) {
         final speed = Projectile.speed * p.speedMultiplier;
         p.position += Offset(cos(p.angle), sin(p.angle)) * speed * dt;
+        p.flown += speed * dt;
       }
 
       if (p.trailInterval > 0 && !p.stationary && p.orbitCenter == null) {
@@ -6512,6 +6519,15 @@ class PlanetDungeonGame extends FlameGame {
       case AbilityEffectKind.leech:
       case AbilityEffectKind.zoneHeal:
         _healSourceCreature(slot, effectPower.toDouble());
+        // What the Mane Blood shot took from this body runs home to it.
+        if (slot != null &&
+            projectile.abilityFamily == 'mane' &&
+            projectile.element == 'Blood') {
+          (_maneBloodRuns[slot] ??= ManeBloodRuns()).add(
+            enemy.position,
+            _time,
+          );
+        }
         if (slot == null) {
           final comp = activeCombat;
           final creature = active;
@@ -15749,6 +15765,15 @@ class PlanetDungeonGame extends FlameGame {
         time: _time,
       );
     }
+    _maneBloodRuns.forEach((slot, runs) {
+      if (runs.isEmpty) return;
+      final home = _combatCompanionForSlot(slot);
+      if (home == null || home.isDead) {
+        runs.clear();
+        return;
+      }
+      runs.paint(canvas, home.position, _time);
+    });
   }
 
   bool _drawSurvivalProjectileVisual(

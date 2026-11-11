@@ -16,6 +16,7 @@ import 'horn_runtime.dart';
 import 'kin_support_runtime.dart';
 import 'mane_runtime.dart';
 import 'mane_alchemical_vfx.dart' show maneLavaPoolCrowd;
+import 'mane_grain_vfx.dart' show ManeBloodRuns;
 import 'cosmic_enemy_vfx.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/utils/effect_size.dart';
@@ -2386,6 +2387,10 @@ class CosmicGame extends FlameGame with PanDetector {
   /// Survival's per-caster heal ceiling ([HealCeiling]), with the ship
   /// standing in for the orb.
   final HealCeiling _healCeiling = HealCeiling();
+
+  /// What Mane Blood shots took from the bodies they pierced, running home
+  /// to the ship they heal.
+  final ManeBloodRuns _maneBloodRuns = ManeBloodRuns();
 
   @override
   void update(double dt) {
@@ -6032,6 +6037,9 @@ class CosmicGame extends FlameGame with PanDetector {
         }
         _renderAbilityProjectile(canvas, cp);
       }
+    }
+    if (!_maneBloodRuns.isEmpty) {
+      _maneBloodRuns.paint(canvas, ship.pos, _elapsed);
     }
     _renderMaskOverlays(canvas, Rect.fromLTWH(cx, cy, screenW, screenH));
 

@@ -3,6 +3,8 @@ import 'dart:ui' as ui;
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'mane_alchemical_vfx.dart';
+import 'element_ground_art.dart';
+import 'mane_grain_vfx.dart';
 import 'horn_vfx.dart';
 import 'mystic_world_vfx.dart';
 import 'kin_vfx.dart';
@@ -424,19 +426,6 @@ final _maneIceEdge = ui.Path()
   ..moveTo(13, -14)
   ..lineTo(3, -5)
   ..lineTo(1, 4);
-final _maneIceChip = ui.Path()
-  ..moveTo(3, 0)
-  ..lineTo(-1, -1.7)
-  ..lineTo(-3, 0.4)
-  ..lineTo(0, 2)
-  ..close();
-final _maneIceMist = ui.Path()
-  ..moveTo(-10, -9)
-  ..cubicTo(-24, -15, -37, -10, -54, -3)
-  ..cubicTo(-38, -4, -31, 9, -12, 10)
-  ..quadraticBezierTo(-19, 0, -10, -9)
-  ..close();
-
 // Cool mineral glass with an enclosed silver light, rather than opaque panels.
 final _maneIceGlass = ui.Gradient.linear(
   const ui.Offset(-19, 14),
@@ -495,7 +484,6 @@ void _drawManeIceMass(
   double time,
 ) {
   final scale = maneArtScale(projectile, floor: 0.75);
-  final phase = time + projectile.angle;
   final opacity = (projectile.life / 0.22).clamp(0.0, 1.0);
   final breakup = (1 - opacity) * (1 - opacity);
   final paint = ui.Paint();
@@ -504,40 +492,22 @@ void _drawManeIceMass(
   canvas.rotate(projectile.angle);
   canvas.scale(scale);
 
-  // Two quiet ribbons of cold air, tucked behind the solid leading face.
-  canvas.drawPath(
-    _maneIceMist,
-    paint
-      ..color = const ui.Color(0xFF79CAED).withValues(alpha: 0.045 * opacity),
+  // Frost swept back off the glass by its flight, and the frost track it
+  // leaves (mane_grain_vfx.dart). Drawn first, so the fronds come out from
+  // under the glass. It replaced two ribbons of mist and six tumbling chips.
+  canvas.restore();
+  paintManeIceFrost(
+    canvas,
+    projectile,
+    position,
+    time,
+    20 * scale,
+    fade: opacity,
   );
   canvas.save();
-  canvas.translate(-6, sin(phase * 3) * 2);
-  canvas.scale(0.87, 0.67);
-  canvas.drawPath(
-    _maneIceMist,
-    paint
-      ..color = const ui.Color(0xFFB5EFFF).withValues(alpha: 0.055 * opacity),
-  );
-  canvas.restore();
-
-  // Six analytic chips: fixed draw cost, independent of refresh rate and the
-  // shared ambient pool. They peel off, tumble, and dissolve in the wake.
-  for (var i = 0; i < 6; i++) {
-    final t = (phase * 1.25 + i / 6) % 1.0;
-    final side = i.isEven ? -1.0 : 1.0;
-    canvas.save();
-    canvas.translate(-14 - t * 39, side * (7 + t * (5 + i) + breakup * 12));
-    canvas.rotate(side * (t * 3 + i));
-    canvas.scale(0.35 + (i % 3) * 0.12);
-    canvas.drawPath(
-      _maneIceChip,
-      paint
-        ..color = const ui.Color(
-          0xFFBDEEFF,
-        ).withValues(alpha: sin(t * pi) * 0.40 * opacity),
-    );
-    canvas.restore();
-  }
+  canvas.translate(position.dx, position.dy);
+  canvas.rotate(projectile.angle);
+  canvas.scale(scale);
 
   // Faces separate during the final 220ms, using the same cached geometry.
   void facet(
@@ -590,199 +560,6 @@ final _maneIceGlint = vfxLensRibbon(
   1.3,
 );
 
-// Obsidian suspended over molten material. All paths and shaders are reused.
-final _maneLavaBody = ui.Path()
-  ..moveTo(22, -1)
-  ..cubicTo(23, -10, 10, -17, 1, -14)
-  ..cubicTo(-8, -16, -10, -8, -19, -9)
-  ..lineTo(-14, -3)
-  ..lineTo(-24, 2)
-  ..cubicTo(-12, 1, -14, 12, -4, 12)
-  ..cubicTo(6, 17, 21, 10, 22, -1)
-  ..close();
-final _maneLavaSeams = ui.Path()
-  ..moveTo(-17, -7)
-  ..lineTo(-8, -5)
-  ..lineTo(-3, -8)
-  ..lineTo(4, -5)
-  ..lineTo(9, -10)
-  ..lineTo(13, -11)
-  ..moveTo(4, -5)
-  ..lineTo(6, 1)
-  ..lineTo(2, 5)
-  ..lineTo(5, 12)
-  ..moveTo(6, 1)
-  ..lineTo(14, 2)
-  ..lineTo(20, -2)
-  ..moveTo(2, 5)
-  ..lineTo(-6, 4)
-  ..lineTo(-12, 7);
-final _maneLavaCrust = ui.Gradient.linear(
-  const ui.Offset(-12, 10),
-  const ui.Offset(12, -12),
-  const [
-    ui.Color(0xFF100F16),
-    ui.Color(0xFF35292C),
-    ui.Color(0xFF5D4540),
-    ui.Color(0xFF8C6450),
-  ],
-  const [0.0, 0.50, 0.85, 1.0],
-);
-final _maneLavaHeat = ui.Gradient.radial(
-  const ui.Offset(8, -1),
-  25,
-  const [
-    ui.Color(0xFFFFD393),
-    ui.Color(0xFFE9833C),
-    ui.Color(0xFF902D18),
-    ui.Color(0xFF321A21),
-  ],
-  const [0.0, 0.3, 0.7, 1.0],
-);
-// Soft falloff is baked into a reusable shader, avoiding an offscreen blur.
-final _maneLavaGlow = ui.Gradient.radial(
-  ui.Offset.zero,
-  1,
-  const [
-    ui.Color(0xFFFFD599),
-    ui.Color(0xDDFE872D),
-    ui.Color(0x558F2513),
-    ui.Color(0x008F2513),
-  ],
-  const [0.0, 0.22, 0.55, 1.0],
-);
-
-final _maneLavaWake = ui.Path()
-  ..moveTo(-10, -6)
-  ..cubicTo(-24, -8, -25, 0, -48, 3)
-  ..cubicTo(-28, 7, -21, 2, -11, 7)
-  ..close();
-final _maneLavaDrop = ui.Path()
-  ..moveTo(3, 0)
-  ..cubicTo(3, -3, -1, -3, -5, 0)
-  ..cubicTo(-1, 2, 3, 3, 3, 0)
-  ..close();
-
-void _drawManeLavaMass(
-  ui.Canvas canvas,
-  Projectile projectile,
-  ui.Offset position,
-  double time,
-) {
-  final scale = maneArtScale(projectile, floor: 0.75);
-  final opacity = (projectile.life / 0.25).clamp(0.0, 1.0);
-  final phase = time + projectile.angle;
-  final heat = 0.68 + 0.20 * sin(phase * 2.1);
-  final paint = ui.Paint();
-  canvas.save();
-  canvas.translate(position.dx, position.dy);
-  canvas.rotate(projectile.angle);
-  canvas.scale(scale);
-  void glow(double x, double y, double rx, double ry, double alpha) {
-    canvas.save();
-    canvas.translate(x, y);
-    canvas.scale(rx, ry);
-    canvas.drawCircle(
-      ui.Offset.zero,
-      1,
-      paint
-        ..style = ui.PaintingStyle.fill
-        ..shader = _maneLavaGlow
-        ..color = ui.Color.fromRGBO(255, 255, 255, alpha * opacity),
-    );
-    canvas.restore();
-  }
-
-  // Close surface radiance, asymmetric and gently changing with the heat.
-  glow(4, 0, 32 + 2 * sin(phase * 2.1), 24, 0.30);
-  canvas.save();
-  canvas.scale(1.0 + sin(phase * 2.6) * 0.06, 1.0 + sin(phase * 3.2) * 0.16);
-  canvas.drawPath(
-    _maneLavaWake,
-    paint
-      ..shader = _maneLavaHeat
-      ..color = ui.Color.fromRGBO(255, 255, 255, 0.25 * opacity),
-  );
-  canvas.restore();
-  // Four drawn droplets, with no additions to either game's particle pool.
-  for (var i = 0; i < 4; i++) {
-    final t = (phase * 0.8 + i * 0.25) % 1.0;
-    canvas.save();
-    canvas.translate(-15 - t * 28, sin(i * 2.4) * (3 + t * 9));
-    canvas.rotate(sin(i * 2.4) * t * 0.3);
-    canvas.scale((0.7 - t * 0.4) * (1 + sin(t * pi) * 1.3), 0.72 - t * 0.5);
-    canvas.drawPath(
-      _maneLavaDrop,
-      paint
-        ..shader = null
-        ..color = ui.Color.lerp(
-          const ui.Color(0xFFFFB663),
-          const ui.Color(0xFF72352A),
-          t,
-        )!.withValues(alpha: sin(t * pi) * opacity * 0.8),
-    );
-    canvas.restore();
-  }
-  canvas.drawPath(
-    _maneLavaBody,
-    paint
-      ..shader = _maneLavaCrust
-      ..color = ui.Color.fromRGBO(255, 255, 255, opacity),
-  );
-  // Moving subsurface hot spots cross under the dark crust independently.
-  // Clipping is local geometry; no saveLayer or framebuffer blur is needed.
-  canvas.save();
-  canvas.clipPath(_maneLavaBody);
-  for (var i = 0; i < 3; i++) {
-    final flow = phase * (1.0 + i * 0.19) + i * 2.1;
-    glow(
-      3 + sin(flow) * 11,
-      sin(flow * 1.37 + i) * 7,
-      13 + sin(flow * 1.6) * 3,
-      9,
-      0.48 + sin(flow * 1.8) * 0.14,
-    );
-  }
-  canvas.restore();
-  // Wide, faint heat under a narrow molten seam: filled ribbons along the
-  // seams (cached), not strokes; no blur or offscreen layer.
-  paint
-    ..shader = _maneLavaHeat
-    ..style = ui.PaintingStyle.fill;
-  canvas.drawPath(
-    vfxRibbonAlongStaticPath(_maneLavaSeams, 3.2, taper: 0.35),
-    paint..color = ui.Color.fromRGBO(255, 255, 255, 0.12 * heat * opacity),
-  );
-  canvas.drawPath(
-    vfxRibbonAlongStaticPath(_maneLavaSeams, 0.8, taper: 0.4),
-    paint..color = ui.Color.fromRGBO(255, 255, 255, 0.55 * heat * opacity),
-  );
-  canvas.save();
-  canvas.clipPath(_maneLavaBody);
-  final run = (phase * 0.55) % 1.0;
-  glow(18 - run * 33, 2 + sin(run * pi * 2) * 4, 7, 4, sin(run * pi) * 0.65);
-  canvas.restore();
-  paint
-    ..style = ui.PaintingStyle.fill
-    ..shader = _maneLavaHeat;
-  // A small hot meniscus along the leading face sells the liquid beneath:
-  // a filled crescent, not a stroked arc.
-  canvas.drawPath(
-    _maneLavaMeniscus,
-    paint..color = ui.Color.fromRGBO(255, 255, 255, 0.55 * heat * opacity),
-  );
-  canvas.restore();
-}
-
-final _maneLavaMeniscus = vfxEllipseCrescent(
-  const ui.Offset(14, -0.5),
-  6,
-  8.5,
-  1.1,
-  -0.9 + 1.55 / 2,
-  1.55,
-);
-
 // A consuming void: smoky silver-violet material spirals inward, disappearing
 // behind an opaque centre. Cached geometry/shaders, no blur or particle pool.
 final _maneDarkHalo = ui.Gradient.radial(
@@ -821,6 +598,9 @@ final _maneDarkCore = ui.Gradient.radial(
   const [0.0, 0.70, 1.0],
 );
 
+/// One paint for the void, reused every frame.
+final ui.Paint _maneDarkPaint = ui.Paint();
+
 void _drawManeDarkVoid(
   ui.Canvas canvas,
   Projectile projectile,
@@ -830,7 +610,7 @@ void _drawManeDarkVoid(
   final scale = maneArtScale(projectile, floor: 0.75);
   final fade = (projectile.life / 0.3).clamp(0.0, 1.0);
   final phase = time + projectile.angle;
-  final paint = ui.Paint();
+  final paint = _maneDarkPaint..shader = null;
   // The reach it drags from (its snare), faintly bent light out to the real
   // edge: the halo below is the body, this is the pull, and the flecks are
   // drawn in from its rim. (The art stopped at ~0.45 of the pull at low.)
@@ -954,10 +734,19 @@ bool drawManeElementalProjectileVisual({
     return true;
   }
 
+  // The thrown melt: cells of it rolling over, a dribble cooling behind
+  // (mane_grain_vfx.dart).
   if (element == 'Lava' &&
       projectile.abilityFamily == 'mane' &&
       !projectile.stationary) {
-    _drawManeLavaMass(canvas, projectile, position, time);
+    paintManeLavaShot(
+      canvas,
+      projectile,
+      position,
+      time,
+      15.5 * maneArtScale(projectile, floor: 0.75),
+      fade: (projectile.life / 0.25).clamp(0.0, 1.0),
+    );
     return true;
   }
 

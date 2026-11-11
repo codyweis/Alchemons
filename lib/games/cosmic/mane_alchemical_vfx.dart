@@ -2,6 +2,8 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'cosmic_data.dart';
+import 'element_ground_art.dart';
+import 'mane_grain_vfx.dart';
 import 'vfx_shapes.dart';
 
 // Material vocabulary for Mane specials. Every shader and path is built once.
@@ -47,14 +49,6 @@ final _ribbon = ui.Path()
   ..cubicTo(4, -15, -12, -9, -36, 4)
   ..cubicTo(-12, -2, -1, 9, 17, 0)
   ..close();
-final _wave = ui.Path()
-  ..moveTo(-12, -29)
-  ..cubicTo(14, -26, 23, 18, -9, 30)
-  ..cubicTo(6, 12, 1, -8, -12, -29)
-  ..close();
-final _crest = ui.Path()
-  ..moveTo(-10, -27)
-  ..cubicTo(13, -19, 16, 15, -8, 28);
 final _stone = ui.Path()
   ..moveTo(18, -4)
   ..lineTo(10, -16)
@@ -101,24 +95,6 @@ final _pool = ui.Path()
   ..cubicTo(-14, -15, -4, -10, 2, -13)
   ..cubicTo(12, -14, 11, -5, 21, 0)
   ..close();
-// A flat molten surface with a cooling rim, not the projectile's glass shader.
-final _lavaPoolHeat = ui.Gradient.radial(
-  const ui.Offset(1, -1),
-  24,
-  const [
-    ui.Color(0xFFAA704A),
-    ui.Color(0xFF783E30),
-    ui.Color(0xFF571E17),
-    ui.Color(0xFF20151A),
-  ],
-  const [0, 0.4, 0.78, 1],
-);
-final _lavaRaft = ui.Path()
-  ..moveTo(-7, -2)
-  ..cubicTo(-5, -5, -1, -3, 2, -4)
-  ..cubicTo(7, -4, 8, 1, 4, 3)
-  ..cubicTo(1, 2, -4, 5, -7, -2)
-  ..close();
 final _root = ui.Path()
   ..moveTo(-27, 5)
   ..cubicTo(-15, -4, -9, 9, 1, -2)
@@ -148,11 +124,12 @@ final _bolt = ui.Path()
 // and every draw below sets the fields it uses.
 final ui.Paint _manePaint = ui.Paint();
 
-/// The scorch under a Mane Lightning field (Lightning's dark material).
-const ui.Color _scorch = ui.Color(0xFF14162A);
-
 /// The broken ground under a Mane Earth quake (Earth's dark material).
 const ui.Color _earthDark = ui.Color(0xFF1E1610);
+
+/// A crack in Earth's slab, and the light deep in it.
+const ui.Color _crack = ui.Color(0xFF0B0907);
+const ui.Color _crackLight = ui.Color(0xFFFFC660);
 
 class _Painter {
   final ui.Canvas c;
@@ -204,6 +181,22 @@ class _Painter {
     );
   }
 
+  /// A crack in stone: a dark gap, with light deep in it as it opens. (It
+  /// was a pale ribbon, which read as a line drawn on the stone.)
+  void fissure(ui.Path path, double width, double open) {
+    c.drawPath(
+      vfxRibbonAlongStaticPath(path, width * 1.5, taper: 0.4),
+      p
+        ..style = ui.PaintingStyle.fill
+        ..shader = null
+        ..color = _crack.withValues(alpha: 0.75 * fade),
+    );
+    c.drawPath(
+      vfxRibbonAlongStaticPath(path, width * 0.45, taper: 0.4),
+      p..color = _crackLight.withValues(alpha: open * fade),
+    );
+  }
+
   void dot(double x, double y, double r, double alpha) {
     c.drawCircle(
       ui.Offset(x, y),
@@ -251,37 +244,6 @@ class _Painter {
     c.restore();
   }
 
-  void water() {
-    glow(0, 0, 24, 35, 0.16);
-    for (var i = 0; i < 3; i++) {
-      final f = (t * 0.75 + i / 3) % 1.0;
-      c.save();
-      c.translate(-f * 15, 0);
-      c.scale(1, 0.88 + f * 0.2);
-      fill(_wave, sin(f * pi) * 0.6);
-      // A broad band of foam on the crest, not a bright hairline (three of
-      // them stacked read as ruled lines across the wave).
-      line(_crest, 0.95, sin(f * pi) * 0.34);
-      c.restore();
-    }
-    for (var i = 0; i < 5; i++) {
-      final f = (t * 0.6 + i / 5) % 1.0;
-      dot(8 - 15 * f * f, -25 + f * 50, 0.6, sin(f * pi) * 0.7);
-    }
-  }
-
-  void air() {
-    glow(8, 0, 25, 8, 0.18);
-    for (var i = 0; i < 3; i++) {
-      c.save();
-      c.translate(-i * 5.0, sin(t * 5 + i) * 4);
-      c.scale(1.4, 0.23 + i * 0.13);
-      fill(_ribbon, 0.26);
-      c.restore();
-    }
-    flecks(6, speed: 2.4);
-  }
-
   void earth() {
     glow(0, 0, 24, 20, 0.14);
     // Independently grinding plates; their seams open as pressure builds.
@@ -292,7 +254,7 @@ class _Painter {
       c.scale(1 - i * 0.16);
       fill(_stone, 0.96);
       hotSurface(_stone, intensity: 0.22);
-      line(_fracture, 0.4, 0.22 + 0.18 * sin(t * 2 + i));
+      fissure(_fracture, 0.5, 0.12 + 0.3 * max(0.0, sin(t * 2 + i)));
       c.restore();
     }
     for (var i = 0; i < 4; i++) {
@@ -372,67 +334,6 @@ class _Painter {
       if (!field) ribbon(0, 0.25, 0.3);
       glow(7, 0, 12, 7, 0.55);
     }
-  }
-
-  void mud() {
-    c.save();
-    c.scale(1 + sin(t * 2.5) * 0.06, 1 + cos(t * 2.5) * 0.07);
-    fill(_drop, 0.95);
-    hotSurface(_drop, intensity: 0.16);
-    line(_fracture, 0.5, 0.28, dark: true);
-    c.restore();
-    for (var i = 0; i < 4; i++) {
-      final f = (t * 0.7 + i / 4) % 1.0;
-      c.save();
-      c.translate(-17 - f * 20, sin(i * 2.4) * (7 + f * 6));
-      c.rotate(f + i);
-      c.scale(0.12 * (1 - f), 0.1);
-      fill(_drop, sin(f * pi));
-      c.restore();
-    }
-  }
-
-  /// A shock field on the ground: a scorch in the stone, charge pooled
-  /// over it and three arcs crawling across it, each easing from one hashed
-  /// pose to the next. Two fills for the arcs.
-  void lightningField() {
-    final flash = 0.65 + 0.25 * (vfxGlide(0.7, t, 2.5) * 2 - 1);
-    vfxFillPath(
-      c,
-      vfxBlob(ui.Offset.zero, 15, 4.1, wobble: 0.26),
-      _scorch,
-      0.6 * fade,
-    );
-    glow(0, 0, 25, 25, 0.3 * flash);
-    final glowPath = ui.Path();
-    final core = ui.Path();
-    // Two discharges crawling across the field from edge to edge, each its
-    // own way (three chords through the middle read as an asterisk).
-    for (var i = 0; i < 2; i++) {
-      final a0 = i * 2.7 + (vfxGlide(i * 3.1, t, 1.2) - 0.5) * 1.4;
-      final a1 = a0 + 1.7 + 0.6 * vfxGlide(i * 5.7 + 0.4, t, 1.5);
-      vfxArcInto(
-        glowPath,
-        core,
-        vfxPolar(a0, 20 + 4 * vfxGlide(i * 2.2, t, 1.9)),
-        vfxPolar(a1, 18),
-        i * 9.0 + 2.0,
-        t,
-        width: 1.3,
-        amp: 0.24,
-      );
-    }
-    c.drawPath(
-      glowPath,
-      p
-        ..style = ui.PaintingStyle.fill
-        ..shader = null
-        ..color = m.light.withValues(alpha: 0.24 * flash * fade),
-    );
-    c.drawPath(
-      core,
-      p..color = m.light.withValues(alpha: 0.85 * flash * fade),
-    );
   }
 
   /// A thrown orb in flight: a small ball of charge with its light round it
@@ -528,33 +429,6 @@ class _Painter {
     glow(-20 + sap * 38, sin(sap * pi * 2) * 4, 7, 5, sin(sap * pi) * 0.45);
   }
 
-  void spirit() {
-    glow(1, 0, 22, 16, 0.35);
-    for (var i = 0; i < 3; i++) {
-      c.save();
-      c.translate(-i * 4.0, sin(t * 2 + i) * 4);
-      c.scale(0.9 + sin(t + i) * 0.1, 0.5);
-      fill(_ribbon, 0.3);
-      c.restore();
-    }
-    glow(7 + sin(t * 1.8) * 2, 0, 7, 5, 0.65);
-    flecks(3, speed: 0.35);
-  }
-
-  void blood() {
-    glow(0, 0, 24, 15, 0.22);
-    c.save();
-    c.scale(1 + sin(t * 3) * 0.04, 0.8 + sin(t * 3) * 0.06);
-    fill(_drop, 0.92);
-    hotSurface(_drop, intensity: 0.3);
-    c.restore();
-    // The return current runs toward the caster, echoing healing on pierce.
-    for (var i = 0; i < 2; i++) {
-      ribbon(i * 0.7, 0.28, 0.3);
-    }
-    flecks(4, speed: 0.7);
-  }
-
   void light() {
     // A held mote of light: a warm glow round a soft lit heart (no white
     // pip), two veils of it breathing where they lie and a few grains of
@@ -586,88 +460,8 @@ class _Painter {
     flecks(3, speed: 1.6);
   }
 
-  void lavaPool() {
-    c.save();
-    c.scale(1.18, 0.86);
-    if (maneLavaPoolCrowd > kManeLavaPoolLiteAbove) {
-      // Crowded: overlapping pools hide the convection detail anyway, and the
-      // clip plus nine layers per pool was ~17% of a device frame at ~200.
-      c.drawPath(
-        _pool,
-        p
-          ..style = ui.PaintingStyle.fill
-          ..shader = _lavaPoolHeat
-          ..color = ui.Color.fromRGBO(255, 255, 255, 0.58 * fade),
-      );
-      glow(sin(t * 0.65) * 8, cos(t * 0.85) * 5, 12, 8, 0.24);
-      c.drawPath(
-        _lavaRaft,
-        p
-          ..shader = null
-          ..color = const ui.Color(0xFF21151A).withValues(alpha: 0.18 * fade),
-      );
-      c.restore();
-      return;
-    }
-    glow(0, 0, 30, 23, 0.12);
-    c.drawPath(
-      _pool,
-      p
-        ..style = ui.PaintingStyle.fill
-        ..shader = _lavaPoolHeat
-        ..color = ui.Color.fromRGBO(255, 255, 255, 0.58 * fade),
-    );
-    c.save();
-    c.clipPath(_pool);
-    // Slow uneven convection, with faint warmth passing beneath cooling patches.
-    for (var i = 0; i < 3; i++) {
-      final phase = t * (0.65 + i * 0.12) + i * 2.2;
-      glow(
-        sin(phase) * 12,
-        cos(phase * 1.3) * 7,
-        11,
-        7,
-        0.22 + 0.06 * sin(phase * 1.7),
-      );
-    }
-    for (var i = 0; i < 3; i++) {
-      final a = i * 2.4;
-      c.save();
-      c.translate(
-        cos(a) * (i == 0 ? 3 : 13) + sin(t * 0.5 + i),
-        sin(a) * 7 + cos(t * 0.6 + i) * 0.8,
-      );
-      c.rotate(a + sin(t * 0.4 + i) * 0.12);
-      c.scale(0.65 + i * 0.1, 0.7);
-      c.drawPath(
-        _lavaRaft,
-        p
-          ..shader = null
-          ..color = const ui.Color(0xFF21151A).withValues(alpha: 0.18 * fade),
-      );
-      c.restore();
-    }
-    // Small surface vents briefly brighten and cool; no orbiting markings.
-    for (var i = 0; i < 2; i++) {
-      final f = (t * 0.45 + i * 0.5) % 1.0;
-      glow(
-        -9 + i * 17,
-        3 - i * 7,
-        2 + f * 2,
-        1 + f,
-        pow(sin(f * pi), 4).toDouble() * 0.16,
-      );
-    }
-    c.restore();
-    c.restore();
-  }
-
   void zone(String element) {
     switch (element) {
-      case 'Lightning':
-        lightningField();
-      case 'Steam':
-        vapor(field: true);
       case 'Dust':
         vapor(dust: true, field: true);
       case 'Poison':
@@ -676,8 +470,6 @@ class _Painter {
         plant();
       case 'Earth':
         quake();
-      case 'Lava':
-        lavaPool();
       case 'Mud':
         c.save();
         c.scale(1.2, 0.8);
@@ -763,6 +555,118 @@ bool drawAlchemicalManeVisual({
       projectile.angle +
       (position.dx + position.dy) * (projectile.stationary ? 0.005 : 0);
   final fade = (projectile.life / 0.25).clamp(0.0, 1.0);
+  // Water and Blood in flight, and the quakes and pools Mane leaves, are
+  // drawn in grains in world units (mane_grain_vfx.dart and the shared
+  // ground), so they take no canvas transform.
+  if (!projectile.stationary && element == 'Water') {
+    final reach = projectile.snareRadius > 0
+        ? projectile.snareRadius
+        : projectile.effectRadius;
+    paintManeWaterShot(
+      canvas,
+      projectile,
+      position,
+      time,
+      max(40.0, reach * 0.73),
+      fade: fade,
+    );
+    return true;
+  }
+  if (!projectile.stationary && element == 'Blood') {
+    paintManeBloodShot(
+      canvas,
+      projectile,
+      position,
+      time,
+      11.4 * maneArtScale(projectile),
+      fade: fade,
+    );
+    return true;
+  }
+  if (!projectile.stationary &&
+      projectile.visualStyle == ProjectileVisualStyle.slash) {
+    final s = maneArtScale(projectile);
+    switch (element) {
+      case 'Mud':
+        // Also the ten clods it breaks into, at their own smaller scale.
+        paintManeMudShot(canvas, projectile, position, time, 7.5 * s, fade: fade);
+        return true;
+      case 'Poison':
+        paintManePoisonShot(
+          canvas,
+          projectile,
+          position,
+          time,
+          7.5 * s,
+          fade: fade,
+        );
+        return true;
+      case 'Air':
+        paintManeAirShot(canvas, projectile, position, time, 20 * s, fade: fade);
+        return true;
+      case 'Spirit':
+        paintManeSpiritShot(
+          canvas,
+          projectile,
+          position,
+          time,
+          5.5 * s,
+          fade: fade,
+        );
+        return true;
+      case 'Steam':
+        paintManeSteamShot(
+          canvas,
+          projectile,
+          position,
+          time,
+          10 * s,
+          fade: fade,
+        );
+        return true;
+    }
+  }
+  if (projectile.stationary && (element == 'Lightning' || element == 'Steam')) {
+    // A thrown Lightning orb's shock field and the Steam geyser's puffs lie
+    // on their element's ground: forking bolts in charged air; vents with
+    // plumes. Each grows in and shrinks away rather than popping.
+    final reach = max(
+      projectile.effectRadius,
+      projectile.snareRadius,
+    ).clamp(24.0, 220.0).toDouble();
+    final grow = 0.45 + 0.55 * min(1.0, maneShotAge(projectile, time) / 0.35);
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    paintElementGround(
+      canvas,
+      element!,
+      reach * grow * (0.6 + 0.4 * fade),
+      time,
+      (identityHashCode(projectile) % 97) * 0.37,
+    );
+    canvas.restore();
+    return true;
+  }
+  if (projectile.stationary && element == 'Lava') {
+    // Lava's pools are cells of crust with the melt in the seams, the cells
+    // anchored to the ground so overlapping pools run together. Each grows
+    // in and shrinks away rather than popping. (Earth's quakes keep their
+    // own broken slabs below: in the game they read better trailing the
+    // boulder than the shared Earth ground's scattered stones.)
+    final reach = max(
+      projectile.effectRadius,
+      projectile.snareRadius,
+    ).clamp(24.0, 220.0).toDouble();
+    final grow = 0.45 + 0.55 * min(1.0, maneShotAge(projectile, time) / 0.35);
+    paintManeLavaPool(
+      canvas,
+      position,
+      reach * grow * (0.6 + 0.4 * fade),
+      time,
+      reduced: maneLavaPoolCrowd > kManeLavaPoolLiteAbove,
+    );
+    return true;
+  }
   canvas.save();
   canvas.translate(position.dx, position.dy);
   if (projectile.stationary) {
@@ -778,20 +682,10 @@ bool drawAlchemicalManeVisual({
     canvas.scale(maneArtScale(projectile));
     final p = _Painter(canvas, material, phase, fade);
     switch (element) {
-      case 'Water':
-        p.water();
-      case 'Air':
-        p.air();
       case 'Earth':
         p.earth();
-      case 'Steam':
-        p.vapor();
       case 'Dust':
         p.vapor(dust: true);
-      case 'Poison':
-        p.vapor(poison: true);
-      case 'Mud':
-        p.mud();
       case 'Lightning':
         // The scattered orbs fly as sigils; the special itself is a slash.
         projectile.visualStyle == ProjectileVisualStyle.sigil
@@ -801,10 +695,6 @@ bool drawAlchemicalManeVisual({
         p.crystal();
       case 'Plant':
         p.plant();
-      case 'Spirit':
-        p.spirit();
-      case 'Blood':
-        p.blood();
       case 'Light':
         p.light();
       case 'Fire':

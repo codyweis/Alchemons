@@ -22,6 +22,8 @@ import 'package:alchemons/games/cosmic/cosmic_enemy_vfx.dart';
 import 'package:alchemons/games/cosmic/enemy_body_art.dart' show enemyPalette;
 import 'package:alchemons/games/cosmic/mane_alchemical_vfx.dart'
     show maneLavaPoolCrowd;
+import 'package:alchemons/games/cosmic/mane_grain_vfx.dart'
+    show ManeBloodRuns;
 import 'package:alchemons/games/shared/creature_looks.dart';
 import 'package:alchemons/games/shared/enemy_action.dart';
 import 'package:alchemons/games/shared/enemy_movement.dart';
@@ -1809,6 +1811,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// creature that went out earns more than one kept in reserve throughout.
   final Set<int> deployedCompanionSlots = {};
   final RunHealingStats healingStats = RunHealingStats();
+
+  /// What Mane Blood shots took from the bodies they pierced, running home
+  /// to the orb.
+  final ManeBloodRuns _maneBloodRuns = ManeBloodRuns();
   bool isGameOver = false;
 
   /// Seconds since the core gave out. The fight stops then, but the core
@@ -19566,6 +19572,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 ? _cappedOrbHeal(sourceSlotIndex, orbHeal)
                 : orbHeal,
           );
+          // What the Mane Blood shot took from this body runs home.
+          if (family == 'mane' && element == 'Blood') {
+            _maneBloodRuns.add(enemy.position, stats.timeElapsed);
+          }
         }
         if (!healsOrbOnly) {
           if (comp != null && !comp.isDead) {
@@ -21549,6 +21559,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           p.position.dx + cos(p.angle) * spd * dt,
           p.position.dy + sin(p.angle) * spd * dt,
         );
+        p.flown += spd * dt;
         // Mane+Dust trail: leave a slow-cloud puff under the projectile
         // every ~0.35s so its passage paints a trailing dust line.
         if (ManeRuntime.shedsDustPuffs(p)) {
@@ -24012,6 +24023,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         continue;
       }
       _renderCompanionProjectile(canvas, proj);
+    }
+    if (!_maneBloodRuns.isEmpty) {
+      _maneBloodRuns.paint(canvas, orb.position, stats.timeElapsed);
     }
 
     // Ship projectiles, in the hull's own light.

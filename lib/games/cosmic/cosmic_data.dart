@@ -4744,6 +4744,11 @@ class Projectile {
   /// Whether this projectile already hit the active boss (prevents multi-hit).
   bool hitBoss = false;
 
+  /// How far it has flown under its own speed, in world units. Each mode's
+  /// straight-line step adds to it; what a Mane shot leaves on the ground
+  /// is laid along the path back to its launch from this.
+  double flown = 0;
+
   /// For a projectile that may strike a boss again (survival's Mane+Light
   /// ward rings), the run time from which it may. Read only by survival.
   double bossRehitAt = 0;

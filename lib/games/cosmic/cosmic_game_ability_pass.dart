@@ -172,6 +172,14 @@ extension CosmicAbilityPass on CosmicGame {
                     )
                   : objectiveHeal,
             );
+            // What the Mane Blood shot took from this body runs home to the
+            // ship (on the wild side the ship is not what it heals).
+            if (projectile.abilityFamily == 'mane' &&
+                projectile.element == 'Blood' &&
+                !_onWildSideNow &&
+                !_shipDead) {
+              _maneBloodRuns.add(enemy.position, _elapsed);
+            }
           }
           if (!objectiveOnly) {
             final caster = _sourceCompanion(projectile);
@@ -1122,6 +1130,7 @@ extension CosmicAbilityPass on CosmicGame {
           p.position.dx + cos(p.angle) * pSpeed * dt,
           p.position.dy + sin(p.angle) * pSpeed * dt,
         );
+        p.flown += pSpeed * dt;
         // Mane Dust paints a trailing dust line as it flies.
         if (ManeRuntime.shedsDustPuffs(p)) {
           p.trailTimer += dt;
