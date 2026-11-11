@@ -1,7 +1,7 @@
 // lib/services/survival_upgrade_service.dart
 //
-// Manages persistent survival upgrades — orb skins, guardian stat boosts,
-// and base abilities. Uses Settings DAO key-value store for persistence.
+// Manages persistent survival upgrades — orb skins, the five Specials, and
+// base abilities. Uses Settings DAO key-value store for persistence.
 
 import 'package:alchemons/services/campaign_journal_service.dart';
 import 'package:alchemons/database/alchemons_db.dart';
@@ -22,8 +22,7 @@ class SurvivalUpgradeService extends ChangeNotifier {
 
   static const _kEquippedSkin = 'survival.equipped_skin';
   static const _kOwnedSkins = 'survival.owned_skins';
-  static String _guardianKey(GuardianUpgrade u) =>
-      'survival.guardian.${u.name}';
+  static String _specialKey(SurvivalSpecial s) => 'survival.special.${s.name}';
   static String _abilityKey(BaseAbility a) => 'survival.ability.${a.name}';
 
   /// Precision Runes sold critical-hit chance, and no attack ever rolled a
@@ -60,11 +59,10 @@ class SurvivalUpgradeService extends ChangeNotifier {
       }
     }
 
-    // Guardian levels
-    final guardianLevels = <GuardianUpgrade, int>{};
-    for (final u in GuardianUpgrade.values) {
-      final val = await dao.getSetting(_guardianKey(u));
-      guardianLevels[u] = val != null ? (int.tryParse(val) ?? 0) : 0;
+    // Specials
+    final ownedSpecials = <SurvivalSpecial>{};
+    for (final s in SurvivalSpecial.values) {
+      if (await dao.getSetting(_specialKey(s)) == '1') ownedSpecials.add(s);
     }
 
     // Ability levels
@@ -77,7 +75,7 @@ class SurvivalUpgradeService extends ChangeNotifier {
     _state = SurvivalUpgradeState(
       equippedSkin: equippedSkin,
       ownedSkins: ownedSkins,
-      guardianLevels: guardianLevels,
+      ownedSpecials: ownedSpecials,
       abilityLevels: abilityLevels,
     );
 
@@ -127,22 +125,21 @@ class SurvivalUpgradeService extends ChangeNotifier {
     }
   }
 
-  // ── Upgrade Guardian Stat ──────────────────────────────────────────────────
+  // ── Buy a Special ──────────────────────────────────────────────────────────
 
-  Future<bool> upgradeGuardianStat(GuardianUpgrade upgrade) async {
-    final currentLevel = _state.getGuardianLevel(upgrade);
-    final def = getGuardianUpgradeDef(upgrade);
-    if (currentLevel >= def.maxLevel) return false;
-
-    final cost = def.costPerLevel[currentLevel];
-    final canAfford = await _db.currencyDao.spendSilver(cost);
-    if (!canAfford) return false;
-
-    _state.guardianLevels[upgrade] = currentLevel + 1;
-    await _db.settingsDao.setSetting(
-      _guardianKey(upgrade),
-      (currentLevel + 1).toString(),
-    );
+  /// Buys [special] for its silver price. False when it is already owned or
+  /// the silver is short. The silver and the purchase are one step, so a crash
+  /// between them cannot take the silver and leave the Special unbought.
+  Future<bool> purchaseSpecial(SurvivalSpecial special) async {
+    if (_state.ownsSpecial(special)) return false;
+    final def = getSurvivalSpecialDef(special);
+    final bought = await _db.transaction(() async {
+      if (!await _db.currencyDao.spendSilver(def.cost)) return false;
+      await _db.settingsDao.setSetting(_specialKey(special), '1');
+      return true;
+    });
+    if (!bought) return false;
+    _state.ownedSpecials.add(special);
     notifyListeners();
     return true;
   }
@@ -168,13 +165,6 @@ class SurvivalUpgradeService extends ChangeNotifier {
   }
 
   // ── Silver cost queries ─────────────────────────────────────────────────────
-
-  int? nextGuardianCost(GuardianUpgrade upgrade) {
-    final level = _state.getGuardianLevel(upgrade);
-    final def = getGuardianUpgradeDef(upgrade);
-    if (level >= def.maxLevel) return null;
-    return def.costPerLevel[level];
-  }
 
   int? nextAbilityCost(BaseAbility ability) {
     final level = _state.getAbilityLevel(ability);

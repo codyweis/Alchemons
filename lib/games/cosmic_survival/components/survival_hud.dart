@@ -157,6 +157,7 @@ class HudGauge extends StatelessWidget {
     this.figure,
     this.figureColor,
     this.shield = 0,
+    this.shieldWait = 0,
   });
 
   final String label;
@@ -171,6 +172,10 @@ class HudGauge extends StatelessWidget {
 
   /// What a held shield is worth, as a share of the whole; 0 for none.
   final double shield;
+
+  /// Whole seconds until a broken shield is back, written dim after the
+  /// figure while none is held; 0 for none coming.
+  final int shieldWait;
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +210,11 @@ class HudGauge extends StatelessWidget {
                   TextSpan(
                     text: '+$shieldFigure',
                     style: hudMono(8.5, HudInk.shield, spacing: 0.2),
+                  )
+                else if (shieldWait > 0)
+                  TextSpan(
+                    text: ' ${shieldWait}s',
+                    style: hudMono(8.5, HudInk.muted, spacing: 0.2),
                   ),
               ],
             ),
@@ -332,6 +342,8 @@ class SurvivalTopHud extends StatelessWidget {
     required this.orbFraction,
     required this.orbColor,
     this.orbShield = 0,
+    this.shipShield = 0,
+    this.shipShieldWait = 0,
     this.compact = false,
     this.element,
     this.nextElement,
@@ -369,6 +381,11 @@ class SurvivalTopHud extends StatelessWidget {
   /// The orb's shield as a share of its maximum health; 0 for none.
   final double orbShield;
 
+  /// The ship's shield (a Special) as a share of its hull; 0 for none. While
+  /// it is broken, [shipShieldWait] is the whole seconds until it is back.
+  final double shipShield;
+  final int shipShieldWait;
+
   Widget _gauges({required bool row}) {
     final ship = HudGauge(
       label: shipGhost ? 'GHOST' : 'SHIP',
@@ -378,6 +395,8 @@ class SurvivalTopHud extends StatelessWidget {
           ? (shipRespawnSeconds > 0 ? '${shipRespawnSeconds}s' : '—')
           : null,
       figureColor: shipGhost ? HudInk.muted : null,
+      shield: shipGhost ? 0 : shipShield,
+      shieldWait: shipGhost ? 0 : shipShieldWait,
     );
     final orb = HudGauge(
       label: 'ORB',

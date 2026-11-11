@@ -1,7 +1,7 @@
 // lib/models/survival_upgrades.dart
 //
 // Persistent survival upgrade data model.
-// Stores orb base selection, guardian stat upgrades, and base ability levels.
+// Stores orb base selection, the five Specials, and base ability levels.
 // Persisted via Settings DAO key-value store.
 
 import 'package:flutter/material.dart';
@@ -180,91 +180,126 @@ OrbBaseDef getOrbBaseDef(OrbBaseSkin skin) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GUARDIAN STAT UPGRADES (5 levels each)
+// SPECIALS (bought once, with silver, kept for good)
 // ─────────────────────────────────────────────────────────────────────────────
+//
+// Five permanent upgrades, each owned or not. They took the place of the
+// Guardian stat upgrades (cooldown, defense, attack, range) on 2026-11-11.
+// What each one does in a run lives with the run: PowerUpState reads the
+// ship's damage and fire rate, Autopilot and the extra draft keys, and
+// CosmicSurvivalGame the ship's speed and its shield. The numbers are here so
+// the card, the lobby and the run all say the same thing.
 
-// Precision Runes (critical-hit chance) was retired 2026-10-02: no attack
-// ever rolled a crit, so it sold nothing. SurvivalUpgradeService refunds it.
-enum GuardianUpgrade { cooldown, defense, attack, range }
-
-class GuardianUpgradeDef {
-  final GuardianUpgrade upgrade;
-  final String name;
-  final String description;
-  final IconData icon;
-  final Color color;
-  final int maxLevel;
-  final List<int> costPerLevel; // silver cost at each level
-  final List<double> valuePerLevel; // bonus value at each level
-
-  const GuardianUpgradeDef({
-    required this.upgrade,
-    required this.name,
-    required this.description,
-    required this.icon,
-    required this.color,
-    this.maxLevel = 5,
-    required this.costPerLevel,
-    required this.valuePerLevel,
-  });
-
-  String bonusLabel(int level) {
-    if (level == 0) return '—';
-    final v = valuePerLevel[level - 1];
-    switch (upgrade) {
-      case GuardianUpgrade.cooldown:
-        return '-${(v * 100).toStringAsFixed(0)}%';
-      case GuardianUpgrade.defense:
-        return '+${(v * 100).toStringAsFixed(0)}%';
-      case GuardianUpgrade.attack:
-        return '+${(v * 100).toStringAsFixed(0)}%';
-      case GuardianUpgrade.range:
-        return '+${(v * 100).toStringAsFixed(0)}%';
-    }
-  }
+enum SurvivalSpecial {
+  autopilot,
+  shipOverhaul,
+  shipSpeed,
+  shipShield,
+  refreshBanish,
 }
 
-const List<GuardianUpgradeDef> kGuardianUpgrades = [
-  GuardianUpgradeDef(
-    upgrade: GuardianUpgrade.cooldown,
-    name: 'Swift Alchemy',
-    description: 'Reduces all guardian attack cooldowns.',
+/// What each Special costs, in silver.
+const int kSurvivalSpecialCost = 100000;
+
+/// Ship Overhaul: the ship's damage, and how fast it fires, are each
+/// multiplied by this.
+const double kShipOverhaulDamage = 5.0;
+const double kShipOverhaulFireRate = 5.0;
+
+/// Ship Speed: the ship's flying speed is multiplied by this.
+const double kShipSpeedBoost = 3.0;
+
+/// Ship Shield: what it holds, as a share of the ship's hull, and how many
+/// seconds after it breaks it comes back.
+const double kShipShieldHullShare = 1.0;
+const double kShipShieldRegenSeconds = 30.0;
+
+/// Refresh & Banish: the keys a run starts with on top of the draft's own.
+const int kRefreshBanishRerolls = 1;
+const int kRefreshBanishBanishes = 1;
+
+class SurvivalSpecialDef {
+  final SurvivalSpecial special;
+  final String name;
+
+  /// The lobby's name for it, short enough for a reading.
+  final String label;
+  final String description;
+
+  /// What the lobby's reading shows once it is owned.
+  final String readout;
+  final IconData icon;
+  final Color color;
+  final int cost; // silver
+
+  const SurvivalSpecialDef({
+    required this.special,
+    required this.name,
+    required this.label,
+    required this.description,
+    required this.readout,
+    required this.icon,
+    required this.color,
+    this.cost = kSurvivalSpecialCost,
+  });
+}
+
+const List<SurvivalSpecialDef> kSurvivalSpecials = [
+  SurvivalSpecialDef(
+    special: SurvivalSpecial.autopilot,
+    name: 'Autopilot',
+    label: 'AUTOPILOT',
+    description:
+        'When you let go of the ship, it flies out and gathers the surge '
+        'grains kills leave behind, then flies back to the core.',
+    readout: 'ON',
+    icon: AppIcons.navigation_rounded,
+    color: Color(0xFF9A7CEB),
+  ),
+  SurvivalSpecialDef(
+    special: SurvivalSpecial.shipOverhaul,
+    name: 'Ship Overhaul',
+    label: 'OVERHAUL',
+    description: 'The ship deals 5× damage and fires 5× as fast.',
+    readout: '5×',
+    icon: AppIcons.bolt_rounded,
+    color: Color(0xFFE0703A),
+  ),
+  SurvivalSpecialDef(
+    special: SurvivalSpecial.shipSpeed,
+    name: 'Ship Speed',
+    label: 'SPEED',
+    description: 'The ship flies 3× as fast.',
+    readout: '3×',
     icon: AppIcons.speed_rounded,
-    color: Color(0xFF0EA5E9),
-    costPerLevel: [1000, 5000, 10000, 20000, 50000],
-    valuePerLevel: [0.03, 0.06, 0.10, 0.15, 0.20],
+    color: Color(0xFF8FC9D6),
   ),
-  GuardianUpgradeDef(
-    upgrade: GuardianUpgrade.defense,
-    name: 'Fortified Shell',
-    description: 'Increases all guardian physical and elemental defense.',
+  SurvivalSpecialDef(
+    special: SurvivalSpecial.shipShield,
+    name: 'Ship Shield',
+    label: 'SHIELD',
+    description:
+        'The ship carries a shield as strong as its hull. When the shield '
+        'breaks, it comes back after 30 seconds.',
+    readout: 'ON',
     icon: AppIcons.shield_rounded,
-    color: Color(0xFF22C55E),
-    costPerLevel: [1000, 5000, 10000, 20000, 50000],
-    valuePerLevel: [0.05, 0.10, 0.16, 0.22, 0.30],
+    color: Color(0xFFCDB07A),
   ),
-  GuardianUpgradeDef(
-    upgrade: GuardianUpgrade.attack,
-    name: 'Empowered Strikes',
-    description: 'Boosts all guardian attack damage.',
-    icon: AppIcons.keyboard_double_arrow_up_rounded,
-    color: Color(0xFFEF4444),
-    costPerLevel: [1000, 5000, 10000, 20000, 50000],
-    valuePerLevel: [0.04, 0.08, 0.14, 0.20, 0.28],
-  ),
-  GuardianUpgradeDef(
-    upgrade: GuardianUpgrade.range,
-    name: 'Extended Reach',
-    description: 'Extends guardian attack and ability range.',
-    icon: AppIcons.radar_rounded,
-    color: Color(0xFFA855F7),
-    costPerLevel: [1000, 5000, 10000, 20000, 50000],
-    valuePerLevel: [0.03, 0.06, 0.10, 0.16, 0.22],
+  SurvivalSpecialDef(
+    special: SurvivalSpecial.refreshBanish,
+    name: 'Refresh & Banish',
+    label: 'REFRESH',
+    description:
+        'Every run starts with 1 extra reroll and 1 extra banish for '
+        'upgrade drafts.',
+    readout: '+1',
+    icon: AppIcons.refresh_rounded,
+    color: Color(0xFF8FB38A),
   ),
 ];
 
-GuardianUpgradeDef getGuardianUpgradeDef(GuardianUpgrade u) {
-  return kGuardianUpgrades.firstWhere((d) => d.upgrade == u);
+SurvivalSpecialDef getSurvivalSpecialDef(SurvivalSpecial s) {
+  return kSurvivalSpecials.firstWhere((d) => d.special == s);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -381,21 +416,20 @@ BaseAbilityDef getBaseAbilityDef(BaseAbility a) {
 class SurvivalUpgradeState {
   OrbBaseSkin equippedSkin;
   Set<OrbBaseSkin> ownedSkins;
-  Map<GuardianUpgrade, int> guardianLevels;
+  Set<SurvivalSpecial> ownedSpecials;
   Map<BaseAbility, int> abilityLevels;
 
   SurvivalUpgradeState({
     this.equippedSkin = OrbBaseSkin.defaultOrb,
     Set<OrbBaseSkin>? ownedSkins,
-    Map<GuardianUpgrade, int>? guardianLevels,
+    Set<SurvivalSpecial>? ownedSpecials,
     Map<BaseAbility, int>? abilityLevels,
   }) : ownedSkins = ownedSkins ?? {OrbBaseSkin.defaultOrb},
-       guardianLevels =
-           guardianLevels ?? {for (final u in GuardianUpgrade.values) u: 0},
+       ownedSpecials = ownedSpecials ?? {},
        abilityLevels =
            abilityLevels ?? {for (final a in BaseAbility.values) a: 0};
 
-  int getGuardianLevel(GuardianUpgrade u) => guardianLevels[u] ?? 0;
+  bool ownsSpecial(SurvivalSpecial s) => ownedSpecials.contains(s);
   int getAbilityLevel(BaseAbility a) => abilityLevels[a] ?? 0;
 
   /// Total extra HP from the Reinforced Core ability.
@@ -460,38 +494,5 @@ class SurvivalUpgradeState {
     if (level <= 0) return 0;
     const hps = [1.0, 3.0, 5.0, 8.0, 12.0];
     return hps[(level - 1).clamp(0, 4)];
-  }
-
-  /// Guardian cooldown reduction multiplier (applied on top of base CDR).
-  double get guardianCDRBonus {
-    final level = getGuardianLevel(GuardianUpgrade.cooldown);
-    if (level <= 0) return 0;
-    return kGuardianUpgrades
-        .firstWhere((d) => d.upgrade == GuardianUpgrade.cooldown)
-        .valuePerLevel[level - 1];
-  }
-
-  double get guardianDefenseBonus {
-    final level = getGuardianLevel(GuardianUpgrade.defense);
-    if (level <= 0) return 0;
-    return kGuardianUpgrades
-        .firstWhere((d) => d.upgrade == GuardianUpgrade.defense)
-        .valuePerLevel[level - 1];
-  }
-
-  double get guardianAttackBonus {
-    final level = getGuardianLevel(GuardianUpgrade.attack);
-    if (level <= 0) return 0;
-    return kGuardianUpgrades
-        .firstWhere((d) => d.upgrade == GuardianUpgrade.attack)
-        .valuePerLevel[level - 1];
-  }
-
-  double get guardianRangeBonus {
-    final level = getGuardianLevel(GuardianUpgrade.range);
-    if (level <= 0) return 0;
-    return kGuardianUpgrades
-        .firstWhere((d) => d.upgrade == GuardianUpgrade.range)
-        .valuePerLevel[level - 1];
   }
 }

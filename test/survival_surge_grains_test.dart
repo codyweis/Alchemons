@@ -7,6 +7,7 @@ import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_spawner.dart';
 import 'package:alchemons/games/cosmic_survival/surge_grains.dart';
 import 'package:alchemons/games/shared/enemy_taxonomy.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -47,11 +48,14 @@ void main() {
     retargetTimer: 0,
   );
 
-  Future<CosmicSurvivalGame> arena() async {
+  Future<CosmicSurvivalGame> arena({
+    Set<SurvivalSpecial> specials = const {},
+  }) async {
     final game = CosmicSurvivalGame(
       party: [member()],
       onGameOver: () {},
       random: Random(5),
+      upgradeState: SurvivalUpgradeState(ownedSpecials: {...specials}),
     );
     game.onGameResize(Vector2(900, 700));
     await game.onLoad();
@@ -172,13 +176,18 @@ void main() {
   test('Autopilot flies a let-go ship out for grains, and steering keeps it', () async {
     final autopilot = kAllPowerUps.firstWhere((d) => d.id == 'autopilot');
     expect(autopilot.maxStacks, 1);
-    // 500 out: past the core's field and the idle orbit's pull.
-    for (final (pick, steer, taken) in [
-      (false, false, false),
-      (true, false, true),
-      (true, true, false),
+    // 500 out: past the core's field and the idle orbit's pull. The pick and
+    // the Special (Base Command) do the same thing.
+    for (final (pick, special, steer, taken) in [
+      (false, false, false, false),
+      (true, false, false, true),
+      (false, true, false, true),
+      (true, false, true, false),
+      (false, true, true, false),
     ]) {
-      final game = await arena();
+      final game = await arena(
+        specials: {if (special) SurvivalSpecial.autopilot},
+      );
       if (pick) game.applyPowerUp(autopilot);
       final spot = game.orb.position + const Offset(500, 0);
       final e = body(spot);
@@ -186,9 +195,9 @@ void main() {
       game.debugKillEnemy(e);
       game.setJoystickInput(steer ? const Offset(-1, 0) : Offset.zero);
       run(game, 6);
-      final label = 'autopilot $pick, steering $steer';
+      final label = 'autopilot pick $pick, special $special, steering $steer';
       expect(game.debugSurgeOut < 1e-9, taken, reason: label);
-      if (pick && !steer) {
+      if ((pick || special) && !steer) {
         run(game, 6);
         expect(
           (game.ship.position - game.orb.position).distance,

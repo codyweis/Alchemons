@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:alchemons/games/cosmic/cosmic_data.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
 
 enum PowerUpCategory {
   statBoost,
@@ -916,14 +917,33 @@ const int kSurvivalDraftRerolls = 2;
 const int kSurvivalDraftBanishes = 2;
 
 class PowerUpState {
+  /// [specials] are the Specials the run was started with (Base Command,
+  /// bought for good). They are not picks: they never appear in [history],
+  /// and a continued run is given the same ones back.
+  PowerUpState({Set<SurvivalSpecial> specials = const {}})
+    : specials = Set.unmodifiable(specials),
+      _rerollsLeft =
+          kSurvivalDraftRerolls +
+          (specials.contains(SurvivalSpecial.refreshBanish)
+              ? kRefreshBanishRerolls
+              : 0),
+      _banishesLeft =
+          kSurvivalDraftBanishes +
+          (specials.contains(SurvivalSpecial.refreshBanish)
+              ? kRefreshBanishBanishes
+              : 0);
+
+  /// The Specials this run carries.
+  final Set<SurvivalSpecial> specials;
+
   final Map<String, int> _globalStacks = {};
   final Map<int, Map<String, int>> _companionStacks = {};
   final Set<int> _phoenixUsed = {};
   final List<AppliedPowerUp> _history = [];
   final Map<String, String> _choiceSelections = {};
 
-  int _rerollsLeft = kSurvivalDraftRerolls;
-  int _banishesLeft = kSurvivalDraftBanishes;
+  int _rerollsLeft;
+  int _banishesLeft;
   final Set<String> _banished = {};
 
   /// Fusion parents the run has had on a draft card, for the pause panel's
@@ -1018,8 +1038,16 @@ class PowerUpState {
   /// How many fresh draws the keys have made this run, so each one is
   /// seeded apart from the last and a continued run draws the same.
   int get draftRedraws =>
-      max(0, kSurvivalDraftRerolls - _rerollsLeft) +
-      max(0, kSurvivalDraftBanishes - _banishesLeft);
+      max(0, _rerollsAtStart - _rerollsLeft) +
+      max(0, _banishesAtStart - _banishesLeft);
+
+  /// The keys this run started with: the draft's own, and Refresh & Banish's.
+  int get _rerollsAtStart =>
+      kSurvivalDraftRerolls +
+      (hasRefreshBanish ? kRefreshBanishRerolls : 0);
+  int get _banishesAtStart =>
+      kSurvivalDraftBanishes +
+      (hasRefreshBanish ? kRefreshBanishBanishes : 0);
 
   /// Spends a REROLL; false with none left.
   bool spendReroll() {
@@ -1078,6 +1106,10 @@ class PowerUpState {
     }
     // Homing missiles are redundant if rocket barrage already provides homing
     if (def.id == 'homing_missiles' && getGlobalStacks('rocket_barrage') > 0) {
+      return false;
+    }
+    // The Autopilot special is the pick, built in for good.
+    if (def.id == 'autopilot' && specials.contains(SurvivalSpecial.autopilot)) {
       return false;
     }
     if (def.choiceGroup != null) {
@@ -1223,7 +1255,10 @@ class PowerUpState {
       getGlobalStacks('orb_vitality') * 0.10 +
       (hasBastionHeart ? 0.20 : 0.0);
   double get fireRateMultiplier =>
-      1.0 + getGlobalStacks('fire_rate') * 0.22 + (hasChronoSurge ? 0.20 : 0.0);
+      (1.0 +
+          getGlobalStacks('fire_rate') * 0.22 +
+          (hasChronoSurge ? 0.20 : 0.0)) *
+      (hasShipOverhaul ? kShipOverhaulFireRate : 1.0);
   bool get hasHomingMissiles => has('homing_missiles');
   int get missileLauncherLevel => getGlobalStacks('missile_launcher');
   int get rapidTurretLevel => getGlobalStacks('rapid_turret');
@@ -1232,9 +1267,10 @@ class PowerUpState {
   int get rocketBarrageLevel => getGlobalStacks('rocket_barrage');
   bool get hasRocketBarrage => rocketBarrageLevel > 0;
   double get shipDamageMultiplier =>
-      1.0 +
-      getGlobalStacks('ship_damage') * 0.18 +
-      (hasWarpathDoctrine ? 0.20 : 0.0);
+      (1.0 +
+          getGlobalStacks('ship_damage') * 0.18 +
+          (hasWarpathDoctrine ? 0.20 : 0.0)) *
+      (hasShipOverhaul ? kShipOverhaulDamage : 1.0);
   int get shieldPulseLevel => getGlobalStacks('shield_pulse');
   int get autoTurretLevel => getGlobalStacks('auto_turret');
   int get regenFieldLevel => getGlobalStacks('regen_field');
@@ -1248,7 +1284,19 @@ class PowerUpState {
       (1 + getGlobalStacks('pack_leader')).clamp(1, 5);
   int get orbVitalityLevel => getGlobalStacks('orb_vitality');
   int get surgeMagnetLevel => getGlobalStacks('surge_magnet');
-  bool get hasAutopilot => getGlobalStacks('autopilot') > 0;
+  bool get hasAutopilot =>
+      specials.contains(SurvivalSpecial.autopilot) ||
+      getGlobalStacks('autopilot') > 0;
+
+  // The Specials (Base Command).
+  bool get hasShipOverhaul => specials.contains(SurvivalSpecial.shipOverhaul);
+  bool get hasShipShield => specials.contains(SurvivalSpecial.shipShield);
+  bool get hasRefreshBanish =>
+      specials.contains(SurvivalSpecial.refreshBanish);
+
+  /// How much faster than the pilot's stock speed the ship flies.
+  double get shipSpeedMultiplier =>
+      specials.contains(SurvivalSpecial.shipSpeed) ? kShipSpeedBoost : 1.0;
   int get shipHullLevel => getGlobalStacks('ship_hull');
   double get shipHullMultiplier => 1.0 + shipHullLevel * 0.5;
 

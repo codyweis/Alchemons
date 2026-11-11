@@ -73,7 +73,7 @@ import 'package:alchemons/games/cosmic_survival/survival_suspended_run.dart';
 import 'package:alchemons/games/cosmic_survival/survival_best_run.dart';
 import 'package:alchemons/games/cosmic_survival/survival_damage_report.dart';
 import 'package:alchemons/screens/cosmic/widgets/cosmic_panel_kit.dart'
-    show PanelReadout, PanelRow, PanelSectionHeader, panelLabel, panelPalette;
+    show PanelReadout, PanelSectionHeader, panelLabel, panelPalette;
 import 'package:alchemons/services/web_ads.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
     show MarkDiamond, elementLight;
@@ -1257,7 +1257,7 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
   /// entrance; its opening beats wait for [_releaseHeldRun].
   ///
   /// [resume]: a kept run to continue. It is built with that run's own
-  /// guardian upgrades, orb, ship and mastery paths, as they were when it
+  /// Specials, orb, ship and mastery paths, as they were when it
   /// started, and picks up at the start of the wave it was left on.
   void _startGame(
     List<CosmicPartyMember> party, {
@@ -2799,31 +2799,36 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     await _loadShipSkin();
   }
 
-  /// The guardian upgrades riding on this run, each axis a reading — dim at
-  /// zero, which on a fresh save is the point: they show what there is to go
-  /// and earn in Base Command.
+  /// The Specials riding on this run, each a reading — dim until it is
+  /// bought, which on a fresh save is the point: they show what there is to
+  /// go and earn in Base Command. Three across, since five labels do not fit
+  /// a phone in one row.
   Widget _buildCommandHub() {
     return Consumer<SurvivalUpgradeService>(
       builder: (context, svc, _) {
-        final earned = kGuardianUpgrades
-            .where((d) => svc.state.getGuardianLevel(d.upgrade) > 0)
-            .length;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            PanelSectionHeader(
-              'GUARDIAN UPGRADES',
-              trailing: '$earned / ${kGuardianUpgrades.length}',
-            ),
-            PanelRow(
-              gap: 6,
-              children: [
-                for (final def in kGuardianUpgrades)
-                  _guardianReading(
-                    def,
-                    svc.state.getGuardianLevel(def.upgrade),
-                  ),
-              ],
+            const PanelSectionHeader('SPECIALS'),
+            LayoutBuilder(
+              builder: (context, box) {
+                const gap = 6.0;
+                final width = (box.maxWidth - gap * 2) / 3;
+                return Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final def in kSurvivalSpecials)
+                      SizedBox(
+                        width: width,
+                        child: _specialReading(
+                          def,
+                          svc.state.ownsSpecial(def.special),
+                        ),
+                      ),
+                  ],
+                );
+              },
             ),
           ],
         );
@@ -2831,31 +2836,15 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
     );
   }
 
-  /// Short names for the guardian axes, for a reading's label. Anything
-  /// not named here goes by the last word of its name.
-  static const Map<GuardianUpgrade, String> _guardianLabels = {
-    GuardianUpgrade.cooldown: 'SPEED',
-    GuardianUpgrade.defense: 'DEFENSE',
-    GuardianUpgrade.attack: 'ATTACK',
-    GuardianUpgrade.range: 'RANGE',
-  };
-
-  Widget _guardianReading(GuardianUpgradeDef def, int level) {
-    final earned = level > 0;
-    final tint = earned ? def.color : panelPalette.muted;
+  Widget _specialReading(SurvivalSpecialDef def, bool owned) {
     return PanelReadout(
-      label:
-          _guardianLabels[def.upgrade] ??
-          def.name.split(' ').last.toUpperCase(),
-      value: def.bonusLabel(level),
-      color: earned ? null : panelPalette.muted,
+      label: def.label,
+      value: owned ? def.readout : '—',
+      color: owned ? null : panelPalette.muted,
       leading: Icon(
-        // Range wore the same crosshair as another axis.
-        def.upgrade == GuardianUpgrade.range
-            ? AppIcons.zoom_out_map_rounded
-            : def.icon,
+        def.icon,
         size: 12,
-        color: tint,
+        color: owned ? def.color : panelPalette.muted,
       ),
       onTap: () => _openBaseCommand(),
     );
@@ -3245,6 +3234,8 @@ class _CosmicSurvivalScreenState extends State<CosmicSurvivalScreen>
                 shipRespawnProgress: game.isLoaded
                     ? game.shipRespawnProgress
                     : 0,
+                shipShield: game.isLoaded ? game.shipShieldFraction : 0,
+                shipShieldWait: game.isLoaded ? game.shipShieldSecondsLeft : 0,
                 orbFraction: orbHp,
                 orbColor: game.isLoaded
                     ? orbLook(game.orb.skin).hpColor(orbHp)

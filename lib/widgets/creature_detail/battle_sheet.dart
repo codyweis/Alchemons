@@ -545,7 +545,7 @@ class _BattleSheetState extends State<_BattleSheet> {
           Text(
             'The same numbers in Survival, planet dungeons and Cosmic Space. '
             'Bars measure against a perfected ${family.toLowerCase()}. '
-            'Survival\'s Guardian upgrades and run pickups add to them.',
+            'Survival\'s run pickups add to them.',
             style: bracketText(context, 11, palette.muted),
             strutStyle: const StrutStyle(height: 1.35),
           ),

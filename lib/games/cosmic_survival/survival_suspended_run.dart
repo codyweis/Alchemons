@@ -13,7 +13,7 @@
 // (a fusion taken among them), the meter, the draft's REROLLs and BANISHes
 // left, what was banished and which fusion parents the drafts have shown,
 // every hit point, who is out and who is down, the run's totals, and the
-// party, guardian upgrades, orb, ship and mastery paths exactly as the run
+// party, Specials, orb, ship and mastery paths exactly as the run
 // started with them.
 //
 // Leaving mid-wave never heals: each hit point is the lower of the wave's
@@ -148,6 +148,7 @@ class SuspendedSurvivalRun {
     required this.orbHp,
     required this.orbShield,
     required this.shipHp,
+    this.shipShield = 1.0,
     required this.shipDead,
     required this.shipRespawnElapsed,
     required this.slots,
@@ -167,7 +168,7 @@ class SuspendedSurvivalRun {
     Set<int> deployedSlots = const {},
     required this.party,
     required this.equippedOrb,
-    required this.guardianLevels,
+    required Set<SurvivalSpecial> specials,
     required this.abilityLevels,
     required this.mastery,
     required this.shipSkin,
@@ -176,6 +177,7 @@ class SuspendedSurvivalRun {
     Set<String> banished = const {},
     Set<String> fusionParentsSeen = const {},
   }) : phoenixUsed = Set.unmodifiable(phoenixUsed),
+       specials = Set.unmodifiable(specials),
        deployedSlots = Set.unmodifiable(deployedSlots),
        banished = Set.unmodifiable(banished),
        fusionParentsSeen = Set.unmodifiable(fusionParentsSeen);
@@ -204,6 +206,10 @@ class SuspendedSurvivalRun {
   final int orbShield;
 
   final double shipHp;
+
+  /// What the Ship Shield (a Special) held, as a share of its full strength.
+  /// 1 for a run without one, and in a save from before it was kept.
+  final double shipShield;
   final bool shipDead;
 
   /// Seconds the ship has been down, toward its respawn.
@@ -240,9 +246,9 @@ class SuspendedSurvivalRun {
   /// run plays on as it was, whatever has happened to the creatures since.
   final List<CosmicPartyMember> party;
 
-  /// The guardian upgrades, orb and ship the run started with.
+  /// The Specials, orb and ship the run started with.
   final OrbBaseSkin equippedOrb;
-  final Map<GuardianUpgrade, int> guardianLevels;
+  final Set<SurvivalSpecial> specials;
   final Map<BaseAbility, int> abilityLevels;
   final String? shipSkin;
 
@@ -266,7 +272,7 @@ class SuspendedSurvivalRun {
   SurvivalUpgradeState get upgradeState => SurvivalUpgradeState(
     equippedSkin: equippedOrb,
     ownedSkins: {equippedOrb},
-    guardianLevels: Map.of(guardianLevels),
+    ownedSpecials: Set.of(specials),
     abilityLevels: Map.of(abilityLevels),
   );
 
@@ -338,6 +344,7 @@ class SuspendedSurvivalRun {
       orbHp: min(orbHp, atExit.orbHp).clamp(1.0, orbMaxHp).toDouble(),
       orbShield: min(orbShield, atExit.orbShield),
       shipHp: shipDown ? 0.0 : shipHpLeft,
+      shipShield: min(shipShield, atExit.shipShield),
       shipDead: shipDown,
       shipRespawnElapsed: respawn,
       slots: mergedSlots,
@@ -364,7 +371,7 @@ class SuspendedSurvivalRun {
       deployedSlots: {...deployedSlots, ...atExit.deployedSlots},
       party: party,
       equippedOrb: equippedOrb,
-      guardianLevels: guardianLevels,
+      specials: specials,
       abilityLevels: abilityLevels,
       mastery: mastery,
       shipSkin: shipSkin,
@@ -388,6 +395,7 @@ class SuspendedSurvivalRun {
     'orb': {'maxHp': orbMaxHp, 'hp': orbHp, 'shield': orbShield},
     'ship': {
       'hp': shipHp,
+      'shield': shipShield,
       'dead': shipDead,
       'respawnElapsed': shipRespawnElapsed,
     },
@@ -411,9 +419,7 @@ class SuspendedSurvivalRun {
     'party': [for (final m in party) _memberToJson(m)],
     'upgrades': {
       'orb': equippedOrb.name,
-      'guardian': {
-        for (final u in GuardianUpgrade.values) u.name: guardianLevels[u] ?? 0,
-      },
+      'specials': [for (final s in specials) s.name]..sort(),
       'abilities': {
         for (final a in BaseAbility.values) a.name: abilityLevels[a] ?? 0,
       },
@@ -465,7 +471,6 @@ class SuspendedSurvivalRun {
     final ship = json['ship'] as Map<String, dynamic>;
     final stats = json['stats'] as Map<String, dynamic>;
     final upgrades = json['upgrades'] as Map<String, dynamic>;
-    final guardian = upgrades['guardian'] as Map<String, dynamic>;
     final abilities = upgrades['abilities'] as Map<String, dynamic>;
     final party = [for (final row in rows(json['party'])) _memberFromJson(row)];
     final orbSkin = OrbBaseSkin.values.firstWhere(
@@ -519,6 +524,7 @@ class SuspendedSurvivalRun {
       orbHp: (orb['hp'] as num).toDouble(),
       orbShield: (orb['shield'] as num).toInt(),
       shipHp: (ship['hp'] as num).toDouble(),
+      shipShield: (ship['shield'] as num?)?.toDouble() ?? 1.0,
       shipDead: ship['dead'] as bool,
       shipRespawnElapsed: (ship['respawnElapsed'] as num).toDouble(),
       slots: [
@@ -553,9 +559,11 @@ class SuspendedSurvivalRun {
             },
       party: party,
       equippedOrb: orbSkin,
-      guardianLevels: {
-        for (final u in GuardianUpgrade.values)
-          u: (guardian[u.name] as num?)?.toInt() ?? 0,
+      // A Special this build no longer has is simply not owned.
+      specials: {
+        for (final name in (upgrades['specials'] as List?) ?? const [])
+          for (final s in SurvivalSpecial.values)
+            if (s.name == name) s,
       },
       abilityLevels: {
         for (final a in BaseAbility.values)

@@ -2,7 +2,7 @@ import 'package:alchemons/audio/audio.dart';
 // lib/games/cosmic_survival/cosmic_survival_base_command_screen.dart
 //
 // Base Command — persistent cosmic survival upgrade screen.
-// Sections: Orb Skins, Ship, Guardian Power-ups, Base Abilities.
+// Sections: Mastery, Orb Skins, Ship, Specials, Base Abilities.
 // The legacy standalone survival runtime has been removed; this shared upgrade
 // panel remains for cosmic survival progression.
 
@@ -184,7 +184,7 @@ class _CosmicSurvivalBaseCommandScreenState
                         ),
                         _buildOrbSkinsTab(svc, shopService),
                         _buildShipTab(),
-                        _buildGuardianTab(svc),
+                        _buildSpecialsTab(svc),
                         if (!widget.hideAbilities) _buildAbilitiesTab(svc),
                       ],
                     ),
@@ -268,7 +268,7 @@ class _CosmicSurvivalBaseCommandScreenState
   /// light follows the pager as it is swiped, and the tabs keep their
   /// semantics; the TabBar itself draws only the labels and the light.
   Widget _buildTabBar() {
-    const labels = ['MASTERY', 'ORB', 'SHIP', 'GUARDIANS', 'ABILITIES'];
+    const labels = ['MASTERY', 'ORB', 'SHIP', 'SPECIALS', 'ABILITIES'];
     final count = widget.hideAbilities ? 4 : 5;
     return Container(
       padding: const EdgeInsets.fromLTRB(
@@ -594,37 +594,32 @@ class _CosmicSurvivalBaseCommandScreenState
     await svc.equipOrbSkin(skin);
   }
 
-  // ── Guardian Upgrades Tab ────────────────────────────────────────────────
+  // ── Specials Tab ─────────────────────────────────────────────────────────
 
-  Widget _buildGuardianTab(SurvivalUpgradeService svc) {
+  Widget _buildSpecialsTab(SurvivalUpgradeService svc) {
     final state = svc.state;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const _EtchedDivider(label: 'GUARDIAN POWER-UPS'),
+          const _EtchedDivider(label: 'SPECIALS'),
           const SizedBox(height: 12),
           Text(
-            'Permanently boost your guardians\' combat stats. Effects apply to all deployed creatures.',
+            'Permanent upgrades, bought once with silver. Each one applies '
+            'to every run.',
             style: _T.body,
           ),
           const SizedBox(height: 16),
-          ...kGuardianUpgrades.map(
+          ...kSurvivalSpecials.map(
             (def) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: _UpgradeCard(
-                name: def.name,
-                description: def.description,
-                icon: def.icon,
-                color: def.color,
-                currentLevel: state.getGuardianLevel(def.upgrade),
-                maxLevel: def.maxLevel,
-                nextCost: svc.nextGuardianCost(def.upgrade),
-                bonusLabel: def.bonusLabel(state.getGuardianLevel(def.upgrade)),
+              child: _SpecialCard(
+                def: def,
+                owned: state.ownsSpecial(def.special),
                 silverBalance: _silverBalance,
                 purchasing: _purchasing,
-                onUpgrade: () => _upgradeGuardian(svc, def.upgrade),
+                onBuy: () => _buySpecial(svc, def.special),
               ),
             ),
           ),
@@ -633,30 +628,27 @@ class _CosmicSurvivalBaseCommandScreenState
     );
   }
 
-  Future<void> _upgradeGuardian(
+  Future<void> _buySpecial(
     SurvivalUpgradeService svc,
-    GuardianUpgrade upgrade,
+    SurvivalSpecial special,
   ) async {
     if (_purchasing) return;
 
-    final def = getGuardianUpgradeDef(upgrade);
-    final cost = svc.nextGuardianCost(upgrade);
-    if (cost == null) return;
-
+    final def = getSurvivalSpecialDef(special);
     final confirmed = await showBracketConfirm(
       context,
       palette: _kPalette,
       accent: def.color,
-      title: 'CONFIRM UPGRADE',
-      message: 'Spend $cost silver to upgrade ${def.name}?',
-      amounts: [(CoinKind.silver, cost)],
+      title: 'CONFIRM PURCHASE',
+      message: 'Spend ${_fmtNum(def.cost)} silver on ${def.name}?',
+      amounts: [(CoinKind.silver, def.cost)],
       amountsLabel: 'COSTS',
-      confirmLabel: 'UPGRADE',
+      confirmLabel: 'BUY',
     );
     if (!confirmed || !mounted) return;
 
     setState(() => _purchasing = true);
-    final ok = await svc.upgradeGuardianStat(upgrade);
+    final ok = await svc.purchaseSpecial(special);
     if (ok) await _loadCurrencies();
     if (mounted) {
       setState(() => _purchasing = false);
@@ -1264,52 +1256,45 @@ class _ShipPreviewPainter extends CustomPainter {
   bool shouldRepaint(_ShipPreviewPainter old) => old.skinId != skinId;
 }
 
-// ── Generic Upgrade Card (Guardian Stats) ──────────────────────────────────
+// ── Special Card ───────────────────────────────────────────────────────────
 
-class _UpgradeCard extends StatelessWidget {
-  final String name;
-  final String description;
-  final IconData icon;
-  final Color color;
-  final int currentLevel;
-  final int maxLevel;
-  final int? nextCost;
-  final String bonusLabel;
+class _SpecialCard extends StatelessWidget {
+  final SurvivalSpecialDef def;
+  final bool owned;
   final int silverBalance;
   final bool purchasing;
-  final VoidCallback onUpgrade;
+  final VoidCallback onBuy;
 
-  const _UpgradeCard({
-    required this.name,
-    required this.description,
-    required this.icon,
-    required this.color,
-    required this.currentLevel,
-    required this.maxLevel,
-    required this.nextCost,
-    required this.bonusLabel,
+  const _SpecialCard({
+    required this.def,
+    required this.owned,
     required this.silverBalance,
     required this.purchasing,
-    required this.onUpgrade,
+    required this.onBuy,
   });
 
   @override
   Widget build(BuildContext context) {
-    final isMaxed = currentLevel >= maxLevel;
+    final color = def.color;
     return _PlateBox(
-      washed: isMaxed,
+      washed: owned,
       accentColor: color,
       padding: const EdgeInsets.all(14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 36,
                 height: 36,
-                color: color.withValues(alpha: 0.12),
-                child: Icon(icon, color: color, size: 18),
+                color: owned ? color.withValues(alpha: 0.16) : _C.bg3,
+                child: Icon(
+                  def.icon,
+                  color: owned ? color : _C.textSecondary,
+                  size: 18,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1317,48 +1302,29 @@ class _UpgradeCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      name.toUpperCase(),
+                      def.name.toUpperCase(),
                       style: TextStyle(
                         fontFamily: 'monospace',
-                        color: isMaxed ? color : _C.textPrimary,
+                        color: owned ? color : _C.textPrimary,
                         fontSize: 12,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 1.2,
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(description, style: _T.body),
+                    Text(def.description, style: _T.body),
                   ],
                 ),
               ),
-              // Current bonus
-              if (currentLevel > 0)
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  color: color.withValues(alpha: 0.12),
-                  child: Text(
-                    bonusLabel,
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: color,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
             ],
           ),
           const SizedBox(height: 12),
           Row(
             children: [
-              _LevelPips(current: currentLevel, max: maxLevel, color: color),
               const Spacer(),
-              if (isMaxed)
+              if (owned)
                 Text(
-                  'MAXED',
+                  'OWNED',
                   style: TextStyle(
                     fontFamily: 'monospace',
                     color: color,
@@ -1369,12 +1335,12 @@ class _UpgradeCard extends StatelessWidget {
                 )
               else
                 _ForgeButton(
-                  label: _fmtNum(nextCost!),
+                  label: _fmtNum(def.cost),
                   icon: AppIcons.paid_rounded,
                   coin: CoinKind.silver,
-                  onTap: (purchasing || silverBalance < (nextCost ?? 999999))
+                  onTap: (purchasing || silverBalance < def.cost)
                       ? null
-                      : onUpgrade,
+                      : onBuy,
                   loading: purchasing,
                   color: color,
                 ),

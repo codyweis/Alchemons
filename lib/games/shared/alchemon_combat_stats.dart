@@ -5,7 +5,6 @@ import 'package:alchemons/games/cosmic/kin_support_runtime.dart'
     show kKinSpecialCooldownStretch;
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_balance.dart';
 import 'package:alchemons/models/stat_system.dart';
-import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -29,8 +28,6 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 //    Family frame  each family's shape (a Horn's bulk, a Wing's reach),
 //                  [alchemonFamilyFrame].
 // ─────────────────────────────────────────────────────────────────────────────
-
-typedef GuardianUpgradeValue = double Function(GuardianUpgrade upgrade);
 
 /// A creature's combat numbers, before anything a run or a fight adds.
 class AlchemonCombatStats {
@@ -224,15 +221,13 @@ double alchemonBaseRange(double intelligence) =>
     100.0 + AlchemonStatSystem.legacyGameplayRating(intelligence) * 28.0;
 
 /// The creature's combat numbers. [strengthBonus] and the like are a run's
-/// stat pickups; [guardianUpgradeValue] is Survival's permanent Guardian
-/// upgrades. Everything else about the creature is already in [member].
+/// stat pickups. Everything else about the creature is already in [member].
 AlchemonCombatStats deriveAlchemonCombatStats({
   required CosmicPartyMember member,
   double strengthBonus = 0,
   double intelligenceBonus = 0,
   double beautyBonus = 0,
   double speedBonus = 0,
-  GuardianUpgradeValue? guardianUpgradeValue,
 }) {
   final level = CosmicBalance.clampCompanionLevel(member.level);
   final family = member.family.toLowerCase();
@@ -279,10 +274,10 @@ AlchemonCombatStats deriveAlchemonCombatStats({
 
   // Cadence is continuous, so it reads the raw stat: a 100 is faster than a
   // 95. The final-step milestone applies to countable things, not to this.
-  var cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
+  final cooldownReduction = CosmicBalance.companionCooldownReduction(speed);
   // A special comes back on whatever the family actually uses to bring it
   // back, which is rarely pure reflex.
-  var specialCooldownReduction = CosmicBalance.companionCooldownReduction(
+  final specialCooldownReduction = CosmicBalance.companionCooldownReduction(
     cosmicFamilySpecialCooldownStat(
       family: family,
       speed: speed,
@@ -290,23 +285,15 @@ AlchemonCombatStats deriveAlchemonCombatStats({
       strength: str,
     ),
   );
-  var baseRange = alchemonBaseRange(intel);
-
-  double upgrade(GuardianUpgrade u) => guardianUpgradeValue?.call(u) ?? 0.0;
-
-  cooldownReduction *= (1 + upgrade(GuardianUpgrade.cooldown));
-  specialCooldownReduction *= (1 + upgrade(GuardianUpgrade.cooldown));
-  final guardDefMult = 1 + upgrade(GuardianUpgrade.defense);
-  final guardAtkMult = 1 + upgrade(GuardianUpgrade.attack);
-  baseRange *= (1 + upgrade(GuardianUpgrade.range));
+  final baseRange = alchemonBaseRange(intel);
 
   return AlchemonCombatStats(
     maxHp: maxHp,
-    physAtk: (physAtk * guardAtkMult).round(),
-    elemAtk: (elemAtk * guardAtkMult).round(),
-    abilityAtk: (abilityAtk * guardAtkMult).round(),
-    physDef: (physDef * guardDefMult).round(),
-    elemDef: (elemDef * guardDefMult).round(),
+    physAtk: physAtk,
+    elemAtk: elemAtk,
+    abilityAtk: abilityAtk,
+    physDef: physDef,
+    elemDef: elemDef,
     cooldownReduction: cooldownReduction,
     specialCooldownReduction: specialCooldownReduction,
     attackRange: baseRange * frame.autoRange,

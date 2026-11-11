@@ -1799,7 +1799,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   final List<ShipProjectile> shipProjectiles = [];
 
   // Power-ups
-  final PowerUpState powerUps = PowerUpState();
+  final PowerUpState powerUps;
   bool showingPowerUpSelection = false;
   bool gamePaused = false;
 
@@ -1840,6 +1840,83 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   double get shipRespawnProgress => ship.isDead && _shipRespawnDelay > 0
       ? (_shipRespawnTimer / _shipRespawnDelay).clamp(0.0, 1.0)
       : 0;
+
+  // Ship Shield (a Special): a shield as strong as the hull
+  // ([kShipShieldHullShare]) that takes every hit before the hull does. It is
+  // kept as a share of its full strength, so it grows with the hull from wave
+  // to wave like the hull's own health does. Once broken it is gone for
+  // [kShipShieldRegenSeconds], then comes back whole.
+  double _shipShield = 0;
+
+  /// Seconds until a broken shield is back; 0 when it is up (or not owned).
+  double _shipShieldRegen = 0;
+
+  /// 1 on a hit the shield took, fading: the glass catching the light.
+  double _shipShieldFlash = 0;
+
+  /// What the shield holds, as a share of the hull's full health, for the
+  /// HUD's ship gauge. 0 while the ship is down, or the shield is.
+  double get shipShieldFraction => ship.isDead || _shipShield <= 0
+      ? 0.0
+      : _shipShield * kShipShieldHullShare;
+
+  /// Whole seconds until a broken shield is back; 0 when it is not coming.
+  int get shipShieldSecondsLeft => ship.isDead ? 0 : _shipShieldRegen.ceil();
+
+  /// Hurts the ship by [amount]: the shield takes it first, and what is left
+  /// lands on the hull. A hull this empties is down. Every hit on the ship
+  /// goes through here.
+  void _damageShip(double amount) {
+    if (amount <= 0 || ship.isDead) return;
+    var left = amount;
+    if (_shipShield > 0) {
+      final full = ship.maxHp * kShipShieldHullShare;
+      final soaked = min(left, _shipShield * full);
+      _shipShield = max(0.0, _shipShield - soaked / full);
+      left -= soaked;
+      _shipShieldFlash = 1.0;
+      if (_shipShield <= 1e-9) {
+        _shipShield = 0;
+        _shipShieldRegen = kShipShieldRegenSeconds;
+        onSound?.call(SoundCue.combatShieldBreak);
+      } else {
+        onSound?.call(SoundCue.combatShieldHit);
+      }
+      if (left <= 0) return;
+    }
+    ship.currentHp -= left;
+    ship.hitFlash = 1.0;
+    if (ship.currentHp <= 0) {
+      ship.isDead = true;
+      _shipRespawnTimer = 0;
+    }
+  }
+
+  void _updateShipShield(double dt) {
+    if (!powerUps.hasShipShield) return;
+    _shipShieldFlash = max(0.0, _shipShieldFlash - dt * 4);
+    if (_shipShieldRegen <= 0) return;
+    _shipShieldRegen -= dt;
+    if (_shipShieldRegen <= 0) {
+      _shipShieldRegen = 0;
+      _shipShield = 1.0;
+    }
+  }
+
+  @visibleForTesting
+  double get debugShipShield => _shipShield;
+
+  @visibleForTesting
+  double get debugShipShieldRegen => _shipShieldRegen;
+
+  /// Runs the shield's clock alone, for a test that waits out its regrowth.
+  @visibleForTesting
+  void debugTickShipShield(double dt) => _updateShipShield(dt);
+
+  /// Hits the ship the way an enemy's blow does, shield first.
+  @visibleForTesting
+  void debugDamageShip(double amount) => _damageShip(amount);
+
   bool get detonationUnlocked => powerUps.novaDetonationLevel > 0;
 
   // Orb skin passives
@@ -2465,6 +2542,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     SurvivalUpgradeState? upgradeState,
     SurvivalFamilyMasterySnapshot? masterySnapshot,
   }) : upgradeState = upgradeState ?? SurvivalUpgradeState(),
+       // The Specials the run starts with are fixed here, for the whole run.
+       powerUps = PowerUpState(
+         specials: upgradeState?.ownedSpecials ?? const {},
+       ),
        mastery = SurvivalMasteryRuntime(snapshot: masterySnapshot),
        _rng = random ?? Random(),
        spawner = CosmicSurvivalSpawner(random: random);
@@ -2567,8 +2648,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     ship = CosmicSurvivalShip(
       position: const Offset(-270, 0),
-      speed: 180 * _survivalShipSpeedMultiplier,
+      // Ship Speed (a Special) triples it.
+      speed:
+          180 * _survivalShipSpeedMultiplier * powerUps.shipSpeedMultiplier,
     );
+    // Ship Shield (a Special): the run starts with it up.
+    _shipShield = powerUps.hasShipShield ? 1.0 : 0.0;
 
     // Initialize orb skin passives
     _equippedSkin = skinDef.skin;
@@ -2697,6 +2782,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       orbHp: orb.currentHp,
       orbShield: orb.shieldHp,
       shipHp: ship.isDead ? 0 : ship.currentHp,
+      shipShield: _shipShield,
       shipDead: ship.isDead,
       shipRespawnElapsed: ship.isDead ? _shipRespawnTimer : 0,
       slots: slots,
@@ -2731,10 +2817,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       deployedSlots: deployedCompanionSlots,
       party: party,
       equippedOrb: upgradeState.equippedSkin,
-      guardianLevels: {
-        for (final u in GuardianUpgrade.values)
-          u: upgradeState.getGuardianLevel(u),
-      },
+      specials: powerUps.specials,
       abilityLevels: {
         for (final a in BaseAbility.values) a: upgradeState.getAbilityLevel(a),
       },
@@ -2837,6 +2920,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? 0
         : run.shipHp.clamp(1.0, ship.maxHp).toDouble();
     _shipRespawnTimer = run.shipDead ? run.shipRespawnElapsed : 0;
+    // Ship Shield (a Special): as the run left it. One that was down waits
+    // its full time again, as the hull does not heal by leaving either.
+    if (powerUps.hasShipShield) {
+      _shipShield = run.shipShield.clamp(0.0, 1.0).toDouble();
+      _shipShieldRegen = _shipShield > 0 ? 0 : kShipShieldRegenSeconds;
+    }
 
     tetherModeEnabled = run.tetherMode;
     for (final slot in run.activeSlots) {
@@ -3102,6 +3191,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _updateShip(double dt) {
     _syncShipHull();
+    _updateShipShield(dt);
     final wasDead = ship.isDead;
     if (wasDead) {
       ship.fireTimer = 0;
@@ -3161,15 +3251,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Auto-fire at nearest enemy or boss
     ship.fireTimer += dt;
-    // Rapid Rockets (a fusion): rockets reload faster than plain shots.
-    final rocketPenalty = !powerUps.hasRocketBarrage
-        ? 1.0
-        : powerUps.hasRapidRockets
-        ? kRapidRocketsReload
-        : 1.5;
-    final effectiveFireCooldown =
-        ship.fireCooldown * rocketPenalty / powerUps.fireRateMultiplier;
-    if (ship.fireTimer >= effectiveFireCooldown) {
+    if (ship.fireTimer >= _shipFireInterval) {
       final target = _nearestEnemyTo(ship.position, 400);
       Offset? fireTarget;
       if (target != null) {
@@ -3283,9 +3365,35 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _idleOrbitRadius = distance.clamp(150.0, maxRadius);
   }
 
+  /// Seconds between the ship's volleys: its own cooldown, longer for
+  /// rockets, shorter for every fire-rate pick (and Ship Overhaul).
+  double get _shipFireInterval {
+    // Rapid Rockets (a fusion): rockets reload faster than plain shots.
+    final rocketPenalty = !powerUps.hasRocketBarrage
+        ? 1.0
+        : powerUps.hasRapidRockets
+        ? kRapidRocketsReload
+        : 1.5;
+    return ship.fireCooldown * rocketPenalty / powerUps.fireRateMultiplier;
+  }
+
+  @visibleForTesting
+  double get debugShipFireInterval => _shipFireInterval;
+
+  /// Fires the ship's gun at [target], as it does when it has one in range.
+  @visibleForTesting
+  void debugFireShipAt(Offset target) => _fireShipAt(target);
+
+  /// Most ship shots in the air at once (the missile launcher's has ten
+  /// more). Ship Overhaul's volleys come five times as fast, so it gets three
+  /// times the room, not five: past that the shots cost more than they show.
+  int get _shipShotCap => powerUps.hasShipOverhaul ? 120 : 40;
+
   void _fireShipAt(Offset targetPos) {
-    // Cap total ship projectiles to limit performance impact at high waves
-    if (shipProjectiles.length >= 40) return;
+    // Cap total ship projectiles to limit performance impact at high waves.
+    // Ship Overhaul fires five times as often, so it is given room for the
+    // shots that many more volleys leave in the air.
+    if (shipProjectiles.length >= _shipShotCap) return;
 
     final dir = targetPos - ship.position;
     final dist = dir.distance;
@@ -3406,7 +3514,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final targetPos =
             target?.position ??
             (boss != null && !boss.isDead ? boss.position : null);
-        if (targetPos != null && shipProjectiles.length < 50) {
+        if (targetPos != null && shipProjectiles.length < _shipShotCap + 10) {
           final dir = targetPos - ship.position;
           final dist = dir.distance;
           if (dist > 0.01) {
@@ -3437,7 +3545,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                 splashRadius: splashRadius,
               ),
             );
-            if (missileLevel >= 3 && shipProjectiles.length < 50) {
+            if (missileLevel >= 3 &&
+                shipProjectiles.length < _shipShotCap + 10) {
               final offsetAngle = atan2(norm.dy, norm.dx) + 0.2;
               shipProjectiles.add(
                 ShipProjectile(
@@ -5321,16 +5430,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return 198.0 / 160.0;
   }
 
-  // Derives a companion's combat stats from its effective stats, family
-  // frame and permanent guardian upgrades. Used both when a companion is
-  // summoned and when a stat powerup is picked mid-run.
+  // Derives a companion's combat stats from its effective stats and family
+  // frame. Used both when a companion is summoned and when a stat powerup is
+  // picked mid-run.
   AlchemonCombatStats _deriveCompanionStats(int slotIndex) {
-    double guardianUpgradeValue(GuardianUpgrade u) {
-      final lvl = upgradeState.getGuardianLevel(u);
-      if (lvl <= 0) return 0.0;
-      return getGuardianUpgradeDef(u).valuePerLevel[lvl - 1];
-    }
-
     final member = party[slotIndex];
     return deriveAlchemonCombatStats(
       member: member,
@@ -5341,7 +5444,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       ),
       beautyBonus: powerUps.beautyBonus(slotIndex, member.statBeauty),
       speedBonus: powerUps.speedBonus(slotIndex, member.statSpeed),
-      guardianUpgradeValue: guardianUpgradeValue,
     );
   }
 
@@ -6532,14 +6634,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             !ship.isDead &&
             _withinRange(enemy.position, ship.position, enemy.radius + 30)) {
           final damageMultiplier = powerUps.hasMirrorShield ? 0.75 : 1.0;
-          ship.currentHp -=
-              enemy.damage * 0.6 * damageMultiplier * _shipBodyDamageTaken;
-          ship.hitFlash = 1.0;
+          _damageShip(
+            enemy.damage * 0.6 * damageMultiplier * _shipBodyDamageTaken,
+          );
           if (enemy.isVampiric) _healEnemy(enemy, enemy.damage * 0.24);
-          if (ship.currentHp <= 0) {
-            ship.isDead = true;
-            _shipRespawnTimer = 0;
-          }
         }
       } else if (dist > enemy.radius) {
         var moveSpeedMult = 1.0;
@@ -6957,13 +7055,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (!ship.isDead) {
       if (_withinRange(enemy.position, ship.position, enemy.radius + 15) &&
           enemy.target != CosmicEnemyTarget.orb) {
-        ship.currentHp -= enemy.damage * dt * 0.75 * _shipBodyDamageTaken;
-        ship.hitFlash = 1.0;
+        _damageShip(enemy.damage * dt * 0.75 * _shipBodyDamageTaken);
         if (enemy.isVampiric) _healEnemy(enemy, enemy.damage * dt * 0.4);
-        if (ship.currentHp <= 0) {
-          ship.isDead = true;
-          _shipRespawnTimer = 0;
-        }
       }
     }
 
@@ -10945,12 +11038,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
       if (!ship.isDead &&
           _withinRange(enemy.position, ship.position, blastRadius)) {
-        ship.currentHp -= blastDamage * 0.45;
-        ship.hitFlash = 1.0;
-        if (ship.currentHp <= 0) {
-          ship.isDead = true;
-          _shipRespawnTimer = 0;
-        }
+        _damageShip(blastDamage * 0.45);
       }
       for (final comp in activeCompanions.values) {
         if (comp.isDead) continue;
@@ -10977,12 +11065,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Splash damage to the ship and companions if they got too close.
     if (!ship.isDead && _withinRange(enemy.position, ship.position, radius)) {
-      ship.currentHp -= damage * 0.55;
-      ship.hitFlash = 1.0;
-      if (ship.currentHp <= 0) {
-        ship.isDead = true;
-        _shipRespawnTimer = 0;
-      }
+      _damageShip(damage * 0.55);
     }
     for (final comp in activeCompanions.values) {
       if (comp.isDead) continue;
@@ -11380,12 +11463,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
       if (!ship.isDead &&
           _withinRange(boss.position, ship.position, waveRadius + 14)) {
-        ship.currentHp -= waveDamage * 0.8;
-        ship.hitFlash = 1.0;
-        if (ship.currentHp <= 0) {
-          ship.isDead = true;
-          _shipRespawnTimer = 0;
-        }
+        _damageShip(waveDamage * 0.8);
       }
       for (final comp in activeCompanions.values) {
         if (comp.isDead) continue;
@@ -11660,12 +11738,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
           if (!ship.isDead &&
               _withinRange(boss.position, ship.position, pulseRadius + 10)) {
-            ship.currentHp -= pulseDamage;
-            ship.hitFlash = 1.0;
-            if (ship.currentHp <= 0) {
-              ship.isDead = true;
-              _shipRespawnTimer = 0;
-            }
+            _damageShip(pulseDamage);
           }
 
           for (final comp in activeCompanions.values) {
@@ -11933,12 +12006,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (!ship.isDead) {
       final shipDist = (boss.position - ship.position).distance;
       if (shipDist < boss.radius + 15) {
-        ship.currentHp -= 16 * dt;
-        ship.hitFlash = 1.0;
-        if (ship.currentHp <= 0) {
-          ship.isDead = true;
-          _shipRespawnTimer = 0;
-        }
+        _damageShip(16 * dt);
       }
     }
 
@@ -12461,12 +12529,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       // Hit ship
       if (!ship.isDead) {
         if (_withinRange(proj.position, ship.position, proj.radius + 12)) {
-          ship.currentHp -= proj.damage;
-          ship.hitFlash = 1.0;
-          if (ship.currentHp <= 0) {
-            ship.isDead = true;
-            _shipRespawnTimer = 0;
-          }
+          _damageShip(proj.damage);
           proj.life = 0;
         }
       }
@@ -12575,12 +12638,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           proj.target == CosmicEnemyTarget.ship &&
           !ship.isDead) {
         if (_withinRange(proj.position, ship.position, proj.radius + 12)) {
-          ship.currentHp -= proj.damage * _shipBodyDamageTaken;
-          ship.hitFlash = 1.0;
-          if (ship.currentHp <= 0) {
-            ship.isDead = true;
-            _shipRespawnTimer = 0;
-          }
+          _damageShip(proj.damage * _shipBodyDamageTaken);
           proj.life = 0;
         }
       }
@@ -23267,15 +23325,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
     }
     if (shipDamage > 0 && !ship.isDead) {
-      ship.currentHp = max(
-        0,
-        ship.currentHp - shipDamage * (powerUps.hasMirrorShield ? 0.75 : 1.0),
-      );
-      ship.hitFlash = 1;
-      if (ship.currentHp <= 0) {
-        ship.isDead = true;
-        _shipRespawnTimer = 0;
-      }
+      _damageShip(shipDamage * (powerUps.hasMirrorShield ? 0.75 : 1.0));
     }
   }
 
@@ -24802,12 +24852,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           !h.hit.contains(ship) &&
           reaches(ship.position, 16)) {
         h.hit.add(ship);
-        ship.currentHp -= h.damage * _shipBodyDamageTaken;
-        ship.hitFlash = 1.0;
-        if (ship.currentHp <= 0) {
-          ship.isDead = true;
-          _shipRespawnTimer = 0;
-        }
+        _damageShip(h.damage * _shipBodyDamageTaken);
       }
       for (final comp in activeCompanions.values) {
         if (comp.isDead || h.hit.contains(comp)) continue;
@@ -25703,7 +25748,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     canvas.restore();
     _renderShipHull(canvas, elapsed, ghostMode);
+
+    // Ship Shield (a Special): the core's glass shell, round the hull while
+    // it holds.
+    if (!ghostMode && _shipShield > 0) {
+      canvas.save();
+      canvas.translate(p.dx, p.dy);
+      paintShieldShell(canvas, _kShipShieldRadius, lift: _shipShieldFlash);
+      canvas.restore();
+    }
   }
+
+  /// The ship's shield shell, in world units: just clear of the hull.
+  static const double _kShipShieldRadius = 36;
 
   /// The hull, drawn by the cosmic ship painter (ship_art.dart) so it looks
   /// the same in both modes — minus the light pooled round it, which

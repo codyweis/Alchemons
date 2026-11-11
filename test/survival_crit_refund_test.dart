@@ -2,7 +2,6 @@
 // It is retired; a save that bought levels gets the silver back, once.
 
 import 'package:alchemons/database/alchemons_db.dart';
-import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:alchemons/services/survival_upgrade_service.dart';
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,7 +24,6 @@ void main() {
     () async {
       final start = await db.currencyDao.getSilverBalance();
       await db.settingsDao.setSetting('survival.guardian.critChance', '3');
-      await db.settingsDao.setSetting('survival.guardian.attack', '2');
 
       final svc = SurvivalUpgradeService(db);
       await svc.load();
@@ -33,12 +31,6 @@ void main() {
       expect(
         await db.settingsDao.getSetting('survival.guardian.critChance'),
         isNull,
-      );
-      // The other Guardian upgrades are untouched.
-      expect(svc.state.getGuardianLevel(GuardianUpgrade.attack), 2);
-      expect(
-        GuardianUpgrade.values.map((u) => u.name),
-        isNot(contains('critChance')),
       );
 
       await svc.load();

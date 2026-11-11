@@ -82,12 +82,7 @@ Future<(CosmicSurvivalGame, List<SuspendedSurvivalRun>)> startedRun({
     onGameOver: () {},
     upgradeState: SurvivalUpgradeState(
       equippedSkin: OrbBaseSkin.celestialOrb,
-      guardianLevels: {
-        GuardianUpgrade.attack: 3,
-        GuardianUpgrade.defense: 2,
-        GuardianUpgrade.cooldown: 1,
-        GuardianUpgrade.range: 0,
-      },
+      ownedSpecials: {SurvivalSpecial.shipSpeed},
     ),
     onWaveCheckpoint: () => checkpoints.add(game.captureSuspendedRun()),
   );
@@ -267,7 +262,7 @@ SuspendedSurvivalRun keptRun(
     slotStats: const [],
     party: party,
     equippedOrb: OrbBaseSkin.celestialOrb,
-    guardianLevels: const {},
+    specials: const {},
     abilityLevels: const {},
     mastery: SurvivalFamilyMasterySnapshot.empty,
     shipSkin: null,
@@ -311,7 +306,7 @@ void main() {
       expect(decoded.party.map((m) => m.statStrength), [
         for (final m in game.party) m.statStrength,
       ]);
-      expect(decoded.upgradeState.getGuardianLevel(GuardianUpgrade.attack), 3);
+      expect(decoded.upgradeState.ownedSpecials, {SurvivalSpecial.shipSpeed});
       expect(decoded.equippedOrb, OrbBaseSkin.celestialOrb);
       expect(decoded.deployedSlots, {0, 3});
     });
@@ -467,7 +462,7 @@ void main() {
       expect(back.companionRunStats[slot]?.damageDealt, s.damageDealt);
       expect(back.companionRunStats[slot]?.kills, s.kills);
     }
-    expect(back.upgradeState.getGuardianLevel(GuardianUpgrade.attack), 3);
+    expect(back.upgradeState.ownedSpecials, {SurvivalSpecial.shipSpeed});
     expect(back.upgradeState.equippedSkin, OrbBaseSkin.celestialOrb);
 
     // And it plays on: the wave it resumed on is the one in progress, and

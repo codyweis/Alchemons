@@ -1151,6 +1151,28 @@ void paintOrbReadings(
   }
 }
 
+/// The core's shield shell on a smaller body: pale brass glass [radius] wide,
+/// centred on the origin. The ship's shield (a Special) is drawn with it.
+/// [lift] (0 to 1) brightens it for a moment, as a hit does. Three filled
+/// circles on shaders built once; no blur, no layer.
+void paintShieldShell(Canvas c, double radius, {double lift = 0}) {
+  final a = (0.8 + 0.2 * lift).clamp(0.0, 1.0);
+  c.save();
+  c.scale(radius);
+  _shade(_shellBody, a);
+  c.drawCircle(Offset.zero, 1, _fill);
+  _shade(_shellRim, a);
+  c.drawCircle(Offset.zero, 1, _fill);
+  if (lift > 0) {
+    // A hit: the rim catches the light a second time, for a moment.
+    _shade(_shellRim, lift);
+    c.drawCircle(Offset.zero, 1, _fill);
+  }
+  _shade(_shellGlint, a);
+  c.drawPath(_shellBand, _fill);
+  c.restore();
+}
+
 // ── the gravity field ───────────────────────────────────────────────────────
 
 /// Dust in lanes round the orb: (lane, angle, radius jitter, size).

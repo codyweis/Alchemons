@@ -69,15 +69,7 @@ CosmicSurvivalGame _game({
     party: party ?? _party(),
     random: Random(17),
     onGameOver: () {},
-    upgradeState: SurvivalUpgradeState(
-      equippedSkin: OrbBaseSkin.celestialOrb,
-      guardianLevels: {
-        GuardianUpgrade.attack: 2,
-        GuardianUpgrade.defense: 2,
-        GuardianUpgrade.cooldown: 1,
-        GuardianUpgrade.range: 0,
-      },
-    ),
+    upgradeState: SurvivalUpgradeState(equippedSkin: OrbBaseSkin.celestialOrb),
     onWaveCheckpoint: onCheckpoint == null ? null : () => onCheckpoint(game),
   );
   game.onGameResize(Vector2(900, 700));

@@ -26,7 +26,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Base Command on the Fold (475 wide): every orb core as the run draws it,
-// the hulls, the guardian upgrades and a purchase confirm. Then the same
+// the hulls, the Specials and a purchase confirm. Then the same
 // screen at 1.3× text and on a narrow phone with all five tabs.
 //
 //   BC_OUT=/tmp/bc flutter test test/base_command_orb_preview_test.dart \
@@ -91,14 +91,15 @@ void main() {
     await tester.runAsync(() async {
       await mastery.load();
       if (!seeded) return;
-      await db.currencyDao.addSilver(200000);
+      await db.currencyDao.addSilver(500000);
       await db.currencyDao.addGold(55);
+      // Two Specials owned, three still to buy with silver to spare.
+      await upgrades.purchaseSpecial(SurvivalSpecial.shipSpeed);
+      await upgrades.purchaseSpecial(SurvivalSpecial.shipShield);
       for (var i = 0; i < 5; i++) {
-        await upgrades.upgradeGuardianStat(GuardianUpgrade.attack);
         await upgrades.upgradeBaseAbility(BaseAbility.health);
       }
       for (var i = 0; i < 2; i++) {
-        await upgrades.upgradeGuardianStat(GuardianUpgrade.defense);
         await upgrades.upgradeBaseAbility(BaseAbility.turret);
       }
     });
@@ -219,20 +220,20 @@ void main() {
     );
   });
 
-  testWidgets('base command guardians', (tester) async {
+  testWidgets('base command specials', (tester) async {
     if (out == null) return;
     await shoot(
       tester,
-      tab: 'GUARDIANS',
-      height: 900,
+      tab: 'SPECIALS',
+      height: 1000,
       seeded: true,
       shots: {
-        'base_command_guardians': null,
-        'base_command_guardian_confirm': () => tester.tap(
+        'base_command_specials': null,
+        'base_command_special_confirm': () => tester.tap(
           find
               .descendant(
                 of: find.byType(TabBarView),
-                matching: find.text('10,000'),
+                matching: find.text('100,000'),
               )
               .first,
         ),
@@ -240,16 +241,26 @@ void main() {
     );
   });
 
+  testWidgets('base command specials, empty purse', (tester) async {
+    if (out == null) return;
+    await shoot(
+      tester,
+      tab: 'SPECIALS',
+      height: 1000,
+      shots: {'base_command_specials_empty': null},
+    );
+  });
+
   testWidgets('base command at 1.3x text', (tester) async {
     if (out == null) return;
     await shoot(
       tester,
-      tab: 'GUARDIANS',
+      tab: 'SPECIALS',
       width: 412,
-      height: 1100,
+      height: 1300,
       textScale: 1.3,
       seeded: true,
-      shots: {'base_command_guardians_1.3x': null},
+      shots: {'base_command_specials_1.3x': null},
     );
     await shoot(
       tester,
