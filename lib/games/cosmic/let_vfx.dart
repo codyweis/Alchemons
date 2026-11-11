@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'cosmic_data.dart';
 import 'cosmic_projectile_vfx.dart' show buildTumblingShardPath, drawPlumeWake;
+import 'element_ground_art.dart';
 import 'vfx_shapes.dart';
 
 /// Let's art after the landing: the crater a meteor punches, what it leaves
@@ -45,31 +46,6 @@ void _dot(ui.Canvas canvas, ui.Offset p, double r, ui.Color c, double alpha) {
     ..shader = null
     ..color = c.withValues(alpha: _c01(alpha));
   canvas.drawCircle(p, r, _fill);
-}
-
-/// The spines of [n] cracks crazing a disc of radius [r] round [c]: short
-/// bowed segments spread evenly over it (a sunflower spiral), each at its
-/// own bearing — neither out from the stone nor round it — so they read as
-/// a crust breaking up, never as spokes, a ring, or long lines that cross
-/// into a star. Callers lay lens ribbons along them.
-List<List<ui.Offset>> _crackSpines(
-  ui.Offset c,
-  double r,
-  double seed,
-  int n,
-) {
-  final out = <List<ui.Offset>>[];
-  for (var i = 0; i < n; i++) {
-    final h1 = vfxHash(seed + i * 3.7);
-    final h2 = vfxHash(seed + i * 5.3);
-    final h3 = vfxHash(seed + i * 1.9);
-    final at =
-        c + vfxPolar(seed * 1.7 + i * 2.399963, r * 0.78 * sqrt((i + 0.5) / n));
-    final dir = vfxPolar(h1 * pi, r * (0.15 + 0.12 * h2));
-    final bow = ui.Offset(-dir.dy, dir.dx) * (0.7 * (h3 - 0.5));
-    out.add(vfxQuadSpine(at - dir, at + bow * 2, at + dir, n: 6));
-  }
-  return out;
 }
 
 /// The spent meteor, sitting where it fell.
@@ -197,7 +173,9 @@ void drawLetTelegraphShadow({
   _fill
     ..color = const ui.Color(
       0xFFFFFFFF,
-    ).withValues(alpha: _c01((0.45 + 0.42 * close) * presence))
+    // Lighter than it was (0.45 to 0.87): at full strength the pool was a
+    // flat disc of its colour laid over everything under it.
+    ).withValues(alpha: _c01((0.26 + 0.3 * close) * presence))
     ..shader = look.pool;
   canvas.save();
   canvas.translate(c.dx, c.dy);
@@ -237,7 +215,7 @@ void drawLetTelegraphShadow({
   // in on one shared curl, and slows as it collects at the heart, where the
   // light swallows it. One batch; few, so it never traces the rim.
   vfxGrainsDiscard();
-  final n = (radius / 13).clamp(6.0, 14.0).round();
+  final n = (radius / 6).clamp(14.0, 40.0).round();
   for (var i = 0; i < n; i++) {
     final u = (time * 0.7 + vfxHash(seed + i * 1.7)) % 1.0;
     final e = 1 - (1 - u) * (1 - u);
@@ -246,7 +224,22 @@ void drawLetTelegraphShadow({
     final d = from * (1 - 0.86 * e);
     vfxGrain(heart.dx + cos(ang) * d, heart.dy + sin(ang) * d);
   }
-  vfxGrainsFlush(canvas, max(1.3, radius * 0.011), look.grit, 0.5 * presence);
+  vfxGrainsFlush(canvas, max(1.6, radius * 0.011), look.grit, 0.7 * presence);
+  // The reach, marked in loose grit where the pool's edge used to carry it:
+  // a broken scatter round the blast, never a closed ring.
+  final rim = (radius / 3.2).clamp(24.0, 110.0).round();
+  for (var i = 0; i < rim; i++) {
+    if (vfxHash(seed + i * 4.1) > 0.72) continue;
+    final ang = seed + i * pi * 2 / rim + time * 0.2;
+    final d = radius * (0.9 + 0.1 * vfxHash(seed + i * 2.3)) * (0.86 + 0.14 * presence);
+    vfxGrain(c.dx + cos(ang) * d, c.dy + sin(ang) * d);
+  }
+  vfxGrainsFlush(
+    canvas,
+    max(1.6, radius * 0.012),
+    look.light,
+    (0.4 + 0.4 * close) * presence,
+  );
 }
 
 /// Per-element stone and wake proportions for a falling Let:
@@ -1177,588 +1170,27 @@ bool drawLetGroundZone({
   final stoneA = alpha * _c01((age - 0.35) / 0.4);
   final r = projectile.effectRadius > 0 ? projectile.effectRadius : 60.0;
 
-  switch (element) {
-    case 'Lava':
-      _moltenGround(
-        canvas,
-        c,
-        r,
-        m,
-        seed,
-        time,
-        grow,
-        alpha,
-        stoneA,
-        reduceAmbient,
-      );
-    case 'Dust':
-      _dustPall(
-        canvas,
-        c,
-        r,
-        m,
-        seed,
-        time,
-        grow,
-        alpha,
-        stoneA,
-        reduceAmbient,
-      );
-    case 'Poison':
-      _sump(canvas, c, r, m, seed, time, grow, alpha, stoneA, reduceAmbient);
-    case 'Earth':
-      _rubble(canvas, c, r, m, seed, time, grow, alpha, stoneA, reduceAmbient);
-    case 'Mud':
-      _mire(canvas, c, r, m, seed, time, grow, alpha, stoneA, reduceAmbient);
-    case 'Light':
-      _wellOfLight(
-        canvas,
-        c,
-        r,
-        m,
-        seed,
-        time,
-        grow,
-        alpha,
-        stoneA,
-        reduceAmbient,
-      );
-    case 'Steam':
-      _vent(canvas, c, r, m, seed, time, grow, alpha, stoneA, reduceAmbient);
-    case 'Plant':
-      _vine(canvas, c, r, m, seed, time, grow, alpha, reduceAmbient);
-    default:
-      vfxSpill(canvas, c, r, m.light, 0.18 * alpha);
-      _stone(canvas, c, r * 0.1, m, seed, stoneA);
-  }
-  return true;
-}
-
-/// Lava: a crust gone dark over the crater, split by seams that still run
-/// from the stone. The burn covers the whole glow.
-void _moltenGround(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  VfxMaterial m,
-  double seed,
-  double time,
-  double grow,
-  double a,
-  double stoneA,
-  bool reduce,
-) {
-  final breathe = 0.85 + 0.15 * sin(time * 2.2 + seed);
-  vfxSpill(canvas, c, r * 1.05, m.light, 0.17 * a * breathe);
-  vfxFillPath(
+  // The element's ground in grains, with no outline
+  // (element_ground_art.dart), and the family's stone still at its heart.
+  // It spreads out as it arrives and draws back in as it goes.
+  canvas.save();
+  canvas.translate(c.dx, c.dy);
+  final drawn = paintElementGround(
     canvas,
-    vfxBlob(c, r * 0.8 * grow, seed, n: 16, wobble: 0.12),
-    m.ink,
-    0.74 * a,
-  );
-  // Fissures across the crust: a few cracks running across it as gentle
-  // curves, each a lens of molten light that swells in the middle and
-  // pinches out at both ends — two fills for all of them. (It was eight
-  // jagged seams radiating from the stone, forked: a spider of hairlines.)
-  final flick = 0.75 + 0.25 * sin(time * 3.1 + seed);
-  final glow = ui.Path(), core = ui.Path();
-  for (final spine in _crackSpines(c, r * 0.8 * grow, seed, reduce ? 4 : 7)) {
-    vfxLensRibbon(spine, r * 0.06, into: glow);
-    vfxLensRibbon(spine, r * 0.022, into: core);
-  }
-  vfxFillPath(canvas, glow, m.light, 0.36 * a * flick);
-  vfxFillPath(canvas, core, m.glint, 0.62 * a * flick);
-  // Heat coming off it.
-  for (var i = 0; i < (reduce ? 2 : 4); i++) {
-    final ph = (time * 0.55 + vfxHash(seed + i * 3)) % 1.0;
-    final base =
-        c +
-        vfxPolar(vfxHash(seed + i) * pi * 2, r * 0.45 * vfxHash(seed + i * 5));
-    _dot(
-      canvas,
-      base + ui.Offset(0, -ph * r * 0.35),
-      1.6 + r * 0.008,
-      m.glint,
-      0.7 * sin(ph * pi) * a,
-    );
-  }
-  _stone(canvas, c, r * 0.09, m, seed, stoneA, heat: 0.7 * breathe);
-}
-
-/// Dust: a pall hanging over the crater, turning slowly, grains riding it.
-void _dustPall(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  VfxMaterial m,
-  double seed,
-  double time,
-  double grow,
-  double a,
-  double stoneA,
-  bool reduce,
-) {
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, r * 0.7 * grow, seed, n: 14, wobble: 0.2),
-    m.ink,
-    0.28 * a,
-  );
-  _stone(canvas, c, r * 0.085, m, seed, stoneA * 0.7);
-  final veils = reduce ? 4 : 6;
-  for (var i = 0; i < veils; i++) {
-    final dir = i.isEven ? 1.0 : -0.7;
-    final ang = seed + i * pi * 2 / veils + time * 0.22 * dir;
-    final d = r * (0.3 + 0.14 * sin(time * 0.7 + i * 1.3)) * grow;
-    vfxSpill(canvas, c + vfxPolar(ang, d), r * 0.46, m.light, 0.13 * a);
-  }
-  for (var i = 0; i < 3; i++) {
-    final ang = seed * 2 + i * pi * 2 / 3 - time * 0.35;
-    vfxSpill(canvas, c + vfxPolar(ang, r * 0.18), r * 0.34, m.mid, 0.16 * a);
-  }
-  final grains = reduce ? 6 : 12;
-  for (var i = 0; i < grains; i++) {
-    final speed = 0.3 + 0.5 * vfxHash(seed + i * 1.7);
-    final ang = seed + i * 2.399 + time * speed * (i.isEven ? 1 : -1);
-    final p =
-        c + vfxPolar(ang, r * (0.2 + 0.7 * vfxHash(seed + i * 3.9)) * grow);
-    _dot(canvas, p, 1.1 + 0.8 * vfxHash(seed + i), m.glint, 0.42 * a);
-  }
-}
-
-/// Poison: the crater filled with something that should not be touched.
-void _sump(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  VfxMaterial m,
-  double seed,
-  double time,
-  double grow,
-  double a,
-  double stoneA,
-  bool reduce,
-) {
-  vfxSpill(canvas, c, r * 1.05, m.light, 0.15 * a);
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, r * 0.74 * grow, seed, n: 16, wobble: 0.1),
-    m.ink,
-    0.8 * a,
-  );
-  vfxFillPath(
-    canvas,
-    vfxBlob(
-      c + const ui.Offset(-2, -3),
-      r * 0.6 * grow,
-      seed + 3,
-      n: 14,
-      wobble: 0.12,
-    ),
-    m.mid,
-    0.26 * a,
-  );
-  for (var i = 0; i < 2; i++) {
-    vfxFillPath(
-      canvas,
-      vfxCrescent(
-        c,
-        r * (0.48 - i * 0.16) * grow,
-        r * 0.03,
-        seed + i * 2.4 + time * 0.12,
-        1.1,
-      ),
-      m.glint,
-      0.2 * a,
-    );
-  }
-  _stone(canvas, c + const ui.Offset(3, 2), r * 0.075, m, seed, stoneA * 0.85);
-  // Bubbles rising and breaking at fixed spots in the pool.
-  final bubbles = reduce ? 4 : 7;
-  for (var i = 0; i < bubbles; i++) {
-    final ph = (time * 0.6 + vfxHash(seed + i * 2.2)) % 1.0;
-    final p =
-        c +
-        vfxPolar(
-          vfxHash(seed + i) * pi * 2,
-          r * 0.55 * vfxHash(seed + i * 4.4) * grow,
-        );
-    if (ph < 0.86) {
-      final br = r * (0.018 + 0.04 * ph / 0.86);
-      _dot(canvas, p, br, m.mid, 0.75 * a);
-      _dot(
-        canvas,
-        p + ui.Offset(-br * 0.35, -br * 0.35),
-        br * 0.3,
-        m.glint,
-        0.6 * a,
-      );
-    } else {
-      final pop = (ph - 0.86) / 0.14;
-      vfxSpill(
-        canvas,
-        p,
-        r * (0.05 + 0.08 * pop),
-        m.glint,
-        0.35 * (1 - pop) * a,
-      );
-    }
-  }
-  // Fumes lifting off it.
-  for (var i = 0; i < (reduce ? 2 : 3); i++) {
-    final ph = (time * 0.35 + i / 3 + vfxHash(seed)) % 1.0;
-    final p =
-        c + vfxPolar(seed + i * 2.1, r * 0.3) + ui.Offset(0, -ph * r * 0.5);
-    vfxSpill(canvas, p, r * (0.2 + 0.2 * ph), m.light, 0.12 * sin(ph * pi) * a);
-  }
-}
-
-/// Earth: the ground broken round the stone, fissures running out of it, a
-/// tremor still going through it. The stun covers the whole field.
-void _rubble(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  VfxMaterial m,
-  double seed,
-  double time,
-  double grow,
-  double a,
-  double stoneA,
-  bool reduce,
-) {
-  vfxSpill(canvas, c, r, m.light, 0.2 * a);
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, r * 0.82 * grow, seed, n: 14, wobble: 0.2),
-    m.ink,
-    0.5 * a,
-  );
-  // The tremor that holds anything standing in it.
-  final beat = (time / 1.1 + vfxHash(seed)) % 1.0;
-  vfxSoftRing(
-    canvas,
-    c,
-    r * (0.25 + 0.65 * beat),
-    r * 0.16,
-    m.light,
-    0.2 * (1 - beat) * a,
-  );
-  // Cracks across the broken ground, dark with a lit lip, two fills for
-  // all (they were six jagged fissures radiating from the stone).
-  final lip = ui.Path(), crack = ui.Path();
-  for (final spine in _crackSpines(c, r * 0.8 * grow, seed, reduce ? 4 : 6)) {
-    vfxLensRibbon(
-      [for (final p in spine) p + const ui.Offset(-1.5, -1.5)],
-      r * 0.05,
-      into: lip,
-    );
-    vfxLensRibbon(spine, r * 0.045, into: crack);
-  }
-  vfxFillPath(canvas, lip, m.glint, 0.3 * a);
-  vfxFillPath(canvas, crack, _black, 0.75 * a);
-  final rocks = reduce ? 6 : 10;
-  for (var i = 0; i < rocks; i++) {
-    final ang = seed * 1.9 + i * 2.399;
-    final p =
-        c + vfxPolar(ang, r * (0.3 + 0.55 * vfxHash(seed + i * 2.6)) * grow);
-    vfxChunk(
-      canvas,
-      p,
-      r * (0.04 + 0.04 * vfxHash(seed + i * 1.3)),
-      seed + i * 4,
-      m,
-      alpha: a,
-      rot: ang,
-      faceAlpha: 0.9,
-    );
-  }
-  _stone(canvas, c, r * 0.12, m, seed, stoneA, faceAlpha: 0.85);
-}
-
-/// Mud: the stone half sunk in a pool that closes over whatever wades in.
-void _mire(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  VfxMaterial m,
-  double seed,
-  double time,
-  double grow,
-  double a,
-  double stoneA,
-  bool reduce,
-) {
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, r * 0.82 * grow, seed, n: 18, wobble: 0.08),
-    m.ink,
-    0.84 * a,
-  );
-  vfxFillPath(
-    canvas,
-    vfxBlob(
-      c + const ui.Offset(-3, -2),
-      r * 0.66 * grow,
-      seed + 2,
-      n: 16,
-      wobble: 0.1,
-    ),
-    m.mid,
-    0.3 * a,
-  );
-  // Slow rings from the stone, soft bands on the surface.
-  final ripple = (time * 0.38 + vfxHash(seed)) % 1.0;
-  vfxSoftRing(
-    canvas,
-    c,
-    r * (0.12 + 0.55 * ripple) * grow,
-    r * 0.06,
-    m.glint,
-    0.1 * (1 - ripple) * a,
-  );
-  for (var i = 0; i < 3; i++) {
-    vfxFillPath(
-      canvas,
-      vfxCrescent(
-        c,
-        r * (0.62 - i * 0.17) * grow,
-        r * 0.028,
-        seed + i * 2.1 + 0.8,
-        0.9,
-      ),
-      m.glint,
-      0.15 * a,
-    );
-  }
-  // Clods thrown onto the rim.
-  final clods = reduce ? 4 : 7;
-  for (var i = 0; i < clods; i++) {
-    final ang = seed + i * pi * 2 / clods + (vfxHash(seed + i) - 0.5) * 0.4;
-    vfxFillPath(
-      canvas,
-      vfxBlob(
-        c + vfxPolar(ang, r * 0.8 * grow),
-        r * 0.05,
-        seed + i,
-        n: 8,
-        wobble: 0.3,
-        squash: 0.7,
-      ),
-      m.mid,
-      0.7 * a,
-    );
-  }
-  _stone(canvas, c, r * 0.07, m, seed, stoneA * 0.9);
-  // The mud closing round the stone's foot.
-  vfxFillPath(
-    canvas,
-    vfxBlob(
-      c + ui.Offset(0, r * 0.035),
-      r * 0.085,
-      seed + 9,
-      n: 10,
-      wobble: 0.2,
-      squash: 0.55,
-    ),
-    m.ink,
-    0.9 * stoneA,
-  );
-}
-
-/// Light: a well of warm light round a pale star-stone, motes rising off it.
-void _wellOfLight(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  VfxMaterial m,
-  double seed,
-  double time,
-  double grow,
-  double a,
-  double stoneA,
-  bool reduce,
-) {
-  final breathe = 0.88 + 0.12 * sin(time * 1.6 + seed);
-  vfxSpill(canvas, c, r * grow, m.light, 0.26 * a * breathe);
-  vfxSpill(canvas, c, r * 0.45 * grow, m.glint, 0.3 * a * breathe);
-  if (!reduce) {
-    // Warmer patches drifting through the pool.
-    for (var i = 0; i < 5; i++) {
-      final ang = seed + i * pi * 2 / 5 + time * 0.18;
-      final d = r * (0.25 + 0.12 * sin(time * 0.6 + i * 1.9)) * grow;
-      vfxSpill(canvas, c + vfxPolar(ang, d), r * 0.34, m.glint, 0.09 * a);
-    }
-  }
-  final motes = reduce ? 5 : 9;
-  for (var i = 0; i < motes; i++) {
-    final ph = (time * 0.42 + vfxHash(seed + i * 1.9)) % 1.0;
-    final base =
-        c +
-        vfxPolar(
-          vfxHash(seed + i) * pi * 2,
-          r * 0.75 * vfxHash(seed + i * 2.8) * grow,
-        );
-    final p = base + ui.Offset(0, -ph * r * 0.45);
-    vfxFillPath(
-      canvas,
-      vfxDrop(p, 2.2 * (1 - ph * 0.4), -pi / 2),
-      m.glint,
-      0.75 * sin(ph * pi) * a,
-    );
-  }
-  _stone(
-    canvas,
-    c,
-    r * 0.08,
-    m,
+    element,
+    r * 1.1 * grow * (0.55 + 0.45 * alpha),
+    time,
     seed,
-    stoneA,
-    heat: 0.6 * breathe,
-    faceAlpha: 0.95,
+    reduced: reduceAmbient,
   );
-}
-
-/// Steam: the stone bored a vent, and the vent is still going — a surge every
-/// breath that the push rides on.
-void _vent(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  VfxMaterial m,
-  double seed,
-  double time,
-  double grow,
-  double a,
-  double stoneA,
-  bool reduce,
-) {
-  final cyc = (time / 1.4 + vfxHash(seed)) % 1.0;
-  final surge = pow(1.0 - cyc, 2).toDouble();
-  vfxSpill(canvas, c, r, m.light, 0.12 * a);
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, r * 0.76 * grow, seed, n: 14, wobble: 0.15),
-    m.ink,
-    0.46 * a,
-  );
-  vfxSpill(canvas, c, r * 0.5, m.mid, 0.2 * a);
-  _stone(canvas, c + vfxPolar(seed, r * 0.26), r * 0.075, m, seed, stoneA);
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, r * 0.18, seed + 4, n: 10, wobble: 0.25),
-    _black,
-    0.72 * a,
-  );
-  vfxSoftRing(
-    canvas,
-    c,
-    r * (0.22 + 0.62 * cyc),
-    r * 0.16,
-    m.light,
-    0.16 * surge * a,
-  );
-  if (!reduce) {
-    for (var i = 0; i < 5; i++) {
-      final ang = seed + i * pi * 2 / 5;
-      final p = c + vfxPolar(ang, r * (0.2 + 0.5 * cyc));
-      vfxFillPath(
-        canvas,
-        vfxDrop(p, 1.2 + r * 0.012, ang),
-        m.glint,
-        0.5 * surge * a,
-      );
-    }
+  canvas.restore();
+  // Undrawn only while it is still too small to see (its first frames) or
+  // for an element with no ground: then a little of its light.
+  if (!drawn && !kElementGrounds.contains(element)) {
+    vfxSpill(canvas, c, r, m.light, 0.18 * alpha);
   }
-  final puffs = reduce ? 4 : 8;
-  for (var i = 0; i < puffs; i++) {
-    final ph = (time * 0.6 + i / puffs + vfxHash(seed)) % 1.0;
-    final drift = sin(i * 2.1 + ph * 2.4) * r * (0.12 + 0.3 * ph);
-    final p = c + ui.Offset(drift, -ph * r * 0.95);
-    vfxSpill(
-      canvas,
-      p,
-      r * (0.22 + 0.45 * ph),
-      i.isEven ? m.glint : m.light,
-      (0.14 + 0.12 * surge) * sin(ph * pi) * a,
-    );
-  }
-}
-
-/// Plant: one vine, coiled where it grew and waiting. [r] is the reach it
-/// strikes at, and it is spent the first time something comes into it.
-void _vine(
-  ui.Canvas canvas,
-  ui.Offset c,
-  double r,
-  VfxMaterial m,
-  double seed,
-  double time,
-  double grow,
-  double a,
-  bool reduce,
-) {
-  vfxSpill(canvas, c, r * 1.25, m.light, 0.13 * a);
-  // Turned soil where it came up.
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, r * 0.62 * grow, seed + 2, n: 10, wobble: 0.3),
-    m.ink,
-    0.5 * a,
-  );
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, r * 0.3, seed, n: 9, wobble: 0.3),
-    m.ink,
-    0.82 * a,
-  );
-  // Tendrils come up out of the soil and lean out, each its own height and
-  // curl — a plant rising, not four arms at even bearings (that read as an
-  // X). One path per tone: five fills for the lot.
-  final tendrils = reduce ? 3 : 4;
-  final stems = ui.Path(), lit = ui.Path(), thorns = ui.Path();
-  final leaves = ui.Path();
-  vfxGrainsDiscard();
-  for (var i = 0; i < tendrils; i++) {
-    final sway = sin(time * 1.6 + i * 1.3 + seed) * 0.14;
-    final x = i - (tendrils - 1) / 2;
-    final ang =
-        -pi / 2 +
-        x * 0.8 +
-        (vfxHash(seed + i * 5.3) - 0.5) * 0.35 +
-        sway;
-    final curl = (i.isEven ? 1.0 : -1.0) * (0.45 + 0.35 * vfxHash(seed + i));
-    final len = r * (0.7 + 0.45 * vfxHash(seed + i * 2.2)) * grow;
-    final base = c + vfxPolar(ang, r * 0.1);
-    final spine = <ui.Offset>[
-      for (var k = 0; k <= 7; k++)
-        base + vfxPolar(ang + curl * pow(k / 7, 1.8), len * k / 7),
-    ];
-    stems.addPath(vfxRibbon(spine, r * 0.2, 0.8), ui.Offset.zero);
-    lit.addPath(vfxRibbon(spine, r * 0.06, 0.3), ui.Offset.zero);
-    // A thorn on the outside of the curl.
-    final p = spine[4];
-    final tan = spine[5] - spine[3];
-    final ta = atan2(tan.dy, tan.dx) - pi / 2 * curl.sign;
-    thorns.addPath(
-      vfxShard(p + vfxPolar(ta, r * 0.05), r * 0.09, r * 0.025, ta),
-      ui.Offset.zero,
-    );
-    if (i.isOdd) {
-      leaves.addPath(
-        vfxLeaf(spine[3], r * 0.32, ang + curl * 1.2),
-        ui.Offset.zero,
-      );
-    }
-    // The tip, lit — this is what strikes.
-    vfxGrain(spine.last.dx, spine.last.dy);
-  }
-  vfxFillPath(canvas, stems, m.mid, 0.92 * a);
-  vfxFillPath(canvas, lit, m.glint, 0.22 * a);
-  vfxFillPath(canvas, thorns, m.ink, 0.9 * a);
-  vfxFillPath(canvas, leaves, m.mid, 0.75 * a);
-  final pulse = 0.6 + 0.4 * sin(time * 3 + seed);
-  vfxGrainsFlush(canvas, max(1.6, r * 0.1), m.glint, 0.55 * pulse * a);
+  _stone(canvas, c, r * 0.1, m, seed, stoneA);
+  return true;
 }
 
 // ─────────────────────────────────────────────────────────────────────────

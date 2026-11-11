@@ -873,3 +873,41 @@ void vfxArcInto(
   vfxLensRibbon(spine, width * 3.2, taper: 0.32, into: glow);
   vfxLensRibbon(spine, width, taper: 0.32, into: core);
 }
+
+/// A hole in the ground things fall into — Horn's void, Pip's black hole,
+/// and every Dark ground (element_ground_art.dart).
+void drawVfxVoid(
+  ui.Canvas canvas,
+  ui.Offset c,
+  VfxMaterial m,
+  double r,
+  double seed,
+  double time,
+) {
+  vfxSpill(canvas, c, r * 1.2, m.light, 0.12);
+  for (var layer = 3; layer >= 0; layer--) {
+    vfxFillPath(
+      canvas,
+      vfxBlob(
+        c,
+        r * (0.4 + layer * 0.16),
+        seed + layer + time * 0.2,
+        n: 14,
+        wobble: 0.06,
+      ),
+      m.ink,
+      0.26 + (3 - layer) * 0.14,
+    );
+  }
+  // Wisps falling in, fading as they cross the lip.
+  for (var arm = 0; arm < 5; arm++) {
+    final ph = (time * 0.35 + arm * 0.618) % 1.0;
+    final a = arm * 2.399 + ph * 1.4;
+    vfxFillPath(
+      canvas,
+      vfxSpiralArm(c, r * (1.05 - ph * 0.4), a, 1.2, r * 0.05, reach: 0.6),
+      m.glint,
+      0.3 * sin(ph * pi),
+    );
+  }
+}

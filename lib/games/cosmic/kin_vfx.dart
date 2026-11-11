@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import 'ability_grains.dart' show abilityElementOfColor, abilityMaterialTint;
 import 'cosmic_data.dart';
-import 'horn_vfx.dart';
+import 'element_ground_art.dart';
 import 'vfx_shapes.dart';
 
 /// Kin's art: each kin's signature piece, what shows on the kin while its
@@ -102,27 +102,26 @@ bool drawKinPieceVisual({
   }
   final fade = (projectile.life / 0.6).clamp(0.0, 1.0);
   final r = projectile.effectRadius > 0 ? projectile.effectRadius : 40.0;
-  switch (element) {
-    case 'Earth':
-      _drawWallSection(canvas, position, m, seed, fade);
-    case 'Water':
-      _drawRainCloud(canvas, position, m, r, seed, time, fade);
-    case 'Air':
-      _drawUpdraft(canvas, position, m, r, seed, time, fade);
-    case 'Dust':
-      _drawDustBank(canvas, position, m, r, seed, time, fade);
-    case 'Mud':
-      drawHornTrailPatch(
-        canvas: canvas,
-        element: 'Mud',
-        position: position,
-        radius: r * 0.7,
-        time: time,
-        fade: fade,
-      );
-    default:
-      return false;
+  // A Kin's fields are the element's ground in grains
+  // (element_ground_art.dart), drawing in as they go; Earth's wall is a
+  // thing it builds and keeps its own art.
+  if (element != 'Earth') {
+    canvas.save();
+    canvas.translate(position.dx, position.dy);
+    final drawn = paintElementGround(
+      canvas,
+      element,
+      r * (0.6 + 0.4 * fade),
+      time,
+      seed,
+    );
+    canvas.restore();
+    if (drawn) return true;
   }
+  // Every field but Earth's wall is the ground above; one too small to see
+  // yet falls through to the generic painter.
+  if (element != 'Earth') return false;
+  _drawWallSection(canvas, position, m, seed, fade);
   return true;
 }
 
@@ -306,162 +305,6 @@ void _drawWallSection(
   vfxFillPath(canvas, face, m.mid, 0.8);
   vfxFillPath(canvas, glint, m.glint, 0.35);
   canvas.restore();
-}
-
-/// A dark raincloud riding above the ship with rain falling out of it, and
-/// the ground under it wet with the healing.
-void _drawRainCloud(
-  ui.Canvas canvas,
-  ui.Offset c,
-  VfxMaterial m,
-  double r,
-  double seed,
-  double time,
-  double fade,
-) {
-  final cloudC = c + ui.Offset(0, -r * 0.55);
-  // Wet ground where it lands, faintly lit.
-  vfxSpill(canvas, c, r * 0.9, m.light, 0.16 * fade);
-  // Rain: short falling drops, elongated along the fall.
-  for (var i = 0; i < 12; i++) {
-    final t = (time * 1.6 + i * 0.37 + vfxHash(seed + i)) % 1.0;
-    final x = (vfxHash(seed + i * 3.1) - 0.5) * r * 1.0;
-    final y = cloudC.dy + r * 0.12 + t * r * 0.55;
-    canvas.save();
-    canvas.translate(c.dx + x, y);
-    canvas.scale(0.5, 1.6);
-    vfxFillPath(
-      canvas,
-      vfxDrop(ui.Offset.zero, 1.8, pi / 2),
-      m.glint,
-      0.5 * sin(t * pi) * fade,
-    );
-    canvas.restore();
-  }
-  // The cloud: heavy dark underside, lit tops.
-  for (var i = 0; i < 5; i++) {
-    final x = (i - 2) * r * 0.22 + sin(time * 0.4 + i) * 3;
-    final pr = r * (0.26 + 0.1 * vfxHash(seed + i));
-    final pc = cloudC + ui.Offset(x, (i.isEven ? 0.0 : -0.1) * r);
-    vfxFillPath(
-      canvas,
-      vfxBlob(pc, pr, seed + i + time * 0.1, n: 9, wobble: 0.1, squash: 0.7),
-      m.ink,
-      0.72 * fade,
-    );
-  }
-  for (var i = 0; i < 4; i++) {
-    final x = (i - 1.5) * r * 0.24;
-    final pc = cloudC + ui.Offset(x, -r * 0.1);
-    vfxFillPath(
-      canvas,
-      vfxBlob(
-        pc,
-        r * 0.18,
-        seed + i * 3 + time * 0.1,
-        n: 8,
-        wobble: 0.12,
-        squash: 0.6,
-      ),
-      m.mid,
-      0.55 * fade,
-    );
-  }
-}
-
-/// A column of rising wind: a hollow at its foot, gusts winding upward and
-/// debris lifted inside it.
-void _drawUpdraft(
-  ui.Canvas canvas,
-  ui.Offset c,
-  VfxMaterial m,
-  double r,
-  double seed,
-  double time,
-  double fade,
-) {
-  // The ground it draws on, out to the edge of what it lifts.
-  vfxSpill(canvas, c, r, const ui.Color(0xFF05080B), 0.2 * fade);
-  // The column's body, a tall soft light.
-  canvas.save();
-  canvas.translate(c.dx, c.dy - r * 0.35);
-  canvas.scale(0.55, 1.4);
-  vfxSpill(canvas, ui.Offset.zero, r * 0.6, m.glint, 0.14 * fade);
-  canvas.restore();
-  // Gusts spiralling round the foot and up.
-  canvas.save();
-  canvas.translate(c.dx, c.dy);
-  canvas.scale(1, 0.55);
-  final spin = time * 2.2 + seed;
-  // Arms that wind well in, so the foot reads as a swirl drawing air up,
-  // not as arcs round the ship. One fill.
-  final arms = ui.Path();
-  for (var i = 0; i < 3; i++) {
-    arms.addPath(
-      vfxSpiralArm(
-        ui.Offset.zero,
-        r * 0.9,
-        spin + i * pi * 2 / 3,
-        2.6,
-        r * 0.1,
-        reach: 0.88,
-      ),
-      ui.Offset.zero,
-    );
-  }
-  vfxFillPath(canvas, arms, m.glint, 0.15 * fade);
-  canvas.restore();
-  // Debris lifted up the column, spinning as it rises.
-  for (var i = 0; i < 7; i++) {
-    final t = (time * 0.7 + i / 7 + vfxHash(seed + i)) % 1.0;
-    final a = time * 3 + i * 0.9;
-    final p =
-        c +
-        ui.Offset(
-          cos(a) * r * 0.35 * (1 - t * 0.5),
-          sin(a) * r * 0.12 - t * r * 1.1,
-        );
-    vfxFillPath(
-      canvas,
-      vfxLeaf(p, 5.5, a * 2),
-      m.glint,
-      0.7 * sin(t * pi) * fade,
-    );
-  }
-}
-
-/// A drifting bank of dust — big and soft, grit turning inside it.
-void _drawDustBank(
-  ui.Canvas canvas,
-  ui.Offset c,
-  VfxMaterial m,
-  double r,
-  double seed,
-  double time,
-  double fade,
-) {
-  vfxSpill(canvas, c, r, m.light, 0.12 * fade);
-  for (var i = 0; i < 7; i++) {
-    final a = i * 2.399 + seed + time * 0.05;
-    final p = c + vfxPolar(a, r * 0.45 * (0.4 + 0.6 * vfxHash(seed + i)));
-    final pr = r * (0.28 + 0.08 * sin(time * 0.5 + i));
-    vfxFillPath(
-      canvas,
-      vfxBlob(p, pr, seed + i + time * 0.08, n: 10, wobble: 0.12, squash: 0.75),
-      m.mid,
-      0.14 * fade,
-    );
-  }
-  for (var i = 0; i < 14; i++) {
-    final a = time * (0.4 + 0.3 * vfxHash(seed + i)) + i * 0.45;
-    _dot(
-      canvas,
-      c + vfxPolar(a, r * (0.15 + 0.7 * vfxHash(seed + i * 2))),
-      1.2,
-      m.glint,
-      0.4 * fade,
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────

@@ -225,12 +225,12 @@ class _AuditGame extends CosmicSurvivalGame {
 
   static const _cluster = <(Offset, EnemyTier)>[
     (Offset.zero, EnemyTier.sentinel),
-    (Offset(42, 0), EnemyTier.drone),
-    (Offset(21, 36), EnemyTier.drone),
-    (Offset(-21, 36), EnemyTier.drone),
-    (Offset(-42, 0), EnemyTier.drone),
-    (Offset(-21, -36), EnemyTier.drone),
-    (Offset(21, -36), EnemyTier.drone),
+    (Offset(42, 0), EnemyTier.wisp),
+    (Offset(21, 36), EnemyTier.wisp),
+    (Offset(-21, 36), EnemyTier.wisp),
+    (Offset(-42, 0), EnemyTier.wisp),
+    (Offset(-21, -36), EnemyTier.wisp),
+    (Offset(21, -36), EnemyTier.wisp),
   ];
 
   @override

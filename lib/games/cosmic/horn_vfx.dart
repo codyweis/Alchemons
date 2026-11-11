@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'cosmic_data.dart';
 import 'cosmic_projectile_vfx.dart' show ZoneVfxEmit;
+import 'element_ground_art.dart';
 import 'vfx_shapes.dart';
 
 /// Horn's art: the wake a creature tears while it rams, the slam when it
@@ -649,6 +650,18 @@ bool drawHornZoneVisual({
   final effectR = projectile.effectRadius > 0
       ? projectile.effectRadius
       : projectile.radiusMultiplier * 20 + 20;
+  // What a charge leaves on the ground is the element's ground in grains
+  // (element_ground_art.dart). The things a Horn BUILDS keep their own art:
+  // Light's barrier, Ice's wall and Earth's cairn are objects, not ground.
+  if (element != 'Ice' &&
+      element != 'Earth' &&
+      !(element == 'Light' && projectile.reflectsProjectiles)) {
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    final drawn = paintElementGround(canvas, element, effectR * 0.9, time, seed);
+    canvas.restore();
+    if (drawn) return true;
+  }
   switch (element) {
     case 'Light' when projectile.reflectsProjectiles:
       _drawBarrier(canvas, c, m, projectile, time);
@@ -801,7 +814,14 @@ void _drawWhirlpool(
     canvas,
     vfxBlob(c, r * breathe, seed, n: 16, wobble: 0.06),
     m.ink,
-    0.74,
+    0.6,
+  );
+  // Water over the ink, so it is a pool and not a hole in the floor.
+  vfxFillPath(
+    canvas,
+    vfxBlob(c, r * 0.9 * breathe, seed + 3, n: 14, wobble: 0.05),
+    m.mid,
+    0.26,
   );
   vfxSoftRing(canvas, c, r * 0.96 * breathe, r * 0.1, m.mid, 0.35);
   // The drain: arms winding inward, turning.
@@ -810,10 +830,28 @@ void _drawWhirlpool(
     vfxFillPath(
       canvas,
       vfxSpiralArm(c, r * 0.92, spin + i * pi * 2 / 5, 2.6, r * 0.14),
-      m.mid,
-      0.34,
+      ui.Color.lerp(m.mid, m.light, 0.5)!,
+      0.46,
     );
   }
+  // Foam: grains carried down the drain along the arms, and a broken line
+  // of them round the edge.
+  for (var j = 0; j < 5; j++) {
+    for (var k = 0; k < 13; k++) {
+      final u = (k / 13 + time * 0.12 + vfxHash(seed + j * 3.1)) % 1.0;
+      final a = spin + j * pi * 2 / 5 + u * 2.6;
+      final rr = r * 0.9 * (1 - 0.84 * u);
+      vfxGrain(c.dx + rr * cos(a), c.dy + rr * sin(a));
+    }
+  }
+  vfxGrainsFlush(canvas, 2.1, m.glint, 0.78);
+  for (var i = 0; i < 46; i++) {
+    if (vfxHash(seed + i * 2.7) > 0.7) continue;
+    final a = i / 46 * pi * 2 + spin * 0.4;
+    final rr = r * breathe * (0.93 + 0.06 * vfxHash(seed + i * 5.3));
+    vfxGrain(c.dx + rr * cos(a), c.dy + rr * sin(a));
+  }
+  vfxGrainsFlush(canvas, 1.9, m.light, 0.62);
   // Silver catching on the surface, riding the current.
   for (var i = 0; i < 4; i++) {
     final a = spin * 1.3 + i * pi / 2;
@@ -963,43 +1001,6 @@ void _drawCyclone(
     vfxGrain(p.dx, p.dy);
   }
   vfxGrainsFlush(canvas, 2.4, m.glint, 0.5);
-}
-
-/// A hole in the ground things fall into — Horn's void, Pip's black hole.
-void drawVfxVoid(
-  ui.Canvas canvas,
-  ui.Offset c,
-  VfxMaterial m,
-  double r,
-  double seed,
-  double time,
-) {
-  vfxSpill(canvas, c, r * 1.2, m.light, 0.12);
-  for (var layer = 3; layer >= 0; layer--) {
-    vfxFillPath(
-      canvas,
-      vfxBlob(
-        c,
-        r * (0.4 + layer * 0.16),
-        seed + layer + time * 0.2,
-        n: 14,
-        wobble: 0.06,
-      ),
-      m.ink,
-      0.26 + (3 - layer) * 0.14,
-    );
-  }
-  // Wisps falling in, fading as they cross the lip.
-  for (var arm = 0; arm < 5; arm++) {
-    final ph = (time * 0.35 + arm * 0.618) % 1.0;
-    final a = arm * 2.399 + ph * 1.4;
-    vfxFillPath(
-      canvas,
-      vfxSpiralArm(c, r * (1.05 - ph * 0.4), a, 1.2, r * 0.05, reach: 0.6),
-      m.glint,
-      0.3 * sin(ph * pi),
-    );
-  }
 }
 
 /// The ground of an element over a zone of [radius] — what any parked piece
@@ -1299,20 +1300,32 @@ void _drawBarrier(
   // toward the edge (no bright hairline rim), and the sheen sliding over its
   // face. Cached gradients only.
   vfxSpill(canvas, c, domeR, m.light, 0.11 * breathe);
-  // Lit from above-left: the near face of the glass catches it in a broad
-  // warm crescent, the far side in a faint one — a sphere, not a ring.
-  vfxFillPath(
-    canvas,
-    vfxCrescent(c, domeR, domeR * 0.16, -2.3, 2.6),
-    ui.Color.lerp(m.light, m.glint, 0.35)!,
-    0.24 * breathe,
-  );
-  vfxFillPath(
-    canvas,
-    vfxCrescent(c, domeR, domeR * 0.08, 0.85, 1.7),
-    m.light,
-    0.1 * breathe,
-  );
+  // A dome of lit grains turning slowly over the spot, seen from above:
+  // sparse through the middle, gathering toward the rim, brightest on the
+  // face toward the light. (It was two filled crescents: a grey arc.)
+  const tip = 0.42;
+  final ct = cos(tip), st = sin(tip);
+  final turn = time * 0.25;
+  final lit = ui.Color.lerp(m.light, m.glint, 0.5)!;
+  for (var pass = 0; pass < 3; pass++) {
+    for (var i = 0; i < 150; i++) {
+      final y = 2 * vfxHash(i * 1.0 + 3) - 1;
+      final lon = vfxHash(i * 1.7 + 11) * pi * 2 + turn;
+      final cl = sqrt(1 - y * y);
+      final x = cl * cos(lon), z = cl * sin(lon);
+      final yy = y * ct - z * st, zz = y * st + z * ct;
+      final hot = zz > 0 && -0.5 * x + 0.62 * yy + 0.6 * zz > 0.62;
+      if (pass == 0 ? zz > 0 : (pass == 1 ? (zz <= 0 || hot) : !hot)) continue;
+      vfxGrain(c.dx + domeR * x, c.dy - domeR * yy);
+    }
+    if (pass == 0) {
+      vfxGrainsFlush(canvas, 1.7, m.light, 0.3 * breathe);
+    } else if (pass == 1) {
+      vfxGrainsFlush(canvas, 2.3, lit, 0.72 * breathe);
+    } else {
+      vfxGrainsFlush(canvas, 2.9, vfxFlare(m), 0.9 * breathe);
+    }
+  }
   // One soft sheen drifting a little over the near face (it was three
   // glint crescents turning round the rim: a rotating dashed ring).
   vfxSpill(
