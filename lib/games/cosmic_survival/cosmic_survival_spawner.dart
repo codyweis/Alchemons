@@ -473,6 +473,33 @@ class SurvivalBoss with MasteryPayloadStatuses {
 
   bool get isVenting => overheatTimer > 0;
 
+  /// Phases: a boss fights in three. A hit that would carry it past one of
+  /// [phaseGates] stops at the line; it wards itself for [wardSeconds],
+  /// taking nothing, calls escorts, and fights the next phase harder. A
+  /// strong team's burst cannot skip one, so even an early boss is a fight
+  /// with a shape, not a few seconds of melting.
+  static const List<double> phaseGates = [2 / 3, 1 / 3];
+  static const double wardSeconds = 2.5;
+
+  /// How much faster its AI runs for each phase it has passed.
+  static const double phaseHaste = 0.2;
+
+  /// Phases passed so far (0, 1 or 2).
+  int phasesPassed = 0;
+
+  /// Seconds of ward left; it takes no damage while this runs.
+  double wardTimer = 0;
+
+  bool get isWarded => wardTimer > 0;
+
+  /// Its shield or its ward: anything that is turning hits aside.
+  bool get shielded => shieldUp || isWarded;
+
+  /// The health, as a share of the most, it cannot be carried past until it
+  /// has warded; null once every phase is passed.
+  double? get nextPhaseGate =>
+      phasesPassed < phaseGates.length ? phaseGates[phasesPassed] : null;
+
   /// 0..1 — how aggressively the boss tangentially strafes its ring.
   /// Snipers ≈ 0.15 (mostly still), orbiters ≈ 0.7, chasers ≈ 1.0.
   final double strafeWeight;

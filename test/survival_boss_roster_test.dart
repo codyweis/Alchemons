@@ -234,6 +234,9 @@ void main() {
 
     for (final b in game.allLivingBosses.toList()) {
       b.shieldUp = false;
+      // Past its phase lines, so one blow fells it (a hit stops at a line).
+      b.phasesPassed = SurvivalBoss.phaseGates.length;
+      b.wardTimer = 0;
       game.damageBoss(1e9, target: b);
     }
     for (var f = 0; f < 60 * 12; f++) {

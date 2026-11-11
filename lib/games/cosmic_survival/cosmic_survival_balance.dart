@@ -204,6 +204,7 @@ class CosmicSurvivalBalance {
     // gradually after wave 10, keeping opening waves and orb damage intact.
     return base *
         bossHealthStretch(wave) *
+        earlyBossBump(wave) *
         (1.0 + max(0, wave - 10) * 0.018) *
         (titanic
             ? 3.2
@@ -211,6 +212,14 @@ class CosmicSurvivalBalance {
             ? 1.2
             : 1.0);
   }
+
+  /// Early bosses died in 4–7 s to a P70–P100 team (2026-11-11, from the
+  /// moment they appeared, walk-in included). Half again as much health
+  /// through wave 15, easing back to none by wave 25 where the stretch below
+  /// has reached four times; with the phase wards (SurvivalBoss.phaseGates)
+  /// an early boss is a fight with a shape.
+  static double earlyBossBump(int wave) =>
+      1.5 - 0.5 * ((wave - 15) / 10).clamp(0.0, 1.0);
 
   /// Bosses died in 3–8 s to a P70–P100 team at any wave, and a titan in
   /// 4–15 (test/survival_boss_ttk_report_test.dart). Twice the health

@@ -392,8 +392,8 @@ void paintUnhatched(Canvas c, SurvivalBoss boss, {required double time}) {
   final arrive = boss.isSpawning && boss.spawnIntroDuration > 0
       ? (1 - boss.spawnIntroTimer / boss.spawnIntroDuration).clamp(0.0, 1.0)
       : 1.0;
-  // How far it has hatched; a shield seals it.
-  final grow = boss.shieldUp ? -1.0 : (1 - boss.hpFraction).clamp(0.0, 1.0);
+  // How far it has hatched; a shield, or its ward between phases, seals it.
+  final grow = boss.shielded ? -1.0 : (1 - boss.hpFraction).clamp(0.0, 1.0);
   final vent = boss.isVenting
       ? (boss.overheatTimer / 1.9).clamp(0.0, 1.0)
       : 0.0;
@@ -1074,7 +1074,7 @@ void paintGrainForm(Canvas c, SurvivalBoss boss, {required double time}) =>
           : 1.0,
       charging: boss.charging,
       heading: boss.charging ? boss.chargeAngle : boss.angle,
-      shieldUp: boss.shieldUp,
+      shieldUp: boss.shielded,
       venting: boss.isVenting,
     );
 

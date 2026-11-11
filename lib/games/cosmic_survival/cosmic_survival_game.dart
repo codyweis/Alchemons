@@ -11139,6 +11139,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return;
     }
     boss.phaseTimer += dt;
+    if (boss.wardTimer > 0) boss.wardTimer = max(0.0, boss.wardTimer - dt);
+    // Each phase passed, it fights faster: its AI's clock runs ahead.
+    final aiDt = dt * (1 + SurvivalBoss.phaseHaste * boss.phasesPassed);
 
     // A chilled boss crawls. Captured before the AI runs and scaled after, so
     // whatever the discipline did to its position this frame is slowed by the
@@ -11158,37 +11161,37 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     switch (boss.discipline) {
       case SurvivalBossDiscipline.riftcaller:
-        _updateBossRiftcaller(dt, boss);
+        _updateBossRiftcaller(aiDt, boss);
       case SurvivalBossDiscipline.siegebreaker:
-        _updateBossSiegebreaker(dt, boss);
+        _updateBossSiegebreaker(aiDt, boss);
       case SurvivalBossDiscipline.conductor:
-        _updateBossConductor(dt, boss);
+        _updateBossConductor(aiDt, boss);
       case SurvivalBossDiscipline.duelist:
-        _updateBossDuelist(dt, boss);
+        _updateBossDuelist(aiDt, boss);
       case SurvivalBossDiscipline.artillery:
-        _updateBossArtillery(dt, boss);
+        _updateBossArtillery(aiDt, boss);
       case SurvivalBossDiscipline.trickster:
-        _updateBossTrickster(dt, boss);
+        _updateBossTrickster(aiDt, boss);
       case SurvivalBossDiscipline.standard:
         switch (boss.type) {
           case BossType.charger:
-            _updateBossCharger(dt, boss);
+            _updateBossCharger(aiDt, boss);
           case BossType.gunner:
-            _updateBossGunner(dt, boss);
+            _updateBossGunner(aiDt, boss);
           case BossType.skirmisher:
-            _updateBossSkirmisher(dt, boss);
+            _updateBossSkirmisher(aiDt, boss);
           case BossType.bulwark:
-            _updateBossBulwark(dt, boss);
+            _updateBossBulwark(aiDt, boss);
           case BossType.carrier:
-            _updateBossCarrier(dt, boss);
+            _updateBossCarrier(aiDt, boss);
           case BossType.warden:
-            _updateBossWarden(dt, boss);
+            _updateBossWarden(aiDt, boss);
         }
         // Whatever its type, the Unhatched hatches what it holds. A warden
         // hatches on its own summons.
         if (boss.type != BossType.warden &&
             survivalBossKindOf(boss) == SurvivalBossKind.unhatched) {
-          _tickUnhatchedHatch(dt, boss);
+          _tickUnhatchedHatch(aiDt, boss);
         }
     }
 
@@ -12247,6 +12250,26 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  /// A boss reaching a phase line: it wards itself for
+  /// [SurvivalBoss.wardSeconds], calls a burst of escorts, and fights the
+  /// next phase faster ([SurvivalBoss.phaseHaste], applied to its AI in
+  /// [_updateBossInstance]). The last phase also enrages it.
+  void _beginBossPhase(SurvivalBoss boss) {
+    boss.phasesPassed++;
+    boss.wardTimer = SurvivalBoss.wardSeconds;
+    if (boss.phasesPassed >= SurvivalBoss.phaseGates.length) {
+      boss.enraged = true;
+    }
+    final adds = spawner.spawnBossAdds(
+      boss,
+      orb.position,
+      size.x / _currentZoom,
+      size.y / _currentZoom,
+    );
+    enemies.addAll(adds);
+    onSound?.call(SoundCue.combatShieldHit);
+  }
+
   void _updateBossWarden(double dt, SurvivalBoss boss) {
     final toOrb = orb.position - boss.position;
     final dist = toOrb.distance;
@@ -12406,6 +12429,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
               ])
         : damage;
 
+    // Warded between phases: the hit glances off.
+    if (boss.isWarded) return;
+
     if (boss.shieldUp) {
       boss.shieldHealth -= effectiveDamage / 6;
       if (boss.shieldHealth <= 0) {
@@ -12415,12 +12441,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       return;
     }
 
+    // A hit that would carry it past its next phase line stops at the line,
+    // and the phase begins: however hard the team hits, it cannot skip one.
+    var dealt = effectiveDamage;
+    final gate = boss.nextPhaseGate;
+    final gateHp = gate == null ? null : gate * boss.maxHp;
+    final reachesGate = gateHp != null && boss.hp - dealt <= gateHp;
+    if (reachesGate) dealt = max(0.0, boss.hp - gateHp);
+
     final hpBefore = boss.hp;
-    boss.hp -= effectiveDamage;
+    boss.hp -= dealt;
     boss.hitFlash = 1.0;
+    if (reachesGate) _beginBossPhase(boss);
     damageNumbers.spawn(
       boss.position,
-      effectiveDamage,
+      dealt,
       // Jittered so simultaneous hits don't stack into one illegible blob.
       jitter: Offset(
         (_rng.nextDouble() - 0.5) * boss.radius * 1.2,

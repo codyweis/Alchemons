@@ -422,8 +422,11 @@ void _drawBossHealthGrains(
   double radius,
   double hp,
   Color color,
-  double time,
-) {
+  double time, {
+  // The phase lines still ahead, as shares of its health: a short gap in
+  // the ring at each, so you can see where the next phase begins.
+  List<double> gates = const [],
+}) {
   final n = (2 * pi * radius / 5.5).round().clamp(60, 320);
   if (_ringLit.length < n * 2) {
     _ringLit = Float32List(n * 2);
@@ -432,7 +435,13 @@ void _drawBossHealthGrains(
   final lit = (n * hp.clamp(0.0, 1.0)).ceil();
   var li = 0, oi = 0;
   for (var i = 0; i < n; i++) {
-    final a = -pi / 2 + (i + 0.5) / n * 2 * pi;
+    final f = (i + 0.5) / n;
+    var atGate = false;
+    for (final g in gates) {
+      if ((f - g).abs() * n < 1.6) atGate = true;
+    }
+    if (atGate) continue;
+    final a = -pi / 2 + f * 2 * pi;
     // Two courses, the grains a little off their marks: a band of sand,
     // not a ruled circle.
     final rr =
@@ -569,11 +578,16 @@ void drawSurvivalBoss({
         r * 1.32,
       ) +
       10;
-  if (boss.shieldUp) _drawBossShieldGrains(canvas, r * 1.32, elapsed);
+  // The shield band shows its shield and its ward between phases alike.
+  if (boss.shielded) _drawBossShieldGrains(canvas, r * 1.32, elapsed);
   _drawBossHealthGrains(
     canvas,
     ringR,
     hpFrac,
+    gates: [
+      for (var i = boss.phasesPassed; i < SurvivalBoss.phaseGates.length; i++)
+        SurvivalBoss.phaseGates[i],
+    ],
     boss.enraged
         ? Color.lerp(Colors.red, Colors.orange, sin(elapsed * 4) * 0.5 + 0.5)!
         : Color.lerp(Colors.red, bColor, hpFrac)!,
