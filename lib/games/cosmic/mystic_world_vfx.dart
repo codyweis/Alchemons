@@ -1,8 +1,10 @@
 import 'dart:math';
 import 'dart:ui' as ui;
 
-import 'horn_vfx.dart';
+import 'element_ground_art.dart';
+import 'mane_grain_vfx.dart' show paintManeLavaPool;
 import 'mask_trap_vfx.dart';
+import 'mystic_grain_vfx.dart';
 import 'vfx_shapes.dart';
 
 /// The Mystic worlds' art — the maw, the maelstrom, the tornado, the dawn
@@ -145,20 +147,16 @@ void paintMysticMaelstrom({
       m.mid,
       0.16 * a,
     );
-    vfxFillPath(
-      canvas,
-      vfxSpiralArm(
-        centre,
-        radius * 0.94,
-        start + 0.05,
-        3.4,
-        radius * 0.022,
-        reach: 0.84,
-      ),
-      m.glint,
-      0.14 * a,
-    );
+    // Foam carried down each arm, in grains. (It was a second, hairline arm
+    // in glint: across a whole arena that is a thin ruled arc.)
+    for (var k = 0; k < 50; k++) {
+      final u = (k / 50 + time * 0.03 + i * 0.37) % 1.0;
+      final ang = start + u * 3.5 + 0.06 * sin(k * 2.3);
+      final rr = radius * 0.96 * (1 - 0.84 * u) + 5 * sin(k * 7.1 + i);
+      vfxGrain(centre.dx + rr * cos(ang), centre.dy + rr * sin(ang));
+    }
   }
+  vfxGrainsFlush(canvas, 2.2, m.glint, 0.5 * a);
   // Foam riding the current near the eye.
   for (var i = 0; i < 12; i++) {
     final f = 0.12 + (i % 6) / 6.0 * 0.36;
@@ -197,32 +195,10 @@ void paintMysticTornado({
   // The ground it scours: a pressed hollow and dust thrown off the foot.
   vfxSpill(canvas, at, radius * 0.9, const ui.Color(0xFF05080B), 0.45 * a);
   vfxSpill(canvas, at, radius, m.light, 0.08 * a);
-  // The funnel, seen from above: wind bands stacked up the column, each one
-  // wider and further along the lean than the last — that offset is height.
-  canvas.save();
-  canvas.translate(at.dx, at.dy);
-  canvas.scale(1, 0.6);
-  for (var k = 0; k < 5; k++) {
-    final f = k / 4;
-    final c = lean * radius * 0.22 * f;
-    final r = radius * (0.26 + 0.6 * f);
-    final turn = phase * (2.4 - f) + k * 1.3;
-    for (var j = 0; j < 2; j++) {
-      vfxFillPath(
-        canvas,
-        vfxCrescent(c, r, radius * (0.16 - 0.05 * f), turn + j * pi, 2.4),
-        m.mid,
-        (0.16 - 0.03 * f) * a,
-      );
-      vfxFillPath(
-        canvas,
-        vfxCrescent(c, r * 0.97, radius * 0.05, turn + j * pi + 0.1, 1.7),
-        m.glint,
-        (f > 0.6 ? 0.18 : 0.0) * a,
-      );
-    }
-  }
-  canvas.restore();
+  // The funnel, seen from above: wind turning in grains, ring over ring
+  // up the column (mystic_grain_vfx.dart). It was stacked tilted crescents,
+  // which read as an atom symbol.
+  paintMysticTornadoGrains(canvas, at, radius, phase, lean, a);
   // Debris caught in it, swept round and up.
   for (var i = 0; i < 14; i++) {
     final f = (i % 6) / 6.0;
@@ -484,56 +460,10 @@ void paintMysticQuake({
   required double progress,
   required ui.Color earth,
 }) {
-  final t = progress.clamp(0.0, 1.0);
-  if (t >= 1) return;
-  final eased = 1.0 - (1.0 - t) * (1.0 - t);
-  final a = (1.0 - t) * (1.0 - t);
-  final r = radius * eased;
-  final m = vfxMaterial('Earth');
-  // Dust thrown up along the front.
-  vfxSoftRing(canvas, centre, r, 44 * a + 14, m.light, 0.42 * a);
-  // Rubble heaved up on the front — spaced by distance, so a wide quake and a
-  // tight one are equally dense.
-  final n = (2 * pi * r / 34).floor().clamp(10, 72);
-  for (var i = 0; i < n; i++) {
-    final ang = i * pi * 2 / n + vfxHash(i.toDouble()) * 0.1;
-    final d = r * (0.97 + 0.06 * vfxHash(i * 3.1));
-    final c = centre + vfxPolar(ang, d);
-    final s = (4 + 4 * vfxHash(i * 5.7)) * (0.5 + 0.5 * a);
-    vfxFillPath(
-      canvas,
-      vfxBlob(c, s, i.toDouble(), n: 6, wobble: 0.3),
-      m.ink,
-      0.9 * a,
-    );
-    vfxFillPath(
-      canvas,
-      vfxBlob(
-        c + ui.Offset(-s * 0.2, -s * 0.3),
-        s * 0.5,
-        i * 2.0,
-        n: 5,
-        wobble: 0.2,
-      ),
-      m.glint,
-      0.4 * a,
-    );
-  }
-  // The ground split behind it.
-  for (var i = 0; i < 10; i++) {
-    final ang = i * pi * 2 / 10 + 0.21;
-    final spine = [
-      for (var k = 0; k <= 5; k++)
-        centre +
-            vfxPolar(ang + sin(i * 2.7 + k) * 0.03, r * (0.68 + 0.3 * k / 5)),
-    ];
-    vfxFillPath(
-      canvas,
-      vfxRibbon(spine, 7 * a + 1, 0.5),
-      const ui.Color(0xFF140E09),
-      0.6 * a,
-    );
-  }
+  // A broad band of ground thrown up, heaving in sections, rubble on its
+  // edge, the ground split behind (mystic_grain_vfx.dart). It was a soft
+  // ring with blobs spaced round it: a faint hoop.
+  paintMysticQuakeGrains(canvas, centre, radius, progress);
 }
 
 void paintMysticVent({
@@ -543,26 +473,10 @@ void paintMysticVent({
   required double progress,
   required double time,
 }) {
-  final t = progress.clamp(0.0, 1.0);
-  if (t >= 1) return;
-  final eased = 1.0 - (1.0 - t) * (1.0 - t);
-  final a = (1.0 - t) * (1.0 - t);
-  final r = radius * eased;
-  final m = vfxMaterial('Steam');
-  // The exhale: a soft pale front, billowing — pressure, not fracture.
-  vfxSoftRing(canvas, centre, r, 38 * a + 12, m.glint, 0.22 * a);
-  final n = (2 * pi * r / 40).floor().clamp(12, 48);
-  for (var i = 0; i < n; i++) {
-    final ang = i * pi * 2 / n + sin(time * 0.8 + i) * 0.06;
-    final wob = 1.0 + sin(i * 2.3 + time * 3.0) * 0.05;
-    vfxSpill(
-      canvas,
-      centre + vfxPolar(ang, r * wob),
-      (22.0 + 26.0 * t) * a + 6.0,
-      m.glint,
-      0.26 * a,
-    );
-  }
+  // A band of steam billowing out, lumped and lit, thinning behind
+  // (mystic_grain_vfx.dart). It was puffs spaced round a soft ring: a
+  // dotted circle.
+  paintMysticVentGrains(canvas, centre, radius, progress, time);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -579,6 +493,19 @@ void paintMysticPoisonPatch({
 }) {
   final a = alpha.clamp(0.0, 1.0);
   if (a <= 0.01) return;
+  // Poison's ground in grains (element_ground_art.dart): low banks with no
+  // outline, drawing back in as the patch goes.
+  canvas.save();
+  canvas.translate(centre.dx, centre.dy);
+  final drawn = paintElementGround(
+    canvas,
+    'Poison',
+    radius * 1.1 * (0.55 + 0.45 * a),
+    time,
+    seed,
+  );
+  canvas.restore();
+  if (drawn) return;
   final m = vfxMaterial('Poison');
   vfxSpill(canvas, centre, radius * 1.15, m.light, 0.16 * a);
   vfxFillPath(
@@ -697,26 +624,17 @@ void paintMysticScorch({
   final t = (age / maxAge).clamp(0.0, 1.0);
   final a = t > 0.72 ? ((1.0 - t) / 0.28).clamp(0.0, 1.0) : 1.0;
   final heat = (1.0 - t) * (1.0 - t);
-  final m = vfxMaterial('Lava');
-  final r = 34.0 + 14.0 * t;
-  vfxFillPath(
+  // Where a meteor struck: cells of crust with the melt in their seams,
+  // cooling as it ages and drawing in as it goes (mane_grain_vfx.dart's
+  // pool, its cells anchored to the ground). It was a dark blob with five
+  // lit shards: a brown pinwheel.
+  paintManeLavaPool(
     canvas,
-    vfxBlob(at, r, seed, n: 11, wobble: 0.22),
-    m.ink,
-    0.6 * a,
+    at,
+    (34.0 + 14.0 * t) * (0.55 + 0.45 * a),
+    seed * 7 + age,
+    heat: heat,
   );
-  vfxSpill(canvas, at, r * 1.1, m.light, 0.3 * heat * a);
-  // Seams cooling in the crust.
-  for (var i = 0; i < 5; i++) {
-    final ang = seed + i * 1.26;
-    final p = at + vfxPolar(ang, r * 0.4 * vfxHash(seed + i));
-    vfxFillPath(
-      canvas,
-      vfxShard(p, r * 0.3, r * 0.05, ang + 1.2),
-      m.glint,
-      (0.15 + 0.7 * heat) * a,
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -744,8 +662,11 @@ bool paintMysticFlora({
   final m = vfxMaterial(element);
   switch (element) {
     case 'Fire':
-      // A cinder patch still burning.
-      drawVfxBurningGround(canvas, at, m, 20 * grow, seed, time);
+      // A patch still burning: Fire's ground, tongues of flame on char.
+      canvas.save();
+      canvas.translate(at.dx, at.dy);
+      paintElementGround(canvas, 'Fire', 20 * grow, time, seed);
+      canvas.restore();
     case 'Poison':
       // A toxic bloom: a stain with blisters swelling on it.
       vfxSpill(canvas, at, 16 * grow, m.light, 0.2);

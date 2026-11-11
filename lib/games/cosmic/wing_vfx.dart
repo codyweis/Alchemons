@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui' as ui;
 
 import 'cosmic_data.dart';
+import 'element_ground_art.dart';
 import 'vfx_shapes.dart';
 
 /// Wing's beams, the Fire and Poison perimeter rings, and the beam charge.
@@ -672,12 +673,8 @@ void _drawMaterial(
 }
 
 /// Fire's and Poison's field round the wing, drawn as ground over the whole
-/// disc it hits ([radius]) — the hit is a filled disc, so the art is one too:
-/// scorched ground with flames standing across it, or a bank of fog lying
-/// over it. No dashed perimeter of drops and no radar sweep.
-///
-/// Every piece lies on a sunflower spiral (even cover, no ring, no rows),
-/// and all of a tone go in one path: about six fills for the whole field.
+/// disc it hits ([radius]): the element's ground in grains. [width] is the
+/// beam's, kept for callers. No dashed perimeter of drops, no radar sweep.
 void drawWingRing({
   required ui.Canvas canvas,
   required ui.Offset center,
@@ -690,108 +687,24 @@ void drawWingRing({
 }) {
   final a = alpha.clamp(0.0, 1.0);
   if (a <= 0 || radius <= 1) return;
-  final m = vfxMaterial(element);
-  final band = max(10.0, width * 2.4);
-  final poison = element == 'Poison';
-  final cap = details ? 30 : 14;
-  final n = (radius / band * (poison ? 2.2 : 3.0)).floor().clamp(8, cap);
-  const golden = 2.399963;
-  ui.Offset at(int i) {
-    final f = sqrt((i + 0.5) / n);
-    return center +
-        vfxPolar(
-          i * golden + (vfxHash(i * 1.7) - 0.5) * 0.5,
-          radius * 0.9 * f,
-        );
-  }
-
-  if (poison) {
-    // A toxic bank: the ground stained under it, banks of fog rolling where
-    // they lie, bubbles rising out of them.
-    vfxSpill(canvas, center, radius, m.ink, 0.4 * a);
-    vfxSpill(canvas, center, radius * 1.02, m.light, 0.12 * a);
-    final fog = ui.Path();
-    final lit = ui.Path();
-    // Banks sized from the field, so they close over it at any radius.
-    final bank = max(band, radius / sqrt(n) * 1.15);
-    for (var i = 0; i < n; i++) {
-      final roll = 0.5 + 0.5 * sin(time * 1.1 + i * 1.7);
-      final c = at(i) + vfxPolar(i * 0.9 + time * 0.25, band * 0.15);
-      fog.addPath(
-        vfxBlob(c, bank * (0.85 + 0.25 * roll), i * 3.1, n: 12, wobble: 0.18),
-        ui.Offset.zero,
-      );
-      if (i.isEven) {
-        lit.addPath(
-          vfxBlob(
-            c + ui.Offset(-bank * 0.12, -bank * 0.14),
-            bank * (0.36 + 0.16 * roll),
-            i * 5.3,
-            n: 8,
-            wobble: 0.2,
-          ),
-          ui.Offset.zero,
-        );
-      }
-    }
-    vfxFillPath(canvas, fog, m.mid, 0.16 * a);
-    vfxFillPath(canvas, lit, ui.Color.lerp(m.mid, m.glint, 0.3)!, 0.14 * a);
-    if (details) {
-      for (var i = 0; i < n; i += 2) {
-        final ph = (time * 0.45 + vfxHash(i * 2.3)) % 1.0;
-        final p = at(i) + ui.Offset(0, -ph * band * 1.2);
-        vfxGrain(p.dx, p.dy);
-      }
-      vfxGrainsFlush(canvas, max(1.6, band * 0.12), m.glint, 0.55 * a);
-    }
-    return;
-  }
-
-  // Fire: the ground charred under the whole disc and lit warm from the
-  // flames standing across it, rising (not leaning out from a rim).
-  vfxSpill(canvas, center, radius, m.ink, 0.5 * a);
-  vfxSpill(canvas, center, radius * 1.04, m.light, 0.2 * a);
-  final char = ui.Path();
-  final body = ui.Path();
-  final hot = ui.Path();
-  for (var i = 0; i < n; i++) {
-    final lick = 0.7 + 0.3 * sin(time * 7 + i * 2.3);
-    final base = at(i);
-    if (i.isEven) {
-      char.addPath(
-        vfxBlob(
-          base,
-          max(band * 0.55, radius / sqrt(n) * 0.7),
-          i * 2.7,
-          n: 9,
-          wobble: 0.25,
-          squash: 0.6,
-        ),
-        ui.Offset.zero,
-      );
-    }
-    final h = band * (0.75 + 0.55 * vfxHash(i * 1.3)) * lick;
-    // A drop's round head is its base and its tail the flame's tip, so it
-    // points down to stand up.
-    final lean = pi / 2 + sin(time * 2.2 + i) * 0.18;
-    body.addPath(vfxDrop(base, h * 0.45, lean), ui.Offset.zero);
-    hot.addPath(
-      vfxDrop(base + ui.Offset(0, -h * 0.06), h * 0.24, lean),
-      ui.Offset.zero,
-    );
-  }
-  vfxFillPath(canvas, char, m.ink, 0.55 * a);
-  vfxFillPath(canvas, body, m.mid, 0.8 * a);
-  vfxFillPath(canvas, hot, m.glint, 0.8 * a);
-  if (details) {
-    // Embers lifting off the field.
-    for (var i = 0; i < n; i++) {
-      final ph = (time * 0.7 + vfxHash(i * 3.9)) % 1.0;
-      final p = at(i) + ui.Offset(sin(i + time) * 3, -band * (0.9 + ph * 1.8));
-      vfxGrain(p.dx, p.dy);
-    }
-    vfxGrainsFlush(canvas, max(1.4, band * 0.09), m.glint, 0.7 * a);
-  }
+  // The field is the element's ground in grains (element_ground_art.dart),
+  // as every other family's is: tongues of flame on char; olive banks of
+  // poison. It was an ink spill under filled fog banks or charred blobs,
+  // which read as a brown or olive blob over the arena. It spreads in and
+  // draws back with [alpha] instead of fading.
+  canvas.save();
+  canvas.translate(center.dx, center.dy);
+  paintElementGround(
+    canvas,
+    element,
+    radius * (0.6 + 0.4 * a),
+    time,
+    center.dx * 0.013 + center.dy * 0.017,
+    reduced: !details,
+    // It is centred on the wing and wide: it lies over the orb.
+    bed: false,
+  );
+  canvas.restore();
 }
 
 /// The wing gathering itself before it fires: light drawing in and a core

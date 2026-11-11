@@ -133,10 +133,12 @@ void drawPipDart({
   final m = vfxMaterial(element);
   // The material's lit colour leaned toward the element colour: ~30% for
   // the glowing elements so they don't go pale, less for the rest.
+  // Water takes the glowing share too: at 18% its pale blue all but
+  // vanished on the teal floor.
   final tint = ui.Color.lerp(
     m.light,
     elementColor(element),
-    kVfxGlowingElements.contains(element) ? 0.30 : 0.18,
+    kVfxGlowingElements.contains(element) || element == 'Water' ? 0.30 : 0.18,
   )!;
   final vs = projectile.visualScale.clamp(0.72, 2.3).toDouble();
   final head = _headFor(element);
@@ -456,7 +458,7 @@ void _drawTrailMaterial(
       case 'Blood' || 'Poison':
         vfxFillDrop(canvas, p, 1.6 * s, pi, m.mid, 0.9 * f);
       case 'Water':
-        vfxFillDrop(canvas, p, 1.5 * s, pi + side * 0.3, m.glint, 0.65 * f);
+        vfxFillDrop(canvas, p, 1.5 * s, pi + side * 0.3, m.glint, 0.85 * f);
       case 'Ice':
         vfxFillShard(
           canvas,

@@ -658,31 +658,66 @@ void drawLetCrater({
   final settle = tt < 0.5 ? 1.0 : 1.0 - (tt - 0.5) / 0.5;
   final bowlR = r * (minor ? 0.34 : 0.46);
 
-  // The bowl the stone punched, darkest at its heart.
+  // The bowl the stone punched. Dark's is a hole (its filled black bowl is
+  // the void, kept as it was). Every other is dark grains, densest at its
+  // heart and thinning to nothing at its edge, the inner wall toward the
+  // light catching it: a filled disc tinted the element's dark read as a
+  // brown, navy or maroon blob.
+  final bowl = bowlR * (0.82 + 0.18 * throwT);
   vfxSpill(canvas, c, bowlR * 1.7, _black, 0.28 * settle);
-  vfxFillPath(
-    canvas,
-    vfxBlob(c, bowlR * (0.82 + 0.18 * throwT), seed, n: 13, wobble: 0.13),
-    m.ink,
-    (isDark ? 0.92 : (isAiry ? 0.42 : 0.66)) * settle,
-  );
-  // The inner wall facing the light, so the bowl reads as dug, not as a
-  // stain laid on the ground.
-  if (!isDark) {
+  if (isDark) {
     vfxFillPath(
       canvas,
-      vfxCrescent(
-        c,
-        bowlR * (0.82 + 0.18 * throwT) * 0.97,
-        bowlR * 0.17,
-        pi * 0.25,
-        2.4,
-      ),
-      m.mid,
-      (isAiry ? 0.18 : 0.3) * settle,
+      vfxBlob(c, bowl, seed, n: 13, wobble: 0.13),
+      m.ink,
+      0.92 * settle,
     );
+  } else {
+    final grain = max(2.4, r * 0.024);
+    final bed = minor ? 240 : (reduceAmbient ? 400 : 680);
+    for (var i = 0; i < bed; i++) {
+      if (vfxHash(seed + i * 5.1) > settle * 1.15) continue;
+      final rho = pow(vfxHash(seed + i * 1.3), 0.55) * bowl;
+      final a = vfxHash(seed + i * 2.7) * pi * 2;
+      vfxGrain(c.dx + cos(a) * rho, c.dy + sin(a) * rho * 0.92);
+    }
+    vfxGrainsFlush(
+      canvas,
+      grain,
+      ui.Color.lerp(m.ink, _black, 0.6)!,
+      (isAiry ? 0.45 : 0.8) * settle,
+    );
+    for (var i = 0; i < (minor ? 30 : 70); i++) {
+      final a = pi * 0.25 + (vfxHash(seed + i * 3.3) - 0.5) * 2.2;
+      final rho = bowl * (0.55 + 0.38 * vfxHash(seed + i * 4.1));
+      vfxGrain(c.dx + cos(a) * rho, c.dy + sin(a) * rho * 0.92);
+    }
+    vfxGrainsFlush(canvas, grain, m.mid, (isAiry ? 0.3 : 0.55) * settle);
   }
   vfxSpill(canvas, c, bowlR * 0.7, _black, 0.36 * settle);
+  // The lip: a band of ground thrown up round the bowl, lumped, the side
+  // toward the light catching it. Grains spaced evenly round it read as a
+  // dotted circle.
+  if (!minor) {
+    final n = reduceAmbient ? 110 : 190;
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < n; i++) {
+        final a = vfxHash(seed + i * 6.7) * pi * 2;
+        final lump = 0.5 + 0.5 * sin(5 * a + seed + 2 * sin(3 * a));
+        if (vfxHash(seed + i * 7.9) > 0.3 + 0.7 * lump) continue;
+        final lit = cos(a - pi * 1.25) > 0.2;
+        if (lit != (pass == 1)) continue;
+        final d = bowl * (0.9 + 0.32 * pow(vfxHash(seed + i * 3.7), 1.5));
+        vfxGrain(c.dx + cos(a) * d, c.dy + sin(a) * d);
+      }
+      vfxGrainsFlush(
+        canvas,
+        max(1.8, r * 0.019),
+        pass == 1 ? m.glint : m.mid,
+        (pass == 1 ? 0.8 : 0.55) * settle,
+      );
+    }
+  }
 
   // The light of the landing. Dark swallows its own: a hole ringed in violet.
   if (isDark) {
@@ -706,26 +741,30 @@ void drawLetCrater({
     (isDark ? 0.2 : 0.26) * pow(shock, 2.5).toDouble(),
   );
 
-  // The ejecta curtain: ground thrown up round the bowl, in broken arcs.
-  if (!minor && !isAiry) {
-    final arcs = reduceAmbient ? 3 : 5;
-    for (var i = 0; i < arcs; i++) {
-      final a = seed + i * pi * 2 / arcs + (vfxHash(seed + i) - 0.5) * 0.9;
-      final spread = 0.85 + 0.35 * vfxHash(seed + i * 4.3);
-      vfxFillPath(
-        canvas,
-        vfxCrescent(
-          c,
-          bowlR * (0.95 + 0.9 * throwT * spread),
-          // It thins as it flies but goes out before it is a hairline.
-          r * (0.05 + 0.06 * vfxHash(seed + i * 2.9)) * (0.45 + 0.55 * shock),
-          a,
-          0.4 + 0.45 * vfxHash(seed + i * 1.9),
-        ),
-        m.mid,
-        0.3 * shock * shock,
-      );
+  // The ejecta curtain: ground thrown out of the bowl in a few broken
+  // sprays, each grain flying out and thinning as the shock dies. (They were
+  // filled crescents: arcs drawn round it.)
+  if (!minor && !isAiry && shock > 0.02) {
+    final sprays = reduceAmbient ? 3 : 5;
+    final perSpray = reduceAmbient ? 26 : 44;
+    for (var k = 0; k < sprays; k++) {
+      final a0 = seed + k * pi * 2 / sprays + (vfxHash(seed + k) - 0.5) * 0.9;
+      final width = 0.4 + 0.45 * vfxHash(seed + k * 1.9);
+      final reach = 0.85 + 0.35 * vfxHash(seed + k * 4.3);
+      for (var i = 0; i < perSpray; i++) {
+        final h = vfxHash(seed + k * 97 + i * 1.7);
+        if (h > shock * 1.2) continue;
+        final a = a0 + (vfxHash(seed + k * 31 + i * 2.3) - 0.5) * width;
+        final d = bowl * (0.95 + 0.9 * throwT * reach * (0.5 + 0.5 * h));
+        vfxGrain(c.dx + cos(a) * d, c.dy + sin(a) * d);
+      }
     }
+    vfxGrainsFlush(
+      canvas,
+      max(1.8, r * 0.018),
+      m.mid,
+      (0.5 * shock).clamp(0.0, 1.0),
+    );
   }
 
   // Rubble on the lip: the one part of the crater that stays a while.

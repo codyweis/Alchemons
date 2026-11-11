@@ -2753,8 +2753,6 @@ void drawMysticFlora({
   // scaled to match it.
   final lift = _floraInk(tint);
   final sway = sin(time * 1.4 + seed) * 0.16;
-  final bright = ui.Color.lerp(tint, const ui.Color(0xFFFFFFFF), 0.45)!;
-
   switch (element) {
     case 'Plant':
       // Old roots, thorns and a sealed seed pod; light lives in the sap.
@@ -2853,47 +2851,13 @@ void drawMysticFlora({
       }
 
     case 'Mud':
-      // A mire pit: a wet, uneven hole in the floor with a skin that bulges
-      // and pops. Deliberately sunk INTO the ground where Earth's stone is
-      // pushed out of it, so the two brown worlds are not one texture twice.
-      final churn = 0.82 + 0.18 * sin(time * 1.6 + seed);
-      // Mud's element color is the darkest in the palette and this was
-      // darkening it further, so a mire pit on a near-black floor was almost
-      // nothing at all. Lifted, and the rim catches light like wet ground.
-      for (var i = 0; i < 4; i++) {
-        final ang = seed + i * 1.57;
-        final off = ui.Offset(cos(ang), sin(ang)) * (9.0 * grow);
-        canvas.drawCircle(
-          at + off,
-          (16.0 - i * 1.6) * grow * churn,
-          ui.Paint()..color = lift.withValues(alpha: 0.44 * bloom),
-        );
-      }
-      canvas.drawCircle(
-        at,
-        11.0 * grow * churn,
-        ui.Paint()
-          ..color = ui.Color.lerp(
-            lift,
-            const ui.Color(0xFF2A1608),
-            0.45,
-          )!.withValues(alpha: 0.85 * bloom),
-      );
-      canvas.drawCircle(
-        at + ui.Offset(-2.5 * grow, -3.0 * grow),
-        4.5 * grow * churn,
-        ui.Paint()..color = bright.withValues(alpha: 0.28 * bloom),
-      );
-      // A bubble surfacing and bursting.
-      final burst = (time * 0.9 + seed) % 1.0;
-      canvas.drawCircle(
-        at + ui.Offset(sway * 5, -1.5 * grow),
-        (1.2 + 3.4 * burst) * grow * (1.0 - burst),
-        ui.Paint()
-          ..style = ui.PaintingStyle.stroke
-          ..strokeWidth = 1.1
-          ..color = bright.withValues(alpha: 0.50 * bloom * (1.0 - burst)),
-      );
+      // A mire: Mud's ground, folds of wet grains with bubbles welling, so
+      // it is told from Earth's stone by its form. It was four filled discs
+      // and a stroked bubble ring: a brown blob.
+      canvas.save();
+      canvas.translate(at.dx, at.dy);
+      paintElementGround(canvas, 'Mud', 18.0 * grow, time, seed);
+      canvas.restore();
 
   }
 }
@@ -3097,6 +3061,34 @@ void drawMysticFissure({
         ).withValues(alpha: (0.26 * heat).clamp(0.0, 0.6) * alpha),
     );
   }
+
+  // Embers in the seam: grains of melt along it, each on its own clock,
+  // more and brighter as it flares. Without them the rest state read as a
+  // drawn line (a brown worm at the Mystic camera's distance).
+  for (var i = 0; i + 1 < points.length; i++) {
+    final p0 = points[i], p1 = points[i + 1];
+    final seg = (p1 - p0).distance;
+    final count = (seg / 7).floor();
+    for (var k = 0; k < count; k++) {
+      final f = (k + vfxHash(seed + i * 31 + k)) / max(1, count);
+      final glow = sin(time * (2 + 2 * vfxHash(seed + k * 1.3)) + k * 1.7);
+      if (glow < 0.2 - 0.6 * flare) continue;
+      // Thinner toward the crack's two ends, as the split is.
+      final along = (i + f) / (points.length - 1);
+      final spread = 3.0 * sin(pi * along);
+      final q = ui.Offset.lerp(p0, p1, f)!;
+      vfxGrain(
+        q.dx + (vfxHash(seed + k * 2.9) - 0.5) * spread,
+        q.dy + (vfxHash(seed + k * 4.7) - 0.5) * spread,
+      );
+    }
+  }
+  vfxGrainsFlush(
+    canvas,
+    3.2,
+    const ui.Color(0xFFFFB347),
+    ((0.45 + 0.4 * flare) * alpha).clamp(0.0, 1.0),
+  );
 
   // Only a flaring crack throws light onto the floor around it. At rest it is
   // a dark seam with an ember in it, which is what lets eight of them sit on
