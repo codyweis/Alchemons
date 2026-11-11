@@ -161,7 +161,7 @@ void main() {
       ).projectiles.first..sourceSlotIndex = 0;
 
   group('Mask — gatekeeper', () {
-    test("traps land on the orb's approach, not round the Mask", () async {
+    test("one trap lands on the orb's busiest approach and the rest spread round the orb", () async {
       final game = await arena('Lava');
       final orb = game.orb.position;
       final comp = game.activeCompanions[0]!;
@@ -184,6 +184,8 @@ void main() {
       }
       final pools = maskPieces(game);
       expect(pools, isNotEmpty, reason: 'the Mask never cast');
+      // Every trap stands in the approach band round the orb.
+      final bearings = <double>[];
       for (final p in pools) {
         final fromOrb = p.position - orb;
         expect(
@@ -191,17 +193,24 @@ void main() {
           inInclusiveRange(220.0, 730.0),
           reason: 'a pool off the approach band: ${fromOrb.distance}',
         );
-        expect(
-          atan2(fromOrb.dy, fromOrb.dx).abs(),
-          lessThan(0.6),
-          reason: 'a pool off the lane: $fromOrb',
-        );
-        expect(
-          (p.position - comp.position).distance,
-          greaterThan(500),
-          reason: 'a pool laid round the Mask',
-        );
+        bearings.add(atan2(fromOrb.dy, fromOrb.dx));
       }
+      // One is on the busiest lane, east of the orb.
+      expect(
+        bearings.where((b) => b.abs() < 0.6),
+        isNotEmpty,
+        reason: 'nothing laid on the lane the wave is coming down',
+      );
+      // The rest are spread round the orb, as the board has it, and not
+      // bunched on that lane or round the Mask: no gap between neighbouring
+      // bearings is as wide as half the circle.
+      bearings.sort();
+      var widest = bearings.first + 2 * pi - bearings.last;
+      for (var k = 1; k < bearings.length; k++) {
+        widest = max(widest, bearings[k] - bearings[k - 1]);
+      }
+      expect(pools.length, greaterThanOrEqualTo(4));
+      expect(widest, lessThan(pi), reason: 'the field is not spread: $bearings');
     });
 
     test('the lane is the busiest bearing, between 380 and 570 out', () {

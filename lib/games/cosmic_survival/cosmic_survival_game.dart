@@ -17633,6 +17633,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// How much more a boss counts toward the lane it walks than one body.
   static const double _maskLaneBossWeight = 12.0;
 
+  /// Mask fields laid this run, for swinging each on from the last.
+  int _maskCasts = 0;
+
   /// The spot on the orb's busiest approach a Mask field goes across, or
   /// [target]'s bearing at that distance when nothing is near. Once a cast,
   /// through the enemy grid.
@@ -17684,6 +17687,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       guard: orb.position,
       arenaCenter: orb.position,
       arenaRadius: _arenaRadius,
+      // Each cast swung on from the last, so a second field fills the gaps
+      // the first left.
+      turn: (_maskCasts++) * 0.9,
     );
     switch (placements.first.element) {
       case 'Spirit':

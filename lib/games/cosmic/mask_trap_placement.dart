@@ -11,8 +11,11 @@ import 'cosmic_data.dart';
 /// without an arena passes a centre and radius that never clamp.
 ///
 /// [guard] is the one thing the field stands in front of. Survival passes its
-/// orb, with [target] on the orb's busiest approach ([MaskApproachLane]), so
-/// the field is centred across that lane. Without one the field reaches from
+/// orb, with [target] on the orb's busiest approach ([MaskApproachLane]): the
+/// first trap goes there and the rest are spread on bearings all round the
+/// orb, as the design board has it ("scatters across the field"). [turn]
+/// swings those bearings, so one cast after another fills the gaps the last
+/// left and does not stack on it. Without one the field reaches from
 /// [target] toward the nearest defended body, which can be the caster itself.
 void placeMaskTraps({
   required List<Projectile> traps,
@@ -23,6 +26,7 @@ void placeMaskTraps({
   required Offset arenaCenter,
   required double arenaRadius,
   Offset? guard,
+  double turn = 0,
 }) {
   if (traps.isEmpty || traps.first.abilityFamily != 'mask') return;
   final element = traps.first.element;
@@ -111,6 +115,26 @@ void placeMaskTraps({
   final aim = inside(target);
   if (traps.length == 1) {
     traps.single.position = aim;
+    return;
+  }
+
+  if (guard != null) {
+    // Spread round what the field guards. One trap always covers the
+    // selected spot, on the busiest approach; the others take bearings a
+    // golden angle apart all the way round, each at its own distance between
+    // the near and far reach, so every approach meets something.
+    traps.first.position = aim;
+    final out = aim - guard;
+    final base = out.distance > 0.01 ? atan2(out.dy, out.dx) : 0.0;
+    for (var i = 1; i < traps.length; i++) {
+      final bearing = base + turn + i * 2.399963229728653;
+      final step = (i * 0.6180339887 + 0.35) % 1.0;
+      final reach =
+          kMaskApproachNear + (kMaskApproachFar - kMaskApproachNear) * step;
+      traps[i].position = inside(
+        guard + Offset(cos(bearing), sin(bearing)) * reach,
+      );
+    }
     return;
   }
 

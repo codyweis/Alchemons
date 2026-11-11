@@ -9851,6 +9851,9 @@ const double kCompanionDamageAmpCeiling = kMaskIceAmpMax;
 // Mine elements fire a burst of seeking/homing projectiles instead of
 // sitting still hoping something walks into them.
 // ─────────────────────────────────────────────────────────
+/// How much longer than authored every Mask trap stands.
+const double kMaskTrapLifeBase = 1.5;
+
 CosmicSpecialResult _maskSpecial(
   Offset origin,
   double baseAngle,
@@ -9918,7 +9921,10 @@ CosmicSpecialResult _maskSpecial(
     return copyProjectile(
       p,
       damage: p.damage * impactScale,
-      life: p.life * durationScale,
+      // A trap stands [kMaskTrapLifeBase] longer than it is authored, at
+      // every stat: at base stats a field was gone before the wave it was
+      // laid for had finished walking in.
+      life: p.life * durationScale * kMaskTrapLifeBase,
       radiusMultiplier:
           p.radiusMultiplier *
           (springsOnContact ? maskContactReach(casterBeauty) : visualScaleMul),
