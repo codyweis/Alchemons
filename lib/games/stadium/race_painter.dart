@@ -1593,6 +1593,8 @@ class RacePainter extends CustomPainter {
     double squash = 1,
     double lean = 0.03,
     bool faceRight = true,
+    Sprite? frame,
+    double frameScale = 1,
   }) => paintRaceBody(
     c,
     body,
@@ -1603,6 +1605,8 @@ class RacePainter extends CustomPainter {
     squash: squash,
     lean: lean,
     faceRight: faceRight,
+    frame: frame,
+    frameScale: frameScale,
   );
 
   /// Gathering for a boost: its own grains drawn in to it from behind,
@@ -1987,15 +1991,24 @@ class RacePainter extends CustomPainter {
         c.restore();
       }
       if (alpha > 0.01) {
+        // The winner hops for joy, again and again, once it stands whole.
+        final hopT = place == 0
+            ? (et - EssenceField.duration - 0.3) % 2.4
+            : -1.0;
+        final hop = place == 0 && et > EssenceField.duration + 0.3
+            ? body.hopFrame(hopT)
+            : null;
         _drawSprite(
           c,
           body,
-          at,
+          hop == null ? at : Offset(at.dx, at.dy - bob),
           scale,
           t,
           alpha: alpha,
           lean: 0,
           faceRight: s == 0,
+          frame: hop,
+          frameScale: hop == null ? 1 : body.hopScale,
         );
       }
       final finish = stage.sim.states[lane].finishTime;
@@ -2180,6 +2193,8 @@ void paintRaceBody(
   double squash = 1,
   double lean = 0.03,
   bool faceRight = true,
+  Sprite? frame,
+  double frameScale = 1,
 }) {
   final ticker = body.ticker;
   if (ticker == null) {
@@ -2193,7 +2208,8 @@ void paintRaceBody(
     );
     return;
   }
-  final sprite = ticker.getSprite();
+  // [frame] (a frame of its hop) stands in for its own, at [frameScale].
+  final sprite = frame ?? ticker.getSprite();
   final looks = body.looks;
   final auraR = wornAuraRadius(body.height);
   c.save();
@@ -2202,15 +2218,22 @@ void paintRaceBody(
   paintWornAura(c, looks, auraR, t, opacity: alpha);
   c.rotate(faceRight ? lean : -lean);
   c.scale(
-    faceRight ? -body.spriteScale : body.spriteScale,
-    body.spriteScale * squash,
+    (faceRight ? -body.spriteScale : body.spriteScale) * frameScale,
+    body.spriteScale * squash * frameScale,
   );
   final paint = Paint()
     ..filterQuality = ui.FilterQuality.medium
     ..color = Colors.white.withValues(alpha: alpha);
   if (looks != null) paint.colorFilter = creatureGeneticsFilter(looks, t);
   sprite.render(c, anchor: Anchor.center, overridePaint: paint);
-  paintWornCostumes(c, looks, sprite, ticker.currentIndex, t, opacity: alpha);
+  paintWornCostumes(
+    c,
+    looks,
+    sprite,
+    frame == null ? ticker.currentIndex : body.hopCostumeFrame,
+    t,
+    opacity: alpha,
+  );
   c.restore();
   c.save();
   c.translate(centre.dx, centre.dy);

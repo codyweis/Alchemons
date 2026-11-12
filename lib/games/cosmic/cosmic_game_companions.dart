@@ -137,6 +137,7 @@ extension CosmicGameCompanions on CosmicGame {
       );
       _companionTickers[slotIndex] = anim.createTicker();
       _companionVisualsBySlot[slotIndex] = member.spriteVisuals;
+      _fire.warm(member.spriteSheet, member.spriteVisuals);
       final visuals = _companionVisualsBySlot[slotIndex];
       debugPrint(
         'Companion visuals loaded: alchemy=${visuals?.alchemyEffect} variant=${visuals?.variantFaction} tint=${visuals?.tint}',
@@ -370,6 +371,8 @@ extension CosmicGameCompanions on CosmicGame {
       );
       _duelOpponentTicker = anim.createTicker();
       _duelOpponentVisuals = member.spriteVisuals;
+      _fire.remove(CosmicGame._duelFire);
+      _fire.warm(member.spriteSheet, member.spriteVisuals);
       debugPrint(
         'Ring opponent visuals loaded: alchemy=${_duelOpponentVisuals?.alchemyEffect} variant=${_duelOpponentVisuals?.variantFaction} tint=${_duelOpponentVisuals?.tint}',
       );

@@ -96,6 +96,21 @@ extension CosmicCombatActions on CosmicGame {
   /// a Kin support).
   void _castCompanionSpecial(CosmicCompanion comp, Offset targetPos) {
     comp.specialCooldown = comp.effectiveSpecialCooldown;
+    // It fires: the cast goes off now, its body follows through. (A wild
+    // duel opponent is drawn from a ticker of its own, not a slot's.)
+    if (identical(_companionInSlot(comp.member.slotIndex), comp)) {
+      _fire.play(
+        comp.member.slotIndex,
+        comp.member.spriteSheet,
+        comp.member.spriteVisuals,
+      );
+    } else if (identical(duelOpponent, comp)) {
+      _fire.play(
+        CosmicGame._duelFire,
+        comp.member.spriteSheet,
+        comp.member.spriteVisuals,
+      );
+    }
     // A caster keeps the pieces of its last two casts (survival's rule).
     CasterPieces.onCast(
       companionProjectiles,

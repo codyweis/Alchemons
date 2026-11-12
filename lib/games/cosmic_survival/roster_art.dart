@@ -39,6 +39,39 @@ double _h(int i, int salt) {
   return x - x.floorToDouble();
 }
 
+/// `x % 1.0`, bit for bit, for every finite [x] (both are the one rounding
+/// of the same exact value, and +0 for a whole number), without the runtime
+/// call Dart makes for a double's `%`.
+double _fract(double x) => x - x.floorToDouble();
+
+/// [_h] at [salt] for the places 0 to [n] - 1, worked out once, with [f]
+/// applied: a grain's fixed hash read from a table instead of a sine a grain
+/// a frame (the same doubles).
+Float64List _hTab(int salt, int n, [double Function(double h)? f]) {
+  final t = Float64List(n);
+  for (var i = 0; i < n; i++) {
+    final h = _h(i, salt);
+    t[i] = f == null ? h : f(h);
+  }
+  return t;
+}
+
+/// [_h] at a body's own [seed] (0 to 1023, as survival's are) for its first
+/// eight places, worked out once; any other seed is worked out as before.
+final Float64List _seedH = () {
+  final t = Float64List(8 * 1024);
+  for (var seed = 0; seed < 1024; seed++) {
+    for (var i = 0; i < 8; i++) {
+      t[seed * 8 + i] = _h(i, seed);
+    }
+  }
+  return t;
+}();
+
+double _hSeed(int i, int seed) => seed >= 0 && seed < 1024 && i >= 0 && i < 8
+    ? _seedH[seed * 8 + i]
+    : _h(i, seed);
+
 class _Buf {
   Float32List d = Float32List(512);
   int n = 0;
@@ -217,6 +250,39 @@ class RosterBatch {
     salt: 9,
   );
   static final _cs = Float64List(8), _sn = Float64List(8);
+
+  // What each kind's grains hash to, by their place: the same doubles the
+  // frame used to work out ([_hTab]).
+  static final _hollowDepth = () {
+    final t = Float64List(72);
+    for (var i = 0; i < 72; i++) {
+      t[i] = i % 10 < 7 ? _h(i, 112) * 0.12 : 0.12 + pow(_h(i, 112), 1.6) * 0.5;
+    }
+    return t;
+  }();
+  static final _hollowStart = _hTab(111, 72, (h) => h * _tau);
+  static final _h113 = _hTab(113, 34), _h114 = _hTab(114, 34);
+  static final _h115 = _hTab(115, 10);
+  static final _slipStart = _hTab(116, 10, (h) => h * _tau);
+  static final _spillRad = _hTab(101, 84, (h) => 0.3 + 1.0 * pow(h, 1.5));
+  static final _spillStart = _hTab(102, 84, (h) => h * _tau);
+  static final _armOut = _hTab(71, 16, (h) => pow(h, 0.6).toDouble());
+  static final _h72 = _hTab(72, 16);
+  static final _h90 = _hTab(90, 14);
+  static final _blownCos = _hTab(89, 14, (h) => cos((h * 2 - 1) * 1.0));
+  static final _blownSin = _hTab(89, 14, (h) => sin((h * 2 - 1) * 1.0));
+  static final _frontOff = _hTab(93, 140, (h) => (h * 2 - 1) * 0.8);
+  static final _frontDip = () {
+    final t = Float64List(140);
+    for (var i = 0; i < 140; i++) {
+      t[i] = _h(i, 94) * _h(i, 97);
+    }
+    return t;
+  }();
+  static final _shedOff = _hTab(95, 40, (h) => (h * 2 - 1) * 0.8);
+  static final _h96 = _hTab(96, 40);
+  static final _rootQ = _hTab(151, 480);
+  static final _rootSide = _hTab(152, 480, (h) => h * 2 - 1);
   static final double _ct = cos(0.42), _st = sin(0.42);
 
   static final Paint _pt = Paint()
@@ -236,8 +302,20 @@ class RosterBatch {
     );
   static final Paint _mass = Paint();
 
+  // The last colour asked for and its palette: a field is mostly one
+  // element, so most bodies skip the lookup.
+  Color? _lastColor;
+  _Palette? _lastPalette;
+
   _Palette _palette(Color c) {
-    final p = _palettes.putIfAbsent(c.toARGB32(), () => _Palette(c));
+    final _Palette p;
+    if (identical(c, _lastColor)) {
+      p = _lastPalette!;
+    } else {
+      p = _palettes.putIfAbsent(c.toARGB32(), () => _Palette(c));
+      _lastColor = c;
+      _lastPalette = p;
+    }
     if (!p.used) {
       p.used = true;
       _order.add(p);
@@ -328,7 +406,9 @@ class RosterBatch {
     } else {
       p = _palette(color);
     }
-    final gathered = 1 - pow(1 - arrive, 3).toDouble();
+    // How far it has gathered, for a body still arriving (the rest never
+    // read it).
+    final gathered = arrive < 1 ? 1 - pow(1 - arrive, 3).toDouble() : 1.0;
     if (arrive < 1) {
       for (var b = 0; b < 16; b++) {
         _from[b] = p.all[b].n;
@@ -441,21 +521,23 @@ class RosterBatch {
     bool big = false,
   }) {
     final pts = big ? p.big : p.pts;
+    final cs = _cs, sn = _sn, ct = _ct, st = _st;
     for (var k = 0; k < t.bands; k++) {
       final a = k.isEven ? spin : -spin;
-      _cs[k] = cos(a);
-      _sn[k] = sin(a);
+      cs[k] = cos(a);
+      sn[k] = sin(a);
     }
     // A hurt shell has lost grains.
     final n = (t.length * (0.45 + 0.55 * hp)).floor();
     final x0 = t.x, y0 = t.y, z0 = t.z, band = t.band;
+    final far = p.pts[0];
     for (var i = 0; i < n; i++) {
       final k = band[i];
-      final x = x0[i] * _cs[k] - z0[i] * _sn[k];
-      final z = x0[i] * _sn[k] + z0[i] * _cs[k];
-      final yy = y0[i] * _ct - z * _st, zz = y0[i] * _st + z * _ct;
+      final x = x0[i] * cs[k] - z0[i] * sn[k];
+      final z = x0[i] * sn[k] + z0[i] * cs[k];
+      final yy = y0[i] * ct - z * st, zz = y0[i] * st + z * ct;
       if (zz <= 0) {
-        if (!nearOnly) p.pts[0].add(cx + r * x, cy - r * ry * yy);
+        if (!nearOnly) far.add(cx + r * x, cy - r * ry * yy);
         continue;
       }
       pts[_tone(0.5 + 0.5 * (-0.5 * x + 0.62 * yy + 0.6 * zz))].add(
@@ -484,16 +566,18 @@ class RosterBatch {
       }
       return;
     }
+    final cs = _cs, sn = _sn;
     for (var k = 0; k < 3; k++) {
       final a = churn * (1.5 - 0.45 * k);
-      _cs[k] = cos(a);
-      _sn[k] = sin(a);
+      cs[k] = cos(a);
+      sn[k] = sin(a);
     }
+    final bx = b.x, by = b.y, bz = b.z, ring = b.ring;
     for (var i = 0; i < n; i++) {
-      final k = b.ring[i];
-      final x = b.x[i] * _cs[k] - b.y[i] * _sn[k];
-      final y = b.x[i] * _sn[k] + b.y[i] * _cs[k];
-      pts[_ballTone(x, y, b.z[i])].add(cx + r * x, cy + r * y);
+      final k = ring[i];
+      final x = bx[i] * cs[k] - by[i] * sn[k];
+      final y = bx[i] * sn[k] + by[i] * cs[k];
+      pts[_ballTone(x, y, bz[i])].add(cx + r * x, cy + r * y);
     }
   }
 
@@ -522,7 +606,7 @@ class RosterBatch {
     }
     // What it sheds, a short wake close behind it.
     for (var i = 0; i < (dense ? 2 : 4); i++) {
-      final s = (_h(i, seed) + time * 0.9) % 1.0;
+      final s = _fract(_hSeed(i, seed) + time * 0.9);
       final back = r * (0.7 + 1.5 * s);
       final side = r * 0.3 * sin(time * 3 + seed + i * 2.1) * s;
       p.pts[s < 0.45 ? 3 : (s < 0.75 ? 2 : 0)].add(
@@ -579,8 +663,9 @@ class RosterBatch {
         final a = s * _tau * 1.25 + j * _tau / 3 - time * 4 + seed;
         final side = r * 0.5 * (1 - 0.4 * s) * sin(a);
         final x = cx - hc * back - hs * side, y = cy - hs * back + hc * side;
-        (cos(a) > 0 ? p.thick : p.thin).line(px, py, x, y);
-        if (cos(a) > 0.2) p.core.line(px, py, x, y);
+        final ca = cos(a);
+        (ca > 0 ? p.thick : p.thin).line(px, py, x, y);
+        if (ca > 0.2) p.core.line(px, py, x, y);
         px = x;
         py = y;
       }
@@ -615,13 +700,12 @@ class RosterBatch {
     // The lip: most of the dust it pushes aside packed tight at the edge,
     // lit where it faces the light; the rest strewn further out, heaviest
     // ahead. All of it circles, the inner grains quicker.
+    final depths = _hollowDepth, starts = _hollowStart;
     for (var i = 0; i < 72; i++) {
       final packed = i % 10 < 7;
-      final depth = packed
-          ? _h(i, 112) * 0.12
-          : 0.12 + pow(_h(i, 112), 1.6) * 0.5;
+      final depth = depths[i];
       final rr = r * (1.0 + depth + 0.03 * sin(time * 2 + i));
-      final a = _h(i, 111) * _tau + dir * time * (0.9 - 0.8 * depth) + seed;
+      final a = starts[i] + dir * time * (0.9 - 0.8 * depth) + seed;
       final x = cos(a), y = sin(a);
       final int tone;
       if (packed) {
@@ -638,10 +722,10 @@ class RosterBatch {
     // The far wall, just inside the lip opposite the light, catching it:
     // the light falls into the hole, so the hole has a depth.
     for (var i = 0; i < 34; i++) {
-      final s = (_h(i, 113) + time * 0.06 * dir) % 1.0;
+      final s = _fract(_h113[i] + time * 0.06 * dir);
       final mid = 1 - (2 * s - 1).abs();
       final a = 0.89 + (s - 0.5) * 2.4;
-      final rr = r * (0.97 - 0.16 * _h(i, 114) * mid);
+      final rr = r * (0.97 - 0.16 * _h114[i] * mid);
       p.pts[mid > 0.7 ? 5 : (mid > 0.4 ? 4 : 3)].add(
         cx + rr * cos(a),
         cy + rr * sin(a),
@@ -649,9 +733,9 @@ class RosterBatch {
     }
     // Grains slipping over the lip, darker as they fall and lost below.
     for (var i = 0; i < 10; i++) {
-      final s = (_h(i, 115) + time * 0.32) % 1.0;
+      final s = _fract(_h115[i] + time * 0.32);
       final rr = r * (0.98 - 0.8 * s);
-      final a = _h(i, 116) * _tau + seed + dir * s * 2.2;
+      final a = _slipStart[i] + seed + dir * s * 2.2;
       p.pts[s < 0.35 ? 3 : (s < 0.7 ? 2 : 0)].add(
         cx + rr * cos(a),
         cy + rr * sin(a),
@@ -668,10 +752,11 @@ class RosterBatch {
     int seed,
   ) {
     p.mass(cx, cy, r * 0.45, r * 0.45);
+    final rads = _spillRad, starts = _spillStart;
     for (var i = 0; i < 84; i++) {
-      final rad = 0.3 + 1.0 * pow(_h(i, 101), 1.5);
+      final rad = rads[i];
       final dir = i % 4 == 0 ? -0.6 : 1.0;
-      final a = _h(i, 102) * _tau + seed + dir * time * 1.5 / rad;
+      final a = starts[i] + seed + dir * time * 1.5 / rad;
       final b = rad > 1.05 ? 0 : 2 + (i % 4);
       p.pts[b].add(cx + r * rad * cos(a), cy + r * rad * 0.92 * sin(a));
       // Each grain drags a second behind it, so the turning shows.
@@ -707,27 +792,31 @@ class RosterBatch {
     );
     // The crust, dark over the lit clot, its plates turning on it.
     final spin = time * 0.5 + seed;
-    for (var k = 0; k < _crust.bands; k++) {
+    final cs = _cs, sn = _sn, ct = _ct, st = _st;
+    final crust = _crust;
+    for (var k = 0; k < crust.bands; k++) {
       final a = k.isEven ? spin : -spin;
-      _cs[k] = cos(a);
-      _sn[k] = sin(a);
+      cs[k] = cos(a);
+      sn[k] = sin(a);
     }
-    for (var i = 0; i < _crust.length; i++) {
-      final k = _crust.band[i];
-      final x = _crust.x[i] * _cs[k] - _crust.z[i] * _sn[k];
-      final z = _crust.x[i] * _sn[k] + _crust.z[i] * _cs[k];
-      final yy = _crust.y[i] * _ct - z * _st;
-      if (_crust.y[i] * _st + z * _ct <= 0) continue;
-      p.big[1].add(cx + r * x, cy - r * yy);
+    final x0 = crust.x, y0 = crust.y, z0 = crust.z, band = crust.band;
+    final plates = p.big[1];
+    for (var i = 0; i < crust.length; i++) {
+      final k = band[i];
+      final x = x0[i] * cs[k] - z0[i] * sn[k];
+      final z = x0[i] * sn[k] + z0[i] * cs[k];
+      final yy = y0[i] * ct - z * st;
+      if (y0[i] * st + z * ct <= 0) continue;
+      plates.add(cx + r * x, cy - r * yy);
     }
     // Its arm of sand, swinging out toward what it shells.
-    final lob = (time / 1.8 + seed * 0.37) % 1.0;
+    final lob = _fract(time / 1.8 + seed * 0.37);
     final reach = 0.3 + 0.7 * lob * lob * (3 - 2 * lob);
     for (var i = 0; i < 16; i++) {
-      final s = pow(_h(i, 71), 0.6) * reach;
+      final s = _armOut[i] * reach;
       final out = r * (1.0 + 2.2 * s);
       final lift = r * 1.5 * s * (1 - s) * 2;
-      final w = r * 0.3 * (1 - s / reach) * (_h(i, 72) - 0.5);
+      final w = r * 0.3 * (1 - s / reach) * (_h72[i] - 0.5);
       p.pts[s > reach * 0.6 ? 4 : 2].add(
         cx + hc * out - hs * w,
         cy + hs * out + hc * w - lift,
@@ -773,7 +862,7 @@ class RosterBatch {
     for (var i = 0; i < 20; i++) {
       final s = i / 20;
       final y = r * (1.05 - 2.0 * s);
-      final x = r * (0.3 * (((s * 5) % 1.0) - 0.5).abs() * 2 - 0.22);
+      final x = r * (0.3 * (_fract(s * 5) - 0.5).abs() * 2 - 0.22);
       (i < lit ? p.heads : p.pts[1]).add(cx + x, cy + y);
     }
   }
@@ -810,7 +899,8 @@ class RosterBatch {
       py = y;
     }
     for (var i = 0; i < 5; i++) {
-      final s = 1 - (_h(i, seed) + time * 0.5) % 1.0, bow = sin(s * pi) * sag;
+      final s = 1 - _fract(_hSeed(i, seed) + time * 0.5),
+          bow = sin(s * pi) * sag;
       p.pts[5].add(cx + dx * s * 0.9 + nx * bow, cy + dy * s * 0.9 + ny * bow);
     }
   }
@@ -916,7 +1006,7 @@ class RosterBatch {
         lx = _duneX[i] + 0.035 * sin(ly * 9 + _duneX[i] * 6 + time * 4.5);
         tone = _duneTone[i];
       } else {
-        final f = (_bankF[i - _bankFrom] + time * 0.16) % 1.0;
+        final f = _fract(_bankF[i - _bankFrom] + time * 0.16);
         lx = 0.1 + 2.3 * f;
         ly = _bankW[i - _bankFrom] * (0.95 - 0.32 * f);
         tone = f < 0.3 ? 3 : (f < 0.6 ? 2 : 0);
@@ -929,9 +1019,9 @@ class RosterBatch {
     }
     // Sand blown off the crest, falling to the bank.
     for (var i = 0; i < 14; i++) {
-      final a = (_h(i, 89) * 2 - 1) * 1.0;
-      final s = (_h(i, 90) + time * 0.45) % 1.0;
-      final x = r * (0.87 * cos(a) - 0.12 - 0.9 * s), y = r * 0.87 * sin(a);
+      final s = _fract(_h90[i] + time * 0.45);
+      final x = r * (0.87 * _blownCos[i] - 0.12 - 0.9 * s),
+          y = r * 0.87 * _blownSin[i];
       p.pts[s < 0.5 ? 4 : 2].add(cx + hc * x - hs * y, cy + hs * x + hc * y);
     }
   }
@@ -950,21 +1040,21 @@ class RosterBatch {
     final bow = r * 2.4;
     final ox = cx - cos(heading) * bow, oy = cy - sin(heading) * bow;
     final front = (140 * (0.45 + 0.55 * hp)).floor();
+    final offs = _frontOff, dips = _frontDip;
     for (var i = 0; i < front; i++) {
-      final off = (_h(i, 93) * 2 - 1) * 0.8;
+      final off = i < 140 ? offs[i] : (_h(i, 93) * 2 - 1) * 0.8;
+      final dip = i < 140 ? dips[i] : _h(i, 94) * _h(i, 97);
       // A shimmer runs along the front, out from its middle.
       final rr =
-          bow -
-          _h(i, 94) * _h(i, 97) * r * 0.22 +
-          r * 0.07 * sin(off.abs() * 11 - time * 3.2);
+          bow - dip * r * 0.22 + r * 0.07 * sin(off.abs() * 11 - time * 3.2);
       p.big[off.abs() < 0.45 ? 5 : 4].add(
         ox + rr * cos(heading + off),
         oy + rr * sin(heading + off),
       );
     }
     for (var i = 0; i < 40; i++) {
-      final off = (_h(i, 95) * 2 - 1) * 0.8;
-      final s = (_h(i, 96) + time * 0.25) % 1.0;
+      final off = _shedOff[i];
+      final s = _fract(_h96[i] + time * 0.25);
       final rr = bow - r * (0.2 + 1.5 * s * s);
       p.pts[s < 0.45 ? 3 : (s < 0.75 ? 2 : 0)].add(
         ox + rr * cos(heading + off),
@@ -988,20 +1078,22 @@ class RosterBatch {
   ) {
     final t = _cage;
     final spin = (closed ? time * 1.3 : time * 0.4) + seed;
+    final cs = _cs, sn = _sn, ct = _ct, st = _st;
     for (var k = 0; k < t.bands; k++) {
       final a = k.isEven ? spin : -spin;
-      _cs[k] = cos(a);
-      _sn[k] = sin(a);
+      cs[k] = cos(a);
+      sn[k] = sin(a);
     }
     final rr = closed ? max(r * 1.7, 24.0) : r * 1.05;
     if (!closed) p.mass(cx, cy, r * 0.92, r * 0.92);
     // Open, its mouth works.
     final mouth = 0.42 + 0.14 * sin(time * 2.4 + seed);
+    final x0 = t.x, y0 = t.y, z0 = t.z, band = t.band;
     for (var i = 0; i < t.length; i++) {
-      final k = t.band[i];
-      final x = t.x[i] * _cs[k] - t.z[i] * _sn[k];
-      final z = t.x[i] * _sn[k] + t.z[i] * _cs[k];
-      final yy = t.y[i] * _ct - z * _st, zz = t.y[i] * _st + z * _ct;
+      final k = band[i];
+      final x = x0[i] * cs[k] - z0[i] * sn[k];
+      final z = x0[i] * sn[k] + z0[i] * cs[k];
+      final yy = y0[i] * ct - z * st, zz = y0[i] * st + z * ct;
       // The open mouth, toward its heading.
       if (!closed && x * hc - yy * hs > mouth) continue;
       if (zz <= 0) {
@@ -1075,8 +1167,9 @@ class RosterBatch {
         if (i <= 7) {
           final girth = r * 0.2 * (1 - i / 8);
           for (var j = 0; j < 7; j++) {
-            final q = _h(j + i * 7 + k * 60, 151);
-            final side = (_h(j + i * 7 + k * 60, 152) * 2 - 1);
+            final at = j + i * 7 + k * 60;
+            final q = at < 480 ? _rootQ[at] : _h(at, 151);
+            final side = at < 480 ? _rootSide[at] : (_h(at, 152) * 2 - 1);
             final gx = px + (x - px) * q, gy = py + (y - py) * q;
             p.big[side.abs() > 0.7 ? 2 : (side.abs() > 0.3 ? 3 : 4)].add(
               gx - bs * girth * side,

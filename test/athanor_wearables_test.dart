@@ -308,7 +308,7 @@ void main() {
       expect(monocle.frameFits, same(glasses.frameFits));
       expect(crown.fits('WNG04'), isTrue);
       expect(monocle.fits('LET02'), isTrue);
-      expect(crown.fits('MAN01'), isFalse);
+      expect(crown.fits('MSK01'), isFalse);
       expect(crown.exclusiveWith, hat);
       expect(hat.exclusiveWith, crown);
       expect(monocle.exclusiveWith, glasses);

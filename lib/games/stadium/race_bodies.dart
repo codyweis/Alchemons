@@ -19,6 +19,7 @@ import 'package:alchemons/games/stadium/race_rules.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/services/creature_repository.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart';
 import 'package:alchemons/widgets/fx/mutation_sheets.dart';
 import 'package:flame/cache.dart';
@@ -180,9 +181,80 @@ class RaceBody {
 
   SpriteVisuals? get looks => member.spriteVisuals;
 
+  // Its hop, for the winner on the podium: fetched the first time it is
+  // wanted (see [hopFrame]).
+  Images? _images;
+  SpriteAnimation? _hop;
+  ActionSheet? _hopDef;
+  double _hopScale = 1;
+  bool _hopAsked = false;
+
+  /// The frame index its costumes are drawn at for the hop frame last given
+  /// by [hopFrame], so they ride its head.
+  int hopCostumeFrame = 0;
+
+  /// How much a hop frame is scaled, over [spriteScale], to stand the size
+  /// its idle does.
+  double get hopScale => _hopScale;
+
+  /// The frame of its hop [seconds] into one, or null: before the hop has
+  /// loaded, once it is over, or for a species with none. Asking fetches the
+  /// sheet.
+  Sprite? hopFrame(double seconds) {
+    if (!_hopAsked) {
+      _hopAsked = true;
+      _loadHop();
+    }
+    final hop = _hop, def = _hopDef;
+    if (hop == null || def == null || seconds < 0) return null;
+    var at = 0.0;
+    for (var i = 0; i < def.frames; i++) {
+      at += def.stepTimes[i];
+      if (seconds < at) {
+        hopCostumeFrame = def.costumeFrame(i);
+        return hop.frames[i].sprite;
+      }
+    }
+    return null;
+  }
+
+  Future<void> _loadHop() async {
+    final images = _images, own = member.spriteSheet;
+    if (images == null || own == null) return;
+    final def = actionSheetFor(
+      own.path,
+      CreatureAction.hop,
+      idleFrame: own.frameSize.x,
+    );
+    if (def == null) return;
+    try {
+      // The copy it wears: plain, or its albino, mutation or variant bake.
+      final image = await loadCreatureSheet(
+        images,
+        sheetForVisuals(def.def, looks)!.path,
+      );
+      final side = image.width / def.cols;
+      _hopScale = sheetForVisuals(own, looks)!.frameSize.x / side;
+      _hopDef = def;
+      _hop = SpriteAnimation.fromFrameData(
+        image,
+        SpriteAnimationData.variable(
+          amount: def.frames,
+          amountPerRow: def.cols,
+          textureSize: Vector2.all(side),
+          stepTimes: def.stepTimes,
+          loop: false,
+        ),
+      );
+    } catch (_) {
+      // No sheet, or it would not load: it stands as it is.
+    }
+  }
+
   /// Loads its sheet and reads its grains. Leaves [ticker] null when it has
   /// no sheet (it is then drawn as a ball of its element).
   Future<void> load(Images images) async {
+    _images = images;
     final sheet = sheetForVisuals(member.spriteSheet, member.spriteVisuals);
     if (sheet == null) return;
     final image = await loadCreatureSheet(images, sheet.path);

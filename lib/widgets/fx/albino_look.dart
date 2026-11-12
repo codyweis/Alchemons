@@ -94,7 +94,8 @@ const double _lr = 0.299, _lg = 0.587, _lb = 0.114;
 const double _liftR = 1.55, _liftG = 1.50, _liftB = 1.40;
 
 /// The species whose albinos have red eyes: those with an eye overlay. Every
-/// polished species but the Airlet, whose eyes are drawn shut.
+/// polished species but the Airlet and the Steammane, whose eyes are drawn
+/// shut.
 const Set<String> kAlbinoEyeSpecies = {
   'HOR01', 'HOR02', 'HOR03', 'HOR04', 'HOR05', 'HOR06', 'HOR07', 'HOR08', //
   'HOR09', 'HOR10', 'HOR11', 'HOR12', 'HOR13', 'HOR14', 'HOR15', 'HOR16',
@@ -105,6 +106,10 @@ const Set<String> kAlbinoEyeSpecies = {
   'PIP16', 'PIP17', 'WNG01', 'WNG02', 'WNG03', 'WNG04', 'WNG05', 'WNG06',
   'WNG07', 'WNG08', 'WNG09', 'WNG10', 'WNG11', 'WNG12', 'WNG13', 'WNG14',
   'WNG15', 'WNG16', 'WNG17',
+  // The Manes, but the Steammane, whose eyes are drawn squeezed shut.
+  'MAN01', 'MAN02', 'MAN03', 'MAN04', 'MAN06', 'MAN07', 'MAN08', 'MAN09', //
+  'MAN10', 'MAN11', 'MAN12', 'MAN13', 'MAN14', 'MAN15', 'MAN16', 'MAN17',
+  'MAN18',
 };
 
 /// The eye overlay beside the sheet at [sheetPath] (a path under
@@ -114,5 +119,13 @@ String? albinoEyesPath(String sheetPath) {
   if (file.length < 5 || !kAlbinoEyeSpecies.contains(file.substring(0, 5))) {
     return null;
   }
+  // A hop or an attack has an eye layer of its own, carried through the same
+  // motion (open eyes only); asleep, its eyes are shut.
+  for (final action in const ['_hop.png', '_fire.png']) {
+    if (sheetPath.endsWith(action)) {
+      return sheetPath.replaceAll('.png', '_albino_eyes.png');
+    }
+  }
+  if (!sheetPath.endsWith('_spritesheet.png')) return null;
   return sheetPath.replaceAll('_spritesheet.png', '_albino_eyes.png');
 }

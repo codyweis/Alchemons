@@ -5,6 +5,7 @@
 // collects particles to fill a meter, and summons creatures.
 
 import 'dart:math';
+import 'package:alchemons/games/shared/creature_fire.dart';
 import 'package:alchemons/audio/sound_cue.dart';
 import 'dart:ui' as ui;
 
@@ -19,6 +20,7 @@ import 'mane_alchemical_vfx.dart' show maneLavaPoolCrowd;
 import 'mane_grain_vfx.dart' show ManeBloodRuns;
 import 'cosmic_enemy_vfx.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:alchemons/utils/effect_size.dart';
 import 'package:alchemons/models/stat_system.dart';
 import 'package:alchemons/constants/element_resources.dart';
@@ -512,6 +514,9 @@ class CosmicGame extends FlameGame with PanDetector {
   /// Share of a territory's arrivals that are its own element; the rest are
   /// strays from anywhere already discovered.
   static const double _wildTerritoryNativeShare = 0.8;
+
+  /// How many wild Alchemons are come upon asleep.
+  static const double _wildAsleepShare = 0.2;
   static const double _wildDespawnRange = 3400.0;
   static const double _wildNearRange = 360.0;
   static const double _wildLabelRange = 480.0;
@@ -718,6 +723,13 @@ class CosmicGame extends FlameGame with PanDetector {
   List<_ActiveWingBeam> _pendingWingBeams = [];
   final List<_WingFlower> _wingFlowers = [];
   final Map<int, SpriteAnimationTicker> _companionTickers = {};
+
+  /// A companion firing its special: its fire sheet over its idle.
+  late final CreatureFire _fire = CreatureFire(() => images);
+
+  /// The duel opponent's key in [_fire]: it is drawn from a ticker of its
+  /// own, not a slot's.
+  static const Object _duelFire = 'duel-opponent';
   final Map<int, SpriteVisuals?> _companionVisualsBySlot = {};
   final Map<int, double> _companionSpriteScales = {};
 
@@ -3390,6 +3402,7 @@ class CosmicGame extends FlameGame with PanDetector {
 
       // Advance sprite animation
       _companionTickers[slot]?.update(dt);
+      _fire.tick(slot, dt);
 
       // Returning fade-out
       if (comp.returning) {
@@ -3554,6 +3567,7 @@ class CosmicGame extends FlameGame with PanDetector {
       opp.life += dt;
       opp.invincibleTimer = (opp.invincibleTimer - dt).clamp(0.0, 10.0);
       _duelOpponentTicker?.update(dt);
+      _fire.tick(CosmicGame._duelFire, dt);
 
       // A wild Fire kin's phoenix catches it once, as a party one catches
       // the ship (cosmic_game_kin.dart).
@@ -6117,7 +6131,10 @@ class CosmicGame extends FlameGame with PanDetector {
 
       // Render sprite
       if (_duelOpponentTicker != null) {
-        final sprite = _duelOpponentTicker!.getSprite();
+        // Firing its special, its fire sheet stands in for its idle.
+        final fire = _fire.of(CosmicGame._duelFire);
+        final sprite = (fire?.ticker ?? _duelOpponentTicker!).getSprite();
+        final fireScale = fire?.sizeRatio ?? 1.0;
         final paint = Paint()
           ..color = Colors.white
           ..filterQuality = ui.FilterQuality.high;
@@ -6143,7 +6160,7 @@ class CosmicGame extends FlameGame with PanDetector {
         }
 
         final facingRight = cos(opp.angle) > 0;
-        final totalScale = _duelOpponentSpriteScale * summonScale;
+        final totalScale = _duelOpponentSpriteScale * summonScale * fireScale;
         canvas.save();
         if (facingRight) {
           canvas.scale(-totalScale, totalScale);
@@ -6163,7 +6180,7 @@ class CosmicGame extends FlameGame with PanDetector {
           canvas,
           _duelOpponentVisuals?.costumes,
           sprite,
-          _duelOpponentTicker!.currentIndex,
+          fire?.costumeFrame ?? _duelOpponentTicker!.currentIndex,
           _elapsed,
           1,
         );
@@ -6456,7 +6473,10 @@ class CosmicGame extends FlameGame with PanDetector {
 
     // Render sprite if loaded, otherwise fallback to circles
     if (companionTicker != null) {
-      final sprite = companionTicker.getSprite();
+      // Firing its special, its fire sheet stands in for its idle.
+      final fire = _fire.of(slotIndex);
+      final sprite = (fire?.ticker ?? companionTicker).getSprite();
+      final fireScale = fire?.sizeRatio ?? 1.0;
       final paint = Paint()
         ..color = Colors.white.withValues(alpha: opacity)
         ..filterQuality = ui.FilterQuality.high;
@@ -6485,7 +6505,7 @@ class CosmicGame extends FlameGame with PanDetector {
       // Flip sprite horizontally to face shooting direction
       // Default sprites face left; flip when target is to the right
       final facingRight = comp.faceRight ?? cos(comp.angle) > 0;
-      final totalScale = companionSpriteScale * animScale;
+      final totalScale = companionSpriteScale * animScale * fireScale;
       canvas.save();
       if (facingRight) {
         canvas.scale(-totalScale, totalScale);
@@ -6505,7 +6525,7 @@ class CosmicGame extends FlameGame with PanDetector {
         canvas,
         companionVisuals?.costumes,
         sprite,
-        companionTicker.currentIndex,
+        fire?.costumeFrame ?? companionTicker.currentIndex,
         _elapsed,
         opacity,
       );

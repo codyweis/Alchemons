@@ -250,10 +250,13 @@ void main() {
     residents: const [HomeResident(instanceId: 'a', x: 0.12)],
   );
 
-  bool animating(SceneGame game, String id) => game.debugResidents[id]!.children
-      .whereType<CreatureSpriteComponent>()
-      .first
-      .animating;
+  // Awake and moving: one asleep plays its own sleep, or is held still.
+  bool animating(SceneGame game, String id) {
+    final sprite = game.debugResidents[id]!.children
+        .whereType<CreatureSpriteComponent>()
+        .first;
+    return sprite.animating && !sprite.sleeping;
+  }
 
   for (final (kind, high) in const [
     ('bell_jar', 15.0),

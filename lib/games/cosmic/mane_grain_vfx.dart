@@ -59,6 +59,33 @@ void _g(int tone, double x, double y) {
   _n[tone] = i + 2;
 }
 
+/// Makes room in [tone] for [count] more grains, so a loop can [_put] them
+/// with no check per grain ([_put] is [_g] without its check).
+void _room(int tone, int count) {
+  final b = _buf[tone];
+  final need = _n[tone] + count * 2;
+  if (need <= b.length) return;
+  var len = b.length * 2;
+  while (len < need) {
+    len *= 2;
+  }
+  _buf[tone] = Float32List(len)..setAll(0, b);
+}
+
+void _put(int tone, double x, double y) {
+  final b = _buf[tone];
+  final i = _n[tone];
+  b[i] = x;
+  b[i + 1] = y;
+  _n[tone] = i + 2;
+}
+
+/// `x % 1.0` and `x % 2.0`, bit for bit, for every finite [x] (each is the
+/// one rounding of the same exact value, and +0 for a multiple), without
+/// the runtime call Dart makes for a double's `%`.
+double _fract(double x) => x - x.floorToDouble();
+double _mod2(double x) => x - (x * 0.5).floorToDouble() * 2.0;
+
 /// Paints what was added, tone by tone: [look] is each tone's colour and
 /// its grain size in world units.
 void _flush(ui.Canvas canvas, List<(ui.Color, double)> look) {
@@ -137,6 +164,34 @@ final _ballU = Float32List(_kBallN);
 final _ballRim = Float32List(_kBallN);
 const int _kSeamU = 96, _kSeamV = 40;
 final _seamTab = Float32List(_kSeamU * _kSeamV);
+// What never changes for a grain of the ball, worked out once from the
+// tables above exactly as the frame did: whether the rim thins it out, its
+// row of the seam table, and the point at which it goes as the shot fades.
+final _ballRow = Uint8List(_kBallN);
+final _ballGoesAt = Float64List(_kBallN);
+// The grains the rim keeps, in order, so the frame never tests the rest.
+final _ballLive = Uint16List(_kBallN);
+int _ballLiveN = 0;
+// A grain's side of the ball: 1 if it is on the face we see (x > -0.1), 2
+// if it is near the rim (rim > 0.8); and a cell of the seam table's band:
+// 0 a seam (< 0.1), 1 and 2 melt (< 0.22, < 0.34), 3 crust. Its tone is then
+// [_ballTone] at band * 4 + side, the choice the frame used to branch on.
+final _ballSide = Uint8List(_kBallN);
+final _seamBand = Uint8List(_kSeamU * _kSeamV);
+final _ballTone = Uint8List.fromList(const [
+  1, 0, 1, 0, // a seam: white-hot on the face we see
+  2, 2, 5, 5, // melt, turning away at the rim
+  3, 3, 5, 5, // cooling melt, the same
+  4, 4, 4, 4, // crust
+]);
+// The shadow's grains and the heat's, the same.
+final _shadowRho = Float64List(90);
+final _shadowCos = Float64List(90);
+final _shadowSin = Float64List(90);
+final _heatStart = Float64List(30);
+final _heatGone = Float64List(30);
+final _heatCos = Float64List(30);
+final _heatSin = Float64List(30);
 _Track? _dribble;
 
 void _buildLava() {
@@ -151,6 +206,27 @@ void _buildLava() {
     // across the face we see.
     final band = sqrt(max(1e-6, 1 - y * y));
     _ballU[i] = asin((x / band).clamp(-1.0, 1.0)) / pi + 0.5;
+    // Read back from the float tables, as the frame reads them.
+    final rim = _ballRim[i], bx = _ballX[i], by = _ballY[i];
+    if (!(rim > 0.86 && _h(i, 3) < (rim - 0.86) / 0.14)) {
+      _ballLive[_ballLiveN++] = i;
+    }
+    _ballRow[i] = min(_kSeamV - 1, ((by + 1) / 2 * _kSeamV).floor());
+    _ballGoesAt[i] = _h(i, 9);
+    _ballSide[i] = (bx > -0.1 ? 1 : 0) | (rim > 0.8 ? 2 : 0);
+  }
+  for (var i = 0; i < 90; i++) {
+    _shadowRho[i] = pow(_h(i, 41), 0.6).toDouble();
+    final a = _h(i, 42) * _tau;
+    _shadowCos[i] = cos(a);
+    _shadowSin[i] = sin(a);
+  }
+  for (var i = 0; i < 30; i++) {
+    _heatStart[i] = _h(i, 90);
+    _heatGone[i] = _h(i, 93);
+    final a = _h(i, 91) * _tau;
+    _heatCos[i] = cos(a);
+    _heatSin[i] = sin(a);
   }
   // Cells all the way round (u 0..2 is a full turn): seam = how much nearer
   // the nearest seed is than the next, as an arc on the ball.
@@ -177,6 +253,10 @@ void _buildLava() {
         }
       }
       _seamTab[iu * _kSeamV + iv] = d2 - d1;
+      final seam = _seamTab[iu * _kSeamV + iv];
+      _seamBand[iu * _kSeamV + iv] = seam < 0.1
+          ? 0
+          : (seam < 0.22 ? 1 : (seam < 0.34 ? 2 : 3));
     }
   }
   // The dribble: a short band of fresh melt right behind, then drops, each
@@ -244,25 +324,33 @@ void paintManeLavaShot(
   final hi = f.gone - back;
   final lo = hi - f.v * life;
   if (hi > 0) {
-    for (
-      var kk = (max(0.0, lo) / track.period).floor();
-      kk <= (hi / track.period).floor();
-      kk++
-    ) {
-      for (var i = 0; i < track.a.length; i++) {
-        final a = kk * track.period + track.a[i];
+    final kk0 = (max(0.0, lo) / track.period).floor();
+    final kk1 = (hi / track.period).floor();
+    final ta = track.a, tc = track.c, kind = track.kind;
+    final room = ta.length * (kk1 - kk0 + 1);
+    for (final tone in const [4, 5, 9, 10, 11]) {
+      _room(tone, room);
+    }
+    final v = f.v, gone = f.gone;
+    final px = f.px, py = f.py, dx = f.dx, dy = f.dy;
+    for (var kk = kk0; kk <= kk1; kk++) {
+      final base = kk * track.period;
+      for (var i = 0; i < ta.length; i++) {
+        final a = base + ta[i];
         if (a < lo || a > hi) continue;
-        final age = (hi - a) / f.v;
-        if (track.kind[i] == 0 && age > 0.11) continue;
+        final age = (hi - a) / v;
+        if (kind[i] == 0 && age > 0.11) continue;
         if (age > life * 0.75 &&
             _h(i + kk * 977, 5) < (age - life * 0.75) / (life * 0.25)) {
           continue;
         }
         final s = age / life;
-        f.ground(
+        // [_Flight.ground], written out.
+        final along = a - gone, across = tc[i] * r;
+        _put(
           s < 0.1 ? 9 : (s < 0.28 ? 10 : (s < 0.55 ? 11 : (s < 0.8 ? 5 : 4))),
-          a,
-          track.c[i] * r,
+          px + dx * along - dy * across,
+          py + dy * along + dx * across,
         );
       }
     }
@@ -270,43 +358,43 @@ void paintManeLavaShot(
 
   // Its shadow, then the ball: cells of melt turning over, the seams
   // white-hot on its leading face, dark crust riding round to its back.
+  // What is fixed for each grain comes from tables ([_buildLava]); only
+  // the roll, the fade and the shot's place are done here.
   final k = r / 31;
+  final sx = at.dx + 4 * k, sy = at.dy + 7 * k;
+  _room(6, 90);
   for (var i = 0; i < 90; i++) {
-    final rho = pow(_h(i, 41), 0.6) * r;
-    final a = _h(i, 42) * _tau;
-    _g(6, at.dx + 4 * k + rho * cos(a), at.dy + 7 * k + rho * sin(a) * 0.8);
+    final rho = _shadowRho[i] * r;
+    _put(6, sx + rho * _shadowCos[i], sy + rho * _shadowSin[i] * 0.8);
   }
   final roll = time * 0.42;
   final count = (900 * (k * k).clamp(0.6, 1.22)).round();
-  for (var i = 0; i < count; i++) {
-    final rim = _ballRim[i];
-    if (rim > 0.86 && _h(i, 3) < (rim - 0.86) / 0.14) continue;
-    if (fade < 1 && _h(i, 9) > fade) continue;
-    final x = _ballX[i], y = _ballY[i];
-    final u = (_ballU[i] + roll) % 2.0;
+  for (var tone = 0; tone <= 5; tone++) {
+    _room(tone, count);
+  }
+  final px = f.px, py = f.py, dx = f.dx, dy = f.dy;
+  for (var j = 0; j < _ballLiveN; j++) {
+    final i = _ballLive[j];
+    if (i >= count) break;
+    if (fade < 1 && _ballGoesAt[i] > fade) continue;
+    final u = _mod2(_ballU[i] + roll);
     final iu = min(_kSeamU - 1, (u / 2 * _kSeamU).floor());
-    final iv = min(_kSeamV - 1, ((y + 1) / 2 * _kSeamV).floor());
-    final seam = _seamTab[iu * _kSeamV + iv];
-    int tone;
-    if (seam < 0.1) {
-      tone = x > -0.1 ? 0 : 1;
-    } else if (seam < 0.22) {
-      tone = rim > 0.8 ? 5 : 2;
-    } else if (seam < 0.34) {
-      tone = rim > 0.8 ? 5 : 3;
-    } else {
-      tone = 4;
-    }
-    f.local(tone, x * r, y * r);
+    final tone =
+        _ballTone[_seamBand[iu * _kSeamV + _ballRow[i]] * 4 + _ballSide[i]];
+    final along = _ballX[i] * r, across = _ballY[i] * r;
+    _put(tone, px + dx * along - dy * across, py + dy * along + dx * across);
   }
   // Heat lifting off it.
   for (var i = 0; i < 30; i++) {
     if (sin(time * 11 + i * 1.3) < 0) continue;
-    final q = (time * 0.9 + _h(i, 90)) % 1.0;
-    if (_h(i, 93) > 1 - q) continue;
-    final a = _h(i, 91) * _tau;
+    final q = _fract(time * 0.9 + _heatStart[i]);
+    if (_heatGone[i] > 1 - q) continue;
     final d = r * 0.9 + 22 * k * q;
-    f.local(q < 0.4 ? 7 : 8, d * cos(a) - 14 * k * q, d * sin(a) * 0.85);
+    f.local(
+      q < 0.4 ? 7 : 8,
+      d * _heatCos[i] - 14 * k * q,
+      d * _heatSin[i] * 0.85,
+    );
   }
   _flush(canvas, _lavaLook);
 }
@@ -327,6 +415,135 @@ final _cellPulse = Float32List(_kPoolGrid * _kPoolGrid);
 
 /// The size of a cell of crust in a Mane Lava pool, in world units.
 const double _kPoolCell = 30;
+
+final _poolThinned = Uint8List(_kPoolN);
+final _poolGoesAt = Float64List(_kPoolN);
+
+/// What one pool keeps between frames: for each of its grains where it
+/// lies, which cell of the ground it is in and how far it is from the seam
+/// between that cell and the next; and each cell's place in the pulse.
+class _PoolLayout {
+  double x = double.nan, y = double.nan, r = 0;
+  int count = -1, cells = 0;
+  final px = Float32List(_kPoolN), py = Float32List(_kPoolN);
+  final seam = Float64List(_kPoolN);
+  final near = Uint16List(_kPoolN);
+  final cellPhase = Float64List(_kPoolGrid * _kPoolGrid);
+
+  /// The cells this pool covers, as indexes into the grid.
+  final cellAt = Uint16List(_kPoolGrid * _kPoolGrid);
+
+  /// What a frame need not work out again while the heat holds ([fixedW],
+  /// [fixedCool]) and nothing dissolves. A grain further from a seam than
+  /// the white-hot seam ever reaches (at the top of its pulse) keeps its
+  /// tone, and the tones only such grains take (2 and 3; 3 alone when the
+  /// heat is low) are kept as points, in order ([fixed], [fixedFrom] to
+  /// [fixedTo] for each). The rest, in order, are worked out each frame
+  /// ([live]).
+  double fixedW = double.nan;
+  bool fixedCool = false;
+  final live = Uint16List(_kPoolN);
+  int liveN = 0;
+  final fixed = Float32List(_kPoolN * 2);
+  final fixedFrom = Int32List(4), fixedTo = Int32List(4);
+
+  void fix(double w, bool cool) {
+    fixedW = w;
+    fixedCool = cool;
+    // The frame's seam test at the pulse's top, worked out as it does: no
+    // pulse puts the seam further out.
+    const top = 1.0;
+    final widest = (1.8 + 1.0 * top) * w;
+    final melt = 4.6 * w, cooling = 7.4 * w;
+    final firstFixed = cool ? 3 : 2;
+    int fixedTone(double s) {
+      var tone = s < melt ? 1 : (s < cooling ? 2 : 3);
+      if (cool && tone < 2) tone += 1;
+      return tone;
+    }
+
+    var o = 0;
+    for (var t = 0; t < 4; t++) {
+      fixedFrom[t] = o;
+      if (t >= firstFixed) {
+        for (var i = 0; i < count; i++) {
+          if (_poolThinned[i] == 1) continue;
+          final s = seam[i];
+          if (s < widest || fixedTone(s) != t) continue;
+          fixed[o++] = px[i];
+          fixed[o++] = py[i];
+        }
+      }
+      fixedTo[t] = o;
+    }
+    liveN = 0;
+    for (var i = 0; i < count; i++) {
+      if (_poolThinned[i] == 1) continue;
+      final s = seam[i];
+      if (!(s < widest) && fixedTone(s) >= firstFixed) continue;
+      live[liveN++] = i;
+    }
+  }
+
+  void lay(ui.Offset at, double radius, int n) {
+    fixedW = double.nan;
+    x = at.dx;
+    y = at.dy;
+    r = radius;
+    count = n;
+    final gx0 = ((at.dx - r) / _kPoolCell).floor() - 1;
+    final gy0 = ((at.dy - r * 0.82) / _kPoolCell).floor() - 1;
+    final gw = min(_kPoolGrid, (2 * r / _kPoolCell).ceil() + 3);
+    final gh = min(_kPoolGrid, (2 * r * 0.82 / _kPoolCell).ceil() + 3);
+    cells = 0;
+    for (var ix = 0; ix < gw; ix++) {
+      for (var iy = 0; iy < gh; iy++) {
+        final id = (gx0 + ix) * 131 + (gy0 + iy) * 977;
+        final j = ix * _kPoolGrid + iy;
+        _cellX[j] = (gx0 + ix + 0.15 + 0.7 * _h(id, 205)) * _kPoolCell;
+        _cellY[j] = (gy0 + iy + 0.15 + 0.7 * _h(id, 206)) * _kPoolCell;
+        cellPhase[j] = id * 1.7;
+        cellAt[cells++] = j;
+      }
+    }
+    final ax = at.dx, ay = at.dy;
+    final thinned = _poolThinned, poolX = _poolX, poolY = _poolY;
+    final cellX = _cellX, cellY = _cellY;
+    for (var i = 0; i < n; i++) {
+      if (thinned[i] == 1) continue;
+      final wx = ax + poolX[i] * r, wy = ay + poolY[i] * r;
+      final cx = (wx / _kPoolCell).floor() - gx0;
+      final cy = (wy / _kPoolCell).floor() - gy0;
+      var d1 = 1e18, d2 = 1e18;
+      var nearest = 0;
+      final ox1 = min(gw - 1, cx + 1);
+      final oy0 = max(0, cy - 1), oy1 = min(gh - 1, cy + 1);
+      for (var ox = max(0, cx - 1); ox <= ox1; ox++) {
+        for (var oy = oy0; oy <= oy1; oy++) {
+          final j = ox * _kPoolGrid + oy;
+          final dx = cellX[j] - wx, dy = cellY[j] - wy;
+          final d = dx * dx + dy * dy;
+          if (d < d1) {
+            d2 = d1;
+            d1 = d;
+            nearest = j;
+          } else if (d < d2) {
+            d2 = d;
+          }
+        }
+      }
+      px[i] = wx;
+      py[i] = wy;
+      seam[i] = sqrt(d2) - sqrt(d1);
+      near[i] = nearest;
+    }
+  }
+}
+
+/// The pools on the field now, by where each lies. Emptied when it fills,
+/// so a long run never holds more than a field's worth.
+const int _kPoolLayoutCap = 160;
+final Map<int, _PoolLayout> _poolLayouts = {};
 
 const _poolLook = [
   (ui.Color(0xFFFFE9A8), 2.1), // 0 white-hot seam
@@ -357,58 +574,76 @@ void paintManeLavaPool(
       _poolX[i] = u * cos(a);
       _poolY[i] = u * sin(a) * 0.82;
       _poolRim[i] = u;
+      // Which grains the rim thins out, and the point at which each one
+      // goes as a pool dissolves: the same for every pool, every frame.
+      _poolThinned[i] = u > 0.72 && _h(i, 201) < (u - 0.72) / 0.28 ? 1 : 0;
+      _poolGoesAt[i] = _h(i, 207);
     }
   }
-  // The seeds of the cells this pool covers, and how bright each cell's rim
-  // is now, worked out once for the pool rather than for every grain.
-  final gx0 = ((at.dx - r) / _kPoolCell).floor() - 1;
-  final gy0 = ((at.dy - r * 0.82) / _kPoolCell).floor() - 1;
-  final gw = min(_kPoolGrid, (2 * r / _kPoolCell).ceil() + 3);
-  final gh = min(_kPoolGrid, (2 * r * 0.82 / _kPoolCell).ceil() + 3);
-  for (var ix = 0; ix < gw; ix++) {
-    for (var iy = 0; iy < gh; iy++) {
-      final id = (gx0 + ix) * 131 + (gy0 + iy) * 977;
-      final j = ix * _kPoolGrid + iy;
-      _cellX[j] = (gx0 + ix + 0.15 + 0.7 * _h(id, 205)) * _kPoolCell;
-      _cellY[j] = (gy0 + iy + 0.15 + 0.7 * _h(id, 206)) * _kPoolCell;
-      // A whole cell's rim brightens and cools together.
-      _cellPulse[j] = 0.5 + 0.5 * sin(time * 1.6 + id * 1.7);
-    }
-  }
+  // A pool lies where it was dropped, and its cells belong to the ground, so
+  // which cell each of its grains is in and how far that grain is from a
+  // seam never change: they are worked out once and kept ([_PoolLayout]).
+  // Only what moves is done each frame: the cells' pulse, the heat, the fade.
   final count = min(_kPoolN, (r * r * (reduced ? 0.22 : 0.45)).round());
-  for (var i = 0; i < count; i++) {
-    final u = _poolRim[i];
-    if (u > 0.72 && _h(i, 201) < (u - 0.72) / 0.28) continue;
-    // Dissolving: each grain goes at its own point as [fade] falls.
-    if (fade < 1 && _h(i, 207) > fade) continue;
-    final wx = at.dx + _poolX[i] * r, wy = at.dy + _poolY[i] * r;
-    final cx = (wx / _kPoolCell).floor() - gx0;
-    final cy = (wy / _kPoolCell).floor() - gy0;
-    var d1 = 1e18, d2 = 1e18;
-    var near = 0;
-    for (var ox = max(0, cx - 1); ox <= min(gw - 1, cx + 1); ox++) {
-      for (var oy = max(0, cy - 1); oy <= min(gh - 1, cy + 1); oy++) {
-        final j = ox * _kPoolGrid + oy;
-        final dx = _cellX[j] - wx, dy = _cellY[j] - wy;
-        final d = dx * dx + dy * dy;
-        if (d < d1) {
-          d2 = d1;
-          d1 = d;
-          near = j;
-        } else if (d < d2) {
-          d2 = d;
-        }
-      }
+  final key = Object.hash(at.dx, at.dy);
+  var lay = _poolLayouts[key];
+  if (lay == null) {
+    if (_poolLayouts.length >= _kPoolLayoutCap) _poolLayouts.clear();
+    lay = _poolLayouts[key] = _PoolLayout();
+  }
+  final laid =
+      lay.x != at.dx || lay.y != at.dy || lay.r != r || lay.count != count;
+  if (laid) lay.lay(at, r, count);
+  final cells = lay.cells;
+  for (var c = 0; c < cells; c++) {
+    final j = lay.cellAt[c];
+    // A whole cell's rim brightens and cools together.
+    _cellPulse[j] = 0.5 + 0.5 * sin(time * 1.6 + lay.cellPhase[j]);
+  }
+  // As it cools ([heat] toward 0) the seams narrow and dim to crust.
+  final w = 0.35 + 0.65 * heat.clamp(0.0, 1.0);
+  final seams = lay.seam, nears = lay.near, px = lay.px, py = lay.py;
+  if (!laid && !(fade < 1) && w >= 0.35) {
+    // Whole, at a steady heat and size: only the grains whose tone can
+    // change (and those sharing a tone with them) are worked out; the rest
+    // are laid in as they stand ([_PoolLayout.fix]). The same grains, in the
+    // same order. (A pool still spreading is laid afresh each frame, so it
+    // keeps nothing.)
+    final cool = heat < 0.5;
+    if (lay.fixedW != w || lay.fixedCool != cool) lay.fix(w, cool);
+    final live = lay.live;
+    for (var k = 0; k < lay.liveN; k++) {
+      final i = live[k];
+      final seam = seams[i];
+      final pulse = _cellPulse[nears[i]];
+      var tone = seam < (1.8 + 1.0 * pulse) * w
+          ? 0
+          : (seam < 4.6 * w ? 1 : (seam < 7.4 * w ? 2 : 3));
+      if (heat < 0.5 && tone < 2) tone += 1;
+      _g(tone, px[i], py[i]);
     }
-    final seam = sqrt(d2) - sqrt(d1);
-    final pulse = _cellPulse[near];
-    // As it cools ([heat] toward 0) the seams narrow and dim to crust.
-    final w = 0.35 + 0.65 * heat.clamp(0.0, 1.0);
+    for (var t = 0; t < 4; t++) {
+      final from = lay.fixedFrom[t], to = lay.fixedTo[t];
+      if (to == from) continue;
+      _room(t, (to - from) ~/ 2);
+      final at = _n[t];
+      _buf[t].setRange(at, at + to - from, lay.fixed, from);
+      _n[t] = at + to - from;
+    }
+    _flush(canvas, _poolLook);
+    return;
+  }
+  for (var i = 0; i < count; i++) {
+    if (_poolThinned[i] == 1) continue;
+    // Dissolving: each grain goes at its own point as [fade] falls.
+    if (fade < 1 && _poolGoesAt[i] > fade) continue;
+    final seam = seams[i];
+    final pulse = _cellPulse[nears[i]];
     var tone = seam < (1.8 + 1.0 * pulse) * w
         ? 0
         : (seam < 4.6 * w ? 1 : (seam < 7.4 * w ? 2 : 3));
     if (heat < 0.5 && tone < 2) tone += 1;
-    _g(tone, wx, wy);
+    _g(tone, px[i], py[i]);
   }
   _flush(canvas, _poolLook);
 }
@@ -419,7 +654,43 @@ int _wallN = 0;
 final _wallS = Float32List(1400);
 final _wallU = Float32List(1400);
 final _wallTone = Uint8List(1400);
+// What the frame works out for each wall grain that never changes: its
+// front and depth before the wall's scale (`front(s) / k`, `depth(s) / k`),
+// and the point at which it goes as the shot fades.
+final _wallFront = Float64List(1400);
+final _wallDepth = Float64List(1400);
+final _wallGoesAt = Float64List(1400);
+// The crest's clumps (11 of 14 grains) and the spray (90), the same.
+final _clumpS = Float64List(11), _clumpEdge = Float64List(11);
+final _clumpFront = Float64List(11), _clumpStart = Float64List(11);
+final _clumpKeep = Float64List(11 * 14), _clumpSize = Float64List(11 * 14);
+final _clumpCos = Float64List(11 * 14), _clumpSin = Float64List(11 * 14);
+final _sprayStart = Float64List(90), _sprayS = Float64List(90);
+final _sprayKeep = Float64List(90), _sprayEdge = Float64List(90);
+final _sprayReach = Float64List(90), _sprayFront = Float64List(90);
+// Lace that has strayed to the edge of the path thins there.
+Float64List _laceEdge = Float64List(0);
 _Track? _lace;
+
+/// The lace's hash for each grain on stretch [kk] of a path (`_h(i + kk *
+/// 911, 72)`): it depends on the stretch and the grain alone, so it is
+/// worked out once a stretch and kept for every frame and shot on it.
+final Map<int, Float64List> _laceHashes = {};
+
+Float64List _laceHash(int kk, int n) {
+  var row = _laceHashes[kk];
+  if (row == null) {
+    if (_laceHashes.length >= 16) _laceHashes.clear();
+    row = _laceHashes[kk] = Float64List(n);
+    for (var i = 0; i < n; i++) {
+      row[i] = _h(i + kk * 911, 72);
+    }
+  }
+  return row;
+}
+
+/// The wall's front at [s] across it, before its scale.
+double _waterFront(double s) => 14 * (1 - s * s) - 26 * pow(s.abs(), 4);
 
 /// Lace: grains only along the threads where a slow noise, made to repeat
 /// every [period], crosses zero.
@@ -462,6 +733,43 @@ void _buildWater() {
     Float32List.fromList(c),
     Uint8List.fromList(kind),
   );
+  // Read back from the float tables, as the frame reads them.
+  for (var i = 0; i < _wallN; i++) {
+    final s = _wallS[i];
+    _wallFront[i] = _waterFront(s);
+    _wallDepth[i] = 8 + 40 * sqrt(max(0.0, 1 - s * s));
+    _wallGoesAt[i] = _h(i, 9);
+  }
+  final lc = _lace!.c;
+  _laceEdge = Float64List(lc.length);
+  for (var i = 0; i < lc.length; i++) {
+    final s = lc[i];
+    _laceEdge[i] = s.abs() > 0.75 ? _sm(0.75, 1, s.abs()) : 0;
+  }
+  for (var c = 0; c < 11; c++) {
+    final s = -0.85 + c * 0.17 + 0.05 * sin(c * 3.1);
+    _clumpS[c] = s;
+    _clumpEdge[c] = 1 - _sm(0.75, 1.0, s.abs());
+    _clumpFront[c] = _waterFront(s);
+    _clumpStart[c] = _h(c, 30);
+    for (var i = 0; i < 14; i++) {
+      final at = c * 14 + i;
+      _clumpKeep[at] = _h(i + c * 31, 33);
+      final a = _h(i + c * 31, 31) * _tau;
+      _clumpCos[at] = cos(a);
+      _clumpSin[at] = sin(a);
+      _clumpSize[at] = _h(i + c * 31, 32);
+    }
+  }
+  for (var i = 0; i < 90; i++) {
+    _sprayStart[i] = _h(i, 50);
+    final s = _h(i, 51) * 1.7 - 0.85;
+    _sprayS[i] = s;
+    _sprayKeep[i] = _h(i, 53);
+    _sprayEdge[i] = 1 - _sm(0.7, 0.85, s.abs());
+    _sprayReach[i] = _h(i, 52);
+    _sprayFront[i] = _waterFront(s);
+  }
 }
 
 const _waterLook = [
@@ -491,7 +799,7 @@ void paintManeWaterShot(
   if (_lace == null) _buildWater();
   final f = _f..set(p, at, time);
   final k = hh / 96;
-  double front(double s) => k * (14 * (1 - s * s) - 26 * pow(s.abs(), 4));
+  // [_waterFront] and the depth, scaled; the tables hold them unscaled.
   double depth(double s) => k * (8 + 40 * sqrt(max(0.0, 1 - s * s)));
 
   // Foam lace on the floor behind it, drying out.
@@ -500,20 +808,27 @@ void paintManeWaterShot(
   final hi = f.gone - depth(0) * 0.55;
   final lo = hi - f.v * life;
   if (hi > 0) {
-    for (
-      var kk = (max(0.0, lo) / track.period).floor();
-      kk <= (hi / track.period).floor();
-      kk++
-    ) {
+    final kk0 = (max(0.0, lo) / track.period).floor();
+    final kk1 = (hi / track.period).floor();
+    for (var kk = kk0; kk <= kk1; kk++) {
+      final base = kk * track.period;
+      final hashes = _laceHash(kk, track.a.length);
       for (var i = 0; i < track.a.length; i++) {
-        final a = kk * track.period + track.a[i];
+        final a = base + track.a[i];
         if (a < lo || a > hi) continue;
         final age = (hi - a) / f.v / life;
         if (track.kind[i] > 6 + 4 * (1 - age)) continue;
         final s = track.c[i];
-        final h = _h(i + kk * 911, 72);
-        if (h > pow(1 - age, 1.4)) continue;
-        if (s.abs() > 0.75 && h < _sm(0.75, 1, s.abs())) continue;
+        final h = hashes[i];
+        // Each test drops the grain, so their order does not matter: the
+        // cheap ones first. (1 - age)^1.4 is at most 1 - age, and for
+        // 1 - age up to 0.999999 at least a two-millionth of itself below
+        // it, far more than pow's error (under an ulp): a hash past 1 - age
+        // is past the power too, without working the power out.
+        if (s.abs() > 0.75 && h < _laceEdge[i]) continue;
+        final left = 1 - age;
+        if (left >= 0 && left <= 0.999999 && h > left) continue;
+        if (h > pow(left, 1.4)) continue;
         f.ground(age < 0.25 ? 9 : (age < 0.55 ? 10 : 11), a, s * hh * 0.97);
       }
     }
@@ -522,7 +837,7 @@ void paintManeWaterShot(
   // The wall: froth at the front, lit water behind going deep blue and then
   // to nothing; its tips curl back; the water rushes.
   for (var i = 0; i < _wallN; i++) {
-    if (fade < 1 && _h(i, 9) > fade) continue;
+    if (fade < 1 && _wallGoesAt[i] > fade) continue;
     final s = _wallS[i], u = _wallU[i];
     final tone = _wallTone[i];
     if (tone == 0 &&
@@ -534,32 +849,35 @@ void paintManeWaterShot(
       continue;
     }
     final x =
-        front(s) - u * depth(s) + 2.5 * k * sin(time * 7 + s * 11 + u * 5);
+        k * _wallFront[i] -
+        u * (k * _wallDepth[i]) +
+        2.5 * k * sin(time * 7 + s * 11 + u * 5);
     final y = s * hh + 2.5 * k * sin(time * 3 + u * 7 + s * 3);
     f.local(tone, x, y);
     if (tone >= 1 && tone <= 3 && u < 0.6) f.local(tone + 4, x - 3.5, y);
   }
   // Clumps breaking along the crest, rolling over forward.
   for (var c = 0; c < 11; c++) {
-    final s = -0.85 + c * 0.17 + 0.05 * sin(c * 3.1);
-    final phase = (time * 1.6 + _h(c, 30)) % 1.0;
-    final keep = (1 - _sm(0.75, 1.0, s.abs())) * (1 - phase * 0.6) * fade;
-    final bx = front(s) + 2 * k + 7 * k * phase;
+    final s = _clumpS[c];
+    final phase = _fract(time * 1.6 + _clumpStart[c]);
+    final keep = _clumpEdge[c] * (1 - phase * 0.6) * fade;
+    final bx = k * _clumpFront[c] + 2 * k + 7 * k * phase;
     final by = s * hh;
+    final swell = sin(phase * pi);
     for (var i = 0; i < 14; i++) {
-      if (_h(i + c * 31, 33) > keep) continue;
-      final a = _h(i + c * 31, 31) * _tau;
-      final r = k * (1.5 + 4.5 * _h(i + c * 31, 32) * sin(phase * pi));
-      f.local(8, bx + r * cos(a), by + r * sin(a) * 1.3);
+      final at = c * 14 + i;
+      if (_clumpKeep[at] > keep) continue;
+      final r = k * (1.5 + 4.5 * _clumpSize[at] * swell);
+      f.local(8, bx + r * _clumpCos[at], by + r * _clumpSin[at] * 1.3);
     }
   }
   // Spray thrown ahead of the crest.
   for (var i = 0; i < 90; i++) {
-    final q = (time * 2.2 + _h(i, 50)) % 1.0;
-    final s = _h(i, 51) * 1.7 - 0.85;
-    if (_h(i, 53) > (1 - q) * (1 - _sm(0.7, 0.85, s.abs())) * fade) continue;
-    final d = k * (8 + 26 * _h(i, 52)) * (1 - exp(-3 * q));
-    f.local(8, front(s) + 3 * k + d, s * hh + s * d * 0.5);
+    final q = _fract(time * 2.2 + _sprayStart[i]);
+    final s = _sprayS[i];
+    if (_sprayKeep[i] > (1 - q) * _sprayEdge[i] * fade) continue;
+    final d = k * (8 + 26 * _sprayReach[i]) * (1 - exp(-3 * q));
+    f.local(8, k * _sprayFront[i] + 3 * k + d, s * hh + s * d * 0.5);
   }
   _flush(canvas, _waterLook);
 }

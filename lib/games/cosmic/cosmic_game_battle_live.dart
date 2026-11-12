@@ -242,6 +242,7 @@ extension CosmicGameBattleLive on CosmicGame {
       side._leaving.removeWhere((c) => c.returnTimer <= 0);
       for (final c in side.onField) {
         _companionTickers[c.member.slotIndex]?.update(fdt);
+        _fire.tick(c.member.slotIndex, fdt);
       }
     }
     if (sample != null) {

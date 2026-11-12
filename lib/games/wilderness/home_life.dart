@@ -542,6 +542,7 @@ class _HomeLife {
       l.fade = 1;
       comp.sprite?.spriteOpacity = 1;
     }
+    comp.sprite?.wake();
     comp.sprite?.animating = true;
     comp.face(base);
   }
@@ -557,6 +558,20 @@ class _HomeLife {
         .where((d) => d.abs() < size * 2.2)
         .firstOrNull;
     if (_perchFlight(l, comp, sp, dt)) return;
+    // Night: it sleeps where it hangs, wings folded, barely rising and
+    // falling. (One with no sleep drawn drifts on, slower, as before.)
+    if (_night) {
+      if (comp.sprite?.sleep() == true) {
+        l
+          ..act = _Act.asleep
+          ..target = l.dx;
+        l.dy = math.sin(t * 0.5 + l.seed) * 2.5 * _u;
+        return;
+      }
+    } else if (l.act == _Act.asleep) {
+      l.act = _Act.idle;
+      comp.sprite?.wake();
+    }
     if (vane != null && !_night) {
       // Round and round the vane's head, on the wind.
       final a = t * 0.9 + l.seed;
@@ -638,8 +653,17 @@ class _HomeLife {
       if (game.isOnScreen(at)) game.onSound?.call(SoundCue.homePerch);
     }
     if (dist > 1 && !leaving) l.landed = false;
-    // Landed: still, but for breathing.
-    comp.sprite?.animating = dist > 1 || leaving;
+    // Landed: still, but for breathing — and at night, asleep on it.
+    final resting = dist <= 1 && !leaving;
+    if (resting && _night && comp.sprite?.sleep() == true) {
+      l.act = _Act.asleep;
+      return true;
+    }
+    if (l.act == _Act.asleep) {
+      l.act = _Act.idle;
+      comp.sprite?.wake();
+    }
+    comp.sprite?.animating = !resting;
     return true;
   }
 
@@ -717,6 +741,7 @@ class _HomeLife {
         ..bedded = false
         ..sleepsThere = false
         ..wait = 1 + _rng.nextDouble() * 3;
+      comp.sprite?.wake();
       comp.sprite?.animating = true;
       comp.scale.setValues(1, 1);
     }
@@ -758,6 +783,8 @@ class _HomeLife {
       final sx = game.screenXOf(l.id);
       if (sx != null && (touch.x - sx).abs() < 150) {
         comp.face(touch.x > sx ? -1 : 1);
+        // A finger come near it: a hop, as it turns to look.
+        if (l.heedFor <= 0) _hop(comp);
         l
           ..heedFor = 1.6
           ..target = l.dx;
@@ -777,9 +804,15 @@ class _HomeLife {
         ..lift = 0;
       comp.angle = 0;
     }
-    comp.sprite?.animating = false;
-    final b = 1 + 0.018 * math.sin(game._fieldTime * 1.2 + l.seed);
-    comp.scale.setValues(1, b);
+    if (comp.sprite?.sleep() == true) {
+      // Its own sleep: slumped, eyes shut, breathing.
+      comp.scale.setValues(1, 1);
+    } else {
+      // No sleep drawn for it: its frames held, breathing.
+      comp.sprite?.animating = false;
+      final b = 1 + 0.018 * math.sin(game._fieldTime * 1.2 + l.seed);
+      comp.scale.setValues(1, b);
+    }
     _walk(l, comp, sp, dt, size);
   }
 
@@ -835,6 +868,13 @@ class _HomeLife {
         return;
       }
     }
+    // A hop where it stands, for no reason at all.
+    if (roll < 0.67 && _hop(comp)) {
+      l
+        ..target = l.dx
+        ..wait = 2 + _rng.nextDouble() * 3;
+      return;
+    }
     // A stroll.
     if (roll < 0.88 && range.$2 - range.$1 > size * 0.12) {
       l
@@ -845,6 +885,18 @@ class _HomeLife {
     // Back as it was put, facing as it was put.
     l.target = 0;
     comp.face(base);
+  }
+
+  /// When a resident last hopped (field seconds): never two at once.
+  double _hoppedAt = -1e9;
+
+  /// Has [comp] play its hop, unless another resident has only just hopped
+  /// or its sprite cannot (see [CreatureSpriteComponent.playAction]).
+  bool _hop(WildMonComponent comp) {
+    if (game._fieldTime - _hoppedAt < 1.4) return false;
+    if (comp.sprite?.playAction(CreatureAction.hop) != true) return false;
+    _hoppedAt = game._fieldTime;
+    return true;
   }
 
   /// A keepsake [l] can walk to that [wants] would visit, nearest first.

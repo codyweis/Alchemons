@@ -72,8 +72,18 @@ class SpaceWildAlchemon {
   /// before touching it opens another one.
   bool needsSeparation = false;
 
+  /// Come upon asleep (one in five): it hangs where it is, slumped and
+  /// breathing, starts no fight of its own, and wakes when it is fought or
+  /// a portal on it is closed.
+  bool asleep = false;
+
   SpriteAnimationTicker? _ticker;
   double _spriteScale = 1.0;
+
+  /// Its sleep, while [asleep]: the sheet's frames, their scale, its path.
+  SpriteAnimationTicker? _sleepTicker;
+  double _sleepScale = 1.0;
+  String? _sleepPath;
   TextPainter? _potentialLabel;
 
   /// Half the drawn sprite's height, so the readout clears any family's size.
@@ -246,10 +256,28 @@ class CosmicEncounterBackdrop {
 extension CosmicGameWild on CosmicGame {
   // ── API for the screen ─────────────────────────────────────────────────
 
-  void addWildAlchemon(SpaceWildAlchemon wild) {
+  /// [asleep] says whether it is come upon asleep; left out, one in five
+  /// is. It only sleeps once its sleep is loaded, and only if it has one.
+  void addWildAlchemon(SpaceWildAlchemon wild, {bool? asleep}) {
     _wildSpawnRequested = false;
     wildAlchemons.add(wild);
-    _loadWildSprite(wild);
+    _loadWildSprite(
+      wild,
+      asleep: asleep ?? _rng.nextDouble() < CosmicGame._wildAsleepShare,
+    );
+  }
+
+  /// [w] is awake from now on, and its sleep sheet is let go unless another
+  /// sleeper is using it.
+  void _wakeWild(SpaceWildAlchemon w) {
+    w.asleep = false;
+    final path = w._sleepPath;
+    w
+      .._sleepTicker = null
+      .._sleepPath = null;
+    if (path == null) return;
+    if (wildAlchemons.any((o) => o._sleepPath == path)) return;
+    _dropWildSleepSheet(path);
   }
 
   /// The screen could not produce a creature for the last request.
@@ -273,6 +301,7 @@ extension CosmicGameWild on CosmicGame {
       _removeWild(w);
     } else {
       w.needsSeparation = true;
+      _wakeWild(w);
     }
   }
 
@@ -288,6 +317,7 @@ extension CosmicGameWild on CosmicGame {
     spawnDuelOpponent(wild.member);
     final opp = duelOpponent;
     if (opp == null) return;
+    _wakeWild(wild);
     final at = _nearestImage(wild.position, ship.pos);
     opp.position = at;
     opp.anchorPosition = at;
@@ -386,7 +416,8 @@ extension CosmicGameWild on CosmicGame {
                 Offset(cos(w.driftAngle), sin(w.driftAngle)) * (6.0 * dt),
           );
         case SpaceWildState.grazing:
-          _driftWild(w, dt);
+          // Asleep, it stays where it is.
+          if (!w.asleep) _driftWild(w, dt);
       }
 
       if (w.needsSeparation && dist > 110) w.needsSeparation = false;
@@ -395,7 +426,7 @@ extension CosmicGameWild on CosmicGame {
       if (w.state != SpaceWildState.dueling &&
           delta.dx.abs() < halfW &&
           delta.dy.abs() < halfH) {
-        w._ticker?.update(dt);
+        (w.asleep ? w._sleepTicker ?? w._ticker : w._ticker)?.update(dt);
       }
 
       if (_shipDead || _wildContactPending) continue;
@@ -405,6 +436,7 @@ extension CosmicGameWild on CosmicGame {
       // companion that comes close. With nothing summoned the ship can
       // drift up and ram in peace.
       if (w.state == SpaceWildState.grazing &&
+          !w.asleep &&
           !wildDuelActive &&
           !w.needsSeparation &&
           w.fade >= 1.0 &&
@@ -631,6 +663,7 @@ extension CosmicGameWild on CosmicGame {
   void _removeWild(SpaceWildAlchemon w) {
     if (_duelWildId == w.id) _endWildDuel(WildDuelEnd.disengaged);
     wildAlchemons.remove(w);
+    _wakeWild(w);
     if (identical(nearWild, w)) {
       nearWild = null;
       onNearWild?.call(null);
@@ -724,7 +757,10 @@ extension CosmicGameWild on CosmicGame {
   Offset _nearestImage(Offset p, Offset reference) =>
       reference + _toroidalDelta(p, reference);
 
-  Future<void> _loadWildSprite(SpaceWildAlchemon w) async {
+  Future<void> _loadWildSprite(
+    SpaceWildAlchemon w, {
+    bool asleep = false,
+  }) async {
     // Its own sheet, or the baked copy an albino (or a mutated one) wears.
     final sheet = sheetForVisuals(w.member.spriteSheet, w.member.spriteVisuals);
     if (sheet == null) return;
@@ -757,6 +793,56 @@ extension CosmicGameWild on CosmicGame {
     } catch (e) {
       debugPrint('Failed to load wild sprite ${sheet.path}: $e');
     }
+    if (asleep) await _loadWildSleep(w, sheet);
+  }
+
+  /// Its sleep sheet, when its species has one (worn plain, or as its
+  /// albino or mutation bake); otherwise it stays awake.
+  Future<void> _loadWildSleep(SpaceWildAlchemon w, SpriteSheetDef drawn) async {
+    final own = w.member.spriteSheet;
+    final def = own == null
+        ? null
+        : actionSheetFor(
+            own.path,
+            CreatureAction.sleep,
+            idleFrame: own.frameSize.x,
+          );
+    if (def == null) return;
+    // The copy it wears: plain, or its albino or mutation bake.
+    final path = sheetForVisuals(def.def, w.member.spriteVisuals)!.path;
+    try {
+      final image = await loadCreatureSheet(images, path);
+      // Fought, or gone, while it was on its way.
+      if (w.state != SpaceWildState.grazing || !wildAlchemons.contains(w)) {
+        if (!wildAlchemons.any((o) => o._sleepPath == path)) {
+          _dropWildSleepSheet(path);
+        }
+        return;
+      }
+      final side = image.width / def.cols;
+      final anim = SpriteAnimation.fromFrameData(
+        image,
+        SpriteAnimationData.variable(
+          amount: def.frames,
+          amountPerRow: def.cols,
+          textureSize: Vector2.all(side),
+          stepTimes: def.stepTimes,
+          loop: true,
+        ),
+      );
+      w
+        .._sleepScale = w._spriteScale * drawn.frameSize.x / side
+        .._sleepPath = path
+        .._sleepTicker = anim.createTicker()
+        ..asleep = true;
+    } catch (e) {
+      debugPrint('Failed to load wild sleep $path: $e');
+    }
+  }
+
+  void _dropWildSleepSheet(String path) {
+    if (images.containsKey(path)) images.clear(path);
+    if (isMutatedSheetPath(path)) forgetBakedSheet(path);
   }
 
   // ── render ──────────────────────────────────────────────────────────────
@@ -803,7 +889,8 @@ extension CosmicGameWild on CosmicGame {
         ]),
     );
 
-    final ticker = w._ticker;
+    final sleepTicker = w.asleep ? w._sleepTicker : null;
+    final ticker = sleepTicker ?? w._ticker;
     if (ticker != null) {
       final paint = Paint()
         ..color = Colors.white.withValues(
@@ -818,11 +905,14 @@ extension CosmicGameWild on CosmicGame {
       if (exhausted) {
         // Slumped and slowly turning over.
         canvas.rotate(0.45 + 0.08 * sin(w.life * 0.7));
+      } else if (sleepTicker != null) {
+        // Asleep: it hangs, barely rising and falling.
+        canvas.translate(0, sin(w.life * 0.6) * 1.2);
       } else {
         canvas.translate(0, sin(w.life * 1.6) * 2.5);
       }
       final facingRight = cos(w.driftAngle) > 0;
-      final s = w._spriteScale;
+      final s = sleepTicker != null ? w._sleepScale : w._spriteScale;
       canvas.scale(facingRight ? -s : s, s);
       ticker.getSprite().render(
         canvas,

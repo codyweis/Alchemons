@@ -43,9 +43,26 @@ class EnemyFacing {
     while (d < -pi) {
       d += 2 * pi;
     }
-    final step = d * (1 - exp(-rate * dt));
+    final step = d * (1 - _exp(-rate * dt));
     _angle += step;
-    _turn += (step / dt - _turn) * (1 - exp(-6 * dt));
+    _turn += (step / dt - _turn) * (1 - _exp(-6 * dt));
     return _angle;
+  }
+
+  // Every body follows on the same frame step, so the field asks for the
+  // same two exponentials hundreds of times a frame: the last few are kept.
+  static final _expX = List<double>.filled(4, double.nan);
+  static final _expY = List<double>.filled(4, 0);
+  static var _expNext = 0;
+
+  static double _exp(double x) {
+    for (var i = 0; i < 4; i++) {
+      if (_expX[i] == x) return _expY[i];
+    }
+    final y = exp(x);
+    _expX[_expNext] = x;
+    _expY[_expNext] = y;
+    _expNext = (_expNext + 1) & 3;
+    return y;
   }
 }

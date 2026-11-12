@@ -1,3 +1,4 @@
+import 'package:alchemons/games/shared/creature_fire.dart';
 import 'package:alchemons/audio/sound_cue.dart';
 import 'package:alchemons/services/debug_settings_service.dart';
 // lib/games/cosmic_survival/cosmic_survival_game.dart
@@ -2222,6 +2223,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   // Companion sprite rendering (per-slot)
   final Map<int, SpriteAnimationTicker> _companionTickers = {};
+
+  /// A companion firing its special: its fire sheet over its idle.
+  late final CreatureFire _fire = CreatureFire(() => images);
   final Map<int, SpriteVisuals?> _companionVisuals = {};
   final Map<int, double> _companionSpriteScales = {};
   final List<_ActiveWingBeam> _activeWingBeams = [];
@@ -3658,6 +3662,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       if (downed != null) _noteKinCompanionDown(slot, downed);
       activeCompanions.remove(slot);
       _companionTickers.remove(slot);
+      _fire.remove(slot);
       _companionVisuals.remove(slot);
       _companionSpriteScales.remove(slot);
     }
@@ -3785,6 +3790,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     comp.tickFlash(dt);
     comp.tickReady(dt, comp.specialReadiness);
     _companionTickers[slotIndex]?.update(dt);
+    _fire.tick(slotIndex, dt);
 
     // Charge state
     if (comp.chargeTimer > 0) {
@@ -4583,6 +4589,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           comp.lastPipPoisonHitPos = null;
         }
 
+        // It fires: the cast goes off now, its body follows through.
+        _fire.play(
+          slotIndex,
+          comp.member.spriteSheet,
+          comp.member.spriteVisuals,
+        );
         final result = createCosmicSpecialAbility(
           origin: comp.position,
           baseAngle: fireAngle,
@@ -6087,6 +6099,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     );
     _companionTickers[slotIndex] = anim.createTicker();
     _companionVisuals[slotIndex] = member.spriteVisuals;
+    _fire.warm(member.spriteSheet, member.spriteVisuals);
     if (!_shadowBySlot.containsKey(slotIndex)) {
       bossShadowFromSheet(image, sheet.frameSize.x, sheet.frameSize.y)
           .then((shadow) {
@@ -25306,9 +25319,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     int slotIndex,
   ) {
     final ec = elementColor(comp.member.element);
-    final ticker = _companionTickers[slotIndex];
+    // Firing its special, its fire sheet stands in for its idle.
+    final fire = _fire.of(slotIndex);
+    final ticker = fire?.ticker ?? _companionTickers[slotIndex];
     final visuals = _companionVisuals[slotIndex];
-    final spriteScale = _companionSpriteScales[slotIndex] ?? 1.0;
+    final spriteScale =
+        (_companionSpriteScales[slotIndex] ?? 1.0) * (fire?.sizeRatio ?? 1.0);
 
     canvas.save();
     canvas.translate(comp.position.dx, comp.position.dy);
@@ -25567,7 +25583,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         canvas,
         visuals,
         sprite,
-        ticker.currentIndex,
+        fire?.costumeFrame ?? ticker.currentIndex,
         stats.timeElapsed,
       );
       canvas.restore();

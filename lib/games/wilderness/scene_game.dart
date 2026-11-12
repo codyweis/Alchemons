@@ -38,6 +38,7 @@ import 'package:alchemons/models/scenes/scene_definition.dart';
 import 'package:alchemons/models/scenes/spawn_point.dart';
 import 'package:alchemons/services/encounter_service.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:alchemons/widgets/wilderness/tutorial_highlight.dart';
 import 'package:flame/components.dart';
@@ -3233,6 +3234,7 @@ class WildMonComponent extends PositionComponent
               ..scale = flipX ? Vector2(-1, 1) : Vector2.all(1),
       );
       _faceTo = flipX ? -1 : 1;
+      _naps = _wouldNap();
 
       _addTapPulse();
 
@@ -3314,11 +3316,32 @@ class WildMonComponent extends PositionComponent
   /// Which way it is facing.
   double get facing => _faceTo;
 
+  /// A wild one that is asleep when it is come upon: most are at night, a
+  /// few by day. It wakes at a tap and, left alone, dozes off again.
+  bool _naps = false;
+  double _awakeFor = 0;
+
+  bool _wouldNap() {
+    if (!pulse || game.showcase || game.isTutorialMode) return false;
+    final h = game.fieldHour;
+    final night = h >= 20 || h < 5;
+    final r = hash01(speciesId.hashCode ^ position.x.round(), 913);
+    return r < (night ? 0.6 : 0.12);
+  }
+
   @override
   void update(double dt) {
     super.update(dt);
     final s = sprite;
-    if (s == null || _settleT >= 1) return;
+    if (s == null) return;
+    if (_naps) {
+      if (_awakeFor > 0) {
+        _awakeFor -= dt;
+      } else if (!s.sleeping) {
+        s.sleep();
+      }
+    }
+    if (_settleT >= 1) return;
     _settleT = math.min(1, _settleT + dt / 0.22);
     final give = math.sin(_settleT * math.pi) * (1 - _settleT * 0.4);
     s.scale.setValues(_faceTo * (1 + 0.07 * give), 1 - 0.06 * give);
@@ -3402,6 +3425,11 @@ class WildMonComponent extends PositionComponent
     children.whereType<TutorialCreatureHighlight>().toList().forEach(
       (h) => h.removeFromParent(),
     );
+    // Asleep: it wakes, and stays up a while.
+    if (_naps) {
+      sprite?.wake();
+      _awakeFor = 12;
+    }
     onTap();
   }
 

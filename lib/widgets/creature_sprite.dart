@@ -7,6 +7,7 @@ import 'package:alchemons/models/celebration_costume.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
+import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_view.dart';
@@ -105,6 +106,11 @@ class CreatureSprite extends StatefulWidget {
   /// creature's come from [visualsFromInstance] already untinted.
   final String? mutation;
 
+  /// Plays an action (a hop) once over the idle when asked to, in whatever
+  /// look it wears (an albino's or a mutation's own baked copy) and with its
+  /// costumes riding its head.
+  final CreatureActionController? actions;
+
   const CreatureSprite({
     super.key,
     required this.spritePath,
@@ -124,6 +130,7 @@ class CreatureSprite extends StatefulWidget {
     this.elementType,
     this.effectSlotSize,
     this.mutation,
+    this.actions,
   });
 
   @override
@@ -153,6 +160,13 @@ class _CreatureSpriteState extends State<CreatureSprite>
   SpriteAnimation? _spriteAnimation;
   SpriteAnimationTicker? _spriteTicker;
 
+  // An action being played over the idle, and its sheet.
+  SpriteAnimation? _actionAnimation;
+  SpriteAnimationTicker? _actionTicker;
+  String? _actionPath;
+  ActionSheet? _actionDef;
+  bool _actionLoading = false;
+
   String? _loadError;
   Timer? _retryTimer;
   int _retryCount = 0;
@@ -168,12 +182,18 @@ class _CreatureSpriteState extends State<CreatureSprite>
         vsync: this,
       )..repeat();
     }
+    widget.actions?.addListener(_onAction);
     _loadAnimation();
   }
 
   @override
   void didUpdateWidget(covariant CreatureSprite oldWidget) {
     super.didUpdateWidget(oldWidget);
+
+    if (widget.actions != oldWidget.actions) {
+      oldWidget.actions?.removeListener(_onAction);
+      widget.actions?.addListener(_onAction);
+    }
 
     // toggle prismatic hue cycling (prismatic trumps albino)
     if (widget.isPrismatic != oldWidget.isPrismatic) {
@@ -201,15 +221,104 @@ class _CreatureSpriteState extends State<CreatureSprite>
         widget.frameSize != oldWidget.frameSize ||
         widget.stepTime != oldWidget.stepTime;
 
-    if (baseChanged) _loadAnimation();
+    if (baseChanged) {
+      _endAction();
+      _loadAnimation();
+    }
   }
 
   @override
   void dispose() {
+    widget.actions?.removeListener(_onAction);
+    _releaseAction();
     _retryTimer?.cancel();
     _hueController?.dispose();
     _spriteTicker = null;
     super.dispose();
+  }
+
+  /// Plays the action its controller asked for, if this sprite can.
+  Future<void> _onAction() async {
+    final action = widget.actions?.take();
+    if (action == null || !mounted) return;
+    if (_spriteAnimation == null || _actionTicker != null || _actionLoading) {
+      return;
+    }
+    // (Its costumes and Darklet's ring follow the action; an albino or a
+    // mutated one wears its own baked copy of the sheet.)
+    final def = actionSheetFor(
+      widget.spritePath,
+      action,
+      idleFrame: widget.frameSize.x,
+    );
+    // Only what plays once: nothing here puts a sprite to sleep yet.
+    if (def == null || def.loop) return;
+
+    // The sheet it wears: plain, or its albino, mutation or variant bake.
+    final drawn = mutatedSheet(
+      def.def,
+      mutation: widget.mutation,
+      prismatic: widget.isPrismatic,
+      albino: _albinoOf(widget),
+      variant: widget.variantFaction,
+    );
+    _actionLoading = true;
+    final forPath = _sheet.path;
+    final images = Flame.images;
+    try {
+      ActionSheetCache.retain(images, drawn.path);
+      final image = await loadCreatureSheet(images, drawn.path);
+      if (!mounted || _sheet.path != forPath) {
+        ActionSheetCache.release(images, drawn.path);
+        return;
+      }
+      final side = image.width / def.cols;
+      final anim = SpriteAnimation.fromFrameData(
+        image,
+        SpriteAnimationData.variable(
+          amount: def.frames,
+          amountPerRow: def.cols,
+          textureSize: Vector2.all(side),
+          stepTimes: def.stepTimes,
+          loop: false,
+        ),
+      );
+      setState(() {
+        _actionAnimation = anim;
+        _actionTicker = anim.createTicker();
+        _actionPath = drawn.path;
+        _actionDef = def;
+      });
+    } catch (_) {
+      // No sheet, or it would not load: it stays on its idle.
+      ActionSheetCache.release(images, drawn.path);
+    } finally {
+      _actionLoading = false;
+    }
+  }
+
+  /// Back to the idle, from its first frame (where every action ends).
+  void _endAction() {
+    if (_actionTicker == null) return;
+    if (!mounted) return;
+    setState(() {
+      _releaseAction();
+      _spriteTicker?.reset();
+    });
+  }
+
+  void _releaseAction() {
+    final path = _actionPath;
+    _actionAnimation = null;
+    _actionTicker = null;
+    _actionPath = null;
+    _actionDef = null;
+    if (path != null) {
+      // After the frame that stops drawing it.
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => ActionSheetCache.release(Flame.images, path),
+      );
+    }
   }
 
   @override
@@ -239,11 +348,20 @@ class _CreatureSpriteState extends State<CreatureSprite>
   }
 
   Widget _buildSprite({double dynamicHueShift = 0.0}) {
-    Widget sprite = SpriteAnimationWidget(
-      animation: _spriteAnimation!,
-      anchor: Anchor.topLeft,
-      animationTicker: _spriteTicker!,
-    );
+    final acting = _actionTicker != null;
+    Widget sprite = acting
+        ? SpriteAnimationWidget(
+            key: ValueKey(_actionPath),
+            animation: _actionAnimation!,
+            anchor: Anchor.topLeft,
+            animationTicker: _actionTicker!,
+            onComplete: _endAction,
+          )
+        : SpriteAnimationWidget(
+            animation: _spriteAnimation!,
+            anchor: Anchor.topLeft,
+            animationTicker: _spriteTicker!,
+          );
 
     // Prismatic trumps albino - only use albino processing if not prismatic
     if (_isAlbino && !widget.isPrismatic) {
@@ -296,7 +414,10 @@ class _CreatureSpriteState extends State<CreatureSprite>
       sprite = WornCostume(
         costumes: costumes!,
         frameSize: Size(widget.frameSize.x, widget.frameSize.y),
-        frameIndex: () => _spriteTicker?.currentIndex ?? 0,
+        // In an action, the frame of it: the costume rides the head.
+        frameIndex: () => _actionTicker != null && _actionDef != null
+            ? _actionDef!.costumeFrame(_actionTicker!.currentIndex)
+            : _spriteTicker?.currentIndex ?? 0,
         child: sprite,
       );
     }
@@ -304,7 +425,9 @@ class _CreatureSpriteState extends State<CreatureSprite>
     // Darklet's galaxy ring: far side behind the sprite, near side over it.
     if (DarkletRing.matches(widget.frameSize.x, widget.frameSize.y)) {
       sprite = DarkletRingView(
-        frameIndex: () => _spriteTicker?.currentIndex ?? 0,
+        frameIndex: () => _actionTicker != null
+            ? DarkletRing.hopBase + _actionTicker!.currentIndex
+            : _spriteTicker?.currentIndex ?? 0,
         child: sprite,
       );
     }
@@ -452,12 +575,16 @@ class InstanceSprite extends StatelessWidget {
   final double size;
   final bool flipX;
 
+  /// See [CreatureSprite.actions].
+  final CreatureActionController? actions;
+
   const InstanceSprite({
     super.key,
     required this.creature,
     required this.instance,
     required this.size,
     this.flipX = false,
+    this.actions,
   });
 
   @override
@@ -484,6 +611,7 @@ class InstanceSprite extends StatelessWidget {
         mutation: visuals.mutation,
         // Costumes are drawn by the sprite itself; an effect, round it below.
         costumes: instance.costumes,
+        actions: actions,
       ),
     );
 

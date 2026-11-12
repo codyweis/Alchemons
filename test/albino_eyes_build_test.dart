@@ -79,6 +79,49 @@ class _Tune {
 }
 
 const _tunes = <String, _Tune>{
+  // The Manes: one drawn frame each, their idle made from it, so every eye
+  // is found in frame 0 and carried with the head. Where the iris is small,
+  // dark or ringed, an oval over it.
+  'MAN01': _Tune(carry: true),
+  'MAN02': _Tune(carry: true),
+  'MAN03': _Tune(carry: true),
+  'MAN04': _Tune(carry: true),
+  // Drawn squeezed shut.
+  'MAN05': _Tune(skip: true),
+  'MAN06': _Tune(
+    carry: true,
+    ovals: [(0.012, 0.008, 0.0), (0.022, 0.011, 0.0)],
+  ),
+  'MAN07': _Tune(
+    carry: true,
+    ovals: [(0.006, 0.008, 0.0), (0.012, 0.013, 0.0)],
+  ),
+  'MAN08': _Tune(
+    carry: true,
+    ovals: [(0.009, 0.022, 0.0), (0.018, 0.028, 0.0)],
+  ),
+  'MAN09': _Tune(carry: true),
+  'MAN10': _Tune(carry: true),
+  'MAN11': _Tune(
+    carry: true,
+    ovals: [(0.008, 0.02, 0.0), (0.019, 0.024, 0.0)],
+  ),
+  'MAN12': _Tune(
+    carry: true,
+    ovals: [(0.005, 0.027, 0.0), (0.012, 0.03, 0.0)],
+  ),
+  'MAN13': _Tune(
+    carry: true,
+    ovals: [(0.008, 0.008, 0.0), (0.018, 0.009, 0.0)],
+  ),
+  'MAN14': _Tune(carry: true),
+  'MAN15': _Tune(carry: true),
+  'MAN16': _Tune(carry: true),
+  'MAN17': _Tune(carry: true),
+  'MAN18': _Tune(
+    carry: true,
+    ovals: [(0.007, 0.007, 0.0), (0.014, 0.009, 0.0)],
+  ),
   // Seeds moved off a lid, a glint or a pupil onto the iris.
   'HOR08': _Tune(nudge: [(-0.010, 0.005), (0.012, 0.001)]),
   'LET11': _Tune(nudge: [(0.019, 0.007), (-0.024, 0.001)]),

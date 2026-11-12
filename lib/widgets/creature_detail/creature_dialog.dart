@@ -39,6 +39,7 @@ import 'package:alchemons/widgets/creature_detail/worn_looks_row.dart';
 import 'package:alchemons/widgets/creature_detail/worn_strip.dart';
 import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
     show caseElementLight;
+import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/game_snack.dart';
 import 'package:alchemons/widgets/trade/trade_origin.dart';
@@ -1391,17 +1392,24 @@ class _Stage extends StatelessWidget {
                           dark: !light,
                           onLongPress: onLongPress,
                           reveal: reveal,
-                          child: Center(
-                            child: inst == null
-                                ? SizedBox.square(
-                                    dimension: 186 * k,
-                                    child: _speciesSprite(creature),
-                                  )
-                                : InstanceSprite(
-                                    creature: creature,
-                                    instance: inst,
-                                    size: 186 * k,
-                                  ),
+                          // It hops every five seconds while you look at it.
+                          child: IdleHops(
+                            first: const Duration(seconds: 5),
+                            minGap: const Duration(seconds: 5),
+                            maxGap: const Duration(seconds: 5),
+                            builder: (context, actions) => Center(
+                              child: inst == null
+                                  ? SizedBox.square(
+                                      dimension: 186 * k,
+                                      child: _speciesSprite(creature, actions),
+                                    )
+                                  : InstanceSprite(
+                                      creature: creature,
+                                      instance: inst,
+                                      size: 186 * k,
+                                      actions: actions,
+                                    ),
+                            ),
                           ),
                         ),
                 ),
@@ -1435,7 +1443,10 @@ class _Stage extends StatelessWidget {
     );
   }
 
-  static Widget _speciesSprite(Creature creature) {
+  static Widget _speciesSprite(
+    Creature creature,
+    CreatureActionController actions,
+  ) {
     final sd = creature.spriteData;
     if (sd == null) return const SizedBox.shrink();
     return CreatureSprite(
@@ -1449,6 +1460,7 @@ class _Stage extends StatelessWidget {
       brightness: briFromGenes(creature.genetics),
       hueShift: hueFromGenes(creature.genetics),
       isPrismatic: creature.isPrismaticSkin,
+      actions: actions,
     );
   }
 }

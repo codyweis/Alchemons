@@ -35,6 +35,12 @@ const _ink = ui.Color(0xFF07060B);
 const _white = ui.Color(0xFFFFF6E4);
 const _tau = pi * 2;
 
+/// `x % 1.0`, bit for bit, for every finite [x] (both are the one rounding
+/// of the same exact value, and both give +0 for a whole number), without
+/// the runtime call Dart makes for a double's `%`: in the grain loops that
+/// call was half of Fire's cost.
+double _fract(double x) => x - x.floorToDouble();
+
 double _h(int i, int salt) {
   final x = sin(i * 12.9898 + salt * 78.233) * 43758.5453;
   return x - x.floorToDouble();
@@ -60,6 +66,30 @@ void _g(int tone, double x, double y) {
   if (i + 2 > b.length) {
     _buf[tone] = b = Float32List(b.length * 2)..setAll(0, b);
   }
+  b[i] = x;
+  b[i + 1] = y;
+  _n[tone] = i + 2;
+}
+
+/// Makes room in [tone] for [count] more grains, so a loop can [_put] them
+/// with no check per grain. Only while nothing dissolves ([_whole]): then
+/// [_g] keeps every grain, and [_put] is [_g] without its checks.
+void _room(int tone, int count) {
+  final b = _buf[tone];
+  final need = _n[tone] + count * 2;
+  if (need <= b.length) return;
+  var len = b.length * 2;
+  while (len < need) {
+    len *= 2;
+  }
+  _buf[tone] = Float32List(len)..setAll(0, b);
+}
+
+bool get _whole => !(_keep < 1);
+
+void _put(int tone, double x, double y) {
+  final b = _buf[tone];
+  final i = _n[tone];
   b[i] = x;
   b[i + 1] = y;
   _n[tone] = i + 2;
@@ -91,9 +121,16 @@ void _bed(int tone, double r, int n, int salt, {double squash = 0.8}) {
   // [salt]'s: the same look for a fraction of the work per grain.
   final ca = cos(salt * 0.37), sa = sin(salt * 0.37);
   var j = (salt * 131) % _kBedN;
-  for (var i = 0; i < n; i++, j = (j + 1) % _kBedN) {
+  final whole = _whole;
+  if (whole) _room(tone, n);
+  for (var i = 0; i < n; i++) {
     final x = _bedX[j] * r, y = _bedY[j] * r;
-    _g(tone, x * ca - y * sa, (x * sa + y * ca) * squash);
+    if (whole) {
+      _put(tone, x * ca - y * sa, (x * sa + y * ca) * squash);
+    } else {
+      _g(tone, x * ca - y * sa, (x * sa + y * ca) * squash);
+    }
+    if (++j == _kBedN) j = 0;
   }
 }
 
@@ -273,19 +310,28 @@ void _fire(
   // clocks come from a table, turned by the effect's seed.
   final ca = cos(sd * 0.53), sa = sin(sd * 0.53);
   final embers = min(n(70), _kEmberN);
+  final tongues = _count(6);
+  final grains = min(_nf(56), _kTongueGrains);
+  final whole = _whole;
+  if (whole) {
+    for (var tone = 1; tone <= 4; tone++) {
+      _room(tone, embers + tongues * grains);
+    }
+  }
   for (var i = 0; i < embers; i++) {
     final glow = sin(t * _emberRate[i] + i * 1.9);
     if (glow < -0.2) continue;
     final x = _emberX[i] * r, y = _emberY[i] * r;
-    _g(
-      glow > 0.6 ? 3 : (glow > 0.1 ? 2 : 1),
-      x * ca - y * sa,
-      (x * sa + y * ca) * 0.8,
-    );
+    final tone = glow > 0.6 ? 3 : (glow > 0.1 ? 2 : 1);
+    if (whole) {
+      _put(tone, x * ca - y * sa, (x * sa + y * ca) * 0.8);
+    } else {
+      _g(tone, x * ca - y * sa, (x * sa + y * ca) * 0.8);
+    }
   }
-  for (var j = 0; j < _count(6); j++) {
+  for (var j = 0; j < tongues; j++) {
     final a = j * 2.399 + 0.4 + sd;
-    final rho = r * 0.58 * sqrt((j + 0.5) / _count(6));
+    final rho = r * 0.58 * sqrt((j + 0.5) / tongues);
     final bx = rho * cos(a), by = rho * sin(a) * 0.8;
     // Short and broad, and each at its own tilt: a tall thin upright
     // flame, repeated across a field, reads as streaks of rain (it did, at
@@ -298,8 +344,9 @@ void _fire(
     final sway1 = 12 * sin(t * 2.3 + j * 1.7) * k;
     final sway2 = 6 * sin(t * 5 + j) * k;
     final row = (j % _kTongues) * _kTongueGrains;
-    for (var i = 0; i < min(_nf(56), _kTongueGrains); i++) {
-      final s = (_tongueStart[row + i] + t * rate) % 1.0;
+    final climb = t * rate;
+    for (var i = 0; i < grains; i++) {
+      final s = _fract(_tongueStart[row + i] + climb);
       // The flame's width up its height, looked up rather than worked out.
       final half = wide * _flameWidth[(s * 255).floor()];
       final across = _tongueAcross[row + i];
@@ -307,15 +354,19 @@ void _fire(
       final core = across.abs() < 0.45;
       if (s > 0.85 && _tongueThin[i] < (s - 0.85) / 0.15) continue;
       final lx = across * half + lean, ly = -s * tall;
-      _g(
-        s < 0.22 && core ? 4 : (s < 0.5 ? (core ? 3 : 2) : (s < 0.8 ? 2 : 1)),
-        bx + lx * ct - ly * st,
-        by + lx * st + ly * ct,
-      );
+      final tone = s < 0.22 && core
+          ? 4
+          : (s < 0.5 ? (core ? 3 : 2) : (s < 0.8 ? 2 : 1));
+      if (whole) {
+        _put(tone, bx + lx * ct - ly * st, by + lx * st + ly * ct);
+      } else {
+        _g(tone, bx + lx * ct - ly * st, by + lx * st + ly * ct);
+      }
     }
   }
-  for (var i = 0; i < n(10); i++) {
-    final s = (_h(i, 31 + sd) + t * 0.3) % 1.0;
+  final sparks = n(10);
+  for (var i = 0; i < sparks; i++) {
+    final s = _fract(_h(i, 31 + sd) + t * 0.3);
     _g(2, (_h(i, 32 + sd) - 0.5) * r * 1.5, (-60 - s * 110) * k);
   }
   _flush(c, grain, const [
@@ -407,7 +458,7 @@ void _lava(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
   // Gas welling up through it in spreading clumps, and heat lifting off.
   for (var j = 0; j < n(4); j++) {
     final clock = t * 0.5 + _h(j, 51 + sd) * 3;
-    final s = clock % 1.0;
+    final s = _fract(clock);
     if (s > 0.8) continue;
     final beat = clock.floor();
     final a = _h(j * 7 + beat, 52) * _tau;
@@ -422,7 +473,7 @@ void _lava(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
     }
   }
   for (var i = 0; i < n(14); i++) {
-    final s = (_h(i, 54 + sd) + t * 0.2) % 1.0;
+    final s = _fract(_h(i, 54 + sd) + t * 0.2);
     _g(4, (_h(i, 55 + sd) - 0.5) * r * 1.5, -s * r);
   }
   _flush(c, grain, const [
@@ -438,7 +489,7 @@ void _lava(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
 void _water(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
   _bed(0, r, n(170), sd);
   for (var ring = 0; ring < 4; ring++) {
-    final s = (ring / 4 + t * 0.16) % 1.0;
+    final s = _fract(ring / 4 + t * 0.16);
     final rr = r * (0.08 + 0.9 * s);
     // Dense enough that a small pool's rings read as rings, not a few dots.
     final count = (rr * 2.4).clamp(16, 220).round();
@@ -535,6 +586,26 @@ void _ice(ui.Canvas c, double r, double grain, double t, int sd, bool reduced) {
   ]);
 }
 
+// A leaf's grains, laid out once: how far along the leaf each sits, how far
+// across, how wide the leaf is there, and whether it is one of the pale ones.
+const int _kLeafN = 8192;
+final Float64List _leafS = Float64List(_kLeafN);
+final Float64List _leafAcross = Float64List(_kLeafN);
+final Float64List _leafSwell = Float64List(_kLeafN);
+final Uint8List _leafPale = Uint8List(_kLeafN);
+bool _leafBuilt = false;
+
+void _buildLeaf() {
+  _leafBuilt = true;
+  for (var id = 0; id < _kLeafN; id++) {
+    final s = _h(id, 81);
+    _leafS[id] = s;
+    _leafAcross[id] = _h(id, 82) * 2 - 1;
+    _leafSwell[id] = sin(pi * pow(s, 0.7));
+    _leafPale[id] = _h(id, 83) > 0.6 ? 1 : 0;
+  }
+}
+
 // Plant: a rosette of leaves, lit on one side of the midrib, with tendrils.
 void _plant(
   ui.Canvas c,
@@ -545,6 +616,7 @@ void _plant(
   int sd,
   _N n,
 ) {
+  if (!_leafBuilt) _buildLeaf();
   _bed(0, r * 0.9, n(110), sd);
   for (var ring = 0; ring < 2; ring++) {
     final count = ring == 0 ? 7 : 5;
@@ -553,18 +625,35 @@ void _plant(
       final len = ring == 0 ? r * 0.92 : r * 0.56;
       final wide = (ring == 0 ? 20.0 : 15.0) * k;
       final ca = cos(a), sa = sin(a);
-      for (var i = 0; i < n(ring == 0 ? 34 : 22); i++) {
+      // Where each grain sits in its leaf never changes: it is read from a
+      // table laid out once ([_buildLeaf]), and only the leaf's own sway is
+      // worked out here.
+      final grains = n(ring == 0 ? 34 : 22);
+      final sway = sin(t * 0.7 + j);
+      for (var i = 0; i < grains; i++) {
         final id = i + j * 211 + ring * 5000;
-        final s = _h(id, 81), across = _h(id, 82) * 2 - 1;
-        final half = wide * sin(pi * pow(s, 0.7));
-        final curl = 10 * k * s * s * sin(t * 0.7 + j);
+        final double s, across, swell;
+        final bool pale;
+        if (id < _kLeafN) {
+          s = _leafS[id];
+          across = _leafAcross[id];
+          swell = _leafSwell[id];
+          pale = _leafPale[id] == 1;
+        } else {
+          s = _h(id, 81);
+          across = _h(id, 82) * 2 - 1;
+          swell = sin(pi * pow(s, 0.7));
+          pale = _h(id, 83) > 0.6;
+        }
+        final half = wide * swell;
+        final curl = 10 * k * s * s * sway;
         final along = len * (0.08 + 0.92 * s);
         final x = ca * along - sa * (across * half + curl);
         final y = sa * along + ca * (across * half + curl);
         _g(
           across.abs() < 0.12
               ? 0
-              : (across * (ca - sa) < 0 ? (_h(id, 83) > 0.6 ? 3 : 2) : 1),
+              : (across * (ca - sa) < 0 ? (pale ? 3 : 2) : 1),
           x,
           y * 0.86,
         );
@@ -663,6 +752,42 @@ void _lightning(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
 }
 
 // Steam: vents in the floor, each breathing out a plume that billows.
+// Steam's fixed parts, worked out once: each vent's lit lip and dark mouth
+// (the same for every vent, scaled), and each plume grain's hashes by vent
+// and place (vent j, grain i at j * 46 + i).
+const int _kVents = 20, _kPlume = 46;
+final Float64List _lipCos = Float64List(12), _lipSin = Float64List(12);
+final Float64List _mouthRho = Float64List(14);
+final Float64List _mouthCos = Float64List(14), _mouthSin = Float64List(14);
+final Float64List _plumeStart = Float64List(_kVents * _kPlume);
+final Float64List _plumeGone = Float64List(_kVents * _kPlume);
+final Float64List _plumeRoll = Float64List(_kVents * _kPlume);
+final Float64List _plumeSide = Float64List(_kVents * _kPlume);
+bool _steamBuilt = false;
+
+void _buildSteam() {
+  _steamBuilt = true;
+  for (var i = 0; i < 12; i++) {
+    final b = pi * 1.25 + (i / 11 - 0.5) * 2.2;
+    _lipCos[i] = cos(b);
+    _lipSin[i] = sin(b);
+  }
+  for (var i = 0; i < 14; i++) {
+    _mouthRho[i] = sqrt((i + 0.5) / 14);
+    _mouthCos[i] = cos(i * 2.399);
+    _mouthSin[i] = sin(i * 2.399);
+  }
+  for (var j = 0; j < _kVents; j++) {
+    for (var i = 0; i < _kPlume; i++) {
+      final id = i + j * 400, at = j * _kPlume + i;
+      _plumeStart[at] = _h(id, 203);
+      _plumeGone[at] = _h(id, 207);
+      _plumeRoll[at] = _h(id, 205) * _tau;
+      _plumeSide[at] = _h(id, 206) * 2 - 1;
+    }
+  }
+}
+
 void _steam(
   ui.Canvas c,
   double r,
@@ -672,35 +797,56 @@ void _steam(
   int sd,
   _N n,
 ) {
+  if (!_steamBuilt) _buildSteam();
   // A light bed: where many of these overlap, a heavy dark scatter read
   // as soot.
   _bed(0, r, n(45), sd);
-  for (var j = 0; j < _count(4); j++) {
+  final vents = _count(4);
+  final plume = _nf(46);
+  final whole = _whole;
+  if (whole) {
+    _room(0, vents * 14);
+    for (var tone = 2; tone <= 4; tone++) {
+      _room(tone, vents * (12 + plume));
+    }
+  }
+  for (var j = 0; j < vents; j++) {
     final a = j * 2.399 + 1.1 + sd;
-    final rho = r * 0.6 * sqrt((j + 0.5) / _count(4));
+    final rho = r * 0.6 * sqrt((j + 0.5) / vents);
     final vx = rho * cos(a), vy = rho * sin(a) * 0.8;
     // The vent: a dark mouth with its lip lit on the side toward the
     // light only (a full ring of grains read as a hoop).
     for (var i = 0; i < 12; i++) {
-      final b = pi * 1.25 + (i / 11 - 0.5) * 2.2;
-      _g(3, vx + 11 * k * cos(b), vy + 7 * k * sin(b));
+      final x = vx + 11 * k * _lipCos[i], y = vy + 7 * k * _lipSin[i];
+      whole ? _put(3, x, y) : _g(3, x, y);
     }
     for (var i = 0; i < 14; i++) {
-      final rr = 9 * k * sqrt((i + 0.5) / 14);
-      _g(0, vx + rr * cos(i * 2.399), vy + rr * 0.64 * sin(i * 2.399));
+      final rr = 9 * k * _mouthRho[i];
+      final x = vx + rr * _mouthCos[i], y = vy + rr * 0.64 * _mouthSin[i];
+      whole ? _put(0, x, y) : _g(0, x, y);
     }
     final puff = 0.5 + 0.5 * sin(t * 1.6 + j * 1.3);
-    for (var i = 0; i < _nf(46); i++) {
+    final rate = 0.3 + 0.12 * _h(j, 204);
+    final lift = 0.8 + 0.3 * puff;
+    for (var i = 0; i < plume; i++) {
+      final at = j * _kPlume + i;
+      final table = j < _kVents && i < _kPlume;
       final id = i + j * 400;
-      final s = (_h(id, 203) + t * (0.3 + 0.12 * _h(j, 204))) % 1.0;
-      if (s > 0.6 && _h(id, 207) < (s - 0.6) / 0.4) continue;
+      final s = _fract((table ? _plumeStart[at] : _h(id, 203)) + t * rate);
+      if (s > 0.6 && (table ? _plumeGone[at] : _h(id, 207)) < (s - 0.6) / 0.4) {
+        continue;
+      }
       final wide = (5 + 34 * pow(s, 0.8)) * k;
-      final roll = sin(s * 9 + _h(id, 205) * _tau + t);
-      _g(
-        s < 0.25 ? 4 : (roll > 0.2 ? 3 : 2),
-        vx + (_h(id, 206) * 2 - 1) * wide + 9 * k * roll * s,
-        vy - (16 + 96 * s) * k * (0.8 + 0.3 * puff),
+      final roll = sin(
+        s * 9 + (table ? _plumeRoll[at] : _h(id, 205) * _tau) + t,
       );
+      final tone = s < 0.25 ? 4 : (roll > 0.2 ? 3 : 2);
+      final x =
+          vx +
+          (table ? _plumeSide[at] : _h(id, 206) * 2 - 1) * wide +
+          9 * k * roll * s;
+      final y = vy - (16 + 96 * s) * k * lift;
+      whole ? _put(tone, x, y) : _g(tone, x, y);
     }
   }
   _flush(c, grain, const [
@@ -726,7 +872,7 @@ void _earth(
 ) {
   _bed(0, r, n(70), sd);
   for (var i = 0; i < (_mends ? n(130) : 0); i++) {
-    final s = (_h(i, 211 + sd) + t * 0.16) % 1.0;
+    final s = _fract(_h(i, 211 + sd) + t * 0.16);
     if (s > 0.6 && _h(i, 210) < (s - 0.6) / 0.4) continue;
     final a = _h(i, 212 + sd) * _tau + 0.4 * s;
     final rr = r * 0.62 * pow(s, 0.8);
@@ -830,7 +976,7 @@ void _mud(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
   }
   for (var j = 0; j < n(4); j++) {
     final clock = t * 0.35 + _h(j, 234 + sd) * 5;
-    final s = clock % 1.0;
+    final s = _fract(clock);
     if (s > 0.9) continue;
     final beat = clock.floor();
     final a = _h(j * 7 + beat, 235) * _tau;
@@ -869,10 +1015,14 @@ void _dust(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
     // the crests bright. In four close browns over an even cover they read
     // as a speckle at play size.
     if (wave < -0.1 && _discThin2[i] < 0.92) continue;
-    _g(wave > 0.55 ? 3 : (wave > 0.2 ? 2 : (wave > -0.1 ? 1 : 0)), x * r, y * r);
+    _g(
+      wave > 0.55 ? 3 : (wave > 0.2 ? 2 : (wave > -0.1 ? 1 : 0)),
+      x * r,
+      y * r,
+    );
   }
   for (var i = 0; i < n(12); i++) {
-    final s = (_h(i, 244 + sd) + t * 0.5) % 1.0;
+    final s = _fract(_h(i, 244 + sd) + t * 0.5);
     final across = (_h(i, 245 + sd) - 0.5) * r * 1.5;
     final along = -r * 1.2 + s * r * 2.4;
     for (var j = 0; j < 4; j++) {
@@ -969,6 +1119,24 @@ void _air(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
   ]);
 }
 
+// A bank of poison's grains, laid out once: how far out each lies and on
+// which bearing.
+const int _kBankN = 14000;
+final Float64List _bankOut = Float64List(_kBankN);
+final Float64List _bankCos = Float64List(_kBankN);
+final Float64List _bankSin = Float64List(_kBankN);
+bool _bankBuilt = false;
+
+void _buildBank() {
+  _bankBuilt = true;
+  for (var id = 0; id < _kBankN; id++) {
+    final b = _h(id, 273) * _tau;
+    _bankOut[id] = sqrt(_h(id, 272));
+    _bankCos[id] = cos(b);
+    _bankSin[id] = sin(b);
+  }
+}
+
 // Poison: banks of it lying low, sickly bright on top, dark underneath.
 void _poison(
   ui.Canvas c,
@@ -979,28 +1147,40 @@ void _poison(
   int sd,
   _N n,
 ) {
+  if (!_bankBuilt) _buildBank();
   _bed(0, r, n(80), sd);
-  for (var j = 0; j < _count(9); j++) {
+  final banks = _count(9);
+  for (var j = 0; j < banks; j++) {
     final a = j * 2.399 + 0.5 + sd;
-    final rho = r * 0.7 * sqrt((j + 0.5) / _count(9));
+    final rho = r * 0.7 * sqrt((j + 0.5) / banks);
     final bx = rho * cos(a) + 6 * k * sin(t * 0.5 + j);
     final by = rho * sin(a) * 0.8;
     final big =
         (20 + 14 * _h(j, 271 + sd)) * k * (0.9 + 0.12 * sin(t * 0.9 + j * 2));
-    for (var i = 0; i < _nf(34); i++) {
-      final rr = big * sqrt(_h(i + j * 300, 272));
-      final b = _h(i + j * 300, 273) * _tau;
-      final y = rr * sin(b) * 0.62;
+    // Where each grain lies in its bank is read from a table laid out
+    // once ([_buildBank]); only the bank's creep and swell are done here.
+    final grains = _nf(34);
+    for (var i = 0; i < grains; i++) {
+      final id = i + j * 300;
+      final double out, cb, sb;
+      if (id < _kBankN) {
+        out = _bankOut[id];
+        cb = _bankCos[id];
+        sb = _bankSin[id];
+      } else {
+        out = sqrt(_h(id, 272));
+        final b = _h(id, 273) * _tau;
+        cb = cos(b);
+        sb = sin(b);
+      }
+      final rr = big * out;
+      final y = rr * sb * 0.62;
       final top = -y / (big * 0.62);
-      _g(
-        top > 0.45 ? 3 : (top > -0.1 ? 2 : 1),
-        bx + rr * cos(b),
-        by + y - 6 * k,
-      );
+      _g(top > 0.45 ? 3 : (top > -0.1 ? 2 : 1), bx + rr * cb, by + y - 6 * k);
     }
   }
   for (var i = 0; i < n(10); i++) {
-    final s = (_h(i, 274 + sd) + t * 0.22) % 1.0;
+    final s = _fract(_h(i, 274 + sd) + t * 0.22);
     if (s > 0.8) continue;
     final x = (_h(i, 275 + sd) - 0.5) * r * 1.4 + 7 * k * sin(t * 1.2 + i);
     for (var j = 0; j < 4; j++) {
@@ -1052,7 +1232,7 @@ void _spirit(
     }
   }
   for (var i = 0; i < n(14); i++) {
-    final s = (_h(i, 284 + sd) + t * 0.18) % 1.0;
+    final s = _fract(_h(i, 284 + sd) + t * 0.18);
     if (sin(s * pi) < 0.4) continue;
     _g(
       2,
@@ -1088,7 +1268,7 @@ void _light(ui.Canvas c, double r, double grain, double t, int sd, _N n) {
     }
   }
   for (var i = 0; i < n(20); i++) {
-    final s = (_h(i, 305 + sd) + t * 0.2) % 1.0;
+    final s = _fract(_h(i, 305 + sd) + t * 0.2);
     if (sin(s * pi) < 0.4) continue;
     final a = _h(i, 306 + sd) * _tau;
     _g(2, r * s * cos(a), r * s * sin(a) * 0.86);
@@ -1122,7 +1302,7 @@ void _vein(
     px += cos(dir) * step;
     py += sin(dir) * step * 0.8;
     final s = i / steps;
-    final pulse = ((s - t * 0.5 + id * 0.13) % 1.0) < 0.14;
+    final pulse = _fract(s - t * 0.5 + id * 0.13) < 0.14;
     _g(pulse ? 4 : (depth == 0 && s < 0.6 ? 3 : 2), px, py);
     if (depth < 1 && _h(id * 61 + i, 314) < 0.16) {
       _vein(

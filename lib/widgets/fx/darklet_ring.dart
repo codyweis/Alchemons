@@ -25,6 +25,16 @@ abstract final class DarkletRing {
   static const double _headX = 361;
   static const List<double> _headY = [315, 319, 323, 319];
 
+  /// A frame index at or over this is a frame of its hop (LET15's hop
+  /// sheet), counted from here: the ring rides the head up and down with it.
+  static const int hopBase = 100;
+
+  // Head centre per hop frame, in frame pixels (crouch, up, top, down, land).
+  static const List<double> _hopHeadY = [
+    315.0, 326.6, 347.6, 292.5, 283.1, 283.9, 283.9, 288.2, //
+    331.3, 352.3, 303.4, 324.3, 310.3, 317.3, 315.0, 315.0,
+  ];
+
   // The ring was designed at 0.88 of the frame; radii below are in those units.
   static const double _unit = 1 / 0.88;
   static const double _tilt = 0.47;
@@ -79,7 +89,10 @@ abstract final class DarkletRing {
     final s = frame.width / frameSize.width;
     final k = s * _unit;
     final cx = frame.left + _headX * s;
-    final cy = frame.top + _headY[index.clamp(0, 3)] * s;
+    final headY = index >= hopBase
+        ? _hopHeadY[(index - hopBase).clamp(0, _hopHeadY.length - 1)]
+        : _headY[index.clamp(0, 3)];
+    final cy = frame.top + headY * s;
     final cosT = math.cos(_tilt), sinT = math.sin(_tilt);
     final depth = (front ? 1.0 : .62) * opacity;
 

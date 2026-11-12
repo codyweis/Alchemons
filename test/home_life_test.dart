@@ -6,6 +6,7 @@ import 'package:alchemons/games/wilderness/scene_game.dart';
 import 'package:alchemons/models/creature.dart';
 import 'package:alchemons/models/encounters/wild_weather.dart';
 import 'package:alchemons/models/home_biome.dart';
+import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:alchemons/widgets/fx/keepsake_art.dart';
 import 'package:alchemons/widgets/wilderness/creature_sprite_component.dart';
 import 'package:flame/game.dart';
@@ -117,18 +118,57 @@ void main() {
     await tester.pumpWidget(const SizedBox());
   });
 
+  testWidgets('by day they hop where they stand, never two at once', (
+    tester,
+  ) async {
+    final game = await mount(tester, two);
+    final sprites = game
+        .descendants()
+        .whereType<CreatureSpriteComponent>()
+        .toList();
+    expect(sprites.length, 2);
+    var hops = 0, together = 0;
+    var was = [false, false];
+    for (var i = 0; i < 90 * 30; i++) {
+      // The hop sheet is read from disk: let it arrive.
+      if (i % 3 == 0) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 2)),
+        );
+      }
+      await tester.pump(const Duration(milliseconds: 33));
+      final now = [for (final s in sprites) s.acting];
+      for (var k = 0; k < 2; k++) {
+        if (now[k] && !was[k]) hops++;
+      }
+      if (now[0] && now[1]) together++;
+      was = now;
+    }
+    expect(hops, greaterThan(1), reason: 'someone hopped');
+    // One may start as the other lands, but they do not hop side by side.
+    expect(together, lessThan(12));
+
+    // Night: everyone is asleep, in their own sleep, and nobody hops.
+    game.fieldHourOverride = 23;
+    await run(tester, 30);
+    expect(sprites.every((s) => s.sleeping), isTrue);
+    expect(sprites.any((s) => s.playAction(CreatureAction.hop)), isFalse);
+    await tester.pumpWidget(const SizedBox());
+  });
+
   testWidgets('at night what stands falls asleep', (tester) async {
     final game = await mount(tester, two, hour: 23.5);
     await run(tester, 2);
     for (final c in game.debugResidents.values) {
       final sprite = c.children.whereType<CreatureSpriteComponent>().first;
-      expect(sprite.animating, isFalse);
+      expect(sprite.sleeping || !sprite.animating, isTrue);
     }
     game.fieldHourOverride = 12;
     await run(tester, 2);
     for (final c in game.debugResidents.values) {
       final sprite = c.children.whereType<CreatureSpriteComponent>().first;
       expect(sprite.animating, isTrue);
+      expect(sprite.sleeping, isFalse);
     }
     await tester.pumpWidget(const SizedBox());
   });
@@ -194,7 +234,11 @@ void main() {
         .children
         .whereType<CreatureSpriteComponent>()
         .first;
-    expect(sprite.animating, isFalse, reason: 'asleep there');
+    expect(
+      sprite.sleeping || !sprite.animating,
+      isTrue,
+      reason: 'asleep there',
+    );
     await tester.pumpWidget(const SizedBox());
   });
 
@@ -224,7 +268,11 @@ void main() {
         .children
         .whereType<CreatureSpriteComponent>()
         .first;
-    expect(sprite.animating, isFalse, reason: 'asleep');
+    expect(
+      sprite.sleeping || !sprite.animating,
+      isTrue,
+      reason: 'asleep',
+    );
     await tester.pumpWidget(const SizedBox());
   });
 

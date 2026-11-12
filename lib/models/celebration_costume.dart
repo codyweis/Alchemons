@@ -1,7 +1,21 @@
+import 'dart:math' as math;
+
 import 'package:alchemons/models/inventory.dart';
 import 'package:flutter/painting.dart';
 
+part 'costume_action_tracks.dart';
 part 'costume_fits.dart';
+
+/// A sprite frame index at or over this names a frame of an action sheet
+/// (a hop, a sleep, an attack) rather than of the idle: see
+/// [costumeActionFrame].
+const int kCostumeActionFrame = 1000;
+
+/// The frame index to hand a costume for frame [frame] of action [action]
+/// (0 hop, 1 sleep, 2 attack: `CreatureAction.index`), so it rides the head
+/// through it ([FamilyCostume.fitAt]).
+int costumeActionFrame(int action, int frame) =>
+    kCostumeActionFrame * (action + 1) + frame;
 
 /// The costumes: a hat, a nose, sunglasses — bought in the shop — and the
 /// Athanor's crown and monocle, found first in the Furnace and sold in the
@@ -260,8 +274,46 @@ enum FamilyCostume {
     if (frames == null || frames.isEmpty) {
       return (x: fit.$1, y: fit.$2, size: fit.$3, tilt: tilt);
     }
+    if (frame >= kCostumeActionFrame) {
+      return _actionFitAt(species, frame, fit, tilt, frames);
+    }
     final f = frames[frame % frames.length];
     return (x: f.$1, y: f.$2, size: fit.$3, tilt: tilt + f.$3);
+  }
+
+  /// Its fit in a frame of an action sheet ([costumeActionFrame]): where it
+  /// sits in the idle frame that action frame was made from, carried and
+  /// turned with the head about the point between the eyes. A species with
+  /// no track for the action keeps its idle's first fit.
+  ({double x, double y, double size, double tilt}) _actionFitAt(
+    String species,
+    int frame,
+    (double, double, double) fit,
+    double tilt,
+    List<(double, double, double)> frames,
+  ) {
+    final action = frame ~/ kCostumeActionFrame - 1;
+    final tracks = _actionTracks[species];
+    if (tracks == null || action >= tracks.length || tracks[action].isEmpty) {
+      final f = frames.first;
+      return (x: f.$1, y: f.$2, size: fit.$3, tilt: tilt + f.$3);
+    }
+    final track = tracks[action];
+    final t = track[(frame % kCostumeActionFrame).clamp(0, track.length - 1)];
+    final base = frames[t.$1 % frames.length];
+    // The pivot: the point between the eyes in that idle frame.
+    final eyes = _frameFits[FamilyCostume.sunglasses]?[species];
+    final pivot = eyes == null || eyes.isEmpty
+        ? base
+        : eyes[t.$1 % eyes.length];
+    final dx = base.$1 - pivot.$1, dy = base.$2 - pivot.$2;
+    final c = math.cos(t.$4), s = math.sin(t.$4);
+    return (
+      x: pivot.$1 + t.$2 + dx * c - dy * s,
+      y: pivot.$2 + t.$3 + dx * s + dy * c,
+      size: fit.$3,
+      tilt: tilt + base.$3 + t.$4,
+    );
   }
 
   /// The species prefixes it fits, in the order of [familyNames].

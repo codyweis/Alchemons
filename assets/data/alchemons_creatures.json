@@ -155,7 +155,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 90
       },
       "baseStats": {
@@ -179,7 +180,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 110
       },
       "baseStats": {
@@ -203,7 +205,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 100
       },
       "baseStats": {
@@ -227,7 +230,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 80
       },
       "baseStats": {
@@ -251,7 +255,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 95
       },
       "baseStats": {
@@ -275,7 +280,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 110
       },
       "baseStats": {
@@ -299,7 +305,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 100
       },
       "baseStats": {
@@ -347,7 +354,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -371,7 +379,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -395,7 +404,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -443,7 +453,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -467,7 +478,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -491,7 +503,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -515,7 +528,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -539,7 +553,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -969,11 +984,11 @@
       "image": "creatures/uncommon/MAN01_firemane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "rows": 1,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 58,
@@ -994,10 +1009,11 @@
       "image": "creatures/uncommon/MAN02_watermane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 56,
@@ -1018,10 +1034,11 @@
       "image": "creatures/uncommon/MAN03_earthmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 50,
@@ -1042,10 +1059,11 @@
       "image": "creatures/uncommon/MAN04_airmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 66,
@@ -1066,10 +1084,11 @@
       "image": "creatures/uncommon/MAN05_steammane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 61,
@@ -1090,10 +1109,11 @@
       "image": "creatures/uncommon/MAN06_lavamane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 51,
@@ -1114,10 +1134,11 @@
       "image": "creatures/uncommon/MAN07_lightningmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 68,
@@ -1138,10 +1159,11 @@
       "image": "creatures/uncommon/MAN08_mudmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 51,
@@ -1162,10 +1184,11 @@
       "image": "creatures/uncommon/MAN09_icemane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 56,
@@ -1186,10 +1209,11 @@
       "image": "creatures/uncommon/MAN10_dustmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 60,
@@ -1210,11 +1234,11 @@
       "image": "creatures/uncommon/MAN11_crystalmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "rows": 1,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 55,
@@ -1235,10 +1259,11 @@
       "image": "creatures/uncommon/MAN12_plantmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 57,
@@ -1259,10 +1284,11 @@
       "image": "creatures/uncommon/MAN13_poisonmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 60,
@@ -1283,10 +1309,11 @@
       "image": "creatures/uncommon/MAN14_spiritmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 61,
@@ -1307,10 +1334,11 @@
       "image": "creatures/rare/MAN15_darkmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 59,
@@ -1331,10 +1359,11 @@
       "image": "creatures/rare/MAN16_lightmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 60,
@@ -1355,16 +1384,42 @@
       "image": "creatures/rare/MAN17_bloodmane.png",
       "mutationFamily": "Mane",
       "spriteData": {
-        "frameWidth": 512,
-        "frameHeight": 512,
-        "totalFrames": 4,
-        "frameDurationMs": 100
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
       },
       "baseStats": {
         "speed": 59,
         "intelligence": 53,
         "strength": 81,
         "beauty": 59
+      }
+    },
+    {
+      "id": "MAN18",
+      "name": "Earthmane",
+      "types": [
+        "Earth"
+      ],
+      "variant": [],
+      "rarity": "Rare",
+      "description": "Flat stones sit stacked along its brow and tail, balanced with the patience of something that has never once been hurried.",
+      "image": "creatures/rare/MAN18_earthmane.png",
+      "mutationFamily": "Mane",
+      "spriteData": {
+        "frameWidth": 1200,
+        "frameHeight": 1200,
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 120
+      },
+      "baseStats": {
+        "speed": 50,
+        "intelligence": 52,
+        "strength": 82,
+        "beauty": 58
       }
     },
     {
@@ -1813,7 +1868,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -1837,7 +1893,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -1861,7 +1918,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -1885,7 +1943,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -1909,7 +1968,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -1933,7 +1993,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -1957,7 +2018,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -1981,7 +2043,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2005,7 +2068,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2029,7 +2093,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2053,7 +2118,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2077,7 +2143,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2101,7 +2168,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2125,7 +2193,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2149,7 +2218,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2173,7 +2243,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2197,7 +2268,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2223,8 +2295,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
-        "rows": 1,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 90
       },
       "baseStats": {
@@ -2248,8 +2320,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "rows": 1,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 110
       },
       "baseStats": {
@@ -2273,9 +2345,9 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
-        "frameDurationMs": 130,
-        "rows": 1
+        "totalFrames": 8,
+        "rows": 2,
+        "frameDurationMs": 130
       },
       "baseStats": {
         "speed": 74,
@@ -2323,8 +2395,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
-        "rows": 1,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 160
       },
       "baseStats": {
@@ -2348,7 +2420,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 150
       },
       "baseStats": {
@@ -2372,7 +2445,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 75
       },
       "baseStats": {
@@ -2396,7 +2470,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 170
       },
       "baseStats": {
@@ -2420,7 +2495,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 160
       },
       "baseStats": {
@@ -2444,7 +2520,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 105
       },
       "baseStats": {
@@ -2468,7 +2545,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 150
       },
       "baseStats": {
@@ -2492,7 +2570,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 150
       },
       "baseStats": {
@@ -2516,7 +2595,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2540,7 +2620,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 140
       },
       "baseStats": {
@@ -2564,7 +2645,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -2588,7 +2670,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 140
       },
       "baseStats": {
@@ -2612,7 +2695,8 @@
       "spriteData": {
         "frameWidth": 1200,
         "frameHeight": 1200,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 150
       },
       "baseStats": {
@@ -3044,7 +3128,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3068,7 +3153,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3092,7 +3178,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3116,7 +3203,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3140,7 +3228,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3164,7 +3253,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3188,7 +3278,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3236,7 +3327,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3260,7 +3352,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3284,7 +3377,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3332,7 +3426,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3356,7 +3451,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3404,7 +3500,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {
@@ -3428,7 +3525,8 @@
       "spriteData": {
         "frameWidth": 512,
         "frameHeight": 512,
-        "totalFrames": 4,
+        "totalFrames": 8,
+        "rows": 2,
         "frameDurationMs": 120
       },
       "baseStats": {

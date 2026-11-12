@@ -2,7 +2,7 @@
 //
 // HOW A FACTION VARIANT LOOKS.
 //
-// A variant of a polished species (Lets, Pips, Horns, Wings) is a palette
+// A variant of a polished species (Lets, Pips, Horns, Wings, Manes) is a palette
 // swap: its main color turns to its faction's, and every other color turns
 // with it by the same amount, so its parts keep their contrast with each
 // other. The turn is made in OKLab, so nothing darkens or greys on the way:
@@ -29,7 +29,7 @@ import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/albino_look.dart';
 
 /// The families whose variants are a palette swap.
-const Set<String> kVariantSwapFamilies = {'LET', 'PIP', 'HOR', 'WNG'};
+const Set<String> kVariantSwapFamilies = {'LET', 'PIP', 'HOR', 'WNG', 'MAN'};
 
 /// Each faction's swap: the hue its variants' main color lands on (OKLCh,
 /// degrees), the range of hues that still read as the faction (low to high,

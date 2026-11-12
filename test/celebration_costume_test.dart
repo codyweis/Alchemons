@@ -34,7 +34,7 @@ void main() {
       'pip': 'PIP01',
       'horn': 'HOR03',
       'let': 'LET02',
-      'mane': 'MAN01',
+      'mask': 'MSK01',
     }.entries) {
       await db.creatureDao.insertInstance(
         instanceId: entry.key,
@@ -153,22 +153,25 @@ void main() {
       }
     }
     // Not yet one that has not been fitted.
-    expect(await wear('mane', hat), false);
+    expect(await wear('mask', hat), false);
     expect(await wear('missing', hat), false);
     // The effect slot will not take one.
     expect(
       await applyAlchemyEffect(
         db,
-        instanceId: 'mane',
+        instanceId: 'mask',
         itemKey: InvKeys.alchemyCelebration,
       ),
       false,
     );
-    expect(await effect('mane'), null);
+    expect(await effect('mask'), null);
     for (final c in FamilyCostume.sold) {
       expect(await owned(c.itemKey), 1);
     }
-    expect(FamilyCostume.fittedFamiliesText, 'Wings, Pips, Horns and Lets');
+    expect(
+      FamilyCostume.fittedFamiliesText,
+      'Wings, Pips, Horns, Lets and Manes',
+    );
   });
 
   test(
@@ -209,7 +212,7 @@ void main() {
     expect(WornCostumes.parse(''), isNull);
     expect(WornCostumes.parse('nonsense'), isNull);
     // A costume the species was not fitted for, or an unknown one, drops.
-    expect(WornCostumes.parse('MAN01:hat'), isNull);
+    expect(WornCostumes.parse('MSK01:hat'), isNull);
     final worn = WornCostumes.parse('LET02:cape,hat#zz,nose#FFFFFF')!;
     expect(worn.colors.keys, [hat, nose]);
     expect(worn.colorOf(hat), hat.defaultColor);
@@ -264,13 +267,18 @@ void main() {
       expect(definition.stackable, true);
       expect(AlchemyEffectPaint.has(costume.previewKey), true);
       expect(InvKeys.alchemyItemFor(costume.previewKey), isNull);
-      expect(costume.placements.length, 68, reason: costume.tag);
+      expect(costume.placements.length, 86, reason: costume.tag);
       for (final family in ['WNG', 'PIP', 'HOR', 'LET']) {
         expect(
           costume.placements.keys.where((s) => s.startsWith(family)).length,
           17,
         );
       }
+      // Both Earthmanes.
+      expect(
+        costume.placements.keys.where((s) => s.startsWith('MAN')).length,
+        18,
+      );
       for (final species in costume.tilts.keys) {
         expect(costume.placements, contains(species));
       }
@@ -290,7 +298,7 @@ void main() {
         }
       }
     }
-    expect(hat.fitAt('MAN01', 0), isNull);
+    expect(hat.fitAt('MSK01', 0), isNull);
     // Firewing's head rises over its wingbeat: the hat goes with it.
     expect(hat.fitAt('WNG01', 3)!.y, lessThan(hat.fitAt('WNG01', 0)!.y));
   });

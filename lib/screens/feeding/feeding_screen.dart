@@ -46,6 +46,7 @@ import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
 import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart'
     show InstanceDetailMode;
+import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
 import 'package:alchemons/widgets/fx/infusion_particles.dart';
@@ -277,6 +278,7 @@ class _FeedingScreenState extends State<FeedingScreen>
     _flashController.dispose();
     _pourController.dispose();
     _xpController.dispose();
+    _bodyActions.dispose();
     _soulSwapController.dispose();
     _arrival.dispose();
     _pickerIn.dispose();
@@ -1092,6 +1094,7 @@ class _FeedingScreenState extends State<FeedingScreen>
                             creature: creature,
                             instance: inst,
                             size: spriteSize,
+                            actions: _bodyActions,
                           ),
                         ),
                       ),
@@ -1162,6 +1165,9 @@ class _FeedingScreenState extends State<FeedingScreen>
     return from + (to - from) * e;
   }
 
+  /// Asks the creature on the stage to hop.
+  final CreatureActionController _bodyActions = CreatureActionController();
+
   /// A level reached while the line counts up: felt, and heard.
   void _onXpTick() {
     final from = _xpFrom, to = _xpTo;
@@ -1170,6 +1176,8 @@ class _FeedingScreenState extends State<FeedingScreen>
     final level = (from + (to - from) * e).floor();
     if (level > _lastLevelShown) {
       _lastLevelShown = level;
+      // It hops for the level.
+      _bodyActions.play(CreatureAction.hop);
       HapticFeedback.mediumImpact();
       context.sound(
         level >= AlchemonStatSystem.maxLevel

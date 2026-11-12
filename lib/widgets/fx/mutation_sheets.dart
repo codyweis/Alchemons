@@ -216,6 +216,13 @@ SpriteSheetDef? sheetForVisuals(SpriteSheetDef? sheet, SpriteVisuals? visuals) {
   );
 }
 
+/// Lets go of the baked copy at [path], if there is one: it is baked again
+/// the next time it is loaded. For sheets that are only up now and then (a
+/// hop), so they do not stay in memory for good.
+void forgetBakedSheet(String path) {
+  _baked.remove(path)?.then((image) => image.dispose()).catchError((_) {});
+}
+
 /// Whether [path] names a baked mutation sheet.
 bool isMutatedSheetPath(String path) => _specs.containsKey(path);
 

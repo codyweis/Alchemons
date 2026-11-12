@@ -1,3 +1,4 @@
+import 'package:alchemons/games/shared/creature_fire.dart';
 import 'package:alchemons/audio/sound_cue.dart';
 // lib/games/planet_dungeon/planet_dungeon_game.dart
 //
@@ -2403,6 +2404,9 @@ class PlanetDungeonGame extends FlameGame {
   };
 
   SpriteAnimationTicker? _guardianTicker;
+
+  /// A creature firing its special: its fire sheet over its idle.
+  late final CreatureFire _fire = CreatureFire(() => images);
   double _guardianSpriteScale = 1.0;
 
   /// The planet's relic artwork (`assets/images/relics/<el>relic.png`) for
@@ -3201,6 +3205,7 @@ class PlanetDungeonGame extends FlameGame {
       ),
     );
     c.ticker = anim.createTicker();
+    _fire.warm(c.member.spriteSheet, c.member.spriteVisuals);
     // THE FAMILIES' OWN SIZES (the author, 2026-10-06: "are we using correct
     // alchemon scaling sizes that we use in survival and cosmic space?" —
     // we weren't: every family stood in one 44-unit box). The same family
@@ -3582,6 +3587,7 @@ class PlanetDungeonGame extends FlameGame {
     _abilityVfx.update(dt);
     for (final c in creatures) {
       c.ticker?.update(dt);
+      _fire.tick(c, dt);
     }
     _guardianTicker?.update(dt);
 
@@ -7568,6 +7574,8 @@ class PlanetDungeonGame extends FlameGame {
     creature.angle = angle;
     comp.angle = angle;
     comp.specialCooldown = comp.effectiveSpecialCooldown;
+    // It fires: the cast goes off now, its body follows through.
+    _fire.play(creature, comp.member.spriteSheet, comp.member.spriteVisuals);
     // A caster keeps the pieces of its last two casts (survival's rule).
     CasterPieces.onCast(
       combatProjectiles,
@@ -15991,12 +15999,15 @@ class PlanetDungeonGame extends FlameGame {
     double time, {
     double hurt = 0,
   }) {
-    final ticker = c.ticker;
-    if (ticker == null) return;
+    if (c.ticker == null) return;
+    // Firing its special, its fire sheet stands in for its idle.
+    final fire = _fire.of(c);
+    final ticker = fire?.ticker ?? c.ticker!;
+    final scale = c.spriteScale * (fire?.sizeRatio ?? 1.0);
     final sprite = ticker.getSprite();
     final looks = c.member.spriteVisuals;
     final auraR = wornAuraRadius(
-      c.spriteScale * max(sprite.srcSize.x, sprite.srcSize.y),
+      scale * max(sprite.srcSize.x, sprite.srcSize.y),
     );
     paintWornAura(canvas, looks, auraR, time);
     final paint = Paint()..filterQuality = ui.FilterQuality.high;
@@ -16004,7 +16015,7 @@ class PlanetDungeonGame extends FlameGame {
       paint.colorFilter = creatureGeneticsFilter(looks, time);
     }
     canvas.save();
-    canvas.scale(facingRight ? -c.spriteScale : c.spriteScale, c.spriteScale);
+    canvas.scale(facingRight ? -scale : scale, scale);
     sprite.render(canvas, anchor: Anchor.center, overridePaint: paint);
     if (hurt > 0) {
       // Struck: the body's own shape washed red, fading as it recovers.
@@ -16018,7 +16029,13 @@ class PlanetDungeonGame extends FlameGame {
           ),
       );
     }
-    paintWornCostumes(canvas, looks, sprite, ticker.currentIndex, time);
+    paintWornCostumes(
+      canvas,
+      looks,
+      sprite,
+      fire?.costumeFrame ?? ticker.currentIndex,
+      time,
+    );
     canvas.restore();
     paintWornAura(canvas, looks, auraR, time, front: true);
   }
@@ -16066,6 +16083,7 @@ class PlanetDungeonGame extends FlameGame {
   void stepPartyLooks(double dt) {
     for (final c in creatures) {
       c.ticker?.update(dt);
+      _fire.tick(c, dt);
     }
   }
 

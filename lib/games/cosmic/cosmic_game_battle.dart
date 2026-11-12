@@ -760,6 +760,7 @@ extension CosmicGameBattle on CosmicGame {
       // never flaps reads as broken), the fight over or not.
       for (final c in side.onField) {
         _companionTickers[c.member.slotIndex]?.update(dt);
+        _fire.tick(c.member.slotIndex, dt);
       }
     }
     if (!b.over) {

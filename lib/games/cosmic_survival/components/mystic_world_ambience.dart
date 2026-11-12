@@ -613,6 +613,28 @@ double _wh(int i, int salt) {
   return x - x.floorToDouble();
 }
 
+// A cell's hashes (`_wh(id, 1..8)`) depend on its id alone, and the cells
+// belong to the world, so they are kept between frames: by slot, each with
+// the id it holds, worked out again only for a cell not seen there.
+const int _kWSlots = 4096;
+final Float64List _wHash = Float64List(_kWSlots * 8);
+final List<int> _wHashId = List<int>.filled(_kWSlots, 0);
+final Uint8List _wHashSet = Uint8List(_kWSlots);
+
+/// Where cell [id]'s eight hashes start in [_wHash].
+int _weatherHashes(int id) {
+  final slot = id & (_kWSlots - 1);
+  final o = slot * 8;
+  if (_wHashSet[slot] == 0 || _wHashId[slot] != id) {
+    for (var k = 0; k < 8; k++) {
+      _wHash[o + k] = _wh(id, k + 1);
+    }
+    _wHashId[slot] = id;
+    _wHashSet[slot] = 1;
+  }
+  return o;
+}
+
 Float32List _wDim = Float32List(2048);
 Float32List _wMid = Float32List(2048);
 Float32List _wLit = Float32List(1024);
@@ -641,8 +663,11 @@ void drawMysticWorldWeather({
   final y0 = (viewport.top / cell).floor() - 1;
   final y1 = (viewport.bottom / cell).ceil() + 1;
   var nd = 0, nm = 0, nl = 0;
+  final vl = viewport.left, vt = viewport.top;
+  final vr = viewport.right, vb = viewport.bottom;
   void add(int tone, double x, double y) {
-    if (!viewport.contains(Offset(x, y))) return;
+    // [Rect.contains], without an Offset a grain.
+    if (!(x >= vl && x < vr && y >= vt && y < vb)) return;
     if (tone == 0 && nd + 2 <= _wDim.length) {
       _wDim[nd++] = x;
       _wDim[nd++] = y;
@@ -658,7 +683,8 @@ void drawMysticWorldWeather({
   for (var gx = x0; gx < x1; gx++) {
     for (var gy = y0; gy < y1; gy++) {
       final id = gx * 7919 + gy * 104729 + seed * 31;
-      final bx = (gx + _wh(id, 1)) * cell, by = (gy + _wh(id, 2)) * cell;
+      final h = _wHash, o = _weatherHashes(id);
+      final bx = (gx + h[o]) * cell, by = (gy + h[o + 1]) * cell;
       // Weather comes in banks and gusts: a slow, wide pattern drifting over
       // the world thins it in places and gathers it in others. One drop to a
       // cell everywhere read as an even field.
@@ -668,13 +694,16 @@ void drawMysticWorldWeather({
               sin(bx * 0.0042 + time * 0.13 * (1 + speed)) *
               cos(by * 0.0051 - time * 0.11) +
           0.2 * sin((bx + by) * 0.0097 + time * 0.2);
-      if (_wh(id, 8) > bank) continue;
-      final s = (_wh(id, 3) + time * speed * (0.7 + 0.6 * _wh(id, 4))) % 1.0;
+      if (h[o + 7] > bank) continue;
+      // `% 1.0` without the runtime call: the one rounding of the same
+      // exact value, for every finite sum.
+      final rise = h[o + 2] + time * speed * (0.7 + 0.6 * h[o + 3]);
+      final s = rise - rise.floorToDouble();
       // Faint as it starts and as it goes, so nothing pops in or out.
       final edge = speed == 0 ? 1.0 : sin(s * pi);
       if (edge < 0.2) continue;
       final lit =
-          sin(time * (1.6 + 2 * _wh(id, 5)) + _wh(id, 6) * 6.2832) >
+          sin(time * (1.6 + 2 * h[o + 4]) + h[o + 5] * 6.2832) >
           1 - 1.1 * twinkle;
       // Dark's world draws everything in to the middle of what you see; the
       // rest travel their own heading.
@@ -687,7 +716,7 @@ void drawMysticWorldWeather({
         hy = oy / d;
       }
       final travel = (s - 0.5) * cell * 2.2;
-      final wob = sway == 0 ? 0.0 : sway * sin(time * 1.1 + _wh(id, 7) * 6.2832);
+      final wob = sway == 0 ? 0.0 : sway * sin(time * 1.1 + h[o + 6] * 6.2832);
       final x = bx + hx * travel - hy * wob, y = by + hy * travel + hx * wob;
       if (speed == 0) {
         // A glint that stands where it is and comes and goes.
