@@ -576,58 +576,10 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
 
 // ── color math functions (same as widget version) ─────────────
 
-List<double> brightnessSaturationMatrix(double brightness, double saturation) {
-  final r = brightness, g = brightness, b = brightness, s = saturation;
-  return <double>[
-    s * r,
-    0,
-    0,
-    0,
-    0,
-    0,
-    s * g,
-    0,
-    0,
-    0,
-    0,
-    0,
-    s * b,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
-}
+List<double> brightnessSaturationMatrix(double brightness, double saturation) =>
+    tintGeneMatrix(brightness, saturation);
 
-List<double> hueRotationMatrix(double degrees) {
-  final radians = degrees * (math.pi / 180.0);
-  final c = math.cos(radians), s = math.sin(radians);
-  return <double>[
-    0.213 + c * 0.787 - s * 0.213,
-    0.715 - c * 0.715 - s * 0.715,
-    0.072 - c * 0.072 + s * 0.928,
-    0,
-    0,
-    0.213 - c * 0.213 + s * 0.143,
-    0.715 + c * 0.285 + s * 0.140,
-    0.072 - c * 0.072 - s * 0.283,
-    0,
-    0,
-    0.213 - c * 0.213 - s * 0.787,
-    0.715 - c * 0.715 + s * 0.715,
-    0.072 + c * 0.928 + s * 0.072,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
-}
+List<double> hueRotationMatrix(double degrees) => hueShiftMatrix(degrees);
 
 /// Worn costumes, a child of the sprite: drawn in the frame's own space
 /// after it, at the fit of the frame that is up, so they move with whatever

@@ -5,9 +5,9 @@
 // own copies (cosmic_game_helpers.dart, the genetics filter in its home
 // visuals); the widgets and the home field from theirs. One look everywhere.
 
-import 'dart:math';
 import 'dart:ui' as ui;
 
+import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/utils/sprite_sheet_def.dart';
 import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:alchemons/widgets/fx/alchemy_effects/alchemy_effect_paint.dart';
@@ -146,58 +146,10 @@ List<double> _identityMatrix() => <double>[
   0,
 ];
 
-List<double> _bsSatMatrix(double brightness, double saturation) {
-  final s = saturation;
-  return <double>[
-    s * brightness,
-    0,
-    0,
-    0,
-    0,
-    0,
-    s * brightness,
-    0,
-    0,
-    0,
-    0,
-    0,
-    s * brightness,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
-}
+List<double> _bsSatMatrix(double brightness, double saturation) =>
+    tintGeneMatrix(brightness, saturation);
 
-List<double> _hueMatrix(double degrees) {
-  final rad = degrees * (pi / 180.0);
-  final c = cos(rad), s = sin(rad);
-  return <double>[
-    0.213 + c * 0.787 - s * 0.213,
-    0.715 - c * 0.715 - s * 0.715,
-    0.072 - c * 0.072 + s * 0.928,
-    0,
-    0,
-    0.213 - c * 0.213 + s * 0.143,
-    0.715 + c * 0.285 + s * 0.140,
-    0.072 - c * 0.072 - s * 0.283,
-    0,
-    0,
-    0.213 - c * 0.213 - s * 0.787,
-    0.715 - c * 0.715 + s * 0.715,
-    0.072 + c * 0.928 + s * 0.072,
-    0,
-    0,
-    0,
-    0,
-    0,
-    1,
-    0,
-  ];
-}
+List<double> _hueMatrix(double degrees) => hueShiftMatrix(degrees);
 
 List<double> _mulMatrix(List<double> a, List<double> b) {
   final out = List<double>.filled(20, 0.0);

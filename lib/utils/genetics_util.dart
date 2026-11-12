@@ -23,9 +23,9 @@ double satFromGenes(Genetics? g) {
     case 'cool':
       return 1.10;
     case 'vibrant':
-      return 1.40;
+      return 1.85; // richer colour (see tintGeneMatrix), not brighter
     case 'pale':
-      return 0.60;
+      return 0.35; // washed out
     case 'albino':
       return 0.0; // UPDATED: completely desaturated (will be overridden by albino matrix)
     default:
@@ -39,9 +39,9 @@ double briFromGenes(Genetics? g) {
     case 'cool':
       return 1.05;
     case 'vibrant':
-      return 1.10;
+      return 1.0;
     case 'pale':
-      return 1.20;
+      return 1.08;
     case 'albino':
       return 1.45; // UPDATED: brighter for more white appearance
     default:

@@ -5,6 +5,7 @@
 // collects particles to fill a meter, and summons creatures.
 
 import 'dart:math';
+import 'package:alchemons/utils/color_util.dart';
 import 'package:alchemons/games/shared/creature_fire.dart';
 import 'package:alchemons/audio/sound_cue.dart';
 import 'dart:ui' as ui;

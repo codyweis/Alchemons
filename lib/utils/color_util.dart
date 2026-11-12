@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 class FamilyColors {
@@ -121,4 +123,91 @@ class FactionColors {
 
   static Color of(String key) =>
       _map[key] ?? Colors.grey.shade500.withValues(alpha: .5);
+}
+
+/// A creature's tint gene as a 4x5 colour matrix: [saturation] moves its
+/// colours away from (over 1) or toward (under 1) their own grey, their
+/// light and shade kept, and [brightness] then scales the lot. So a Vibrant
+/// one is richer, never just brighter — a pale creature keeps its face —
+/// and a Pale one is washed out, not dimmed.
+///
+/// A strong boost (Vibrant) also lifts the darks a little first, the lights
+/// left where they are: a near-black creature has almost no colour to
+/// enrich, and the lift gives the boost something to work on.
+List<double> tintGeneMatrix(double brightness, double saturation) {
+  const lr = 0.299, lg = 0.587, lb = 0.114;
+  // Pale is lifted too, and further: washed toward white, so even a
+  // near-black creature goes ashen.
+  final lift = saturation > 1.3
+      ? kVibrantDarkLift
+      : saturation < 0.6
+      ? kPaleLift
+      : 0.0;
+  final s = saturation, b = brightness * (1 - lift), k = 1 - s;
+  final t = brightness * 255 * lift;
+  return <double>[
+    b * (k * lr + s), b * k * lg, b * k * lb, 0, t, //
+    b * k * lr, b * (k * lg + s), b * k * lb, 0, t,
+    b * k * lr, b * k * lg, b * (k * lb + s), 0, t,
+    0, 0, 0, 1, 0,
+  ];
+}
+
+/// How far a Vibrant creature's darkest tones are raised toward white.
+const double kVibrantDarkLift = 0.09;
+
+/// How far a Pale creature's tones are washed toward white.
+const double kPaleLift = 0.14;
+
+/// The hue shift a Warm or a Cool creature carries ([hueFromGenes]), in
+/// degrees round the wheel as every sprite pipeline is handed it.
+const double kWarmHueDeg = 15, kCoolHueDeg = 345;
+
+/// A creature's hue shift of [degrees] as a 4x5 colour matrix. Warm and Cool
+/// ([kWarmHueDeg], [kCoolHueDeg]) are not turns of the wheel but a change of
+/// light: Warm leans every colour toward amber, Cool toward blue. (A turn
+/// warms only the reds: it sent a yellow or a green creature greener for
+/// Warm, and yellower for Cool.) Any other angle — a prismatic creature's —
+/// is the turn it says.
+List<double> hueShiftMatrix(double degrees) {
+  if (degrees == kWarmHueDeg) {
+    return const <double>[
+      1.14, 0.06, 0, 0, 0, //
+      0, 1.0, 0, 0, 0,
+      0, 0, 0.68, 0, 0,
+      0, 0, 0, 1, 0,
+    ];
+  }
+  if (degrees == kCoolHueDeg) {
+    return const <double>[
+      0.74, 0, 0, 0, 0, //
+      0, 0.95, 0.05, 0, 0,
+      0, 0.08, 1.18, 0, 0,
+      0, 0, 0, 1, 0,
+    ];
+  }
+  final radians = degrees * (math.pi / 180.0);
+  final c = math.cos(radians), s = math.sin(radians);
+  return <double>[
+    0.213 + c * 0.787 - s * 0.213,
+    0.715 - c * 0.715 - s * 0.715,
+    0.072 - c * 0.072 + s * 0.928,
+    0,
+    0,
+    0.213 - c * 0.213 + s * 0.143,
+    0.715 + c * 0.285 + s * 0.140,
+    0.072 - c * 0.072 - s * 0.283,
+    0,
+    0,
+    0.213 - c * 0.213 - s * 0.787,
+    0.715 - c * 0.715 + s * 0.715,
+    0.072 + c * 0.928 + s * 0.072,
+    0,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+  ];
 }
