@@ -10904,7 +10904,6 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         enemy.position,
         reach,
         light: tint == null ? null : abilityMaterialTint(tint),
-        lasting: false,
       );
     }
     final speed = enemy.effectiveSpeed;
@@ -23029,8 +23028,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _spawnProjectileHitSpark(Projectile projectile) {
     onSound?.call(SoundCue.combatHitLight);
     final color = elementColor(projectile.element ?? 'Fire');
-    // A special's strike stays on the floor, more of it the stronger the
-    // creature that cast it.
+    // A special's strike marks the floor for a few seconds, more of it the
+    // stronger the creature that cast it.
     if (projectile.abilityFamily.isNotEmpty) {
       final caster = activeCompanions[projectile.sourceSlotIndex];
       _wear.strike(
@@ -23242,25 +23241,24 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   double _treadClock = 0;
 
-  /// The wave a resumed run's floor is still to be worn to, or 0.
+  /// The wave a resumed run's arena is still to be darkened to, or 0.
   int _wearSeedWave = 0;
 
   void _updateWear(double dt) {
     if (_wearSeedWave > 0) {
-      _wear.seed(_wearSeedWave, orb.position, _arenaRadius);
+      _wear.seed(_wearSeedWave);
       _wearSeedWave = 0;
     }
     _wear.update(
       dt,
-      centre: orb.position,
       wave: spawner.currentWave,
       fill: enemies.length / max(1, spawner.activeLimitNow),
       bearing: spawner.waveBearing,
       bossAlive: anyBossAlive,
       eclipse: _otherOrbAlive,
     );
-    // Where a front stands thick, the ground under it is trodden: the lanes
-    // the waves pressed in along stay on the floor.
+    // Where a front stands thick, the ground under it is trodden for a few
+    // seconds.
     _treadClock += dt;
     if (_treadClock < 0.6) return;
     _treadClock = 0;

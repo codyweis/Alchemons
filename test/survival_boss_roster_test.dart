@@ -68,7 +68,6 @@ void main() {
       for (final (w, e) in [(lit, false), (dark, true)]) {
         w.update(
           1 / 60,
-          centre: ui.Offset.zero,
           wave: 15,
           fill: 0.5,
           bearing: 0,

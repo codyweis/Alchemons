@@ -153,7 +153,7 @@ void main() {
     game.startGame();
     game.spawner.currentWave = wave - 1;
     game.spawner.resumeAfterIntermission();
-    game.debugWear.seed(wave, game.orb.position, 1140);
+    game.debugWear.seed(wave);
     void keepAlive() {
       game.alchemicalMeter = 0;
       game.gamePaused = false;

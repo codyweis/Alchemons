@@ -20,7 +20,6 @@ void _tick(
   for (var f = 0; f < seconds * 60; f++) {
     wear.update(
       1 / 60,
-      centre: ui.Offset.zero,
       wave: wave,
       fill: fill,
       bearing: bearing,
@@ -79,27 +78,25 @@ void main() {
     expect(wear.marks, before + 20);
   });
 
-  test('what the dead leave goes in seconds; what a creature strikes stays', () {
+  test('everything on the floor goes within five seconds', () {
     final wear = ArenaWear();
     _tick(wear, 1);
     wear.fall(const ui.Offset(0, 0), 12);
     wear.fall(const ui.Offset(100, 0), 40, heavy: true);
-    wear.scorch(const ui.Offset(0, 100), 80, lasting: false);
-    expect(wear.freshMarks, 3);
-    // Nothing a death leaves is baked into the floor.
-    _paint(wear, view);
-    expect(wear.lastTilesDrawn, 0);
-    _tick(wear, 2.6);
-    expect(wear.freshMarks, 2, reason: 'a small body is gone first');
-    _tick(wear, 2.2);
-    expect(wear.freshMarks, 0);
-
+    wear.scorch(const ui.Offset(0, 100), 80);
     wear.strike(const ui.Offset(0, 0), 1.0, light: const ui.Color(0xFFFFAA66));
-    expect(wear.freshMarks, 0);
+    wear.tread(const ui.Offset(50, 50), 60);
+    expect(wear.floorMarks, 5);
     _paint(wear, view);
-    _tick(wear, 30);
+    expect(wear.lastGrainDraws, greaterThan(0));
+    _tick(wear, 2.6);
+    expect(wear.floorMarks, 4, reason: 'a small body is gone first');
+    _tick(wear, 1.6);
+    expect(wear.floorMarks, 3, reason: 'then a heavy one');
+    _tick(wear, 1.0);
+    expect(wear.floorMarks, 0);
     _paint(wear, view);
-    expect(wear.lastTilesDrawn, greaterThan(0), reason: 'still on the floor');
+    expect(wear.lastGrainDraws, 0);
     wear.dispose();
   });
 
@@ -143,16 +140,26 @@ void main() {
     expect(boss.lastMotes, lessThan(full.lastMotes ~/ 3));
   });
 
-  test('a worn floor is a handful of draws, never one per mark', () {
-    final wear = ArenaWear()..seed(100, ui.Offset.zero, 1140);
-    _tick(wear, 20, wave: 100, fill: 1.0, bearing: pi / 3);
-    // Bake what is in view (one tile a frame), then count a settled frame.
-    for (var f = 0; f < 40; f++) {
-      _tick(wear, 0.6, wave: 100, fill: 1.0);
-      _paint(wear, view);
+  test('a floor under a full front stays capped and a handful of draws', () {
+    final wear = ArenaWear();
+    for (var f = 0; f < 60 * 20; f++) {
+      _tick(wear, 1 / 60, wave: 100, fill: 1.0);
+      for (var i = 0; i < 4; i++) {
+        wear.fall(ui.Offset((f * 7 + i * 31) % 600 - 300.0, 0), 12);
+        wear.tread(ui.Offset(0, (f * 13 + i * 17) % 900 - 450.0), 60);
+      }
+      if (f % 5 == 0) {
+        wear.strike(
+          ui.Offset(f % 300 - 150.0, 0),
+          1.0,
+          light: const ui.Color(0xFFFFAA66),
+        );
+        wear.scorch(ui.Offset(0, f % 400 - 200.0), 60);
+      }
     }
-    expect(wear.lastTilesBaked, 0);
-    expect(wear.lastTilesDrawn, inInclusiveRange(4, 12));
+    expect(wear.floorMarks, lessThanOrEqualTo(120));
+    _paint(wear, view);
+    expect(wear.lastGrainDraws, inInclusiveRange(1, 12));
     wear.dispose();
   });
 

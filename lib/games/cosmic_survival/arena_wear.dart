@@ -3,11 +3,11 @@
 // What a run does to the arena it is fought in. Four things, all of them in
 // the world and none of them a message:
 //
-//  - The floor keeps what the fight did to it. Where a front pressed through
-//    and where a creature's special struck, ash and cinder stay for the rest
-//    of the run, so wave 60's floor is not wave 3's. What a death leaves (a
-//    body's ash, a blast's scorch) lies a few seconds and goes: a field of
-//    the dead would bury the surge grains the dead drop.
+//  - The floor shows what the fight is doing to it, and lets it go. Where a
+//    body fell, a blast went off, a front pressed through or a creature's
+//    special struck, ash and cinder lie a few seconds (a body's ash 2.4 s, a
+//    heavy one's 4 s, the rest 5 s) and fade (user, 2026-11-12: marks kept
+//    for the whole run were too much on the floor).
 //  - The edges go dark. The light the core holds over its disc draws in as
 //    the waves climb, and keeps drawing in through the endless waves.
 //  - Ash rides the air from where the wave is coming: thin and slow in a
@@ -17,15 +17,12 @@
 //    eases back and the core's light swells over the floor for a few
 //    seconds, further after a hard wave than an easy one.
 //
-// Budget: the floor is baked. Marks go into tiles; a tile that has changed
-// is re-recorded at most every [_bakeGap] seconds, one tile a frame: its
-// char as a Picture that is turned into a small image off the frame (await
-// toImage, never toImageSync; char is soft, so a small image holds it), its
-// grains as a Picture of four point batches, kept as points so they stay
-// sharp. A frame then draws one textured quad and one Picture per tile in
-// view, eight to twelve tiles. Until a tile's image lands its char Picture
-// is drawn instead. Intake is rationed, so a horde dying leaves a floor and
-// not a carpet. The floor's light and the dark are one gradient fill each,
+// Budget: a mark is a few numbers; its grains are read off its seed each
+// frame. A frame draws two or three soft fills per mark in view and every
+// mark's grains in at most twelve point batches. Intake is rationed and
+// capped ([ArenaWear._softCap], [ArenaWear._hardCap]), so a horde dying
+// leaves a floor and not a carpet. The floor's light and the dark are one
+// gradient fill each,
 // the drift two point batches. No blur, no layers. It draws its own numbers
 // and never touches the run's Random.
 
@@ -38,7 +35,7 @@ import 'package:flutter/painting.dart';
 
 /// What a mark is made of.
 enum WearTone {
-  /// Cold ash: what a body leaves.
+  /// Cold ash: what a body or a crowd's tread leaves.
   ash,
 
   /// Cinder: what fire, a blast or a strike leaves. Warm at first.
@@ -48,76 +45,22 @@ enum WearTone {
   gilt,
 }
 
-class _Tile {
-  _Tile(this.origin);
-
-  final Offset origin;
-
-  /// Point batches: dim ash, pale ash, cinder, gilt. Each a ring, so a tile
-  /// that is full loses its oldest grains to its newest.
-  final List<Float32List> pts = [
-    Float32List(_caps[0] * 2),
-    Float32List(_caps[1] * 2),
-    Float32List(_caps[2] * 2),
-    Float32List(_caps[3] * 2),
-  ];
-  final List<int> n = [0, 0, 0, 0];
-  final List<int> head = [0, 0, 0, 0];
-
-  /// Smudges as (x, y, radius, strength, tone index), a ring of [_smudgeCap].
-  final Float32List smudges = Float32List(_smudgeCap * 5);
-  int smudgeCount = 0, smudgeHead = 0;
-
-  /// The tile as last recorded, in world units: its char, the image made
-  /// of that, and its grains.
-  ui.Picture? char;
-  ui.Image? image;
-  ui.Picture? grains;
-  bool imaging = false;
-  bool dirty = false, charDirty = false;
-  double bakedAt = -1e9;
-
-  static const _caps = [1500, 800, 700, 300];
-  static const _smudgeCap = 240;
-
-  void point(int b, double x, double y) {
-    final cap = _caps[b];
-    final i = head[b] * 2;
-    pts[b][i] = x;
-    pts[b][i + 1] = y;
-    head[b] = (head[b] + 1) % cap;
-    if (n[b] < cap) n[b]++;
-  }
-
-  void smudge(double x, double y, double r, double strength, int tone) {
-    final i = smudgeHead * 5;
-    smudges[i] = x;
-    smudges[i + 1] = y;
-    smudges[i + 2] = r;
-    smudges[i + 3] = strength;
-    smudges[i + 4] = tone.toDouble();
-    smudgeHead = (smudgeHead + 1) % _smudgeCap;
-    if (smudgeCount < _smudgeCap) smudgeCount++;
-    charDirty = true;
-  }
-}
-
-/// What a death leaves: char and ash that lie [life] seconds and go. Its
+/// A mark on the floor: char and grains that lie [life] seconds and go. Its
 /// grains are read off [seed] each frame, so nothing is stored per grain.
-class _Fresh {
-  _Fresh(
+class _Mark {
+  _Mark(
     this.x,
     this.y,
     this.r,
     this.life,
     this.strength,
     this.grains,
-    this.cinder,
+    this.tone,
     this.seed,
   );
   final double x, y, r, life, strength;
   final int grains, seed;
-  final bool cinder;
+  final WearTone tone;
   double age = 0;
 }
 
@@ -134,15 +77,8 @@ class ArenaWear {
 
   // ── floor ────────────────────────────────────────────────────────────────
 
-  static const double _tileSize = 570;
-  static const int _span = 4;
-  static const double _bakeGap = 0.5;
-
-  /// A tile's image reaches this far past the tile on every side, so a
-  /// smudge filed under one tile is never cut at its edge. No smudge is
-  /// wider.
-  static const double _margin = 96;
-  static const int _imagePx = 320;
+  /// No mark is wider than this.
+  static const double _maxReach = 96;
 
   static const _ashDim = Color(0xFF7D7466);
   static const _ashPale = Color(0xFFC4BAA4);
@@ -150,36 +86,19 @@ class ArenaWear {
   static const _gilt = Color(0xFFE2C98F);
   static const _char = Color(0xFF030208);
 
-  bool _disposed = false;
-
-  final List<_Tile?> _tiles = List.filled(_span * _span, null);
   final List<_Ember> _embers = [];
-  Offset _centre = Offset.zero;
-  bool _centred = false;
   double _clock = 0;
   int _k = 0x2F6E2B1;
 
-  /// Marks a fall or a tread may still leave this second. Blasts and strikes
-  /// are let in past it (they are rare); bodies are not.
+  /// Marks a fall, a tread or a weak strike may still leave this second.
+  /// Blasts, heavy bodies and strong strikes are let in past it (they are
+  /// rare); the rest are not.
   double _ration = 12;
   static const double _rationPerSecond = 9;
   static const double _rationMax = 16;
 
   /// How many marks the floor has taken this run.
   int marks = 0;
-
-  _Tile? _tileAt(double x, double y) {
-    final tx = ((x - _centre.dx) / _tileSize).floor() + _span ~/ 2;
-    final ty = ((y - _centre.dy) / _tileSize).floor() + _span ~/ 2;
-    if (tx < 0 || ty < 0 || tx >= _span || ty >= _span) return null;
-    final i = ty * _span + tx;
-    return _tiles[i] ??= _Tile(
-      Offset(
-        _centre.dx + (tx - _span ~/ 2) * _tileSize,
-        _centre.dy + (ty - _span ~/ 2) * _tileSize,
-      ),
-    );
-  }
 
   /// Its own numbers (xorshift32), so laying marks never draws from the
   /// run's Random and never repeats a spot.
@@ -192,49 +111,6 @@ class ArenaWear {
     return x / 4294967296.0;
   }
 
-  /// Lays [grains] grains within [radius] of [at], thickest at the middle.
-  void _scatter(Offset at, double radius, int grains, WearTone tone) {
-    for (var i = 0; i < grains; i++) {
-      final a = _next() * 2 * pi;
-      // Squared, so the middle is dense and the edge is a few strays.
-      final u = _next();
-      final d = radius * (0.08 + 0.92 * u * u);
-      final x = at.dx + cos(a) * d, y = at.dy + sin(a) * d;
-      final tile = _tileAt(x, y);
-      if (tile == null) continue;
-      final roll = _next();
-      final b = switch (tone) {
-        WearTone.ash => roll < 0.7 ? 0 : 1,
-        WearTone.cinder => roll < 0.45 ? 2 : (roll < 0.85 ? 0 : 1),
-        WearTone.gilt => roll < 0.4 ? 3 : (roll < 0.8 ? 1 : 0),
-      };
-      tile.point(b, x, y);
-      tile.dirty = true;
-    }
-  }
-
-  /// Char on the floor at [at]: the floor's light does not come through it.
-  /// [tone] 0 is char alone, 1 has cinder warmth in it, 2 gilt.
-  /// Laid as three lobes, so a mark is a stain and never a disc.
-  void _charAt(Offset at, double r, double strength, [int tone = 0]) {
-    final tile = _tileAt(at.dx, at.dy);
-    if (tile == null) return;
-    final reach = min(r, _margin);
-    tile.smudge(at.dx, at.dy, reach * 0.72, strength * 0.8, tone);
-    for (var i = 0; i < 2; i++) {
-      final a = _next() * 2 * pi;
-      final d = reach * (0.3 + 0.25 * _next());
-      tile.smudge(
-        at.dx + cos(a) * d,
-        at.dy + sin(a) * d,
-        reach * (0.4 + 0.25 * _next()),
-        strength * 0.7,
-        0,
-      );
-    }
-    tile.dirty = true;
-  }
-
   /// A body fell at [at]: its ash lies a moment and goes. Rationed: in a
   /// horde most deaths leave nothing. [heavy] bodies (brutes, colossi,
   /// elites) always leave theirs, and it lies longer.
@@ -243,88 +119,74 @@ class ArenaWear {
       if (_ration < 1) return;
       _ration -= 1;
     }
-    marks++;
-    final reach = radius * (heavy ? 2.6 : 1.9);
     _lay(
       at,
-      reach,
+      radius * (heavy ? 2.6 : 1.9),
       heavy ? _heavyFallLife : _fallLife,
       heavy ? 0.6 : 0.34,
       heavy ? 40 : 14,
-      cinder: false,
+      WearTone.ash,
+      rationed: !heavy,
     );
   }
 
   /// Seconds a body's ash lies on the floor.
   static const double _fallLife = 2.4, _heavyFallLife = 4.0;
 
-  /// Seconds a death's blast stays scorched.
-  static const double _blastLife = 4.5;
-  static const int _freshCap = 72;
-  final List<_Fresh> _fresh = [];
+  /// Seconds a blast's scorch, a strike or a crowd's tread lies.
+  static const double _markLife = 5.0;
 
-  /// Death marks on the floor now.
-  int get freshMarks => _fresh.length;
+  /// Marks on the floor at once. Rationed marks are refused past [_softCap];
+  /// the rest push the oldest out past [_hardCap].
+  static const int _softCap = 80, _hardCap = 120;
+  final List<_Mark> _marks = [];
+
+  /// Marks on the floor now.
+  int get floorMarks => _marks.length;
 
   void _lay(
     Offset at,
     double r,
     double life,
     double strength,
-    int grains, {
-    required bool cinder,
+    int grains,
+    WearTone tone, {
+    bool rationed = false,
   }) {
-    if (_fresh.length >= _freshCap) _fresh.removeAt(0);
-    _fresh.add(
-      _Fresh(
+    if (_marks.length >= _softCap && rationed) return;
+    if (_marks.length >= _hardCap) _marks.removeAt(0);
+    marks++;
+    _marks.add(
+      _Mark(
         at.dx,
         at.dy,
-        min(r, _margin),
+        min(r, _maxReach),
         life,
         strength,
         grains,
-        cinder,
+        tone,
         (_next() * 1024).floor(),
       ),
     );
   }
 
-  /// A crowd is standing on [at]: the ground under it is trodden. Light
-  /// marks that add up to the lanes a front pressed in along.
+  /// A crowd is standing on [at]: the ground under it is trodden for a few
+  /// seconds.
   void tread(Offset at, double radius) {
     if (_ration < 0.5) return;
     _ration -= 0.5;
-    _charAt(at, radius, 0.13);
-    _scatter(at, radius, 3, WearTone.ash);
+    _lay(at, radius, _markLife, 0.13, 3, WearTone.ash, rationed: true);
   }
 
   /// Something burst at [at] out to [reach]: a scorch, warm for a few
-  /// seconds in [light]. A creature's blast stays for the run; a death's
-  /// (not [lasting]) goes with the body's ash.
-  void scorch(
-    Offset at,
-    double reach, {
-    Color? light,
-    bool gilt = false,
-    bool lasting = true,
-  }) {
-    marks++;
+  /// seconds in [light], that goes with the rest.
+  void scorch(Offset at, double reach, {Color? light, bool gilt = false}) {
     _warm(at, reach * 0.7, 3.2, light ?? _cinder);
-    if (!lasting) {
-      _lay(
-        at,
-        reach * 0.85,
-        _blastLife,
-        0.62,
-        (18 + reach * 0.4).round().clamp(18, 70),
-        cinder: true,
-      );
-      return;
-    }
-    _charAt(at, reach * 0.85, 0.62, gilt ? 2 : 1);
-    _scatter(
+    _lay(
       at,
-      reach * 0.95,
+      reach * 0.9,
+      _markLife,
+      0.62,
       (18 + reach * 0.4).round().clamp(18, 70),
       gilt ? WearTone.gilt : WearTone.cinder,
     );
@@ -343,18 +205,20 @@ class ArenaWear {
     final p = power.clamp(0.0, 1.0);
     // A weak creature's strikes are rationed like bodies; a strong one's
     // are always kept.
-    if (p < 0.5) {
+    final rationed = p < 0.5;
+    if (rationed) {
       if (_ration < 1) return;
       _ration -= 1;
     }
-    marks++;
     final reach = 12 + 34 * p;
-    _charAt(at, reach, 0.2 + 0.36 * p, blessed ? 2 : 1);
-    _scatter(
+    _lay(
       at,
       reach,
+      _markLife,
+      0.2 + 0.36 * p,
       (5 + 22 * p).round(),
       blessed ? WearTone.gilt : WearTone.cinder,
+      rationed: rationed,
     );
     if (p > 0.35) _warm(at, reach * 0.9, 1.2 + 3.6 * p, light);
   }
@@ -363,7 +227,6 @@ class ArenaWear {
     if (_embers.length >= 40) _embers.removeAt(0);
     _embers.add(_Ember(at.dx, at.dy, r, life, color));
   }
-
   // ── the run's weight ─────────────────────────────────────────────────────
 
   /// How far the run has worn the arena, 0..1, from the wave number. Climbs
@@ -389,33 +252,11 @@ class ArenaWear {
   double get pressure => _pressure;
   double get settle => _settle;
 
-  /// Starts the arena at wave [wave] already as worn as a run that deep
-  /// would have left it (a resumed run), about [centre] out to [radius]:
-  /// the lanes fronts trod and the creatures' strikes, never the dead.
-  void seed(int wave, Offset centre, double radius) {
-    _place(centre);
+  /// Starts the arena at wave [wave] as dark at the edge as a run that
+  /// deep would have left it (a resumed run). The floor's marks go in
+  /// seconds, so none are laid.
+  void seed(int wave) {
     _depth = depthForWave(wave);
-    final n = (wave * 10).clamp(0, 640);
-    for (var i = 0; i < n; i++) {
-      final a = _next() * 2 * pi;
-      final d = radius * sqrt(_next()) * 0.96;
-      final at = Offset(centre.dx + cos(a) * d, centre.dy + sin(a) * d);
-      final roll = _next();
-      if (roll < 0.12) {
-        final reach = 20 + 26 * _next();
-        _charAt(at, reach, 0.4, 1);
-        _scatter(at, reach, 16, WearTone.cinder);
-      } else {
-        _charAt(at, 40, 0.13);
-        _scatter(at, 40, 3, WearTone.ash);
-      }
-    }
-  }
-
-  void _place(Offset centre) {
-    if (_centred && centre == _centre) return;
-    _centre = centre;
-    _centred = true;
   }
 
   /// A wave was cleared. [hardness] 0..1: how close it came to filling the
@@ -432,14 +273,12 @@ class ArenaWear {
   /// [bearing] the angle from the core the wave is walking in from.
   void update(
     double dt, {
-    required Offset centre,
     required int wave,
     required double fill,
     required double bearing,
     required bool bossAlive,
     bool eclipse = false,
   }) {
-    _place(centre);
     _eclipse += ((eclipse ? 1.0 : 0.0) - _eclipse) * min(1.0, dt * 0.5);
     _clock += dt;
     _ration = min(_rationMax, _ration + _rationPerSecond * dt);
@@ -447,10 +286,10 @@ class ArenaWear {
       e.age += dt;
     }
     _embers.removeWhere((e) => e.age >= e.life);
-    for (final m in _fresh) {
+    for (final m in _marks) {
       m.age += dt;
     }
-    _fresh.removeWhere((m) => m.age >= m.life);
+    _marks.removeWhere((m) => m.age >= m.life);
 
     final f = fill.clamp(0.0, 1.0);
     if (f > _peak) _peak = f;
@@ -490,122 +329,10 @@ class ArenaWear {
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
 
-  static final Paint _imagePaint = Paint()..filterQuality = FilterQuality.low;
-
-  void _bake(_Tile t) {
-    if (t.charDirty || t.char == null) {
-      final rec = ui.PictureRecorder();
-      final c = Canvas(rec);
-      for (var i = 0; i < t.smudgeCount; i++) {
-        final k = i * 5;
-        final at = Offset(t.smudges[k], t.smudges[k + 1]);
-        final r = t.smudges[k + 2];
-        final tone = t.smudges[k + 4].round();
-        vfxSpill(c, at, r, _char, t.smudges[k + 3]);
-        // What burned is faintly warm at its heart for good.
-        if (tone != 0) {
-          vfxSpill(c, at, r * 0.5, tone == 1 ? _cinder : _gilt, 0.07);
-        }
-      }
-      t.char?.dispose();
-      t.char = rec.endRecording();
-      t.charDirty = false;
-      _image(t);
-    }
-    final rec = ui.PictureRecorder();
-    final c = Canvas(rec);
-    const looks = <(Color, double, double)>[
-      (_ashDim, 3.2, 0.42),
-      (_ashPale, 2.2, 0.5),
-      (_cinder, 2.8, 0.5),
-      (_gilt, 2.6, 0.7),
-    ];
-    for (var b = 0; b < 4; b++) {
-      if (t.n[b] == 0) continue;
-      final (color, size, alpha) = looks[b];
-      _pointPaint
-        ..color = color.withValues(alpha: alpha)
-        ..strokeWidth = size;
-      c.drawRawPoints(
-        ui.PointMode.points,
-        Float32List.sublistView(t.pts[b], 0, t.n[b] * 2),
-        _pointPaint,
-      );
-    }
-    t.grains?.dispose();
-    t.grains = rec.endRecording();
-    t.dirty = false;
-    t.bakedAt = _clock;
-  }
-
-  /// Turns the tile's char into its image, off the frame. One at a time per
-  /// tile: a tile whose image is being made is not baked again until it
-  /// lands.
-  Future<void> _image(_Tile t) async {
-    t.imaging = true;
-    final rec = ui.PictureRecorder();
-    final c = Canvas(rec);
-    final scale = _imagePx / (_tileSize + _margin * 2);
-    c.scale(scale);
-    c.translate(-(t.origin.dx - _margin), -(t.origin.dy - _margin));
-    c.drawPicture(t.char!);
-    final scaled = rec.endRecording();
-    try {
-      final image = await scaled.toImage(_imagePx, _imagePx);
-      if (_disposed) {
-        image.dispose();
-      } else {
-        t.image?.dispose();
-        t.image = image;
-      }
-    } finally {
-      scaled.dispose();
-      t.imaging = false;
-    }
-  }
-
-  /// Tiles drawn and tiles re-recorded by the last [paintFloor].
-  int lastTilesDrawn = 0, lastTilesBaked = 0;
-
   /// The floor's marks inside [view], and whatever is still warm on it.
   /// Under every body.
   void paintFloor(Canvas c, Rect view) {
-    lastTilesDrawn = 0;
-    lastTilesBaked = 0;
-    for (var i = 0; i < _tiles.length; i++) {
-      final t = _tiles[i];
-      if (t == null) continue;
-      final box = Rect.fromLTWH(
-        t.origin.dx - _margin,
-        t.origin.dy - _margin,
-        _tileSize + _margin * 2,
-        _tileSize + _margin * 2,
-      );
-      if (!box.overlaps(view)) continue;
-      if (t.dirty &&
-          lastTilesBaked < 1 &&
-          !t.imaging &&
-          (t.grains == null || _clock - t.bakedAt >= _bakeGap)) {
-        _bake(t);
-        lastTilesBaked++;
-      }
-      final image = t.image;
-      if (image != null) {
-        c.drawImageRect(
-          image,
-          Rect.fromLTWH(0, 0, _imagePx.toDouble(), _imagePx.toDouble()),
-          box,
-          _imagePaint,
-        );
-      } else if (t.char case final char?) {
-        c.drawPicture(char);
-      }
-      if (t.grains case final grains?) {
-        c.drawPicture(grains);
-        lastTilesDrawn++;
-      }
-    }
-    _paintFresh(c, view);
+    _paintMarks(c, view);
     for (final e in _embers) {
       if (e.x + e.r < view.left ||
           e.x - e.r > view.right ||
@@ -621,27 +348,32 @@ class ArenaWear {
     }
   }
 
-  /// Death marks' grains by tone (dim ash, pale ash, cinder) and by how far
-  /// they have faded (three steps), so they go out in at most nine draws.
-  final List<Float32List> _freshPts = List.generate(9, (_) => Float32List(256));
-  final List<int> _freshN = List.filled(9, 0);
+  /// Marks' grains by colour (dim ash, pale ash, cinder, gilt) and by how
+  /// far they have faded (three steps), so they go out in at most twelve
+  /// draws.
+  final List<Float32List> _markPts = List.generate(12, (_) => Float32List(256));
+  final List<int> _markN = List.filled(12, 0);
 
-  void _freshAdd(int b, double x, double y) {
-    var d = _freshPts[b];
-    final n = _freshN[b];
+  /// Grain draws in the last [paintFloor].
+  int lastGrainDraws = 0;
+
+  void _markAdd(int b, double x, double y) {
+    var d = _markPts[b];
+    final n = _markN[b];
     if (n + 2 > d.length) {
-      d = _freshPts[b] = Float32List(d.length * 2)..setAll(0, d);
+      d = _markPts[b] = Float32List(d.length * 2)..setAll(0, d);
     }
     d[n] = x;
     d[n + 1] = y;
-    _freshN[b] = n + 2;
+    _markN[b] = n + 2;
   }
 
-  /// What the dead left: it holds a while, then fades out. Its grains
-  /// settle outward over the first quarter second, so a death lands.
-  void _paintFresh(Canvas c, Rect view) {
-    if (_fresh.isEmpty) return;
-    for (final m in _fresh) {
+  /// What is on the floor: it holds a while, then fades out. Its grains
+  /// settle outward over the first quarter second, so a mark lands.
+  void _paintMarks(Canvas c, Rect view) {
+    lastGrainDraws = 0;
+    if (_marks.isEmpty) return;
+    for (final m in _marks) {
       if (m.x + m.r < view.left ||
           m.x - m.r > view.right ||
           m.y + m.r < view.top ||
@@ -654,15 +386,28 @@ class ArenaWear {
       if (fade <= 0.01) continue;
       final at = Offset(m.x, m.y);
       vfxSpill(c, at, m.r * 0.72, _char, m.strength * 0.8 * fade);
-      final la = _table[m.seed & 1023] * 2 * pi;
-      vfxSpill(
-        c,
-        Offset(m.x + cos(la) * m.r * 0.35, m.y + sin(la) * m.r * 0.35),
-        m.r * 0.5,
-        _char,
-        m.strength * 0.55 * fade,
-      );
-      if (m.cinder) vfxSpill(c, at, m.r * 0.5, _cinder, 0.07 * fade);
+      // A second lobe, so a mark is a stain and never a disc. A faint
+      // tread does without it.
+      if (m.strength >= 0.2) {
+        final la = _table[m.seed & 1023] * 2 * pi;
+        vfxSpill(
+          c,
+          Offset(m.x + cos(la) * m.r * 0.35, m.y + sin(la) * m.r * 0.35),
+          m.r * 0.5,
+          _char,
+          m.strength * 0.55 * fade,
+        );
+      }
+      // What burned is faintly warm at its heart.
+      if (m.tone != WearTone.ash) {
+        vfxSpill(
+          c,
+          at,
+          m.r * 0.5,
+          m.tone == WearTone.cinder ? _cinder : _gilt,
+          0.07 * fade,
+        );
+      }
       final step = (fade * 3).ceil().clamp(1, 3) - 1;
       final spread = 0.6 + 0.4 * min(1.0, m.age / 0.25);
       for (var i = 0; i < m.grains; i++) {
@@ -670,20 +415,24 @@ class ArenaWear {
         final a = _table[k & 1023] * 2 * pi;
         final u = _table[(k + 1) & 1023];
         final roll = _table[(k + 2) & 1023];
+        // Squared, so the middle is dense and the edge is a few strays.
         final d = m.r * (0.08 + 0.92 * u * u) * spread;
-        final b = m.cinder
-            ? (roll < 0.45 ? 2 : (roll < 0.85 ? 0 : 1))
-            : (roll < 0.7 ? 0 : 1);
-        _freshAdd(b * 3 + step, m.x + cos(a) * d, m.y + sin(a) * d);
+        final b = switch (m.tone) {
+          WearTone.ash => roll < 0.7 ? 0 : 1,
+          WearTone.cinder => roll < 0.45 ? 2 : (roll < 0.85 ? 0 : 1),
+          WearTone.gilt => roll < 0.4 ? 3 : (roll < 0.8 ? 1 : 0),
+        };
+        _markAdd(b * 3 + step, m.x + cos(a) * d, m.y + sin(a) * d);
       }
     }
     const looks = <(Color, double, double)>[
       (_ashDim, 3.2, 0.42),
       (_ashPale, 2.2, 0.5),
       (_cinder, 2.8, 0.5),
+      (_gilt, 2.6, 0.7),
     ];
-    for (var b = 0; b < 9; b++) {
-      final n = _freshN[b];
+    for (var b = 0; b < 12; b++) {
+      final n = _markN[b];
       if (n == 0) continue;
       final (color, size, alpha) = looks[b ~/ 3];
       _pointPaint
@@ -691,10 +440,11 @@ class ArenaWear {
         ..strokeWidth = size;
       c.drawRawPoints(
         ui.PointMode.points,
-        Float32List.sublistView(_freshPts[b], 0, n),
+        Float32List.sublistView(_markPts[b], 0, n),
         _pointPaint,
       );
-      _freshN[b] = 0;
+      _markN[b] = 0;
+      lastGrainDraws++;
     }
   }
 
@@ -843,15 +593,8 @@ class ArenaWear {
   }
 
   void dispose() {
-    _disposed = true;
-    for (final t in _tiles) {
-      t?.char?.dispose();
-      t?.char = null;
-      t?.grains?.dispose();
-      t?.grains = null;
-      t?.image?.dispose();
-      t?.image = null;
-    }
+    _marks.clear();
+    _embers.clear();
   }
 }
 
