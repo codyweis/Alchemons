@@ -42,11 +42,16 @@ def load(script, marker, argv):
     return ns
 
 
+# The commit that still holds the four drawn frames of every Horn, Wing, Pip and Let (before the
+# 8-frame idles went in): what the actions are made from.
+ORIG = os.environ.get('ORIG', 'c3c79f89')
+
+
 def head_img(path):
-    return Image.open(io.BytesIO(subprocess.check_output(['git', 'show', 'HEAD:' + path]))).convert('RGBA')
+    return Image.open(io.BytesIO(subprocess.check_output(['git', 'show', ORIG + ':' + path]))).convert('RGBA')
 
 
-CREATURES = {c['id']: c for c in json.load(io.BytesIO(subprocess.check_output(['git', 'show', 'HEAD:assets/data/alchemons_creatures.json'])))['creatures']}
+CREATURES = {c['id']: c for c in json.load(io.BytesIO(subprocess.check_output(['git', 'show', ORIG + ':assets/data/alchemons_creatures.json'])))['creatures']}
 HORN_OFF = {'HOR01': [(0, 5), (1, -1), (1, 0)], 'HOR02': [(3, 5), (0, 10), (2, 10)], 'HOR03': [(4, 2), (0, 0), (0, 0)], 'HOR04': [(0, 5), (2, 5), (0, 0)],
             'HOR05': [(0, 2), (0, 7), (2, 3)], 'HOR06': [(0, 2), (1, 6), (-1, 3)], 'HOR07': [(-5, 6), (-11, 7), (-2, 4)], 'HOR08': [(0, -10), (0, 0), (0, -10)],
             'HOR09': [(1, 6), (0, 6), (3, 7)], 'HOR10': [(6, 1), (8, 6), (4, 1)], 'HOR11': [(-3, 1), (-7, 6), (0, 2)], 'HOR12': [(0, -17), (0, -5), (0, -10)],
@@ -73,7 +78,7 @@ MANE_EYES = {
     'LET04': [(173, 248, 22, 13), (257, 248, 24, 13)],
 }
 
-MANE_INK = {'MAN06': (255, 135, 70, 255), 'MAN14': (40, 105, 122, 255)}
+MANE_INK = {'MAN06': (255, 135, 70, 255), 'MAN14': (40, 105, 122, 255), 'LET11': (84, 62, 150, 255)}
 MANE_MODES = {'MAN05': ('sleep',), 'LET04': ('sleep',)}      # Steammane's eyes are drawn squeezed shut already: only relaxed for sleep
 
 
@@ -204,7 +209,7 @@ class Rig:
         if mode is None or self.eyes[i] is None or mode not in MANE_MODES.get(self.id, (mode,)):
             return self.frames[i]
         if (i, mode) not in self._painted:
-            self._painted[i, mode] = paint_eyes(self.frames[i], self.eyes[i], mode, self.F, self.id in SOFT, MANE_INK.get(self.id), 4.0 if self.fam == 'MAN' else 0, COVER.get(self.id), FAR.get(self.id, 2.4))
+            self._painted[i, mode] = paint_eyes(self.frames[i], self.eyes[i], mode, self.F, self.id in SOFT, MANE_INK.get(self.id), 4.0 if self.fam == 'MAN' else 0, COVER.get(self.id), FAR.get(self.id, 2.4), self.id)
         return self._painted[i, mode]
 
     def forward(self, pt, pose):
@@ -279,10 +284,48 @@ SOFT = {'WNG04', 'WNG16', 'WNG17', 'PIP16'}   # small or glowing eyes: lines in 
 COVER = {'MAN03': 'tight', 'PIP02': 'tight', 'LET11': 'tight', 'HOR03': 'far', 'HOR09': 'far', 'HOR11': 'wide', 'PIP03': 'wide', 'PIP08': 'wide'}
 
 
+def deeper(c, v):
+    """[c] in its own hue, richer and darker: the line a pale or glowing creature's shut eye is drawn with."""
+    import colorsys
+    h, s_, val = colorsys.rgb_to_hsv(c[0] / 255.0, c[1] / 255.0, c[2] / 255.0)
+    r, g, b = colorsys.hsv_to_rgb(h, min(1.0, s_ * 1.6 + 0.15), val * v)
+    return (int(r * 255), int(g * 255), int(b * 255), 255)
+
+
+def skin_fill(crop, region, solid_a, skin, w2):
+    """What goes over an eye: not one flat colour but the skin round it, drawn in from every side, so
+    a face's own light and shade carry across where the eye was."""
+    import numpy as np
+    from scipy import ndimage as ndi
+    arr = np.asarray(crop.convert('RGB'), dtype=np.float32)
+    known = np.asarray(ImageChops.multiply(solid_a, ImageChops.invert(grow(region, 0.07 * w2 + 3))), dtype=np.float32) / 255.0
+    # close to the eye, only what is skin: its rim, lashes and lids are not drawn in over it
+    near = np.asarray(grow(region, 0.55 * w2 + 4), dtype=np.float32) / 255.0
+    lum_a = arr @ np.array([0.3, 0.59, 0.11], np.float32)
+    lum_s = 0.3 * skin[0] + 0.59 * skin[1] + 0.11 * skin[2]
+    off = (lum_a < lum_s - 55) | (np.abs(arr - np.array(skin[:3], np.float32)).max(-1) > 95)
+    known = known * (1 - near * off)
+    # and nowhere what is plainly another part (a crest, a beak, a brow): only skin is drawn in
+    known = known * (np.abs(arr - np.array(skin[:3], np.float32)).max(-1) < 60)
+    fill = np.empty_like(arr)
+    fill[...] = np.array(skin[:3], np.float32)
+    for sig in (0.55 * w2, 0.28 * w2, 0.14 * w2):
+        sig = max(1.5, sig)
+        num = np.stack([ndi.gaussian_filter(arr[..., c] * known, sig) for c in range(3)], -1)
+        den = ndi.gaussian_filter(known, sig)
+        wgt = np.clip(den / 0.35, 0, 1)[..., None]
+        fill = fill * (1 - wgt) + (num / np.maximum(den, 1e-4)[..., None]) * wgt
+    out = Image.fromarray(np.clip(fill, 0, 255).astype(np.uint8), 'RGB').convert('RGBA')
+    return out
+
+
 FAR = {'HOR03': 1.45, 'HOR09': 2.4}       # how far past the iris the eye reaches, for 'far' covers
 
 
-def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=None, far=2.4):
+BIG_EYES = {'LET03'}        # a small iris marked in a much bigger dark eye: the skin is read from further out
+
+
+def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=None, far=2.4, self_id=None):
     bb = mask.getbbox()
     if bb is None:
         return img
@@ -310,7 +353,7 @@ def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=N
         col = mask.crop((l, 0, r, F))
         t, b = col.getbbox()[1], col.getbbox()[3]
         w, h = r - l, b - t
-        pad = int((2.6 if cover_as == 'far' and far > 2 else 1.4 if cover_as == 'far' else 1.1) * max(w, h) + 8)
+        pad = int((2.6 if cover_as == 'far' and far > 2 else 1.9) * max(w, h) + 10)
         box = (max(0, l - pad), max(0, t - pad), min(F, r + pad), min(F, b + pad))
         cw, ch = box[2] - box[0], box[3] - box[1]
         m = Image.new('L', (cw, ch), 0)
@@ -323,6 +366,17 @@ def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=N
             continue
         rgb = crop.convert('RGB')
         skin = tuple(int(v) for v in ImageStat.Stat(rgb, ring).median) + (255,)
+        inner = tuple(int(v) for v in ImageStat.Stat(rgb, ImageChops.multiply(m, a)).median) if ImageChops.multiply(m, a).getbbox() else skin
+        if self_id in BIG_EYES and max(abs(skin[i] - inner[i]) for i in range(3)) < 40:
+            # the ring fell inside a big eye (a small iris marked in it): the face is what lies further out, whichever colour is commonest
+            wide = ImageChops.multiply(ImageChops.subtract(grow(m, 1.8 * w + 8), grow(m, 0.9 * w + 4)), a)
+            cnt = {}
+            for px, mv in zip(rgb.getdata(), wide.getdata()):
+                if mv and max(abs(px[i] - inner[i]) for i in range(3)) >= 40:
+                    cnt.setdefault((px[0] >> 3, px[1] >> 3, px[2] >> 3), []).append(px)
+            if cnt:
+                best = max(cnt.values(), key=len)
+                skin = tuple(sorted(c[i] for c in best)[len(best) // 2] for i in range(3)) + (255,)
         if cover_as == 'tight':                           # the colour lying right beside the eye, whichever is commonest
             near = ImageChops.multiply(ImageChops.subtract(grow(m, 0.45 * w + 3), grow(m, 0.22 * w + 2)), a)
             cnt = {}
@@ -360,24 +414,32 @@ def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=N
                 region = ImageChops.lighter(base_cover, grow(joined, 2))
         rb = region.getbbox()
         lx, ty, w2, h2 = rb[0], rb[1], rb[2] - rb[0], rb[3] - rb[1]
-        ink = (int(skin[0] * 0.26), int(skin[1] * 0.28), int(skin[2] * 0.40), 255)
-        if sum(skin[:3]) < 150:                           # a dark creature: draw the lines light
-            ink = (min(255, skin[0] + 120), min(255, skin[1] + 120), min(255, skin[2] + 140), 255)
-        if soft:
-            eye_px = [px for px, mv in zip(rgb.getdata(), ImageChops.multiply(grow(region, 2), a).getdata()) if mv]
-            lum = lambda c: 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]
-            eye_px.sort(key=lum)
-            dark = eye_px[len(eye_px) // 10] if eye_px else skin
-            if lum(dark) < lum(skin) - 30:
-                ink = tuple(dark[:3]) + (255,)                     # the eye's own outline
+        # The line a shut eye is drawn with, in the creature's own hand: its eye's outline where that is
+        # darker than its skin; on a dark creature, its eye's own light; on one whose eyes glow, a warm
+        # line a little darker than its skin.
+        eye_px = [px for px, mv in zip(rgb.getdata(), ImageChops.multiply(grow(region, 2), a).getdata()) if mv]
+        lum = lambda c: 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2]
+        eye_px.sort(key=lum)
+        dark = eye_px[len(eye_px) // 10] if eye_px else skin
+        bright = eye_px[len(eye_px) * 9 // 10] if eye_px else skin
+        if lum(skin) < 80:
+            if lum(bright) > lum(skin) + 60:
+                ink = tuple(bright[:3]) + (255,)
             else:
-                ink = (int(skin[0] * 0.80), int(skin[1] * 0.60), int(skin[2] * 0.42), 255)   # a glowing eye: a warm darker line
+                ink = (min(255, skin[0] + 120), min(255, skin[1] + 120), min(255, skin[2] + 140), 255)
+        elif lum(dark) < lum(skin) - 30:
+            ink = tuple(dark[:3]) + (255,)
+        else:
+            ink = deeper(skin, 0.62)
+        if abs(lum(ink) - lum(skin)) < 55:                # it has to read against the skin it is drawn on
+            ink = deeper(skin, 0.5) if lum(skin) >= 80 else (min(255, skin[0] + 150), min(255, skin[1] + 150), min(255, skin[2] + 160), 255)
         if ink_as:
             ink = ink_as
         S = 3
         lay = Image.new('RGBA', (cw * S, ch * S), (0, 0, 0, 0))
         d = ImageDraw.Draw(lay)
-        sw = max(min_sw, max(1.7, 0.07 * w2) if soft else max(2.2, 0.09 * w2)) * S
+        unit = F / 600.0
+        sw = max(min_sw, min(4.4 * unit, max(1.7 * unit, 0.07 * w2) if soft else max(2.3 * unit, 0.075 * w2))) * S
         if mode in ('happy', 'sleep'):
             cover = region.filter(ImageFilter.GaussianBlur(max(1.0, 0.03 * w2)))
             cx, cy = lx + w2 / 2, ty + h2 / 2
@@ -402,7 +464,7 @@ def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=N
             cover = ImageChops.multiply(region, lid).filter(ImageFilter.GaussianBlur(max(0.8, 0.02 * w2)))
             d.line((x0 * S, y0 * S, x1 * S, y1 * S), fill=ink, width=int(sw * 1.15))
         cover = ImageChops.multiply(cover, alpha.crop(box))
-        crop = Image.composite(Image.new('RGBA', crop.size, skin), crop, cover)
+        crop = Image.composite(skin_fill(crop, region, a, skin, w2), crop, cover)
         lay = lay.resize((cw, ch), Image.LANCZOS)
         # lines stay on the creature; a lid line stays on its eye
         clip = alpha.crop(box) if mode != 'aim' else ImageChops.multiply(alpha.crop(box), grow(region, max(2, 0.05 * w2)).filter(ImageFilter.GaussianBlur(1)))
