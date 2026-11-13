@@ -83,7 +83,10 @@ MANE_EYES = {
     'LET04': [(173, 248, 22, 13), (257, 248, 24, 13)],
 }
 
-MANE_INK = {'MAN06': (255, 135, 70, 255), 'MAN14': (40, 105, 122, 255), 'LET11': (84, 62, 150, 255)}
+MANE_INK = {
+    # the Light ones: one warm amber-brown line, strong enough to read on a glowing body
+    'HOR16': (150, 92, 24, 255), 'WNG16': (150, 92, 24, 255), 'PIP16': (150, 92, 24, 255), 'LET16': (150, 92, 24, 255), 'MAN16': (150, 92, 24, 255),
+    'MAN06': (255, 135, 70, 255), 'MAN14': (40, 105, 122, 255), 'LET11': (84, 62, 150, 255)}
 MANE_MODES = {'MAN05': ('sleep',), 'LET04': ('sleep',)}      # Steammane's eyes are drawn squeezed shut already: only relaxed for sleep
 
 
@@ -693,10 +696,16 @@ def grow(mask, px):
     return mask.filter(ImageFilter.MaxFilter(2 * px + 1)) if px > 0 else mask
 
 
-SOFT = {'WNG04', 'WNG16', 'WNG17', 'PIP16'}   # small or glowing eyes: lines in the creature's own outline colour, lighter touch
+SOFT = {'WNG04', 'WNG17'}   # small or glowing eyes: lines in the creature's own outline colour, lighter touch
 
 
-COVER = {'MAN03': 'tight', 'PIP02': 'tight', 'LET11': 'tight', 'HOR03': 'far', 'HOR09': 'far', 'HOR11': 'wide', 'PIP03': 'wide', 'PIP08': 'wide'}
+# the far eye is a sliver at the edge of the face: it shuts too
+SLIVER_EYES = {'WNG16'}
+# a shut eye's line turned to lie along a slanted eye (degrees, anticlockwise)
+ARC_TILT = {'WNG16': 20}
+# a shut eye's line drawn smaller than the eye it replaces
+ARC_SCALE = {'WNG16': 0.6}
+COVER = {'WNG16': 'tight', 'MAN03': 'tight', 'PIP02': 'tight', 'LET11': 'tight', 'HOR03': 'far', 'HOR09': 'far', 'HOR11': 'wide', 'PIP03': 'wide', 'PIP08': 'wide'}
 
 
 def deeper(c, v):
@@ -759,7 +768,7 @@ def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=N
             merged[-1][1] = r[1]
         else:
             merged.append(r)
-    if far <= 2 or cover_as != 'far':                  # (a slit of an iris is still an eye)
+    if (far <= 2 or cover_as != 'far') and self_id not in SLIVER_EYES:      # (a slit of an iris is still an eye)
         merged = [r for r in merged if r[1] - r[0] >= 0.012 * F] or merged
     out = img.copy()
     face_cx = (merged[0][0] + merged[-1][1]) / 2
@@ -854,7 +863,7 @@ def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=N
         lay = Image.new('RGBA', (cw * S, ch * S), (0, 0, 0, 0))
         d = ImageDraw.Draw(lay)
         unit = F / 600.0
-        sw = max(min_sw, min(4.4 * unit, max(1.7 * unit, 0.07 * w2) if soft else max(2.3 * unit, 0.075 * w2))) * S
+        sw = (0.8 if self_id in ARC_SCALE else 1.0) * max(min_sw, min(4.4 * unit, max(1.7 * unit, 0.07 * w2) if soft else max(2.3 * unit, 0.075 * w2))) * S
         if mode in ('happy', 'sleep'):
             cover = region.filter(ImageFilter.GaussianBlur(max(1.0, 0.03 * w2)))
             cx, cy = lx + w2 / 2, ty + h2 / 2
@@ -862,9 +871,11 @@ def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=N
                 rx, ry = 0.42 * w2, max(0.24 * h2, 0.18 * w2)
                 if soft:
                     rx, ry = 0.50 * w2, 0.20 * w2
+                rx, ry = rx * ARC_SCALE.get(self_id, 1.0), ry * ARC_SCALE.get(self_id, 1.0)
                 d.arc(((cx - rx) * S, (cy - ry * 0.4) * S, (cx + rx) * S, (cy + ry * 1.9) * S), 200, 340, fill=ink, width=int(sw))
             else:
                 rx, ry = 0.40 * w2, max(0.22 * h2, 0.16 * w2)
+                rx, ry = rx * ARC_SCALE.get(self_id, 1.0), ry * ARC_SCALE.get(self_id, 1.0)
                 d.arc(((cx - rx) * S, (cy - ry * 1.5) * S, (cx + rx) * S, (cy + ry * 0.9) * S), 22, 158, fill=ink, width=int(sw))
         else:                                               # aiming: a lid over the top of the eye, dipping toward the middle
             inner_right = (l + r) / 2 < face_cx if len(merged) > 1 else False
@@ -880,11 +891,20 @@ def paint_eyes(img, mask, mode, F, soft=False, ink_as=None, min_sw=0, cover_as=N
             d.line((x0 * S, y0 * S, x1 * S, y1 * S), fill=ink, width=int(sw * 1.15))
         cover = ImageChops.multiply(cover, alpha.crop(box))
         crop = Image.composite(skin_fill(crop, region, a, skin, w2), crop, cover)
+        if mode != 'aim' and ARC_TILT.get(self_id):
+            lay = lay.rotate(ARC_TILT[self_id], Image.BICUBIC, center=((lx + w2 / 2) * S, (ty + h2 / 2) * S))
         lay = lay.resize((cw, ch), Image.LANCZOS)
         # lines stay on the creature; a lid line stays on its eye
         clip = alpha.crop(box) if mode != 'aim' else ImageChops.multiply(alpha.crop(box), grow(region, max(2, 0.05 * w2)).filter(ImageFilter.GaussianBlur(1)))
         lay.putalpha(ImageChops.multiply(lay.getchannel('A'), clip))
         crop.alpha_composite(lay)
+        if self_id in SLIVER_EYES and mode != 'aim':       # the far eye's white, at the face's edge: skin, with the eye shut
+            wh = crop.convert('RGB').point(lambda v: 255 if v > 236 else 0).split()
+            white = ImageChops.multiply(ImageChops.multiply(wh[0], wh[1]), wh[2])
+            side = Image.new('L', crop.size, 0)
+            side.paste(255, (0, 0, max(0, int(lx - 0.15 * w2)), ch))
+            white = grow(ImageChops.multiply(ImageChops.multiply(white, side), a), 1).filter(ImageFilter.GaussianBlur(0.8))
+            crop = Image.composite(Image.new('RGBA', crop.size, skin), crop, ImageChops.multiply(white, alpha.crop(box)))
         out.paste(crop, box[:2])
     return out
 
