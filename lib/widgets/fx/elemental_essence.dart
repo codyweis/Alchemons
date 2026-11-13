@@ -1567,7 +1567,13 @@ class ElementalEssence extends StatefulWidget {
     this.hold = false,
     this.tappable = true,
     this.onRevealed,
+    this.revealSpeed = 1,
   });
+
+  /// How many times faster than usual the reveal plays (it takes 1.55 s at
+  /// 1). For a card that is one of many flicked through. A tap's turn into
+  /// its element and back keeps its own pace.
+  final double revealSpeed;
 
   /// The creature's type name ('Fire'…): see [EssenceElement.of].
   final String? element;
@@ -1750,8 +1756,19 @@ class _ElementalEssenceState extends State<ElementalEssence>
       ..reveal = true;
     // The controller first, so the frame that stops hiding the sprite
     // already has it faded out by the reveal's own curve.
+    const from = EssenceField.revealStart / EssenceField.duration;
+    _c.value = from;
     unawaited(
-      _c.forward(from: EssenceField.revealStart / EssenceField.duration),
+      _c.animateTo(
+        1,
+        duration: Duration(
+          milliseconds:
+              ((EssenceField.duration - EssenceField.revealStart) *
+                      1000 /
+                      widget.revealSpeed.clamp(0.25, 8.0))
+                  .round(),
+        ),
+      ),
     );
     setState(() {
       _field = field;

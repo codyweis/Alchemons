@@ -34,7 +34,10 @@ import 'package:provider/provider.dart';
 
 /// What a case prints in its top-right corner: nothing, the four stats, or
 /// what is unusual in the genes.
-enum CaseView { plain, stats, potential, genetics }
+/// What a case prints in its top-right corner. [enhancement] (the four
+/// infusion ranks) is offered only where the grid allows it: Enhance's
+/// picker.
+enum CaseView { plain, stats, potential, genetics, enhancement }
 
 /// Gilt: a favourite's frame, and the Codex's "new" color.
 const Color kCaseGilt = Color(0xFFE4B356);
@@ -226,6 +229,8 @@ class SpecimenCase extends StatelessWidget {
                                     _caseStats(instance)
                                   else if (view == CaseView.potential)
                                     _caseStats(instance, potential: true)
+                                  else if (view == CaseView.enhancement)
+                                    _caseEnhancement(instance)
                                   else if (view == CaseView.genetics)
                                     _caseGenetics(
                                       instance,
@@ -442,6 +447,25 @@ Widget _caseStats(CreatureInstance i, {bool potential = false}) {
         const Color(0xFFF9A8D4),
         f(i.statBeauty, i.statBeautyPotential),
       ),
+    ],
+  );
+}
+
+/// The four infusion ranks, out of the most a stat can take; a full one in
+/// gilt.
+Widget _caseEnhancement(CreatureInstance i) {
+  const max = AlchemonStatSystem.maxEnhancementRank;
+  Widget line(String label, Color color, int rank) =>
+      _caseLine(label, color, rank >= max ? 'MAX' : '$rank/$max');
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.end,
+    mainAxisSize: MainAxisSize.min,
+    spacing: 2,
+    children: [
+      line('SPD', const Color(0xFFFDE047), i.statSpeedEnhancement),
+      line('INT', const Color(0xFFC084FC), i.statIntelligenceEnhancement),
+      line('STR', const Color(0xFFF87171), i.statStrengthEnhancement),
+      line('BEA', const Color(0xFFF9A8D4), i.statBeautyEnhancement),
     ],
   );
 }

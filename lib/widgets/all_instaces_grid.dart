@@ -27,6 +27,7 @@ import 'package:alchemons/utils/faction_util.dart';
 import 'package:alchemons/utils/responsive_grid.dart';
 import 'package:alchemons/utils/genetics_util.dart';
 import 'package:alchemons/utils/instance_purity_util.dart';
+import 'package:alchemons/utils/show_quick_instance_dialog.dart';
 import 'package:alchemons/widgets/creature_detail/creature_dialog.dart';
 import 'package:alchemons/widgets/app_icons.dart';
 
@@ -58,6 +59,10 @@ class AllCreatureInstances extends StatefulWidget {
   /// Mode shown the first time this scope is opened. Once the player
   /// changes it, their saved choice wins.
   final InstanceDetailMode initialDetailMode;
+
+  /// What the cases ([caseCards]) print in their corner the first time
+  /// this scope is opened. Once the player changes it, their choice wins.
+  final CaseView initialCaseView;
 
   /// Whether the detail chip offers Enhancement at all. Only the Stat
   /// Infusion picker turns this on — everywhere else the ranks are noise.
@@ -105,6 +110,7 @@ class AllCreatureInstances extends StatefulWidget {
     this.onSelectionChanged,
     this.prefsScopeKey,
     this.initialDetailMode = InstanceDetailMode.genetics,
+    this.initialCaseView = CaseView.plain,
     this.allowEnhancementMode = false,
     this.cardBadgeBuilder,
     this.caseWrapper,
@@ -237,8 +243,11 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     );
     _caseView = CaseView.values.firstWhere(
       (e) => e.name == p['caseView'],
-      orElse: () => CaseView.plain,
+      orElse: () => _caseView,
     );
+    if (_caseView == CaseView.enhancement && !widget.allowEnhancementMode) {
+      _caseView = CaseView.plain;
+    }
     if (_detailMode == InstanceDetailMode.info ||
         (_detailMode == InstanceDetailMode.enhancement &&
             !widget.allowEnhancementMode)) {
@@ -261,7 +270,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
   late InstanceDetailMode _detailMode;
 
   /// What the cases print in their top-right corner.
-  CaseView _caseView = CaseView.plain;
+  late CaseView _caseView;
 
   @override
   void initState() {
@@ -271,6 +280,11 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
             !widget.allowEnhancementMode
         ? InstanceDetailMode.genetics
         : widget.initialDetailMode;
+    _caseView =
+        widget.initialCaseView == CaseView.enhancement &&
+            !widget.allowEnhancementMode
+        ? CaseView.plain
+        : widget.initialCaseView;
     _searchController = TextEditingController();
     if (widget.searchTextOverride != null) {
       _searchController.text = widget.searchTextOverride!;
@@ -629,12 +643,25 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     }
   }
 
-  /// A long press opens the details, in a picker too.
-  void _longPress(CreatureInstance inst, Creature creature) {
+  /// A long press opens the quick look, in a picker too: a condensed card
+  /// that swipes left and right through [siblings], the list as it stands
+  /// (filtered and sorted), with FULL DETAILS at its foot.
+  void _longPress(
+    CreatureInstance inst,
+    Creature creature,
+    List<CreatureInstance> siblings,
+  ) {
     if (widget.selectionMode) {
       widget.onLongPress?.call();
     } else {
-      _openDetails(inst, creature);
+      HapticFeedback.mediumImpact();
+      showQuickInstanceDialog(
+        context: context,
+        theme: widget.theme,
+        creature: creature,
+        instance: inst,
+        siblings: siblings,
+      );
     }
   }
 
@@ -759,13 +786,18 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                       CaseView.stats => 'STATS',
                       CaseView.potential => 'POTENTIAL',
                       CaseView.genetics => 'GENETICS',
+                      CaseView.enhancement => 'ENHANCE',
                     },
                     _caseView != CaseView.plain,
                     () => _mutate(() {
-                      // POTENTIAL only once the analyzer is unlocked.
+                      // POTENTIAL only once the analyzer is unlocked;
+                      // ENHANCE only where the grid allows it.
                       final order = [
                         for (final v in CaseView.values)
-                          if (v != CaseView.potential || hasPotentialAnalyzer)
+                          if ((v != CaseView.potential ||
+                                  hasPotentialAnalyzer) &&
+                              (v != CaseView.enhancement ||
+                                  widget.allowEnhancementMode))
                             v,
                       ];
                       final at = order.indexOf(_caseView);
@@ -774,6 +806,7 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                     switch (_caseView) {
                       CaseView.genetics => const Color(0xFF7DD3FC),
                       CaseView.potential => const Color(0xFFFDE047),
+                      CaseView.enhancement => const Color(0xFF38BDF8),
                       _ => const Color(0xFFF87171),
                     },
                   ),
@@ -1216,7 +1249,8 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                               creature,
                             ),
                             onTap: () => _openOrSelect(inst, creature),
-                            onLongPress: () => _longPress(inst, creature),
+                            onLongPress: () =>
+                                _longPress(inst, creature, instances),
                           );
                           return wrap == null ? kase : wrap(inst, kase);
                         }
@@ -1236,7 +1270,8 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
                               creature,
                             ),
                             onTap: () => _openOrSelect(inst, creature),
-                            onLongPress: () => _longPress(inst, creature),
+                            onLongPress: () =>
+                                _longPress(inst, creature, instances),
                           ),
                         );
                       },

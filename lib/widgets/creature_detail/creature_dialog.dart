@@ -325,7 +325,7 @@ class _CreatureDetailsDialogState extends State<CreatureDetailsDialog>
 
     final nextFavorite = !instance.isFavorite;
     if (nextFavorite) {
-      HapticFeedback.mediumImpact();
+      HapticFeedback.heavyImpact();
     } else {
       HapticFeedback.selectionClick();
     }
