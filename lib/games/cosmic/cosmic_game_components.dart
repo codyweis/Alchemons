@@ -25,6 +25,9 @@ class ShipComponent {
   Offset pos;
   double angle = -pi / 2; // pointing up initially
 
+  /// How much larger than its own size the hull is drawn (its wake is not).
+  double scale = 1;
+
   /// The grains this ship has left behind it (ship_art.dart).
   final ShipWake wake = ShipWake();
 
@@ -47,6 +50,7 @@ class ShipComponent {
     canvas.save();
     canvas.translate(pos.dx, pos.dy);
     canvas.rotate(angle + pi / 2); // adjust so 0 = up
+    if (scale != 1) canvas.scale(scale);
     paintShipHull(
       canvas,
       skin,

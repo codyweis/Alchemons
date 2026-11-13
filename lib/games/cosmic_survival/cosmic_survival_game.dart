@@ -1673,8 +1673,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   // Former collectible rewards used a 1.20 pickup value; direct grants are 20% lower.
   static const double _alchemyMeterGainMultiplier = 0.96;
   static const double _arenaShipPadding = 32.0;
-  static const double _orbCoreRadius = 72.0;
-  static const double _orbShieldRadius = 136.0;
+  /// The core and its readings (health, meter, shield) are drawn 20% larger
+  /// than they were (user, 2026-11-12: the orb 20%, the ship 5%, the
+  /// creatures 10%, then on the phone 50%).
+  static const double _kOrbArtScale = 1.2;
+  static const double _orbCoreRadius = 72.0 * _kOrbArtScale;
+  static const double _orbShieldRadius = 136.0 * _kOrbArtScale;
+
+  /// How far past a body's own radius the core is touched: the larger core
+  /// is touched at its glass, as the old one was, and not inside it.
+  static const double _orbContactGap = 30.0 * _kOrbArtScale;
   static const double _orbGravityRadius = 720.0;
   static const double _orbShipOrbitRadius = 270.0;
   double _idleOrbitRadius = _orbShipOrbitRadius;
@@ -1711,7 +1719,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// A cosmic ship design id ('skin_phantom', …); null flies the standard
   /// hull.
   String? shipSkin;
-  final ShipComponent _shipArt = ShipComponent(pos: Offset.zero);
+  final ShipComponent _shipArt = ShipComponent(pos: Offset.zero)
+    ..scale = _kShipArtScale;
 
   // Camera
   static const double _introZoomStart = 0.85;
@@ -5672,7 +5681,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   /// The ship's hull, for keeping companions off it.
-  static const double _shipHullRadius = 24.0;
+  static const double _shipHullRadius = 24.0 * _kShipArtScale;
+
+  /// Survival draws the ship and the creatures larger than open space does.
+  static const double _kShipArtScale = 1.05;
+  static const double _kCreatureArtScale = 1.5;
 
   /// The creature's radius on screen: it is drawn in a 62.4 box scaled by
   /// its family and size genes, and fills about two thirds of that.
@@ -5680,6 +5693,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       62.4 *
       (_companionSpeciesScale[comp.member.family.toLowerCase()] ?? 1.3) *
       (comp.member.spriteVisuals?.scale ?? 1.0) *
+      _kCreatureArtScale *
       0.34;
 
   /// [v]'s angle measured from [reference], in (-pi, pi].
@@ -6116,7 +6130,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final family = member.family.toLowerCase();
     final specScale = _companionSpeciesScale[family] ?? 1.3;
     _companionSpriteScales[slotIndex] =
-        min(sx, sy) * (member.spriteVisuals?.scale ?? 1.0) * specScale;
+        min(sx, sy) *
+        (member.spriteVisuals?.scale ?? 1.0) *
+        specScale *
+        _kCreatureArtScale;
   }
 
   void returnCompanion([int? slotIndex]) {
@@ -7039,7 +7056,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _applyEnemyContactDamage(CosmicSurvivalEnemy enemy, double dt) {
     // A Siphon and a Clutch never ram: thrown onto the orb, they hold there.
-    if (_withinRange(enemy.position, orb.position, enemy.radius + 30) &&
+    if (_withinRange(
+          enemy.position,
+          orb.position,
+          enemy.radius + _orbContactGap,
+        ) &&
         enemy.target == CosmicEnemyTarget.orb &&
         enemy.kind != SurvivalKind.siphon &&
         enemy.kind != SurvivalKind.clutch) {
@@ -12015,7 +12036,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   void _applyBossContactDamage(SurvivalBoss boss, double dt) {
     final orbDist = (boss.position - orb.position).distance;
-    if (orbDist < boss.radius + 30) {
+    if (orbDist < boss.radius + _orbContactGap) {
       _damageOrb(18 * dt);
     }
 
@@ -24824,15 +24845,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
   /// The core's readings, at the canvas origin.
   void _paintCoreReadings(Canvas canvas) {
+    // Its rings are laid out for the old core: drawn larger with it.
+    canvas.save();
+    canvas.scale(_kOrbArtScale);
     paintOrbReadings(
       canvas,
       orb.skin,
       hpFrac: orb.hpPercent,
       meterFrac: _alchemicalMeterDisplayFrac,
       shield: orbShieldFraction,
-      shieldRadius: _orbShieldRadius,
+      shieldRadius: _orbShieldRadius / _kOrbArtScale,
       time: corePresentationTime,
     );
+    canvas.restore();
   }
 
   /// The field the ship orbits in: lanes of drifting dust (orb_art.dart),
@@ -25762,7 +25787,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   /// The ship's shield shell, in world units: just clear of the hull.
-  static const double _kShipShieldRadius = 36;
+  static const double _kShipShieldRadius = 36 * _kShipArtScale;
 
   /// The hull, drawn by the cosmic ship painter (ship_art.dart) so it looks
   /// the same in both modes — minus the light pooled round it, which

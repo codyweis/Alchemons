@@ -168,8 +168,10 @@ void main() {
       var cast = false;
       // Until the Kin has cast: it needs something in reach to cast at.
       for (var i = 0; i < 60 * 15 && !cast; i++) {
-        // The ally stands beside the Kin, and casts nothing of its own.
-        ally.position = caster.position + const Offset(40, 0);
+        // The ally stands beside the Kin, clear of its body (pinned inside
+        // it, the two bodies shove the Kin away across the arena), and casts
+        // nothing of its own.
+        ally.position = caster.position + const Offset(120, 0);
         ally.specialCooldown = 99;
         final was = caster.specialCooldown;
         game.update(1 / 60);
@@ -207,11 +209,11 @@ void main() {
         );
         final caster = game.activeCompanions[0]!;
         final ally = game.activeCompanions[1]!;
-        ally.position = caster.position + const Offset(40, 0);
+        ally.position = caster.position + const Offset(120, 0);
         // The orb falls; the phoenix catches it.
         game.orb.currentHp = 0;
         for (var i = 0; i < 10; i++) {
-          ally.position = caster.position + const Offset(40, 0);
+          ally.position = caster.position + const Offset(120, 0);
           game.update(1 / 60);
         }
         expect(caster.kinFireOrbitalFlameActive, isTrue);
