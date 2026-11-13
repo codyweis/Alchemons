@@ -192,13 +192,20 @@ class MutatorField {
         // Along the tangent: across the line to the core.
         final tx = -dy / d * dir, ty = dx / d * dir;
         final run = (s - 0.5) * cell * 2.6;
-        for (var k = 0; k < 5; k++) {
-          final at = run - k * 6.5;
-          _add(
-            k == 0 && edge > 0.6 ? 2 : (k < 3 ? 1 : 0),
-            bx + tx * at,
-            by + ty * at,
-          );
+        // A pack of three running abreast, the middle one ahead: one short
+        // streak of five grains was lost on the floor.
+        for (var m = 0; m < 3; m++) {
+          final abreast = (m - 1) * 9.0;
+          final lag = m == 1 ? 0.0 : 9.0 + 6.0 * _h(id, 15 + m);
+          final ox = dx / d * abreast, oy = dy / d * abreast;
+          for (var k = 0; k < 9; k++) {
+            final at = run - lag - k * 5.0;
+            _add(
+              k == 0 && edge > 0.5 ? 2 : (k < 4 ? 1 : 0),
+              bx + ox + tx * at,
+              by + oy + ty * at,
+            );
+          }
         }
       }
     }
@@ -299,21 +306,28 @@ class MutatorField {
   /// Motes rising everywhere in the essence's own violet, swaying and
   /// twinkling as they go.
   void _flux(Rect view, double time) {
-    const cell = 36.0;
+    const cell = 46.0;
     final x0 = (view.left / cell).floor(), x1 = (view.right / cell).ceil();
     final y0 = (view.top / cell).floor(), y1 = (view.bottom / cell).ceil();
     for (var gx = x0; gx < x1; gx++) {
       for (var gy = y0; gy < y1; gy++) {
         final id = gx * 7919 + gy * 104729;
-        final rise = (_h(id, 51) + time * (0.08 + 0.07 * _h(id, 52))) % 1.0;
-        final x =
-            (gx + _h(id, 53)) * cell + 7 * sin(time * 0.9 + _h(id, 54) * _tau);
-        final y = (gy + 1.5 - rise * 2) * cell;
-        final twinkle = sin(time * 2.4 + _h(id, 55) * _tau);
+        // Two cells in three: every cell made it a curtain of rain.
+        if (_h(id, 56) < 0.34) continue;
+        final rise = (_h(id, 51) + time * (0.13 + 0.11 * _h(id, 52))) % 1.0;
+        final phase = _h(id, 54) * _tau;
+        final bx = (gx + _h(id, 53)) * cell;
+        final by = (gy + 1.5 - rise * 2) * cell;
         // Faint as it starts and as it goes.
         final edge = sin(rise * pi);
-        if (edge < 0.25) continue;
-        _add(twinkle > 0.6 && edge > 0.7 ? 2 : (edge > 0.6 ? 1 : 0), x, y);
+        if (edge < 0.2) continue;
+        // A wisp, not a mote: a lit head and what it sheds below it, swaying
+        // as it climbs. (One grain at a time read as a star on the floor.)
+        for (var k = 0; k < 5; k++) {
+          final y = by + k * 5.5;
+          final x = bx + 7 * sin(time * 0.9 + phase + y * 0.045);
+          _add(k == 0 && edge > 0.45 ? 2 : (k < 3 && edge > 0.5 ? 1 : 0), x, y);
+        }
       }
     }
   }

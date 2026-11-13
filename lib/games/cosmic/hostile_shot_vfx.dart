@@ -2,14 +2,17 @@
 //
 // A hostile shot — anything an enemy or boss fires at the player — drawn
 // the same in Survival and in open space, and in the bodies' own material:
-// a dark bead with its element's grains lit hot round its leading face,
-// shedding a straight wake of grains that thins to nothing. The party's
-// shots are light all through, so the dark core is what makes fire read as
-// hostile; the straight bright wake is what tells it from a mote, which
-// churns and trails dim.
+// a dark bead with its element's grains lit hot round its leading face and
+// one hot point at its nose, shedding a straight wake of grains that
+// widens a little and thins to nothing. The party's shots are light all
+// through, so the dark core is what makes fire read as hostile; the hot
+// nose and the long bright wake are what make it read at all on a phone,
+// and tell it from a mote, which churns and trails dim. (Drawn at its hit
+// size it was a 2-pixel dark bead with a hair behind it: it is drawn half
+// again as large as it hits, with a wake half as long again.)
 //
 // Every shot in view goes out together: the cores in two point draws, the
-// grains in four per element. No blur, no shaders.
+// grains in five per element. No blur, no shaders.
 
 import 'dart:math';
 import 'dart:typed_data';
@@ -32,7 +35,8 @@ class _Buf {
   }
 }
 
-/// One element's grains: 0 the wake's end, 1 the wake, 2 lit, 3 hot.
+/// One element's grains: 0 the wake's end, 1 the wake, 2 lit, 3 hot, and
+/// [nose], the one hot point each shot leads with.
 class _Look {
   _Look(Color c)
     : tone = [
@@ -44,6 +48,7 @@ class _Look {
 
   final List<Color> tone;
   final List<_Buf> pts = List.generate(4, (_) => _Buf());
+  final _Buf nose = _Buf();
   bool used = false;
 }
 
@@ -63,16 +68,22 @@ class HostileShotBatch {
   // not a ruled line.
   static const _side = [0.0, 0.5, -0.35, 0.2, -0.6, 0.4, -0.15, 0.55, -0.45];
 
+  /// How much larger than its hit radius a shot is drawn.
+  static const double drawnScale = 1.5;
+
   /// Adds a shot at [p] heading [angle], [radius] across. [heavy] is a
   /// boss's: larger, with a longer wake and a full ring of grains.
   void add(
     Offset p,
     double angle,
-    double radius,
+    double hitRadius,
     String element,
     double time, {
     bool heavy = false,
   }) {
+    // Drawn larger than it hits: its hit size is a few units, a pixel or
+    // two across at the flying zoom.
+    final radius = hitRadius * drawnScale;
     final look = _looks[element] ??= _Look(elementColor(element));
     if (!look.used) {
       look.used = true;
@@ -102,14 +113,16 @@ class HostileShotBatch {
         p.dy + hs * x + hc * y,
       );
     }
-    // The wake: grains shed straight back, running down it and thinning.
-    final n = heavy ? 13 : 9;
-    final len = radius * (heavy ? 6.5 : 5);
+    look.nose.add(p.dx + hc * radius * 0.7, p.dy + hs * radius * 0.7);
+    // The wake: grains shed straight back, running down it, spreading a
+    // little and thinning.
+    final n = heavy ? 18 : 13;
+    final len = radius * (heavy ? 7.5 : 6);
     for (var i = 0; i < n; i++) {
       final s = (i / n + time * 2.6) % 1.0;
       final back = radius * 0.9 + len * s;
-      final w = radius * _side[i % _side.length] * (1 - 0.7 * s);
-      look.pts[s < 0.25 ? 2 : (s < 0.7 ? 1 : 0)].add(
+      final w = radius * _side[i % _side.length] * (0.55 + 0.6 * s);
+      look.pts[s < 0.3 ? 2 : (s < 0.72 ? 1 : 0)].add(
         p.dx - hc * back - hs * w,
         p.dy - hs * back + hc * w,
       );
@@ -125,7 +138,7 @@ class HostileShotBatch {
         PointMode.points,
         Float32List.sublistView(b.d, 0, b.n),
         _pt
-          ..strokeWidth = r * 1.05
+          ..strokeWidth = r * drawnScale * 1.05
           ..color = _ink,
       );
       b.n = 0;
@@ -148,6 +161,16 @@ class HostileShotBatch {
             ..color = look.tone[t],
         );
         b.n = 0;
+      }
+      if (look.nose.n > 0) {
+        canvas.drawRawPoints(
+          PointMode.points,
+          Float32List.sublistView(look.nose.d, 0, look.nose.n),
+          _pt
+            ..strokeWidth = grain * 2.1
+            ..color = look.tone[3],
+        );
+        look.nose.n = 0;
       }
     }
     _order.clear();
