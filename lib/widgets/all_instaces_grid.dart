@@ -316,6 +316,15 @@ class _AllCreatureInstancesState extends State<AllCreatureInstances> {
     if (widget.clearVersion != oldWidget.clearVersion) {
       _mutate(() => _resetAllControls(clearSearch: true));
     }
+    // The caller's first view may only be known a moment after the grid is
+    // up (Enhance learns whether orbs have ever been held): it is taken
+    // then, unless the player has already turned the cases to another.
+    if (widget.initialCaseView != oldWidget.initialCaseView &&
+        _caseView == oldWidget.initialCaseView &&
+        (widget.initialCaseView != CaseView.enhancement ||
+            widget.allowEnhancementMode)) {
+      setState(() => _caseView = widget.initialCaseView);
+    }
     if (widget.searchTextOverride != oldWidget.searchTextOverride &&
         widget.searchTextOverride != null &&
         widget.searchTextOverride != _searchController.text) {

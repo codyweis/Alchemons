@@ -44,8 +44,9 @@ import 'package:alchemons/widgets/app_icons.dart';
 import 'package:alchemons/widgets/bracket_controls.dart';
 import 'package:alchemons/widgets/bracket_frame.dart';
 import 'package:alchemons/widgets/coin_icon.dart';
-import 'package:alchemons/widgets/instance_widgets/instance_sheet_components.dart'
-    show InstanceDetailMode;
+import 'package:alchemons/widgets/instance_widgets/specimen_case.dart'
+    show CaseView;
+import 'package:alchemons/widgets/specimen_search_bar.dart';
 import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:alchemons/widgets/creature_sprite.dart';
 import 'package:alchemons/widgets/fx/fusion_particles.dart' show SpecimenGrains;
@@ -186,6 +187,12 @@ class _FeedingScreenState extends State<FeedingScreen>
   /// The picker's search: nickname or species.
   final TextEditingController _search = TextEditingController();
   String _query = '';
+
+  /// Bumped by RESET: the grid drops its sort and filters.
+  int _pickerClearVersion = 0;
+
+  /// Whether there is a sort, filter or search for RESET to clear.
+  bool _pickerResettable = false;
 
   // ── the way in, from the picker ──
   /// 0 → 1 as a chosen Alchemon is carried onto the stage; 1 when settled
@@ -662,13 +669,27 @@ class _FeedingScreenState extends State<FeedingScreen>
     return Column(
       children: [
         _EnhanceHeader(subtitle: 'CHOOSE AN ALCHEMON', onBack: _back),
+        // The same search bar, sort row and cases as fusion's picker, with
+        // RESET once there is a sort, filter or search to clear.
         Padding(
-          padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
-          child: _SearchField(
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 0),
+          child: SpecimenSearchBar(
+            palette: _kPalette,
+            accent: _kAccent,
             controller: _search,
-            onChanged: (q) => setState(() => _query = q),
+            hint: 'Search your Alchemons',
+            onChanged: (q) => setState(() => _query = q.trim()),
+            showReset: _pickerResettable,
+            onReset: () {
+              _search.clear();
+              setState(() {
+                _query = '';
+                _pickerClearVersion++;
+              });
+            },
           ),
         ),
+        const SizedBox(height: 4),
         Expanded(
           // Where a touch comes down, so a chosen card can be found again.
           child: Listener(
@@ -693,13 +714,19 @@ class _FeedingScreenState extends State<FeedingScreen>
                 }
                 return AllCreatureInstances(
                   theme: theme,
-                  prefsScopeKey: 'enhance_select',
+                  caseCards: true,
+                  prefsScopeKey: 'enhance_specimens',
                   searchTextOverride: _query,
                   showInternalSearchBar: false,
+                  clearVersion: _pickerClearVersion,
+                  onResettableStateChanged: (value) {
+                    if (!mounted || _pickerResettable == value) return;
+                    setState(() => _pickerResettable = value);
+                  },
                   allowEnhancementMode: true,
-                  initialDetailMode: _orbsSeen
-                      ? InstanceDetailMode.enhancement
-                      : InstanceDetailMode.stats,
+                  initialCaseView: _orbsSeen
+                      ? CaseView.enhancement
+                      : CaseView.stats,
                   selectedInstanceIds: const [],
                   cardBadgeBuilder: (inst, species) {
                     if (inst.level >= AlchemonStatSystem.maxLevel) return null;

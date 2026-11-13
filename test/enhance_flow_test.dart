@@ -82,9 +82,9 @@ void main() {
       'grains, and the chamber is there once it lands', (tester) async {
     final audio = _RecordingAudio();
     final h = await EnhanceHarness.pump(tester, audio: audio);
-    // Below the sprite, on the card's name and stats: the card is still
-    // found, and its sprite read.
-    await tester.tap(find.text('Firehorn').first, warnIfMissed: false);
+    // Below the sprite, on the case's name (the cases print it in
+    // capitals): the case is still found, and its sprite read.
+    await tester.tap(find.text('FIREHORN').first, warnIfMissed: false);
     final flight = find.byWidgetPredicate(
       (w) => w is CustomPaint && w.painter is StageArrivalPainter,
     );
@@ -106,11 +106,11 @@ void main() {
 
   testWidgets('the picker searches by species', (tester) async {
     final h = await EnhanceHarness.pump(tester);
-    expect(find.text('Firehorn'), findsWidgets);
+    expect(find.text('FIREHORN'), findsWidgets);
     await tester.enterText(find.byType(TextField), 'plant');
     await h.settle(15);
-    expect(find.text('Planthorn'), findsWidgets);
-    expect(find.text('Firehorn'), findsNothing);
+    expect(find.text('PLANTHORN'), findsWidgets);
+    expect(find.text('FIREHORN'), findsNothing);
     await h.dispose();
   });
 }

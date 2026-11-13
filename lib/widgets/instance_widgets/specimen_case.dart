@@ -174,12 +174,29 @@ class SpecimenCase extends StatelessWidget {
                             Positioned(
                               left: 8,
                               right: 8,
-                              bottom: 5,
+                              // Over the infusion bars when they are shown.
+                              bottom: view == CaseView.enhancement ? 32 : 5,
                               child: Text(
                                 '${sort.shortLabel} ${_sortFigure(sort, instance)}',
                                 textAlign: TextAlign.center,
                                 maxLines: 1,
                                 style: caseMono(9.5, kCaseGlassInk),
+                              ),
+                            ),
+                          // The infusion bars lie along the case's foot,
+                          // under the creature and clear of its face.
+                          if (view == CaseView.enhancement)
+                            Positioned(
+                              left: 2,
+                              right: 2,
+                              bottom: 3,
+                              // Drawn smaller on a case too narrow for
+                              // them, never cut off.
+                              child: Center(
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: _caseEnhancement(instance),
+                                ),
                               ),
                             ),
                           if (cornerBadge != null ||
@@ -229,8 +246,6 @@ class SpecimenCase extends StatelessWidget {
                                     _caseStats(instance)
                                   else if (view == CaseView.potential)
                                     _caseStats(instance, potential: true)
-                                  else if (view == CaseView.enhancement)
-                                    _caseEnhancement(instance)
                                   else if (view == CaseView.genetics)
                                     _caseGenetics(
                                       instance,
@@ -451,22 +466,57 @@ Widget _caseStats(CreatureInstance i, {bool potential = false}) {
   );
 }
 
-/// The four infusion ranks, out of the most a stat can take; a full one in
-/// gilt.
+/// The four infusion ranks as the old cards drew them: a bar of pips for
+/// each stat, one pip a rank, lit as far as it has been infused; a full bar
+/// in gilt (the author, 2026-11-13: "put the enhance bar back how it was on
+/// that grid"; the cases had printed only "3/10").
 Widget _caseEnhancement(CreatureInstance i) {
   const max = AlchemonStatSystem.maxEnhancementRank;
-  Widget line(String label, Color color, int rank) =>
-      _caseLine(label, color, rank >= max ? 'MAX' : '$rank/$max');
-  return Column(
-    crossAxisAlignment: CrossAxisAlignment.end,
-    mainAxisSize: MainAxisSize.min,
-    spacing: 2,
-    children: [
-      line('SPD', const Color(0xFFFDE047), i.statSpeedEnhancement),
-      line('INT', const Color(0xFFC084FC), i.statIntelligenceEnhancement),
-      line('STR', const Color(0xFFF87171), i.statStrengthEnhancement),
-      line('BEA', const Color(0xFFF9A8D4), i.statBeautyEnhancement),
-    ],
+  Widget line(String label, Color color, int rank) {
+    final lit = rank >= max ? kCaseGilt : color;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label, style: caseMono(8.5, color, spacing: 0.4)),
+        const SizedBox(width: 4),
+        for (var k = 0; k < max; k++)
+          Container(
+            width: 2.2,
+            height: 6,
+            margin: EdgeInsets.only(left: k == 0 ? 0 : 1),
+            color: k < rank ? lit : kCaseGlassInk.withValues(alpha: 0.2),
+          ),
+      ],
+    );
+  }
+
+  // Two rows of two on dark glass of their own, so they read over the
+  // light on the case's floor.
+  return Container(
+    color: Colors.black.withValues(alpha: 0.5),
+    padding: const EdgeInsets.fromLTRB(4, 3, 4, 3),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 3,
+      children: [
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 6,
+          children: [
+            line('SPD', const Color(0xFFFDE047), i.statSpeedEnhancement),
+            line('INT', const Color(0xFFC084FC), i.statIntelligenceEnhancement),
+          ],
+        ),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 6,
+          children: [
+            line('STR', const Color(0xFFF87171), i.statStrengthEnhancement),
+            line('BEA', const Color(0xFFF9A8D4), i.statBeautyEnhancement),
+          ],
+        ),
+      ],
+    ),
   );
 }
 
