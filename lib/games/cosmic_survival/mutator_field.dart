@@ -30,6 +30,9 @@ const _white = Color(0xFFFFF6E4);
 const _essence = Color(0xFFB08CFF);
 const _tau = pi * 2;
 
+/// How much of its authored light a mutator's look is drawn at.
+const _kQuiet = 0.5;
+
 double _h(int i, int salt) {
   final x = sin(i * 12.9898 + salt * 78.233) * 43758.5453;
   return x - x.floorToDouble();
@@ -118,11 +121,15 @@ class MutatorField {
         tint = _essence;
         fluxLit = true;
     }
-    final a = _strength;
+    // Half as strong as it was drawn at first (user, 2026-11-13: "a bit too
+    // distracting we should tone it down a bit"): the forms and their sizes
+    // are kept, their light is not, so the field still differs by wave but
+    // sits under the fight instead of over it.
+    final a = _strength * _kQuiet;
     final tones = [
       Color.lerp(tint, _ink, 0.35)!.withValues(alpha: 0.5 * a),
       tint.withValues(alpha: 0.75 * a),
-      Color.lerp(tint, _white, fluxLit ? 0.25 : 0.55)!.withValues(
+      Color.lerp(tint, _white, fluxLit ? 0.2 : 0.35)!.withValues(
         alpha: 0.95 * a,
       ),
     ];

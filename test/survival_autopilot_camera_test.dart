@@ -143,14 +143,14 @@ void main() {
     game.setAutopilot(true);
     game.beginCameraGesture();
     game.cameraGesture(panDelta: Offset.zero, scale: 0.01);
-    // Out to the point where the view covers the arena, and the arena has
-    // not grown to meet it.
+    // Out a quarter past the point where the view covers the arena, and
+    // the arena has not grown to meet it.
     expect(game.cameraZoom, closeTo(game.cameraZoomMin, 1e-9));
     expect(game.cameraZoom, lessThan(0.5));
     expect(game.debugArenaRadius, closeTo(1140, 1e-6));
     expect(
       max(game.size.x, game.size.y) / game.cameraZoom * 0.54,
-      closeTo(1140, 1e-6),
+      closeTo(1140 / 0.75, 1e-6),
     );
     game.beginCameraGesture();
     game.cameraGesture(panDelta: Offset.zero, scale: 50);

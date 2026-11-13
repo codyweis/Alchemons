@@ -2369,17 +2369,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     _zoomAnimComplete = true;
   }
 
-  /// Pinch bounds. The arena is the larger of its fixed radius and the
-  /// visible view, so zooming out past the point where the view covers the
-  /// arena would grow the arena itself. The limit is exactly that point: the
-  /// whole rim in frame, and not a unit more. Note the horde caps were
-  /// device-measured at the presets (0.5-0.75); fully zoomed out draws every
-  /// body at once, so watch frame time there before raising the caps.
-  double get cameraZoomMin =>
+  /// The zoom at which the view covers the arena. The arena is the larger
+  /// of its fixed radius and the visible view, and below this zoom the view
+  /// would be the larger: the arena is sized as if the camera stopped here,
+  /// so zooming out further shows more round it without growing it.
+  double get _arenaZoomFloor =>
       (max(size.x, size.y) * _arenaViewShare / _arenaFixedRadius).clamp(
         0.2,
         _zoomOuter,
       );
+
+  /// How far past [_arenaZoomFloor] a pinch may go (user, 2026-11-13: "zoom
+  /// out a little bit more"): a quarter further, so the whole rim is in
+  /// frame with room round it.
+  static const double _zoomOutPastArena = 0.75;
+
+  /// Pinch bounds. Note the horde caps were device-measured at the presets
+  /// (0.5-0.75); fully zoomed out draws every body at once, so watch frame
+  /// time there before raising the caps.
+  double get cameraZoomMin => _arenaZoomFloor * _zoomOutPastArena;
   double get cameraZoomMax => 1.0;
 
   @protected
@@ -2662,7 +2670,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const double _arenaViewShare = 0.54;
   double get _arenaRadius => max(
     _arenaFixedRadius,
-    max(size.x / _currentZoom, size.y / _currentZoom) * _arenaViewShare,
+    max(size.x, size.y) /
+        max(_currentZoom, _arenaZoomFloor) *
+        _arenaViewShare,
   );
 
   // Fixed per-run quality profile: visuals do not change mid-game.

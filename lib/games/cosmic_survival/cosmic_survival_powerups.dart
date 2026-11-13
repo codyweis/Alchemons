@@ -375,7 +375,7 @@ const kRarePerks = [
   ),
   PowerUpDef(
     id: 'pack_leader',
-    name: 'Pack Leader',
+    name: 'Add Alchemon',
     description: '+1 active alchemon slot, up to 5',
     icon: '👥',
     category: PowerUpCategory.rarePerk,
