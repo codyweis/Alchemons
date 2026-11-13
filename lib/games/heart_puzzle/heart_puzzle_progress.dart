@@ -1,8 +1,9 @@
 // lib/games/heart_puzzle/heart_puzzle_progress.dart
 //
-// THE ALTARS' progress: the best stars won on each level. Kept on the
-// device only for now (the mode is reached from the debug tools); it joins
-// the cloud save when the mode finds its home in the story.
+// THE ALTARS' progress: the best stars won on each level, in the device's
+// preferences. Those travel whole in a save (SaveTransferService exports
+// every preference but the device's own), so the cloud save and a restore
+// carry the stars and the mastery claim with no field of their own.
 
 import 'dart:convert';
 

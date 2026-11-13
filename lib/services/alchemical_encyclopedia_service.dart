@@ -371,9 +371,33 @@ class AlchemicalEncyclopediaService {
         : EncyclopediaDiscoveryResult(unlocked: unlocked);
   }
 
+  /// The elements the player has found a formula that MAKES ('Steam' once
+  /// Fire + Water → Steam is found), and every element a formula makes
+  /// (all seventeen): what ALCHEMY opens on (AlchemyUnlock). Reads the
+  /// found formulas only, without the specimen scan [loadSnapshot] makes.
+  static Future<({Set<String> made, Set<String> all})> elementsMade(
+    AlchemonsDatabase db,
+  ) async {
+    final recipes = await _loadCatalog();
+    final found = await _readDiscoveredOutcomeSet(
+      db,
+      currentKey: _elementDiscoveredKey,
+      legacyPairKey: _legacyElementDiscoveredKey,
+      recipesByPair: recipes.elementByPair,
+    );
+    final made = <String>{}, all = <String>{};
+    for (final r in recipes.elementRecipes) {
+      for (final o in r.outcomes) {
+        all.add(o.result);
+        if (found.contains(r.outcomePathKey(o.result))) made.add(o.result);
+      }
+    }
+    return (made: made, all: all);
+  }
+
   /// How many formulas are found, elements and families together, of all
-  /// there are: the count ALCHEMY opens on (AlchemyUnlock), without the
-  /// specimen scan [loadSnapshot] makes for the Codex.
+  /// there are (the journal's count), without the specimen scan
+  /// [loadSnapshot] makes for the Codex.
   static Future<({int found, int total})> formulaCount(
     AlchemonsDatabase db,
   ) async {

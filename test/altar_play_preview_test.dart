@@ -113,28 +113,27 @@ void main() {
 
       final level = kAltarLevels[n - 1];
       final plan = altarSolve(level).plan;
+      // Which creature each move means: two of one name may stand there
+      // (one made, one that came with the level), and only the right one
+      // leaves the rest of the proof playable.
+      final picks = _resolve(level, altarStart(level), plan, 0)!;
       var step = 0;
       for (final move in plan) {
+        final ids = picks[step];
         step++;
-        AltarUnit byName(String name, {String? not}) => s.debugState.units
-            .firstWhere((u) => u.name == name && u.id != not);
         if (move.startsWith('split ')) {
-          final u = byName(move.substring(6));
-          await tester.tapAt(s.debugUnit(u.id));
+          await tester.tapAt(s.debugUnit(ids[0]));
           await settle(2);
           await tester.tapAt(s.debugSplit);
           await settle(8);
           await tester.tapAt(s.debugSplitButton);
         } else {
-          final m = RegExp(r'^(.+?) \+ (.+?) → .+?(?: on altar (\d+)|, the goal)').firstMatch(move)!;
-          final ai = int.parse(m.group(3) ?? '1') - 1;
-          final a = byName(m.group(1)!);
-          final b = byName(m.group(2)!, not: a.id);
-          await tester.tapAt(s.debugUnit(a.id));
+          final ai = _altarOf(move);
+          await tester.tapAt(s.debugUnit(ids[0]));
           await settle(2);
           await tester.tapAt(s.debugSeat(ai, 0));
           await settle(8);
-          await tester.tapAt(s.debugUnit(b.id));
+          await tester.tapAt(s.debugUnit(ids[1]));
           await settle(2);
           await tester.tapAt(s.debugSeat(ai, 1));
           await settle(10);
@@ -198,4 +197,45 @@ void main() {
       image.dispose();
     });
   });
+}
+
+final _fuse = RegExp(r'^(.+?) \+ (.+?) → (.+?)(?: on altar (\d+).*|, the goal)$');
+
+int _altarOf(String move) =>
+    int.parse(_fuse.firstMatch(move)!.group(4) ?? '1') - 1;
+
+/// The ids of the creatures each move of [plan] from [i] on is made with,
+/// from [s]: the first choice among those of the right names that lets the
+/// rest of the plan be played to the end.
+List<List<String>>? _resolve(
+  AltarLevel l,
+  AltarState s,
+  List<String> plan,
+  int i,
+) {
+  if (i == plan.length) return altarDone(l, s) ? [] : null;
+  final move = plan[i];
+  if (move.startsWith('split ')) {
+    for (final u in s.units) {
+      if (u.name != move.substring(6)) continue;
+      final next = altarSplit(s, u);
+      if (next == null) continue;
+      final rest = _resolve(l, next.$1, plan, i + 1);
+      if (rest != null) return [[u.id], ...rest];
+    }
+    return null;
+  }
+  final m = _fuse.firstMatch(move)!;
+  final ai = _altarOf(move);
+  for (final a in s.units) {
+    if (a.name != m.group(1)) continue;
+    for (final b in s.units) {
+      if (b.id == a.id || b.name != m.group(2)) continue;
+      final f = altarFuse(l, s, ai, a, b);
+      if (f == null || f.made.name != m.group(3)) continue;
+      final rest = _resolve(l, f.state, plan, i + 1);
+      if (rest != null) return [[a.id, b.id], ...rest];
+    }
+  }
+  return null;
 }

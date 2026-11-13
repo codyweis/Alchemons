@@ -914,8 +914,8 @@ class _HomeScreenState extends State<HomeScreen>
   final GlobalKey _relicEmblem = GlobalKey();
   final ValueNotifier<bool> _relicLifted = ValueNotifier(false);
 
-  /// ALCHEMY: open once every formula is found; until then shown locked,
-  /// lit as far as the player has come.
+  /// ALCHEMY: open once a formula is found that makes each element; until
+  /// then shown locked, lit as far as the player has come.
   AlchemyUnlock _alchemy = AlchemyUnlock.none;
   final GlobalKey _alchemyEmblem = GlobalKey();
   final ValueNotifier<bool> _alchemyLifted = ValueNotifier(false);
@@ -975,7 +975,6 @@ class _HomeScreenState extends State<HomeScreen>
     try {
       final u = await AlchemyUnlock.load(
         db: context.read<AlchemonsDatabase>(),
-        catalog: context.read<CreatureCatalog>(),
       );
       if (mounted) setState(() => _alchemy = u);
     } catch (_) {}
@@ -992,8 +991,9 @@ class _HomeScreenState extends State<HomeScreen>
           StoryBeat(
             title: 'Alchemy',
             message:
-                'Opens once every element and species formula in the '
-                'encyclopedia has been found.\n\n${u.found} of ${u.total} found.',
+                'Opens once you have found a formula that makes each of '
+                'the ${u.total} elements.\n\n'
+                '${u.found} of ${u.total} elements made.',
           ),
         ],
         primaryLabel: 'ENCYCLOPEDIA',
@@ -2790,7 +2790,7 @@ class _HomeScreenState extends State<HomeScreen>
                 Transform.translate(
                   offset: const Offset(0, -4),
                   child: Text(
-                    '${u.found} / ${u.total} FORMULAS',
+                    '${u.found} / ${u.total} ELEMENTS',
                     style: label.copyWith(
                       fontSize: 9.5,
                       fontWeight: FontWeight.w500,

@@ -403,12 +403,14 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
   double get _needW => math.max(
     260,
     math.max(
-      level.altars * 100.0 + 40,
+      // Four circles stand closer together, so the stage is not drawn
+      // small to fit them across.
+      level.altars >= 4 ? level.altars * 82.0 + 24 : level.altars * 100.0 + 40,
       duel
           ? (_startUnits - 1) * _kDuelStep +
                 2 * _kDuelGap +
                 (level.split ? 110 : 60)
-          : level.hand.length * 48.0 + (level.split ? 110 : 60),
+          : level.hand.length * 48.0 + (level.split ? 120 : 60),
     ),
   );
 
@@ -428,11 +430,11 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
       ? wordCentreOf(shownSeat)
       : Offset(
           _units.width / 2,
-          24 + (goalWord?.height ?? AltarGoalWord.size * 1.25) / 2,
+          _wordTop + (goalWord?.height ?? AltarGoalWord.size * 1.25) / 2,
         );
   double get wordBottom => duel
-      ? 24 + math.max(_wordHeight(0), _wordHeight(1))
-      : 24 + (goalWord?.height ?? AltarGoalWord.size * 1.25);
+      ? _wordTop + math.max(_wordHeight(0), _wordHeight(1))
+      : _wordTop + (goalWord?.height ?? AltarGoalWord.size * 1.25);
 
   double _wordHeight(int seat) =>
       duelWords[seat]?.height ?? AltarGoalWord.size * 1.25;
@@ -440,11 +442,18 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
   /// For two: where [seat]'s word hangs — the first to move's on the left.
   Offset wordCentreOf(int seat) => Offset(
     _units.width * (seat == 0 ? .27 : .73),
-    24 + _wordHeight(seat) / 2,
+    _wordTop + _wordHeight(seat) / 2,
   );
   double altarX(int i) =>
       _units.width / 2 + (i - (level.altars - 1) / 2) * _altarStep;
-  double get _altarStep => math.min(108, (_units.width - 40) / level.altars);
+  double get _altarStep => math.min(
+    108,
+    (_units.width - (level.altars >= 4 ? 24 : 40)) / level.altars,
+  );
+
+  /// Where the word hangs from: on a screen taller than the level needs it
+  /// comes down toward the stage, so the two are never a screen apart.
+  double get _wordTop => 24 + math.max(0.0, _units.height - _needH - 44);
   Offset seatFeet(int ai, int side) =>
       Offset(altarX(ai) + (side == 0 ? -_kSeatGap : _kSeatGap), altarY + 2);
   Offset altarFeet(int ai) => Offset(altarX(ai), altarY + 2);
@@ -476,16 +485,20 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
     if (duel) return _duelStageFeet(id);
     final ids = stageIds;
     final i = ids.indexOf(id);
-    final x0 = level.split ? 84.0 : 30.0, x1 = _units.width - 30;
+    final x0 = level.split ? 76.0 : 30.0, x1 = _units.width - 30;
     final n = ids.length;
-    final perRow = math.max(1, ((x1 - x0) / 48).floor());
-    final rows = (n / perRow).ceil();
-    final row = rows > 1 && i < n - perRow ? 1 : 0;
-    final inRow = row == 1 ? perRow : (rows > 1 ? n - perRow : n);
-    final j = row == 1 ? i : i - (rows > 1 ? perRow : 0);
+    // One row for as long as they fit at all (a split adds one to the
+    // hand); past that the first few stand in a row behind. The rows were
+    // once counted the wrong way round, which stood a hand of four on the
+    // split stage.
+    final perRow = math.max(1, ((x1 - x0) / 40).floor());
+    final behind = n > perRow ? n - perRow : 0;
+    final row = i < behind ? 1 : 0;
+    final inRow = row == 1 ? behind : n - behind;
+    final j = row == 1 ? i : i - behind;
     final step = math.min(66.0, (x1 - x0) / math.max(1, inRow));
     final width = step * (inRow - 1);
-    return Offset((x0 + x1) / 2 - width / 2 + j * step, stageY - row * 36);
+    return Offset((x0 + x1) / 2 - width / 2 + j * step, stageY - row * 40);
   }
 
   /// One row, side by side: the first to move's, the middle's, the
@@ -670,8 +683,12 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
     selected = null;
   }
 
+  /// A fusion or split waiting on the bodies of what it makes: nothing else
+  /// may begin until it has (a second tap on FUSE was a second move).
+  bool _loading = false;
+
   Future<void> _fire(int ai) async {
-    if (_moment != null || won) return;
+    if (_moment != null || won || _loading) return;
     final a = unitOf(seats[ai][0] ?? ''), b = unitOf(seats[ai][1] ?? '');
     if (a == null || b == null) return;
     final f = altarFuse(level, state, ai, a, b);
@@ -695,10 +712,12 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
       return;
     }
     final made = f.made, landed = f.landed;
+    _loading = true;
     final loads = await Future.wait([
       bodies.load(made.el, made.fam),
       bodies.load(landed.el, landed.fam),
     ]);
+    _loading = false;
     if (!mounted) return;
     final spMade = loads[0], spLanded = loads[1];
     HapticFeedback.mediumImpact();
@@ -772,16 +791,18 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
   }
 
   Future<void> _split() async {
-    if (_moment != null || won) return;
+    if (_moment != null || won || _loading) return;
     final u = unitOf(onSplit ?? '');
     if (u == null) return;
     final sp = altarSplit(state, u);
     if (sp == null) return;
     final (next, p, q) = sp;
+    _loading = true;
     final loads = await Future.wait([
       bodies.load(p.el, p.fam),
       bodies.load(q.el, q.fam),
     ]);
+    _loading = false;
     if (!mounted) return;
     HapticFeedback.mediumImpact();
     context.sound(SoundCue.fusionRecoil);
@@ -861,7 +882,7 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
   }
 
   void _undo() {
-    if (_moment != null || _history.isEmpty) return;
+    if (_moment != null || _loading || _history.isEmpty) return;
     HapticFeedback.selectionClick();
     setState(() {
       final s = _history.removeLast();
@@ -870,7 +891,7 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
   }
 
   void _reset() {
-    if (_moment != null) return;
+    if (_moment != null || _loading) return;
     HapticFeedback.selectionClick();
     setState(() {
       _history.clear();
@@ -1052,7 +1073,7 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
       hurry = true;
       return;
     }
-    if (won) return;
+    if (won || _loading) return;
     final p = _toUnits(d.localPosition);
     for (var a = 0; a < level.altars; a++) {
       if (loaded(a) && fuseRect(a).inflate(6).contains(p)) {
@@ -1095,7 +1116,7 @@ class AltarPlayScreenState extends State<AltarPlayScreen>
   }
 
   void _onPanStart(DragStartDetails d) {
-    if (_moment != null || won) return;
+    if (_moment != null || won || _loading) return;
     final p = _toUnits(d.localPosition);
     final hit = _unitAt(p);
     if (hit == null) return;
@@ -1552,21 +1573,6 @@ class _ResultCardState extends State<_ResultCard>
   @override
   Widget build(BuildContext context) {
     final t = widget.t, mono = widget.mono;
-    Widget button(String label, VoidCallback onTap, {bool lit = false}) =>
-        TextButton(
-          onPressed: onTap,
-          style: TextButton.styleFrom(
-            foregroundColor: lit ? t.amberBright : t.textSecondary,
-            backgroundColor: lit
-                ? t.amber.withValues(alpha: .14)
-                : Colors.transparent,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          ),
-          child: Text(
-            label,
-            style: mono.copyWith(color: lit ? t.amberBright : t.textSecondary),
-          ),
-        );
     return AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
@@ -1575,18 +1581,15 @@ class _ResultCardState extends State<_ResultCard>
         return Positioned.fill(
           child: ColoredBox(
             color: Colors.black.withValues(alpha: .5 * inK),
-            child: Center(
+            // Under the word, which now hangs nearer the stage: the word lit
+            // is the reward, and the card must not cover it.
+            child: Align(
+              alignment: const Alignment(0, .62),
               child: Opacity(
                 opacity: inK,
                 child: Transform.translate(
                   offset: Offset(0, 18 * (1 - inK)),
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 28),
-                    padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
-                    decoration: BoxDecoration(
-                      color: t.bg1,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                  child: _ResultFrame(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1622,17 +1625,13 @@ class _ResultCardState extends State<_ResultCard>
                               ),
                             ),
                           ),
-                        const SizedBox(height: 14),
-                        Wrap(
-                          spacing: 8,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            button('LEVELS', widget.onLevels),
-                            button('AGAIN', widget.onAgain),
-                            if (widget.onNext != null)
-                              button('NEXT', widget.onNext!, lit: true),
-                          ],
-                        ),
+                        const SizedBox(height: 18),
+                        _ResultButtons([
+                          ('LEVELS', widget.onLevels, false),
+                          ('AGAIN', widget.onAgain, widget.onNext == null),
+                          if (widget.onNext != null)
+                            ('NEXT', widget.onNext!, true),
+                        ]),
                       ],
                     ),
                   ),
@@ -1691,21 +1690,6 @@ class _DuelResultCardState extends State<_DuelResultCard>
     final winner = seat == null ? null : widget.match.playerAt(seat);
     final board = widget.match.board;
     final score = widget.scored;
-    Widget button(String label, VoidCallback onTap, {bool lit = false}) =>
-        TextButton(
-          onPressed: onTap,
-          style: TextButton.styleFrom(
-            foregroundColor: lit ? t.amberBright : t.textSecondary,
-            backgroundColor: lit
-                ? t.amber.withValues(alpha: .14)
-                : Colors.transparent,
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          ),
-          child: Text(
-            label,
-            style: mono.copyWith(color: lit ? t.amberBright : t.textSecondary),
-          ),
-        );
     final why = seat == null
         ? (widget.moves >= kDuelMoveCap
               ? 'No word made in $kDuelMoveCap moves.'
@@ -1719,18 +1703,15 @@ class _DuelResultCardState extends State<_DuelResultCard>
         return Positioned.fill(
           child: ColoredBox(
             color: Colors.black.withValues(alpha: .5 * inK),
-            child: Center(
+            // Under the word, which now hangs nearer the stage: the word lit
+            // is the reward, and the card must not cover it.
+            child: Align(
+              alignment: const Alignment(0, .62),
               child: Opacity(
                 opacity: inK,
                 child: Transform.translate(
                   offset: Offset(0, 18 * (1 - inK)),
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 28),
-                    padding: const EdgeInsets.fromLTRB(22, 20, 22, 12),
-                    decoration: BoxDecoration(
-                      color: t.bg1,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
+                  child: _ResultFrame(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -1785,16 +1766,12 @@ class _DuelResultCardState extends State<_DuelResultCard>
                           '${duelPlayerName(next.firstPlayer)} moves first next.',
                           style: TextStyle(color: t.textMuted, fontSize: 11.5),
                         ),
-                        const SizedBox(height: 10),
-                        Wrap(
-                          spacing: 8,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            button('LEAVE', widget.onLeave),
-                            button('AGAIN', widget.onAgain),
-                            button('NEXT BOARD', widget.onNext, lit: true),
-                          ],
-                        ),
+                        const SizedBox(height: 16),
+                        _ResultButtons([
+                          ('LEAVE', widget.onLeave, false),
+                          ('AGAIN', widget.onAgain, false),
+                          ('NEXT BOARD', widget.onNext, true),
+                        ]),
                       ],
                     ),
                   ),
@@ -1806,6 +1783,57 @@ class _DuelResultCardState extends State<_DuelResultCard>
       },
     );
   }
+}
+
+/// A result card's ground: the game's own panel, lit from below in brass
+/// (it was a rounded Material box).
+class _ResultFrame extends StatelessWidget {
+  const _ResultFrame({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 28),
+    child: CustomPaint(
+      foregroundPainter: BracketFramePainter(
+        color: kAltarBrass.withValues(alpha: .9),
+        bracketSize: 14,
+        strokeWidth: 1.3,
+      ),
+      child: Container(
+        color: BracketPalette.dark.bg1,
+        padding: const EdgeInsets.fromLTRB(18, 20, 18, 16),
+        child: child,
+      ),
+    ),
+  );
+}
+
+/// A result card's buttons, side by side: (label, what it does, whether it
+/// is the one to press).
+class _ResultButtons extends StatelessWidget {
+  const _ResultButtons(this.buttons);
+  final List<(String, VoidCallback, bool)> buttons;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      for (var i = 0; i < buttons.length; i++) ...[
+        if (i > 0) const SizedBox(width: 8),
+        Expanded(
+          flex: buttons[i].$1.length > 6 ? 3 : 2,
+          child: BracketButton(
+            label: buttons[i].$1,
+            primary: buttons[i].$3,
+            height: 40,
+            palette: BracketPalette.dark,
+            accent: kAltarBrass,
+            onTap: buttons[i].$2,
+          ),
+        ),
+      ],
+    ],
+  );
 }
 
 /// The result's three stars in grains: ash until won, each won one lit in
@@ -1919,20 +1947,22 @@ class _StagePainter extends CustomPainter {
       // A long name is drawn smaller, to fit the stage.
       word.fit = math.min(1.0, (w - 36) / word.naturalWidth);
       final makeA = s._ease('make', 1, rate: 2.5) * (1 - .6 * lit);
+      // Shade behind the word and MAKE over it, so both read over a
+      // realm's cloud or moon.
+      paintFloorShade(
+        canvas,
+        s.wordCentre - const Offset(0, 9),
+        word.width * .72 + 34,
+        word.height * 1.1 + 34,
+        .6 * s._ease('make', 1, rate: 2.5),
+      );
       _text(
         canvas,
         'MAKE',
         s.wordCentre - Offset(0, word.height / 2 + 12),
-        t.textMuted,
+        t.textSecondary,
         makeA,
         size: 8,
-      );
-      paintFloorShade(
-        canvas,
-        s.wordCentre,
-        word.width * .72 + 30,
-        word.height * 1.1 + 12,
-        .45 * s._ease('make', 1, rate: 2.5),
       );
       final held = s._ease(
         'held',
@@ -2038,15 +2068,16 @@ class _StagePainter extends CustomPainter {
       final over = drop != null && drop.kind == _PlaceKind.split;
       final g = s._ease(
         'split',
-        over ? 1 : (held != null ? .7 : (carried?.parts != null ? .35 : 0)),
+        over ? 1 : (held != null ? .7 : (carried?.parts != null ? .45 : .2)),
         rate: 10,
+        init: .2,
       );
       paintFloorShade(
         canvas,
-        s.splitFeet + const Offset(0, 3),
-        40,
-        14,
-        .5 * stage,
+        s.splitFeet + const Offset(0, 6),
+        46,
+        26,
+        .7 * stage,
       );
       paintFloorPool(
         canvas,
@@ -2075,7 +2106,7 @@ class _StagePainter extends CustomPainter {
     }
     if (level.split) {
       final on = s.onSplit != null && m == null && !s.won;
-      final f = s._ease('splitLbl', on ? 1 : .3, rate: 10, init: .3) * stage;
+      final f = s._ease('splitLbl', on ? 1 : .55, rate: 10, init: .55) * stage;
       _label(canvas, 'SPLIT', s.splitRect, f, quiet: !on);
     }
 
@@ -2410,11 +2441,13 @@ class _StagePainter extends CustomPainter {
   }) {
     if (alpha <= .01) return;
     final tp = _tp(text, color, size, spacing: 2);
+    final at = centre - Offset(tp.width / 2, tp.height / 2);
+    // A layer the size of the text, not of the screen.
     canvas.saveLayer(
-      null,
+      (at & tp.size).inflate(2),
       Paint()..color = Color.fromRGBO(0, 0, 0, alpha.clamp(0.0, 1.0)),
     );
-    tp.paint(canvas, centre - Offset(tp.width / 2, tp.height / 2));
+    tp.paint(canvas, at);
     canvas.restore();
   }
 
@@ -2511,8 +2544,14 @@ class _StagePainter extends CustomPainter {
     final col = quiet ? t.textMuted : t.amberBright;
     final tp = _tp(text, col, 10, spacing: 1.6, bold: true);
     canvas.saveLayer(
-      null,
-      Paint()..color = Color.fromRGBO(0, 0, 0, (quiet ? .6 : 1) * alpha),
+      r.inflate(2),
+      Paint()
+        ..color = Color.fromRGBO(
+          0,
+          0,
+          0,
+          ((quiet ? .75 : 1) * alpha).clamp(0.0, 1.0),
+        ),
     );
     tp.paint(canvas, r.center - Offset(tp.width / 2, tp.height / 2));
     canvas.restore();

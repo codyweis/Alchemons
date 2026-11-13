@@ -19,6 +19,7 @@
 
 import 'dart:io';
 import 'dart:math';
+import 'dart:math' as math;
 
 import 'package:alchemons/games/heart_puzzle/heart_puzzle_levels.dart' as existing;
 import 'package:alchemons/games/heart_puzzle/heart_puzzle_rules.dart';
@@ -42,6 +43,12 @@ class Chapter {
     this.seconds = 240,
     this.familyPool = _families,
     this.authored = false,
+    this.big = false,
+    this.lateCount = 0,
+    this.lateHand,
+    this.lateDepth,
+    this.lateAltars,
+    this.lateMinPar = 0,
   }) : speciesGoal = speciesGoal ?? species;
   final String name;
   final int count;
@@ -60,6 +67,63 @@ class Chapter {
 
   /// Made by hand: never searched, always kept.
   final bool authored;
+
+  /// A board with many orbs: its length comes from taking them all, not
+  /// from how far off the goal is, so the goal may be anything three moves
+  /// or more away, and what can be made is only explored a little way (the
+  /// whole of such a board is too large to walk for every try).
+  final bool big;
+
+  /// The chapter's last [lateCount] levels are searched apart, with a
+  /// larger hand and deeper columns, and kept only at [lateMinPar] moves or
+  /// more: a chapter whose own limits never give a long level (Species: with
+  /// no split a level is at most its hand less one move) still ends on some.
+  /// The levels before them stay under [lateMinPar].
+  final int lateCount, lateMinPar;
+  final (int, int)? lateHand, lateDepth, lateAltars;
+
+  Chapter _with({
+    required int count,
+    (int, int)? altars,
+    required (int, int) hand,
+    required (int, int) depth,
+    required (int, int) par,
+  }) => Chapter(
+    name,
+    count,
+    altars: altars ?? this.altars,
+    depth: depth,
+    hand: hand,
+    par: par,
+    split: split,
+    species: species,
+    handPool: handPool,
+    hangPool: hangPool,
+    goal: goal,
+    longer: longer,
+    minHanging: minHanging,
+    speciesGoal: speciesGoal,
+    seconds: seconds,
+    familyPool: familyPool,
+    big: big,
+  );
+
+  /// The levels before the late ones, and the late ones.
+  Chapter get early => lateCount == 0
+      ? this
+      : _with(
+          count: count - lateCount,
+          hand: hand,
+          depth: depth,
+          par: lateMinPar > par.$1 ? (par.$1, lateMinPar - 1) : par,
+        );
+  Chapter get late => _with(
+    count: lateCount,
+    altars: lateAltars,
+    hand: lateHand ?? hand,
+    depth: lateDepth ?? depth,
+    par: (math.max(lateMinPar, par.$1), par.$2),
+  );
 }
 
 const _base = ['Fire', 'Water', 'Earth', 'Air'];
@@ -89,7 +153,10 @@ const chapters = [
       split: true, longer: true, minHanging: 1),
   Chapter('Species', 9,
       altars: (1, 3), depth: (0, 1), hand: (2, 5), par: (2, 6),
-      species: true, longer: true, handPool: _early, seconds: 600),
+      species: true, longer: true, handPool: _early, seconds: 600,
+      // The author, 2026-11-13: nine levels of two and three moves between
+      // The Split's seven and Stacks was a long easy stretch.
+      lateCount: 4, lateHand: (5, 6), lateDepth: (0, 2), lateMinPar: 4),
   Chapter('Stacks', 8,
       altars: (2, 3), depth: (0, 2), hand: (2, 4), par: (4, 8),
       split: true, species: true, longer: true, minHanging: 3,
@@ -99,6 +166,17 @@ const chapters = [
       split: true, species: true, longer: true, goal: 'Blood',
       speciesGoal: false, handPool: _bloodPool, hangPool: _bloodPool,
       minHanging: 2, seconds: 900, familyPool: _closedFamilies),
+  // The last five (the author, 2026-11-13: "5 levels at the end with a ton
+  // of elements"): elements only, everyone a Let, three or four circles
+  // with one or two hanging over each, seven orbs or more in all. Every
+  // orb must be taken, so they run long: up to fifteen moves (the author:
+  // "15 moves is fine for finales").
+  Chapter('The Great Work', 5,
+      altars: (3, 4), depth: (1, 2), hand: (2, 4), par: (9, 15),
+      split: true, longer: true, minHanging: 7, seconds: 900, big: true,
+      // Two of them tall and narrow (the author, 2026-11-13: "3 or 4 rows
+      // and less columns"): two circles, three or four hanging over each.
+      lateCount: 2, lateAltars: (2, 2), lateDepth: (3, 4)),
 ];
 
 late Random rnd;
@@ -263,12 +341,12 @@ AltarLevel? attempt(Chapter c) {
   );
   // One family rule everywhere: a level where two families breeding has no
   // recipe for could meet is no level.
-  final r = explore(l);
-  if (r.cut || r.nullPairs.isNotEmpty) return null;
+  final r = c.big ? explore(l, cap: 4000) : explore(l);
+  if ((r.cut && !c.big) || r.nullPairs.isNotEmpty) return null;
   final inHand = hand.map((h) => parseSpecies(h).$1).toSet();
   final goals = [
     for (final MapEntry(key: g, value: d) in r.depth.entries)
-      if (d >= c.par.$1 &&
+      if (d >= (c.big ? 3 : c.par.$1) &&
           d <= c.par.$2 &&
           (c.goal == null || g.split(' ').first == c.goal) &&
           (c.speciesGoal ? g.contains(' ') : !g.contains(' ')) &&
@@ -295,6 +373,60 @@ String keyOf(AltarLevel l) =>
 
 const _dungeonHeart = 'Blood null|Air,Earth,Fire,Water|/Earth/Spirit/Spirit,Lava';
 
+/// [c]'s levels: searched for [cap] seconds (or the chapter's own), then
+/// spread over the pars found, easiest first.
+List<(AltarLevel, AltarProof)> search(Chapter c, int? cap, int minPar) {
+  final found = <String, (AltarLevel, AltarProof)>{};
+  final want = c.count * 6;
+  final sw = Stopwatch()..start();
+  var tries = 0;
+  while (found.length < want && sw.elapsed.inSeconds < (cap ?? c.seconds)) {
+    tries++;
+    final l = attempt(c);
+    if (l == null) continue;
+    final k = keyOf(l);
+    if (found.containsKey(k) || k == _dungeonHeart) continue;
+    final p = check(l, c);
+    if (p == null || p.par < minPar) continue;
+    found[k] = (with_(l, par: p.par), p);
+    stderr.write('\r${c.name}: ${found.length}/$want ($tries tries)   ');
+  }
+  stderr.writeln();
+  final all = found.values.toList()
+    ..sort((a, b) {
+      final d = a.$2.par.compareTo(b.$2.par);
+      return d != 0 ? d : a.$2.states.compareTo(b.$2.states);
+    });
+  if (all.length < c.count) {
+    stderr.writeln('  only ${all.length} for ${c.name}');
+  }
+  // Spread over the PARS found, not the list (most of what a search finds
+  // is easy): easiest first, hardest last, and within a par the busier
+  // boards later.
+  final byPar = <int, List<(AltarLevel, AltarProof)>>{};
+  for (final x in all) {
+    (byPar[x.$2.par] ??= []).add(x);
+  }
+  final pars = byPar.keys.toList()..sort();
+  final chosen = <(AltarLevel, AltarProof)>[];
+  for (var i = 0; i < c.count && pars.isNotEmpty; i++) {
+    final want = pars[c.count == 1 ? 0 : (i * (pars.length - 1) / (c.count - 1)).round()];
+    // The nearest par with something left.
+    final order = [...pars]..sort((a, b) => (a - want).abs().compareTo((b - want).abs()));
+    for (final p in order) {
+      final left = byPar[p]!.where((x) => !chosen.contains(x)).toList();
+      if (left.isEmpty) continue;
+      chosen.add(left[left.length ~/ 2]);
+      break;
+    }
+  }
+  chosen.sort((a, b) {
+    final d = a.$2.par.compareTo(b.$2.par);
+    return d != 0 ? d : a.$2.states.compareTo(b.$2.states);
+  });
+  return chosen;
+}
+
 void main(List<String> args) {
   // --only=Stacks,Blood searches just those; the rest are kept as they are.
   final only = args
@@ -307,6 +439,16 @@ void main(List<String> args) {
       .where((a) => a.startsWith('--seconds='))
       .map((a) => int.parse(a.substring(10)))
       .firstOrNull;
+  // --min-par=N keeps only levels of at least N moves (a chapter's search
+  // otherwise fills up with its easy ones long before it finds a hard one).
+  final minPar = args
+          .where((a) => a.startsWith('--min-par='))
+          .map((a) => int.parse(a.substring(10)))
+          .firstOrNull ??
+      0;
+  // --late-only searches only a chapter's late levels (Chapter.lateCount);
+  // the ones before them are kept as they are.
+  final lateOnly = args.contains('--late-only');
   // --out=path writes there instead (searches run side by side).
   final outPath = args
           .where((a) => a.startsWith('--out='))
@@ -330,55 +472,22 @@ void main(List<String> args) {
       ));
       continue;
     }
-    final found = <String, (AltarLevel, AltarProof)>{};
-    final want = c.count * 6;
-    final sw = Stopwatch()..start();
-    var tries = 0;
-    while (found.length < want && sw.elapsed.inSeconds < (cap ?? c.seconds)) {
-      tries++;
-      final l = attempt(c);
-      if (l == null) continue;
-      final k = keyOf(l);
-      if (found.containsKey(k) || k == _dungeonHeart) continue;
-      final p = check(l, c);
-      if (p == null) continue;
-      found[k] = (with_(l, par: p.par), p);
-      stderr.write('\r${c.name}: ${found.length}/$want ($tries tries)   ');
+    if (c.lateCount == 0) {
+      chosenAll.add((c, search(c, cap, minPar)));
+      continue;
     }
-    stderr.writeln();
-    final all = found.values.toList()
-      ..sort((a, b) {
-        final d = a.$2.par.compareTo(b.$2.par);
-        return d != 0 ? d : a.$2.states.compareTo(b.$2.states);
-      });
-    if (all.length < c.count) {
-      stderr.writeln('  only ${all.length} for ${c.name}');
-    }
-    // Spread over the PARS found, not the list (most of what a search finds
-    // is easy): easiest first, hardest last, and within a par the busier
-    // boards later.
-    final byPar = <int, List<(AltarLevel, AltarProof)>>{};
-    for (final x in all) {
-      (byPar[x.$2.par] ??= []).add(x);
-    }
-    final pars = byPar.keys.toList()..sort();
-    final chosen = <(AltarLevel, AltarProof)>[];
-    for (var i = 0; i < c.count && pars.isNotEmpty; i++) {
-      final want = pars[c.count == 1 ? 0 : (i * (pars.length - 1) / (c.count - 1)).round()];
-      // The nearest par with something left.
-      final order = [...pars]..sort((a, b) => (a - want).abs().compareTo((b - want).abs()));
-      for (final p in order) {
-        final left = byPar[p]!.where((x) => !chosen.contains(x)).toList();
-        if (left.isEmpty) continue;
-        chosen.add(left[left.length ~/ 2]);
-        break;
-      }
-    }
-    chosen.sort((a, b) {
-      final d = a.$2.par.compareTo(b.$2.par);
-      return d != 0 ? d : a.$2.states.compareTo(b.$2.states);
-    });
-    chosenAll.add((c, chosen));
+    final had = existing.kAltarChapters.where((e) => e.name == c.name).firstOrNull;
+    chosenAll.add((
+      c,
+      [
+        if (lateOnly && had != null)
+          for (var n = had.first; n < had.first + c.early.count; n++)
+            (existing.kAltarLevels[n - 1], altarSolve(existing.kAltarLevels[n - 1]))
+        else
+          ...search(c.early, cap, minPar),
+        ...search(c.late, cap, minPar),
+      ],
+    ));
   }
 
   out.writeln('// lib/games/heart_puzzle/heart_puzzle_levels.dart');

@@ -446,8 +446,8 @@ final campaignAchievements = <CampaignAchievement>[
   ),
   CampaignAchievement(
     'formulas_all',
-    'The altars open',
-    'Record every element and family formula. Alchemy opens with the last.',
+    'Every formula recorded',
+    'Record every element and family formula.',
     'formulasPercent',
     100,
     3,

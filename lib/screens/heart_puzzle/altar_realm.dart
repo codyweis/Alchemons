@@ -13,6 +13,7 @@
 
 import 'package:alchemons/games/heart_puzzle/heart_puzzle_levels.dart';
 import 'package:alchemons/games/wilderness/scene_game.dart';
+import 'package:alchemons/models/scenes/arcane/arcane_scene.dart';
 import 'package:alchemons/models/scenes/dunes/dunes_scene.dart';
 import 'package:alchemons/models/scenes/geode/geode_scene.dart';
 import 'package:alchemons/models/scenes/scene_definition.dart';
@@ -26,9 +27,21 @@ import 'package:flutter/material.dart';
 /// One chapter's realm: the field, the hour it is shown at, and how much
 /// its sky is darkened under the puzzle (0 none, 1 black).
 class AltarRealm {
-  const AltarRealm(this.scene, this.hour, {this.dim = .55, this.drift = 5});
+  const AltarRealm(
+    this.scene,
+    this.hour, {
+    this.dim = .55,
+    this.drift = 5,
+    this.ground = .3,
+    this.hand = .45,
+  });
   final SceneDefinition Function() scene;
   final double hour, dim, drift;
+
+  /// How much of [dim] falls where the circles stand and where the hand
+  /// waits: more in a realm whose foreground is bright there (the Geode's
+  /// crystals, the Volcano's lava), which otherwise stand in the stage.
+  final double ground, hand;
 }
 
 /// Which realm each chapter is played in (the author's picks, 2026-10-08).
@@ -37,8 +50,11 @@ AltarRealm altarRealmFor(AltarChapter c) => switch (c.name) {
   'Rising' => AltarRealm(() => skyScene, 19.6),
   'The Split' => AltarRealm(() => swampScene, 21.2),
   'Species' => AltarRealm(() => dunesScene, 17.6),
-  'Stacks' => AltarRealm(() => geodeScene, 20.5),
-  _ => AltarRealm(() => volcanoScene, 22.5),
+  'Stacks' => AltarRealm(() => geodeScene, 20.5, ground: .85, hand: .9),
+  'Blood' => AltarRealm(() => volcanoScene, 22.5, ground: .6, hand: .85),
+  // The Great Work, the finale (2026-11-13): the Arcane realm, which no
+  // other chapter uses (my pick, like its hour).
+  _ => AltarRealm(() => arcaneScene, 21.0, ground: .6, hand: .8),
 };
 
 /// The chapter's realm as a still, for the level select: baked from the
@@ -99,6 +115,7 @@ class _AltarRealmViewState extends State<AltarRealmView> {
   Widget build(BuildContext context) {
     final game = _game;
     final dim = widget.realm.dim;
+    final ground = widget.realm.ground, hand = widget.realm.hand;
     return IgnorePointer(
       child: Stack(
         fit: StackFit.expand,
@@ -122,8 +139,8 @@ class _AltarRealmViewState extends State<AltarRealmView> {
                 colors: [
                   Colors.black.withValues(alpha: dim),
                   Colors.black.withValues(alpha: dim * .8),
-                  Colors.black.withValues(alpha: dim * .3),
-                  Colors.black.withValues(alpha: dim * .45),
+                  Colors.black.withValues(alpha: dim * ground),
+                  Colors.black.withValues(alpha: dim * hand),
                   Colors.black.withValues(alpha: dim * .95),
                 ],
                 stops: const [0, .42, .66, .82, 1],

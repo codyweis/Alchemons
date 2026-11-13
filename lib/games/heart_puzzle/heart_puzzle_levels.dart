@@ -19,6 +19,7 @@ const List<AltarChapter> kAltarChapters = [
   AltarChapter('Species', 21, 29),
   AltarChapter('Stacks', 30, 37),
   AltarChapter('Blood', 38, 45),
+  AltarChapter('The Great Work', 46, 50),
 ];
 
 const List<AltarLevel> kAltarLevels = [
@@ -327,31 +328,7 @@ const List<AltarLevel> kAltarLevels = [
     species: true,
     par: 2,
   ),
-  // 24. par 2, 22 states, longer: 3
-  //   Fire + Mud Mane → Lava Horn on altar 1
-  //   Ice + Lava Horn → Steam Mane, the goal
-  AltarLevel(
-    goal: 'Steam',
-    goalFamily: 'Mane',
-    hand: ['Fire', 'Water Mask', 'Mud Mane', 'Fire Pip', 'Ice'],
-    columns: [[]],
-    species: true,
-    par: 2,
-  ),
-  // 25. par 2, 22 states, longer: 3
-  //   Air Horn + Water Horn → Ice Horn on altar 1, meets Poison → Crystal Horn
-  //   Crystal Horn + Lava → Earth Mane, the goal
-  AltarLevel(
-    goal: 'Earth',
-    goalFamily: 'Mane',
-    hand: ['Air Horn', 'Water', 'Water Horn', 'Fire Mask', 'Lava'],
-    columns: [
-      ['Poison'],
-    ],
-    species: true,
-    par: 2,
-  ),
-  // 26. par 3, 28 states, longer: 4
+  // 24. par 3, 28 states, longer: 4
   //   Air + Water Pip → Ice Mask on altar 1, meets Air → Water Mask
   //   Dust + Water Mask → Earth Pip on altar 1
   //   Earth Pip + Lightning Pip → Crystal Pip, the goal
@@ -365,25 +342,7 @@ const List<AltarLevel> kAltarLevels = [
     species: true,
     par: 3,
   ),
-  // 27. par 3, 28 states, longer: 4
-  //   Earth Pip + Lightning Mask → Crystal on altar 1
-  //   Crystal + Lava Horn → Earth Mane on altar 1
-  //   Air Mask + Earth Mane → Dust Pip, the goal
-  AltarLevel(
-    goal: 'Dust',
-    goalFamily: 'Pip',
-    hand: [
-      'Lightning Mask',
-      'Water Mane',
-      'Lava Horn',
-      'Earth Pip',
-      'Air Mask',
-    ],
-    columns: [[]],
-    species: true,
-    par: 3,
-  ),
-  // 28. par 3, 33 states, longer: 4
+  // 25. par 3, 33 states, longer: 4
   //   Fire Horn + Ice → Water Mane on altar 1
   //   Earth Horn + Water Mane → Mud Mask on altar 1
   //   Fire Mane + Mud Mask → Lava Pip, the goal
@@ -395,17 +354,66 @@ const List<AltarLevel> kAltarLevels = [
     species: true,
     par: 3,
   ),
-  // 29. par 3, 35 states, longer: 4
-  //   Air Mane + Lava Horn → Fire Mask on altar 1
-  //   Fire Mask + Ice Mask → Water Mask on altar 1
-  //   Ice + Water Mask → Steam Pip on altar 1
+  // 26. par 4, 68 states, longer: 5
+  //   Air + Ice → Water Pip on altar 1
+  //   Dust + Water Pip → Earth Mask on altar 1
+  //   Earth Mask + Water Horn → Mud Mane on altar 1
+  //   Lava Pip + Mud Mane → Poison Mask, the goal
   AltarLevel(
-    goal: 'Steam',
-    goalFamily: 'Pip',
-    hand: ['Lava Horn', 'Mud Mane', 'Ice', 'Air Mane', 'Ice Mask'],
+    goal: 'Poison',
+    goalFamily: 'Mask',
+    hand: ['Water Horn', 'Air', 'Dust', 'Lava Pip', 'Ice', 'Lava Pip'],
     columns: [[]],
     species: true,
-    par: 3,
+    par: 4,
+  ),
+  // 27. par 4, 83 states, longer: 5
+  //   Fire Pip + Ice → Water Mask on altar 1
+  //   Air Mask + Ice → Water Pip on altar 1
+  //   Dust + Water Mask → Earth Pip on altar 1
+  //   Earth Pip + Water Pip → Mud Pip, the goal
+  AltarLevel(
+    goal: 'Mud',
+    goalFamily: 'Pip',
+    hand: ['Ice', 'Ice', 'Lava Pip', 'Fire Pip', 'Air Mask', 'Dust'],
+    columns: [[]],
+    species: true,
+    par: 4,
+  ),
+  // 28. par 4, 89 states, longer: 5
+  //   Dust + Steam Mane → Water Horn on altar 1, meets Air → Ice Horn
+  //   Ice Horn + Water Mane → Steam Mask on altar 1
+  //   Dust Mane + Steam Mask → Water Pip on altar 1
+  //   Earth + Water Pip → Mud Mask, the goal
+  AltarLevel(
+    goal: 'Mud',
+    goalFamily: 'Mask',
+    hand: [
+      'Ice Mane',
+      'Water Mane',
+      'Steam Mane',
+      'Dust Mane',
+      'Earth',
+      'Dust',
+    ],
+    columns: [
+      ['Air'],
+    ],
+    species: true,
+    par: 4,
+  ),
+  // 29. par 4, 103 states, longer: 5
+  //   Fire Mask + Ice → Water Pip on altar 1
+  //   Air Mask + Earth → Dust Pip on altar 1
+  //   Dust Pip + Water Pip → Earth Pip on altar 1
+  //   Earth Pip + Lightning → Crystal Mask, the goal
+  AltarLevel(
+    goal: 'Crystal',
+    goalFamily: 'Mask',
+    hand: ['Ice', 'Lightning', 'Fire Mask', 'Air Mask', 'Earth', 'Water'],
+    columns: [[]],
+    species: true,
+    par: 4,
   ),
   // ── Stacks ──
   // 30. par 4, 80 states, longer: 6
@@ -719,5 +727,132 @@ const List<AltarLevel> kAltarLevels = [
     split: true,
     species: true,
     par: 10,
+  ),
+  // ── The Great Work ──
+  // 46. par 12, 11546 states, longer: 13/14
+  //   Dust + Water → Earth on altar 4, meets Lightning → Crystal
+  //   split Crystal
+  //   Crystal + Lightning → Spirit on altar 1, meets Crystal → Light
+  //   Earth + Light → Plant on altar 3, meets Dark → Poison
+  //   split Poison
+  //   Dark + Plant → Poison on altar 3, meets Earth → Lava
+  //   split Plant
+  //   split Lava
+  //   Earth + Poison → Lava on altar 1, meets Ice → Steam
+  //   split Earth
+  //   Dust + Steam → Water on altar 4, meets Dark → Spirit
+  //   Spirit + Water → Ice on altar 2, meets Lava → Steam
+  AltarLevel(
+    goal: 'Light',
+    hand: ['Plant', 'Water', 'Dust', 'Crystal'],
+    columns: [
+      ['Crystal', 'Ice'],
+      ['Lava'],
+      ['Dark', 'Earth'],
+      ['Lightning', 'Dark'],
+    ],
+    split: true,
+    par: 12,
+  ),
+  // 47. par 12, 13764 states, longer: 13/14
+  //   Earth + Fire → Lava on altar 2, meets Ice → Steam
+  //   split Steam
+  //   split Lava
+  //   Fire + Ice → Water on altar 3, meets Dark → Spirit
+  //   split Spirit
+  //   Dark + Water → Spirit on altar 1, meets Water → Ice
+  //   split Ice
+  //   Earth + Water → Mud on altar 2, meets Dust → Earth
+  //   Earth + Lightning → Crystal on altar 1, meets Lava → Earth
+  //   split Earth
+  //   Crystal + Spirit → Light on altar 3, meets Ice → Air
+  //   Air + Lava → Fire on altar 4, meets Plant → Dust
+  AltarLevel(
+    goal: 'Dust',
+    hand: ['Lightning', 'Earth', 'Fire'],
+    columns: [
+      ['Water', 'Lava'],
+      ['Ice', 'Dust'],
+      ['Dark', 'Ice'],
+      ['Plant'],
+    ],
+    split: true,
+    par: 12,
+  ),
+  // 48. par 13, 6283 states, longer: 14/15
+  //   Dust + Water → Earth on altar 1, meets Poison → Lava
+  //   split Lava
+  //   Earth + Poison → Lava on altar 3, meets Crystal → Earth
+  //   split Earth
+  //   Crystal + Lava → Earth on altar 3, meets Water → Mud
+  //   split Mud
+  //   Earth + Water → Mud on altar 1, meets Lava → Poison
+  //   split Poison
+  //   Dust + Mud → Earth on altar 2, meets Air → Dust
+  //   split Dust
+  //   Air + Earth → Dust on altar 4, meets Steam → Water
+  //   split Water
+  //   Dust + Steam → Water on altar 4, meets Air → Ice
+  AltarLevel(
+    goal: 'Ice',
+    hand: ['Dust', 'Water', 'Dust'],
+    columns: [
+      ['Poison', 'Lava'],
+      ['Air'],
+      ['Crystal', 'Water'],
+      ['Steam', 'Air'],
+    ],
+    split: true,
+    par: 13,
+  ),
+  // 49. par 13, 4714 states, longer: 14/15
+  //   Lightning + Plant → Fire on altar 2, meets Water → Steam
+  //   split Steam
+  //   split Fire
+  //   Plant + Water → Mud on altar 2, meets Lava → Poison
+  //   split Poison
+  //   Dust + Mud → Earth on altar 2, meets Lightning → Crystal
+  //   Crystal + Lightning → Spirit on altar 1, meets Crystal → Light
+  //   split Light
+  //   Light + Spirit → Air on altar 1, meets Mud → Dust
+  //   split Dust
+  //   Air + Mud → Dust on altar 1, meets Steam → Water
+  //   split Water
+  //   Dust + Steam → Water on altar 2, meets Earth → Mud
+  AltarLevel(
+    goal: 'Lava',
+    hand: ['Light', 'Lightning', 'Plant', 'Dust'],
+    columns: [
+      ['Crystal', 'Mud', 'Steam'],
+      ['Water', 'Lava', 'Lightning', 'Earth'],
+    ],
+    split: true,
+    par: 13,
+  ),
+  // 50. par 15, 3539 states, longer: 16/17
+  //   Earth + Water → Mud on altar 1, meets Air → Dust
+  //   split Dust
+  //   split Mud
+  //   Air + Water → Ice on altar 1, meets Poison → Crystal
+  //   split Crystal
+  //   Earth + Poison → Lava on altar 1, meets Air → Fire
+  //   Fire + Ice → Water on altar 2, meets Dark → Spirit
+  //   split Spirit
+  //   split Water
+  //   split Ice
+  //   Air + Fire → Lightning on altar 2, meets Crystal → Spirit
+  //   Spirit + Water → Ice on altar 1, meets Fire → Water
+  //   Dark + Water → Spirit on altar 2, meets Crystal → Light
+  //   split Light
+  //   Crystal + Spirit → Light on altar 2, meets Earth → Plant
+  AltarLevel(
+    goal: 'Plant',
+    hand: ['Earth', 'Water'],
+    columns: [
+      ['Air', 'Poison', 'Air', 'Fire'],
+      ['Dark', 'Crystal', 'Crystal', 'Earth'],
+    ],
+    split: true,
+    par: 15,
   ),
 ];
