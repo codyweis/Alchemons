@@ -449,6 +449,22 @@ void main() {
       expect(await cody.trades.confirm(sam.card), ConfirmResult.waiting);
     });
 
+    test('a table with someone no longer a friend lights no dot', () async {
+      await cody.trades.put(sam.card, 'C1');
+      await sam.settle();
+      expect(sam.trades.hasAttention, isTrue);
+      // Sam leaves the friendship; Cody's Alchemon is still up on the
+      // table, which went on waiting on Sam for good.
+      sam.unfriendAll();
+      await sam.settle();
+      expect(sam.trades.tableWith('aaaa')!.waitingOnMe, isTrue);
+      expect(sam.trades.hasAttention, isFalse);
+      // Friends again: it waits on Sam once more.
+      sam.befriend(cody);
+      await sam.settle();
+      expect(sam.trades.hasAttention, isTrue);
+    });
+
     test('a friendship that ends leaves nothing on the table', () async {
       await cody.trades.put(sam.card, 'C1');
       await sam.trades.put(cody.card, 'S1');

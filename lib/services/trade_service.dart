@@ -208,11 +208,59 @@ class TradeService extends ChangeNotifier {
       (tableWith(friendUid)?.waitingOnMe ?? false) ||
       arrivalWith(friendUid) != null;
 
-  /// Any table waits on this player: the home screen's profile button and
-  /// each friend in FRIENDS wear a dot.
+  /// Any table with a friend waits on this player: the home screen's
+  /// profile button and each friend in FRIENDS wear a dot.
+  ///
+  /// With a FRIEND, because a table outlives the friendship: leaving takes
+  /// only this player's Alchemon off it, so one the other had up went on
+  /// waiting on this player for good, with no one left in FRIENDS to answer
+  /// it, and home's dot never went out (the author, 2026-11-13: "always an
+  /// orange indicator for some reason").
   bool get hasAttention =>
-      _arrivals.isNotEmpty ||
-      _tables.keys.any((uid) => tableWith(uid)?.waitingOnMe ?? false);
+      _arrivals.any((a) => _isFriend(a.friendUid)) ||
+      _tables.keys.any(
+        (uid) => _isFriend(uid) && (tableWith(uid)?.waitingOnMe ?? false),
+      );
+
+  /// The friends as last read on this device, for before the list is read
+  /// again (it is read only when FRIENDS is opened); null when never kept.
+  Set<String>? _keptFriends;
+
+  /// Whether [uid] is a friend: by the list once it is read, by the list as
+  /// last kept until then, and taken to be one when neither is known.
+  bool _isFriend(String uid) => friends.loaded
+      ? friends.friends.any((f) => f.uid == uid)
+      : _keptFriends?.contains(uid) ?? true;
+
+  static String _friendsKey(String uid) => 'trades.friends.$uid';
+
+  Future<void> _loadFriends(String uid) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final kept = prefs.getStringList(_friendsKey(uid));
+      if (kept == null || _uid != uid || _disposed) return;
+      _keptFriends = kept.toSet();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('TradeService: kept friends unreadable: $e');
+    }
+  }
+
+  /// Keeps the friends list as it now stands, once it has been read.
+  Future<void> _keepFriends() async {
+    final uid = _uid;
+    if (uid == null || !friends.loaded) return;
+    final ids = {for (final f in friends.friends) f.uid};
+    final had = _keptFriends;
+    if (had != null && had.length == ids.length && had.containsAll(ids)) return;
+    _keptFriends = ids;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setStringList(_friendsKey(uid), ids.toList()..sort());
+    } catch (e) {
+      debugPrint('TradeService: friends not kept: $e');
+    }
+  }
 
   /// Trades or fusions left this week: the week's three (or more, bought),
   /// less those done and those confirmed and waiting.
@@ -252,6 +300,9 @@ class TradeService extends ChangeNotifier {
   void _onAccount() => _restart();
   void _onFriends() {
     _restart();
+    unawaited(_keepFriends());
+    // The dot may go out with a friend who has gone.
+    if (!_disposed) notifyListeners();
     // A friendship that ended leaves nothing waiting on its table.
     if (friends.loaded) unawaited(_settle());
   }
@@ -269,8 +320,10 @@ class TradeService extends ChangeNotifier {
     _gone = const {};
     _traderLoaded = false;
     _arrivals = const [];
+    _keptFriends = null;
     if (uid != null) {
       unawaited(_loadArrivals(uid));
+      unawaited(_loadFriends(uid));
       _sub = _fs
           .collection('trades')
           .where('parties', arrayContains: uid)
