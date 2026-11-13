@@ -1567,12 +1567,13 @@ class ElementalEssence extends StatefulWidget {
     this.hold = false,
     this.tappable = true,
     this.onRevealed,
-    this.revealSpeed = 1,
+    this.revealSpeed = 2,
   });
 
-  /// How many times faster than usual the reveal plays (it takes 1.55 s at
-  /// 1). For a card that is one of many flicked through. A tap's turn into
-  /// its element and back keeps its own pace.
+  /// How many times faster than authored the reveal plays (it takes 1.55 s
+  /// at 1). Twice as fast everywhere by default (user, 2026-11-13); three
+  /// times on the quick look, a card that is one of many flicked through.
+  /// A tap's turn into its element and back keeps its own pace.
   final double revealSpeed;
 
   /// The creature's type name ('Fire'…): see [EssenceElement.of].
