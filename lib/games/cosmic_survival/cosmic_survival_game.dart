@@ -50,6 +50,7 @@ import 'package:alchemons/games/cosmic/kin_support_runtime.dart';
 import 'package:alchemons/games/cosmic/mane_runtime.dart';
 import 'package:alchemons/games/shared/alchemon_combat_stats.dart';
 import 'package:alchemons/games/cosmic_survival/boss_roster_art.dart';
+import 'package:alchemons/games/cosmic_survival/core_strike_art.dart';
 import 'package:alchemons/games/cosmic_survival/dust_sea.dart';
 import 'package:alchemons/games/cosmic_survival/mutator_field.dart';
 import 'package:alchemons/games/cosmic_survival/roster_art.dart';
@@ -223,6 +224,16 @@ class CosmicSurvivalCompanion {
   /// The Snare holding this Alchemon still and silent, and how much longer
   /// its shell lasts.
   CosmicSurvivalEnemy? snaredBy;
+
+  /// The ally a Kin keeps beside (its party slot), or none.
+  int? wardSlot;
+
+  /// The spot a Let is standing on to throw, and how much longer it stands.
+  Offset? standPoint;
+  double standTimer = 0;
+
+  /// Whether it is holding that spot (it does not back off what walks up).
+  bool standHolding = false;
   double snareTimer = 0;
   double doubleCastTimer;
   Offset? doubleCastTargetPos;
@@ -1680,9 +1691,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   static const double _orbCoreRadius = 72.0 * _kOrbArtScale;
   static const double _orbShieldRadius = 136.0 * _kOrbArtScale;
 
-  /// How far past a body's own radius the core is touched: the larger core
-  /// is touched at its glass, as the old one was, and not inside it.
-  static const double _orbContactGap = 30.0 * _kOrbArtScale;
+  /// How far past a body's own radius the core is touched: at its glass,
+  /// the body's edge just into it. (It was 30, then 36 with the larger
+  /// core: a body's CENTRE had to come that near the core's centre, so it
+  /// walked 50 units into the glass before anything happened.) A body
+  /// reaches the core about half a second sooner for it, and a fresh team
+  /// falls a wave or two earlier (user, 2026-11-12: "its okay if it makes
+  /// us die faster").
+  static const double _orbContactGap = _orbCoreRadius - 6;
   static const double _orbGravityRadius = 720.0;
   static const double _orbShipOrbitRadius = 270.0;
   double _idleOrbitRadius = _orbShipOrbitRadius;
@@ -2039,6 +2055,45 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   /// What the run has done to the arena: ash where things fell, the dark
   /// drawing in from the rim, the drift from the wave's bearing.
   final ArenaWear _wear = ArenaWear();
+
+  /// Where the core has just been struck, shown on its glass
+  /// (core_strike_art.dart).
+  final CoreStrikes _coreStrikes = CoreStrikes();
+
+  @visibleForTesting
+  CoreStrikes get debugCoreStrikes => _coreStrikes;
+
+  /// Whether a shot at [at] heading [angle] strikes the core now: it is at
+  /// the glass, and its path runs within [heart] of the core's centre.
+  ///
+  /// A shot used to count only once it was within [heart] of the centre,
+  /// deep inside the glass. It lands at the glass now, where it can be
+  /// seen to, but the same shots land: one that was only passing the core
+  /// still passes it. (Counting every shot that touched the glass made the
+  /// core three times as wide a target for a boss's fan thrown at somebody
+  /// else, and a fresh level-5 team fell two waves sooner.)
+  bool _shotStrikesCore(Offset at, double angle, double heart) {
+    final dx = orb.position.dx - at.dx, dy = orb.position.dy - at.dy;
+    final d2 = dx * dx + dy * dy;
+    if (d2 <= heart * heart) return true;
+    final glass = heart + _orbContactGap - 25;
+    if (d2 > glass * glass) return false;
+    final hx = cos(angle), hy = sin(angle);
+    // Coming toward it, and its line passing through the heart.
+    return dx * hx + dy * hy > 0 && (dx * hy - dy * hx).abs() <= heart;
+  }
+
+  /// Marks a strike on the core's glass on the side [from] lies.
+  void _markCoreStrike(Offset from, double strength, String element) {
+    final off = from - orb.position;
+    if (off.distanceSquared < 1) return;
+    _coreStrikes.add(
+      atan2(off.dy, off.dx),
+      strength,
+      elementColor(element),
+      stats.timeElapsed,
+    );
+  }
 
   /// The sea of dust a Drift's wave fills the arena with (dust_sea.dart).
   final DustSea _dustSea = DustSea();
@@ -3677,6 +3732,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _companionSpriteScales.remove(slot);
     }
 
+    _tickGuardBearing(dt);
     for (final entry in activeCompanions.entries) {
       final comp = entry.value;
       // Held by a Snare: it does nothing at all until the shell is broken
@@ -3797,6 +3853,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     comp.invincibleTimer = (comp.invincibleTimer - dt).clamp(0, 100);
     comp.stickyTargetLockTimer = (comp.stickyTargetLockTimer - dt).clamp(0, 10);
+    if (comp.standTimer > 0) comp.standTimer -= dt;
     comp.tickFlash(dt);
     comp.tickReady(dt, comp.specialReadiness);
     _companionTickers[slotIndex]?.update(dt);
@@ -4225,7 +4282,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         final routed = _roundTheOrb(
           comp.position,
           moveTarget,
-          _familyOrbClearance(comp.member.family.toLowerCase()),
+          _orbClearanceOf(comp, comp.member.family.toLowerCase()),
         );
         // Smooth anchor updates — slower blend prevents jitter when
         // surrounded by enemies or caught between competing forces. Per
@@ -4992,6 +5049,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       lockedPenalties.add(sameFamily ? 90 : 30);
     }
 
+    // A Let stands to throw ([_desiredCompanionMoveTarget]): it would
+    // sooner fight what it can hit from where it stands than walk after a
+    // body that will have moved on by the time it gets there.
+    final standReach =
+        comp.attackRange * _masteryAttackRangeMultiplier(comp.slotIndex) * 0.9;
+    // A Kin looks after the ally it keeps beside.
+    final ward = family == 'kin' ? _kinWard(comp) : null;
+    // A Mane clears the side the wave is heaviest on.
+    final heavySide = Offset(cos(_guardBearingWant), sin(_guardBearingWant));
+
     CosmicSurvivalEnemy? bestEnemy;
     var bestEnemyScore = double.negativeInfinity;
     // Grid query instead of a whole-list scan: at horde density most bodies
@@ -5014,6 +5081,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         case 'let':
           // Target: most health — prioritize highest HP enemies
           score += enemy.hpFraction * 180;
+          if (dist <= standReach + enemy.radius) score += 160;
         case 'pip':
           // Target: least health — prioritize lowest HP enemies (execute)
           score += (1.0 - enemy.hpFraction) * 180;
@@ -5024,13 +5092,31 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           // Target: furthest from orb — engage distant/outer enemies
           score += orbDist * 0.5;
         case 'mane':
-          break; // Target: none — closest enemy wins via base distance score
+          // Target: the thick of it — bodies on the side of the core the
+          // wave is heaviest on, where a shot that goes through one goes
+          // through the ones behind it.
+          if (orbDist > 1) {
+            final toward =
+                ((enemy.position.dx - orb.position.dx) * heavySide.dx +
+                    (enemy.position.dy - orb.position.dy) * heavySide.dy) /
+                orbDist;
+            if (toward > 0) score += toward * 110;
+          }
         case 'mask':
-          break; // Target: none — closest enemy wins via base distance score
+          // Target: what is caught — a body its traps (or anyone's hold)
+          // have slowed or stopped is finished off before it walks free.
+          if (enemy.slowTimer > 0 || enemy.effectiveSpeed <= 0) score += 110;
         case 'kin':
-          break; // Target: none — closest enemy wins via base distance score
+          // Target: whatever is on the ally it keeps beside.
+          if (ward != null) {
+            final near = _distanceSquared(enemy.position, ward.position);
+            if (near < 220 * 220) {
+              score += enemy.target == CosmicEnemyTarget.companion ? 150 : 50;
+            }
+          }
         case 'mystic':
-          break; // Target: none — closest enemy wins via base distance score
+          // Target: what hunts the ship it floats beside.
+          if (enemy.target == CosmicEnemyTarget.ship) score += 130;
       }
       // Sticky target bonus: prefer continuing to attack the same enemy
       if (identical(enemy, comp.stickyTarget)) score += 65;
@@ -5174,7 +5260,53 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     return suggested;
   }
 
+  /// Where [comp] means to stand. A Let stands to throw: it keeps the spot
+  /// it took for a few seconds, for as long as what it is fighting is in
+  /// reach from there, and then goes to its next in one move, where every
+  /// other family drifts after its place all the time.
   Offset? _desiredCompanionMoveTarget(
+    int slotIndex,
+    CosmicSurvivalCompanion comp,
+    _CompanionTargetChoice? choice,
+  ) {
+    final want = _companionPlace(slotIndex, comp, choice);
+    if (want == null || comp.member.family.toLowerCase() != 'let') return want;
+    final reach =
+        comp.attackRange * _masteryAttackRangeMultiplier(slotIndex) * 0.95;
+    bool throwsFrom(Offset at) =>
+        choice != null &&
+        (choice.position - at).distance <=
+            reach + choice.radius + (choice.isBoss ? 80 : 0);
+    final stand = comp.standPoint;
+    if (stand != null && comp.standTimer > 0) {
+      final holds = choice == null
+          ? (want - stand).distance < 90
+          : throwsFrom(stand);
+      if (holds) {
+        comp.standHolding = true;
+        return stand;
+      }
+    }
+    // Its next spot. On its way somewhere, it stops where it is as soon as
+    // it can throw from there (inside its own ring); having stood its
+    // turn, it goes to the place the fight wants it.
+    final here = comp.position;
+    final zone = _patrolZoneOf(comp, 'let');
+    final hereOut = (here - orb.position).distance;
+    final stopsHere =
+        throwsFrom(here) &&
+        (stand == null || (here - stand).distance > 8) &&
+        (zone == null || (hereOut >= zone.$1 && hereOut <= zone.$2 + 40));
+    comp.standPoint = stopsHere ? here : want;
+    comp.standTimer = _letStandSeconds(slotIndex);
+    comp.standHolding = stopsHere;
+    return comp.standPoint;
+  }
+
+  /// How long a Let stands on a spot before it picks its next.
+  double _letStandSeconds(int slotIndex) => 2.6 + (slotIndex % 3) * 0.45;
+
+  Offset? _companionPlace(
     int slotIndex,
     CosmicSurvivalCompanion comp,
     _CompanionTargetChoice? choice,
@@ -5241,25 +5373,98 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // Zone loyalty: clamp combat position to stay within the patrol zone.
     // Companions will not chase past their zone boundary at all — they
     // fight what enters their zone and ignore what leaves it.
-    final zone = _familyPatrolZone(family);
-    if (zone != null) {
-      final combatOrbDist = (combatPos - orb.position).distance;
-      if (combatOrbDist > 0.001) {
-        final toOrb = combatPos - orb.position;
-        final normToOrb = Offset(
-          toOrb.dx / combatOrbDist,
-          toOrb.dy / combatOrbDist,
-        );
-        // Hard clamp: can't go below zone min or above zone max + small grace.
-        final clampedDist = combatOrbDist.clamp(zone.$1, zone.$2 + 40);
-        if ((clampedDist - combatOrbDist).abs() > 1.0) {
-          combatPos = orb.position + normToOrb * clampedDist;
+    // A Kin fights from beside the ally it keeps: no further from it than
+    // it can still mend it from.
+    // (Not from a boss: that is everyone's fight, and its ally is in it.)
+    if (family == 'kin' && !choice.isBoss) {
+      final ward = _kinWard(comp);
+      if (ward != null) {
+        final off = combatPos - ward.position;
+        final far = off.distance;
+        if (far > _kinWardLeash) {
+          combatPos = ward.position + off * (_kinWardLeash / far);
         }
       }
     }
+    final zone = _patrolZoneOf(comp, family);
+    // A body about to strike the core is at its glass, and the core's side
+    // of such a body is the core itself. The three inner families used to
+    // stand there, on the glass, the whole party in one heap in a thick
+    // wave; pushed straight out from the centre instead, a place that fell
+    // near it swung round with every step the body took (a Horn ran three
+    // turns round a boss parked at the core). A Kin and a Let stand off
+    // instead: as far out as each can still hit the body from, up to its
+    // own ring (a Kin a body or two off the shield, a Let on its perch
+    // ring), keeping its own side of the core as far as its reach allows.
+    // The Horn, whose reach is short and whose place this is, comes in to
+    // the glass's edge.
+    //
+    // A boss is everyone's fight: a family that keeps to a ring comes in
+    // off it for one, from its own ring inward only as far as it must to
+    // have the boss in reach. (Held to the rim, a Wing was in reach of a
+    // boss at the core for a twentieth of the fight.)
+    final clearance = _orbClearanceOf(comp, family);
+    final lo = choice.isBoss ? clearance : max(zone?.$1 ?? 0.0, clearance);
+    final combatOrbDist = (combatPos - orb.position).distance;
+    final standOff = switch (family) {
+      'kin' => _orbShieldRadius + 90,
+      'let' => _letPerchRadius(comp),
+      _ => max(zone?.$1 ?? 0.0, clearance),
+    };
+    if (combatOrbDist < max(lo, standOff)) {
+      final t = targetPos - orb.position;
+      final dT = t.distance;
+      final own = atan2(
+        comp.position.dy - orb.position.dy,
+        comp.position.dx - orb.position.dx,
+      );
+      final reach =
+          comp.attackRange * _masteryAttackRangeMultiplier(slotIndex) * 0.85 +
+          choice.radius +
+          (choice.isBoss ? 60 : 0);
+      final ring = max(lo, standOff);
+      final theirs = dT > 0.001 ? atan2(t.dy, t.dx) : own;
+      // How far round from the body's bearing it can stand on that ring
+      // and still hit it: it keeps its own side as far as that allows, so
+      // nobody crosses the core to line up behind somebody else.
+      var spread = pi;
+      if (dT >= 1) {
+        final c = (ring * ring + dT * dT - reach * reach) / (2 * ring * dT);
+        spread = c >= 1 ? 0.0 : (c <= -1 ? pi : acos(c));
+      }
+      final off = atan2(sin(own - theirs), cos(own - theirs)).clamp(
+        -spread,
+        spread,
+      );
+      final bearing = theirs + off;
+      // The furthest out along that bearing it can still hit the body from.
+      final across = dT * sin(off).abs();
+      final along = dT * cos(off);
+      final far = reach > across
+          ? along + sqrt(reach * reach - across * across)
+          : dT + reach;
+      final r = max(lo, min(ring, far));
+      return orb.position + Offset(cos(bearing), sin(bearing)) * r;
+    }
+    if (zone != null && !choice.isBoss && combatOrbDist > zone.$2 + 40) {
+      // Zone loyalty: it will not chase past its ring's far edge; it fights
+      // what enters its ring and lets go what leaves it.
+      final toOrb = combatPos - orb.position;
+      combatPos = orb.position + toOrb * ((zone.$2 + 40) / combatOrbDist);
+    }
 
-    return _keepOffOrb(combatPos, _familyOrbClearance(family));
+    return _keepOffOrb(combatPos, _orbClearanceOf(comp, family));
   }
+
+  /// How far from the core's centre [comp] keeps: its family's rule, and
+  /// never so near that it is drawn over the core's glass (they stood 45
+  /// from its centre). A body strikes the core at the glass
+  /// ([_orbContactGap]), so nothing it has to reach is further in than
+  /// that.
+  double _orbClearanceOf(CosmicSurvivalCompanion comp, String family) => max(
+    _familyOrbClearance(family),
+    _orbCoreRadius + _companionBodyRadius(comp) * 0.8 + 8,
+  );
 
   /// How far from the orb's centre a family with no patrol ring holds.
   ///
@@ -5347,7 +5552,9 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final family = comp.member.family.toLowerCase();
     var resolved = desiredTarget;
 
-    final threatPos = choice?.position;
+    // A Let holding its spot stands its ground: it does not back away from
+    // the body it is throwing at.
+    final threatPos = comp.standHolding ? null : choice?.position;
     if (threatPos != null) {
       // Base gap plus the target's hitbox so a colossus/boss doesn't have
       // companions glued to its surface. Bosses get an extra cushion so
@@ -5407,7 +5614,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
           : ship.position + Offset(0, -shipClear);
     }
 
-    return resolved;
+    // And off the core's glass: the core is the thing being looked at.
+    return _keepOffOrb(resolved, _orbCoreRadius + body * 0.8 + 8);
   }
 
   // Effective stats = the companion's raw stat plus all powerup/keystone
@@ -5515,7 +5723,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       _ => 18.0,
     };
 
-    final zone = _familyPatrolZone(family);
+    // A Horn on guard, a Let on its perch and a Kin beside its ally stand
+    // where their place is: each place moves the way that creature would,
+    // and a wander laid on top would have the sentry and the percher
+    // circling like everyone else.
+    if (family == 'horn' ||
+        family == 'let' ||
+        (family == 'kin' && _kinWard(comp) != null)) {
+      return fallbackFormationPoint;
+    }
+    final zone = _patrolZoneOf(comp, family);
     if (zone != null) {
       // Zoned families: add radial variation within the zone ring so they
       // weave in and out, not just trace a perfect circle.
@@ -5565,7 +5782,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (shipDist > maxShipDrift && !ship.isDead) {
       anchor = Offset.lerp(anchor, fallbackFormationPoint, 0.35) ?? anchor;
     }
-    anchor = _keepOffOrb(anchor, _familyOrbClearance(family));
+    anchor = _keepOffOrb(anchor, _orbClearanceOf(comp, family));
 
     // Stay in the arena.
     final maxWander = _arenaRadius - _arenaShipPadding;
@@ -5595,6 +5812,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   }
 
   Offset _companionFormationPoint(int slotIndex, String family) {
+    final me = activeCompanions[slotIndex];
+    if (me != null) {
+      switch (family) {
+        case 'horn':
+          return _hornGuardPost(me);
+        case 'let':
+          return _letPerch(me);
+        case 'kin':
+          final ward = _kinWard(me);
+          if (ward != null) return _kinBeside(me, ward);
+      }
+    }
     final zone = _familyPatrolZone(family);
     if (zone != null) {
       // Zoned families orbit the orb continuously, a ring per zone turning at
@@ -5612,7 +5841,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       var ringBody = 0.0;
       for (final other in activeCompanions.values) {
         if (other.isDead || other.tethered) continue;
-        if (_familyPatrolZone(other.member.family.toLowerCase()) != zone) {
+        if (_ringOf(other.member.family.toLowerCase()) != _ringOf(family)) {
           continue;
         }
         ring.add(other);
@@ -5810,6 +6039,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         );
       }
     }
+    // Nor over the core's glass.
+    for (final slot in slots) {
+      final c = activeCompanions[slot]!;
+      if (c.isDead || _companionHeldInPlace(slot, c)) continue;
+      final clear = _orbCoreRadius + _companionBodyRadius(c) * 0.7;
+      final off = c.position - orb.position;
+      final dist = off.distance;
+      if (dist >= clear) continue;
+      final away = dist > 0.5
+          ? off / dist
+          : Offset(cos(slot * 2.4), sin(slot * 2.4));
+      c.position += away * ((clear - dist) * rate);
+    }
     if (slots.length < 2) return;
     for (var i = 0; i < slots.length; i++) {
       final a = activeCompanions[slots[i]]!;
@@ -5885,12 +6127,233 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     //   medium: 1/3 → 2/3
     //   outer:  2/3 → arena edge (ship boundary)
     final third = outerMax / 3;
+    // The inner ring starts at the rim of the core's glass (it started at
+    // 70, inside it once the core was drawn larger). No further out
+    // ([_orbClearanceOf]). Where each family WAITS is further out
+    // ([_hornGuardPost] and the rest); this is how near it may come to
+    // fight.
+    const clear = _orbCoreRadius;
     return switch (family) {
-      'let' || 'horn' || 'kin' => (70.0, third), // inner
+      // Guards the core. A Kin with nobody to keep beside walks this too.
+      'horn' || 'kin' => (clear, third + 40),
+      // Wherever its reach lets it perch ([_patrolZoneOf]).
+      'let' => (clear, 560.0 + 140),
       'mane' || 'mask' => (third, third * 2), // medium
       'wing' => (third * 2, outerMax), // outer — flies along the arena rim
       _ => null, // wherever (pip, mystic)
     };
+  }
+
+  /// Which ring a family shares places on, for the families that walk one.
+  int? _ringOf(String family) => switch (family) {
+    'mane' || 'mask' => 1,
+    'wing' => 2,
+    'kin' => 3,
+    _ => null,
+  };
+
+  /// [comp]'s own patrol zone: its family's, or for the two whose place
+  /// depends on the creature, its own. A Let's is round its perch ring; a
+  /// Kin's is round the ring its ally stands on.
+  (double, double)? _patrolZoneOf(CosmicSurvivalCompanion comp, String family) {
+    switch (family) {
+      case 'let':
+        return (_orbCoreRadius, _letPerchRadius(comp) + 140);
+      case 'kin':
+        final ward = _kinWard(comp);
+        if (ward == null) break;
+        final outerMax = _arenaRadius - _arenaShipPadding;
+        final wardDist = (ward.position - orb.position).distance;
+        final lo = max(_orbCoreRadius, min(wardDist, outerMax) - 150);
+        return (lo, min(outerMax, max(lo + 200, wardDist + 150)));
+    }
+    return _familyPatrolZone(family);
+  }
+
+  // ── Where each family stands ──────────────────────────────────────────
+  //
+  // The three families that shared the inner ring (Horn, Kin, Let) walked
+  // one circle 237 from the core like a wheel, all at one pace, and fought
+  // from 45-400 of its centre: with a Pip or a Mystic by the ship that was
+  // the whole party standing on the base. Each now has a place of its own
+  // that says what it is: the Horn stands guard on the side the wave is
+  // coming from, the Let sits on a perch as far out as its rocks still
+  // reach the core and hops to the next, the Kin keeps beside the ally
+  // that needs it. Mane and Mask prowl the middle and Wings fly the rim as
+  // they did; Pips and Mystics stay with the ship.
+
+  /// The side of the core the wave is heaviest on, as a Horn's guard faces
+  /// it: walked round at a guard's pace, never snapped.
+  double _guardBearing = -pi / 2;
+  double _guardBearingWant = -pi / 2;
+  double _guardScan = 0;
+
+  void _tickGuardBearing(double dt) {
+    // A Horn's guard faces it and a Mane clears it.
+    var wanted = false;
+    for (final c in activeCompanions.values) {
+      if (c.isDead) continue;
+      final family = c.member.family.toLowerCase();
+      if (family == 'horn' || family == 'mane') {
+        wanted = true;
+        break;
+      }
+    }
+    if (!wanted) return;
+    _guardScan -= dt;
+    if (_guardScan <= 0) {
+      _guardScan = 0.2;
+      // Everything within reach of the core pulls the guard toward its
+      // side: the nearer, the harder, a heavy body as three, a boss as ten.
+      const reach = 760.0;
+      var sx = 0.0, sy = 0.0;
+      void pull(Offset at, double weight) {
+        final dx = at.dx - orb.position.dx, dy = at.dy - orb.position.dy;
+        final d2 = dx * dx + dy * dy;
+        if (d2 > reach * reach || d2 < 1) return;
+        final d = sqrt(d2);
+        final w = weight * (reach - d) / reach / d;
+        sx += dx * w;
+        sy += dy * w;
+      }
+
+      for (final enemy in enemies) {
+        if (enemy.isDead) continue;
+        pull(enemy.position, enemy.hasHeavyBody ? 3 : 1);
+      }
+      for (final boss in allLivingBosses) {
+        pull(boss.position, 10);
+      }
+      // An even ring of them pulls nowhere: the guard stays where it is.
+      if (sx * sx + sy * sy > 1) _guardBearingWant = atan2(sy, sx);
+    }
+    final turn = atan2(
+      sin(_guardBearingWant - _guardBearing),
+      cos(_guardBearingWant - _guardBearing),
+    );
+    final step = 0.42 * dt;
+    _guardBearing += turn.clamp(-step, step);
+  }
+
+  /// A Horn's post: on the core's threatened side, a little way off its
+  /// shield, pacing a few steps. Several stand shoulder to shoulder across
+  /// that side, in the order they already stand, and close the ring only
+  /// when there are enough of them to.
+  Offset _hornGuardPost(CosmicSurvivalCompanion self) {
+    final zone = _familyPatrolZone('horn')!;
+    var n = 0;
+    var body = _companionBodyRadius(self);
+    var rank = 0;
+    final mine = _angleFrom(self.position - orb.position, _guardBearing);
+    for (final other in activeCompanions.values) {
+      if (other.isDead || other.tethered) continue;
+      if (other.member.family.toLowerCase() != 'horn') continue;
+      n++;
+      if (identical(other, self)) continue;
+      body = max(body, _companionBodyRadius(other));
+      final theirs = _angleFrom(other.position - orb.position, _guardBearing);
+      if (theirs < mine || (theirs == mine && other.slotIndex < self.slotIndex)) {
+        rank++;
+      }
+    }
+    if (self.tethered) n++;
+    n = max(1, n);
+    // Off the shield by a body and a bit: on guard, not on the core.
+    final radius = max(
+      _orbShieldRadius + body + 50,
+      n * (2 * body + 24) / (2 * pi),
+    ).clamp(zone.$1, zone.$2);
+    final step = min(2 * pi / n, max(0.5, (2 * body + 44) / radius));
+    final t = stats.timeElapsed;
+    final angle =
+        _guardBearing +
+        (rank - (n - 1) / 2) * step +
+        0.09 * sin(t * 0.5 + self.slotIndex * 2.1);
+    final r = radius + 12 * sin(t * 0.37 + self.slotIndex);
+    return orb.position + Offset(cos(angle), sin(angle)) * r;
+  }
+
+  /// How far from the core a Let perches: as far out as its rocks still
+  /// reach a body at the core's edge, so a Let with more reach sits further
+  /// back.
+  double _letPerchRadius(CosmicSurvivalCompanion comp) =>
+      (150 +
+              0.8 *
+                  comp.attackRange *
+                  _masteryAttackRangeMultiplier(comp.slotIndex))
+          .clamp(300.0, 560.0);
+
+  /// A Let's perch: it sits still on it, and every eleven seconds hops on
+  /// round the core to the next. Several share the ring out evenly and hop
+  /// at different moments.
+  Offset _letPerch(CosmicSurvivalCompanion self) {
+    var n = 0;
+    var rank = 0;
+    for (final other in activeCompanions.values) {
+      if (other.isDead || other.tethered) continue;
+      if (other.member.family.toLowerCase() != 'let') continue;
+      n++;
+      if (other.slotIndex < self.slotIndex) rank++;
+    }
+    if (self.tethered) n++;
+    n = max(1, n);
+    final hop = ((stats.timeElapsed + self.slotIndex * 2.9) / 11)
+        .floorToDouble();
+    final angle = rank * (2 * pi / n) + hop * 0.85;
+    final r = _letPerchRadius(self) + 26 * sin(hop * 1.7 + self.slotIndex);
+    return orb.position + Offset(cos(angle), sin(angle)) * r;
+  }
+
+  /// How far from the ally it keeps a Kin will go to fight.
+  static const double _kinWardLeash = 260;
+
+  /// The ally a Kin keeps beside: whoever is worst hurt, a little loyal to
+  /// the one it is already with, and not the one another Kin already has.
+  /// None when it has no ally that is not a Kin.
+  CosmicSurvivalCompanion? _kinWard(CosmicSurvivalCompanion kin) {
+    CosmicSurvivalCompanion? best;
+    var bestScore = double.infinity;
+    for (final other in activeCompanions.values) {
+      if (identical(other, kin) || other.isDead) continue;
+      if (other.member.family.toLowerCase() == 'kin') continue;
+      var score = other.maxHp > 0 ? other.currentHp / other.maxHp : 1.0;
+      if (kin.wardSlot == other.slotIndex) score -= 0.2;
+      for (final k in activeCompanions.values) {
+        if (identical(k, kin) || k.isDead) continue;
+        if (k.slotIndex < kin.slotIndex &&
+            k.wardSlot == other.slotIndex &&
+            k.member.family.toLowerCase() == 'kin') {
+          score += 0.5;
+        }
+      }
+      score += (other.position - kin.position).distance * 0.0002;
+      if (score < bestScore) {
+        bestScore = score;
+        best = other;
+      }
+    }
+    kin.wardSlot = best?.slotIndex;
+    return best;
+  }
+
+  /// A Kin's place by its ally: on the core's side of one that is out in
+  /// the field (behind it, as the wave sees it), beside one that is itself
+  /// at the core; a body-width off, and shifting round a little.
+  Offset _kinBeside(CosmicSurvivalCompanion kin, CosmicSurvivalCompanion ward) {
+    final fromCore = ward.position - orb.position;
+    final d = fromCore.distance;
+    final out = d > 1 ? fromCore / d : const Offset(1, 0);
+    final side = kin.slotIndex.isEven ? 1.0 : -1.0;
+    final base = d > 430
+        ? atan2(-out.dy, -out.dx)
+        : atan2(out.dx * side, -out.dy * side);
+    final angle =
+        base + 0.5 * sin(stats.timeElapsed * 0.45 + kin.slotIndex * 1.7);
+    final gap = _companionBodyRadius(kin) + _companionBodyRadius(ward) + 44;
+    return _keepOffOrb(
+      ward.position + Offset(cos(angle), sin(angle)) * gap,
+      _orbShieldRadius + _companionBodyRadius(kin) + 20,
+    );
   }
 
   double _familyMovementSpeedMultiplier(String family) {
@@ -7074,6 +7537,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ),
       );
       final bursts = _enemyExplodesOnOrbImpact(enemy);
+      _markCoreStrike(
+        enemy.position,
+        bursts ? 2.6 : (enemy.hasHeavyBody ? 1.8 : 1.0),
+        enemy.element,
+      );
       if (bursts) _triggerEnemyOrbExplosion(enemy, damageMultiplier);
       if (powerUps.hasMirrorShield) {
         _triggerMirrorShieldPulse(enemy.position, enemy.damage);
@@ -11434,6 +11902,35 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     }
   }
 
+  // How each boss moves is read off what it is (boss_roster_art.dart): an
+  // egg is heavy, a stream flows round the core and never turns back, a
+  // spire stands. What each one fires, and when, is its discipline's and is
+  // not touched by any of this.
+
+  /// How near the core's centre a boss that means to stand [want] off it
+  /// comes: never so near that its body is drawn over the core's shield.
+  double _bossClearOfCore(SurvivalBoss boss, double want) =>
+      max(want, _orbShieldRadius + boss.radius + 18);
+
+  /// Which way round a boss turns, for its whole life.
+  double _bossTurn(SurvivalBoss boss) =>
+      boss.template.name.length.isEven ? 1.0 : -1.0;
+
+  /// A boss's place among the living ones (0 the first), so two of a kind
+  /// keep out of step.
+  int _bossIndex(SurvivalBoss boss) =>
+      identical(boss, activeBoss) ? 0 : 1 + extraBosses.indexOf(boss);
+
+  /// How fast a boss sidles round what it holds off. The Unhatched is an
+  /// egg: it rolls round at a walk (it skated round the core at a run).
+  double _bossStrafe(SurvivalBoss boss) =>
+      boss.speed *
+      boss.strafeWeight *
+      (survivalBossKindOf(boss) == SurvivalBossKind.unhatched ? 0.4 : 1.0);
+
+  /// The Spire: it walks up to the core's edge and stands there, creeping
+  /// round it no faster than a shadow. (It shuffled from side to side, and
+  /// stood with its body over the core's glass.)
   void _updateBossSiegebreaker(double dt, SurvivalBoss boss) {
     final anchor = orb.position;
     final toAnchor = anchor - boss.position;
@@ -11442,10 +11939,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
         : Offset.zero;
     final tangent = Offset(-norm.dy, norm.dx);
-    final targetDist = boss.hpFraction < 0.45 ? 128.0 : 168.0;
+    final targetDist =
+        _orbCoreRadius + boss.radius + (boss.hpFraction < 0.45 ? 8.0 : 36.0);
     final radialForce = (dist - targetDist) * 0.82;
-    final strafe = sin(boss.phaseTimer * 1.8) * boss.speed * 0.34;
-    boss.position += (norm * radialForce + tangent * strafe) * dt;
+    final creep = boss.speed * 0.1 * _bossTurn(boss);
+    boss.position += (norm * radialForce + tangent * creep) * dt;
     boss.angle = atan2(toAnchor.dy, toAnchor.dx);
 
     // Heavy periodic cone fire toward core defenses.
@@ -11479,7 +11977,8 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     boss.chargeTimer -= dt;
     if (boss.chargeTimer <= 0) {
       boss.chargeTimer = max(3.0, 5.6 - boss.level * 0.08);
-      final waveRadius = 210.0;
+      // From its centre: a titan's reaches as far past its own body.
+      final waveRadius = max(210.0, boss.radius * 1.6);
       final waveDamage = 11.0 + boss.level * 1.35;
       _spawnDetonationBurst(
         boss.position,
@@ -11533,19 +12032,25 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _updateBossRiftcaller(double dt, SurvivalBoss boss) {
     final anchor = ship.isDead ? orb.position : ship.position;
     final toAnchor = anchor - boss.position;
-    final dist = toAnchor.distance;
-    final norm = dist > 1
-        ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
-        : Offset.zero;
-    final tangent = Offset(-norm.dy, norm.dx);
-    // Riftcaller is a sniper-discipline boss; use its engagement ring with a
-    // gentle breathing oscillation on top.
-    final targetDist =
-        boss.engagementRange + sin(boss.phaseTimer * 0.75) * 70.0;
-    final radialForce = (dist - targetDist) * 0.42;
-    boss.position +=
-        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 1.1) *
-        dt;
+    // The Drift flows: round the core at one pace, one way, drawing in
+    // and letting out again, so the stream behind it lies in the spiral it
+    // was drawn as. (It held a ring round the SHIP and sidled along it, so
+    // its path was the ship's with a wobble on it and its stream a tangle.)
+    // Two flow the same way, one in while the other is out.
+    final fromCore = boss.position - orb.position;
+    final coreDist = max(1.0, fromCore.distance);
+    final out = fromCore / coreDist;
+    final along = Offset(-out.dy, out.dx) * _bossTurn(boss);
+    final inner = _bossClearOfCore(boss, 300);
+    final outer = max(inner + 120, min(inner + 330, _arenaRadius - 240));
+    final swing =
+        0.5 - 0.5 * cos(boss.phaseTimer * 0.26 + _bossIndex(boss) * pi);
+    final pace = boss.speed * 1.25;
+    final radial = ((inner + (outer - inner) * swing - coreDist) * 0.5).clamp(
+      -pace * 0.55,
+      pace * 0.55,
+    );
+    boss.position += (along * pace + out * radial) * dt;
     boss.angle = atan2(toAnchor.dy, toAnchor.dx);
 
     // Rift lance: direct high-speed pressure line.
@@ -11624,9 +12129,12 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
         : Offset.zero;
     final tangent = Offset(-norm.dy, norm.dx);
-    // Conductor is an orbit-discipline boss; let its preferred ring drive
-    // distance with a small breathing oscillation.
-    final targetDist = boss.engagementRange + sin(boss.phaseTimer * 0.9) * 40.0;
+    // The Cage holds its ring and turns round the core, slow as it is
+    // large, breathing in and out a little; its shell stays off the core's.
+    final targetDist = _bossClearOfCore(
+      boss,
+      boss.engagementRange + sin(boss.phaseTimer * 0.3) * 30.0,
+    );
     final radialForce = (dist - targetDist) * 0.48;
     boss.position +=
         (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.8) *
@@ -11810,10 +12318,31 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         ? Offset(toTarget.dx / dist, toTarget.dy / dist)
         : Offset.zero;
     final tangent = Offset(-norm.dy, norm.dx);
-    final targetDist = boss.hpFraction < 0.45 ? 95.0 : 135.0;
-    final radialForce = (dist - targetDist) * 0.95;
-    final weave = sin(boss.phaseTimer * 4.0) * boss.speed * 0.48;
-    boss.position += (norm * radialForce + tangent * weave) * dt;
+    // The Pair circles what it fights, one way and then, easing through a
+    // stand, the other, as two things bound together wheel: closer and
+    // quicker once it is hurt. (It jittered from side to side four times a
+    // second, and stood so close its shells were drawn over its target.)
+    final hurt = boss.hpFraction < 0.45;
+    final targetDist = boss.radius + (hurt ? 62.0 : 96.0);
+    final radialForce = ((dist - targetDist) * 0.95).clamp(
+      -boss.speed * 1.8,
+      boss.speed * 1.8,
+    );
+    final wheel =
+        (1.7 * sin(boss.phaseTimer * (hurt ? 0.55 : 0.4))).clamp(-1.0, 1.0) *
+        boss.speed *
+        (hurt ? 0.8 : 0.6);
+    // Two shells on one tether have weight: it swings toward where it
+    // means to go, so a change of target bends its path and does not kink
+    // it.
+    boss.carried =
+        Offset.lerp(
+          boss.carried,
+          norm * radialForce + tangent * wheel,
+          1 - exp(-1.5 * dt),
+        ) ??
+        boss.carried;
+    boss.position += boss.carried * dt;
     boss.angle = atan2(toTarget.dy, toTarget.dx);
 
     boss.shootTimer -= dt;
@@ -11880,16 +12409,19 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final norm = dist > 1
         ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
         : Offset.zero;
-    final tangent = Offset(-norm.dy, norm.dx);
-    // Artillery discipline → snipers per the spawner; honor their ring.
-    final targetDist = boss.engagementRange;
-    // Pull harder if the player closes the gap so artillery actually backs up.
-    final radialPull = dist < targetDist * 0.6 ? 0.65 : 0.42;
-    final radialForce = (dist - targetDist) * radialPull;
+    // The Armillary turns round the core like a thing in orbit: one far
+    // ring, one way, one pace, shelling inward as it goes. (Its ring was
+    // round the SHIP, which put it out by the rim, 700-1,000 from the core,
+    // backing off whenever the ship came near.)
+    final fromCore = boss.position - orb.position;
+    final coreDist = max(1.0, fromCore.distance);
+    final out = fromCore / coreDist;
+    final along = Offset(-out.dy, out.dx) * _bossTurn(boss);
+    final ring = _bossClearOfCore(boss, boss.engagementRange + 90);
     boss.position +=
-        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.6) *
-        dt;
-    boss.angle = atan2(toAnchor.dy, toAnchor.dx);
+        (out * ((ring - coreDist) * 0.42) + along * boss.speed * 0.9) * dt;
+    // It still aims at the ship: its fan is thrown along this.
+    boss.angle = dist > 1 ? atan2(norm.dy, norm.dx) : boss.angle;
 
     boss.shootTimer -= dt;
     if (boss.shootTimer <= 0) {
@@ -11959,28 +12491,45 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _updateBossTrickster(double dt, SurvivalBoss boss) {
     final anchor = ship.isDead ? orb.position : ship.position;
     final toAnchor = anchor - boss.position;
-    final dist = toAnchor.distance;
-    final norm = dist > 1
-        ? Offset(toAnchor.dx / dist, toAnchor.dy / dist)
-        : Offset.zero;
-    final tangent = Offset(-norm.dy, norm.dx);
-    final targetDist = boss.engagementRange + sin(boss.phaseTimer * 1.7) * 45.0;
-    final radialForce = (dist - targetDist) * 0.75;
+    // The Eclipse hangs over the core as a dark moon would: it keeps its
+    // ring round the CORE and barely drifts along it, and where it goes it
+    // goes by shutting and opening somewhere else on that ring. (It ran
+    // rings round the ship between blinks, and blinked to the ship.)
+    final fromCore = boss.position - orb.position;
+    final coreDist = max(1.0, fromCore.distance);
+    final out = fromCore / coreDist;
+    final ring = _bossClearOfCore(
+      boss,
+      boss.engagementRange + sin(boss.phaseTimer * 0.5) * 30.0,
+    );
     boss.position +=
-        (norm * radialForce + tangent * boss.speed * boss.strafeWeight) * dt;
+        (out * ((ring - coreDist) * 0.75) +
+            Offset(-out.dy, out.dx) * (boss.speed * 0.16 * _bossTurn(boss))) *
+        dt;
     boss.angle = atan2(toAnchor.dy, toAnchor.dx);
 
     boss.escortTimer -= dt;
+    // It chooses where it will open a moment before it goes, and the dark
+    // gathers there first (boss_roster_art.dart): somewhere else on its
+    // ring, and never on another boss.
+    if (boss.escortTimer <= kEclipseTellSeconds && boss.blinkTo == null) {
+      var blinkAngle = _rng.nextDouble() * pi * 2;
+      Offset opened() =>
+          orb.position + Offset(cos(blinkAngle) * ring, sin(blinkAngle) * ring);
+      for (final other in allLivingBosses) {
+        if (identical(other, boss)) continue;
+        final taken = other.blinkTo ?? other.position;
+        if ((taken - opened()).distance < other.radius + boss.radius + 90) {
+          blinkAngle += 1.3;
+        }
+      }
+      boss.blinkTo = opened();
+      noteEclipseOpening(boss, boss.blinkTo!, stats.timeElapsed);
+    }
     if (boss.escortTimer <= 0) {
       boss.escortTimer = max(4.5, 8.5 - boss.level * 0.12);
-      // Trickster blinks closer to its preferred engagement ring rather than
-      // always slamming into 210u, so orbit/sniper trickster variants don't
-      // immediately teleport into melee.
-      final blinkAngle = _rng.nextDouble() * pi * 2;
-      final blinkDist = (boss.engagementRange * 0.92).clamp(180.0, 520.0);
-      boss.position =
-          anchor +
-          Offset(cos(blinkAngle) * blinkDist, sin(blinkAngle) * blinkDist);
+      boss.position = boss.blinkTo ?? boss.position;
+      boss.blinkTo = null;
       final fanTarget =
           _nearestCompanionPosition(boss.position) ?? ship.position;
       final fanAngle = atan2(
@@ -12060,7 +12609,18 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
   void _updateBossCharger(double dt, SurvivalBoss boss) {
     if (boss.charging) {
       boss.chargeDashTimer -= dt;
-      final dashSpeed = boss.baseSpeed * SurvivalBoss.chargeSpeedMultiplier;
+      // A lurch, not a skate: it gathers from a stand, is at its fastest
+      // half way and comes to rest, over the same ground as before.
+      final lurch =
+          1 -
+          cos(
+            2 *
+                pi *
+                (1 - boss.chargeDashTimer / SurvivalBoss.chargeDashDuration)
+                    .clamp(0.0, 1.0),
+          );
+      final dashSpeed =
+          boss.baseSpeed * SurvivalBoss.chargeSpeedMultiplier * lurch;
       boss.position = Offset(
         boss.position.dx + cos(boss.chargeAngle) * dashSpeed * dt,
         boss.position.dy + sin(boss.chargeAngle) * dashSpeed * dt,
@@ -12072,14 +12632,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       final dist = toOrb.distance;
       boss.angle = atan2(toOrb.dy, toOrb.dx);
 
-      final orbitDist = boss.engagementRange;
+      final orbitDist = _bossClearOfCore(boss, boss.engagementRange);
       final norm = dist > 1
           ? Offset(toOrb.dx / dist, toOrb.dy / dist)
           : Offset.zero;
       final tangent = Offset(-norm.dy, norm.dx);
       final radialForce = (dist - orbitDist) * 0.8;
-      boss.position +=
-          (norm * radialForce + tangent * boss.speed * boss.strafeWeight) * dt;
+      boss.position += (norm * radialForce + tangent * _bossStrafe(boss)) * dt;
 
       if (boss.chargeTimer <= 0) {
         // Charge toward ship if alive, else toward orb
@@ -12124,15 +12683,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final toStation = station - boss.position;
     final dist = max(1.0, toStation.distance);
     final tangent = Offset(-toStation.dy / dist, toStation.dx / dist);
-    final orbitDist = boss.engagementRange;
+    final orbitDist = _bossClearOfCore(boss, boss.engagementRange);
     final radialPull = boss.movementStyle == SurvivalBossMovementStyle.sniper
         ? 0.7
         : 0.5;
     final radialForce = (dist - orbitDist) * radialPull;
     final norm = Offset(toStation.dx / dist, toStation.dy / dist);
     boss.position +=
-        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.7) *
-        dt;
+        (norm * radialForce + tangent * _bossStrafe(boss) * 0.7) * dt;
     boss.angle = atan2(
       aimAt.dy - boss.position.dy,
       aimAt.dx - boss.position.dx,
@@ -12183,8 +12741,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final targetDist = boss.engagementRange + sin(boss.phaseTimer * 1.5) * 60;
     final radialForce = (dist - targetDist) * 0.8;
     boss.position +=
-        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.85) *
-        dt;
+        (norm * radialForce + tangent * _bossStrafe(boss) * 0.85) * dt;
     boss.angle = atan2(toOrb.dy, toOrb.dx);
 
     boss.shootTimer -= dt;
@@ -12213,14 +12770,16 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Bulwarks usually plant themselves — orbiters keep their preferred ring,
     // chase-style ones get the old aggressive 145.
-    final targetDist = boss.movementStyle == SurvivalBossMovementStyle.chase
-        ? 145.0
-        : boss.engagementRange;
+    final targetDist = _bossClearOfCore(
+      boss,
+      boss.movementStyle == SurvivalBossMovementStyle.chase
+          ? 145.0
+          : boss.engagementRange,
+    );
     final tangent = Offset(-norm.dy, norm.dx);
     final radialForce = (dist - targetDist) * 0.75;
     boss.position +=
-        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.55) *
-        dt;
+        (norm * radialForce + tangent * _bossStrafe(boss) * 0.55) * dt;
 
     boss.shieldTimer -= dt;
     if (!boss.shieldUp) {
@@ -12247,10 +12806,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     final norm = dist > 1
         ? Offset(toOrb.dx / dist, toOrb.dy / dist)
         : Offset.zero;
-    final radialForce = (dist - boss.engagementRange) * 0.4;
+    final radialForce =
+        (dist - _bossClearOfCore(boss, boss.engagementRange)) * 0.4;
     boss.position +=
-        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.5) *
-        dt;
+        (norm * radialForce + tangent * _bossStrafe(boss) * 0.5) * dt;
     boss.angle = atan2(toOrb.dy, toOrb.dx);
 
     boss.escortTimer -= dt;
@@ -12319,12 +12878,14 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
     // Enraged warden always closes the gap; otherwise honor the boss's
     // preferred engagement ring so snipers stay back firing.
-    final targetDist = boss.enraged ? 140.0 : boss.engagementRange;
+    final targetDist = _bossClearOfCore(
+      boss,
+      boss.enraged ? 140.0 : boss.engagementRange,
+    );
     final tangent = Offset(-norm.dy, norm.dx);
     final radialForce = (dist - targetDist) * 0.65;
     boss.position +=
-        (norm * radialForce + tangent * boss.speed * boss.strafeWeight * 0.65) *
-        dt;
+        (norm * radialForce + tangent * _bossStrafe(boss) * 0.65) * dt;
 
     boss.spreadTimer -= dt;
     if (boss.spreadTimer <= 0) {
@@ -12619,8 +13180,10 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
 
       if (proj.life <= 0) continue;
 
-      // Hit orb
-      if (_withinRange(proj.position, orb.position, proj.radius + 25)) {
+      // Hit orb: at its glass, as a body does (it flew on to the core's
+      // middle before it counted).
+      if (_shotStrikesCore(proj.position, proj.angle, proj.radius + 25)) {
+        _markCoreStrike(proj.position, 1.4, proj.element);
         _damageOrb(proj.damage);
         proj.life = 0;
       }
@@ -12692,12 +13255,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       }
 
       if (proj.target == CosmicEnemyTarget.orb) {
-        if (_withinRange(proj.position, orb.position, proj.radius + 24)) {
+        if (_shotStrikesCore(proj.position, proj.angle, proj.radius + 24)) {
           // Phantom orb dodge chance
           if (_orbDodgeChance > 0 && _rng.nextDouble() < _orbDodgeChance) {
             proj.life = 0;
             continue;
           }
+          _markCoreStrike(proj.position, 0.8, proj.element);
           _damageOrb(proj.damage);
           proj.life = 0;
         }
@@ -24818,6 +25382,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     canvas.save();
     canvas.translate(center.dx, center.dy);
     _paintCoreBody(canvas);
+    _coreStrikes.paint(canvas, _orbCoreRadius, stats.timeElapsed);
     _paintCoreReadings(canvas);
     canvas.restore();
 

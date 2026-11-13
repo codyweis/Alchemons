@@ -108,7 +108,11 @@ void main() {
         game.clearCompanionTether();
         game.ship.currentHp = game.ship.maxHp * 0.2;
         var gained = 0.0;
-        for (var i = 0; i < 60 * 25; i++) {
+        // Long enough for the wave's first bodies to walk into its reach
+        // and for several shots: at 25 s the first was still a second out
+        // of range when the clock stopped (a Kin with no ally to keep
+        // beside waits a little further off the core than it did).
+        for (var i = 0; i < 60 * 40; i++) {
           caster.specialCooldown = 99999;
           // Stand the ship between the Kin and whatever it is shooting —
           // its locked target when it has one, not just the first body in
@@ -135,6 +139,8 @@ void main() {
       final conducted = await shipRecovery(
         snapshot: equip(KinNodes.conductionPath, throughTier: 2),
       );
+      // ignore: avoid_print
+      print('ship healed: plain $plain, conducted $conducted');
       expect(conducted, greaterThan(plain));
     });
 

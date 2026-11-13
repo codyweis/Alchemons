@@ -56,6 +56,18 @@ void main() {
         b.position -= const ui.Offset(-200, 0);
         tickSurvivalBossArt(b, 2.0);
       },
+      // The Eclipse about to open below where it stands: the dark gathering
+      // there, early and just before.
+      'opening soon': (b) => noteEclipseOpening(
+        b,
+        b.position + ui.Offset(0, b.radius * 1.75),
+        2.2 - kEclipseTellSeconds * 0.4,
+      ),
+      'opening now': (b) => noteEclipseOpening(
+        b,
+        b.position + ui.Offset(0, b.radius * 1.75),
+        2.2 - kEclipseTellSeconds * 0.92,
+      ),
     };
     // Your party, as an Other Orb's guard: three creatures' sprites.
     final shadows = <BossShadow>[];

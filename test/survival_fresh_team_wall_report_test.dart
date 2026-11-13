@@ -9,6 +9,7 @@ import 'package:alchemons/games/cosmic/cosmic_data.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_game.dart';
 import 'package:alchemons/games/cosmic_survival/cosmic_survival_powerups.dart';
 import 'package:alchemons/models/stat_system.dart';
+import 'package:alchemons/models/survival_upgrades.dart';
 import 'package:flame/components.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -29,10 +30,21 @@ import 'package:flutter_test/flutter_test.dart';
 /// luck. Checked on the mean of 16 seeds: level 1 8–10.5, level 5 14–19,
 /// level 10 23 or later.
 ///
+/// Re-set 2026-11-12. The core is drawn a fifth larger and a body now
+/// strikes it at its glass (it walked 50 units into it first), and the
+/// party stands off the core instead of on it. A fresh team falls a wave
+/// or three earlier for that, which the user accepted ("its okay if it
+/// makes us die faster"). Mean of 64 seeds: level 1 8.5, level 5 12.5,
+/// level 10 21.0 (they were 9.3, 15.3 and 22.3). Checked on the mean of
+/// the 16 seeds below (8.8, 13.4, 21.4 when set): level 1 7.5–10.5, level 5
+/// 11–16, level 10 19 or later. The 16-seed mean moves a wave or two on
+/// any small change: judge a change on FRESH_SEEDS of 64, not on this.
+///
 ///   flutter test test/survival_fresh_team_wall_report_test.dart --tags preview
 ///
 /// FRESH_LEVELS (default 1,5,10) and FRESH_SEEDS (default: 16 seeds) narrow
-/// or widen it; FRESH_DRAFTS=skip dismisses every draft instead.
+/// or widen it; FRESH_DRAFTS=skip dismisses every draft instead;
+/// FRESH_SPECIALS=shipOverhaul,... plays it with those Specials owned.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final env = Platform.environment;
@@ -62,14 +74,16 @@ void main() {
       );
     }
     if (!takeDrafts) return;
+    // The ranges are for the 16 default seeds; any other set is a report.
+    if (env['FRESH_SEEDS'] != null || env['FRESH_SPECIALS'] != null) return;
     if (means.containsKey(1)) {
-      expect(means[1], inInclusiveRange(8.0, 10.5));
+      expect(means[1], inInclusiveRange(7.5, 10.5));
     }
     if (means.containsKey(5)) {
-      expect(means[5], inInclusiveRange(14.0, 19.0));
+      expect(means[5], inInclusiveRange(11.0, 16.0));
     }
     if (means.containsKey(10)) {
-      expect(means[10], greaterThanOrEqualTo(23.0));
+      expect(means[10], greaterThanOrEqualTo(19.0));
     }
   }, timeout: const Timeout(Duration(minutes: 30)));
 }
@@ -138,10 +152,18 @@ const _draftOrder = [
 /// The wave the run's orb gives out on (or 40 if it never does).
 Future<int> _fall(int level, int seed, bool takeDrafts) async {
   final party = _party(level);
+  // FRESH_SPECIALS=shipOverhaul,shipShield: the run carries those Specials
+  // (a report: the ranges below are for a team with none).
+  final specials = {
+    for (final name
+        in (Platform.environment['FRESH_SPECIALS'] ?? '').split(','))
+      if (name.isNotEmpty) SurvivalSpecial.values.byName(name),
+  };
   final game = CosmicSurvivalGame(
     party: party,
     random: Random(seed),
     onGameOver: () {},
+    upgradeState: SurvivalUpgradeState(ownedSpecials: specials),
   );
   game.onGameResize(Vector2(900, 700));
   await game.onLoad();

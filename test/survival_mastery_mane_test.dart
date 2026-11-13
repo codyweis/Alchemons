@@ -504,6 +504,9 @@ void main() {
           snapshot: equip(ManeNodes.limitlessPath, throughTier: throughTier),
           seed: seed,
         );
+        // Well out from the core: the bodies staged along the orb's path
+        // must not stand at the core's glass, where a body strikes it.
+        target.position = game.orb.position + const Offset(700, 0);
         final shots = await castSpecial(game, target);
         final orbs = shots.where((p) => p.effectStacks == 1).toList();
         expect(orbs, isNotEmpty, reason: 'setup: no orbs');

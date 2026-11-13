@@ -220,8 +220,10 @@ void main() {
         );
         final comp = game.activeCompanions[0]!;
         final at = comp.position;
+        // Away from the core: a body standing at its glass strikes it.
+        final out = (at - game.orb.position) / (at - game.orb.position).distance;
         final line = [
-          for (var i = 0; i < 3; i++) body(game, at + Offset(90.0 + i * 25, 0)),
+          for (var i = 0; i < 3; i++) body(game, at + out * (90.0 + i * 25)),
         ];
         comp.basicCooldown = 0;
         for (var f = 0; f < 60 * 4; f++) {
@@ -452,7 +454,9 @@ void main() {
       );
       final wing = game.activeCompanions[0]!;
       final at = wing.position;
-      final target = body(game, at + const Offset(220, 0));
+      // Away from the core: a body standing at its glass strikes it.
+      final out = (at - game.orb.position) / (at - game.orb.position).distance;
+      final target = body(game, at + out * 220);
       wing
         ..specialCooldown = 30
         ..basicCooldown = 0;

@@ -46,9 +46,8 @@ enum SurvivalBossKind {
   /// A dark orb lit at the rim by yours, your party's shadows round it.
   otherOrb,
 
-  /// No boss of its own: its archetype's old form (the Comet, the
-  /// Singularity, the Ouroboros, the Spire, the Hive, the Armillary), in
-  /// grains.
+  /// No boss of its own: an old form in grains ([survivalBossForm]), the
+  /// Armillary or the Spire.
   form,
 }
 
@@ -64,6 +63,37 @@ SurvivalBossKind survivalBossKindOf(SurvivalBoss boss) =>
       SurvivalBossDiscipline.artillery ||
       SurvivalBossDiscipline.siegebreaker => SurvivalBossKind.form,
     };
+
+/// The old form a boss of [SurvivalBossKind.form] stands in. One form to
+/// a discipline, so the boss of a wave is always the same thing and moves
+/// the way that thing would: the far one that shells the core is the
+/// Armillary, turning round it; the one that plants itself at the core is
+/// the Spire. (It was read off the boss's type, so the wave-10 boss was a
+/// Comet in one run and a Singularity in the next, with one way of moving.)
+BossForm survivalBossForm(SurvivalBoss boss) => switch (boss.discipline) {
+  SurvivalBossDiscipline.artillery => BossForm.armillary,
+  SurvivalBossDiscipline.siegebreaker => BossForm.spire,
+  _ => bossFormFor(boss.type),
+};
+
+/// What a boss is called in survival: what it is, not the open-space
+/// creature its numbers were borrowed from (an egg of strands was labelled
+/// "Infernal Wyrm", a shell of bands "Solar Behemoth").
+String survivalBossName(SurvivalBoss boss) => switch (survivalBossKindOf(boss)) {
+  SurvivalBossKind.unhatched => 'The Unhatched',
+  SurvivalBossKind.harvester => 'The Cage',
+  SurvivalBossKind.drift => 'The Drift',
+  SurvivalBossKind.pair => 'The Pair',
+  SurvivalBossKind.otherOrb => 'The Eclipse',
+  SurvivalBossKind.form => switch (survivalBossForm(boss)) {
+    BossForm.armillary => 'The Armillary',
+    BossForm.spire => 'The Spire',
+    BossForm.comet => 'The Comet',
+    BossForm.singularity => 'The Singularity',
+    BossForm.ouroboros => 'The Ouroboros',
+    BossForm.hive => 'The Hive',
+  },
+};
 
 /// How far above its centre, in radii, a boss of [kind] reaches (its bar
 /// and name sit over that).
@@ -892,9 +922,26 @@ class _Blink {
   Offset last;
   Offset? from;
   double at = -1e9;
+
+  /// Where it is about to open, and when it began to show there.
+  Offset? to;
+  double tellAt = -1e9;
 }
 
 final Expando<_Blink> _blinks = Expando('other orb blink');
+
+/// How long before it opens somewhere the dark begins to gather there.
+const double kEclipseTellSeconds = 0.9;
+
+/// The Eclipse is about to shut where it is and open at [at]: from now
+/// until it does, the dark gathers on that spot (it opened without a sign,
+/// anywhere on its ring).
+void noteEclipseOpening(SurvivalBoss boss, Offset at, double time) {
+  final b = _blinks[boss] ??= _Blink(boss.position);
+  b
+    ..to = at
+    ..tellAt = time;
+}
 
 const _violet = Color(0xFFB08CFF);
 const _deep = Color(0xFF2A1E48);
@@ -935,6 +982,26 @@ void paintOtherOrb(
       final a = _h(i, 191) * _tau + f * 3;
       final d = r * (1 - f) * sqrt(_h(i, 192));
       _fine[i % 5 == 0 ? 4 : 1].add(from.dx + d * cos(a), from.dy + d * sin(a));
+    }
+    _flush(c, rimTone);
+  }
+
+  // The dark gathering where it is about to open: grains drawn in round
+  // the spot, turning, closer and thicker as the moment comes, and a hole
+  // widening at its middle.
+  if (blink?.to case final to? when time - blink!.tellAt < kEclipseTellSeconds) {
+    final p = ((time - blink.tellAt) / kEclipseTellSeconds).clamp(0.0, 1.0);
+    final gather = p * p;
+    c.drawCircle(to, r * (0.06 + 0.34 * gather), _eggDark..color = _ink);
+    final n = (90 + 230 * p).round();
+    for (var i = 0; i < n; i++) {
+      final a = _h(i, 201) * _tau + time * (1.2 + 2.4 * p) + p * 2;
+      final d =
+          r * (0.3 + (1.55 - 1.15 * gather) * sqrt(_h(i, 202))) * (1 - 0.2 * p);
+      _fine[_h(i, 203) < 0.2 + 0.3 * p ? 4 : (i.isEven ? 2 : 1)].add(
+        to.dx + d * cos(a),
+        to.dy + d * sin(a),
+      );
     }
     _flush(c, rimTone);
   }
@@ -1058,11 +1125,11 @@ void _sun(double cx, double cy, double rb, double time, int n, int salt) {
   }
 }
 
-/// A boss's archetype form ([bossFormFor]) in grains.
+/// A boss's old form ([survivalBossForm]) in grains.
 void paintGrainForm(Canvas c, SurvivalBoss boss, {required double time}) =>
     paintGrainFormOf(
       c,
-      form: bossFormFor(boss.type),
+      form: survivalBossForm(boss),
       position: boss.position,
       radius: boss.radius,
       color: boss.color,

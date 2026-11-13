@@ -257,12 +257,13 @@ void main() {
       );
       final comp = game.activeCompanions[0]!;
       final range = reach(game);
-      // The brute stands near the orb, so its beam is in reach of it; the
+      // The brute stands near the orb, so its beam is in reach of it (and
+      // clear of its glass: touching that, it strikes and is gone); the
       // Wing stands off to one side, [bruteAt] times its range from it.
       final orb = game.orb.position;
-      final at = orb - Offset(range * bruteAt - 100, 0);
+      final at = orb - Offset(range * bruteAt - 140, 0);
       final brute = CosmicSurvivalEnemy(
-        position: orb + const Offset(100, 0),
+        position: orb + const Offset(140, 0),
         hp: 1e9,
         maxHp: 1e9,
         speed: 0,

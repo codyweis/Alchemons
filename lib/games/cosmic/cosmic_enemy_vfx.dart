@@ -573,7 +573,7 @@ void drawSurvivalBoss({
       max(
         r *
             (kind == SurvivalBossKind.form
-                ? grainFormReach(bossFormFor(boss.type))
+                ? grainFormReach(survivalBossForm(boss))
                 : survivalBossReach(kind)),
         r * 1.32,
       ) +
@@ -606,7 +606,7 @@ void drawSurvivalBoss({
     );
   }
 
-  final nameTP = _bossNamePainter(boss.template.name, bColor);
+  final nameTP = _bossNamePainter(survivalBossName(boss), bColor);
   nameTP.paint(canvas, Offset(-nameTP.width / 2, barY - 12));
 
   canvas.restore();

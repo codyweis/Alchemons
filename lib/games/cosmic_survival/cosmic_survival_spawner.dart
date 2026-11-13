@@ -473,6 +473,14 @@ class SurvivalBoss with MasteryPayloadStatuses {
 
   bool get isVenting => overheatTimer > 0;
 
+  /// The speed it is carrying, for a boss whose movement has weight (the
+  /// Pair): it turns toward where it means to go instead of snapping there.
+  Offset carried = Offset.zero;
+
+  /// Where the Eclipse will open next, once it has chosen (it shows there
+  /// for a moment first).
+  Offset? blinkTo;
+
   /// Phases: a boss fights in three. A hit that would carry it past one of
   /// [phaseGates] stops at the line; it wards itself for [wardSeconds],
   /// taking nothing, calls escorts, and fights the next phase harder. A
