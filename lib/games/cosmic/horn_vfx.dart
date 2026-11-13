@@ -320,13 +320,15 @@ class HornFx {
   );
 
   /// Blood paying for its cast: the horn opens its own veins.
-  factory HornFx.sacrifice({required ui.Offset position}) => HornFx._(
-    kind: HornFxKind.sacrifice,
-    position: position,
-    element: 'Blood',
-    duration: 0.6,
-    radius: 46,
-  );
+  /// [radius] is how far its blood is thrown: past the body it leaves.
+  factory HornFx.sacrifice({required ui.Offset position, double radius = 46}) =>
+      HornFx._(
+        kind: HornFxKind.sacrifice,
+        position: position,
+        element: 'Blood',
+        duration: 0.8,
+        radius: radius,
+      );
 
   /// Blood taking it back: a kill bleeds toward the horn.
   factory HornFx.siphon({required ui.Offset from, required ui.Offset to}) =>
@@ -421,27 +423,36 @@ void drawHornSlam({
   // leading edge. (It was a dust crescent under a thin bright crescent: a
   // drawn arc that read as a hoop, and as a sickle at the top band.)
   final shockR = r * (0.3 + 0.72 * ease);
-  final billows = ui.Path();
+  // The body of the front is the element's own grains thrown up in
+  // clumps, thick in the middle of the front and thinning to its ends.
+  // (It was six filled billows at a third alpha: soft discs, brown on the
+  // floor for Earth, Mud, Lava and Poison.)
   final puffs = reduceAmbient ? 4 : 6;
-  for (var i = 0; i < puffs; i++) {
-    final f = i / (puffs - 1) - 0.5;
-    final a = a0 + f * 1.8 + (vfxHash(seed + i * 1.3) - 0.5) * 0.2;
-    // Tallest in the middle of the front, thinning toward its ends.
-    final size = r * (0.13 + 0.05 * vfxHash(seed + i * 2.9)) *
-        (1 - f.abs() * 0.9) *
-        (0.6 + 0.6 * ease);
-    billows.addPath(
-      vfxBlob(
-        c + vfxPolar(a, shockR * (0.86 + 0.08 * vfxHash(seed + i * 4.1))),
-        size,
-        seed + i * 3,
-        n: 8,
-        wobble: 0.3,
-      ),
-      ui.Offset.zero,
+  final per = reduceAmbient ? 7 : 12;
+  for (var pass = 0; pass < 2; pass++) {
+    vfxGrainsDiscard();
+    for (var i = 0; i < puffs; i++) {
+      final f = i / (puffs - 1) - 0.5;
+      final a = a0 + f * 1.8 + (vfxHash(seed + i * 1.3) - 0.5) * 0.2;
+      final size = r * (0.2 + 0.08 * vfxHash(seed + i * 2.9)) *
+          (1 - f.abs() * 0.9) *
+          (0.6 + 0.6 * ease);
+      final pc =
+          c + vfxPolar(a, shockR * (0.86 + 0.08 * vfxHash(seed + i * 4.1)));
+      for (var k = pass; k < per; k += 2) {
+        final h = seed + i * 13.7 + k * 3.1;
+        final g = pc +
+            vfxPolar(vfxHash(h) * pi * 2, size * sqrt(vfxHash(h + 0.5)));
+        vfxGrain(g.dx, g.dy);
+      }
+    }
+    vfxGrainsFlush(
+      canvas,
+      max(1.9, r * 0.032),
+      pass == 0 ? (isDark ? m.light : m.mid) : m.light,
+      (pass == 0 ? 0.8 : 0.7) * fade,
     );
   }
-  vfxFillPath(canvas, billows, isDark ? m.ink : m.mid, 0.3 * fade);
   final frontA = 0.85 * fade * fade;
   if (frontA > 0.01) {
     vfxGrainsDiscard();
@@ -557,18 +568,36 @@ void _drawSacrifice(ui.Canvas canvas, HornFx fx) {
   final c = fx.position;
   final ease = 1.0 - pow(1.0 - t, 3).toDouble();
   final seed = c.dx * 0.11;
-  // The wound opening around the horn.
+  // The wound opening under the horn, and its blood thrown out of it in
+  // runs: twelve spurts at uneven bearings, each a few drops one behind the
+  // other, slowing as they go and falling short of one another. (It was
+  // eight single drops on a ring out to 46: a small evenly spaced wheel
+  // that the body covered.)
+  final rr = fx.radius;
   vfxFillPath(
     canvas,
-    vfxBlob(c, fx.radius * (0.35 + 0.35 * ease), seed, wobble: 0.22),
+    vfxBlob(c, rr * (0.16 + 0.1 * ease), seed, wobble: 0.22),
     m.ink,
-    0.55 * fade,
+    0.5 * fade,
   );
-  vfxSpill(canvas, c, fx.radius * 1.2, m.light, 0.32 * fade * fade);
-  for (var i = 0; i < 8; i++) {
-    final a = i * pi / 4 + vfxHash(seed + i) * 0.5;
-    final p = c + vfxPolar(a, fx.radius * (0.25 + 0.75 * ease));
-    vfxFillPath(canvas, vfxDrop(p, 3.4 * (1 - 0.4 * t), a), m.mid, 0.9 * fade);
+  vfxSpill(canvas, c, rr * 1.3, m.light, 0.36 * fade * fade);
+  for (var pass = 0; pass < 2; pass++) {
+    vfxGrainsDiscard();
+    for (var i = 0; i < 12; i++) {
+      final a = i * 2.399963 + vfxHash(seed + i) * 0.7;
+      final reach = rr * (0.55 + 0.6 * vfxHash(seed + i * 3.7));
+      for (var k = pass; k < 5; k += 2) {
+        final e = 1.0 - pow(1.0 - (t - k * 0.016).clamp(0.0, 1.0), 3);
+        final p = c + vfxPolar(a, rr * 0.2 + reach * e);
+        vfxGrain(p.dx, p.dy);
+      }
+    }
+    vfxGrainsFlush(
+      canvas,
+      max(2.2, rr * 0.05) * (pass == 0 ? 1.0 : 0.7),
+      pass == 0 ? m.light : m.glint,
+      0.9 * fade,
+    );
   }
 }
 
@@ -1420,34 +1449,20 @@ void drawHornPoisonAura({
   required double time,
   double scale = 1,
 }) {
-  final m = vfxMaterial('Poison');
-  final r = radius * scale;
-  vfxSpill(canvas, ui.Offset.zero, r, m.mid, 0.12);
-  const banks = 7;
-  for (var i = 0; i < banks; i++) {
-    final a = i * pi * 2 / banks + vfxHash(i * 3.7 + 1.3) * 0.8;
-    final d = r * (0.38 + 0.4 * vfxHash(i * 5.1 + 0.4));
-    final breathe = 0.5 + 0.5 * sin(time * 0.55 + i * 1.7);
-    final p =
-        vfxPolar(a, d) +
-        vfxPolar(a + pi / 2, r * 0.04 * sin(time * 0.3 + i * 2.3));
-    vfxSpill(
-      canvas,
-      p,
-      r * (0.3 + 0.05 * breathe),
-      m.mid,
-      0.12 + 0.08 * breathe,
-    );
-    if (i % 3 == 0) {
-      // A faint stain of the stuff itself under the haze.
-      vfxFillPath(
-        canvas,
-        vfxBlob(p, r * 0.16, i * 4.1, n: 14, wobble: 0.2),
-        m.ink,
-        0.18,
-      );
-    }
-  }
+  // Poison's own ground in grains, thinned, over all it reaches. (It was
+  // eight wide olive washes: a brown-green haze on the floor that showed
+  // neither the stuff nor where it stopped.) No dark bed: it travels with
+  // the horn and crosses the core.
+  paintElementGround(
+    canvas,
+    'Poison',
+    radius * scale,
+    time,
+    3.0,
+    reduced: true,
+    bed: false,
+    fade: 0.55,
+  );
 }
 
 /// The small patches a moving horn paints as it goes: Fire's burning lane
@@ -1466,6 +1481,24 @@ void drawHornTrailPatch({
   final c = position;
   final seed = (c.dx * 0.071 + c.dy * 0.053) % 50;
   final a = fade.clamp(0.0, 1.0);
+  // Mud's sludge and Poison's puffs are the element's own ground in grains
+  // (they were filled blobs and washes at a third alpha: soft brown and
+  // olive discs).
+  if (element == 'Mud' || element == 'Poison') {
+    canvas.save();
+    canvas.translate(c.dx, c.dy);
+    final drawn = paintElementGround(
+      canvas,
+      element,
+      radius,
+      time,
+      seed,
+      reduced: true,
+      fade: a,
+    );
+    canvas.restore();
+    if (drawn) return;
+  }
   switch (element) {
     case 'Fire':
       final flicker = 0.8 + 0.2 * sin(time * 9 + seed);
@@ -1595,17 +1628,23 @@ bool drawHornWindUpOverlay({
       );
       final core = (12 + 13 * e) * scale;
       vfxGrainsDiscard();
-      const grains = 26;
-      for (var i = 0; i < grains; i++) {
-        final ph = (time * (0.3 + 0.45 * t) + i / grains) % 1.0;
-        final u = ph * ph;
-        final ang = i * 2.399963 + u * (2.0 + 1.6 * t);
-        final p = vfxPolar(ang, rim * (1 - u) + core * 0.9 * u);
-        vfxGrain(p.dx, p.dy);
+      // Streaks of grains set touching, each streak following the one curve
+      // in: single grains this far apart read as stars, and grains spaced
+      // out along a strand as a dashed line.
+      const strands = 22;
+      for (var i = 0; i < strands; i++) {
+        for (var k = 0; k < 7; k++) {
+          final ph =
+              (time * (0.3 + 0.45 * t) + i / strands - k * 0.004) % 1.0;
+          final u = ph * ph;
+          final ang = i * 2.399963 + u * (2.0 + 1.6 * t);
+          final p = vfxPolar(ang, rim * (1 - u) + core * 0.9 * u);
+          vfxGrain(p.dx, p.dy);
+        }
       }
       vfxGrainsFlush(
         canvas,
-        2.6 * scale,
+        3.4,
         ui.Color.lerp(m.glint, m.light, 0.25)!,
         0.55 + 0.35 * t,
       );
@@ -1640,6 +1679,37 @@ bool drawHornWindUpOverlay({
         m.glint,
         0.38 + 0.3 * t,
       );
+      return true;
+    case 'Spirit':
+      // The phantoms it will loose, gathering: six of them drawn in out of
+      // the air at their own bearings, closing on the body as it winds up
+      // and swaying where they wait, each the phantom the dash releases.
+      // (The wind-up was a few pale particles: nothing to read for 2 s.)
+      final e = 1 - (1 - t) * (1 - t);
+      vfxSpill(canvas, ui.Offset.zero, 44 * scale, m.light, 0.1 + 0.14 * e);
+      for (var i = 0; i < 6; i++) {
+        final g = ((e * 1.4) - i * 0.07).clamp(0.0, 1.0);
+        if (g <= 0) continue;
+        final a = i * pi * 2 / 6 +
+            (vfxHash(i * 3.1 + 0.4) - 0.5) * 0.8 +
+            sin(time * 0.9 + i * 1.7) * 0.18;
+        final d = (64 - 30 * g + 3 * sin(time * 2.1 + i * 2.3)) * scale;
+        // Facing in: its veil trails outward, the way it came.
+        canvas.save();
+        final p = vfxPolar(a, d);
+        canvas.translate(p.dx, p.dy);
+        canvas.scale(scale * (0.6 + 0.4 * g));
+        _drawPhantom(
+          canvas,
+          ui.Offset.zero,
+          m,
+          a + pi,
+          time,
+          2.4,
+          i * 5.3,
+        );
+        canvas.restore();
+      }
       return true;
     case 'Crystal':
       final e = 1 - (1 - t) * (1 - t);

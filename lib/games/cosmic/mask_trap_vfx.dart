@@ -311,33 +311,44 @@ void _drawRemainingMask(
     );
     canvas.save();
     canvas.scale(1, 0.8);
-    for (var i = 0; i < (reduced ? 6 : 14); i++) {
+    // Banks of grit, three grains to a bank, hanging out past the body it
+    // guards: fourteen single grains from 0.3 r sat mostly behind the
+    // creature and read as nothing.
+    for (var i = 0; i < (reduced ? 10 : 22); i++) {
       final a = seed + i * 2.399963;
-      // Hanging through the whole pall, thinning toward the clear middle.
-      final d = r * (0.3 + 0.62 * vfxHash(seed + i * 2));
+      final d = r * (0.66 + 0.4 * vfxHash(seed + i * 2));
       final drift = vfxPolar(
         time * 0.4 + i * 1.7,
-        r * 0.04 * (0.5 + vfxHash(seed + i * 5)),
+        r * 0.05 * (0.5 + vfxHash(seed + i * 5)),
       );
       final g = vfxPolar(a, d) + drift;
-      vfxGrain(g.dx, g.dy);
+      // A clump, not a row: three in a line read as a dash.
+      final step = max(3.0, r * 0.05);
+      for (var k = 0; k < 3; k++) {
+        final o = vfxPolar(
+          vfxHash(seed + i * 7 + k * 1.9) * pi * 2,
+          step * (0.4 + 0.6 * vfxHash(seed + i * 3 + k)),
+        );
+        vfxGrain(g.dx + o.dx, g.dy + o.dy);
+      }
     }
     vfxGrainsFlush(
       canvas,
-      max(1.6, r * 0.026),
+      max(2.6, r * 0.04),
       const ui.Color(0xFFD6C29E),
-      0.55 + flash * 0.2,
+      0.8 + flash * 0.2,
     );
     final stones = p.interceptCharges.clamp(0, 6);
     for (var i = 0; i < stones; i++) {
       final a = seed + 0.8 + i * pi * 2 / max(1, stones);
       final c =
-          vfxPolar(a, r * 0.8) +
+          vfxPolar(a, r * 0.92) +
           ui.Offset(0, sin(time * 1.3 + i * 1.9) * r * 0.03);
-      final sr = r * 0.07;
+      final sr = r * 0.09;
+      // Lighter than the floor: a near-black stone on it could not be seen.
       fill(
         vfxBlob(c, sr, seed + i, n: 6, wobble: 0.28),
-        const ui.Color(0xFF3A3024),
+        const ui.Color(0xFF6E5C44),
         0.95,
       );
       fill(
@@ -348,8 +359,8 @@ void _drawRemainingMask(
           n: 5,
           wobble: 0.2,
         ),
-        const ui.Color(0xFFB5A286),
-        0.45,
+        const ui.Color(0xFFD6C29E),
+        0.7,
       );
     }
     canvas.restore();
@@ -553,9 +564,9 @@ void drawMaskSpiritRemnant({
   _maskLightSpill(
     canvas,
     ui.Offset.zero,
-    r * 0.8,
+    r * 0.9,
     const ui.Color(0xFFA8B8D8),
-    0.22 * alpha,
+    0.32 * alpha,
     squash: 0.6,
   );
   final bob = sin(time * 1.6) * r * 0.05;
@@ -564,21 +575,21 @@ void drawMaskSpiritRemnant({
   // Tail streams upward; head sits low and round.
   final lean = pi / 2 + sin(time * 2.3) * 0.12;
   canvas.drawPath(
-    vfxDrop(c, r * 0.24 * flicker, lean),
+    vfxDrop(c, r * 0.36 * flicker, lean),
     paint..color = const ui.Color(0xFF6A7C98).withValues(alpha: 0.42 * alpha),
   );
   canvas.drawPath(
-    vfxDrop(c + ui.Offset(0, r * 0.03), r * 0.14 * flicker, lean),
+    vfxDrop(c + ui.Offset(0, r * 0.04), r * 0.21 * flicker, lean),
     paint..color = const ui.Color(0xFFDCE6F4).withValues(alpha: 0.72 * alpha),
   );
   if (!reduced) {
     // Two grains of it lifting off the flame and fading as they rise (they
     // used to circle it), and no white pip at its heart.
-    for (var i = 0; i < 2; i++) {
-      final ph = (time * 0.45 + i * 0.5) % 1.0;
+    for (var i = 0; i < 5; i++) {
+      final ph = (time * 0.45 + i * 0.2) % 1.0;
       vfxGrain(
-        c.dx + sin(time * 1.3 + i * 2.4) * r * 0.12,
-        c.dy - r * 0.2 - ph * r * 0.55,
+        c.dx + sin(time * 1.3 + i * 2.4) * r * 0.14,
+        c.dy - r * 0.3 - ph * r * 0.7,
       );
     }
     vfxGrainsFlush(

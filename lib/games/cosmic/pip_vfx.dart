@@ -140,7 +140,12 @@ void drawPipDart({
     elementColor(element),
     kVfxGlowingElements.contains(element) || element == 'Water' ? 0.30 : 0.18,
   )!;
-  final vs = projectile.visualScale.clamp(0.72, 2.3).toDouble();
+  // A special is drawn a third larger than a basic of the same size: at a
+  // basic's size its head and what it sheds (the only things that tell one
+  // element's dart from another's) were a few pixels on a phone.
+  final vs =
+      projectile.visualScale.clamp(0.72, 2.3).toDouble() *
+      (special ? 1.35 : 1.0);
   final head = _headFor(element);
   final pulse = 0.85 + 0.15 * sin(time * 6.5 + projectile.life * 2.5);
   // A special dart burns brighter the more it carries: fresh off a bred
@@ -439,6 +444,111 @@ void _drawTrailMaterial(
     );
     return;
   }
+  // Five elements are told by the FORM of the wake, not by pieces in their
+  // colour: Dust, Earth and Mud were three brown smears, and Steam, Spirit
+  // and Ice three pale ones.
+  switch (element) {
+    case 'Dust':
+      // A cone of fine grit widening behind it.
+      vfxGrainsDiscard();
+      for (var i = 0; i < 28; i++) {
+        final t = (time * 1.5 + vfxHash(i * 1.7) + life * 0.37) % 1.0;
+        final x = -(5.0 * vs + trailLen * 0.95 * t);
+        final y = (vfxHash(i * 3.3 + 0.2) - 0.5) * 2 * vs * (1.0 + 8.0 * t);
+        vfxGrain(x, y);
+      }
+      vfxGrainsFlush(canvas, 1.7 * vs, m.glint, 0.7);
+      return;
+    case 'Steam':
+      // Three puffs left behind one after another, each swelling as it
+      // falls back: round clumps of coarse grain.
+      vfxGrainsDiscard();
+      for (var k = 0; k < 3; k++) {
+        final t = (time * 1.3 + k / 3 + life * 0.37) % 1.0;
+        final c = ui.Offset(-(7.0 * vs + trailLen * 0.9 * t), 0);
+        final r = vs * (1.6 + 6.0 * t);
+        for (var i = 0; i < 7; i++) {
+          final h = k * 9.1 + i * 2.7;
+          final g = c + vfxPolar(vfxHash(h) * pi * 2, r * sqrt(vfxHash(h + 0.4)));
+          vfxGrain(g.dx, g.dy);
+        }
+      }
+      vfxGrainsFlush(canvas, 2.7 * vs, m.glint, 0.55);
+      return;
+    case 'Spirit':
+      // A veil streaming off it, rippling wider toward its end.
+      final spine = <ui.Offset>[];
+      for (var k = 0; k <= 8; k++) {
+        final u = k / 8;
+        spine.add(
+          ui.Offset(
+            -(4.0 * vs + trailLen * 0.95 * u),
+            sin(time * 7 - u * 5.5 + life) * vs * 3.6 * u,
+          ),
+        );
+      }
+      vfxFillPath(
+        canvas,
+        vfxLensRibbon(spine, 5.0 * vs, taper: 0.3),
+        m.light,
+        0.4,
+      );
+      vfxFillPath(
+        canvas,
+        vfxLensRibbon(spine, 2.0 * vs, taper: 0.3),
+        m.glint,
+        0.6,
+      );
+      return;
+    case 'Mud':
+      // A thick wet rope of it dragged behind, sagging and swinging, with
+      // lumps let go off its end.
+      final spine = <ui.Offset>[];
+      for (var k = 0; k <= 6; k++) {
+        final u = k / 6;
+        spine.add(
+          ui.Offset(
+            -(3.0 * vs + trailLen * 0.6 * u),
+            sin(time * 4 - u * 3 + life) * vs * 1.8 * u,
+          ),
+        );
+      }
+      vfxFillPath(
+        canvas,
+        vfxLensRibbon(spine, 6.0 * vs, taper: 0.5),
+        m.mid,
+        0.9,
+      );
+      vfxFillPath(
+        canvas,
+        vfxLensRibbon(spine, 2.2 * vs, taper: 0.5),
+        m.light,
+        0.55,
+      );
+      vfxGrainsDiscard();
+      for (var i = 0; i < 4; i++) {
+        final t = (time * 1.6 + i / 4 + life * 0.37) % 1.0;
+        vfxGrain(
+          -(3.0 * vs + trailLen * (0.6 + 0.35 * t)),
+          (vfxHash(i * 2.9) - 0.5) * vs * 7 * t,
+        );
+      }
+      vfxGrainsFlush(canvas, 3.0 * vs, m.mid, 0.85);
+      return;
+    case 'Water':
+      // A wake opening behind it in a V, as a thing leaves on water, its
+      // drops (below) falling inside it.
+      vfxGrainsDiscard();
+      for (var i = 0; i < 18; i++) {
+        final u = (time * 1.7 + i / 18 + vfxHash(i * 4.1) * 0.05) % 1.0;
+        final side = i.isEven ? 1.0 : -1.0;
+        vfxGrain(
+          -(4.0 * vs + trailLen * 0.75 * u),
+          side * vs * (1.4 + 6.0 * u),
+        );
+      }
+      vfxGrainsFlush(canvas, 1.9 * vs, m.glint, 0.75);
+  }
   // A hot dart sheds more of its material, and brighter: up to eight pieces.
   final n = 5 + (3 * heat).round();
   for (var i = 0; i < n; i++) {
@@ -448,7 +558,8 @@ void _drawTrailMaterial(
     final y = side * vs * (1.0 + 4.5 * t) * (0.5 + 0.5 * vfxHash(i * 1.3));
     final p = ui.Offset(x, y);
     final f = min(1.0, (1 - t) * (1 + 0.35 * heat));
-    final s = vs * (0.8 + 0.5 * f);
+    // Half again the size they were: they are what names the element.
+    final s = vs * (1.2 + 0.75 * f);
     switch (element) {
       case 'Fire':
         vfxFillDrop(canvas, p, 1.8 * s, pi, m.mid, 0.8 * f);

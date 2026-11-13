@@ -262,7 +262,13 @@ void drawAdvancedCompanionShield({
   required ui.Canvas canvas,
   required double time,
   double scale = 1,
-}) => drawShieldWard(canvas: canvas, time: time, scale: scale);
+  double strength = 1,
+}) => drawShieldWard(
+  canvas: canvas,
+  time: time,
+  scale: scale,
+  strength: strength,
+);
 
 /// Shared Horn dash trail. All modes pass local creature coordinates.
 /// The art lives in horn_vfx.dart.

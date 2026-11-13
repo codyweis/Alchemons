@@ -137,7 +137,8 @@ void _drawWisp(
   double time,
   double seed,
 ) {
-  final s = 1.0 + 0.28 * (tier - 1);
+  // Sized to stand beside its kin as survival draws it (it was a mote).
+  final s = (1.0 + 0.28 * (tier - 1)) * 2.3;
   final bob = sin(time * 1.7 + seed) * 2.0;
   final at = c + ui.Offset(0, bob);
   vfxSpill(canvas, c, 16 * s, m.light, 0.18 + 0.05 * tier);
@@ -181,6 +182,16 @@ void _drawWisp(
     const ui.Color(0xFFFFFFFF),
     0.9,
   );
+  // Grains of it lifting off the flame, at every tier: a first-tier wisp
+  // was a bare sliver beside its kin.
+  for (var i = 0; i < 4; i++) {
+    final ph = (time * 0.5 + i * 0.25 + seed) % 1.0;
+    vfxGrain(
+      at.dx + sin(time * 1.3 + i * 2.4 + seed) * 3.5 * s,
+      at.dy - 6 * s - ph * 16 * s,
+    );
+  }
+  vfxGrainsFlush(canvas, 1.4 * s, m.glint, 0.6);
   if (tier >= 3) {
     // Motes it throws.
     for (var i = 0; i < 2; i++) {
@@ -211,7 +222,9 @@ void _drawEscort(
   double time,
   double seed,
 ) {
-  final vs = p.visualScale.clamp(0.8, 2.4).toDouble();
+  // Half again the size they were: beside the creatures as survival draws
+  // them, a lantern was a speck.
+  final vs = p.visualScale.clamp(0.8, 2.4).toDouble() * 1.5;
   if (element == 'Crystal') {
     // A faceted refractor shard, turning; brighter while it still has
     // charges to throw back.
@@ -677,16 +690,17 @@ void drawShieldWard({
   required ui.Canvas canvas,
   required double time,
   double scale = 1,
+  double strength = 1,
 }) {
   const ward = ui.Color(0xFF9EC8E0);
   const sheen = ui.Color(0xFFE6F2F8);
   final r = 22 * scale;
-  vfxSoftRing(canvas, ui.Offset.zero, r, r * 0.22, ward, 0.34);
+  vfxSoftRing(canvas, ui.Offset.zero, r, r * 0.22, ward, 0.34 * strength);
   _paint
     ..color = const ui.Color(0xFFFFFFFF)
     ..shader = ui.Gradient.radial(ui.Offset.zero, r, [
       ward.withValues(alpha: 0),
-      ward.withValues(alpha: 0.08),
+      ward.withValues(alpha: 0.08 * strength),
     ]);
   canvas.drawCircle(ui.Offset.zero, r, _paint);
   _paint.shader = null;
@@ -695,7 +709,7 @@ void drawShieldWard({
       canvas,
       vfxCrescent(ui.Offset.zero, r * 0.94, r * 0.12, time * 0.8 + i * pi, 1.1),
       sheen,
-      0.3,
+      0.3 * strength,
     );
   }
 }

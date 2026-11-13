@@ -4907,7 +4907,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
             if (sac != null) {
               comp.currentHp -= sac.sacrifice;
               comp.hitFlash = 1.0;
-              pushHornFx(_hornFx, HornFx.sacrifice(position: comp.position));
+              pushHornFx(
+                _hornFx,
+                HornFx.sacrifice(
+                  position: comp.position,
+                  radius: _companionBodyRadius(comp) * 2.2,
+                ),
+              );
               // Scale impact damage up: ~1× sac per 4 HP sacrificed
               // (tuned so a 200-HP sacrifice adds a meaty bump).
               comp.chargeDamage += sac.bonus;
@@ -25935,9 +25941,21 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     // party case; the field carries no bars.
     _paintLowHealthPool(canvas, Offset.zero, comp.hpPercent);
 
+    // What a creature wears on its body (a Kin's support, a plate, a
+    // blessing, a shield, a badge over its head) is authored round a small (about 18 px)
+    // body. Survival draws the creature far larger, so each is drawn at the
+    // body's own size: at 1x they sat wholly behind the sprite.
+    final bodyK = _companionBodyRadius(comp) / 18.0;
+    void onBody(void Function() draw) {
+      canvas.save();
+      canvas.scale(bodyK);
+      draw();
+      canvas.restore();
+    }
+
     // ── Kin support-path active overlays ──────────────────────
     if (comp.member.family.toLowerCase() == 'kin') {
-      drawAdvancedKinSupportAura(
+      onBody(() => drawAdvancedKinSupportAura(
         canvas: canvas,
         element: comp.member.element,
         color: ec,
@@ -25954,7 +25972,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         steamPressure: comp.kinSteamBoilerTimer > 0
             ? comp.kinSteamBoilerStacks / 10
             : 0,
-      );
+      ));
     }
 
     // Universal Lava plate overlay — paints a molten glow ring around
@@ -25963,7 +25981,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (_isAnyKinLavaPlateActive() &&
         !(comp.member.family.toLowerCase() == 'kin' &&
             comp.member.element == 'Lava')) {
-      drawKinLavaPlate(canvas: canvas, time: stats.timeElapsed, scale: 0.85);
+      onBody(
+        () => drawKinLavaPlate(
+          canvas: canvas,
+          time: stats.timeElapsed,
+          scale: 0.85,
+        ),
+      );
     }
 
     // Kin auto-attack charge build-up: while kinAutoChargeTimer > 0,
@@ -25985,13 +26009,13 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
       } else {
         aim = comp.kinAutoChargeTarget;
       }
-      drawAdvancedKinCharge(
+      onBody(() => drawAdvancedKinCharge(
         canvas: canvas,
         color: ec,
         progress: t,
         time: stats.timeElapsed,
         aimDirection: aim == null ? null : aim - comp.position,
-      );
+      ));
     }
 
     // Pip+Steam: a steam cloud billows around the pip and thickens as
@@ -26003,11 +26027,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
                   CosmicSurvivalCompanion.pipSteamWindowDuration)
               .clamp(0.0, 1.0);
       // Shared with open space (pip_vfx.dart).
-      drawPipSteamCloud(
+      onBody(() => drawPipSteamCloud(
         canvas: canvas,
         progress: progress,
         time: stats.timeElapsed,
-      );
+      ));
     }
 
     // Kin+Steam boiler: stack-count badge floating above the kin
@@ -26016,11 +26040,11 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
     if (comp.member.family.toLowerCase() == 'kin' &&
         comp.member.element == 'Steam' &&
         comp.kinSteamBoilerTimer > 0) {
-      drawKinSteamBadge(
+      onBody(() => drawKinSteamBadge(
         canvas: canvas,
         stacks: comp.kinSteamBoilerStacks,
         time: stats.timeElapsed,
-      );
+      ));
     }
 
     // Wing+Plant: flower-collection counter floating above the wing.
@@ -26030,7 +26054,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         comp.member.element == 'Plant') {
       final stacks = comp.abilityKillStacks.clamp(0, 50);
       if (stacks > 0) {
-        final badgeY = -34.0;
+        final badgeY = -34.0 * bodyK;
         // Tiny flower icon: a clump of the pickups' green grains round a
         // warm one (no white pip).
         final plant = vfxMaterial('Plant');
@@ -26081,6 +26105,15 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         element: 'Crystal',
         progress: 1 - comp.windUpTimer / HornRules.crystalWindUp,
         time: stats.timeElapsed,
+        scale: bodyK * 0.8,
+      );
+    } else if (comp.windUpTimer > 0 && comp.windUpElement == 'Spirit') {
+      drawHornWindUpOverlay(
+        canvas: canvas,
+        element: 'Spirit',
+        progress: 1 - comp.windUpTimer / HornRules.spiritWindUp,
+        time: stats.timeElapsed,
+        scale: bodyK * 0.8,
       );
     } else if (comp.hornPostDashWindUpTimer > 0 &&
         comp.member.element == 'Lightning') {
@@ -26089,6 +26122,7 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         element: 'Lightning',
         progress: 1 - comp.hornPostDashWindUpTimer / HornRules.postDashBrew,
         time: stats.timeElapsed,
+        scale: bodyK * 0.6,
       );
     } else if (comp.windUpTimer > 0 && comp.windUpElement == 'Dark') {
       // Dark's void gathering out to the reach _runHornDarkVoidSuck drags.
@@ -26098,16 +26132,29 @@ class CosmicSurvivalGame extends FlameGame with PanDetector {
         progress: 1 - comp.windUpTimer / HornRules.darkWindUp,
         time: stats.timeElapsed,
         reach: hornDarkAuraRadius(_effectiveBeauty(slotIndex)),
+        scale: bodyK * 0.8,
       );
     }
 
     // Shield bubble
     if (comp.shieldHp > 0) {
-      drawAdvancedCompanionShield(canvas: canvas, time: stats.timeElapsed);
+      onBody(
+        // Fainter at this size: at full strength it was a bright hoop.
+        () => drawAdvancedCompanionShield(
+          canvas: canvas,
+          time: stats.timeElapsed,
+          strength: 0.55,
+        ),
+      );
     }
 
     if (comp.blessingTimer > 0) {
-      drawAdvancedBlessingAura(canvas: canvas, time: stats.timeElapsed);
+      onBody(
+        () => drawAdvancedBlessingAura(
+          canvas: canvas,
+          time: stats.timeElapsed,
+        ),
+      );
     }
 
     // Charge trail
