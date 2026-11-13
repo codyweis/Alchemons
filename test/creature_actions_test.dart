@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:alchemons/widgets/creature_actions.dart';
 import 'package:flutter/widgets.dart';
@@ -43,6 +44,33 @@ void main() {
         isTrue,
         reason: def.path,
       );
+    }
+  });
+
+  test('every attack species has its ten-frame sheet beside its idle sheet', () {
+    // All eight families: Horns, Wings, Pips, Lets, Manes, Masks, Kin, Mystics.
+    expect(kFireSpecies.map((id) => id.substring(0, 3)).toSet(), {
+      'HOR', 'WNG', 'PIP', 'LET', 'MAN', 'MSK', 'KIN', 'MYS', //
+    });
+    for (final id in kFireSpecies) {
+      final c = creatures.firstWhere((c) => c['id'] == id) as Map;
+      final idleFrame = ((c['spriteData'] as Map)['frameWidth'] as num)
+          .toDouble();
+      final def = actionSheetFor(
+        idleOf(id),
+        CreatureAction.fire,
+        idleFrame: idleFrame,
+      );
+      expect(def, isNotNull, reason: id);
+      expect(def!.frames, 10, reason: id);
+      expect(def.stepTimes.length, def.frames, reason: id);
+      final file = File('assets/images/${def.path}');
+      expect(file.existsSync(), isTrue, reason: def.path);
+      // A PNG's size is in its header: four columns of square frames, three
+      // rows (the last two cells empty).
+      final header = ByteData.sublistView(file.readAsBytesSync(), 16, 24);
+      expect(header.getUint32(0), def.frameSize * def.cols, reason: def.path);
+      expect(header.getUint32(4), def.frameSize * 3, reason: def.path);
     }
   });
 

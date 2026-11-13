@@ -85,4 +85,51 @@ void main() {
     // Its idle and its attack are both baked at 512 px a frame.
     expect(playing!.sizeRatio, 1);
   });
+
+  // A Mask, a Kin and a Mystic: a 512 px idle in one row, and no albino eye
+  // layer beside it. Each fires from its own sheet, plain and albino.
+  for (final idle512 in const [
+    'creatures/rare/MSK01_firemask_spritesheet.png',
+    'creatures/legendary/KIN15_darkkin_spritesheet.png',
+    'creatures/mystic/MYS06_lavamystic_spritesheet.png',
+  ]) {
+    test('$idle512 fires, plain and albino, at its idle\'s size', () async {
+      final own512 = SpriteSheetDef(
+        path: idle512,
+        totalFrames: 4,
+        rows: 1,
+        frameSize: Vector2.all(512),
+        stepTime: 0.12,
+      );
+      final def = actionSheetFor(idle512, CreatureAction.fire, idleFrame: 512)!;
+      expect(def.frameSize, 512);
+      final images = Images();
+      final codec = await ui.instantiateImageCodec(
+        File('assets/images/${def.path}').readAsBytesSync(),
+      );
+      final image = (await codec.getNextFrame()).image;
+      codec.dispose();
+      expect((image.width, image.height), (2048, 1536));
+      images.add(def.path, image);
+
+      final fire = CreatureFire(() => images);
+      fire.warm(own512, const SpriteVisuals());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      fire.play(0, own512, const SpriteVisuals());
+      expect(fire.of(0), isNotNull);
+      expect(fire.of(0)!.sizeRatio, 1);
+      for (var i = 0; i < 60; i++) {
+        fire.tick(0, 1 / 60);
+      }
+      expect(fire.of(0), isNull, reason: 'played through');
+
+      const albino = SpriteVisuals(brightness: 1.45, saturation: 0);
+      fire.play(1, own512, albino);
+      for (var i = 0; i < 100 && fire.of(1) == null; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
+      expect(fire.of(1), isNotNull, reason: 'its albino copy was baked');
+      expect(fire.of(1)!.sizeRatio, 1);
+    });
+  }
 }
