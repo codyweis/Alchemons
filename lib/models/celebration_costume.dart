@@ -7,13 +7,13 @@ part 'costume_action_tracks.dart';
 part 'costume_fits.dart';
 
 /// A sprite frame index at or over this names a frame of an action sheet
-/// (a hop, a sleep, an attack) rather than of the idle: see
+/// (a hop, a sleep, an attack, a wag) rather than of the idle: see
 /// [costumeActionFrame].
 const int kCostumeActionFrame = 1000;
 
 /// The frame index to hand a costume for frame [frame] of action [action]
-/// (0 hop, 1 sleep, 2 attack: `CreatureAction.index`), so it rides the head
-/// through it ([FamilyCostume.fitAt]).
+/// (0 hop, 1 sleep, 2 attack, 3 wag: `CreatureAction.index`), so it rides
+/// the head through it ([FamilyCostume.fitAt]).
 int costumeActionFrame(int action, int frame) =>
     kCostumeActionFrame * (action + 1) + frame;
 

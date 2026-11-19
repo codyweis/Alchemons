@@ -65,9 +65,9 @@ class _WildLife extends _HomeLife {
       if (sp == null || !comp.isLoaded) continue;
       final l = _livers.putIfAbsent(
         e.key,
-        () =>
-            _Liver(e.key, e.key.hashCode & 0xFFFF)
-              ..wait = 0.5 + _rng.nextDouble() * 3,
+        () => _Liver(e.key, e.key.hashCode & 0xFFFF)
+          ..wait = 0.5 + _rng.nextDouble() * 3
+          ..fidgetAt = game._fieldTime + 2 + _rng.nextDouble() * 8,
       );
       if (still) {
         _goHome(l, comp, sp, dt);
@@ -116,9 +116,45 @@ class _WildLife extends _HomeLife {
       _walk(l, comp, sp, dt, size);
       return;
     }
+    if (game._fieldTime >= l.fidgetAt) _fidgetNow(l, comp);
     l.wait -= dt;
     if (l.wait <= 0 && (l.target - l.dx).abs() < 0.5) _pick(l, comp, sp);
     _walk(l, comp, sp, dt, size);
+  }
+
+  /// Now and then, standing on the ground, its wag where it is (a Mane's,
+  /// Horn's, Wing's or Pip's; the others keep to what they did). Each keeps its own
+  /// time, some seconds apart, and never two together (see [_fidget]). One
+  /// walking wags once it stands; one asleep, held still or off the screen
+  /// lets its turn go by and tries a little later.
+  void _fidgetNow(_Liver l, WildMonComponent comp) {
+    if ((l.target - l.dx).abs() >= 0.5) return;
+    final now = game._fieldTime;
+    final sprite = comp.sprite;
+    // No wag for its kind: nothing to ask again for a long while.
+    if (sprite != null &&
+        sprite.isLoaded &&
+        !sprite.hasAction(CreatureAction.wag)) {
+      l.fidgetAt = now + 60;
+      return;
+    }
+    if (sprite?.sleeping ?? true) {
+      l.fidgetAt = now + 3 + _rng.nextDouble() * 3;
+      return;
+    }
+    final anchor = game._spawnPointComps[l.id];
+    final played =
+        anchor != null &&
+        game.isOnScreen(anchor) &&
+        _fidget(comp, wag: 1, hop: false);
+    if (!played) {
+      l.fidgetAt = now + 0.6 + _rng.nextDouble();
+      return;
+    }
+    l
+      ..fidgetAt = now + 4 + _rng.nextDouble() * 6
+      // It does not set off walking mid-wag.
+      ..wait = math.max(l.wait, 1.3);
   }
 
   /// What it does next: take off, look at a neighbour, wander, or go back

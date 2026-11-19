@@ -494,6 +494,7 @@ class Rig:
 
     def __init__(self, hid):
         self.id = hid
+        self.hip = self.foot = None                     # (Horns and Manes: where the legs start and stand)
         c = CREATURES.get(hid)
         if hid.startswith('MAN'):
             mp = RIGS['MAN']['P'][hid]
@@ -523,12 +524,14 @@ class Rig:
             self.tail_w = lambda x, y: ns['sm']((x - ns['xb'](p, y)) / 50) * (1 - ns['sm']((y - p['tail'][1] - 50) / 60))
             self.px = p['neck'][0] + 30
             self.floats = p['hip'] > 1100
+            self.hip, self.foot = p['hip'], p['foot']
             self.side = True
         elif fam == 'PIP':
             ns = RIGS['PIP']
             p = ns['P'][hid]
             self.offs = [tuple(o) for o in json.load(open(S_DIR + '/pips/offs.json'))[hid]]
             self.neck, self.tail = p['neck'], p['tail']
+            self.hip, self.foot = p['hip'], p['foot']
             self.head_w = lambda x, y: ns['head_w'](p, x, y)
             self.tail_w = lambda x, y: ns['tail_w'](p, x, y)
             self.px = None
@@ -642,15 +645,23 @@ class Rig:
             X, Y = X - (x - pt[0]), Y - (y - pt[1])
         return X, Y
 
-    def track(self, poses, base_of):
+    def track(self, poses, base_of, fields=None):
         """The head's move in each posed frame, for costumes: (idle frame it is fitted from,
-        dx, dy as fractions of the frame, turn in radians), about the point between the eyes."""
+        dx, dy as fractions of the frame, turn in radians), about the point between the eyes.
+        [fields]: each frame's `extra` where it moves the head too (a shimmy)."""
         e = self.eyes[0].getbbox() if self.eyes and self.eyes[0] is not None else None
         a = ((e[0] + e[2]) / 2 / self.k, (e[1] + e[3]) / 2 / self.k) if e else (self.neck[0] - 0.1 * self.F0, self.neck[1] - 0.12 * self.F0)
         b = (a[0], a[1] - 0.08 * self.F0)
         out = []
+        def unextra(g, pt):                              # the point g reads [pt] from, undone
+            q = pt
+            for _ in range(30):
+                gx, gy = g(*q)
+                q = (q[0] + pt[0] - gx, q[1] + pt[1] - gy)
+            return q
         for j, pz in enumerate(poses):
-            A, B = self.forward(a, pz), self.forward(b, pz)
+            a2, b2 = (unextra(fields[j], a), unextra(fields[j], b)) if fields else (a, b)
+            A, B = self.forward(a2, pz), self.forward(b2, pz)
             turn = math.atan2(B[0] - A[0], -(B[1] - A[1]))
             out.append([base_of(j, pz[0]), round((A[0] - a[0]) / self.F0, 4), round((A[1] - a[1]) / self.F0, 4), round(turn, 4)])
         return out
@@ -929,6 +940,298 @@ FIRE = dict(
 NS = 16
 
 
+# ---- the wag: a happy little wiggle of the tail and hips ----------------------------------------
+# The tail whips about its root (the tip a beat behind, a crystal or stone on it turned whole), the
+# hips sway with it, the feet stay planted and the head stays still. Two wags and a settle, eyes shut
+# happy. One with no tail to wag shimmies instead: its body sways from side to side over its feet.
+# Per species (native px): root = where the tail turns about; poly = the tail and its glow as drawn
+# (nothing outside it is turned); bend = over what distance from the root the tail bends (past it,
+# what is on the tip turns whole); amp = how far it swings (1 = 9 degrees at the root, 20 at the tip);
+# low = below this the legs stand still (the rig's hip by default); still = how far from the root the
+# tail holds where it is (where it meets the body over a long seam, so the seam never kinks); halo =
+# how far past its outline its glow is taken along; grow, tuck, seam: how far the outline is grown,
+# the root's reach under the body, the band the seam is filled over (within seamr of the root). A Wing
+# whose flapping wing sweeps over its tail in some drawn frames: frames = the drawn frames its wag cycles
+# through (the others left out); polys = {drawn frame: outline} where the outline must differ.
+WAG_RIGS = {
+    # the Horns (their drawn frames, steadied as for the hop)
+    'HOR01': dict(root=(880, 805), bend=(0, 150), amp=0.8, grow=3, poly=[(815, 600), (822, 520), (842, 460), (862, 400), (935, 400), (995, 510), (1000, 650), (990, 760), (960, 830), (905, 850), (870, 845), (846, 822), (840, 762), (843, 715), (838, 668), (818, 645)]),
+    'HOR02': dict(root=(815, 865), bend=(0, 120), amp=0.7, poly=[(800, 835), (828, 800), (830, 720), (828, 640), (848, 610), (880, 612), (912, 680), (958, 678), (1000, 612), (1060, 615), (1062, 700), (1040, 780), (990, 812), (932, 852), (872, 902), (832, 918)]),
+    'HOR03': dict(mode='shimmy'),                     # its tail is a stub along a long seam (turned, it tears): it shimmies
+    'HOR04': dict(root=(690, 890), bend=(0, 260), amp=0.32, grow=3, poly=[(682, 960), (678, 880), (682, 828), (702, 768), (742, 662), (768, 600), (788, 520), (800, 430), (815, 380), (880, 362), (995, 368), (1085, 445), (1092, 585), (1020, 668), (1000, 748), (970, 830), (905, 890), (835, 942), (765, 978), (700, 975)]),
+    'HOR05': dict(root=(825, 870), bend=(0, 150), amp=0.8, poly=[(800, 902), (810, 842), (858, 802), (878, 742), (864, 682), (890, 640), (928, 556), (978, 556), (1002, 652), (997, 762), (972, 832), (932, 882), (872, 932), (822, 947)]),
+    'HOR06': dict(root=(865, 850), bend=(0, 80), poly=[(845, 782), (872, 750), (950, 700), (1015, 630), (1050, 655), (1042, 722), (995, 795), (935, 875), (884, 930), (855, 937), (846, 882)]),
+    'HOR07': dict(root=(905, 765), bend=(0, 150), amp=0.7, still=30, poly=[(852, 722), (858, 680), (865, 640), (875, 560), (893, 478), (955, 468), (966, 560), (985, 640), (1003, 722), (985, 762), (958, 795), (925, 812), (905, 790), (900, 735), (880, 726)]),
+    'HOR08': dict(root=(800, 865), bend=(0, 60), amp=1.2, grow=3, poly=[(780, 822), (790, 815), (812, 790), (845, 770), (875, 750), (905, 740), (940, 752), (948, 822), (910, 878), (858, 928), (802, 942), (778, 902)]),
+    'HOR09': dict(root=(870, 880), bend=(0, 150), amp=0.8, poly=[(822, 880), (822, 800), (830, 750), (855, 690), (858, 640), (858, 590), (895, 558), (965, 558), (972, 640), (958, 720), (962, 800), (938, 872), (902, 912), (860, 932), (830, 920)]),
+    'HOR10': dict(root=(855, 835), bend=(0, 120), poly=[(822, 842), (834, 762), (838, 700), (860, 640), (870, 588), (935, 585), (960, 680), (995, 780), (975, 862), (930, 890), (885, 892), (847, 885)]),
+    'HOR11': dict(root=(795, 880), bend=(0, 90), poly=[(772, 902), (782, 852), (822, 822), (830, 760), (848, 680), (880, 600), (960, 575), (1035, 578), (1000, 680), (990, 762), (965, 840), (912, 892), (856, 940), (802, 958)]),
+    'HOR12': dict(root=(785, 935), bend=(0, 120), poly=[(762, 962), (768, 900), (800, 862), (860, 812), (900, 765), (922, 725), (952, 712), (972, 760), (970, 850), (938, 915), (885, 965), (828, 1005), (782, 1012)]),
+    'HOR13': dict(root=(860, 880), bend=(0, 150), amp=0.8, grow=2, poly=[(850, 902), (852, 800), (866, 742), (880, 712), (880, 600), (884, 530), (905, 505), (980, 510), (992, 640), (972, 722), (942, 802), (905, 875), (872, 925)]),
+    'HOR14': dict(root=(754, 920), bend=(0, 120), still=60, hips=0.4, poly=[(740, 1010), (742, 900), (770, 810), (812, 752), (880, 728), (928, 726), (970, 746), (988, 800), (978, 862), (930, 885), (880, 905), (830, 955), (790, 1008)]),
+    'HOR15': dict(root=(860, 870), bend=(0, 160), amp=0.8, poly=[(820, 882), (822, 800), (815, 720), (815, 640), (830, 560), (860, 498), (925, 505), (958, 610), (975, 722), (948, 812), (910, 872), (872, 905)]),
+    'HOR16': dict(root=(762, 965), bend=(0, 110), poly=[(750, 1000), (750, 935), (800, 912), (860, 895), (900, 868), (922, 818), (935, 762), (1000, 772), (1000, 862), (968, 945), (912, 992), (850, 1022), (800, 1028), (772, 1020)]),
+    'HOR17': dict(root=(845, 880), bend=(0, 150), amp=0.8, grow=2, poly=[(828, 640), (840, 600), (868, 568), (905, 560), (945, 610), (985, 690), (995, 790), (965, 870), (905, 918), (862, 930), (838, 905), (830, 840), (826, 780), (826, 700)]),
+    # the Pips (their drawn frames steadied as for the hop; some move their tails a lot between them)
+    'PIP01': dict(root=(940, 740), bend=(0, 200), amp=0.7, grow=4, poly=[(912, 760), (912, 650), (905, 600), (898, 562), (860, 548), (822, 520), (812, 450), (815, 360), (850, 280), (895, 228), (1000, 225), (1035, 300), (1050, 400), (1056, 500), (1050, 572), (1005, 592), (1000, 650), (995, 720), (990, 790), (950, 805)]),
+    'PIP02': dict(root=(900, 720), bend=(0, 200), amp=0.6, poly=[(840, 700), (845, 610), (862, 520), (890, 430), (930, 395), (980, 400), (1000, 470), (1012, 560), (1060, 600), (1110, 640), (1100, 690), (1040, 740), (980, 780), (910, 790), (860, 760)]),
+    'PIP03': dict(mode='shimmy'),                     # its tail is a stub along a long seam: it shimmies
+    'PIP04': dict(mode='shimmy'),                     # its tail tuft is one cloud with the clouds on its back: it shimmies
+    'PIP05': dict(mode='shimmy'),                     # its tail is a flat stub under the vents: it shimmies
+    'PIP06': dict(root=(885, 730), bend=(0, 100), still=40, grow=4, poly=[(880, 800), (865, 760), (858, 700), (858, 660), (880, 615), (905, 575), (932, 525), (952, 532), (968, 620), (965, 690), (945, 735), (912, 795)]),
+    'PIP07': dict(root=(885, 735), bend=(0, 250), amp=0.6, grow=4, poly=[(882, 780), (852, 705), (838, 650), (866, 632), (925, 590), (878, 560), (870, 540), (910, 450), (950, 345), (980, 328), (990, 420), (990, 492), (1043, 545), (1040, 612), (995, 672), (935, 742), (905, 792)]),
+    'PIP08': dict(mode='shimmy'),                     # its tail is a lump of bubbles along a long seam: it shimmies
+    'PIP09': dict(root=(900, 740), bend=(0, 220), amp=0.6, poly=[(860, 760), (855, 680), (820, 600), (800, 500), (790, 400), (800, 320), (870, 320), (930, 400), (990, 470), (1000, 560), (985, 640), (960, 720), (920, 780)]),
+    'PIP10': dict(mode='shimmy'),
+    'PIP11': dict(root=(900, 740), bend=(0, 200), still=30, amp=0.7, grow=4, poly=[(885, 808), (858, 760), (836, 700), (822, 650), (840, 618), (838, 600), (818, 560), (818, 470), (860, 415), (930, 382), (988, 402), (1048, 470), (1043, 560), (1008, 622), (984, 652), (980, 720), (962, 786), (920, 812)]),
+    'PIP12': dict(root=(905, 740), bend=(0, 250), amp=0.6, grow=4, poly=[(888, 760), (882, 700), (878, 650), (850, 632), (805, 626), (785, 605), (780, 520), (795, 490), (800, 420), (798, 335), (830, 328), (890, 345), (905, 310), (925, 300), (935, 330), (965, 345), (1050, 335), (1070, 380), (1068, 470), (1040, 520), (1050, 580), (1110, 620), (1130, 690), (1118, 740), (1085, 752), (1000, 758), (950, 780), (910, 790)]),
+    'PIP13': dict(root=(905, 720), bend=(0, 220), amp=0.5, grow=4, seamr=190, poly=[(905, 760), (878, 700), (868, 640), (860, 605), (832, 585), (818, 520), (805, 430), (770, 300), (830, 280), (890, 285), (940, 370), (1000, 380), (1080, 350), (1150, 350), (1200, 420), (1200, 600), (1100, 640), (1030, 660), (1000, 720), (985, 780), (940, 810)]),
+    'PIP14': dict(root=(900, 760), bend=(0, 150), still=40, hips=0.6, poly=[(853, 805), (845, 700), (840, 640), (842, 600), (858, 530), (890, 488), (950, 466), (1010, 460), (1062, 486), (1070, 600), (1025, 700), (965, 812)]),
+    'PIP15': dict(root=(925, 730), bend=(0, 150), grow=3, poly=[(898, 795), (885, 760), (880, 700), (875, 645), (895, 610), (922, 555), (942, 508), (963, 510), (980, 590), (982, 670), (965, 732), (932, 782), (912, 800)]),
+    'PIP16': dict(root=(960, 690), bend=(0, 200), amp=0.7, grow=3, poly=[(945, 757), (912, 700), (898, 640), (896, 590), (896, 470), (905, 428), (950, 392), (1000, 372), (1052, 375), (1058, 402), (1018, 440), (1004, 480), (1050, 540), (1062, 605), (1050, 662), (1018, 712), (976, 746), (958, 760)]),
+    'PIP17': dict(root=(920, 780), bend=(0, 200), amp=0.7, poly=[(870, 790), (866, 700), (858, 620), (868, 530), (884, 450), (932, 446), (962, 540), (978, 640), (978, 720), (958, 782), (920, 812)]),
+    # the Wings (their drawn flaps as they are; each outline keeps clear of where the wings sweep)
+    'WNG01': dict(root=(712, 915), bend=(0, 160), amp=0.8, poly=[(690, 850), (730, 868), (790, 888), (850, 910), (888, 898), (900, 858), (895, 800), (925, 790), (962, 830), (962, 920), (928, 975), (860, 1012), (800, 1032), (768, 1012), (755, 985), (720, 965), (690, 940)]),
+    'WNG02': dict(root=(680, 930), bend=(0, 150), amp=0.7, poly=[(650, 1000), (655, 900), (680, 850), (735, 838), (752, 800), (752, 720), (770, 680), (820, 668), (870, 690), (892, 770), (898, 860), (882, 925), (840, 952), (760, 978), (700, 1005)]),
+    'WNG03': dict(mode='shimmy'),                     # its tail is a thick stub along a long seam: it shimmies
+    'WNG04': dict(root=(720, 915), bend=(0, 140), amp=0.7, frames=[0, 1, 3, 4, 5, 6], poly=[(700, 975), (700, 900), (712, 868), (785, 866), (818, 850), (822, 800), (840, 740), (865, 722), (885, 745), (895, 820), (880, 905), (835, 960), (780, 980)]),
+    'WNG05': dict(root=(725, 905), bend=(0, 160), amp=0.8, poly=[(700, 960), (705, 880), (745, 808), (812, 796), (835, 770), (825, 728), (842, 680), (868, 612), (905, 596), (930, 640), (940, 720), (935, 790), (925, 832), (885, 868), (815, 920), (745, 960)]),
+    'WNG06': dict(root=(650, 900), bend=(0, 140), grow=3, poly=[(640, 790), (690, 830), (760, 852), (835, 840), (855, 792), (868, 762), (900, 774), (914, 860), (896, 926), (840, 964), (760, 988), (690, 990), (682, 968), (650, 940), (630, 880)]),
+    'WNG07': dict(root=(680, 920), bend=(0, 140), amp=0.8, poly=[(650, 878), (700, 862), (770, 828), (810, 790), (832, 738), (852, 704), (878, 708), (895, 780), (898, 842), (862, 882), (858, 935), (822, 962), (740, 970), (688, 968), (672, 940)]),
+    'WNG08': dict(root=(705, 935), bend=(0, 80), amp=0.8, grow=2, tuck=40, poly=[(690, 960), (688, 885), (700, 850), (728, 840), (760, 830), (800, 802), (838, 806), (865, 838), (865, 912), (838, 952), (760, 978), (700, 980)]),
+    'WNG09': dict(root=(705, 910), bend=(0, 140), grow=2, poly=[(695, 960), (700, 860), (705, 790), (720, 760), (760, 775), (800, 785), (840, 765), (868, 725), (892, 740), (894, 830), (876, 892), (820, 942), (740, 975)]),
+    'WNG10': dict(root=(720, 900), bend=(0, 100), poly=[(705, 950), (705, 860), (722, 808), (752, 784), (790, 772), (838, 770), (858, 800), (852, 880), (820, 935), (760, 960)], polys={2: [(705, 950), (705, 860), (722, 800), (752, 762), (790, 735), (840, 735), (862, 790), (852, 880), (820, 935), (760, 960)], 3: [(705, 950), (705, 860), (722, 800), (735, 760), (760, 722), (800, 716), (842, 728), (862, 790), (852, 880), (820, 935), (760, 960)]}),
+    'WNG11': dict(root=(680, 910), bend=(0, 160), poly=[(660, 870), (700, 850), (740, 815), (790, 818), (812, 800), (830, 752), (880, 718), (935, 712), (955, 760), (955, 880), (920, 925), (850, 950), (760, 965), (690, 965)]),
+    'WNG12': dict(root=(650, 905), bend=(0, 160), poly=[(640, 838), (690, 852), (740, 862), (800, 845), (832, 812), (835, 760), (842, 712), (870, 705), (900, 760), (905, 830), (888, 900), (810, 958), (720, 980), (690, 978), (684, 955), (660, 925), (640, 900)]),
+    'WNG13': dict(root=(700, 915), bend=(0, 150), grow=2, poly=[(700, 880), (760, 878), (810, 870), (840, 830), (838, 770), (842, 712), (872, 712), (888, 790), (892, 860), (868, 920), (810, 955), (720, 968), (690, 955)]),
+    'WNG14': dict(root=(680, 900), bend=(0, 120), still=30, hips=0.4, poly=[(660, 860), (700, 836), (760, 812), (830, 790), (860, 800), (880, 850), (890, 900), (860, 925), (800, 950), (740, 975), (690, 985), (660, 960)]),
+    'WNG15': dict(root=(780, 920), bend=(0, 150), amp=0.8, grow=1, poly=[(770, 960), (762, 900), (772, 860), (782, 820), (768, 760), (775, 680), (798, 615), (860, 585), (920, 605), (948, 700), (945, 800), (930, 880), (900, 930), (840, 960)], polys={0: [(770, 960), (762, 900), (752, 860), (742, 800), (752, 748), (786, 722), (791, 690), (805, 640), (822, 605), (860, 585), (920, 605), (948, 700), (945, 800), (930, 880), (900, 930), (840, 960)], 2: [(770, 960), (762, 900), (745, 860), (735, 800), (738, 740), (748, 716), (756, 699), (783, 702), (792, 692), (812, 650), (830, 610), (870, 585), (920, 605), (948, 700), (945, 800), (930, 880), (900, 930), (840, 960)], 3: [(770, 960), (762, 900), (745, 860), (732, 800), (735, 730), (758, 680), (805, 625), (835, 585), (875, 580), (925, 605), (950, 700), (948, 800), (930, 880), (900, 930), (840, 960)]}),
+    'WNG16': dict(root=(620, 920), bend=(0, 160), poly=[(610, 870), (640, 848), (680, 845), (740, 855), (800, 835), (828, 790), (840, 768), (872, 768), (880, 830), (875, 900), (830, 952), (740, 978), (650, 985), (625, 960)]),
+    'WNG17': dict(root=(660, 920), bend=(0, 170), amp=0.8, poly=[(640, 870), (650, 820), (690, 830), (735, 845), (758, 785), (780, 725), (830, 700), (880, 715), (910, 800), (918, 870), (890, 935), (820, 960), (720, 985), (668, 985), (650, 950)]),
+    'MAN01': dict(root=(790, 845), bend=(0, 150), poly=[(785, 880), (778, 810), (800, 760), (812, 680), (830, 590), (880, 545), (950, 570), (985, 660), (985, 790), (940, 860), (870, 895), (812, 895)]),
+    'MAN02': dict(root=(780, 830), bend=(0, 140), amp=0.6, poly=[(770, 880), (778, 790), (830, 720), (885, 560), (950, 548), (972, 640), (962, 810), (968, 945), (880, 948), (840, 905), (795, 905)]),
+    'MAN03': dict(root=(735, 845), bend=(0, 90), poly=[(722, 885), (718, 820), (760, 790), (795, 700), (812, 612), (870, 548), (1000, 585), (1018, 720), (982, 822), (900, 888), (800, 892)]),
+    'MAN04': dict(mode='shimmy'),                     # its back cloud is part of its cape, not a tail: it shimmies
+    'MAN05': dict(root=(760, 862), bend=(0, 120), amp=0.8, poly=[(745, 905), (750, 830), (800, 795), (880, 775), (1000, 795), (1018, 885), (972, 962), (850, 968), (785, 935)]),
+    'MAN06': dict(mode='shimmy'),                     # its tail is a stub (turned, its joints kink): it shimmies
+    'MAN07': dict(root=(790, 852), bend=(0, 130), amp=0.8, halo=15, poly=[(780, 885), (790, 800), (822, 722), (812, 640), (826, 578), (862, 528), (975, 505), (1035, 615), (1020, 738), (935, 772), (905, 820), (885, 885), (830, 905)]),
+    'MAN08': dict(mode='shimmy'),
+    'MAN09': dict(root=(800, 832), bend=(0, 50), poly=[(793, 868), (795, 760), (797, 650), (838, 585), (918, 588), (966, 680), (962, 812), (900, 872), (822, 876)]),
+    'MAN10': dict(root=(752, 850), bend=(0, 30), amp=1.4, poly=[(746, 885), (750, 808), (782, 772), (848, 780), (872, 865), (832, 925), (762, 912)]),
+    'MAN11': dict(root=(815, 845), bend=(0, 62), low=885,
+                  poly=[(790, 790), (812, 762), (830, 680), (900, 662), (985, 700), (992, 790), (930, 830), (900, 862), (860, 888), (830, 897), (812, 880)]),
+    'MAN12': dict(root=(790, 852), bend=(0, 150), poly=[(776, 892), (780, 820), (830, 760), (852, 680), (895, 585), (992, 608), (998, 772), (962, 842), (902, 898), (830, 905)]),
+    'MAN13': dict(root=(800, 842), bend=(0, 70), halo=25, poly=[(790, 872), (800, 792), (850, 742), (900, 650), (948, 568), (1012, 598), (992, 748), (956, 846), (884, 880), (830, 890)]),
+    'MAN14': dict(root=(640, 930), bend=(0, 120), still=80, hips=0.4, tuck=110, poly=[(640, 1005), (640, 860), (690, 800), (742, 722), (838, 730), (858, 845), (822, 945), (730, 1002)]),
+    'MAN15': dict(root=(845, 805), bend=(0, 260), amp=0.5, halo=25, tuck=60, poly=[(830, 520), (885, 440), (945, 430), (1030, 500), (1065, 600), (1062, 712), (1040, 812), (975, 872), (900, 870), (860, 836), (848, 792), (822, 742), (806, 680), (806, 600)]),
+    'MAN16': dict(mode='shimmy'),                     # its tail is a nub: it shimmies
+    'MAN17': dict(root=(802, 840), bend=(0, 100), amp=1.2, grow=4, tuck=80, poly=[(793, 775), (800, 748), (850, 755), (905, 768), (938, 792), (935, 842), (882, 892), (832, 925), (812, 908), (804, 900), (800, 840)]),
+    'MAN18': dict(root=(810, 822), bend=(0, 60), grow=2, tuck=85, poly=[(800, 520), (860, 505), (952, 525), (992, 650), (985, 712), (965, 772), (940, 822), (895, 872), (850, 922), (826, 896), (822, 860), (812, 830), (801, 812), (800, 760), (800, 690)]),
+}
+
+
+def _wag_table(n=16, per=6):
+    env = [0, .55, .9, 1, 1, 1, 1, 1, 1, 1, 1, 1, .8, .55, .3, 0]
+    root, tip, hips, bob = [], [], [], []
+    for k in range(n):
+        ph = 2 * math.pi * (k - 1 + 0.5) / per
+        e = env[k]
+        root.append(e * math.sin(ph))
+        tip.append(e * math.sin(ph - 0.9))                # the tip a beat behind
+        hips.append(e * math.sin(ph - 0.35))
+        bob.append(e * abs(math.sin(ph - 0.35)))           # a dip at each end of the sway
+    return root, tip, hips, bob
+
+
+_wr, _wt, _wh, _wb = _wag_table()
+WAG = dict(
+    root=_wr, tip=_wt, hips=_wh, bob=_wb,
+    a_root=float(os.environ.get('WAG_ROOT', 9)), a_tip=float(os.environ.get('WAG_TIP', 20)),     # degrees
+    a_hips=float(os.environ.get('WAG_HIPS', 16)), a_bob=float(os.environ.get('WAG_BOB', 0.012)),  # native px; share of height
+    a_rock=float(os.environ.get('WAG_ROCK', 2.0)),       # degrees the rump rocks about the belly, against the tail
+    a_shimmy=float(os.environ.get('WAG_SHIMMY', 3.5)),   # degrees a tailless body sways over its feet
+    eyes=[None] + ['happy'] * 13 + [None] * 2 if os.environ.get('WAG_EYES') != 'open' else [None] * 16,
+    dur=[90] + [55] * 13 + [80, 120])
+
+
+def wag_mask(rig, i=0):
+    """The tail as drawn in drawn frame i (its outline grown a little, nearly hard at the edge): 0..1 a
+    native px. Sets rig._wagF to that frame's cuts at render scale: (hard, soft, tuck)."""
+    import numpy as np
+    W = WAG_RIGS[rig.id]
+    poly = W.get('polys', {}).get(i, W.get('poly'))
+    cache = rig.__dict__.setdefault('_wagcache', {})
+    key = tuple(poly) if poly else None
+    if key not in cache:
+        m = Image.new('L', (rig.F0, rig.F0), 0)
+        if poly:
+            ImageDraw.Draw(m).polygon(poly, fill=255)
+            m = m.filter(ImageFilter.MaxFilter(2 * W.get('grow', 8) + 1)).filter(ImageFilter.GaussianBlur(W.get('soft', 2.5)))
+        mask = np.asarray(m, dtype=np.float32) / 255.0
+        mf = np.asarray(m.resize((rig.F, rig.F), Image.BILINEAR), dtype=np.float32) / 255.0
+        # in a glow the cut is wide and soft, so the glow follows the tail and thins out, never an edge
+        ms = Image.new('L', (rig.F0, rig.F0), 0)
+        if poly:
+            ImageDraw.Draw(ms).polygon(poly, fill=255)
+            ms = ms.filter(ImageFilter.MaxFilter(2 * (W.get('grow', 8) + W.get('halo', 0)) + 1)).filter(ImageFilter.GaussianBlur(18))
+        msf = np.asarray(ms.resize((rig.F, rig.F), Image.BILINEAR), dtype=np.float32) / 255.0
+        # where the tail's root tucks in under the body: drawn with the tail, hidden by the body
+        yy, xx = np.mgrid[0:rig.F, 0:rig.F] / rig.k
+        rx, ry = W['root']
+        tuck = np.clip((W.get('tuck', 70) - np.hypot(xx - rx, yy - ry)) / 15.0, 0, 1)
+        cache[key] = (mask, (mf, msf, tuck))
+    rig._wagF = cache[key][1]
+    return cache[key][0]
+
+
+def wag_field(rig, k, part='tail'):
+    """Where each point of wag frame k is read from (native px), after the body's own squash. 'body'
+    is the hips' sway alone; 'tail' is the tail cut out (see wag_frame) turned about its root as well."""
+    W, A = WAG_RIGS[rig.id], WAG
+    amp = W.get('amp', 1.0)
+    px = rig.px
+    low = W.get('low', rig.hip - 15 if rig.hip else 2000)          # (a Wing hovers: no legs to keep still)
+    foot = W.get('foot', rig.foot or 1150)
+    hips = W.get('hips', 0.5 if rig.floats else 1.0)
+    if W.get('mode') == 'shimmy':
+        # no tail: the body sways over its planted feet, the head riding along
+        ang = A['a_shimmy'] * amp * A['hips'][k]
+        hx = 0.6 * A['a_hips'] * amp * A['hips'][k]
+        cx, cy = px, foot
+
+        def g(x, y):
+            w = sm((foot - 25 - y) / 160) if not rig.floats else 1.0
+            if w <= 0:
+                return x, y
+            ra = math.radians(-ang * w)
+            ux, uy = x - cx, y - cy
+            return cx + ux * math.cos(ra) - uy * math.sin(ra) + w * hx, cy + ux * math.sin(ra) + uy * math.cos(ra)
+        return g
+    rx, ry = W['root']
+    th_r, th_t = A['a_root'] * amp * A['root'][k], A['a_tip'] * amp * A['tip'][k]
+    hx = A['a_hips'] * hips * A['hips'][k]
+    rock = -A['a_rock'] * hips * A['hips'][k]
+    d0, d1 = W['bend']
+    still = W.get('still', 0)
+    bx, by = px + 20, low - 30                           # the belly the rump rocks about
+
+    def f(x, y):
+        # the hips: the rear half sways sideways and rocks, the feet stay where they stand
+        wr = sm((x - (px + 10)) / 160) * sm((y - (rig.neck[1] - 60)) / 80) * (1 - sm((y - (low + 20)) / 85))
+        if wr > 0:
+            ra = math.radians(-rock * wr)
+            ux, uy = x - bx, y - by
+            x, y = bx + ux * math.cos(ra) - uy * math.sin(ra) - wr * hx, by + ux * math.sin(ra) + uy * math.cos(ra)
+        if part == 'body':
+            return x, y
+        # the tail: turned about its root, still at the root, bending near it, what is on the tip
+        # turned whole
+        dx, dy = x - rx, y - ry
+        d = math.hypot(dx, dy)
+        e = max(0.0, d - still)                         # (within [still] of the root it holds where it is)
+        th = th_r * sm(e / 50) + (th_t - th_r) * sm((e - d0) / (d1 - d0))
+        a = math.radians(-th)
+        return rx + dx * math.cos(a) - dy * math.sin(a), ry + dx * math.sin(a) + dy * math.cos(a)
+    return f
+
+
+def wag_frame(rig, i, mode, sx, sy, k):
+    """Wag frame k from idle frame i: the tail cut out and turned on its own, behind the body (whose
+    hole where the tail was shows what is behind it). The tail's root reaches in under the body, so
+    the seam never opens; at rest the two together are the frame exactly."""
+    import numpy as np
+    W = WAG_RIGS[rig.id]
+    if W.get('mode') == 'shimmy':
+        return rig.pose(i, mode, sx, sy, 0, (0, 0), 0, 0, extra=wag_field(rig, k))
+    if rig.layer == 'eyes':                              # (the eyes are nowhere near the tail)
+        return rig.pose(i, mode, sx, sy, 0, (0, 0), 0, 0, extra=wag_field(rig, k, 'body'))
+    wag_mask(rig, i)
+    mh, ms, tuck = rig._wagF
+    face = rig.face(i, mode)
+    al = np.asarray(face.getchannel('A'), dtype=np.float32) / 255.0
+    if getattr(rig, '_wag_hard', None) is None:          # hard-edged art (a Horn's) has no glow: what is half-clear
+        seen = al > 0.05                                  # round it is its anti-aliased outline
+        rig._wag_hard = bool(((al > 0.05) & (al < 0.9)).sum() < 0.04 * max(1, seen.sum()))
+    solid_ = np.clip((al - 0.5) / 0.4, 0, 1)
+    mc = mh if rig._wag_hard else mh * solid_ + ms * (1 - solid_)     # hard where it is solid, soft in its glow
+    # the tail's share: what makes "body over tail" give back the frame (opaque where the tail is)
+    g = np.maximum(tuck, np.clip(mc / np.maximum(1e-3, 1 - (1 - mc) * al), 0, 1))
+    tail = face.copy()
+    tail.putalpha(Image.fromarray(np.round(al * g * 255).astype(np.uint8)))
+    body = face.copy()
+    body.putalpha(Image.fromarray(np.round(al * (1 - mc) * 255).astype(np.uint8)))
+    # where the solid tail was, the glow round it, laid under the tail: hidden while the tail is there,
+    # it keeps the glow whole once the tail swings away (an empty patch in a glow reads as a dark hole)
+    from scipy.ndimage import gaussian_filter
+    ab = al * (1 - mc)
+    w = ((ab > 0.02) & (ab < 0.85)).astype(np.float32) * (1 - mc)
+    rgb = np.asarray(face.convert('RGB'), dtype=np.float32)
+    sg = 10 * rig.k / 0.5
+    den = gaussian_filter(w, sg)
+    na = gaussian_filter(ab * w, sg)
+    nrgb = np.stack([gaussian_filter(rgb[..., c] * ab * w, sg) for c in range(3)], -1)
+    fa = mh * (al > 0.9) * np.where(den > 1e-4, na / np.maximum(den, 1e-4), 0) * np.clip(den / 0.25, 0, 1)
+    if rig._wag_hard:                                    # (no glow to fill: its outline would smear)
+        fa = fa * 0
+    frgb = np.where(na[..., None] > 1e-5, nrgb / np.maximum(na[..., None], 1e-5), 0)
+    fill = Image.fromarray(np.dstack([np.clip(frgb, 0, 255), np.clip(fa * 255, 0, 255)]).round().astype(np.uint8), 'RGBA')
+    # where the tail meets the body, its base as drawn, left where it is under everything: the tail
+    # turning off it never opens a gap there (hidden at rest under the solid tail)
+    from scipy.ndimage import distance_transform_edt
+    yy, xx = np.mgrid[0:rig.F, 0:rig.F] / rig.k
+    near = np.hypot(xx - W['root'][0], yy - W['root'][1]) < W.get('seamr', 150)     # (where the tail meets the body)
+    seam = (mh > 0.15) & (mh < 0.85) & (al > 0.9) & near
+    band = np.clip((W.get('seam', 26) * rig.k - distance_transform_edt(~seam)) / (4 * rig.k), 0, 1) if seam.any() else np.zeros_like(al)
+    # its colour: the body's own just beside the seam, carried across it (an average of the body round
+    # it took in stripes and outlines and showed as a grey streak)
+    src_ = (ab > 0.9) & (mc < 0.1)
+    if src_.any():
+        _, (iy, ix) = distance_transform_edt(~src_, return_indices=True)
+        srgb = rgb[iy, ix]
+        srgb = np.stack([gaussian_filter(srgb[..., c], 1.5 * rig.k / 0.5) for c in range(3)], -1)
+    else:
+        srgb = rgb
+    ua = (al > 0.9) * band        # (solid across the seam: half of it under half a body showed a dark line)
+    under = Image.fromarray(np.dstack([np.clip(srgb, 0, 255), ua * 255]).round().astype(np.uint8), 'RGBA')
+    # the body's glow goes under the tail, its solid parts over it (the tail is behind the body)
+    sb = Image.fromarray(((al > 0.9) * 255).astype(np.uint8))
+    bglow, bsolid = body.copy(), body.copy()
+    bglow.putalpha(ImageChops.multiply(body.getchannel('A'), ImageChops.invert(sb)))
+    bsolid.putalpha(ImageChops.multiply(body.getchannel('A'), sb))
+    t = rig.pose(i, mode, sx, sy, 0, (0, 0), 0, 0, src=tail, extra=wag_field(rig, k, 'tail'))
+    rig.log.pop()                                        # (one pose a frame, for the costume's track)
+    layers = []
+    for src in (under, fill, bglow):
+        layers.append(rig.pose(i, mode, sx, sy, 0, (0, 0), 0, 0, src=src, extra=wag_field(rig, k, 'body')))
+        rig.log.pop()
+    b = rig.pose(i, mode, sx, sy, 0, (0, 0), 0, 0, src=bsolid, extra=wag_field(rig, k, 'body'))
+    out = layers[0]
+    for lay in layers[1:] + [t, b]:
+        out = Image.alpha_composite(out, lay)
+    return out
+
+
+def wag_rig_check(rig, hid):
+    """Its first frame with the tail's mask tinted and the root marked (or SHIMMY written on it)."""
+    base = Image.new('RGBA', (rig.F0, rig.F0), (46, 46, 56, 255))
+    base.alpha_composite(rig.raw[0])
+    W = WAG_RIGS[hid]
+    d = ImageDraw.Draw(base)
+    if W.get('mode') == 'shimmy':
+        d.text((40, 40), 'SHIMMY', fill=(255, 255, 0, 255), font=ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 80))
+    else:
+        m = Image.fromarray((wag_mask(rig) * 150).astype('uint8'))
+        base = Image.composite(Image.new('RGBA', base.size, (0, 255, 120, 255)), base, m)
+        d = ImageDraw.Draw(base)
+        rx, ry = W['root']
+        d.ellipse((rx - 8, ry - 8, rx + 8, ry + 8), fill=(255, 0, 255, 255))
+        for r in W['bend'][1:]:
+            d.ellipse((rx - r, ry - r, rx + r, ry + r), outline=(255, 0, 255, 255), width=2)
+    low = W.get('low', rig.hip - 15 if rig.hip else 2000)
+    d.line((0, low, rig.F0, low), fill=(255, 255, 255, 120), width=2)
+    return base.convert('RGB')
+
+
 # Where each Let's mouth is while it sleeps (512 px frame).
 LET_MOUTH = {'LET01': (185, 283), 'LET02': (203, 288), 'LET03': (188, 312), 'LET04': (179, 287), 'LET05': (200, 317), 'LET06': (230, 309),
              'LET07': (214, 330), 'LET08': (228, 263), 'LET09': (190, 300), 'LET10': (190, 293), 'LET11': (220, 275), 'LET12': (190, 297),
@@ -1012,6 +1315,13 @@ def build(rig, name, fixed=None):
                 sx, sy = ss(A['sx'][k], A['sy'][k])
                 lag = A['hdy'][k] * f512 * 0.7
                 out.append(rig.pose(k % n, A['eyes'][k], sx, sy, A['h'][k] * f512 * up * (2.0 if rig.floats and rig.fam == 'WNG' else 1.0), (0, lag * (up if lag < 0 else 1)), 0, A['trot'][k] * 0.35))
+        elif name == 'wag':
+            A = WAG
+            for k in range(16):
+                sy = 1 - A['a_bob'] * A['bob'][k]
+                sx = 1 + 0.5 * A['a_bob'] * A['bob'][k] * wide
+                seq = WAG_RIGS[rig.id].get('frames') or list(range(n))       # (the drawn frames it cycles through)
+                out.append(wag_frame(rig, seq[(k // 2) % len(seq)], A['eyes'][k], sx, sy, k))
         elif name == 'fire':
             A = FIRE
             side = 1.0 if rig.side else 0.0
@@ -1091,7 +1401,7 @@ def rig_check(rig):
 
 
 def durations(name):
-    return HOP['dur'] if name == 'hop' else FIRE['dur'] if name == 'fire' else [150] * NS
+    return HOP['dur'] if name == 'hop' else FIRE['dur'] if name == 'fire' else WAG['dur'] if name == 'wag' else [150] * NS
 
 
 RIGS = {}
@@ -1119,10 +1429,18 @@ if only:
 font = ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 18)
 CELLPX, COLS = 260, 6
 anims = {'fire': {}} if FAM in NEW_FAMS else {'hop': {}, 'fire': {}, 'sleep': {}}     # the new families: an attack only
+if os.environ.get('ANIMS'):                                # only these (the wag is made only this way: ANIMS=wag)
+    anims = {a: {} for a in os.environ['ANIMS'].split(',')}
+    if 'wag' in anims:                                 # (the Manes, Horns, Wings and Pips)
+        ids = [i for i in ids if i in WAG_RIGS]
 TRACKS = {}
 for hid in ids:
     rig = Rig(hid)
     notes = []
+    if 'wag' in anims and os.environ.get('WAG_RIG') and hid in WAG_RIGS:    # the tail's mask and root, to place them by
+        wag_rig_check(rig, hid).save('%s/%s_wag_rig.png' % (OUT, hid))
+        if os.environ.get('WAG_RIG') == 'only':
+            continue
     for name in anims:
         frames, scale = build(rig, name)
         n_idle = len(rig.frames)
@@ -1133,7 +1451,8 @@ for hid in ids:
         else:                                             # posed from frames steadied onto frame 0
             base_of = lambda j, i: 0
         if rig.fam not in NEW_FAMS:                       # (no costume is fitted to the new families)
-            tr = rig.track(rig.poses, base_of)
+            shim = name == 'wag' and WAG_RIGS.get(hid, {}).get('mode') == 'shimmy'
+            tr = rig.track(rig.poses, base_of, [wag_field(rig, k) for k in range(16)] if shim else None)
             TRACKS.setdefault(hid, {})[name] = tr[::2] if name == 'sleep' else tr
         if scale != (1.0, 1.0):
             notes.append('%s up x%.2f wide x%.2f' % ((name,) + scale))
@@ -1164,6 +1483,8 @@ for hid in ids:
                     es.save(ep, optimize=True)
     print(hid, rig.name, '' if rig.fam in NEW_FAMS else 'eyes found' if rig.eyes[0] is not None and rig.eyes[0].getbbox() else 'NO EYES', '; '.join(notes), flush=True)
 
+if os.environ.get('WAG_RIG') == 'only':                # the rigs alone
+    sys.exit(0)
 tag = FAM.lower() + ('_' + only.replace(',', '_') if only else '')
 for name, per in anims.items():
     rows = -(-len(per) // COLS)
@@ -1182,7 +1503,7 @@ for name, per in anims.items():
     p = '%s/%s_%s.gif' % (OUT, tag, name)
     sheet[0].save(p, save_all=True, append_images=sheet[1:], duration=durations(name), loop=0, optimize=True)
     # a still to check by: the frame with the painted eyes
-    sheet[{'hop': 9, 'fire': 3, 'sleep': 4}[name]].save('%s/%s_%s_check.png' % (OUT, tag, name))
+    sheet[{'hop': 9, 'fire': 3, 'sleep': 4, 'wag': 5}[name]].save('%s/%s_%s_check.png' % (OUT, tag, name))
     print(p, (W, H), os.path.getsize(p) // 1024, 'KB')
     if FAM in NEW_FAMS:                                   # every species, its ten frames in a row
         C2 = 192

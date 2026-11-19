@@ -1,9 +1,10 @@
 # Creature sprite animations
 
 The scripts that made the 8-frame idles and the hop, sleep and attack ("fire") sheets for
-the Horns, Wings, Pips, Lets and Manes, and the attack sheets for the Masks, Kin and Mystics.
+the Horns, Wings, Pips, Lets and Manes, the Manes', Horns', Wings' and Pips' wag, and the
+attack sheets for the Masks, Kin and Mystics.
 Python 3 with Pillow; `manes2_build.py`, `actions_build.py` and `install_fires.py` also need
-numpy and scipy.
+numpy and scipy (`trailer/source/venv/bin/python` has them).
 
 Every script takes a scratch folder as its first argument (`<scratch>`): it reads the other
 scripts from there and writes its trial sheets and GIFs into it. Copy this folder's `*.py`
@@ -19,6 +20,8 @@ The Horn, Wing, Pip and Let builders read the original 4-frame sheets from git h
 | `install_idles.py`, `install_manes.py` | put idles, sprite data, costume fits and albino eyes into the game |
 | `actions_build.py <scratch> <HOR\|PIP\|WNG\|LET\|MAN> [scale]` | hop, attack and sleep trial sheets (`KEEP=1` keeps per-creature sheets and albino eye layers; `ONLY=ids`) |
 | `actions_build.py <scratch> <MSK\|KIN\|MYS> 1` | the attack alone for Masks, Kin and Mystics, from the rig tables in the file and the idle sheets as they are in the working tree (512 px, so scale 1; needs numpy; nothing else in `<scratch>`). `RIG=1` also writes each one's rig marked on its first frame; `actions/<family>_fire_contact.png` has every species' ten frames in a row |
+| `ANIMS=wag KEEP=1 actions_build.py <scratch> MAN\|HOR\|WNG\|PIP` | the Manes', Horns', Wings' and Pips' wag, a happy fidget (16 frames, about a second, eyes shut happy): the tail wags and the hips sway, the feet planted. Each tail is drawn round by hand in `WAG_RIGS` (its root, its outline, how far it bends); it is cut out and turned behind the body, and the glow it leaves is filled in. Hard-edged art (the Horns) is cut cleanly, with no glow fill. One whose tail is a nub or a stub joined along a long seam (Air, Mud, Lava, Light Manes; Earthhorn; Earthwing; Earth, Air, Steam, Mud, Dust Pips) shimmies. A Wing whose wing sweeps over its tail in some flap frames leaves those frames out of its wag (`frames`) or has an outline for each frame (`polys`). `WAG_RIG=1` (or `only`) writes each tail's outline over its first frame; `WAG_EYES=open` keeps the eyes open |
+| `install_wags.py <scratch>` | put the Manes', Horns', Wings' and Pips' wag sheets and their albino eye layers beside each idle sheet, list their species in `creature_actions.dart`, and add each one's head track (the fourth list) to `costume_action_tracks.dart` |
 | `darklet_hop.py` | Darklet's hop, and the head positions its ring follows (`DarkletRing._hopHeadY`) |
 | `install_hops.py`, `install_sleeps.py`, `install_fires.py` | put those sheets beside each idle sheet and list their species in `lib/widgets/creature_actions.dart` (`install_fires.py` adds to the species already listed, and gives the soft-shaded Masks, Kin and Mystics a palette fitted to their own colours: numpy and scipy; `FULL=1` keeps them in full colour) |
 | `mane_costumes.py` | the Manes' rows in `lib/models/costume_fits.dart` |

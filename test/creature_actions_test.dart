@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:alchemons/widgets/creature_actions.dart';
+import 'package:alchemons/widgets/fx/albino_look.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -72,6 +73,43 @@ void main() {
       expect(header.getUint32(0), def.frameSize * def.cols, reason: def.path);
       expect(header.getUint32(4), def.frameSize * 3, reason: def.path);
     }
+  });
+
+  test('every wag species has its sheet beside its idle sheet', () {
+    // Every Mane, Horn, Wing and Pip: its tail wag (or, with no tail to
+    // wag, its shimmy).
+    expect(kWagSpecies.where((s) => s.startsWith('MAN')), hasLength(18));
+    expect(kWagSpecies.where((s) => s.startsWith('HOR')), hasLength(17));
+    expect(kWagSpecies.where((s) => s.startsWith('WNG')), hasLength(17));
+    expect(kWagSpecies.where((s) => s.startsWith('PIP')), hasLength(17));
+    expect(kWagSpecies, hasLength(69));
+    for (final id in kWagSpecies) {
+      final def = actionSheetFor(idleOf(id), CreatureAction.wag);
+      expect(def, isNotNull, reason: id);
+      expect(
+        File('assets/images/${def!.path}').existsSync(),
+        isTrue,
+        reason: def.path,
+      );
+    }
+  });
+
+  test('the wag: 16 frames beside the idle, played once, about a second', () {
+    expect(kWagSpecies, contains('MAN11'));
+    final idle = idleOf('MAN11');
+    final def = actionSheetFor(idle, CreatureAction.wag, idleFrame: 1200)!;
+    expect(def.path, idle.replaceAll('_spritesheet.png', '_wag.png'));
+    expect(def.frames, 16);
+    expect(def.cols, 4);
+    expect(def.loop, isFalse);
+    // A 1200 px species' actions are drawn at half its idle's size.
+    expect(def.frameSize, 600);
+    expect(def.stepTimes.length, def.frames);
+    expect(def.stepTimes.reduce((a, b) => a + b), closeTo(1.0, 0.01));
+    // Its albino wears red eyes through it, as through a hop.
+    expect(albinoEyesPath(def.path), endsWith('_wag_albino_eyes.png'));
+    // A species without a wag sheet has none.
+    expect(actionSheetFor(idleOf('LET01'), CreatureAction.wag), isNull);
   });
 
   test('a species without a hop sheet has no hop', () {

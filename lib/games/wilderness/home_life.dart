@@ -290,6 +290,11 @@ class _Liver {
 
   /// On its way to bed down by the fissure (Volcanic's form) first.
   bool toWarmth = false;
+
+  /// When it next wags where it stands (a wild one) or hangs in the air,
+  /// if its kind has a wag (field seconds; see `_WildLife._fidgetNow`,
+  /// [_HomeLife._fidgetAloft]).
+  double fidgetAt = 0;
 }
 
 /// A Horn chasing a Let along the ground they share, the Horn's step
@@ -582,6 +587,9 @@ class _HomeLife {
       l.dy = math.sin(a) * 10 * _u - 6 * _u;
       return;
     }
+    // Now and then, where it hangs, its wag (a Wing's tail); never a hop in
+    // mid-air.
+    if (t >= l.fidgetAt) _fidgetAloft(l, comp);
     l.wait -= dt;
     if (l.wait <= 0) {
       l
@@ -595,6 +603,28 @@ class _HomeLife {
     }
     l.dy = math.sin(t * 0.9 * slow + l.seed) * 6 * _u * slow +
         math.sin(t * 0.37 + l.seed * 0.3) * 3 * _u;
+  }
+
+  /// A wag for one in the air, some seconds apart, while it is on the
+  /// screen (see [_fidget]); the first a few seconds after it appears. One
+  /// whose kind has no wag is not asked again for a long while.
+  void _fidgetAloft(_Liver l, WildMonComponent comp) {
+    final t = game._fieldTime;
+    final sprite = comp.sprite;
+    if (l.fidgetAt == 0 ||
+        (sprite != null &&
+            sprite.isLoaded &&
+            !sprite.hasAction(CreatureAction.wag))) {
+      l.fidgetAt = t + (l.fidgetAt == 0 ? 2 + _rng.nextDouble() * 8 : 60);
+      return;
+    }
+    final anchor = game._spawnPointComps[l.id];
+    final played =
+        anchor != null &&
+        game.isOnScreen(anchor) &&
+        _fidget(comp, wag: 1, hop: false);
+    l.fidgetAt =
+        t + (played ? 5 + _rng.nextDouble() * 7 : 0.6 + _rng.nextDouble());
   }
 
   /// A flyer to a perch near it (a Flyer's Perch, the Elder Tree's top),
@@ -783,8 +813,9 @@ class _HomeLife {
       final sx = game.screenXOf(l.id);
       if (sx != null && (touch.x - sx).abs() < 150) {
         comp.face(touch.x > sx ? -1 : 1);
-        // A finger come near it: a hop, as it turns to look.
-        if (l.heedFor <= 0) _hop(comp);
+        // A finger come near it: a hop (now and then a wag), as it turns
+        // to look.
+        if (l.heedFor <= 0) _fidget(comp, wag: 0.35);
         l
           ..heedFor = 1.6
           ..target = l.dx;
@@ -868,8 +899,8 @@ class _HomeLife {
         return;
       }
     }
-    // A hop where it stands, for no reason at all.
-    if (roll < 0.67 && _hop(comp)) {
+    // A hop where it stands, or a wag, for no reason at all.
+    if (roll < 0.67 && _fidget(comp, wag: 0.5)) {
       l
         ..target = l.dx
         ..wait = 2 + _rng.nextDouble() * 3;
@@ -887,14 +918,24 @@ class _HomeLife {
     comp.face(base);
   }
 
-  /// When a resident last hopped (field seconds): never two at once.
+  /// When a resident last hopped or wagged (field seconds): never two at
+  /// once.
   double _hoppedAt = -1e9;
 
-  /// Has [comp] play its hop, unless another resident has only just hopped
-  /// or its sprite cannot (see [CreatureSpriteComponent.playAction]).
-  bool _hop(WildMonComponent comp) {
+  /// Has [comp] play its hop — or, [wag] of the time, its wag, where its
+  /// species has one (where not, the hop, unless [hop] is false) — unless
+  /// another resident has only just played one or its sprite cannot (see
+  /// [CreatureSpriteComponent.playAction]).
+  bool _fidget(WildMonComponent comp, {double wag = 0, bool hop = true}) {
     if (game._fieldTime - _hoppedAt < 1.4) return false;
-    if (comp.sprite?.playAction(CreatureAction.hop) != true) return false;
+    final sprite = comp.sprite;
+    if (sprite == null) return false;
+    final played =
+        (wag > 0 &&
+            _rng.nextDouble() < wag &&
+            sprite.playAction(CreatureAction.wag)) ||
+        (hop && sprite.playAction(CreatureAction.hop));
+    if (!played) return false;
     _hoppedAt = game._fieldTime;
     return true;
   }

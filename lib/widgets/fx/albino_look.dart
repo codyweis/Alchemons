@@ -119,9 +119,9 @@ String? albinoEyesPath(String sheetPath) {
   if (file.length < 5 || !kAlbinoEyeSpecies.contains(file.substring(0, 5))) {
     return null;
   }
-  // A hop or an attack has an eye layer of its own, carried through the same
-  // motion (open eyes only); asleep, its eyes are shut.
-  for (final action in const ['_hop.png', '_fire.png']) {
+  // A hop, an attack or a wag has an eye layer of its own, carried through
+  // the same motion (open eyes only); asleep, its eyes are shut.
+  for (final action in const ['_hop.png', '_fire.png', '_wag.png']) {
     if (sheetPath.endsWith(action)) {
       return sheetPath.replaceAll('.png', '_albino_eyes.png');
     }

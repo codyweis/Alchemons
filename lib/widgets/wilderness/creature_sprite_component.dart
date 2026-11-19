@@ -111,6 +111,10 @@ class CreatureSpriteComponent<G extends FlameGame> extends PositionComponent
     return true;
   }
 
+  /// Whether its species has a sheet for [action] at all (whether it can
+  /// play it now is [playAction]'s to say).
+  bool hasAction(CreatureAction action) => _actionFor(action) != null;
+
   /// [action]'s sheet for this species, or null. [sheet] is its own sheet,
   /// or already its baked copy: then the action's is found from the plain
   /// one it was baked from.

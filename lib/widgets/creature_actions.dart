@@ -1,6 +1,6 @@
 // lib/widgets/creature_actions.dart
 //
-// Short animations a creature plays once over its idle (a hop, for now), and
+// Short animations a creature plays once over its idle (a hop, a wag), and
 // the widget that asks for one every few seconds.
 import 'dart:async';
 import 'dart:math' as math;
@@ -14,7 +14,10 @@ import 'package:flame/components.dart' show Vector2;
 import 'package:flutter/widgets.dart';
 
 /// Something a creature does once, then goes back to its idle.
-enum CreatureAction { hop, sleep, fire }
+///
+/// New ones go at the end: [CreatureAction.index] names an action's head
+/// track for the costumes (`costumeActionFrame`).
+enum CreatureAction { hop, sleep, fire, wag }
 
 /// One action's sheet: a grid of square frames, each held for its own time.
 class ActionSheet {
@@ -144,6 +147,32 @@ const Set<String> kFireSpecies = {
   // END GENERATED: fire
 };
 
+/// The wag: a short happy fidget (a Mane's, Horn's, Wing's or Pip's tail
+/// and hips), in 16 frames — a beat to wind up, the quick swings, and a
+/// moment to settle.
+const List<double> _wagSteps = [
+  0.09, 0.055, 0.055, 0.055, 0.055, 0.055, 0.055, 0.055, //
+  0.055, 0.055, 0.055, 0.055, 0.055, 0.055, 0.08, 0.12,
+];
+
+/// The species with a wag sheet beside their idle sheet (`…_wag.png`).
+const Set<String> kWagSpecies = {
+  // GENERATED: wag species
+  'HOR01', 'HOR02', 'HOR03', 'HOR04', 'HOR05', 'HOR06',
+  'HOR07', 'HOR08', 'HOR09', 'HOR10', 'HOR11', 'HOR12',
+  'HOR13', 'HOR14', 'HOR15', 'HOR16', 'HOR17', 'MAN01',
+  'MAN02', 'MAN03', 'MAN04', 'MAN05', 'MAN06', 'MAN07',
+  'MAN08', 'MAN09', 'MAN10', 'MAN11', 'MAN12', 'MAN13',
+  'MAN14', 'MAN15', 'MAN16', 'MAN17', 'MAN18', 'PIP01',
+  'PIP02', 'PIP03', 'PIP04', 'PIP05', 'PIP06', 'PIP07',
+  'PIP08', 'PIP09', 'PIP10', 'PIP11', 'PIP12', 'PIP13',
+  'PIP14', 'PIP15', 'PIP16', 'PIP17', 'WNG01', 'WNG02',
+  'WNG03', 'WNG04', 'WNG05', 'WNG06', 'WNG07', 'WNG08',
+  'WNG09', 'WNG10', 'WNG11', 'WNG12', 'WNG13', 'WNG14',
+  'WNG15', 'WNG16', 'WNG17',
+  // END GENERATED: wag
+};
+
 /// The sheet [action] plays for the creature whose idle sheet is
 /// [idleSheetPath], or null when it has none.
 ///
@@ -196,6 +225,17 @@ ActionSheet? actionSheetFor(
         frames: 10,
         cols: 4,
         stepTimes: _fireSteps,
+        frameSize: side,
+      );
+    case CreatureAction.wag:
+      if (species == null || !kWagSpecies.contains(species)) return null;
+      return ActionSheet(
+        action: action,
+        path:
+            '${idleSheetPath.substring(0, idleSheetPath.length - suffix.length)}_wag.png',
+        frames: 16,
+        cols: 4,
+        stepTimes: _wagSteps,
         frameSize: side,
       );
   }
